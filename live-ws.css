@@ -206,3 +206,7 @@
   #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
+#master-trade-live-terminal.liveWs .liveWsGhost { background: #2a3b50 !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll { display: flex !important; flex-wrap: wrap; grid-template-columns: none !important; overflow: visible; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button { background: #101a25; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button.selected { background: var(--ws-green); }
