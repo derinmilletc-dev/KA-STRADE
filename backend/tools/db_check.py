@@ -20,7 +20,14 @@ TABLES = [
 
 async def main() -> None:
     dsn = getpass.getpass("Veritabanı adresi (yazarken görünmez): ").strip()
-    conn = await asyncpg.connect(dsn, timeout=20)
+    if dsn.count("://") != 1 or not dsn.startswith(("postgres://", "postgresql://")):
+        print("Adres hatalı görünüyor (bir kez, postgresql:// ile başlayarak yapıştır). Tekrar dene.")
+        return
+    try:
+        conn = await asyncpg.connect(dsn, timeout=20)
+    except Exception as error:  # hata metni adres/şifre içerebilir; yalnızca türü yazılır
+        print(f"Bağlanılamadı ({type(error).__name__}). Adresi kontrol edip tekrar dene.")
+        return
     try:
         await conn.execute("SET default_transaction_read_only = on")
         print("\n== TABLOLAR ==")
@@ -43,4 +50,7 @@ async def main() -> None:
         await conn.close()
 
 
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except Exception as error:
+    print(f"Hata ({type(error).__name__}).")
