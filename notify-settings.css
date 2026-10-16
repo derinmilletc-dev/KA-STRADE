@@ -1,0 +1,21 @@
+/* Bildirim ayarları: çizgisiz, boşluk ve ton ile ayrılmış satırlar */
+#notify-settings.nsCard { display: grid; gap: 16px; }
+#notify-settings.nsCard, #notify-settings.nsCard * { border: 0 !important; box-shadow: none !important; }
+#notify-settings .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
+#notify-settings .nsList, #notify-settings .nsChannels { display: grid; gap: 8px; }
+#notify-settings .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
+#notify-settings .nsRow > span { display: grid; gap: 3px; min-width: 0; }
+#notify-settings .nsRow b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #edf2f8; }
+#notify-settings .nsRow b svg { width: 17px; height: 17px; color: #34d399; }
+#notify-settings .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; }
+#notify-settings .nsSwitch { flex: none; position: relative; width: 50px; height: 30px; padding: 0; border-radius: 999px !important; background: #2a3647 !important; cursor: pointer; transition: background .18s ease; }
+#notify-settings .nsSwitch i { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50% !important; background: #cbd5e1; transition: transform .18s ease, background .18s ease; }
+#notify-settings .nsSwitch.on { background: #34d399 !important; }
+#notify-settings .nsSwitch.on i { transform: translateX(20px); background: #052e22; }
+#notify-settings .nsSwitch:focus-visible { outline: 2px solid #5aa9ff !important; outline-offset: 2px; }
+#notify-settings .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; line-height: 1.5; }
+#notify-settings .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#notify-settings .nsFoot small { color: #9aa9ba; }
+#notify-settings .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
+#notify-settings .nsTest svg { width: 17px; height: 17px; }
+@media (max-width: 520px) { #notify-settings .nsRow { padding: 12px; } #notify-settings .nsTest { width: 100%; justify-content: center; } }

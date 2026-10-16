@@ -3,6 +3,7 @@ import {Activity, ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Copy,
 import {QRCodeSVG} from 'qrcode.react'
 import {accountDate, accountInitials, accountRequest, TRADING_TIMEFRAMES, type AccountMutation, type AccountOverview, type SensitiveProof, type TradingPreferences} from './account-settings-api'
 import './profile-settings.css'
+import NotificationSettings from './NotificationSettings'
 import {PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordPolicyError, passwordRules} from './password-policy'
 
 type DialogKind = 'profile' | 'email' | 'password' | 'two-factor' | 'sessions' | 'activity' | 'close'
@@ -169,6 +170,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
             <div className="accountSymbolInput"><input aria-label="Sembol ekle" placeholder="BTCUSDT" value={symbolInput} maxLength={34} onChange={event => setSymbolInput(event.target.value)}/><button type="button" disabled={busy} onClick={addSymbol}>Ekle</button></div>
             <p>Yalnızca yeni ekranların başlangıç tercihleri. Auto Trade açılmaz; açık işlemler, risk politikası ve onay kapıları değişmez.</p><button className="accountPrimary" disabled={busy}><Save/>Tercihleri kaydet</button>
           </form></section>
+          <NotificationSettings/>
           <section className="accountCard"><h2>Son aktiviteler<button onClick={() => openDialog('activity')}>Tümünü görüntüle<ArrowRight/></button></h2>{data.activity.length ? activity() : <p className="accountMuted">Kayıtlı hesap aktivitesi yok.</p>}</section>
           <section className="accountCard accountDanger"><h2>Tehlikeli işlemler</h2><div><Trash2/><span><b>Hesabı kapat</b><p>Giriş ve erişim hakkınız sonlandırılır. Kayıtlarınız yetkili yönetici panelinde saklanmaya devam eder; borsadaki emirler otomatik kapatılmaz.</p></span><button disabled={busy || !data.security.can_close_account} onClick={() => openDialog('close')}>Hesabı kapat</button></div>{data.security.close_blocker && <p className="accountMuted">{data.security.close_blocker}</p>}</section>
         </div>

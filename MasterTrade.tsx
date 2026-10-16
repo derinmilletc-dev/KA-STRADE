@@ -1,3 +1,4 @@
+import { useLiveEventNotifications } from './notification-prefs'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import { Activity, BarChart3, Cable, Check, ChevronDown, Clock3, Crosshair, Gauge, History, ListChecks, LockKeyhole, ShieldX, UnlockKeyhole, Wallet, X, XCircle } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
@@ -159,6 +160,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   const [performanceSnapshot, setPerformanceSnapshot] = useState<PerformanceSnapshot | null>(null)
   const [dailyPerformance, setDailyPerformance] = useState<PerformanceSnapshot | null>(null)
   const [liveStatus, setLiveStatus] = useState<SharedLiveStatus | null>(null)
+  useLiveEventNotifications((liveStatus as {events?: unknown} | null)?.events)
   const [liveConnections, setLiveConnections] = useState<SharedConnectionStatus | null>(null)
   const [selectedTrade, setSelectedTrade] = useState<TradeHistoryRow | null>(null)
   const [markets, setMarkets] = useState<MarketRow[]>([])
