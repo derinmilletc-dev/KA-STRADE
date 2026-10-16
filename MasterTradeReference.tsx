@@ -291,11 +291,11 @@ export default function MasterTradeReference(props: Props) {
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
-          <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={props.candles}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="MOMENTUM" value={trLabel(analysis?.momentum)} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={props.candles} neutral/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={liveChart.candles}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="MOMENTUM" value={trLabel(analysis?.momentum)} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={liveChart.candles} neutral/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="RSI" value={numeric(analysis?.rsi, '', 2)}><MasterTradeMetricVisual kind="rsi" value={analysis?.rsi}/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="MACD" value={analysisValue(analysis?.macd)} tone={typeof analysis?.macd === 'number' ? analysis.macd >= 0 ? 'positive' : 'negative' : 'neutral'}><MasterTradeMetricVisual kind="macd" value={analysis?.macd}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="HACİM" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={props.candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="HACİM" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={liveChart.candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="GÜVEN" value={numeric(decision.confidenceScore, '%')} tone={decision.confidenceScore === null ? 'neutral' : 'positive'}><MasterTradeMetricVisual kind="confidence" value={decision.confidenceScore}/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="FIRSAT" value={numeric(decision.opportunityScore)}><MasterTradeMetricVisual kind="confidence" value={decision.opportunityScore}/></MasterTradeMetricTile>
         </div>
