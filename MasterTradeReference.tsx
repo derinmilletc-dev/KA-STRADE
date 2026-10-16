@@ -12,6 +12,7 @@ import {MasterTradeMarketWatch} from './MasterTradeMarketWatch'
 import type {MarketScore} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
+import {captureChart} from './chart-ai-client'
 import './master-trade-reference.css'
 
 type Candle = {time: number; open: number; high: number; low: number; close: number; volume: number}
@@ -35,6 +36,21 @@ const numeric = (value: number | null | undefined, suffix = '', decimals = 0) =>
 const directionTone = (direction: string) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
 const candleTime = (time: number) => new Date(time < 1e12 ? time * 1000 : time).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})
 
+type ChartPrefs = {grid: boolean; axis: boolean; crosshair: boolean}
+const CHART_PREFS_KEY = 'kaistrade-chart-prefs'
+function readChartPrefs(): ChartPrefs {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(CHART_PREFS_KEY) ?? '{}')
+    const value = typeof saved === 'object' && saved !== null ? saved as Record<string, unknown> : {}
+    return {grid: value.grid !== false, axis: value.axis !== false, crosshair: value.crosshair === true}
+  } catch {
+    return {grid: true, axis: true, crosshair: false}
+  }
+}
+function saveChartPrefs(prefs: ChartPrefs) {
+  try { localStorage.setItem(CHART_PREFS_KEY, JSON.stringify(prefs)) } catch { /* tarayıcı kaydı kapalı olabilir */ }
+}
+
 function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?: boolean}) {
   if (!candles.length) return <span>—</span>
   const changes = candles.slice(-12).map(candle => Math.abs(candle.close - candle.open))
@@ -45,8 +61,9 @@ function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?:
   })}</svg>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs}) {
   const [hover, setHover] = useState<number | null>(null)
+  const [hoverY, setHoverY] = useState<number | null>(null)
   const canvas = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({width: 900, height: 360})
   useLayoutEffect(() => {
@@ -85,19 +102,27 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
     <div className="refOhlc"><b>{symbol} · {interval}</b>{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p></div></div> : <>
-        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} onMouseLeave={() => setHover(null)} onMouseMove={event => {
+        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
           const box = event.currentTarget.getBoundingClientRect()
+          setHoverY((event.clientY - box.top) / box.height * size.height)
           const index = Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)
           setHover(Math.max(0, Math.min(visible.length - 1, index)))
         }}>
-          <g className="refChartGrid">{Array.from({length: 7}, (_, index) => {
+          <g className="refChartGrid" data-grid={prefs.grid}>{Array.from({length: 7}, (_, index) => {
             const tickY = 11 + index / 6 * (priceHeight - 22)
-            return <g key={index}><line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>{!labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{analysisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
-          })}{Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
+            return <g key={index}>{prefs.grid && <line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>}{prefs.axis && !labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{analysisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
+          })}{prefs.grid && Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
           {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
           <g className="masterTradeChartLabels">{([] as typeof labels).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
           <g className="refTimeAxis">{Array.from({length: 6}, (_, index) => {const candle = visible[Math.round(index / 5 * (visible.length - 1))]; return <text key={index} x={10 + index / 5 * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === 5 ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
           {hover !== null && <line className="refCrosshair" x1={x(Math.min(hover, visible.length - 1))} x2={x(Math.min(hover, visible.length - 1))} y1="0" y2={plotHeight}/>}
+          {prefs.crosshair && hover !== null && hoverY !== null && hoverY >= 0 && hoverY <= priceHeight && <g className="refCrosshairFull" aria-hidden="true">
+            <line x1="0" x2={plotWidth} y1={hoverY} y2={hoverY}/>
+            <rect className="refCrosshairTag" x={plotWidth + 4} y={hoverY - 10} width="96" height="20" rx="4"/>
+            <text x={plotWidth + 10} y={hoverY} dominantBaseline="middle">{analysisPrice(range.high - hoverY / priceHeight * (range.high - range.low))}</text>
+            <rect className="refCrosshairTag" x={Math.max(0, x(Math.min(hover, visible.length - 1)) - 26)} y={size.height - 20} width="52" height="18" rx="4"/>
+            <text x={x(Math.min(hover, visible.length - 1))} y={size.height - 7} textAnchor="middle">{candleTime(visible[Math.min(hover, visible.length - 1)].time)}</text>
+          </g>}
         </svg>
         <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{analysisPrice(label.value)}</span>)}</div>
       </>}
@@ -108,6 +133,26 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
 export default function MasterTradeReference(props: Props) {
   const {premium, ready, userId, openUpgrade} = useMemberAccess()
   const [notice, setNotice] = useState('')
+  const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
+  const [downloading, setDownloading] = useState(false)
+  const updatePrefs = (change: Partial<ChartPrefs>) => setPrefs(current => {const next = {...current, ...change}; saveChartPrefs(next); return next})
+  const downloadChart = async () => {
+    setDownloading(true)
+    try {
+      const svg = document.querySelector<SVGSVGElement>('.masterReferenceAnalysis svg[data-chart-ai-capture="reference"]')
+      const blob = await captureChart(svg)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${props.symbol}-${props.interval}-${new Date().toISOString().slice(0, 16).replace(':', '-')}.png`
+      document.body.appendChild(link); link.click(); link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (failure: unknown) {
+      setNotice(failure instanceof Error ? failure.message : 'Grafik görüntüsü alınamadı.')
+    } finally {
+      setDownloading(false)
+    }
+  }
   const {decision, trigger, analysis, live} = props
   const available = Boolean(analysis && props.candles.length >= 2)
   const locked = live?.real_trading_locked !== false
@@ -144,11 +189,23 @@ export default function MasterTradeReference(props: Props) {
           <div className="refToolbar" aria-label="Market chart controls"><span title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
             <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
-            <div className="refDrawingTools"><button disabled aria-label="Çizim araçları mevcut değil"><Crosshair/></button><button disabled aria-label="Grafik ayarları mevcut değil"><Settings2/></button><button disabled aria-label="Grafik ekran görüntüsü mevcut değil"><Camera/></button></div>
+            <div className="refDrawingTools">
+              <button type="button" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
+              <details className="refChartSettings">
+                <summary aria-label="Grafik ayarları" title="Grafik ayarları"><Settings2/></summary>
+                <div role="group" aria-label="Grafik ayarları">
+                  <label><input type="checkbox" checked={prefs.grid} onChange={() => updatePrefs({grid: !prefs.grid})}/>Izgara çizgileri</label>
+                  <label><input type="checkbox" checked={props.volumeVisible} onChange={props.onVolume}/>Hacim çubukları</label>
+                  <label><input type="checkbox" checked={props.levelsVisible} onChange={props.onLevels}/>Seviye etiketleri</label>
+                  <label><input type="checkbox" checked={prefs.axis} onChange={() => updatePrefs({axis: !prefs.axis})}/>Fiyat ekseni yazıları</label>
+                </div>
+              </details>
+              <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
+            </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <span className="refLockedAction" key={label} onClick={lockedOrder}><button type="button" disabled><LockKeyhole/>{label}</button><button type="button" className="refLockInfo" aria-label={`${label} neden kilitli?`} onClick={event => {event.stopPropagation(); lockedOrder()}}><LockKeyhole/></button></span>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
           </div>
           {props.error && <p className="refError" role="alert">{props.error}</p>}
-          <ReferenceChart {...props} premium={premium}/>
+          <ReferenceChart {...props} premium={premium} prefs={prefs}/>
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={props.candles}/></MasterTradeMetricTile>

@@ -352,3 +352,23 @@
 #root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refWorkspace, .refMetrics, .refCenter)::after {
   display: none !important;
 }
+
+/* Grafik araçları: artı imleci, ayarlar menüsü, görüntü indirme */
+.masterReferenceAnalysis .refDrawingTools button,
+.masterReferenceAnalysis .refChartSettings > summary { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9fb4b6; cursor: pointer; }
+.masterReferenceAnalysis .refDrawingTools button:hover:not(:disabled),
+.masterReferenceAnalysis .refChartSettings > summary:hover { background: rgba(255,255,255,.06); color: #e7f2ef; }
+.masterReferenceAnalysis .refDrawingTools button[aria-pressed="true"] { background: rgba(0,228,164,.12); color: var(--ref-green); }
+.masterReferenceAnalysis .refDrawingTools button:disabled { opacity: .5; cursor: progress; }
+.masterReferenceAnalysis .refDrawingTools :is(button, summary):focus-visible { outline: 2px solid var(--ref-green); outline-offset: 2px; }
+.masterReferenceAnalysis .refChartSettings { position: relative; }
+.masterReferenceAnalysis .refChartSettings > summary { list-style: none; }
+.masterReferenceAnalysis .refChartSettings > summary::-webkit-details-marker { display: none; }
+.masterReferenceAnalysis .refChartSettings[open] > summary { background: rgba(0,228,164,.12); color: var(--ref-green); }
+.masterReferenceAnalysis .refChartSettings > div { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 210px; display: grid; gap: 2px; padding: 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: #121a1d; box-shadow: 0 10px 30px #0008; }
+.masterReferenceAnalysis .refChartSettings label { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 6px; font-size: 13px; color: #dce9e7; cursor: pointer; white-space: nowrap; }
+.masterReferenceAnalysis .refChartSettings label:hover { background: rgba(255,255,255,.05); }
+.masterReferenceAnalysis .refChartSettings input { width: 15px; height: 15px; margin: 0; accent-color: var(--ref-green); }
+.masterReferenceAnalysis .refCrosshairFull line { stroke: #8fa8aa; stroke-width: .8; stroke-dasharray: 3 4; }
+.masterReferenceAnalysis .refCrosshairFull .refCrosshairTag { fill: #2a3a3d; }
+.masterReferenceAnalysis .refCrosshairFull text { fill: #e7f2ef; font-size: 11px; }
