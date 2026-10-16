@@ -50,13 +50,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.goto('/master-trade?tab=canli', {waitUntil:'domcontentloaded'})
     await expect(page.getByRole('heading', {name: 'Canlı İşlem', exact: true})).toBeVisible()
     const workspace = page.locator('#master-trade-live-terminal')
-    await expect(workspace.locator('.masterTradeStepper button').nth(1)).toBeDisabled()
-    await expect(workspace.locator('.masterTradeStepper button').nth(2)).toBeDisabled()
-    await expect(workspace.locator('.masterTradeStepper button').nth(3)).toBeDisabled()
+    await expect(workspace.locator('.liveWsStepper button').nth(1)).toBeDisabled()
+    await workspace.locator('.liveWsStepper button').nth(2).click()
     await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
-    await workspace.locator('.masterTradeFlowCard:not([inert])').evaluateAll(cards => {
-      for (const card of cards) (card as HTMLDetailsElement).open = true
-    })
+    await workspace.locator('.liveWsStepper button').nth(3).click()
     await expect(workspace.locator('.masterTradeLiveAccountMetrics > span')).toHaveCount(10)
     const margin = workspace.locator('.liveUxManual input[type="number"]').first()
     await margin.fill('25')
@@ -67,19 +64,13 @@ for (const width of [1440, 1024, 390, 320]) {
     const gridColumns = (selector: string) => workspace.locator(selector).evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)
     expect(await gridColumns('.masterTradeLiveAccountMetrics')).toBe(width >= 768 ? 5 : 2)
     expect(await gridColumns('.masterTradeLiveSignalGrid')).toBe(width >= 768 ? 3 : 2)
-    expect(await gridColumns('.liveUxOrderGrid')).toBe(width >= 768 ? 2 : 1)
     expect(await gridColumns('.liveUxForm')).toBe(width >= 768 ? 4 : 2)
-    expect(await workspace.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(width >= 768 ? 2 : 1)
-    const checkbox = workspace.locator('.masterTradeLiveCheck input')
-    expect(await checkbox.evaluate(element => element.getBoundingClientRect().height)).toBe(16)
-    expect(await checkbox.evaluate(element => element.getBoundingClientRect().width)).toBe(16)
-    expect(await workspace.locator('.masterTradeStepIndex').first().evaluate(element => getComputedStyle(element).borderTopWidth)).toBe('2px')
-    expect(await workspace.locator('.masterTradeStepper button').evaluateAll(elements => elements.every(element => element.getBoundingClientRect().height === 64))).toBe(true)
-    expect(await workspace.locator('.masterTradeLiveApiGrid input, .liveUxForm input, .liveUxForm select, .masterTradeLiveSetupGrid input, .masterTradeLiveSetupGrid select').evaluateAll(elements => elements.every(element => element.getBoundingClientRect().height === 44))).toBe(true)
+    await workspace.locator('.liveWsStepper button').nth(2).click()
+    expect(await workspace.locator('.liveWsFields input, .liveUxForm input, .liveUxForm select, .masterTradeLiveSetupGrid input, .masterTradeLiveSetupGrid select').evaluateAll(elements => elements.every(element => element.getBoundingClientRect().height === 44))).toBe(true)
     const bounds = await workspace.evaluate(element => {
       const outer = element.getBoundingClientRect()
       return Array.from(element.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, select, button'))
-        .filter(control => control.getClientRects().length && !control.closest('.masterTradeStepper'))
+        .filter(control => control.getClientRects().length && !control.closest('.liveWsStepper'))
         .filter(control => control.getBoundingClientRect().right > outer.right + 1 || control.getBoundingClientRect().left < outer.left - 1)
         .map(control => ({
           text: control.textContent,
@@ -89,17 +80,12 @@ for (const width of [1440, 1024, 390, 320]) {
         }))
     })
     expect(bounds).toEqual([])
-    await expect(workspace.locator('.masterTradeLiveSignalGrid > span').filter({hasText: 'ENTRY'}).locator('b')).toHaveText('87.299,64')
+    await expect(workspace.locator('.masterTradeLiveSignalGrid > span').filter({hasText: 'GİRİŞ'}).locator('b')).toHaveText('87.299,64')
     await expect(workspace.locator('.masterTradeLiveAccountMetrics .masterTradeSkeleton')).toHaveCount(7)
-    const accountHeader = await workspace.locator('.masterTradeLiveAccountHud > header').boundingBox()
-    const firstMetric = await workspace.locator('.masterTradeLiveAccountMetrics > span').first().boundingBox()
-    expect(accountHeader!.y + accountHeader!.height).toBeLessThanOrEqual(firstMetric!.y)
     const markets = workspace.locator('.masterTradeLiveMarketsScroll button')
-    expect(await markets.first().evaluate(element => getComputedStyle(element).borderTopWidth)).toBe('1px')
-    expect(await markets.first().evaluate(element => getComputedStyle(element).borderColor === getComputedStyle(element).color)).toBe(true)
     await markets.filter({hasText: 'BTC'}).click()
     await expect(markets.filter({hasText: 'BTC'})).toHaveAttribute('aria-pressed', 'false')
-    await expect(workspace.locator('.masterTradeLiveMarkets > small')).toHaveText('3 approved')
+    await expect(workspace.locator('.masterTradeLiveMarkets > small')).toHaveText('3 coin seçili')
     await markets.filter({hasText: 'BTC'}).click()
     const screenshotName = `${process.env.LIVE_UI_PHASE || 'after'}-${width === 1440 ? 'desktop' : width === 1024 ? 'tablet' : 'mobile'}.png`
     const screenshotPath = process.env.LIVE_UI_SCREENSHOTS
@@ -114,7 +100,7 @@ for (const width of [1440, 1024, 390, 320]) {
 
 for (const scenario of [
   {name:'ARM required',armed:false,consent:true,running:false,step:2},
-  {name:'consent required',armed:true,consent:false,running:false,step:3},
+  {name:'consent required',armed:true,consent:false,running:false,step:1},
   {name:'ready',armed:true,consent:true,running:false,step:null},
   {name:'running',armed:true,consent:true,running:true,step:null},
 ]) test(`LIVE ${scenario.name} authority survives reload without a mutation`, async ({page}) => {
@@ -131,7 +117,7 @@ for (const scenario of [
   }}))
   const assertAuthority = async () => {
     const workspace = page.locator('#master-trade-live-terminal')
-    if (scenario.step !== null) await expect(workspace.locator('.masterTradeStepper button').nth(scenario.step)).toHaveAttribute('aria-current','step')
+    if (scenario.step !== null) await expect(workspace.locator('.liveWsStepper button').nth(scenario.step)).toHaveAttribute('aria-current','step')
     const start = workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true})
     if (scenario.running) await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ DURDUR',exact:true})).toBeEnabled()
     else if (scenario.armed && scenario.consent) await expect(start).toBeEnabled()

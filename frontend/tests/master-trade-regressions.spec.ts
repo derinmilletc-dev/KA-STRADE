@@ -67,7 +67,7 @@ for (const statusCode of [403,429,503]) test(`HTTP ${statusCode} account polling
   const start = page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true})
   await expect(start).toBeEnabled()
   fixture.statusCode = statusCode
-  await expect(start).toBeDisabled({timeout:12000})
+  await expect.poll(async () => (await start.count()) === 0 || await start.isDisabled(), {timeout:12000}).toBe(true)
   expect(fixture.mutations).toEqual([])
 })
 

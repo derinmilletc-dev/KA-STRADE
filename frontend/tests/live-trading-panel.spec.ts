@@ -78,30 +78,28 @@ const openPanelWithStatus = async (page: Page, state: LiveStatus, mutations: str
 test('shows SCANNING ONLY while Auto Trade is enabled but execution is locked', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: true, real_trading_locked: true, armed: false, readinessReady: true})
 
-  await expect(page.getByText('SCANNING ONLY', {exact: true}).first()).toBeVisible()
-  await expect(page.getByText('SCANNER ACTIVE · LIVE ORDERS LOCKED', {exact: true})).toBeVisible()
+  await expect(page.locator('.liveWsPill')).toHaveText('Sadece tarıyor')
 })
 
 test('shows RUNNING only when Auto Trade is enabled and execution is unlocked', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: true, real_trading_locked: false, armed: true, readinessReady: true})
 
-  await expect(page.getByText('RUNNING', {exact: true}).first()).toBeVisible()
-  await expect(page.getByText('AUTO TRADE IS RUNNING', {exact: true})).toBeVisible()
+  await expect(page.locator('.liveWsPill')).toHaveText('Çalışıyor')
+  await expect(page.getByText('Otomatik işlem çalışıyor', {exact: true})).toBeVisible()
 })
 
 test('shows ARMED before Auto Trade starts when the live lock is released', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: false, real_trading_locked: false, armed: true, readinessReady: true})
 
-  await expect(page.locator('header.masterTradeLiveHeader strong').getByText('ARMED', {exact: true})).toBeVisible()
-  await expect(page.getByText('AUTO TRADE IS OFF', {exact: true})).toBeVisible()
+  await expect(page.locator('.liveWsPill')).toHaveText('Hazır (ARM açık)')
+  await expect(page.getByText('Otomatik işlemi başlat', {exact: true})).toBeVisible()
 })
 
 test('shows OFF when Auto Trade is disabled and the live lock is closed', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: false, real_trading_locked: true, armed: false, readinessReady: false})
 
-  const headline = page.locator('header.masterTradeLiveHeader')
-  await expect(headline.getByText('AUTO TRADE IS OFF', {exact: true})).toBeVisible()
-  await expect(headline.locator('.masterTradeLiveHeadline > strong')).toHaveText('LOCKED')
+  await expect(page.locator('.liveWsPill')).toHaveText('Kilitli')
+  await page.locator('.liveWsStepper button').nth(2).click()
   await expect(page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })
 
@@ -110,13 +108,13 @@ test('uses the shared exposure ceiling and configurable liquidation buffer witho
   await openPanelWithStatus(page, {
     live_auto_trade: false, real_trading_locked: true, armed: false, readinessReady: false,
   }, mutations)
-  const setup = page.locator('.masterTradeLiveSetup')
-  await page.locator('details').filter({has: setup}).locator('summary').click()
-  const exposure = setup.getByRole('spinbutton', {name: /^Max exposure/})
+  const setup = page.locator('.liveWsStrategy')
+  await page.locator('.liveWsStepper button').nth(2).click()
+  const exposure = setup.getByRole('spinbutton', {name: /^En fazla maruziyet/})
   await expect(exposure).toHaveValue('350')
   await expect(exposure).toHaveAttribute('max', '350')
-  await page.getByRole('button', {name: /ADVANCED SETTINGS/}).click()
-  const buffer = page.getByRole('spinbutton', {name: /Liquidation buffer/})
+  await page.getByRole('button', {name: /Gelişmiş ayarlar/}).click()
+  const buffer = page.getByRole('spinbutton', {name: /Tasfiye tamponu/})
   await expect(buffer).toHaveValue('0.5')
   await expect(buffer).toHaveAttribute('min', '0.05')
   await expect(buffer).toHaveAttribute('max', '5')
@@ -124,7 +122,7 @@ test('uses the shared exposure ceiling and configurable liquidation buffer witho
   await expect(buffer).toHaveValue('0.75')
   expect(mutations).toEqual([])
   const saving = page.waitForRequest(request => request.method() === 'PUT' && new URL(request.url()).pathname.endsWith('/v25/policy'))
-  await setup.getByRole('button', {name: 'SAVE SETUP', exact: true}).click()
+  await setup.getByRole('button', {name: 'Ayarları kaydet', exact: true}).click()
   const request = await saving
   expect(request.postDataJSON().liquidation_buffer_pct).toBe(0.75)
   expect(mutations.filter(path => !path.endsWith('/v25/policy'))).toEqual([])
@@ -133,7 +131,7 @@ test('uses the shared exposure ceiling and configurable liquidation buffer witho
 test('keeps the consent action inactive while scoped authorization is valid', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: false, real_trading_locked: true, armed: false, readinessReady: false, authorizationValid: true})
 
-  await expect(page.getByRole('button', {name: '24 HOUR CONSENT ACTIVE'})).toBeDisabled()
+  await expect(page.getByRole('button', {name: 'İzin verildi'})).toBeDisabled()
 })
 
 test('shows the expiry reason when scoped authorization is invalid', async ({page}) => {
@@ -146,17 +144,18 @@ test('shows the expiry reason when scoped authorization is invalid', async ({pag
 test('shows policy acknowledgement unchecked until backend state is true', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: false, real_trading_locked: true, armed: false, readinessReady: false, policyAcknowledged: false})
 
-  await expect(page.getByRole('checkbox', {name: 'Acknowledge current risk policy'})).toBeVisible()
-  await expect(page.getByRole('checkbox', {name: 'Acknowledge current risk policy'})).not.toBeChecked()
-  await expect(page.getByText('POLICY ACKNOWLEDGEMENT', {exact: true})).toBeVisible()
+  await expect(page.getByRole('checkbox', {name: 'Mevcut risk limitlerini onaylıyorum'})).toBeVisible()
+  await expect(page.getByRole('checkbox', {name: 'Mevcut risk limitlerini onaylıyorum'})).not.toBeChecked()
+  await expect(page.getByText(/Risk limitleri onayı/)).toBeVisible()
 })
 
 test('shows backend-acknowledged policy checked and prevents acknowledging it again', async ({page}) => {
   await openPanelWithStatus(page, {live_auto_trade: false, real_trading_locked: true, armed: false, readinessReady: false, policyAcknowledged: true})
-  const checkbox = page.getByRole('checkbox', {name: 'Acknowledge current risk policy'})
+  const checkbox = page.getByRole('checkbox', {name: 'Mevcut risk limitlerini onaylıyorum'})
   await expect(checkbox).toBeChecked()
   await expect(checkbox).toBeDisabled()
-  await expect(page.getByRole('button', {name: 'POLICY ACKNOWLEDGED', exact: true})).toBeDisabled()
+  await expect(page.getByRole('button', {name: 'Onaylandı', exact: true})).toBeDisabled()
+  await page.locator('.liveWsStepper button').nth(2).click()
   await expect(page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })
 
@@ -173,7 +172,7 @@ for (const interval of ['1m', '5m', '1h', '4h']) {
     await expect(warning).toContainText('yalnızca 15m')
     await expect(warning).toContainText(`Timeframe: ${interval}.`)
     const startButtons = page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})
-    await expect(startButtons).toHaveCount(2)
+    await expect(startButtons).toHaveCount(1)
     for (const button of await startButtons.all()) await expect(button).toBeDisabled()
     expect(mutations.filter(path => path.endsWith('/auto/start'))).toEqual([])
   })
@@ -201,12 +200,12 @@ test('unsaved timeframe changes warn without mutating the saved policy', async (
     live_auto_trade: false, real_trading_locked: false, armed: true,
     readinessReady: true, policyAcknowledged: true, interval: '15m',
   }, mutations)
-  const setup = page.locator('.masterTradeLiveSetup')
+  const setup = page.locator('.liveWsStrategy')
   await setup.evaluate(element => {
     const details = element.closest('details')
     if (details) details.open = true
   })
-  const timeframe = setup.getByRole('combobox', {name: 'Timeframe', exact: true})
+  const timeframe = setup.getByRole('combobox', {name: 'Zaman dilimi', exact: true})
   await timeframe.selectOption('1h')
   await expect(page.getByTestId('live-auto-timeframe-warning')).toBeVisible()
   await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
@@ -221,12 +220,12 @@ test('selecting 15m does not hide a saved unsupported timeframe before policy sa
     live_auto_trade: false, real_trading_locked: false, armed: true,
     readinessReady: true, policyAcknowledged: true, interval: '1h',
   })
-  const setup = page.locator('.masterTradeLiveSetup')
+  const setup = page.locator('.liveWsStrategy')
   await setup.evaluate(element => {
     const details = element.closest('details')
     if (details) details.open = true
   })
-  await setup.getByRole('combobox', {name: 'Timeframe', exact: true}).selectOption('15m')
+  await setup.getByRole('combobox', {name: 'Zaman dilimi', exact: true}).selectOption('15m')
   await expect(page.getByTestId('live-auto-timeframe-warning')).toContainText('Timeframe: 1h.')
   await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })

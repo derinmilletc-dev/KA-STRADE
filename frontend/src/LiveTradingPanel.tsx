@@ -69,13 +69,13 @@ const date = (value: unknown) => value ? new Date(String(value)).toLocaleString(
 const activityTime = (value: unknown) => value ? new Date(String(value)).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '--:--:--'
 
 export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean): string {
-  if (status === null) return 'LIVE status is not available.'
+  if (status === null) return 'Canlı işlem durumu alınamıyor.'
   if (status.emergency?.active) return status.reconciliation_diagnostic?.exception_message && status.emergency.reason === 'LIVE_EXCEPTION'
     ? `${status.emergency.reason}: ${status.reconciliation_diagnostic.exception_message}`
-    : status.emergency.reason || 'Emergency stop is active.'
+    : status.emergency.reason || 'Acil durdurma aktif.'
   if (status.reconciliation_required || status.recovery_error || status.execution_state === 'UNKNOWN') return status.recovery_error || (status.reconciliation_required
-    ? 'Reconciliation is required before LIVE execution can continue.' : 'LIVE recovery is required before execution can continue.')
-  if (!status.connected) return 'LIVE account connection is required.'
+    ? 'Canlı işleme devam etmeden önce uzlaştırma gerekir.' : 'Canlı işleme devam etmeden önce kurtarma gerekir.')
+  if (!status.connected) return 'Canlı hesap bağlantısı gerekli.'
   if (status.authorization?.valid !== true) {
     const reason = status.authorization?.reason || status.consent?.reason || 'EXPIRED'
     const messages: Record<string, string> = {
@@ -90,8 +90,8 @@ export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean
     }
     return Object.hasOwn(messages, reason) ? messages[reason] : '24 saatlik LIVE authorization gerekli.'
   }
-  if (status.readiness?.ready !== true) return 'Complete the required LIVE readiness checks before arming.'
-  return liveArmed ? 'No LIVE blocker.' : 'Canlı işlem onayı bekleniyor.'
+  if (status.readiness?.ready !== true) return 'ARM öncesi gereken güvenlik kontrolleri tamamlanmalı.'
+  return liveArmed ? 'Engel yok.' : 'Canlı işlem onayı bekleniyor.'
 }
 
 function errorMessage(payload: unknown, fallback: string): string {
@@ -660,10 +660,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const consentDone = authorizationValid && status?.policy_acknowledged === true
     const step1Done = configured && connected
     const stepDone = [step1Done, step1Done && consentDone && readinessReady, running, false]
-    const currentStep = !step1Done ? 0 : !(consentDone && readinessReady) ? 1 : !running ? 2 : 3
+    const currentStep = !step1Done ? 0 : !(consentDone && readinessReady) ? 1 : 2
     const shownStep = openStep ?? currentStep
     const stepOpen = (index: number) => shownStep === index
-    const stepLocked = (index: number) => index > 0 && index > currentStep && !(index === 3 && manualOrderReady)
+    const stepLocked = (index: number) => index === 1 ? !step1Done : false
     const focusApiKey = () => { setOpenStep(0); window.setTimeout(() => document.getElementById('live-api-key')?.focus({preventScroll: true}), 60) }
     const next = status === null
       ? {tone: 'wait', title: 'Durum yükleniyor', text: 'Canlı hesap bilgileri alınıyor.', label: 'Yenile', run: () => void refresh(false), off: Boolean(busy) || refreshPending}
@@ -781,7 +781,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               </div>
               <div className="liveWsLaunch">
                 <div className="liveWsLaunchRow"><span><small>CANLI EMİR İZNİ (ARM)</small><b>{liveArmed ? 'Açık' : 'Kapalı'}</b></span><button type="button" className="liveWsGhost" onClick={liveArmed ? disarmLive : armLive} disabled={Boolean(busy) || (!liveArmed && (!authorizationValid || !configured || !connected || emergency || recoveryRequired || !readinessReady))}>{liveArmed ? 'ARM\'ı kapat' : 'ARM\'ı aç'}</button></div>
-                <div className="masterTradeLiveAssistantActions">
+                <div className="masterTradeLiveAssistantActions" aria-label="Auto Trade controls">
                   <button type="button" className={`liveWsPrimary big ${running ? 'danger' : ''}`} onClick={running ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!running && !autoReady)}>{!running && !autoReady ? <LockKeyhole/> : <Power/>} {running ? 'OTOMATİK İŞLEMİ DURDUR' : 'OTOMATİK İŞLEMİ BAŞLAT'}</button>
                 </div>
                 {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {blocker || 'önceki adımları tamamla'}</p>}
@@ -792,7 +792,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </section>
 
           <section className={`liveWsCard ${stepOpen(3) ? 'open' : ''} ${stepLocked(3) ? 'locked' : ''}`}>
-            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(3)} disabled={stepLocked(3)} onClick={() => setOpenStep(stepOpen(3) ? -1 : 3)}><span className={`liveWsBadge ${manualOrderReady ? 'current' : 'locked'}`}>{manualOrderReady ? '4' : <LockKeyhole/>}</span><span><b>Manuel emir</b><small>{stepsMeta[3].sub}</small></span><ChevronDown className="liveWsChev"/></button>
+            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(3)} disabled={stepLocked(3)} onClick={() => setOpenStep(stepOpen(3) ? -1 : 3)}><span className={`liveWsBadge ${manualOrderReady ? 'current' : ''}`}>4</span><span><b>Manuel emir</b><small>{stepsMeta[3].sub}</small></span><ChevronDown className="liveWsChev"/></button>
             {stepOpen(3) && <div className="liveWsBody">{manualOrderCard}</div>}
           </section>
 

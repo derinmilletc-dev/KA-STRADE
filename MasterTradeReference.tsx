@@ -367,7 +367,7 @@ export default function MasterTradeReference(props: Props) {
   const autoText = !live ? '—' : live.live_auto_trade && !enabled ? locked ? 'SCANNING ONLY · LOCKED' : 'ON · GATES BLOCKED' : autoTradePresentation('LIVE', live.live_auto_trade).label
   const autoStatus = live && !gatesReady && !live.live_auto_trade ? `${autoText} · Kilitli` : autoText
   const triggerStatus = triggerPresentation(trigger.lifecycle, trigger.available)
-  const explainLock = () => {if (!premium) openUpgrade('Auto Trade'); else setNotice(blocker === 'No LIVE blocker.' ? 'Mevcut Canlı İşlem güvenlik ve onay akışını tamamlayın.' : blocker)}
+  const explainLock = () => {if (!premium) openUpgrade('Auto Trade'); else setNotice(blocker === 'Engel yok.' ? 'Mevcut Canlı İşlem güvenlik ve onay akışını tamamlayın.' : blocker)}
   // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
   const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
