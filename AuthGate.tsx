@@ -61,7 +61,7 @@ function AuthIntroPanel({data,status,movers,premium = false}:{data:LiveTickerDat
 function LoginMarketShell({children}:{children:(market:{data:LiveTickerData;status:LiveTickerStatus;movers:ReturnType<typeof useTopMovers>}) => ReactNode}) {
   const live = useLiveTickers(LIVE_MARKET_CONFIG.map(config => config.symbol))
   const movers = useTopMovers()
-  return <div className="authRoot"><TickerTape data={live.data} status={live.status}/>{children({data:live.data,status:live.status,movers})}<footer className="authFooter"><span>© 2026 KalsTrade</span><a href="/privacy">Gizlilik Politikası</a><a href="/terms">Kullanım Şartları</a><a href="/risk">Risk Uyarısı</a></footer></div>
+  return <div className="authRoot"><TickerTape data={live.data} status={live.status}/>{children({data:live.data,status:live.status,movers})}<footer className="authFooter"><span>© 2026 KaisTrade</span><a href="/privacy">Gizlilik Politikası</a><a href="/terms">Kullanım Şartları</a><a href="/risk">Risk Uyarısı</a></footer></div>
 }
 
 function detail(payload:unknown):string {
