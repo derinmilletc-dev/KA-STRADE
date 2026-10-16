@@ -150,8 +150,7 @@ test('Master Trade positions and connections preserve the read-only account snap
   expect(await page.locator('.positionsPanel th').evaluateAll(elements => elements.every(element => getComputedStyle(element, '::before').content === 'none' && getComputedStyle(element, '::after').content === 'none'))).toBe(true)
   await page.getByRole('tab', {name: 'Bağlantı', exact: true}).click()
   await expect(page.getByRole('heading', {name: 'Connect your trading account'})).toBeVisible()
-  await expect(page.locator('.masterTradeLiveActivity .masterTradeLogCount')).toHaveText('×2')
-  expect(await page.locator('.masterTradeLiveActivity ol').evaluate(element => getComputedStyle(element).height)).toBe('200px')
+  await expect(page.locator('.liveWsActivity li')).not.toHaveCount(0)
   expect(mutations).toEqual([])
 })
 

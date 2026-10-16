@@ -917,7 +917,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <p className="liveWsHint">{latestSignal ? `${text(latestSignal.message)} · ${date(latestSignal.created_at)}` : 'Henüz yeni sinyal olayı yok.'}</p>
           </section>
 
-          <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
+          <section className="liveWsSection liveWsActivity">
             <h3>Son olaylar</h3>
             {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`} className={/FAIL|BLOCK|LOCK|STALE|RATE|ERROR|UNKNOWN|EMERGENCY/i.test(String(event.kind)) ? 'warn' : ''}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
           </section>
@@ -930,7 +930,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
 
         {masterTradeTab === 'baglanti' && <>
           <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${step1Done ? 'done' : 'current'}`}>{step1Done ? <CheckCircle2/> : '1'}</span><span><b>Binance bağlantısı</b><small>{stepsMeta[0].sub}</small></span></div><div className="liveWsBody">{connectionBlock}</div></section>
-          <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
+          <section className="liveWsSection liveWsActivity">
             <h3>Son olaylar</h3>
             {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`} className={/FAIL|BLOCK|LOCK|STALE|RATE|ERROR|UNKNOWN|EMERGENCY/i.test(String(event.kind)) ? 'warn' : ''}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
           </section>

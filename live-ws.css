@@ -393,3 +393,8 @@
   #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeFocusConnection { flex: 1 1 100%; }
   #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeConnectionBadge { white-space: nowrap; }
 }
+
+/* Son olaylar: eski site kurallarının sabit yükseklik/satır düzeni geçersiz */
+#master-trade-live-terminal.liveWs .liveWsActivity ol { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; margin: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li { height: auto !important; min-height: 0 !important; margin: 0 !important; transform: none !important; left: auto !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; color: var(--ws-text, #e8eef6) !important; display: block !important; }
