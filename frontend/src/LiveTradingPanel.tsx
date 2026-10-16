@@ -165,6 +165,25 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }).catch(error => { if (error?.name !== 'AbortError') setUniverseError(true) })
     return () => controller.abort()
   }, [active, masterTrade, openStep, universe])
+  const [riskPrev, setRiskPrev] = useState<{notional: number; margin: number; loss: number; stopPct: number; maxStopPct: number; capped: boolean} | {error: string} | null>(null)
+  useEffect(() => {
+    if (!active || !masterTrade || openStep !== 3) { setRiskPrev(null); return }
+    const row = (universe ?? []).find(item => item.symbol === order.symbol)
+    const entry = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(row?.price)
+    const stop = Number(order.stop_loss)
+    const margin = Number(order.margin_usdt)
+    const leverage = Number(order.leverage)
+    if (![entry, stop, margin, leverage].every(value => Number.isFinite(value) && value > 0) || entry === stop || margin < 5 || margin > 100 || !Number.isInteger(leverage) || leverage < 1 || leverage > 50) { setRiskPrev(null); return }
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void fetchWithTimeout(`${V25}/risk/preview`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({entry, stop_loss: stop, margin_usdt: margin, leverage}), signal: controller.signal}).then(async response => {
+        const payload: any = await response.json().catch(() => null)
+        if (!response.ok) { setRiskPrev({error: errorMessage(payload, 'Risk hesabı yapılamadı.')}); return }
+        setRiskPrev({notional: Number(payload.notional_usdt), margin: Number(payload.margin_usdt), loss: Number(payload.estimated_stop_loss_usdt), stopPct: Number(payload.stop_distance_pct), maxStopPct: Number(payload.max_stop_distance_pct), capped: Boolean(payload.capped)})
+      }).catch(error => { if (error?.name !== 'AbortError') setRiskPrev(null) })
+    }, 500)
+    return () => { window.clearTimeout(timer); controller.abort() }
+  }, [active, masterTrade, openStep, order.symbol, order.order_type, order.limit_price, order.stop_loss, order.margin_usdt, order.leverage, analysis?.entry, symbol, universe])
   const [strategyInfo, setStrategyInfo] = useState(false)
   const [externalHistory, setExternalHistory] = useState<ExternalHistory | null>(null)
   const [reviewResult, setReviewResult] = useState<{message: string; notional?: number; estimated_stop_loss_usdt?: number} | null>(null)
@@ -499,6 +518,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 100) {
       setNotice({kind: 'error', text: 'Marjin 5 ile 100 USDT arasında olmalıdır.'}); return
     }
+    const policyMargin = Number(status?.policy?.max_margin_per_trade)
+    if (Number.isFinite(policyMargin) && policyMargin > 0 && Number(nextOrder.margin_usdt) > policyMargin) {
+      setNotice({kind: 'error', text: `Marjin, risk ayarındaki üst sınırı (${policyMargin} USDT) aşıyor. Marjini düşür veya ayarı değiştir.`}); return
+    }
+    const policyLeverage = Number(status?.policy?.max_leverage)
+    if (Number.isFinite(policyLeverage) && policyLeverage > 0 && Number(nextOrder.leverage) > policyLeverage) {
+      setNotice({kind: 'error', text: `Kaldıraç, risk ayarındaki üst sınırı (${policyLeverage}x) aşıyor. Kaldıracı düşür veya ayarı değiştir.`}); return
+    }
     const leverage = Number(nextOrder.leverage)
     if (!Number.isInteger(leverage) || leverage < 1 || leverage > 50) {
       setNotice({kind: 'error', text: 'Kaldıraç 1x ile 50x arasında tam sayı olmalıdır.'}); return
@@ -657,8 +684,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const lossAtStop = Number.isFinite(entryRef) && entryRef > 0 && stopValue > 0 && notional > 0 ? notional * Math.abs(entryRef - stopValue) / entryRef : null
     const gainAtTp1 = Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 && notional > 0 ? notional * Math.abs(tp1Value - entryRef) / entryRef : null
     const rewardRisk = lossAtStop && gainAtTp1 ? gainAtTp1 / lossAtStop : null
+    const risk = riskPrev && !('error' in riskPrev) ? riskPrev : null
+    const riskError = riskPrev && 'error' in riskPrev ? `Bu stop kabul edilmez: ${riskPrev.error.replace(/^Risk preview reddedildi:\s*/i, '')}` : ''
+    const realNotional = riskError ? NaN : risk ? risk.notional : notional
+    const realLoss = riskError ? null : risk ? risk.loss : lossAtStop
+    const realGain = riskError ? null : risk && Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 ? risk.notional * Math.abs(tp1Value - entryRef) / entryRef : gainAtTp1
+    const realRR = realLoss && realGain ? realGain / realLoss : null
     const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
-    const sendBlock = !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
+    const sendBlock = riskError ? riskError : !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
@@ -729,19 +762,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="liveUxSummaryLead"><strong className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</strong><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span></div>
         <div className="liveWsSumGrid">
           <span><small>Marjin</small><b>{text(order.margin_usdt)} USDT</b></span>
-          <span><small>Pozisyon büyüklüğü</small><b>{Number.isFinite(notional) ? money(notional) : '—'}</b></span>
+          <span><small>Pozisyon büyüklüğü</small><b>{Number.isFinite(realNotional) ? money(realNotional) : '—'}</b></span>
           <span><small>Stop Loss</small><b>{text(order.stop_loss)}</b></span>
           <span><small>TP1 / TP2 / TP3</small><b>{text(order.tp1)} / {text(order.tp2)} / {text(order.tp3)}</b></span>
-          <span><small>Tahmini zarar (stopta)</small><b className="down">{lossAtStop === null ? '—' : money(lossAtStop)}</b></span>
-          <span><small>Tahmini kâr (TP1)</small><b className="up">{gainAtTp1 === null ? '—' : money(gainAtTp1)}{rewardRisk ? ` · 1:${rewardRisk.toFixed(1)}` : ''}</b></span>
+          <span><small>Tahmini zarar (stopta)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
+          <span><small>Tahmini kâr (TP1)</small><b className="up">{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
         </div>
+        {risk && <small className="liveWsHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</small>}
+        {riskError && <p className="liveWsWarn" role="alert">{riskError}</p>}
         <small className="liveWsHint">Tahminler giriş fiyatı ve kaldıraçla hesaplanır; komisyon ve kayma dahil değildir.</small>
         {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
         <div className="liveWsSendRow">
           <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
           <button type="button" className="liveWsPrimary danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Emri gönder</button>
         </div>
-        {sendBlock && <small className="liveWsHint">{sendBlock}</small>}
+        {sendBlock && sendBlock !== riskError && <small className="liveWsHint">{sendBlock}</small>}
       </aside>
     </div>
   }
