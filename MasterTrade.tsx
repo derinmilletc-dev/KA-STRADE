@@ -400,7 +400,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refreshAccount()
-    const timer = window.setInterval(() => void refreshAccount(), 5000)
+    const timer = window.setInterval(() => void refreshAccount(), 15000)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [accountRefreshNonce])
 
