@@ -1,0 +1,80 @@
+/* Master Trade · Live trading tab: modern, borderless, calm surfaces. */
+#root .masterTradePage[data-layout-tab="canli"]{
+  --lm-bg:#0b1118;--lm-card:#121a24;--lm-card2:#172230;--lm-soft:rgba(255,255,255,.045);--lm-hover:rgba(255,255,255,.08);
+  --lm-ink:#eaf1f7;--lm-mute:#93a3b5;--lm-accent:#3ddc97;--lm-accent-ink:#06281a;--lm-warn:#f2c46d;--lm-bad:#ff8479;
+  --lm-radius:20px;--lm-shadow:0 10px 30px rgba(0,0,0,.28);
+  color:var(--lm-ink)
+}
+
+/* 1 · Remove outlines and glow rings everywhere except form controls and buttons */
+#root .masterTradePage[data-layout-tab="canli"] :where(section,article,div,details,summary,fieldset,legend,header,footer,aside,nav,ul,ol,li,p,small,strong,em,b,label,table,thead,tbody,tr,th,td,h1,h2,h3,h4,span):not(.masterTradeLiveMarketsScroll){
+  border:0!important;outline:0!important;box-shadow:none!important
+}
+#root .masterTradePage[data-layout-tab="canli"] :where(section,article,div,header,aside,details)::before,
+#root .masterTradePage[data-layout-tab="canli"] :where(section,article,div,header,aside,details)::after{border-color:transparent!important}
+#root .masterTradePage[data-layout-tab="canli"] hr{display:none!important}
+
+/* 2 · Cards: soft filled surfaces, generous radius, no gradients */
+#root .masterTradePage[data-layout-tab="canli"] :is(
+  .originalSurface,.originalMetricGrid article,.originalSettings,.originalDetails,.originalAdvanced,.originalSetupStep,
+  .originalEmergencyBar,.originalEntryChecks,.originalUnderstanding,.originalRiskWarning,.masterTradeFlowCard,
+  .masterTradeLiveHeader,.masterTradeLiveSection,.masterTradeLiveAccountHud,.masterTradeLiveApiDrawer,.masterTradeLiveSignal,.liveWsSection
+){
+  background:var(--lm-card)!important;background-image:none!important;border-radius:var(--lm-radius)!important;padding:20px!important;box-shadow:var(--lm-shadow)!important
+}
+#root .masterTradePage[data-layout-tab="canli"] .originalMetricGrid article{padding:18px 20px!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalMetricGrid{gap:14px!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalLiveWorkspace{gap:20px!important}
+
+/* 3 · Hero: calm gradient accent instead of a solid green slab */
+#root .masterTradePage[data-layout-tab="canli"] .originalStatusHero{
+  background:linear-gradient(135deg,#14212d 0%,#101923 60%,#12261f 100%)!important;border-radius:24px!important;padding:26px 28px!important;box-shadow:var(--lm-shadow)!important
+}
+#root .masterTradePage[data-layout-tab="canli"] .originalStatusHero h2{color:var(--lm-ink)!important;font-weight:700;letter-spacing:-.01em}
+#root .masterTradePage[data-layout-tab="canli"] .originalStatusHero p{color:var(--lm-mute)!important}
+
+/* 4 · Text hierarchy */
+#root .masterTradePage[data-layout-tab="canli"] :where(small,.masterTradeLiveKicker){color:var(--lm-mute)!important;letter-spacing:.06em}
+#root .masterTradePage[data-layout-tab="canli"] .originalMetricGrid strong{font-size:22px!important;font-weight:700;color:var(--lm-ink)}
+#root .masterTradePage[data-layout-tab="canli"] summary{color:var(--lm-ink);font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .originalLiveWorkspace a{color:var(--lm-accent)}
+
+/* 5 · Controls: filled, borderless, clear focus */
+#root .masterTradePage[data-layout-tab="canli"] :where(input:not([type=checkbox]):not([type=radio]),select,textarea){
+  background:var(--lm-soft)!important;border:0!important;border-radius:12px!important;color:var(--lm-ink)!important;padding:12px 14px!important;box-shadow:none!important;transition:background .15s,box-shadow .15s
+}
+#root .masterTradePage[data-layout-tab="canli"] :where(input,select,textarea):focus-visible{background:var(--lm-hover)!important;box-shadow:0 0 0 2px rgba(61,220,151,.55)!important;outline:0}
+#root .masterTradePage[data-layout-tab="canli"] :where(button){
+  border:0!important;border-radius:12px!important;background:var(--lm-soft)!important;color:var(--lm-ink)!important;box-shadow:none!important;transition:background .15s,transform .15s
+}
+#root .masterTradePage[data-layout-tab="canli"] :where(button):hover:not(:disabled){background:var(--lm-hover)!important}
+#root .masterTradePage[data-layout-tab="canli"] :where(button):active:not(:disabled){transform:scale(.98)}
+#root .masterTradePage[data-layout-tab="canli"] :where(button):focus-visible{box-shadow:0 0 0 2px rgba(61,220,151,.55)!important}
+#root .masterTradePage[data-layout-tab="canli"] :is(.masterTradeLivePrimary,button.selected,button[aria-pressed="true"]){
+  background:var(--lm-accent)!important;color:var(--lm-accent-ink)!important;font-weight:700
+}
+#root .masterTradePage[data-layout-tab="canli"] :is(.masterTradeLivePrimary):hover:not(:disabled){background:#57e8aa!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalEmergencyBar button{background:rgba(255,132,121,.14)!important;color:var(--lm-bad)!important}
+
+/* 6 · Tabs / stepper: pill style */
+#root .masterTradePage[data-layout-tab="canli"] :is(.masterTradeStepper,[role=tablist]) button{border-radius:999px!important;padding:9px 16px!important}
+#root .masterTradePage[data-layout-tab="canli"] :is(.masterTradeStepper button[aria-current],[role=tab][aria-selected=true]){background:var(--lm-accent)!important;color:var(--lm-accent-ink)!important}
+
+/* 7 · Setup steps: active step marked by tint, not outline */
+#root .masterTradePage[data-layout-tab="canli"] .originalSetupStep[data-active="true"]{background:var(--lm-card2)!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalSetupStep[data-complete="true"]{opacity:.8}
+
+/* 8 · Progress bars and status dots keep their fills */
+#root .masterTradePage[data-layout-tab="canli"] [role="progressbar"]{background:var(--lm-soft)!important;border-radius:99px!important}
+#root .masterTradePage[data-layout-tab="canli"] [role="progressbar"] i{background:var(--lm-accent)!important;border-radius:99px!important}
+
+/* 9 · Event / list rows separated by spacing only */
+#root .masterTradePage[data-layout-tab="canli"] :is(ul,ol){list-style:none;padding-left:0}
+#root .masterTradePage[data-layout-tab="canli"] li+li{margin-top:10px}
+#root .masterTradePage[data-layout-tab="canli"] details>summary{list-style:none;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] details>summary::-webkit-details-marker{display:none}
+
+@media (max-width:760px){
+  #root .masterTradePage[data-layout-tab="canli"] :is(.originalSurface,.originalSettings,.originalDetails,.originalSetupStep,.masterTradeFlowCard){padding:16px!important;border-radius:16px!important}
+  #root .masterTradePage[data-layout-tab="canli"] .originalStatusHero{padding:20px!important;border-radius:20px!important}
+}
