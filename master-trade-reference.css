@@ -336,3 +336,19 @@
   #root > main.v26App.masterTradeRoute .masterTradeTabs { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; height:auto!important; }
   #root > main.v26App.masterTradeRoute .masterTradeTabs > button { width:auto!important; min-width:0!important; min-height:44px; padding:8px; font-size:12px; }
 }
+
+/* Master Trade: kartların arkasındaki taşıyıcı alanlarda ince çizgi olmasın.
+   Kartların (.refCard) ve grafik kutusunun kendi çerçeveleri korunur. */
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis),
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refHeader, .refWorkspace, .refMetrics, .refCenter, .refRight, .refIndicatorGrid, .refMtfStrip) {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background-image: none !important;
+}
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis)::before,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis)::after,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refWorkspace, .refMetrics, .refCenter)::before,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refWorkspace, .refMetrics, .refCenter)::after {
+  display: none !important;
+}
