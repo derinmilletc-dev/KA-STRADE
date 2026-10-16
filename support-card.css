@@ -1,30 +1,57 @@
-#root #support-card { display: grid; gap: 14px; }
-#root #support-card h2 { display: flex; align-items: center; gap: 10px; }
-#root #support-card h2 svg { width: 20px; height: 20px; color: #34d399; }
-#root #support-card .spLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
-#root #support-card .spChips { display: flex; flex-wrap: wrap; gap: 8px; }
-#root #support-card .spChips button { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 0 !important; background: rgba(255, 255, 255, .06) !important; color: #c9d4e0 !important; font-size: 13.5px; font-weight: 600; cursor: pointer; }
-#root #support-card .spChips button.on { background: rgba(52, 211, 153, .18) !important; color: #34d399 !important; }
-#root #support-card .spText { width: 100%; box-sizing: border-box; min-height: 110px; padding: 14px 16px; border-radius: 16px; border: 0 !important; background: rgba(255, 255, 255, .06) !important; color: #edf2f8 !important; font: inherit; font-size: 15px; line-height: 1.5; resize: vertical; }
-#root #support-card .spText:focus { outline: 2px solid rgba(52, 211, 153, .5); }
-#root #support-card .spFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-#root #support-card .spFoot small { color: #9aa9ba; }
-#root #support-card .spSend { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 20px; border-radius: 12px; border: 0 !important; background: #34d399 !important; color: #06281d !important; font-weight: 800; font-size: 14.5px; cursor: pointer; }
+#root #support-card { display: grid; gap: 18px; }
+#root #support-card .spHead { display: flex; align-items: center; gap: 14px; }
+#root #support-card .spHead h2 { margin: 0; }
+#root #support-card .spHead p { margin: 2px 0 0; color: #9aa9ba; font-size: 14px; }
+#root #support-card .spBadge { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(52,211,153,.28), rgba(56,189,248,.18)) !important; color: #34d399; flex: none; }
+#root #support-card .spBadge svg { width: 22px; height: 22px; }
+#root #support-card .spTopics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+#root #support-card .spTopics button { display: grid; grid-template-columns: 1fr; gap: 3px; justify-items: start; text-align: left; padding: 14px; border: 0 !important; border-radius: 18px; background: rgba(255,255,255,.05) !important; color: #c9d4e0 !important; cursor: pointer; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+#root #support-card .spTopics button:hover { transform: translateY(-2px); background: rgba(255,255,255,.08) !important; }
+#root #support-card .spTopics button svg { width: 20px; height: 20px; margin-bottom: 6px; color: #8fa1b5; transition: color .18s ease, transform .18s ease; }
+#root #support-card .spTopics button b { font-size: 14px; color: #edf2f8; }
+#root #support-card .spTopics button small { font-size: 12px; color: #8fa1b5; }
+#root #support-card .spTopics button.on { background: linear-gradient(145deg, rgba(52,211,153,.22), rgba(56,189,248,.12)) !important; box-shadow: 0 8px 24px -10px rgba(52,211,153,.55); }
+#root #support-card .spTopics button.on svg { color: #34d399; transform: scale(1.12); }
+#root #support-card .spBox { border-radius: 20px; background: rgba(255,255,255,.05) !important; padding: 6px; transition: background .2s ease, box-shadow .2s ease; }
+#root #support-card .spBox:focus-within { background: rgba(255,255,255,.075) !important; box-shadow: 0 0 0 3px rgba(52,211,153,.28); }
+#root #support-card .spBox textarea { display: block; width: 100%; box-sizing: border-box; min-height: 84px; padding: 12px 14px; border: 0 !important; outline: 0 !important; background: transparent !important; color: #edf2f8 !important; font: inherit; font-size: 15px; line-height: 1.55; resize: none; transition: min-height .25s ease; }
+#root #support-card .spBox:focus-within textarea { min-height: 128px; }
+#root #support-card .spBar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 6px 6px 14px; }
+#root #support-card .spBar small { color: #7f90a4; font-size: 12px; }
+#root #support-card .spSend { display: inline-flex; align-items: center; gap: 8px; flex: none; min-height: 42px; padding: 0 20px; border: 0 !important; border-radius: 14px; background: linear-gradient(135deg, #34d399, #22b8cf) !important; color: #05261c !important; font-weight: 800; font-size: 14.5px; cursor: pointer; transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease; box-shadow: 0 8px 20px -8px rgba(52,211,153,.7); }
+#root #support-card .spSend:hover:not(:disabled) { transform: translateY(-1px); }
+#root #support-card .spSend:active:not(:disabled) { transform: scale(.97); }
 #root #support-card .spSend svg { width: 16px; height: 16px; }
-#root #support-card .spSend:disabled { opacity: .45; cursor: default; }
-#root #support-card .spNotice { margin: 0; font-size: 14px; }
-#root #support-card .spNotice.ok { color: #34d399; }
-#root #support-card .spNotice.error { color: #f87171; }
-#root #support-card .spSub { margin: 6px 0 0; font-size: 16px; color: #edf2f8; }
-#root #support-card .spList { display: grid; gap: 10px; }
-#root #support-card .spItem { display: grid; gap: 6px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
-#root #support-card .spItem header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-#root #support-card .spItem header b { font-size: 14.5px; color: #edf2f8; overflow-wrap: anywhere; }
-#root #support-card .spItem em { flex: none; font-style: normal; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(245, 185, 66, .16) !important; color: #f5b942; }
-#root #support-card .spItem em[data-status="RESOLVED"], #root #support-card .spItem em[data-status="CLOSED"] { background: rgba(52, 211, 153, .16) !important; color: #34d399; }
-#root #support-card .spItem p { margin: 0; color: #c9d4e0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
-#root #support-card .spItem small { color: #9aa9ba; font-size: 12px; }
-#root #support-card .spReply { margin-top: 4px; padding: 12px 14px; border-radius: 12px; background: rgba(52, 211, 153, .1) !important; }
+#root #support-card .spSend:disabled { opacity: .35; box-shadow: none; cursor: default; }
+#root #support-card .spError { margin: 0; color: #f87171; font-size: 14px; }
+#root #support-card .spDone { display: grid; justify-items: center; gap: 4px; padding: 30px 16px; border-radius: 22px; background: linear-gradient(145deg, rgba(52,211,153,.16), rgba(56,189,248,.08)) !important; animation: spPop .35s cubic-bezier(.2,.9,.3,1.2); }
+#root #support-card .spDone span { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #34d399 !important; color: #05261c; margin-bottom: 8px; }
+#root #support-card .spDone span svg { width: 26px; height: 26px; }
+#root #support-card .spDone b { font-size: 17px; color: #edf2f8; }
+#root #support-card .spDone small { color: #9aa9ba; font-size: 14px; }
+@keyframes spPop { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+#root #support-card .spMine { display: grid; gap: 8px; }
+#root #support-card .spMine h3 { margin: 4px 0 2px; font-size: 15px; color: #edf2f8; }
+#root #support-card .spItem { border-radius: 18px; background: rgba(255,255,255,.045) !important; overflow: hidden; transition: background .2s ease; }
+#root #support-card .spItem:hover, #root #support-card .spItem.open { background: rgba(255,255,255,.07) !important; }
+#root #support-card .spItem > button { width: 100%; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 14px 16px; border: 0 !important; background: transparent !important; color: inherit !important; text-align: left; cursor: pointer; }
+#root #support-card .spItem i { width: 9px; height: 9px; border-radius: 50%; background: #f5b942 !important; box-shadow: 0 0 0 4px rgba(245,185,66,.16); }
+#root #support-card .spItem[data-status="IN_PROGRESS"] i { background: #38bdf8 !important; box-shadow: 0 0 0 4px rgba(56,189,248,.16); }
+#root #support-card .spItem[data-status="RESOLVED"] i, #root #support-card .spItem[data-status="CLOSED"] i { background: #34d399 !important; box-shadow: 0 0 0 4px rgba(52,211,153,.16); }
+#root #support-card .spItem span { display: grid; gap: 2px; min-width: 0; }
+#root #support-card .spItem span b { font-size: 14.5px; color: #edf2f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#root #support-card .spItem span small { color: #8fa1b5; font-size: 12px; }
+#root #support-card .spItem em { font-style: normal; font-size: 12px; font-weight: 700; color: #b8c5d3; }
+#root #support-card .spItem > button svg { width: 18px; height: 18px; color: #8fa1b5; transition: transform .25s ease; }
+#root #support-card .spItem.open > button svg { transform: rotate(180deg); }
+#root #support-card .spBody { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+#root #support-card .spItem.open .spBody { grid-template-rows: 1fr; }
+#root #support-card .spBody > div { overflow: hidden; min-height: 0; padding: 0 16px; display: grid; gap: 10px; }
+#root #support-card .spItem.open .spBody > div { padding-bottom: 16px; }
+#root #support-card .spBody p { margin: 0; color: #c9d4e0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+#root #support-card .spWait { color: #8fa1b5; font-size: 12.5px; }
+#root #support-card .spReply { padding: 12px 14px; border-radius: 14px; background: rgba(52,211,153,.11) !important; }
 #root #support-card .spReply b { font-size: 12.5px; color: #34d399; }
 #root #support-card .spReply p { margin-top: 4px; color: #edf2f8; }
-@media (max-width: 520px) { #support-card .spSend { width: 100%; justify-content: center; } #support-card .spFoot { flex-direction: column-reverse; align-items: stretch; } }
+@media (max-width: 520px) { #support-card .spBar { flex-direction: column; align-items: stretch; padding-left: 8px; } #support-card .spSend { justify-content: center; } #support-card .spItem em { display: none; } #support-card .spItem > button { grid-template-columns: auto 1fr auto; } }
+@media (prefers-reduced-motion: reduce) { #support-card * { transition: none !important; animation: none !important; } }
