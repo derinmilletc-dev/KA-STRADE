@@ -409,3 +409,37 @@
 #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs.navHidden { transform: translateY(-120%) !important; }
 #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTerminalHeader { position: relative !important; z-index: 0 !important; }
 #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs { z-index: 1000 !important; }
+
+/* Sayfanın en dış çerçevesi: Canlı İşlem / Pozisyonlar / Bağlantı sekmelerinde çizgi, gölge ve parlama yok */
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]),
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell > :is(.masterTradeTerminalHeader, .masterTradeSticky, .masterTradeOperationsPanel, .masterTradeDataGrid),
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost,
+html body #root > main.v26App.masterTradeRoute:has(.masterTradePage:not([data-layout-tab="analiz"])) {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"])::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"])::after,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell::after,
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost::after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+/* Üst başlık ile bilgi şeridi ve sekmeler: yüksek öncelikli sade görünüm */
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeFocusPanel {
+  background: #121a24 !important; border: 0 !important; box-shadow: none !important; background-image: none !important; backdrop-filter: none !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs {
+  border: 0 !important; box-shadow: none !important; background-image: none !important; background-color: #0b1118 !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs button {
+  border: 0 !important; box-shadow: none !important; background-image: none !important;
+}
