@@ -137,3 +137,22 @@
 #root .masterTradePage[data-layout-tab="canli"] :where(.masterTradeShell,.masterTradeTerminalHeader,.masterTradeSticky,.masterTradeFocusPanel,.masterTradeTabs,.masterTradeOperationsPanel)::after{display:none!important}
 /* Hero: calm solid card so the page reads as one background plus one card */
 #root .masterTradePage[data-layout-tab="canli"] .originalStatusHero{background:var(--lm-card2)!important}
+
+/* ---- v4: same flattening with raised specificity so older theme rules cannot re-tint the header area ---- */
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"],
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] :where(main,section,div,article,aside,header,nav,details,fieldset,ul,li,form,h1,h2,p):not(
+  .originalSurface,.originalSettings,.originalDetails,.originalAdvanced,.originalSetupStep,.originalEmergencyBar,.originalEntryChecks,
+  .originalUnderstanding,.originalRiskWarning,.masterTradeFlowCard,.masterTradeLiveHeader,.masterTradeLiveSection,.masterTradeLiveAccountHud,
+  .masterTradeLiveApiDrawer,.masterTradeLiveSignal,.liveWsSection,.originalStatusHero,.originalMetricGrid>article,
+  .originalRiskBar,.originalRiskBar *,.originalRiskSeries,.originalRiskSeries *,[role=progressbar],[role=progressbar] *,
+  [role=dialog],[role=dialog] *,[aria-modal=true],[aria-modal=true] *,
+  [class*=confirm i],[class*=confirm i] *,[class*=modal i],[class*=modal i] *,[class*=backdrop i],[class*=backdrop i] *,[class*=drawer i],[class*=drawer i] *,
+  [class*=pop i],[class*=pop i] *,[class*=toast i],[class*=toast i] *,[class*=skeleton i]
+){
+  background:transparent!important;background-image:none!important;background-color:transparent!important;
+  box-shadow:none!important;border:0!important;border-radius:0!important;backdrop-filter:none!important;filter:none!important
+}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] :where(.masterTradeShell,.masterTradeTerminalHeader,.masterTradeSticky,.masterTradeTabs,.masterTradeOperationsPanel,.masterTradeWorkspace,.masterTradeLiveUx)::before,
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] :where(.masterTradeShell,.masterTradeTerminalHeader,.masterTradeSticky,.masterTradeTabs,.masterTradeOperationsPanel,.masterTradeWorkspace,.masterTradeLiveUx)::after{
+  content:none!important;display:none!important
+}
