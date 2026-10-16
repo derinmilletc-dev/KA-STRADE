@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Camera, Info, Loader2, Sparkles, Upload, X} from 'lucide-react'
+import {Camera, Info, Loader2, Upload, X} from 'lucide-react'
+import {ChartAiIcon} from './chart-ai-icon'
 import {ChartClientError, chartRequest, chartResult, chartUsage, captureChart, CHART_AI_DISCLAIMER, CHART_AI_PRIVACY,
   imageBase64, validateChartUpload, type ChartResult, type ChartSnapshot, type ChartUsage} from './chart-ai-client'
 import './chart-ai.css'
@@ -203,7 +204,7 @@ export default function ChartAiPanel(props: Props) {
   </label>
   return <>
     <button type="button" className="chartAiButton" disabled={loading} onClick={() => setOpen(true)} title="Grafiği açıkla; işlem veya emir göndermez">
-      <Sparkles aria-hidden="true"/>Yapay Zekaya Sor
+      <ChartAiIcon/>Yapay Zekaya Sor
     </button>
     {open && createPortal(<dialog ref={dialog} className="chartAiDialog" aria-labelledby="chart-ai-title" onCancel={event => {event.preventDefault(); setOpen(false)}}>
       <header className="chartAiHeader">

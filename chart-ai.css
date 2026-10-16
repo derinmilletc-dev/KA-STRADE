@@ -1,7 +1,10 @@
 /* Grafik AI — sağa yapışık panel (masaüstü), alttan açılan sayfa (mobil). Yalnız görünüm. */
-.chartAiButton { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #3fb68b !important; background: #13261f !important; color: #6fd3ae !important; white-space: nowrap; }
-.chartAiButton svg { width: 16px; height: 16px; }
-.chartAiButton:focus-visible { outline: 2px solid #3fb68b; outline-offset: 2px; }
+.chartAiButton { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px !important; border: 2px solid #5fd9a8 !important; border-radius: 10px !important; background: linear-gradient(180deg, #14382d, #0e2820) !important; color: #fff !important; font-size: 14px !important; font-weight: 600 !important; white-space: nowrap; cursor: pointer; box-shadow: 0 0 0 1px #0d1f19, inset 0 1px 0 #ffffff14; transition: border-color .15s, background .15s; }
+.chartAiButton svg { width: 22px; height: 22px; color: #5fe0b0; flex-shrink: 0; }
+.chartAiButton:hover:not(:disabled) { border-color: #8af0c8 !important; background: linear-gradient(180deg, #19463a, #11332a) !important; }
+.chartAiButton:focus-visible { outline: 2px solid #8af0c8; outline-offset: 2px; }
+.chartAiButton:disabled { opacity: .55; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .chartAiButton { transition: none; } }
 
 .chartAiDialog {
   --cai-panel: #111417; --cai-card: #171b1f; --cai-sunken: #0f1316; --cai-line: #252b31; --cai-line-soft: #1e2429;
