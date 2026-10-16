@@ -48,7 +48,7 @@ test('Opening the real premium card emits only its geometry, without premium/tra
   await recordReactions(page)
   const state = await mockAssistant(page)
   await page.goto('/master-trade?tab=canli')
-  const locked = page.locator('[data-premium-locked]').filter({hasText: 'START LIVE AUTO TRADE'}).getByRole('button').first()
+  const locked = page.locator('[data-premium-locked]').filter({hasText: 'OTOMATİK İŞLEMİ BAŞLAT'}).getByRole('button').first()
   await expect.poll(async () => {
     await page.clock.runFor(100)
     return locked.isVisible()

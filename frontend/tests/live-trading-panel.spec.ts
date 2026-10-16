@@ -72,7 +72,7 @@ const openPanelWithStatus = async (page: Page, state: LiveStatus, mutations: str
   })
   await page.goto('/master-trade')
   await page.getByRole('button', {name: /CANLI HAZIRLIK/}).click()
-  await expect(page.getByRole('heading', {name: 'LIVE AUTO TRADE'})).toBeVisible()
+  await expect(page.getByRole('heading', {name: 'Canlı İşlem'})).toBeVisible()
 }
 
 test('shows SCANNING ONLY while Auto Trade is enabled but execution is locked', async ({page}) => {
@@ -102,7 +102,7 @@ test('shows OFF when Auto Trade is disabled and the live lock is closed', async 
   const headline = page.locator('header.masterTradeLiveHeader')
   await expect(headline.getByText('AUTO TRADE IS OFF', {exact: true})).toBeVisible()
   await expect(headline.locator('.masterTradeLiveHeadline > strong')).toHaveText('LOCKED')
-  await expect(page.getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })
 
 test('uses the shared exposure ceiling and configurable liquidation buffer without implicit mutations', async ({page}) => {
@@ -157,7 +157,7 @@ test('shows backend-acknowledged policy checked and prevents acknowledging it ag
   await expect(checkbox).toBeChecked()
   await expect(checkbox).toBeDisabled()
   await expect(page.getByRole('button', {name: 'POLICY ACKNOWLEDGED', exact: true})).toBeDisabled()
-  await expect(page.getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })
 
 for (const interval of ['1m', '5m', '1h', '4h']) {
@@ -172,7 +172,7 @@ for (const interval of ['1m', '5m', '1h', '4h']) {
     await expect(warning).toHaveAttribute('role', 'alert')
     await expect(warning).toContainText('yalnızca 15m')
     await expect(warning).toContainText(`Timeframe: ${interval}.`)
-    const startButtons = page.getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})
+    const startButtons = page.getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})
     await expect(startButtons).toHaveCount(2)
     for (const button of await startButtons.all()) await expect(button).toBeDisabled()
     expect(mutations.filter(path => path.endsWith('/auto/start'))).toEqual([])
@@ -186,7 +186,7 @@ test('15m keeps the existing Auto Trade confirmation flow', async ({page}) => {
     readinessReady: true, policyAcknowledged: true, interval: '15m',
   }, mutations)
   await expect(page.getByTestId('live-auto-timeframe-warning')).toHaveCount(0)
-  const start = page.getByLabel('Auto Trade controls').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})
+  const start = page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})
   await expect(start).toBeEnabled()
   await start.click()
   await expect(page.getByRole('dialog')).toContainText('REAL MONEY WILL BE USED')
@@ -209,10 +209,10 @@ test('unsaved timeframe changes warn without mutating the saved policy', async (
   const timeframe = setup.getByRole('combobox', {name: 'Timeframe', exact: true})
   await timeframe.selectOption('1h')
   await expect(page.getByTestId('live-auto-timeframe-warning')).toBeVisible()
-  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
   await timeframe.selectOption('15m')
   await expect(page.getByTestId('live-auto-timeframe-warning')).toHaveCount(0)
-  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeEnabled()
+  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeEnabled()
   expect(mutations.filter(path => path.endsWith('/policy') || path.endsWith('/auto/start'))).toEqual([])
 })
 
@@ -228,7 +228,7 @@ test('selecting 15m does not hide a saved unsupported timeframe before policy sa
   })
   await setup.getByRole('combobox', {name: 'Timeframe', exact: true}).selectOption('15m')
   await expect(page.getByTestId('live-auto-timeframe-warning')).toContainText('Timeframe: 1h.')
-  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.getByLabel('Auto Trade controls').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
 })
 
 test('unsupported timeframe does not disable stopping an existing Auto Trade session', async ({page}) => {
@@ -237,7 +237,7 @@ test('unsupported timeframe does not disable stopping an existing Auto Trade ses
     readinessReady: true, policyAcknowledged: true, interval: '1h',
   })
   await expect(page.getByTestId('live-auto-timeframe-warning')).toBeVisible()
-  const stopButtons = page.getByRole('button', {name: 'STOP AUTO TRADE', exact: true})
+  const stopButtons = page.getByRole('button', {name: 'OTOMATİK İŞLEMİ DURDUR', exact: true})
   await expect(stopButtons).toHaveCount(2)
   for (const button of await stopButtons.all()) await expect(button).toBeEnabled()
 })

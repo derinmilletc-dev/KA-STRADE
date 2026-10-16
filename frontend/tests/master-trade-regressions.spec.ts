@@ -64,7 +64,7 @@ test('LIVE history excludes DEMO data and close confirmation uses fresh per-plan
 for (const statusCode of [403,429,503]) test(`HTTP ${statusCode} account polling invalidates stale LIVE authority rather than leaving start enabled`, async ({page}) => {
   const fixture = await setup(page)
   await page.goto('/master-trade?tab=canli', {waitUntil:'domcontentloaded'})
-  const start = page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'START LIVE AUTO TRADE',exact:true})
+  const start = page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true})
   await expect(start).toBeEnabled()
   fixture.statusCode = statusCode
   await expect(start).toBeDisabled({timeout:12000})
@@ -74,7 +74,7 @@ for (const statusCode of [403,429,503]) test(`HTTP ${statusCode} account polling
 test('cancelled live confirmation sends no request and double confirmation sends exactly one', async ({page}) => {
   const fixture = await setup(page)
   await page.goto('/master-trade?tab=canli', {waitUntil:'domcontentloaded'})
-  const start = page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'START LIVE AUTO TRADE',exact:true})
+  const start = page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true})
   await expect(start).toBeEnabled()
   await start.click()
   await page.locator('.liveConfirm').getByRole('button',{name:'CANCEL',exact:true}).click()
@@ -98,7 +98,7 @@ test('an accepted mutation with a failed status refresh is reported as unverifie
     await route.fulfill({json:{ok:true}})
   })
   await page.goto('/master-trade?tab=canli',{waitUntil:'domcontentloaded'})
-  await page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'START LIVE AUTO TRADE',exact:true}).click()
+  await page.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true}).click()
   await page.locator('.liveConfirm input').fill('CANLI OTOMATİK')
   await page.locator('.liveConfirm').getByRole('button',{name:'CONFIRM',exact:true}).click()
   await expect(page.locator('.liveNotice.error').first()).toContainText('LIVE durumu doğrulanamadı')

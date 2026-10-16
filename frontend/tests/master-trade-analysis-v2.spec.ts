@@ -264,7 +264,7 @@ for (const connected of [false, true]) test(`Locked navigation preserves all req
   await root(page).getByRole('button', {name: "Auto Trade'i aç", exact: true}).click()
   await expect(page).toHaveURL(/tab=canli/)
   await expect(page.locator('#master-trade-auto-trade')).toBeFocused()
-  await expect(page.locator('#master-trade-auto-trade').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.locator('#master-trade-auto-trade').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
   await expect(page.locator('.liveConfirm')).toHaveCount(0)
   expect(requests).toEqual(before)
   expect(JSON.stringify(live)).toBe(serialized)

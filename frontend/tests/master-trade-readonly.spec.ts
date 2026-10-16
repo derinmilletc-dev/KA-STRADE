@@ -127,7 +127,7 @@ test('Master Trade keeps account state read-only and locked', async ({page}) => 
   await expect(page.locator('.refReportSymbol strong')).toHaveText('ETHUSDT')
   await page.getByRole('tab', {name: 'Canlı İşlem', exact: true}).click()
   await expect(page).toHaveURL(/tab=canli/)
-  await expect(page.getByRole('heading', {name: 'LIVE AUTO TRADE'})).toBeVisible({timeout: 15000})
+  await expect(page.getByRole('heading', {name: 'Canlı İşlem'})).toBeVisible({timeout: 15000})
   await expect(page.getByText('LOCKED', {exact: true}).first()).toBeVisible()
   await expect(page.locator('.masterTradeStepper button').nth(2)).toBeDisabled()
   await expect(page.locator('.masterTradeStepper button').nth(3)).toBeDisabled()

@@ -1,11 +1,12 @@
 // @ts-nocheck
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, CheckCircle2, CircleDollarSign, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import { liveCopy } from '../../ui-copy'
-import { MasterTradeLiveLayout } from '../../MasterTradeLayout'
+import { PremiumWorkspace } from '../../premium-access'
+import '../../live-ws.css'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
@@ -124,9 +125,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (!active || (masterTrade && masterTradeTab !== 'canli') || defaultsApplied.current || !tradingDefaults.preferences) return
     defaultsApplied.current = true
     if (tradingDefaults.untouched() && tradingDefaults.preferences.trading_mode === 'AUTO') {
-      const section = document.getElementById('master-trade-auto-trade')
-      section?.scrollIntoView({block: 'center'})
-      section?.focus({preventScroll: true})
+      document.getElementById('master-trade-auto-trade')?.focus({preventScroll: true})
     }
   }, [active, masterTrade, masterTradeTab, tradingDefaults.preferences, tradingDefaults.untouched])
   const [localStatus, setLocalStatus] = useState<LiveStatus | null>(null)
@@ -142,6 +141,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null)
   const [showSecret, setShowSecret] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [openStep, setOpenStep] = useState<number | null>(null)
+  const [strategyInfo, setStrategyInfo] = useState(false)
   const [externalHistory, setExternalHistory] = useState<ExternalHistory | null>(null)
   const [reviewResult, setReviewResult] = useState<{message: string; notional?: number; estimated_stop_loss_usdt?: number} | null>(null)
   const [credentialModalOpen, setCredentialModalOpen] = useState(false)
@@ -654,126 +655,202 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   )
 
   if (!active) return null
-  if (masterTrade) return <MasterTradeLiveLayout tab={masterTradeTab} step={status?.live_auto_trade ? 3 : !configured || !connected ? 0 : !readinessReady ? 1 : !liveArmed ? 2 : 3} notice={notice.kind !== 'info' ? <div className={`liveNotice masterTradeLiveNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.kind === 'error' ? <TriangleAlert/> : <CheckCircle2/>}<span>{notice.text}</span></div> : undefined}><section id="master-trade-live-terminal" className={`masterTradeLiveUx ${advancedOpen ? 'advanced-open' : 'operational'}`} aria-label="LIVE Auto Trade workspace">
-    <header className={`masterTradeLiveHeader ${liveState.toLowerCase()}`}>
-      <div className="masterTradeLiveTitle"><span className="masterTradeLiveKicker">LIVE OPERATIONS / REAL MONEY</span><h2>LIVE AUTO TRADE</h2><p>Binance Futures Mainnet · V25 backend control</p></div>
-      <div className="masterTradeLiveHeadline"><span className="liveStateDot" /><strong>{liveState}</strong><small>{status?.live_auto_trade ? executionLocked ? 'SCANNER ACTIVE · LIVE ORDERS LOCKED' : 'AUTO TRADE IS RUNNING' : 'AUTO TRADE IS OFF'}</small></div>
-      <div className="masterTradeLiveChips"><span>Market Data <b>{marketDataConnected ? 'CONNECTED' : status === null ? 'UNKNOWN' : 'DISCONNECTED'}</b></span><span>Live Account <b>{connected ? 'CONNECTED' : 'DISCONNECTED'}</b></span><span>Risk <b>{riskState}</b></span><span>Exposure <b>{exposureState}</b></span><span>Protection <b>{protectionState}</b></span></div>
-    </header>
-
-    <div className="masterTradeLiveAssistant">
-      <div className="masterTradeLiveAssistantCopy"><Power aria-hidden="true"/><div><span className="masterTradeLiveKicker">NEXT BEST ACTION</span><strong>{status?.live_auto_trade ? 'Auto Trade is actively monitoring approved markets.' : liveState === 'BLOCKED' ? 'LIVE is blocked until the backend recovery state is clear.' : !configured || !connected ? 'Connect and verify your LIVE API to continue.' : !readinessReady ? 'Complete the required safety checks before enabling Auto Trade.' : liveArmed ? 'LIVE is armed. Start supervised Auto Trade to continue.' : 'Everything is ready. Arm LIVE Auto Trade to continue.'}</strong><small>{status?.live_auto_trade ? 'STOP remains available at any time.' : blocker}</small></div></div>
-      {timeframeWarning}
-      {status?.reconciliation_diagnostic && <div className="masterTradeLiveDiagnostic" role="alert"><span className="masterTradeLiveKicker">RECONCILIATION ERROR</span><small>Stage: {text(status.reconciliation_diagnostic.reconciliation_stage)}</small><small>Error: {text(status.reconciliation_diagnostic.exception_message)}</small><small>Source: {text(status.reconciliation_diagnostic.source)}:{text(status.reconciliation_diagnostic.line)}</small></div>}
-      <div className="masterTradeLiveAssistantActions"><button type="button" className="masterTradeLivePrimary" onClick={status?.live_auto_trade ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!status?.live_auto_trade && !autoReady)}>{!status?.live_auto_trade && !autoReady ? <LockKeyhole aria-hidden="true"/> : <Power aria-hidden="true"/>}{status?.live_auto_trade ? ' STOP AUTO TRADE' : ' START LIVE AUTO TRADE'}</button><button type="button" className="masterTradeLiveTextButton" onClick={() => setAdvancedOpen(true)}>VIEW REQUIREMENTS</button></div>
+  if (masterTrade) {
+    const running = Boolean(status?.live_auto_trade)
+    const consentDone = authorizationValid && status?.policy_acknowledged === true
+    const step1Done = configured && connected
+    const stepDone = [step1Done, step1Done && consentDone && readinessReady, running, false]
+    const currentStep = !step1Done ? 0 : !(consentDone && readinessReady) ? 1 : !running ? 2 : 3
+    const shownStep = openStep ?? currentStep
+    const stepOpen = (index: number) => shownStep === index
+    const stepLocked = (index: number) => index > 0 && index > currentStep && !(index === 3 && manualOrderReady)
+    const focusApiKey = () => { setOpenStep(0); window.setTimeout(() => document.getElementById('live-api-key')?.focus({preventScroll: true}), 60) }
+    const next = status === null
+      ? {tone: 'wait', title: 'Durum yükleniyor', text: 'Canlı hesap bilgileri alınıyor.', label: 'Yenile', run: () => void refresh(false), off: Boolean(busy) || refreshPending}
+      : emergency || recoveryRequired
+        ? {tone: 'stop', title: 'Canlı işlem şu an durduruldu', text: status?.reconciliation_diagnostic?.exception_message || status?.recovery_error || 'Önce kurtarma kontrolü tamamlanmalı. Bu sırada yeni emir açılmaz.', label: 'Kurtarma kontrolünü yap', run: checkRecovery, off: Boolean(busy)}
+        : !step1Done
+          ? {tone: 'go', title: 'Binance API anahtarını bağla', text: 'İlk adım: hesabını güvenli şekilde bağla. Emir açmaz, sadece okur.', label: 'Bağlantıyı başlat', run: focusApiKey, off: false}
+          : !authorizationValid
+            ? {tone: 'go', title: '24 saatlik izni ver', text: 'Canlı işlem gerçek parayla çalışır. Devam etmek için riski 24 saatliğine kabul etmelisin.', label: '24 saatlik izni ver', run: grantConsent, off: Boolean(busy)}
+            : status?.policy_acknowledged !== true
+              ? {tone: 'go', title: 'Risk limitlerini onayla', text: 'Günlük zarar, pozisyon ve maruziyet limitlerini görüp onaylaman gerekiyor.', label: 'Limitleri onayla', run: acknowledgePolicy, off: Boolean(busy)}
+              : !readinessReady
+                ? {tone: 'wait', title: 'Güvenlik kontrolleri tamamlanıyor', text: blocker || 'Sistem hazır olunca bir sonraki adım açılır.', label: 'Durumu yenile', run: () => void refresh(false), off: Boolean(busy) || refreshPending}
+                : !liveArmed
+                  ? {tone: 'go', title: 'Canlı emir iznini aç (ARM)', text: 'Son güvenlik onayı. Bu, otomatik işlemin emir açabilmesi için gerekli.', label: 'Canlı emir iznini aç', run: armLive, off: Boolean(busy)}
+                  : !running
+                    ? {tone: 'go', title: 'Otomatik işlemi başlat', text: autoReady ? 'Her şey hazır. Başlattığında strateji seçili coinleri tarar ve kurallara uyan fırsatta emir açar.' : (blocker || 'Başlatma şartları henüz tamamlanmadı.'), label: 'Otomatik işlemi başlat', run: autoToggle, off: Boolean(busy) || !autoReady}
+                    : {tone: 'ok', title: 'Otomatik işlem çalışıyor', text: 'Seçili coinler izleniyor. İstediğin an durdurabilirsin.', label: 'Durdur', run: stopAutoTrade, off: Boolean(busy)}
+    const stateText = status === null ? 'Bilinmiyor' : emergency || recoveryRequired ? 'Durduruldu' : running ? (executionLocked ? 'Sadece tarıyor' : 'Çalışıyor') : liveArmed ? 'Hazır (ARM açık)' : readinessReady ? 'Hazır' : 'Kilitli'
+    const gateTr = (value: string) => value === 'READY' || value === 'CLEAR' ? 'Tamam' : value === 'UNKNOWN' ? 'Bilinmiyor' : 'Engelli'
+    const marketsText = configuredSymbols.length ? configuredSymbols.map(item => item.replace('USDT', '')).join(', ') : 'Varsayılan liste'
+    const stepsMeta = [
+      {key: 'baglanti', title: '1 · Bağlantı', sub: step1Done ? 'Binance hesabın bağlı' : 'API anahtarını bağla'},
+      {key: 'izinler', title: '2 · İzinler', sub: consentDone ? (readinessReady ? 'İzinler tamam' : 'Güvenlik kontrolü bekleniyor') : 'Sırayla iki onay gerekiyor'},
+      {key: 'auto', title: '3 · Otomatik işlem', sub: running ? 'Çalışıyor' : 'Strateji ve başlatma'},
+      {key: 'manuel', title: '4 · Manuel emir', sub: manualOrderReady ? 'Hazır' : 'Önce 1-2. adımlar ve ARM'},
+    ]
+    const connectionBlock = <div className="liveWsConnect">
+      <div className="liveWsConnectHead"><span className={`liveWsDot ${connected ? 'on' : ''}`}/><div><b>{connected ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Binance · USDT-M Futures · Son kontrol: {date(testResult?.testedAt || status?.connection?.last_checked)}</small></div></div>
+      {status?.connection?.last_error && !connected && <p className="liveWsWarn">Bağlantı hatası: {text(status.connection.last_error)}</p>}
+      <div className="liveWsFields">
+        <label>API anahtarı<input id="live-api-key" data-private="true" type="password" autoComplete="new-password" value={credentials.apiKey} onChange={event => setCredentials({...credentials, apiKey: event.target.value})} placeholder="API anahtarını yapıştır"/></label>
+        <label>Gizli anahtar<div className="masterTradeLiveSecretField"><input data-private="true" type={showSecret ? 'text' : 'password'} autoComplete="new-password" value={credentials.secretKey} onChange={event => setCredentials({...credentials, secretKey: event.target.value})} placeholder="Gizli anahtarı yapıştır"/><button type="button" aria-label={showSecret ? 'Gizli anahtarı gizle' : 'Gizli anahtarı göster'} onClick={() => setShowSecret(value => !value)}>{showSecret ? <EyeOff/> : <Eye/>}</button></div></label>
+      </div>
+      <label className="liveWsCheck masterTradeLiveCheck"><input type="checkbox" checked={credentials.accepted} onChange={event => setCredentials({...credentials, accepted: event.target.checked})}/><span>Anahtarlarımın şifreli sunucu kasasında saklanmasını kabul ediyorum.</span></label>
+      <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={testConnection} disabled={Boolean(busy) || !connections?.vault?.ready}>{busy === 'test' ? <RefreshCw className="spin"/> : <ShieldCheck/>} Bağlantıyı test et</button><button type="button" className="liveWsPrimary" onClick={connectAndSave} disabled={Boolean(busy)}>{busy === 'connect-save' ? <RefreshCw className="spin"/> : <LockKeyhole/>} Kaydet ve bağlan</button></div>
+      <p className="liveWsHint">Futures izni olan, para çekme izni olmayan bir anahtar kullan. Bu adım emir açmaz.</p>
     </div>
+    const manualOrderCard = renderManualOrderCard()
+    return <PremiumWorkspace>
+      {notice.kind !== 'info' && <div className={`liveNotice masterTradeLiveNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.kind === 'error' ? <TriangleAlert/> : <CheckCircle2/>}<span>{notice.text}</span></div>}
+      <section id="master-trade-live-terminal" className="liveWs" aria-label="Canlı işlem" hidden={masterTradeTab === 'pozisyonlar'}>
+        {masterTradeTab === 'canli' && <>
+          <header className={`liveWsHero ${next.tone}`}>
+            <div className="liveWsHeroTop"><div><small>CANLI İŞLEM · GERÇEK PARA</small><h2>Canlı İşlem</h2></div><span className={`liveWsPill ${running ? 'on' : emergency || recoveryRequired ? 'stop' : ''}`}><i/>{stateText}</span></div>
+            <div id="master-trade-auto-trade" tabIndex={-1} aria-label="Şimdi yapman gereken" className="liveWsNext">
+              <small>ŞİMDİ YAPMAN GEREKEN</small>
+              <strong>{next.title}</strong>
+              <p>{next.text}</p>
+              {timeframeWarning}
+              {status?.reconciliation_diagnostic && <p className="liveWsWarn" role="alert">Uzlaştırma hatası: {text(status.reconciliation_diagnostic.exception_message)}</p>}
+              <button type="button" className="liveWsPrimary big" onClick={next.run} disabled={next.off}>{next.label}</button>
+            </div>
+            <ol className="liveWsStepper" aria-label="Canlı işlem adımları">{stepsMeta.map((item, index) => <li key={item.key} className={stepDone[index] ? 'done' : index === currentStep ? 'current' : stepLocked(index) ? 'locked' : ''}><button type="button" disabled={stepLocked(index)} onClick={() => setOpenStep(index)} aria-current={index === currentStep ? 'step' : undefined}><span className="liveWsNum">{stepDone[index] ? <CheckCircle2/> : stepLocked(index) ? <LockKeyhole/> : index + 1}</span><span><b>{item.title.slice(4)}</b><small>{item.sub}</small></span></button></li>)}</ol>
+          </header>
 
-    <div className="masterTradeLiveFlow" aria-label="LIVE Auto Trade progression"><span className={readinessReady ? 'complete' : 'current'}>1 <b>{readinessReady ? 'READY' : 'LOCKED'}</b></span><i /><span className={!liveArmed && readinessReady ? 'current' : liveArmed ? 'complete' : ''}>2 <b>ARM REQUIRED</b></span><i /><span className={liveArmed && !status?.live_auto_trade ? 'current' : status?.live_auto_trade ? 'complete' : ''}>3 <b>ARMED</b></span><i /><span className={status?.live_auto_trade ? 'current running' : ''}>4 <b>RUNNING</b></span></div>
+          <section className={`liveWsCard ${stepOpen(0) ? 'open' : ''}`}>
+            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(0)} onClick={() => setOpenStep(stepOpen(0) ? -1 : 0)}><span className={`liveWsBadge ${step1Done ? 'done' : 'current'}`}>{step1Done ? <CheckCircle2/> : '1'}</span><span><b>Bağlantı</b><small>{stepsMeta[0].sub}</small></span><ChevronDown className="liveWsChev"/></button>
+            {stepOpen(0) && <div className="liveWsBody">{connectionBlock}</div>}
+          </section>
 
-    <section className="masterTradeLiveSection masterTradeLiveConfirmations" aria-label="LIVE Safety Confirmations">
-      <header><div><span className="masterTradeLiveKicker">LIVE SAFETY CONFIRMATIONS</span><h3>Complete the release prerequisites</h3></div><strong className={readinessReady ? 'ready' : 'blocked'}>{readinessReady ? 'READY' : 'REQUIRED'}</strong></header>
-      <div className="masterTradeLiveGrid masterTradeLiveConfirmationGrid">
-        <article><div><span className="masterTradeLiveKicker">24 HOUR CONSENT</span><h4>{authorizationValid ? 'Risk consent active' : authorizationReasonText}</h4><small>{authorizationValid ? `Valid until ${date(status?.authorization?.expires_at || status?.consent?.expires_at)}` : authorizationReasonText}</small></div><strong className={authorizationValid ? 'ready' : 'blocked'}>{authorizationValid ? 'PASS' : 'PENDING'}</strong><button type="button" className="masterTradeLiveSecondary" onClick={grantConsent} disabled={Boolean(busy) || authorizationValid}>{authorizationValid ? '24 HOUR CONSENT ACTIVE' : '24 SAAT İZİN VER'}</button>{authorizationValid && <button type="button" className="masterTradeLiveSecondary masterTradeLiveRevokeButton" onClick={revokeConsent} disabled={Boolean(busy)}>REVOKE CONSENT</button>}</article>
-        <article><div><span className="masterTradeLiveKicker">POLICY ACKNOWLEDGEMENT</span><h4>{status?.policy_acknowledged ? 'Risk policy acknowledged' : 'Risk limitleri için politika onayı gerekli.'}</h4><small>{status?.policy_acknowledged ? 'Current policy is covered by the active 24-hour consent.' : 'Give 24-hour LIVE consent to acknowledge the current policy.'}</small></div><strong className={status?.policy_acknowledged ? 'ready' : 'blocked'}>{status?.policy_acknowledged ? 'PASS' : 'PENDING'}</strong><label className="masterTradeLivePolicyCheck"><input type="checkbox" aria-label="Acknowledge current risk policy" checked={status?.policy_acknowledged === true} onChange={event => { if (event.target.checked) acknowledgePolicy() }} disabled={Boolean(busy) || status?.policy_acknowledged === true}/><span>{status?.policy_acknowledged ? 'POLICY ACKNOWLEDGED' : 'I acknowledge the current risk limits'}</span></label><button type="button" className="masterTradeLiveSecondary" onClick={acknowledgePolicy} disabled={Boolean(busy) || status?.policy_acknowledged === true}>{status?.policy_acknowledged ? 'POLICY ACKNOWLEDGED' : 'LİMİTLERİ ONAYLA'}</button></article>
-      </div>
-      <p className="masterTradeLiveOperationalNote">Consent ve policy acknowledgement arka planda kontrol edilir. Manuel LIVE ORDER için ayrıca ARM LIVE gerekmez; ARM LIVE yalnızca Auto Trade içindir.</p>
-    </section>
+          <section className={`liveWsCard ${stepOpen(1) ? 'open' : ''} ${stepLocked(1) ? 'locked' : ''}`}>
+            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(1)} disabled={stepLocked(1)} onClick={() => setOpenStep(stepOpen(1) ? -1 : 1)}><span className={`liveWsBadge ${stepDone[1] ? 'done' : stepLocked(1) ? 'locked' : 'current'}`}>{stepDone[1] ? <CheckCircle2/> : stepLocked(1) ? <LockKeyhole/> : '2'}</span><span><b>İzinler</b><small>{stepsMeta[1].sub}</small></span><ChevronDown className="liveWsChev"/></button>
+            {stepOpen(1) && <div className="liveWsBody">
+              <div className="liveWsChecks">
+                <article className={authorizationValid ? 'done' : 'todo'}>
+                  <div className="liveWsCheckText"><b>① 24 saatlik risk izni</b><small>{authorizationValid ? `Geçerli: ${date(status?.authorization?.expires_at || status?.consent?.expires_at)} tarihine kadar` : 'Gerçek parayla işlem riskini 24 saatliğine kabul edersin.'}</small></div>
+                  <div className="liveWsRow"><button type="button" className="liveWsPrimary" onClick={grantConsent} disabled={Boolean(busy) || authorizationValid}>{authorizationValid ? 'İzin verildi' : '24 SAAT İZİN VER'}</button>{authorizationValid && <button type="button" className="liveWsGhost" onClick={revokeConsent} disabled={Boolean(busy)}>İzni geri al</button>}</div>
+                </article>
+                <article className={status?.policy_acknowledged ? 'done' : authorizationValid ? 'todo' : 'wait'}>
+                  <div className="liveWsCheckText"><b>② Risk limitleri onayı</b><small>{status?.policy_acknowledged ? 'Mevcut limitler onaylandı.' : authorizationValid ? 'Limitleri gördüm ve kabul ediyorum.' : 'Önce 1. onayı ver.'}</small></div>
+                  <label className="masterTradeLivePolicyCheck liveWsCheck"><input type="checkbox" aria-label="Mevcut risk limitlerini onaylıyorum" checked={status?.policy_acknowledged === true} onChange={event => { if (event.target.checked) acknowledgePolicy() }} disabled={Boolean(busy) || status?.policy_acknowledged === true}/><span>{status?.policy_acknowledged ? 'Limitler onaylandı' : 'Risk limitlerini onaylıyorum'}</span></label>
+                  <div className="liveWsRow"><button type="button" className="liveWsPrimary" onClick={acknowledgePolicy} disabled={Boolean(busy) || status?.policy_acknowledged === true}>{status?.policy_acknowledged ? 'Onaylandı' : 'LİMİTLERİ ONAYLA'}</button></div>
+                </article>
+              </div>
+              <p className="liveWsHint">Manuel emir için ayrıca ARM gerekmez. ARM yalnızca otomatik işlem içindir.</p>
+              <div className="liveWsGates">{(status?.readiness?.gates || []).map(gate => <span key={gate.key} className={gate.passed ? 'ok' : 'bad'}>{gate.passed ? <CheckCircle2/> : <AlertTriangle/>}{gate.label || gate.key}</span>)}</div>
+            </div>}
+          </section>
 
-    <section className="masterTradeLiveAccountHud" aria-label="LIVE Account Overview">
-      <header><div><span className="masterTradeLiveKicker">LIVE ACCOUNT OVERVIEW</span><h3>Binance Futures account</h3></div><strong className={connected ? 'ready' : 'blocked'}><i />{connected ? 'LIVE CONNECTED' : 'LIVE DISCONNECTED'}</strong></header>
-      <div className="masterTradeLiveAccountMetrics">
-        <span><small>WALLET BALANCE</small><b>{money(status?.account?.wallet_balance)}</b><em>USDT</em></span>
-        <span><small>AVAILABLE BALANCE</small><b>{money(status?.account?.available_balance)}</b><em>USDT</em></span>
-        <span><small>MARGIN USED</small><b>--</b><em>Unavailable from V25 snapshot</em></span>
-        <span><small>UNREALIZED PNL</small><b className={Number(status?.account?.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status?.account?.unrealized_pnl)}</b><em>Open positions</em></span>
-        <span><small>REALIZED PNL</small><b>--</b><em>Unavailable from V25 snapshot</em></span>
-        <span><small>MARGIN RATIO</small><b>--</b><em>Unavailable from V25 snapshot</em></span>
-        <span><small>TOTAL EXPOSURE</small><b>{money(liveExposure)}</b><em>Position notional</em></span>
-        <span><small>OPEN POSITIONS</small><b>{positions.length}</b><em>Live snapshot</em></span>
-        <span><small>OPEN ORDERS</small><b>{openOrders.length}</b><em>Live snapshot</em></span>
-        <span><small>ACTIVE LEVERAGE</small><b>{positions.length ? positions.map(positionLeverage).join(' / ') : '--'}</b><em>Per open position</em></span>
-      </div>
-    </section>
+          <section className={`liveWsCard ${stepOpen(2) ? 'open' : ''} ${stepLocked(2) ? 'locked' : ''}`}>
+            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(2)} disabled={stepLocked(2)} onClick={() => setOpenStep(stepOpen(2) ? -1 : 2)}><span className={`liveWsBadge ${stepDone[2] ? 'done' : stepLocked(2) ? 'locked' : 'current'}`}>{stepDone[2] ? <CheckCircle2/> : stepLocked(2) ? <LockKeyhole/> : '3'}</span><span><b>Otomatik işlem</b><small>{stepsMeta[2].sub}</small></span><ChevronDown className="liveWsChev"/></button>
+            {stepOpen(2) && <div className="liveWsBody">
+              <div className="liveWsStrategy">
+                <div className="liveWsStrategyHead"><div className="liveWsStrategyIcon"><Power/></div><div><b>Kais Original · Gözetimli</b><small>15 dakikalık mum · {marketsText}</small></div><span className="liveWsTag">{running ? 'ÇALIŞIYOR' : 'SEÇİLİ'}</span><button type="button" className="liveWsInfo" aria-label="Strateji nasıl çalışır?" aria-expanded={strategyInfo} onClick={() => setStrategyInfo(value => !value)}><Info/></button></div>
+                {strategyInfo && <div className="liveWsInfoBox" role="note">
+                  <b>Bu strateji nasıl çalışır?</b>
+                  <ul>
+                    <li>Seçili coinleri her {numericPolicy('scan_seconds', 60)} saniyede bir tarar (yalnızca 15 dakikalık grafik).</li>
+                    <li>Sinyal güveni en az %{numericPolicy('min_confidence', 85)} ve tuzak puanı en fazla {Math.min(35, numericPolicy('max_trap_score', 35))} olmalıdır.</li>
+                    <li>Uygun fırsatta stop-loss ve 3 kâr hedefiyle emri kendisi açar; korumasız pozisyon bırakmaz.</li>
+                    <li>Tek işlemde en fazla {numericPolicy('max_loss_per_trade', 1)} USDT, aynı anda en fazla {numericPolicy('max_positions', 2)} pozisyon ve toplam {numericPolicy('max_total_exposure_usdt', 350)} USDT maruziyet.</li>
+                    <li>Günlük zarar {numericPolicy('daily_loss_limit', 20)} USDT'ye veya üst üste {numericPolicy('consecutive_loss_limit', 3)} zarara ulaşırsa yeni işlem açmaz.</li>
+                  </ul>
+                </div>}
+                <div className="masterTradeLiveSetupGrid liveWsGrid">
+                  <label>Zaman dilimi<select value={selectedAutoTimeframe} onChange={event => setPolicy('interval', event.target.value)}><option>1m</option><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select></label>
+                  <label>İşlem başı risk<div className="masterTradeLiveUnitField"><input type="number" min="0.5" max="25" step="0.1" value={numericPolicy('max_loss_per_trade', 1)} onChange={event => setPolicy('max_loss_per_trade', Number(event.target.value))}/><span>USDT</span></div></label>
+                  <label>En fazla pozisyon<input type="number" min="1" max="5" value={numericPolicy('max_positions', 2)} onChange={event => setPolicy('max_positions', Number(event.target.value))}/></label>
+                  <label>En fazla maruziyet<div className="masterTradeLiveUnitField"><input type="number" min="25" max="350" value={numericPolicy('max_total_exposure_usdt', 350)} onChange={event => setPolicy('max_total_exposure_usdt', Number(event.target.value))}/><span>USDT</span></div></label>
+                </div>
+                <div className="masterTradeLiveMarkets"><span>COİNLER</span><div className="masterTradeLiveMarketsScroll">{approvedSymbols.map(item => <button type="button" key={item} aria-pressed={configuredSymbols.includes(item)} className={configuredSymbols.includes(item) ? 'selected' : ''} onClick={() => toggleSymbol(item)}>{item.replace('USDT', '')}</button>)}</div><small>{configuredSymbols.length ? `${configuredSymbols.length} coin seçili` : 'Varsayılan liste'}</small></div>
+                <button type="button" className="liveWsLink" onClick={() => setAdvancedOpen(value => !value)}>{advancedOpen ? 'Gelişmiş ayarları gizle' : 'Gelişmiş ayarlar'}</button>
+                {advancedOpen && <div className="masterTradeLiveSetupGrid liveWsGrid">
+                  <label>En düşük güven<div className="masterTradeLiveUnitField"><input type="number" min="70" max="95" value={numericPolicy('min_confidence', 85)} onChange={event => setPolicy('min_confidence', Number(event.target.value))}/><span>%</span></div></label>
+                  <label>En yüksek kaldıraç<input type="number" min="1" max="50" value={numericPolicy('max_leverage', 2)} onChange={event => setPolicy('max_leverage', Number(event.target.value))}/></label>
+                  <label>Tasfiye tamponu<div className="masterTradeLiveUnitField"><input type="number" min="0.05" max="5" step="0.05" value={numericPolicy('liquidation_buffer_pct', 0.5)} onChange={event => setPolicy('liquidation_buffer_pct', Number(event.target.value))}/><span>% giriş</span></div></label>
+                  <label>Günlük zarar limiti<div className="masterTradeLiveUnitField"><input type="number" min="5" max="100" value={numericPolicy('daily_loss_limit', 20)} onChange={event => setPolicy('daily_loss_limit', Number(event.target.value))}/><span>USDT</span></div></label>
+                  <label>Üst üste zarar<input type="number" min="1" max="10" value={numericPolicy('consecutive_loss_limit', 3)} onChange={event => setPolicy('consecutive_loss_limit', Number(event.target.value))}/></label>
+                  <label>Tarama aralığı (sn)<input type="number" min="30" max="300" value={numericPolicy('scan_seconds', 60)} onChange={event => setPolicy('scan_seconds', Number(event.target.value))}/></label>
+                  <div className="masterTradeLiveSide"><span>YÖN</span><button type="button" className={policy.allow_long !== false ? 'selected' : ''} onClick={() => setPolicy('allow_long', policy.allow_long === false)}>LONG</button><button type="button" className={policy.allow_short !== false ? 'selected' : ''} onClick={() => setPolicy('allow_short', policy.allow_short === false)}>SHORT</button></div>
+                </div>}
+                <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={updatePolicy} disabled={Boolean(busy)}>Ayarları kaydet</button></div>
+                <p className="liveWsHint">Ayarlar sunucuda doğrulanır. Ayar değiştirirsen limit onayını yenilemen gerekebilir.</p>
+              </div>
+              <div className="liveWsLaunch">
+                <div className="liveWsLaunchRow"><span><small>CANLI EMİR İZNİ (ARM)</small><b>{liveArmed ? 'Açık' : 'Kapalı'}</b></span><button type="button" className="liveWsGhost" onClick={liveArmed ? disarmLive : armLive} disabled={Boolean(busy) || (!liveArmed && (!authorizationValid || !configured || !connected || emergency || recoveryRequired || !readinessReady))}>{liveArmed ? 'ARM\'ı kapat' : 'ARM\'ı aç'}</button></div>
+                <div className="masterTradeLiveAssistantActions">
+                  <button type="button" className={`liveWsPrimary big ${running ? 'danger' : ''}`} onClick={running ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!running && !autoReady)}>{!running && !autoReady ? <LockKeyhole/> : <Power/>} {running ? 'OTOMATİK İŞLEMİ DURDUR' : 'OTOMATİK İŞLEMİ BAŞLAT'}</button>
+                </div>
+                {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {blocker || 'önceki adımları tamamla'}</p>}
+                <div className="liveWsMeta"><span><small>Tarayıcı</small><b>{scannerStatus}</b></span><span><small>Taranan</small><b>{status?.scanner?.scanned_symbol_count ?? 0}</b></span><span><small>Aday</small><b>{candidateCount}</b></span><span><small>Son tarama</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span></div>
+                {running && <p className="liveWsHint">{automationReason}</p>}
+              </div>
+            </div>}
+          </section>
 
-    {renderManualOrderCard()}
+          <section className={`liveWsCard ${stepOpen(3) ? 'open' : ''} ${stepLocked(3) ? 'locked' : ''}`}>
+            <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(3)} disabled={stepLocked(3)} onClick={() => setOpenStep(stepOpen(3) ? -1 : 3)}><span className={`liveWsBadge ${manualOrderReady ? 'current' : 'locked'}`}>{manualOrderReady ? '4' : <LockKeyhole/>}</span><span><b>Manuel emir</b><small>{stepsMeta[3].sub}</small></span><ChevronDown className="liveWsChev"/></button>
+            {stepOpen(3) && <div className="liveWsBody">{manualOrderCard}</div>}
+          </section>
 
-    <section className="masterTradeLiveSection masterTradeLiveOperations" aria-label="LIVE Auto Trade operations"><header><div><span className="masterTradeLiveKicker">AUTO TRADE OPERATIONS</span><h3>Scanner and decision state</h3></div><strong className={status?.live_auto_trade ? 'ready' : 'blocked'}>{status?.live_auto_trade ? 'ACTIVE' : 'OFF'}</strong></header><div className="masterTradeLiveControlMeta"><span><small>SCANNER</small><b>{scannerStatus}</b></span><span><small>SCANNED</small><b>{status?.scanner?.scanned_symbol_count ?? 0}</b></span><span><small>CANDIDATES</small><b>{candidateCount}</b></span><span><small>LAST SCAN</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span></div><p className="masterTradeLiveOperationalNote"><span className="masterTradeLiveWarningChip">{automationReason}</span></p></section>
+          <section className="liveWsSection masterTradeLiveAccountHud" aria-label="Hesap özeti">
+            <h3>Hesap özeti</h3>
+            <div className="masterTradeLiveAccountMetrics">
+              <span><small>CÜZDAN</small><b>{money(status?.account?.wallet_balance)}</b><em>USDT</em></span>
+              <span><small>KULLANILABİLİR</small><b>{money(status?.account?.available_balance)}</b><em>USDT</em></span>
+              <span><small>AÇIK KÂR/ZARAR</small><b className={Number(status?.account?.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status?.account?.unrealized_pnl)}</b><em>Açık pozisyonlar</em></span>
+              <span><small>TOPLAM MARUZİYET</small><b>{money(liveExposure)}</b><em>Pozisyon değeri</em></span>
+              <span><small>AÇIK POZİSYON</small><b>{positions.length}</b><em>Anlık</em></span>
+              <span><small>AÇIK EMİR</small><b>{openOrders.length}</b><em>Anlık</em></span>
+              <span><small>KALDIRAÇ</small><b>{positions.length ? positions.map(positionLeverage).join(' / ') : '--'}</b><em>Pozisyon başına</em></span>
+              <span><small>RİSK</small><b>{gateTr(riskState)}</b><em>Risk kapısı</em></span>
+              <span><small>KORUMA</small><b>{gateTr(currentProtection === 'PROTECTED' ? 'READY' : currentProtection === 'UNKNOWN' ? 'UNKNOWN' : 'BLOCKED')}</b><em>Stop/hedef emirleri</em></span>
+              <span><small>KURTARMA</small><b>{gateTr(recoveryState)}</b><em>Uzlaştırma</em></span>
+            </div>
+          </section>
 
-    <div className="masterTradeLiveGrid masterTradeLivePrimaryGrid">
-      <section className="masterTradeLiveSection masterTradeLiveControl"><header><div><span className="masterTradeLiveKicker">AUTO TRADE CONTROL</span><h3>{status?.live_auto_trade ? 'AUTO TRADE' : 'AUTO TRADE OFF'}</h3></div><strong className={status?.live_auto_trade ? 'ready' : 'blocked'}>{status?.live_auto_trade ? 'RUNNING' : 'OFF'}</strong></header><div className="masterTradeLiveControlBody"><div className="masterTradeLiveControlMain"><div><b>{status?.live_auto_trade ? 'Monitoring approved markets' : 'Ready when backend gates pass'}</b><small>{status?.auto?.last_decision || 'No automatic entries are enabled by default.'}</small></div><button type="button" className={status?.live_auto_trade ? 'dangerAction' : 'primaryAction'} onClick={status?.live_auto_trade ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!status?.live_auto_trade && !autoReady)}>{status?.live_auto_trade ? 'STOP AUTO TRADE' : 'START LIVE AUTO TRADE'}</button></div></div><div className="masterTradeLiveControlMeta"><span>LIVE ARM <b>{armState}</b></span><span>LIVE LOCK <b>{executionLocked ? 'LOCKED' : 'READY'}</b></span><span>BLOCKER <b>{status?.live_auto_trade ? 'NONE' : blocker}</b></span></div><button type="button" className="masterTradeLiveSecondary" onClick={liveArmed ? () => run('disarm', () => call(V25, '/disarm', {method: 'POST'}).then(() => undefined), 'LIVE disarmed; AUTO-TRADE kapalı.') : armLive} disabled={Boolean(busy) || (!liveArmed && (!configured || !connected || emergency || recoveryRequired || !readinessReady))}>{liveArmed ? 'DISARM LIVE' : 'LIVE ARM'}</button></section>
+          <section className="liveWsSection liveWsSignal masterTradeLiveSignal">
+            <h3>Son sinyal · {symbol}</h3>
+            <div className="masterTradeLiveSignalGrid">
+              <span><small>YÖN</small><b>{analysis?.direction || '—'}</b></span>
+              <span><small>GÜVEN</small><b>{analysis?.confidence !== undefined ? `${analysis.confidence}%` : '—'}</b></span>
+              <span><small>GİRİŞ</small><b title={text(analysis?.entry)}>{signalPrice(analysis?.entry)}</b></span>
+              <span><small>STOP</small><b title={text(analysis?.stop_loss)}>{signalPrice(analysis?.stop_loss)}</b></span>
+              <span><small>HEDEF 1</small><b title={text(analysis?.tp1)}>{signalPrice(analysis?.tp1)}</b></span>
+              <span><small>DURUM</small><b>{signalStatus}</b></span>
+            </div>
+            <p className="liveWsHint">{latestSignal ? `${text(latestSignal.message)} · ${date(latestSignal.created_at)}` : 'Henüz yeni sinyal olayı yok.'}</p>
+          </section>
 
-      <aside className="masterTradeLiveActivityRail" aria-label="Live Auto Trade activity"><div className="masterTradeLiveActivityRailHeader"><span className="masterTradeLiveKicker">LIVE ACTIVITY</span><b>{activity.length ? `${activity.length} EVENTS` : 'WAITING'}</b></div><div className="masterTradeLiveActivityRailList">{activity.length ? activity.slice(0, 6).map((event, index) => <div className="masterTradeLiveActivityRailItem" key={`${event.created_at}-${event.kind}-${index}`}><time>{activityTime(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></div>) : <p>No recent events.</p>}</div></aside>
+          <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
+            <h3>Son olaylar</h3>
+            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
+          </section>
 
-      <section className="masterTradeLiveSection masterTradeLiveSetup">
-        <header><div><span className="masterTradeLiveKicker">AUTO TRADE SETUP</span><h3>Core strategy settings</h3></div><button type="button" className="masterTradeLiveTextButton" onClick={() => setAdvancedOpen(value => !value)}>{advancedOpen ? 'HIDE ADVANCED' : 'ADVANCED SETTINGS'} <span>{advancedOpen ? '⌃' : '⌄'}</span></button></header>
-        <div className="masterTradeLiveSetupGrid">
-          <label>Strategy<strong>V25 SUPERVISED</strong></label>
-          <label>Timeframe<select value={selectedAutoTimeframe} onChange={event => setPolicy('interval', event.target.value)}><option>1m</option><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select></label>
-          <label>Risk / trade<div className="masterTradeLiveUnitField"><input type="number" min="0.5" max="25" step="0.1" value={numericPolicy('max_loss_per_trade', 1)} onChange={event => setPolicy('max_loss_per_trade', Number(event.target.value))}/><span>USDT</span></div></label>
-          <label>Max positions<input type="number" min="1" max="5" value={numericPolicy('max_positions', 2)} onChange={event => setPolicy('max_positions', Number(event.target.value))}/></label>
-          <label>Max exposure<div className="masterTradeLiveUnitField"><input type="number" min="25" max="350" value={numericPolicy('max_total_exposure_usdt', 350)} onChange={event => setPolicy('max_total_exposure_usdt', Number(event.target.value))}/><span>USDT</span></div></label>
-        </div>
-        <div className="masterTradeLiveMarkets"><span>MARKETS</span><div className="masterTradeLiveMarketsScroll">{approvedSymbols.map(item => <button type="button" key={item} aria-pressed={configuredSymbols.includes(item)} className={configuredSymbols.includes(item) ? 'selected' : ''} onClick={() => toggleSymbol(item)}>{item.replace('USDT', '')}</button>)}</div><small>{configuredSymbols.length ? `${configuredSymbols.length} approved` : 'Backend default universe'}</small></div>
-        {advancedOpen && <div className="masterTradeLiveAdvanced">
-          <label>Minimum confidence<div className="masterTradeLiveUnitField"><input type="number" min="70" max="95" value={numericPolicy('min_confidence', 85)} onChange={event => setPolicy('min_confidence', Number(event.target.value))}/><span>%</span></div></label>
-          <label>Max leverage<input type="number" min="1" max="50" value={numericPolicy('max_leverage', 2)} onChange={event => setPolicy('max_leverage', Number(event.target.value))}/></label>
-          <label>Liquidation buffer<div className="masterTradeLiveUnitField"><input type="number" min="0.05" max="5" step="0.05" value={numericPolicy('liquidation_buffer_pct', 0.5)} onChange={event => setPolicy('liquidation_buffer_pct', Number(event.target.value))}/><span>% entry</span></div></label>
-          <label>Daily loss limit<div className="masterTradeLiveUnitField"><input type="number" min="5" max="100" value={numericPolicy('daily_loss_limit', 20)} onChange={event => setPolicy('daily_loss_limit', Number(event.target.value))}/><span>USDT</span></div></label>
-          <label>Consecutive losses<input type="number" min="1" max="10" value={numericPolicy('consecutive_loss_limit', 3)} onChange={event => setPolicy('consecutive_loss_limit', Number(event.target.value))}/></label>
-          <label>Cooldown / scan seconds<input type="number" min="30" max="300" value={numericPolicy('scan_seconds', 60)} onChange={event => setPolicy('scan_seconds', Number(event.target.value))}/></label>
-          <div className="masterTradeLiveSide"><span>POSITION SIDE</span><button type="button" className={policy.allow_long !== false ? 'selected' : ''} onClick={() => setPolicy('allow_long', policy.allow_long === false)}>LONG</button><button type="button" className={policy.allow_short !== false ? 'selected' : ''} onClick={() => setPolicy('allow_short', policy.allow_short === false)}>SHORT</button></div>
-        </div>}
-        <div className="masterTradeLiveSetupFooter"><small>Settings are validated by the backend before execution. Effective trap limit: {Math.min(35, numericPolicy('max_trap_score', 35))} (min of Original 35 and policy).</small><button type="button" className="masterTradeLivePrimary" onClick={updatePolicy} disabled={Boolean(busy)}>SAVE SETUP</button></div>
+          <section className="liveWsSection liveWsDanger">
+            <div><b>Acil durum</b><small>Yeni emirleri ve otomatik işlemi hemen durdurur.</small></div>
+            <div className="liveWsRow"><button type="button" className="liveWsGhost danger" onClick={emergencyStop} disabled={Boolean(busy)}><ShieldAlert/> ACİL DURDUR</button>{emergency && <button type="button" className="liveWsGhost" onClick={clearEmergency} disabled={Boolean(busy)}>Kurtarma sonrası kaldır</button>}</div>
+          </section>
+        </>}
+
+        {masterTradeTab === 'baglanti' && <>
+          <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${step1Done ? 'done' : 'current'}`}>{step1Done ? <CheckCircle2/> : '1'}</span><span><b>Binance bağlantısı</b><small>{stepsMeta[0].sub}</small></span></div><div className="liveWsBody">{connectionBlock}</div></section>
+          <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
+            <h3>Son olaylar</h3>
+            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
+          </section>
+          <section className="liveWsSection masterTradeLiveSafety">
+            <h3>Güvenlik özeti</h3>
+            <div className="liveWsGates">{safetyRows.map(([label, value, detail]) => <span key={label} className={safetyStatus(value) === 'ready' ? 'ok' : 'bad'} title={String(detail)}>{safetyStatus(value) === 'ready' ? <CheckCircle2/> : <AlertTriangle/>}{label}: {value}</span>)}</div>
+          </section>
+        </>}
       </section>
-    </div>
-
-    <div className="masterTradeLiveGrid masterTradeLiveDataGrid"><section className="masterTradeLiveSection masterTradeLiveAccountTable"><header><div><span className="masterTradeLiveKicker">LIVE POSITIONS</span><h3>Open positions</h3></div><span className="masterTradeLiveCount">{positions.length}</span></header>{positions.length ? <div className="masterTradeLiveTableWrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Leverage</th><th>Unrealized PnL</th><th>Liquidation</th><th>Margin</th><th>Management</th></tr></thead><tbody>{positions.map((position, index) => { const activePlanForPosition = status?.plans?.find(plan => String(plan.symbol || '').toUpperCase() === String(position.symbol || '').toUpperCase() && !['CLOSED', 'CANCELLED', 'KAPANDI', 'İPTAL'].includes(String(plan.status || '').toUpperCase())); const isExternal = !recoveryRequired && !activePlanForPosition; return <tr key={`${String(position.symbol)}-${index}`}><td><strong>{text(position.symbol)}</strong></td><td><span className={String(position.direction).toUpperCase() === 'SHORT' ? 'short' : 'long'}>{text(position.direction)}</span></td><td>{text(position.quantity)}</td><td>{text(position.entry_price)}</td><td>{text(position.mark_price)}</td><td>{positionLeverage(position)}</td><td className={Number(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(position.unrealized_pnl)}</td><td>{text(position.liquidation_price)}</td><td>--</td><td>{isExternal && <button type="button" className="liveArmButton" onClick={() => void previewAdoption(String(position.symbol))} disabled={Boolean(busy) || !connected || recoveryRequired}>ADOPT &amp; MANAGE</button>}</td></tr> })}</tbody></table></div> : <div className="masterTradeLiveEmpty"><strong>No open positions</strong><span>Live position data is read from the V25 account snapshot.</span></div>}</section>
-
-      <section className="masterTradeLiveSection masterTradeLiveAccountTable"><header><div><span className="masterTradeLiveKicker">OPEN ORDERS</span><h3>Pending orders</h3></div><span className="masterTradeLiveCount">{openOrders.length}</span></header>{openOrders.length ? <div className="masterTradeLiveTableWrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Quantity</th><th>Status</th><th>Time</th></tr></thead><tbody>{openOrders.map((order, index) => <tr key={`${String(order.order_id)}-${index}`}><td><strong>{text(order.symbol)}</strong></td><td>{text(order.side)}</td><td>{text(order.type)}</td><td>{text(order.price)}</td><td>{text(order.quantity)}</td><td>{text(order.status)}</td><td>--</td></tr>)}</tbody></table></div> : <div className="masterTradeLiveEmpty"><strong>No open orders</strong><span>Pending order data is read from the V25 account snapshot.</span></div>}</section>
-
-      <section className="masterTradeLiveSection masterTradeLiveSignal"><header><div><span className="masterTradeLiveKicker">LATEST SIGNAL</span><h3>{analysis?.direction || 'WAITING FOR SIGNAL'}</h3></div><strong>{signalStatus}</strong></header><div className="masterTradeLiveSignalSymbol"><b>{symbol}</b><span>{analysis?.direction || '—'}</span></div><div className="masterTradeLiveSignalGrid"><span><small>CONFIDENCE</small><b>{analysis?.confidence !== undefined ? `${analysis.confidence}%` : '—'}</b></span><span><small>RISK</small><b>{numericPolicy('max_loss_per_trade', 1)} USDT</b></span><span><small>ENTRY</small><b title={text(analysis?.entry)}>{signalPrice(analysis?.entry)}</b></span><span><small>STOP</small><b title={text(analysis?.stop_loss)}>{signalPrice(analysis?.stop_loss)}</b></span><span><small>TARGET</small><b title={text(analysis?.tp1)}>{signalPrice(analysis?.tp1)}</b></span><span><small>EXPOSURE</small><b>{money(exposure)}</b></span></div><p>{latestSignal ? `${text(latestSignal.message)} · ${date(latestSignal.created_at)}` : 'No recent signal event is available from the backend.'}</p></section></div>
-
-    <section className="masterTradeLiveSection masterTradeLiveAccountTable" aria-label="External Binance trade history"><header><div><span className="masterTradeLiveKicker">EXTERNAL / NOT MANAGED BY V25</span><h3>Plan-dışı Binance geçmişi</h3></div><span className="masterTradeLiveCount">{externalHistory?.external_trades?.length ?? 0}</span></header><p className="masterTradeLiveOperationalNote">Read-only userTrades and REALIZED_PNL income records without a matching V25 plan.</p>{externalHistory?.external_trades?.length ? <div className="masterTradeLiveTableWrap"><table><thead><tr><th>Symbol</th><th>Side</th><th>Price</th><th>Quantity</th><th>Realized PnL</th><th>Time</th></tr></thead><tbody>{externalHistory.external_trades.slice(0, 30).map((trade, index) => <tr key={`${String(trade.trade_id || trade.order_id)}-${index}`}><td><strong>{text(trade.symbol)}</strong></td><td>{text(trade.side)}</td><td>{text(trade.price)}</td><td>{text(trade.quantity)}</td><td className={Number(trade.realized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(Number(trade.realized_pnl || 0))}</td><td>{externalDate(trade.time)}</td></tr>)}</tbody></table></div> : <div className="masterTradeLiveEmpty"><strong>No unmatched Binance trades found</strong><span>Only verified V25 plans appear in managed history; this section is read-only fallback evidence.</span></div>}</section>
-
-    <div className="masterTradeLiveGrid masterTradeLiveLowerGrid"><section className="masterTradeLiveSection masterTradeLiveActivity"><header><div><span className="masterTradeLiveKicker">ACTIVITY</span><h3>Latest events</h3></div><button type="button" className="masterTradeLiveTextButton" onClick={() => setAdvancedOpen(true)}>VIEW ALL</button></header>{activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`}><i /><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <div className="masterTradeLiveEmpty"><span>No recent LIVE activity.</span></div>}</section>
-
-      <section className="masterTradeLiveSection masterTradeLiveSafety"><header><div><span className="masterTradeLiveKicker">SAFETY</span><h3>Readiness overview</h3></div><button type="button" className="masterTradeLiveTextButton" onClick={() => setAdvancedOpen(value => !value)}>ADVANCED DETAILS</button></header><div className="masterTradeLiveSafetyList">{safetyRows.map(([label, value, detail]) => <details key={label} className={safetyStatus(value)}><summary><span><i />{label}</span><b>{value}</b></summary><p>{detail}</p></details>)}</div></section></div>
-
-    <section className="masterTradeLiveApiDrawer masterTradeLiveConnectionCard">
-      <div className="masterTradeLiveConnectionHeader">
-        <div className="masterTradeLiveConnectionHeading">
-          <span className="masterTradeLiveKicker">EXCHANGE CONNECTION</span>
-          <div className="masterTradeLiveExchangeIdentity">
-            <span className="masterTradeLiveExchangeLogo">B</span>
-            <div><h3>Connect your trading account</h3><small>Binance · USDT-M Futures</small></div>
-          </div>
-          <p>Securely connect your trading account. Credentials are encrypted and never displayed.</p>
-        </div>
-        <strong className={`masterTradeLiveConnectionStatus ${connected ? 'masterTradeLiveConnected' : ''}`}><i className={connected ? 'connected' : ''} /> {connected ? 'CONNECTED' : 'NOT CONNECTED'}</strong>
-      </div>
-
-      <div className="masterTradeLiveCredentialBlock">
-        <div className="masterTradeLiveCredentialLabel"><span className="masterTradeLiveKicker">CREDENTIALS</span><small>Use a key with Futures permissions only.</small></div>
-        <div className="masterTradeLiveApiGrid">
-          <label>API KEY<input data-private="true" type="password" autoComplete="new-password" value={credentials.apiKey} onChange={event => setCredentials({...credentials, apiKey: event.target.value})} placeholder="Paste API key" /></label>
-          <label>SECRET KEY<div className="masterTradeLiveSecretField"><input data-private="true" type={showSecret ? 'text' : 'password'} autoComplete="new-password" value={credentials.secretKey} onChange={event => setCredentials({...credentials, secretKey: event.target.value})} placeholder="Paste secret key" /><button type="button" aria-label={showSecret ? 'Hide secret key' : 'Show secret key'} onClick={() => setShowSecret(value => !value)}>{showSecret ? <EyeOff/> : <Eye/>}</button></div></label>
-        </div>
-        <label className="masterTradeLiveCheck"><input type="checkbox" checked={credentials.accepted} onChange={event => setCredentials({...credentials, accepted: event.target.checked})}/><span>I understand that API credentials are stored securely.</span></label>
-      </div>
-
-      <div className="masterTradeLiveConnectionActionBar">
-        <div className="masterTradeLiveActionMeta"><span>ENVIRONMENT</span><b>LIVE</b><small>Binance Futures Mainnet</small></div>
-        <div className="masterTradeLiveActionMeta"><span>PERMISSIONS</span><b>READ · TRADE</b><small>Withdrawals unsupported</small></div>
-        <div className="masterTradeLiveApiActions"><button type="button" onClick={testConnection} disabled={Boolean(busy) || !connections?.vault?.ready}>{busy === 'test' ? <RefreshCw className="spin"/> : <ShieldCheck/>} TEST CONNECTION</button><button type="button" className="masterTradeLiveSaveButton" onClick={connectAndSave} disabled={Boolean(busy)}>{busy === 'connect-save' ? <RefreshCw className="spin"/> : <LockKeyhole/>} CONNECT ACCOUNT</button></div>
-      </div>
-
-      <div className="masterTradeLiveSecurityStrip" aria-label="Connection security status"><span><CheckCircle2/> Credentials encrypted</span><span><CheckCircle2/> Server-side validation</span><span><CheckCircle2/> API secret never displayed</span></div>
-
-      <div className="masterTradeLiveApiMeta"><span>CONNECTION STATUS <b>{connected ? 'CONNECTED' : 'NOT CONNECTED'}</b></span><span>LAST VERIFIED <b>{date(testResult?.testedAt || status?.connection?.last_checked)}</b></span><span>VAULT FINGERPRINT <b>{text(testResult?.fingerprint || liveConnection?.fingerprint || status?.credentials?.fingerprint)}</b></span><span>ACCOUNT MODE <b>READ-ONLY</b></span></div>
-      <small className="masterTradeLiveApiHint">Test verifies access only. Connect Account stores the encrypted credentials, activates the read-only account connection, and does not arm or place orders.</small>
-    </section>
-    {confirmationModal}
-  </section></MasterTradeLiveLayout>
+      {confirmationModal}
+    </PremiumWorkspace>
+  }
   return <section className="liveTradingPanel liveTerminal liveUx" aria-label={liveCopy.ariaLabel}>
     <header className="liveUxHero"><div><span className="liveKicker">{liveCopy.eyebrow}</span><h2>{liveCopy.title}</h2><p>{liveCopy.description}</p></div><div className={`liveUxState ${liveState.toLowerCase()}`}><ShieldAlert/><strong>{liveState === 'READY' ? liveCopy.ready : liveState === 'UNKNOWN' ? liveCopy.unknown : liveCopy.blocked}</strong><small>AUTO TRADE · {status?.live_auto_trade ? 'AÇIK' : 'KAPALI'}</small></div></header>
     {timeframeWarning}

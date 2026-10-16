@@ -48,12 +48,12 @@ for (const width of [1440, 1024, 390, 320]) {
       await route.fulfill({json: body})
     })
     await page.goto('/master-trade?tab=canli', {waitUntil:'domcontentloaded'})
-    await expect(page.getByRole('heading', {name: 'LIVE AUTO TRADE', exact: true})).toBeVisible()
+    await expect(page.getByRole('heading', {name: 'Canlı İşlem', exact: true})).toBeVisible()
     const workspace = page.locator('#master-trade-live-terminal')
     await expect(workspace.locator('.masterTradeStepper button').nth(1)).toBeDisabled()
     await expect(workspace.locator('.masterTradeStepper button').nth(2)).toBeDisabled()
     await expect(workspace.locator('.masterTradeStepper button').nth(3)).toBeDisabled()
-    await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+    await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button', {name: 'OTOMATİK İŞLEMİ BAŞLAT', exact: true})).toBeDisabled()
     await workspace.locator('.masterTradeFlowCard:not([inert])').evaluateAll(cards => {
       for (const card of cards) (card as HTMLDetailsElement).open = true
     })
@@ -132,8 +132,8 @@ for (const scenario of [
   const assertAuthority = async () => {
     const workspace = page.locator('#master-trade-live-terminal')
     if (scenario.step !== null) await expect(workspace.locator('.masterTradeStepper button').nth(scenario.step)).toHaveAttribute('aria-current','step')
-    const start = workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'START LIVE AUTO TRADE',exact:true})
-    if (scenario.running) await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'STOP AUTO TRADE',exact:true})).toBeEnabled()
+    const start = workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ BAŞLAT',exact:true})
+    if (scenario.running) await expect(workspace.locator('.masterTradeLiveAssistantActions').getByRole('button',{name:'OTOMATİK İŞLEMİ DURDUR',exact:true})).toBeEnabled()
     else if (scenario.armed && scenario.consent) await expect(start).toBeEnabled()
     else await expect(start).toBeDisabled()
   }
