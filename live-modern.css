@@ -113,7 +113,7 @@
 #root .masterTradePage[data-layout-tab="canli"] .originalSetupStep a[href*="tab=baglanti"]{margin-top:10px}
 
 /* E · "Son olaylar": scrollable list with a fixed heading */
-#root .masterTradePage[data-layout-tab="canli"] .originalEvents{max-height:340px;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;padding-top:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents{align-self:start;max-height:300px;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;padding-top:0!important}
 #root .masterTradePage[data-layout-tab="canli"] .originalEvents>h3{position:sticky;top:0;z-index:1;margin:0 0 10px!important;padding:20px 0 10px;background:var(--lm-card)}
 #root .masterTradePage[data-layout-tab="canli"] .originalEvents>p{margin:0 0 12px;line-height:1.45}
 #root .masterTradePage[data-layout-tab="canli"] .originalEvents time{color:var(--lm-mute);font-variant-numeric:tabular-nums;margin-right:8px}

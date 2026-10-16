@@ -44,7 +44,7 @@ export default function OriginalLiveOverview({status, verified, findPlan}: Props
       </section>
       <aside className="originalSurface originalEvents" aria-label="Son olaylar"><h3>Son olaylar</h3>
         {!verified && <p>Son görülen kayıtlar; güncel durum doğrulanamadı.</p>}
-        {(status.events ?? []).slice(0, 6).map((event, index) => <p key={`${event.created_at}-${index}`}><time>{event.created_at ? new Date(event.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</time> {event.message ?? event.kind}</p>)}
+        {(status.events ?? []).slice(0, 40).map((event, index) => <p key={`${event.created_at}-${index}`}><time>{event.created_at ? new Date(event.created_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</time> {event.message ?? event.kind}</p>)}
         {!status.events?.length && <p>Henüz olay yok.</p>}
       </aside>
     </div>
