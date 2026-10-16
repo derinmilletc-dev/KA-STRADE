@@ -15,7 +15,7 @@ const sections = (text: string) => text.split(/\n{2,}/).map(block => {
   const [title, ...body] = block.split('\n')
   return {title, body: body.join('\n')}
 })
-const message = (error: unknown) => error instanceof Error ? error.message : 'Grafik AI işlemi tamamlanamadı.'
+const message = (error: unknown) => error instanceof Error ? error.message : 'Kais AI işlemi tamamlanamadı.'
 
 export default function ChartAiPanel(props: Props) {
   const [usage, setUsage] = useState<ChartUsage | null>(null)
@@ -208,9 +208,9 @@ export default function ChartAiPanel(props: Props) {
     </button>
     {open && createPortal(<dialog ref={dialog} className="chartAiDialog" aria-labelledby="chart-ai-title" onCancel={event => {event.preventDefault(); setOpen(false)}}>
       <header className="chartAiHeader">
-        <h2 id="chart-ai-title">Grafik AI</h2>
+        <h2 id="chart-ai-title">Kais AI</h2>
         {usage && <span className="chartAiQuota">Kalan hak: <strong>{usage.quota.unlimited ? 'Sınırsız' : usage.quota.remaining}</strong></span>}
-        <button type="button" className="chartAiIconButton chartAiClose" autoFocus aria-label="Grafik AI panelini kapat" onClick={() => setOpen(false)}><X aria-hidden="true"/></button>
+        <button type="button" className="chartAiIconButton chartAiClose" autoFocus aria-label="Kais AI panelini kapat" onClick={() => setOpen(false)}><X aria-hidden="true"/></button>
       </header>
       <div className="chartAiBody">
         {error && <div role="alert" className="chartAiNotice chartAiNotice--error">{error}</div>}
@@ -225,7 +225,7 @@ export default function ChartAiPanel(props: Props) {
         {!usage && <button type="button" className="chartAiSecondary" onClick={() => {setError(''); void refresh().catch(failure => setError(message(failure)))}}>Durumu yeniden oku</button>}
         {usage && !usage.analysis_enabled && <p role="status" className="chartAiNotice chartAiNotice--warn">{usage.availability.message}</p>}
 
-        {showResult && result?.result_text ? <section className="chartAiResult" aria-label="Grafik AI sonucu">
+        {showResult && result?.result_text ? <section className="chartAiResult" aria-label="Kais AI sonucu">
           <div className="chartAiResultHead">
             {preview && <img src={preview.url} alt=""/>}
             <div><strong>{MODES[mode]}{identity ? ` · ${identity.symbol} ${identity.timeframe}` : ''}</strong>

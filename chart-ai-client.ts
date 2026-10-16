@@ -44,7 +44,7 @@ export async function chartRequest(path: string, init: RequestInit = {}): Promis
     const error = record(value) ? (record(value.error) ? value.error : record(value.detail) ? value.detail : null) : null
     throw new ChartClientError(
       error && typeof error.code === 'string' ? error.code : 'request_failed',
-      error && typeof error.message === 'string' ? error.message : 'Grafik AI isteği doğrulanamadı.',
+      error && typeof error.message === 'string' ? error.message : 'Kais AI isteği doğrulanamadı.',
       response.status,
     )
   }
@@ -59,7 +59,7 @@ export async function chartUsage(signal?: AbortSignal): Promise<ChartUsage> {
       || !record(value.acknowledgement) || typeof value.acknowledgement.required !== 'boolean'
       || typeof value.acknowledgement.policy_version !== 'string' || typeof value.acknowledgement.text !== 'string'
       || !record(value.availability) || typeof value.availability.message !== 'string') {
-    throw new ChartClientError('usage_invalid', 'Grafik AI kullanım durumu doğrulanamadı.')
+    throw new ChartClientError('usage_invalid', 'Kais AI kullanım durumu doğrulanamadı.')
   }
   return {
     analysis_enabled: value.analysis_enabled,
@@ -75,11 +75,11 @@ export function chartResult(value: unknown): ChartResult {
       || !['processing', 'succeeded', 'failed', 'expired'].includes(String(value.status))
       || !(value.result_text === null || typeof value.result_text === 'string')
       || !(value.error === null || record(value.error) && typeof value.error.code === 'string' && typeof value.error.message === 'string')) {
-    throw new ChartClientError('result_invalid', 'Grafik AI sonucu doğrulanamadı.')
+    throw new ChartClientError('result_invalid', 'Kais AI sonucu doğrulanamadı.')
   }
   const status = value.status
   if (status !== 'processing' && status !== 'succeeded' && status !== 'failed' && status !== 'expired') {
-    throw new ChartClientError('result_invalid', 'Grafik AI sonuç durumu geçersiz.')
+    throw new ChartClientError('result_invalid', 'Kais AI sonuç durumu geçersiz.')
   }
   if (status === 'succeeded' && (typeof value.result_text !== 'string' || !value.result_text.trim())) {
     throw new ChartClientError('result_invalid', 'Başarılı analiz metni boş olamaz.')

@@ -63,7 +63,7 @@ async function prepare(page: Page, options: {customer?: boolean; moderator?: boo
       if (options.noEntitlement) {
         usageReplies++
         return route.fulfill({status: 403, json: {error: {
-          code: 'access_denied', message: 'Grafik AI için aktif deneme veya MASTER MODE üyeliği gerekir.',
+          code: 'access_denied', message: 'Kais AI için aktif deneme veya MASTER MODE üyeliği gerekir.',
         }}})
       }
       const accessType = options.moderator ? 'subscriber' : options.customer ? 'trial' : 'owner'
@@ -111,7 +111,7 @@ async function prepare(page: Page, options: {customer?: boolean; moderator?: boo
 
 async function openAndCapture(page: Page) {
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
-  const dialog = page.getByRole('dialog', {name: 'Grafik AI', exact: true})
+  const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği yakala', exact: true}).click()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toBeVisible({timeout: 15000})
@@ -143,7 +143,7 @@ for (const account of ['CUSTOMER', 'MODERATOR'] as const) test(`${account} can a
   await expect(dialog.getByText(account === 'CUSTOMER' ? 'Kalan hak: 3' : 'Kalan hak: 20')).toBeVisible()
   await expect(dialog.getByText('Bu analiz yatırım tavsiyesi değildir.')).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).click()
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toContainText(FINAL)
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
   expect(state.generations).toHaveLength(1)
 })
 
@@ -151,7 +151,7 @@ test('account without trial or MASTER MODE sees access guidance and pricing link
   const state = await prepare(page, {customer: true, noEntitlement: true})
   await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toBeVisible()
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
-  const dialog = page.getByRole('dialog', {name: 'Grafik AI', exact: true})
+  const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog.getByRole('alert')).toContainText('aktif deneme veya MASTER MODE')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
   await expect(dialog.getByRole('button', {name: 'Grafiği yakala', exact: true})).toHaveCount(0)
@@ -162,7 +162,7 @@ test('account without trial or MASTER MODE sees access guidance and pricing link
 test('exhausted trial quota is explicit and offers MASTER MODE without sending analysis', async ({page}) => {
   const state = await prepare(page, {customer: true, quotaExhausted: true})
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
-  const dialog = page.getByRole('dialog', {name: 'Grafik AI', exact: true})
+  const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog.getByRole('status')).toContainText('Deneme süresindeki 3 analiz hakkınızı kullandınız')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
   expect(state.generations).toHaveLength(0)
@@ -214,7 +214,7 @@ for (const legacy of [false, true]) test(`preview, consent, exact context and si
     const button = node as HTMLButtonElement
     button.click(); button.click()
   })
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toContainText(FINAL)
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
   expect(state.generations).toHaveLength(1)
   const payload = state.generations[0]
   expect(Object.keys(payload).sort()).toEqual(['context', 'image', 'question', 'request_key', 'symbol', 'timeframe'])
@@ -224,7 +224,7 @@ for (const legacy of [false, true]) test(`preview, consent, exact context and si
   expect(payload.image).toMatchObject({source: 'screenshot', media_type: 'image/png'})
   expect(JSON.stringify(payload)).not.toMatch(/wallet|account|777777|api_key|secret/i)
   expect(state.writes.filter(path => !path.startsWith('/api/chart-ai/') && path !== '/api/v25/risk/preview')).toEqual([])
-  await dialog.getByRole('button', {name: 'Grafik AI panelini kapat'}).click()
+  await dialog.getByRole('button', {name: 'Kais AI panelini kapat'}).click()
   await expect(dialog).not.toBeVisible()
 })
 
@@ -243,7 +243,7 @@ test('reload resumes only GET for the same pending UUID; image never goes to sto
   await expect.poll(state.gets).toBeGreaterThan(prior)
   state.finish()
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
-  await expect(page.getByRole('region', {name: 'Grafik AI sonucu'})).toContainText(FINAL)
+  await expect(page.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
   expect(state.generations).toHaveLength(1)
 })
 
@@ -266,7 +266,7 @@ test('repeated result-query failures remain retryable without another generation
     if (attempt === 2) state.finish()
     await dialog.getByRole('button', {name: 'Sonucu yeniden sorgula', exact: true}).click()
   }
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toContainText(FINAL)
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
   expect(state.generations).toHaveLength(1)
 })
 
@@ -281,7 +281,7 @@ test('unconfirmed acknowledgement never reaches analyze', async ({page}) => {
 test('timeframe changes discard the old preview and require a fresh capture', async ({page}) => {
   const state = await prepare(page)
   const dialog = await openAndCapture(page)
-  await dialog.getByRole('button', {name: 'Grafik AI panelini kapat'}).click()
+  await dialog.getByRole('button', {name: 'Kais AI panelini kapat'}).click()
   await page.getByRole('combobox', {name: 'Zaman dilimi', exact: true}).selectOption('1h')
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toHaveCount(0)
@@ -289,7 +289,7 @@ test('timeframe changes discard the old preview and require a fresh capture', as
   await dialog.getByRole('button', {name: 'Grafiği yakala', exact: true}).click()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).click()
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toBeVisible()
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toBeVisible()
   expect(state.generations[0]).toMatchObject({timeframe: '1h', context: {timeframe: '1h'}})
 })
 
@@ -307,7 +307,7 @@ test('switching OWNER identity unmounts the pending panel without transferring i
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
   await expect(dialog).toBeVisible()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toHaveCount(0)
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toHaveCount(0)
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toHaveCount(0)
   expect(await page.evaluate(() => sessionStorage.getItem('kaistrade-chart-ai-request:different-owner'))).toBeNull()
   expect(state.generations).toHaveLength(1)
 })
@@ -348,7 +348,7 @@ test('unavailable provider is explicit and cannot submit', async ({page}) => {
 test('mobile panel and upload validation preserve isolation', async ({page}) => {
   const state = await prepare(page, {mobile: true})
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
-  const dialog = page.getByRole('dialog', {name: 'Grafik AI', exact: true})
+  const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await dialog.locator('input[type=file]').setInputFiles({name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>')})
   await expect(dialog.getByRole('alert')).toContainText('PNG, JPEG veya WebP')
   await dialog.locator('input[type=file]').setInputFiles({name: 'oversize.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1)})
@@ -364,7 +364,7 @@ test('mobile panel and upload validation preserve isolation', async ({page}) => 
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toBeVisible()
   await dialog.getByRole('checkbox').check()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).click()
-  await expect(dialog.getByRole('region', {name: 'Grafik AI sonucu'})).toBeVisible()
+  await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toBeVisible()
   expect(state.generations[0].image).toMatchObject({source: 'upload', media_type: 'image/png'})
   const box = await dialog.boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)
