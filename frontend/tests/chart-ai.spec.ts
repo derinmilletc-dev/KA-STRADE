@@ -209,7 +209,7 @@ for (const legacy of [false, true]) test(`preview, consent, exact context and si
   })
   expect(imageData.width).toBeGreaterThanOrEqual(320)
   expect(imageData.colours).toBeGreaterThan(20)
-  await dialog.getByRole('button', {name: 'Riskler neler?', exact: true}).click()
+  await dialog.getByRole('radio', {name: 'Riskler', exact: true}).click()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).evaluate(node => {
     const button = node as HTMLButtonElement
     button.click(); button.click()

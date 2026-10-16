@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Camera, Sparkles, X} from 'lucide-react'
+import {Camera, Info, Loader2, Sparkles, Upload, X} from 'lucide-react'
 import {ChartClientError, chartRequest, chartResult, chartUsage, captureChart, CHART_AI_DISCLAIMER, CHART_AI_PRIVACY,
   imageBase64, validateChartUpload, type ChartResult, type ChartSnapshot, type ChartUsage} from './chart-ai-client'
 import './chart-ai.css'
@@ -9,6 +9,11 @@ type Pending = {request_key: string; symbol: string; timeframe: string}
 type Preview = {blob: Blob; url: string; context: ChartSnapshot; source: 'screenshot' | 'upload'}
 type Props = {userId: string; symbol: string; timeframe: string; snapshot: () => ChartSnapshot; chart: () => SVGSVGElement | null}
 const QUESTIONS = ['Bu grafiği yorumla', 'Riskler neler?', 'Yukarı ve aşağı senaryolar']
+const MODES = ['Yorum', 'Riskler', 'Senaryolar']
+const sections = (text: string) => text.split(/\n{2,}/).map(block => {
+  const [title, ...body] = block.split('\n')
+  return {title, body: body.join('\n')}
+})
 const message = (error: unknown) => error instanceof Error ? error.message : 'Grafik AI işlemi tamamlanamadı.'
 
 export default function ChartAiPanel(props: Props) {
@@ -20,7 +25,10 @@ export default function ChartAiPanel(props: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [question, setQuestion] = useState(QUESTIONS[0])
+  const [mode, setMode] = useState(0)
+  const [custom, setCustom] = useState('')
+  const [resultHidden, setResultHidden] = useState(false)
+  const asked = custom.trim() || QUESTIONS[mode]
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [preparing, setPreparing] = useState(false)
@@ -49,6 +57,7 @@ export default function ChartAiPanel(props: Props) {
     if (next.request_key !== expected.request_key) throw new Error('Analiz istek kimliği uyuşmuyor.')
     if (!alive.current) return
     setResult(next)
+    setResultHidden(false)
     if (next.status !== 'processing') {
       setPending(null)
       sessionStorage.removeItem(storageKey)
@@ -95,6 +104,7 @@ export default function ChartAiPanel(props: Props) {
     preparation.current++
     setPreparing(false)
     setPreview(null)
+    setResultHidden(true)
   }, [props.symbol, props.timeframe])
   useEffect(() => {
     if (!open || !dialog.current) return
@@ -165,7 +175,7 @@ export default function ChartAiPanel(props: Props) {
       started = true
       const next = chartResult(await chartRequest('/analyze', {
         method: 'POST', signal: controller.current?.signal, headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...job, question: question.trim(), image: {
+        body: JSON.stringify({...job, question: asked, image: {
           source: preview.source, media_type: preview.blob.type, data_base64: data,
         }, context: preview.context}),
       }))
@@ -183,51 +193,109 @@ export default function ChartAiPanel(props: Props) {
     }
   }
   if (hidden || loading) return null
+  const inputLocked = busy || Boolean(pending)
+  const exhausted = Boolean(usage && !usage.quota.unlimited && (usage.quota.remaining ?? 0) <= 0)
+  const showResult = Boolean(result?.result_text) && !resultHidden
+  const fileInput = (label: string, className: string, icon: boolean) => <label className={className} aria-label={icon ? label : undefined}>
+    {icon ? <Upload aria-hidden="true"/> : <><Upload aria-hidden="true"/>{label}</>}
+    <input className="chartAiVisuallyHidden" type="file" accept="image/png,image/jpeg,image/webp" disabled={inputLocked || preparing}
+      onChange={event => {const file = event.target.files?.[0]; event.target.value = ''; if (file) void prepare(file)}}/>
+  </label>
   return <>
     <button type="button" className="chartAiButton" disabled={loading} onClick={() => setOpen(true)} title="Grafiği açıkla; işlem veya emir göndermez">
       <Sparkles aria-hidden="true"/>Yapay Zekaya Sor
     </button>
     {open && createPortal(<dialog ref={dialog} className="chartAiDialog" aria-labelledby="chart-ai-title" onCancel={event => {event.preventDefault(); setOpen(false)}}>
-      <header><div><small>MASTER TRADE · SALT OKUNUR</small><h2 id="chart-ai-title">Grafik AI</h2></div><button type="button" autoFocus aria-label="Grafik AI panelini kapat" onClick={() => setOpen(false)}><X/></button></header>
+      <header className="chartAiHeader">
+        <h2 id="chart-ai-title">Grafik AI</h2>
+        {usage && <span className="chartAiQuota">Kalan hak: <strong>{usage.quota.unlimited ? 'Sınırsız' : usage.quota.remaining}</strong></span>}
+        <button type="button" className="chartAiIconButton chartAiClose" autoFocus aria-label="Grafik AI panelini kapat" onClick={() => setOpen(false)}><X aria-hidden="true"/></button>
+      </header>
       <div className="chartAiBody">
-        <p>{CHART_AI_PRIVACY}</p>
-        <p>Yalnız grafiğin görseli ve gösterilen piyasa verileri gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez.</p>
-        {usage && <p>Kalan hak: <strong>{usage.quota.unlimited ? 'Sınırsız (OWNER)' : usage.quota.remaining}</strong> · Aylık bütçe sınırı geçerlidir.</p>}
-        {error && <p role="alert">{error}</p>}
-        {(showPricing || usage?.access_type === 'trial' && (usage.quota.remaining ?? 0) <= 0)
-          && <a href="/pricing">MASTER MODE'a geç</a>}
-        {usage && !usage.quota.unlimited && (usage.quota.remaining ?? 0) <= 0 && <p role="status">
+        {error && <div role="alert" className="chartAiNotice chartAiNotice--error">{error}</div>}
+        {exhausted && usage && <p role="status" className="chartAiNotice chartAiNotice--warn">
           {usage.access_type === 'trial'
             ? 'Deneme süresindeki 3 analiz hakkınızı kullandınız. MASTER MODE ile haftada 20 analiz kullanabilirsiniz.'
             : 'Haftalık 20 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir.'}
         </p>}
+        {(showPricing || usage?.access_type === 'trial' && exhausted)
+          && <a className="chartAiPricing" href="/pricing">MASTER MODE'a geç</a>}
         {!accessDenied && <>
-        {!usage && <button type="button" onClick={() => {setError(''); void refresh().catch(failure => setError(message(failure)))}}>Durumu yeniden oku</button>}
-        {usage && !usage.analysis_enabled && <p role="status">{usage.availability.message}</p>}
-        <div className="chartAiInputs">
-          <button type="button" disabled={busy || Boolean(pending) || preparing} onClick={() => void prepare()}><Camera/>Grafiği yakala</button>
-          <label>Görsel yükle<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || Boolean(pending) || preparing}
-            onChange={event => {const file = event.target.files?.[0]; event.target.value = ''; if (file) void prepare(file)}}/></label>
+        {!usage && <button type="button" className="chartAiSecondary" onClick={() => {setError(''); void refresh().catch(failure => setError(message(failure)))}}>Durumu yeniden oku</button>}
+        {usage && !usage.analysis_enabled && <p role="status" className="chartAiNotice chartAiNotice--warn">{usage.availability.message}</p>}
+
+        {showResult && result?.result_text ? <section className="chartAiResult" aria-label="Grafik AI sonucu">
+          <div className="chartAiResultHead">
+            {preview && <img src={preview.url} alt=""/>}
+            <div><strong>{MODES[mode]}{identity ? ` · ${identity.symbol} ${identity.timeframe}` : ''}</strong>
+              {preview && <span>{new Date(preview.context.captured_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}</span>}</div>
+          </div>
+          {sections(result.result_text).map((part, index) => part.body
+            ? <details key={index} className="chartAiSection" open={index < 2}><summary>{part.title}{'\n'}</summary><p>{part.body}{'\n\n'}</p></details>
+            : <p key={index} className="chartAiResultNote">{part.title}{'\n'}</p>)}
+        </section> : <>
+        <section className="chartAiImage" aria-label="Grafik görseli">
+          {preview ? <figure>
+            <img src={preview.url} alt="Gönderilecek grafik önizlemesi"/>
+            <div className="chartAiImageTools">
+              <button type="button" className="chartAiIconButton" aria-label="Grafiği yeniden yakala" disabled={inputLocked || preparing} onClick={() => void prepare()}><Camera aria-hidden="true"/></button>
+              {fileInput('Görsel yükle', 'chartAiIconButton', true)}
+            </div>
+            <figcaption><span>{preview.context.symbol}</span><span>{preview.context.timeframe}</span>
+              <span>{new Date(preview.context.captured_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}</span></figcaption>
+          </figure> : <div className="chartAiImageEmpty">
+            <button type="button" className="chartAiPrimaryGhost" disabled={inputLocked || preparing} onClick={() => void prepare()}><Camera aria-hidden="true"/>Grafiği yakala</button>
+            {fileInput('Görsel yükle', 'chartAiSecondary', false)}
+          </div>}
+          {preparing && <p className="chartAiHint">Görsel hazırlanıyor…</p>}
+        </section>
+
+        <div className="chartAiField">
+          <span className="chartAiLabel" id="chart-ai-mode">Analiz türü</span>
+          <div className="chartAiModes" role="radiogroup" aria-labelledby="chart-ai-mode">
+            {MODES.map((label, index) => <button type="button" role="radio" key={label} aria-checked={mode === index}
+              className={mode === index ? 'active' : ''} disabled={inputLocked} onClick={() => setMode(index)}>{label}</button>)}
+          </div>
         </div>
-        {preparing && <p role="status">Görsel hazırlanıyor…</p>}
-        {preview && <figure><img src={preview.url} alt="Gönderilecek grafik önizlemesi"/><figcaption>{preview.context.symbol} · {preview.context.timeframe} · {new Date(preview.context.captured_at).toLocaleString('tr-TR')}</figcaption></figure>}
-        <div className="chartAiPresets">{QUESTIONS.map(text => <button type="button" key={text} disabled={busy || Boolean(pending)} onClick={() => setQuestion(text)}>{text}</button>)}</div>
-        <label className="chartAiQuestion">Sorun<textarea value={question} maxLength={800} disabled={busy || Boolean(pending)} onChange={event => setQuestion(event.target.value)}/></label>
-        {usage?.acknowledgement.required && <label className="chartAiConsent"><input type="checkbox" checked={consent} disabled={busy} onChange={event => setConsent(event.target.checked)}/>Kullanım uyarısını okudum, anladım.</label>}
-        <button type="button" className="chartAiSend" disabled={!preview || !question.trim() || !usage?.analysis_enabled || preparing || busy || Boolean(pending)
-          || usage.acknowledgement.required && !consent || !usage.quota.unlimited && (usage.quota.remaining ?? 0) <= 0} onClick={() => void send()}>Grafiği analiz et</button>
-        {pending && <p role="status">{pending.symbol} · {pending.timeframe}: {busy ? 'Yanıt hazırlanıyor; en fazla iki üretim, toplam analiz sınırı 60 saniye.' : 'Analiz durumu doğrulanmalı.'}</p>}
-        {pending && !busy && <button type="button" onClick={() => {locked.current = false; setBusy(true); setError(''); setQueryRevision(value => value + 1)}}>Sonucu yeniden sorgula</button>}
-        {pending && !busy && <button type="button" onClick={() => {
-          if (!window.confirm('Bu işlem yalnız tarayıcıdaki kayıt bilgisini bırakır; başlamış analizi iptal etmez. Devam edilsin mi?')) return
-          sessionStorage.removeItem(storageKey); setPending(null); setResult(null); locked.current = false
-        }}>Bekleyen kayıt bilgisini bırak</button>}
-        {result?.result_text && <section className="chartAiResult" aria-label="Grafik AI sonucu">
-          {identity && <h3>{identity.symbol} · {identity.timeframe}</h3>}{result.result_text}
-        </section>}
+
+        <label className="chartAiField">
+          <span className="chartAiLabel">Sorunuz <em>(isteğe bağlı)</em></span>
+          <textarea rows={2} value={custom} maxLength={800} disabled={inputLocked} placeholder="Örn. 1 saatlik trend ile uyumlu mu?" onChange={event => setCustom(event.target.value)}/>
+        </label>
+        </>}
+
+        {pending && <p role="status" className="chartAiHint">{pending.symbol} · {pending.timeframe}: {busy ? 'Yanıt hazırlanıyor; en fazla iki üretim, toplam analiz sınırı 60 saniye.' : 'Analiz durumu doğrulanmalı.'}</p>}
+        {pending && !busy && <div className="chartAiRow">
+          <button type="button" className="chartAiSecondary" onClick={() => {locked.current = false; setBusy(true); setError(''); setQueryRevision(value => value + 1)}}>Sonucu yeniden sorgula</button>
+          <button type="button" className="chartAiSecondary" onClick={() => {
+            if (!window.confirm('Bu işlem yalnız tarayıcıdaki kayıt bilgisini bırakır; başlamış analizi iptal etmez. Devam edilsin mi?')) return
+            sessionStorage.removeItem(storageKey); setPending(null); setResult(null); locked.current = false
+          }}>Bekleyen kayıt bilgisini bırak</button>
+        </div>}
         </>}
       </div>
-      <footer>{usage?.acknowledgement.text ?? `${CHART_AI_PRIVACY}\n${CHART_AI_DISCLAIMER}`}</footer>
+
+      <footer className="chartAiFooter">
+        {!accessDenied && (showResult ? <div className="chartAiRow chartAiRow--split">
+          <button type="button" className="chartAiSecondary" onClick={() => setResultHidden(true)}>Soruyu değiştir</button>
+          <button type="button" className="chartAiPrimary" onClick={() => {setResultHidden(true); setResult(null); setPreview(null); setCustom('')}}>Yeni analiz</button>
+        </div> : <>
+          {usage?.acknowledgement.required && <label className="chartAiConsent"><input type="checkbox" checked={consent} disabled={busy} onChange={event => setConsent(event.target.checked)}/><span>Kullanım uyarısını okudum, anladım.</span></label>}
+          <button type="button" className="chartAiPrimary chartAiSend" aria-busy={busy} disabled={!preview || !asked || !usage?.analysis_enabled || preparing || busy || Boolean(pending)
+            || usage.acknowledgement.required && !consent || exhausted} onClick={() => void send()}>
+            {busy && <Loader2 className="chartAiSpin" aria-hidden="true"/>}Grafiği analiz et
+          </button>
+        </>)}
+        <div className="chartAiLegal">
+          <p>{CHART_AI_DISCLAIMER}</p>
+          <p>{CHART_AI_PRIVACY}</p>
+          <details>
+            <summary><Info aria-hidden="true"/>Ayrıntılar</summary>
+            <p>Yalnız grafiğin görseli ve gösterilen piyasa verileri gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez. Aylık bütçe sınırı geçerlidir.</p>
+            {usage?.acknowledgement.text && <p className="chartAiPre">{usage.acknowledgement.text}</p>}
+          </details>
+        </div>
+      </footer>
     </dialog>, document.body)}
   </>
 }
