@@ -143,7 +143,9 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
             return <g key={drawing.id} className={`refDrawing refDrawing--${drawing.type}`}>
               <line {...line}/>
               {drawing.type === 'hline' && <text x={plotWidth - 6} y={line.y1 - 5} textAnchor="end">{analysisPrice(drawing.price)}</text>}
-              {drawMode === 'erase' && <line {...line} className="refDrawingHit" role="button" aria-label="Çizimi sil" onClick={event => {event.stopPropagation(); onErase(drawing.id)}}/>}
+              {/* Sağ tık her zaman siler; sol tık yalnız silgi seçiliyken siler. */}
+              <line {...line} className="refDrawingHit" aria-label="Çizimi sil (sağ tık)" onContextMenu={event => {event.preventDefault(); event.stopPropagation(); onErase(drawing.id)}}
+                onClick={event => {if (drawMode !== 'erase') return; event.stopPropagation(); onErase(drawing.id)}}><title>Silmek için sağ tıkla</title></line>
             </g>
           })}{anchor && <g className="refDrawing refDrawing--trend refDrawing--draft"><circle cx={timeX(anchor.time)} cy={y(anchor.price)} r="3.5"/>{hoverPoint && <line x1={timeX(anchor.time)} y1={y(anchor.price)} x2={timeX(hoverPoint.time)} y2={y(hoverPoint.price)}/>}</g>}</g>
           {hover !== null && <line className="refCrosshair" x1={x(Math.min(hover, visible.length - 1))} x2={x(Math.min(hover, visible.length - 1))} y1="0" y2={plotHeight}/>}
@@ -250,7 +252,7 @@ export default function MasterTradeReference(props: Props) {
               <span className="refToolDivider" aria-hidden="true"/>
               <button type="button" aria-label="Yatay çizgi çiz" title="Yatay çizgi: grafikte bir fiyata tıkla" aria-pressed={drawMode === 'hline'} onClick={() => pickTool('hline')}><Minus/></button>
               <button type="button" aria-label="Trend çizgisi çiz" title="Trend çizgisi: iki noktaya tıkla" aria-pressed={drawMode === 'trend'} onClick={() => pickTool('trend')}><TrendingUp/></button>
-              <button type="button" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
+              <button type="button" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla (ya da çizgiye sağ tıkla)" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
               <button type="button" aria-label="Tüm çizimleri sil" title="Bu coindeki tüm çizimleri sil" disabled={!symbolDrawings.length} onClick={() => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }}><Trash2/></button>
               <span className="refToolDivider" aria-hidden="true"/>
               <details className="refChartSettings">
