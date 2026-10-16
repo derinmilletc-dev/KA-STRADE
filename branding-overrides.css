@@ -137,14 +137,14 @@
   height: var(--home-header-logo-height, 65.8px) !important;
 }
 
-#root > main.v26App .v26HeaderProfileSlot {
+#root > main.v26App :is(.v26HeaderProfileSlot, .masterTradeProfileSlot) {
   display: flex;
   align-items: center;
   min-width: 45px;
   min-height: 45px;
 }
 
-#root > main.v26App .v26HeaderProfileSlot .authSessionBar {
+#root > main.v26App :is(.v26HeaderProfileSlot, .masterTradeProfileSlot) .authSessionBar {
   position: static !important;
   inset: auto !important;
   z-index: 1 !important;

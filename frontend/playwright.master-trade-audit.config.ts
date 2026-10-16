@@ -5,6 +5,7 @@ import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const authMode = process.env.PLAYWRIGHT_AUTH_MODE ? '' : '--mode test'
 export default defineConfig({
   testDir: resolve(root, 'frontend', 'tests'),
   testMatch: [
@@ -19,7 +20,7 @@ export default defineConfig({
   reporter: 'line',
   use: {baseURL: 'http://127.0.0.1:4174', trace: 'retain-on-failure'},
   webServer: [{
-    command: 'npm run dev -- --mode test --host 127.0.0.1 --port 4174 --strictPort',
+    command: `npm run dev -- ${authMode} --host 127.0.0.1 --port 4174 --strictPort`,
     cwd: root,
     url: 'http://127.0.0.1:4174',
     reuseExistingServer: false,

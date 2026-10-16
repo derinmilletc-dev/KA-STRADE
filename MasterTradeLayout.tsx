@@ -49,7 +49,7 @@ export function MasterTradeMetricVisual({kind, value, volumes = []}: {kind: 'rsi
   </div>
 }
 
-export function MasterTradeChartLabels({lines, currentPrice, toY, format, pills = false}: {lines: Array<{label: string; value: number; tone: string}>; currentPrice?: number | null; toY: (value: number) => number; format: (value: number) => string; pills?: boolean}) {
+export function MasterTradeChartLabels({lines, currentPrice, toY, format, pills = false, hiddenLines = []}: {lines: Array<{label: string; value: number; tone: string}>; currentPrice?: number | null; toY: (value: number) => number; format: (value: number) => string; pills?: boolean; hiddenLines?: readonly string[]}) {
   const restored = useContext(RestoredPresentation)
   const gap = restored ? 24 : 18
   const labels = [...lines, ...(currentPrice === null || currentPrice === undefined ? [] : [{label: '', value: currentPrice, tone: 'current'}])].sort((left, right) => toY(left.value) - toY(right.value))
@@ -57,7 +57,7 @@ export function MasterTradeChartLabels({lines, currentPrice, toY, format, pills 
   labels.forEach((line, index) => { positions.push(Math.max(14, toY(line.value), index ? positions[index - 1] + gap : 14)) })
   for (let index = positions.length - 1; index >= 0; index -= 1) positions[index] = Math.min(positions[index], index === positions.length - 1 ? 278 : positions[index + 1] - gap)
   if (pills) return <div className="masterTradeChartPills">{labels.map((line, index) => <span key={`${line.label}-${line.value}`} className={`level-${line.tone}`} style={{top: `${(positions[index] - 12) / 300 * 100}%`}} title={`${line.label} ${format(line.value)}`}>{line.label}{line.label ? ' ' : ''}{format(line.value)}</span>)}</div>
-  return <g className="masterTradeChartLabels">{labels.map((line, index) => <g key={`${line.label}-${line.value}`} className={`chartLevel level-${line.tone}`} data-label-y={positions[index]}>
+  return <g className="masterTradeChartLabels">{labels.filter(line => !hiddenLines.includes(line.label)).map((line, index) => <g key={`${line.label}-${line.value}`} className={`chartLevel level-${line.tone}`} data-label-y={positions[index]}>
     <line x1="0" x2="760" y1={toY(line.value)} y2={toY(line.value)} strokeDasharray={line.tone === 'current' ? undefined : '3 4'}/>
     <path d={`M 592 ${toY(line.value)} L 604 ${positions[index]}`} className="masterTradeLabelLeader"/>
   </g>)}</g>

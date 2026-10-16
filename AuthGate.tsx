@@ -218,7 +218,9 @@ export default function AuthGate({children}:{children:ReactNode}) {
     let currentApp:HTMLElement|null = null
     let appObserver:MutationObserver|undefined
     const updateProfileHeaderSlot = () => {
-      const slot = currentApp?.querySelector<HTMLElement>('.v26HomeHeader .v26HeaderProfileSlot') || null
+      const slot = currentApp?.querySelector<HTMLElement>('.masterReferenceAnalysis .masterTradeProfileSlot')
+        || currentApp?.querySelector<HTMLElement>('.v26HomeHeader .v26HeaderProfileSlot')
+        || null
       setProfileHeaderSlot(current => current === slot ? current : slot)
     }
     const observeApp = () => {
@@ -228,7 +230,7 @@ export default function AuthGate({children}:{children:ReactNode}) {
         currentApp = app
         if (app) {
           appObserver = new MutationObserver(updateProfileHeaderSlot)
-          appObserver.observe(app,{childList:true})
+          appObserver.observe(app,{childList:true,subtree:true})
         }
       }
       updateProfileHeaderSlot()
