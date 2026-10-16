@@ -14,6 +14,7 @@ import {useMemberAccess} from './premium-access'
 import './cws.css'
 import LiveConnectionCard from './LiveConnectionCard'
 import NotificationSettings from './NotificationSettings'
+import ActiveSessionsCard from './ActiveSessionsCard'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -926,6 +927,7 @@ export default function TestnetFirstApp() {
       </div>
       <div className="cwsEmbed"><LiveConnectionCard/></div>
       <div className="cwsEmbed"><NotificationSettings/></div>
+      <div className="cwsEmbed"><ActiveSessionsCard/></div>
       <article className="cwsCard cwsSafe">
         <h3><ShieldCheck/>Güvenlik</h3>
         <div>{['Anahtarlar sunucuda şifreli saklanır','Anahtarlar ekranda hiç gösterilmez','Canlı işlem varsayılan olarak kilitlidir','Demo ve canlı anahtarlar ayrı tutulur','Emirler güvenlik kapılarından geçmeden açılmaz','Açılışta otomatik canlı emir verilmez'].map(item => <span key={item}><CheckCircle2/>{item}</span>)}</div>
