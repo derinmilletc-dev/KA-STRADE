@@ -42,7 +42,9 @@
 .masterReferenceAnalysis :is(.positive, [data-tone="positive"]) { color: var(--ref-green); }
 .masterReferenceAnalysis :is(.negative, [data-tone="negative"]) { color: var(--ref-red); }
 .masterReferenceAnalysis [data-tone="neutral"] { color: var(--ref-yellow); }
-.masterReferenceAnalysis .refHeader { height: 72px; display: flex; align-items: center; gap: 22px; border-bottom: 1px solid var(--ref-line); margin-bottom: 16px; }
+.masterReferenceAnalysis .refHeader { height: 72px; display: flex; align-items: center; gap: 22px; margin-bottom: 16px; }
+/* Menü şeridinin altında sayfa boyunca uzanan ince çizgi kaldırıldı; seçili sekmenin yeşil alt çizgisi kalır. */
+.masterReferenceAnalysis .refHeader.masterTradeTerminalHeader { border: 0 !important; box-shadow: none !important; }
 .masterReferenceAnalysis .refBrand { display: flex; align-items: center; gap: 9px; font-size: 27px; font-weight: 700; text-decoration: none; color: #e7f2ef; white-space: nowrap; }
 .masterReferenceAnalysis .refBrand b { color: #38d3b6; font-weight: 700; }
 .masterReferenceAnalysis .refBrand > svg { width: 39px; height: 39px; padding: 6px; border: 2px solid #39d3b5; border-radius: 50%; color: #39d3b5; }
