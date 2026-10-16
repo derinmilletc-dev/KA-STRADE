@@ -7,6 +7,7 @@ import { MasterTradeChartLabels, MasterTradeMetricTile, MasterTradeMetricVisual,
 import { PremiumWorkspace, useMemberAccess } from './premium-access'
 import {useKaisWorkspaceReaction} from './useKaisPageReactions'
 import { fetchWithTimeout } from './master-trade-request'
+import { fetchMtfAnalyses } from './master-trade-mtf'
 import { analysisPrice, analysisValue, autoTradePresentation, masterLayoutV2Enabled, MASTER_LAYOUT_DESKTOP_WIDTH, MASTER_MTF_INTERVALS } from './master-trade-presentation'
 import './master-trade-analysis-v2.css'
 import MasterTradeReference from './MasterTradeReference'
@@ -120,22 +121,6 @@ const navigateTab = (tab: MasterTradeTab) => {
   window.history.pushState(window.history.state, '', url)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
-const fetchMtfAnalyses = async (symbol: string, signal?: AbortSignal) => {
-  const results = await Promise.all(MTF_INTERVALS.map(async timeframe => {
-    try {
-      const response = await fetchWithTimeout(`${API_BASE}/analysis/${symbol}?interval=${timeframe}`, { signal }, 10000)
-      if (!response.ok) throw await marketDataResponseError(response)
-      const analysis = await response.json() as Analysis
-      if (!analysis || typeof analysis.direction !== 'string' || !Number.isFinite(analysis.confidence)) throw new MarketDataFailure('backend', 'Backend geçerli analiz verisi döndürmedi.')
-      return {analysis: {...analysis, timeframe}, error: ''}
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError' && signal?.aborted) throw error
-      return {analysis: null, error: `MTF ${timeframe}: ${marketDataFailure(error).message}`}
-    }
-  }))
-  return {analyses: results.map(result => result.analysis).filter(item => item !== null), error: results.map(result => result.error).filter(Boolean).join(' · ')}
-}
-
 export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement> }) {
   const {premium, owner, userId} = useMemberAccess()
   const layoutTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
