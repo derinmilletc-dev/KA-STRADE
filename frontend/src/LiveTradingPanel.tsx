@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import { liveCopy } from '../../ui-copy'
@@ -58,6 +58,12 @@ type Props = {active: boolean; symbol: string; analysis?: {direction?: string | 
 const V25 = `${API_BASE}/v25`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
 const initialOrder = (symbol: string): OrderDraft => ({symbol, direction: 'LONG', order_type: 'MARKET', margin_usdt: '10', leverage: '1', limit_price: '', stop_loss: '', tp1: '', tp2: '', tp3: ''})
+type CoinRow = {symbol: string; display: string; price: number; change: number; volume: number}
+const RECENT_COINS_KEY = 'kaistrade-recent-coins'
+const readRecentCoins = (): string[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_COINS_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 6) : [] } catch { return [] } }
+const saveRecentCoin = (symbol: string) => { try { localStorage.setItem(RECENT_COINS_KEY, JSON.stringify([symbol, ...readRecentCoins().filter(item => item !== symbol)].slice(0, 6))) } catch { /* kayıt kapalı olabilir */ } }
+const coinPrice = (value: number) => Number.isFinite(value) ? value.toLocaleString('tr-TR', {maximumFractionDigits: value < 1 ? 6 : value < 100 ? 4 : 2}) : '—'
+const orderKey = (o: OrderDraft) => JSON.stringify([o.symbol, o.direction, o.order_type, o.margin_usdt, o.leverage, o.limit_price, o.stop_loss, o.tp1, o.tp2, o.tp3])
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '—' : String(value)
 const signalPrice = (value: number | null | undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
 const money = (value: unknown) => {
@@ -142,6 +148,23 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [showSecret, setShowSecret] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [openStep, setOpenStep] = useState<number | null>(null)
+  const [universe, setUniverse] = useState<CoinRow[] | null>(null)
+  const [universeError, setUniverseError] = useState(false)
+  const [coinQuery, setCoinQuery] = useState('')
+  const [coinOpen, setCoinOpen] = useState(false)
+  const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
+  const [reviewedKey, setReviewedKey] = useState('')
+  useEffect(() => {
+    if (!active || universe !== null || !(openStep === 3 || !masterTrade)) return
+    const controller = new AbortController()
+    void fetchWithTimeout(`${API_BASE}/markets?all=true`, {signal: controller.signal}).then(async response => {
+      if (!response.ok) throw new Error('markets')
+      const rows = await response.json() as CoinRow[]
+      setUniverse(Array.isArray(rows) ? rows.filter(row => row && typeof row.symbol === 'string').sort((left, right) => Number(right.volume || 0) - Number(left.volume || 0)) : [])
+      setUniverseError(false)
+    }).catch(error => { if (error?.name !== 'AbortError') setUniverseError(true) })
+    return () => controller.abort()
+  }, [active, masterTrade, openStep, universe])
   const [strategyInfo, setStrategyInfo] = useState(false)
   const [externalHistory, setExternalHistory] = useState<ExternalHistory | null>(null)
   const [reviewResult, setReviewResult] = useState<{message: string; notional?: number; estimated_stop_loss_usdt?: number} | null>(null)
@@ -465,13 +488,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setNotice({kind: 'error', text: liveCopy.noSelectedCoin})
       return
     }
-    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
+    setOrder(current => ({...current, symbol, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
     setNotice({kind: 'ok', text: 'Seçili analiz yönü ve seviyeleri forma dolduruldu.'})
   }
   const reviewOrder = (nextOrder = order) => {
     const values = [nextOrder.margin_usdt, nextOrder.leverage, nextOrder.stop_loss, nextOrder.tp1, nextOrder.tp2, nextOrder.tp3]
     if (!nextOrder.symbol.endsWith('USDT') || values.some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
       setNotice({kind: 'error', text: 'Sembol, miktar, kaldıraç, Stop Loss ve tüm TP seviyeleri pozitif olmalıdır.'}); return
+    }
+    if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 100) {
+      setNotice({kind: 'error', text: 'Marjin 5 ile 100 USDT arasında olmalıdır.'}); return
     }
     const leverage = Number(nextOrder.leverage)
     if (!Number.isInteger(leverage) || leverage < 1 || leverage > 50) {
@@ -502,6 +528,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     void run('review', async () => {
       const result = await call<{message?: string; notional_usdt?: number; estimated_stop_loss_usdt?: number}>(V25, '/order/test', {method: 'POST', body: JSON.stringify(payload)})
       setReviewResult({message: result.message || 'Dry-run tamamlandı; gerçek emir gönderilmedi.', notional: result.notional_usdt, estimated_stop_loss_usdt: result.estimated_stop_loss_usdt})
+      setReviewedKey(orderKey(nextOrder))
     }, 'Dry-run tamamlandı; gerçek emir gönderilmedi.')
   }
 
@@ -613,46 +640,111 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     ['Execution', status?.execution_state === 'UNKNOWN' || status?.reconciliation_required ? 'BLOCKED' : readinessReady ? 'PASS' : 'WARNING', status?.reconciliation_required ? 'Reconciliation required' : blocker],
   ] as const
 
-  const renderManualOrderCard = () => (
-    <div className="liveUxGrid liveUxOrderGrid">
-      <section className="liveUxCard liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
-        <header><Send/><div><small>{liveCopy.manualOrder}</small><h3>Dry-run öncesi emir hazırlığı</h3></div><b>{executionLocked ? 'KİLİTLİ' : 'V25 ZİNCİRİ'}</b></header>
-        <div className="liveUxForm">
-          <label className="masterTradeOrderField">{liveCopy.symbol}<input value={order.symbol} onChange={event => setOrder({...order, symbol: event.target.value.toUpperCase()})}/></label>
-          <div className="liveChoice masterTradeOrderField"><span>{liveCopy.side}</span><button type="button" aria-pressed={order.direction === 'LONG'} className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => setOrder({...order, direction: 'LONG'})}>{liveCopy.long}</button><button type="button" aria-pressed={order.direction === 'SHORT'} className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => setOrder({...order, direction: 'SHORT'})}>{liveCopy.short}</button></div>
-          <label className="masterTradeOrderField">{liveCopy.orderType}<select value={order.order_type} onChange={event => setOrder({...order, order_type: event.target.value as OrderDraft['order_type']})}><option>{liveCopy.market}</option><option>{liveCopy.limit}</option></select></label>
-          <label className="masterTradeOrderField">{liveCopy.margin}<input type="number" min="5" value={order.margin_usdt} onChange={event => setOrder({...order, margin_usdt: event.target.value})}/></label>
-          {order.order_type === 'LIMIT' && <label className="masterTradeOrderField">{liveCopy.limitPrice}<input type="number" value={order.limit_price} onChange={event => setOrder({...order, limit_price: event.target.value})}/></label>}
-          <label>{liveCopy.stopLoss}<input type="number" value={order.stop_loss} onChange={event => setOrder({...order, stop_loss: event.target.value})}/></label>
-          <label>{liveCopy.tp1}<input type="number" value={order.tp1} onChange={event => setOrder({...order, tp1: event.target.value})}/></label>
-          <label>{liveCopy.tp2}<input type="number" value={order.tp2} onChange={event => setOrder({...order, tp2: event.target.value})}/></label>
-          <label>{liveCopy.tp3}<input type="number" value={order.tp3} onChange={event => setOrder({...order, tp3: event.target.value})}/></label>
+  const renderManualOrderCard = () => {
+    const q = coinQuery.trim().toUpperCase().replace('/', '')
+    const rows = universe ?? []
+    const selectedRow = rows.find(row => row.symbol === order.symbol)
+    const matches = (q ? rows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rows)
+    const listed = matches.slice(0, 80)
+    const recentRows = !q ? recentCoins.map(item => rows.find(row => row.symbol === item)).filter((row): row is CoinRow => Boolean(row)) : []
+    const chooseCoin = (value: string) => { setOrder(current => ({...current, symbol: value})); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
+    const marginValue = Number(order.margin_usdt)
+    const leverageValue = Number(order.leverage)
+    const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price)
+    const notional = marginValue * leverageValue
+    const stopValue = Number(order.stop_loss)
+    const tp1Value = Number(order.tp1)
+    const lossAtStop = Number.isFinite(entryRef) && entryRef > 0 && stopValue > 0 && notional > 0 ? notional * Math.abs(entryRef - stopValue) / entryRef : null
+    const gainAtTp1 = Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 && notional > 0 ? notional * Math.abs(tp1Value - entryRef) / entryRef : null
+    const rewardRisk = lossAtStop && gainAtTp1 ? gainAtTp1 / lossAtStop : null
+    const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
+    const sendBlock = !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
+    const sendOrder = () => {
+      if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
+      const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+      setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
+        await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
+        setReviewedKey(''); setReviewResult(null)
+      }})
+      setConfirmText('')
+    }
+    const set = (key: keyof OrderDraft, value: string) => setOrder(current => ({...current, [key]: value}))
+    return <div className="liveWsOrder liveUxOrderGrid">
+      <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
+        <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
+
+        <div className="liveWsBlock liveWsCoin">
+          <span className="liveWsLabel">1 · Coin</span>
+          <button type="button" className="liveWsCoinBtn" aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
+            <b>{selectedRow?.display || order.symbol || 'Coin seç'}</b>
+            <small>{selectedRow ? `${coinPrice(selectedRow.price)} USDT · ${Number(selectedRow.change) >= 0 ? '+' : ''}${Number(selectedRow.change).toFixed(2)}%` : universeError ? 'Liste alınamadı' : 'Listeden seç'}</small>
+            <ChevronDown/>
+          </button>
+          {coinOpen && <div className="liveWsCoinPop">
+            <label className="liveWsSearch"><Search/><input autoFocus value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setCoinOpen(false); if (event.key === 'Enter' && listed[0]) chooseCoin(listed[0].symbol); if (event.key === 'Enter' && !listed[0] && /^[A-Z0-9]{5,20}$/.test(q)) chooseCoin(q) }}/></label>
+            {recentRows.length > 0 && <div className="liveWsRecent"><small>Son kullanılanlar</small><div>{recentRows.map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}</button>)}</div></div>}
+            {universe === null && !universeError && <p className="liveWsHint">Coin listesi yükleniyor…</p>}
+            {universeError && <p className="liveWsWarn">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
+            {universe !== null && <ul role="listbox" aria-label="Coin listesi" className="liveWsCoinList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} onClick={() => chooseCoin(row.symbol)}><b>{row.display || row.symbol}</b><span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></button></li>)}{listed.length === 0 && <li className="liveWsHint">Sonuç yok.</li>}</ul>}
+            {universe !== null && matches.length > listed.length && <small className="liveWsHint">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</small>}
+          </div>}
+          {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri {symbol} içindir; "Analizden doldur" coini de {symbol} yapar.</small>}
         </div>
-        {tradingDefaults.preferences?.risk_per_trade && <div className="liveUxFormActions"><span>Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
-          const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
-          setSizingNotice(result.reason)
-          if (result.margin !== null) setOrder(current => ({...current, margin_usdt: String(result.margin)}))
-        }}>Tercih edilen riskle marjı hesapla</button></div>}
-        {(sizingNotice || tradingDefaults.error) && <p role="status">{sizingNotice || `İşlem tercihleri alınamadı: ${tradingDefaults.error}`}</p>}
-        <div className="liveUxFormActions"><button type="button" onClick={fillAnalysis}><CircleDollarSign/> {liveCopy.fillAnalysis}</button><button type="button" className="primary" onClick={reviewOrder} disabled={Boolean(busy)}><Send/> {liveCopy.reviewOrder}</button></div>
-        {reviewResult && <p className="liveUxReviewResult" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
-      </section>
-      <section className="liveUxCard liveUxSummary">
-        <header><ShieldCheck/><div><small>{liveCopy.orderSummary}</small><h3>{order.symbol || 'SEMBOL YOK'}</h3></div><b>LIVE · {executionLocked ? 'KİLİTLİ' : status?.armed ? 'ARMED' : 'ARM YOK'}</b></header>
-        <div className="liveUxSummaryLead"><strong>{order.direction === 'LONG' ? liveCopy.long : liveCopy.short}</strong><span>{order.order_type}</span></div>
-        <div className="liveUxMetrics">
-          <span><small>{liveCopy.margin}</small><b>{text(order.margin_usdt)} USDT</b></span>
-          <span><small>{liveCopy.stopLoss}</small><b>{text(order.stop_loss)}</b></span>
-          <span><small>{liveCopy.tp1}</small><b>{text(order.tp1)}</b></span>
-          <span><small>{liveCopy.tp2}</small><b>{text(order.tp2)}</b></span>
-          <span><small>{liveCopy.tp3}</small><b>{text(order.tp3)}</b></span>
-          <span><small>RİSK</small><b>{riskState}</b></span>
-          <span><small>MARUZİYET</small><b>{exposureState}</b></span>
-          <span><small>KORUMA</small><b>{protectionState}</b></span>
+
+        <div className="liveWsBlock">
+          <span className="liveWsLabel">2 · Yön</span>
+          <div className="liveChoice liveWsDir"><button type="button" aria-pressed={order.direction === 'LONG'} className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => set('direction', 'LONG')}>LONG</button><button type="button" aria-pressed={order.direction === 'SHORT'} className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => set('direction', 'SHORT')}>SHORT</button></div>
+        </div>
+
+        <div className="liveWsBlock">
+          <span className="liveWsLabel">3 · Giriş ve miktar</span>
+          <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
+          <div className="liveWsTwo">
+            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max="100" value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span></label>
+            <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span></label>
+          </div>
+          {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
+        </div>
+
+        <div className="liveWsBlock">
+          <span className="liveWsLabel">4 · Stop ve hedefler</span>
+          <div className="liveWsTwo">
+            <label className="liveWsField">Stop Loss<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
+            <label className="liveWsField">Hedef 1 (TP1)<input type="number" value={order.tp1} onChange={event => set('tp1', event.target.value)}/></label>
+            <label className="liveWsField">Hedef 2 (TP2)<input type="number" value={order.tp2} onChange={event => set('tp2', event.target.value)}/></label>
+            <label className="liveWsField">Hedef 3 (TP3)<input type="number" value={order.tp3} onChange={event => set('tp3', event.target.value)}/></label>
+          </div>
+          <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
+          {tradingDefaults.preferences?.risk_per_trade && <div className="liveWsRow"><span className="liveWsHint">Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" className="liveWsGhost" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
+            const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
+            setSizingNotice(result.reason)
+            if (result.margin !== null) setOrder(current => ({...current, margin_usdt: String(result.margin)}))
+          }}>Tercih edilen riskle marjı hesapla</button></div>}
+          {(sizingNotice || tradingDefaults.error) && <p className="liveWsHint" role="status">{sizingNotice || `İşlem tercihleri alınamadı: ${tradingDefaults.error}`}</p>}
         </div>
       </section>
+
+      <aside className="liveWsOrderSummary liveUxSummary" aria-label="Emir özeti">
+        <div className="liveWsOrderHead"><ShieldCheck/><div><b>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</b><small>Emir özeti</small></div></div>
+        <div className="liveUxSummaryLead"><strong className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</strong><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span></div>
+        <div className="liveWsSumGrid">
+          <span><small>Marjin</small><b>{text(order.margin_usdt)} USDT</b></span>
+          <span><small>Pozisyon büyüklüğü</small><b>{Number.isFinite(notional) ? money(notional) : '—'}</b></span>
+          <span><small>Stop Loss</small><b>{text(order.stop_loss)}</b></span>
+          <span><small>TP1 / TP2 / TP3</small><b>{text(order.tp1)} / {text(order.tp2)} / {text(order.tp3)}</b></span>
+          <span><small>Tahmini zarar (stopta)</small><b className="down">{lossAtStop === null ? '—' : money(lossAtStop)}</b></span>
+          <span><small>Tahmini kâr (TP1)</small><b className="up">{gainAtTp1 === null ? '—' : money(gainAtTp1)}{rewardRisk ? ` · 1:${rewardRisk.toFixed(1)}` : ''}</b></span>
+        </div>
+        <small className="liveWsHint">Tahminler giriş fiyatı ve kaldıraçla hesaplanır; komisyon ve kayma dahil değildir.</small>
+        {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
+        <div className="liveWsSendRow">
+          <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
+          <button type="button" className="liveWsPrimary danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Emri gönder</button>
+        </div>
+        {sendBlock && <small className="liveWsHint">{sendBlock}</small>}
+      </aside>
     </div>
-  )
+  }
 
   if (!active) return null
   if (masterTrade) {
@@ -739,7 +831,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                   <div className="liveWsRow"><button type="button" className="liveWsPrimary" onClick={acknowledgePolicy} disabled={Boolean(busy) || status?.policy_acknowledged === true}>{status?.policy_acknowledged ? 'Onaylandı' : 'LİMİTLERİ ONAYLA'}</button></div>
                 </article>
               </div>
-              <p className="liveWsHint">Manuel emir için ayrıca ARM gerekmez. ARM yalnızca otomatik işlem içindir.</p>
+              <p className="liveWsHint">Manuel emir için de ARM gerekir. ARM'ı 3. adımda açarsın.</p>
               <div className="liveWsGates">{(status?.readiness?.gates || []).map(gate => <span key={gate.key} className={gate.passed ? 'ok' : 'bad'}>{gate.passed ? <CheckCircle2/> : <AlertTriangle/>}{gate.label || gate.key}</span>)}</div>
             </div>}
           </section>
@@ -827,7 +919,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
 
           <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
             <h3>Son olaylar</h3>
-            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
+            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`} className={/FAIL|BLOCK|LOCK|STALE|RATE|ERROR|UNKNOWN|EMERGENCY/i.test(String(event.kind)) ? 'warn' : ''}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
           </section>
 
           <section className="liveWsSection liveWsDanger">
@@ -840,7 +932,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${step1Done ? 'done' : 'current'}`}>{step1Done ? <CheckCircle2/> : '1'}</span><span><b>Binance bağlantısı</b><small>{stepsMeta[0].sub}</small></span></div><div className="liveWsBody">{connectionBlock}</div></section>
           <section className="liveWsSection liveWsActivity masterTradeLiveActivity">
             <h3>Son olaylar</h3>
-            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
+            {activity.length ? <ol>{activity.map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`} className={/FAIL|BLOCK|LOCK|STALE|RATE|ERROR|UNKNOWN|EMERGENCY/i.test(String(event.kind)) ? 'warn' : ''}><time>{date(event.created_at)}</time><span>{text(event.message || event.kind).replaceAll('_', ' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz canlı olay yok.</p>}
           </section>
           <section className="liveWsSection masterTradeLiveSafety">
             <h3>Güvenlik özeti</h3>
@@ -883,7 +975,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     <section className="liveTerminalGrid liveControlRow"><article className="liveTerminalPanel liveArmPanel"><header><UnlockKeyhole/><div><span>03 · LIVE ARM</span><h3>Manual release control</h3></div><strong className={executionLocked ? 'warning' : 'positive'}>{executionLocked ? 'LOCKED' : 'ARMED'}</strong></header><div className="liveArmState"><b>{executionLocked ? 'LIVE LOCKED' : 'LIVE READY'}</b><span>{executionLocked ? 'All backend gates must pass before arm.' : 'Arm window active. Auto trade remains separate.'}</span></div><button type="button" className="liveArmButton" onClick={status?.armed ? () => run('disarm', () => call(V25, '/disarm', {method: 'POST'}).then(() => undefined), 'LIVE disarmed; AUTO-TRADE kapalı.') : armLive} disabled={Boolean(busy) || (!status?.armed && (!configured || !connected || emergency || recoveryRequired || !readinessReady || !protectionReady))}>{status?.armed ? <LockKeyhole/> : <UnlockKeyhole/>}{status?.armed ? ' DISARM LIVE' : ' ARM LIVE'}</button><small className="liveGateNote">{status?.armed ? 'Disarm closes new-entry authority.' : (!configured || !connected ? 'Connect and verify the account first.' : !readinessReady ? 'Readiness gates are blocking LIVE ARM.' : !protectionReady ? `Protection is ${protectionState}.` : emergency || recoveryRequired ? 'Emergency or recovery state is blocking LIVE ARM.' : 'Backend confirmation is required.')}</small></article>
       <article className="liveTerminalPanel liveAuto"><header><Power/><div><span>04 · LIVE AUTO TRADE</span><h3>Supervised live automation</h3></div><strong className={status?.live_auto_trade ? 'positive' : 'warning'}>{status?.live_auto_trade ? 'ON' : 'OFF'}</strong></header><div className="liveAutoState"><b>{status?.live_auto_trade ? 'AUTO TRADE ON' : 'AUTO TRADE OFF'}</b><span>{status?.auto?.last_decision || 'Automatic live entries are disabled by default.'}</span></div><div className="liveMetricList"><span><small>LIVE LOCK</small><b>{executionLocked ? 'LOCKED' : 'READY'}</b></span><span><small>BINANCE CONNECTION</small><b>{connectionState}</b></span><span><small>LIVE ARM</small><b>{armState}</b></span><span><small>RISK GATE</small><b>{riskState}</b></span><span><small>EXPOSURE</small><b>{exposureState}</b></span><span><small>ACTIVE PLAN</small><b>{activePlanState}</b></span><span><small>PROTECTION</small><b>{protectionState}</b></span><span><small>RECOVERY</small><b>{recoveryState}</b></span><span><small>EMERGENCY</small><b>{emergencyState}</b></span></div><div className="liveButtons"><button type="button" onClick={autoToggle} disabled={Boolean(busy) || !autoReady || Boolean(status?.live_auto_trade)}><Power/> START LIVE AUTO TRADE</button><button type="button" onClick={stopAutoTrade} disabled={Boolean(busy) || !status?.live_auto_trade}><Power/> STOP AUTO TRADE</button></div></article></section>
 
-    <section className="liveTerminalGrid liveOrderRow"><article className="liveTerminalPanel liveManual"><header><Send/><div><span>05 · MANUAL LIVE ORDER</span><h3>Review before real submission</h3></div><strong>{executionLocked ? 'LOCKED' : 'V25 CHAIN ONLY'}</strong></header><div className="liveFormGrid liveOrderForm"><label>SYMBOL<input value={order.symbol} onChange={event => setOrder({...order, symbol: event.target.value.toUpperCase()})}/></label><div className="liveChoice"><span>SIDE</span><button className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => setOrder({...order, direction: 'LONG'})}>LONG</button><button className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => setOrder({...order, direction: 'SHORT'})}>SHORT</button></div><label>ORDER TYPE<select value={order.order_type} onChange={event => setOrder({...order, order_type: event.target.value as OrderDraft['order_type']})}><option>MARKET</option><option>LIMIT</option></select></label><label>MARGIN / QUANTITY<input type="number" min="5" value={order.margin_usdt} onChange={event => setOrder({...order, margin_usdt: event.target.value})}/></label><label>LEVERAGE<input type="number" min="1" max="50" value={order.leverage} onChange={event => setOrder({...order, leverage: event.target.value})}/></label>{order.order_type === 'LIMIT' && <label>ENTRY PRICE<input type="number" value={order.limit_price} onChange={event => setOrder({...order, limit_price: event.target.value})}/></label>}<label>STOP LOSS<input type="number" value={order.stop_loss} onChange={event => setOrder({...order, stop_loss: event.target.value})}/></label><label>TAKE PROFIT 1<input type="number" value={order.tp1} onChange={event => setOrder({...order, tp1: event.target.value})}/></label><label>TAKE PROFIT 2<input type="number" value={order.tp2} onChange={event => setOrder({...order, tp2: event.target.value})}/></label><label>TAKE PROFIT 3<input type="number" value={order.tp3} onChange={event => setOrder({...order, tp3: event.target.value})}/></label></div><div className="liveOrderFooter"><span>ORDER STATUS: {executionLocked ? 'BLOCKED BY LIVE LOCK' : 'REVIEW REQUIRED'}</span><button type="button" onClick={fillAnalysis} disabled={!analysis}>FILL ANALYSIS</button><button type="button" onClick={reviewOrder} disabled={Boolean(busy) || executionLocked || !readinessReady}><Send/> REVIEW LIVE ORDER</button></div></article><article className="liveTerminalPanel liveExposure"><header><CircleDollarSign/><div><span>06 · POSITION / EXPOSURE</span><h3>Read-only account summary</h3></div><strong>READ ONLY</strong></header><div className="liveMetricList"><span><small>AVAILABLE BALANCE</small><b>{money(status?.account?.available_balance)}</b></span><span><small>UNREALIZED P&amp;L</small><b>{money(status?.account?.unrealized_pnl)}</b></span><span><small>CURRENT EXPOSURE</small><b>{money(exposure)}</b></span><span><small>OPEN POSITIONS</small><b>{status?.account?.positions?.length ?? 0}</b></span><span><small>DAILY P&amp;L</small><b>{money(status?.daily?.realized_pnl)}</b></span><span><small>LAST ORDER</small><b>{text(status?.events?.find(event => String(event.kind).includes('ORDER'))?.message)}</b></span></div><div className="liveAccountLine"><Wallet/><span><small>ACCOUNT CONNECTIVITY</small><b>{connected ? 'CONNECTED' : 'DISCONNECTED'} · {status?.connection?.last_error || `Last sync ${date(status?.connection?.last_checked)}`}</b></span></div></article></section>
+    <section className="liveTerminalGrid liveOrderRow"><article className="liveTerminalPanel liveManual"><header><Send/><div><span>05 · MANUAL LIVE ORDER</span><h3>Review before real submission</h3></div><strong>{executionLocked ? 'LOCKED' : 'V25 CHAIN ONLY'}</strong></header><div className="liveFormGrid liveOrderForm"><label>SYMBOL<input value={order.symbol} onChange={event => setOrder({...order, symbol: event.target.value.toUpperCase()})}/></label><div className="liveChoice"><span>SIDE</span><button className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => setOrder({...order, direction: 'LONG'})}>LONG</button><button className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => setOrder({...order, direction: 'SHORT'})}>SHORT</button></div><label>ORDER TYPE<select value={order.order_type} onChange={event => setOrder({...order, order_type: event.target.value as OrderDraft['order_type']})}><option>MARKET</option><option>LIMIT</option></select></label><label>MARGIN / QUANTITY<input type="number" min="5" value={order.margin_usdt} onChange={event => setOrder({...order, margin_usdt: event.target.value})}/></label><label>LEVERAGE<input type="number" min="1" max="50" value={order.leverage} onChange={event => setOrder({...order, leverage: event.target.value})}/></label>{order.order_type === 'LIMIT' && <label>ENTRY PRICE<input type="number" value={order.limit_price} onChange={event => setOrder({...order, limit_price: event.target.value})}/></label>}<label>STOP LOSS<input type="number" value={order.stop_loss} onChange={event => setOrder({...order, stop_loss: event.target.value})}/></label><label>TAKE PROFIT 1<input type="number" value={order.tp1} onChange={event => setOrder({...order, tp1: event.target.value})}/></label><label>TAKE PROFIT 2<input type="number" value={order.tp2} onChange={event => setOrder({...order, tp2: event.target.value})}/></label><label>TAKE PROFIT 3<input type="number" value={order.tp3} onChange={event => setOrder({...order, tp3: event.target.value})}/></label></div><div className="liveOrderFooter"><span>ORDER STATUS: {executionLocked ? 'BLOCKED BY LIVE LOCK' : 'REVIEW REQUIRED'}</span><button type="button" onClick={fillAnalysis} disabled={!analysis}>FILL ANALYSIS</button><button type="button" onClick={() => reviewOrder()} disabled={Boolean(busy) || executionLocked || !readinessReady}><Send/> REVIEW LIVE ORDER</button></div></article><article className="liveTerminalPanel liveExposure"><header><CircleDollarSign/><div><span>06 · POSITION / EXPOSURE</span><h3>Read-only account summary</h3></div><strong>READ ONLY</strong></header><div className="liveMetricList"><span><small>AVAILABLE BALANCE</small><b>{money(status?.account?.available_balance)}</b></span><span><small>UNREALIZED P&amp;L</small><b>{money(status?.account?.unrealized_pnl)}</b></span><span><small>CURRENT EXPOSURE</small><b>{money(exposure)}</b></span><span><small>OPEN POSITIONS</small><b>{status?.account?.positions?.length ?? 0}</b></span><span><small>DAILY P&amp;L</small><b>{money(status?.daily?.realized_pnl)}</b></span><span><small>LAST ORDER</small><b>{text(status?.events?.find(event => String(event.kind).includes('ORDER'))?.message)}</b></span></div><div className="liveAccountLine"><Wallet/><span><small>ACCOUNT CONNECTIVITY</small><b>{connected ? 'CONNECTED' : 'DISCONNECTED'} · {status?.connection?.last_error || `Last sync ${date(status?.connection?.last_checked)}`}</b></span></div></article></section>
 
     <section className="liveSafetyRail"><article><ShieldCheck/><div><span>07 · PROTECTION</span><b>PROTECTION {protectionState}</b><small>{protectionGate?.detail || 'Protection readiness is sourced from backend V25 gates.'}</small></div></article><article><RefreshCw/><div><span>08 · RECOVERY</span><b>{recoveryState === 'REQUIRED' ? 'RECOVERY REQUIRED' : `RECOVERY ${recoveryState}`}</b><small>{status?.reconciliation_diagnostic?.exception_message || status?.recovery_error || 'Recovery state is read from the live execution backend.'}</small></div><button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>CHECK RECOVERY</button></article><article><ShieldAlert/><div><span>09 · EMERGENCY STOP</span><b>{emergency ? 'LIVE BLOCKED' : 'EMERGENCY SAFE'}</b><small>{emergency ? (status?.emergency?.reason || 'New live execution is blocked.') : 'Emergency stop is inactive.'}</small></div><button type="button" className="liveEmergencyButton" onClick={emergencyStop} disabled={Boolean(busy)}><ShieldAlert/> EMERGENCY STOP</button></article></section>
 
@@ -901,7 +993,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <section className="liveCard liveReadiness"><header><ShieldCheck/><div><small>LIVE SAFETY GATES</small><h3>Arm / Protection Readiness</h3></div></header><div className="liveGateList">{(status?.readiness?.gates || []).map(gate => <div key={gate.key}><i className={gate.passed ? 'passed' : ''}>{gate.passed ? '✓' : '!'}</i><span><b>{gate.label || gate.key}</b><small>{gate.detail || (gate.passed ? 'PASSED' : 'BLOCKED')}</small></span></div>)}</div><div className="liveButtons"><button type="button" className="liveArmButton" onClick={status?.armed ? () => run('disarm', () => call(V25, '/disarm', {method: 'POST'}).then(() => undefined), 'LIVE disarmed; AUTO-TRADE kapalı.') : armLive} disabled={Boolean(busy) || (!status?.armed && (!configured || !connected || emergency || recoveryRequired || !protectionReady))}>{status?.armed ? <LockKeyhole/> : <UnlockKeyhole/>}{status?.armed ? ' DISARM LIVE' : ' LIVE ARM'}</button><button type="button" className="liveEmergencyButton" onClick={emergencyStop} disabled={Boolean(busy)}><ShieldAlert/> EMERGENCY STOP</button></div><small className="liveGateNote">ARM, AUTO-TRADE’i başlatmaz. Refresh/restart sonrası backend state LOCKED/OFF olarak değerlendirilir.</small></section>
     </div>
 
-    <section className="liveCard liveManual"><header><Send/><div><small>LIVE MANUAL ORDER</small><h3>Review before real submission</h3></div><b>V25 CHAIN ONLY</b></header><div className="liveOrderGrid"><label>Symbol<input value={order.symbol} onChange={event => setOrder({...order, symbol: event.target.value.toUpperCase()})}/></label><div className="liveChoice"><span>Direction</span><button className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => setOrder({...order, direction: 'LONG'})}>LONG</button><button className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => setOrder({...order, direction: 'SHORT'})}>SHORT</button></div><label>Order type<select value={order.order_type} onChange={event => setOrder({...order, order_type: event.target.value as OrderDraft['order_type']})}><option>MARKET</option><option>LIMIT</option></select></label><label>Margin / risk sizing<input type="number" min="5" value={order.margin_usdt} onChange={event => setOrder({...order, margin_usdt: event.target.value})}/></label><label>Leverage<input type="number" min="1" max="50" value={order.leverage} onChange={event => setOrder({...order, leverage: event.target.value})}/></label>{order.order_type === 'LIMIT' && <label>Entry price<input type="number" value={order.limit_price} onChange={event => setOrder({...order, limit_price: event.target.value})}/></label>}<label>Stop Loss<input type="number" value={order.stop_loss} onChange={event => setOrder({...order, stop_loss: event.target.value})}/></label><label>Take Profit 1<input type="number" value={order.tp1} onChange={event => setOrder({...order, tp1: event.target.value})}/></label><label>Take Profit 2<input type="number" value={order.tp2} onChange={event => setOrder({...order, tp2: event.target.value})}/></label><label>Take Profit 3<input type="number" value={order.tp3} onChange={event => setOrder({...order, tp3: event.target.value})}/></label></div><div className="liveOrderEstimate"><span><small>ESTIMATED NOTIONAL</small><b>{money(Number(order.margin_usdt) * Number(order.leverage))}</b></span><span><small>ESTIMATED RISK</small><b>{money(Math.abs(Number(order.limit_price || analysis?.entry || 0) - Number(order.stop_loss || analysis?.stop_loss || 0)) * Number(order.margin_usdt) * Number(order.leverage) / Math.max(1, Number(order.limit_price || analysis?.entry || 1)))}</b></span><button type="button" onClick={fillAnalysis}><RefreshCw/> FILL FROM ANALYSIS</button></div><button type="button" className="liveReviewButton" onClick={reviewOrder} disabled={Boolean(busy) || !status?.armed || Boolean(status?.real_trading_locked) || !connected || emergency || recoveryRequired || !protectionReady}><Send/> REVIEW LIVE ORDER</button></section>
+    <section className="liveCard liveManual"><header><Send/><div><small>LIVE MANUAL ORDER</small><h3>Review before real submission</h3></div><b>V25 CHAIN ONLY</b></header><div className="liveOrderGrid"><label>Symbol<input value={order.symbol} onChange={event => setOrder({...order, symbol: event.target.value.toUpperCase()})}/></label><div className="liveChoice"><span>Direction</span><button className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => setOrder({...order, direction: 'LONG'})}>LONG</button><button className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => setOrder({...order, direction: 'SHORT'})}>SHORT</button></div><label>Order type<select value={order.order_type} onChange={event => setOrder({...order, order_type: event.target.value as OrderDraft['order_type']})}><option>MARKET</option><option>LIMIT</option></select></label><label>Margin / risk sizing<input type="number" min="5" value={order.margin_usdt} onChange={event => setOrder({...order, margin_usdt: event.target.value})}/></label><label>Leverage<input type="number" min="1" max="50" value={order.leverage} onChange={event => setOrder({...order, leverage: event.target.value})}/></label>{order.order_type === 'LIMIT' && <label>Entry price<input type="number" value={order.limit_price} onChange={event => setOrder({...order, limit_price: event.target.value})}/></label>}<label>Stop Loss<input type="number" value={order.stop_loss} onChange={event => setOrder({...order, stop_loss: event.target.value})}/></label><label>Take Profit 1<input type="number" value={order.tp1} onChange={event => setOrder({...order, tp1: event.target.value})}/></label><label>Take Profit 2<input type="number" value={order.tp2} onChange={event => setOrder({...order, tp2: event.target.value})}/></label><label>Take Profit 3<input type="number" value={order.tp3} onChange={event => setOrder({...order, tp3: event.target.value})}/></label></div><div className="liveOrderEstimate"><span><small>ESTIMATED NOTIONAL</small><b>{money(Number(order.margin_usdt) * Number(order.leverage))}</b></span><span><small>ESTIMATED RISK</small><b>{money(Math.abs(Number(order.limit_price || analysis?.entry || 0) - Number(order.stop_loss || analysis?.stop_loss || 0)) * Number(order.margin_usdt) * Number(order.leverage) / Math.max(1, Number(order.limit_price || analysis?.entry || 1)))}</b></span><button type="button" onClick={fillAnalysis}><RefreshCw/> FILL FROM ANALYSIS</button></div><button type="button" className="liveReviewButton" onClick={() => reviewOrder()} disabled={Boolean(busy) || !status?.armed || Boolean(status?.real_trading_locked) || !connected || emergency || recoveryRequired || !protectionReady}><Send/> REVIEW LIVE ORDER</button></section>
 
     <section className="livePanelGrid"><section className="liveCard liveAuto"><header><Power/><div><small>LIVE AUTO-TRADE</small><h3>Supervised automation</h3></div><b className={status?.live_auto_trade ? 'on' : ''}>{status?.live_auto_trade ? 'ON' : 'OFF'}</b></header><div className="liveAutoFields"><label>Allowed USDT pairs<input value={String(policy.allowed_symbols || '')} onChange={event => setPolicy('allowed_symbols', event.target.value.toUpperCase().split(',').map(value => value.trim()).filter(Boolean))}/></label><label>Risk per trade %<input type="number" value={numericPolicy('max_loss_per_trade', 1)} onChange={event => setPolicy('max_loss_per_trade', Number(event.target.value))}/></label><label>Max total exposure<input type="number" min="25" max="350" value={numericPolicy('max_total_exposure_usdt', 350)} onChange={event => setPolicy('max_total_exposure_usdt', Number(event.target.value))}/></label><label>Daily loss limit<input type="number" value={numericPolicy('daily_loss_limit', 20)} onChange={event => setPolicy('daily_loss_limit', Number(event.target.value))}/></label><label>Max simultaneous positions<input type="number" value={numericPolicy('max_positions', 3)} onChange={event => setPolicy('max_positions', Number(event.target.value))}/></label><label>Maximum consecutive losses<input type="number" value={numericPolicy('consecutive_loss_limit', 3)} onChange={event => setPolicy('consecutive_loss_limit', Number(event.target.value))}/></label><label>Minimum signal confidence<input type="number" value={numericPolicy('min_confidence', 85)} onChange={event => setPolicy('min_confidence', Number(event.target.value))}/></label><label>Maximum trap score<input type="number" value={numericPolicy('max_trap_score', 30)} onChange={event => setPolicy('max_trap_score', Number(event.target.value))}/></label><label className="liveToggle"><input type="checkbox" checked={policy.allow_long !== false} onChange={event => setPolicy('allow_long', event.target.checked)}/><span>LONG allowed</span></label><label className="liveToggle"><input type="checkbox" checked={policy.allow_short !== false} onChange={event => setPolicy('allow_short', event.target.checked)}/><span>SHORT allowed</span></label></div><div className="liveButtons"><button type="button" onClick={updatePolicy} disabled={Boolean(busy)}><ShieldCheck/> SAVE CANONICAL POLICY</button><button type="button" className={status?.live_auto_trade ? 'stopButton' : 'autoButton'} onClick={autoToggle} disabled={Boolean(busy) || (!status?.live_auto_trade && (!status?.armed || Boolean(status?.real_trading_locked) || !connected || emergency || recoveryRequired || !protectionReady))}>{status?.live_auto_trade ? 'DISABLE LIVE AUTO-TRADE' : 'LIVE AUTO-TRADE BAŞLAT'}</button></div><p className="liveGateNote">Start hour, end hour, volatility, BTC correlation and cooldown are enforced only where the canonical backend policy exposes them; no duplicate frontend gate is created.</p></section>
 

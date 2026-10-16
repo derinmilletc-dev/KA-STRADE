@@ -246,3 +246,66 @@
   #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   #master-trade-live-terminal.liveWs .liveWsActivity li { grid-template-columns: minmax(0, 1fr) !important; gap: 4px !important; }
 }
+
+/* Son olaylar: saat üstte küçük, mesaj altta tam genişlikte (taşma yok) */
+#master-trade-live-terminal.liveWs .liveWsActivity li { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; padding: 12px 14px 12px 18px !important; position: relative; }
+#master-trade-live-terminal.liveWs .liveWsActivity li::before { content: '' !important; display: block !important; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; border-radius: 4px; background: var(--ws-green) !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li.warn::before { background: var(--ws-amber) !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li time { font-size: 11px !important; letter-spacing: .04em; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { width: 100%; font-size: 14px !important; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
+
+/* Manuel emir */
+#master-trade-live-terminal.liveWs .liveWsOrder { display: grid !important; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) !important; gap: 14px !important; align-items: start; }
+#master-trade-live-terminal.liveWs .liveWsOrderForm, #master-trade-live-terminal.liveWs .liveWsOrderSummary { display: grid; gap: 16px; padding: 18px; border-radius: 18px; background: var(--ws-raised) !important; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsOrderSummary { position: sticky !important; top: 12px; background: #1d2b3d !important; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead { display: flex; align-items: center; gap: 12px; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead > svg { width: 22px; height: 22px; color: var(--ws-green); flex: none; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsTag.warn { background: rgba(245, 185, 66, .18) !important; color: var(--ws-amber) !important; }
+#master-trade-live-terminal.liveWs .liveWsBlock { display: grid; gap: 10px; min-width: 0; position: relative; }
+#master-trade-live-terminal.liveWs .liveWsLabel { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveWsTwo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#master-trade-live-terminal.liveWs .liveWsField { display: grid; gap: 6px; font-size: 13px; color: var(--ws-muted); font-weight: 600; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsOrderForm input:not([type='checkbox']) { background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsChips { display: flex; flex-wrap: wrap; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsChips button, #master-trade-live-terminal.liveWs .liveWsRecent button { min-height: 32px; padding: 0 12px; border-radius: 999px; background: #0f1823 !important; font-size: 13px; font-weight: 700; }
+#master-trade-live-terminal.liveWs .liveWsChips button:hover, #master-trade-live-terminal.liveWs .liveWsRecent button:hover { background: #2a3b50 !important; }
+#master-trade-live-terminal.liveWs .liveWsDir { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+#master-trade-live-terminal.liveWs .liveWsDir button { min-height: 52px !important; border-radius: 14px !important; font-size: 16px !important; font-weight: 800 !important; background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsDir .selectedLong { background: var(--ws-green) !important; color: #04241a !important; }
+#master-trade-live-terminal.liveWs .liveWsDir .selectedShort { background: var(--ws-red) !important; color: #3a0909 !important; }
+#master-trade-live-terminal.liveWs .liveWsSeg { display: inline-grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 14px; background: #0f1823; justify-self: start; min-width: 220px; }
+#master-trade-live-terminal.liveWs .liveWsSeg button { min-height: 40px; border-radius: 10px; font-weight: 700; background: transparent !important; }
+#master-trade-live-terminal.liveWs .liveWsSeg button.on { background: #2a3b50 !important; }
+/* coin seçici */
+#master-trade-live-terminal.liveWs .liveWsCoinBtn { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; width: 100%; padding: 12px 16px; border-radius: 14px; background: #0f1823 !important; text-align: left; }
+#master-trade-live-terminal.liveWs .liveWsCoinBtn b { font-size: 18px; }
+#master-trade-live-terminal.liveWs .liveWsCoinBtn svg { grid-row: 1 / 3; grid-column: 2; width: 18px; height: 18px; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveWsCoinPop { display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsSearch { display: flex !important; align-items: center; gap: 8px; padding: 0 12px; border-radius: 12px; background: #1b2736 !important; }
+#master-trade-live-terminal.liveWs .liveWsSearch svg { width: 18px; height: 18px; color: var(--ws-muted); flex: none; }
+#master-trade-live-terminal.liveWs .liveWsSearch input { background: transparent !important; padding: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsRecent { display: grid; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsRecent > div { display: flex; flex-wrap: wrap; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsCoinList { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto !important; display: grid; gap: 2px; overscroll-behavior: contain; }
+#master-trade-live-terminal.liveWs .liveWsCoinList button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto 76px; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: transparent !important; text-align: left; }
+#master-trade-live-terminal.liveWs .liveWsCoinList button:hover, #master-trade-live-terminal.liveWs .liveWsCoinList button[aria-selected='true'] { background: #1b2736 !important; }
+#master-trade-live-terminal.liveWs .liveWsCoinList span { font-variant-numeric: tabular-nums; color: var(--ws-muted); font-size: 13px; }
+#master-trade-live-terminal.liveWs .liveWsCoinList em { font-style: normal; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#master-trade-live-terminal.liveWs .up { color: var(--ws-green) !important; }
+#master-trade-live-terminal.liveWs .down { color: var(--ws-red) !important; }
+/* özet */
+#master-trade-live-terminal.liveWs .liveUxSummaryLead { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveUxSummaryLead strong { font-size: 24px; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid span { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; background: #141d28 !important; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid b { overflow-wrap: anywhere; font-size: 14px; }
+#master-trade-live-terminal.liveWs .liveWsSendRow { display: grid; gap: 10px; }
+#master-trade-live-terminal.liveWs .liveWsOk { padding: 10px 12px; border-radius: 12px; background: rgba(52, 211, 153, .14); color: #a7f3d0; font-size: 14px; }
+@media (max-width: 900px) {
+  #master-trade-live-terminal.liveWs .liveWsOrder { grid-template-columns: minmax(0, 1fr) !important; }
+  #master-trade-live-terminal.liveWs .liveWsOrderSummary { position: static !important; }
+}
+@media (max-width: 480px) {
+  #master-trade-live-terminal.liveWs .liveWsTwo { grid-template-columns: minmax(0, 1fr); }
+}

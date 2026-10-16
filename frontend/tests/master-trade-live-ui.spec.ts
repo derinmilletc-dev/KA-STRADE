@@ -64,7 +64,6 @@ for (const width of [1440, 1024, 390, 320]) {
     const gridColumns = (selector: string) => workspace.locator(selector).evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)
     expect(await gridColumns('.masterTradeLiveAccountMetrics')).toBe(width >= 768 ? 5 : 2)
     expect(await gridColumns('.masterTradeLiveSignalGrid')).toBe(width >= 768 ? 3 : 2)
-    expect(await gridColumns('.liveUxForm')).toBe(width >= 768 ? 4 : 2)
     await workspace.locator('.liveWsStepper button').nth(2).click()
     expect(await workspace.locator('.liveWsFields input, .liveUxForm input, .liveUxForm select, .masterTradeLiveSetupGrid input, .masterTradeLiveSetupGrid select').evaluateAll(elements => elements.every(element => element.getBoundingClientRect().height === 44))).toBe(true)
     const bounds = await workspace.evaluate(element => {
