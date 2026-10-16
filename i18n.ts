@@ -19,12 +19,20 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 let exact: Record<string, string> = {}
+let lowerMap: Record<string, string> = {}
+const trLower = (s: string) => s.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase()
+const trUpper = (s: string) => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase()
 let patterns: { re: RegExp; en: string }[] = []
 const cache = new Map<string, string>()
 
 function translateCore(key: string, depth: number): string | null {
   const hit = exact[key]
   if (hit !== undefined) return hit
+  const low = lowerMap[trLower(key)]
+  if (low !== undefined) {
+    const upper = key === trUpper(key) && /[a-zçğıöşü]/i.test(key) && key.length > 2
+    return upper ? low.toUpperCase() : low
+  }
   if (depth > 2) return null
   for (const { re, en } of patterns) {
     const m = re.exec(key)
@@ -163,6 +171,8 @@ export async function initI18n(): Promise<void> {
     const mod = await import('./i18n-en.json')
     const dict = (mod.default ?? mod) as unknown as Dict
     exact = dict.e
+    lowerMap = {}
+    for (const k of Object.keys(exact)) { const l = trLower(k); if (!(l in lowerMap)) lowerMap[l] = exact[k] }
     patterns = dict.p.map(([tr, en]) => ({
       re: new RegExp('^' + esc(tr).replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$'),
       en,

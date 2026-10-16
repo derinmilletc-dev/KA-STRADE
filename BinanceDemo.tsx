@@ -5,6 +5,7 @@ import {useKaisErrorReaction, useKaisWorkspaceReaction} from './useKaisPageReact
 import OriginalDemoControls, {checkedOriginalStatus, ORIGINAL_DEMO_ID, type DemoStrategy} from './OriginalDemoControls'
 import {checkDemoResponse, demoRequest, prepareDemoTrading, startDemoAutomation} from './demo-request'
 import './demo-recovery.css'
+import './demo-clean.css'
 import DemoInfoCards from './DemoInfoCards'
 
 const API = `${API_BASE}/binance-demo`

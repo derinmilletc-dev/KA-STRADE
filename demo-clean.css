@@ -1,0 +1,7 @@
+/* Demo trading screens: remove decorative outlines around cards and panels.
+   Buttons, inputs, selects and the price chart keep their own borders. */
+#root .binanceDemoDeck :where(section,article,div,header,footer,aside,ul,ol,li,p,small,strong,em,label,fieldset,table,thead,tbody,tfoot,tr,th,td,h1,h2,h3,h4,dl,dt,dd,details,summary):not(.demoMapRail):not(.demoSymbolPopover):not(.demoSymbolPopover *){border:0!important;box-shadow:none!important;outline:0!important}
+#root .binanceDemoDeck :where(section,article,div,header,footer,aside)::before,
+#root .binanceDemoDeck :where(section,article,div,header,footer,aside)::after{border-color:transparent!important;box-shadow:none!important}
+#root .binanceDemoDeck :where(hr){display:none!important}
+#root .binanceDemoDeck :where(table) :where(tr,th,td){border-bottom:0!important}
