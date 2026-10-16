@@ -19,3 +19,26 @@
 #notify-settings .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
 #notify-settings .nsTest svg { width: 17px; height: 17px; }
 @media (max-width: 520px) { #notify-settings .nsRow { padding: 12px; } #notify-settings .nsTest { width: 100%; justify-content: center; } }
+
+/* Canlı bağlantı kartı */
+#live-connection-card.nsCard { display: grid; gap: 16px; }
+#live-connection-card.nsCard, #live-connection-card.nsCard * { border: 0 !important; box-shadow: none !important; }
+#live-connection-card .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
+#live-connection-card .nsList { display: grid; gap: 8px; }
+#live-connection-card .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
+#live-connection-card .nsRow > span { display: grid; gap: 3px; min-width: 0; }
+#live-connection-card .nsRow b { font-size: 15px; font-weight: 700; color: #edf2f8; }
+#live-connection-card .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+#live-connection-card .nsStatus { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; padding: 16px 18px; border-radius: 18px; background: rgba(255, 255, 255, .06) !important; }
+#live-connection-card .nsStatus i { width: 12px; height: 12px; border-radius: 50%; background: #f5b942; grid-row: 1; }
+#live-connection-card .nsStatus.ok i { background: #34d399; box-shadow: 0 0 0 5px rgba(52, 211, 153, .18) !important; }
+#live-connection-card .nsStatus.bad i { background: #f87171; }
+#live-connection-card .nsStatus b { font-size: 18px; color: #edf2f8; }
+#live-connection-card .nsStatus small { grid-column: 2; color: #9aa9ba; font-size: 13px; }
+#live-connection-card .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; }
+#live-connection-card .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#live-connection-card .nsFoot small { color: #9aa9ba; }
+#live-connection-card .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
+#live-connection-card .nsTest svg { width: 17px; height: 17px; }
+#live-connection-card h2 button { border-radius: 12px !important; background: #1b2736 !important; }
+@media (max-width: 520px) { #live-connection-card .nsRow { padding: 12px; } #live-connection-card .nsTest { width: 100%; justify-content: center; } }
