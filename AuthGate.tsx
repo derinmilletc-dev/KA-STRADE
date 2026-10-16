@@ -276,7 +276,9 @@ export default function AuthGate({children}:{children:ReactNode}) {
       const unavailable = !(error instanceof AuthRequestError && [401,403].includes(error.status))
       if (!unavailable) { clearUserSessionToken(); setToken('') }
       setSession(null); setSessionUnavailable(unavailable); setSubmitFailed(unavailable)
-      setMessage(error instanceof Error ? error.message : 'Oturum açmak için devam edin.')
+      // A 401 here only means "not signed in yet"; do not show it as an error on the login form.
+      const signedOut = error instanceof AuthRequestError && error.status === 401
+      setMessage(signedOut ? '' : error instanceof Error ? error.message : 'Oturum açmak için devam edin.')
     } finally {
       if (!controller.signal.aborted && sequence === sessionSequence.current) { setBusy(false); setSessionLoading(false) }
     }
