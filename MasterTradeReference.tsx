@@ -1,5 +1,5 @@
 import {useLayoutEffect, useRef, useState, type RefCallback} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, LockKeyhole, Power, RefreshCw, Settings2, SlidersHorizontal, UserRound, Wallet, X} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, LockKeyhole, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -93,7 +93,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
             return <g key={index}><line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>{!labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{analysisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
           })}{Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
           {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
-          <g className="masterTradeChartLabels">{labels.filter(label => label.edge === 'inside').map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY} strokeDasharray={label.tone === 'current' ? undefined : '3 4'}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
+          <g className="masterTradeChartLabels">{labels.filter(label => label.edge === 'inside' && !['SL', 'RESISTANCE'].includes(label.label)).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY} strokeDasharray={label.tone === 'current' ? undefined : '3 4'}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
           <g className="refTimeAxis">{Array.from({length: 6}, (_, index) => {const candle = visible[Math.round(index / 5 * (visible.length - 1))]; return <text key={index} x={10 + index / 5 * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === 5 ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
           {hover !== null && <line className="refCrosshair" x1={x(Math.min(hover, visible.length - 1))} x2={x(Math.min(hover, visible.length - 1))} y1="0" y2={plotHeight}/>}
         </svg>
@@ -126,7 +126,7 @@ export default function MasterTradeReference(props: Props) {
       <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span>kais<b>trade</b></span></a>
       <nav role="tablist" aria-label="Master Trade sections">{tabs.map(({id, label, Icon}) => <button key={id} id={`masterTradeTab-${id}`} type="button" role="tab" aria-selected={id === 'analiz'} aria-controls={`masterTradePanel-${id}`} onClick={() => props.onNavigate(id)}><Icon/>{label}</button>)}</nav>
       <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'CONNECTED' : 'DISCONNECTED'}{locked && <><LockKeyhole/> LOCKED</>}</span>
-      <UserRound className="refUser" aria-label="Kullanıcı"/>{props.assistantSlotRef && <div className="assistantMasterSlot" ref={props.assistantSlotRef}/>}
+      <div className="masterTradeProfileSlot" aria-label="Profil menüsü"/>{props.assistantSlotRef && <div className="assistantMasterSlot" ref={props.assistantSlotRef}/>}
     </header>
     <main className="refWorkspace masterAnalysis" role="tabpanel" aria-labelledby="masterTradeTab-analiz" id="masterTradePanel-analiz">
       <MasterTradeMarketWatch symbol={props.symbol} query={props.query} onQuery={props.onQuery} onMarket={props.onMarket} scores={props.scores} feed={props.marketFeed}/>

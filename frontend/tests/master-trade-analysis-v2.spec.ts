@@ -12,7 +12,7 @@ const NOW = new Date('2026-10-05T12:00:00Z')
 const root = (page: Page) => page.locator('.masterReferenceAnalysis')
 const panel = (page: Page) => root(page).getByRole('complementary', {name: 'Analysis decision panel'})
 
-async function prepare(page: Page, options: {width?: number; height?: number; universe?: boolean; nativeFrames?: boolean; userId?: string; premium?: boolean; connected?: boolean; running?: boolean; ready?: boolean; unavailable?: boolean; legacy?: boolean; fields?: Record<string, unknown>; levelOverrides?: Partial<ReturnType<typeof previewAnalysis>>} = {}) {
+async function prepare(page: Page, options: {width?: number; height?: number; universe?: boolean; nativeFrames?: boolean; authenticated?: boolean; userId?: string; premium?: boolean; connected?: boolean; running?: boolean; ready?: boolean; unavailable?: boolean; legacy?: boolean; fields?: Record<string, unknown>; levelOverrides?: Partial<ReturnType<typeof previewAnalysis>>} = {}) {
   await page.setViewportSize({width: options.width ?? 1440, height: options.height ?? 900})
   await page.route('https://**', route => route.abort())
   await page.routeWebSocket('wss://**', socket => socket.close())
@@ -24,7 +24,7 @@ async function prepare(page: Page, options: {width?: number; height?: number; un
   await page.emulateMedia({reducedMotion: 'reduce'})
   await mockAssistant(page)
   const premium = options.premium !== false
-  const user = {id: options.userId ?? 'analysis-layout-member', role: premium ? 'OWNER' : 'CUSTOMER', active: true, email_verified: true}
+  const user = {id: options.userId ?? 'analysis-layout-member', email: 'member@example.test', display_name: 'Analysis Member', role: premium ? 'OWNER' : 'CUSTOMER', active: true, email_verified: true}
   await page.route('**/api/v22/{profile,session}', route => route.fulfill({json: {user, access: {canAccessMasterTrade: true, isPremium: premium}}}))
   const live = {
     connected: options.ready || options.connected || false, real_trading_locked: !options.ready, armed: Boolean(options.ready),
@@ -43,6 +43,7 @@ async function prepare(page: Page, options: {width?: number; height?: number; un
   await page.route('**/api/klines/**', route => route.fulfill({json: options.unavailable ? [] : previewCandles(new URL(route.request().url()).pathname.split('/').pop(), options.nativeFrames ? Date.now() : NOW.getTime())}))
   const requests: string[] = []
   page.on('request', request => {if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(`${request.method()} ${new URL(request.url()).pathname}`)})
+  if (options.authenticated) await page.addInitScript(() => localStorage.setItem('protrebot-v25-session', 'cookie-session:analysis-layout-member'))
   await page.goto(`/master-trade?tab=analiz${options.legacy ? '&masterLayoutV2=0' : ''}`, {waitUntil: 'domcontentloaded'})
   await expect.poll(async () => {if (!options.nativeFrames) await page.clock.runFor(100); return page.getByRole('tab', {name: 'Analiz', exact: true}).isVisible()}).toBe(true)
   if (!options.nativeFrames) await page.clock.runFor(1000)
@@ -66,6 +67,40 @@ async function geometry(page: Page) {
   expect(values.horizontal).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 }
+
+test('Master Trade hides only SL and RESISTANCE chart lines while retaining their price labels', async ({page}) => {
+  await prepare(page, {levelOverrides: {
+    entry: previewPrice * .999, stop_loss: previewPrice * .997,
+    tp1: previewPrice * .9995, tp2: previewPrice, tp3: previewPrice * 1.0005,
+    support: previewPrice * .996, resistance: previewPrice * .9998,
+  }})
+  const chart = root(page).locator('.refChartCanvas')
+  const lines = chart.locator('.masterTradeChartLabels .chartLevel')
+  await expect(chart.locator('.chartLevel[data-level="SL"], .chartLevel[data-level="RESISTANCE"]')).toHaveCount(0)
+  for (const label of ['ENTRY', 'TP1', 'TP2', 'TP3', 'SUPPORT']) {
+    await expect(chart.locator(`.chartLevel[data-level="${label}"]`)).toHaveCount(1)
+  }
+  const pills = root(page).locator('.masterTradeChartPills')
+  await expect(pills.locator('.level-stop')).toContainText('SL $')
+  await expect(pills.locator('.level-resistance')).toContainText('RESISTANCE $')
+})
+
+test('Master Trade profile button opens the shared account menu', async ({page}) => {
+  test.skip(!process.env.PLAYWRIGHT_AUTH_MODE, 'Requires AuthGate session flow rather than the audit config auth bypass.')
+  await prepare(page, {authenticated: true})
+  const profileButton = root(page).locator('.masterTradeProfileSlot').getByRole('button', {name: 'Profil menüsünü aç'})
+  await expect(profileButton).toBeVisible()
+  await profileButton.click()
+  const menu = page.getByRole('menu')
+  await expect(menu.getByRole('menuitem', {name: 'Profile & Settings'})).toBeVisible()
+  await menu.getByRole('menuitem', {name: 'Profile & Settings'}).click()
+  await expect(page).toHaveURL(/\/settings$/)
+  await page.goto('/')
+  const dashboardProfileButton = page.locator('.v26HeaderProfileSlot').getByRole('button', {name: 'Profil menüsünü aç'})
+  await expect(dashboardProfileButton).toBeVisible()
+  await dashboardProfileButton.click()
+  await expect(page.getByRole('menu').getByRole('menuitem', {name: 'Profile & Settings'})).toBeVisible()
+})
 
 for (const [width, height] of [[1440, 900], [1848, 900], [1891, 953]]) test(`Reference desktop layout, seven indicators and non-overlapping levels at ${width}px`, async ({page}) => {
   await prepare(page, {width, height})
