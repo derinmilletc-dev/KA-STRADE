@@ -31,6 +31,7 @@ type Props = {
   live: SharedLiveStatus | null; price: number | null; change?: number | null; volume?: number | null;
   levelsVisible: boolean; volumeVisible: boolean; onLevels: () => void; onVolume: () => void;
   timeline: Array<{time: string; message: string}>; error: string; dataIssue: string;
+  analysisUpdatedAt?: string | null;
 }
 
 const numeric = (value: number | null | undefined, suffix = '', decimals = 0) => typeof value === 'number' && Number.isFinite(value)
@@ -51,6 +52,16 @@ function readChartPrefs(): ChartPrefs {
 }
 function saveChartPrefs(prefs: ChartPrefs) {
   try { localStorage.setItem(CHART_PREFS_KEY, JSON.stringify(prefs)) } catch { /* tarayıcı kaydı kapalı olabilir */ }
+}
+
+// Analiz değerleri sunucudan 30 sn'de bir gelir; ne kadar önce güncellendiğini saniye saniye gösterir.
+function UpdatedAgo({at}: {at: string | null | undefined}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
+  const time = at ? new Date(at).getTime() : NaN
+  if (!Number.isFinite(time)) return null
+  const seconds = Math.max(0, Math.round((now - time) / 1000))
+  return <span className="refUpdatedAgo" title="Analiz değerleri 30 saniyede bir yenilenir" aria-label={`Analiz ${seconds < 60 ? `${seconds} saniye` : `${Math.floor(seconds / 60)} dakika`} önce güncellendi`}><i/>{seconds < 60 ? `${seconds} sn önce` : `${Math.floor(seconds / 60)} dk önce`}</span>
 }
 
 function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?: boolean}) {
@@ -211,6 +222,10 @@ export default function MasterTradeReference(props: Props) {
     }
   }
   const {decision, trigger, analysis, live} = props
+  // Fiyat kartı canlı yayından beslenir; 24 saatlik değişim, son bilinen değişimden türetilen açılış fiyatına göre hesaplanır.
+  const cardPrice = liveChart.price ?? props.price
+  const dayOpen = typeof props.price === 'number' && typeof props.change === 'number' && props.change > -100 ? props.price / (1 + props.change / 100) : null
+  const cardChange = liveChart.price !== null && dayOpen ? (liveChart.price / dayOpen - 1) * 100 : props.change
   const available = Boolean(analysis && props.candles.length >= 2)
   const locked = live?.real_trading_locked !== false
   const recovery = Boolean(live?.emergency?.active || live?.reconciliation_required || live?.recovery_error || live?.execution_state === 'UNKNOWN')
@@ -236,8 +251,8 @@ export default function MasterTradeReference(props: Props) {
     <main className="refWorkspace masterAnalysis" role="tabpanel" aria-labelledby="masterTradeTab-analiz" id="masterTradePanel-analiz">
       <MasterTradeMarketWatch symbol={props.symbol} query={props.query} onQuery={props.onQuery} onMarket={props.onMarket} scores={props.scores} feed={props.marketFeed}/>
       <section className="refMetrics" aria-label="Primary trade decision">
-        <article className="refCard"><small>PİYASA FİYATI</small><strong>{analysisPrice(props.price)} <em data-tone={typeof props.change === 'number' && props.change < 0 ? 'negative' : 'positive'}>{typeof props.change === 'number' ? `${props.change >= 0 ? '+' : ''}${numeric(props.change, '%')}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
-        <article className="refCard"><small>SİNYAL / DURUM</small><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? trLabel(decision.status) : 'Analiz yok'}</strong><span>{trLabel(analysis?.trend)}</span></article>
+        <article className="refCard"><small>PİYASA FİYATI</small><strong>{analysisPrice(cardPrice)} <em data-tone={typeof cardChange === 'number' && cardChange < 0 ? 'negative' : 'positive'}>{typeof cardChange === 'number' ? `${cardChange >= 0 ? '+' : ''}${numeric(cardChange, '%', 2)}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
+        <article className="refCard"><small>SİNYAL / DURUM</small><UpdatedAgo at={props.analysisUpdatedAt}/><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? trLabel(decision.status) : 'Analiz yok'}</strong><span>{trLabel(analysis?.trend)}</span></article>
         <article className="refCard"><small>MTF / YÖN</small><strong><b className="refPill" data-tone={directionTone(decision.direction)}>{available ? decision.direction : '—'}</b></strong><span>{decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal} teyit`}</span></article>
         <article className="refCard"><small>GÜVEN</small><strong><b className="refPill">{numeric(decision.confidenceScore, '%')}</b></strong><span>{trLabel(decision.signalStrength)}</span></article>
         <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{trLabel(decision.entryQuality)} · Hedef R/Ö; canlıda TP1'de %60, kalanı TP3'te.</span></article>

@@ -727,7 +727,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       onAutoTrade={() => {shortcutPending.current = true; navigateTab('canli')}}
       onRefresh={() => setMarketRefreshNonce(value => value + 1)} refreshing={dataLoading}
       candles={candles} analysis={analysis} decision={tradeDecision} trigger={triggerMonitor} live={liveStatus}
-      price={currentPrice} change={selectedChange} volume={selectedMarket?.volume}
+      price={currentPrice} change={selectedChange} volume={selectedMarket?.volume} analysisUpdatedAt={activeSnapshot?.marketUpdatedAt ?? null}
       levelsVisible={showChartLevels} volumeVisible={showChartVolume}
       onLevels={() => setShowChartLevels(value => !value)} onVolume={() => setShowChartVolume(value => !value)}
       timeline={decisionTimeline} dataIssue={dataError} error={dataError || activeSnapshot?.mtfError || marketError}/> : null
