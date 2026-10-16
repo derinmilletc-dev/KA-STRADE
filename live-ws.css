@@ -228,3 +228,21 @@
 #master-trade-live-terminal.liveWs .liveWsHero.stop { background: linear-gradient(160deg, #3b1d22, #101923) !important; }
 #master-trade-live-terminal.liveWs .liveWsHero.ok { background: linear-gradient(160deg, #15402f, #101923) !important; }
 #master-trade-live-terminal.liveWs .liveWsNext { background: rgba(0, 0, 0, .26) !important; }
+
+/* Hesap özeti ve Son olaylar: taşma yok, modern kartlar */
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; gap: 12px !important; width: 100% !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics > span { display: grid !important; align-content: start; gap: 4px !important; padding: 14px 16px !important; border-radius: 16px !important; min-width: 0 !important; overflow: hidden !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics small { font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; color: var(--ws-muted) !important; white-space: normal !important; overflow-wrap: anywhere; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics b { font-size: clamp(15px, 1.6vw, 20px) !important; font-weight: 700 !important; line-height: 1.2; white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics em { font-size: 11px !important; color: var(--ws-muted) !important; white-space: normal !important; overflow-wrap: anywhere; }
+#master-trade-live-terminal.liveWs .liveWsActivity ol { max-height: none !important; overflow: visible !important; display: grid; gap: 8px; padding: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li { display: grid !important; grid-template-columns: 96px minmax(0, 1fr) !important; gap: 12px !important; align-items: start; padding: 12px 14px !important; border-radius: 14px !important; font-size: 14px !important; line-height: 1.45; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsActivity li time { color: var(--ws-muted) !important; font-size: 12px !important; font-variant-numeric: tabular-nums; white-space: normal; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; font-weight: 500 !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid > span { min-width: 0 !important; overflow: hidden !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid b { overflow-wrap: anywhere; font-weight: 700 !important; }
+@media (max-width: 767px) {
+  #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #master-trade-live-terminal.liveWs .liveWsActivity li { grid-template-columns: minmax(0, 1fr) !important; gap: 4px !important; }
+}
