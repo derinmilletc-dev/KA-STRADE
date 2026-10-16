@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
+import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
 import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, LockKeyhole, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
@@ -135,6 +135,17 @@ export default function MasterTradeReference(props: Props) {
   const [notice, setNotice] = useState('')
   const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
   const [downloading, setDownloading] = useState(false)
+  useEffect(() => {
+    // Açık grafik menüleri (Göstergeler, Grafik ayarları) dışarı tıklanınca veya Esc ile kapanır.
+    const menus = () => document.querySelectorAll<HTMLDetailsElement>('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open]')
+    const onPointer = (event: PointerEvent) => {
+      menus().forEach(menu => { if (!(event.target instanceof Node && menu.contains(event.target))) menu.open = false })
+    }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') menus().forEach(menu => { menu.open = false }) }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onPointer); document.removeEventListener('keydown', onKey) }
+  }, [])
   const updatePrefs = (change: Partial<ChartPrefs>) => setPrefs(current => {const next = {...current, ...change}; saveChartPrefs(next); return next})
   const downloadChart = async () => {
     setDownloading(true)
