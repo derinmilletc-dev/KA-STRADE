@@ -3,6 +3,7 @@ import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, LockK
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
+import {trLabel} from './master-trade-labels'
 import {analysisChartLabels, analysisChartRange, analysisPrice, analysisValue, autoTradePresentation, triggerPresentation, MASTER_MTF_INTERVALS} from './master-trade-presentation'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {CoinIcon} from './src/components/CoinIcon'
@@ -126,22 +127,22 @@ export default function MasterTradeReference(props: Props) {
     <header className="refHeader masterTradeTerminalHeader">
       <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span>kais<b>trade</b></span></a>
       <nav role="tablist" aria-label="Master Trade sections">{tabs.map(({id, label, Icon}) => <button key={id} id={`masterTradeTab-${id}`} type="button" role="tab" aria-selected={id === 'analiz'} aria-controls={`masterTradePanel-${id}`} onClick={() => props.onNavigate(id)}><Icon/>{label}</button>)}</nav>
-      <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'CONNECTED' : 'DISCONNECTED'}{locked && <><LockKeyhole/> LOCKED</>}</span>
+      <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'BAĞLI' : 'BAĞLANTI YOK'}{locked && <><LockKeyhole/> KİLİTLİ</>}</span>
       <div className="masterTradeProfileSlot" aria-label="Profil menüsü"/>{props.assistantSlotRef && <div className="assistantMasterSlot" ref={props.assistantSlotRef}/>}
     </header>
     <main className="refWorkspace masterAnalysis" role="tabpanel" aria-labelledby="masterTradeTab-analiz" id="masterTradePanel-analiz">
       <MasterTradeMarketWatch symbol={props.symbol} query={props.query} onQuery={props.onQuery} onMarket={props.onMarket} scores={props.scores} feed={props.marketFeed}/>
       <section className="refMetrics" aria-label="Primary trade decision">
-        <article className="refCard"><small>MARKET PRICE</small><strong>{analysisPrice(props.price)} <em data-tone={typeof props.change === 'number' && props.change < 0 ? 'negative' : 'positive'}>{typeof props.change === 'number' ? `${props.change >= 0 ? '+' : ''}${numeric(props.change, '%')}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
-        <article className="refCard"><small>SİNYAL / DURUM</small><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? decision.status : 'Analiz yok'}</strong><span>{analysis?.trend ?? '—'}</span></article>
+        <article className="refCard"><small>PİYASA FİYATI</small><strong>{analysisPrice(props.price)} <em data-tone={typeof props.change === 'number' && props.change < 0 ? 'negative' : 'positive'}>{typeof props.change === 'number' ? `${props.change >= 0 ? '+' : ''}${numeric(props.change, '%')}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
+        <article className="refCard"><small>SİNYAL / DURUM</small><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? trLabel(decision.status) : 'Analiz yok'}</strong><span>{trLabel(analysis?.trend)}</span></article>
         <article className="refCard"><small>MTF / YÖN</small><strong><b className="refPill" data-tone={directionTone(decision.direction)}>{available ? decision.direction : '—'}</b></strong><span>{decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal} teyit`}</span></article>
-        <article className="refCard"><small>GÜVEN</small><strong><b className="refPill">{numeric(decision.confidenceScore, '%')}</b></strong><span>{decision.signalStrength ?? '—'}</span></article>
-        <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{decision.entryQuality ?? '—'} · Target R/R; LIVE: TP1 60%, remainder TP3.</span></article>
+        <article className="refCard"><small>GÜVEN</small><strong><b className="refPill">{numeric(decision.confidenceScore, '%')}</b></strong><span>{trLabel(decision.signalStrength)}</span></article>
+        <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{trLabel(decision.entryQuality)} · Hedef R/Ö; canlıda TP1'de %60, kalanı TP3'te.</span></article>
       </section>
       <section className="refCenter">
         <section className="refCard refChart">
           <div className="refToolbar" aria-label="Market chart controls"><span title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
-            <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>LEVELS</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>VOLUME</button></div></details>
+            <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
             <div className="refDrawingTools"><button disabled aria-label="Çizim araçları mevcut değil"><Crosshair/></button><button disabled aria-label="Grafik ayarları mevcut değil"><Settings2/></button><button disabled aria-label="Grafik ekran görüntüsü mevcut değil"><Camera/></button></div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <span className="refLockedAction" key={label} onClick={lockedOrder}><button type="button" disabled><LockKeyhole/>{label}</button><button type="button" className="refLockInfo" aria-label={`${label} neden kilitli?`} onClick={event => {event.stopPropagation(); lockedOrder()}}><LockKeyhole/></button></span>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
@@ -150,40 +151,40 @@ export default function MasterTradeReference(props: Props) {
           <ReferenceChart {...props} premium={premium}/>
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
-          <MasterTradeMetricTile label="TREND" value={analysis?.trend ?? '—'} tone={directionTone(decision.direction)}><ReferenceBars candles={props.candles}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="MOMENTUM" value={analysis?.momentum ?? '—'} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={props.candles} neutral/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={props.candles}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="MOMENTUM" value={trLabel(analysis?.momentum)} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={props.candles} neutral/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="RSI" value={numeric(analysis?.rsi, '', 2)}><MasterTradeMetricVisual kind="rsi" value={analysis?.rsi}/></MasterTradeMetricTile>
           <MasterTradeMetricTile label="MACD" value={analysisValue(analysis?.macd)} tone={typeof analysis?.macd === 'number' ? analysis.macd >= 0 ? 'positive' : 'negative' : 'neutral'}><MasterTradeMetricVisual kind="macd" value={analysis?.macd}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="VOLUME" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={props.candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="CONFIDENCE" value={numeric(decision.confidenceScore, '%')} tone={decision.confidenceScore === null ? 'neutral' : 'positive'}><MasterTradeMetricVisual kind="confidence" value={decision.confidenceScore}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="OPPORTUNITY" value={numeric(decision.opportunityScore)}><MasterTradeMetricVisual kind="confidence" value={decision.opportunityScore}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="HACİM" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={props.candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="GÜVEN" value={numeric(decision.confidenceScore, '%')} tone={decision.confidenceScore === null ? 'neutral' : 'positive'}><MasterTradeMetricVisual kind="confidence" value={decision.confidenceScore}/></MasterTradeMetricTile>
+          <MasterTradeMetricTile label="FIRSAT" value={numeric(decision.opportunityScore)}><MasterTradeMetricVisual kind="confidence" value={decision.opportunityScore}/></MasterTradeMetricTile>
         </div>
-        <div className="refMtfStrip"><span>MTF CONFIRMATION {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
+        <div className="refMtfStrip"><span>MTF TEYİDİ {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
       </section>
       <aside className="refRight" aria-label="Analysis decision panel">
         <section className="refCard refReport" aria-label="Trade decision analysis">
           <h2>AI ANALİZ RAPORU <small>{props.symbol}</small></h2>
           <div className="refReportSymbol"><CoinIcon symbol={props.symbol} size={40}/><div><strong>{props.symbol}</strong><span>{numeric(decision.confidenceScore, '%')} güven</span></div><b className="refDecisionBadge" data-tone={action === 'AL' ? 'positive' : action === 'SAT' ? 'negative' : 'neutral'}>{action}</b></div>
-          <p className="refDecisionSummary">{available ? `${decision.status} · ${decision.marketRegime}` : '—'}</p>
-          <PremiumBoundary label="Why this decision" compact><ul className="refReasons">{reasons.length ? reasons.map(reason => <li key={reason}>{/not |unavailable|missing|failed/i.test(reason) ? <X className="negative"/> : <Check className="positive"/>}<span>{reason}</span></li>) : <li>—</li>}</ul></PremiumBoundary>
+          <p className="refDecisionSummary">{available ? `${trLabel(decision.status)} · ${trLabel(decision.marketRegime)}` : '—'}</p>
+          <PremiumBoundary label="Why this decision" compact><ul className="refReasons">{reasons.length ? reasons.map(reason => <li key={reason}>{/not |unavailable|missing|failed/i.test(reason) ? <X className="negative"/> : <Check className="positive"/>}<span>{trLabel(reason)}</span></li>) : <li>—</li>}</ul></PremiumBoundary>
           <div className="refTargets" data-locked={!premium}><h3>OLASI HEDEFLER</h3>{[['TP1', analysis?.tp1], ['TP2', analysis?.tp2], ['TP3', analysis?.tp3], ['Stop Loss', analysis?.stop_loss]].map(([label, value]) => <div key={label} className={label === 'Stop Loss' ? 'refStop' : ''}><span>{label}</span><strong aria-hidden={!premium}>{premium && typeof value === 'number' ? analysisPrice(value) : '—'}</strong></div>)}{!premium && <button type="button" disabled={!ready || !userId} onClick={() => openUpgrade('Giriş / SL / TP seviyeleri')} aria-label="Olası hedefler · Premium"><LockKeyhole/></button>}</div>
         </section>
         <section className="refCard refAutoTrade" data-enabled={enabled}><header><Power/><h2>AUTO TRADE</h2><button type="button" role="switch" aria-label="Auto Trade" aria-checked={enabled} disabled={!gatesReady} className="refToggle" onClick={props.onAutoTrade}><span/></button>{!gatesReady && <button type="button" className="refLockInfo" aria-label="Auto Trade neden kilitli?" onClick={explainLock}><LockKeyhole/></button>}<button type="button" className="refAutoSettings" aria-label="Auto Trade ayarlarına git" onClick={props.onAutoTrade}><Settings2/></button></header><p>{autoStatus}</p><small>Ayrı güvenlik kapıları gerekir</small><button type="button" className="refAutoLink" onClick={props.onAutoTrade}>{autoTradePresentation('LIVE', live?.live_auto_trade).action}</button></section>
         {notice && <div className="refNotice" role="status">{notice}<button type="button" aria-label="Bilgiyi kapat" onClick={() => setNotice('')}><X/></button></div>}
         <section className="refCard refTrigger" aria-label="Trigger monitor">
-          <h2>TRIGGER MONITOR <span className="refSnapshotChip">{trigger.available ? 'LIVE SNAPSHOT' : '—'}</span></h2>
-          <span className="refTriggerStatus" data-tone={triggerStatus.tone}>{triggerStatus.label}</span>
+          <h2>TETİK İZLEYİCİ <span className="refSnapshotChip">{trigger.available ? 'CANLI GÖRÜNÜM' : '—'}</span></h2>
+          <span className="refTriggerStatus" data-tone={triggerStatus.tone}>{trLabel(triggerStatus.label)}</span>
           <div className="refTriggerGrid">
-            <div><small>CURRENT</small><strong>{analysisPrice(trigger.currentPrice)}</strong></div>
-            <div><small>{trigger.direction === 'SHORT' ? 'SHORT TRIGGER BELOW' : 'LONG TRIGGER ABOVE'}</small><strong>{analysisPrice(trigger.triggerPrice)}</strong></div>
-            <div><small>DISTANCE (%)</small><strong>{numeric(trigger.distancePct, '%', 2)}</strong></div>
-            <div><small>STATUS</small><strong>{trigger.available ? trigger.lifecycle : '—'}</strong></div>
+            <div><small>GÜNCEL</small><strong>{analysisPrice(trigger.currentPrice)}</strong></div>
+            <div><small>{trigger.direction === 'SHORT' ? 'SHORT TETİĞİ (ALTINDA)' : 'LONG TETİĞİ (ÜSTÜNDE)'}</small><strong>{analysisPrice(trigger.triggerPrice)}</strong></div>
+            <div><small>MESAFE (%)</small><strong>{numeric(trigger.distancePct, '%', 2)}</strong></div>
+            <div><small>DURUM</small><strong>{trigger.available ? trLabel(trigger.lifecycle) : '—'}</strong></div>
           </div>
           <div className="refTriggerEvents"><span data-active={trigger.available && ['TRIGGERED', 'CONFIRMED'].includes(trigger.lifecycle)}>Triggered <b>{trigger.available && ['TRIGGERED', 'CONFIRMED'].includes(trigger.lifecycle) ? trigger.lifecycle : '—'}</b></span><span data-active={trigger.available && trigger.lifecycle === 'EXPIRED'}>Expired <b>{trigger.available && trigger.lifecycle === 'EXPIRED' ? 'EXPIRED' : '—'}</b></span></div>
           <PremiumBoundary label="Trigger monitor" compact>
             <MasterTradeAccordions decision={decision} trigger={trigger} analysis={analysis} timeline={props.timeline}/>
           </PremiumBoundary>
-          <p className="refSafety">Final Decision does not send orders or grant Auto Trade eligibility; it is a presentation score.</p>
+          <p className="refSafety">Nihai karar emir göndermez ve Auto Trade izni vermez; yalnız bir gösterim puanıdır.</p>
         </section>
       </aside>
     </main>
