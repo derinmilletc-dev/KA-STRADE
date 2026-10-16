@@ -411,3 +411,14 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools svg { width: 14px; height: 14px; }
 @media (prefers-reduced-motion: reduce) { #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { transition: none; } }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartCanvas { user-select: none; -webkit-user-select: none; }
+
+/* Fiyat alarmı */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="alarm"] { cursor: crosshair; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--alarm line:not(.refDrawingHit) { stroke: #ff9f43; stroke-dasharray: 8 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--alarm text { fill: #ff9f43; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fired line:not(.refDrawingHit) { stroke: #7e9699; stroke-dasharray: 2 5; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fired text { fill: #7e9699; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 12px; border: 1px solid #ff9f43; border-radius: 8px; background: #2a1d0d; color: #ffd9a8; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px #000a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast svg { width: 16px; height: 16px; flex-shrink: 0; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast button { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast button:focus-visible { outline: 2px solid #ff9f43; outline-offset: 2px; }

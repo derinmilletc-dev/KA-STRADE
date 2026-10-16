@@ -1,7 +1,9 @@
 // Kullanıcının grafiğe çizdiği çizgiler. Yalnız görüntü; bu tarayıcıda coin bazında saklanır, emir göndermez.
-export type DrawMode = 'none' | 'hline' | 'trend' | 'erase'
+export type DrawMode = 'none' | 'hline' | 'trend' | 'erase' | 'alarm'
 export type ChartPoint = {time: number; price: number}
-export type Drawing = {id: string; type: 'hline'; price: number} | {id: string; type: 'trend'; a: ChartPoint; b: ChartPoint}
+// Alarm: fiyat çizgiye "above" (yukarıdan) ya da "below" (aşağıdan) ulaşınca bir kez uyarır.
+export type Alarm = {side: 'above' | 'below'; fired?: boolean}
+export type Drawing = {id: string; type: 'hline'; price: number; alarm?: Alarm} | {id: string; type: 'trend'; a: ChartPoint; b: ChartPoint}
 
 const KEY = 'kaistrade-chart-drawings'
 const LIMIT = 50
@@ -22,6 +24,7 @@ export function readDrawings(symbol: string): Drawing[] {
   return list.filter((item): item is Drawing => {
     if (typeof item !== 'object' || item === null || typeof (item as Drawing).id !== 'string') return false
     const drawing = item as Drawing
+    if (drawing.type === 'hline' && drawing.alarm !== undefined && !(typeof drawing.alarm === 'object' && drawing.alarm !== null && (drawing.alarm.side === 'above' || drawing.alarm.side === 'below'))) return false
     return drawing.type === 'hline' ? finite(drawing.price) : drawing.type === 'trend' && point(drawing.a) && point(drawing.b)
   }).slice(-LIMIT)
 }

@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -155,11 +155,14 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p></div></div> : <>
         <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} data-dragging={dragging} onClick={event => {
-          if (drawMode !== 'hline' && drawMode !== 'trend') return
+          if (drawMode !== 'hline' && drawMode !== 'trend' && drawMode !== 'alarm') return
           const box = event.currentTarget.getBoundingClientRect()
           const point = pointAt((event.clientX - box.left) / box.width * size.width, (event.clientY - box.top) / box.height * size.height)
           if (!point) return
-          if (drawMode === 'hline') { onDraw({id: drawingId(), type: 'hline', price: point.price}); onDrawDone() }
+          if (drawMode === 'alarm') {
+            if (typeof price !== 'number' || !Number.isFinite(price)) return
+            onDraw({id: drawingId(), type: 'hline', price: point.price, alarm: {side: point.price > price ? 'above' : 'below'}}); onDrawDone()
+          } else if (drawMode === 'hline') { onDraw({id: drawingId(), type: 'hline', price: point.price}); onDrawDone() }
           else if (!anchor) setAnchor(point)
           else { onDraw({id: drawingId(), type: 'trend', a: anchor, b: point}); setAnchor(null); onDrawDone() }
         }} onDoubleClick={() => { if (drawMode === 'none') resetView() }}
@@ -195,9 +198,10 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
             const line = drawing.type === 'hline'
               ? {x1: 0, x2: plotWidth, y1: y(drawing.price), y2: y(drawing.price)}
               : {x1: timeX(drawing.a.time), x2: timeX(drawing.b.time), y1: y(drawing.a.price), y2: y(drawing.b.price)}
-            return <g key={drawing.id} className={`refDrawing refDrawing--${drawing.type}`}>
+            const alarm = drawing.type === 'hline' ? drawing.alarm : undefined
+            return <g key={drawing.id} className={`refDrawing refDrawing--${drawing.type}${alarm ? ' refDrawing--alarm' : ''}${alarm?.fired ? ' refDrawing--fired' : ''}`}>
               <line {...line}/>
-              {drawing.type === 'hline' && <text x={plotWidth - 6} y={line.y1 - 5} textAnchor="end">{analysisPrice(drawing.price)}</text>}
+              {drawing.type === 'hline' && <text x={plotWidth - 6} y={line.y1 - 5} textAnchor="end">{alarm ? (alarm.fired ? 'ALARM ÇALDI · ' : 'ALARM · ') : ''}{analysisPrice(drawing.price)}</text>}
               {/* Sağ tık her zaman siler; sol tık yalnız silgi seçiliyken siler. */}
               <line {...line} className="refDrawingHit" aria-label="Çizimi sil (sağ tık)" onContextMenu={event => {event.preventDefault(); event.stopPropagation(); onErase(drawing.id)}}
                 onClick={event => {if (drawMode !== 'erase') return; event.stopPropagation(); onErase(drawing.id)}}><title>Silmek için sağ tıkla</title></line>
@@ -234,6 +238,46 @@ export default function MasterTradeReference(props: Props) {
   const symbolDrawings = drawings.symbol === props.symbol ? drawings.list : readDrawings(props.symbol)
   const changeDrawings = (next: Drawing[]) => { setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next) }
   const pickTool = (mode: DrawMode) => setDrawMode(current => current === mode ? 'none' : mode)
+  // --- Fiyat alarmı: yalnız bu sayfa açıkken ve canlı fiyat akarken çalışır; tarayıcıda saklanır. ---
+  const audio = useRef<AudioContext | null>(null)
+  const [alarmToast, setAlarmToast] = useState('')
+  const primeAlarm = () => {
+    try {
+      audio.current ??= new AudioContext()
+      void audio.current.resume()
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission()
+    } catch { /* ses veya bildirim kapalı olabilir; ekrandaki uyarı yine çıkar */ }
+  }
+  const beep = () => {
+    try {
+      const ctx = audio.current
+      if (!ctx) return
+      void ctx.resume();
+      [0, .3, .6].forEach(delay => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain()
+        osc.frequency.value = 880; gain.gain.value = .15
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + .18)
+      })
+    } catch { /* ses çalınamadı */ }
+  }
+  useEffect(() => {
+    // Sayfa yenilenince tarayıcı sesi engeller; ilk tıklamada ses izni alınır.
+    const arm = () => primeAlarm()
+    document.addEventListener('pointerdown', arm, {once: true})
+    return () => document.removeEventListener('pointerdown', arm)
+  }, [])
+  const alarmPrice = liveChart.price
+  useEffect(() => {
+    if (typeof alarmPrice !== 'number' || !Number.isFinite(alarmPrice)) return
+    const hit = symbolDrawings.filter(item => item.type === 'hline' && item.alarm && !item.alarm.fired
+      && (item.alarm.side === 'above' ? alarmPrice >= item.price : alarmPrice <= item.price))
+    if (!hit.length) return
+    changeDrawings(symbolDrawings.map(item => hit.includes(item) && item.type === 'hline' && item.alarm ? {...item, alarm: {...item.alarm, fired: true}} : item))
+    const message = hit.map(item => item.type === 'hline' ? `${props.symbol} fiyatı ${analysisPrice(item.price)} seviyesine ulaştı` : '').join(' · ')
+    setAlarmToast(message); beep()
+    try { if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('KaisTrade fiyat alarmı', {body: message}) } catch { /* bildirim gösterilemedi */ }
+  }, [alarmPrice])
   useEffect(() => { setDrawMode('none') }, [props.symbol])
   useEffect(() => {
     if (drawMode === 'none') return
@@ -316,6 +360,7 @@ export default function MasterTradeReference(props: Props) {
               <span className="refToolDivider" aria-hidden="true"/>
               <button type="button" aria-label="Yatay çizgi çiz" title="Yatay çizgi: grafikte bir fiyata tıkla" aria-pressed={drawMode === 'hline'} onClick={() => pickTool('hline')}><Minus/></button>
               <button type="button" aria-label="Trend çizgisi çiz" title="Trend çizgisi: iki noktaya tıkla" aria-pressed={drawMode === 'trend'} onClick={() => pickTool('trend')}><TrendingUp/></button>
+              <button type="button" aria-label="Fiyat alarmı kur" title="Alarm: bir fiyata tıkla; fiyat oraya gelince uyarır (sayfa açıkken)" aria-pressed={drawMode === 'alarm'} onClick={() => {pickTool('alarm'); primeAlarm()}}><Bell/></button>
               <button type="button" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla (ya da çizgiye sağ tıkla)" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
               <button type="button" aria-label="Tüm çizimleri sil" title="Bu coindeki tüm çizimleri sil" disabled={!symbolDrawings.length} onClick={() => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }}><Trash2/></button>
               <span className="refToolDivider" aria-hidden="true"/>
@@ -337,7 +382,8 @@ export default function MasterTradeReference(props: Props) {
             drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
             onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
             onDrawDone={() => setDrawMode('none')}/>
-          {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
+          {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
+          {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'alarm' ? 'Alarm kurmak istediğin fiyata tıkla.' : drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={liveChart.candles}/></MasterTradeMetricTile>
