@@ -204,7 +204,7 @@ export default function ChartAiPanel(props: Props) {
   </label>
   return <>
     <button type="button" className="chartAiButton" disabled={loading} onClick={() => setOpen(true)} title="Grafiği açıkla; işlem veya emir göndermez">
-      <ChartAiIcon/>Yapay Zekaya Sor
+      <ChartAiIcon/>Kais AI'a Sor
     </button>
     {open && createPortal(<dialog ref={dialog} className="chartAiDialog" aria-labelledby="chart-ai-title" onCancel={event => {event.preventDefault(); setOpen(false)}}>
       <header className="chartAiHeader">
