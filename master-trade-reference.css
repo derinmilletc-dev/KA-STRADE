@@ -397,3 +397,17 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refMetrics .refCard:has(.refUpdatedAgo) { position: relative; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refUpdatedAgo { position: absolute; top: 10px; right: 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; color: #7e9699; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refUpdatedAgo i { width: 5px; height: 5px; border-radius: 50%; background: var(--ref-green); }
+
+/* Grafik yakınlaştırma ve kaydırma */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="none"] { cursor: grab; touch-action: pan-y; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-dragging="true"] { cursor: grabbing; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { position: absolute; left: 10px; top: 8px; z-index: 2; display: flex; gap: 4px; opacity: .55; transition: opacity .15s; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartCanvas:hover .refZoomTools,
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools:focus-within { opacity: 1; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button { display: inline-flex; align-items: center; gap: 5px; height: 26px; min-width: 26px; padding: 0 6px; border: 1px solid #2a3639; border-radius: 6px; background: #121a1dee; color: #b6c6c4; font-size: 11px; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:hover:not(:disabled) { color: var(--ref-green); border-color: var(--ref-green); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:disabled { opacity: .4; cursor: not-allowed; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:focus-visible { outline: 2px solid var(--ref-green); outline-offset: 2px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { transition: none; } }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartCanvas { user-select: none; -webkit-user-select: none; }

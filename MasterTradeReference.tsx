@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -78,6 +78,26 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchor, setAnchor] = useState<ChartPoint | null>(null)
+  const [zoom, setZoom] = useState<number | null>(null)
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const drag = useRef<{x: number; shift: number; moved: boolean} | null>(null)
+  const zoomState = useRef({count: 80, maxCount: 80, shift: 0, length: 0, plotWidth: 1})
+  useEffect(() => { setZoom(null); setOffset(0) }, [symbol, interval])
+  useEffect(() => {
+    // Fare tekerleği grafiği yakınlaştırır/uzaklaştırır; sayfa kaymaz.
+    const element = canvas.current
+    if (!element) return
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('svg[data-chart-ai-capture]')) return
+      event.preventDefault()
+      const {count, maxCount} = zoomState.current
+      const next = Math.round(count * (event.deltaY < 0 ? .85 : 1.18))
+      setZoom(Math.max(10, Math.min(maxCount, next === count ? count + (event.deltaY < 0 ? -1 : 1) : next)))
+    }
+    element.addEventListener('wheel', onWheel, {passive: false})
+    return () => element.removeEventListener('wheel', onWheel)
+  }, [])
   const canvas = useRef<HTMLDivElement>(null)
   useEffect(() => { if (drawMode !== 'trend') setAnchor(null) }, [drawMode])
   const [size, setSize] = useState({width: 900, height: 360})
@@ -96,7 +116,15 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const plotWidth = Math.max(30, size.width - 176)
   const plotHeight = Math.max(1, size.height - 26)
   const priceHeight = plotHeight * .79
-  const visible = candles.slice(-Math.min(80, Math.max(1, Math.floor((plotWidth - 20) / 7))))
+  // Yakınlaştırma: zoom = görünen mum sayısı (null = varsayılan), offset = sağdan kaç mum geride durulduğu (0 = en son mum).
+  const fit = Math.min(80, Math.max(1, Math.floor((plotWidth - 20) / 7)))
+  const maxCount = Math.max(1, Math.min(candles.length, Math.floor((plotWidth - 20) / 2)))
+  const count = Math.max(Math.min(10, candles.length), Math.min(maxCount, zoom ?? fit))
+  const shift = Math.max(0, Math.min(offset, candles.length - count))
+  const visible = candles.slice(Math.max(0, candles.length - shift - count), candles.length - shift)
+  const zoomed = zoom !== null || shift > 0
+  const resetView = () => { setZoom(null); setOffset(0) }
+  zoomState.current = {count, maxCount, shift, length: candles.length, plotWidth}
   const levels = [
     {label: 'TP3', value: analysis?.tp3, tone: 'tp'}, {label: 'TP2', value: analysis?.tp2, tone: 'tp'},
     {label: 'TP1', value: analysis?.tp1, tone: 'tp'}, {label: 'RESISTANCE', value: analysis?.resistance, tone: 'resistance'},
@@ -110,7 +138,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   ], range, size.height, priceHeight) : []
   const y = (value: number) => range ? (range.high - value) / (range.high - range.low) * priceHeight : 0
   const x = (index: number) => 10 + (index + .5) / visible.length * (plotWidth - 20)
-  const bodyWidth = Math.max(5, Math.min(9, (plotWidth - 20) / visible.length * .7))
+  const bodyWidth = Math.max(1, Math.min(14, (plotWidth - 20) / visible.length * .7))
   const maximumVolume = Math.max(...visible.map(candle => candle.volume), 1)
   // Çizimler fiyat+zaman olarak saklanır; ekranda mum aralığına göre yerleştirilir.
   const step = visible.length > 1 ? visible[visible.length - 1].time - visible[visible.length - 2].time || 60 : 60
@@ -126,7 +154,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
     <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p></div></div> : <>
-        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} onClick={event => {
+        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} data-dragging={dragging} onClick={event => {
           if (drawMode !== 'hline' && drawMode !== 'trend') return
           const box = event.currentTarget.getBoundingClientRect()
           const point = pointAt((event.clientX - box.left) / box.width * size.width, (event.clientY - box.top) / box.height * size.height)
@@ -134,7 +162,23 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           if (drawMode === 'hline') { onDraw({id: drawingId(), type: 'hline', price: point.price}); onDrawDone() }
           else if (!anchor) setAnchor(point)
           else { onDraw({id: drawingId(), type: 'trend', a: anchor, b: point}); setAnchor(null); onDrawDone() }
-        }} onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
+        }} onDoubleClick={() => { if (drawMode === 'none') resetView() }}
+        onPointerDown={event => {
+          // Sol tuşla sürükleyince grafik geçmişe/ileriye kayar (çizim modunda değilken).
+          if (drawMode !== 'none' || event.button !== 0) return
+          drag.current = {x: event.clientX, shift: zoomState.current.shift, moved: false}
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerUp={event => { drag.current = null; setDragging(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
+        onPointerCancel={() => { drag.current = null; setDragging(false) }}
+        onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
+          if (drag.current) {
+            const box = event.currentTarget.getBoundingClientRect()
+            const {count, length, plotWidth: width} = zoomState.current
+            const candlesMoved = Math.round((event.clientX - drag.current.x) / box.width * size.width / ((width - 20) / count))
+            if (candlesMoved !== 0) { drag.current.moved = true; setDragging(true) }
+            setOffset(Math.max(0, Math.min(length - count, drag.current.shift + candlesMoved)))
+          }
           const box = event.currentTarget.getBoundingClientRect()
           setHoverY((event.clientY - box.top) / box.height * size.height)
           const index = Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)
@@ -168,6 +212,11 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
             <text x={x(Math.min(hover, visible.length - 1))} y={size.height - 7} textAnchor="middle">{candleTime(visible[Math.min(hover, visible.length - 1)].time)}</text>
           </g>}
         </svg>
+        <div className="refZoomTools" role="group" aria-label="Grafik yakınlaştırma">
+          <button type="button" aria-label="Uzaklaştır" title="Uzaklaştır (fare tekerleği)" disabled={count >= maxCount} onClick={() => setZoom(Math.min(maxCount, Math.round(count * 1.3)))}><ZoomOut/></button>
+          <button type="button" aria-label="Yakınlaştır" title="Yakınlaştır (fare tekerleği)" disabled={count <= 10} onClick={() => setZoom(Math.max(10, Math.round(count / 1.3)))}><ZoomIn/></button>
+          {zoomed && <button type="button" className="refZoomReset" title="Varsayılan görünüme ve son mumlara dön (çift tık)" onClick={resetView}><RotateCcw/>Son mumlar</button>}
+        </div>
         <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{analysisPrice(label.value)}</span>)}</div>
       </>}
     </div>
