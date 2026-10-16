@@ -175,7 +175,8 @@ export default function MasterTradeReference(props: Props) {
   const autoStatus = live && !gatesReady && !live.live_auto_trade ? `${autoText} · Kilitli` : autoText
   const triggerStatus = triggerPresentation(trigger.lifecycle, trigger.available)
   const explainLock = () => {if (!premium) openUpgrade('Auto Trade'); else setNotice(blocker === 'No LIVE blocker.' ? 'Mevcut Canlı İşlem güvenlik ve onay akışını tamamlayın.' : blocker)}
-  const lockedOrder = () => {if (!premium) openUpgrade('Manuel emir'); else setNotice('Analiz emir göndermez. Emir hazırlığı için mevcut Canlı İşlem akışını kullanın.')}
+  // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
+  const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
   const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? 'AL' : decision.direction === 'SHORT' ? 'SAT' : 'BEKLE'
   const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
@@ -213,7 +214,7 @@ export default function MasterTradeReference(props: Props) {
               </details>
               <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
             </div>
-            <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <span className="refLockedAction" key={label} onClick={lockedOrder}><button type="button" disabled><LockKeyhole/>{label}</button><button type="button" className="refLockInfo" aria-label={`${label} neden kilitli?`} onClick={event => {event.stopPropagation(); lockedOrder()}}><LockKeyhole/></button></span>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
+            <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
           </div>
           {props.error && <p className="refError" role="alert">{props.error}</p>}
           <ReferenceChart {...props} premium={premium} prefs={prefs}/>
