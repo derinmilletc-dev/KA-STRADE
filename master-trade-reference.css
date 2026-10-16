@@ -256,7 +256,6 @@
   .masterReferenceAnalysis .refRight { grid-column: 2; grid-row: 3; max-height: none; }
   .masterReferenceAnalysis .refToolbar { flex-wrap: wrap; gap: 8px; }
   .masterReferenceAnalysis .refOrderTools { width: 100%; justify-content: flex-end; }
-  .masterReferenceAnalysis .refDrawingTools { display: none; }
   .masterReferenceAnalysis .refIndicatorGrid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
 @media (max-width: 767px) {
@@ -276,7 +275,6 @@
   .masterReferenceAnalysis .refCenter { order: 2; }
   .masterReferenceAnalysis .refRight { order: 3; max-height: none; overflow: visible; }
   .masterReferenceAnalysis .refToolbar { flex-wrap: wrap; gap: 9px; }
-  .masterReferenceAnalysis .refDrawingTools { display: none; }
   .masterReferenceAnalysis .refOrderTools { width: 100%; justify-content: flex-end; }
   .masterReferenceAnalysis .refChartCanvas { height: 384px; }
   .masterReferenceAnalysis .refOhlc { font-size: 11px; gap: 6px; }
@@ -428,3 +426,13 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer i { width: 5px; height: 5px; border-radius: 50%; background: #7e9699; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer[data-urgent="true"] { color: #ff9f43; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer[data-urgent="true"] i { background: #ff9f43; }
+
+/* Dokunmatik ekran: çizim ve yakınlaştırma butonları parmakla rahat basılacak büyüklükte */
+@media (pointer: coarse) {
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools { flex-wrap: wrap; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button,
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools summary { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { opacity: 1; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button { min-width: 40px; height: 40px; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { display: none; }
+}

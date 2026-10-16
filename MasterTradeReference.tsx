@@ -97,6 +97,9 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{x: number; shift: number; moved: boolean} | null>(null)
+  // Dokunmatik ekran: tek parmak sürükleyince kayar, iki parmakla açıp kapayınca yakınlaşır/uzaklaşır.
+  const pointers = useRef(new Map<number, {x: number; y: number}>())
+  const pinch = useRef<{distance: number; count: number} | null>(null)
   const zoomState = useRef({count: 80, maxCount: 80, shift: 0, length: 0, plotWidth: 1})
   useEffect(() => { setZoom(null); setOffset(0) }, [symbol, interval])
   useEffect(() => {
@@ -182,21 +185,42 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           else { onDraw({id: drawingId(), type: 'trend', a: anchor, b: point}); setAnchor(null); onDrawDone() }
         }} onDoubleClick={() => { if (drawMode === 'none') resetView() }}
         onPointerDown={event => {
-          // Sol tuşla sürükleyince grafik geçmişe/ileriye kayar (çizim modunda değilken).
-          if (drawMode !== 'none' || event.button !== 0) return
-          drag.current = {x: event.clientX, shift: zoomState.current.shift, moved: false}
+          // Sol tuşla ya da parmakla sürükleyince grafik geçmişe/ileriye kayar (çizim modunda değilken).
+          if (drawMode !== 'none' || (event.pointerType === 'mouse' && event.button !== 0)) return
+          pointers.current.set(event.pointerId, {x: event.clientX, y: event.clientY})
           event.currentTarget.setPointerCapture(event.pointerId)
-        }}
-        onPointerUp={event => { drag.current = null; setDragging(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
-        onPointerCancel={() => { drag.current = null; setDragging(false) }}
-        onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
-          if (drag.current) {
-            const box = event.currentTarget.getBoundingClientRect()
-            const {count, length, plotWidth: width} = zoomState.current
-            const candlesMoved = Math.round((event.clientX - drag.current.x) / box.width * size.width / ((width - 20) / count))
-            if (candlesMoved !== 0) { drag.current.moved = true; setDragging(true) }
-            setOffset(Math.max(0, Math.min(length - count, drag.current.shift + candlesMoved)))
+          if (pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()]
+            pinch.current = {distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), count: zoomState.current.count}
+            drag.current = null
+          } else if (pointers.current.size === 1) {
+            drag.current = {x: event.clientX, shift: zoomState.current.shift, moved: false}
           }
+        }}
+        onPointerMove={event => {
+          if (!pointers.current.has(event.pointerId)) return
+          pointers.current.set(event.pointerId, {x: event.clientX, y: event.clientY})
+          if (pinch.current && pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()]
+            const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
+            setDragging(true)
+            setZoom(Math.max(10, Math.min(zoomState.current.maxCount, Math.round(pinch.current.count * pinch.current.distance / distance))))
+            return
+          }
+          if (!drag.current) return
+          const box = event.currentTarget.getBoundingClientRect()
+          const {count, length, plotWidth: width} = zoomState.current
+          const candlesMoved = Math.round((event.clientX - drag.current.x) / box.width * size.width / ((width - 20) / count))
+          if (candlesMoved !== 0) { drag.current.moved = true; setDragging(true) }
+          setOffset(Math.max(0, Math.min(length - count, drag.current.shift + candlesMoved)))
+        }}
+        onPointerUp={event => {
+          pointers.current.delete(event.pointerId); pinch.current = null; drag.current = null
+          if (pointers.current.size === 0) setDragging(false)
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+        }}
+        onPointerCancel={event => { pointers.current.delete(event.pointerId); pinch.current = null; drag.current = null; if (pointers.current.size === 0) setDragging(false) }}
+        onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
           const box = event.currentTarget.getBoundingClientRect()
           setHoverY((event.clientY - box.top) / box.height * size.height)
           const index = Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)
@@ -218,7 +242,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
               <line {...line}/>
               {drawing.type === 'hline' && <text x={plotWidth - 6} y={line.y1 - 5} textAnchor="end">{alarm ? (alarm.fired ? 'ALARM ÇALDI · ' : 'ALARM · ') : ''}{analysisPrice(drawing.price)}</text>}
               {/* Sağ tık her zaman siler; sol tık yalnız silgi seçiliyken siler. */}
-              <line {...line} className="refDrawingHit" aria-label="Çizimi sil (sağ tık)" onContextMenu={event => {event.preventDefault(); event.stopPropagation(); onErase(drawing.id)}}
+              <line {...line} className="refDrawingHit" aria-label="Çizimi sil (sağ tık)" onContextMenu={event => {event.preventDefault(); event.stopPropagation(); if ((event.nativeEvent as PointerEvent).pointerType !== 'touch') onErase(drawing.id)}}
                 onClick={event => {if (drawMode !== 'erase') return; event.stopPropagation(); onErase(drawing.id)}}><title>Silmek için sağ tıkla</title></line>
             </g>
           })}{anchor && <g className="refDrawing refDrawing--trend refDrawing--draft"><circle cx={timeX(anchor.time)} cy={y(anchor.price)} r="3.5"/>{hoverPoint && <line x1={timeX(anchor.time)} y1={y(anchor.price)} x2={timeX(hoverPoint.time)} y2={y(hoverPoint.price)}/>}</g>}</g>
