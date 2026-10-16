@@ -156,3 +156,27 @@ html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] :where(.masterTradeShell,.masterTradeTerminalHeader,.masterTradeSticky,.masterTradeTabs,.masterTradeOperationsPanel,.masterTradeWorkspace,.masterTradeLiveUx)::after{
   content:none!important;display:none!important
 }
+
+/* ---- Positions / Connection tabs: no frames around sections, no green carry-over under the tabs ---- */
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade:is([data-layout-tab="pozisyonlar"],[data-layout-tab="baglanti"],[data-layout-tab="canli"]) .masterTradeTabs,
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade:is([data-layout-tab="pozisyonlar"],[data-layout-tab="baglanti"],[data-layout-tab="canli"]) .masterTradeTabs *{
+  border:0!important;border-bottom:0!important;box-shadow:none!important;outline:0!important;text-shadow:none!important;filter:none!important
+}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade:is([data-layout-tab="pozisyonlar"],[data-layout-tab="baglanti"],[data-layout-tab="canli"]) .masterTradeTabs :is(::before,::after){content:none!important;display:none!important}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade:is([data-layout-tab="pozisyonlar"],[data-layout-tab="baglanti"],[data-layout-tab="canli"]) .masterTradeTabs{margin-bottom:22px!important}
+
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="pozisyonlar"] :where(section,div,article,aside,header,details,table,thead,tbody,tfoot,tr,th,td,fieldset,ul,li):not(
+  .masterTradeFocusPanel,.masterTradeFocusPanel *,.masterTradeTabs,.masterTradeTabs *,
+  [role=dialog],[role=dialog] *,[aria-modal=true],[aria-modal=true] *,
+  [class*=confirm i],[class*=confirm i] *,[class*=modal i],[class*=modal i] *,[class*=backdrop i],[class*=backdrop i] *,[class*=drawer i],[class*=drawer i] *,
+  [class*=pop i],[class*=pop i] *,[class*=toast i],[class*=toast i] *,[class*=skeleton i],[role=progressbar],[role=progressbar] *
+){
+  border:0!important;border-top:0!important;border-bottom:0!important;box-shadow:none!important;outline:0!important;
+  background:transparent!important;background-image:none!important;border-radius:0!important
+}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="pozisyonlar"] :where(section,div,article,header,table)::before,
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="pozisyonlar"] :where(section,div,article,header,table)::after{
+  border-color:transparent!important;box-shadow:none!important
+}
+/* keep readable spacing between sections now that frames are gone */
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="pozisyonlar"] .masterTradeLiveSlot{margin-bottom:28px}
