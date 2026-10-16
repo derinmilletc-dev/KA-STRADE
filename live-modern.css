@@ -78,3 +78,44 @@
   #root .masterTradePage[data-layout-tab="canli"] :is(.originalSurface,.originalSettings,.originalDetails,.originalSetupStep,.masterTradeFlowCard){padding:16px!important;border-radius:16px!important}
   #root .masterTradePage[data-layout-tab="canli"] .originalStatusHero{padding:20px!important;border-radius:20px!important}
 }
+
+/* ---- v2 refinements ---- */
+/* A · Outer wrappers carry no surface of their own (prevents box-in-box) */
+#root .masterTradePage[data-layout-tab="canli"] :is(.masterTradeWorkspace,.masterTradeLiveUx,.masterTradeLiveSlot,.liveTradingPanel,.liveUx,.masterTradeLiveGrid,.originalLiveWorkspace,.originalOverviewGrid,.masterTradeLiveInsightsStack){
+  background:transparent!important;background-image:none!important;box-shadow:none!important;border-radius:0!important
+}
+/* B · Any card nested in another card is flattened */
+#root .masterTradePage[data-layout-tab="canli"] :is(.originalSurface,.originalSettings,.originalDetails,.originalAdvanced,.originalSetupStep,.masterTradeFlowCard,.originalUnderstanding,.originalEntryChecks,.originalEmergencyBar,.masterTradeLiveSection,.liveWsSection) :is(.originalSurface,.originalSettings,.originalDetails,.originalAdvanced,.originalSetupStep,.masterTradeFlowCard,.originalUnderstanding,.originalEntryChecks,.originalRiskWarning,.originalPosition,.masterTradeLiveSection,.liveWsSection,.masterTradeLiveHeader,.masterTradeLiveSignal){
+  background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important
+}
+#root .masterTradePage[data-layout-tab="canli"] .originalPosition{background:transparent!important;padding:0!important;margin-top:18px}
+#root .masterTradePage[data-layout-tab="canli"] .originalPosition + .originalPosition{margin-top:24px}
+#root .masterTradePage[data-layout-tab="canli"] .originalMetricGrid article :is(div,span,p){background:transparent!important}
+
+/* C · Connection strip: no overlap with tabs, modern status pill */
+#root .masterTradePage[data-layout-tab="canli"] .masterTradeTabs{position:relative;z-index:2;margin-bottom:18px!important;height:auto!important;min-height:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalLiveWorkspace{position:relative;z-index:1;margin-top:0!important;padding-top:10px!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalConnectionStrip{position:static!important;display:flex!important;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:6px 0 4px!important;padding:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalConnectionStrip span{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 14px!important;border-radius:999px!important;font-size:12.5px!important;font-weight:600;
+  background:rgba(255,255,255,.06)!important;color:var(--lm-mute)!important
+}
+#root .masterTradePage[data-layout-tab="canli"] .originalConnectionStrip span[data-connected="true"]{background:rgba(61,220,151,.14)!important;color:var(--lm-accent)!important}
+
+/* D · "Bağlantı ayarları →" as a modern pill button */
+#root .masterTradePage[data-layout-tab="canli"] a[href*="tab=baglanti"]{
+  display:inline-flex!important;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;
+  background:rgba(61,220,151,.14)!important;color:var(--lm-accent)!important;font-size:13px;font-weight:700;text-decoration:none!important;
+  transition:background .15s,transform .15s,color .15s
+}
+#root .masterTradePage[data-layout-tab="canli"] a[href*="tab=baglanti"]:hover{background:var(--lm-accent)!important;color:var(--lm-accent-ink)!important;transform:translateY(-1px)}
+#root .masterTradePage[data-layout-tab="canli"] a[href*="tab=baglanti"]:focus-visible{box-shadow:0 0 0 2px rgba(61,220,151,.6)!important;outline:0}
+#root .masterTradePage[data-layout-tab="canli"] .originalSetupStep a[href*="tab=baglanti"]{margin-top:10px}
+
+/* E · "Son olaylar": scrollable list with a fixed heading */
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents{max-height:340px;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;padding-top:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents>h3{position:sticky;top:0;z-index:1;margin:0 0 10px!important;padding:20px 0 10px;background:var(--lm-card)}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents>p{margin:0 0 12px;line-height:1.45}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents time{color:var(--lm-mute);font-variant-numeric:tabular-nums;margin-right:8px}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents::-webkit-scrollbar{width:6px}
+#root .masterTradePage[data-layout-tab="canli"] .originalEvents::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:99px}
