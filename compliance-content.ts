@@ -4,6 +4,7 @@ export const PUBLIC_POLICIES = {
     paragraphs: [
       'We do not store raw exchange secrets in browser storage. API keys and credentials are handled through the secure backend vault or server-side environment when available.',
       'Diagnostic and operational metadata may be retained for monitoring, integrity, and support purposes. Sensitive values are minimized and access is restricted to authorized operational workflows.',
+      'Resmin sitemizde saklanmaz; analiz için yapay zeka sağlayıcımıza gönderilir. If you choose to submit a chart for AI analysis, its image and displayed market context are sent to Anthropic. Our servers do not store the submitted image; Anthropic processes submitted data under its applicable data-handling terms.',
       'Users remain responsible for safeguarding their own credentials and for reviewing any legal privacy obligations applicable to their region and use case.',
     ],
   },

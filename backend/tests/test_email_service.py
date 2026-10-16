@@ -68,6 +68,46 @@ def test_resend_turkish_template_sender_and_plain_text(monkeypatch):
     assert "E-posta adresimi doğrula" in payload["html"]
 
 
+def test_chart_ai_budget_notice_uses_the_transactional_email_transport(monkeypatch):
+    resend_configuration(monkeypatch)
+    requests = []
+
+    def accept(request):
+        requests.append(request)
+        return httpx.Response(200, json={"id": "offline-budget-warning"})
+
+    with mocked_https(accept):
+        mail.send_chart_ai_budget_warning_email(
+            to_email="owner@example.test", month="2026-10",
+            spent_microusd=20_250_000, budget_microusd=25_000_000,
+            idempotency_key="notification-fixture",
+        )
+    assert len(requests) == 1
+    payload = json.loads(requests[0].content)
+    assert payload["to"] == ["owner@example.test"]
+    assert payload["subject"] == "KaisTrade · Grafik AI aylık bütçe uyarısı"
+    assert "$20.25 / $25.00 USD" in payload["text"]
+    assert "$20.25 / $25.00 USD" in payload["html"]
+    assert "offline-provider-fixture" not in payload["text"] + payload["html"]
+    assert requests[0].headers["Idempotency-Key"].startswith("chart-ai-")
+
+
+@pytest.mark.parametrize("month,spent,budget", [
+    ("2026-13", 20_000_000, 25_000_000),
+    ("2026-10", True, 25_000_000),
+    ("2026-10", 26_000_000, 25_000_000),
+])
+def test_chart_ai_budget_notice_rejects_invalid_data_without_delivery(monkeypatch, month, spent, budget):
+    resend_configuration(monkeypatch)
+    with patch.object(mail.httpx, "Client") as https:
+        with pytest.raises(ValueError):
+            mail.send_chart_ai_budget_warning_email(
+                to_email="owner@example.test", month=month,
+                spent_microusd=spent, budget_microusd=budget, idempotency_key="notification-fixture",
+            )
+    https.assert_not_called()
+
+
 def test_absent_provider_preserves_gmail_even_with_resend_configuration(monkeypatch):
     for name in ("GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"):
         monkeypatch.setenv(name, "offline-google-fixture")

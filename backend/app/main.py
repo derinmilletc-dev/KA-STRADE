@@ -24,6 +24,8 @@ from pydantic import BaseModel, Field
 from .analysis import analyze
 from .analyst_credits import router as analyst_credits_router
 from .assistant_api import router as assistant_router, shutdown_assistant
+from .chart_ai_api import router as chart_ai_router, shutdown_chart_ai
+from .chart_ai_maintenance import chart_ai_maintenance_loop
 from .browser_security import (
     OWNER_ACCESS_COOKIE, USER_SESSION_COOKIE, browser_request, clear_browser_cookie,
     set_browser_cookie, validate_browser_request,
@@ -1155,6 +1157,8 @@ async def lifespan(app: FastAPI):
     await restore_health_snapshot(app)
     app.state.infrastructure_task = asyncio.create_task(infrastructure_loop(app))
     app.state.runtime_tasks = [app.state.infrastructure_task]
+    if os.getenv("CHART_AI_ENABLED", "false").strip().lower() in {"true", "1"}:
+        app.state.runtime_tasks.append(asyncio.create_task(chart_ai_maintenance_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),
@@ -1187,6 +1191,7 @@ async def lifespan(app: FastAPI):
     await bounded_shutdown(shutdown_v25_execution(app))
     await bounded_shutdown(shutdown_v27_cloud(app))
     await bounded_shutdown(shutdown_v22_commercial(app))
+    await shutdown_chart_ai(app)
 
     # Endpoint-triggered fire-and-forget work must not keep Uvicorn alive.
     current = asyncio.current_task()
@@ -1324,6 +1329,7 @@ async def owner_preview_gate(request, call_next):
         and configured_owner == WEB_ACCESS_TOKEN
     )
     protected_member_request = request.url.path.startswith("/api/") and request.method.upper() != "OPTIONS" and request.url.path not in MEMBER_PUBLIC_PATHS
+    chart_ai_request = request.url.path.startswith("/api/chart-ai/")
     if protected_member_request:
         try:
             request.state.member = await authenticated_user_async(request)
@@ -1339,7 +1345,8 @@ async def owner_preview_gate(request, call_next):
         if requires_premium(request.url.path, request.method) and not request.state.premium:
             logger.warning("Premium operation denied user_id=%s path=%s", request.state.member["id"], request.url.path)
             return apply_cors_headers(request, JSONResponse({"detail": "Premium üyelik gerekli.", "code": "PREMIUM_REQUIRED"}, status_code=403))
-        await hydrate_authenticated_user_state(request)
+        if not chart_ai_request:
+            await hydrate_authenticated_user_state(request)
     request.state.web_owner_authenticated = bool(
         owner_access_authenticated
     )
@@ -1362,13 +1369,15 @@ async def owner_preview_gate(request, call_next):
         )
         response = JSONResponse({"detail": "Internal server error.", "request_id": request.state.request_id}, status_code=500)
     finally:
-        member = getattr(request.state, "member", None)
-        user_id = str((member or {}).get("id") or "").strip()
-        pending = getattr(request.app.state, "_binance_demo_persistence_tasks", {})
-        tasks = pending.pop(user_id, []) if user_id and isinstance(pending, dict) else []
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-    if protected_member_request and request.method == "GET" and not request.state.premium and response.status_code == 200 and "application/json" in response.headers.get("content-type", "") and not request.url.path.startswith("/api/analyst/") and request.url.path not in {"/api/assistant/usage", "/api/assistant/proactive/preferences"}:
+        if not chart_ai_request:
+            member = getattr(request.state, "member", None)
+            user_id = str((member or {}).get("id") or "").strip()
+            pending = getattr(request.app.state, "_binance_demo_persistence_tasks", {})
+            tasks = pending.pop(user_id, []) if user_id and isinstance(pending, dict) else []
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+    chart_result_read = request.method == "GET" and request.url.path.startswith("/api/chart-ai/requests/")
+    if protected_member_request and request.method == "GET" and not request.state.premium and response.status_code == 200 and "application/json" in response.headers.get("content-type", "") and not chart_ai_request and not chart_result_read and not request.url.path.startswith("/api/analyst/") and request.url.path not in {"/api/assistant/usage", "/api/assistant/proactive/preferences"}:
         chunks = [chunk async for chunk in response.body_iterator]
         body = b"".join(chunk.encode() if isinstance(chunk, str) else chunk for chunk in chunks)
         headers = {key: value for key, value in response.headers.items() if key not in {"content-length", "content-type", "content-encoding"}}
@@ -1395,6 +1404,7 @@ app.include_router(v27_cloud_router)
 app.include_router(exchange_connections_router)
 app.include_router(analyst_credits_router)
 app.include_router(assistant_router)
+app.include_router(chart_ai_router)
 
 
 async def analyst_analysis(symbol: str, timeframe: str) -> dict:
