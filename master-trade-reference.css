@@ -372,3 +372,23 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull line { stroke: #b9cfd1; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull .refCrosshairTag { fill: #00a87a; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull text { fill: #04140f; font-size: 11px; font-weight: 600; }
+
+/* Canlı mum rozeti ve çizim araçları */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refOhlc .refLiveBadge { display: inline-flex; align-items: center; gap: 5px; color: var(--ref-green); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refLiveBadge i { width: 6px; height: 6px; border-radius: 50%; background: var(--ref-green); animation: refLivePulse 1.6s ease-in-out infinite; }
+@keyframes refLivePulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refLiveBadge i { animation: none; } }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { width: 1px; height: 16px; background: #2a3639; margin: 0 2px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button:is([aria-label="Çizim sil"], [aria-label="Tüm çizimleri sil"]):disabled { cursor: not-allowed; opacity: .35; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="hline"],
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="trend"] { cursor: crosshair; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing line { stroke: #f0b90b; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--hline line { stroke: #4da3ff; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text { fill: #4da3ff; font-size: 11px; font-weight: 600; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--draft line { stroke-dasharray: 5 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing circle { fill: #f0b90b; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing .refDrawingHit { stroke: transparent; stroke-width: 14; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawings[data-erasing="true"] .refDrawing:hover line:not(.refDrawingHit) { stroke: #ff5c5c; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChart { position: relative; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint { position: absolute; left: 12px; bottom: 34px; z-index: 2; pointer-events: none; box-shadow: 0 4px 14px #0007; margin: 0; padding: 6px 10px; font-size: 12px; color: #c9d6d4; background: #142024; border-radius: 6px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint span { color: #7e9699; }

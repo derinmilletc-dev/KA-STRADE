@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, LockKeyhole, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -13,6 +13,8 @@ import type {MarketScore} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
+import {useLiveCandles} from './useLiveCandles'
+import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
 
 type Candle = {time: number; open: number; high: number; low: number; close: number; volume: number}
@@ -61,10 +63,12 @@ function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?:
   })}</svg>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void}) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
+  const [anchor, setAnchor] = useState<ChartPoint | null>(null)
   const canvas = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (drawMode !== 'trend') setAnchor(null) }, [drawMode])
   const [size, setSize] = useState({width: 900, height: 360})
   useLayoutEffect(() => {
     const element = canvas.current
@@ -97,12 +101,29 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const x = (index: number) => 10 + (index + .5) / visible.length * (plotWidth - 20)
   const bodyWidth = Math.max(5, Math.min(9, (plotWidth - 20) / visible.length * .7))
   const maximumVolume = Math.max(...visible.map(candle => candle.volume), 1)
+  // Çizimler fiyat+zaman olarak saklanır; ekranda mum aralığına göre yerleştirilir.
+  const step = visible.length > 1 ? visible[visible.length - 1].time - visible[visible.length - 2].time || 60 : 60
+  const timeX = (time: number) => visible.length ? x((time - visible[0].time) / step) : 0
+  const pointAt = (viewX: number, viewY: number): ChartPoint | null => {
+    if (!range || !visible.length || viewY < 0 || viewY > priceHeight || viewX < 0 || viewX > plotWidth) return null
+    const index = (viewX - 10) / (plotWidth - 20) * visible.length - .5
+    return {time: visible[0].time + index * step, price: range.high - viewY / priceHeight * (range.high - range.low)}
+  }
+  const hoverPoint = hover !== null && hoverY !== null && drawMode === 'trend' && anchor ? pointAt(x(hover), hoverY) : null
   const selected = hover === null ? visible[visible.length - 1] : visible[Math.min(hover, visible.length - 1)]
   return <>
-    <div className="refOhlc"><b>{symbol} · {interval}</b>{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
+    <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p></div></div> : <>
-        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
+        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} onClick={event => {
+          if (drawMode !== 'hline' && drawMode !== 'trend') return
+          const box = event.currentTarget.getBoundingClientRect()
+          const point = pointAt((event.clientX - box.left) / box.width * size.width, (event.clientY - box.top) / box.height * size.height)
+          if (!point) return
+          if (drawMode === 'hline') { onDraw({id: drawingId(), type: 'hline', price: point.price}); onDrawDone() }
+          else if (!anchor) setAnchor(point)
+          else { onDraw({id: drawingId(), type: 'trend', a: anchor, b: point}); setAnchor(null); onDrawDone() }
+        }} onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
           const box = event.currentTarget.getBoundingClientRect()
           setHoverY((event.clientY - box.top) / box.height * size.height)
           const index = Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)
@@ -115,6 +136,16 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
           <g className="masterTradeChartLabels">{([] as typeof labels).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
           <g className="refTimeAxis">{Array.from({length: 6}, (_, index) => {const candle = visible[Math.round(index / 5 * (visible.length - 1))]; return <text key={index} x={10 + index / 5 * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === 5 ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
+          <g className="refDrawings" data-erasing={drawMode === 'erase'}>{drawings.map(drawing => {
+            const line = drawing.type === 'hline'
+              ? {x1: 0, x2: plotWidth, y1: y(drawing.price), y2: y(drawing.price)}
+              : {x1: timeX(drawing.a.time), x2: timeX(drawing.b.time), y1: y(drawing.a.price), y2: y(drawing.b.price)}
+            return <g key={drawing.id} className={`refDrawing refDrawing--${drawing.type}`}>
+              <line {...line}/>
+              {drawing.type === 'hline' && <text x={plotWidth - 6} y={line.y1 - 5} textAnchor="end">{analysisPrice(drawing.price)}</text>}
+              {drawMode === 'erase' && <line {...line} className="refDrawingHit" role="button" aria-label="Çizimi sil" onClick={event => {event.stopPropagation(); onErase(drawing.id)}}/>}
+            </g>
+          })}{anchor && <g className="refDrawing refDrawing--trend refDrawing--draft"><circle cx={timeX(anchor.time)} cy={y(anchor.price)} r="3.5"/>{hoverPoint && <line x1={timeX(anchor.time)} y1={y(anchor.price)} x2={timeX(hoverPoint.time)} y2={y(hoverPoint.price)}/>}</g>}</g>
           {hover !== null && <line className="refCrosshair" x1={x(Math.min(hover, visible.length - 1))} x2={x(Math.min(hover, visible.length - 1))} y1="0" y2={plotHeight}/>}
           {prefs.crosshair && hover !== null && hoverY !== null && hoverY >= 0 && hoverY <= priceHeight && <g className="refCrosshairFull" aria-hidden="true">
             <line x1="0" x2={plotWidth} y1={hoverY} y2={hoverY}/>
@@ -135,6 +166,19 @@ export default function MasterTradeReference(props: Props) {
   const [notice, setNotice] = useState('')
   const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
   const [downloading, setDownloading] = useState(false)
+  const liveChart = useLiveCandles(props.symbol, props.interval, props.candles)
+  const [drawMode, setDrawMode] = useState<DrawMode>('none')
+  const [drawings, setDrawings] = useState<{symbol: string; list: Drawing[]}>(() => ({symbol: props.symbol, list: readDrawings(props.symbol)}))
+  const symbolDrawings = drawings.symbol === props.symbol ? drawings.list : readDrawings(props.symbol)
+  const changeDrawings = (next: Drawing[]) => { setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next) }
+  const pickTool = (mode: DrawMode) => setDrawMode(current => current === mode ? 'none' : mode)
+  useEffect(() => { setDrawMode('none') }, [props.symbol])
+  useEffect(() => {
+    if (drawMode === 'none') return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setDrawMode('none') }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [drawMode])
   useEffect(() => {
     // Açık grafik menüleri (Göstergeler, Grafik ayarları) dışarı tıklanınca veya Esc ile kapanır.
     const menus = () => document.querySelectorAll<HTMLDetailsElement>('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open]')
@@ -203,6 +247,12 @@ export default function MasterTradeReference(props: Props) {
             {props.chartAiControl}
             <div className="refDrawingTools">
               <button type="button" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
+              <span className="refToolDivider" aria-hidden="true"/>
+              <button type="button" aria-label="Yatay çizgi çiz" title="Yatay çizgi: grafikte bir fiyata tıkla" aria-pressed={drawMode === 'hline'} onClick={() => pickTool('hline')}><Minus/></button>
+              <button type="button" aria-label="Trend çizgisi çiz" title="Trend çizgisi: iki noktaya tıkla" aria-pressed={drawMode === 'trend'} onClick={() => pickTool('trend')}><TrendingUp/></button>
+              <button type="button" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
+              <button type="button" aria-label="Tüm çizimleri sil" title="Bu coindeki tüm çizimleri sil" disabled={!symbolDrawings.length} onClick={() => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }}><Trash2/></button>
+              <span className="refToolDivider" aria-hidden="true"/>
               <details className="refChartSettings">
                 <summary aria-label="Grafik ayarları" title="Grafik ayarları"><Settings2/></summary>
                 <div role="group" aria-label="Grafik ayarları">
@@ -217,7 +267,11 @@ export default function MasterTradeReference(props: Props) {
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
           </div>
           {props.error && <p className="refError" role="alert">{props.error}</p>}
-          <ReferenceChart {...props} premium={premium} prefs={prefs}/>
+          <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+            drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
+            onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
+            onDrawDone={() => setDrawMode('none')}/>
+          {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={props.candles}/></MasterTradeMetricTile>
