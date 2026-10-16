@@ -210,3 +210,21 @@
 #master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll { display: flex !important; flex-wrap: wrap; grid-template-columns: none !important; overflow: visible; }
 #master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button { background: #101a25; }
 #master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button.selected { background: var(--ws-green); }
+
+/* Site genelindeki header/section kurallarının (sabit yükseklik vb.) bu ekranı bozmasını önler */
+#master-trade-live-terminal.liveWs .liveWsHero, #master-trade-live-terminal.liveWs .liveWsCard, #master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsBody, #master-trade-live-terminal.liveWs .liveWsNext, #master-trade-live-terminal.liveWs .liveWsStepper { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; position: static !important; }
+#master-trade-live-terminal.liveWs, #master-trade-live-terminal.liveWs .liveWsCard, #master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsHero { border: 0 !important; outline: 0 !important; backdrop-filter: none !important; }
+
+/* Site genelindeki ince çizgi, parıltı ve cam efektlerini bu ekranda kapat */
+#master-trade-live-terminal.liveWs * { border: 0 !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; backdrop-filter: none !important; }
+#master-trade-live-terminal.liveWs *::before, #master-trade-live-terminal.liveWs *::after { border: 0 !important; box-shadow: none !important; background-image: none !important; }
+#master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsCard { background: var(--ws-card) !important; }
+#master-trade-live-terminal.liveWs .liveWsDanger { background: #2a1a1f !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics > span, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid > span, #master-trade-live-terminal.liveWs .liveWsActivity li, #master-trade-live-terminal.liveWs .liveWsChecks article, #master-trade-live-terminal.liveWs .liveWsStrategy, #master-trade-live-terminal.liveWs .liveWsLaunch, #master-trade-live-terminal.liveWs .liveUxCard { background: var(--ws-raised) !important; }
+#master-trade-live-terminal.liveWs .liveWsMeta span, #master-trade-live-terminal.liveWs .liveUxMetrics span { background: var(--ws-card) !important; }
+#master-trade-live-terminal.liveWs .liveWsChecks article.done { background: #17382f !important; }
+#master-trade-live-terminal.liveWs .liveWsHero { background: linear-gradient(160deg, #18283a, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.go { background: linear-gradient(160deg, #173a3a, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.stop { background: linear-gradient(160deg, #3b1d22, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.ok { background: linear-gradient(160deg, #15402f, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsNext { background: rgba(0, 0, 0, .26) !important; }

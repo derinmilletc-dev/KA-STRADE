@@ -115,6 +115,10 @@ const subscribePresentation = (notify: () => void) => {
   }
 }
 const readPresentation = () => masterLayoutV2Enabled(window.location.search, window.innerWidth)
+// Durum alınamazsa ekranı boşaltmak yerine son bilinen veriyi tutar ama canlı yetkileri kapatır (güvenli taraf); ekran titremez.
+const degradeLiveStatus = (current: SharedLiveStatus | null): SharedLiveStatus | null => current
+  ? {...current, connected: false, armed: false, real_trading_locked: true, authorization: {...(current.authorization ?? {}), valid: false}, readiness: {...(current.readiness ?? {}), ready: false}} as SharedLiveStatus
+  : null
 const navigateTab = (tab: MasterTradeTab) => {
   const url = new URL(window.location.href)
   url.searchParams.set('tab', tab)
@@ -302,7 +306,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         fetchWithTimeout(`${API_BASE}/exchange-connections/status`),
       ])
       const [accountResponse, connectionResponse] = response
-      setLiveStatus(null)
+      setLiveStatus(current => degradeLiveStatus(current))
       setLiveConnections(null)
       accountRef.current = null
       setSnapshot(current => current ? {...current, account:null} : current)
@@ -367,7 +371,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
     setDailyPerformance(accountPayload.daily_performance ?? null)
       return connectionResponse.ok
     } catch (error) {
-      setLiveStatus(null)
+      setLiveStatus(current => degradeLiveStatus(current))
       setLiveConnections(null)
       accountRef.current = null
       setAccountSyncState('DISCONNECTED')
