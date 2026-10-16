@@ -1,44 +1,44 @@
 /* Bildirim ayarları: çizgisiz, boşluk ve ton ile ayrılmış satırlar */
-#notify-settings.nsCard { display: grid; gap: 16px; }
-#notify-settings.nsCard, #notify-settings.nsCard * { border: 0 !important; box-shadow: none !important; }
-#notify-settings .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
-#notify-settings .nsList, #notify-settings .nsChannels { display: grid; gap: 8px; }
-#notify-settings .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
-#notify-settings .nsRow > span { display: grid; gap: 3px; min-width: 0; }
-#notify-settings .nsRow b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #edf2f8; }
-#notify-settings .nsRow b svg { width: 17px; height: 17px; color: #34d399; }
-#notify-settings .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; }
-#notify-settings .nsSwitch { flex: none; position: relative; width: 50px; height: 30px; padding: 0; border-radius: 999px !important; background: #2a3647 !important; cursor: pointer; transition: background .18s ease; }
-#notify-settings .nsSwitch i { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50% !important; background: #cbd5e1; transition: transform .18s ease, background .18s ease; }
-#notify-settings .nsSwitch.on { background: #34d399 !important; }
-#notify-settings .nsSwitch.on i { transform: translateX(20px); background: #052e22; }
-#notify-settings .nsSwitch:focus-visible { outline: 2px solid #5aa9ff !important; outline-offset: 2px; }
-#notify-settings .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; line-height: 1.5; }
-#notify-settings .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-#notify-settings .nsFoot small { color: #9aa9ba; }
-#notify-settings .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
-#notify-settings .nsTest svg { width: 17px; height: 17px; }
+#root #notify-settings.nsCard { display: grid; gap: 16px; }
+#root #notify-settings.nsCard, #notify-settings.nsCard * { border: 0 !important; box-shadow: none !important; }
+#root #notify-settings .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
+#root #notify-settings .nsList, #notify-settings .nsChannels { display: grid; gap: 8px; }
+#root #notify-settings .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
+#root #notify-settings .nsRow > span { display: grid; gap: 3px; min-width: 0; }
+#root #notify-settings .nsRow b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #edf2f8; }
+#root #notify-settings .nsRow b svg { width: 17px; height: 17px; color: #34d399; }
+#root #notify-settings .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; }
+#root #notify-settings .nsSwitch { flex: none; position: relative; width: 50px; height: 30px; padding: 0; border-radius: 999px !important; background: #2a3647 !important; cursor: pointer; transition: background .18s ease; }
+#root #notify-settings .nsSwitch i { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50% !important; background: #cbd5e1; transition: transform .18s ease, background .18s ease; }
+#root #notify-settings .nsSwitch.on { background: #34d399 !important; }
+#root #notify-settings .nsSwitch.on i { transform: translateX(20px); background: #052e22; }
+#root #notify-settings .nsSwitch:focus-visible { outline: 2px solid #5aa9ff !important; outline-offset: 2px; }
+#root #notify-settings .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; line-height: 1.5; }
+#root #notify-settings .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#root #notify-settings .nsFoot small { color: #9aa9ba; }
+#root #notify-settings .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
+#root #notify-settings .nsTest svg { width: 17px; height: 17px; }
 @media (max-width: 520px) { #notify-settings .nsRow { padding: 12px; } #notify-settings .nsTest { width: 100%; justify-content: center; } }
 
 /* Canlı bağlantı kartı */
-#live-connection-card.nsCard { display: grid; gap: 16px; }
-#live-connection-card.nsCard, #live-connection-card.nsCard * { border: 0 !important; box-shadow: none !important; }
-#live-connection-card .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
-#live-connection-card .nsList { display: grid; gap: 8px; }
-#live-connection-card .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
-#live-connection-card .nsRow > span { display: grid; gap: 3px; min-width: 0; }
-#live-connection-card .nsRow b { font-size: 15px; font-weight: 700; color: #edf2f8; }
-#live-connection-card .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
-#live-connection-card .nsStatus { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; padding: 16px 18px; border-radius: 18px; background: rgba(255, 255, 255, .06) !important; }
-#live-connection-card .nsStatus i { width: 12px; height: 12px; border-radius: 50%; background: #f5b942; grid-row: 1; }
-#live-connection-card .nsStatus.ok i { background: #34d399; box-shadow: 0 0 0 5px rgba(52, 211, 153, .18) !important; }
-#live-connection-card .nsStatus.bad i { background: #f87171; }
-#live-connection-card .nsStatus b { font-size: 18px; color: #edf2f8; }
-#live-connection-card .nsStatus small { grid-column: 2; color: #9aa9ba; font-size: 13px; }
-#live-connection-card .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; }
-#live-connection-card .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-#live-connection-card .nsFoot small { color: #9aa9ba; }
-#live-connection-card .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
-#live-connection-card .nsTest svg { width: 17px; height: 17px; }
-#live-connection-card h2 button { border-radius: 12px !important; background: #1b2736 !important; }
+#root #live-connection-card.nsCard { display: grid; gap: 16px; }
+#root #live-connection-card.nsCard, #live-connection-card.nsCard * { border: 0 !important; box-shadow: none !important; }
+#root #live-connection-card .nsLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
+#root #live-connection-card .nsList { display: grid; gap: 8px; }
+#root #live-connection-card .nsRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
+#root #live-connection-card .nsRow > span { display: grid; gap: 3px; min-width: 0; }
+#root #live-connection-card .nsRow b { font-size: 15px; font-weight: 700; color: #edf2f8; }
+#root #live-connection-card .nsRow small { color: #9aa9ba; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+#root #live-connection-card .nsStatus { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; padding: 16px 18px; border-radius: 18px; background: rgba(255, 255, 255, .06) !important; }
+#root #live-connection-card .nsStatus i { width: 12px; height: 12px; border-radius: 50%; background: #f5b942; grid-row: 1; }
+#root #live-connection-card .nsStatus.ok i { background: #34d399; box-shadow: 0 0 0 5px rgba(52, 211, 153, .18) !important; }
+#root #live-connection-card .nsStatus.bad i { background: #f87171; }
+#root #live-connection-card .nsStatus b { font-size: 18px; color: #edf2f8; }
+#root #live-connection-card .nsStatus small { grid-column: 2; color: #9aa9ba; font-size: 13px; }
+#root #live-connection-card .nsWarn { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(245, 185, 66, .14) !important; color: #fcd34d; font-size: 13.5px; }
+#root #live-connection-card .nsFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#root #live-connection-card .nsFoot small { color: #9aa9ba; }
+#root #live-connection-card .nsTest { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px; border-radius: 14px; background: #1b2736 !important; color: #edf2f8; font: inherit; font-weight: 700; cursor: pointer; }
+#root #live-connection-card .nsTest svg { width: 17px; height: 17px; }
+#root #live-connection-card h2 button { border-radius: 12px !important; background: #1b2736 !important; }
 @media (max-width: 520px) { #live-connection-card .nsRow { padding: 12px; } #live-connection-card .nsTest { width: 100%; justify-content: center; } }
