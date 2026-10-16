@@ -64,6 +64,21 @@ function UpdatedAgo({at}: {at: string | null | undefined}) {
   return <span className="refUpdatedAgo" title="Analiz değerleri 30 saniyede bir yenilenir" aria-label={`Analiz ${seconds < 60 ? `${seconds} saniye` : `${Math.floor(seconds / 60)} dakika`} önce güncellendi`}><i/>{seconds < 60 ? `${seconds} sn önce` : `${Math.floor(seconds / 60)} dk önce`}</span>
 }
 
+// Mum kapanışına kalan süre: son mumun açılış zamanı + zaman dilimi uzunluğu. Saat, bilgisayarın saatine göre hesaplanır.
+const INTERVAL_SECONDS: Record<string, number> = {'1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '8h': 28800, '12h': 43200, '1d': 86400, '1w': 604800}
+function CandleTimer({time, interval}: {time: number | undefined; interval: string}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
+  const length = INTERVAL_SECONDS[interval]
+  if (typeof time !== 'number' || !Number.isFinite(time) || !length) return null
+  const closeAt = (time < 1e12 ? time * 1000 : time) + length * 1000
+  const left = Math.max(0, Math.ceil((closeAt - now) / 1000))
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const days = Math.floor(left / 86400), hours = Math.floor(left % 86400 / 3600), minutes = Math.floor(left % 3600 / 60), seconds = left % 60
+  const text = `${days > 0 ? `${days}g ` : ''}${days > 0 || hours > 0 ? `${pad(hours)}:` : ''}${pad(minutes)}:${pad(seconds)}`
+  return <span className="refCandleTimer" role="timer" data-urgent={left <= 10} title="Bu mumun kapanışına kalan süre"><i/>Mum {text}</span>
+}
+
 function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?: boolean}) {
   if (!candles.length) return <span>—</span>
   const changes = candles.slice(-12).map(candle => Math.abs(candle.close - candle.open))
@@ -344,7 +359,7 @@ export default function MasterTradeReference(props: Props) {
     <main className="refWorkspace masterAnalysis" role="tabpanel" aria-labelledby="masterTradeTab-analiz" id="masterTradePanel-analiz">
       <MasterTradeMarketWatch symbol={props.symbol} query={props.query} onQuery={props.onQuery} onMarket={props.onMarket} scores={props.scores} feed={props.marketFeed}/>
       <section className="refMetrics" aria-label="Primary trade decision">
-        <article className="refCard"><small>PİYASA FİYATI</small><strong>{analysisPrice(cardPrice)} <em data-tone={typeof cardChange === 'number' && cardChange < 0 ? 'negative' : 'positive'}>{typeof cardChange === 'number' ? `${cardChange >= 0 ? '+' : ''}${numeric(cardChange, '%', 2)}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
+        <article className="refCard"><small>PİYASA FİYATI</small><CandleTimer time={liveChart.candles[liveChart.candles.length - 1]?.time} interval={props.interval}/><strong>{analysisPrice(cardPrice)} <em data-tone={typeof cardChange === 'number' && cardChange < 0 ? 'negative' : 'positive'}>{typeof cardChange === 'number' ? `${cardChange >= 0 ? '+' : ''}${numeric(cardChange, '%', 2)}` : '—'}</em></strong><span>{props.symbol} · <span aria-label="24 saat hacim" title={`${numeric(props.volume, ' USDT', 2)} · 24h`}>{typeof props.volume === 'number' ? `${props.volume.toLocaleString('en-US', {notation: 'compact', maximumFractionDigits: 2})} USDT` : '—'}</span></span></article>
         <article className="refCard"><small>SİNYAL / DURUM</small><UpdatedAgo at={props.analysisUpdatedAt}/><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? trLabel(decision.status) : 'Analiz yok'}</strong><span>{trLabel(analysis?.trend)}</span></article>
         <article className="refCard"><small>MTF / YÖN</small><strong><b className="refPill" data-tone={directionTone(decision.direction)}>{available ? decision.direction : '—'}</b></strong><span>{decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal} teyit`}</span></article>
         <article className="refCard"><small>GÜVEN</small><strong><b className="refPill">{numeric(decision.confidenceScore, '%')}</b></strong><span>{trLabel(decision.signalStrength)}</span></article>
