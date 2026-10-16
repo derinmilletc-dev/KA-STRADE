@@ -1,0 +1,85 @@
+/* Bağlantılar (Ayarlar) – yeni düzen. Çizgi ve dış çerçeve yok; ayrım arka plan tonu ve boşlukla yapılır. */
+#connection-ws.cws {
+  --c-bg: #0f161f; --c-card: #141d28; --c-raised: #1b2736; --c-ink: #edf2f8; --c-muted: #9aa9ba;
+  --c-green: #34d399; --c-amber: #f5b942; --c-red: #f87171; --c-blue: #5aa9ff;
+  display: grid; gap: 16px; width: 100%; max-width: 1100px; margin: 8px auto 32px; padding: 0 16px;
+  color: var(--c-ink); background: transparent !important; overflow: visible !important;
+}
+#connection-ws.cws, #connection-ws.cws * { box-sizing: border-box; }
+#connection-ws.cws * { border: 0 !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; backdrop-filter: none !important; }
+#connection-ws.cws :where(*)::before, #connection-ws.cws :where(*)::after { border: 0 !important; box-shadow: none !important; }
+#connection-ws.cws :where(h3, p) { margin: 0; }
+#connection-ws.cws small { color: var(--c-muted); font-size: 12.5px; line-height: 1.4; }
+#connection-ws.cws button { font: inherit; cursor: pointer; color: inherit; }
+#connection-ws.cws button:disabled { cursor: not-allowed; opacity: .5; }
+#connection-ws.cws svg { width: 18px; height: 18px; flex: none; }
+
+#connection-ws .cwsHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 2px; background: transparent !important; }
+#connection-ws .cwsHead p { color: var(--c-muted); font-size: 15px; line-height: 1.55; max-width: 720px; }
+#connection-ws .cwsRefresh { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: var(--c-raised) !important; color: var(--c-ink); }
+#connection-ws .cwsChips { display: flex; flex-wrap: wrap; gap: 10px; }
+#connection-ws .cwsChips span { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: var(--c-card) !important; font-size: 13.5px; font-weight: 600; }
+#connection-ws i { width: 9px; height: 9px; border-radius: 50%; background: var(--c-amber); display: inline-block; flex: none; }
+#connection-ws i.ok { background: var(--c-green); }
+#connection-ws i.locked { background: var(--c-red); }
+#connection-ws i.pending { background: var(--c-amber); }
+
+#connection-ws .cwsGrid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
+#connection-ws .cwsCard { display: grid; gap: 14px; padding: 22px; border-radius: 22px; background: var(--c-card) !important; background-image: none !important; min-width: 0; overflow: visible !important; }
+#connection-ws .cwsCard h3 { display: flex; align-items: center; gap: 10px; font-size: 20px; letter-spacing: -.01em; color: var(--c-ink); }
+#connection-ws .cwsCard p { color: var(--c-muted); font-size: 14.5px; line-height: 1.6; }
+#connection-ws .cwsLive { background: linear-gradient(165deg, #1a2a3d, #101923) !important; }
+#connection-ws .cwsTag { justify-self: start; padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+#connection-ws .cwsTag.live { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+#connection-ws .cwsTag.demo { background: rgba(245, 185, 66, .16); color: #fcd34d; }
+
+#connection-ws .cwsPrimary, #connection-ws .cwsGhost { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 20px; border-radius: 16px; font-weight: 700; font-size: 15px; }
+#connection-ws .cwsPrimary { background: var(--c-green) !important; color: #052e22 !important; }
+#connection-ws .cwsGhost { background: var(--c-raised) !important; color: var(--c-ink) !important; }
+#connection-ws .cwsPrimary:hover:not(:disabled) { filter: brightness(1.06) !important; }
+
+#connection-ws .cwsSteps { display: flex; flex-wrap: wrap; gap: 8px; }
+#connection-ws .cwsSteps span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--c-raised) !important; font-size: 13px; color: var(--c-muted); }
+#connection-ws .cwsSteps b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(90, 169, 255, .2) !important; color: var(--c-blue); font-size: 12px; }
+#connection-ws .cwsForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#connection-ws .cwsForm label { display: grid; gap: 7px; min-width: 0; }
+#connection-ws .cwsForm label > span { font-size: 13px; font-weight: 600; color: var(--c-muted); }
+#connection-ws .cwsForm input { width: 100%; min-height: 50px; padding: 0 14px; border-radius: 14px; background: #0b1119 !important; color: var(--c-ink); font: inherit; font-size: 14.5px; outline: 0; }
+#connection-ws .cwsForm input:focus { box-shadow: 0 0 0 2px rgba(52, 211, 153, .55) !important; }
+#connection-ws .cwsForm input::placeholder { color: #66778a; }
+#connection-ws .cwsSaved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--c-raised) !important; flex-wrap: wrap; }
+#connection-ws .cwsSaved span { display: grid; gap: 2px; }
+#connection-ws .cwsSaved b { font-variant-numeric: tabular-nums; }
+#connection-ws .cwsSaved strong { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
+#connection-ws .cwsActions { display: flex; flex-wrap: wrap; gap: 10px; }
+#connection-ws .cwsFeedback { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--c-raised) !important; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+#connection-ws .cwsFeedback i { margin-top: 6px; }
+#connection-ws .cwsFeedback.success i, #connection-ws .cwsFeedback.ok i { background: var(--c-green); }
+#connection-ws .cwsFeedback.error i { background: var(--c-red); }
+
+#connection-ws .cwsSafe > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+#connection-ws .cwsSafe span { display: flex; align-items: center; gap: 10px; color: var(--c-muted); font-size: 14px; }
+#connection-ws .cwsSafe span svg { color: var(--c-green); width: 17px; height: 17px; }
+
+.cwsFoot { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; max-width: 1100px; width: 100%; margin: 0 auto 28px; padding: 0 16px; color: #9aa9ba; font-size: 13.5px; }
+.cwsFoot, .cwsFoot * { border: 0 !important; box-shadow: none !important; }
+.cwsFoot > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.cwsFoot button { padding: 9px 14px; border-radius: 999px; background: #141d28 !important; color: #e2e8f0 !important; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+@media (max-width: 860px) {
+  #connection-ws .cwsGrid { grid-template-columns: minmax(0, 1fr); }
+  #connection-ws .cwsForm, #connection-ws .cwsSafe > div { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  #connection-ws.cws { padding: 0 12px; }
+  #connection-ws .cwsCard { padding: 18px; border-radius: 20px; }
+  #connection-ws .cwsHead { align-items: flex-start; }
+  #connection-ws .cwsActions > button, #connection-ws .cwsLive .cwsPrimary { width: 100%; }
+}
+
+/* Site geneli kuralları geçersiz kıl: dış kutu çizgisi ve alt bilgi zemini */
+#root main.v26App #connection-ws.cws { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; background-image: none !important; outline: 0 !important; }
+#root main.v26App #connection-ws.cws::before, #root main.v26App #connection-ws.cws::after { content: none !important; display: none !important; }
+#root main.v26App footer.cwsFoot { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; background-image: none !important; color: #9aa9ba !important; position: static !important; min-height: 0 !important; }
+#root main.v26App footer.cwsFoot span { color: #9aa9ba !important; background: transparent !important; }
+#root main.v26App footer.cwsFoot button { border: 0 !important; box-shadow: none !important; background: #141d28 !important; color: #e2e8f0 !important; }

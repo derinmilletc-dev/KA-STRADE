@@ -10,6 +10,8 @@ import AssistantChat from './AssistantChat'
 import ComplianceContent from './ComplianceContent'
 import {useKaisErrorReaction, useKaisWorkspaceReaction} from './useKaisPageReactions'
 import {useTradingPreferences} from './useTradingPreferences'
+import {useMemberAccess} from './premium-access'
+import './cws.css'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -522,6 +524,17 @@ export default function TestnetFirstApp() {
     }
   },[])
 
+  const memberAccess = useMemberAccess()
+  // Abonesi olmayan canlı bağlantı için abonelik sayfasına, abone olan Master Trade > Bağlantı sekmesine gider.
+  const connectLiveApi = () => {
+    if (!memberAccess.ready) return
+    if (!memberAccess.premium) { navigate('billing'); window.scrollTo(0,0); return }
+    navigate('master-trade')
+    window.history.replaceState({}, '', '/master-trade?tab=baglanti')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    window.scrollTo(0,0)
+  }
+
   const selectPulseSymbol = useCallback((nextSymbol:string) => {
     setSymbol(nextSymbol)
     navigate('trading')
@@ -796,7 +809,7 @@ export default function TestnetFirstApp() {
     {view !== 'dashboard' && <BackButton onClick={() => navigate('dashboard')}/>}
 
     {view !== 'dashboard' && <section className="v26ModeBar">
-      <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'live' ? 'Gerçek Futures Hazırlık Merkezi' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Sunucu ve Anahtar Kapıları'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Scanner snapshot üzerinden market intelligence ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'live' ? 'Şifreli canlı kasa kaydı ve tüm risk kapıları tamamlanana kadar emir gönderimi fail-closed olarak kilitli.' : view === 'pricing' || view === 'billing' ? 'Choose a subscription level for your trading intelligence workspace.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
+      <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'live' ? 'Gerçek Futures Hazırlık Merkezi' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Scanner snapshot üzerinden market intelligence ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'live' ? 'Şifreli canlı kasa kaydı ve tüm risk kapıları tamamlanana kadar emir gönderimi fail-closed olarak kilitli.' : view === 'pricing' || view === 'billing' ? 'Choose a subscription level for your trading intelligence workspace.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
     </section>}
 
     {view === 'dashboard' && <section className="v26Dashboard" aria-labelledby="dashboard-title">
@@ -874,13 +887,45 @@ export default function TestnetFirstApp() {
 
     {view === 'ops' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Bulut operasyon merkezi hazırlanıyor…</div>}><CloudOpsCenter/></Suspense>}
 
-    {view === 'setup' && <section className="connectionCenter">
-      <header className="connectionCenterHeader"><div><span>SECURE CONNECTIONS · TESTNET-FIRST</span><h2>API &amp; Connection Center</h2><p>Demo ve Live bağlantılarını mevcut şifreli kasa ve fail-closed güvenlik kapılarıyla yönet.</p></div><div className="connectionHeaderStatus"><span><i className={connectionStatus?.connections?.TESTNET?.configured ? 'ok' : 'pending'}/>DEMO {connectionStatus?.connections?.TESTNET?.configured ? 'CONFIGURED' : 'NOT CONFIGURED'}</span><span><i className={connectionStatus?.connections?.TESTNET?.active ? 'ok' : 'pending'}/>DEMO {connectionStatus?.connections?.TESTNET?.active ? 'CONNECTED' : 'LOCKED'}</span><span><i className="locked"/>LIVE LOCKED</span></div></header>
-      <section className="connectionStatusRail"><div><small>DEMO STATUS</small><strong><i className={connectionStatus?.connections?.TESTNET?.configured ? 'ok' : 'pending'}/>{connectionStatus?.connections?.TESTNET?.configured ? 'CONFIGURED' : 'NOT CONFIGURED'}</strong></div><div><small>CONNECTION</small><strong><i className={connectionStatus?.connections?.TESTNET?.active ? 'ok' : 'pending'}/>{connectionStatus?.connections?.TESTNET?.active ? 'CONNECTED' : 'NOT CONNECTED'}</strong></div><div><small>TRADING CHANNEL</small><strong><i className="locked"/>LOCKED</strong></div><button type="button" onClick={() => void refreshConnectionStatus()} aria-label="Refresh connection status"><RefreshCw/></button></section>
-      <div className="connectionWorkflow"><span><b>01</b><small>ENTER CREDENTIALS</small></span><span><b>02</b><small>SAVE SECURELY</small></span><span><b>03</b><small>VERIFY CONNECTION</small></span><span><b>04</b><small>RUN DEMO TEST</small></span></div>
-      <section className="connectionDemoPanel"><header><div><span>DEMO / TESTNET</span><h3>Binance Futures Demo</h3><p>Demo API anahtarları şifreli sunucu kasasına kaydedilir. Bu kanal gerçek para ve Live emir kanalı değildir.</p></div><strong className="connectionChannelBadge"><TestTube2/> DEMO ONLY</strong></header><div className="connectionFormGrid"><label><span>Demo API Key</span><input data-private="true" type="text" value={credentials.demoApiKey} onChange={event => setCredentials(current => ({...current,demoApiKey:event.target.value}))} autoComplete="off" spellCheck={false} placeholder="Enter Demo API Key"/></label><label><span>Demo Secret Key</span><input data-private="true" type="password" value={credentials.demoSecretKey} onChange={event => setCredentials(current => ({...current,demoSecretKey:event.target.value}))} autoComplete="new-password" spellCheck={false} placeholder="Enter Demo Secret Key"/></label></div>{connectionStatus?.connections?.TESTNET?.configured && <div className="connectionCredentialState"><span><small>SAVED API KEY</small><b>{connectionStatus.connections.TESTNET.api_key_masked || 'MASKED KEY'}</b></span><strong><i className={connectionStatus.connections.TESTNET.active ? 'ok' : 'pending'}/>{connectionStatus.connections.TESTNET.active ? 'SAVED / READY' : 'SAVED / VERIFY REQUIRED'}</strong></div>}<div className="connectionActions"><button type="button" className="connectionPrimary" onClick={() => void saveDemoCredentials()} disabled={demoSaveState === 'saving' || demoVerifyState === 'verifying' || !credentials.demoApiKey.trim() || !credentials.demoSecretKey.trim()}><Save/>{demoSaveState === 'saving' ? 'SAVING…' : 'SAVE SECURELY'}</button><button type="button" className="connectionSecondary" onClick={() => void verifyDemoConnection()} disabled={demoSaveState === 'saving' || demoVerifyState === 'verifying' || !connectionStatus?.connections?.TESTNET?.configured}><ShieldCheck/>{demoVerifyState === 'verifying' ? 'VERIFYING…' : 'VERIFY DEMO CONNECTION'}</button></div>{demoVerification.message && <div className={`connectionFeedback ${demoVerification.kind}`}><i/>{demoVerification.message}</div>}<small className="connectionNote">Secrets are sent only to the existing vault API and are never returned to the browser.</small></section>
-      <section className="connectionLivePanel"><header><div><span>REAL BINANCE FUTURES</span><h3><LockKeyhole/> Live Trading Locked</h3><p>Live credentials are managed separately. Live trading remains locked until every existing V25 safety condition is satisfied.</p></div><strong className="connectionLiveBadge"><i className="locked"/>{health?.live_guard || 'LIVE LOCKED'}</strong></header><div className="connectionLiveGrid"><label><span>Live API Key</span><input data-private="true" type="text" value={credentials.liveApiKey} onChange={event => setCredentials(current => ({...current,liveApiKey:event.target.value}))} autoComplete="off" spellCheck={false} placeholder="Configured separately"/></label><label><span>Live Secret Key</span><input data-private="true" type="password" value={credentials.liveSecretKey} onChange={event => setCredentials(current => ({...current,liveSecretKey:event.target.value}))} autoComplete="new-password" placeholder="Never displayed"/></label></div><small>Live connection is not tested, activated, or armed from this page.</small></section>
-      <section className="connectionSecurityPanel"><header><div><span>SECURITY &amp; SAFETY</span><h3>Fail-closed by design</h3></div><ShieldCheck/></header><div>{['Secrets are stored server-side','Secrets are never displayed in the UI','Live trading remains locked by default','Demo and Live credentials are separated','Orders require existing safety gates','No automatic live orders on startup'].map(item => <span key={item}><CheckCircle2/>{item}</span>)}</div></section>
+    {view === 'setup' && <section id="connection-ws" className="cws">
+      <header className="cwsHead">
+        <p>Binance API anahtarlarını güvenle bağla. Anahtarların şifreli kasada saklanır ve ekranda hiç gösterilmez.</p>
+        <button type="button" className="cwsRefresh" onClick={() => void refreshConnectionStatus()} aria-label="Bağlantı durumunu yenile"><RefreshCw/></button>
+      </header>
+      <div className="cwsChips">
+        <span><i className={connectionStatus?.connections?.TESTNET?.configured ? 'ok' : 'pending'}/>Demo anahtarı: {connectionStatus?.connections?.TESTNET?.configured ? 'kayıtlı' : 'kayıtlı değil'}</span>
+        <span><i className={connectionStatus?.connections?.TESTNET?.active ? 'ok' : 'pending'}/>Demo bağlantısı: {connectionStatus?.connections?.TESTNET?.active ? 'bağlı' : 'bağlı değil'}</span>
+        <span><i className="locked"/>Canlı işlem: kilitli</span>
+      </div>
+      <div className="cwsGrid">
+        <article className="cwsCard cwsLive">
+          <span className="cwsTag live">Gerçek para</span>
+          <h3><LockKeyhole/>Canlı Binance Futures</h3>
+          <p>Gerçek parayla işlem için canlı API anahtarını bağla. Bağlantı, Master Trade içindeki Bağlantı sekmesinden yapılır; güvenlik kapılarından geçmeden işlem açılmaz.</p>
+          <button type="button" className="cwsPrimary" onClick={connectLiveApi}><KeyRound/>Canlı API anahtarı bağla</button>
+          <small>{memberAccess.premium ? 'Seni Master Trade içindeki Bağlantı sekmesine götürür.' : 'Canlı işlem aboneliğe dahildir. Aboneliğin yoksa seni abonelik sayfasına götürür.'}</small>
+        </article>
+        <article className="cwsCard cwsDemo">
+          <span className="cwsTag demo">Demo / Testnet</span>
+          <h3><TestTube2/>Binance Futures Demo</h3>
+          <p>Gerçek para kullanılmaz. Önce burada dene; anahtarlar şifreli sunucu kasasına kaydedilir.</p>
+          <div className="cwsSteps"><span><b>1</b>Anahtarları gir</span><span><b>2</b>Kaydet</span><span><b>3</b>Doğrula</span></div>
+          <div className="cwsForm">
+            <label><span>Demo API anahtarı</span><input data-private="true" type="text" value={credentials.demoApiKey} onChange={event => setCredentials(current => ({...current,demoApiKey:event.target.value}))} autoComplete="off" spellCheck={false} placeholder="Demo API anahtarını yapıştır"/></label>
+            <label><span>Demo gizli anahtar</span><input data-private="true" type="password" value={credentials.demoSecretKey} onChange={event => setCredentials(current => ({...current,demoSecretKey:event.target.value}))} autoComplete="new-password" spellCheck={false} placeholder="Demo gizli anahtarı yapıştır"/></label>
+          </div>
+          {connectionStatus?.connections?.TESTNET?.configured && <div className="cwsSaved"><span><small>Kayıtlı anahtar</small><b>{connectionStatus.connections.TESTNET.api_key_masked || '••••••••'}</b></span><strong><i className={connectionStatus.connections.TESTNET.active ? 'ok' : 'pending'}/>{connectionStatus.connections.TESTNET.active ? 'Hazır' : 'Doğrulama gerekli'}</strong></div>}
+          <div className="cwsActions">
+            <button type="button" className="cwsPrimary" onClick={() => void saveDemoCredentials()} disabled={demoSaveState === 'saving' || demoVerifyState === 'verifying' || !credentials.demoApiKey.trim() || !credentials.demoSecretKey.trim()}><Save/>{demoSaveState === 'saving' ? 'Kaydediliyor…' : 'Güvenle kaydet'}</button>
+            <button type="button" className="cwsGhost" onClick={() => void verifyDemoConnection()} disabled={demoSaveState === 'saving' || demoVerifyState === 'verifying' || !connectionStatus?.connections?.TESTNET?.configured}><ShieldCheck/>{demoVerifyState === 'verifying' ? 'Doğrulanıyor…' : 'Demo bağlantısını doğrula'}</button>
+          </div>
+          {demoVerification.message && <div className={`cwsFeedback ${demoVerification.kind}`}><i/>{demoVerification.message}</div>}
+        </article>
+      </div>
+      <article className="cwsCard cwsSafe">
+        <h3><ShieldCheck/>Güvenlik</h3>
+        <div>{['Anahtarlar sunucuda şifreli saklanır','Anahtarlar ekranda hiç gösterilmez','Canlı işlem varsayılan olarak kilitlidir','Demo ve canlı anahtarlar ayrı tutulur','Emirler güvenlik kapılarından geçmeden açılmaz','Açılışta otomatik canlı emir verilmez'].map(item => <span key={item}><CheckCircle2/>{item}</span>)}</div>
+      </article>
     </section>}
 
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">
@@ -903,20 +948,15 @@ export default function TestnetFirstApp() {
         </div>
       </section>
     </div>}
-    {view === 'setup' && <section className="v26TrustStrip" style={{margin:'0 1rem 1rem',padding:'1rem 1.25rem',border:'1px solid rgba(148,163,184,0.18)',borderRadius:'16px',background:'rgba(15,23,42,0.82)',display:'grid',gap:'0.7rem'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'0.75rem',flexWrap:'wrap'}}>
-        <div>
-          <small style={{display:'block',letterSpacing:'0.12em',fontSize:'0.68rem',color:'#94a3b8'}}>CUSTOMER TRUST</small>
-          <strong style={{fontSize:'1rem',color:'#f8fafc'}}>Demo-first operating model · Live orders remain locked until all safety gates pass.</strong>
-        </div>
-        <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap'}}>
-          <button type="button" onClick={() => { setComplianceTab('risk'); setComplianceOpen(true) }} style={{padding:'0.6rem 0.9rem',borderRadius:'10px',border:'1px solid rgba(251,191,36,0.35)',background:'rgba(251,191,36,0.08)',color:'#fef3c7',fontWeight:700,cursor:'pointer'}}>Risk Disclosure</button>
-          <button type="button" onClick={() => { setComplianceTab('privacy'); setComplianceOpen(true) }} style={{padding:'0.6rem 0.9rem',borderRadius:'10px',border:'1px solid rgba(59,130,246,0.35)',background:'rgba(59,130,246,0.08)',color:'#dbeafe',fontWeight:700,cursor:'pointer'}}>Privacy</button>
-          <button type="button" onClick={() => { setComplianceTab('terms'); setComplianceOpen(true) }} style={{padding:'0.6rem 0.9rem',borderRadius:'10px',border:'1px solid rgba(52,211,153,0.35)',background:'rgba(52,211,153,0.08)',color:'#d1fae5',fontWeight:700,cursor:'pointer'}}>Terms</button>
-          <button type="button" onClick={() => { setComplianceTab('support'); setComplianceOpen(true) }} style={{padding:'0.6rem 0.9rem',borderRadius:'10px',border:'1px solid rgba(168,85,247,0.35)',background:'rgba(168,85,247,0.08)',color:'#f3e8ff',fontWeight:700,cursor:'pointer'}}>Support</button>
-        </div>
+    {view === 'setup' && <footer className="cwsFoot">
+      <span>Önce demo, sonra gerçek para. Tüm güvenlik kapıları geçilmeden canlı emir açılmaz.</span>
+      <div>
+        <button type="button" onClick={() => { setComplianceTab('risk'); setComplianceOpen(true) }}>Risk uyarısı</button>
+        <button type="button" onClick={() => { setComplianceTab('privacy'); setComplianceOpen(true) }}>Gizlilik</button>
+        <button type="button" onClick={() => { setComplianceTab('terms'); setComplianceOpen(true) }}>Şartlar</button>
+        <button type="button" onClick={() => { setComplianceTab('support'); setComplianceOpen(true) }}>Destek</button>
       </div>
-    </section>}
+    </footer>}
     {complianceOpen && <div className="v26ComplianceBackdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setComplianceOpen(false) }} style={{position:'fixed',inset:0,background:'rgba(2,6,23,0.76)',display:'grid',placeItems:'center',padding:'1rem',zIndex:1000}}>
       <aside className="v26ComplianceModal" role="dialog" aria-modal="true" aria-label="Trust and compliance" style={{width:'min(760px, 100%)',maxHeight:'80vh',overflowY:'auto',background:'#0f172a',border:'1px solid rgba(148,163,184,0.3)',borderRadius:'20px',padding:'1.25rem',boxShadow:'0 30px 80px rgba(2,6,23,0.6)'}} onClick={event => event.stopPropagation()}>
         <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'1rem',marginBottom:'1rem'}}>
