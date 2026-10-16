@@ -68,21 +68,38 @@ async function geometry(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 }
 
-test('Master Trade hides only SL and RESISTANCE chart lines while retaining their price labels', async ({page}) => {
+test('Master Trade keeps price labels but removes analysis level lines from both chart layouts', async ({page}) => {
   await prepare(page, {levelOverrides: {
     entry: previewPrice * .999, stop_loss: previewPrice * .997,
     tp1: previewPrice * .9995, tp2: previewPrice, tp3: previewPrice * 1.0005,
     support: previewPrice * .996, resistance: previewPrice * .9998,
   }})
   const chart = root(page).locator('.refChartCanvas')
-  const lines = chart.locator('.masterTradeChartLabels .chartLevel')
-  await expect(chart.locator('.chartLevel[data-level="SL"], .chartLevel[data-level="RESISTANCE"]')).toHaveCount(0)
-  for (const label of ['ENTRY', 'TP1', 'TP2', 'TP3', 'SUPPORT']) {
-    await expect(chart.locator(`.chartLevel[data-level="${label}"]`)).toHaveCount(1)
-  }
+  await expect(chart.locator('.masterTradeChartLabels .chartLevel:not(.level-current)')).toHaveCount(0)
+  await expect(chart.locator('.masterTradeChartLabels .chartLevel.level-current')).toHaveCount(1)
   const pills = root(page).locator('.masterTradeChartPills')
   await expect(pills.locator('.level-stop')).toContainText('SL $')
   await expect(pills.locator('.level-resistance')).toContainText('RESISTANCE $')
+  await expect(pills.locator('.level-entry')).toContainText('ENTRY $')
+  await expect(pills.locator('.level-tp')).toHaveCount(3)
+  await expect(pills.locator('.level-trigger')).toContainText('TRIGGER $')
+  await expect(pills.locator('.level-support')).toContainText('SUPPORT $')
+
+  await prepare(page, {legacy: true, levelOverrides: {
+    entry: previewPrice * .999, stop_loss: previewPrice * .997,
+    tp1: previewPrice * .9995, tp2: previewPrice, tp3: previewPrice * 1.0005,
+    support: previewPrice * .996, resistance: previewPrice * .9998,
+  }})
+  const legacyChart = page.locator('.masterTradePage .marketOhlcChart')
+  await expect(legacyChart.locator('.masterTradeChartLabels .chartLevel:not(.level-current)')).toHaveCount(0)
+  await expect(legacyChart.locator('.masterTradeChartLabels .chartLevel.level-current')).toHaveCount(1)
+  const legacyPills = legacyChart.locator('.masterTradeChartPills')
+  await expect(legacyPills.locator('.level-stop')).toContainText('SL ')
+  await expect(legacyPills.locator('.level-resistance')).toContainText('RESISTANCE ')
+  await expect(legacyPills.locator('.level-entry')).toContainText('ENTRY ')
+  await expect(legacyPills.locator('.level-tp')).toHaveCount(3)
+  await expect(legacyPills.locator('.level-trigger')).toContainText('TRIGGER ')
+  await expect(legacyPills.locator('.level-support')).toContainText('SUPPORT ')
 })
 
 test('Master Trade profile button opens the shared account menu', async ({page}) => {
