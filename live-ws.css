@@ -398,3 +398,14 @@
 #master-trade-live-terminal.liveWs .liveWsActivity ol { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; margin: 0 !important; }
 #master-trade-live-terminal.liveWs .liveWsActivity li { height: auto !important; min-height: 0 !important; margin: 0 !important; transform: none !important; left: auto !important; }
 #master-trade-live-terminal.liveWs .liveWsActivity li span { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; color: var(--ws-text, #e8eef6) !important; display: block !important; }
+
+/* Sekme menüsü: sayfa kayarken üstte sabit; aşağı inerken saklanır, yukarı çıkarken açılır */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeSticky { display: contents !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs {
+  position: sticky !important; top: 0 !important; z-index: 300 !important;
+  background: #0b1118 !important; padding: 8px 4px 16px !important; margin: 0 !important;
+  transition: transform .25s ease !important; will-change: transform;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs.navHidden { transform: translateY(-120%) !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTerminalHeader { position: relative !important; z-index: 0 !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs { z-index: 1000 !important; }

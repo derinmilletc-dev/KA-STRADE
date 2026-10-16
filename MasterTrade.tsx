@@ -130,6 +130,22 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   const layoutTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
   const referenceEnabled = useSyncExternalStore(subscribePresentation, readPresentation, () => false)
   const masterLayoutV2 = referenceEnabled && layoutTab === 'analiz'
+  // Canlı İşlem / Pozisyonlar / Bağlantı: sekme menüsü yukarıda sabit; aşağı kaydırınca saklanır, yukarı kaydırınca geri gelir.
+  useEffect(() => {
+    if (layoutTab === 'analiz') return
+    let last = window.scrollY
+    const tabs = () => document.querySelector<HTMLElement>('.masterTradePage .masterTradeTabs')
+    const onScroll = (event: Event) => {
+      if (event.target !== document) return
+      const y = window.scrollY
+      const delta = y - last
+      if (Math.abs(delta) < 6) return
+      tabs()?.classList.toggle('navHidden', delta > 0 && y > 120)
+      last = y
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('scroll', onScroll, true); tabs()?.classList.remove('navHidden') }
+  }, [layoutTab])
   const marketFeed = useMasterMarketQuotes(referenceEnabled)
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
