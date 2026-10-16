@@ -1,3 +1,4 @@
+import { useLiveEventNotifications } from './notification-prefs'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import { Activity, BarChart3, Cable, Check, ChevronDown, Clock3, Crosshair, Gauge, History, ListChecks, LockKeyhole, ShieldX, UnlockKeyhole, Wallet, X, XCircle } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
@@ -8,6 +9,7 @@ import { MasterTradeChartLabels, MasterTradeMetricTile, MasterTradeMetricVisual,
 import { PremiumWorkspace, useMemberAccess } from './premium-access'
 import {useKaisWorkspaceReaction} from './useKaisPageReactions'
 import { fetchPublicMarketData, fetchWithTimeout } from './master-trade-request'
+import { fetchMtfAnalyses } from './master-trade-mtf'
 import { analysisPrice, analysisValue, autoTradePresentation, masterLayoutV2Enabled, MASTER_LAYOUT_DESKTOP_WIDTH, MASTER_MTF_INTERVALS } from './master-trade-presentation'
 import './master-trade-analysis-v2.css'
 import MasterTradeReference from './MasterTradeReference'
@@ -15,6 +17,8 @@ import {useMasterMarketQuotes} from './useMasterMarketQuotes'
 import {useTradingPreferences} from './useTradingPreferences'
 import {MarketDataFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
+import ChartAiPanel from './ChartAiPanel'
+import {chartSnapshot} from './chart-ai-client'
 
 type TradeSide = 'LONG' | 'SHORT'
 type TradeHistoryRow = {
@@ -114,33 +118,37 @@ const subscribePresentation = (notify: () => void) => {
   }
 }
 const readPresentation = () => masterLayoutV2Enabled(window.location.search, window.innerWidth)
+// Durum alınamazsa ekranı boşaltmak yerine son bilinen veriyi tutar ama canlı yetkileri kapatır (güvenli taraf); ekran titremez.
+const degradeLiveStatus = (current: SharedLiveStatus | null): SharedLiveStatus | null => current
+  ? {...current, connected: false, armed: false, real_trading_locked: true, authorization: {...(current.authorization ?? {}), valid: false}, readiness: {...(current.readiness ?? {}), ready: false}} as SharedLiveStatus
+  : null
 const navigateTab = (tab: MasterTradeTab) => {
   const url = new URL(window.location.href)
   url.searchParams.set('tab', tab)
   window.history.pushState(window.history.state, '', url)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
-const fetchMtfAnalyses = async (symbol: string, signal?: AbortSignal) => {
-  const results = await Promise.all(MTF_INTERVALS.map(async timeframe => {
-    try {
-      const response = await fetchPublicMarketData(`${API_BASE}/analysis/${symbol}?interval=${timeframe}`, { signal }, 10000)
-      if (!response.ok) throw await marketDataResponseError(response)
-      const analysis = await response.json() as Analysis
-      if (!analysis || typeof analysis.direction !== 'string' || !Number.isFinite(analysis.confidence)) throw new MarketDataFailure('backend', 'Backend geçerli analiz verisi döndürmedi.')
-      return {analysis: {...analysis, timeframe}, error: ''}
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError' && signal?.aborted) throw error
-      return {analysis: null, error: `MTF ${timeframe}: ${marketDataFailure(error).message}`}
-    }
-  }))
-  return {analyses: results.map(result => result.analysis).filter(item => item !== null), error: results.map(result => result.error).filter(Boolean).join(' · ')}
-}
-
 export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement> }) {
-  const {premium} = useMemberAccess()
+  const {premium, owner, userId} = useMemberAccess()
   const layoutTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
   const referenceEnabled = useSyncExternalStore(subscribePresentation, readPresentation, () => false)
   const masterLayoutV2 = referenceEnabled && layoutTab === 'analiz'
+  // Canlı İşlem / Pozisyonlar / Bağlantı: sekme menüsü yukarıda sabit; aşağı kaydırınca saklanır, yukarı kaydırınca geri gelir.
+  useEffect(() => {
+    if (layoutTab === 'analiz') return
+    let last = window.scrollY
+    const tabs = () => document.querySelector<HTMLElement>('.masterTradePage .masterTradeTabs')
+    const onScroll = (event: Event) => {
+      if (event.target !== document) return
+      const y = window.scrollY
+      const delta = y - last
+      if (Math.abs(delta) < 6) return
+      tabs()?.classList.toggle('navHidden', delta > 0 && y > 120)
+      last = y
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('scroll', onScroll, true); tabs()?.classList.remove('navHidden') }
+  }, [layoutTab])
   const marketFeed = useMasterMarketQuotes(referenceEnabled)
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
@@ -157,6 +165,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   const [liveStatusVerified, setLiveStatusVerified] = useState(false)
   const [liveStatusError, setLiveStatusError] = useState('')
   const [liveStatusLoading, setLiveStatusLoading] = useState(true)
+  useLiveEventNotifications((liveStatus as {events?: unknown} | null)?.events)
   const [liveConnections, setLiveConnections] = useState<SharedConnectionStatus | null>(null)
   const [selectedTrade, setSelectedTrade] = useState<TradeHistoryRow | null>(null)
   const [markets, setMarkets] = useState<MarketRow[]>([])
@@ -442,7 +451,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refreshAccount()
-    const timer = window.setInterval(() => void refreshAccount(), 5000)
+    const timer = window.setInterval(() => void refreshAccount(), 15000)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [accountRefreshNonce])
 
@@ -742,7 +751,15 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   }, [layoutTab])
 
   const referenceAnalysis = masterLayoutV2 && layoutTab === 'analiz'
+  const chartAiControl = userId && layoutTab === 'analiz' ? <ChartAiPanel key={`${userId}:${owner}`}
+    userId={userId} symbol={draft.market} timeframe={interval}
+    snapshot={() => chartSnapshot(draft.market, interval, currentPrice, analysis, mtfAnalyses,
+      activeSnapshot?.priceUpdatedAt ?? null, activeSnapshot?.marketUpdatedAt ?? null)}
+    chart={() => reactionArea.current?.querySelector<SVGSVGElement>(
+      referenceAnalysis ? 'svg[data-chart-ai-capture="reference"]' : 'svg[data-chart-ai-capture="legacy"]',
+    ) ?? null}/> : null
   const referenceContent = referenceAnalysis ? <MasterTradeReference assistantSlotRef={assistantSlotRef}
+      chartAiControl={chartAiControl}
       symbol={draft.market} interval={interval} query={marketQuery} onQuery={setMarketQuery}
       scores={scannerCandidates.map(candidate => ({symbol: candidate.symbol, direction: candidate.direction, score: candidate.final_decision_score}))}
       marketFeed={marketFeed}
@@ -750,7 +767,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       onAutoTrade={() => {shortcutPending.current = true; navigateTab('canli')}}
       onRefresh={() => setMarketRefreshNonce(value => value + 1)} refreshing={dataLoading}
       candles={candles} analysis={analysis} decision={tradeDecision} trigger={triggerMonitor} live={liveStatus}
-      price={currentPrice} change={selectedChange} volume={selectedMarket?.volume}
+      price={currentPrice} change={selectedChange} volume={selectedMarket?.volume} analysisUpdatedAt={activeSnapshot?.marketUpdatedAt ?? null}
       levelsVisible={showChartLevels} volumeVisible={showChartVolume}
       onLevels={() => setShowChartLevels(value => !value)} onVolume={() => setShowChartVolume(value => !value)}
       timeline={decisionTimeline} dataIssue={dataError} error={dataError || activeSnapshot?.mtfError || marketError}/> : null
@@ -889,16 +906,16 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
             <div className="chartToolbar" aria-label="Market chart controls">
               <div className="chartControls">{Array.from(new Set(['1m','5m','15m','1h','4h','1d',interval])).map((range) => <button key={range} type="button" className={range === interval ? 'active' : ''} onClick={() => setInterval(range)}>{range.toUpperCase()}</button>)}</div>
-              <div className="chartViewControls"><button type="button" className={showChartLevels ? 'active' : ''} onClick={() => setShowChartLevels(value => !value)}>LEVELS</button><button type="button" className={showChartVolume ? 'active' : ''} onClick={() => setShowChartVolume(value => !value)}>VOLUME</button></div>
+              <div className="chartViewControls"><button type="button" className={showChartLevels ? 'active' : ''} onClick={() => setShowChartLevels(value => !value)}>LEVELS</button><button type="button" className={showChartVolume ? 'active' : ''} onClick={() => setShowChartVolume(value => !value)}>VOLUME</button>{!referenceAnalysis && chartAiControl}</div>
             </div>
             <span className="chartOhlcLabel">{hoveredCandle ? new Date(hoveredCandle.time * (hoveredCandle.time < 1_000_000_000_000 ? 1000 : 1)).toLocaleString('en-GB') : 'OHLC / REAL MARKET DATA'}</span>
 
             <div className="chartCanvas marketOhlcChart">
-              {dataLoading && !chartCandles.length ? <div className="chartEmpty">LOADING SNAPSHOT</div> : !chartCandles.length ? <div className="chartEmpty">{dataError || 'DATA UNAVAILABLE'}</div> : <svg viewBox="0 0 760 300" preserveAspectRatio="none" aria-label={`${draft.market} ${interval} candlestick chart`} onMouseLeave={() => setChartHoverIndex(null)} onMouseMove={event => { const box = event.currentTarget.getBoundingClientRect(); const index = Math.round(((event.clientX - box.left) / box.width) * (chartCandles.length - 1)); setChartHoverIndex(Math.max(0, Math.min(chartCandles.length - 1, index))) }}>
+              {dataLoading && !chartCandles.length ? <div className="chartEmpty">LOADING SNAPSHOT</div> : !chartCandles.length ? <div className="chartEmpty">{dataError || 'DATA UNAVAILABLE'}</div> : <svg data-chart-ai-capture="legacy" viewBox="0 0 760 300" preserveAspectRatio="none" aria-label={`${draft.market} ${interval} candlestick chart`} onMouseLeave={() => setChartHoverIndex(null)} onMouseMove={event => { const box = event.currentTarget.getBoundingClientRect(); const index = Math.round(((event.clientX - box.left) / box.width) * (chartCandles.length - 1)); setChartHoverIndex(Math.max(0, Math.min(chartCandles.length - 1, index))) }}>
                 <g className="chartGrid">{[...Array(7)].map((_, index) => <line key={`h-${index}`} x1="0" x2="760" y1={22 + index * 35} y2={22 + index * 35} />)}{[...Array(9)].map((_, index) => <line key={`v-${index}`} x1={index * 95} x2={index * 95} y1="0" y2="260" />)}</g>
                 {chartCandles.map((candle, index) => { const x = chartX(index); const bodyTop = chartY(Math.max(candle.open, candle.close)); const bodyBottom = chartY(Math.min(candle.open, candle.close)); const bodyHeight = Math.max(2, bodyBottom - bodyTop); const bullish = candle.close >= candle.open; const candleWidth = Math.max(2, Math.min(10, 700 / chartCandles.length)); return <g key={`${candle.time}-${index}`} className={bullish ? 'candle bullish' : 'candle bearish'}><line x1={x} x2={x} y1={chartY(candle.high)} y2={chartY(candle.low)} /><rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} /></g> })}
                 {showChartVolume && chartCandles.map((candle, index) => { const x = chartX(index); const height = candle.volume / volumeMax * 28; return <rect key={`vol-${candle.time}`} className={`chartVolume ${candle.close >= candle.open ? 'up' : 'down'}`} x={x - 2} y={273 - height} width="4" height={height} /> })}
-                <MasterTradeChartLabels lines={premium && showChartLevels ? positionedLevelLines : []} currentPrice={currentPrice} toY={chartY} format={fmtMarketPrice}/>
+                <MasterTradeChartLabels lines={premium && showChartLevels ? positionedLevelLines : []} currentPrice={currentPrice} toY={chartY} format={fmtMarketPrice} hiddenLines={['', 'SL', 'RESISTANCE', 'ENTRY', 'TP1', 'TP2', 'TP3', 'TRIGGER', 'SUPPORT']}/>
                 {chartHoverIndex !== null && <g className="chartCrosshair"><line x1={chartX(chartHoverIndex)} x2={chartX(chartHoverIndex)} y1="0" y2="260" /><circle cx={chartX(chartHoverIndex)} cy={chartY(chartCandles[chartHoverIndex].close)} r="3" /></g>}
               </svg>}
               {!!chartCandles.length && <MasterTradeChartLabels lines={premium && showChartLevels ? positionedLevelLines : []} currentPrice={currentPrice} toY={chartY} format={fmtMarketPrice} pills/>}

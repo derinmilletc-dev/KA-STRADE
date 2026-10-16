@@ -728,7 +728,8 @@ class V22CommercialTests(unittest.TestCase):
                 sent.update({"user_id": userId, "body": body})
                 return self
 
-            def execute(self):
+            def execute(self, *, http=None):
+                sent["timeout"] = http.timeout
                 return {"id": "mock-message"}
 
         class Users:
@@ -753,6 +754,7 @@ class V22CommercialTests(unittest.TestCase):
             )
         gmail_build.assert_called_once_with("gmail", "v1", credentials=gmail_build.call_args.kwargs["credentials"], cache_discovery=False)
         self.assertEqual(sent["user_id"], "me")
+        self.assertEqual(sent["timeout"], 10)
         decoded = base64.urlsafe_b64decode(sent["body"]["raw"] + "=" * (-len(sent["body"]["raw"]) % 4))
         parsed = email.message_from_bytes(decoded)
         self.assertEqual(parsed["From"], "KaisTrade <privacykais@gmail.com>")

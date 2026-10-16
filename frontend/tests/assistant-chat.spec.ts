@@ -49,7 +49,7 @@ test('Opening the real premium card emits only its geometry, without premium/tra
   await recordReactions(page)
   const state = await mockAssistant(page)
   await page.goto('/master-trade?tab=canli')
-  const locked = page.locator('[data-premium-locked]').filter({hasText: 'START LIVE AUTO TRADE'}).getByRole('button').first()
+  const locked = page.locator('[data-premium-locked]').filter({hasText: 'OTOMATİK İŞLEMİ BAŞLAT'}).getByRole('button').first()
   await expect.poll(async () => {
     await page.clock.runFor(100)
     return locked.isVisible()
@@ -629,7 +629,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', {name: /AYARLAR/}).click()
     const eye = page.locator('.assistantLauncher .kaisEye')
     const launcher = page.getByRole('button', {name: 'Kais AI', exact: true})
-    for (const name of ['Demo API Key', 'Demo Secret Key', 'Live API Key', 'Live Secret Key']) {
+    for (const name of ['Demo API anahtarı', 'Demo gizli anahtar']) {
       const field = page.getByLabel(name, {exact: true})
       await expect(field).toHaveAttribute('data-private', 'true')
       await field.focus()

@@ -1,0 +1,118 @@
+/* Grafik AI — sağa yapışık panel (masaüstü), alttan açılan sayfa (mobil). Yalnız görünüm. */
+.chartAiButton { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px !important; border: 2px solid #5fd9a8 !important; border-radius: 10px !important; background: linear-gradient(180deg, #14382d, #0e2820) !important; color: #fff !important; font-size: 14px !important; font-weight: 600 !important; white-space: nowrap; cursor: pointer; box-shadow: 0 0 0 1px #0d1f19, inset 0 1px 0 #ffffff14; transition: border-color .15s, background .15s; }
+.chartAiButton svg { width: 22px; height: 22px; color: #5fe0b0; flex-shrink: 0; }
+.chartAiButton:hover:not(:disabled) { border-color: #8af0c8 !important; background: linear-gradient(180deg, #19463a, #11332a) !important; }
+.chartAiButton:focus-visible { outline: 2px solid #8af0c8; outline-offset: 2px; }
+.chartAiButton:disabled { opacity: .55; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .chartAiButton { transition: none; } }
+
+.chartAiDialog {
+  --cai-panel: #111417; --cai-card: #171b1f; --cai-sunken: #0f1316; --cai-line: #252b31; --cai-line-soft: #1e2429;
+  --cai-text: #e6eaed; --cai-text-2: #c9d0d6; --cai-muted: #9aa4ad; --cai-faint: #8a949d;
+  --cai-accent: #3fb68b; --cai-accent-ink: #06110c; --cai-warn: #d9a441; --cai-error: #e5534b;
+  position: fixed; inset: 0 0 0 auto; margin: 0; width: min(420px, 100vw); max-width: none; height: 100dvh; max-height: none;
+  padding: 0; border: 0; border-left: 1px solid var(--cai-line); border-radius: 12px 0 0 12px;
+  background: var(--cai-panel); color: var(--cai-text); box-shadow: -12px 0 40px #0006; font-size: 14px; box-sizing: border-box;
+}
+.chartAiDialog[open] { display: flex; flex-direction: column; }
+.chartAiDialog::backdrop { background: #0003; }
+.chartAiDialog *, .chartAiDialog *::before, .chartAiDialog *::after { box-sizing: border-box; }
+.chartAiDialog svg { width: 16px; height: 16px; flex-shrink: 0; }
+.chartAiDialog button, .chartAiDialog label, .chartAiDialog summary { font: inherit; }
+.chartAiDialog button:focus-visible, .chartAiDialog textarea:focus-visible, .chartAiDialog summary:focus-visible,
+.chartAiDialog a:focus-visible, .chartAiDialog label:has(input:focus-visible) { outline: 2px solid var(--cai-accent); outline-offset: 2px; }
+.chartAiVisuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Başlık */
+.chartAiHeader { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--cai-line-soft); flex-shrink: 0; }
+.chartAiHeader h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.chartAiQuota { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #1c2227; color: var(--cai-muted); }
+.chartAiQuota strong { color: var(--cai-text); font-weight: 500; }
+.chartAiClose { margin-left: auto; }
+
+/* Ortak buton tipleri */
+.chartAiIconButton { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  border: 1px solid #2d343a; border-radius: 8px; background: #171b1fcc; color: var(--cai-text); cursor: pointer; }
+.chartAiClose { border-color: transparent; background: transparent; color: var(--cai-muted); }
+.chartAiPrimary, .chartAiSecondary, .chartAiPrimaryGhost { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 14px; border-radius: 8px; cursor: pointer; font-weight: 500; text-decoration: none; }
+.chartAiPrimary { border: 0; background: var(--cai-accent); color: var(--cai-accent-ink); font-weight: 600; font-size: 15px; }
+.chartAiSecondary { border: 1px solid #2d343a; background: transparent; color: var(--cai-text); }
+.chartAiPrimaryGhost { border: 1px solid var(--cai-accent); background: #13261f; color: #6fd3ae; }
+.chartAiDialog button:disabled, .chartAiDialog label:has(input:disabled) { cursor: not-allowed; }
+.chartAiDialog .chartAiPrimary:disabled { background: #1f3a30; color: #7fa595; }
+.chartAiDialog .chartAiSecondary:disabled, .chartAiDialog .chartAiPrimaryGhost:disabled, .chartAiDialog .chartAiIconButton:disabled,
+.chartAiDialog label:has(input:disabled) { opacity: .5; }
+
+/* Gövde */
+.chartAiBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; overflow-wrap: anywhere; }
+.chartAiBody p { margin: 0; }
+.chartAiNotice { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.chartAiNotice--error { background: #2a1a18; border: 1px solid #5a2b26; color: #f0c2bc; }
+.chartAiNotice--warn { background: #2a2416; border: 1px solid #5a4a26; color: #ecd39a; }
+.chartAiPricing { align-self: flex-start; color: #6fd3ae; font-weight: 600; font-size: 13px; }
+.chartAiHint { font-size: 12px; color: var(--cai-muted); }
+.chartAiRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.chartAiRow--split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* Görsel kartı */
+.chartAiImage { display: flex; flex-direction: column; gap: 8px; }
+.chartAiImage figure { position: relative; margin: 0; }
+.chartAiImage figure img { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; border: 1px solid var(--cai-line); background: var(--cai-sunken); }
+.chartAiImageTools { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.chartAiImage figcaption { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--cai-muted); }
+.chartAiImage figcaption span { padding: 3px 8px; border-radius: 6px; background: var(--cai-card); }
+.chartAiImageEmpty { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 16px; border: 1px dashed #2d343a; border-radius: 10px; background: var(--cai-sunken); }
+
+/* Analiz türü ve soru */
+.chartAiField { display: flex; flex-direction: column; gap: 8px; }
+.chartAiLabel { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--cai-faint); }
+.chartAiLabel em { font-style: normal; text-transform: none; letter-spacing: 0; }
+.chartAiModes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: var(--cai-card); }
+.chartAiModes button { min-height: 36px; border: 0; border-radius: 999px; background: transparent; color: var(--cai-text-2); font-size: 13px; font-weight: 500; cursor: pointer; }
+.chartAiModes button.active { background: var(--cai-accent); color: var(--cai-accent-ink); }
+.chartAiField textarea { width: 100%; resize: none; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--cai-line); background: var(--cai-sunken); color: var(--cai-text); font: inherit; font-size: 14px; line-height: 1.45; }
+.chartAiField textarea::placeholder { color: #6b757e; }
+
+/* Sonuç */
+.chartAiResult { display: flex; flex-direction: column; gap: 10px; }
+.chartAiResultHead { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; background: var(--cai-card); }
+.chartAiResultHead img { width: 72px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--cai-line); }
+.chartAiResultHead div { display: flex; flex-direction: column; gap: 2px; }
+.chartAiResultHead strong { font-size: 14px; font-weight: 500; }
+.chartAiResultHead span { font-size: 12px; color: var(--cai-faint); }
+.chartAiSection { border: 1px solid var(--cai-line); border-radius: 10px; overflow: hidden; }
+.chartAiSection summary { padding: 12px 14px; background: var(--cai-card); font-weight: 600; cursor: pointer; list-style-position: inside; }
+.chartAiSection p { padding: 12px 14px; white-space: pre-wrap; line-height: 1.6; color: var(--cai-text-2); }
+.chartAiResultNote { font-size: 12px; color: var(--cai-faint); white-space: pre-wrap; }
+
+/* Sabit alt bölüm */
+.chartAiFooter { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 20px 16px; border-top: 1px solid var(--cai-line-soft); background: var(--cai-panel); }
+.chartAiConsent { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--cai-text-2); cursor: pointer; min-height: 28px; }
+.chartAiConsent input { width: 18px; height: 18px; margin: 0; accent-color: var(--cai-accent); flex-shrink: 0; }
+.chartAiSend { width: 100%; }
+.chartAiSpin { animation: chartAiSpin 1s linear infinite; }
+@keyframes chartAiSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .chartAiSpin { animation: none; } }
+.chartAiLegal { font-size: 12px; line-height: 1.5; color: var(--cai-faint); text-align: center; }
+.chartAiLegal p { margin: 0; }
+.chartAiLegal details { margin-top: 4px; }
+.chartAiLegal summary { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--cai-muted); }
+.chartAiLegal summary svg { width: 14px; height: 14px; }
+.chartAiLegal details p { margin-top: 6px; text-align: left; }
+.chartAiPre { white-space: pre-line; }
+
+/* Mobil: alttan açılan sayfa */
+@media (max-width: 700px) {
+  .chartAiDialog { inset: auto 0 0 0; width: 100vw; height: calc(100dvh - 48px); border-left: 0; border-top: 1px solid var(--cai-line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px #0006; }
+  .chartAiDialog::backdrop { background: #00000080; }
+  .chartAiHeader { padding: 12px 8px 12px 16px; }
+  .chartAiClose { width: 44px; height: 44px; }
+  .chartAiBody { padding: 12px 16px; }
+  .chartAiFooter { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .chartAiModes button { min-height: 40px; }
+  .chartAiField textarea { font-size: 16px; }
+  .chartAiImageTools .chartAiIconButton { width: 40px; height: 40px; }
+  .refToolbar:has(.chartAiButton), .chartToolbar:has(.chartAiButton) { flex-wrap: wrap !important; overflow: visible !important; }
+  .chartAiButton { min-height: 38px; }
+}

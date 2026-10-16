@@ -1,0 +1,15 @@
+#root #sessions-card { display: grid; gap: 14px; }
+#root #sessions-card .scLead { margin: 0; color: #9aa9ba; font-size: 14px; line-height: 1.6; }
+#root #sessions-card .scError { margin: 0; color: #f87171; font-size: 13.5px; }
+#root #sessions-card .scList { display: grid; gap: 8px; }
+#root #sessions-card .scRow { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; }
+#root #sessions-card .scRow > i { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: rgba(52, 211, 153, .12) !important; color: #34d399; flex: none; }
+#root #sessions-card .scRow > i svg { width: 18px; height: 18px; }
+#root #sessions-card .scRow > span { display: grid; gap: 3px; min-width: 0; flex: 1; }
+#root #sessions-card .scRow b { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 15px; font-weight: 700; color: #edf2f8; }
+#root #sessions-card .scRow em { font-style: normal; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(52, 211, 153, .16) !important; color: #34d399; }
+#root #sessions-card .scRow small, #root #sessions-card .scFoot small { color: #9aa9ba; font-size: 12.5px; }
+#root #sessions-card .scRow button, #root #sessions-card .scDanger { min-height: 38px; padding: 0 16px; border-radius: 12px; border: 0 !important; background: rgba(248, 113, 113, .14) !important; color: #f87171 !important; font-weight: 700; font-size: 13.5px; cursor: pointer; }
+#root #sessions-card .scRow button:disabled, #root #sessions-card .scDanger:disabled { opacity: .5; cursor: default; }
+#root #sessions-card .scFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 520px) { #sessions-card .scRow { flex-wrap: wrap; padding: 12px; } #sessions-card .scRow button { width: 100%; } }

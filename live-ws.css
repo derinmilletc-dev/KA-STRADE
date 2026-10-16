@@ -1,0 +1,445 @@
+/* Canlı İşlem – yeni düzen. Çizgi yok: ayrım yalnız arka plan tonu ve boşlukla yapılır. */
+#master-trade-live-terminal.liveWs {
+  --ws-bg: #0f161f;
+  --ws-card: #141d28;
+  --ws-raised: #1b2736;
+  --ws-ink: #edf2f8;
+  --ws-muted: #9aa9ba;
+  --ws-green: #34d399;
+  --ws-amber: #f5b942;
+  --ws-red: #f87171;
+  --ws-blue: #5aa9ff;
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  color: var(--ws-ink);
+}
+#master-trade-live-terminal.liveWs, #master-trade-live-terminal.liveWs * { box-sizing: border-box; }
+#master-trade-live-terminal.liveWs[hidden] { display: none; }
+#master-trade-live-terminal.liveWs :where(section, article, header, div, span, label, input, select, button, details, ol, li, table, td, th, p) { border: 0; outline-offset: 2px; }
+#master-trade-live-terminal.liveWs :where(section, article, header, div, span, label, button, ol, li, p, h2, h3, b, small)::before,
+#master-trade-live-terminal.liveWs :where(section, article, header, div, span, label, button, ol, li, p, h2, h3, b, small)::after { border: 0; }
+#master-trade-live-terminal.liveWs :where(h2, h3, p, ol, ul) { margin: 0; }
+#master-trade-live-terminal.liveWs small { color: var(--ws-muted); font-size: 12px; line-height: 1.35; }
+#master-trade-live-terminal.liveWs button { font: inherit; cursor: pointer; color: inherit; }
+#master-trade-live-terminal.liveWs button:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Üst kutu */
+#master-trade-live-terminal .liveWsHero { display: grid; gap: 16px; padding: 20px; border-radius: 22px; background: linear-gradient(160deg, #18283a, #101923); box-shadow: 0 18px 40px rgba(0, 0, 0, .28); }
+#master-trade-live-terminal .liveWsHero.go { background: linear-gradient(160deg, #173a3a, #101923); }
+#master-trade-live-terminal .liveWsHero.stop { background: linear-gradient(160deg, #3b1d22, #101923); }
+#master-trade-live-terminal .liveWsHero.ok { background: linear-gradient(160deg, #15402f, #101923); }
+#master-trade-live-terminal .liveWsHeroTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#master-trade-live-terminal .liveWsHeroTop h2 { font-size: 24px; letter-spacing: -.01em; }
+#master-trade-live-terminal .liveWsPill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .08); font-weight: 700; font-size: 13px; }
+#master-trade-live-terminal .liveWsPill i { width: 9px; height: 9px; border-radius: 50%; background: var(--ws-amber); }
+#master-trade-live-terminal .liveWsPill.on i { background: var(--ws-green); box-shadow: 0 0 0 4px rgba(52, 211, 153, .2); }
+#master-trade-live-terminal .liveWsPill.stop i { background: var(--ws-red); }
+#master-trade-live-terminal .liveWsNext { display: grid; gap: 8px; padding: 18px; border-radius: 18px; background: rgba(0, 0, 0, .26); scroll-margin-top: 90px; }
+#master-trade-live-terminal .liveWsNext:focus { outline: none; }
+#master-trade-live-terminal .liveWsNext > small { letter-spacing: .08em; font-weight: 700; color: var(--ws-green); }
+#master-trade-live-terminal .liveWsNext > strong { font-size: 22px; line-height: 1.2; }
+#master-trade-live-terminal .liveWsNext > p { color: #cdd8e6; font-size: 15px; line-height: 1.5; }
+
+/* Adım şeridi */
+#master-trade-live-terminal .liveWsStepper { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+#master-trade-live-terminal .liveWsStepper li button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: rgba(255, 255, 255, .05); text-align: left; }
+#master-trade-live-terminal .liveWsStepper li.current button { background: rgba(52, 211, 153, .16); }
+#master-trade-live-terminal .liveWsStepper li.done button { background: rgba(52, 211, 153, .08); }
+#master-trade-live-terminal .liveWsStepper li b { display: block; font-size: 13px; }
+#master-trade-live-terminal .liveWsStepper li small { display: block; font-size: 11px; }
+#master-trade-live-terminal .liveWsNum { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .1); font-weight: 800; font-size: 13px; }
+#master-trade-live-terminal .liveWsNum svg { width: 16px; height: 16px; }
+#master-trade-live-terminal .liveWsStepper li.done .liveWsNum { background: var(--ws-green); color: #06281d; }
+#master-trade-live-terminal .liveWsStepper li.current .liveWsNum { background: var(--ws-blue); color: #04192e; }
+
+/* Kartlar */
+#master-trade-live-terminal .liveWsCard { border-radius: 20px; background: var(--ws-card); overflow: hidden; }
+#master-trade-live-terminal .liveWsCard.locked { opacity: .6; }
+#master-trade-live-terminal .liveWsCardHead { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: transparent; text-align: left; }
+#master-trade-live-terminal .liveWsCardHead.static { cursor: default; }
+#master-trade-live-terminal .liveWsCardHead > span:nth-child(2) { flex: 1; display: grid; gap: 2px; }
+#master-trade-live-terminal .liveWsCardHead b { font-size: 16px; }
+#master-trade-live-terminal .liveWsChev { width: 18px; height: 18px; color: var(--ws-muted); transition: transform .2s; }
+#master-trade-live-terminal .liveWsCard.open .liveWsChev { transform: rotate(180deg); }
+#master-trade-live-terminal .liveWsBadge { flex: none; width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsBadge svg { width: 18px; height: 18px; }
+#master-trade-live-terminal .liveWsBadge.done { background: rgba(52, 211, 153, .18); color: var(--ws-green); }
+#master-trade-live-terminal .liveWsBadge.current { background: rgba(90, 169, 255, .2); color: var(--ws-blue); }
+#master-trade-live-terminal .liveWsBody { display: grid; gap: 14px; padding: 4px 18px 18px; }
+
+#master-trade-live-terminal .liveWsConnectHead { display: flex; align-items: center; gap: 12px; }
+#master-trade-live-terminal .liveWsConnectHead > div { display: grid; gap: 2px; }
+#master-trade-live-terminal .liveWsDot { width: 12px; height: 12px; border-radius: 50%; background: var(--ws-red); }
+#master-trade-live-terminal .liveWsDot.on { background: var(--ws-green); box-shadow: 0 0 0 5px rgba(52, 211, 153, .18); }
+#master-trade-live-terminal .liveWsConnect { display: grid; gap: 14px; }
+#master-trade-live-terminal .liveWsFields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#master-trade-live-terminal .liveWsFields label, #master-trade-live-terminal .liveWsGrid label { display: grid; gap: 6px; font-size: 13px; color: var(--ws-muted); font-weight: 600; }
+#master-trade-live-terminal.liveWs input:not([type='checkbox']), #master-trade-live-terminal.liveWs select { width: 100%; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--ws-raised); color: var(--ws-ink); font: inherit; font-size: 15px; }
+#master-trade-live-terminal.liveWs input:focus-visible, #master-trade-live-terminal.liveWs select:focus-visible { outline: 2px solid var(--ws-blue); }
+#master-trade-live-terminal.liveWs .masterTradeLiveSecretField { display: flex; gap: 8px; align-items: center; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSecretField button { flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--ws-raised); display: grid; place-items: center; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSecretField svg { width: 18px; height: 18px; }
+#master-trade-live-terminal .liveWsCheck { display: flex !important; align-items: center; gap: 10px; font-size: 14px; color: var(--ws-ink); font-weight: 500; }
+#master-trade-live-terminal .liveWsCheck input { width: 20px !important; height: 20px !important; flex: none; accent-color: var(--ws-green); }
+#master-trade-live-terminal .liveWsRow { display: flex; flex-wrap: wrap; gap: 10px; }
+#master-trade-live-terminal .liveWsHint { font-size: 13px; color: var(--ws-muted); line-height: 1.45; }
+#master-trade-live-terminal .liveWsWarn { padding: 10px 12px; border-radius: 12px; background: rgba(248, 113, 113, .14); color: #fecaca; font-size: 14px; }
+
+/* Düğmeler */
+#master-trade-live-terminal .liveWsPrimary, #master-trade-live-terminal .liveWsGhost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 14px; font-weight: 700; font-size: 14px; }
+#master-trade-live-terminal .liveWsPrimary { background: var(--ws-green); color: #04241a !important; }
+#master-trade-live-terminal .liveWsPrimary.big { min-height: 52px; font-size: 16px; width: 100%; }
+#master-trade-live-terminal .liveWsPrimary.danger { background: var(--ws-red); color: #3a0909 !important; }
+#master-trade-live-terminal .liveWsGhost { background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsGhost.danger { background: rgba(248, 113, 113, .16); color: #fecaca; }
+#master-trade-live-terminal .liveWsPrimary svg, #master-trade-live-terminal .liveWsGhost svg { width: 18px; height: 18px; }
+#master-trade-live-terminal .liveWsLink { background: transparent; color: var(--ws-blue) !important; font-weight: 700; padding: 6px 0; text-align: left; justify-self: start; }
+
+/* İzinler */
+#master-trade-live-terminal .liveWsChecks { display: grid; gap: 12px; }
+#master-trade-live-terminal .liveWsChecks article { display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsChecks article.done { background: rgba(52, 211, 153, .1); }
+#master-trade-live-terminal .liveWsChecks article.wait { opacity: .6; }
+#master-trade-live-terminal .liveWsCheckText { display: grid; gap: 3px; }
+#master-trade-live-terminal .liveWsGates { display: flex; flex-wrap: wrap; gap: 8px; }
+#master-trade-live-terminal .liveWsGates span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; font-size: 12px; background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsGates span svg { width: 14px; height: 14px; }
+#master-trade-live-terminal .liveWsGates .ok { color: var(--ws-green); }
+#master-trade-live-terminal .liveWsGates .bad { color: var(--ws-amber); }
+
+/* Strateji */
+#master-trade-live-terminal .liveWsStrategy { display: grid; gap: 14px; padding: 16px; border-radius: 18px; background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsStrategyHead { display: flex; align-items: center; gap: 12px; }
+#master-trade-live-terminal .liveWsStrategyHead > div:nth-child(2) { flex: 1; display: grid; gap: 2px; }
+#master-trade-live-terminal .liveWsStrategyIcon { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: rgba(52, 211, 153, .18); color: var(--ws-green); }
+#master-trade-live-terminal .liveWsTag { padding: 5px 10px; border-radius: 999px; background: rgba(52, 211, 153, .18); color: var(--ws-green); font-size: 11px; font-weight: 800; }
+#master-trade-live-terminal .liveWsInfo { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(90, 169, 255, .2); color: var(--ws-blue) !important; }
+#master-trade-live-terminal .liveWsInfo svg { width: 18px; height: 18px; }
+#master-trade-live-terminal .liveWsInfoBox { display: grid; gap: 8px; padding: 14px 16px; border-radius: 14px; background: rgba(90, 169, 255, .12); font-size: 14px; line-height: 1.5; }
+#master-trade-live-terminal .liveWsInfoBox ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+#master-trade-live-terminal .liveWsGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveUnitField { display: flex; align-items: center; gap: 8px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveUnitField span { color: var(--ws-muted); font-size: 12px; white-space: nowrap; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarkets { display: grid; gap: 8px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarkets > span { font-size: 12px; color: var(--ws-muted); font-weight: 700; letter-spacing: .06em; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll { display: flex; flex-wrap: wrap; gap: 8px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button, #master-trade-live-terminal.liveWs .masterTradeLiveSide button { min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--ws-card); font-weight: 700; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button.selected, #master-trade-live-terminal.liveWs .masterTradeLiveSide button.selected { background: var(--ws-green); color: #04241a; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSide { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSide span { font-size: 12px; color: var(--ws-muted); font-weight: 700; }
+
+#master-trade-live-terminal .liveWsLaunch { display: grid; gap: 12px; padding: 16px; border-radius: 18px; background: var(--ws-raised); }
+#master-trade-live-terminal .liveWsLaunchRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#master-trade-live-terminal .liveWsLaunchRow > span { display: grid; gap: 2px; }
+#master-trade-live-terminal .liveWsMeta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+#master-trade-live-terminal .liveWsMeta span { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--ws-card); }
+#master-trade-live-terminal .liveWsMeta b { font-size: 13px; overflow-wrap: anywhere; }
+
+/* Alt bölümler */
+#master-trade-live-terminal .liveWsSection { display: grid; gap: 12px; padding: 18px; border-radius: 20px; background: var(--ws-card); }
+#master-trade-live-terminal .liveWsSection h3 { font-size: 16px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics > span, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid > span { display: grid; gap: 3px; padding: 12px; border-radius: 14px; background: var(--ws-raised); min-width: 0; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics b, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid b { font-size: 16px; overflow-wrap: anywhere; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics em { font-style: normal; font-size: 11px; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics .positive { color: var(--ws-green); }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics .negative { color: var(--ws-red); }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+#master-trade-live-terminal .liveWsActivity ol { list-style: none; padding: 0; display: grid; gap: 8px; }
+#master-trade-live-terminal .liveWsActivity li { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ws-raised); font-size: 13px; }
+#master-trade-live-terminal .liveWsActivity li time { color: var(--ws-muted); }
+#master-trade-live-terminal .liveWsActivity li::before, #master-trade-live-terminal .liveWsActivity li i { display: none; }
+#master-trade-live-terminal .liveWsDanger { grid-template-columns: 1fr auto; align-items: center; background: #2a1a1f; }
+#master-trade-live-terminal .liveWsDanger > div:first-child { display: grid; gap: 2px; }
+
+/* Manuel emir kartı: eski sınıflar, çizgisiz */
+#master-trade-live-terminal.liveWs .liveUxGrid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+#master-trade-live-terminal.liveWs .liveUxCard { display: grid; gap: 14px; padding: 16px; border-radius: 16px; background: var(--ws-raised); box-shadow: none; }
+#master-trade-live-terminal.liveWs .liveUxCard > header { display: flex; align-items: center; gap: 10px; }
+#master-trade-live-terminal.liveWs .liveUxCard > header svg { width: 20px; height: 20px; color: var(--ws-green); flex: none; }
+#master-trade-live-terminal.liveWs .liveUxCard > header > div { flex: 1; display: grid; gap: 2px; }
+#master-trade-live-terminal.liveWs .liveUxCard > header b { font-size: 11px; padding: 5px 9px; border-radius: 999px; background: rgba(245, 185, 66, .16); color: var(--ws-amber); }
+#master-trade-live-terminal.liveWs .liveUxCard h3 { font-size: 15px; }
+#master-trade-live-terminal.liveWs .liveUxForm { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+#master-trade-live-terminal.liveWs .liveUxForm label, #master-trade-live-terminal.liveWs .liveUxForm .liveChoice { display: grid; gap: 6px; font-size: 12px; color: var(--ws-muted); font-weight: 600; }
+#master-trade-live-terminal.liveWs .liveChoice { grid-auto-flow: column; align-items: end; }
+#master-trade-live-terminal.liveWs .liveChoice > span { grid-column: 1 / -1; }
+#master-trade-live-terminal.liveWs .liveChoice button { min-height: 44px; border-radius: 12px; background: var(--ws-card); font-weight: 700; }
+#master-trade-live-terminal.liveWs .liveChoice .selectedLong { background: var(--ws-green); color: #04241a; }
+#master-trade-live-terminal.liveWs .liveChoice .selectedShort { background: var(--ws-red); color: #3a0909; }
+#master-trade-live-terminal.liveWs .liveUxFormActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#master-trade-live-terminal.liveWs .liveUxFormActions button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 14px; background: var(--ws-card); font-weight: 700; }
+#master-trade-live-terminal.liveWs .liveUxFormActions button.primary { background: var(--ws-green); color: #04241a; }
+#master-trade-live-terminal.liveWs .liveUxFormActions svg { width: 18px; height: 18px; }
+#master-trade-live-terminal.liveWs .liveUxSummaryLead { display: flex; gap: 10px; align-items: baseline; font-size: 18px; }
+#master-trade-live-terminal.liveWs .liveUxMetrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+#master-trade-live-terminal.liveWs .liveUxMetrics span { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--ws-card); }
+
+@media (max-width: 767px) {
+  #master-trade-live-terminal.liveWs { gap: 12px; }
+  #master-trade-live-terminal .liveWsHero { padding: 16px; border-radius: 18px; }
+  #master-trade-live-terminal .liveWsStepper { grid-template-columns: repeat(2, 1fr); }
+  #master-trade-live-terminal .liveWsFields, #master-trade-live-terminal .liveWsGrid, #master-trade-live-terminal .liveWsMeta { grid-template-columns: 1fr 1fr; }
+  #master-trade-live-terminal .liveWsFields { grid-template-columns: 1fr; }
+  #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { grid-template-columns: repeat(2, 1fr); }
+  #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, 1fr); }
+  #master-trade-live-terminal.liveWs .liveUxGrid { grid-template-columns: 1fr; }
+  #master-trade-live-terminal.liveWs .liveUxForm { grid-template-columns: repeat(2, 1fr); }
+  #master-trade-live-terminal .liveWsActivity li { grid-template-columns: 1fr; gap: 2px; }
+  #master-trade-live-terminal .liveWsDanger { grid-template-columns: 1fr; }
+}
+
+/* Eski stillerle çakışmayı önleyen düzeltmeler */
+#master-trade-live-terminal.liveWs .liveWsGhost { background: var(--ws-raised) !important; color: var(--ws-ink) !important; }
+#master-trade-live-terminal.liveWs .liveWsGhost.danger { background: rgba(248, 113, 113, .16) !important; color: #fecaca !important; }
+#master-trade-live-terminal.liveWs .liveWsPrimary { background: var(--ws-green) !important; color: #04241a !important; }
+#master-trade-live-terminal.liveWs .liveWsPrimary.danger { background: var(--ws-red) !important; color: #3a0909 !important; }
+#master-trade-live-terminal.liveWs .liveWsPrimary:disabled { opacity: .45; }
+#master-trade-live-terminal.liveWs label { text-transform: none !important; letter-spacing: 0 !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button, #master-trade-live-terminal.liveWs .masterTradeLiveSide button { flex: 0 0 auto; width: auto !important; min-width: 64px; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { width: 100%; max-width: none; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountHud, #master-trade-live-terminal.liveWs .masterTradeLiveSignal, #master-trade-live-terminal.liveWs .masterTradeLiveActivity, #master-trade-live-terminal.liveWs .masterTradeLiveSafety { width: 100%; max-width: none; }
+@media (max-width: 767px) {
+  #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+#master-trade-live-terminal.liveWs .liveWsGhost { background: #2a3b50 !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll { display: flex !important; flex-wrap: wrap; grid-template-columns: none !important; overflow: visible; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button { background: #101a25; }
+#master-trade-live-terminal.liveWs .masterTradeLiveMarketsScroll button.selected { background: var(--ws-green); }
+
+/* Site genelindeki header/section kurallarının (sabit yükseklik vb.) bu ekranı bozmasını önler */
+#master-trade-live-terminal.liveWs .liveWsHero, #master-trade-live-terminal.liveWs .liveWsCard, #master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsBody, #master-trade-live-terminal.liveWs .liveWsNext, #master-trade-live-terminal.liveWs .liveWsStepper { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; position: static !important; }
+#master-trade-live-terminal.liveWs, #master-trade-live-terminal.liveWs .liveWsCard, #master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsHero { border: 0 !important; outline: 0 !important; backdrop-filter: none !important; }
+
+/* Site genelindeki ince çizgi, parıltı ve cam efektlerini bu ekranda kapat */
+#master-trade-live-terminal.liveWs * { border: 0 !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; backdrop-filter: none !important; }
+#master-trade-live-terminal.liveWs *::before, #master-trade-live-terminal.liveWs *::after { border: 0 !important; box-shadow: none !important; background-image: none !important; }
+#master-trade-live-terminal.liveWs .liveWsSection, #master-trade-live-terminal.liveWs .liveWsCard { background: var(--ws-card) !important; }
+#master-trade-live-terminal.liveWs .liveWsDanger { background: #2a1a1f !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics > span, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid > span, #master-trade-live-terminal.liveWs .liveWsActivity li, #master-trade-live-terminal.liveWs .liveWsChecks article, #master-trade-live-terminal.liveWs .liveWsStrategy, #master-trade-live-terminal.liveWs .liveWsLaunch, #master-trade-live-terminal.liveWs .liveUxCard { background: var(--ws-raised) !important; }
+#master-trade-live-terminal.liveWs .liveWsMeta span, #master-trade-live-terminal.liveWs .liveUxMetrics span { background: var(--ws-card) !important; }
+#master-trade-live-terminal.liveWs .liveWsChecks article.done { background: #17382f !important; }
+#master-trade-live-terminal.liveWs .liveWsHero { background: linear-gradient(160deg, #18283a, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.go { background: linear-gradient(160deg, #173a3a, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.stop { background: linear-gradient(160deg, #3b1d22, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsHero.ok { background: linear-gradient(160deg, #15402f, #101923) !important; }
+#master-trade-live-terminal.liveWs .liveWsNext { background: rgba(0, 0, 0, .26) !important; }
+
+/* Hesap özeti ve Son olaylar: taşma yok, modern kartlar */
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; gap: 12px !important; width: 100% !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics > span { display: grid !important; align-content: start; gap: 4px !important; padding: 14px 16px !important; border-radius: 16px !important; min-width: 0 !important; overflow: hidden !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics small { font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; color: var(--ws-muted) !important; white-space: normal !important; overflow-wrap: anywhere; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics b { font-size: clamp(15px, 1.6vw, 20px) !important; font-weight: 700 !important; line-height: 1.2; white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; }
+#master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics em { font-size: 11px !important; color: var(--ws-muted) !important; white-space: normal !important; overflow-wrap: anywhere; }
+#master-trade-live-terminal.liveWs .liveWsActivity ol { max-height: none !important; overflow: visible !important; display: grid; gap: 8px; padding: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li { display: grid !important; grid-template-columns: 96px minmax(0, 1fr) !important; gap: 12px !important; align-items: start; padding: 12px 14px !important; border-radius: 14px !important; font-size: 14px !important; line-height: 1.45; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsActivity li time { color: var(--ws-muted) !important; font-size: 12px !important; font-variant-numeric: tabular-nums; white-space: normal; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; font-weight: 500 !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid > span { min-width: 0 !important; overflow: hidden !important; }
+#master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid b { overflow-wrap: anywhere; font-weight: 700 !important; }
+@media (max-width: 767px) {
+  #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics, #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #master-trade-live-terminal.liveWs .liveWsActivity li { grid-template-columns: minmax(0, 1fr) !important; gap: 4px !important; }
+}
+
+/* Son olaylar: saat üstte küçük, mesaj altta tam genişlikte (taşma yok) */
+#master-trade-live-terminal.liveWs .liveWsActivity li { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; padding: 12px 14px 12px 18px !important; position: relative; }
+#master-trade-live-terminal.liveWs .liveWsActivity li::before { content: '' !important; display: block !important; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; border-radius: 4px; background: var(--ws-green) !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li.warn::before { background: var(--ws-amber) !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li time { font-size: 11px !important; letter-spacing: .04em; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { width: 100%; font-size: 14px !important; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
+
+/* Manuel emir */
+#master-trade-live-terminal.liveWs .liveWsOrder { display: grid !important; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) !important; gap: 14px !important; align-items: start; }
+#master-trade-live-terminal.liveWs .liveWsOrderForm, #master-trade-live-terminal.liveWs .liveWsOrderSummary { display: grid; gap: 16px; padding: 18px; border-radius: 18px; background: var(--ws-raised) !important; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsOrderSummary { position: sticky !important; top: 12px; background: #1d2b3d !important; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead { display: flex; align-items: center; gap: 12px; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead > svg { width: 22px; height: 22px; color: var(--ws-green); flex: none; }
+#master-trade-live-terminal.liveWs .liveWsOrderHead > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsTag.warn { background: rgba(245, 185, 66, .18) !important; color: var(--ws-amber) !important; }
+#master-trade-live-terminal.liveWs .liveWsBlock { display: grid; gap: 10px; min-width: 0; position: relative; }
+#master-trade-live-terminal.liveWs .liveWsLabel { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveWsTwo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#master-trade-live-terminal.liveWs .liveWsField { display: grid; gap: 6px; font-size: 13px; color: var(--ws-muted); font-weight: 600; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsOrderForm input:not([type='checkbox']) { background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsChips { display: flex; flex-wrap: wrap; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsChips button, #master-trade-live-terminal.liveWs .liveWsRecent button { min-height: 32px; padding: 0 12px; border-radius: 999px; background: #0f1823 !important; font-size: 13px; font-weight: 700; }
+#master-trade-live-terminal.liveWs .liveWsChips button:hover, #master-trade-live-terminal.liveWs .liveWsRecent button:hover { background: #2a3b50 !important; }
+#master-trade-live-terminal.liveWs .liveWsDir { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+#master-trade-live-terminal.liveWs .liveWsDir button { min-height: 52px !important; border-radius: 14px !important; font-size: 16px !important; font-weight: 800 !important; background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsDir .selectedLong { background: var(--ws-green) !important; color: #04241a !important; }
+#master-trade-live-terminal.liveWs .liveWsDir .selectedShort { background: var(--ws-red) !important; color: #3a0909 !important; }
+#master-trade-live-terminal.liveWs .liveWsSeg { display: inline-grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 14px; background: #0f1823; justify-self: start; min-width: 220px; }
+#master-trade-live-terminal.liveWs .liveWsSeg button { min-height: 40px; border-radius: 10px; font-weight: 700; background: transparent !important; }
+#master-trade-live-terminal.liveWs .liveWsSeg button.on { background: #2a3b50 !important; }
+/* coin seçici */
+#master-trade-live-terminal.liveWs .liveWsCoinBtn { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; width: 100%; padding: 12px 16px; border-radius: 14px; background: #0f1823 !important; text-align: left; }
+#master-trade-live-terminal.liveWs .liveWsCoinBtn b { font-size: 18px; }
+#master-trade-live-terminal.liveWs .liveWsCoinBtn svg { grid-row: 1 / 3; grid-column: 2; width: 18px; height: 18px; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveWsCoinPop { display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: #0f1823 !important; }
+#master-trade-live-terminal.liveWs .liveWsSearch { display: flex !important; align-items: center; gap: 8px; padding: 0 12px; border-radius: 12px; background: #1b2736 !important; }
+#master-trade-live-terminal.liveWs .liveWsSearch svg { width: 18px; height: 18px; color: var(--ws-muted); flex: none; }
+#master-trade-live-terminal.liveWs .liveWsSearch input { background: transparent !important; padding: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsRecent { display: grid; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsRecent > div { display: flex; flex-wrap: wrap; gap: 6px; }
+#master-trade-live-terminal.liveWs .liveWsCoinList { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto !important; display: grid; gap: 2px; overscroll-behavior: contain; }
+#master-trade-live-terminal.liveWs .liveWsCoinList button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto 76px; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: transparent !important; text-align: left; }
+#master-trade-live-terminal.liveWs .liveWsCoinList button:hover, #master-trade-live-terminal.liveWs .liveWsCoinList button[aria-selected='true'] { background: #1b2736 !important; }
+#master-trade-live-terminal.liveWs .liveWsCoinList span { font-variant-numeric: tabular-nums; color: var(--ws-muted); font-size: 13px; }
+#master-trade-live-terminal.liveWs .liveWsCoinList em { font-style: normal; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#master-trade-live-terminal.liveWs .up { color: var(--ws-green) !important; }
+#master-trade-live-terminal.liveWs .down { color: var(--ws-red) !important; }
+/* özet */
+#master-trade-live-terminal.liveWs .liveUxSummaryLead { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--ws-muted); }
+#master-trade-live-terminal.liveWs .liveUxSummaryLead strong { font-size: 24px; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid span { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; background: #141d28 !important; min-width: 0; }
+#master-trade-live-terminal.liveWs .liveWsSumGrid b { overflow-wrap: anywhere; font-size: 14px; }
+#master-trade-live-terminal.liveWs .liveWsSendRow { display: grid; gap: 10px; }
+#master-trade-live-terminal.liveWs .liveWsOk { padding: 10px 12px; border-radius: 12px; background: rgba(52, 211, 153, .14); color: #a7f3d0; font-size: 14px; }
+@media (max-width: 900px) {
+  #master-trade-live-terminal.liveWs .liveWsOrder { grid-template-columns: minmax(0, 1fr) !important; }
+  #master-trade-live-terminal.liveWs .liveWsOrderSummary { position: static !important; }
+}
+@media (max-width: 480px) {
+  #master-trade-live-terminal.liveWs .liveWsTwo { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ===== Canlı İşlem / Pozisyonlar / Bağlantı: sayfa çerçevesindeki gereksiz çizgiler ve kutular kaldırıldı ===== */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) {
+  --wsFrameText: #e8eef6;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeTerminalHeader, .masterTradeSticky, .masterTradeFocusPanel, .masterTradeFocusPanel > div, .masterTradeFocusConnection, .masterTradeConnectionBadge, .masterTradeTerminalMode, .masterTradeTerminalIdentity, .masterTradeTabs, .masterTradeTabs button, .masterTradeOperationsPanel, .terminalStatusStrip, .terminalStatusItem),
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeTerminalHeader, .masterTradeSticky, .masterTradeFocusPanel, .masterTradeTabs, .masterTradeOperationsPanel)::before,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeTerminalHeader, .masterTradeSticky, .masterTradeFocusPanel, .masterTradeTabs, .masterTradeOperationsPanel)::after,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button::before,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button::after {
+  border: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  outline-color: transparent;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeTerminalHeader, .masterTradeSticky, .masterTradeFocusPanel, .masterTradeTabs, .masterTradeOperationsPanel)::before,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeTerminalHeader, .masterTradeSticky, .masterTradeFocusPanel, .masterTradeTabs, .masterTradeOperationsPanel)::after,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button::before,
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button::after {
+  content: none !important;
+  display: none !important;
+}
+/* Dış çerçeveler: düz, koyu zemin; kutu içinde kutu yok */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) :is(.masterTradeShell, .masterTradeOperationsPanel, .masterTradeTerminalHeader, .masterTradeSticky) {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeFocusPanel {
+  background: #121a24 !important;
+  border-radius: 14px !important;
+  position: static !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 14px 18px !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeFocusPanel > div {
+  background: transparent !important;
+  padding: 0 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeConnectionBadge {
+  background: rgba(52, 211, 153, .12) !important;
+  border-radius: 999px !important;
+  padding: 6px 12px !important;
+}
+/* Sekmeler: yeşil şerit ve alt çizgi yok; seçili sekme yumuşak dolgulu */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs {
+  background: transparent !important;
+  gap: 6px !important;
+  padding: 8px 0 !important;
+  margin: 0 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button {
+  background: transparent !important;
+  border-radius: 999px !important;
+  padding: 9px 16px !important;
+  color: #9fb0c3 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs button[aria-selected="true"] {
+  background: rgba(52, 211, 153, .16) !important;
+  color: #e8fff5 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeSticky {
+  position: static !important;
+}
+/* Canlı İşlem içeriği boş yan alan bırakmasın, ortada tek sütun */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeOperationsPanel {
+  display: block !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs { margin-bottom: 14px !important; }
+@media (max-width: 700px) {
+  #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeFocusPanel {
+    display: flex !important; flex-wrap: wrap !important; gap: 10px 18px !important; overflow: visible !important;
+  }
+  #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeFocusConnection { flex: 1 1 100%; }
+  #root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeConnectionBadge { white-space: nowrap; }
+}
+
+/* Son olaylar: eski site kurallarının sabit yükseklik/satır düzeni geçersiz */
+#master-trade-live-terminal.liveWs .liveWsActivity ol { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; margin: 0 !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li { height: auto !important; min-height: 0 !important; margin: 0 !important; transform: none !important; left: auto !important; }
+#master-trade-live-terminal.liveWs .liveWsActivity li span { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; color: var(--ws-text, #e8eef6) !important; display: block !important; }
+
+/* Sekme menüsü: sayfa kayarken üstte sabit; aşağı inerken saklanır, yukarı çıkarken açılır */
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeSticky { display: contents !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs {
+  position: sticky !important; top: 0 !important; z-index: 300 !important;
+  background: #0b1118 !important; padding: 8px 4px 16px !important; margin: 0 !important;
+  transition: transform .25s ease !important; will-change: transform;
+}
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs.navHidden { transform: translateY(-120%) !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTerminalHeader { position: relative !important; z-index: 0 !important; }
+#root > main.v26App.masterTradeRoute .masterTradePage:not([data-layout-tab="analiz"]) .masterTradeTabs { z-index: 1000 !important; }
+
+/* Sayfanın en dış çerçevesi: Canlı İşlem / Pozisyonlar / Bağlantı sekmelerinde çizgi, gölge ve parlama yok */
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]),
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell > :is(.masterTradeTerminalHeader, .masterTradeSticky, .masterTradeOperationsPanel, .masterTradeDataGrid),
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost,
+html body #root > main.v26App.masterTradeRoute:has(.masterTradePage:not([data-layout-tab="analiz"])) {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"])::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"])::after,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) > .masterTradeShell::after,
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost::before,
+html body #root > main.v26App.masterTradeRoute section.masterTradePresentationHost::after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+/* Üst başlık ile bilgi şeridi ve sekmeler: yüksek öncelikli sade görünüm */
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeFocusPanel {
+  background: #121a24 !important; border: 0 !important; box-shadow: none !important; background-image: none !important; backdrop-filter: none !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs {
+  border: 0 !important; box-shadow: none !important; background-image: none !important; background-color: #0b1118 !important;
+}
+html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs button {
+  border: 0 !important; box-shadow: none !important; background-image: none !important;
+}

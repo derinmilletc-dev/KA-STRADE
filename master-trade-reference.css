@@ -42,7 +42,9 @@
 .masterReferenceAnalysis :is(.positive, [data-tone="positive"]) { color: var(--ref-green); }
 .masterReferenceAnalysis :is(.negative, [data-tone="negative"]) { color: var(--ref-red); }
 .masterReferenceAnalysis [data-tone="neutral"] { color: var(--ref-yellow); }
-.masterReferenceAnalysis .refHeader { height: 72px; display: flex; align-items: center; gap: 22px; border-bottom: 1px solid var(--ref-line); margin-bottom: 16px; }
+.masterReferenceAnalysis .refHeader { height: 72px; display: flex; align-items: center; gap: 22px; margin-bottom: 16px; }
+/* Menü şeridinin altında sayfa boyunca uzanan ince çizgi kaldırıldı; seçili sekmenin yeşil alt çizgisi kalır. */
+.masterReferenceAnalysis .refHeader.masterTradeTerminalHeader { border: 0 !important; box-shadow: none !important; }
 .masterReferenceAnalysis .refBrand { display: flex; align-items: center; gap: 9px; font-size: 27px; font-weight: 700; text-decoration: none; color: #e7f2ef; white-space: nowrap; }
 .masterReferenceAnalysis .refBrand b { color: #38d3b6; font-weight: 700; }
 .masterReferenceAnalysis .refBrand > svg { width: 39px; height: 39px; padding: 6px; border: 2px solid #39d3b5; border-radius: 50%; color: #39d3b5; }
@@ -55,6 +57,7 @@
 .masterReferenceAnalysis .refConnection[data-connected="true"] i { background: var(--ref-green); }
 .masterReferenceAnalysis .refConnection svg { width: 12px; height: 12px; }
 .masterReferenceAnalysis .refUser { width: 22px; height: 22px; }
+.masterReferenceAnalysis .masterTradeProfileSlot { display: flex; align-items: center; justify-content: center; flex: 0 0 45px; min-width: 45px; min-height: 45px; }
 .masterReferenceAnalysis .assistantMasterSlot { width: 68px; min-width: 68px; }
 .masterReferenceAnalysis .refWorkspace { display: grid; grid-template-columns: minmax(205px, 16%) minmax(0, 1fr) minmax(286px, 22%); grid-template-rows: 94px auto; gap: 14px; }
 .masterReferenceAnalysis .refCard { border: 1px solid var(--ref-line) !important; border-radius: 8px !important; background: rgba(255,255,255,.03) !important; box-shadow: none !important; }
@@ -253,7 +256,6 @@
   .masterReferenceAnalysis .refRight { grid-column: 2; grid-row: 3; max-height: none; }
   .masterReferenceAnalysis .refToolbar { flex-wrap: wrap; gap: 8px; }
   .masterReferenceAnalysis .refOrderTools { width: 100%; justify-content: flex-end; }
-  .masterReferenceAnalysis .refDrawingTools { display: none; }
   .masterReferenceAnalysis .refIndicatorGrid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
 @media (max-width: 767px) {
@@ -273,7 +275,6 @@
   .masterReferenceAnalysis .refCenter { order: 2; }
   .masterReferenceAnalysis .refRight { order: 3; max-height: none; overflow: visible; }
   .masterReferenceAnalysis .refToolbar { flex-wrap: wrap; gap: 9px; }
-  .masterReferenceAnalysis .refDrawingTools { display: none; }
   .masterReferenceAnalysis .refOrderTools { width: 100%; justify-content: flex-end; }
   .masterReferenceAnalysis .refChartCanvas { height: 384px; }
   .masterReferenceAnalysis .refOhlc { font-size: 11px; gap: 6px; }
@@ -332,4 +333,106 @@
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refHeader nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; width:100%; overflow:visible; }
   #root > main.v26App.masterTradeRoute .masterTradeTabs { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; height:auto!important; }
   #root > main.v26App.masterTradeRoute .masterTradeTabs > button { width:auto!important; min-width:0!important; min-height:44px; padding:8px; font-size:12px; }
+}
+
+/* Master Trade: kartların arkasındaki taşıyıcı alanlarda ince çizgi olmasın.
+   Kartların (.refCard) ve grafik kutusunun kendi çerçeveleri korunur. */
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis),
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refHeader, .refWorkspace, .refMetrics, .refCenter, .refRight, .refIndicatorGrid, .refMtfStrip) {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background-image: none !important;
+}
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis)::before,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis)::after,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refWorkspace, .refMetrics, .refCenter)::before,
+#root > main.v26App.masterTradeRoute:has(.masterReferenceAnalysis) :is(.masterTradePresentationHost, .masterReferenceAnalysis, .refWorkspace, .refMetrics, .refCenter)::after {
+  display: none !important;
+}
+
+/* Grafik araçları: artı imleci, ayarlar menüsü, görüntü indirme */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button,
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings > summary { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9fb4b6; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button:hover:not(:disabled),
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings > summary:hover { background: rgba(255,255,255,.06); color: #e7f2ef; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button[aria-pressed="true"] { background: rgba(0,228,164,.12); color: var(--ref-green); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button:disabled { opacity: .5; cursor: progress; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools :is(button, summary):focus-visible { outline: 2px solid var(--ref-green); outline-offset: 2px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings { position: relative; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings > summary { list-style: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings > summary::-webkit-details-marker { display: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings[open] > summary { background: rgba(0,228,164,.12); color: var(--ref-green); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings > div { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 210px; display: grid; gap: 2px; padding: 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: #121a1d; box-shadow: 0 10px 30px #0008; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings label { display: flex; align-items: center; gap: 9px; min-height: 34px !important; height: 34px; margin: 0; line-height: 1.3; padding: 0 8px; border-radius: 6px; font-size: 13px; color: #dce9e7; cursor: pointer; white-space: nowrap; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings label:hover { background: rgba(255,255,255,.05); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartSettings input { width: 15px; height: 15px; margin: 0; accent-color: var(--ref-green); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull line { stroke: #b9cfd1; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull .refCrosshairTag { fill: #00a87a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCrosshairFull text { fill: #04140f; font-size: 11px; font-weight: 600; }
+
+/* Canlı mum rozeti ve çizim araçları */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refOhlc .refLiveBadge { display: inline-flex; align-items: center; gap: 5px; color: var(--ref-green); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refLiveBadge i { width: 6px; height: 6px; border-radius: 50%; background: var(--ref-green); animation: refLivePulse 1.6s ease-in-out infinite; }
+@keyframes refLivePulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refLiveBadge i { animation: none; } }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { width: 1px; height: 16px; background: #2a3639; margin: 0 2px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button:is([aria-label="Çizim sil"], [aria-label="Tüm çizimleri sil"]):disabled { cursor: not-allowed; opacity: .35; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="hline"],
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="trend"] { cursor: crosshair; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing line { stroke: #f0b90b; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--hline line { stroke: #4da3ff; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text { fill: #4da3ff; font-size: 11px; font-weight: 600; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--draft line { stroke-dasharray: 5 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing circle { fill: #f0b90b; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing .refDrawingHit { stroke: transparent; stroke-width: 14; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawings[data-erasing="true"] .refDrawingHit { cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing:hover line:not(.refDrawingHit) { stroke-width: 2.5; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawings[data-erasing="true"] .refDrawing:hover line:not(.refDrawingHit) { stroke: #ff5c5c; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChart { position: relative; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint { position: absolute; left: 12px; bottom: 34px; z-index: 2; pointer-events: none; box-shadow: 0 4px 14px #0007; margin: 0; padding: 6px 10px; font-size: 12px; color: #c9d6d4; background: #142024; border-radius: 6px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint span { color: #7e9699; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refMetrics .refCard:has(:is(.refUpdatedAgo, .refCandleTimer)) { position: relative; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refUpdatedAgo { position: absolute; top: 10px; right: 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; color: #7e9699; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refUpdatedAgo i { width: 5px; height: 5px; border-radius: 50%; background: var(--ref-green); }
+
+/* Grafik yakınlaştırma ve kaydırma */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="none"] { cursor: grab; touch-action: pan-y; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-dragging="true"] { cursor: grabbing; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { position: absolute; left: 10px; top: 8px; z-index: 2; display: flex; gap: 4px; opacity: .55; transition: opacity .15s; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartCanvas:hover .refZoomTools,
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools:focus-within { opacity: 1; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button { display: inline-flex; align-items: center; gap: 5px; height: 26px; min-width: 26px; padding: 0 6px; border: 1px solid #2a3639; border-radius: 6px; background: #121a1dee; color: #b6c6c4; font-size: 11px; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:hover:not(:disabled) { color: var(--ref-green); border-color: var(--ref-green); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:disabled { opacity: .4; cursor: not-allowed; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button:focus-visible { outline: 2px solid var(--ref-green); outline-offset: 2px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { transition: none; } }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChartCanvas { user-select: none; -webkit-user-select: none; }
+
+/* Fiyat alarmı */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="alarm"] { cursor: crosshair; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--alarm line:not(.refDrawingHit) { stroke: #ff9f43; stroke-dasharray: 8 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--alarm text { fill: #ff9f43; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fired line:not(.refDrawingHit) { stroke: #7e9699; stroke-dasharray: 2 5; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fired text { fill: #7e9699; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 12px; border: 1px solid #ff9f43; border-radius: 8px; background: #2a1d0d; color: #ffd9a8; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px #000a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast svg { width: 16px; height: 16px; flex-shrink: 0; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast button { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refAlarmToast button:focus-visible { outline: 2px solid #ff9f43; outline-offset: 2px; }
+
+/* Mum kapanış sayacı */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer { position: absolute; top: 10px; right: 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; color: #b6c6c4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer i { width: 5px; height: 5px; border-radius: 50%; background: #7e9699; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer[data-urgent="true"] { color: #ff9f43; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refCandleTimer[data-urgent="true"] i { background: #ff9f43; }
+
+/* Dokunmatik ekran: çizim ve yakınlaştırma butonları parmakla rahat basılacak büyüklükte */
+@media (pointer: coarse) {
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools { flex-wrap: wrap; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools button,
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools summary { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { opacity: 1; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button { min-width: 40px; height: 40px; }
+  #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { display: none; }
 }

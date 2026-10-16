@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 import os
 import re
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import parseaddr
 from html import escape
 from urllib.parse import urlsplit
 
 import httpx
+import httplib2
 from google.auth.exceptions import GoogleAuthError
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -258,3 +261,86 @@ def send_auth_email(*, to_email: str, display_name: str, subject: str, title: st
         code = "timeout" if isinstance(exc, (httpx.TimeoutException, TimeoutError)) else details["code"]
         logger.warning("Email delivery failed provider=%s code=%s recipient=%s", selected, code, masked_recipient(to_email))
         raise EmailDeliveryError("E-posta gönderilemedi; lütfen tekrar dene.", provider=selected, code=code) from None
+
+
+def send_email_message(*, to_email: str, subject: str, text: str, html: str,
+                       idempotency_key: str | None = None) -> None:
+    selected = provider()
+    try:
+        validate_configuration()
+        reply_to = os.getenv("EMAIL_REPLY_TO", "").strip()
+        if selected == "resend":
+            payload = {"from": f"KaisTrade <{parseaddr(os.environ['EMAIL_FROM'])[1]}>", "to": [to_email],
+                       "subject": subject, "html": html, "text": text}
+            if reply_to:
+                payload["reply_to"] = reply_to
+            with httpx.Client(timeout=10.0, follow_redirects=False) as client:
+                headers = {
+                    "Authorization": "Bearer " + os.environ["RESEND_API_KEY"].strip(),
+                    "User-Agent": "KaisTrade-Transactional-Mail/1.0",
+                }
+                if idempotency_key:
+                    headers["Idempotency-Key"] = "chart-ai-" + hashlib.sha256(
+                        idempotency_key.encode("utf-8"),
+                    ).hexdigest()
+                response = client.post("https://api.resend.com/emails", json=payload, headers=headers)
+            if not 200 <= response.status_code < 300:
+                raise EmailDeliveryError("Resend gönderimi kabul etmedi.", provider=selected, code=str(response.status_code))
+            try:
+                result = response.json()
+            except ValueError:
+                raise EmailDeliveryError("Resend geçerli bir gönderim yanıtı vermedi.", provider=selected, code="invalid_response") from None
+            if not isinstance(result, dict) or not isinstance(result.get("id"), str) or not result["id"].strip():
+                raise EmailDeliveryError("Resend gönderim kimliği vermedi.", provider=selected, code="invalid_response")
+        else:
+            credentials = Credentials(
+                token=None, refresh_token=os.environ["GMAIL_REFRESH_TOKEN"].strip(),
+                token_uri=GMAIL_TOKEN_URI, client_id=os.environ["GMAIL_CLIENT_ID"].strip(),
+                client_secret=os.environ["GMAIL_CLIENT_SECRET"].strip(), scopes=[GMAIL_SEND_SCOPE],
+            )
+            message = EmailMessage()
+            message["Subject"] = subject
+            message["From"] = f"KaisTrade <{os.getenv('GMAIL_FROM_EMAIL', 'privacykais@gmail.com').strip()}>"
+            message["To"] = to_email
+            if reply_to:
+                message["Reply-To"] = reply_to
+            message.set_content(text)
+            message.add_alternative(html, subtype="html")
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+            result = build("gmail", "v1", credentials=credentials, cache_discovery=False).users().messages().send(
+                userId="me", body={"raw": raw},
+            ).execute(http=httplib2.Http(timeout=10))
+            if not isinstance(result, dict) or not result.get("id"):
+                raise EmailDeliveryError("Gmail gönderim kimliği vermedi.", provider=selected, code="invalid_response")
+    except EmailDeliveryError as exc:
+        logger.warning("Email delivery failed provider=%s code=%s recipient=%s", selected, exc.code, masked_recipient(to_email))
+        raise
+    except (httpx.HTTPError, HttpError, GoogleAuthError, httplib2.HttpLib2Error,
+            OSError, RuntimeError, ValueError) as exc:
+        details = failure_details(exc)
+        code = "timeout" if isinstance(exc, (httpx.TimeoutException, TimeoutError)) else details["code"]
+        logger.warning("Email delivery failed provider=%s code=%s recipient=%s", selected, code, masked_recipient(to_email))
+        raise EmailDeliveryError("E-posta gönderilemedi; lütfen tekrar dene.", provider=selected, code=code) from None
+
+
+def send_chart_ai_budget_warning_email(*, to_email: str, month: str,
+                                      spent_microusd: int, budget_microusd: int,
+                                      idempotency_key: str) -> None:
+    if not isinstance(month, str) or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        raise ValueError("Invalid Chart AI budget month")
+    datetime.strptime(month, "%Y-%m")
+    if type(spent_microusd) is not int or type(budget_microusd) is not int \
+            or not 0 < spent_microusd <= budget_microusd:
+        raise ValueError("Invalid Chart AI budget values")
+    spent = f"${spent_microusd / 1_000_000:.2f}"
+    budget = f"${budget_microusd / 1_000_000:.2f}"
+    subject = "KaisTrade · Grafik AI aylık bütçe uyarısı"
+    notice = f"{month} dönemi Grafik AI harcaması {spent} / {budget} USD seviyesine ulaştı."
+    text = f"KaisTrade\n\n{notice}\nAylık bütçe sınırı geçerlidir."
+    html = f"""<!doctype html><html lang="tr"><body style="font-family:Arial,sans-serif;color:#18242d">
+<p><strong>KaisTrade</strong></p><p>{escape(notice)}</p>
+<p>Aylık bütçe sınırı geçerlidir.</p></body></html>"""
+    if not idempotency_key:
+        raise ValueError("Chart AI notification idempotency key is required")
+    send_email_message(to_email=to_email, subject=subject, text=text, html=html,
+                       idempotency_key=idempotency_key)

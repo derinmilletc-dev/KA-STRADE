@@ -19,6 +19,7 @@ export const PUBLIC_POLICIES = {
       '10. Saklama ve güvenlik: Erişim sınırlaması, şifreli anahtar kasası, oturum doğrulaması ve çok faktörlü kimlik doğrulama gibi teknik önlemler uygulanır; mutlak güvenlik garanti edilmez. Kategori bazlı saklama süreleri ve silme süreçleri yayından önce belirlenmelidir: [SAKLAMA SÜRELERİ]. Yedekler ve üçüncü taraf kayıtları için ayrı saklama koşulları olabilir.',
       '11. Haklar ve başvuru: Uygulanabilir mevzuat kapsamında bilgi alma, erişim, düzeltme, silme ve itiraz gibi haklara ilişkin talepler [GİZLİLİK E-POSTASI] üzerinden iletilebilir. Geçerli haklar, başvuru yöntemi ve yanıt süreleri, gerçek veri sorumlusunun statüsüne ve uygulanacak hukuka göre tamamlanmalıdır.',
       '12. Değişiklikler: Politikanın güncelleme tarihi belirtilir. Hukuken gerekli önemli değişiklikler uygun yöntemle duyurulur. Bu taslak, gerekli aydınlatma veya açık rıza yükümlülüklerinin yerine getirildiği iddiası değildir; yayından önce profesyonel hukuki inceleme gerektirir.',
+      '13. Grafik yapay zekâ analizi: Kais AI\'a sorarsan grafiğin görüntüsü ve ekranda görünen piyasa bilgisi analiz için yapay zekâ sağlayıcımız Anthropic\'e gönderilir. Görüntü sitemizde saklanmaz.',
     ],
   },
   terms: {

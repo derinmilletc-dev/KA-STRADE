@@ -55,7 +55,6 @@ export default function AdminPanel({token,onBack}:{token:string;onBack:()=>void}
   const nav: [Section,string,typeof LayoutDashboard][] = [['overview','Overview',LayoutDashboard],['users','Users',Users],['subscriptions','Subscriptions',SlidersHorizontal],['activity','Activity',Activity],['security','Security',ShieldCheck],['system','System Health',Database],['incidents','Incidents',AlertTriangle],['notifications','Notifications',Bell],['metrics','Metrics',CircleDollarSign],['trading','Trading Center',WalletCards],['settings','Settings',Settings]]
   const go = (next:Section) => { if (next === 'moderator') { window.location.assign('/moderator'); return } setSection(next); setMobileOpen(false); setPage(1); setQuery('') }
   nav.push(['approvals','Onay Talepleri',ShieldCheck])
-  nav.push(['binance-payments','Binance ödemeleri',WalletCards])
   nav.push(['moderator','Moderatör Paneli',Users])
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get('section')

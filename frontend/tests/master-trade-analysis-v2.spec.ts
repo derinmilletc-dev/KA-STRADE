@@ -12,7 +12,7 @@ const NOW = new Date('2026-10-05T12:00:00Z')
 const root = (page: Page) => page.locator('.masterReferenceAnalysis')
 const panel = (page: Page) => root(page).getByRole('complementary', {name: 'Analysis decision panel'})
 
-async function prepare(page: Page, options: {width?: number; height?: number; universe?: boolean; nativeFrames?: boolean; userId?: string; premium?: boolean; connected?: boolean; running?: boolean; ready?: boolean; unavailable?: boolean; legacy?: boolean; fields?: Record<string, unknown>; levelOverrides?: Partial<ReturnType<typeof previewAnalysis>>} = {}) {
+async function prepare(page: Page, options: {width?: number; height?: number; universe?: boolean; nativeFrames?: boolean; authenticated?: boolean; userId?: string; premium?: boolean; connected?: boolean; running?: boolean; ready?: boolean; unavailable?: boolean; legacy?: boolean; fields?: Record<string, unknown>; levelOverrides?: Partial<ReturnType<typeof previewAnalysis>>} = {}) {
   await page.setViewportSize({width: options.width ?? 1440, height: options.height ?? 900})
   await page.route('https://**', route => route.abort())
   await page.routeWebSocket('wss://**', socket => socket.close())
@@ -24,7 +24,7 @@ async function prepare(page: Page, options: {width?: number; height?: number; un
   await page.emulateMedia({reducedMotion: 'reduce'})
   await mockAssistant(page)
   const premium = options.premium !== false
-  const user = {id: options.userId ?? 'analysis-layout-member', role: premium ? 'OWNER' : 'CUSTOMER', active: true, email_verified: true}
+  const user = {id: options.userId ?? 'analysis-layout-member', email: 'member@example.test', display_name: 'Analysis Member', role: premium ? 'OWNER' : 'CUSTOMER', active: true, email_verified: true}
   await page.route('**/api/v22/{profile,session}', route => route.fulfill({json: {user, access: {canAccessMasterTrade: true, isPremium: premium}}}))
   const live = {
     connected: options.ready || options.connected || false, real_trading_locked: !options.ready, armed: Boolean(options.ready),
@@ -43,6 +43,7 @@ async function prepare(page: Page, options: {width?: number; height?: number; un
   await page.route('**/api/klines/**', route => route.fulfill({json: options.unavailable ? [] : previewCandles(new URL(route.request().url()).pathname.split('/').pop(), options.nativeFrames ? Date.now() : NOW.getTime())}))
   const requests: string[] = []
   page.on('request', request => {if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(`${request.method()} ${new URL(request.url()).pathname}`)})
+  if (options.authenticated) await page.addInitScript(() => localStorage.setItem('protrebot-v25-session', 'cookie-session:analysis-layout-member'))
   await page.goto(`/master-trade?tab=analiz${options.legacy ? '&masterLayoutV2=0' : ''}`, {waitUntil: 'domcontentloaded'})
   await expect.poll(async () => {if (!options.nativeFrames) await page.clock.runFor(100); return page.getByRole('tab', {name: 'Analiz', exact: true}).isVisible()}).toBe(true)
   if (!options.nativeFrames) await page.clock.runFor(1000)
@@ -66,6 +67,57 @@ async function geometry(page: Page) {
   expect(values.horizontal).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 }
+
+test('Master Trade keeps price labels but removes analysis level lines from both chart layouts', async ({page}) => {
+  await prepare(page, {levelOverrides: {
+    entry: previewPrice * .999, stop_loss: previewPrice * .997,
+    tp1: previewPrice * .9995, tp2: previewPrice, tp3: previewPrice * 1.0005,
+    support: previewPrice * .996, resistance: previewPrice * .9998,
+  }})
+  const chart = root(page).locator('.refChartCanvas')
+  await expect(chart.locator('.masterTradeChartLabels .chartLevel:not(.level-current)')).toHaveCount(0)
+  await expect(chart.locator('.masterTradeChartLabels .chartLevel.level-current')).toHaveCount(0)
+  const pills = root(page).locator('.masterTradeChartPills')
+  await expect(pills.locator('.level-stop')).toContainText('SL $')
+  await expect(pills.locator('.level-resistance')).toContainText('RESISTANCE $')
+  await expect(pills.locator('.level-entry')).toContainText('ENTRY $')
+  await expect(pills.locator('.level-tp')).toHaveCount(3)
+  await expect(pills.locator('.level-trigger')).toContainText('TRIGGER $')
+  await expect(pills.locator('.level-support')).toContainText('SUPPORT $')
+
+  await prepare(page, {legacy: true, levelOverrides: {
+    entry: previewPrice * .999, stop_loss: previewPrice * .997,
+    tp1: previewPrice * .9995, tp2: previewPrice, tp3: previewPrice * 1.0005,
+    support: previewPrice * .996, resistance: previewPrice * .9998,
+  }})
+  const legacyChart = page.locator('.masterTradePage .marketOhlcChart')
+  await expect(legacyChart.locator('.masterTradeChartLabels .chartLevel:not(.level-current)')).toHaveCount(0)
+  await expect(legacyChart.locator('.masterTradeChartLabels .chartLevel.level-current')).toHaveCount(0)
+  const legacyPills = legacyChart.locator('.masterTradeChartPills')
+  await expect(legacyPills.locator('.level-stop')).toContainText('SL ')
+  await expect(legacyPills.locator('.level-resistance')).toContainText('RESISTANCE ')
+  await expect(legacyPills.locator('.level-entry')).toContainText('ENTRY ')
+  await expect(legacyPills.locator('.level-tp')).toHaveCount(3)
+  await expect(legacyPills.locator('.level-trigger')).toContainText('TRIGGER ')
+  await expect(legacyPills.locator('.level-support')).toContainText('SUPPORT ')
+})
+
+test('Master Trade profile button opens the shared account menu', async ({page}) => {
+  test.skip(!process.env.PLAYWRIGHT_AUTH_MODE, 'Requires AuthGate session flow rather than the audit config auth bypass.')
+  await prepare(page, {authenticated: true})
+  const profileButton = root(page).locator('.masterTradeProfileSlot').getByRole('button', {name: 'Profil menüsünü aç'})
+  await expect(profileButton).toBeVisible()
+  await profileButton.click()
+  const menu = page.getByRole('menu')
+  await expect(menu.getByRole('menuitem', {name: 'Profile & Settings'})).toBeVisible()
+  await menu.getByRole('menuitem', {name: 'Profile & Settings'}).click()
+  await expect(page).toHaveURL(/\/settings$/)
+  await page.goto('/')
+  const dashboardProfileButton = page.locator('.v26HeaderProfileSlot').getByRole('button', {name: 'Profil menüsünü aç'})
+  await expect(dashboardProfileButton).toBeVisible()
+  await dashboardProfileButton.click()
+  await expect(page.getByRole('menu').getByRole('menuitem', {name: 'Profile & Settings'})).toBeVisible()
+})
 
 for (const [width, height] of [[1440, 900], [1848, 900], [1891, 953]]) test(`Reference desktop layout, seven indicators and non-overlapping levels at ${width}px`, async ({page}) => {
   await prepare(page, {width, height})
@@ -189,7 +241,7 @@ test('Extreme target and stop values remain honest edge pills and never expand t
   await expect(canvas.locator('.chartLevel[data-level="TP3"], .chartLevel[data-level="SL"]')).toHaveCount(0)
   const before = await canvas.locator('svg').first().evaluate(svg => [svg.getAttribute('data-axis-low'), svg.getAttribute('data-axis-high')])
   await root(page).locator('.refIndicators summary').click()
-  await root(page).getByRole('button', {name: 'LEVELS', exact: true}).click()
+  await root(page).getByRole('button', {name: 'SEVİYELER', exact: true}).click()
   await expect(canvas.locator('.masterTradeChartPills > span')).toHaveCount(1)
   expect(await canvas.locator('.refPriceTick').count()).toBeGreaterThan(0)
   expect(await canvas.locator('svg').first().evaluate(svg => [svg.getAttribute('data-axis-low'), svg.getAttribute('data-axis-high')])).toEqual(before)
@@ -200,19 +252,19 @@ for (const connected of [false, true]) test(`Locked navigation preserves all req
   const toggle = root(page).getByRole('switch', {name: 'Auto Trade', exact: true})
   await expect(toggle).toBeDisabled()
   await expect(toggle).toHaveAttribute('aria-checked', 'false')
-  await expect(root(page).locator('.refConnection')).toContainText(connected ? 'CONNECTED' : 'DISCONNECTED')
+  await expect(root(page).locator('.refConnection')).toContainText(connected ? 'BAĞLI' : 'BAĞLANTI YOK')
   if (!connected) await expect(root(page).locator('.refConnection i')).toHaveCSS('background-color', 'rgb(137, 154, 156)')
   const before = [...requests], serialized = JSON.stringify(live)
   await root(page).getByRole('button', {name: 'Auto Trade neden kilitli?'}).click()
   await expect(root(page).locator('.refNotice')).toBeVisible()
-  await expect(root(page).locator('.refNotice')).toContainText(connected ? '24 saatlik izin sona erdi.' : 'LIVE account connection is required.')
-  for (const label of ['LİMİT','PİYASA']) await expect(root(page).getByRole('button', {name: label, exact: true})).toBeDisabled()
-  await root(page).getByRole('button', {name: 'LİMİT neden kilitli?'}).click()
+  await expect(root(page).locator('.refNotice')).toContainText(connected ? '24 saatlik izin sona erdi.' : 'Canlı hesap bağlantısı gerekli.')
+  for (const label of ['LİMİT','PİYASA']) await expect(root(page).getByRole('button', {name: label, exact: true})).toBeEnabled()
+  await expect(root(page).getByRole('button', {name: 'LİMİT neden kilitli?'})).toHaveCount(0)
   expect(requests).toEqual(before)
   await root(page).getByRole('button', {name: "Auto Trade'i aç", exact: true}).click()
   await expect(page).toHaveURL(/tab=canli/)
   await expect(page.locator('#master-trade-auto-trade')).toBeFocused()
-  await expect(page.locator('#master-trade-auto-trade').getByRole('button', {name: 'START LIVE AUTO TRADE', exact: true})).toBeDisabled()
+  await expect(page.locator('#master-trade-auto-trade')).toContainText('ŞİMDİ YAPMAN GEREKEN')
   await expect(page.locator('.liveConfirm')).toHaveCount(0)
   expect(requests).toEqual(before)
   expect(JSON.stringify(live)).toBe(serialized)
@@ -259,10 +311,10 @@ test('Actual targets, two-decimal prices and closed advisory accordions remain h
   await prepare(page)
   const analysis = previewAnalysis()
   expect(await root(page).locator('.refTargets strong').allTextContents()).toEqual([analysis.tp1, analysis.tp2, analysis.tp3, analysis.stop_loss].map(analysisPrice))
-  await expect(panel(page).getByText('Waiting', {exact: true})).toHaveCount(1)
+  await expect(panel(page).getByText('Bekliyor', {exact: true})).toHaveCount(1)
   await expect(panel(page).locator('details[open]')).toHaveCount(0)
   for (const title of ['Invalidation', 'Decision timeline', 'Pre-trade check', 'Why this score']) await expect(panel(page).locator('summary').filter({hasText: title})).toHaveCount(1)
-  await expect(panel(page)).toContainText('Final Decision does not send orders')
+  await expect(panel(page)).toContainText('Nihai karar emir göndermez')
   await expect(panel(page)).toContainText(analysisPrice(previewPrice))
 })
 
@@ -456,7 +508,7 @@ test('Unavailable data explicitly shows no analysis without fictitious report bu
   await expect(root(page).locator('.refChartEmpty')).toContainText('Bu sembol için yeterli veri yok')
   await expect(root(page).locator('.refChartCanvas svg[aria-label]')).toHaveCount(0)
   await expect(root(page).locator('.refReasons')).toHaveText('—')
-  for (const label of ['CONFIDENCE', 'OPPORTUNITY']) {
+  for (const label of ['GÜVEN', 'FIRSAT']) {
     const tile = root(page).locator('.masterTradeMetricTile').filter({hasText: label})
     await expect(tile.locator('strong')).toHaveText('—')
     await expect(tile.locator('.masterTradeMetricVisual')).toHaveText('—')
@@ -802,7 +854,8 @@ for (const symbol of ['1000PEPEUSDT', '1000SHIBUSDT', 'BTCDOMUSDT']) test(`Non-s
   expect(urls.filter(url => url.pathname === '/api/analysis-universe').every(url => url.searchParams.get('limit') === '40')).toBe(true)
   expect(urls.filter(url => url.pathname.startsWith('/api/analysis/')).every(url => ['/api/analysis/BTCUSDT', `/api/analysis/${symbol}`].includes(url.pathname))).toBe(true)
   await root(page).getByRole('tab', {name: 'Canlı İşlem', exact: true}).click()
-  await expect(page.locator('.liveUxManual .masterTradeOrderField input').first()).toHaveValue(symbol)
+  await page.locator('.liveWsStepper button').nth(3).click()
+  await expect(page.locator('.liveUxManual .liveWsCoinBtn b')).toHaveText(symbol)
   await expect(page.locator('.liveUxManual')).toHaveAttribute('data-locked', 'true')
   expect(live.armed).toBe(false)
   expect(live.real_trading_locked).toBe(true)
