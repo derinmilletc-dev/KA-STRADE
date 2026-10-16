@@ -12,6 +12,7 @@ from .audit_log import AuditAction, write_audit
 from .moderator_access import ModeratorIdentity, require_permission
 from .moderator_customers import CustomerSummary, customer_read_connection, customer_row, customer_summary
 from .support_sync import sync_support_cases
+from .v22_commercial import add_audit, now_iso, runtime, save_state
 
 router = APIRouter(prefix="/api/mod/support", tags=["Internal support"])
 CaseStatus = Literal["NEW", "OPEN", "WAITING", "RESOLVED", "CLOSED"]
@@ -88,6 +89,19 @@ class NoteCreate(BaseModel):
         if not value.strip():
             raise ValueError("Note must not be blank")
         return value
+
+
+class ReplyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    body: str = Field(min_length=2, max_length=1000)
+    resolve: bool = False
+
+    @field_validator("body")
+    @classmethod
+    def nonblank(cls, value: str) -> str:
+        if len(value.strip()) < 2:
+            raise ValueError("Reply must not be blank")
+        return value.strip()
 
 
 VISIBLE = """FROM support_cases c JOIN commercial_auth_users u ON u.user_id = c.user_id
@@ -197,7 +211,7 @@ async def case_detail(
 
 
 async def mutate_case(request: Request, identity: ModeratorIdentity, case_id: str, operation: str,
-                      payload: StatusChange | NoteCreate | None = None):
+                      payload: StatusChange | NoteCreate | ReplyCreate | None = None):
     async with support_connection(request, identity, "support.manage") as conn:
         row, _ = await visible_case(conn, identity, case_id)
         if operation == "take":
@@ -230,6 +244,34 @@ async def mutate_case(request: Request, identity: ModeratorIdentity, case_id: st
                 changed = await conn.fetchrow(
                     """UPDATE support_cases SET version = version + 1, updated_at = clock_timestamp()
                        WHERE id = $1 AND assignee_user_id = $2 RETURNING *""", case_id, identity.user_id,
+                )
+                action = "support.note.added"
+            elif isinstance(payload, ReplyCreate):
+                # Customer-visible reply: goes to the legacy ticket the customer already reads.
+                rt = runtime(request)
+                async with rt["lock"]:
+                    ticket = next((t for t in rt["state"]["support_tickets"]
+                                   if t.get("id") == row["legacy_ticket_id"]
+                                   and t.get("user_id") == row["user_id"]), None)
+                    if ticket is None:
+                        raise HTTPException(404, "Support ticket not found")
+                    ticket.update({"status": "RESOLVED" if payload.resolve else "IN_PROGRESS",
+                                   "response_note": payload.body, "updated_at": now_iso(),
+                                   "updated_by": identity.user_id})
+                    add_audit(rt["state"], "SUPPORT_STATUS", "Destek kaydına moderatör yanıtı eklendi.",
+                              actor=identity.user_id, subject=row["legacy_ticket_id"])
+                    save_state(rt["state"])
+                await conn.execute(
+                    "INSERT INTO support_notes (id, case_id, author_user_id, body) VALUES ($1, $2, $3, $4)",
+                    uuid.uuid4().hex, case_id, identity.user_id, "[Müşteriye yanıt] " + payload.body,
+                )
+                changed = await conn.fetchrow(
+                    """UPDATE support_cases SET version = version + 1, updated_at = clock_timestamp(),
+                              case_status = CASE WHEN $3 THEN 'RESOLVED' ELSE case_status END,
+                              legacy_status = $4, legacy_response_note = $5
+                       WHERE id = $1 AND assignee_user_id = $2 RETURNING *""",
+                    case_id, identity.user_id, payload.resolve,
+                    "RESOLVED" if payload.resolve else "IN_PROGRESS", payload.body,
                 )
                 action = "support.note.added"
             else:
@@ -265,3 +307,10 @@ async def note_case(payload: NoteCreate, request: Request,
                     case_id: str = Path(pattern=ID, min_length=1, max_length=160),
                     identity: ModeratorIdentity = Depends(require_permission("support.manage"))):
     return await mutate_case(request, identity, case_id, "notes", payload)
+
+
+@router.post("/cases/{case_id}/reply", response_model=CaseItem)
+async def reply_case(payload: ReplyCreate, request: Request,
+                     case_id: str = Path(pattern=ID, min_length=1, max_length=160),
+                     identity: ModeratorIdentity = Depends(require_permission("support.manage"))):
+    return await mutate_case(request, identity, case_id, "reply", payload)

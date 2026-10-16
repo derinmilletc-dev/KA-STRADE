@@ -31,6 +31,8 @@ function SupportDetailPanel({id, manage, onBack, onCustomer}: {id: string; manag
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
   const [note, setNote] = useState('')
+  const [reply, setReply] = useState('')
+  const [resolve, setResolve] = useState(false)
   const [status, setStatus] = useState<CaseStatus>('NEW')
   const operation = useRef<AbortController | null>(null)
   const inFlight = useRef(false)
@@ -45,14 +47,14 @@ function SupportDetailPanel({id, manage, onBack, onCustomer}: {id: string; manag
     return () => controller.abort()
   }, [path, version])
   useEffect(() => () => operation.current?.abort(), [])
-  const mutate = async (action: 'take' | 'release' | 'status' | 'notes') => {
+  const mutate = async (action: 'take' | 'release' | 'status' | 'notes' | 'reply') => {
     if (!detail || busy || inFlight.current) return
     const controller = new AbortController()
     operation.current = controller; inFlight.current = true; setBusy(true); setError(null)
-    const body = action === 'status' ? {status, expected_version: detail.version} : action === 'notes' ? {body: note} : undefined
+    const body = action === 'status' ? {status, expected_version: detail.version} : action === 'notes' ? {body: note} : action === 'reply' ? {body: reply.trim(), resolve} : undefined
     try {
       await moderatorApiRequest(`${path}/${action}`, parseSupportCase, controller.signal, {method: 'POST', ...(body ? {body: JSON.stringify(body)} : {})})
-      if (!controller.signal.aborted) {setDetail(null); if (action === 'notes') setNote(''); setVersion(value => value + 1)}
+      if (!controller.signal.aborted) {setDetail(null); if (action === 'notes') setNote(''); if (action === 'reply') {setReply(''); setResolve(false)}; setVersion(value => value + 1)}
     } catch (reason) {
       if (!controller.signal.aborted) {
         setError(reason)
@@ -70,6 +72,14 @@ function SupportDetailPanel({id, manage, onBack, onCustomer}: {id: string; manag
     {detail && <SupportDetailCards detail={detail} manage={manage} busy={busy} note={note} status={status} onNoteChange={setNote} onStatusChange={setStatus}
       onTake={() => void mutate('take')} onRelease={() => void mutate('release')} onSaveStatus={() => void mutate('status')} onAddNote={event => {event.preventDefault(); void mutate('notes')}}
       onCustomer={onCustomer ? () => onCustomer(detail.user_id) : undefined}/>}
+    {detail && manage && detail.assigned_to_me && <ModCard title="Müşteriye yanıt">
+      <form className="mod-support-note" onSubmit={event => {event.preventDefault(); if (reply.trim().length >= 2) void mutate('reply')}}>
+        <p className="mod-secondary">Bu mesajı müşteri kendi Destek sayfasında görür. İç not değildir. Şifre, API anahtarı gibi bilgileri yazma.</p>
+        <textarea value={reply} maxLength={1000} rows={4} disabled={busy} onChange={event => setReply(event.target.value)} aria-label="Müşteriye yanıt" placeholder="Müşteriye yazacağın yanıt…"/>
+        <label><input type="checkbox" checked={resolve} disabled={busy} onChange={event => setResolve(event.target.checked)}/> Talebi çözüldü olarak kapat</label>
+        <button type="submit" disabled={busy || reply.trim().length < 2}>Yanıtı gönder</button>
+      </form>
+    </ModCard>}
   </div>
 }
 
