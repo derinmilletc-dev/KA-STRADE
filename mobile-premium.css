@@ -8566,3 +8566,24 @@ body:has(#root .liveTradingPanel.liveUx),
   html body .mod-shell.mod-shell .mod-empty { gap: 10px !important; font-size: 13px !important; }
   html body .mod-shell.mod-shell .mod-facts { gap: 10px !important; }
 }
+
+/* Telefon: Kais AI sohbet penceresi – düz arka plan, sıkı ve taşmasız. */
+@media (max-width: 767px) {
+  html body dialog.assistantDialog.assistantDialog { --assistant-surface: #0c1820; background: #0c1820 !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; box-shadow: 0 -12px 40px rgba(0,0,0,.55) !important; }
+  html body dialog.assistantDialog.assistantDialog::backdrop { background: rgba(2, 8, 12, .72) !important; }
+  html body dialog.assistantDialog .assistantHeader { padding-top: 12px !important; padding-bottom: 10px !important; }
+  html body dialog.assistantDialog .assistantMeta { gap: 6px !important; padding: 8px 14px !important; }
+  html body dialog.assistantDialog .assistantEmpty { margin: 6px 0 !important; padding: 14px !important; border-radius: 16px !important; }
+  html body dialog.assistantDialog .assistantEmpty h3 { font-size: 17px !important; line-height: 1.3 !important; }
+  html body dialog.assistantDialog .assistantEmpty p { margin: 6px 0 !important; font-size: 13.5px !important; line-height: 1.5 !important; }
+  html body dialog.assistantDialog .assistantEmpty small { font-size: 11px !important; line-height: 1.45 !important; }
+  html body dialog.assistantDialog .assistantSuggestions { gap: 6px !important; padding: 6px 14px 8px !important; overflow-x: auto !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch; scroll-padding-inline: 14px; }
+  html body dialog.assistantDialog .assistantSuggestions::-webkit-scrollbar { display: none !important; }
+  html body dialog.assistantDialog .assistantSuggestions button { min-height: 38px !important; padding: 0 14px !important; font-size: 13px !important; line-height: 1.2 !important; }
+  html body dialog.assistantDialog .assistantComposer { padding-top: 10px !important; padding-bottom: max(10px, env(safe-area-inset-bottom)) !important; }
+  html body dialog.assistantDialog .assistantComposer textarea { min-height: 46px !important; padding: 11px 14px !important; }
+  html body dialog.assistantDialog .assistantComposer button { width: 46px !important; height: 46px !important; }
+  html body dialog.assistantDialog .assistantComposer :is(.assistantVoiceHint, .assistantVoiceStatus) { margin: 6px 2px 0 !important; font-size: 11.5px !important; line-height: 1.45 !important; }
+  html body dialog.assistantDialog .assistantComposer > :last-child:not(div):not(button) { font-size: 11px !important; }
+  html body dialog.assistantDialog :is(.assistantNotice, .assistantError) { padding: 8px 14px !important; font-size: 12px !important; }
+}
