@@ -35,3 +35,28 @@
 #root .lpEmpty { padding: 28px 18px; text-align: center; border-radius: 16px; background: rgba(255,255,255,.04) !important; }
 #root .lpEmpty p { margin: 4px 0 0; color: #9aa9ba; font-size: 14px; }
 #root .lpFoot { margin: 0; color: #9aa9ba; font-size: 12.5px; }
+#root .lpFilters { display: grid; gap: 12px; padding: 16px; border-radius: 20px; background: rgba(255,255,255,.04) !important; }
+#root .lpRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#root .lpRow > button, #root .lpSeg button, #root .lpPop > button { padding: 9px 16px; border: 0 !important; border-radius: 999px; background: rgba(255,255,255,.07) !important; color: #c9d4e0; font: inherit; font-size: 14px; cursor: pointer; transition: background .15s ease; }
+#root .lpRow > button:hover, #root .lpSeg button:hover { background: rgba(255,255,255,.12) !important; }
+#root .lpRow > button.on, #root .lpSeg button.on { background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; }
+#root .lpSub { padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07); }
+#root .lpSeg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.05) !important; }
+#root .lpSeg button { padding: 7px 14px; font-size: 13.5px; }
+#root .lpFilters select { height: 38px; padding: 0 12px; border: 0 !important; border-radius: 12px; background: rgba(255,255,255,.07) !important; color: #c9d4e0; font: inherit; font-size: 14px; }
+#root .lpFilters select option { background: #121a24; color: #edf2f8; }
+#root .lpReset { margin-left: auto; padding: 8px 14px; border: 0 !important; border-radius: 999px; background: rgba(248,113,113,.14) !important; color: #f87171; font: inherit; font-size: 13.5px; cursor: pointer; }
+#root .lpPop { padding: 14px; border-radius: 16px; background: rgba(255,255,255,.05) !important; }
+#root .lpPop p { margin: 0; color: #9aa9ba; font-size: 14px; }
+#root .lpMonths { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+#root .lpMonths button { display: grid; gap: 2px; justify-items: start; padding: 12px 14px; border: 0 !important; border-radius: 14px; background: rgba(255,255,255,.06) !important; color: #edf2f8; font: inherit; text-align: left; cursor: pointer; }
+#root .lpMonths button.on { outline: 2px solid #34d399; }
+#root .lpMonths b { text-transform: capitalize; font-size: 14.5px; }
+#root .lpMonths small { color: #9aa9ba; font-size: 12.5px; }
+#root .lpMonths em { font-style: normal; font-weight: 700; font-size: 14px; }
+#root .lpMonths .win { color: #34d399; } #root .lpMonths .loss { color: #f87171; }
+#root .lpDates { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+#root .lpDates label { display: grid; gap: 4px; color: #9aa9ba; font-size: 12.5px; }
+#root .lpDates input { height: 40px; padding: 0 12px; border: 0 !important; border-radius: 12px; background: rgba(255,255,255,.08) !important; color: #edf2f8; font: inherit; color-scheme: dark; }
+#root .lpDates button { height: 40px; padding: 0 20px; border: 0 !important; border-radius: 12px; background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; cursor: pointer; }
+@media (max-width: 560px) { #root .lpReset { margin-left: 0; } #root .lpSeg { width: 100%; } #root .lpSeg button { flex: 1; } }
