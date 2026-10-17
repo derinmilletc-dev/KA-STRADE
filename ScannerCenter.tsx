@@ -83,10 +83,10 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
         const payload = await response.json().catch(() => null) as {detail?:string;message?:string}|null
         throw new Error(payload?.detail || payload?.message || `Scanner request failed (${response.status})`)
       }
-      const payload = await response.json().catch(() => null) as Summary|null
-      if (payload?.scanner?.last_error) throw new Error(payload.scanner.last_error)
-      if (payload?.scanner) setSummary(payload)
-      else await loadSummary()
+      const payload = await response.json().catch(() => null) as (Summary & ScannerState)|null
+      const scanFailure = payload?.scanner?.last_error ?? payload?.last_error
+      if (scanFailure) throw new Error(scanFailure)
+      await loadSummary()
       setScanStale(false)
     } catch (scanError) {
       const message = scanError instanceof Error ? scanError.message : 'Unable to retrieve market data. Please try again.'

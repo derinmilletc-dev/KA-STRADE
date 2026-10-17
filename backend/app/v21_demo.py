@@ -2352,7 +2352,9 @@ async def run_scanner_cycle(
     symbols: list[str] | None = None,
     notification_state: dict[str, Any] | None = None,
 ) -> None:
-    state = application.state.v21_demo
+    # Manuel taramada sonuçlar isteği yapan üyenin kendi durumuna yazılır; aksi halde
+    # sonuç ortak duruma düşer ve üye kendi ekranında hep boş liste görür.
+    state = notification_state if notification_state is not None else application.state.v21_demo
     scanner = state["scanner"]
     scan_lock = getattr(application.state, "v21_scanner_lock", None)
     if scan_lock is None:
@@ -2927,6 +2929,9 @@ async def v21_manual_scan(request: Request, body: ScannerScanRequest | None = No
     if scan_request.universe == "CUSTOM" and not symbols:
         raise HTTPException(status_code=422, detail="CUSTOM scanner universe requires at least one symbol.")
     state = state_for(request)
+    busy = getattr(request.app.state, "v21_scanner_lock", None)
+    if busy is not None and busy.locked():
+        raise HTTPException(status_code=409, detail="Başka bir tarama sürüyor. Birkaç saniye sonra tekrar dene.")
     await run_scanner_cycle(
         request.app, timeframe=scan_request.timeframe, universe=scan_request.universe,
         symbols=symbols, notification_state=state,
