@@ -81,6 +81,11 @@ def build_request(config: AssistantConfig, language: Language, payload: ChatInpu
     ]
     tools[-1]["cache_control"] = {"type": "ephemeral"}
     system: list[TextBlockParam] = [{"type": "text", "text": system_prompt(language), "cache_control": {"type": "ephemeral"}}]
+    if payload.voice:
+        system.append({"type": "text", "text": (
+            "\nSesli mod: yanıt yüksek sesle okunacak. En fazla 2-3 kısa cümle yaz; liste, başlık, tablo, emoji ve markdown kullanma."
+            if language == "tr" else
+            "\nVoice mode: the reply will be read aloud. Use at most 2-3 short sentences; no lists, headings, tables, emoji or markdown.")})
     messages: list[MessageParam] = [{"role": item.role, "content": item.content} for item in payload.history]
     content = payload.message
     if payload.page_context:

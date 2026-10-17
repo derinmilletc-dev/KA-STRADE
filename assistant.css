@@ -180,3 +180,13 @@ body.site-copy-protected [data-assistant-chat] * { user-select: text; -webkit-us
   .assistantLauncher::before { transition: none; }
   .assistantDialog[open], .assistantDialog :is(.assistantTypingDots i, .assistantLayout) { animation: none; }
 }
+
+.assistantVoiceToggle[data-active]{color:#34d399}
+.assistantVoicePill{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 12px;border-radius:999px;
+  background:rgba(12,14,18,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(52,211,153,.35);color:#e8fff6;font-size:13px}
+.assistantVoicePill svg{width:16px;height:16px;color:#34d399}
+.assistantVoicePill[data-status="conversation"] svg{animation:assistantVoicePulse 1.2s ease-in-out infinite}
+.assistantVoicePill button{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:inherit;cursor:pointer}
+.assistantVoicePill button svg{width:14px;height:14px;color:inherit}
+@keyframes assistantVoicePulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.assistantVoicePill[data-status="conversation"] svg{animation:none}}

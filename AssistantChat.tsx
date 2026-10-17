@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
+import { Check, Copy, LockKeyhole, Mic, MicOff, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
 import {CHAT_CLEAR_EVENT, CHAT_READY_EVENT, clearKaisChatHistory, clearLegacyChatHistory, createKaisChatStorage, isLocalStorageChange} from './frontend/src/kais-chat-storage'
 import {useAssistantMotion} from './useAssistantPresentation'
 import {useKaisPrivacy} from './useKaisPrivacy'
+import {useKaisVoice} from './useKaisVoice'
 import {emitKaisReaction} from './kais-reactions'
 import { API_BASE, USER_SESSION_KEY } from './api'
 import { useMemberAccess } from './premium-access'
@@ -198,6 +199,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   const preferenceWorking = useRef(false)
   const chatOpen = useRef(false)
   const syncedMessages = useRef<Message[]>(initial.messages)
+  const voiceCommand = useRef<(text: string) => void>(() => undefined)
+  const voice = useKaisVoice({language, onCommand: text => voiceCommand.current(text),
+    greeting: {tr: assistantCopy.tr.voiceGreeting, en: assistantCopy.en.voiceGreeting}})
 
   useEffect(() => { setOpen(false) }, [pageContext])
 
@@ -416,11 +420,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   }])
   const decide = (id: string, decision: Message['decision']) => setMessages(previous => previous.map(message => message.id === id ? {...message, decision} : message))
 
-  const sendMessage = async (value: string) => {
+  const sendMessage = async (value: string, spoken = false) => {
     if (working.current || !usage || expired || !value.trim()) return
     const message = value.trim()
     if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return }
-    if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); return }
+    if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); if (spoken) voice.speak(copy.secretBlocked, language); return }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
     const eligible = messages.filter(row => !row.proactive && !row.pending && !row.failed && row.content.trim() && !sensitive(row.content, usage.limits))
@@ -432,17 +436,19 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     const controller = new AbortController()
     activeRequest.current = controller
     try {
-      const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars)})
+      const response = await request('chat', controller.signal, {message, history, language, page_context: truncate(pageContext, usage.limits.page_context_max_chars), ...(spoken ? {voice: true} : {})})
       if (controller.signal.aborted) return
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
       const confirmation = parseConfirmation(response.needs_confirmation)
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
+      if (spoken) voice.speak(response.reply, response.language === 'en' ? 'en' : 'tr')
     } catch (error) {
       if (controller.signal.aborted) return
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false, failed: true} : row))
       const next = issueFor(error)
       setIssue(next)
+      if (spoken) voice.speak(copy[next.kind], language)
       if (next.kind === 'session') expire()
     } finally {
       if (!controller.signal.aborted) { working.current = false; setBusy(false); void refreshUsage() }
@@ -473,6 +479,14 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
       if (!controller.signal.aborted) { working.current = false; setBusy(false); void refreshUsage() }
     }
   }
+  useEffect(() => { voiceCommand.current = text => void sendMessage(text, true) })
+  const toggleVoice = () => {
+    if (voice.status !== 'off') { voice.stop(); return }
+    if (!usage) void refreshUsage()
+    voice.start()
+  }
+  const voiceLabel = voice.status === 'speaking' ? copy.voiceSpeaking : voice.status === 'conversation' ? copy.voiceListening : copy.voiceWake
+  const voiceNotice = voice.error === 'denied' ? copy.voiceDenied : voice.error === 'nomic' ? copy.voiceNoMic : null
   const submit = (event: FormEvent) => { event.preventDefault(); void sendMessage(draft) }
   const displayedIssue = issue ?? usageIssue ?? proactiveIssue
   // Presentation only: reuse the existing secret rule and server-supplied threshold.
@@ -502,11 +516,18 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>
+    {!open && (voice.status !== 'off' || voiceNotice) && createPortal(<div className="assistantVoicePill" role="status" data-status={voice.status}>
+      <Mic aria-hidden="true"/><span>{voiceNotice ?? voiceLabel}</span>
+      <button type="button" aria-label={copy.voiceStop} onClick={voice.dismiss}><X aria-hidden="true"/></button>
+    </div>, document.body)}
     {open && createPortal(<dialog ref={dialog} className="assistantDialog" style={style} data-assistant-chat data-side={placement.above ? 'above' : 'below'} data-motion-paused={motionPaused} data-compact-viewport={viewport.height < 500 || undefined} role="dialog" aria-label={copy.title} aria-labelledby="assistant-title"
       onCancel={event => {event.preventDefault(); if (settingsOpen) {setSettingsOpen(false); settingsButton.current?.focus()} else setOpen(false)}}
       onClick={event => {if (event.target === event.currentTarget) setOpen(false)}}>
       <div className="assistantLayout">
         <header className="assistantHeader"><KaisEye size={36} state={eyeState}/><div><h2 id="assistant-title">{copy.title}</h2><small className="assistantState" role="status" data-state={eyeState}>{status}</small></div>
+          <button type="button" className="assistantVoiceToggle" data-active={voice.status !== 'off' || undefined} aria-pressed={voice.status !== 'off'}
+            aria-label={voice.status !== 'off' ? copy.voiceStop : voice.supported ? copy.voiceStart : copy.voiceUnsupported} title={voice.supported ? undefined : copy.voiceUnsupported}
+            disabled={!voice.supported || expired} onClick={toggleVoice}>{voice.status !== 'off' ? <Mic aria-hidden="true"/> : <MicOff aria-hidden="true"/>}</button>
           <div className="assistantSettings">
             <button ref={settingsButton} type="button" aria-label={copy.settings} aria-expanded={settingsOpen} aria-controls="assistant-settings" onClick={() => setSettingsOpen(previous => !previous)}><MoreHorizontal aria-hidden="true"/></button>
             {settingsOpen && <div id="assistant-settings" className="assistantSettingsMenu" role="group" aria-label={copy.settings}>
@@ -550,6 +571,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
           {busy && <p className="assistantTyping" role="status"><span className="assistantTypingDots" aria-hidden="true"><i/><i/><i/></span>{copy.typing}</p>}
         </div>
         {storageProblem && <p className="assistantNotice" role="status">{copy.storage}</p>}
+        {voiceNotice && <p className="assistantError" role="alert">{voiceNotice}</p>}
+        {voice.status !== 'off' && <p className="assistantNotice" role="status">{copy.voiceHint}</p>}
         {displayedIssue && <div className="assistantError" role="alert">
           {displayedIssue === proactiveIssue && <p>{copy.proactiveError}</p>}
           <p>{copy[displayedIssue.kind]}</p>

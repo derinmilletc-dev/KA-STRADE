@@ -58,7 +58,7 @@ test('Vercel serves SEO files outside the SPA fallback without changing API or O
     {key:'X-Content-Type-Options',value:'nosniff'},
     {key:'X-Frame-Options',value:'DENY'},
     {key:'Referrer-Policy',value:'no-referrer'},
-    {key:'Permissions-Policy',value:'camera=(), microphone=(), geolocation=(), payment=()'},
+    {key:'Permissions-Policy',value:'camera=(), microphone=(self), geolocation=(), payment=()'},
   ])
   for (const deployment of [rootDeployment,frontendDeployment]) {
     const fallback = deployment.rewrites.at(-1)

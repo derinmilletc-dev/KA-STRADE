@@ -286,6 +286,8 @@ async def assistant_chat(request: Request) -> JSONResponse:
         payload = ChatInput.model_validate(body)
     except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
         return reply_response(text(language, "Geçersiz mesaj.", "Invalid message."), language, 422)
+    if payload.language is not None:
+        language = payload.language  # the language selected on the site wins over guessing from the text
     try:
         config = load_assistant_config()
     except ValidationError:
