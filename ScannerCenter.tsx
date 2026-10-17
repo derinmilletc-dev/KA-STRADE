@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Activity, BarChart3, RefreshCw, SlidersHorizontal, Target, TrendingDown, TrendingUp, Volume2 } from 'lucide-react'
 import { API_BASE } from './api'
+import ScannerInfo from './ScannerInfo'
 
 type Market = {symbol:string;display:string;price:number;change:number;volume:number}
 type Analysis = {
@@ -141,7 +142,7 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
   return <section className="scannerCenter" aria-label="Market Scanner">
     <header className="scannerCenterHeader">
       <div><span className="scannerEyebrow">MARKET ANALYSIS</span><h2>MARKET SCANNER</h2><p>Scan the market for technical setups and potential opportunities.</p></div>
-      <div className="scannerHeaderActions"><span className={`scannerStatus scannerStatus-${scannerStatus.toLowerCase()}`}><i/>{scannerStatus === 'LIVE' ? 'LIVE MARKET' : scannerStatus}</span><small>Last scan: {formatTime(summary?.scanner?.last_scan_at)}</small><button type="button" onClick={() => void scan()} disabled={scanning}><RefreshCw className={scanning ? 'spin' : ''}/>{scanning ? 'SCANNING...' : 'SCAN NOW'}</button></div>
+      <div className="scannerHeaderActions"><ScannerInfo/><span className={`scannerStatus scannerStatus-${scannerStatus.toLowerCase()}`}><i/>{scannerStatus === 'LIVE' ? 'LIVE MARKET' : scannerStatus}</span><small>Last scan: {formatTime(summary?.scanner?.last_scan_at)}</small><button type="button" onClick={() => void scan()} disabled={scanning}><RefreshCw className={scanning ? 'spin' : ''}/>{scanning ? 'SCANNING...' : 'SCAN NOW'}</button></div>
     </header>
 
     <section className="scannerSettings" aria-labelledby="scanner-settings-title">
