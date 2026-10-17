@@ -10,9 +10,11 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .commerce_core import calculate_demo_invoice, launch_checklist, sanitize_business_settings
+from . import support_attachments
 from .email_service import masked_recipient
 from .v22_commercial import (
     active_license,
@@ -210,6 +212,56 @@ async def v24_support_create(payload: SupportRequest, request: Request):
         add_audit(rt["state"], "SUPPORT_OPENED", payload.subject, actor=user["id"], subject=row["id"])
         save_state(rt["state"])
     return row
+
+
+def _own_ticket(rt: dict, ticket_id: str, user: dict, *, owner_ok: bool = False) -> dict:
+    row = next((item for item in rt["state"]["support_tickets"] if item.get("id") == ticket_id), None)
+    if not row or (row.get("user_id") != user["id"] and not owner_ok):
+        raise HTTPException(404, "Destek kaydı bulunamadı")
+    return row
+
+
+@router.post("/support/{ticket_id}/attachments")
+async def v24_support_attach(ticket_id: str, payload: support_attachments.AttachmentUpload, request: Request):
+    user = authenticated_user(request)
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        raise HTTPException(503, "Dosya ekleme şu an kullanılamıyor")
+    rt = runtime(request)
+    _own_ticket(rt, ticket_id, user)
+    files = support_attachments.decode_files(payload)
+    saved = await support_attachments.store(pool, user["id"], ticket_id, files)
+    async with rt["lock"]:
+        row = _own_ticket(rt, ticket_id, user)
+        row["attachments"] = [*row.get("attachments", []), *saved][: support_attachments.MAX_FILES_PER_TICKET]
+        row["updated_at"] = now_iso()
+        add_audit(rt["state"], "SUPPORT_ATTACHMENT", f"{len(saved)} dosya destek kaydına eklendi.", actor=user["id"], subject=ticket_id)
+        save_state(rt["state"])
+    return {"attachments": row["attachments"]}
+
+
+@router.get("/support/{ticket_id}/attachments/{attachment_id}")
+async def v24_support_download(ticket_id: str, attachment_id: str, request: Request):
+    user = authenticated_user(request)
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        raise HTTPException(503, "Dosya erişimi şu an kullanılamıyor")
+    rt = runtime(request)
+    is_owner = user.get("role") == "OWNER"
+    _own_ticket(rt, ticket_id, user, owner_ok=is_owner)
+    record = await support_attachments.fetch(pool, ticket_id, attachment_id)
+    if record is None:
+        raise HTTPException(404, "Dosya bulunamadı")
+    quoted = record["filename"].encode("ascii", "ignore").decode() or "dosya"
+    return Response(
+        content=bytes(record["data"]),
+        media_type=record["content_type"],
+        headers={
+            "Content-Disposition": f'attachment; filename="{quoted}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.put("/support/{ticket_id}")

@@ -13,3 +13,5 @@
 @media(max-width:850px){.commerceBanner{display:grid;gap:12px}.commerceBanner aside{display:none}.commerceSubTabs{grid-template-columns:1fr 1fr}.launchGrid,.salesGrid,.billingGrid,.supportGrid{grid-template-columns:1fr}.launchGrid .checklist,.billingGrid .providerLock{grid-column:auto}.commerceFields{grid-template-columns:1fr}.funnelMetrics{grid-template-columns:repeat(3,1fr)}.leadRows>article{grid-template-columns:1fr auto}.leadRows>article span,.leadRows>article em{display:none}}
 .ticketResolve{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 9px;border:0;border-radius:8px;background:#e5f8d8;color:#087e47;font-size:7px;font-weight:950;cursor:pointer}.ticketResolve svg{width:12px}.ticketResolve:disabled{opacity:.55;cursor:not-allowed}
 @media(min-width:851px){.ticketRows>article{grid-template-columns:70px 1fr 90px auto}}
+
+.ticketRows .ticketFile{display:inline-flex;margin:4px 6px 0 0;padding:3px 10px;border:0;border-radius:999px;background:rgba(52,211,153,.16);color:#6ee7b7;font-size:12px;font-weight:600;cursor:pointer}.ticketRows .ticketFile:hover{background:rgba(52,211,153,.3)}

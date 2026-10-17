@@ -1,9 +1,12 @@
-import {useCallback, useEffect, useState} from 'react'
-import {Check, ChevronDown, CreditCard, KeyRound, LifeBuoy, LineChart, MessageCircle, Send, UserRound} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent} from 'react'
+import {Check, ChevronDown, CreditCard, Download, FileText, KeyRound, LifeBuoy, LineChart, MessageCircle, Paperclip, Send, UserRound, X} from 'lucide-react'
 import {accountDate, accountRequest} from './account-settings-api'
+import {API_BASE} from './api'
+import {ACCEPT, MAX_FILES, formatSize, prepare, toBase64, type Picked} from './support-files'
 import './support-card.css'
 
-type Ticket = {id: string; subject: string; message: string; status: string; created_at: string; response_note?: string}
+type Attachment = {id: string; name: string; type: string; size: number}
+type Ticket = {id: string; subject: string; message: string; status: string; created_at: string; response_note?: string; attachments?: Attachment[]}
 type Home = {support_tickets?: Ticket[]}
 
 const TOPICS = [
@@ -23,6 +26,48 @@ export default function SupportCard() {
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [files, setFiles] = useState<Picked[]>([])
+  const [drag, setDrag] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const [warn, setWarn] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  const filesRef = useRef<Picked[]>([])
+  filesRef.current = files
+  useEffect(() => () => { filesRef.current.forEach(item => item.preview && URL.revokeObjectURL(item.preview)) }, [])
+  const addFiles = async (list: FileList | File[] | null) => {
+    if (!list) return
+    setFileError('')
+    const incoming = Array.from(list)
+    const room = MAX_FILES - filesRef.current.length
+    if (incoming.length > room) setFileError(`En fazla ${MAX_FILES} dosya ekleyebilirsin.`)
+    for (const file of incoming.slice(0, Math.max(room, 0))) {
+      try {
+        const picked = await prepare(file)
+        setFiles(current => current.length >= MAX_FILES ? current : [...current, picked])
+      } catch (e) { setFileError(e instanceof Error ? e.message : 'Dosya eklenemedi.') }
+    }
+    if (input.current) input.current.value = ''
+  }
+  const removeFile = (key: string) => setFiles(current => {
+    current.find(item => item.key === key && item.preview && URL.revokeObjectURL(item.preview))
+    return current.filter(item => item.key !== key)
+  })
+  const onDrop = (event: DragEvent) => { event.preventDefault(); setDrag(false); void addFiles(event.dataTransfer.files) }
+  const onPaste = (event: ClipboardEvent) => {
+    const pasted = Array.from(event.clipboardData.files)
+    if (pasted.length) { event.preventDefault(); void addFiles(pasted) }
+  }
+  const download = async (ticketId: string, item: Attachment) => {
+    try {
+      const response = await fetch(`${API_BASE}/v22/commerce/support/${ticketId}/attachments/${item.id}`, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      if (!response.ok) throw new Error()
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement('a')
+      link.href = url; link.download = item.name
+      document.body.appendChild(link); link.click(); link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 4000)
+    } catch { setError('Dosya indirilemedi, tekrar dene.') }
+  }
   const load = useCallback(async () => {
     try {
       const home = await accountRequest<Home>('/commerce/customer-home')
@@ -32,7 +77,7 @@ export default function SupportCard() {
   useEffect(() => { void load() }, [load])
   useEffect(() => {
     if (!done) return
-    const t = window.setTimeout(() => setDone(false), 4500)
+    const t = window.setTimeout(() => { setDone(false); setWarn('') }, warn ? 9000 : 4500)
     return () => window.clearTimeout(t)
   }, [done])
   const send = async () => {
@@ -41,8 +86,19 @@ export default function SupportCard() {
     setBusy(true); setError('')
     try {
       const subject = `${topic}: ${text.replace(/\s+/g, ' ').slice(0, 80)}`
-      await accountRequest('/commerce/support', {method: 'POST', body: JSON.stringify({subject, message: text, priority: 'NORMAL'})})
-      setMessage(''); setDone(true)
+      const created = await accountRequest<{id: string}>('/commerce/support', {method: 'POST', body: JSON.stringify({subject, message: text, priority: 'NORMAL'})})
+      let attachWarning = ''
+      if (files.length) {
+        try {
+          const payload = {files: await Promise.all(files.map(async item => ({name: item.file.name, data: await toBase64(item.file)})))}
+          await accountRequest(`/commerce/support/${created.id}/attachments`, {method: 'POST', body: JSON.stringify(payload)})
+        } catch (e) {
+          attachWarning = e instanceof Error && e.message ? e.message : 'Dosyalar yüklenemedi.'
+        }
+      }
+      files.forEach(item => item.preview && URL.revokeObjectURL(item.preview))
+      setFiles([]); setFileError('')
+      setMessage(''); setDone(true); setWarn(attachWarning)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Talep gönderilemedi, tekrar dene.')
@@ -54,19 +110,32 @@ export default function SupportCard() {
       <span className="spBadge"><LifeBuoy aria-hidden="true"/></span>
       <div><h2>Destek</h2><p>Destek ekibimiz sana buradan dönüş yapar.</p></div>
     </div>
-    {done ? <div className="spDone" role="status"><span><Check aria-hidden="true"/></span><b>Talebin alındı</b><small>En kısa sürede dönüş yapacağız.</small></div> : <>
+    {done ? <div className="spDone" role="status"><span><Check aria-hidden="true"/></span><b>Talebin alındı</b><small>{warn ? `Talebin kaydedildi ancak dosyalar eklenemedi: ${warn}` : 'En kısa sürede dönüş yapacağız.'}</small></div> : <>
       <div className="spTopics" role="radiogroup" aria-label="Konu">
         {TOPICS.map(({name, hint, Icon}) => <button type="button" role="radio" aria-checked={name === topic} key={name} className={name === topic ? 'on' : ''} onClick={() => setTopic(name)}>
           <Icon aria-hidden="true"/><b>{name}</b><small>{hint}</small>
         </button>)}
       </div>
-      <div className="spBox">
-        <textarea value={message} maxLength={2000} rows={3} placeholder="Sorununu kısaca anlat…" onChange={e => setMessage(e.target.value)}/>
+      <div className={`spBox${drag ? ' drag' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)} onDrop={onDrop}>
+        <textarea value={message} maxLength={2000} rows={3} placeholder="Sorununu kısaca anlat…" onChange={e => setMessage(e.target.value)} onPaste={onPaste}/>
+        {files.length > 0 && <ul className="spFiles" aria-label="Eklenen dosyalar">
+          {files.map(item => <li key={item.key}>
+            {item.preview ? <img src={item.preview} alt=""/> : <span className="spFileIcon"><FileText aria-hidden="true"/></span>}
+            <span><b title={item.file.name}>{item.file.name}</b><small>{formatSize(item.file.size)}</small></span>
+            <button type="button" aria-label={`${item.file.name} dosyasını kaldır`} onClick={() => removeFile(item.key)}><X aria-hidden="true"/></button>
+          </li>)}
+        </ul>}
+        <div className="spAttach">
+          <input ref={input} type="file" accept={ACCEPT} multiple hidden onChange={e => void addFiles(e.target.files)}/>
+          <button type="button" className="spAddFile" disabled={files.length >= MAX_FILES} onClick={() => input.current?.click()}><Paperclip aria-hidden="true"/>Fotoğraf veya dosya ekle</button>
+          <small>PNG, JPG, WEBP, PDF · en fazla {MAX_FILES} dosya · her biri 2 MB · sürükleyip bırakabilir veya ekran görüntüsünü yapıştırabilirsin</small>
+        </div>
         <div className="spBar">
-          <small>Şifreni veya API gizli anahtarını yazma · {message.length}/2000</small>
+          <small>Şifreni, API gizli anahtarını yazma veya görselde gösterme · {message.length}/2000</small>
           <button type="button" className="spSend" disabled={busy || !ready} onClick={() => void send()}><Send aria-hidden="true"/>{busy ? 'Gönderiliyor' : 'Gönder'}</button>
         </div>
       </div>
+      {fileError && <p className="spError" role="alert">{fileError}</p>}
       {error && <p className="spError" role="alert">{error}</p>}
     </>}
     {tickets !== null && tickets.length > 0 && <div className="spMine">
@@ -82,6 +151,7 @@ export default function SupportCard() {
           </button>
           <div className="spBody"><div>
             <p>{item.message}</p>
+            {item.attachments && item.attachments.length > 0 && <ul className="spAttached">{item.attachments.map(file => <li key={file.id}><FileText aria-hidden="true"/><span><b>{file.name}</b><small>{formatSize(file.size)}</small></span><button type="button" aria-label={`${file.name} dosyasını indir`} onClick={() => void download(item.id, file)}><Download aria-hidden="true"/>İndir</button></li>)}</ul>}
             {item.response_note ? <div className="spReply"><b>Destek ekibi</b><p>{item.response_note}</p></div> : <small className="spWait">Yanıt bekleniyor</small>}
           </div></div>
         </article>

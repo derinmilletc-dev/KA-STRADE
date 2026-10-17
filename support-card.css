@@ -55,3 +55,31 @@
 #root #support-card .spReply p { margin-top: 4px; color: #edf2f8; }
 @media (max-width: 520px) { #support-card .spBar { flex-direction: column; align-items: stretch; padding-left: 8px; } #support-card .spSend { justify-content: center; } #support-card .spItem em { display: none; } #support-card .spItem > button { grid-template-columns: auto 1fr auto; } }
 @media (prefers-reduced-motion: reduce) { #support-card * { transition: none !important; animation: none !important; } }
+
+/* Dosya ekleme */
+#root #support-card .spBox.drag { background: rgba(52,211,153,.12) !important; box-shadow: 0 0 0 3px rgba(52,211,153,.5), inset 0 0 0 1px rgba(52,211,153,.35); }
+#root #support-card .spFiles { list-style: none; margin: 0; padding: 4px 8px 2px; display: flex; flex-wrap: wrap; gap: 8px; }
+#root #support-card .spFiles li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: min(100%, 260px); padding: 6px 8px 6px 6px; border-radius: 14px; background: rgba(255,255,255,.06) !important; animation: spPop .18s ease; }
+#root #support-card .spFiles img, #root #support-card .spFileIcon { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: rgba(255,255,255,.08); display: grid; place-items: center; }
+#root #support-card .spFileIcon svg { width: 20px; height: 20px; color: #f87171; }
+#root #support-card .spFiles li > span:not(.spFileIcon) { display: grid; gap: 1px; min-width: 0; }
+#root #support-card .spFiles b { color: #edf2f8; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#root #support-card .spFiles small { color: #8fa1b5; font-size: 12px; }
+#root #support-card .spFiles button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 0 !important; border-radius: 50%; background: rgba(255,255,255,.08) !important; color: #cbd5e1; cursor: pointer; transition: background .15s, color .15s; }
+#root #support-card .spFiles button:hover { background: rgba(248,113,113,.22) !important; color: #fecaca; }
+#root #support-card .spFiles button svg { width: 15px; height: 15px; }
+#root #support-card .spAttach { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 8px 0 14px; }
+#root #support-card .spAttach small { flex: 1 1 220px; color: #7f90a4; font-size: 12px; line-height: 1.45; }
+#root #support-card .spAddFile { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 0 !important; border-radius: 12px; background: rgba(255,255,255,.08) !important; color: #e2e8f0; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, transform .15s; }
+#root #support-card .spAddFile:hover:not(:disabled) { background: rgba(52,211,153,.2) !important; color: #6ee7b7; }
+#root #support-card .spAddFile:disabled { opacity: .4; cursor: default; }
+#root #support-card .spAddFile svg { width: 16px; height: 16px; }
+#root #support-card .spAttached { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+#root #support-card .spAttached li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.05) !important; }
+#root #support-card .spAttached li > svg { width: 18px; height: 18px; color: #8fa1b5; }
+#root #support-card .spAttached li > span { display: grid; min-width: 0; }
+#root #support-card .spAttached b { font-size: 13px; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#root #support-card .spAttached small { font-size: 12px; color: #8fa1b5; }
+#root #support-card .spAttached button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 0 !important; border-radius: 10px; background: rgba(52,211,153,.16) !important; color: #6ee7b7; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+#root #support-card .spAttached button:hover { background: rgba(52,211,153,.3) !important; }
+#root #support-card .spAttached button svg { width: 14px; height: 14px; }
