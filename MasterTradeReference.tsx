@@ -156,7 +156,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const labels = range ? analysisChartLabels([
     ...(premium && levelsVisible ? levels : []),
     ...(typeof price === 'number' && Number.isFinite(price) ? [{label: '', value: price, tone: 'current'}] : []),
-  ], range, size.height, priceHeight) : []
+  ], range, plotHeight, priceHeight) : []
   const y = (value: number) => range ? (range.high - value) / (range.high - range.low) * priceHeight : 0
   const x = (index: number) => 10 + (index + .5) / visible.length * (plotWidth - 20)
   const bodyWidth = Math.max(1, Math.min(14, (plotWidth - 20) / visible.length * .7))

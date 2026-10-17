@@ -41,10 +41,12 @@ export function analysisChartLabels(lines: ReadonlyArray<{label: string; value: 
     ...line, priceY: toY(line.value),
     edge: line.value > range.high ? 'above' as const : line.value < range.low ? 'below' as const : 'inside' as const,
   })).sort((left, right) => left.priceY - right.priceY)
+  // Etiketler arası boşluk: sığıyorsa 42px, sığmıyorsa alana göre daralır (en az 24px) — etiketler grafiğin dışına taşmaz.
+  const gap = labels.length > 1 ? Math.min(42, Math.max(24, (height - 22) / (labels.length - 1))) : 42
   const positions: number[] = []
-  labels.forEach((line, index) => positions.push(Math.max(11, Math.min(height - 11, line.edge === 'above' ? 11 : line.edge === 'below' ? height - 11 : line.priceY), index ? positions[index - 1] + 42 : 11)))
+  labels.forEach((line, index) => positions.push(Math.max(11, Math.min(height - 11, line.edge === 'above' ? 11 : line.edge === 'below' ? height - 11 : line.priceY), index ? positions[index - 1] + gap : 11)))
   for (let index = positions.length - 1; index >= 0; index--) {
-    positions[index] = Math.min(positions[index], index === positions.length - 1 ? height - 11 : positions[index + 1] - 42)
+    positions[index] = Math.max(11, Math.min(positions[index], index === positions.length - 1 ? height - 11 : positions[index + 1] - gap))
   }
   return labels.map((line, index) => ({...line, y: positions[index]}))
 }
