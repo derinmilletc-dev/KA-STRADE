@@ -33,3 +33,10 @@ html body #root .originalManualOrder .liveWsPrimary{background:var(--mo-acc)!imp
 html body #root .originalManualOrder .liveWsPrimary.danger{background:var(--mo-bad)!important;color:#2a0a07!important}
 html body #root .originalManualOrder .liveWsPrimary:disabled{background:rgba(255,255,255,.07)!important;color:#6f7f90!important;cursor:not-allowed}
 @media(max-width:900px){html body #root .originalManualOrder .liveWsOrder{grid-template-columns:1fr!important}html body #root .originalManualOrder .liveWsOrderSummary{position:static}}
+/* Giriş ve miktar: iki sütun satır satır aynı hizada */
+html body #root .originalManualOrder .manualAmount{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:repeat(5,auto);column-gap:16px;row-gap:8px;align-items:start}
+html body #root .originalManualOrder .manualAmount>.liveWsField{display:grid!important;grid-row:span 5;grid-template-rows:subgrid;row-gap:8px;margin:0!important;align-items:center}
+html body #root .originalManualOrder .manualAmount>.liveWsField>.liveWsChips{margin:0!important;min-height:32px}
+html body #root .originalManualOrder .manualAmount>.liveWsField>.liveWsHint{margin:0!important}
+html body #root .originalManualOrder .manualAmount .manualRange{margin:0!important}
+@media(max-width:700px){html body #root .originalManualOrder .manualAmount{grid-template-columns:1fr;grid-template-rows:none}html body #root .originalManualOrder .manualAmount>.liveWsField{grid-row:auto;grid-template-rows:none}}
