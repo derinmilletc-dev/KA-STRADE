@@ -16,6 +16,7 @@ EXPIRY_HOURS = 72
 MAX_DAYS = 90
 MAX_PENDING_PER_MODERATOR = 5
 KEEP_DECIDED_DAYS = 60
+_tasks: set[Any] = set()
 ID = r"^[A-Za-z0-9_-]+$"
 
 mod_router = APIRouter(prefix="/api/mod/premium-requests", tags=["Moderator premium requests"])
@@ -103,6 +104,32 @@ def apply_grant(state: dict[str, Any], user_id: str, days: int) -> dict[str, Any
     return subscription
 
 
+def notify_owner(request: Request, state: dict[str, Any], row: dict[str, Any]) -> None:
+    """Phone notification to the owner for a new request. Never raises, never blocks."""
+    try:
+        import asyncio
+        from . import web_push
+        pool = getattr(request.app.state, "db_pool", None)
+        owner_ids = {u["id"] for u in state["users"] if u.get("role") == "OWNER"}
+        if pool is None or not owner_ids or not web_push.configured():
+            return
+        target = _user(state, row["target_user_id"]) or {}
+        body = f"{target.get('email') or 'Bir müşteri'} için {row['days']} gün premium istendi. Onay bekliyor."
+
+        async def send() -> None:
+            try:
+                for owner_id in owner_ids:
+                    await web_push.send_to_user(pool, owner_id, "premium", "Premium talebi", body, force=True, url="/admin")
+            except Exception:
+                pass
+
+        task = asyncio.get_running_loop().create_task(send())
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------- moderator
 @mod_router.post("")
 async def create_request(payload: CreatePremiumRequest, request: Request,
@@ -131,6 +158,7 @@ async def create_request(payload: CreatePremiumRequest, request: Request,
         add_audit(state, "PREMIUM_REQUESTED", f"Moderatör {payload.days} gün premium istedi.",
                   actor=identity.user_id, subject=payload.target_user_id)
         save_state(state)
+        notify_owner(request, state, row)
         return _public(state, row)
 
 

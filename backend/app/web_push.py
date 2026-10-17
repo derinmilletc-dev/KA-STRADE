@@ -155,9 +155,9 @@ def _deliver(subscription: dict[str, Any], body: str) -> int:
         return 0
 
 
-async def send_to_user(pool: Any, user_id: str, category: str | None, title: str, body: str, *, force: bool = False) -> int:
+async def send_to_user(pool: Any, user_id: str, category: str | None, title: str, body: str, *, force: bool = False, url: str = "/master-trade") -> int:
     rows = await pool.fetch("SELECT endpoint,p256dh,auth,kinds FROM push_subscriptions WHERE user_id=$1", user_id)
-    message = json.dumps({"title": title[:80], "body": body[:160], "tag": f"kais-{category or 'test'}", "url": "/master-trade"}, ensure_ascii=False)
+    message = json.dumps({"title": title[:80], "body": body[:160], "tag": f"kais-{category or 'test'}", "url": url}, ensure_ascii=False)
     sent = 0
     for row in rows:
         if not force and category not in (row["kinds"] or []):
