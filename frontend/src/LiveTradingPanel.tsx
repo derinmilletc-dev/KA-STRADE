@@ -1159,6 +1159,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         walletBalance={snapshotVerified ? status.account?.wallet_balance : null}
         overview={<OriginalLiveOverview status={status} verified={snapshotVerified} findPlan={findActivePlanForPosition}/>}
       />
+      <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
+        <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
+      </details>
       <details className="originalAdvanced"><summary>Gelişmiş · kurtarma ve eski V25</summary>
         <button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolü</button>
         <button type="button" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>Acil durdurma kilidini kaldır</button>
