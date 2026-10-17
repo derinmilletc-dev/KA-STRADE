@@ -977,7 +977,7 @@ export default function TestnetFirstApp() {
 
     {view === 'performance' && <>
       <div className="perfSwitch" role="tablist"><button type="button" role="tab" aria-selected={perfMode === 'live'} className={perfMode === 'live' ? 'on' : ''} onClick={() => setPerfMode('live')}>Canlı işlemler</button><button type="button" role="tab" aria-selected={perfMode === 'demo'} className={perfMode === 'demo' ? 'on' : ''} onClick={() => setPerfMode('demo')}>Demo işlemler</button></div>
-      {perfMode === 'live' ? <LivePerformance active/> : <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Performance hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} initialTab="performance" workspace="trade"/></Suspense>}
+      <LivePerformance key={perfMode} active mode={perfMode}/>
     </>}
 
     {view === 'analyst' && <CoinAnalysisCenter interval={interval} onIntervalChange={setInterval} onOpenTrade={selectPulseSymbol} chart={(selectedSymbol,selectedInterval,showLevels,showEma) => <TestnetMarketChart symbol={selectedSymbol} interval={selectedInterval} showLevels={showLevels} showEma={showEma} onAnalysis={() => undefined}/>}/>}
