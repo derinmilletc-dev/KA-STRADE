@@ -290,8 +290,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       if (firstLoad) setDataLoading(true)
       try {
         const [candleResponse, analysisResponse, nextMtf] = await Promise.all([
-          fetchPublicMarketData(`${API_BASE}/klines/${draft.market}?interval=${interval}&limit=160`, { signal: controller.signal }, 10000),
-          fetchPublicMarketData(`${API_BASE}/analysis/${draft.market}?interval=${interval}`, { signal: controller.signal }, 10000),
+          fetchPublicMarketData(`${API_BASE}/klines/${draft.market}?interval=${interval}&limit=160`, { signal: controller.signal }, 15000),
+          fetchPublicMarketData(`${API_BASE}/analysis/${draft.market}?interval=${interval}`, { signal: controller.signal }, 20000),
           fetchMtfAnalyses(draft.market, controller.signal),
         ])
         if (!candleResponse.ok) throw await marketDataResponseError(candleResponse)

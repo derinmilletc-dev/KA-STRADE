@@ -28,7 +28,7 @@ def public_analysis_routes(fetch):
         "ALLOWED_INTERVALS": {"1m", "5m", "15m", "30m", "1h", "4h", "1d"},
         "INTERVAL_SECONDS": {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
                              "1h": 3600, "4h": 14400, "1d": 86400},
-        "CANDLE_CACHE": {}, "CANDLE_INFLIGHT": {}, "market_data_request": fetch,
+        "CANDLE_CACHE": {}, "CANDLE_INFLIGHT": {}, "ANALYSIS_CACHE": {}, "market_data_request": fetch,
     }
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "<public-analysis-routes>", "exec"), namespace)
     return namespace

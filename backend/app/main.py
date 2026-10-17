@@ -139,6 +139,8 @@ SCAN_CACHE: dict[tuple[int, str], tuple[float, list]] = {}
 ANALYSIS_UNIVERSE_CACHE: dict[str, tuple[float, list[dict]]] = {}
 CANDLE_CACHE: dict[tuple[str, str, int], tuple[int, list[dict]]] = {}
 CANDLE_INFLIGHT: dict[tuple[str, str, int], asyncio.Lock] = {}
+# Aynı mum listesi için analiz bir kez hesaplanır; mumlar yenilenince (yeni liste) yeniden hesaplanır.
+ANALYSIS_CACHE: dict[tuple[str, str], tuple[list[dict], dict]] = {}
 CONSENSUS_CACHE: dict[str, tuple[float, dict]] = {}
 GUARD_CACHE: dict[str, tuple[float, dict]] = {}
 LAB_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
@@ -1995,9 +1997,16 @@ async def technical_analysis(symbol: str, interval: str = "15m"):
     candles = await fetch_candles(symbol, interval, 500)
     if len(candles) < 220:
         raise HTTPException(422, "Analiz için yeterli mum verisi yok")
+    key = ("".join(char for char in symbol.upper() if char.isalnum()), interval)
+    cached = ANALYSIS_CACHE.get(key)
+    if cached is not None and cached[0] is candles:
+        return cached[1]
     result = analyze(candles)
     # Keep the legacy direction for existing consumers and expose a normalized signal separately.
     result["normalized_signal"] = normalize_analysis_signal(result["direction"])
+    ANALYSIS_CACHE[key] = (candles, result)
+    if len(ANALYSIS_CACHE) > 600:
+        ANALYSIS_CACHE.pop(next(iter(ANALYSIS_CACHE)))
     return result
 
 
