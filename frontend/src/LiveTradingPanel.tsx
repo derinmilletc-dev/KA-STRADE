@@ -1174,11 +1174,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
         <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
       </details>
-      <details className="originalAdvanced"><summary>Gelişmiş · kurtarma ve eski V25</summary>
+      <details className="originalAdvanced"><summary>Gelişmiş · kurtarma</summary>
         <button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolü</button>
         <button type="button" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>Acil durdurma kilidini kaldır</button>
         <button type="button" onClick={emergencyStop} disabled={Boolean(busy)}>Pozisyonları kapatan tam acil durdurma</button>
-        <button type="button" onClick={autoToggle} disabled={Boolean(busy) || status.original_v2_live.enabled || (!status.live_auto_trade && !autoReady)}>Eski V25 otomasyonu</button>
       </details>
       {confirmationModal}
     </section></PremiumWorkspace>

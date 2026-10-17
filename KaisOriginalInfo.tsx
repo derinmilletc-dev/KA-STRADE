@@ -14,7 +14,7 @@ export default function KaisOriginalInfo() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
   return <>
-    <button type="button" className="kaisInfoBtn" aria-label="Kais Original V2 hakkında bilgi" title="Strateji nasıl çalışır?" onClick={() => setOpen(true)}><Info size={16}/></button>
+    <button type="button" className="kaisInfoBtn" aria-label="Kais Original V2 hakkında bilgi" title="Strateji nasıl çalışır?" onClick={() => setOpen(true)}><Info size={16}/><span>Strateji nasıl çalışır?</span></button>
     {open && createPortal(<div className="kaisInfoBackdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) setOpen(false) }}>
       <section className="kaisInfoDialog" role="dialog" aria-modal="true" aria-labelledby="kais-info-title">
         <header><div><small>STRATEJİ ÖZETİ</small><h2 id="kais-info-title">Kais Original V2</h2></div><button ref={closeRef} type="button" aria-label="Kapat" onClick={() => setOpen(false)}><X size={18}/></button></header>
