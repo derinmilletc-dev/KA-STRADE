@@ -1,6 +1,13 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 
-export type VoiceLanguage = 'tr' | 'en'
+export type VoiceLanguage = string
+
+/** Site dili → konuşma tanıma/okuma dil etiketi. Yeni dil eklenince buraya bir satır eklemek yeterli. */
+const SPEECH_TAGS: Record<string, string> = {
+  tr: 'tr-TR', en: 'en-US', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR', ru: 'ru-RU',
+  ar: 'ar-SA', fa: 'fa-IR', az: 'az-AZ', nl: 'nl-NL', pl: 'pl-PL', uk: 'uk-UA', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', hi: 'hi-IN', id: 'id-ID',
+}
+export const speechTag = (language: string) => SPEECH_TAGS[language.slice(0, 2).toLowerCase()] ?? language
 
 export const voiceCopy = {
   tr: {
@@ -100,7 +107,8 @@ const readReplies = () => { try { return localStorage.getItem(STORAGE_KEY) === '
 const writeReplies = (value: boolean) => { try { localStorage.setItem(STORAGE_KEY, value ? '1' : '0') } catch { /* tercih saklanamazsa oturum boyunca geçerli */ } }
 
 export function useVoice(language: VoiceLanguage, onTranscript: (text: string) => Promise<string | null>) {
-  const copy = voiceCopy[language]
+  const base = language.slice(0, 2).toLowerCase()
+  const copy = voiceCopy[base as keyof typeof voiceCopy] ?? voiceCopy.en
   const recognition = useRef<Recognition | null>(null)
   const callback = useRef(onTranscript)
   callback.current = onTranscript
@@ -115,7 +123,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const [replies, setReplies] = useState(readReplies)
   const inputSupported = typeof window !== 'undefined' && recognitionConstructor() !== null
   const outputSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
-  const tag = language === 'tr' ? 'tr-TR' : 'en-US'
+  const tag = speechTag(language)
+  const tagRef = useRef(tag)
+  tagRef.current = tag
 
   const stopSpeaking = useCallback(() => { speakToken.current += 1; if (outputSupported) window.speechSynthesis.cancel() }, [outputSupported])
   const speak = useCallback((text: string, onDone?: () => void) => {
@@ -124,7 +134,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     window.speechSynthesis.cancel()
     const token = ++speakToken.current
     const voices = window.speechSynthesis.getVoices()
-    const voice = pickVoice(voices, tag, language)
+    const voice = pickVoice(voices, tag, base)
     const parts = chunks(clean)
     let finished = false
     const done = () => { if (finished || token !== speakToken.current) return; finished = true; onDone?.() }
@@ -141,7 +151,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       }
       window.speechSynthesis.speak(utterance)
     })
-  }, [language, outputSupported, tag])
+  }, [base, outputSupported, tag])
 
   const end = useCallback((note = '') => {
     active.current = false
@@ -158,7 +168,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (Date.now() - lastSpeech.current > IDLE_LIMIT_MS) { end(copy.idleEnded); return }
     recognition.current?.abort()
     const instance = new Constructor()
-    instance.lang = tag
+    // Sohbet sırasında site dili değişirse bir sonraki dinlemede yeni dil kullanılır.
+    instance.lang = tagRef.current
     instance.interimResults = false
     instance.maxAlternatives = 1
     instance.continuous = false

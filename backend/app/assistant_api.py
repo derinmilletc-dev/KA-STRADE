@@ -283,6 +283,9 @@ async def assistant_chat(request: Request) -> JSONResponse:
         body = await request.json()
         if isinstance(body, dict) and isinstance(body.get("message"), str):
             language = detect_language(body["message"])
+        # Kullanıcının sitede seçtiği dil, mesajdan tahmin edilen dilden önce gelir.
+        if isinstance(body, dict) and body.get("language") in ("tr", "en"):
+            language = body["language"]
         payload = ChatInput.model_validate(body)
     except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
         return reply_response(text(language, "Geçersiz mesaj.", "Invalid message."), language, 422)
