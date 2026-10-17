@@ -999,6 +999,7 @@ async def scan_demo_universe(
     timeframe: str = "15m",
     symbols: list[str] | None = None,
     diagnostics: dict[str, Any] | None = None,
+    max_symbols: int | None = None,
 ) -> list[dict[str, Any]]:
     """Analyze the largest liquid Demo perpetual universe and rank opportunities."""
     exchange_info, tickers = await asyncio.gather(
@@ -1010,8 +1011,9 @@ async def scan_demo_universe(
     universe = [symbol for symbol in supported_symbols if not requested_symbols or symbol in requested_symbols]
     universe = [symbol for symbol in universe if symbol not in occupied]
     settings["_auto_universe"] = universe
+    scan_list = universe[:max_symbols] if max_symbols else universe  # hacme göre sıralı: en likit pariteler
     stats = diagnostics if diagnostics is not None else {}
-    stats.update({"universe": len(universe), "short_history": 0, "fetch_errors": 0, "sample_error": "", "sample_lengths": ""})
+    stats.update({"universe": len(scan_list), "short_history": 0, "fetch_errors": 0, "sample_error": "", "sample_lengths": ""})
 
     async def evaluate(symbol: str) -> dict[str, Any] | None:
         try:
@@ -1073,8 +1075,8 @@ async def scan_demo_universe(
             return {"symbol": symbol, "direction": "NEUTRAL", "opportunity_score": 0, "confidence": 0, "status": "REJECTED", "trend": "Veri yok", "momentum": "Nötr", "reasons": ["Yeterli market verisi alınamadı"]}
 
     results: list[dict[str, Any]] = []
-    for offset in range(0, len(symbols), 10):
-        batch = await asyncio.gather(*(evaluate(symbol) for symbol in symbols[offset:offset + 10]))
+    for offset in range(0, len(scan_list), 10):
+        batch = await asyncio.gather(*(evaluate(symbol) for symbol in scan_list[offset:offset + 10]))
         results.extend(item for item in batch if item is not None)
     return _enrich_scan_candidates(results)
 
@@ -2400,7 +2402,8 @@ async def run_scanner_cycle(
                 snapshot = {"positions": [], "open_orders": []}
         occupied = {item["symbol"] for item in (snapshot.get("positions") or []) + (snapshot.get("open_orders") or [])}
         diagnostics: dict[str, Any] = {}
-        ranked = await scan_demo_universe(client, occupied, settings, timeframe=timeframe, symbols=symbols, diagnostics=diagnostics)
+        scan_cap = {"TOP 20": 20, "TOP 50": 50}.get(universe) if not symbols else None
+        ranked = await scan_demo_universe(client, occupied, settings, timeframe=timeframe, symbols=symbols, diagnostics=diagnostics, max_symbols=scan_cap)
         scanner["diagnostics"] = diagnostics
         if not ranked:
             logger.warning("Scanner produced no candidates: %s", diagnostics)
