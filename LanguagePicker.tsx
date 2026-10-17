@@ -6,9 +6,9 @@ import './language-picker.css'
 
 /** Windows'ta emoji bayraklar harf olarak göründüğü için bayraklar SVG çizilir. */
 function Flag({code}: {code: string}) {
-  if (code === 'tr') return <i className="langPickerFlag" aria-hidden="true"><svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice"><rect width="30" height="20" fill="#e30a17"/><circle cx="10.6" cy="10" r="5" fill="#fff"/><circle cx="11.9" cy="10" r="4" fill="#e30a17"/><polygon points="11.90,10.00 13.63,9.44 13.63,7.62 14.70,9.09 16.42,8.53 15.36,10.00 16.42,11.47 14.70,10.91 13.63,12.38 13.63,10.56" fill="#fff"/></svg></i>
-  if (code === 'en') return <i className="langPickerFlag" aria-hidden="true"><svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice"><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#fff" strokeWidth="6"/><path d="M0,0 60,30M60,0 0,30" stroke="#c8102e" strokeWidth="3"/><path d="M30,0V30M0,15H60" stroke="#fff" strokeWidth="10"/><path d="M30,0V30M0,15H60" stroke="#c8102e" strokeWidth="6"/></svg></i>
-  return <i className="langPickerBadge">{code}</i>
+  if (code === 'tr') return <span className="langPickerFlag" aria-hidden="true"><svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice"><rect width="30" height="20" fill="#e30a17"/><circle cx="10.6" cy="10" r="5" fill="#fff"/><circle cx="11.9" cy="10" r="4" fill="#e30a17"/><polygon points="11.90,10.00 13.63,9.44 13.63,7.62 14.70,9.09 16.42,8.53 15.36,10.00 16.42,11.47 14.70,10.91 13.63,12.38 13.63,10.56" fill="#fff"/></svg></span>
+  if (code === 'en') return <span className="langPickerFlag" aria-hidden="true"><svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice"><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#fff" strokeWidth="6"/><path d="M0,0 60,30M60,0 0,30" stroke="#c8102e" strokeWidth="3"/><path d="M30,0V30M0,15H60" stroke="#fff" strokeWidth="10"/><path d="M30,0V30M0,15H60" stroke="#c8102e" strokeWidth="6"/></svg></span>
+  return <span className="langPickerBadge">{code}</span>
 }
 
 /** Açılır dil seçici. Dil sayısı arttıkça listeye arama kutusu gelir ve liste kayar. */
