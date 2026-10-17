@@ -279,6 +279,7 @@ def default_commercial_state() -> dict[str, Any]:
         "demo_invoices": [],
         "support_tickets": [],
         "acceptances": [],
+        "premium_requests": [],
         "plans": json.loads(json.dumps(PLAN_CATALOG)),
         "release_evidence": {
             "backup": {"status": "PENDING", "note": "Yedekleme tatbikatı bekleniyor.", "updated_at": None},

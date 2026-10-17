@@ -12,6 +12,7 @@ import './admin.css'
 import './moderator-panel.css'
 import ModeratorSupport, {SupportOverview} from './ModeratorSupport'
 import ModeratorApprovals, {ApprovalOverview, ApprovalRequestForm} from './ModeratorApprovals'
+import {ModeratorPremiumRequests, PremiumRequestForm} from './PremiumRequests'
 import CustomerEvents, {OwnerApprovalNotice} from './CustomerEvents'
 import ModeratorCampaigns from './ModeratorCampaigns'
 
@@ -47,6 +48,7 @@ function CustomerResourcePanel({kind, initialUserId, onBack, canRequest = false,
     {!query && <ModCard title="Müşteri seçimi"><ModEmpty text="Görüntülemek için bir kullanıcı numarası yazın."/></ModCard>}
     {resource && <ModResourceView resource={resource}/>}
     {resource?.kind === 'profile' && canRequest && <ApprovalRequestForm key={resource.data.user_id} userId={resource.data.user_id} active={resource.data.active} onCreated={onRequestCreated}/>}
+    {resource?.kind === 'profile' && canRequest && <PremiumRequestForm key={`premium-${resource.data.user_id}`} userId={resource.data.user_id} onCreated={onRequestCreated}/>}
     {resource?.kind === 'profile' && canViewEvents && <CustomerEvents key={resource.data.user_id} userId={resource.data.user_id}/>}
   </div>
 }
@@ -134,7 +136,7 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
           </ModCard><ModCard title="Diğer bölümler yakında"><p className="mod-secondary">Etkinlik sonraki aşamalarda kullanıma açılacak.</p></ModCard>
         </div> : section === 'customers' ? <Customers key={`${section}:${userId}`} initialUserId={userId} permissions={me.permissions} owner={me.role === 'OWNER'} navigate={navigate}/> :
           section === 'support' ? <ModeratorSupport manage={me.permissions.includes('support.manage')} onCustomer={me.permissions.includes('customers.view') ? id => navigate('customers', id) : undefined}/> :
-          section === 'approvals' ? me.role === 'OWNER' ? <OwnerApprovalNotice/> : <ModeratorApprovals/> :
+          section === 'approvals' ? me.role === 'OWNER' ? <OwnerApprovalNotice/> : <><ModeratorApprovals/><ModeratorPremiumRequests/></> :
           section === 'campaigns' ? <ModeratorCampaigns owner={me.role === 'OWNER'} canRequest={me.permissions.includes('approvals.create')}/> :
           section === 'activity' ? <ModCard title="Teknik Olaylar"><p className="mod-secondary">Teknik olay geçmişi müşteri profilinde görüntülenir.</p><button className="mod-back" disabled={!me.permissions.includes('customers.view')} onClick={() => navigate('customers')}>Müşteri seç</button></ModCard> :
           section === 'subscriptions' || section === 'payments' ? <CustomerResourcePanel key={`${section}:${userId}`} kind={section === 'subscriptions' ? 'subscription' : 'payments'} initialUserId={userId}/> :

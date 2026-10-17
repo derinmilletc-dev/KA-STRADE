@@ -217,7 +217,7 @@ def sanitize_state(payload: Any) -> dict[str, Any]:
         return base
     for key in (
         "users", "profiles", "subscriptions", "auth_tokens", "stripe_event_ids", "stripe_checkout_sessions", "licenses", "pairing_codes", "agents", "audit", "plans",
-        "release_evidence", "leads", "demo_invoices", "support_tickets", "acceptances",
+        "release_evidence", "leads", "demo_invoices", "support_tickets", "acceptances", "premium_requests",
     ):
         if key in payload and isinstance(payload[key], type(base[key])):
             base[key] = payload[key]

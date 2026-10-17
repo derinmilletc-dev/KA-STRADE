@@ -1,0 +1,148 @@
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {API_BASE} from './api'
+import {withRequestDeadline} from './browser-request'
+import {moderatorApiRequest} from './moderator-api'
+import {ModCard} from './moderator-ui'
+import './moderator-panel.css'
+
+type PremiumItem = {
+  id: string; status: string; days: number; reason: string; target_user_id: string
+  target_email: string | null; target_name: string | null; requester_email: string | null
+  created_at: string; expires_at: string; decision_note: string | null
+}
+const statusText: Record<string, string> = {
+  pending: 'Admin onayı bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi',
+  cancelled: 'Geri çekildi', expired: 'Süresi doldu',
+}
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+const text = (v: unknown) => (typeof v === 'string' ? v : null)
+
+function parseItem(value: unknown): PremiumItem {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.status !== 'string'
+    || typeof value.days !== 'number' || typeof value.reason !== 'string' || typeof value.target_user_id !== 'string') {
+    throw new Error('Premium talebi doğrulanamadı.')
+  }
+  return {
+    id: value.id, status: value.status, days: value.days, reason: value.reason, target_user_id: value.target_user_id,
+    target_email: text(value.target_email), target_name: text(value.target_name), requester_email: text(value.requester_email),
+    created_at: text(value.created_at) ?? '', expires_at: text(value.expires_at) ?? '', decision_note: text(value.decision_note),
+  }
+}
+function parseList(value: unknown): PremiumItem[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) throw new Error('Premium talepleri doğrulanamadı.')
+  return value.items.map(parseItem)
+}
+
+function ownerRequest<T>(path: string, parse: (v: unknown) => T, signal: AbortSignal, options: RequestInit = {}): Promise<T> {
+  return withRequestDeadline(async transportSignal => {
+    const headers = new Headers(options.headers)
+    headers.set('X-Requested-With', 'XMLHttpRequest')
+    if (options.body) headers.set('Content-Type', 'application/json')
+    const response = await fetch(`${API_BASE}/v22/admin/premium-requests${path}`, {...options, headers, credentials: 'same-origin', signal: transportSignal})
+    if (!response.ok) throw new Error(response.status === 409 ? 'Bu talep artık beklemede değil.' : 'İşlem yapılamadı.')
+    return parse(await response.json())
+  }, {signal, timeoutMs: 20000})
+}
+
+function failureText(failure: unknown) {
+  return failure instanceof Error && failure.message.includes('Bu talep') ? failure.message : 'İşlem yapılamadı. Biraz sonra tekrar deneyin.'
+}
+
+/** Moderator: ask for premium for one customer. Nothing changes until the admin approves. */
+export function PremiumRequestForm({userId, onCreated}: {userId: string; onCreated?: () => void}) {
+  const [open, setOpen] = useState(false)
+  const [days, setDays] = useState(30)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const inFlight = useRef(false)
+  const submit = async () => {
+    if (inFlight.current || reason.trim().length < 10) return
+    inFlight.current = true; setBusy(true); setError(''); setMessage('')
+    try {
+      await moderatorApiRequest('/premium-requests', parseItem, new AbortController().signal, {
+        method: 'POST', body: JSON.stringify({target_user_id: userId, days, reason: reason.trim()}),
+      })
+      setMessage('Talep admine gönderildi. Admin onaylayana kadar müşterinin hesabı değişmez.')
+      setOpen(false); setReason(''); onCreated?.()
+    } catch { setError('Talep gönderilemedi. Bu müşteri için bekleyen bir talep olabilir.') }
+    finally { inFlight.current = false; setBusy(false) }
+  }
+  return <ModCard title="Premium verme talebi">
+    <p>Premium'u siz veremezsiniz; talep admine gider, admin onaylarsa verilir.</p>
+    <div className="mod-actions"><button disabled={busy} onClick={() => setOpen(v => !v)}>Premium için talep oluştur</button></div>
+    {open && <form onSubmit={event => { event.preventDefault(); void submit() }}>
+      <label>Kaç gün? <input type="number" min={1} max={90} value={days} onChange={event => setDays(Math.min(90, Math.max(1, Number(event.target.value) || 1)))}/></label>
+      <label>Neden? (en az 10 harf)<textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)}/></label>
+      <button type="submit" disabled={busy || reason.trim().length < 10}>Admine gönder</button>
+    </form>}
+    {message && <p role="status">{message}</p>}
+    {error && <p role="alert">{error}</p>}
+  </ModCard>
+}
+
+/** Moderator: own premium requests. */
+export function ModeratorPremiumRequests({version = 0}: {version?: number}) {
+  const [items, setItems] = useState<PremiumItem[] | null>(null)
+  const [error, setError] = useState('')
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    moderatorApiRequest('/premium-requests', parseList, controller.signal, {method: 'GET'})
+      .then(value => { if (!controller.signal.aborted) setItems(value) })
+      .catch(() => { if (!controller.signal.aborted) setError('Premium talepleri okunamadı.') })
+    return () => controller.abort()
+  }, [version, tick])
+  const cancel = async (id: string) => {
+    try { await moderatorApiRequest(`/premium-requests/${encodeURIComponent(id)}/cancel`, parseItem, new AbortController().signal, {method: 'POST'}); setTick(v => v + 1) }
+    catch { setError('Talep geri çekilemedi.') }
+  }
+  return <ModCard title="Premium taleplerim">
+    {error && <p role="alert">{error}</p>}
+    {items === null ? <p>Yükleniyor…</p> : items.length === 0 ? <p>Henüz premium talebiniz yok.</p> :
+      items.map(item => <div key={item.id} className="mod-row">
+        <strong>{item.target_email ?? item.target_name ?? item.target_user_id}</strong> — {item.days} gün — {statusText[item.status] ?? item.status}
+        {item.decision_note && <div>Admin notu: {item.decision_note}</div>}
+        {item.status === 'pending' && <div className="mod-actions"><button onClick={() => void cancel(item.id)}>Geri çek</button></div>}
+      </div>)}
+  </ModCard>
+}
+
+/** Admin: pending premium requests from moderators. */
+export function AdminPremiumRequests() {
+  const [items, setItems] = useState<PremiumItem[] | null>(null)
+  const [error, setError] = useState('')
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [busyId, setBusyId] = useState('')
+  const [tick, setTick] = useState(0)
+  const load = useCallback((signal: AbortSignal) => ownerRequest('?status=pending', parseList, signal)
+    .then(value => { if (!signal.aborted) setItems(value) })
+    .catch(failure => { if (!signal.aborted) setError(failureText(failure)) }), [])
+  useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort() }, [load, tick])
+  const decide = async (item: PremiumItem, approve: boolean) => {
+    const ask = approve ? `${item.target_email ?? item.target_user_id} kullanıcısına ${item.days} gün premium verilsin mi?` : 'Talep reddedilsin mi?'
+    if (!window.confirm(ask)) return
+    setBusyId(item.id); setError('')
+    try {
+      await ownerRequest(`/${encodeURIComponent(item.id)}/${approve ? 'approve' : 'reject'}`, parseItem, new AbortController().signal,
+        {method: 'POST', body: JSON.stringify({note: notes[item.id] ?? ''})})
+      setTick(v => v + 1)
+    } catch (failure) { setError(failureText(failure)); setTick(v => v + 1) }
+    finally { setBusyId('') }
+  }
+  return <ModCard title="Moderatörlerin premium talepleri">
+    {error && <p role="alert">{error}</p>}
+    {items === null ? <p>Yükleniyor…</p> : items.length === 0 ? <p>Bekleyen premium talebi yok.</p> :
+      items.map(item => <div key={item.id} className="mod-row">
+        <p><strong>{item.target_email ?? item.target_name ?? item.target_user_id}</strong> için <strong>{item.days} gün</strong> premium istendi.</p>
+        <p>İsteyen moderatör: {item.requester_email ?? 'bilinmiyor'}</p>
+        <p>Neden: {item.reason}</p>
+        <label>Not (isteğe bağlı) <input value={notes[item.id] ?? ''} maxLength={500} onChange={event => setNotes(v => ({...v, [item.id]: event.target.value}))}/></label>
+        <div className="mod-actions">
+          <button disabled={busyId === item.id} onClick={() => void decide(item, true)}>Onayla ve premium ver</button>
+          <button disabled={busyId === item.id} onClick={() => void decide(item, false)}>Reddet</button>
+        </div>
+      </div>)}
+  </ModCard>
+}
