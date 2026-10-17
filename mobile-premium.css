@@ -6888,3 +6888,22 @@ body:has(#root .liveTradingPanel.liveUx),
   #root main.v26App .v26NotificationItem:not(.isRead) { border-color: rgba(121, 220, 174, .25) !important; background: rgba(61, 220, 132, .06) !important; }
   #root main.v26App .v26NotificationItem.isRead { opacity: .72; }
 }
+
+/* Telefon: tarama sonuçları ilk 5 satırdan sonra kendi içinde kayar. */
+@media (max-width: 700px) {
+  #root .scannerResults .scannerTableWrap {
+    max-height: 232px !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(121, 220, 174, .35) transparent;
+    border-radius: 12px;
+  }
+  #root .scannerResults .scannerTableWrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0a100e;
+  }
+}
