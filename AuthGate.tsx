@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Wrench, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
@@ -53,9 +53,9 @@ function AuthCoinScreen({data,status}:{data:LiveTickerData;status:LiveTickerStat
   </div>
 }
 
-function AuthIntroPanel({data,status,movers,premium = false}:{data:LiveTickerData;status:LiveTickerStatus;movers:ReturnType<typeof useTopMovers>;premium?:boolean}) {
+function AuthIntroPanel({data,status,movers,premium = false,onBrand}:{data:LiveTickerData;status:LiveTickerStatus;movers:ReturnType<typeof useTopMovers>;premium?:boolean;onBrand?:() => void}) {
   return <section className="authIntro">
-    <div className="authIntroCopy"><h1 className="authLogoHeading"><span className="authBrandMark" role="link" tabIndex={0} aria-label="Ana sayfaya git" onClick={() => window.location.assign('/')} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.assign('/') } }}><img src="/kaistrade-logo.png" alt="KaisTrade"/></span></h1>{premium && <h2 className="authPremiumTitle"><span className="authWordmark" aria-label="KaisTrade" translate="no" data-i18n-skip><b>Kais</b><i>Trade</i></span><span>Piyasanın ritmini yakalayın.</span></h2>}<p>Hızlı kararlar, berrak analiz ve güvenli işlem akışı için ihtiyacınız olan her şey tek çalışma alanında.</p></div>
+    <div className="authIntroCopy"><h1 className="authLogoHeading"><span className="authBrandMark" role="link" tabIndex={0} aria-label="Ana sayfaya git" onClick={() => onBrand ? onBrand() : window.location.assign('/')} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (onBrand) onBrand(); else window.location.assign('/') } }}><img src="/kaistrade-logo.png" alt="KaisTrade"/></span></h1>{premium && <h2 className="authPremiumTitle"><span className="authWordmark" aria-label="KaisTrade" translate="no" data-i18n-skip><b>Kais</b><i>Trade</i></span><span>Piyasanın ritmini yakalayın.</span></h2>}<p>Hızlı kararlar, berrak analiz ve güvenli işlem akışı için ihtiyacınız olan her şey tek çalışma alanında.</p></div>
     {!premium && <div className="authFeatureList"><span><Zap/> Hızlı işlem</span><span><BarChart3/> Gelişmiş analiz</span><span><ShieldCheck/> Güvenli altyapı</span></div>}
     <AuthMarketCards data={data} status={status}/>
     <TopMovers movers={movers} autoScroll={premium}/>
@@ -571,9 +571,9 @@ export default function AuthGate({children}:{children:ReactNode}) {
     return <LoginMarketShell>{market => <main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
       {mode !== 'login' && <p className="authMobileSlogan">KaisTrade piyasayı tek yerden yönetin</p>}
       {mode === 'login' && <header className="authMobileIdentity"><img src="/kaistrade-logo.png" alt="KaisTrade"/><p>KaisTrade piyasayı tek yerden yönetin</p></header>}
-      <AuthIntroPanel data={market.data} status={market.status} movers={market.movers} premium={mode === 'login'}/>
+      <AuthIntroPanel data={market.data} status={market.status} movers={market.movers} premium={mode === 'login'} onBrand={mode !== 'login' ? () => setMode('login') : undefined}/>
       <section className={`authCard ${mode === 'verify' ? 'authCardVerify' : ''}${isRegistration ? ' authCardRegister' : ''}${mode === 'login' ? ' authCardLogin' : ''}`}>
-        <div className="authLoginBrand"><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
+        <div className={`authLoginBrand${mode !== 'login' ? ' isLink' : ''}`} {...(mode !== 'login' ? {role:'link',tabIndex:0,'aria-label':'Giriş ekranına dön',onClick:() => setMode('login'),onKeyDown:(event:ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMode('login') } }} : {})}><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
         <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? 'HESAP OLUŞTUR' : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? 'Hesabını oluştur' : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
         <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.' : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
         <form ref={registrationFormRef} onSubmit={submit} noValidate={mode === 'login'} aria-busy={busy}>

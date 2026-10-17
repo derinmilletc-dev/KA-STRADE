@@ -965,3 +965,10 @@
 @media (forced-colors:active) { #root .authRoot .authConsent input { appearance:auto; } }
 
 .authLangField{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.authLangField>span{font-size:13px;color:#9fb0aa}
+
+.authLoginBrand.isLink{cursor:pointer;-webkit-tap-highlight-color:transparent}.authLoginBrand.isLink:focus-visible{outline:2px solid #79dcae;outline-offset:4px;border-radius:10px}
+#root .authCardRegister .authRegisterLinks{flex-direction:column!important;align-items:stretch!important;justify-content:center!important;gap:10px!important;margin-top:18px!important;padding-top:18px!important;border-top:1px solid rgba(255,255,255,.08)!important;text-align:center}
+#root .authCardRegister .authRegisterLinks span{font:400 13px/1.4 system-ui,sans-serif!important;color:#9aaca7!important;text-align:center}
+#root .authCardRegister .authRegisterLinks button{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-height:48px!important;padding:0 16px!important;border-radius:14px!important;border:1px solid rgba(121,220,174,.35)!important;background:rgba(121,220,174,.07)!important;color:#79dcae!important;font:700 14px/1 system-ui,sans-serif!important;letter-spacing:.2px;transition:background .15s,border-color .15s,transform .1s}
+#root .authCardRegister .authRegisterLinks button:hover{background:rgba(121,220,174,.14)!important;border-color:rgba(121,220,174,.6)!important}
+#root .authCardRegister .authRegisterLinks button:active{transform:scale(.985)}
