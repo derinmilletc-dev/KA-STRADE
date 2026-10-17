@@ -6619,3 +6619,12 @@ body:has(#root .liveTradingPanel.liveUx),
     flex: 0 0 18.5px !important;
   }
 }
+
+/* Telefon üst çubuk: logo ile göz/ikonlar aynı yatay hizada (dikey ortalı). */
+@media (max-width: 700px) {
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader { align-items: center !important; align-content: center !important; }
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader > .v26Brand,
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader > .v26HeaderActions,
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader > .v26HomeHeaderStatus { align-self: center !important; margin-block: 0 !important; }
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader .v26HeaderActions { align-items: center !important; height: auto !important; }
+}
