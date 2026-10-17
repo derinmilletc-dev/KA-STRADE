@@ -408,13 +408,23 @@ def _controller_lock(request: Request, mode: str) -> asyncio.Lock | nullcontext[
     return lock if isinstance(lock, asyncio.Lock) else nullcontext()
 
 
-def _require_live_owner(user: dict[str, Any]) -> None:
-    if user.get("role") != "OWNER":
-        raise HTTPException(403, "LIVE bağlantısını yalnız OWNER yönetebilir.")
+def _require_live_owner(user: dict[str, Any], request: Request | None = None, *, need_entitlement: bool = True) -> None:
+    """need_entitlement=False lets a member whose premium/trial ended still switch off or delete their own key."""
+    if user.get("role") == "OWNER":
+        return
+    from . import live_access
+    if request is not None and live_access.role_ok(user.get("role")):
+        if not need_entitlement:
+            return
+        from .member_entitlements import subscription_for_request
+        if live_access.entitled(subscription_for_request(request, user)):
+            return
+        raise HTTPException(403, live_access.LIVE_MESSAGE)
+    raise HTTPException(403, "LIVE bağlantısını yalnız OWNER yönetebilir.")
 
 
 async def _require_live_mfa(request: Request, user: dict[str, Any], code: str | None) -> None:
-    _require_live_owner(user)
+    _require_live_owner(user, request)
     from . import account_settings
 
     if not await account_settings.enabled(request, user):
@@ -486,7 +496,14 @@ async def authoritative_live_owner_active(application: Any, user_id: str) -> boo
             return False
         security = row["security"]
         security = json.loads(security) if isinstance(security, str) else security
-        return isinstance(security, dict) and security.get("active") is True and security.get("role") == "OWNER"
+        if not (isinstance(security, dict) and security.get("active") is True):
+            return False
+        if security.get("role") == "OWNER":
+            return True
+        # Role only: monitoring and stop management of an open position must keep working after a
+        # trial or plan ends. New entries are stopped separately by require_background_entry.
+        from . import live_access
+        return live_access.role_ok(security.get("role"))
     except Exception:
         logger.warning("Background LIVE account authority unavailable")
         return False
@@ -1338,7 +1355,9 @@ def _require_owner_member(request: Request) -> dict[str, Any]:
     if not user:
         raise HTTPException(401, "Oturum gerekli")
     if user.get("role") != "OWNER":
-        raise HTTPException(403, "Yönetici yetkisi gerekli")
+        from . import live_access
+        if not live_access.role_ok(user.get("role")):
+            raise HTTPException(403, "Yönetici yetkisi gerekli")
     return user
 
 
@@ -1381,7 +1400,7 @@ async def exchange_connection_test(request: Request, body: TestCredentialsReques
     await ensure_session_cache(request)
     mode = normalize_mode(body.mode)
     if mode == "LIVE":
-        _require_live_owner(user)
+        _require_live_owner(user, request)
     if body.api_key is not None and body.secret_key is not None:
         api_key = body.api_key.get_secret_value().strip()
         secret_key = body.secret_key.get_secret_value().strip()
@@ -1415,7 +1434,7 @@ async def _save_connection(request: Request, body: SaveCredentialsRequest) -> di
     user = _require_member(request)
     mode = normalize_mode(body.mode)
     if mode == "LIVE":
-        _require_live_owner(user)
+        _require_live_owner(user, request)
     fingerprint = key_fingerprint(body.api_key.get_secret_value().strip())
     _lock_runtime(request.app, mode, request)
     if mode == "LIVE":
@@ -1547,7 +1566,7 @@ async def _activate_connection(request: Request, body: ConnectionActionRequest) 
     await _load_session_cache(request)
     mode = normalize_mode(body.mode)
     if mode == "LIVE":
-        _require_live_owner(user)
+        _require_live_owner(user, request)
     if body.confirmation.strip().upper() != ACTIVATE_CONFIRMATIONS[mode]:
         raise HTTPException(422, "Bağlantı aktifleştirme onayı eksik.")
     _lock_runtime(request.app, mode, request)
@@ -1613,7 +1632,7 @@ async def _deactivate_connection(request: Request, body: ConnectionActionRequest
     await _load_session_cache(request)
     mode = normalize_mode(body.mode)
     if mode == "LIVE":
-        _require_live_owner(user)
+        _require_live_owner(user, request, need_entitlement=False)
     if body.confirmation.strip().upper() != "BAĞLANTIYI KAPAT":
         raise HTTPException(422, "Bağlantıyı kapatma onayı eksik.")
     _lock_runtime(request.app, mode, request)
@@ -1646,7 +1665,7 @@ async def _delete_connection(request: Request, body: ConnectionActionRequest) ->
     await _load_session_cache(request)
     mode = normalize_mode(body.mode)
     if mode == "LIVE":
-        _require_live_owner(user)
+        _require_live_owner(user, request, need_entitlement=False)
     if body.confirmation.strip().upper() != DELETE_CONFIRMATION:
         raise HTTPException(422, f"Silmek için {DELETE_CONFIRMATION} onayı gerekir.")
     scope, owner_id = _vault_scope(request, mode)

@@ -26,7 +26,8 @@ def merge_bell(request: Request, items: list[dict[str, Any]], *, read_id: str | 
             raise HTTPException(404, "Bildirim bulunamadı.")
         return items
     user = authenticated_user(request)
-    if user.get("role") != "OWNER":
+    from . import live_access
+    if not live_access.role_ok(user.get("role")):
         if read_id:
             raise HTTPException(404, "Bildirim bulunamadı.")
         return items

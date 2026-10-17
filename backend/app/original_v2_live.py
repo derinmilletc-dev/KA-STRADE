@@ -26,6 +26,7 @@ from .market_universe import (
 from .strategies import original_v2_demo as strategy
 from .strategies.contracts import StrategyResult
 from . import original_live_risk as risk_settings
+from . import live_access
 from .v22_commercial import authenticated_user
 
 router = APIRouter(prefix="/api/v25/original-v2", tags=["Original V2 LIVE"])
@@ -339,7 +340,7 @@ def merge_bell(request: Request, items: list[dict[str, Any]], *, read_id: str | 
             raise HTTPException(404, "Bildirim bulunamadı.")
         return items
     user = authenticated_user(request)
-    if user.get("role") != "OWNER" or user["id"] != config.get("owner_id"):
+    if not live_access.role_ok(user.get("role")) or user["id"] != config.get("owner_id"):
         if read_id:
             raise HTTPException(404, "Bildirim bulunamadı.")
         return items
@@ -368,8 +369,8 @@ async def require_owner_authority(application: Any, state: dict[str, Any]) -> No
     user = await validate_authoritative_session(
         application, settings(state)["owner_id"], authorization.get("auth_version"),
     )
-    if user["role"] != "OWNER":
-        raise HTTPException(403, "Original V2 yalnız OWNER tarafından çalıştırılabilir.")
+    if not live_access.role_ok(user["role"]):
+        raise HTTPException(403, "Original V2 yalnız LIVE yetkili hesap tarafından çalıştırılabilir.")
     if authorization.get("fingerprint") != settings(state).get("fingerprint"):
         raise HTTPException(423, "Original V2 LIVE hesap bağlantısı değişti.")
 
@@ -1058,7 +1059,7 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
 
 @router.get("")
 async def status(request: Request) -> dict[str, Any]:
-    authenticated_user(request, owner=True)
+    live_access.require_live_member(request)
     from . import v25_execution as live
     live.guard_execution_ownership(request, claim=False)
     return public_config(request.app.state.v25_execution)
@@ -1066,7 +1067,7 @@ async def status(request: Request) -> dict[str, Any]:
 
 @router.get("/persistence-diagnostics")
 async def persistence_diagnostics(request: Request, response: Response = None) -> dict[str, Any]:
-    authenticated_user(request, owner=True)
+    live_access.require_live_member(request)
     if response is not None:
         response.headers["Cache-Control"] = "no-store"
     from . import v25_execution as live
@@ -1122,7 +1123,7 @@ async def persistence_diagnostics(request: Request, response: Response = None) -
 @router.post("/start")
 async def start(request: Request, body: Start) -> dict[str, Any]:
     from . import v25_execution as live
-    user = authenticated_user(request, owner=True)
+    user = live_access.require_live_member(request)
     if not available():
         raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
     await live.require_live_understanding(request, user, body.understood)
@@ -1189,7 +1190,7 @@ async def start(request: Request, body: Start) -> dict[str, Any]:
 @router.post("/risk-settings")
 async def update_risk(request: Request, body: risk_settings.RiskUpdate) -> dict[str, Any]:
     from . import v25_execution as live
-    user = authenticated_user(request, owner=True)
+    user = live_access.require_live_member(request)
     if not available():
         raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
     live.execution_owner(request)
@@ -1212,7 +1213,7 @@ async def update_risk(request: Request, body: risk_settings.RiskUpdate) -> dict[
 @router.post("/fill-lock/approve")
 async def approve_fill_lock(request: Request, body: FillLockApproval) -> dict[str, Any]:
     from . import account_settings, v25_execution as live
-    user = authenticated_user(request, owner=True)
+    user = live_access.require_live_member(request)
     live.guard_execution_ownership(request, claim=False)
     state = request.app.state.v25_execution
     if body.confirmation != "DOLUM RİSKİNİ İNCELEDİM":
@@ -1249,7 +1250,7 @@ async def approve_fill_lock(request: Request, body: FillLockApproval) -> dict[st
 @router.post("/stop")
 async def stop(request: Request) -> dict[str, Any]:
     from . import v25_execution as live
-    user = authenticated_user(request, owner=True)
+    user = live_access.require_live_member(request)
     live.execution_owner(request)
     state = request.app.state.v25_execution
     async with state["lock"]:
