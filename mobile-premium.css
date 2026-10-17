@@ -7389,3 +7389,71 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root main.v26App .lpWrap .lpEmpty p { font-size: 12px !important; line-height: 1.5 !important; }
   html body #root main.v26App .lpWrap .lpFoot { padding: 0 2px !important; font-size: 11px !important; }
 }
+
+/* Telefon: Tarayıcı (piyasa tarama) sayfası sadeleştirme. */
+@media (max-width: 700px) {
+  html body #root main.v26App:has(.scannerCenter) .v26ModeBar { display: none !important; }
+
+  html body #root main.v26App .scannerCenter { display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; box-sizing: border-box !important; margin: 4px 0 20px !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+
+  /* Üst başlık */
+  html body #root main.v26App .scannerCenter > .scannerCenterHeader { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 10px !important; padding: 4px 2px 0 !important; border: 0 !important; background: transparent !important; }
+  html body #root main.v26App .scannerCenter .scannerEyebrow { font-size: 10px !important; letter-spacing: .12em !important; }
+  html body #root main.v26App .scannerCenter .scannerCenterHeader h2 { margin: 3px 0 4px !important; font-size: 18px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .scannerCenter .scannerCenterHeader p { margin: 0 !important; font-size: 12.5px !important; line-height: 1.5 !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions { display: grid !important; grid-template-columns: 1fr 1fr !important; align-items: center !important; gap: 8px !important; width: 100% !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions > .kaisInfoBtn { justify-content: center !important; width: 100% !important; min-height: 40px !important; margin: 0 !important; font-size: 12.5px !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions > .scannerStatus { justify-content: center !important; min-height: 40px !important; font-size: 11.5px !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions > small { grid-column: 1 / -1 !important; font-size: 11.5px !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions > button:not(.kaisInfoBtn) { grid-column: 1 / -1 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; width: 100% !important; min-height: 42px !important; margin: 0 !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body #root main.v26App .scannerCenter .scannerHeaderActions > button:not(.kaisInfoBtn) svg { width: 16px !important; height: 16px !important; }
+
+  /* Ortak bölüm kartı */
+  html body #root main.v26App .scannerCenter :is(.scannerSettings, .scannerResults, .scannerDetailCopy) { min-width: 0 !important; margin: 0 !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; box-shadow: none !important; }
+  html body #root main.v26App .scannerCenter .scannerSectionHeading { display: flex !important; align-items: flex-start !important; justify-content: space-between !important; flex-wrap: wrap !important; gap: 8px 12px !important; margin: 0 0 12px !important; padding: 0 !important; }
+  html body #root main.v26App .scannerCenter .scannerSectionHeading > div > span { display: block !important; font-size: 10px !important; letter-spacing: .12em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scannerCenter .scannerSectionHeading h3 { margin: 3px 0 0 !important; font-size: 15px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .scannerCenter .scannerSectionHeading > svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body #root main.v26App .scannerCenter .scannerResultMetadata { display: block !important; margin-top: 4px !important; font-size: 11px !important; letter-spacing: .04em !important; }
+
+  /* Tarama ayarları */
+  html body #root main.v26App .scannerCenter .scannerSettingsGrid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px 8px !important; margin: 0 0 12px !important; }
+  html body #root main.v26App .scannerCenter .scannerSettingsGrid > label { display: grid !important; gap: 5px !important; min-width: 0 !important; font-size: 10px !important; letter-spacing: .1em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scannerCenter .scannerSettingsGrid select { width: 100% !important; min-width: 0 !important; min-height: 40px !important; padding: 0 10px !important; border-radius: 10px !important; font-size: 13px !important; }
+  html body #root main.v26App .scannerCenter .scannerPrimaryAction { display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; width: 100% !important; min-height: 44px !important; margin: 0 !important; padding: 0 14px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body #root main.v26App .scannerCenter .scannerPrimaryAction svg { width: 17px !important; height: 17px !important; }
+
+  /* Özet kartları */
+  html body #root main.v26App .scannerCenter .scannerSummary { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
+  html body #root main.v26App .scannerCenter .scannerSummary > article { display: flex !important; align-items: center !important; gap: 10px !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 12px !important; border-radius: 14px !important; }
+  html body #root main.v26App .scannerCenter .scannerSummary > article > svg { flex: 0 0 20px !important; width: 20px !important; height: 20px !important; }
+  html body #root main.v26App .scannerCenter .scannerSummary small { display: block !important; font-size: 10px !important; letter-spacing: .08em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scannerCenter .scannerSummary b { display: block !important; font-size: 20px !important; line-height: 1.2 !important; }
+  html body #root main.v26App .scannerCenter .scannerState { gap: 6px !important; padding: 16px 14px !important; border-radius: 14px !important; font-size: 13px !important; }
+
+  /* Sonuçlar */
+  html body #root main.v26App .scannerCenter .scannerFilters { display: flex !important; flex-wrap: nowrap !important; gap: 6px !important; width: 100% !important; overflow-x: auto !important; padding: 0 0 2px !important; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  html body #root main.v26App .scannerCenter .scannerFilters::-webkit-scrollbar { display: none; }
+  html body #root main.v26App .scannerCenter .scannerFilters > button { flex: 0 0 auto !important; min-height: 34px !important; padding: 0 12px !important; border-radius: 10px !important; font-size: 11.5px !important; letter-spacing: .04em !important; white-space: nowrap !important; }
+  html body #root main.v26App .scannerCenter .scannerResults .scannerTableWrap { max-height: 222px !important; margin: 0 !important; border-radius: 12px !important; }
+  html body #root main.v26App .scannerCenter .scannerResults table { width: 100% !important; border-collapse: collapse !important; }
+  html body #root main.v26App .scannerCenter .scannerResults th { height: 30px !important; padding: 0 10px !important; font-size: 10px !important; letter-spacing: .08em !important; white-space: nowrap !important; }
+  html body #root main.v26App .scannerCenter .scannerResults td { height: 38px !important; padding: 0 10px !important; font-size: 12.5px !important; line-height: 1.3 !important; white-space: nowrap !important; }
+
+  /* Seçili sembol */
+  html body #root main.v26App .scannerCenter > .scannerDetail { display: flex !important; flex-direction: column !important; gap: 12px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
+  html body #root main.v26App .scannerCenter .scannerDetail h3 { font-size: 17px !important; }
+  html body #root main.v26App .scannerCenter .scannerCandidateLabel { padding: 4px 10px !important; font-size: 10.5px !important; letter-spacing: .06em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scannerCenter .scannerSnapshot { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; margin: 0 0 14px !important; }
+  html body #root main.v26App .scannerCenter :is(.scannerSnapshot, .scannerExplanation) > h4 { grid-column: 1 / -1 !important; margin: 0 2px 2px !important; font-size: 10.5px !important; letter-spacing: .12em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scannerCenter .scannerSnapshot > span { display: flex !important; flex-direction: column !important; gap: 3px !important; min-width: 0 !important; margin: 0 !important; padding: 10px 12px !important; border-radius: 12px !important; }
+  html body #root main.v26App .scannerCenter .scannerSnapshot small { font-size: 10px !important; letter-spacing: .08em !important; }
+  html body #root main.v26App .scannerCenter .scannerSnapshot b { font-size: 15px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .scannerCenter .scannerExplanation { display: grid !important; gap: 6px !important; }
+  html body #root main.v26App .scannerCenter .scannerExplanation p { margin: 0 !important; font-size: 13px !important; line-height: 1.5 !important; }
+  html body #root main.v26App .scannerCenter .scannerMasterTradeAction { width: 100% !important; min-height: 44px !important; margin: 8px 0 0 !important; padding: 0 14px !important; border-radius: 12px !important; font-size: 13px !important; letter-spacing: .04em !important; }
+  html body #root main.v26App .scannerCenter .scannerChart { min-width: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 16px !important; overflow: hidden !important; }
+  html body #root main.v26App .scannerCenter .scannerChartHeader { padding: 12px 14px !important; }
+  html body #root main.v26App .scannerCenter .scannerChartHeader span { font-size: 13px !important; }
+  html body #root main.v26App .scannerCenter .scannerChartHeader small { font-size: 10px !important; letter-spacing: .08em !important; }
+}
