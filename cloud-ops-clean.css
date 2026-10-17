@@ -1,0 +1,70 @@
+/* Bulut Operasyon ve Kanıt Merkezi: gereksiz çizgiler kalktı, kartlar ton farkıyla ayrılıyor. */
+html body #root .v27Ops.v27Ops {
+  --co-card: #121a24; --co-card2: #172230; --co-text: #edf2f8; --co-muted: #93a3b5;
+  border: 0 !important; box-shadow: none !important; outline: 0 !important; background: transparent !important;
+  padding-inline: 0 !important;
+}
+html body #root .v27Ops.v27Ops :is(.v27OpsHero, .v27Panel, .v27SleepNotice, .v27Error, .v27KeyCards > article, .v27Metrics > article, .v27MonitorItem, .v27MonitorItem--security, .v27Gates > article, .v27PositionTable, .v27Certificate footer, .v27TimelineItem, .v27ShowAll, .v27OpsActions > button, .v27Progress, .v27MonitorStatus) {
+  border: 0 !important; box-shadow: none !important; outline-color: transparent;
+}
+html body #root .v27Ops.v27Ops :is(.v27Panel > header, .v27Certificate > header, .v27Timeline, .v27TimelineItem, .v27PositionTable > .head, .v27PositionTable > article, .v27Certificate footer) {
+  border-top: 0 !important; border-bottom: 0 !important;
+}
+html body #root .v27Ops.v27Ops :is(.v27OpsHero, .v27Panel) { background: var(--co-card) !important; border-radius: 20px !important; }
+html body #root .v27Ops.v27Ops :is(.v27Metrics > article, .v27MonitorItem, .v27Gates > article, .v27PositionTable > article, .v27Certificate footer) { background: var(--co-card2) !important; border-radius: 14px !important; }
+html body #root .v27Ops.v27Ops .v27OpsHero::after { display: none !important; }
+html body #root .v27Ops.v27Ops .v27Panel > header { padding-bottom: 6px; }
+
+/* Durum kartları: çerçeve yerine hafif renk tonu */
+html body #root .v27Ops.v27Ops .v27KeyCards > article { background: var(--co-card) !important; border-radius: 18px !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.wait { background: linear-gradient(160deg, rgba(245,185,66,.14), var(--co-card) 70%) !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.ok { background: linear-gradient(160deg, rgba(52,211,153,.16), var(--co-card) 70%) !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.hot { background: linear-gradient(160deg, rgba(56,189,248,.16), var(--co-card) 70%) !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article::before, html body #root .v27Ops.v27Ops .v27KeyCards > article::after { display: none !important; }
+
+/* Uyarılar */
+html body #root .v27Ops.v27Ops .v27SleepNotice { background: rgba(245,185,66,.1) !important; border-radius: 16px !important; }
+html body #root .v27Ops.v27Ops .v27Error { background: rgba(248,113,113,.12) !important; border-radius: 16px !important; }
+
+/* Zaman çizelgesi: ayırıcı çizgi yerine boşluk */
+html body #root .v27Ops.v27Ops .v27TimelineItem { padding-block: 10px; }
+html body #root .v27Ops.v27Ops .v27TimelineItem + .v27TimelineItem { margin-top: 2px; }
+
+/* Küçük etiketler (çerçevesiz, hafif zemin) */
+html body #root .v27Ops.v27Ops :is(.v27MonitorStatus, .v27TimelineItem em, .v27TimelineItem small, .v27Panel > header > .count) { border: 0 !important; background: rgba(255,255,255,.07) !important; }
+
+/* Butonlar */
+html body #root .v27Ops.v27Ops .v27OpsActions > button { background: rgba(255,255,255,.08) !important; color: var(--co-text) !important; border-radius: 12px !important; }
+html body #root .v27Ops.v27Ops .v27OpsActions > button:hover:not(:disabled) { background: rgba(255,255,255,.14) !important; }
+html body #root .v27Ops.v27Ops .v27OpsActions > button.sync { background: #3ddc97 !important; color: #06281a !important; }
+html body #root .v27Ops.v27Ops .v27OpsActions > button.sync:disabled { opacity: .45; }
+html body #root .v27Ops.v27Ops .v27OpsActions { flex-wrap: wrap; }
+
+/* Dış çerçeveler ve gruplar */
+html body #root .v27Ops.v27Ops :is(.v27KeyCards, .v27Metrics, .v27MainGrid, .v27Pulse, .v27MonitorGrid, .v27Gates, .v27CriticalGrid, .v27OpsTitle) { border: 0 !important; box-shadow: none !important; background: transparent !important; outline: 0 !important; }
+html body #root .v27Ops.v27Ops .v27Metrics > article { background: var(--co-card) !important; border-radius: 16px !important; }
+
+/* Okunabilir değerler */
+html body #root .v27Ops.v27Ops .v27KeyCards > article small { color: var(--co-muted) !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.wait > b { color: #fcd34d !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.ok > b { color: #6ee7b7 !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article.hot > b { color: #7dd3fc !important; }
+html body #root .v27Ops.v27Ops .v27KeyCards > article > svg { color: var(--co-muted) !important; }
+html body #root .v27Ops.v27Ops :is(.v27Metrics > article > b:not(.positive):not(.negative), .v27MonitorItem > b, .v27CriticalGrid b) { color: var(--co-text) !important; }
+html body #root .v27Ops.v27Ops .v27Metrics > article > b.positive { color: #6ee7b7 !important; }
+html body #root .v27Ops.v27Ops .v27Metrics > article > b.negative { color: #fca5a5 !important; }
+html body #root .v27Ops.v27Ops .v27Metrics > article small, html body #root .v27Ops.v27Ops .v27Metrics > article span { color: var(--co-muted) !important; }
+html body #root .v27Ops.v27Ops .v27Metrics > article > b em { color: var(--co-muted) !important; }
+
+/* Sertifika */
+html body #root .v27Ops.v27Ops .v27Progress { background: rgba(255,255,255,.08) !important; }
+html body #root .v27Ops.v27Ops .v27Progress i { background: linear-gradient(90deg, #34d399, #38bdf8) !important; }
+html body #root .v27Ops.v27Ops .v27Certificate > header > strong { color: #6ee7b7 !important; background: rgba(52,211,153,.14) !important; }
+html body #root .v27Ops.v27Ops .v27Certificate footer, html body #root .v27Ops.v27Ops .v27Certificate footer span { color: var(--co-muted) !important; font-size: 13px !important; }
+html body #root .v27Ops.v27Ops .v27Gates > article span { color: var(--co-muted) !important; }
+html body #root .v27Ops.v27Ops .v27Panel > header > span:not(.v27MonitorStatus) { background: rgba(255,255,255,.07) !important; color: var(--co-muted) !important; border: 0 !important; }
+
+/* Nasıl çalışır? düğmesi */
+html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn { margin: 0 !important; background: rgba(61,220,151,.16) !important; color: #3ddc97 !important; }
+html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn span { font-size: 12.5px !important; color: inherit !important; }
+html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn:hover { background: #3ddc97 !important; color: #06281a !important; }

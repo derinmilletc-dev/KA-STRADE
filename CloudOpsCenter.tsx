@@ -4,6 +4,8 @@ import {
   Database, History, RefreshCw, ShieldCheck, TimerReset, WalletCards,
 } from 'lucide-react'
 import { API_BASE } from './api'
+import CloudOpsInfo from './CloudOpsInfo'
+import './cloud-ops-clean.css'
 
 
 type Position = {
@@ -106,7 +108,7 @@ export default function CloudOpsCenter() {
   return <section className="v27Ops">
     <header className="v27OpsHero">
       <div className="v27OpsTitle"><span><Cloud/></span><div><small className="v27Eyebrow">BULUT OPERASYON / SİSTEM KANITI</small><h2>Bulut Operasyon ve Kanıt Merkezi</h2><p>Botun ne yaptığını, neden beklediğini ve Testnet kayıtlarının kalıcı olup olmadığını tek ekranda izleyin.</p></div></div>
-      <div className="v27OpsActions"><button onClick={() => refresh()} disabled={busy}><RefreshCw className={busy ? 'spin' : ''}/>Yenile</button><button className="sync" onClick={sync} disabled={busy || !data.evidence.persistent}><Database/>Kanıtı Şimdi Kaydet</button></div>
+      <div className="v27OpsActions"><CloudOpsInfo/><button onClick={() => refresh()} disabled={busy}><RefreshCw className={busy ? 'spin' : ''}/>Yenile</button><button className="sync" onClick={sync} disabled={busy || !data.evidence.persistent}><Database/>Kanıtı Şimdi Kaydet</button></div>
     </header>
 
     {error && <div className="v27Error"><AlertTriangle/><b>Sunucu bağlantısı bekleniyor</b><span>Veriler güncellenemiyor.</span></div>}
