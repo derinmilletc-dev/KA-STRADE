@@ -5,8 +5,8 @@ import BinanceManualPayment from './BinanceManualPayment'
 import {PLAN_BY_CODE} from './subscription'
 import './free-trial-pricing.css'
 
-type Trial = {enabled:false} | {enabled:true; used:boolean; active:boolean; started_at:string|null; ends_at:string|null}
-function parseTrial(value:unknown):Trial {
+export type Trial = {enabled:false} | {enabled:true; used:boolean; active:boolean; started_at:string|null; ends_at:string|null}
+export function parseTrial(value:unknown):Trial {
   if (typeof value !== 'object' || value === null) throw new Error('Deneme bilgileri doğrulanamadı.')
   const row = value as Record<string,unknown>
   if (row.enabled === false) return {enabled:false}
@@ -19,7 +19,7 @@ function parseTrial(value:unknown):Trial {
   }
   return {enabled:true,used:row.used,active:row.active,started_at:row.started_at,ends_at:row.ends_at}
 }
-async function trialRequest(path:string, signal?:AbortSignal):Promise<Trial> {
+export async function trialRequest(path:string, signal?:AbortSignal):Promise<Trial> {
   const response = await fetch(`${API_BASE}/v22/free-trial${path}`, {
     method:path ? 'POST' : 'GET', signal, cache:'no-store',
   })
