@@ -17,6 +17,11 @@ test('Moderator cannot render admin; customer cannot render moderator', () => {
   assert.equal(authenticatedPath('CUSTOMER', '/admin'), '/admin')
 })
 
+test('Moderator can open the normal site and is not pushed back to the panel', () => {
+  for (const path of ['/', '/dashboard', '/master-trade']) assert.equal(authenticatedPath('MODERATOR', path), path)
+  assert.equal(authenticatedPath('MODERATOR', '/moderator'), '/moderator')
+})
+
 test('Profile, MFA setup and normal customer pages retain their routes', () => {
   for (const role of ['OWNER', 'MODERATOR', 'CUSTOMER']) {
     for (const path of ['/settings', '/profile', '/master-trade']) assert.equal(authenticatedPath(role, path), path)

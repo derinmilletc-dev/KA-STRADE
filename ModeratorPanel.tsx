@@ -115,12 +115,12 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
   return <div className="mod-shell">
     <a className="mod-skip" href="#mod-main">İçeriğe geç</a>
     <aside className="mod-sidebar">
-      <div className="mod-brand"><strong>KaisTrade</strong><span>Moderatör paneli</span></div>
+      <a className="mod-brand" href="/dashboard" aria-label="KaisTrade ana sayfasına dön"><strong>KaisTrade</strong><span>Moderatör paneli</span></a>
       <button className="mod-menu-toggle" aria-expanded={menuOpen} aria-controls="mod-navigation" onClick={() => setMenuOpen(value => !value)}><Menu aria-hidden="true"/>Menü</button>
       <nav id="mod-navigation" aria-label="Moderatör menüsü" className={menuOpen ? 'mod-navigation mod-navigation-open' : 'mod-navigation'}>
         {sections.map(item => {const Icon = icons[item.id]; return <button key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon aria-hidden="true"/>{item.label}</button>})}
       </nav>
-      <div className="mod-account-links">{me?.role === 'OWNER' && <a href="/admin"><ChevronLeft aria-hidden="true"/>Admin paneline dön</a>}<a href="/settings"><UserRound aria-hidden="true"/>Profil ve güvenlik</a><button onClick={onLogout}><LogOut aria-hidden="true"/>Çıkış</button></div>
+      <div className="mod-account-links"><a href="/dashboard"><ChevronLeft aria-hidden="true"/>Ana sayfaya dön</a>{me?.role === 'OWNER' && <a href="/admin"><ChevronLeft aria-hidden="true"/>Admin paneline dön</a>}<a href="/settings"><UserRound aria-hidden="true"/>Profil ve güvenlik</a><button onClick={onLogout}><LogOut aria-hidden="true"/>Çıkış</button></div>
     </aside>
     <main className="mod-main" id="mod-main" tabIndex={-1}>
       <header className="mod-header"><div><p className="mod-secondary">Moderatör çalışma alanı</p><h1 ref={heading} tabIndex={-1}>{title}</h1></div>{me && <ModBadge>{accountRoleLabel(me.role)}</ModBadge>}</header>
