@@ -991,8 +991,20 @@ def _persist_state_file(payload: dict[str, Any]) -> None:
     temporary.replace(STATE_PATH)
 
 
+def snapshot_key(state: dict[str, Any] | None) -> str | None:
+    """Row key for this state. None means the state must not be written (no owner)."""
+    from . import live_registry
+    if isinstance(state, dict) and "_live_user_id" in state:
+        user_id = str(state.get("_live_user_id") or "")
+        return live_registry.snapshot_key_for(user_id) if user_id else None
+    return V25_SNAPSHOT_KEY
+
+
 def persist_state(state: dict[str, Any]) -> None:
     _advance_persistence_revision(state)
+    key = snapshot_key(state)
+    if key is None:
+        return
     application = state.get("_app")
     pool = getattr(getattr(application, "state", None), "db_pool", None)
     if application is not None and pool is not None:
@@ -1001,7 +1013,7 @@ def persist_state(state: dict[str, Any]) -> None:
             tasks = set()
             application.state._v25_persistence_tasks = tasks
         payload = sanitized_state(state)
-        task = asyncio.create_task(_persist_state_snapshot(application, payload))
+        task = asyncio.create_task(_persist_state_snapshot(application, payload, key))
         tasks.add(task)
         task.add_done_callback(tasks.discard)
         return
@@ -1019,13 +1031,16 @@ def persist_state(state: dict[str, Any]) -> None:
 
 async def persist_state_awaited(state: dict[str, Any]) -> PersistenceWriteResult:
     _advance_persistence_revision(state)
+    key = snapshot_key(state)
+    if key is None:
+        return "SKIPPED"
     application = state.get("_app")
     pool = getattr(getattr(application, "state", None), "db_pool", None)
     payload = sanitized_state(state)
     if application is not None and pool is not None:
         metadata = {"submitted_revision": payload.get("persistence_revision"), "checked_at": now_iso()}
         try:
-            result = await _persist_state_snapshot(application, payload)
+            result = await _persist_state_snapshot(application, payload, key)
         except Exception as exc:
             code = getattr(exc, "sqlstate", None)
             metadata["result"] = "TABLE_MISSING" if code == "42P01" else "DATABASE_ERROR"
@@ -1135,13 +1150,14 @@ def clear_resolved_credential_diagnostic(state: dict[str, Any]) -> bool:
 async def _persist_state_snapshot(
     application: Any,
     payload: dict[str, Any],
+    key: str = V25_SNAPSHOT_KEY,
 ) -> PersistenceWriteResult:
     pool = getattr(application.state, "db_pool", None)
     if pool is None:
         return "SKIPPED"
     row = await pool.fetchrow(
         V25_SNAPSHOT_UPSERT_SQL,
-        V25_SNAPSHOT_KEY,
+        key,
         json.dumps(payload, ensure_ascii=False),
     )
     if row is None:
@@ -1154,7 +1170,74 @@ async def _persist_state_snapshot(
     return write_status
 
 
+def _member_state_has_activity(state: dict[str, Any]) -> bool:
+    authorization = state.get("live_session_authorization") or {}
+    return bool(authorization.get("user_id") or state.get("plans") or (state.get("auto") or {}).get("enabled"))
+
+
+async def restore_member_states(application: Any, registry: Any) -> bool:
+    """Multi-user LIVE: load every member's own snapshot (and move the old shared one to its owner)."""
+    from . import live_registry
+    pool = getattr(application.state, "db_pool", None)
+    system = registry.system
+    if pool is None:
+        return False
+    try:
+        rows = await pool.fetch(
+            "SELECT state_key, payload FROM application_state_snapshots WHERE state_key LIKE $1",
+            live_registry.SNAPSHOT_PREFIX + "%",
+        )
+        restored: set[str] = set()
+
+        def load(payload: Any) -> dict[str, Any]:
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid PostgreSQL recovery payload.")
+            revision = payload.get("persistence_revision", 0)
+            if type(revision) not in (int, str) or not 0 <= int(revision) <= 9_223_372_036_854_775_807:
+                raise ValueError("Invalid PostgreSQL recovery revision.")
+            return sanitized_state(payload)
+
+        for row in rows:
+            user_id = str(row["state_key"])[len(live_registry.SNAPSHOT_PREFIX):]
+            if not user_id:
+                continue
+            state = registry.state_for(user_id)
+            try:
+                state.update(load(row["payload"]))
+            except Exception:
+                state["recovery_loaded"] = False
+                state["recovery_error"] = "PostgreSQL recovery failed."
+                continue
+            state.update(_app=application, recovery_loaded=True, recovery_ready=False, recovery_error=None)
+            restored.add(user_id)
+        legacy = await pool.fetchrow("SELECT payload FROM application_state_snapshots WHERE state_key = $1", V25_SNAPSHOT_KEY)
+        if legacy is not None:
+            legacy_state = load(legacy["payload"])
+            owner = str((legacy_state.get("live_session_authorization") or {}).get("user_id")
+                        or (legacy_state.get("web_consent") or {}).get("user_id") or "")
+            if owner and owner not in restored:
+                state = registry.state_for(owner)
+                state.update(legacy_state)
+                state.update(_app=application, recovery_loaded=True, recovery_ready=False, recovery_error=None)
+                restored.add(owner)
+                persist_state(state)  # from now on the owner's own row is used
+        system.update(_app=application, recovery_loaded=True, recovery_ready=False, recovery_error=None)
+        for user_id in restored:
+            if _member_state_has_activity(registry.state_for(user_id)):
+                registry.ensure_engine(user_id)
+        return True
+    except Exception:
+        system.update(recovery_loaded=False, recovery_ready=False, recovery_error="PostgreSQL recovery failed.")
+        return False
+
+
 async def restore_v25_state(application: Any) -> bool:
+    from . import live_registry
+    registry = live_registry.registry_of(application)
+    if registry is not None:
+        return await restore_member_states(application, registry)
     state = application.state.v25_execution
     pool = getattr(application.state, "db_pool", None)
     if pool is None:
@@ -1400,6 +1483,11 @@ def guard_execution_ownership(
     sid = session_id(request)
     if not user_id or not sid:
         raise HTTPException(401, "Oturum gerekli")
+    if claim:
+        from . import live_registry
+        registry = live_registry.registry_of(request.app)
+        if registry is not None:
+            registry.ensure_engine(user_id)
     state = request.app.state.v25_execution
     authorization = state.get("live_session_authorization") or {}
     owner_id = str(authorization.get("user_id") or "")
@@ -5965,7 +6053,38 @@ async def execution_supervisor(application: Any) -> None:
                 await asyncio.gather(worker, return_exceptions=True)
 
 
+def new_member_state(application: Any, user_id: str) -> dict[str, Any]:
+    state = initial_state()
+    state["lock"] = asyncio.Lock()
+    state["_app"] = application
+    state["_live_user_id"] = user_id
+    # A member without a saved snapshot has nothing to recover; recovery_ready stays False
+    # until the normal recovery check, exactly like the shared engine after a restart.
+    state["recovery_loaded"] = True
+    state["recovery_ready"] = False
+    state["recovery_error"] = None
+    return state
+
+
+async def member_engine(application: Any) -> None:
+    """One member's own control loop and Binance stream. Runs inside a task bound to that member."""
+    stream = asyncio.create_task(live_user_stream_loop(application))
+    try:
+        await execution_supervisor(application)
+    finally:
+        stream.cancel()
+        await asyncio.gather(stream, return_exceptions=True)
+
+
 def init_v25_execution(application: Any) -> None:
+    from . import live_registry
+    if live_registry.enabled():
+        registry = live_registry.LiveRegistry(application, new_member_state, member_engine)
+        application.state.live_registry = registry
+        registry.system["recovery_loaded"] = False  # the startup restore runs once, like the shared engine
+        application.state.v25_execution_stopping = False
+        add_event(registry.system, "V25_START", "V25 Live Guard başladı (çok kullanıcılı mod); canlı giriş ve otomasyon güvenlik için kapalı.")
+        return
     state = load_state()
     state["lock"] = asyncio.Lock()
     state["_app"] = application
@@ -5980,7 +6099,24 @@ def init_v25_execution(application: Any) -> None:
 
 
 async def shutdown_v25_execution(application: Any) -> None:
+    from . import live_registry
     application.state.v25_execution_stopping = True
+    registry = live_registry.registry_of(application)
+    if registry is not None:
+        await registry.stop_engines()
+        persistence_tasks = list(getattr(application.state, "_v25_persistence_tasks", set()))
+        if persistence_tasks:
+            await asyncio.gather(*persistence_tasks, return_exceptions=True)
+        for member_state in registry.states.values():
+            member_state["armed_until"] = 0.0
+            member_state["auto"]["enabled"] = False
+            member_state["auto"]["session_until"] = 0.0
+            persist_state(member_state)
+        persistence_tasks = list(getattr(application.state, "_v25_persistence_tasks", set()))
+        if persistence_tasks:
+            await asyncio.gather(*persistence_tasks, return_exceptions=True)
+        await asyncio.to_thread(observation.shutdown)
+        return
     state = getattr(application.state, "v25_execution", None)
     tasks = [
         task for task in (

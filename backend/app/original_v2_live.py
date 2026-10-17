@@ -1046,7 +1046,7 @@ async def persistence_diagnostics(request: Request, response: Response = None) -
     state = request.app.state.v25_execution
     pool = getattr(request.app.state, "db_pool", None)
     result = {
-        "read_only": True, "state_key": live.V25_SNAPSHOT_KEY,
+        "read_only": True, "state_key": live.snapshot_key(state),
         "build_commit": os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or None,
         "database_status": "UNAVAILABLE", "record_exists": None,
         "database_revision": None, "original_record_exists": None,
@@ -1062,7 +1062,7 @@ async def persistence_diagnostics(request: Request, response: Response = None) -
         row = await asyncio.wait_for(pool.fetchrow(
             """SELECT payload->>'persistence_revision' AS revision,
                       jsonb_typeof(payload->'original_v2_live') = 'object' AS original_record_exists
-               FROM application_state_snapshots WHERE state_key = $1""", live.V25_SNAPSHOT_KEY), timeout=3)
+               FROM application_state_snapshots WHERE state_key = $1""", live.snapshot_key(state)), timeout=3)
     except Exception as exc:
         result["database_status"] = "TABLE_MISSING" if getattr(exc, "sqlstate", None) == "42P01" else "READ_FAILED"
         result["diagnosis"] = result["database_status"]

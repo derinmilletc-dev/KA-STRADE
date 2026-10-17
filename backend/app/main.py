@@ -71,6 +71,7 @@ from .moderator_access import router as moderator_router
 from .audit_log import router as audit_router
 from .moderator_customers import router as moderator_customers_router
 from .moderator_support import router as moderator_support_router
+from . import live_registry
 from .moderator_approvals import router as moderator_approvals_router
 from .admin_approvals import router as admin_approvals_router
 from .premium_requests import mod_router as premium_mod_router, admin_router as premium_admin_router
@@ -1274,6 +1275,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ProTreBot Elite X API", version="28.0.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+if live_registry.enabled():
+    app.state = live_registry.UserAwareState()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=WEB_CORS_ORIGINS,
@@ -1400,6 +1403,10 @@ async def owner_preview_gate(request, call_next):
             if exc.status_code == 401 and request.cookies.get(USER_SESSION_COOKIE):
                 clear_browser_cookie(response, request, USER_SESSION_COOKIE)
             return apply_cors_headers(request, response)
+    if live_registry.enabled():
+        # Multi-user LIVE: everything below (and the endpoint itself) sees only this member's own live state.
+        live_member = getattr(request.state, "member", None)
+        live_registry.bind(str((live_member or {}).get("id") or "") or ("WEB_OWNER" if owner_access_authenticated else None))
     if protected_member_request:
         from .member_entitlements import access as entitlement_access
         from .member_entitlements import prepare
