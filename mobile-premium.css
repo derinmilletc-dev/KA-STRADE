@@ -8508,3 +8508,61 @@ body:has(#root .liveTradingPanel.liveUx),
   html body main.adminShell.adminShell > .adminSidebar .adminSidebarFoot { flex: none !important; margin-top: 12px !important; padding-top: 12px !important; }
   html body main.adminShell.adminShell > .adminSidebar .adminSidebarFoot button { width: 100% !important; min-height: 44px !important; border-radius: 12px !important; }
 }
+
+
+/* Telefon: Moderatör paneli – ince üst çubuk, menü içinde hesap bağlantıları, sıkı kartlar. */
+@media (max-width: 760px) {
+  html body .mod-shell.mod-shell { display: flex !important; flex-direction: column !important; min-height: 100dvh !important; overflow-x: clip !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar { position: sticky !important; top: 0 !important; z-index: 30 !important; display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; grid-template-areas: "brand toggle" "nav nav" "links links" !important; align-items: center !important; gap: 0 10px !important; width: 100% !important; height: auto !important; max-height: 100dvh !important; padding: 10px 14px !important; overflow-y: auto !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; box-sizing: border-box !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-brand { grid-area: brand !important; display: flex !important; flex-direction: column !important; gap: 1px !important; min-width: 0 !important; padding: 0 !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-brand strong { font-size: 18px !important; line-height: 1.2 !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-brand span { font-size: 11.5px !important; line-height: 1.3 !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-menu-toggle { grid-area: toggle !important; display: flex !important; align-items: center !important; gap: 8px !important; min-height: 42px !important; margin: 0 !important; padding: 0 14px !important; border-radius: 12px !important; background: rgba(255,255,255,.05) !important; font-size: 13.5px !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-menu-toggle svg { width: 18px !important; height: 18px !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-navigation { grid-area: nav !important; display: none !important; gap: 2px !important; margin: 10px 0 0 !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-navigation.mod-navigation-open { display: grid !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-navigation > button { min-height: 44px !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 14px !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-account-links { grid-area: links !important; display: none !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar:has(.mod-navigation-open) > .mod-account-links { display: grid !important; gap: 2px !important; margin: 6px 0 4px !important; padding-top: 6px !important; border-top: 1px solid rgba(255,255,255,.06) !important; }
+  html body .mod-shell.mod-shell > .mod-sidebar > .mod-account-links :is(a, button) { display: flex !important; align-items: center !important; gap: 10px !important; min-height: 44px !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 14px !important; }
+
+  html body .mod-shell.mod-shell > .mod-main { width: 100% !important; max-width: 100% !important; min-width: 0 !important; padding: 16px 14px 40px !important; box-sizing: border-box !important; }
+  html body .mod-shell.mod-shell .mod-header { display: flex !important; align-items: flex-start !important; justify-content: space-between !important; gap: 10px !important; margin: 0 0 14px !important; }
+  html body .mod-shell.mod-shell .mod-header .mod-secondary { margin: 0 !important; font-size: 11.5px !important; }
+  html body .mod-shell.mod-shell .mod-header h1 { margin: 2px 0 0 !important; font-size: 22px !important; line-height: 1.2 !important; }
+  html body .mod-shell.mod-shell .mod-header .mod-badge { flex: none !important; }
+  html body .mod-shell.mod-shell .mod-stack { gap: 12px !important; }
+  html body .mod-shell.mod-shell .mod-card { padding: 16px !important; border-radius: 16px !important; }
+  html body .mod-shell.mod-shell .mod-card h2 { margin: 0 0 12px !important; font-size: 16px !important; line-height: 1.3 !important; }
+  html body .mod-shell.mod-shell .mod-card h3 { margin: 16px 0 10px !important; font-size: 14px !important; }
+  html body .mod-shell.mod-shell .mod-secondary { font-size: 12.5px !important; line-height: 1.5 !important; }
+  html body .mod-shell.mod-shell .mod-support-summary { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body .mod-shell.mod-shell .mod-support-summary .mod-card { display: flex !important; flex-direction: column !important; justify-content: space-between !important; gap: 6px !important; min-width: 0 !important; padding: 12px !important; border-radius: 14px !important; }
+  html body .mod-shell.mod-shell .mod-support-summary .mod-card h2 { margin: 0 !important; font-size: 11.5px !important; line-height: 1.3 !important; color: #9fb0bb !important; font-weight: 600 !important; }
+  html body .mod-shell.mod-shell .mod-support-summary .mod-card :is(p, strong, b) { margin: 0 !important; font-size: 22px !important; line-height: 1.1 !important; }
+  html body .mod-shell.mod-shell .mod-permissions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
+  html body .mod-shell.mod-shell .mod-permissions li { display: flex !important; align-items: center !important; gap: 10px !important; font-size: 13.5px !important; }
+  html body .mod-shell.mod-shell .mod-permissions svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body .mod-shell.mod-shell .mod-badges { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+  html body .mod-shell.mod-shell .mod-badge { padding: 4px 10px !important; font-size: 11.5px !important; }
+  html body .mod-shell.mod-shell :is(.mod-refresh, .mod-back, .mod-actions button) { min-height: 42px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body .mod-shell.mod-shell .mod-search > div { display: flex !important; align-items: center !important; gap: 8px !important; height: 48px !important; padding: 0 4px 0 12px !important; border-radius: 12px !important; box-sizing: border-box !important; }
+  html body .mod-shell.mod-shell .mod-search input { flex: 1 1 auto !important; min-width: 0 !important; font-size: 15px !important; }
+  html body .mod-shell.mod-shell .mod-search button { flex: none !important; min-height: 40px !important; padding: 0 14px !important; border-radius: 10px !important; font-size: 13.5px !important; }
+  html body .mod-shell.mod-shell .mod-search label { font-size: 13.5px !important; }
+  html body .mod-shell.mod-shell .mod-results { gap: 8px !important; }
+  html body .mod-shell.mod-shell .mod-customer-row { display: grid !important; grid-template-columns: 22px minmax(0, 1fr) auto !important; align-items: center !important; gap: 4px 10px !important; padding: 12px 14px !important; border-radius: 14px !important; }
+  html body .mod-shell.mod-shell .mod-customer-row > span:first-of-type { min-width: 0 !important; }
+  html body .mod-shell.mod-shell .mod-customer-row > .mod-badge { margin: 0 !important; }
+  html body .mod-shell.mod-shell .mod-customer-row .mod-primary, html body .mod-shell.mod-shell .mod-primary { font-size: 15px !important; line-height: 1.3 !important; overflow-wrap: anywhere !important; }
+  html body .mod-shell.mod-shell .mod-customer-row .mod-secondary { font-size: 11.5px !important; overflow-wrap: anywhere !important; }
+  html body .mod-shell.mod-shell .mod-support-filters { display: flex !important; flex-wrap: nowrap !important; gap: 6px !important; overflow-x: auto !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch; padding-bottom: 2px !important; }
+  html body .mod-shell.mod-shell .mod-support-filters::-webkit-scrollbar { display: none !important; }
+  html body .mod-shell.mod-shell .mod-support-filters > button { flex: 0 0 auto !important; min-height: 36px !important; padding: 0 14px !important; border-radius: 999px !important; font-size: 12.5px !important; white-space: nowrap !important; }
+  html body .mod-shell.mod-shell .mod-support-priority { display: grid !important; grid-template-columns: auto minmax(0, 1fr) !important; align-items: center !important; gap: 10px !important; font-size: 13px !important; }
+  html body .mod-shell.mod-shell .mod-support-priority select { width: 100% !important; height: 44px !important; border-radius: 12px !important; font-size: 14px !important; }
+  html body .mod-shell.mod-shell .mod-pagination { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body .mod-shell.mod-shell .mod-pagination button { justify-content: center !important; min-height: 42px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body .mod-shell.mod-shell .mod-empty { gap: 10px !important; font-size: 13px !important; }
+  html body .mod-shell.mod-shell .mod-facts { gap: 10px !important; }
+}
