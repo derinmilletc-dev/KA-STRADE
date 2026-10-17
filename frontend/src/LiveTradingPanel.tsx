@@ -7,6 +7,7 @@ import { fetchWithTimeout } from '../../master-trade-request'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
+import '../../manual-order.css'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
@@ -1042,7 +1043,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setConfirmText('')
     }
     const set = (key: keyof OrderDraft, value: string) => setOrder(current => ({...current, [key]: value}))
+    const armable = authorizationValid && readinessReady && !liveArmed && !freeTrial
+    const wallet = Number(status?.account?.wallet_balance)
+    const walletShare = wallet > 0 && marginValue > 0 ? marginValue / wallet * 100 : null
+    const presetPrice = (value: number) => String(Number(value.toPrecision(6)))
+    const applyPreset = (pct: number) => {
+      if (!(entryRef > 0)) return
+      const sign = order.direction === 'LONG' ? 1 : -1
+      setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
+    }
     return <div className="liveWsOrder liveUxOrderGrid">
+      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
@@ -1073,14 +1084,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="liveWsLabel">3 · Giriş ve miktar</span>
           <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
           <div className="liveWsTwo">
-            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max="100" value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span></label>
-            <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span></label>
+            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max="100" value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max="100" step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? marginValue : 10} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/>{walletShare !== null && <small className="liveWsHint">Hesabının %{walletShare.toFixed(1)}'i kullanılır</small>}</label>
+            <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span><input type="range" className="manualRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/><small className="liveWsHint">Düşük kaldıraç daha güvenlidir</small></label>
           </div>
           {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
         </div>
 
         <div className="liveWsBlock">
           <span className="liveWsLabel">4 · Stop ve hedefler</span>
+          <div className="liveWsChips manualPresets" role="group" aria-label="Hazır stop ve hedef"><small className="liveWsHint">Hazır:</small>{[1, 2, 3].map(pct => <button type="button" key={pct} disabled={!(entryRef > 0)} onClick={() => applyPreset(pct)}>Stop %{pct} · hedef 1R/2R/3R</button>)}</div>
           <div className="liveWsTwo">
             <label className="liveWsField">Stop Loss<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
             <label className="liveWsField">Hedef 1 (TP1)<input type="number" value={order.tp1} onChange={event => set('tp1', event.target.value)}/></label>
