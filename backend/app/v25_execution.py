@@ -87,6 +87,8 @@ from .trade_r_metrics import calculate_r_multiple, initial_entry_risk_usdt
 from .liquidation_risk import isolated_liquidation_risk
 from .web_security import env_flag
 from . import signal_journal as observation
+from . import live_access
+from .live_registry import enabled as live_registry_enabled
 from .v21_demo import certificate_payload
 from .v22_commercial import authenticated_user
 from .member_entitlements import subscription_for_request
@@ -1537,6 +1539,8 @@ def execution_owner(request: Request) -> dict[str, Any]:
         return member
     user = authenticated_user(request)
     if user.get("role") != "OWNER":
+        if live_registry_enabled() and not live_access.role_ok(user.get("role")):
+            raise HTTPException(403, "LIVE işlem yalnız müşteri hesapları içindir.")
         subscription = subscription_for_request(request, user)
         safety_action = subscription.get("mode") == "FREE_TRIAL" and request.url.path in {
             "/api/v25/auto/stop", "/api/v25/disarm", "/api/v25/emergency", "/api/v25/position/close",
@@ -1546,8 +1550,7 @@ def execution_owner(request: Request) -> dict[str, Any]:
             raise HTTPException(403, "Master Trade aboneliğiniz bu özelliğe erişim vermiyor")
         if request.method != "GET" and request.url.path in {
             "/api/v25/order", "/api/v25/order/test", "/api/v25/auto/start", "/api/v25/arm",
-        } and not (subscription.get("master_trade_access") and subscription.get("plan") == "MASTER_MODE"
-                   and subscription.get("status") in {"ACTIVE", "PAST_DUE"}):
+        } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
             raise HTTPException(403, LIVE_MESSAGE)
     guard_execution_ownership(request, claim=request.method != "GET", allow_key_rotation=allow_key_rotation)
@@ -4330,7 +4333,7 @@ def public_status(application: Any, request: Request | None = None) -> dict[str,
     member = getattr(request.state, "member", None) if request is not None else None
     original_status = (
         {"original_v2_live": original_v2_live.public_config(state)}
-        if isinstance(member, dict) and member.get("role") == "OWNER" and original_v2_live.available()
+        if isinstance(member, dict) and live_access.role_ok(member.get("role")) and original_v2_live.available()
         else {}
     )
     return {
@@ -6152,7 +6155,7 @@ async def v25_status(request: Request) -> dict[str, Any]:
     api_key, secret_key, _ = live_credentials_status(request)
     snapshot = state.get("snapshot") or {}
     if (
-        user.get("role") == "OWNER" and usable_live_credentials((api_key, secret_key))
+        live_access.role_ok(user.get("role")) and usable_live_credentials((api_key, secret_key))
         and (not state.get("connected") or snapshot.get("wallet_balance") is None
              or state.get("snapshot_session_id") != live_owner_binding(request))
     ):

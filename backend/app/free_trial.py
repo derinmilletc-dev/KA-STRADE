@@ -140,7 +140,8 @@ async def activate(request: Request):
 
 
 async def require_background_entry(application, user_id: str, *, live: bool):
-    if not enabled():
+    from . import live_registry
+    if not enabled() and not live_registry.enabled():
         return
     pool = getattr(application.state, "db_pool", None)
     if pool is None or not user_id:

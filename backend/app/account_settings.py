@@ -418,6 +418,12 @@ async def close_blocker(request, user):
         if state.get("connected") or state.get("reconciliation_required"):
             return "Borsa bağlantısını kapatın ve recovery durumunu doğrulayın"
     live = getattr(request.app.state, "v25_execution", {})
+    from . import live_registry
+    registry = live_registry.registry_of(request.app)
+    if registry is not None:
+        # multi-user LIVE: check the account being closed, not whoever sent the request
+        live = registry.states.get(user["id"]) or {}
+        live = {**live, "_user_id": user["id"]} if live else {}
     if live.get("_user_id") == user["id"]:
         snapshot = live.get("snapshot") or {}
         if live.get("connected") or live.get("plans") or any(snapshot.get(key) for key in ("positions", "open_orders", "open_algo_orders")):

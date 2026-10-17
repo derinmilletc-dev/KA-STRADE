@@ -57,6 +57,11 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
         # Aktif deneme üyeleri de asistanı (sesli dahil) kullanır; günlük hakları assistant_api içinde kısıtlanır.
         result.update(canExecuteLive=paid, assistantAllowed=owner or not free_trial or premium, freeTrial=free_trial)
         result["entitlements"]["canExecuteLive"] = paid
+    from . import live_access, live_registry
+    if live_registry.enabled():
+        live = owner or live_access.entitled(subscription)
+        result["canExecuteLive"] = live
+        result["entitlements"]["canExecuteLive"] = live
     return result
 
 
