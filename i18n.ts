@@ -2,17 +2,39 @@ export type Lang = 'tr' | 'en'
 const KEY = 'kt_lang'
 type Dict = { e: Record<string, string>; p: [string, string][] }
 
+/** Sitenin çevirisi hazır olan diller. Yeni dil eklemek için buraya satır + çeviri dosyası eklenir. */
+export const LANGUAGES: {code: Lang; native: string; en: string}[] = [
+  {code: 'tr', native: 'Türkçe', en: 'Turkish'},
+  {code: 'en', native: 'English', en: 'English'},
+]
+
+function browserLang(): Lang {
+  try {
+    const list = navigator.languages?.length ? navigator.languages : [navigator.language]
+    for (const l of list) {
+      const code = String(l || '').toLowerCase().slice(0, 2)
+      if (code === 'tr' || code === 'en') return code
+    }
+  } catch { /* ignore */ }
+  return 'en'
+}
+
 export function currentLang(): Lang {
   try {
     const saved = window.localStorage.getItem(KEY)
     if (saved === 'en' || saved === 'tr') return saved
   } catch { /* storage may be unavailable */ }
-  return 'tr'
+  return browserLang()
 }
 
 export function setLang(lang: Lang) {
   try { window.localStorage.setItem(KEY, lang) } catch { /* ignore */ }
   window.location.reload()
+}
+
+/** Hesapta kayıtlı dil bu cihazdakinden farklıysa hesaptakini uygular. */
+export function applyAccountLang(lang: unknown) {
+  if ((lang === 'tr' || lang === 'en') && lang !== currentLang()) setLang(lang)
 }
 
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim()

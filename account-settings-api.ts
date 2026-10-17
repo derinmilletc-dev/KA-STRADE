@@ -22,6 +22,7 @@ export type AccountSubscription = {
 export type AccountOverview = {
   user: AccountUser; subscription: AccountSubscription; preferences: TradingPreferences;
   security: {two_factor_enabled: boolean; active_sessions: number; email_delivery_available: boolean; can_close_account: boolean; close_blocker: string | null};
+  language?: 'tr' | 'en' | null;
   pending_email: {email: string; expires_at: string} | null;
   activity: AccountActivity[]; sessions: AccountSession[];
   marketing_consent?: {accepted: boolean; revision: string | null; version: string | null; accepted_at: string | null; withdrawn_at: string | null};
