@@ -54,7 +54,7 @@ function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: P
     const element = scroller.current
     if (!element) return
     const measure = () => {
-      const horizontal = matchMedia('(max-width: 1279px)').matches
+      const horizontal = matchMedia('(min-width: 701px) and (max-width: 1279px)').matches
       setViewport({horizontal, offset: horizontal ? element.scrollLeft : element.scrollTop, extent: horizontal ? element.clientWidth : element.clientHeight})
     }
     const observer = new ResizeObserver(measure)

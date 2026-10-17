@@ -131,7 +131,10 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  const plotWidth = Math.max(30, size.width - 176)
+  // Telefonda sağdaki fiyat sütunu daha dar; grafik alanı genişler.
+  const narrow = size.width < 560
+  const plotWidth = Math.max(30, size.width - (narrow ? 120 : 176))
+  const axisPrice = (value: number) => narrow ? analysisPrice(value).replace('$', '') : analysisPrice(value)
   const plotHeight = Math.max(1, size.height - 26)
   const priceHeight = plotHeight * .79
   // Yakınlaştırma: zoom = görünen mum sayısı (null = varsayılan), offset = sağdan kaç mum geride durulduğu (0 = en son mum).
@@ -228,11 +231,11 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
         }}>
           <g className="refChartGrid" data-grid={prefs.grid}>{Array.from({length: 7}, (_, index) => {
             const tickY = 11 + index / 6 * (priceHeight - 22)
-            return <g key={index}>{prefs.grid && <line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>}{prefs.axis && !labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{analysisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
+            return <g key={index}>{prefs.grid && <line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>}{prefs.axis && !labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{axisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
           })}{prefs.grid && Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
           {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
           <g className="masterTradeChartLabels">{([] as typeof labels).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
-          <g className="refTimeAxis">{Array.from({length: 6}, (_, index) => {const candle = visible[Math.round(index / 5 * (visible.length - 1))]; return <text key={index} x={10 + index / 5 * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === 5 ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
+          <g className="refTimeAxis">{Array.from({length: narrow ? 4 : 6}, (_, index) => {const last = narrow ? 3 : 5; const candle = visible[Math.round(index / last * (visible.length - 1))]; return <text key={index} x={10 + index / last * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === last ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
           <g className="refDrawings" data-erasing={drawMode === 'erase'}>{drawings.map(drawing => {
             const line = drawing.type === 'hline'
               ? {x1: 0, x2: plotWidth, y1: y(drawing.price), y2: y(drawing.price)}
@@ -260,7 +263,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           <button type="button" aria-label="Yakınlaştır" title="Yakınlaştır (fare tekerleği)" disabled={count <= 10} onClick={() => setZoom(Math.max(10, Math.round(count / 1.3)))}><ZoomIn/></button>
           {zoomed && <button type="button" className="refZoomReset" title="Varsayılan görünüme ve son mumlara dön (çift tık)" onClick={resetView}><RotateCcw/>Son mumlar</button>}
         </div>
-        <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{analysisPrice(label.value)}</span>)}</div>
+        <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{axisPrice(label.value)}</span>)}</div>
       </>}
     </div>
   </>
