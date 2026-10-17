@@ -42,7 +42,7 @@ function ReplyCopy({content, language}: {content: string; language: Language}) {
   </div>
 }
 type Limits = {max_input_chars: number; history_messages: number; history_message_max_chars: number; page_context_max_chars: number; secret_min_alphanumeric_chars: number}
-type Usage = {remaining: number; total: number; resetsAt: string; limits: Limits}
+type Usage = {remaining: number; total: number; resetsAt: string; limits: Limits; unlimited?: boolean}
 type ProactivePreferences = {enabled: boolean; available: boolean; poll_interval_seconds: number}
 type Confirmation = {action: 'get_analysis'; symbol: string; timeframe: string; cost: number; confirmation_token: string}
 type Message = {id: string; role: 'user' | 'assistant'; content: string; language: Language; proactive?: boolean; unread?: boolean; confirmation?: Confirmation; decision?: 'pending' | 'confirmed' | 'cancelled' | 'expired'; pending?: boolean; failed?: boolean}
@@ -79,7 +79,7 @@ function parseUsage(value: Record<string, unknown>): Usage {
       !object(limits) || !integer(limits.max_input_chars, 1) || !integer(limits.history_messages) ||
       !integer(limits.history_message_max_chars, 1) || !integer(limits.page_context_max_chars, 1) ||
       !integer(limits.secret_min_alphanumeric_chars, 1)) throw new AssistantFailure(502, 'invalid_response')
-  return {remaining: value.remaining, total: value.total, resetsAt: value.resetsAt, limits: {
+  return {remaining: value.remaining, total: value.total, resetsAt: value.resetsAt, unlimited: value.unlimited === true, limits: {
     max_input_chars: limits.max_input_chars, history_messages: limits.history_messages,
     history_message_max_chars: limits.history_message_max_chars, page_context_max_chars: limits.page_context_max_chars,
     secret_min_alphanumeric_chars: limits.secret_min_alphanumeric_chars,
@@ -377,6 +377,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     else if (appended) list.current.scrollTop = list.current.scrollHeight
   }, [messages, open])
 
+  // Sohbet açılınca en son mesajlar görünsün.
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => { if (list.current) list.current.scrollTop = list.current.scrollHeight })
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
   const expire = () => { setExpired(true); setUsage(null); setMessages([]); setDraft('') }
   const refreshUsage = async () => {
     usageRequest.current?.abort()
@@ -487,7 +494,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   // Presentation only: reuse the existing secret rule and server-supplied threshold.
   const privateDraft = Boolean(usage && sensitive(draft, usage.limits))
   const eyeState: KaisEyeState = privateFocus ? 'private' : expired || displayedIssue?.kind === 'unavailable' ? 'off'
-    : busy ? 'thinking' : displayedIssue || usage?.remaining === 0 ? 'error' : 'idle'
+    : busy ? 'thinking' : displayedIssue || (usage?.remaining === 0 && !usage.unlimited) ? 'error' : 'idle'
   const unread = messages.filter(message => message.proactive && message.unread).length
   const previousUnread = useRef(unread)
   useEffect(() => {
@@ -541,8 +548,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
         </header>
         <div className="assistantMessages" ref={list} role="log" aria-live="polite" aria-relevant="additions" aria-busy={busy}>
         <div className="assistantMeta">
-          <div className={`assistantUsage${usage?.remaining === 0 ? ' exhausted' : ''}`} role="status" title={usage ? copy.usage(usage.remaining, usage.total) : undefined}>{usage ? copy.usage(usage.remaining, usage.total) : expired ? copy.session : copy.loading}</div>
-          {usage && <progress className="assistantUsageProgress" aria-label={copy.usageProgress} max={Math.max(1, usage.total)} value={usage.remaining}/>}
+          {!usage?.unlimited && <><div className={`assistantUsage${usage?.remaining === 0 ? ' exhausted' : ''}`} role="status" title={usage ? copy.usage(usage.remaining, usage.total) : undefined}>{usage ? copy.usage(usage.remaining, usage.total) : expired ? copy.session : copy.loading}</div>
+          {usage && <progress className="assistantUsageProgress" aria-label={copy.usageProgress} max={Math.max(1, usage.total)} value={usage.remaining}/>}</>}
         </div>
         <p className="assistantSubtitle">{copy.subtitle}</p>
         <div className="assistantMessageList">

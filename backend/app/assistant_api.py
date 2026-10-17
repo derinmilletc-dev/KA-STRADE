@@ -377,7 +377,7 @@ def limited_config(request: Request, user: dict[str, Any], config: AssistantConf
 
     if user.get("role") == "OWNER":
         # Site sahibi test ederken günlük/dakikalık sınıra takılmaz (aylık bütçe sınırı yine geçerli).
-        return config.model_copy(update={"daily_limit": max(config.daily_limit, 1000), "per_minute_limit": max(config.per_minute_limit, 30)})
+        return config.model_copy(update={"daily_limit": max(config.daily_limit, 1_000_000), "per_minute_limit": max(config.per_minute_limit, 1_000)})
     try:
         trial = subscription_for_request(request, user).get("mode") == "FREE_TRIAL"
     except HTTPException:
@@ -412,7 +412,10 @@ async def assistant_usage(request: Request) -> JSONResponse:
     try:
         config = limited_config(request, user, load_assistant_config())
         assistant = service(request)
-        return JSONResponse(await usage_snapshot(assistant, str(user["id"]), config))
+        snapshot = await usage_snapshot(assistant, str(user["id"]), config)
+        if user.get("role") == "OWNER":
+            snapshot["unlimited"] = True
+        return JSONResponse(snapshot)
     except (ValidationError, AssistantStorageError, asyncpg.PostgresError, asyncpg.InterfaceError, sqlite3.Error, OSError, TimeoutError):
         audit(str(user["id"]), time.time(), None, None, warning=True)
         return JSONResponse({"detail": "Asistan kullanım bilgisi alınamadı."}, status_code=503)

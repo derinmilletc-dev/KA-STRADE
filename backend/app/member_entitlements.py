@@ -50,7 +50,7 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
         "isAdmin": owner, "canAccessMasterTrade": True, "isPremium": premium,
         "canExecuteMasterTrade": premium,
         "entitlements": {**subscription.get("entitlements", {}), "canExecuteMasterTrade": premium,
-                         "unlimitedAnalyst": premium and not free_trial},
+                         "unlimitedAnalyst": owner or (premium and not free_trial)},
     }
     from .free_trial import enabled as trial_enabled
     if free_trial or trial_enabled():
