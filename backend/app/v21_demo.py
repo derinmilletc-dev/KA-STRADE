@@ -998,6 +998,7 @@ async def scan_demo_universe(
     settings: dict[str, Any],
     timeframe: str = "15m",
     symbols: list[str] | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Analyze the largest liquid Demo perpetual universe and rank opportunities."""
     exchange_info, tickers = await asyncio.gather(
@@ -1009,6 +1010,8 @@ async def scan_demo_universe(
     universe = [symbol for symbol in supported_symbols if not requested_symbols or symbol in requested_symbols]
     universe = [symbol for symbol in universe if symbol not in occupied]
     settings["_auto_universe"] = universe
+    stats = diagnostics if diagnostics is not None else {}
+    stats.update({"universe": len(universe), "short_history": 0, "fetch_errors": 0, "sample_error": "", "sample_lengths": ""})
 
     async def evaluate(symbol: str) -> dict[str, Any] | None:
         try:
@@ -1018,6 +1021,9 @@ async def scan_demo_universe(
                 demo_candles(client, symbol, "4h", 220),
             )
             if len(candles) < 220 or len(candles_1h) < 200 or len(candles_4h) < 200:
+                stats["short_history"] += 1
+                if not stats["sample_lengths"]:
+                    stats["sample_lengths"] = f"{symbol}: {timeframe}={len(candles)}, 1h={len(candles_1h)}, 4h={len(candles_4h)}"
                 return None
             decision = analyze(candles[:-1])
             higher_1h = analyze(candles_1h[:-1])
@@ -1060,7 +1066,10 @@ async def scan_demo_universe(
                 "signal_time": signal_time, "signal_age_seconds": max(0, round(signal_age)),
                 "data_health": data_health,
             }
-        except (BinanceDemoError, TypeError, ValueError, KeyError, ZeroDivisionError):
+        except (BinanceDemoError, TypeError, ValueError, KeyError, ZeroDivisionError) as exc:
+            stats["fetch_errors"] += 1
+            if not stats["sample_error"]:
+                stats["sample_error"] = f"{symbol}: {type(exc).__name__}: {str(exc)[:120]}"
             return {"symbol": symbol, "direction": "NEUTRAL", "opportunity_score": 0, "confidence": 0, "status": "REJECTED", "trend": "Veri yok", "momentum": "Nötr", "reasons": ["Yeterli market verisi alınamadı"]}
 
     results: list[dict[str, Any]] = []
@@ -2382,7 +2391,16 @@ async def run_scanner_cycle(
         if credentials_configured():
             snapshot = await account_snapshot(client_for(application))
         occupied = {item["symbol"] for item in snapshot.get("positions", []) + snapshot.get("open_orders", [])}
-        ranked = await scan_demo_universe(client, occupied, settings, timeframe=timeframe, symbols=symbols)
+        diagnostics: dict[str, Any] = {}
+        ranked = await scan_demo_universe(client, occupied, settings, timeframe=timeframe, symbols=symbols, diagnostics=diagnostics)
+        scanner["diagnostics"] = diagnostics
+        if not ranked:
+            logger.warning("Scanner produced no candidates: %s", diagnostics)
+            raise RuntimeError(
+                f"Tarama sonuç üretemedi. Taranan parite: {diagnostics.get('universe', 0)}, "
+                f"yetersiz geçmiş: {diagnostics.get('short_history', 0)}, veri hatası: {diagnostics.get('fetch_errors', 0)}. "
+                f"{diagnostics.get('sample_lengths') or diagnostics.get('sample_error') or 'Binance Demo veri döndürmedi.'}"
+            )
         threshold = float(settings.get("min_score_threshold", 70))
         gate_rejections = _new_gate_rejections(scanner_total=len(ranked))
         filtered = []
@@ -2408,7 +2426,7 @@ async def run_scanner_cycle(
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        scanner.update({"scan_status": "HATA", "last_error": str(exc)[:220], "active": False})
+        scanner.update({"scan_status": "HATA", "last_error": str(exc)[:400], "active": False})
         state["auto"]["last_error"] = str(exc)[:220]
     finally:
         scanner["running"] = False
