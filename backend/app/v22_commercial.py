@@ -72,6 +72,8 @@ from .subscription_core import (
     active_subscription,
     canonical_status,
     entitlement_snapshot,
+    grant_admin_access,
+    revoke_admin_access,
 )
 
 try:
@@ -1134,7 +1136,8 @@ class CustomerRequest(BootstrapRequest):
 
 class SubscriptionRequest(BaseModel):
     user_id: str = Field(min_length=8, max_length=80)
-    plan: Literal["TRIAL", "STARTER", "PRO", "ELITE"]
+    # MASTER_MODE gives real premium; NONE removes access granted by hand. STARTER/PRO/ELITE are legacy names for MASTER_MODE.
+    plan: Literal["TRIAL", "MASTER_MODE", "NONE", "STARTER", "PRO", "ELITE"]
     days: int = Field(default=30, ge=1, le=730)
 
 
@@ -2516,15 +2519,29 @@ async def v22_activate_subscription(payload: SubscriptionRequest, request: Reque
     rt = runtime(request)
     async with rt["lock"]:
         state = rt["state"]
-        if not any(item.get("id") == payload.user_id for item in state["users"]):
+        target = next((item for item in state["users"] if item.get("id") == payload.user_id), None)
+        if target is None:
             raise HTTPException(404, "Kullanıcı bulunamadı")
-        expires_at = (datetime.now(timezone.utc) + timedelta(days=payload.days)).isoformat()
-        row = {"id": uuid.uuid4().hex, "user_id": payload.user_id, "plan": payload.plan, "status": "ACTIVE", "starts_at": now_iso(), "expires_at": expires_at, "source": "MANUAL_DEMO", "demo_only": True}
+        if target.get("role") == "OWNER":
+            raise HTTPException(409, "Yönetici hesabı zaten tüm özelliklere sahip.")
+        if payload.plan == "NONE":
+            removed = revoke_admin_access(state, payload.user_id)
+            for item in state["licenses"]:
+                if item.get("user_id") == payload.user_id and item.get("source") == "MANUAL_ADMIN" and item.get("status") == "ACTIVE":
+                    item.update({"status": "REVOKED", "revoked_at": now_iso(), "revoked_reason": "Admin tarafından kaldırıldı"})
+            add_audit(state, "SUBSCRIPTION_ADMIN_REVOKE", f"Elle verilen erişim kaldırıldı ({removed} kayıt).", actor=owner["id"], subject=payload.user_id)
+            save_state(state)
+            return {"license": None, "subscription": None, "removed": removed, "billing_live": False, "demo_only": True}
+        plan = "TRIAL" if payload.plan == "TRIAL" else "MASTER_MODE"
+        subscription = grant_admin_access(state, payload.user_id, plan, payload.days)
+        for item in state["licenses"]:
+            if item.get("user_id") == payload.user_id and item.get("source") == "MANUAL_ADMIN" and item.get("status") == "ACTIVE":
+                item.update({"status": "REVOKED", "revoked_at": now_iso(), "revoked_reason": "Yeni erişim verildi"})
+        row = {"id": uuid.uuid4().hex, "user_id": payload.user_id, "plan": plan, "status": "ACTIVE", "starts_at": subscription["currentPeriodStart"], "expires_at": subscription["currentPeriodEnd"], "source": "MANUAL_ADMIN", "demo_only": True}
         state["licenses"].append(row)
-        state["subscriptions"].append({"id": uuid.uuid4().hex, "user_id": payload.user_id, "plan": payload.plan, "status": "TEST_ACTIVE", "period_end": expires_at, "provider": "MANUAL_DEMO", "created_at": now_iso()})
-        add_audit(state, "LICENSE_ACTIVATED", f"{payload.plan} Demo lisansı {payload.days} gün etkinleştirildi.", actor=owner["id"], subject=payload.user_id)
+        add_audit(state, "SUBSCRIPTION_ADMIN_GRANT", f"{plan} erişimi {payload.days} gün verildi.", actor=owner["id"], subject=payload.user_id)
         save_state(state)
-    return {"license": row, "billing_live": False, "demo_only": True}
+    return {"license": row, "subscription": subscription, "billing_live": False, "demo_only": True}
 
 
 @router.post("/licenses/{license_id}/revoke")
