@@ -84,11 +84,22 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   }, [language, outputSupported])
 
   const stop = useCallback(() => { recognition.current?.stop() }, [])
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     const Constructor = recognitionConstructor()
     if (!Constructor) { setMessage(copy.unsupported); return }
     stopSpeaking()
     recognition.current?.abort()
+    // Izin penceresini dogrudan tiklamayla acmak icin mikrofonu once isteriz.
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true})
+        stream.getTracks().forEach(track => track.stop())
+      } catch (error) {
+        const name = error instanceof DOMException ? error.name : ''
+        setMessage(name === 'NotFoundError' ? copy.failed : copy.denied)
+        return
+      }
+    }
     const instance = new Constructor()
     instance.lang = language === 'tr' ? 'tr-TR' : 'en-US'
     instance.interimResults = false
