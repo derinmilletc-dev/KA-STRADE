@@ -15,7 +15,7 @@ export const voiceCopy = {
     unsupported: 'Bu tarayıcı sesli girişi desteklemiyor. Chrome, Edge veya Safari kullan.',
     denied: 'Mikrofon izni verilmedi. Tarayıcı ayarlarından bu site için mikrofona izin ver.',
     noSpeech: 'Ses duyulmadı, tekrar dene.', failed: 'Ses algılanamadı, tekrar dene.',
-    hint: 'Mikrofona bir kez bas, sonra konuşarak sohbet et. Bitirmek için “bitir” de.',
+    hint: 'Mikrofona bir kez bas, sonra konuşarak sohbet et. Kais konuşurken araya girebilirsin. Bitirmek için “bitir” de.',
     conversation: 'Sesli sohbeti başlat', endConversation: 'Sesli sohbeti bitir', thinking: 'Düşünüyorum…', speaking: 'Konuşuyor…',
     open: 'Sohbeti aç', end: 'Bitir', ended: 'Sesli sohbet bitti.', idleEnded: 'Uzun süre ses gelmediği için sesli sohbet bitti.',
   },
@@ -24,13 +24,22 @@ export const voiceCopy = {
     unsupported: 'This browser does not support voice input. Use Chrome, Edge or Safari.',
     denied: 'Microphone permission was not granted. Allow the microphone for this site in your browser settings.',
     noSpeech: 'No speech was heard, please try again.', failed: 'Speech could not be recognised, please try again.',
-    hint: 'Tap the microphone once, then just talk. Say “stop” to end.',
+    hint: 'Tap the microphone once, then just talk. You can interrupt Kais while it speaks. Say “stop” to end.',
     conversation: 'Start voice chat', endConversation: 'End voice chat', thinking: 'Thinking…', speaking: 'Speaking…',
     open: 'Open chat', end: 'End', ended: 'Voice chat ended.', idleEnded: 'Voice chat ended after a long silence.',
   },
 } as const
 
 type RecognitionEvent = {results: ArrayLike<ArrayLike<{transcript: string}> & {isFinal?: boolean}>}
+
+const normalWords = (value: string) => value.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(word => word.length > 1)
+/** Duyulan metin büyük ölçüde Kais'in okuduğu metinse yankıdır. */
+export function isEcho(heard: string, spoken: string): boolean {
+  const words = normalWords(heard)
+  if (!words.length) return true
+  const spokenWords = new Set(normalWords(spoken))
+  return words.filter(word => spokenWords.has(word)).length / words.length >= 0.6
+}
 type Recognition = {
   lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean
   start(): void; stop(): void; abort(): void
@@ -162,21 +171,58 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     setMessage(note)
   }, [stopSpeaking])
 
-  const listen = useCallback(() => {
+  const listenRef = useRef<(barge?: boolean, spoken?: string) => void>(() => undefined)
+  const barge = useRef<{instance: Recognition; interrupted: boolean; retired: boolean} | null>(null)
+
+  /** Soruyu gönderir, cevabı okur; okurken araya girilirse dinlemeye devam eder. */
+  const answer = useCallback((question: string) => {
+    setPhase('thinking')
+    void callback.current(question).then(reply => {
+      if (!active.current) return
+      if (!reply) { setPhase('listening'); listenRef.current(false); return }
+      setPhase('speaking')
+      let finished = false
+      speak(reply, () => {
+        finished = true
+        if (!active.current) return
+        const current = barge.current
+        if (current && !current.interrupted) { current.retired = true; current.instance.abort(); barge.current = null }
+        if (!current || !current.interrupted) { setPhase('listening'); listenRef.current(false) }
+      })
+      // Kais konuşurken de dinle: kullanıcı araya girerse susup onu dinleriz.
+      if (!finished) listenRef.current(true, reply)
+    })
+  }, [speak])
+
+  const listen = useCallback((bargeIn = false, spoken = '') => {
     const Constructor = recognitionConstructor()
     if (!active.current || !Constructor) return
-    if (Date.now() - lastSpeech.current > IDLE_LIMIT_MS) { end(copy.idleEnded); return }
+    if (!bargeIn && Date.now() - lastSpeech.current > IDLE_LIMIT_MS) { end(copy.idleEnded); return }
     recognition.current?.abort()
     const instance = new Constructor()
     // Sohbet sırasında site dili değişirse bir sonraki dinlemede yeni dil kullanılır.
     instance.lang = tagRef.current
-    instance.interimResults = false
+    instance.interimResults = bargeIn
     instance.maxAlternatives = 1
-    instance.continuous = false
+    instance.continuous = bargeIn
+    const state = {instance, interrupted: false, retired: false}
+    if (bargeIn) barge.current = state
     let transcript = ''
     let fatal = false
     instance.onresult = event => {
-      transcript = Array.from(event.results).map(result => result[0]?.transcript ?? '').join(' ').trim()
+      const rows = Array.from(event.results)
+      if (!bargeIn) { transcript = rows.map(result => result[0]?.transcript ?? '').join(' ').trim(); return }
+      // Kais'in kendi sesini (yankı) kullanıcı sanmamak için okunan metinle karşılaştırırız.
+      const heard = rows.map(result => result[0]?.transcript ?? '').filter(text => !isEcho(text, spoken))
+      const text = heard.join(' ').trim()
+      if (!state.interrupted) {
+        if (text.split(/\s+/).filter(Boolean).length < 2) return
+        state.interrupted = true
+        stopSpeaking()
+        setPhase('listening')
+      }
+      transcript = text
+      if (rows[rows.length - 1]?.isFinal) instance.stop()
     }
     instance.onerror = event => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { fatal = true; end(copy.denied) }
@@ -184,27 +230,28 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     }
     instance.onend = () => {
       if (recognition.current === instance) recognition.current = null
-      if (!active.current || fatal) return
+      if (barge.current === state) barge.current = null
+      if (!active.current || fatal || state.retired) return
+      if (bargeIn && !state.interrupted) {
+        // Kais hâlâ konuşuyorsa araya girme dinlemesini yeniden başlat.
+        if (phaseRef.current === 'speaking') window.setTimeout(() => { if (active.current && phaseRef.current === 'speaking') listenRef.current(true, spoken) }, 120)
+        return
+      }
       const question = stripWakeWord(transcript)
       if (!transcript || !question) {
         if (failures.current > 5) { end(copy.failed); return }
-        window.setTimeout(listen, failures.current ? 600 : 150)
+        window.setTimeout(() => listenRef.current(false), failures.current ? 600 : 150)
         return
       }
       failures.current = 0
       lastSpeech.current = Date.now()
       if (isStopPhrase(question)) { end(copy.ended); return }
-      setPhase('thinking')
-      void callback.current(question).then(reply => {
-        if (!active.current) return
-        if (!reply) { setPhase('listening'); listen(); return }
-        setPhase('speaking')
-        speak(reply, () => { if (active.current) { setPhase('listening'); listen() } })
-      })
+      answer(question)
     }
     recognition.current = instance
-    try { instance.start(); setPhase('listening') } catch { failures.current += 1; window.setTimeout(listen, 800) }
-  }, [copy, end, speak, tag])
+    try { instance.start(); if (!bargeIn) setPhase('listening') } catch { failures.current += 1; if (!bargeIn) window.setTimeout(() => listenRef.current(false), 800) }
+  }, [answer, copy, end, stopSpeaking])
+  listenRef.current = listen
 
   const start = useCallback(async () => {
     if (!recognitionConstructor()) { setMessage(copy.unsupported); return }
