@@ -2389,8 +2389,16 @@ async def run_scanner_cycle(
         client = market_client_for(application)
         snapshot = {"positions": [], "open_orders": []}
         if credentials_configured():
-            snapshot = await account_snapshot(client_for(application))
-        occupied = {item["symbol"] for item in snapshot.get("positions", []) + snapshot.get("open_orders", [])}
+            # Tarama için hesap anlık görüntüsü yalnızca "dolu pariteleri" atlamak içindir;
+            # okunamazsa tarama durmamalı.
+            try:
+                snapshot = await account_snapshot(client_for(application))
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning("Scanner account snapshot unavailable; continuing without occupied-symbol filter", exc_info=True)
+                snapshot = {"positions": [], "open_orders": []}
+        occupied = {item["symbol"] for item in (snapshot.get("positions") or []) + (snapshot.get("open_orders") or [])}
         diagnostics: dict[str, Any] = {}
         ranked = await scan_demo_universe(client, occupied, settings, timeframe=timeframe, symbols=symbols, diagnostics=diagnostics)
         scanner["diagnostics"] = diagnostics
@@ -2426,7 +2434,12 @@ async def run_scanner_cycle(
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        scanner.update({"scan_status": "HATA", "last_error": str(exc)[:400], "active": False})
+        logger.exception("Scanner cycle failed")
+        tb = exc.__traceback__
+        while tb is not None and tb.tb_next is not None:
+            tb = tb.tb_next
+        where = f" [{Path(tb.tb_frame.f_code.co_filename).name}:{tb.tb_lineno}]" if tb is not None else ""
+        scanner.update({"scan_status": "HATA", "last_error": (str(exc) + where)[:400], "active": False})
         state["auto"]["last_error"] = str(exc)[:220]
     finally:
         scanner["running"] = False
