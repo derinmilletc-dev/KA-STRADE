@@ -19,7 +19,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from .binance_demo import credentials_configured
+from .binance_demo import state_for as demo_state_for
 from .v21_demo import certificate_payload
+from .v21_demo import state_for as v21_state_for
 from .v27_cloud_core import VERSION, durable_payload, evidence_rows, json_safe, now_iso, restore_payload
 
 
@@ -186,6 +188,7 @@ def operations_payload(application: Any) -> dict[str, Any]:
     return {
         "version": VERSION,
         "mode": "TESTNET_FIRST_CLOUD_DURABLE",
+        "scope": "admin",
         "generated_at": now_iso(),
         "deployment": {
             "tier": DEPLOYMENT_TIER,
@@ -233,13 +236,77 @@ def operations_payload(application: Any) -> dict[str, Any]:
     }
 
 
+def member_operations_payload(request: Request) -> dict[str, Any]:
+    """Only the signed-in member's own Demo account. Nothing platform-wide is included."""
+    v21 = v21_state_for(request)
+    demo = demo_state_for(request)
+    snapshot = v21.get("snapshot") or {}
+    auto = v21.get("auto", {})
+    journal = [event for event in v21.get("journal", []) if isinstance(event, dict)]
+    today = now_iso()[:10]
+    return {
+        "version": VERSION,
+        "mode": "MEMBER_DEMO",
+        "scope": "member",
+        "generated_at": now_iso(),
+        "deployment": {"tier": "", "always_on": True, "database": "", "uptime_seconds": 0},
+        "testnet": {
+            "configured": credentials_configured(request),
+            "connected": bool(demo.get("connected")),
+            "armed": float(demo.get("armed_until", 0) or 0) > time.time(),
+            "stream": json_safe(v21.get("stream", {})),
+            "auto": json_safe({key: auto.get(key) for key in ("enabled", "busy", "cycles", "last_scan", "last_decision", "last_error")}),
+            "account": json_safe({
+                "wallet_balance": snapshot.get("wallet_balance"),
+                "available_balance": snapshot.get("available_balance"),
+                "unrealized_pnl": snapshot.get("unrealized_pnl"),
+                "positions": snapshot.get("positions", []),
+                "open_orders": snapshot.get("open_orders", []),
+                "open_algo_orders": snapshot.get("open_algo_orders", []),
+            }),
+            "daily": json_safe({
+                "entries": sum(1 for event in journal if event.get("kind") == "AUTO_ORDER" and str(event.get("created_at", ""))[:10] == today),
+                "last_decision": auto.get("last_decision"),
+                "last_scan": auto.get("last_scan"),
+            }),
+        },
+        "evidence": {
+            "status": "KAYITLI",
+            "persistent": True,
+            "restored": False,
+            "count": len(journal),
+            "last_sync": journal[0].get("created_at") if journal else None,
+            "last_error": None,
+            "events": json_safe(journal[:60]),
+            "certificate": {"status": "", "score": 0, "passed_gates": 0, "total_gates": 0, "gates": []},
+        },
+        "safety": {
+            "testnet_only": True,
+            "paper_enabled": False,
+            "real_trading_locked": True,
+            "auto_resumes_after_restart": False,
+            "profit_guaranteed": False,
+        },
+    }
+
+
+def is_owner(request: Request) -> bool:
+    return (getattr(request.state, "member", None) or {}).get("role") == "OWNER"
+
+
 @router.get("/operations")
 async def v27_operations(request: Request) -> dict[str, Any]:
-    return operations_payload(request.app)
+    if is_owner(request):
+        return operations_payload(request.app)
+    if getattr(request.state, "member", None) is None:
+        raise HTTPException(401, "Giriş gerekli")
+    return member_operations_payload(request)
 
 
 @router.post("/evidence/sync")
 async def v27_evidence_sync(request: Request) -> dict[str, Any]:
+    if not is_owner(request):
+        raise HTTPException(403, "Bu işlem yalnızca yönetici içindir")
     result = await sync_cloud_state(request.app)
     if not result.get("persistent"):
         raise HTTPException(503, result.get("last_error") or "Kalıcı veritabanı henüz hazır değil.")

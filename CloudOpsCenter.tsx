@@ -5,7 +5,6 @@ import {
 } from 'lucide-react'
 import { API_BASE } from './api'
 import CloudOpsInfo from './CloudOpsInfo'
-import { useMemberAccess } from './premium-access'
 import './cloud-ops-clean.css'
 
 
@@ -32,6 +31,7 @@ type Operations = {
     status:string;persistent:boolean;restored:boolean;count:number;last_sync?:string;last_error?:string;
     events:EvidenceEvent[];certificate:{status:string;score:number;passed_gates:number;total_gates:number;gates:Gate[]}
   };
+  scope?:'admin'|'member';
   safety:{testnet_only:boolean;real_trading_locked:boolean;auto_resumes_after_restart:boolean;profit_guaranteed:boolean}
 }
 
@@ -58,7 +58,6 @@ async function detail(response:Response):Promise<string> {
 }
 
 export default function CloudOpsCenter() {
-  const { owner } = useMemberAccess()
   const [data,setData] = useState<Operations|null>(null)
   const [error,setError] = useState('')
   const [busy,setBusy] = useState(false)
@@ -104,17 +103,18 @@ export default function CloudOpsCenter() {
   const visibleEvents = showAllEvents ? events : events.slice(0,5)
   const latestEvent = events[0]
   const safety = data?.safety
+  const isAdmin = data?.scope === 'admin'
 
   if (!data) return <div className="v27Loading"><CloudCog className="spin"/><b>OPERASYON MERKEZİ HAZIRLANIYOR</b><span>Sunucu bağlantısı bekleniyor.</span><button onClick={() => refresh()}>YENİDEN DENE</button></div>
 
   return <section className="v27Ops">
     <header className="v27OpsHero">
-      <div className="v27OpsTitle"><span><Cloud/></span><div><small className="v27Eyebrow">BULUT OPERASYON / SİSTEM KANITI</small><h2>Bulut Operasyon ve Kanıt Merkezi</h2><p>Botun ne yaptığını, neden beklediğini ve Testnet kayıtlarının kalıcı olup olmadığını tek ekranda izleyin.</p></div></div>
-      <div className="v27OpsActions"><CloudOpsInfo owner={owner}/><button onClick={() => refresh()} disabled={busy}><RefreshCw className={busy ? 'spin' : ''}/>Yenile</button>{owner && <button className="sync" onClick={sync} disabled={busy || !data.evidence.persistent}><Database/>Kanıtı Şimdi Kaydet</button>}</div>
+      <div className="v27OpsTitle"><span><Cloud/></span><div><small className="v27Eyebrow">BULUT OPERASYON / SİSTEM KANITI</small><h2>Bulut Operasyon ve Kanıt Merkezi</h2><p>{isAdmin ? 'Botun ne yaptığını, neden beklediğini ve Testnet kayıtlarının kalıcı olup olmadığını tek ekranda izleyin.' : 'Hesabındaki demo botun ne yaptığını, neden beklediğini ve kayıtlarını tek ekranda izle.'}</p></div></div>
+      <div className="v27OpsActions"><CloudOpsInfo admin={isAdmin}/><button onClick={() => refresh()} disabled={busy}><RefreshCw className={busy ? 'spin' : ''}/>Yenile</button>{isAdmin && <button className="sync" onClick={sync} disabled={busy || !data.evidence.persistent}><Database/>Kanıtı Şimdi Kaydet</button>}</div>
     </header>
 
     {error && <div className="v27Error"><AlertTriangle/><b>Sunucu bağlantısı bekleniyor</b><span>Veriler güncellenemiyor.</span></div>}
-    {!data.deployment.always_on && <div className="v27SleepNotice"><TimerReset/><div><b>ÖNİZLEME SUNUCUSU UYUYABİLİR</b><span>{data.deployment.tier} katmanında servis boşta durabilir; Testnet otomasyonunun 7/24 taraması için sürekli çalışan sunucu gerekir.</span></div><em>İŞLEM DEĞİL · ALTYAPI UYARISI</em></div>}
+    {isAdmin && !data.deployment.always_on && <div className="v27SleepNotice"><TimerReset/><div><b>ÖNİZLEME SUNUCUSU UYUYABİLİR</b><span>{data.deployment.tier} katmanında servis boşta durabilir; Testnet otomasyonunun 7/24 taraması için sürekli çalışan sunucu gerekir.</span></div><em>İŞLEM DEĞİL · ALTYAPI UYARISI</em></div>}
 
     <div className="v27KeyCards">
       <article className={data.testnet.configured ? 'ok' : 'wait'}><ShieldCheck/><small>Demo Anahtarı</small><b>{data.testnet.configured ? 'Şifreli Kasada' : 'Anahtar Bekliyor'}</b><span>Değerler bu ekranda ve veritabanında tutulmaz.</span></article>
@@ -127,8 +127,8 @@ export default function CloudOpsCenter() {
       <article><small>Testnet Cüzdan</small><b>{money(data.testnet.account.wallet_balance)} <em>USDT</em></b><span>Kullanılabilir {money(data.testnet.account.available_balance)}</span></article>
       <article><small>Açık PnL</small><b className={(data.testnet.account.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{(data.testnet.account.unrealized_pnl || 0) >= 0 ? '+' : ''}{money(data.testnet.account.unrealized_pnl)} <em>USDT</em></b><span>Gerçekleşmemiş Testnet sonucu</span></article>
       <article><small>Bugünkü Otonom Giriş</small><b>{data.testnet.daily.entries}</b><span>Son tarama {date(data.testnet.daily.last_scan)}</span></article>
-      <article><small>Sunucu Çalışma Süresi</small><b>{duration(data.deployment.uptime_seconds)}</b><span>Yeniden başlatmada sayaç sıfırlanır</span></article>
-      {owner && <article><small>Demo Kanıt Skoru</small><b>%{certificate?.score || 0}</b><span>{certificate?.passed_gates || 0}/{certificate?.total_gates || 0} kapı geçti</span></article>}
+      {isAdmin && <article><small>Sunucu Çalışma Süresi</small><b>{duration(data.deployment.uptime_seconds)}</b><span>Yeniden başlatmada sayaç sıfırlanır</span></article>}
+      {isAdmin && <article><small>Demo Kanıt Skoru</small><b>%{certificate?.score || 0}</b><span>{certificate?.passed_gates || 0}/{certificate?.total_gates || 0} kapı geçti</span></article>}
     </div>
 
     <div className="v27MainGrid">
@@ -140,7 +140,7 @@ export default function CloudOpsCenter() {
           <div className="v27MonitorItem"><small>Otomasyon</small><b>{data.testnet.auto.enabled ? 'Çalışıyor' : 'Kapalı'}</b><span>{data.testnet.auto.cycles || 0} tur · Son tarama {date(data.testnet.auto.last_scan)}</span></div>
           <div className="v27MonitorItem"><small>Son Kanıt</small><b>{data.evidence.status}</b><span>{date(data.evidence.last_sync)} · {data.evidence.count} kayıt</span></div>
           <div className="v27MonitorItem"><small>Mevcut Durum</small><b>{data.testnet.auto.last_decision || 'Henüz karar yok.'}</b><span>{data.testnet.auto.last_error ? `Son hata: ${data.testnet.auto.last_error}` : `Son ekran güncellemesi ${updated}.`}</span></div>
-          <div className="v27MonitorItem v27MonitorItem--security">
+          {isAdmin && <div className="v27MonitorItem v27MonitorItem--security">
             <small>Güvenlik</small>
             <div className="v27CriticalGrid">
               <div><span>Testnet Only</span><b>{safety?.testnet_only ? 'Evet' : 'Hayır'}</b></div>
@@ -148,7 +148,7 @@ export default function CloudOpsCenter() {
               <div><span>Auto Resume</span><b>{safety?.auto_resumes_after_restart ? 'Açık' : 'Kapalı'}</b></div>
               <div><span>Profit Guaranteed</span><b>{safety?.profit_guaranteed ? 'Var' : 'Yok'}</b></div>
             </div>
-          </div>
+          </div>}
         </div>
       </section>
 
@@ -159,7 +159,7 @@ export default function CloudOpsCenter() {
       </section>
     </div>
 
-    {owner && <section className="v27Panel v27Certificate">
+    {isAdmin && <section className="v27Panel v27Certificate">
       <header><div><small className="v27Eyebrow">30 gün / 100 kapanış / tatbikat</small><h3>Testnet Kanıt Sertifikası</h3></div><strong>%{certificate?.score || 0}</strong></header>
       <div className="v27Progress"><i style={{width:`${certificate?.score || 0}%`}}/></div>
       <div className="v27Gates">{certificate?.gates.map(gate => <article key={gate.name} className={gate.passed ? 'passed' : ''}>{gate.passed ? <CheckCircle2/> : <Clock/>}<div><b>{gate.name}</b><span>{String(gate.value)} / hedef {String(gate.target)}</span></div></article>)}</div>
