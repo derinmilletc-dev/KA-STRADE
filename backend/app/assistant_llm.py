@@ -283,7 +283,7 @@ async def run_conversation(
                 reply = safe_response(reply, language, free=tools is None or not tools.premium(user_id))
                 if any(result.get("stale") for result in results.values()):
                     reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
-                if "get_analysis" in results or re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):
+                if re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):
                     reply += "\n\n" + RISK_NOTES[language]
                 return AssistantReply(reply, language, tuple(results))
             if len(turn.tool_calls) > len(ARGUMENT_MODELS) or len({call.id for call in turn.tool_calls}) != len(turn.tool_calls):
@@ -312,7 +312,7 @@ async def run_conversation(
                     cost = confirmation["cost"]
                     reply = (f"{cost} kredi harcanacak, devam edeyim mi?" if language == "tr"
                              else f"This will spend {cost} credits. Shall I continue?")
-                    return AssistantReply(reply + "\n\n" + RISK_NOTES[language], language, tuple(results), needs_confirmation=confirmation)
+                    return AssistantReply(reply, language, tuple(results), needs_confirmation=confirmation)
                 outputs.append({"type": "tool_result", "tool_use_id": call.id,
                                 "content": json.dumps(result, ensure_ascii=False, allow_nan=False),
                                 "is_error": "error" in result.get("data", {})})
@@ -322,6 +322,4 @@ async def run_conversation(
         return stop_reply(AssistantStopped("provider", 502), results, language)
     except AssistantStopped as stop:
         reply = stop_reply(stop, results, language)
-        if "get_analysis" in results:
-            return AssistantReply(reply.reply + "\n\n" + RISK_NOTES[language], language, reply.sources, reply.status, reply.retry_after, error_code=reply.error_code)
         return reply

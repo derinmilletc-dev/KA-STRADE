@@ -15,7 +15,6 @@ from .assistant_prompt import IDENTITY_REPLIES
 from .assistant_storage import AssistantStorageError
 from .assistant_llm import summary
 from .assistant_tools import AssistantTools
-from .assistant_prompt import RISK_NOTES
 from .assistant_response import safe_response
 
 Language = Literal["tr", "en"]
@@ -134,7 +133,7 @@ async def answer(
             return {"reply": "Analiz bulunamadı, istersen yeni analiz isteyebilirsin." if language == "tr" else
                     "No analysis was found; you can request a new analysis if you wish.",
                     "language": language, "sources": [name]}
-        reply = safe_response(summary(name, result, language), language, free=not tools.premium(user_id)) + "\n\n" + RISK_NOTES[language]
+        reply = safe_response(summary(name, result, language), language, free=not tools.premium(user_id))
         if result["stale"]:
             reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
         return {"reply": reply, "language": language, "sources": [name],

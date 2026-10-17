@@ -24,7 +24,7 @@ class AssistantHelpTests(unittest.TestCase):
             "final-decision", "confidence", "opportunity", "smart-score", "mtf", "trigger",
             "invalidation", "risk-reward", "directions", "levels", "locked", "arm", "consent",
             "dry-run", "scanner-candidate", "exposure", "protection", "reconciliation",
-            "account-mode", "fingerprint", "risk-warning",
+            "account-mode", "fingerprint", "risk-warning", "support", "site-map",
         }
         self.assertEqual({row.id for row in tr}, expected)
         root = Path(__file__).resolve().parents[2]
