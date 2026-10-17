@@ -1104,6 +1104,7 @@ class RegisterRequest(BaseModel):
     confirm_password: str = Field(min_length=10, max_length=256)
     terms_accepted: bool = Field(default=False, strict=True)
     marketing_accepted: bool = Field(default=False, strict=True)
+    language: Literal["tr", "en"] = "tr"
 
 
 class EmailTokenRequest(BaseModel):
