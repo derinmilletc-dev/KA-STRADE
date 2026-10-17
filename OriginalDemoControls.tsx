@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
+import KaisOriginalInfo from './KaisOriginalInfo'
 import './original-demo-controls.css'
 
 export const ORIGINAL_DEMO_ID = 'kais-original-v2-demo-v1'
@@ -71,6 +72,7 @@ export default function OriginalDemoControls({strategy,onStrategyChange,request,
       <option value="default">Mevcut Demo (sunucu varsayılanı)</option>
       <option value={ORIGINAL_DEMO_ID}>Kais Original v2</option>
     </select></label>
+    <KaisOriginalInfo/>
     <dl><div><dt>Original profil anahtarı</dt><dd>{status ? status.flags.enabled ? 'Açık' : 'Kapalı' : '—'}</dd></div>
       <div><dt>Original emir izni</dt><dd>{status ? status.flags.send_orders ? 'Açık' : 'Kapalı' : '—'}</dd></div>
       <div><dt>Original yürütme modu</dt><dd>{status ? status.flags.enabled && status.flags.send_orders ? 'Demo emir yolu izinli; arm/onay gerekir' : 'Yalnız karar / dry-run' : '—'}</dd></div>

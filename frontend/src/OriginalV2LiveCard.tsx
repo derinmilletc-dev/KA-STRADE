@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent, type ReactNode} from 'react'
+import KaisOriginalInfo from '../../KaisOriginalInfo'
 import {Database} from 'lucide-react'
 
 export type OriginalPersistenceDiagnostics = {
@@ -427,7 +428,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
     </details>
   </>
   return <section className={`masterTradeLiveSection originalLiveCard ${className ?? ''}`} aria-label="Kais Original V2 LIVE">
-    <header className="originalStatusHero"><div><span className="masterTradeLiveKicker">KAIS ORIGINAL V2 · CANLI</span>
+    <header className="originalStatusHero"><div><span className="masterTradeLiveKicker">KAIS ORIGINAL V2 · CANLI</span><KaisOriginalInfo/>
       <h2>{!statusVerified ? 'Durum doğrulanamadı' : entriesReady ? 'Çalışıyor – sinyal bekleniyor' : status.enabled ? 'Çalışıyor – girişler engelli' : status.paused ? 'Durdu – yeni girişler kapalı' : 'Canlı işlemi 3 adımda başlat'}</h2>
       <p>{status.enabled ? `${status.universe?.requested_count ?? status.symbols.length} coin · Son tarama: ${status.scanner?.last_scan_at ? new Date(status.scanner.last_scan_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : 'bekleniyor'} · ${remainingText}` : status.pause_reason || 'Sıradaki adımı tamamla; açık pozisyonların korumaları değiştirilmez.'}</p>
       {status.enabled && !entriesReady && <p role="status">{entryBlocker?.reason || 'Giriş kontrolleri doğrulanamadı.'}</p>}
