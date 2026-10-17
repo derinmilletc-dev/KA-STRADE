@@ -8044,3 +8044,9 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade:not([data-layout-tab="analiz"]) #master-trade-live-terminal.liveWs.liveWs .liveWsActivity ol > li > time { font-size: 11px !important; line-height: 1.3 !important; }
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade:not([data-layout-tab="analiz"]) #master-trade-live-terminal.liveWs.liveWs .liveWsActivity ol > li > span { position: static !important; display: block !important; width: 100% !important; font-size: 13px !important; line-height: 1.4 !important; }
 }
+
+/* Telefon: ana sayfada alt menü gizli (ana sayfa zaten tüm bölümlere geçiş sunuyor); diğer sayfalarda görünür. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.homeRoute.homeRoute { --mobile-bottom-nav-height: 0px !important; }
+  html body #root > main.v26App.homeRoute.homeRoute > .v26MobileBottomNav.v26MobileBottomNav { display: none !important; }
+}
