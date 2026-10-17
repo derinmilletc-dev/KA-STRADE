@@ -8332,3 +8332,168 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root > main.v26App.workspaceRoute.workspaceRoute .subscriptionPage.subscriptionPage .subscriptionFeedback button { width: 100% !important; min-height: 42px !important; border-radius: 12px !important; }
   html body #root > main.v26App.workspaceRoute.workspaceRoute .subscriptionPage.subscriptionPage .subscriptionSecurityNote { display: flex !important; align-items: flex-start !important; gap: 10px !important; padding: 12px !important; border-radius: 14px !important; font-size: 12px !important; }
 }
+
+
+/* Telefon: Admin paneli – üst üste binme yok, küçük başlıklar, tablolar kart listesi. */
+@media (max-width: 760px) {
+  /* Oturum çubuğu: içeriğin üstünde yüzmez, sayfanın en üstünde düz bir satır olur */
+  html body .authSessionBar:has(+ main.adminShell) { position: relative !important; inset: auto !important; top: auto !important; right: auto !important; left: auto !important; z-index: 1 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; width: 100% !important; max-width: 100% !important; min-height: 52px !important; margin: 0 !important; padding: 8px 14px !important; border: 0 !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; border-radius: 0 !important; background: #071116 !important; box-shadow: none !important; transform: none !important; box-sizing: border-box !important; }
+  html body .authSessionBar:has(+ main.adminShell) > span { display: flex !important; align-items: center !important; gap: 8px !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; font-size: 13px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  html body .authSessionBar:has(+ main.adminShell) > span svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body .authSessionBar:has(+ main.adminShell) > span b { flex: none !important; font-size: 11px !important; letter-spacing: .06em !important; }
+  html body .authSessionBar:has(+ main.adminShell) > button { flex: none !important; display: flex !important; align-items: center !important; gap: 6px !important; min-height: 38px !important; margin: 0 !important; padding: 0 12px !important; border-radius: 10px !important; font-size: 12.5px !important; }
+  html body .authSessionBar:has(+ main.adminShell) > button svg { width: 16px !important; height: 16px !important; }
+
+  /* Kabuk ve üst bölüm */
+  html body main.adminShell.adminShell { display: block !important; min-height: 100dvh !important; overflow-x: clip !important; }
+  html body main.adminShell.adminShell > .adminMain { width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; overflow-x: clip !important; }
+  html body main.adminShell.adminShell .adminTopbar { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) !important; align-items: center !important; gap: 12px !important; min-height: 0 !important; padding: 14px !important; }
+  html body main.adminShell.adminShell .adminTopbar .adminMenuButton { display: grid !important; place-items: center !important; width: 44px !important; height: 44px !important; margin: 0 !important; padding: 0 !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminTopIdentity { order: 0 !important; width: auto !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminTopIdentity > span { display: block !important; font-size: 10px !important; letter-spacing: .12em !important; line-height: 1.3 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  html body main.adminShell.adminShell .adminTopIdentity h1 { margin: 2px 0 0 !important; font-size: 22px !important; line-height: 1.2 !important; }
+  html body main.adminShell.adminShell .adminTopIdentity p { display: none !important; }
+  html body main.adminShell.adminShell .adminCommandBar { grid-column: 1 / -1 !important; order: 0 !important; display: flex !important; align-items: center !important; gap: 4px !important; width: 100% !important; min-width: 0 !important; height: 46px !important; margin: 0 !important; padding: 0 4px 0 12px !important; border-radius: 12px !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminCommandBar > svg { flex: 0 0 17px !important; width: 17px !important; height: 17px !important; }
+  html body main.adminShell.adminShell .adminCommandBar > input { flex: 1 1 auto !important; min-width: 0 !important; height: 100% !important; padding: 0 6px !important; font-size: 14px !important; }
+  html body main.adminShell.adminShell .adminCommandBar > button { flex: 0 0 38px !important; width: 38px !important; height: 38px !important; padding: 0 !important; display: grid !important; place-items: center !important; border-radius: 10px !important; }
+  html body main.adminShell.adminShell .adminCommandBar > button svg { width: 17px !important; height: 17px !important; }
+  html body main.adminShell.adminShell .adminToast { max-width: none !important; margin: 12px 14px 0 !important; padding: 11px 14px !important; border-radius: 12px !important; font-size: 13px !important; line-height: 1.45 !important; }
+
+  /* İçerik ve kartlar */
+  html body main.adminShell.adminShell .adminContent { display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 14px 14px 40px !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminContent > * { min-width: 0 !important; max-width: 100% !important; margin: 0 !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminDashboardGrid { display: flex !important; flex-direction: column !important; gap: 12px !important; }
+  html body main.adminShell.adminShell :is(.adminPanelCard, .adminSectionCard) { min-width: 0 !important; max-width: 100% !important; padding: 16px !important; border-radius: 16px !important; box-shadow: none !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminSectionTitle { display: flex !important; flex-wrap: wrap !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; margin: 0 0 14px !important; padding: 0 0 12px !important; }
+  html body main.adminShell.adminShell .adminSectionTitle > div { display: flex !important; flex-direction: column !important; gap: 4px !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminKicker { font-size: 9.5px !important; letter-spacing: .14em !important; line-height: 1.3 !important; }
+  html body main.adminShell.adminShell .adminSectionTitle h2 { margin: 0 !important; font-size: 19px !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
+  html body main.adminShell.adminShell .adminSectionTitle > button, html body main.adminShell.adminShell .adminSectionTitle .adminHealthCheck, html body main.adminShell.adminShell .adminSectionTitle .adminTextButton { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important; width: auto !important; min-height: 38px !important; margin: 0 !important; padding: 0 14px !important; border-radius: 10px !important; font-size: 12px !important; letter-spacing: .04em !important; }
+  html body main.adminShell.adminShell .adminSectionTitle svg { width: 15px !important; height: 15px !important; }
+
+  /* KPI kutuları */
+  html body main.adminShell.adminShell :is(.adminKpiGrid, .adminKpiGridSmall) { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; width: 100% !important; }
+  html body main.adminShell.adminShell .adminKpi { position: relative !important; display: flex !important; flex-direction: column !important; gap: 4px !important; min-width: 0 !important; min-height: 0 !important; padding: 13px !important; border-radius: 14px !important; }
+  html body main.adminShell.adminShell .adminKpi:last-child:nth-child(odd) { grid-column: 1 / -1 !important; }
+  html body main.adminShell.adminShell .adminKpi > svg { position: absolute !important; top: 12px !important; right: 12px !important; width: 17px !important; height: 17px !important; margin: 0 !important; }
+  html body main.adminShell.adminShell .adminKpi > span { padding-right: 24px !important; font-size: 9.5px !important; letter-spacing: .1em !important; line-height: 1.3 !important; }
+  html body main.adminShell.adminShell .adminKpi > strong { margin: 2px 0 0 !important; font-size: 19px !important; line-height: 1.2 !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
+  html body main.adminShell.adminShell .adminKpi > small { font-size: 11.5px !important; line-height: 1.35 !important; }
+
+  /* Listeler, satırlar, boş durumlar */
+  html body main.adminShell.adminShell .adminTimeline article, html body main.adminShell.adminShell .adminSettingsList > div, html body main.adminShell.adminShell .adminSignalList > * { gap: 10px !important; padding: 12px !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminSettingsList > div { display: grid !important; grid-template-columns: 20px minmax(0, 1fr) !important; align-items: start !important; }
+  html body main.adminShell.adminShell .adminSettingsList > div > em { grid-column: 2 !important; justify-self: start !important; margin-top: 4px !important; font-size: 10.5px !important; }
+  html body main.adminShell.adminShell .adminSettingsList b { font-size: 14px !important; }
+  html body main.adminShell.adminShell .adminSettingsList small { font-size: 12px !important; }
+  html body main.adminShell.adminShell .adminEmpty { gap: 6px !important; padding: 22px 12px !important; text-align: center !important; }
+  html body main.adminShell.adminShell .adminEmpty b { font-size: 14px !important; }
+  html body main.adminShell.adminShell .adminEmpty span { font-size: 12px !important; }
+  html body main.adminShell.adminShell .adminUnavailable { gap: 8px !important; padding: 18px 14px !important; }
+  html body main.adminShell.adminShell .adminUnavailable h3 { margin: 4px 0 0 !important; font-size: 17px !important; line-height: 1.3 !important; }
+  html body main.adminShell.adminShell .adminUnavailable p { font-size: 12.5px !important; line-height: 1.5 !important; }
+  html body main.adminShell.adminShell .adminTradingGrid { gap: 8px !important; }
+  html body main.adminShell.adminShell .adminTradingGrid > div { padding: 12px !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminModeRow { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body main.adminShell.adminShell .adminModeOption { min-width: 0 !important; min-height: 46px !important; padding: 0 10px !important; border-radius: 12px !important; font-size: 12.5px !important; }
+  html body main.adminShell.adminShell .adminModeOption:last-child:nth-child(odd) { grid-column: 1 / -1 !important; }
+  html body main.adminShell.adminShell .adminModeHint { margin: 10px 0 0 !important; font-size: 12px !important; line-height: 1.5 !important; }
+  html body main.adminShell.adminShell :is(.adminFilters, .adminActivityFilters) { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; width: 100% !important; }
+  html body main.adminShell.adminShell .adminFilters :is(input, select, label) { width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminFilters :is(input, select) { height: 44px !important; border-radius: 12px !important; font-size: 14px !important; }
+
+  /* Olaylar: her kayıt düzgün bir kart */
+  html body main.adminShell.adminShell .adminTableWrap:has(.adminIncidentTable) { overflow: visible !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataHead { display: none !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow { display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; grid-template-areas: "sev time" "svc svc" "msg msg" "count act" !important; align-items: center !important; gap: 6px 12px !important; width: 100% !important; min-width: 0 !important; margin: 0 0 10px !important; padding: 14px !important; border-radius: 14px !important; box-sizing: border-box !important; cursor: pointer !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(1) { grid-area: sev !important; justify-self: start !important; font-size: 11.5px !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > time { grid-area: time !important; justify-self: end !important; font-size: 11px !important; color: #8da0aa !important; white-space: nowrap !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > b { grid-area: svc !important; font-size: 13px !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(3) { grid-area: msg !important; display: flex !important; flex-direction: column !important; gap: 3px !important; min-width: 0 !important; max-width: 100% !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(3) strong { display: block !important; font-size: 13px !important; line-height: 1.35 !important; overflow-wrap: anywhere !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(3) small { display: block !important; font-size: 12px !important; line-height: 1.45 !important; color: #a9b8c1 !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(4) { grid-area: count !important; justify-self: start !important; font-size: 12px !important; color: #8da0aa !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > span:nth-child(4)::before { content: "Tekrar: "; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > button { grid-area: act !important; justify-self: end !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; min-height: 34px !important; margin: 0 !important; padding: 0 12px !important; border-radius: 10px !important; background: rgba(100,227,161,.1) !important; color: #64e3a1 !important; font-size: 12px !important; }
+  html body main.adminShell.adminShell .adminIncidentTable .adminDataRow > button svg { width: 14px !important; height: 14px !important; }
+
+  /* Abonelik defteri: satır → kart */
+  html body main.adminShell.adminShell .adminTableWrap:has(.subscriptionRow), html body main.adminShell.adminShell .adminTableWrap:has(.adminDataTable:not(.adminIncidentTable)) { overflow: visible !important; }
+  html body main.adminShell.adminShell .adminDataTable:not(.adminIncidentTable) { min-width: 0 !important; width: 100% !important; overflow: visible !important; }
+  html body main.adminShell.adminShell .adminDataTable:not(.adminIncidentTable) > .adminDataHead { display: none !important; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px 12px !important; width: 100% !important; min-width: 0 !important; margin: 0 0 10px !important; padding: 14px !important; border-radius: 14px !important; background: rgba(255,255,255,.03) !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > .adminIdentity { grid-column: 1 / -1 !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > time { display: flex !important; flex-direction: column !important; gap: 2px !important; font-size: 12px !important; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > time:nth-of-type(1)::before { content: "Başlangıç"; font-size: 9.5px; letter-spacing: .08em; color: #8da0aa; text-transform: uppercase; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > time:nth-of-type(2)::before { content: "Bitiş"; font-size: 9.5px; letter-spacing: .08em; color: #8da0aa; text-transform: uppercase; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > :is(.adminBadge, .adminStatus) { justify-self: start !important; align-self: center !important; }
+  html body main.adminShell.adminShell .adminDataTable .subscriptionRow > .adminTextButton { grid-column: 1 / -1 !important; justify-content: center !important; min-height: 40px !important; border-radius: 10px !important; background: rgba(255,255,255,.05) !important; }
+  html body main.adminShell.adminShell .adminIdentity { display: flex !important; align-items: center !important; gap: 10px !important; text-align: left !important; }
+  html body main.adminShell.adminShell .adminIdentity > span:last-child { display: flex !important; flex-direction: column !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminIdentity b, html body main.adminShell.adminShell .adminIdentity small { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+  html body main.adminShell.adminShell .adminPagination, html body main.adminShell.adminShell .adminBinancePagination { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; margin-top: 12px !important; font-size: 12px !important; }
+  html body main.adminShell.adminShell :is(.adminPagination, .adminBinancePagination) button { min-height: 38px !important; padding: 0 14px !important; border-radius: 10px !important; font-size: 12.5px !important; }
+
+  /* Kullanıcılar */
+  html body main.adminShell.adminShell .adminAccountFilters { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body main.adminShell.adminShell .adminAccountFilters > label { grid-column: 1 / -1 !important; display: flex !important; align-items: center !important; gap: 8px !important; height: 44px !important; padding: 0 12px !important; border-radius: 12px !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminAccountFilters > label input { flex: 1 !important; min-width: 0 !important; font-size: 14px !important; }
+  html body main.adminShell.adminShell .adminAccountFilters > select { min-width: 0 !important; width: 100% !important; height: 42px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll { overflow: visible !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll :is(table, tbody) { display: block !important; width: 100% !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll thead { display: none !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll tbody { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll tr { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px 12px !important; padding: 14px !important; border-radius: 14px !important; background: rgba(255,255,255,.03) !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td { display: flex !important; flex-direction: column !important; gap: 2px !important; min-width: 0 !important; padding: 0 !important; border: 0 !important; font-size: 12.5px !important; overflow-wrap: anywhere !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td::before { display: block; font-size: 9.5px; font-weight: 600; letter-spacing: .08em; color: #8da0aa; text-transform: uppercase; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(1), html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(2), html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(7), html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(8) { grid-column: 1 / -1 !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(2)::before { content: "E-posta"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(3)::before { content: "Rol / giriş"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(4)::before { content: "Üyelik"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(5)::before { content: "Hesap"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(6)::before { content: "Güvenlik"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(7)::before { content: "Tarihler"; }
+  html body main.adminShell.adminShell .adminAccountTableScroll td:nth-child(8) button { display: flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important; width: 100% !important; min-height: 40px !important; border-radius: 10px !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll small { display: flex !important; align-items: center !important; gap: 4px !important; font-size: 11.5px !important; }
+  html body main.adminShell.adminShell .adminAccountTableScroll small svg { width: 13px !important; height: 13px !important; }
+  html body dialog.adminAccountDialog { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px) !important; max-height: 90dvh !important; padding: 16px !important; border-radius: 16px !important; box-sizing: border-box !important; overflow-y: auto !important; }
+  html body dialog.adminAccountDialog .adminAccountActions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
+  html body dialog.adminAccountDialog .adminAccountActions button, html body dialog.adminAccountDialog .adminAccountConfirmation button { width: 100% !important; min-width: 0 !important; min-height: 44px !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminDrawer { width: 100% !important; max-width: 100% !important; padding: 18px 16px !important; box-sizing: border-box !important; }
+
+  /* Onay talepleri ve Binance ödemeleri: içerik kenara yapışmaz */
+  html body main.adminShell.adminShell > .adminMain > :is(.mod-approval-section, .adminBinance) { display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; margin: 0 !important; padding: 14px 14px 40px !important; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell > .adminMain > .mod-approval-section > div:first-child, html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-secondary { margin: 0 !important; padding: 12px !important; border-radius: 12px !important; background: rgba(255,255,255,.035) !important; font-size: 12.5px !important; line-height: 1.5 !important; }
+  html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-support-priority { display: grid !important; grid-template-columns: auto minmax(0, 1fr) !important; align-items: center !important; gap: 10px !important; margin: 0 !important; font-size: 13px !important; }
+  html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-support-priority select { width: 100% !important; height: 44px !important; border-radius: 12px !important; font-size: 14px !important; }
+  html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-pagination { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-pagination button, html body main.adminShell.adminShell > .adminMain > .mod-approval-section .mod-actions button { width: 100% !important; min-height: 42px !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminBinanceIntro h2 { margin: 0 !important; font-size: 20px !important; }
+  html body main.adminShell.adminShell .adminBinanceIntro p { font-size: 12.5px !important; line-height: 1.5 !important; }
+  html body main.adminShell.adminShell .adminBinanceSummary { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body main.adminShell.adminShell .adminBinanceTabs { display: flex !important; flex-wrap: nowrap !important; gap: 6px !important; overflow-x: auto !important; scrollbar-width: none !important; }
+  html body main.adminShell.adminShell .adminBinanceTabs > button { flex: 0 0 auto !important; min-height: 36px !important; padding: 0 14px !important; border-radius: 999px !important; font-size: 12px !important; white-space: nowrap !important; }
+  html body main.adminShell.adminShell .adminBinanceCards > article { padding: 14px !important; border-radius: 14px !important; }
+  html body main.adminShell.adminShell .adminBinanceActions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  html body main.adminShell.adminShell .adminBinanceActions button { width: 100% !important; min-height: 44px !important; border-radius: 12px !important; }
+  html body main.adminShell.adminShell .adminBinance textarea { width: 100% !important; box-sizing: border-box !important; border-radius: 12px !important; }
+
+  /* Original V2 risk kayıtları kartı */
+  html body main.adminShell.adminShell > .adminMain > .adminPanelCard, html body main.adminShell.adminShell .adminMain > section.adminSectionCard { margin: 0 14px 24px !important; width: auto !important; }
+  html body main.adminShell.adminShell section[aria-label="Original V2 risk değişiklikleri"] > .adminSectionTitle > button { min-height: 36px !important; }
+  html body main.adminShell.adminShell section[aria-label="Original V2 risk değişiklikleri"] > p { margin: 0 0 10px !important; font-size: 12.5px !important; }
+  html body main.adminShell.adminShell .adminTableWrap:has(.adminTable) { overflow: visible !important; }
+  html body main.adminShell.adminShell .adminTable, html body main.adminShell.adminShell .adminTable tbody { display: block !important; width: 100% !important; min-width: 0 !important; }
+  html body main.adminShell.adminShell .adminTable thead { display: none !important; }
+  html body main.adminShell.adminShell .adminTable tbody { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+  html body main.adminShell.adminShell .adminTable tr { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px 12px !important; padding: 12px !important; border-radius: 12px !important; background: rgba(255,255,255,.03) !important; }
+  html body main.adminShell.adminShell .adminTable td { display: block !important; min-width: 0 !important; padding: 0 !important; border: 0 !important; font-size: 12px !important; line-height: 1.45 !important; overflow-wrap: anywhere !important; }
+  html body main.adminShell.adminShell .adminTable td::before { display: block; margin-bottom: 2px; font-size: 9.5px; font-weight: 600; letter-spacing: .08em; color: #8da0aa; text-transform: uppercase; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(1), html body main.adminShell.adminShell .adminTable td:nth-child(4), html body main.adminShell.adminShell .adminTable td:nth-child(5) { grid-column: 1 / -1 !important; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(1)::before { content: "Zaman / kullanıcı"; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(2)::before { content: "İşlem riski"; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(3)::before { content: "Günlük sınır"; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(4)::before { content: "Gösterilen uyarı"; }
+  html body main.adminShell.adminShell .adminTable td:nth-child(5)::before { content: "Onay / bakiye"; }
+}
