@@ -5,6 +5,7 @@ import {ApprovalCards, ApprovalError, ApprovalOwnerDetail} from './approval-ui'
 import './moderator-panel.css'
 import AdminNotificationSummary from './AdminNotificationSummary'
 import CampaignApprovalPreview from './CampaignApprovalPreview'
+import {AdminPremiumRequests} from './PremiumRequests'
 
 export default function AdminApprovals() {
   const [query, setQuery] = useState<{status: ApprovalStatus | ''; offset: number; version: number}>({status: 'pending', offset: 0, version: 0})
@@ -49,6 +50,7 @@ export default function AdminApprovals() {
   }
   return <section className="mod-approval-section mod-stack" aria-label="Onay talepleri">
     <AdminNotificationSummary refresh={query.version}/>
+    {!selected && <AdminPremiumRequests/>}
     {selected ? <div className="mod-actions"><button disabled={busy} onClick={() => setSelected('')}>Listeye dön</button></div> :
       <label className="mod-support-priority">Durum<select value={query.status} disabled={busy} onChange={event => {
         const status = APPROVAL_STATUSES.find(value => value === event.target.value) ?? ''

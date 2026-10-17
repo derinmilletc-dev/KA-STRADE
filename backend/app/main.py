@@ -73,6 +73,7 @@ from .moderator_customers import router as moderator_customers_router
 from .moderator_support import router as moderator_support_router
 from .moderator_approvals import router as moderator_approvals_router
 from .admin_approvals import router as admin_approvals_router
+from .premium_requests import mod_router as premium_mod_router, admin_router as premium_admin_router
 from .notification_admin import router as notification_admin_router
 from .binance_manual_routes import router as binance_manual_router
 from .binance_manual_admin import router as binance_manual_admin_router
@@ -1486,6 +1487,8 @@ app.include_router(moderator_customers_router)
 app.include_router(moderator_support_router)
 app.include_router(moderator_approvals_router)
 app.include_router(admin_approvals_router)
+app.include_router(premium_mod_router)
+app.include_router(premium_admin_router)
 app.include_router(notification_admin_router)
 app.include_router(binance_manual_router)
 from .free_trial import router as free_trial_router
