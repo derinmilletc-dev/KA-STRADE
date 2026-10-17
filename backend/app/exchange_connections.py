@@ -1376,10 +1376,12 @@ async def exchange_server_time_status(request: Request, mode: Mode = "TESTNET") 
 
 @router.post("/test")
 async def exchange_connection_test(request: Request, body: TestCredentialsRequest) -> dict[str, Any]:
-    _require_member(request)
+    user = _require_member(request)
     await _require_ready(request.app)
     await ensure_session_cache(request)
     mode = normalize_mode(body.mode)
+    if mode == "LIVE":
+        _require_live_owner(user)
     if body.api_key is not None and body.secret_key is not None:
         api_key = body.api_key.get_secret_value().strip()
         secret_key = body.secret_key.get_secret_value().strip()

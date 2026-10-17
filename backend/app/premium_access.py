@@ -82,18 +82,18 @@ def public_notification_projection(payload: Any) -> Any:
 def requires_premium(path: str, method: str) -> bool:
     if method.upper() not in {"POST", "PUT", "PATCH", "DELETE"}:
         return False
-    if path.startswith(("/api/v25/", "/api/exchange-connections/")):
+    # Demo (Testnet) trading is open to every member. LIVE actions stay premium:
+    # /api/v25/ is gated here and LIVE credentials are owner-only inside exchange_connections.
+    if path.startswith("/api/v25/"):
         return True
     if path.startswith("/api/grid/plan/clear/"):
         return True
     if path in {
-        "/api/binance-demo/connect", "/api/binance-demo/arm", "/api/binance-demo/order",
-        "/api/binance-demo/order/test", "/api/v21/auto/start", "/api/v21/scanner/scan",
-        "/api/v21/smoke-test", "/api/v21/drill", "/api/grid/engine/start",
+        "/api/grid/engine/start",
         "/api/grid/plan/save", "/api/grid/engine/recenter", "/api/paper/open",
         "/api/paper/limit", "/api/paper/bot/start", "/api/v7/orchestrator/start",
         "/api/v9/paper/order", "/api/v10/evolution/start", "/api/v11/risk/start",
-        "/api/v9/twin/start", "/api/v21/settings", "/api/grid/engine/profile",
+        "/api/v9/twin/start", "/api/grid/engine/profile",
         "/api/paper/bot/training/toggle",
     }:
         return True

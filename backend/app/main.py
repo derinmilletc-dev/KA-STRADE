@@ -1460,7 +1460,7 @@ async def owner_preview_gate(request, call_next):
     record_event(request, getattr(request.state, "member", None), "api.error", "server_error" if response.status_code >= 500 else "request_failed", "api", response.status_code) if response.status_code >= 500 or response.status_code in (409, 429) else None
     notification_response = request.url.path == "/api/v21/notifications" or request.url.path.startswith("/api/v21/notifications/")
     chart_result_read = request.method == "GET" and request.url.path.startswith("/api/chart-ai/requests/")
-    if protected_member_request and (request.method == "GET" or notification_response) and not request.state.premium and response.status_code == 200 and "application/json" in response.headers.get("content-type", "") and not chart_ai_request and not chart_result_read and not request.url.path.startswith("/api/analyst/") and request.url.path not in {"/api/assistant/usage", "/api/assistant/proactive/preferences"}:
+    if protected_member_request and (request.method == "GET" or notification_response) and not request.state.premium and response.status_code == 200 and "application/json" in response.headers.get("content-type", "") and not chart_ai_request and not chart_result_read and not request.url.path.startswith(("/api/analyst/", "/api/binance-demo/")) and request.url.path not in {"/api/assistant/usage", "/api/assistant/proactive/preferences"}:
         chunks = [chunk async for chunk in response.body_iterator]
         body = b"".join(chunk.encode() if isinstance(chunk, str) else chunk for chunk in chunks)
         headers = {key: value for key, value in response.headers.items() if key not in {"content-length", "content-type", "content-encoding"}}
