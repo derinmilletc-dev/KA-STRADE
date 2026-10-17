@@ -963,3 +963,5 @@
 #root .authRoot .authMarketingConsent { background:rgba(100,227,161,.025); }
 #root .authRoot .authMarketingConsent small { display:block; margin-top:5px; color:#8da0aa; font-size:11px; }
 @media (forced-colors:active) { #root .authRoot .authConsent input { appearance:auto; } }
+
+.authLangField{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.authLangField>span{font-size:13px;color:#9fb0aa}

@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
 import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
 import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
@@ -940,10 +941,10 @@ export default function TestnetFirstApp() {
         <div className="v26DashboardChoices">
           <button type="button" onClick={() => setView('trading')}><Activity/><span><b>İŞLEM</b><small>İşlem açın ve yönetin</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span><b>MASTER TRADE</b><small>Profesyonel işlem alanı</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('analyst')}><BarChart3/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
+          <button type="button" onClick={() => setView('analyst')}><AnalystIcon/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('scanner')}><Radar/><span><b>TARAMA</b><small>Piyasa fırsatlarını tarayın</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('performance')}><BarChart3/><span><b>PERFORMANS</b><small>Kâr, kazanma oranı ve düşüş</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('support')}><LifeBuoy/><span><b>DESTEK</b><small>Sorular, cevaplar, mesaj</small></span><em>→</em></button>
+          <button type="button" onClick={() => setView('support')}><SupportIcon/><span><b>DESTEK</b><small>Sorular, cevaplar, mesaj</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('ops')}><Cloud/><span><b>OPERASYON</b><small>Sistem operasyonları</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('setup')}><CloudCog/><span><b>AYARLAR</b><small>Hesap ve güvenlik</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('billing')}><Sparkles/><span><b>ABONELİK</b><small>Planlar ve abonelik</small></span><em>→</em></button>
@@ -1059,7 +1060,7 @@ export default function TestnetFirstApp() {
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">
       <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => navigate('dashboard')}><Home/><span>Ana sayfa</span></button>
       <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>İşlem</span></button>
-      <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><BrainCircuit/><span>Analist</span></button>
+      <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>
       <button className={view === 'performance' ? 'active' : ''} type="button" onClick={() => navigate('performance')}><BarChart3/><span>Performans</span></button>
       <button className={mobileMenuOpen ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
     </nav>
@@ -1068,7 +1069,7 @@ export default function TestnetFirstApp() {
         <header><div><h2>Çalışma alanları</h2></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <div className="v26MobileMenuChoices">
           <button type="button" onClick={() => navigate('scanner')}><Radar/><span><b>Tarama</b><small>Piyasa fırsatları</small></span></button>
-          <button type="button" onClick={() => navigate('support')}><LifeBuoy/><span><b>Destek</b><small>Sorular ve mesaj</small></span></button>
+          <button type="button" onClick={() => navigate('support')}><SupportIcon/><span><b>Destek</b><small>Sorular ve mesaj</small></span></button>
           <button type="button" onClick={() => navigate('ops')}><Cloud/><span><b>Operasyon</b><small>Sistem merkezi</small></span></button>
           <button type="button" onClick={() => navigate('setup')}><CloudCog/><span><b>Bağlantılar</b><small>API ve kasa</small></span></button>
           <button type="button" onClick={() => navigate('billing')}><Sparkles/><span><b>Abonelik</b><small>Plan ve faturalama</small></span></button>
