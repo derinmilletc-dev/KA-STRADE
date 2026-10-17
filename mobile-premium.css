@@ -7966,3 +7966,29 @@ body:has(#root .liveTradingPanel.liveUx),
   html body .authRoot .authFooter > span { flex: 0 0 100% !important; }
   html body .authRoot .authFooter > a { flex: 0 0 auto !important; padding: 4px 0 !important; font-size: 12px !important; white-space: nowrap !important; }
 }
+
+/* ===== Küçük telefonlar (≤374px: iPhone SE, mini, küçük Android) — yalnız sıkışan yerler ===== */
+@media (max-width: 374px) {
+  /* Master Trade sekmeleri: 4 sekme yazısı tek satırda sığsın */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis > .refHeader > nav > *,
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs > button { padding: 6px 1px !important; font-size: 9.5px !important; letter-spacing: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  /* MTF teyit kutuları */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMtfPills { gap: 4px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMtfPills > span,
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMtfPills > span b { font-size: 9.5px !important; }
+  /* Grafik fiyat etiketleri */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills { width: 106px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills > span { max-width: 106px !important; padding: 0 5px !important; font-size: 9.5px !important; }
+  /* Analist filtreleri: 4 yerine 2 sütun */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystSelectorFilters { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* İşlem Masası alanları: daha dar boşluk */
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck) .demoFieldGrid { gap: 10px 6px !important; }
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck) .demoFieldGrid :is(input, select) { padding: 0 8px !important; font-size: 14px !important; }
+  html body #root > main.v26App.workspaceRoute.workspaceRoute:has(.binanceDemoDeck:not(.riskOnlyDeck)) > .v26MarketBar .v26Intervals { gap: 4px !important; }
+  /* Moderatör destek özeti */
+  html body .mod-shell.mod-shell .mod-support-summary { gap: 6px !important; }
+  html body .mod-shell.mod-shell .mod-support-summary .mod-card { padding: 10px 8px !important; }
+  html body .mod-shell.mod-shell .mod-support-summary .mod-card h2 { font-size: 10.5px !important; }
+  /* Alt menü yazıları */
+  .v26MobileBottomNav > button > span { font-size: 9.5px !important; letter-spacing: 0 !important; }
+}
