@@ -6574,3 +6574,24 @@ body:has(#root .liveTradingPanel.liveUx),
   display: none !important;
   content: none !important;
 }
+
+/* Profil düğmesini saran kutu da çerçevesiz: arka planla bütünleşik görünüm. */
+#root .authSessionBar.authSessionBar.authSessionBar:has(> .authMemberTrigger:only-child) {
+  border: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+}
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger {
+  outline: none !important;
+  border-radius: 50% !important;
+}
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger:is(:hover, [aria-expanded="true"]) {
+  background: rgba(255, 255, 255, .07) !important;
+}
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger:focus-visible {
+  background: rgba(255, 255, 255, .1) !important;
+}
