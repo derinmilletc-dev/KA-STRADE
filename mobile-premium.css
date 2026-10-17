@@ -7144,3 +7144,104 @@ body:has(#root .liveTradingPanel.liveUx),
   #root main.v26App footer.cwsFoot > div { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
   #root main.v26App footer.cwsFoot button { width: 100% !important; padding: 10px 8px !important; font-size: 12.5px !important; }
 }
+
+/* Telefon: üst çubuk kesin dolu (kayarken altındaki içerik görünmesin). Önceki şeffaf kuralları yüksek özgüllükle geçer. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.workspaceRoute.workspaceRoute.workspaceRoute > .v26Header.v26HomeHeader.v26HomeHeader,
+  html body #root > main.v26App.homeRoute.homeRoute.homeRoute > .v26Header.v26HomeHeader.v26HomeHeader {
+    background: #05070c !important; background-image: none !important; z-index: 60 !important;
+  }
+}
+
+/* Telefon: Bulut Operasyon ve Kanıt Merkezi sadeleştirme. */
+@media (max-width: 700px) {
+  html body #root main.v26App:has(.v27Ops) .v26ModeBar { display: none !important; }
+
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops { display: flex !important; flex-direction: column !important; gap: 12px !important; padding: 0 !important; margin: 0 !important; }
+
+  /* Başlık kartı */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsHero { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 12px !important; padding: 16px !important; border-radius: 16px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsTitle { display: flex !important; align-items: flex-start !important; gap: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsTitle > span { flex: 0 0 40px !important; width: 40px !important; height: 40px !important; display: grid !important; place-items: center !important; border-radius: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsTitle > span svg { width: 20px !important; height: 20px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Eyebrow { margin: 0 !important; font-size: 10px !important; letter-spacing: .1em !important; line-height: 1.35 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsTitle h2 { margin: 3px 0 0 !important; font-size: 17px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsTitle p { margin: 5px 0 0 !important; font-size: 12px !important; line-height: 1.5 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsActions { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; width: 100% !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsActions > button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; width: 100% !important; min-height: 42px !important; margin: 0 !important; padding: 0 10px !important; border-radius: 12px !important; font-size: 13px !important; font-weight: 700 !important; white-space: nowrap !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsActions > button svg { width: 16px !important; height: 16px !important; flex: none !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27OpsActions > button.sync { grid-column: 1 / -1 !important; }
+
+  /* Uyarılar */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27SleepNotice { display: grid !important; grid-template-columns: 20px minmax(0, 1fr) !important; gap: 4px 10px !important; align-items: start !important; padding: 12px 14px !important; border-radius: 14px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27SleepNotice > svg { grid-row: 1; width: 18px !important; height: 18px !important; margin: 1px 0 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; color: #f5be55 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27SleepNotice > div b { display: block !important; font-size: 11.5px !important; letter-spacing: .04em !important; line-height: 1.35 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27SleepNotice > div span { display: block !important; margin-top: 3px !important; font-size: 12px !important; line-height: 1.5 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27SleepNotice > em { grid-column: 2 !important; justify-self: start !important; margin: 4px 0 0 !important; padding: 4px 10px !important; font-size: 10px !important; letter-spacing: .04em !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Error { padding: 12px 14px !important; font-size: 12px !important; border-radius: 14px !important; }
+
+  /* Durum kartları: 2x2 */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards > article { display: flex !important; flex-direction: column !important; gap: 3px !important; min-width: 0 !important; min-height: 0 !important; padding: 12px !important; border-radius: 14px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards > article > svg { width: 17px !important; height: 17px !important; margin: 0 0 4px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards > article > small { font-size: 10px !important; letter-spacing: .08em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards > article > b { font-size: 14px !important; line-height: 1.3 !important; overflow-wrap: anywhere !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27KeyCards > article > span { font-size: 11px !important; line-height: 1.4 !important; overflow-wrap: anywhere !important; }
+
+  /* Rakam kartları */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article { display: flex !important; flex-direction: column !important; gap: 3px !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 12px !important; border-radius: 14px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article:last-child:nth-child(odd) { grid-column: 1 / -1 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article small { font-size: 10px !important; letter-spacing: .08em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article > b { font-size: 17px !important; line-height: 1.25 !important; font-style: normal !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article > b em { font-size: 11px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Metrics > article > span { font-size: 11px !important; line-height: 1.4 !important; }
+
+  /* Paneller */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MainGrid { display: flex !important; flex-direction: column !important; gap: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Panel { padding: 16px !important; border-radius: 16px !important; margin: 0 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Panel > header { display: flex !important; flex-wrap: wrap !important; align-items: flex-start !important; justify-content: space-between !important; gap: 8px 12px !important; margin: 0 0 12px !important; padding: 0 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Panel > header h3 { margin: 3px 0 0 !important; font-size: 16px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Panel > header > :is(span, b, strong) { padding: 4px 10px !important; border-radius: 999px !important; font-size: 11px !important; font-weight: 700 !important; line-height: 1.3 !important; white-space: nowrap !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorStatus { padding: 5px 10px !important; font-size: 10.5px !important; letter-spacing: .05em !important; }
+
+  /* Canlı kanıt monitörü */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorGrid { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorItem { display: flex !important; flex-direction: column !important; gap: 3px !important; min-width: 0 !important; margin: 0 !important; padding: 12px 14px !important; border-radius: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorItem > small { font-size: 10px !important; letter-spacing: .08em !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorItem > b { font-size: 15px !important; line-height: 1.35 !important; overflow-wrap: anywhere !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27MonitorItem > span { font-size: 12px !important; line-height: 1.45 !important; overflow-wrap: anywhere !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27CriticalGrid { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 0 !important; margin-top: 4px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27CriticalGrid > div { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; padding: 8px 0 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27CriticalGrid span { font-size: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27CriticalGrid b { font-size: 13px !important; }
+
+  /* Kanıt geçmişi */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Timeline { gap: 2px !important; margin: 0 !important; padding: 0 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineItem { gap: 2px 10px !important; padding: 10px 0 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineItem time { font-size: 11.5px !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineItem b { font-size: 13px !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineItem span { font-size: 12px !important; line-height: 1.45 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineItem em { padding: 2px 8px !important; font-size: 9.5px !important; letter-spacing: .04em !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27TimelineDot { width: 10px !important; height: 10px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27ShowAll { display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; width: 100% !important; min-height: 42px !important; margin: 10px 0 0 !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27ShowAll svg { width: 16px !important; height: 16px !important; }
+
+  /* Sertifika */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Progress { height: 6px !important; margin: 0 0 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Gates { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Gates > article { display: flex !important; align-items: center !important; gap: 10px !important; margin: 0 !important; padding: 10px 12px !important; border-radius: 12px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Gates > article > svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Gates > article b { font-size: 13px !important; line-height: 1.3 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Gates > article span { font-size: 11.5px !important; line-height: 1.35 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Certificate footer { display: flex !important; align-items: center !important; gap: 10px !important; margin: 10px 0 0 !important; padding: 10px 12px !important; border-radius: 12px !important; font-size: 12px !important; line-height: 1.4 !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Certificate footer svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Certificate footer span { font-size: 12px !important; }
+
+  /* Pozisyonlar ve boş durumlar */
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27PositionTable { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 6px !important; padding: 20px 8px !important; text-align: center !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty svg { width: 26px !important; height: 26px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty b { font-size: 14px !important; }
+  html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty span { font-size: 12px !important; line-height: 1.5 !important; }
+}
