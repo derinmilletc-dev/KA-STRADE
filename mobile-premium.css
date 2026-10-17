@@ -6554,3 +6554,23 @@ body:has(#root .liveTradingPanel.liveUx),
   #root > main.v26App.masterTradeRoute .masterTradeStepper small > span { white-space:normal!important; overflow-wrap:anywhere; }
   #root > main.v26App.masterTradeRoute .masterTradeStepper small > span { max-width:100%; box-sizing:border-box; }
 }
+
+/* Profil düğmesi: tüm sayfalarda çerçevesiz, sade görünüm (anasayfadaki gibi). */
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background-color .16s ease !important;
+}
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger:is(:hover, :active, [aria-expanded="true"], :focus-visible) {
+  border: 0 !important;
+  background: rgba(255, 255, 255, .08) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transform: none !important;
+}
+#root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger::after {
+  display: none !important;
+  content: none !important;
+}
