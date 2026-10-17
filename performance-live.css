@@ -1,0 +1,37 @@
+#root .perfSwitch { display: inline-flex; gap: 6px; padding: 5px; margin-bottom: 18px; border-radius: 16px; background: rgba(255,255,255,.06) !important; }
+#root .perfSwitch button { padding: 10px 22px; border: 0 !important; border-radius: 12px; background: transparent !important; color: #c9d4e0; font: inherit; font-weight: 650; cursor: pointer; }
+#root .perfSwitch button.on { background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; }
+#root .lpWrap { display: grid; gap: 18px; width: 100%; box-sizing: border-box; }
+#root .lpHead { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: flex-start; }
+#root .lpHead span { font-size: 11px; letter-spacing: .12em; color: #34d399; }
+#root .lpHead h2 { margin: 4px 0; font-size: 24px; }
+#root .lpHead p { margin: 0; color: #9aa9ba; font-size: 14px; }
+#root .lpPeriods { display: flex; gap: 6px; flex-wrap: wrap; }
+#root .lpPeriods button { padding: 8px 16px; border: 0 !important; border-radius: 999px; background: rgba(255,255,255,.06) !important; color: #c9d4e0; font: inherit; font-size: 14px; cursor: pointer; }
+#root .lpPeriods button.on { background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; }
+#root .lpNote { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.05) !important; color: #c9d4e0; font-size: 14px; }
+#root .lpHero { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+#root .lpHero span, #root .lpGrid span { display: grid; gap: 4px; padding: 18px; border-radius: 18px; background: rgba(255,255,255,.05) !important; }
+#root .lpHero small, #root .lpGrid small { color: #9aa9ba; font-size: 12.5px; }
+#root .lpHero b { font-size: 24px; }
+#root .lpHero em { font-style: normal; color: #9aa9ba; font-size: 13px; }
+#root .lpGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+#root .lpGrid b { font-size: 18px; }
+#root .lpWrap .win { color: #34d399; }
+#root .lpWrap .loss { color: #f87171; }
+#root .lpCurve { display: flex; align-items: flex-end; gap: 4px; height: 110px; padding: 14px; border-radius: 18px; background: rgba(255,255,255,.04) !important; overflow: hidden; }
+#root .lpCurve i { flex: 1; min-width: 3px; border-radius: 4px 4px 0 0; }
+#root .lpCurve i.win { background: #34d399 !important; }
+#root .lpCurve i.loss { background: #f87171 !important; }
+#root .lpList { display: grid; gap: 10px; }
+#root .lpList h3 { margin: 0; font-size: 18px; }
+#root .lpList article { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.05) !important; }
+#root .lpList article > div { display: flex; align-items: center; gap: 10px; }
+#root .lpList article em { font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.08) !important; }
+#root .lpList article em.long { color: #34d399; }
+#root .lpList article em.short { color: #f87171; }
+#root .lpList article small { grid-column: 1; color: #9aa9ba; font-size: 12.5px; }
+#root .lpList article strong { grid-column: 2; grid-row: 1 / span 2; font-size: 17px; }
+#root .lpEmpty { padding: 28px 18px; text-align: center; border-radius: 16px; background: rgba(255,255,255,.04) !important; }
+#root .lpEmpty p { margin: 4px 0 0; color: #9aa9ba; font-size: 14px; }
+#root .lpFoot { margin: 0; color: #9aa9ba; font-size: 12.5px; }

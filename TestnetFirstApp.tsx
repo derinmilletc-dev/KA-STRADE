@@ -20,6 +20,8 @@ import LiveConnectionCard from './LiveConnectionCard'
 import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
 import SupportCenter from './SupportCenter'
+import LivePerformance from './LivePerformance'
+import './performance-live.css'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -477,6 +479,7 @@ export default function TestnetFirstApp() {
   },[])
   const initialView = ():View => window.location.pathname === '/pricing' ? 'pricing' : window.location.pathname === '/billing' ? 'billing' : window.location.pathname === '/master-trade' ? 'master-trade' : 'dashboard'
   const [view,setView] = useState<View>(initialView)
+  const [perfMode,setPerfMode] = useState<'live'|'demo'>('live')
   useEffect(() => {applyPageMetadataForPath(`/${view}`,window.location.pathname)},[view])
   const [masterTradeAccess,setMasterTradeAccess] = useState<'loading'|'granted'|'locked'|'unauthenticated'|'unavailable'>('loading')
   const [accessAttempt,setAccessAttempt] = useState(0)
@@ -972,7 +975,10 @@ export default function TestnetFirstApp() {
       interval={interval} onIntervalChange={setInterval}
       chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} showLevels={false}/>} />}
 
-    {view === 'performance' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Performance hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} initialTab="performance" workspace="trade"/></Suspense>}
+    {view === 'performance' && <>
+      <div className="perfSwitch" role="tablist"><button type="button" role="tab" aria-selected={perfMode === 'live'} className={perfMode === 'live' ? 'on' : ''} onClick={() => setPerfMode('live')}>Canlı işlemler</button><button type="button" role="tab" aria-selected={perfMode === 'demo'} className={perfMode === 'demo' ? 'on' : ''} onClick={() => setPerfMode('demo')}>Demo işlemler</button></div>
+      {perfMode === 'live' ? <LivePerformance active/> : <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Performance hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} initialTab="performance" workspace="trade"/></Suspense>}
+    </>}
 
     {view === 'analyst' && <CoinAnalysisCenter interval={interval} onIntervalChange={setInterval} onOpenTrade={selectPulseSymbol} chart={(selectedSymbol,selectedInterval,showLevels,showEma) => <TestnetMarketChart symbol={selectedSymbol} interval={selectedInterval} showLevels={showLevels} showEma={showEma} onAnalysis={() => undefined}/>}/>}
 
