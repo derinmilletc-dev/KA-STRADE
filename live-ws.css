@@ -156,27 +156,14 @@
 #master-trade-live-terminal .liveWsDanger > div:first-child { display: grid; gap: 2px; }
 
 /* Manuel emir kartı: eski sınıflar, çizgisiz */
-#master-trade-live-terminal.liveWs .liveUxGrid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
-#master-trade-live-terminal.liveWs .liveUxCard { display: grid; gap: 14px; padding: 16px; border-radius: 16px; background: var(--ws-raised); box-shadow: none; }
-#master-trade-live-terminal.liveWs .liveUxCard > header { display: flex; align-items: center; gap: 10px; }
-#master-trade-live-terminal.liveWs .liveUxCard > header svg { width: 20px; height: 20px; color: var(--ws-green); flex: none; }
-#master-trade-live-terminal.liveWs .liveUxCard > header > div { flex: 1; display: grid; gap: 2px; }
-#master-trade-live-terminal.liveWs .liveUxCard > header b { font-size: 11px; padding: 5px 9px; border-radius: 999px; background: rgba(245, 185, 66, .16); color: var(--ws-amber); }
-#master-trade-live-terminal.liveWs .liveUxCard h3 { font-size: 15px; }
-#master-trade-live-terminal.liveWs .liveUxForm { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-#master-trade-live-terminal.liveWs .liveUxForm label, #master-trade-live-terminal.liveWs .liveUxForm .liveChoice { display: grid; gap: 6px; font-size: 12px; color: var(--ws-muted); font-weight: 600; }
+
 #master-trade-live-terminal.liveWs .liveChoice { grid-auto-flow: column; align-items: end; }
 #master-trade-live-terminal.liveWs .liveChoice > span { grid-column: 1 / -1; }
 #master-trade-live-terminal.liveWs .liveChoice button { min-height: 44px; border-radius: 12px; background: var(--ws-card); font-weight: 700; }
 #master-trade-live-terminal.liveWs .liveChoice .selectedLong { background: var(--ws-green); color: #04241a; }
 #master-trade-live-terminal.liveWs .liveChoice .selectedShort { background: var(--ws-red); color: #3a0909; }
-#master-trade-live-terminal.liveWs .liveUxFormActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-#master-trade-live-terminal.liveWs .liveUxFormActions button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 14px; background: var(--ws-card); font-weight: 700; }
-#master-trade-live-terminal.liveWs .liveUxFormActions button.primary { background: var(--ws-green); color: #04241a; }
-#master-trade-live-terminal.liveWs .liveUxFormActions svg { width: 18px; height: 18px; }
+
 #master-trade-live-terminal.liveWs .liveUxSummaryLead { display: flex; gap: 10px; align-items: baseline; font-size: 18px; }
-#master-trade-live-terminal.liveWs .liveUxMetrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-#master-trade-live-terminal.liveWs .liveUxMetrics span { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--ws-card); }
 
 @media (max-width: 767px) {
   #master-trade-live-terminal.liveWs { gap: 12px; }
@@ -186,8 +173,8 @@
   #master-trade-live-terminal .liveWsFields { grid-template-columns: 1fr; }
   #master-trade-live-terminal.liveWs .masterTradeLiveAccountMetrics { grid-template-columns: repeat(2, 1fr); }
   #master-trade-live-terminal.liveWs .masterTradeLiveSignalGrid { grid-template-columns: repeat(2, 1fr); }
-  #master-trade-live-terminal.liveWs .liveUxGrid { grid-template-columns: 1fr; }
-  #master-trade-live-terminal.liveWs .liveUxForm { grid-template-columns: repeat(2, 1fr); }
+  
+  
   #master-trade-live-terminal .liveWsActivity li { grid-template-columns: 1fr; gap: 2px; }
   #master-trade-live-terminal .liveWsDanger { grid-template-columns: 1fr; }
 }

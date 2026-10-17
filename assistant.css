@@ -181,14 +181,8 @@ body.site-copy-protected [data-assistant-chat] * { user-select: text; -webkit-us
   .assistantDialog[open], .assistantDialog :is(.assistantTypingDots i, .assistantLayout) { animation: none; }
 }
 
-.assistantComposer .assistantVoiceBtn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--assistant-line); border-radius: 50%; background: var(--assistant-soft); color: inherit; cursor: pointer; }
-.assistantComposer .assistantVoiceBtn svg { width: 18px; height: 18px; }
-.assistantComposer .assistantVoiceBtn.on { color: #42e5a6; border-color: #42e5a6; }
-.assistantComposer .assistantVoiceBtn.listening { color: #fff; background: #e5484d; border-color: #e5484d; animation: assistantVoicePulse 1.2s ease-in-out infinite; }
-.assistantComposer .assistantVoiceBtn:disabled { opacity: .5; cursor: not-allowed; }
 .assistantComposer .assistantVoiceStatus, .assistantComposer .assistantVoiceHint { margin: 8px 4px 0; font-size: 12px; opacity: .75; }
 @keyframes assistantVoicePulse { 0%,100% { box-shadow: 0 0 0 0 #e5484d66; } 50% { box-shadow: 0 0 0 8px #e5484d00; } }
-@media (prefers-reduced-motion: reduce) { .assistantComposer .assistantVoiceBtn.listening { animation: none; } }
 
 .assistantVoicePill { position: fixed; z-index: 2147483000; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #42e5a655; border-radius: 999px; background: #0d1512ee; backdrop-filter: blur(10px); box-shadow: 0 8px 28px #0008; color: #e8f5ee; font: 600 13px/1 system-ui, sans-serif; }
 .assistantVoicePill button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }

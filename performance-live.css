@@ -6,9 +6,7 @@
 #root .lpHead span { font-size: 11px; letter-spacing: .12em; color: #34d399; }
 #root .lpHead h2 { margin: 4px 0; font-size: 24px; }
 #root .lpHead p { margin: 0; color: #9aa9ba; font-size: 14px; }
-#root .lpPeriods { display: flex; gap: 6px; flex-wrap: wrap; }
-#root .lpPeriods button { padding: 8px 16px; border: 0 !important; border-radius: 999px; background: rgba(255,255,255,.06) !important; color: #c9d4e0; font: inherit; font-size: 14px; cursor: pointer; }
-#root .lpPeriods button.on { background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; }
+
 #root .lpNote { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.05) !important; color: #c9d4e0; font-size: 14px; }
 #root .lpHero { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 #root .lpHero span, #root .lpGrid span { display: grid; gap: 4px; padding: 18px; border-radius: 18px; background: rgba(255,255,255,.05) !important; }

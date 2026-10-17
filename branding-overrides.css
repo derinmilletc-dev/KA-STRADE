@@ -21,18 +21,6 @@
   mix-blend-mode: screen;
 }
 
-.appShell .brand > span,
-.appShell .brand > div { display: none; }
-
-.appShell .brand::before {
-  content: '';
-  display: block;
-  width: 160px;
-  height: 42px;
-  background: url('/kaistrade-logo.png') center / contain no-repeat;
-  mix-blend-mode: screen;
-}
-
 /* The header shares the page surface; controls keep their own affordances. */
 #root > main.v26App .v26Header,
 #root > main.v26App .v26Header.v26HomeHeader {
