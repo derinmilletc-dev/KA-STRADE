@@ -966,7 +966,7 @@ export default function TestnetFirstApp() {
       </Suspense>
     </>}
 
-    {view === 'risk' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Risk Kasası hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="risk"/></Suspense>}
+    {view === 'risk' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Risk Kasası hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="risk" onOpenMaster={() => navigate('master-trade')} onOpenDemo={() => navigate('trading')}/></Suspense>}
 
     {view === 'scanner' && <ScannerCenter
       active markets={markets} symbol={symbol} onSymbolChange={setSymbol} analysis={analysis}

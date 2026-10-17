@@ -314,7 +314,7 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
   </div>
 }
 
-export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab}:{active:boolean;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
+export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo}:{active:boolean;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)
   const [account,setAccount] = useState<DemoAccount|null>(null)
   const [form,setForm] = useState<FormState>(initialForm)
@@ -1226,7 +1226,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
     </section>}
 
     {tab === 'risk' && <section ref={workspaceRef} className="v21Workspace v21RiskManagement">
-      <header className="v21WorkspaceHead"><div className="v21HeaderTitle"><Gauge/><div><h2>Risk Kasası</h2><p>Risk limitleri ve pozisyon boyutlandırma</p></div></div><div className="v21HeaderActions"><RiskKasasiInfo/><b className="v21RiskStatus"><ShieldCheck/> Demo · 100 USDT · 2x</b><button className="v21ContextCta v21RiskReturn" onClick={() => setTab('trade')}>İşlem Masasına Dön</button></div></header>
+      <header className="v21WorkspaceHead"><div className="v21HeaderTitle"><Gauge/><div><h2>Risk Kasası</h2><p>Risk limitleri ve pozisyon boyutlandırma</p></div></div><div className="v21HeaderActions"><RiskKasasiInfo/><button type="button" className="v21ContextCta v21RiskReturn" onClick={() => (onOpenMaster ? onOpenMaster() : setTab('trade'))}>Canlı işleme dön</button><button type="button" className="v21ContextCta v21RiskReturn" onClick={() => (onOpenDemo ? onOpenDemo() : setTab('trade'))}>Demo işleme dön</button></div></header>
       <div className="v21RiskOverview">
         <div className="v21OverviewItem"><small>Risk / İşlem</small><b>{riskLoss ? `${riskLoss} USDT` : '—'}</b></div>
         <div className="v21OverviewItem"><small>Günlük Gerçekleşen</small><b className={(v21?.daily.realized_pnl || 0) >= 0 ? 'demoProfit' : 'demoLoss'}>{v21?.daily.realized_pnl === undefined ? '—' : `${fmt(v21.daily.realized_pnl)} USDT`}</b></div>
