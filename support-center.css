@@ -1,4 +1,4 @@
-#root .scWrap { display: grid; gap: 22px; max-width: 920px; margin: 0 auto; width: 100%; }
+#root .scWrap { display: grid; gap: 22px; max-width: none; margin: 0; width: 100%; box-sizing: border-box; }
 #root .scHero { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; padding: 26px; border-radius: 26px; background: linear-gradient(135deg, rgba(52,211,153,.16), rgba(56,189,248,.10)) !important; }
 #root .scHeroIcon { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(52,211,153,.35), rgba(56,189,248,.22)) !important; color: #34d399; }
 #root .scHeroIcon svg { width: 26px; height: 26px; }
@@ -12,7 +12,7 @@
 #root .scBlock { display: grid; gap: 14px; }
 #root .scBlock > h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 19px; }
 #root .scBlock > h3 svg { width: 20px; height: 20px; color: #34d399; }
-#root .scQuick { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
+#root .scQuick { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
 #root .scQuick article, #root .scFaq article { border-radius: 18px; background: rgba(255,255,255,.05) !important; overflow: hidden; transition: background .18s ease; }
 #root .scQuick article.on, #root .scFaq article.on { background: rgba(52,211,153,.08) !important; }
 #root .scQuick article > button, #root .scFaq article > button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px; border: 0 !important; background: transparent !important; color: inherit; text-align: left; cursor: pointer; font: inherit; }
