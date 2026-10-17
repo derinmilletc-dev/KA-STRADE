@@ -6595,3 +6595,12 @@ body:has(#root .liveTradingPanel.liveUx),
 #root .authSessionBar .authMemberTrigger.authMemberTrigger.authMemberTrigger.authMemberTrigger:focus-visible {
   background: rgba(255, 255, 255, .1) !important;
 }
+
+/* Telefon ana ekran cilası: alt menü kartları kapatmasın, kartlar daha derli toplu, üst ikonlar rahat dokunulsun. */
+@media (max-width: 767px) {
+  #root .v26App .v26Dashboard { padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important; }
+  #root .v26App .v26DashboardChoices button { min-height: 96px !important; padding-top: 14px !important; padding-bottom: 14px !important; }
+  #root .v26App .v26HeaderActions { gap: 2px !important; }
+  #root .v26App .v26HeaderActions > button,
+  #root .v26App .v26Notifications > button { min-width: 44px !important; min-height: 44px !important; }
+}
