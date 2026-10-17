@@ -121,8 +121,12 @@ class MemberPremiumApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.json()["remaining"], 90)
 
     def test_entry_routes_are_guarded_and_read_routes_are_not(self):
-        for path in ("/api/v25/order", "/api/v25/order/test", "/api/v25/arm", "/api/v25/auto/start", "/api/exchange-connections/activate", "/api/binance-demo/order", "/api/paper/open", "/api/grid/engine/start"):
+        for path in ("/api/v25/order", "/api/v25/order/test", "/api/v25/arm", "/api/v25/auto/start", "/api/paper/open", "/api/grid/engine/start"):
             self.assertTrue(requires_premium(path, "POST"), path)
+        for path in ("/api/binance-demo/connect", "/api/binance-demo/arm", "/api/binance-demo/order",
+                     "/api/binance-demo/order/test", "/api/v21/auto/start", "/api/v21/scanner/scan",
+                     "/api/exchange-connections/save", "/api/exchange-connections/activate", "/api/exchange-connections/test"):
+            self.assertFalse(requires_premium(path, "POST"), path)
         self.assertFalse(requires_premium("/api/v25/status", "GET"))
         self.assertFalse(requires_premium("/api/analyst/consume", "POST"))
 
