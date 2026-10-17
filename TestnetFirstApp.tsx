@@ -1075,13 +1075,14 @@ export default function TestnetFirstApp() {
       <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => navigate('dashboard')}><Home/><span>Ana sayfa</span></button>
       <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>İşlem</span></button>
       <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>
-      <button className={view === 'performance' ? 'active' : ''} type="button" onClick={() => navigate('performance')}><BarChart3/><span>Performans</span></button>
+      <button className={view === 'master-trade' ? 'active' : ''} type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span>Master</span></button>
       <button className={mobileMenuOpen ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
     </nav>
     {mobileMenuOpen && <div className="v26MobileMenuBackdrop" role="presentation" onClick={event => {if (event.target === event.currentTarget) setMobileMenuOpen(false)}}>
       <section className="v26MobileMenuSheet" role="dialog" aria-modal="true" aria-label="Çalışma alanları">
         <header><div><h2>Çalışma alanları</h2></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <div className="v26MobileMenuChoices">
+          <button type="button" onClick={() => navigate('performance')}><BarChart3/><span><b>Performans</b><small>Kâr ve kazanma oranı</small></span></button>
           <button type="button" onClick={() => navigate('scanner')}><Radar/><span><b>Tarama</b><small>Piyasa fırsatları</small></span></button>
           <button type="button" onClick={() => navigate('support')}><SupportIcon/><span><b>Destek</b><small>Sorular ve mesaj</small></span></button>
           <button type="button" onClick={() => navigate('ops')}><Cloud/><span><b>Operasyon</b><small>Sistem merkezi</small></span></button>
