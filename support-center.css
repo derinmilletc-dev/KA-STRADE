@@ -1,0 +1,42 @@
+#root .scWrap { display: grid; gap: 22px; max-width: 920px; margin: 0 auto; width: 100%; }
+#root .scHero { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; padding: 26px; border-radius: 26px; background: linear-gradient(135deg, rgba(52,211,153,.16), rgba(56,189,248,.10)) !important; }
+#root .scHeroIcon { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(52,211,153,.35), rgba(56,189,248,.22)) !important; color: #34d399; }
+#root .scHeroIcon svg { width: 26px; height: 26px; }
+#root .scHero h2 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+#root .scHero p { margin: 4px 0 0; color: #9aa9ba; font-size: 15px; }
+#root .scSearch { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 52px; border-radius: 16px; background: rgba(255,255,255,.07) !important; }
+#root .scSearch svg { width: 20px; height: 20px; color: #9aa9ba; flex: none; }
+#root .scSearch input { flex: 1; min-width: 0; height: 100%; border: 0 !important; outline: 0; background: transparent !important; color: inherit; font-size: 16px; box-shadow: none !important; }
+#root .scSearch button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0 !important; border-radius: 10px; background: rgba(255,255,255,.08) !important; color: inherit; cursor: pointer; }
+#root .scSearch button svg { width: 16px; height: 16px; color: inherit; }
+#root .scBlock { display: grid; gap: 14px; }
+#root .scBlock > h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 19px; }
+#root .scBlock > h3 svg { width: 20px; height: 20px; color: #34d399; }
+#root .scQuick { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
+#root .scQuick article, #root .scFaq article { border-radius: 18px; background: rgba(255,255,255,.05) !important; overflow: hidden; transition: background .18s ease; }
+#root .scQuick article.on, #root .scFaq article.on { background: rgba(52,211,153,.08) !important; }
+#root .scQuick article > button, #root .scFaq article > button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px; border: 0 !important; background: transparent !important; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+#root .scQuick article > button b, #root .scFaq article > button b { flex: 1; font-size: 15px; font-weight: 650; line-height: 1.35; }
+#root .scQuick article > button > svg, #root .scFaq article > button > svg { width: 18px; height: 18px; flex: none; color: #9aa9ba; transition: transform .18s ease; }
+#root .scQuick article.on > button > svg, #root .scFaq article.on > button > svg { transform: rotate(180deg); }
+#root .scFaq article > button > span { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(255,255,255,.07) !important; color: #34d399; flex: none; }
+#root .scFaq article > button > span svg { width: 17px; height: 17px; }
+#root .scQuick ol { margin: 0; padding: 0 18px 18px 38px; display: grid; gap: 8px; color: #c9d4e0; font-size: 14.5px; line-height: 1.5; }
+#root .scFaq { display: grid; gap: 10px; }
+#root .scFaq article > p { margin: 0; padding: 0 18px 18px 64px; color: #c9d4e0; font-size: 14.5px; line-height: 1.6; }
+#root .scCats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+#root .scCats::-webkit-scrollbar { display: none; }
+#root .scCats button { flex: none; padding: 9px 16px; border: 0 !important; border-radius: 999px; background: rgba(255,255,255,.06) !important; color: #c9d4e0; font: inherit; font-size: 14px; cursor: pointer; transition: background .18s ease; }
+#root .scCats button.on { background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; }
+#root .scEmpty { display: grid; justify-items: center; gap: 6px; padding: 30px 18px; text-align: center; border-radius: 18px; background: rgba(255,255,255,.04) !important; }
+#root .scEmpty p { margin: 0; color: #9aa9ba; font-size: 14px; }
+#root .scEmpty button { margin-top: 8px; padding: 11px 20px; border: 0 !important; border-radius: 14px; background: linear-gradient(135deg, #34d399, #38bdf8) !important; color: #06201a; font-weight: 700; cursor: pointer; }
+#root .scNote { margin: -4px 0 0; color: #9aa9ba; font-size: 14px; line-height: 1.5; }
+#root .scCard > section { display: grid; gap: 16px; padding: 22px; border-radius: 22px; background: rgba(255,255,255,.04) !important; }
+#root .scContact { scroll-margin-top: 90px; }
+@media (max-width: 560px) {
+  #root .scHero { padding: 20px; grid-template-columns: 1fr; }
+  #root .scHero h2 { font-size: 21px; }
+  #root .scFaq article > p { padding-left: 18px; }
+  #root .scCard > section { padding: 16px; border-radius: 18px; }
+}

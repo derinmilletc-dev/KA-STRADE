@@ -1,6 +1,6 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
-import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LockKeyhole, Menu, RadioTower, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
+import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
 import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
 import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -19,7 +19,7 @@ import './cws.css'
 import LiveConnectionCard from './LiveConnectionCard'
 import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
-import SupportCard from './SupportCard'
+import SupportCenter from './SupportCenter'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -35,13 +35,12 @@ const BinanceDemo = lazy(() => loadWorkspaceWithDeadline(() => retryImport(
   () => import('./BinanceDemo'),
   () => import.meta.env.DEV ? import(/* @vite-ignore */ `/BinanceDemo.tsx?retry=${Date.now()}`) : import('./BinanceDemo'),
 )))
-const LiveTradingPanel = lazy(() => loadWorkspaceWithDeadline(() => import('./frontend/src/LiveTradingPanel')))
 const CommercialHub = lazy(() => loadWorkspaceWithDeadline(() => import('./CommercialHub')))
 const CloudOpsCenter = lazy(() => loadWorkspaceWithDeadline(() => import('./CloudOpsCenter')))
 const SubscriptionCenter = lazy(() => loadWorkspaceWithDeadline(() => import('./SubscriptionCenter')))
 const MasterTrade = lazy(() => loadWorkspaceWithDeadline(() => import('./MasterTrade')))
 const BUILD_COMMIT = import.meta.env.VITE_BUILD_COMMIT
-type View = 'dashboard'|'trading'|'risk'|'analyst'|'scanner'|'performance'|'testnet'|'ops'|'live'|'setup'|'pricing'|'billing'|'master-trade'
+type View = 'dashboard'|'trading'|'risk'|'analyst'|'scanner'|'performance'|'testnet'|'ops'|'support'|'setup'|'pricing'|'billing'|'master-trade'
 type Market = {symbol:string;display:string;price:number;change:number;volume:number}
 type Candle = {time:number;open:number;high:number;low:number;close:number;volume:number}
 type Point = {time:number;value:number}
@@ -922,7 +921,7 @@ export default function TestnetFirstApp() {
     {view !== 'dashboard' && <BackButton onClick={() => navigate('dashboard')}/>}
 
     {view !== 'dashboard' && <section className="v26ModeBar">
-      <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'live' ? 'Gerçek Futures Hazırlık Merkezi' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Ayarlar ve Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Scanner snapshot üzerinden market intelligence ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'live' ? 'Şifreli canlı kasa kaydı ve tüm risk kapıları tamamlanana kadar emir gönderimi fail-closed olarak kilitli.' : view === 'pricing' || view === 'billing' ? 'Choose a subscription level for your trading intelligence workspace.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
+      <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'support' ? 'Destek' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Ayarlar ve Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Scanner snapshot üzerinden market intelligence ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'support' ? 'Sıkça sorulan sorular, hazır cevaplar ve destek ekibine mesaj.' : view === 'pricing' || view === 'billing' ? 'Choose a subscription level for your trading intelligence workspace.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
     </section>}
 
     {view === 'dashboard' && <section className="v26Dashboard" aria-labelledby="dashboard-title">
@@ -934,7 +933,7 @@ export default function TestnetFirstApp() {
           <button type="button" onClick={() => setView('analyst')}><BarChart3/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('scanner')}><Radar/><span><b>TARAMA</b><small>Piyasa fırsatlarını tarayın</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('performance')}><BarChart3/><span><b>PERFORMANS</b><small>Kâr, kazanma oranı ve düşüş</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('live')}><RadioTower/><span><b>CANLI</b><small>Canlı işlem hazırlığı</small></span><em>→</em></button>
+          <button type="button" onClick={() => setView('support')}><LifeBuoy/><span><b>DESTEK</b><small>Sorular, cevaplar, mesaj</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('ops')}><Cloud/><span><b>OPERASYON</b><small>Sistem operasyonları</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('setup')}><CloudCog/><span><b>AYARLAR</b><small>Hesap ve güvenlik</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('billing')}><Sparkles/><span><b>ABONELİK</b><small>Planlar ve abonelik</small></span><em>→</em></button>
@@ -996,7 +995,7 @@ export default function TestnetFirstApp() {
 
     {(view === 'pricing' || view === 'billing') && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Subscription workspace hazırlanıyor…</div>}><SubscriptionCenter mode={view} onNavigate={navigate}/></Suspense>}
 
-    {view === 'live' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Canlı güvenlik merkezi hazırlanıyor…</div>}><LiveTradingPanel active symbol={symbol} analysis={analysis}/></Suspense>}
+    {view === 'support' && <SupportCenter/>}
 
     {view === 'ops' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Bulut operasyon merkezi hazırlanıyor…</div>}><CloudOpsCenter/></Suspense>}
 
@@ -1038,7 +1037,6 @@ export default function TestnetFirstApp() {
       <div className="cwsEmbed"><LiveConnectionCard/></div>
       <div className="cwsEmbed"><NotificationSettings/></div>
       <div className="cwsEmbed"><ActiveSessionsCard/></div>
-      <div className="cwsEmbed"><SupportCard/></div>
       <article className="cwsCard cwsSafe">
         <h3><ShieldCheck/>Güvenlik</h3>
         <div>{['Anahtarlar sunucuda şifreli saklanır','Anahtarlar ekranda hiç gösterilmez','Canlı işlem varsayılan olarak kilitlidir','Demo ve canlı anahtarlar ayrı tutulur','Emirler güvenlik kapılarından geçmeden açılmaz','Açılışta otomatik canlı emir verilmez'].map(item => <span key={item}><CheckCircle2/>{item}</span>)}</div>
@@ -1057,7 +1055,7 @@ export default function TestnetFirstApp() {
         <header><div><h2>Çalışma alanları</h2></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <div className="v26MobileMenuChoices">
           <button type="button" onClick={() => navigate('scanner')}><Radar/><span><b>Tarama</b><small>Piyasa fırsatları</small></span></button>
-          <button type="button" onClick={() => navigate('live')}><RadioTower/><span><b>Canlı hazırlık</b><small>Güvenlik ve durum</small></span></button>
+          <button type="button" onClick={() => navigate('support')}><LifeBuoy/><span><b>Destek</b><small>Sorular ve mesaj</small></span></button>
           <button type="button" onClick={() => navigate('ops')}><Cloud/><span><b>Operasyon</b><small>Sistem merkezi</small></span></button>
           <button type="button" onClick={() => navigate('setup')}><CloudCog/><span><b>Bağlantılar</b><small>API ve kasa</small></span></button>
           <button type="button" onClick={() => navigate('billing')}><Sparkles/><span><b>Abonelik</b><small>Plan ve faturalama</small></span></button>
