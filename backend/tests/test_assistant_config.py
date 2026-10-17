@@ -39,14 +39,14 @@ class AssistantConfigTests(unittest.TestCase):
             "daily_limit": 20,
             "trial_daily_limit": 5,
             "monthly_budget_usd": Decimal(50),
-            "max_output_tokens": 500,
+            "max_output_tokens": 1200,
             "max_llm_calls_per_message": 3,
-            "max_total_input_tokens_per_message": 12000,
-            "max_total_output_tokens_per_message": 1500,
-            "cache_write_price_usd_per_million": Decimal("1.25"),
-            "cache_read_price_usd_per_million": Decimal("0.10"),
-            "input_price_usd_per_million": Decimal(1),
-            "output_price_usd_per_million": Decimal(5),
+            "max_total_input_tokens_per_message": 40000,
+            "max_total_output_tokens_per_message": 3600,
+            "cache_write_price_usd_per_million": Decimal("0.125"),
+            "cache_read_price_usd_per_million": Decimal("0.01"),
+            "input_price_usd_per_million": Decimal("0.10"),
+            "output_price_usd_per_million": Decimal("0.50"),
         })
         self.assertFalse(config.available)
         self.assertIn("kullanılamıyor", config.unavailable_reason)

@@ -375,6 +375,9 @@ def limited_config(request: Request, user: dict[str, Any], config: AssistantConf
     """Ücretsiz deneme üyeleri için günlük mesaj hakkı daha düşüktür."""
     from .member_entitlements import subscription_for_request
 
+    if user.get("role") == "OWNER":
+        # Site sahibi test ederken günlük/dakikalık sınıra takılmaz (aylık bütçe sınırı yine geçerli).
+        return config.model_copy(update={"daily_limit": max(config.daily_limit, 1000), "per_minute_limit": max(config.per_minute_limit, 30)})
     try:
         trial = subscription_for_request(request, user).get("mode") == "FREE_TRIAL"
     except HTTPException:
