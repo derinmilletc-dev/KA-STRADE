@@ -522,6 +522,7 @@ export default function TestnetFirstApp() {
   const [notifications,setNotifications] = useState<NotificationItem[]>([])
   const [notificationState,setNotificationState] = useState<NotificationPanelState>('loading')
   const [notificationError,setNotificationError] = useState('')
+  const [notificationErrorCode,setNotificationErrorCode] = useState('')
   const [notificationReadError,setNotificationReadError] = useState('')
   const [notificationReadBusy,setNotificationReadBusy] = useState(false)
   const [notificationsOpen,setNotificationsOpen] = useState(false)
@@ -679,14 +680,27 @@ export default function TestnetFirstApp() {
     setNotificationState('loading')
     try {
       const headers = new Headers(); const token = userSessionToken(); if (token) headers.set('Authorization',`Bearer ${token}`)
-      const response = await fetch(`${API_BASE}/v21/notifications?limit=100`,{headers,signal:controller.signal})
-      if (!response.ok) throw new Error('Bildirimler yüklenemedi.')
-      const items = notificationItems(await response.json())
+      let items: ReturnType<typeof notificationItems> | null = null
+      let failCode = ''
+      for (let attempt = 0; attempt < 3 && !items; attempt++) {
+        try {
+          const response = await fetch(`${API_BASE}/v21/notifications?limit=100`,{headers,signal:controller.signal})
+          if (response.ok) { items = notificationItems(await response.json()); break }
+          failCode = String(response.status)
+          if (response.status < 500 && response.status !== 429) break
+        } catch (error) {
+          if (controller.signal.aborted) throw error
+          failCode = 'ağ'
+        }
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 900 * (attempt + 1)))
+        if (controller.signal.aborted) return
+      }
+      if (!items) { setNotificationErrorCode(failCode); throw new Error('Bildirimler yüklenemedi.') }
       if (controller.signal.aborted) return
       notificationItemsRef.current = items
       setNotifications(items)
       notificationLoaded.current = true
-      setNotificationError('')
+      setNotificationError(''); setNotificationErrorCode('')
       setNotificationState(items.length ? 'data' : 'empty')
     } catch {
       if (controller.signal.aborted) return
@@ -921,7 +935,7 @@ export default function TestnetFirstApp() {
           {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} aria-busy={notificationState === 'loading' || notificationReadBusy}>
             <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => void refreshNotifications()}><RefreshCw/></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => void markAllNotificationsRead()}>TÜMÜ OKUNDU</button>}</div></header>
             {notificationState === 'loading' && <div className="v26NotificationEmpty" role="status"><RefreshCw className="spin"/><b>{notificationLoaded.current ? 'Bildirimler güncelleniyor…' : 'Bildirimler yükleniyor…'}</b></div>}
-            {notificationState === 'error' && <div className="v26NotificationStatus" role="alert"><b>{notificationError}</b><button type="button" onClick={() => void refreshNotifications()}>YENİDEN DENE</button></div>}
+            {notificationState === 'error' && <div className="v26NotificationStatus" role="alert"><b>{notificationError}</b><button type="button" onClick={() => void refreshNotifications()}>YENİDEN DENE</button>{notificationErrorCode && <small>Hata kodu: {notificationErrorCode}</small>}</div>}
             {notificationReadError && <div className="v26NotificationStatus" role="alert"><b>{notificationReadError}</b></div>}
             {notifications.length ? <div className="v26NotificationList">{notifications.map(item => <button type="button" disabled={notificationReadBusy} key={item.id} className={`v26NotificationItem ${item.severity}${item.read ? ' isRead' : ''}`} onClick={() => void openNotification(item)}><i><Bell/></i><span><b>{item.title}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small></span></button>)}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Bildirim yok</b><p>Gerçek bir sistem olayı oluştuğunda burada görünecek.</p></div>}
           </section>}

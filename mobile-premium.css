@@ -6820,3 +6820,71 @@ body:has(#root .liveTradingPanel.liveUx),
   #root > main.v26App.workspaceRoute.workspaceRoute > .v26Header.v26HomeHeader > .v26HomeHeaderStatus { align-self: center !important; margin-block: 0 !important; }
   #root > main.v26App.workspaceRoute.workspaceRoute > .v26Header.v26HomeHeader .v26HeaderActions { align-items: center !important; height: auto !important; }
 }
+
+/* Telefon: modern bildirim paneli (aynı hesap, aynı bildirimler; sadece görünüm). */
+@media (max-width: 700px) {
+  #root main.v26App .v26NotificationPanel {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 76px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-height: min(72dvh, calc(100dvh - 190px)) !important;
+    border: 1px solid rgba(121, 220, 174, .2) !important;
+    border-radius: 22px !important;
+    background: rgba(11, 19, 16, .92) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 22px 50px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+    overflow: hidden;
+  }
+  #root main.v26App .v26NotificationPanel > header {
+    padding: 16px 16px 14px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, .07) !important;
+    background: linear-gradient(90deg, rgba(61, 220, 132, .08), transparent 70%) !important;
+  }
+  #root main.v26App .v26NotificationPanel > header small { color: #79dcae !important; font-size: 10px !important; font-weight: 700; letter-spacing: .16em !important; }
+  #root main.v26App .v26NotificationPanel > header h2 { margin-top: 3px !important; color: #f1f6f3 !important; font-size: 19px !important; font-weight: 700; }
+  #root main.v26App .v26NotificationPanel > header > span,
+  #root main.v26App .v26NotificationPanel > header > div:last-child > span {
+    min-width: 28px !important; height: 28px !important; padding: 0 8px; display: inline-grid; place-items: center;
+    border: 1px solid rgba(121, 220, 174, .3) !important; border-radius: 999px !important;
+    background: rgba(61, 220, 132, .12) !important; color: #79dcae !important; font-size: 12px !important; font-weight: 700;
+  }
+  #root main.v26App .v26NotificationPanel > header > div:last-child > button {
+    display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; padding: 0 12px; border-radius: 999px !important;
+    border: 1px solid rgba(255, 255, 255, .1) !important; background: rgba(255, 255, 255, .05) !important; color: #cfe3da !important;
+    font-size: 11px !important; font-weight: 700; letter-spacing: .04em; white-space: nowrap;
+  }
+  #root main.v26App .v26NotificationPanel > header > div:last-child > button svg { width: 17px; height: 17px; }
+  #root main.v26App .v26NotificationStatus {
+    display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; margin: 12px 14px 0 !important; padding: 12px 14px !important;
+    border: 1px solid rgba(245, 190, 85, .25); border-radius: 14px; background: rgba(245, 190, 85, .07);
+    color: #f5be55 !important; font-size: 13px !important; line-height: 1.45 !important;
+  }
+  #root main.v26App .v26NotificationStatus > b { flex: 1 1 100%; font-weight: 600; }
+  #root main.v26App .v26NotificationStatus > button {
+    flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; height: 38px !important; padding: 0 16px !important;
+    border: 1px solid rgba(245, 190, 85, .4) !important; border-radius: 999px !important; background: rgba(245, 190, 85, .12) !important;
+    color: #ffd98a !important; font-size: 12px !important; font-weight: 700; letter-spacing: .04em; white-space: nowrap !important; writing-mode: horizontal-tb !important;
+  }
+  #root main.v26App .v26NotificationStatus > small { color: #9fb0aa; font-size: 11px; }
+  #root main.v26App .v26NotificationEmpty { padding: 34px 20px 38px !important; text-align: center; }
+  #root main.v26App .v26NotificationEmpty b { font-size: 15px !important; color: #eef3f1 !important; }
+  #root main.v26App .v26NotificationList { padding: 8px 10px 12px !important; display: grid; gap: 8px; }
+  #root main.v26App .v26NotificationItem {
+    grid-template-columns: 40px minmax(0, 1fr) !important; gap: 12px !important; padding: 12px !important;
+    border: 1px solid rgba(255, 255, 255, .07) !important; border-radius: 16px !important; background: rgba(255, 255, 255, .035) !important;
+  }
+  #root main.v26App .v26NotificationItem:active { background: rgba(61, 220, 132, .09) !important; }
+  #root main.v26App .v26NotificationItem > i { width: 40px !important; height: 40px !important; border-radius: 12px !important; }
+  #root main.v26App .v26NotificationItem > i svg { width: 19px; height: 19px; }
+  #root main.v26App .v26NotificationItem b { color: #f1f6f3 !important; font-size: 14px !important; font-weight: 600; line-height: 1.3; }
+  #root main.v26App .v26NotificationItem p { margin-top: 5px !important; color: #a9b9b2 !important; font-size: 13px !important; line-height: 1.45 !important; }
+  #root main.v26App .v26NotificationItem small { margin-top: 7px !important; color: #7d8b86 !important; font-size: 11.5px !important; }
+  #root main.v26App .v26NotificationItem .v26NotificationSeverity,
+  #root main.v26App .v26NotificationItem .v26NotificationCritical { display: inline-block; margin-left: 8px !important; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .07); font-size: 10px !important; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; }
+  #root main.v26App .v26NotificationItem .v26NotificationCritical { background: rgba(239, 143, 134, .16); }
+  #root main.v26App .v26NotificationItem:not(.isRead) { border-color: rgba(121, 220, 174, .25) !important; background: rgba(61, 220, 132, .06) !important; }
+  #root main.v26App .v26NotificationItem.isRead { opacity: .72; }
+}
