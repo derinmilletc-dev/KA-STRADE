@@ -109,7 +109,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <span className="ktBillBadge">{badge}</span>
       </div>
       <dl className="ktBillStats">
-        <div><dt>MASTER MODE ERİŞİMİ</dt><dd>{subscription ? hasAccess ? 'Açık' : 'Kapalı' : '—'}</dd></div>
+        <div><dt>ERİŞİM</dt><dd>{subscription ? hasAccess ? 'Açık' : 'Kapalı' : '—'}</dd></div>
         <div><dt>BİTİŞ TARİHİ</dt><dd>{expiry ? trDate(expiry) : '—'}</dd></div>
         <div><dt>ÖDEME YÖNTEMİ</dt><dd>{binancePaid ? 'Binance' : onTrial ? 'Ödemesiz deneme' : '—'}</dd></div>
         <div><dt>YENİLEME</dt><dd>{binancePaid || onTrial ? 'Elle · otomatik ücret yok' : '—'}</dd></div>
@@ -159,6 +159,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
           <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>119.90 USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
           <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
         </ol>
+        <p className="ktBillStepsTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
       </div>
       <div className="ktBillPayBox"><BinanceManualPayment/></div>
     </section>}
