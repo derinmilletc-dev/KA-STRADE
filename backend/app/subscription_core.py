@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 TRIAL_DAYS = 7
@@ -84,6 +85,41 @@ def active_subscription(state: dict[str, Any], user_id: str) -> dict[str, Any] |
         elif status in {"TRIALING", "ACTIVE"} and end and end > now:
             valid.append(row)
     return max(valid, key=lambda row: row.get("current_period_end") or row.get("currentPeriodEnd") or row.get("trial_end") or row.get("trialEnd") or "", default=None)
+
+
+ADMIN_PROVIDER = "MANUAL_ADMIN"
+
+
+def revoke_admin_access(state: dict[str, Any], user_id: str, now: datetime | None = None) -> int:
+    """Cancels access an admin granted by hand. Stripe and Binance rows are never touched."""
+    stamp = (now or datetime.now(timezone.utc)).isoformat()
+    cancelled = 0
+    for row in state.get("subscriptions", []):
+        if (row.get("user_id") == user_id and row.get("provider") == ADMIN_PROVIDER
+                and canonical_status(row.get("status")) in ACCESS_STATUSES):
+            row["status"] = "CANCELLED"
+            row["canceled_at"] = row["canceledAt"] = row["updatedAt"] = stamp
+            cancelled += 1
+    return cancelled
+
+
+def grant_admin_access(state: dict[str, Any], user_id: str, plan: str, days: int, now: datetime | None = None) -> dict[str, Any]:
+    """Gives a real, time-limited entitlement: MASTER_MODE (paid) or TRIAL. Replaces any earlier manual grant."""
+    if plan not in ("MASTER_MODE", "TRIAL"):
+        raise ValueError("Unsupported plan")
+    now = now or datetime.now(timezone.utc)
+    revoke_admin_access(state, user_id, now)
+    start, end = now.isoformat(), (now + timedelta(days=days)).isoformat()
+    trial = plan == "TRIAL"
+    row = {
+        "id": uuid.uuid4().hex, "user_id": user_id, "plan": plan, "status": "TRIALING" if trial else "ACTIVE",
+        "billingInterval": "monthly", "trialStart": start if trial else None, "trialEnd": end if trial else None,
+        "currentPeriodStart": start, "currentPeriodEnd": end, "currentPrice": 0, "stripeCustomerId": None,
+        "stripeSubscriptionId": None, "cancelAtPeriodEnd": True, "provider": ADMIN_PROVIDER,
+        "createdAt": start, "updatedAt": start,
+    }
+    state.setdefault("subscriptions", []).append(row)
+    return row
 
 
 def entitlement_snapshot(state: dict[str, Any], user_id: str) -> dict[str, Any]:
