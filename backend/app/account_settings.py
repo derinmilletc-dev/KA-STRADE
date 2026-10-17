@@ -479,6 +479,7 @@ async def overview(request, user, *, current=True):
                 "features": [{"key": key, "label": {"canAccessMasterTrade": "Master Trade"}.get(key, key), "included": bool(value)}
                              for key, value in sub.get("entitlements", {}).items()]},
             "preferences": preferences(request, user, doc),
+            "language": doc.get("language") if doc.get("language") in ("tr", "en") else None,
             "marketing_consent": public_marketing(doc),
             "security": {"two_factor_enabled": bool(doc.get("two_factor_enabled")), "active_sessions": len(sessions),
                          "email_delivery_available": auth.gmail_configured(), "can_close_account": blocker is None and bool(user.get("active")),
@@ -527,6 +528,18 @@ async def update_profile(payload: Profile, request: Request):
         profile.update(full_name=payload.display_name, updated_at=iso())
     await persist_projection(request)
     return {"ok": True}
+
+
+class LanguageUpdate(StrictModel):
+    language: Literal["tr", "en"]
+
+
+@router.patch("/account/language")
+async def update_language(payload: LanguageUpdate, request: Request):
+    user = await member(request)
+    async with store.edit(request, user["id"]) as doc:
+        doc["language"] = payload.language
+    return {"ok": True, "language": payload.language}
 
 
 @router.patch("/account/preferences")

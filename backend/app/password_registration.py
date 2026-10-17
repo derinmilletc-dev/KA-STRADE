@@ -50,6 +50,7 @@ async def fill(request, payload, response, state, doc, user):
             "updated_at": user["created_at"],
         }
     )
+    doc["language"] = payload.language
     state["acceptances"].extend(
         append_registration(
             doc, uid, payload.marketing_accepted, "PASSWORD_REGISTRATION"
