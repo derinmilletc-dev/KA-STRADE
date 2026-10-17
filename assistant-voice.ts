@@ -48,6 +48,7 @@ export function stripWakeWord(value: string): string {
 export function speakableText(value: string): string {
   return value
     .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}]/gu, ' ')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/[*_#>~|]+/g, ' ')
@@ -73,6 +74,22 @@ function chunks(value: string): string[] {
     else out.push(part)
   }
   return out
+}
+
+/** Dilin en doğal sesini seçer (Edge "Natural"/"Online", Google, Apple gelişmiş sesleri önce). */
+function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string): SpeechSynthesisVoice | undefined {
+  const matching = voices.filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language))
+  const score = (item: SpeechSynthesisVoice) => {
+    const name = item.name.toLowerCase()
+    let value = item.lang.replace('_', '-') === tag ? 1 : 0
+    if (/natural|neural/.test(name)) value += 8
+    if (/online/.test(name)) value += 5
+    if (/google/.test(name)) value += 4
+    if (/premium|enhanced|siri/.test(name)) value += 4
+    if (item.localService === false) value += 1
+    return value
+  }
+  return matching.sort((a, b) => score(b) - score(a))[0]
 }
 
 export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
@@ -107,7 +124,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     window.speechSynthesis.cancel()
     const token = ++speakToken.current
     const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find(item => item.lang === tag) ?? voices.find(item => item.lang.startsWith(language))
+    const voice = pickVoice(voices, tag, language)
     const parts = chunks(clean)
     let finished = false
     const done = () => { if (finished || token !== speakToken.current) return; finished = true; onDone?.() }
@@ -117,6 +134,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = tag
       if (voice) utterance.voice = voice
+      utterance.rate = 1.05
       if (index === parts.length - 1) {
         utterance.onend = () => { window.clearTimeout(fallback); done() }
         utterance.onerror = () => { window.clearTimeout(fallback); done() }

@@ -435,7 +435,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     const controller = new AbortController()
     activeRequest.current = controller
     try {
-      const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars)})
+      const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars), ...(viaVoice ? {voice: true} : {})})
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
       const confirmation = parseConfirmation(response.needs_confirmation)

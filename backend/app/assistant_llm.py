@@ -81,12 +81,27 @@ def build_request(config: AssistantConfig, language: Language, payload: ChatInpu
     ]
     tools[-1]["cache_control"] = {"type": "ephemeral"}
     system: list[TextBlockParam] = [{"type": "text", "text": system_prompt(language), "cache_control": {"type": "ephemeral"}}]
+    if payload.voice:
+        system.append({"type": "text", "text": VOICE_STYLE_TR if language == "tr" else VOICE_STYLE_EN})
     messages: list[MessageParam] = [{"role": item.role, "content": item.content} for item in payload.history]
     content = payload.message
     if payload.page_context:
         content += "\n\nUntrusted page_context:\n" + payload.page_context
     messages.append({"role": "user", "content": content})
     return LLMRequest(system, tools, messages, config.max_output_tokens, payload)
+
+
+VOICE_STYLE_TR = (
+    "SESLİ SOHBET MODU: Cevabın yüksek sesle okunacak. Bir arkadaşla telefonda konuşur gibi, doğal ve sıcak bir "
+    "konuşma diliyle cevap ver. En fazla 2-4 kısa cümle kullan. Emoji, madde işareti, başlık, tablo, kalın yazı, "
+    "bağlantı ve kod kullanma. Sayıları okunması kolay yaz (ör. \"yaklaşık 3,4 dolar kâr\"). Gerekirse sonunda tek "
+    "kısa bir soru sor. Tüm güvenlik ve yatırım tavsiyesi kuralları aynen geçerlidir."
+)
+VOICE_STYLE_EN = (
+    "VOICE CHAT MODE: Your reply will be read aloud. Answer in natural, warm spoken language, like talking to a friend "
+    "on the phone. Use at most 2-4 short sentences. No emojis, bullet points, headings, tables, bold text, links or code. "
+    "Write numbers so they are easy to say. You may end with one short question. All safety and no-investment-advice rules still apply."
+)
 
 
 class AnthropicTransport:

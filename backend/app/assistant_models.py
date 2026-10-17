@@ -20,6 +20,7 @@ class ChatInput(BaseModel):
     message: str = Field(min_length=1)
     history: list[HistoryMessage] = Field(default_factory=list)
     page_context: str | None = None
+    voice: bool = False
 
 
 @dataclass(frozen=True)
