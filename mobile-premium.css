@@ -7063,3 +7063,84 @@ body:has(#root .liveTradingPanel.liveUx),
   #root main.v26App.workspaceRoute:has(.riskOnlyDeck) .v21RiskManagement .v21ResultItem b { font-size: 14px !important; }
   #root main.v26App.workspaceRoute:has(.riskOnlyDeck) .v21RiskManagement .v21HelperText { margin: 12px 0 0 !important; font-size: 12px !important; line-height: 1.5 !important; }
 }
+
+/* Telefon: Ayarlar ve Bağlantılar sayfası sadeleştirme (küçük yazılar, hizalı kartlar, taşma yok). */
+@media (max-width: 700px) {
+  /* Sayfa başlığı */
+  #root > main.v26App:has(#connection-ws) .v26ModeBar { padding: 4px 2px 0 !important; gap: 4px !important; }
+  #root > main.v26App:has(#connection-ws) .v26ModeBar small { font-size: 10.5px !important; letter-spacing: .12em !important; }
+  #root > main.v26App:has(#connection-ws) .v26ModeBar h1 { margin: 2px 0 6px !important; font-size: 22px !important; line-height: 1.2 !important; }
+  #root > main.v26App:has(#connection-ws) .v26ModeBar p { font-size: 12.5px !important; line-height: 1.5 !important; }
+
+  /* Kap: başlıkla aynı kenar */
+  #root #connection-ws.cws { gap: 12px !important; padding: 0 !important; margin: 4px 0 20px !important; }
+  #root #connection-ws .cwsHead { align-items: center !important; gap: 12px !important; padding: 0 2px !important; }
+  #root #connection-ws .cwsHead p { font-size: 13px !important; line-height: 1.5 !important; }
+  #root #connection-ws .cwsRefresh { flex: 0 0 38px !important; width: 38px !important; height: 38px !important; border-radius: 12px !important; }
+  #root #connection-ws .cwsRefresh svg { width: 17px !important; height: 17px !important; }
+  #root #connection-ws .cwsChips { gap: 8px !important; }
+  #root #connection-ws .cwsChips span { padding: 7px 12px !important; font-size: 12px !important; }
+  #root #connection-ws .cwsGrid { grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; }
+
+  /* Kartlar */
+  #root #connection-ws .cwsCard { gap: 10px !important; padding: 16px !important; border-radius: 16px !important; }
+  #root #connection-ws .cwsCard h3 { font-size: 16px !important; gap: 8px !important; }
+  #root #connection-ws .cwsCard h3 svg { width: 18px !important; height: 18px !important; }
+  #root #connection-ws .cwsCard p { font-size: 12.5px !important; line-height: 1.5 !important; }
+  #root #connection-ws .cwsCard > small { font-size: 11.5px !important; }
+  #root #connection-ws .cwsTag { padding: 4px 10px !important; font-size: 10.5px !important; }
+  #root #connection-ws .cwsPrimary, #root #connection-ws .cwsGhost { width: 100% !important; min-height: 44px !important; padding: 0 14px !important; border-radius: 12px !important; font-size: 13.5px !important; gap: 8px !important; }
+  #root #connection-ws .cwsPrimary svg, #root #connection-ws .cwsGhost svg { width: 17px !important; height: 17px !important; }
+  #root #connection-ws .cwsSteps { gap: 6px !important; }
+  #root #connection-ws .cwsSteps span { padding: 5px 10px !important; font-size: 11.5px !important; gap: 6px !important; }
+  #root #connection-ws .cwsSteps b { width: 18px !important; height: 18px !important; font-size: 11px !important; }
+  #root #connection-ws .cwsForm { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+  #root #connection-ws .cwsForm label { gap: 5px !important; }
+  #root #connection-ws .cwsForm label > span { font-size: 12px !important; }
+  #root #connection-ws .cwsForm input { min-height: 44px !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 14px !important; }
+  #root #connection-ws .cwsActions { flex-direction: column !important; gap: 8px !important; }
+  #root #connection-ws .cwsSaved, #root #connection-ws .cwsFeedback { padding: 10px 12px !important; border-radius: 12px !important; font-size: 12.5px !important; }
+
+  /* Gömülü kartlar: Canlı bağlantı, Bildirimler, Açık oturumlar */
+  #root #connection-ws .cwsEmbed > section { gap: 10px !important; padding: 16px !important; border-radius: 16px !important; }
+  #root #connection-ws .cwsEmbed h2 { font-size: 16px !important; }
+  #root #connection-ws .cwsEmbed h2 button { width: 34px !important; height: 34px !important; border-radius: 10px !important; }
+  #root #connection-ws .cwsEmbed h2 button svg { width: 16px !important; height: 16px !important; }
+  #root #connection-ws .cwsEmbed :is(.nsLead, .scLead) { font-size: 12.5px !important; line-height: 1.5 !important; }
+  #root #connection-ws .cwsEmbed :is(.nsList, .nsChannels, .scList) { gap: 8px !important; }
+  #root #connection-ws .cwsEmbed .nsRow { gap: 12px !important; padding: 11px 12px !important; border-radius: 12px !important; }
+  #root #connection-ws .cwsEmbed .nsRow b { font-size: 13.5px !important; gap: 6px !important; }
+  #root #connection-ws .cwsEmbed .nsRow b svg { width: 16px !important; height: 16px !important; }
+  #root #connection-ws .cwsEmbed .nsRow small { font-size: 11.5px !important; line-height: 1.4 !important; }
+  #root #connection-ws .cwsEmbed .nsStatus { padding: 12px 14px !important; border-radius: 14px !important; gap: 2px 10px !important; }
+  #root #connection-ws .cwsEmbed .nsStatus b { font-size: 15px !important; }
+  #root #connection-ws .cwsEmbed .nsStatus small { font-size: 12px !important; }
+  #root #connection-ws .cwsEmbed .nsFoot { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+  #root #connection-ws .cwsEmbed .nsFoot small { font-size: 11.5px !important; }
+  #root #connection-ws .cwsEmbed .nsTest { width: 100% !important; min-height: 42px !important; justify-content: center !important; border-radius: 12px !important; font-size: 13px !important; }
+  #root #connection-ws .cwsEmbed .nsTest svg { width: 16px !important; height: 16px !important; }
+  #root #connection-ws .cwsEmbed .scRow { gap: 10px !important; padding: 10px 12px !important; border-radius: 12px !important; }
+  #root #connection-ws .cwsEmbed .scRow > i { width: 34px !important; height: 34px !important; border-radius: 10px !important; }
+  #root #connection-ws .cwsEmbed .scRow b { font-size: 13.5px !important; }
+  #root #connection-ws .cwsEmbed .scRow small { font-size: 11.5px !important; }
+  #root #connection-ws .cwsEmbed .scRow em { font-size: 10.5px !important; padding: 2px 8px !important; }
+
+  /* Açma/kapama anahtarı: küçük ve sade */
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch { width: 44px !important; min-width: 44px !important; height: 26px !important; min-height: 26px !important; box-shadow: none !important; }
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch i { top: 3px !important; left: 3px !important; width: 20px !important; height: 20px !important; }
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch i::after { width: 8px !important; height: 8px !important; }
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch.on { box-shadow: none !important; }
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch.on i { transform: translateX(18px) !important; }
+  html body #root #connection-ws #notify-settings button.nsSwitch.nsSwitch:active i { width: 20px !important; }
+
+  /* Güvenlik kartı */
+  #root #connection-ws .cwsSafe > div { gap: 9px !important; }
+  #root #connection-ws .cwsSafe span { align-items: flex-start !important; gap: 9px !important; font-size: 12.5px !important; line-height: 1.4 !important; }
+  #root #connection-ws .cwsSafe span svg { width: 16px !important; height: 16px !important; margin-top: 1px !important; }
+
+  /* Alt bilgi */
+  #root main.v26App footer.cwsFoot { display: grid !important; gap: 12px !important; padding: 0 2px !important; margin: 0 0 20px !important; font-size: 12px !important; line-height: 1.5 !important; }
+  #root main.v26App footer.cwsFoot span { font-size: 12px !important; }
+  #root main.v26App footer.cwsFoot > div { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  #root main.v26App footer.cwsFoot button { width: 100% !important; padding: 10px 8px !important; font-size: 12.5px !important; }
+}
