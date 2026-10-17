@@ -104,6 +104,9 @@ VOICE_STYLE_EN = (
 )
 
 
+FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+
+
 class AnthropicTransport:
     def __init__(self, config: AssistantConfig):
         self.config = config
@@ -131,14 +134,28 @@ class AnthropicTransport:
                 api_key=self.config.api_key.get_secret_value(), max_retries=0, timeout=self.config.request_timeout_seconds,
             ) as client:
                 protect_logging()
-                result = await client.messages.create(
-                    model=self.config.model, max_tokens=request.max_tokens,
-                    system=request.system, tools=request.tools, messages=request.messages,
-                )
-            texts, calls = [], []
+                try:
+                    result = await client.messages.create(
+                        model=self.config.model, max_tokens=request.max_tokens,
+                        system=request.system, tools=request.tools, messages=request.messages,
+                        **({} if self.config.model == FALLBACK_MODEL else {"output_config": {"effort": "low"}}),
+                    )
+                except (anthropic.BadRequestError, anthropic.NotFoundError) as exc:
+                    if self.config.model == FALLBACK_MODEL or any(isinstance(m.get("content"), list) and any(
+                            isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking") for b in m["content"]) for m in request.messages):
+                        raise
+                    # Yeni model isteği reddederse sohbet kesilmesin: bir kez önceki modelle dene.
+                    logging.getLogger("kais.assistant").warning("ASSISTANT_MODEL_FALLBACK model=%s error=%s", self.config.model, type(exc).__name__)
+                    result = await client.messages.create(
+                        model=FALLBACK_MODEL, max_tokens=request.max_tokens,
+                        system=request.system, tools=request.tools, messages=request.messages,
+                    )
+            texts, calls, thinking = [], [], []
             invalid = False
             for block in result.content:
-                if block.type == "text" and isinstance(block.text, str):
+                if block.type in ("thinking", "redacted_thinking"):
+                    thinking.append(block.model_dump(exclude_none=True))
+                elif block.type == "text" and isinstance(block.text, str):
                     texts.append(block.text)
                 elif block.type == "tool_use":
                     if not isinstance(block.id, str) or not isinstance(block.name, str) or not isinstance(block.input, dict):
@@ -153,7 +170,7 @@ class AnthropicTransport:
             return ModelAnswer(
                 "\n".join(texts), usage.input_tokens if usage else None, usage.output_tokens if usage else None,
                 0 if created is None else created, 0 if read is None else read,
-                tuple(calls), invalid,
+                tuple(calls), invalid, thinking_blocks=tuple(thinking),
             )
         finally:
             _provider_guard.reset(guard)
@@ -271,7 +288,7 @@ async def run_conversation(
                 return AssistantReply(reply, language, tuple(results))
             if len(turn.tool_calls) > len(ARGUMENT_MODELS) or len({call.id for call in turn.tool_calls}) != len(turn.tool_calls):
                 raise AssistantStopped("provider", 502)
-            blocks: list[TextBlockParam | ToolUseBlockParam] = []
+            blocks: list[Any] = [dict(block) for block in turn.thinking_blocks]
             if turn.reply:
                 blocks.append({"type": "text", "text": turn.reply})
             blocks.extend({"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments} for call in turn.tool_calls)

@@ -40,6 +40,8 @@ class ModelAnswer:
     tool_calls: tuple[ToolCall, ...] = ()
     protocol_error: bool = False
     failed: bool = False
+    # Yeni modellerin düşünme blokları; araç kullanılırken sonraki isteğe aynen geri gönderilmeli.
+    thinking_blocks: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
