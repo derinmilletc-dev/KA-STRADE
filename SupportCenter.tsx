@@ -1,10 +1,11 @@
 import {useMemo, useState} from 'react'
-import {ChevronDown, CreditCard, KeyRound, LifeBuoy, LineChart, MessageCircle, Search, ShieldCheck, UserRound, X, Zap} from 'lucide-react'
+import {ChevronDown, CreditCard, KeyRound, LineChart, MessageCircle, Search, ShieldCheck, UserRound, X, Zap} from 'lucide-react'
 import SupportCard from './SupportCard'
+import {SupportIcon} from './MenuIcons'
 import {FAQ_CATEGORIES, FAQS, type FaqCategory} from './support-faq'
 import './support-center.css'
 
-const ICONS: Record<FaqCategory, typeof LifeBuoy> = {account: UserRound, billing: CreditCard, binance: KeyRound, trading: LineChart, security: ShieldCheck}
+const ICONS: Record<FaqCategory, typeof UserRound> = {account: UserRound, billing: CreditCard, binance: KeyRound, trading: LineChart, security: ShieldCheck}
 
 const QUICK = [
   {title: 'Binance’e bağlanamıyorum', steps: ['API anahtarını eksiksiz kopyala.', 'Futures işlem izninin açık olduğunu kontrol et.', 'Binance’te IP kısıtlaması varsa geçici olarak kaldır.', 'Yine olmuyorsa hata ekranının görüntüsünü aşağıdaki formdan gönder.']},
@@ -25,7 +26,7 @@ export default function SupportCenter() {
   const goContact = () => document.getElementById('support-contact')?.scrollIntoView({behavior: 'smooth', block: 'start'})
   return <div className="scWrap">
     <section className="scHero">
-      <span className="scHeroIcon"><LifeBuoy/></span>
+      <span className="scHeroIcon"><SupportIcon/></span>
       <div><h2>Nasıl yardımcı olabiliriz?</h2><p>Önce sıkça sorulan sorulara bak. Cevabı bulamazsan destek ekibine yaz.</p></div>
       <label className="scSearch"><Search/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Soru veya anahtar kelime ara" aria-label="Soru veya anahtar kelime ara"/>{query && <button type="button" aria-label="Aramayı temizle" onClick={() => setQuery('')}><X/></button>}</label>
     </section>
@@ -59,7 +60,7 @@ export default function SupportCenter() {
     </section>
 
     <section className="scBlock scContact" id="support-contact">
-      <h3><LifeBuoy/>Destek ekibine yaz</h3>
+      <h3><SupportIcon/>Destek ekibine yaz</h3>
       <p className="scNote">Cevabı bulamadıysan konuyu seç, sorunu anlat ve gerekirse ekran görüntüsü ekle. Şifre veya gizli anahtar asla yazma.</p>
       <div className="scCard"><SupportCard/></div>
     </section>

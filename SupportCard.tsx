@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent} from 'react'
-import {Check, ChevronDown, CreditCard, Download, FileText, KeyRound, LifeBuoy, LineChart, MessageCircle, Paperclip, Send, UserRound, X} from 'lucide-react'
+import {Check, ChevronDown, CreditCard, Download, FileText, KeyRound, LineChart, MessageCircle, Paperclip, Send, UserRound, X} from 'lucide-react'
 import {accountDate, accountRequest} from './account-settings-api'
 import {API_BASE} from './api'
 import {ACCEPT, MAX_FILES, formatSize, prepare, toBase64, type Picked} from './support-files'
+import {SupportIcon} from './MenuIcons'
 import './support-card.css'
 
 type Attachment = {id: string; name: string; type: string; size: number}
@@ -107,7 +108,7 @@ export default function SupportCard() {
   const ready = message.trim().length >= 5
   return <section className="accountCard" id="support-card">
     <div className="spHead">
-      <span className="spBadge"><LifeBuoy aria-hidden="true"/></span>
+      <span className="spBadge"><SupportIcon aria-hidden="true"/></span>
       <div><h2>Destek</h2><p>Destek ekibimiz sana buradan dönüş yapar.</p></div>
     </div>
     {done ? <div className="spDone" role="status"><span><Check aria-hidden="true"/></span><b>Talebin alındı</b><small>{warn ? `Talebin kaydedildi ancak dosyalar eklenemedi: ${warn}` : 'En kısa sürede dönüş yapacağız.'}</small></div> : <>

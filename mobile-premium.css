@@ -7245,3 +7245,81 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty b { font-size: 14px !important; }
   html body #root main.v26App .v27Ops.v27Ops.v27Ops .v27Empty span { font-size: 12px !important; line-height: 1.5 !important; }
 }
+
+/* Telefon: Destek sayfası sadeleştirme. */
+@media (max-width: 700px) {
+  html body #root main.v26App:has(.scWrap) .v26ModeBar { padding: 4px 2px 0 !important; gap: 4px !important; }
+  html body #root main.v26App:has(.scWrap) .v26ModeBar small { font-size: 10.5px !important; letter-spacing: .12em !important; }
+  html body #root main.v26App:has(.scWrap) .v26ModeBar h1 { margin: 2px 0 6px !important; font-size: 22px !important; line-height: 1.2 !important; }
+  html body #root main.v26App:has(.scWrap) .v26ModeBar p { font-size: 12.5px !important; line-height: 1.5 !important; }
+
+  html body #root main.v26App .scWrap { gap: 14px !important; margin: 4px 0 20px !important; }
+
+  /* Karşılama kartı */
+  html body #root main.v26App .scWrap .scHero { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) !important; gap: 12px !important; align-items: center !important; padding: 16px !important; border-radius: 16px !important; }
+  html body #root main.v26App .scWrap .scHeroIcon { width: 44px !important; height: 44px !important; border-radius: 14px !important; }
+  html body #root main.v26App .scWrap .scHeroIcon svg { width: 22px !important; height: 22px !important; }
+  html body #root main.v26App .scWrap .scHero h2 { font-size: 17px !important; line-height: 1.25 !important; }
+  html body #root main.v26App .scWrap .scHero p { margin: 3px 0 0 !important; font-size: 12.5px !important; line-height: 1.45 !important; }
+  html body #root main.v26App .scWrap .scSearch { grid-column: 1 / -1 !important; height: 44px !important; padding: 0 12px !important; border-radius: 12px !important; gap: 8px !important; }
+  html body #root main.v26App .scWrap .scSearch svg { width: 17px !important; height: 17px !important; }
+  html body #root main.v26App .scWrap .scSearch input { font-size: 14px !important; }
+
+  /* Bölümler: çerçeve ve ek zemin yok */
+  html body #root main.v26App .scWrap .scBlock { gap: 10px !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+  html body #root main.v26App .scWrap .scBlock > h3 { gap: 8px !important; padding: 0 2px !important; font-size: 16px !important; line-height: 1.3 !important; }
+  html body #root main.v26App .scWrap .scBlock > h3 svg { flex: 0 0 18px !important; width: 18px !important; height: 18px !important; }
+  html body #root main.v26App .scWrap .scNote { margin: -2px 0 0 !important; padding: 0 2px !important; font-size: 12.5px !important; line-height: 1.5 !important; }
+
+  /* Hazır cevaplar */
+  html body #root main.v26App .scWrap .scQuick { grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
+  html body #root main.v26App .scWrap :is(.scQuick, .scFaq) article { border-radius: 14px !important; }
+  html body #root main.v26App .scWrap :is(.scQuick, .scFaq) article > button { gap: 10px !important; padding: 12px 14px !important; }
+  html body #root main.v26App .scWrap :is(.scQuick, .scFaq) article > button b { font-size: 13.5px !important; line-height: 1.35 !important; }
+  html body #root main.v26App .scWrap :is(.scQuick, .scFaq) article > button > svg { flex: 0 0 16px !important; width: 16px !important; height: 16px !important; }
+  html body #root main.v26App .scWrap .scQuick ol { gap: 6px !important; padding: 0 14px 14px 32px !important; font-size: 13px !important; line-height: 1.5 !important; }
+
+  /* Kategori sekmeleri */
+  html body #root main.v26App .scWrap .scCats { gap: 6px !important; padding: 0 0 2px !important; }
+  html body #root main.v26App .scWrap .scCats button { padding: 7px 14px !important; font-size: 12.5px !important; }
+
+  /* Sık sorulan sorular */
+  html body #root main.v26App .scWrap .scFaq { gap: 8px !important; }
+  html body #root main.v26App .scWrap .scFaq article > button { padding: 10px 12px !important; }
+  html body #root main.v26App .scWrap .scFaq article > button > span { flex: 0 0 32px !important; width: 32px !important; height: 32px !important; border-radius: 10px !important; }
+  html body #root main.v26App .scWrap .scFaq article > button > span svg { width: 16px !important; height: 16px !important; }
+  html body #root main.v26App .scWrap .scFaq article > p { padding: 0 14px 14px !important; font-size: 13px !important; line-height: 1.55 !important; }
+  html body #root main.v26App .scWrap .scEmpty { padding: 20px 14px !important; border-radius: 14px !important; }
+  html body #root main.v26App .scWrap .scEmpty b { font-size: 14px !important; }
+  html body #root main.v26App .scWrap .scEmpty p { font-size: 12.5px !important; }
+  html body #root main.v26App .scWrap .scEmpty button { min-height: 42px !important; padding: 0 18px !important; border-radius: 12px !important; font-size: 13px !important; }
+
+  /* Destek formu */
+  html body #root main.v26App .scWrap .scCard > section { gap: 14px !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; }
+  html body #root main.v26App #support-card .spHead { gap: 12px !important; }
+  html body #root main.v26App #support-card .spBadge { flex: 0 0 40px !important; width: 40px !important; height: 40px !important; border-radius: 12px !important; }
+  html body #root main.v26App #support-card .spBadge svg { width: 20px !important; height: 20px !important; }
+  html body #root main.v26App #support-card .spHead h2 { font-size: 16px !important; line-height: 1.25 !important; }
+  html body #root main.v26App #support-card .spHead p { margin: 2px 0 0 !important; font-size: 12px !important; line-height: 1.4 !important; }
+  html body #root main.v26App #support-card .spTopics { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  html body #root main.v26App #support-card .spTopics button { gap: 2px !important; padding: 12px !important; border-radius: 14px !important; }
+  html body #root main.v26App #support-card .spTopics button:last-child:nth-child(odd) { grid-column: 1 / -1 !important; }
+  html body #root main.v26App #support-card .spTopics button svg { width: 18px !important; height: 18px !important; margin-bottom: 4px !important; }
+  html body #root main.v26App #support-card .spTopics button b { font-size: 13px !important; }
+  html body #root main.v26App #support-card .spTopics button small { font-size: 11px !important; }
+  html body #root main.v26App #support-card .spBox { padding: 4px !important; border-radius: 14px !important; }
+  html body #root main.v26App #support-card .spBox textarea { min-height: 96px !important; padding: 10px 12px !important; font-size: 14px !important; line-height: 1.5 !important; }
+  html body #root main.v26App #support-card .spAttach { display: grid !important; gap: 6px !important; padding: 2px 8px 6px !important; }
+  html body #root main.v26App #support-card .spAddFile { justify-content: center !important; width: 100% !important; min-height: 40px !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 13px !important; }
+  html body #root main.v26App #support-card .spAddFile svg { width: 16px !important; height: 16px !important; }
+  html body #root main.v26App #support-card .spAttach small, html body #root main.v26App #support-card .spBar small { font-size: 11px !important; line-height: 1.45 !important; }
+  html body #root main.v26App #support-card .spBar { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; padding: 2px 8px 8px !important; }
+  html body #root main.v26App #support-card .spSend { justify-content: center !important; width: 100% !important; min-height: 44px !important; padding: 0 14px !important; border-radius: 12px !important; font-size: 13.5px !important; }
+  html body #root main.v26App #support-card .spError { font-size: 12.5px !important; }
+  html body #root main.v26App #support-card .spMine h3 { font-size: 14px !important; }
+  html body #root main.v26App #support-card .spItem { border-radius: 14px !important; }
+  html body #root main.v26App #support-card .spItem > button { gap: 10px !important; padding: 12px !important; }
+  html body #root main.v26App #support-card .spItem span b { font-size: 13.5px !important; }
+  html body #root main.v26App #support-card .spItem span small, html body #root main.v26App #support-card .spItem em { font-size: 11.5px !important; }
+  html body #root main.v26App #support-card .spBody p { font-size: 13px !important; line-height: 1.55 !important; }
+}
