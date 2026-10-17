@@ -1,0 +1,36 @@
+/* Analist sayfası: tek siyah zemin, çizgisiz, sıkı boşluk */
+html body:has(#root > main.v26App.workspaceRoute > .coinAnalysisCenter){background:#0a0a0a!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter){
+  --ac-bg:#0a0a0a;--ac-soft:rgba(255,255,255,.045);--ac-hover:rgba(255,255,255,.08);--ac-ink:#eaf1f7;--ac-mute:#93a3b5;--ac-acc:#3ddc97;--ac-acc-ink:#06281a;
+  background:var(--ac-bg)!important;color:var(--ac-ink)!important}
+/* 1) hiç çizgi / gölge yok */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(div,section,article,aside,header,footer,button,table,thead,tbody,tr,th,td,input,select,textarea,li,a,span,p,label,details,summary,small,b,strong,em,i){
+  border:0!important;box-shadow:none!important;text-shadow:none!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(hr,.divider){display:none!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(*)::before,
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(*)::after{box-shadow:none!important}
+/* 2) bölüm kapları: zeminle aynı, çerçevesiz, dar boşluk */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter{gap:22px!important;margin-top:8px!important;background:transparent!important;color:var(--ac-ink)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(.analystWorkspace,.analystCommandGroup,.analystWorkspaceHeader,.analystCoinSelector,.analystLegacyResultWorkspace,.analystAskBar,.analystResult,.analystResultMain,.analystDetailColumn,.analystLowerGrid,.coinAnalysisHeader,.coinAnalysisToolbar,.marketPulse,.featuredOpportunities,.coinTablePanel,.coinDetailPanel,.coinAnalysisLayout,.topOpportunityGrid>article,.marketSignalsRow>article,.anomalyPanel,.heatmapPanel,.coinToolsGrid>article,.coinHistoryPanel,.coinAnalystPanel,.coinPaperPanel,.performanceStrip,.signalSummary,.marketContextRow){
+  background:transparent!important;background-image:none!important;border-radius:0!important;padding-left:0!important;padding-right:0!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(.analystWorkspace){padding-top:0!important;padding-bottom:0!important;gap:20px!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(.topOpportunityGrid,.marketSignalsRow,.coinToolsGrid,.coinAnalysisLayout,.analystCommandGrid){gap:22px!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter .coinDetailPanel{padding-top:0!important}
+/* 3) küçük öğeler: tek ton yumuşak zemin */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(button,.analystWorkspaceContext,.featuredCard,.marketPulseCards>*,.analystMetricCards>*,.historyItem,.analystOpportunityRow,.analystInsightRow,.coinDetailMetrics>*,.paperPlanGrid>*,.signalSummaryRow>*,.analystSelectorList>button,.filterGroup,.mtfRow,.tradePlanRow,.analystEmpty,.coinEmpty,input,select,textarea){
+  background:var(--ac-soft)!important;background-image:none!important;border-radius:12px!important;color:var(--ac-ink)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(button,.analystSelectorList>button):hover{background:var(--ac-hover)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(button.active,button.selected,button[aria-pressed="true"],button.applyFeature,button.premiumPrimary,button.paperTradeCta){
+  background:var(--ac-acc)!important;color:var(--ac-acc-ink)!important;font-weight:700}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(input,select,textarea):focus-visible{box-shadow:0 0 0 2px rgba(61,220,151,.55)!important;outline:0}
+/* 4) tablo: çizgisiz, zebra */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(table,thead,tbody,tr,th,td){background:transparent!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter tbody tr:nth-child(odd){background:var(--ac-soft)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter tbody tr:hover{background:var(--ac-hover)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(th,td){padding:9px 10px!important}
+/* 5) yazı tonları */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(h2,h3,h4){color:var(--ac-ink)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(small,.sub,.coinTableMeta small,header span,.analystEyebrow){color:var(--ac-mute)!important}
+/* 6) açılır paneller (çekmece / pencere) okunur kalsın */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(.featureDrawer,.filterDrawer,.analystDrawer){background:#111418!important;border-radius:16px!important;padding:18px!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter :is(.featureBackdrop,.filterBackdrop){background:rgba(0,0,0,.6)!important}
