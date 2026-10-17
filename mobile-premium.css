@@ -6604,3 +6604,18 @@ body:has(#root .liveTradingPanel.liveUx),
   #root .v26App .v26HeaderActions > button,
   #root .v26App .v26Notifications > button { min-width: 44px !important; min-height: 44px !important; }
 }
+
+/* Telefon üst çubuk: göz ve ikonlar küçüldü (logo aynı, dokunma alanı 44px kaldı). */
+@media (max-width: 700px) {
+  #root > main.v26App.homeRoute.homeRoute > .v26Header.v26HomeHeader {
+    --home-header-eye-size: 46px;
+    --home-header-eye-target: 50px;
+    --home-header-icon-size: 17.5px;
+    --home-header-profile-size: 18.5px;
+  }
+  #root > main.v26App.homeRoute.homeRoute > .v26HomeHeader .authProfileGlyph {
+    width: 18.5px !important;
+    height: 18.5px !important;
+    flex: 0 0 18.5px !important;
+  }
+}
