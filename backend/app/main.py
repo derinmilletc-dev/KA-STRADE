@@ -1740,6 +1740,11 @@ async def markets(limit: int = Query(500, ge=1, le=500), all: bool = False):
     return await _markets(limit=limit)
 
 
+# Son başarılı piyasa listesi: Binance geçici olarak sınırlarsa ekran boş kalmasın diye kısa süre bunu gösteririz.
+_LAST_MARKETS: dict[str, Any] = {"at": 0.0, "rows": []}
+_LAST_MARKETS_MAX_AGE_SECONDS = 900
+
+
 async def _markets(limit: int, timing: dict[str, float] | None = None):
     try:
         async def request_market_data(path: str, timing_key: str) -> httpx.Response:
@@ -1756,6 +1761,9 @@ async def _markets(limit: int, timing: dict[str, float] | None = None):
         exchange_response.raise_for_status()
         ticker_response.raise_for_status()
     except httpx.HTTPError as exc:
+        if _LAST_MARKETS["rows"] and time.monotonic() - _LAST_MARKETS["at"] < _LAST_MARKETS_MAX_AGE_SECONDS:
+            logger.warning("MARKETS_SERVED_STALE reason=%s age_seconds=%.0f", type(exc).__name__, time.monotonic() - _LAST_MARKETS["at"])
+            return _LAST_MARKETS["rows"][:limit]
         raise market_data_http_exception("Binance Futures piyasa özeti alınamadı", exc) from exc
     tickers = {item.get("symbol", ""): item for item in ticker_response.json()}
     result = []
@@ -1778,6 +1786,8 @@ async def _markets(limit: int, timing: dict[str, float] | None = None):
             "filters": contract.get("filters", []),
         })
     result.sort(key=lambda market: market["volume"], reverse=True)
+    if result:
+        _LAST_MARKETS.update(at=time.monotonic(), rows=result)
     return result[:limit]
 
 

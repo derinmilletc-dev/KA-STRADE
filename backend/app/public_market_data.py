@@ -203,7 +203,7 @@ class PublicMarketData:
                 response = await fetch(path, values)
                 self.observe(path, response, source=source)
                 if response.is_success:
-                    ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 15 if path.endswith("24hr") else 0 if path.endswith("time") else 1
+                    ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
                     if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
                         seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
                         if seconds:

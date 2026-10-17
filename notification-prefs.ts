@@ -7,7 +7,7 @@ export const NOTIFY_KINDS: {id: NotifyKind; title: string; hint: string; pattern
   {id: 'entry', title: 'Emir açıldı', hint: 'Yeni bir canlı pozisyon açıldığında', pattern: /^LIVE_ENTRY$|^LIVE_ENTRY_RECOVERED$/, tone: 'ok'},
   {id: 'close', title: 'Pozisyon kapandı', hint: 'Pozisyon kapatıldığında veya emir iptal edildiğinde', pattern: /^LIVE_CLOSE$|^LIVE_ENTRY_CANCELLED$|STOP_HIT|TP_HIT/, tone: 'ok'},
   {id: 'protection', title: 'Stop / koruma sorunu', hint: 'Stop kurulamadığında veya koruma onarıldığında', pattern: /^PROTECTION_(FAIL|BLOCK|REPAIR)$|LIVE_STOP_VERIFICATION_RETRY|OWNERSHIP_UNCERTAIN|LIVE_FOREIGN_ORDER|LIVE_ENTRY_REMAINDER_UNCERTAIN/, tone: 'bad'},
-  {id: 'connection', title: 'Bağlantı sorunu', hint: 'Binance bağlantısı koptuğunda veya hız sınırına takıldığında', pattern: /STALE|RATE_LIMIT|RATE_LIMITED|AUTO_ERROR|MONITORING/, tone: 'warn'},
+  {id: 'connection', title: 'Bağlantı sorunu', hint: 'Binance bağlantısı koptuğunda veya hız sınırına takıldığında', pattern: /^(?!.*(RECOVERED|RESTORED|RESUMED)).*(STALE|RATE_LIMIT|RATE_LIMITED|AUTO_ERROR|MONITORING)/, tone: 'warn'},
   {id: 'arm', title: 'İzin süresi / kilit', hint: '24 saatlik izin bittiğinde veya canlı işlem kapandığında', pattern: /LIVE_CONSENT_REAUTH_REQUIRED|LIVE_CONSENT_GRACE_EXPIRED|LIVE_AUTO_FAIL_CLOSED|^LIVE_DISARM$/, tone: 'warn'},
   {id: 'emergency', title: 'Acil durum', hint: 'Acil durdurma veya belirsiz emir durumunda', pattern: /^LIVE_EMERGENCY$|UNKNOWN_ORDER/, tone: 'bad'},
 ]
