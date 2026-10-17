@@ -22,7 +22,7 @@ class AssistantConfigTests(unittest.TestCase):
         config = load_assistant_config()
         self.assertEqual(config.model_dump(), {
             "enabled": True,
-            "model": "claude-haiku-4-5-20251001",
+            "model": "claude-haiku-5-5",
             "max_input_chars": 500,
             "history_messages": 4,
             "history_message_max_chars": 2000,
@@ -37,6 +37,7 @@ class AssistantConfigTests(unittest.TestCase):
             "budget_warning_fraction": Decimal("0.8"),
             "per_minute_limit": 6,
             "daily_limit": 20,
+            "trial_daily_limit": 5,
             "monthly_budget_usd": Decimal(50),
             "max_output_tokens": 500,
             "max_llm_calls_per_message": 3,

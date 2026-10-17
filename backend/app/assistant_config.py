@@ -16,7 +16,7 @@ class AssistantConfig(BaseSettings):
     )
 
     enabled: bool = True
-    model: str = Field(default="claude-haiku-4-5-20251001", min_length=1)
+    model: str = Field(default="claude-haiku-5-5", min_length=1)
     api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias="ANTHROPIC_API_KEY",
