@@ -8587,3 +8587,10 @@ body:has(#root .liveTradingPanel.liveUx),
   html body dialog.assistantDialog .assistantComposer > :last-child:not(div):not(button) { font-size: 11px !important; }
   html body dialog.assistantDialog :is(.assistantNotice, .assistantError) { padding: 8px 14px !important; font-size: 12px !important; }
 }
+
+/* Telefon: giriş ekranı alt bilgi bağlantıları düzgün ortalı iki satır. */
+@media (max-width: 767px) {
+  html body .authRoot .authFooter { display: flex !important; flex-wrap: wrap !important; justify-content: center !important; align-items: center !important; gap: 6px 16px !important; width: 100% !important; max-width: 100% !important; margin: 24px 0 0 !important; padding: 0 16px calc(20px + env(safe-area-inset-bottom, 0px)) !important; box-sizing: border-box !important; font-size: 12px !important; line-height: 1.5 !important; text-align: center !important; }
+  html body .authRoot .authFooter > span { flex: 0 0 100% !important; }
+  html body .authRoot .authFooter > a { flex: 0 0 auto !important; padding: 4px 0 !important; font-size: 12px !important; white-space: nowrap !important; }
+}
