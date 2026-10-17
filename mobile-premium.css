@@ -7966,3 +7966,32 @@ body:has(#root .liveTradingPanel.liveUx),
   html body .authRoot .authFooter > span { flex: 0 0 100% !important; }
   html body .authRoot .authFooter > a { flex: 0 0 auto !important; padding: 4px 0 !important; font-size: 12px !important; white-space: nowrap !important; }
 }
+
+/* ===== Küçük telefonlar (≤374px, ör. iPhone SE 1. nesil, küçük Android): sıkışan sekme, araç ve ızgaraları daralt ===== */
+@media (max-width: 374px) {
+  /* Master Trade üst sekmeleri (Analiz / Canlı İşlem / Pozisyonlar / Bağlantı) */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis > .refHeader > nav > button,
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs > button { font-size: 9.5px !important; letter-spacing: -.01em !important; padding: 6px 1px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis > .refHeader > nav > button svg,
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs > button svg { width: 16px !important; height: 16px !important; }
+  /* Grafik araç çubuğu ve emir düğmeleri */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar { grid-template-columns: 56px minmax(0, 1fr) auto !important; gap: 6px !important; padding: 10px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar > .refDrawingTools { gap: 3px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar button { min-width: 0 !important; font-size: 11px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChartCanvas { height: 300px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills { width: 100px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills > span { max-width: 100px !important; font-size: 9.5px !important; padding: 0 4px !important; }
+  /* MTF teyit hapları: 5 sütun yerine 3 */
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMtfPills { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  /* Analist filtreleri: 4 yerine 2 sütun */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystSelectorFilters { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* İşlem sayfası: zaman dilimi düğmeleri ve emir alanları */
+  html body #root > main.v26App.workspaceRoute.workspaceRoute:has(.binanceDemoDeck:not(.riskOnlyDeck)) > .v26MarketBar .v26Intervals { gap: 4px !important; }
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck) .demoFieldGrid { gap: 8px 6px !important; }
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck) .demoFieldGrid input,
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck) .demoFieldGrid select { min-width: 0 !important; padding-left: 8px !important; padding-right: 8px !important; }
+  /* Abonelik: Binance ödeme başlığı rozeti alta insin */
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .subscriptionPage.subscriptionPage .binanceManualPayment > header { flex-wrap: wrap !important; }
+  /* Alt menü yazıları */
+  .v26MobileBottomNav > button > span { font-size: 9.5px !important; letter-spacing: -.01em !important; }
+}

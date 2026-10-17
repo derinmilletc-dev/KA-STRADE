@@ -19,7 +19,8 @@ export async function fetchPublicMarketData(input: string, init: RequestInit = {
     else if (response.ok) marketFailureRetryAt.delete(input)
     return response
   } catch (error) {
-    if (!(error instanceof Error && error.name === 'AbortError')) marketFailureRetryAt.set(input, Date.now() + 15000)
+    // Zaman aşımı zaten uzun bekleme demek; hemen yeniden denemeyi engellemesin. Yalnızca ağ hatalarında 15 sn beklenir.
+    if (!(error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))) marketFailureRetryAt.set(input, Date.now() + 15000)
     throw error
   }
 }

@@ -284,14 +284,19 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
     setSnapshot(current => current?.symbol === draft.market && current.timeframe === interval && !current.marketError ? current : null)
     setDataError('')
     let inFlight = false
+    // Tek bir yavaş/başarısız istekte uyarı gösterilmez: 8 sn sonra bir kez daha denenir; uyarı yalnızca art arda ikinci başarısızlıkta çıkar.
+    let failures = 0
+    let retryTimer = 0
     const refresh = async () => {
       if (inFlight) return
       inFlight = true
+      window.clearTimeout(retryTimer)
+      let retrying = false
       if (firstLoad) setDataLoading(true)
       try {
         const [candleResponse, analysisResponse, nextMtf] = await Promise.all([
-          fetchPublicMarketData(`${API_BASE}/klines/${draft.market}?interval=${interval}&limit=160`, { signal: controller.signal }, 10000),
-          fetchPublicMarketData(`${API_BASE}/analysis/${draft.market}?interval=${interval}`, { signal: controller.signal }, 10000),
+          fetchPublicMarketData(`${API_BASE}/klines/${draft.market}?interval=${interval}&limit=160`, { signal: controller.signal }, 20000),
+          fetchPublicMarketData(`${API_BASE}/analysis/${draft.market}?interval=${interval}`, { signal: controller.signal }, 20000),
           fetchMtfAnalyses(draft.market, controller.signal),
         ])
         if (!candleResponse.ok) throw await marketDataResponseError(candleResponse)
@@ -303,21 +308,30 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         if (!nextAnalysis || typeof nextAnalysis.direction !== 'string' || !Number.isFinite(nextAnalysis.confidence)) throw new MarketDataFailure('backend', 'Bu sembol için yeterli veri yok (backend geçerli analiz verisi döndürmedi).')
         setSnapshot({ symbol: draft.market, timeframe: interval, candles: nextCandles, analysis: nextAnalysis, mtf: nextMtf.analyses, mtfError: nextMtf.error, account: accountRef.current, currentPrice: nextCandles[nextCandles.length - 1]?.close ?? null, priceUpdatedAt: new Date().toISOString(), marketUpdatedAt: new Date().toISOString(), accountUpdatedAt: null, marketError: '', accountError: '' })
         setDataError('')
+        failures = 0
       } catch (error) {
         if (active && !controller.signal.aborted) {
-          const failure = marketDataFailure(error)
-          setDataError(failure.message)
-          setSnapshot(current => current ? {...current, marketError: failure.message} : current)
+          failures += 1
+          if (failures === 1) {
+            retrying = true
+            retryTimer = window.setTimeout(() => void refresh(), 8000)
+          } else {
+            const failure = marketDataFailure(error)
+            setDataError(failure.message)
+            setSnapshot(current => current ? {...current, marketError: failure.message} : current)
+          }
         }
       } finally {
         inFlight = false
-        firstLoad = false
-        if (active) setDataLoading(false)
+        if (!retrying) {
+          firstLoad = false
+          if (active) setDataLoading(false)
+        }
       }
     }
     void refresh()
     const timer = window.setInterval(() => void refresh(), 30000)
-    return () => { active = false; controller.abort(); window.clearInterval(timer) }
+    return () => { active = false; controller.abort(); window.clearInterval(timer); window.clearTimeout(retryTimer) }
   }, [draft.market, interval, marketRefreshNonce])
 
   const refreshAccountData = (forceLiveSnapshot = false): Promise<boolean> => {

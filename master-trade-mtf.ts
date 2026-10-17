@@ -30,11 +30,11 @@ export async function fetchMtfAnalyses(symbol: string, signal?: AbortSignal) {
     try {
       let analysis: DecisionAnalysis
       try {
-        analysis = await loadOnce(symbol, timeframe, signal, 10000)
+        analysis = await loadOnce(symbol, timeframe, signal, 15000)
       } catch (first) {
         if (signal?.aborted || !transient(first)) throw first
         await pause(1000, signal)
-        analysis = await loadOnce(symbol, timeframe, signal, 6000)
+        analysis = await loadOnce(symbol, timeframe, signal, 10000)
       }
       lastGood.set(key, {analysis, at: Date.now()})
       if (lastGood.size > 200) lastGood.delete(lastGood.keys().next().value as string)
