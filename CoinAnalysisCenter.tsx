@@ -68,23 +68,29 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
   const [selectorDirection,setSelectorDirection] = useState('ALL')
   const [alertDraft,setAlertDraft] = useState({signal:'ANY',score_min:85,rsi_min:0,volume_spike:false,price_crosses_ema20:false,mtf:'ANY'})
 
+  const rowsRef = useRef<Row[]>([])
+  rowsRef.current = rows
   const load = async () => {
     loadController.current?.abort()
     const controller = new AbortController()
     loadController.current = controller
     let timedOut = false
     const timeout = window.setTimeout(() => { timedOut = true; controller.abort() }, ANALYST_SCAN_TIMEOUT_MS)
-    setLoading(true); setError(''); setScanMessage('Taranıyor…')
+    // Arka plandaki yenilemede mevcut tablo silinmesin ve ekran yükleniyor durumuna dönmesin.
+    const background = rowsRef.current.length > 0
+    if (!background) { setLoading(true); setError(''); setScanMessage('Taranıyor…') }
     try {
       const response = await fetch(`${API_BASE}/analysis-universe?interval=${interval}&limit=${ANALYST_SCAN_LIMIT}`,{signal:controller.signal})
       const payload = await response.json() as {results?:Row[];detail?:string}
       if (!response.ok) throw new Error(payload.detail || 'Market data temporarily unavailable.')
       if (controller.signal.aborted) return
-      setAnalystSelection(''); setAnalystAnswer('')
+      if (!background) { setAnalystSelection(''); setAnalystAnswer('') }
       setRows(payload.results || []); setError(''); setScanMessage(`${payload.results?.length || 0} coin analiz edildi`)
       if (payload.results?.length && !payload.results.some(row => row.symbol === selected)) setSelectedSymbol(payload.results[0].symbol)
     } catch (reason) {
-      if (timedOut) {
+      if (background) {
+        if (timedOut || !controller.signal.aborted) setScanMessage('Güncelleme başarısız, son veriler gösteriliyor')
+      } else if (timedOut) {
         setRows([]); setError('Market data request timed out. Please retry.'); setScanMessage('Zaman aşımı')
       } else if (!controller.signal.aborted) {
         setRows([]); setError(reason instanceof Error ? reason.message : 'Market data temporarily unavailable.'); setScanMessage('Tarama başarısız')

@@ -386,8 +386,15 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
   const host = useRef<HTMLDivElement>(null)
   const [stream,setStream] = useState<'YÜKLENİYOR'|'CANLI'|'HATA'>('YÜKLENİYOR')
   const [updated,setUpdated] = useState('—')
+  // Üst bileşen her çizildiğinde yeni bir işlev verse bile grafik baştan kurulmasın.
+  const analysisCallback = useRef(onAnalysis)
+  const progressCallback = useRef(onAnalysisProgress)
+  analysisCallback.current = onAnalysis
+  progressCallback.current = onAnalysisProgress
 
   useEffect(() => {
+    const onAnalysis = (analysis:Analysis|null) => analysisCallback.current(analysis)
+    const onAnalysisProgress = (progress:number) => progressCallback.current?.(progress)
     if (!host.current) return
     if (!symbol) {
       setStream('HATA')
@@ -460,7 +467,7 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
     void load()
     const timer = window.setInterval(() => void load(),15000)
     return () => {active=false;activeController?.abort();window.clearInterval(timer);chart.remove();onAnalysis(null)}
-  },[symbol,interval,onAnalysis,showLevels,showEma,demoPresentation])
+  },[symbol,interval,showLevels,showEma,demoPresentation])
 
   return <div className="v26ChartShell">
     <div className="v26ChartStatus"><span className={stream === 'CANLI' ? 'live' : stream === 'HATA' ? 'error' : ''}><i/>{stream}</span></div>
