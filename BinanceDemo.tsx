@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Award, BarChart3, Bell, Calculator, CheckCircle2, ChevronDown, ClipboardList, Crosshair, FlaskConical, Gauge, History, LayoutDashboard, LineChart, LockKeyhole, Play, Radar, Radio, RefreshCw, Save, ScrollText, Search, Send, Settings2, ShieldAlert, ShieldCheck, Sparkles, Target, TestTube2, TriangleAlert, UnlockKeyhole, Wallet, X, Zap } from 'lucide-react'
+import RiskKasasiInfo from './RiskKasasiInfo'
 import { API_BASE, buildDemoSavePayload, loadDemoCredentials, saveDemoCredentials, userSessionToken } from './api'
 import {useKaisErrorReaction, useKaisWorkspaceReaction} from './useKaisPageReactions'
 import OriginalDemoControls, {checkedOriginalStatus, ORIGINAL_DEMO_ID, type DemoStrategy} from './OriginalDemoControls'
@@ -1225,7 +1226,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
     </section>}
 
     {tab === 'risk' && <section ref={workspaceRef} className="v21Workspace v21RiskManagement">
-      <header className="v21WorkspaceHead"><div className="v21HeaderTitle"><Gauge/><div><h2>Risk Kasası</h2><p>Risk limitleri ve pozisyon boyutlandırma</p></div></div><div className="v21HeaderActions"><b className="v21RiskStatus"><ShieldCheck/> Demo · 100 USDT · 2x</b><button className="v21ContextCta v21RiskReturn" onClick={() => setTab('trade')}>İşlem Masasına Dön</button></div></header>
+      <header className="v21WorkspaceHead"><div className="v21HeaderTitle"><Gauge/><div><h2>Risk Kasası</h2><p>Risk limitleri ve pozisyon boyutlandırma</p></div></div><div className="v21HeaderActions"><RiskKasasiInfo/><b className="v21RiskStatus"><ShieldCheck/> Demo · 100 USDT · 2x</b><button className="v21ContextCta v21RiskReturn" onClick={() => setTab('trade')}>İşlem Masasına Dön</button></div></header>
       <div className="v21RiskOverview">
         <div className="v21OverviewItem"><small>Risk / İşlem</small><b>{riskLoss ? `${riskLoss} USDT` : '—'}</b></div>
         <div className="v21OverviewItem"><small>Günlük Gerçekleşen</small><b className={(v21?.daily.realized_pnl || 0) >= 0 ? 'demoProfit' : 'demoLoss'}>{v21?.daily.realized_pnl === undefined ? '—' : `${fmt(v21.daily.realized_pnl)} USDT`}</b></div>

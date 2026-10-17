@@ -13,3 +13,7 @@ html body #root button.kaisInfoBtn:hover,html body #root button.kaisInfoBtn:focu
 .kaisInfoBody p{margin:0 0 8px;color:#dbe6ef}
 .kaisInfoBody ul{margin:0;padding-left:18px;display:grid;gap:6px;color:#dbe6ef}
 .kaisInfoBody .kaisInfoRisk{padding:12px 14px;border-radius:14px;background:rgba(242,196,109,.1);color:#f2dca8}
+.kaisInfoBody .kaisInfoSteps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:8px}
+.kaisInfoBody .kaisInfoSteps li{counter-increment:s;position:relative;padding:10px 12px 10px 44px;border-radius:12px;background:rgba(255,255,255,.04);color:#dbe6ef}
+.kaisInfoBody .kaisInfoSteps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:22px;height:22px;border-radius:50%;background:rgba(61,220,151,.18);color:#3ddc97;font-size:12px;font-weight:700;display:grid;place-items:center}
+.kaisInfoBody .kaisInfoSteps li b{color:#fff}
