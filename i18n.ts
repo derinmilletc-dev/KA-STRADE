@@ -23,9 +23,19 @@ let lowerMap: Record<string, string> = {}
 const trLower = (s: string) => s.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase()
 const trUpper = (s: string) => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase()
 let patterns: { re: RegExp; en: string }[] = []
+let trMode = false
+let enToTr: Record<string, string> = {}
 const cache = new Map<string, string>()
 
+function translateToTr(key: string): string | null {
+  const v = enToTr[key.toLowerCase()]
+  if (v === undefined) return null
+  const upper = key === key.toUpperCase() && /[A-Z]/.test(key) && key.length > 2
+  return upper ? trUpper(v) : v
+}
+
 function translateCore(key: string, depth: number): string | null {
+  if (trMode) return translateToTr(key)
   const hit = exact[key]
   if (hit !== undefined) return hit
   const low = lowerMap[trLower(key)]
@@ -166,7 +176,26 @@ function fixHead() {
 export async function initI18n(): Promise<void> {
   const lang = currentLang()
   document.documentElement.lang = lang
-  if (lang !== 'en') return
+  if (lang === 'tr') {
+    try {
+      const mod = await import('./i18n-tr.json')
+      enToTr = ((mod.default ?? mod) as unknown as { e: Record<string, string> }).e
+      trMode = true
+    } catch { return }
+    const startTr = () => {
+      walk(document.body)
+      const obs = new MutationObserver(records => {
+        for (const r of records) {
+          if (r.type === 'characterData') walk(r.target)
+          else if (r.type === 'attributes') { if (!skipped(r.target)) fixAttrs(r.target as Element) }
+          else r.addedNodes.forEach(n => walk(n))
+        }
+      })
+      obs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS })
+    }
+    if (document.body) startTr(); else document.addEventListener('DOMContentLoaded', startTr)
+    return
+  }
   try {
     const mod = await import('./i18n-en.json')
     const dict = (mod.default ?? mod) as unknown as Dict
