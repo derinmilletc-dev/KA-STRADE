@@ -20,3 +20,4 @@
 .langPickerList button.on{background:rgba(242,209,43,.1)}
 .langPickerList button svg{width:18px;height:18px;color:#f2d12b}
 .langPickerList p{margin:0;padding:16px;text-align:center;color:#7d8b86;font-size:13px}
+.langPickerFlag{width:32px;height:32px;border-radius:9px;overflow:hidden;flex:none;display:inline-block;box-shadow:0 0 0 1px rgba(255,255,255,.18)}.langPickerFlag svg{display:block;width:100%;height:100%}
