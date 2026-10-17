@@ -74,11 +74,21 @@ export function translateText(text: string): string {
 const ATTRS = ['placeholder', 'title', 'aria-label', 'alt']
 const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'NOSCRIPT', 'CODE', 'PRE'])
 
+/** Site adı (KaisTrade) hiçbir dilde çevrilmez: "kais<b>trade</b>" gibi bölünmüş yazımda da parçalar korunur. */
+function brandPiece(t: Text): boolean {
+  const value = (t.nodeValue ?? '').trim().toLowerCase()
+  if (!value || !/^(kais|trade|kaistrade|kais trade)$/.test(value)) return false
+  for (let el: Node | null = t.parentNode, depth = 0; el && depth < 3; el = el.parentNode, depth++) {
+    if ((el.textContent ?? '').replace(/\s+/g, '').toLowerCase().includes('kaistrade')) return true
+  }
+  return false
+}
+
 function skipped(node: Node): boolean {
   for (let el: Node | null = node; el; el = el.parentNode) {
     if (el.nodeType === 1) {
       const e = el as Element
-      if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip') || e.getAttribute('contenteditable') === 'true') return true
+      if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip') || e.getAttribute('translate') === 'no' || e.getAttribute('contenteditable') === 'true') return true
     }
   }
   return false
@@ -101,7 +111,7 @@ function fixAttrs(el: Element) {
 function walk(root: Node) {
   if (root.nodeType === 3) {
     const t = root as Text
-    if (!skipped(t)) { const v = translateText(t.nodeValue ?? ''); if (v !== t.nodeValue) t.nodeValue = v }
+    if (!skipped(t) && !brandPiece(t)) { const v = translateText(t.nodeValue ?? ''); if (v !== t.nodeValue) t.nodeValue = v }
     return
   }
   if (root.nodeType !== 1 || skipped(root)) return
@@ -111,14 +121,14 @@ function walk(root: Node) {
   while (n) {
     if (n.nodeType === 1) {
       const e = n as Element
-      if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip')) {
+      if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip') || e.getAttribute('translate') === 'no') {
         n = nextAfter(tw, e)
         continue
       }
       fixAttrs(e)
     } else {
       const t = n as Text
-      const v = translateText(t.nodeValue ?? '')
+      const v = brandPiece(t) ? t.nodeValue : translateText(t.nodeValue ?? '')
       if (v !== t.nodeValue) t.nodeValue = v
     }
     n = tw.nextNode()

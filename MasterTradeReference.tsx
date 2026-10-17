@@ -375,7 +375,7 @@ export default function MasterTradeReference(props: Props) {
   const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
   return <section className="masterReferenceAnalysis" data-layout-tab="analiz">
     <header className="refHeader masterTradeTerminalHeader">
-      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span>kais<b>trade</b></span></a>
+      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span translate="no" data-i18n-skip>kais<b>trade</b></span></a>
       <nav role="tablist" aria-label="Master Trade sections">{tabs.map(({id, label, Icon}) => <button key={id} id={`masterTradeTab-${id}`} type="button" role="tab" aria-selected={id === 'analiz'} aria-controls={`masterTradePanel-${id}`} onClick={() => props.onNavigate(id)}><Icon/>{label}</button>)}</nav>
       <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'BAĞLI' : 'BAĞLANTI YOK'}{locked && <><LockKeyhole/> KİLİTLİ</>}</span>
       <div className="masterTradeProfileSlot" aria-label="Profil menüsü"/>{props.assistantSlotRef && <div className="assistantMasterSlot" ref={props.assistantSlotRef}/>}
