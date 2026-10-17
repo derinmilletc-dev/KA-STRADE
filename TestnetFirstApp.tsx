@@ -975,7 +975,7 @@ export default function TestnetFirstApp() {
 
     {view === 'performance' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Performance hazırlanıyor…</div>}><BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} initialTab="performance" workspace="trade"/></Suspense>}
 
-    {view === 'analyst' && <CoinAnalysisCenter interval={interval} onIntervalChange={setInterval} chart={(selectedSymbol,selectedInterval,showLevels,showEma) => <TestnetMarketChart symbol={selectedSymbol} interval={selectedInterval} showLevels={showLevels} showEma={showEma} onAnalysis={() => undefined}/>}/>}
+    {view === 'analyst' && <CoinAnalysisCenter interval={interval} onIntervalChange={setInterval} onOpenTrade={selectPulseSymbol} chart={(selectedSymbol,selectedInterval,showLevels,showEma) => <TestnetMarketChart symbol={selectedSymbol} interval={selectedInterval} showLevels={showLevels} showEma={showEma} onAnalysis={() => undefined}/>}/>}
 
     {view === 'master-trade' && (
       masterTradeAccess === 'loading' ? <div className="v26Loading"><RefreshCw className="spin"/>Master Trade erişim kontrol ediliyor…</div> :
