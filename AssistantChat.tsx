@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
+import { Check, Copy, LockKeyhole, MoreHorizontal, Mic, Send, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react'
+import { useVoice } from './assistant-voice'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
@@ -191,6 +192,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   const previousLastMessage = useRef(messages.at(-1)?.id)
   const input = useRef<HTMLTextAreaElement>(null)
   const working = useRef(false)
+  const sendRef = useRef<(value: string, viaVoice?: boolean) => Promise<void>>(async () => undefined)
+  const voice = useVoice(language, transcript => { void sendRef.current(transcript, true) })
   const activeRequest = useRef<AbortController | null>(null)
   const usageRequest = useRef<AbortController | null>(null)
   const preferenceRequest = useRef<AbortController | null>(null)
@@ -416,7 +419,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   }])
   const decide = (id: string, decision: Message['decision']) => setMessages(previous => previous.map(message => message.id === id ? {...message, decision} : message))
 
-  const sendMessage = async (value: string) => {
+  const sendMessage = async (value: string, viaVoice = false) => {
     if (working.current || !usage || expired || !value.trim()) return
     const message = value.trim()
     if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return }
@@ -438,6 +441,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
       const confirmation = parseConfirmation(response.needs_confirmation)
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
+      if (viaVoice || voice.replies) voice.speak(response.reply)
     } catch (error) {
       if (controller.signal.aborted) return
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false, failed: true} : row))
@@ -448,6 +452,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
       if (!controller.signal.aborted) { working.current = false; setBusy(false); void refreshUsage() }
     }
   }
+
+  sendRef.current = sendMessage
+  useEffect(() => { if (!open) { voice.stop(); voice.stopSpeaking() } }, [open])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const confirm = async (message: Message) => {
     const approval = message.confirmation
@@ -570,7 +577,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
             data-private={privateDraft ? 'true' : undefined}
             aria-describedby={`${privateDraft ? 'assistant-secret-warning' : 'assistant-secret'} assistant-length`} onChange={event => {setDraft(event.target.value); setLengthError(false)}}
             onKeyDown={event => {if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); void sendMessage(draft)}}}/>
+            {voice.inputSupported && <button type="button" className={`assistantVoiceBtn${voice.listening ? ' listening' : ''}`} disabled={busy || !usage || expired} aria-pressed={voice.listening}
+              aria-label={voice.listening ? voice.copy.stopMic : voice.copy.mic} title={voice.listening ? voice.copy.stopMic : voice.copy.mic} onClick={() => voice.listening ? voice.stop() : voice.start()}>{voice.listening ? <Square aria-hidden="true"/> : <Mic aria-hidden="true"/>}</button>}
+            {voice.outputSupported && <button type="button" className={`assistantVoiceBtn${voice.replies ? ' on' : ''}`} aria-pressed={voice.replies} aria-label={voice.replies ? voice.copy.repliesOn : voice.copy.repliesOff}
+              title={voice.replies ? voice.copy.repliesOn : voice.copy.repliesOff} onClick={voice.toggleReplies}>{voice.replies ? <Volume2 aria-hidden="true"/> : <VolumeX aria-hidden="true"/>}</button>}
             <button type="submit" className="assistantPrimary" disabled={busy || !usage || expired || !draft.trim()} aria-label={copy.send}><Send aria-hidden="true"/></button></div>
+          {(voice.listening || voice.message) && <p className={voice.message && !voice.listening ? 'assistantError' : 'assistantVoiceStatus'} role="status" aria-live="polite">{voice.listening ? voice.copy.listening : voice.message}</p>}
+          {!voice.listening && !voice.message && voice.inputSupported && !messages.length && <p className="assistantVoiceHint">{voice.copy.hint}</p>}
           <footer><small id="assistant-secret">{!privateDraft && <><LockKeyhole aria-hidden="true"/>{copy.secret}</>}</small><small id="assistant-length" hidden={!usage || Array.from(draft).length < Math.ceil(usage.limits.max_input_chars * .8)}>{usage && `${Array.from(draft).length}/${usage.limits.max_input_chars}`}</small></footer>
           {privateDraft && <p id="assistant-secret-warning" className="assistantError" role="status">{copy.secret}</p>}
           {lengthError && usage && <p className="assistantError" role="alert">{copy.tooLong(usage.limits.max_input_chars)}</p>}

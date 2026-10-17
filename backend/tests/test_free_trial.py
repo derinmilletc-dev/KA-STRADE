@@ -128,14 +128,14 @@ def test_revoked_session_old_stripe_trial_and_paid_subscription_cannot_get_new_t
         assert failure.value.status_code == 409 and not conn.trials
 
 
-def test_trial_has_demo_and_analysis_access_but_not_assistant_live_or_unlimited_credits():
+def test_trial_has_demo_analysis_and_limited_assistant_but_not_live_or_unlimited_credits():
     conn = TrialConnection()
     async def run():
         await free_trial.start(conn,USER)
         sub = await entitlements.resolve(conn,{"subscriptions":[]},"user-a")
         rights = entitlements.access(sub,USER)
         assert sub["master_trade_access"] and rights["canExecuteMasterTrade"]
-        assert not rights["assistantAllowed"] and not rights["canExecuteLive"]
+        assert rights["assistantAllowed"] and not rights["canExecuteLive"]
         assert not rights["entitlements"]["unlimitedAnalyst"]
         request = SimpleNamespace(state=SimpleNamespace(member_entitlement_proof=entitlements.EntitlementProof("user-a",1,sub)))
         with patch("app.analyst_credits.authenticated_user",return_value=USER):
@@ -279,7 +279,7 @@ def test_real_authenticated_start_profile_and_canonical_verification(trial_api):
     profile = client.get("/api/v22/profile", headers=auth)
     assert profile.status_code == 200, profile.text
     assert profile.json()["subscription"]["mode"] == "FREE_TRIAL"
-    assert profile.json()["access"]["isPremium"] and not profile.json()["access"]["assistantAllowed"]
+    assert profile.json()["access"]["isPremium"] and profile.json()["access"]["assistantAllowed"]
     assert not profile.json()["access"]["entitlements"]["unlimitedAnalyst"]
     conn.now += timedelta(days=7)
     assert client.post("/api/v22/free-trial/start", headers=auth).status_code == 409
@@ -309,19 +309,23 @@ def test_missing_trial_schema_keeps_basic_session_but_denies_all_entitlements(tr
     ("POST","/api/assistant/proactive/check-in"),("POST","/api/assistant/proactive/preferences"),
     ("GET","/api/assistant/usage"),
 ])
-def test_real_middleware_blocks_all_assistant_surfaces_and_fails_closed(trial_api,method,path):
+def test_real_middleware_limits_assistant_to_active_trial_and_fails_closed(trial_api,method,path):
     client, conn = trial_api
     calls = []
     async def handler():
         calls.append(path)
-        return {"reply":"must never be delivered"}
+        return {"reply":"delivered"}
     client.app.add_api_route(path,handler,methods=[method])
     asyncio.run(free_trial.start(conn,{"id":"customer","auth_version":1}))
-    for days in (0,7):
-        conn.now += timedelta(days=days)
-        response = client.request(method,path,headers=headers("customer","CUSTOMER"),json={})
-        assert response.status_code == 403 and not calls
-        assert response.json()["code"] == "ASSISTANT_MASTER_MODE_REQUIRED"
+    # Aktif denemede asistan açıktır (günlük hakkı assistant_api içinde kısıtlanır).
+    response = client.request(method,path,headers=headers("customer","CUSTOMER"),json={})
+    assert response.status_code == 200 and calls == [path]
+    # Deneme bitince asistan yeniden kapanır.
+    calls.clear()
+    conn.now += timedelta(days=7)
+    response = client.request(method,path,headers=headers("customer","CUSTOMER"),json={})
+    assert response.status_code == 403 and not calls
+    assert response.json()["code"] == "ASSISTANT_MASTER_MODE_REQUIRED"
     conn.trial_failure = True
     response = client.request(method,path,headers=headers("customer","CUSTOMER"),json={})
     assert response.status_code == 503 and not calls

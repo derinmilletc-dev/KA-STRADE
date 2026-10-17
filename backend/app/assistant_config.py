@@ -37,6 +37,7 @@ class AssistantConfig(BaseSettings):
     budget_warning_fraction: Decimal = Field(default=Decimal("0.8"), gt=0, le=1, allow_inf_nan=False)
     per_minute_limit: int = Field(default=6, gt=0)
     daily_limit: int = Field(default=20, gt=0)
+    trial_daily_limit: int = Field(default=5, gt=0)
     monthly_budget_usd: Decimal = Field(default=Decimal(50), ge=0, allow_inf_nan=False)
     max_output_tokens: int = Field(default=500, gt=0)
     max_llm_calls_per_message: int = Field(default=3, gt=0, le=3)

@@ -54,7 +54,8 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
     }
     from .free_trial import enabled as trial_enabled
     if free_trial or trial_enabled():
-        result.update(canExecuteLive=paid, assistantAllowed=owner or not free_trial, freeTrial=free_trial)
+        # Aktif deneme üyeleri de asistanı (sesli dahil) kullanır; günlük hakları assistant_api içinde kısıtlanır.
+        result.update(canExecuteLive=paid, assistantAllowed=owner or not free_trial or premium, freeTrial=free_trial)
         result["entitlements"]["canExecuteLive"] = paid
     return result
 

@@ -291,6 +291,7 @@ async def assistant_chat(request: Request) -> JSONResponse:
     except ValidationError:
         audit(str(user["id"]), time.time(), None, None, warning=True)
         return reply_response(text(language, "Asistan kullanılamıyor.", "The assistant is unavailable."), language, 503)
+    config = limited_config(request, user, config)
     if len(payload.message) > config.max_input_chars or len(payload.history) > config.history_messages or len(payload.page_context or "") > config.page_context_max_chars:
         return reply_response(text(
             language,
@@ -367,6 +368,19 @@ async def assistant_confirm_analysis(request: Request) -> JSONResponse:
     return await tool_request(request, "get_analysis", confirmation=True)
 
 
+def limited_config(request: Request, user: dict[str, Any], config: AssistantConfig) -> AssistantConfig:
+    """Ücretsiz deneme üyeleri için günlük mesaj hakkı daha düşüktür."""
+    from .member_entitlements import subscription_for_request
+
+    try:
+        trial = subscription_for_request(request, user).get("mode") == "FREE_TRIAL"
+    except HTTPException:
+        trial = False
+    if trial and config.trial_daily_limit < config.daily_limit:
+        return config.model_copy(update={"daily_limit": config.trial_daily_limit})
+    return config
+
+
 async def usage_snapshot(assistant: AssistantService, user_id: str, config: AssistantConfig) -> dict[str, Any]:
     now = assistant.clock()
     row = await assistant.store.usage(user_id, config.request_timeout_seconds)
@@ -390,7 +404,7 @@ async def usage_snapshot(assistant: AssistantService, user_id: str, config: Assi
 async def assistant_usage(request: Request) -> JSONResponse:
     user = authenticated_user(request)
     try:
-        config = load_assistant_config()
+        config = limited_config(request, user, load_assistant_config())
         assistant = service(request)
         return JSONResponse(await usage_snapshot(assistant, str(user["id"]), config))
     except (ValidationError, AssistantStorageError, asyncpg.PostgresError, asyncpg.InterfaceError, sqlite3.Error, OSError, TimeoutError):

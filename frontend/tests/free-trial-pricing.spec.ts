@@ -29,14 +29,14 @@ async function setup(page:Page,{binance=true,verified=true,expired=false}={}) {
   }))
   await page.route('**/api/v22/profile',route => route.fulfill({json:{
     user:{id:'assistant-member',role:'CUSTOMER',active:true,email_verified:verified},
-    access:{isPremium:active,assistantAllowed:!active,freeTrial:active,canExecuteLive:false},
+    access:{isPremium:active,assistantAllowed:true,freeTrial:active,canExecuteLive:false},
   },headers}))
   await page.goto('/pricing',{waitUntil:'domcontentloaded'})
   await expect(page.getByRole('heading',{name:'1 Hafta Ücretsiz Deneme'})).toBeVisible()
   return {calls,assistant}
 }
 
-test('Two centered cards hide Stripe even when configured; trial starts once without checkout and disables assistant',async ({page}) => {
+test('Two centered cards hide Stripe even when configured; trial starts once without checkout and keeps the assistant available',async ({page}) => {
   const {calls,assistant} = await setup(page)
   await expect(page.locator('.freeTrialPlans .subscriptionPlan')).toHaveCount(2)
   for (const width of [1440,1280]) {
@@ -62,7 +62,7 @@ test('Two centered cards hide Stripe even when configured; trial starts once wit
   await page.getByRole('button',{name:'Ücretsiz denemeyi başlat',exact:true}).click()
   await expect(page.getByText('Kalan süre:')).toContainText('7 gün')
   await expect(page.getByRole('button',{name:'Deneme aktif',exact:true})).toBeDisabled()
-  await expect(page.locator('.assistantLauncher')).toHaveCount(0)
+  await expect(page.locator('.assistantLauncher')).toHaveCount(1)
   expect(calls).toHaveLength(1)
   expect(assistant.requests.filter(path => /^POST .*subscription/.test(path))).toEqual([])
   await expect(page.getByText('LIVE işlem MASTER MODE ile açılır',{exact:true})).toBeVisible()
