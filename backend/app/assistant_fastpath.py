@@ -47,9 +47,32 @@ def detect_language(message: str) -> Language:
     ) else "en"
 
 
+SUPPORT_PROBLEM = re.compile(
+    r"\b(yukselmedi|yukseltilmedi|yenilenmedi|aktif olmadi|aktiflesmedi|aktif degil|acilmadi|gecmedi|tanimlanmadi|yansimadi"
+    r"|odeme yaptim|odedim|parami|para cekildi|cekildi ama|kesildi|iade|geri odeme|aldim ama|satin aldim ama"
+    r"|giris yapamiyorum|hesabima giremiyorum|hesabim kilitlendi|sifremi unuttum ve|e ?posta gelmedi|mail gelmedi"
+    r"|canli destek|destek ekib|destege|destekle iletisim|musteri hizmet"
+    r"|did ?n ?t (renew|upgrade|activate)|not (activated|upgraded|renewed)|was charged|refund|payment (failed|issue|problem)"
+    r"|can ?t (log ?in|sign ?in|access my account)|contact support|customer support|support team)\b"
+)
+SUPPORT_REPLIES = {
+    "tr": "Bunu destek ekibimiz kontrol edip çözebilir. Ana sayfadaki DESTEK bölümünden (telefonda Menü → Destek) talebini gönderebilirsin; "
+          "varsa ödeme bilgisini ve ekran görüntüsünü de ekle. Talep yoğunluğuna bağlı olarak genellikle birkaç saat içinde cevabın "
+          "Destek ekranında görünür; bildirimleri açarsan cevap gelince haberdar olursun.",
+    "en": "Our support team can check and fix this. Send a request from SUPPORT on the home page (mobile: Menu → Support); "
+          "include any payment details and a screenshot if you have them. Depending on request volume, your answer usually "
+          "appears on the Support screen within a few hours; turn on notifications to be told when it arrives.",
+}
+STATUS_TR = {"ACTIVE": "aktif", "EXPIRED": "süresi dolmuş", "TRIALING": "deneme sürecinde", "FREE_TRIAL": "deneme sürecinde",
+             "CANCELED": "iptal edilmiş", "CANCELLED": "iptal edilmiş", "PAST_DUE": "ödemesi gecikmiş", "NONE": "yok", "FREE": "ücretsiz"}
+
+
 def intent(message: str) -> str | None:
     words = words_of(message)
     normalized = " ".join(re.findall(r"\w+|[?!.]", unicodedata.normalize("NFKD", message.casefold().translate(str.maketrans("çğıöşü", "cgiosu"))).replace("\u0307", "")))
+    # Hesap/abonelik/ödeme sorunu bildiren mesajlar destek ekibine yönlendirilir.
+    if SUPPORT_PROBLEM.search(normalized):
+        return "support"
     if words & {"trade", "order", "execute", "arm", "consent", "emir", "islem", "buy", "sell"}:
         return None
     if re.fullmatch(r"(?:sen kimsin|kimsin|adin ne|senin adin ne|who are you|what is your name)(?:\s*[?!.])*", normalized.strip()):
@@ -95,6 +118,8 @@ async def answer(
         return None
     if name == "identity":
         return {"reply": IDENTITY_REPLIES[language], "language": language, "sources": []}
+    if name == "support":
+        return {"reply": SUPPORT_REPLIES[language], "language": language, "sources": []}
     if name == "usage":
         try:
             if usage_reader is None:
@@ -157,7 +182,8 @@ async def answer(
     elif name == "get_my_access":
         plan = data["plan"] or ("Ücretsiz" if language == "tr" else "Free")
         premium = ("evet" if data["isPremium"] else "hayır") if language == "tr" else ("yes" if data["isPremium"] else "no")
-        reply = (f"Planın: {plan}. Durum: {data['status']}. Premium: {premium}." if language == "tr"
+        status_tr = STATUS_TR.get(str(data["status"]).upper(), str(data["status"]).lower())
+        reply = (f"Planın: {plan}, durumu: {status_tr}. Premium erişimin {'var' if data['isPremium'] else 'yok'}." if language == "tr"
                  else f"Your plan: {plan}. Status: {data['status']}. Premium: {premium}.")
     elif data["unlimited"]:
         reply = "Premium üyeliğinde analiz sınırsızdır; kredi düşmez." if language == "tr" else "Premium analysis is unlimited; no credits are spent."
