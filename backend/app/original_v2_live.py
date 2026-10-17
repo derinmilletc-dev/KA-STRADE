@@ -182,10 +182,29 @@ async def resolve_live_universe(application: Any, client: Any, config: dict[str,
     symbols = universe["ranked_symbols"][:_valid_symbol_count(config)]
     service = getattr(application.state, "public_market_data", None)
     if service is not None:
-        service.set_original_symbols(symbols)
+        service.set_original_symbols(shared_original_symbols(application, symbols))
     await configure_original_kline_stream(application, symbols)
     universe["selected_symbols"] = symbols
     return symbols
+
+
+def shared_original_symbols(application: Any, symbols: list[str]) -> list[str]:
+    """The market-data stream is shared by all members. With multi-user LIVE it must carry the
+    union of every member's symbols, so one member can never switch off another member's feed."""
+    from . import live_registry
+    if not live_registry.enabled():
+        return symbols
+    demands = getattr(application.state, "original_symbol_demands", None)
+    if not isinstance(demands, dict):
+        demands = {}
+        application.state.original_symbol_demands = demands
+    demands[live_registry.CURRENT_USER.get() or ""] = list(symbols)
+    union: list[str] = []
+    for wanted in demands.values():
+        for symbol in wanted:
+            if symbol not in union:
+                union.append(symbol)
+    return union[:100]
 
 
 async def configure_original_kline_stream(application: Any, symbols: list[str]) -> None:
@@ -193,7 +212,16 @@ async def configure_original_kline_stream(application: Any, symbols: list[str]) 
     if stream is None:
         return
     from .public_market_data import ORIGINAL_INTERVALS
-    await stream.configure(symbols, ORIGINAL_INTERVALS)
+    from . import live_registry
+    if not live_registry.enabled():
+        await stream.configure(symbols, ORIGINAL_INTERVALS)
+        return
+    lock = getattr(application.state, "original_demand_lock", None)
+    if lock is None:
+        lock = asyncio.Lock()
+        application.state.original_demand_lock = lock
+    async with lock:  # compute the union and apply it without another member interleaving
+        await stream.configure(shared_original_symbols(application, symbols), ORIGINAL_INTERVALS)
 
 
 def plan_is_original(plan: dict[str, Any]) -> bool:
@@ -843,7 +871,7 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
         ) and len(set(cached_symbols)) == len(cached_symbols):
             service = getattr(application.state, "public_market_data", None)
             if service is not None:
-                service.set_original_symbols(cached_symbols)
+                service.set_original_symbols(shared_original_symbols(application, cached_symbols))
             await configure_original_kline_stream(application, cached_symbols)
     if live.account_rate_limit_active(state):
         scanner.update(stage="RATE_LIMIT_WAIT", last_failure={

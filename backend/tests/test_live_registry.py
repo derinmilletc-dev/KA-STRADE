@@ -96,3 +96,31 @@ class LiveRegistryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedSymbolTests(unittest.TestCase):
+    """The market feed is shared: one member must never switch off another member's symbols."""
+
+    def setUp(self):
+        import importlib, sys, types
+        self.reg = reg
+        self.env = mock.patch.dict("os.environ", {"MULTI_USER_LIVE": "1", "DATABASE_URL": "postgres://x"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def union(self, app, user, symbols):
+        async def run():
+            reg.bind(user)
+            from app import original_v2_live as original
+            return original.shared_original_symbols(app, symbols)
+        return asyncio.run(run())
+
+    def test_union_keeps_everyones_symbols(self):
+        try:
+            from app import original_v2_live  # noqa: F401  (needs the full app dependencies)
+        except Exception:
+            self.skipTest("full app dependencies not installed")
+        app = SimpleNamespace(state=SimpleNamespace())
+        self.assertEqual(self.union(app, "a", ["BTCUSDT", "ETHUSDT"]), ["BTCUSDT", "ETHUSDT"])
+        self.assertEqual(self.union(app, "b", ["BTCUSDT", "SOLUSDT"]), ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+        self.assertEqual(self.union(app, "a", []), ["BTCUSDT", "SOLUSDT"])
