@@ -595,8 +595,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
             onKeyDown={event => {if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); void sendMessage(draft)}}}/>
             {voice.inputSupported && voice.outputSupported && <button type="button" className={`assistantVoiceTalk${voice.active ? ' active' : ''}`} data-phase={voice.phase}
               disabled={!voice.active && (busy || !usage || expired)} aria-pressed={voice.active}
-              aria-label={voice.active ? voice.copy.endConversation : voice.copy.conversation} title={voice.active ? voice.copy.endConversation : voice.copy.conversation}
-              onClick={() => voice.active ? voice.stop() : void voice.start()}>
+              aria-label={voice.phase === 'speaking' ? voice.copy.interrupt : voice.active ? voice.copy.endConversation : voice.copy.conversation} title={voice.phase === 'speaking' ? voice.copy.interrupt : voice.active ? voice.copy.endConversation : voice.copy.conversation}
+              onClick={() => voice.phase === 'speaking' ? voice.interrupt() : voice.active ? voice.stop() : void voice.start()}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect className="b1" x="4" y="9" width="2.4" height="6" rx="1.2"/><rect className="b2" x="8.6" y="5" width="2.4" height="14" rx="1.2"/><rect className="b3" x="13" y="7" width="2.4" height="10" rx="1.2"/><rect className="b4" x="17.6" y="9.5" width="2.4" height="5" rx="1.2"/></svg>
             </button>}
             <button type="submit" className="assistantPrimary" disabled={busy || !usage || expired || !draft.trim()} aria-label={copy.send}><Send aria-hidden="true"/></button></div>
