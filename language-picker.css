@@ -20,4 +20,15 @@
 .langPickerList button.on{background:rgba(242,209,43,.1)}
 .langPickerList button svg{width:18px;height:18px;color:#f2d12b}
 .langPickerList p{margin:0;padding:16px;text-align:center;color:#7d8b86;font-size:13px}
-.langPickerFlag{width:32px;height:32px;border-radius:9px;overflow:hidden;flex:none;display:inline-block;box-shadow:0 0 0 1px rgba(255,255,255,.18)}.langPickerFlag svg{display:block;width:100%;height:100%}
+
+#root .langPicker .langPickerFlag{all:unset;box-sizing:border-box;display:inline-flex!important;flex:none;width:34px!important;height:34px!important;min-width:34px;border-radius:50%!important;overflow:hidden;padding:0!important;margin:0!important;background:none!important;box-shadow:0 0 0 2px rgba(255,255,255,.14),0 3px 10px rgba(0,0,0,.45)!important;transition:box-shadow .15s,transform .15s}
+#root .langPicker .langPickerFlag svg{display:block!important;width:100%!important;height:100%!important;min-width:0;max-width:none;stroke:none!important;fill:none!important;transform:none!important;opacity:1!important;color:inherit!important}
+#root .langPicker .langPickerList button.on .langPickerFlag,#root .langPicker .langPickerTrigger:hover .langPickerFlag{box-shadow:0 0 0 2px #f2d12b,0 3px 12px rgba(242,209,43,.35)!important}
+#root .langPicker .langPickerList button:hover .langPickerFlag{transform:scale(1.06)}
+#root .langPicker .langPickerBadge{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:50%;background:#16231f;color:#9fb0aa;font:800 11px/1 system-ui,sans-serif;text-transform:uppercase}
+#root .langPicker .langPickerTrigger{min-height:58px;border-radius:16px;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
+#root .langPicker .langPickerPanel{border-radius:18px;background:rgba(14,22,19,.97);backdrop-filter:blur(14px)}
+#root .langPicker .langPickerList button{padding:10px 12px;border-radius:12px;gap:14px}
+#root .langPicker .langPickerList button.on{background:rgba(242,209,43,.1)}
+#root .langPicker .langPickerTrigger b,#root .langPicker .langPickerList b{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;font-weight:600;letter-spacing:0;color:#f4f7f5}
+#root .langPicker small{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:11.5px;color:#8a9a94}
