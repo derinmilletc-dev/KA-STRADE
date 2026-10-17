@@ -8497,3 +8497,14 @@ body:has(#root .liveTradingPanel.liveUx),
   html body main.adminShell.adminShell .adminTable td:nth-child(4)::before { content: "Gösterilen uyarı"; }
   html body main.adminShell.adminShell .adminTable td:nth-child(5)::before { content: "Onay / bakiye"; }
 }
+
+/* Telefon: Admin yan menüsü kaydırılabilir, öğeler sıkı ve hepsi ulaşılabilir. */
+@media (max-width: 760px) {
+  html body main.adminShell.adminShell > .adminSidebar { top: 0 !important; bottom: 0 !important; height: 100dvh !important; max-height: 100dvh !important; width: min(280px, 82vw) !important; display: flex !important; flex-direction: column !important; padding: 18px 12px calc(16px + env(safe-area-inset-bottom, 0px)) !important; overflow-y: auto !important; overflow-x: hidden !important; overscroll-behavior: contain !important; -webkit-overflow-scrolling: touch; box-sizing: border-box !important; }
+  html body main.adminShell.adminShell > .adminSidebar .adminBrand { flex: none !important; padding: 0 10px 16px !important; }
+  html body main.adminShell.adminShell > .adminSidebar > nav { flex: none !important; display: flex !important; flex-direction: column !important; align-content: flex-start !important; gap: 2px !important; height: auto !important; }
+  html body main.adminShell.adminShell > .adminSidebar > nav > button { flex: none !important; display: flex !important; align-items: center !important; gap: 12px !important; width: 100% !important; min-height: 46px !important; height: auto !important; margin: 0 !important; padding: 0 12px !important; border-radius: 12px !important; font-size: 14px !important; text-align: left !important; }
+  html body main.adminShell.adminShell > .adminSidebar > nav > button svg { flex: 0 0 19px !important; width: 19px !important; height: 19px !important; }
+  html body main.adminShell.adminShell > .adminSidebar .adminSidebarFoot { flex: none !important; margin-top: 12px !important; padding-top: 12px !important; }
+  html body main.adminShell.adminShell > .adminSidebar .adminSidebarFoot button { width: 100% !important; min-height: 44px !important; border-radius: 12px !important; }
+}
