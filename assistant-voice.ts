@@ -15,8 +15,8 @@ export const voiceCopy = {
     unsupported: 'Bu tarayıcı sesli girişi desteklemiyor. Chrome, Edge veya Safari kullan.',
     denied: 'Mikrofon izni verilmedi. Tarayıcı ayarlarından bu site için mikrofona izin ver.',
     noSpeech: 'Ses duyulmadı, tekrar dene.', failed: 'Ses algılanamadı, tekrar dene.',
-    hint: 'Mikrofona bir kez bas, sonra konuşarak sohbet et. Kais konuşurken araya girebilirsin. Bitirmek için “bitir” de.',
-    conversation: 'Sesli sohbeti başlat', endConversation: 'Sesli sohbeti bitir', thinking: 'Düşünüyorum…', speaking: 'Konuşuyor…',
+    hint: 'Mavi ses düğmesine bir kez bas, sonra konuşarak sohbet et. Kais konuşurken araya girebilirsin. Bitirmek için “bitir” de.',
+    conversation: 'Sesli sohbet', endConversation: 'Sesli sohbeti bitir', thinking: 'Düşünüyorum…', speaking: 'Konuşuyor…',
     open: 'Sohbeti aç', end: 'Bitir', ended: 'Sesli sohbet bitti.', idleEnded: 'Uzun süre ses gelmediği için sesli sohbet bitti.',
   },
   en: {
@@ -24,8 +24,8 @@ export const voiceCopy = {
     unsupported: 'This browser does not support voice input. Use Chrome, Edge or Safari.',
     denied: 'Microphone permission was not granted. Allow the microphone for this site in your browser settings.',
     noSpeech: 'No speech was heard, please try again.', failed: 'Speech could not be recognised, please try again.',
-    hint: 'Tap the microphone once, then just talk. You can interrupt Kais while it speaks. Say “stop” to end.',
-    conversation: 'Start voice chat', endConversation: 'End voice chat', thinking: 'Thinking…', speaking: 'Speaking…',
+    hint: 'Tap the blue voice button once, then just talk. You can interrupt Kais while it speaks. Say “stop” to end.',
+    conversation: 'Voice chat', endConversation: 'End voice chat', thinking: 'Thinking…', speaking: 'Speaking…',
     open: 'Open chat', end: 'End', ended: 'Voice chat ended.', idleEnded: 'Voice chat ended after a long silence.',
   },
 } as const

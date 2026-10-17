@@ -198,3 +198,21 @@ body.site-copy-protected [data-assistant-chat] * { user-select: text; -webkit-us
 .assistantVoicePill[data-phase="thinking"] .assistantVoiceDot { background: #f5c451; }
 .assistantVoicePill[data-phase="speaking"] .assistantVoiceDot { background: #6cb8ff; }
 @media (prefers-reduced-motion: reduce) { .assistantVoiceDot { animation: none; } }
+
+/* Tek tuşlu sesli sohbet düğmesi */
+.assistantComposer .assistantVoiceTalk { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3b6cf6; color: #fff; cursor: pointer; transition: background-color .16s ease, transform .16s ease; }
+.assistantComposer .assistantVoiceTalk:hover { background: #4d7bff; }
+.assistantComposer .assistantVoiceTalk:active { transform: scale(.96); }
+.assistantComposer .assistantVoiceTalk:disabled { opacity: .5; cursor: not-allowed; }
+.assistantComposer .assistantVoiceTalk:focus-visible { outline: 2px solid #9db6ff; outline-offset: 2px; }
+.assistantComposer .assistantVoiceTalk svg { width: 22px; height: 22px; fill: currentColor; }
+.assistantComposer .assistantVoiceTalk svg rect { transform-box: fill-box; transform-origin: center; }
+.assistantComposer .assistantVoiceTalk.active { background: #2f5be0; box-shadow: 0 0 0 4px #3b6cf633; }
+.assistantComposer .assistantVoiceTalk.active[data-phase="listening"] svg rect { animation: assistantTalkBars 1s ease-in-out infinite; }
+.assistantComposer .assistantVoiceTalk.active[data-phase="speaking"] svg rect { animation: assistantTalkBars .6s ease-in-out infinite; }
+.assistantComposer .assistantVoiceTalk.active[data-phase="thinking"] svg rect { animation: assistantTalkBars 1.6s ease-in-out infinite; opacity: .75; }
+.assistantComposer .assistantVoiceTalk svg .b2 { animation-delay: .15s !important; }
+.assistantComposer .assistantVoiceTalk svg .b3 { animation-delay: .3s !important; }
+.assistantComposer .assistantVoiceTalk svg .b4 { animation-delay: .45s !important; }
+@keyframes assistantTalkBars { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.45); } }
+@media (prefers-reduced-motion: reduce) { .assistantComposer .assistantVoiceTalk svg rect { animation: none !important; } }

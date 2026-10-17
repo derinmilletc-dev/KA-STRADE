@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Copy, LockKeyhole, MoreHorizontal, Mic, Send, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react'
+import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice } from './assistant-voice'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
@@ -441,7 +441,6 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
       const confirmation = parseConfirmation(response.needs_confirmation)
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
-      if (!viaVoice && voice.replies && !voice.active) voice.speak(response.reply)
       return response.reply
     } catch (error) {
       if (controller.signal.aborted) return null
@@ -587,10 +586,12 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
             data-private={privateDraft ? 'true' : undefined}
             aria-describedby={`${privateDraft ? 'assistant-secret-warning' : 'assistant-secret'} assistant-length`} onChange={event => {setDraft(event.target.value); setLengthError(false)}}
             onKeyDown={event => {if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); void sendMessage(draft)}}}/>
-            {voice.inputSupported && <button type="button" className={`assistantVoiceBtn${voice.active ? ' listening' : ''}`} disabled={!voice.active && (busy || !usage || expired)} aria-pressed={voice.active}
-              aria-label={voice.active ? voice.copy.endConversation : voice.copy.conversation} title={voice.active ? voice.copy.endConversation : voice.copy.conversation} onClick={() => voice.active ? voice.stop() : void voice.start()}>{voice.active ? <Square aria-hidden="true"/> : <Mic aria-hidden="true"/>}</button>}
-            {voice.outputSupported && <button type="button" className={`assistantVoiceBtn${voice.replies ? ' on' : ''}`} aria-pressed={voice.replies} aria-label={voice.replies ? voice.copy.repliesOn : voice.copy.repliesOff}
-              title={voice.replies ? voice.copy.repliesOn : voice.copy.repliesOff} onClick={voice.toggleReplies}>{voice.replies ? <Volume2 aria-hidden="true"/> : <VolumeX aria-hidden="true"/>}</button>}
+            {voice.inputSupported && voice.outputSupported && <button type="button" className={`assistantVoiceTalk${voice.active ? ' active' : ''}`} data-phase={voice.phase}
+              disabled={!voice.active && (busy || !usage || expired)} aria-pressed={voice.active}
+              aria-label={voice.active ? voice.copy.endConversation : voice.copy.conversation} title={voice.active ? voice.copy.endConversation : voice.copy.conversation}
+              onClick={() => voice.active ? voice.stop() : void voice.start()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect className="b1" x="4" y="9" width="2.4" height="6" rx="1.2"/><rect className="b2" x="8.6" y="5" width="2.4" height="14" rx="1.2"/><rect className="b3" x="13" y="7" width="2.4" height="10" rx="1.2"/><rect className="b4" x="17.6" y="9.5" width="2.4" height="5" rx="1.2"/></svg>
+            </button>}
             <button type="submit" className="assistantPrimary" disabled={busy || !usage || expired || !draft.trim()} aria-label={copy.send}><Send aria-hidden="true"/></button></div>
           {(voice.active || voice.message) && <p className={voice.message && !voice.active ? 'assistantError' : 'assistantVoiceStatus'} role="status" aria-live="polite">{voice.active ? phaseLabel : voice.message}</p>}
           {!voice.active && !voice.message && voice.inputSupported && !messages.length && <p className="assistantVoiceHint">{voice.copy.hint}</p>}
