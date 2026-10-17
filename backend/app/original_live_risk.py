@@ -155,7 +155,7 @@ async def save_choice(
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
-                row = await conn.fetchrow(live.V25_RISK_SNAPSHOT_UPSERT_SQL, live.V25_SNAPSHOT_KEY,
+                row = await conn.fetchrow(live.V25_RISK_SNAPSHOT_UPSERT_SQL, live.snapshot_key(state),
                                           json.dumps(payload, ensure_ascii=False), body.expected_risk_revision)
                 if row is None:
                     raise HTTPException(409, "Kalıcı durum sürümü değişti; risk ayarı uygulanmadı.")
