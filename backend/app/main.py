@@ -1504,6 +1504,8 @@ app.include_router(v27_cloud_router)
 app.include_router(exchange_connections_router)
 app.include_router(analyst_credits_router)
 app.include_router(assistant_router)
+from .web_push import router as web_push_router
+app.include_router(web_push_router)
 app.include_router(chart_ai_router)
 
 

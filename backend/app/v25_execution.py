@@ -1194,6 +1194,11 @@ def add_event(state: dict[str, Any], kind: str, message: str, **extra: Any) -> d
     row = {"id": uuid.uuid4().hex, "kind": kind, "message": message[:400], "created_at": now_iso(), **extra}
     state.setdefault("events", []).insert(0, row)
     del state["events"][MAX_EVENTS:]
+    try:
+        from .web_push import queue_event_push
+        queue_event_push(state, row)  # best effort; must never affect execution
+    except Exception:
+        pass
     return row
 
 
