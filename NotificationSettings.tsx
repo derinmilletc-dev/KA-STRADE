@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Bell, BellRing, Smartphone, Volume2} from 'lucide-react'
+import {Bell, BellRing, Info, Smartphone, Volume2} from 'lucide-react'
 import {NOTIFY_KINDS, browserNotificationState, fireNotification, loadNotifyPrefs, saveNotifyPrefs, type NotifyKind, type NotifyPrefs} from './notification-prefs'
 import {disablePush, enablePush, pushState, sendTestPush, syncPushKinds, type PushState} from './push-client'
 import './notify-settings.css'
@@ -56,6 +56,16 @@ export default function NotificationSettings() {
         <span><b><Smartphone/>Telefona bildirim</b><small>{phoneHint}</small></span>
         <Switch checked={phone === 'on'} onChange={value => void togglePhone(value)} label="Telefona bildirim"/>
       </div>
+      <details className="nsHelp">
+        <summary><Info/>iPhone'da nasıl açılır?</summary>
+        <ol>
+          <li>Siteyi iPhone'da <b>Safari</b> ile aç (Chrome olmaz).</li>
+          <li>Alttaki <b>Paylaş</b> düğmesine bas, <b>Ana Ekrana Ekle</b>'yi seç.</li>
+          <li>Ana ekrandaki <b>KaisTrade</b> simgesinden uygulamayı aç ve giriş yap.</li>
+          <li>Buraya gel, <b>Telefona bildirim</b>'i aç ve gelen soruda <b>İzin ver</b>'e bas.</li>
+        </ol>
+        <small>iPhone'un iOS 16.4 veya daha yeni olmalı. Samsung/Android'de ek bir şey gerekmez, Chrome'dan doğrudan açılır.</small>
+      </details>
       <div className="nsRow">
         <span><b><Volume2/>Ses</b><small>Bildirimle birlikte kısa bir ses çalar</small></span>
         <Switch checked={prefs.sound} onChange={value => update({...prefs, sound: value})} label="Ses"/>

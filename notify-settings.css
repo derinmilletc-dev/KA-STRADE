@@ -49,3 +49,9 @@ html body #root #notify-settings button.nsSwitch.on:active i { transform: transl
 #root #live-connection-card .nsTest svg { width: 17px; height: 17px; }
 #root #live-connection-card h2 button { border-radius: 12px !important; background: #1b2736 !important; }
 @media (max-width: 520px) { #live-connection-card .nsRow { padding: 12px; } #live-connection-card .nsTest { width: 100%; justify-content: center; } }
+
+#root #notify-settings .nsHelp { padding: 12px 16px; border-radius: 16px; background: rgba(255, 255, 255, .045) !important; color: #c9d3df; font-size: 14px; }
+#root #notify-settings .nsHelp summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #edf2f8; }
+#root #notify-settings .nsHelp summary svg { width: 18px; height: 18px; }
+#root #notify-settings .nsHelp ol { margin: 10px 0 8px; padding-left: 20px; display: grid; gap: 6px; }
+#root #notify-settings .nsHelp small { display: block; opacity: .8; }
