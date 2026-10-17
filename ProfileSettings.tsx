@@ -9,6 +9,8 @@ import NotificationSettings from './NotificationSettings'
 import LiveConnectionCard from './LiveConnectionCard'
 import {PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordPolicyError, passwordRules} from './password-policy'
 import {MARKETING_CONSENT_TEXT} from './compliance-content'
+import LanguagePicker from './LanguagePicker'
+import {currentLang, setLang, type Lang} from './i18n'
 
 type DialogKind = 'profile' | 'email' | 'password' | 'two-factor' | 'sessions' | 'activity' | 'close'
 type Notice = {kind: 'success' | 'error'; text: string}
@@ -158,6 +160,10 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
       : <><p>Google hesabınız için mevcut doğrulanmış e-posta adresine kod göndererek devam edin.</p><button type="button" disabled={busy || !data?.security.email_delivery_available} onClick={requestReauthEmail}>Doğrulama kodu gönder</button><label>E-posta kodu<input data-private="true" autoComplete="one-time-code" required value={proof.email_code || ''} onChange={event => setProof({...proof, email_code: event.target.value})}/></label></>}
     {data?.security.two_factor_enabled && <label>2FA veya kurtarma kodu<input data-private="true" autoComplete="one-time-code" required value={proof.totp_code || ''} onChange={event => setProof({...proof, totp_code: event.target.value})}/></label>}
   </fieldset>
+  const changeLanguage = (lang: Lang) => void run(async () => {
+    await accountRequest<{ok: boolean}>('/account/language', {method: 'PATCH', body: JSON.stringify({language: lang})})
+    setLang(lang)
+  })
   const savePreferences = (event: FormEvent) => {
     event.preventDefault()
     if (!preferences) return
@@ -197,6 +203,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           </div>{!data.security.email_delivery_available && <p className="accountMuted">E-posta hizmeti kullanılamıyor. E-posta değişikliği ve e-posta ile doğrulama şu anda yapılamaz.</p>}
             {data.pending_email && <div className="accountPending"><b>Doğrulama bekleyen yeni adres</b><span>{data.pending_email.email}</span><small>Son geçerlilik: {accountDate(data.pending_email.expires_at)}</small><div><button disabled={busy || !data.security.email_delivery_available} onClick={() => void run(() => mutate('/account/email/resend', {}, 'Yeni adrese doğrulama tekrar gönderildi.'))}>Tekrar gönder</button><button disabled={busy} onClick={() => void run(() => mutate('/account/email/cancel', {}, 'E-posta değişikliği iptal edildi.'))}>İptal et</button></div></div>}
           </section>
+          <section className="accountCard accountLanguage"><h2>Dil</h2><p className="accountMuted">Site ve Kais AI bu dilde konuşur. Seçtiğin dil hesabına kaydedilir; hangi cihazdan girersen gir site bu dilde açılır.</p><LanguagePicker value={currentLang()} onChange={changeLanguage} disabled={busy}/></section>
           <section className="accountCard"><h2>İşlem tercihleri</h2><form className="accountPreferences" onSubmit={savePreferences}>
             <label>Varsayılan işlem bölümü<select value={preferences.trading_mode} onChange={event => setPreferences({...preferences, trading_mode: event.target.value === 'AUTO' ? 'AUTO' : 'MANUAL'})}><option value="MANUAL">Manuel işlem</option><option value="AUTO">Auto Trade bölümü</option></select></label>
             <label>Varsayılan zaman dilimi<select value={preferences.timeframe} onChange={event => setPreferences({...preferences, timeframe: event.target.value})}>{TRADING_TIMEFRAMES.map(value => <option key={value}>{value}</option>)}</select></label>
