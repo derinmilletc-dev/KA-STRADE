@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse
 
 from .audit_log import AuditActor
+from .web_security import client_ip
 from .campaign_content import CampaignDraft, ID, token_user, validated
 from .campaign_service import (
     CampaignItem, SendCampaign, UpdateCampaign, audit, campaign_connection, campaign_row,
@@ -161,7 +162,7 @@ async def preference_change(request: Request, token: str = Query("", max_length=
         raise HTTPException(422, "Geçersiz tercih.")
     if action == "subscribe":
         raise HTTPException(409, "Tekrar ticari ileti izni vermek için giriş yapıp profil ayarlarını kullanın.")
-    bucket = "campaign-unsubscribe:" + hashlib.sha256((request.client.host if request.client else "unknown").encode()).hexdigest()
+    bucket = "campaign-unsubscribe:" + hashlib.sha256(client_ip(request).encode()).hexdigest()
     try:
         counter = await pool.fetchrow(
             """INSERT INTO commercial_auth_limits(bucket,window_start,attempts) VALUES ($1,clock_timestamp(),1)

@@ -4,7 +4,7 @@ Install 20261010_002_audit_log.sql separately before enabling audited writes.
 write_audit requires the mutation's active connection/transaction. JSON fields
 are action-allowlisted and value-validated, not general payload logging.
 Free-form reasons are stored as [REDACTED]; request IDs must be UUIDs.
-Peer IPs use /24 (IPv4) or /48 (IPv6); forwarded headers are not trusted here.
+Peer IPs use /24 (IPv4) or /48 (IPv6); the visitor address comes from client_ip(), which ignores spoofable forwarded values.
 GET /api/v22/admin/audit is OWNER-only, ordered by created_at/id descending.
 Filters: actor, target, action, created_from/created_to (timezone-aware ISO).
 Pagination: limit 1..100, offset >= 0. No update/delete endpoint exists.
@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Protocol, get_args
 
 from fastapi import APIRouter, HTTPException, Query, Request
+
+from .web_security import client_ip
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Administrative audit"])
@@ -100,7 +102,7 @@ class AuditActor:
         masked = None
         if request.client:
             try:
-                address = ipaddress.ip_address(request.client.host)
+                address = ipaddress.ip_address(client_ip(request))
                 masked = str(ipaddress.ip_network(
                     f"{address}/{24 if address.version == 4 else 48}", strict=False,
                 ))

@@ -8,6 +8,7 @@ its owner.  A later multi-tenant release can replace it with per-user scopes.
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -23,7 +24,50 @@ OWNER_GATE_PATH_PREFIXES = (
     "/api/web/access/check",
 )
 LOCAL_BOOTSTRAP_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
-VERCEL_PREVIEW_ORIGIN_RE = re.compile(r"^https://(?:frontend-nu-two-18|frontend-gh7asjvqj-ahmet-f11)(?:-[a-z0-9-]+)*\.vercel\.app$")
+
+
+_CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(item) for item in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18",
+    "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17",
+    "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
+    "2a06:98c0::/29", "2c0f:f248::/32",
+))
+
+
+def _parse_ip(value: str | None):
+    try:
+        return ipaddress.ip_address(str(value or "").strip())
+    except ValueError:
+        return None
+
+
+def _is_proxy_address(address) -> bool:
+    return bool(
+        address.is_private or address.is_loopback or address.is_link_local
+        or any(address in network for network in _CLOUDFLARE_NETWORKS if network.version == address.version)
+    )
+
+
+def client_ip(request) -> str:
+    """Real visitor address behind Render/Cloudflare.
+
+    X-Forwarded-For is read only when the direct peer is itself a proxy (private
+    or Cloudflare).  The list is scanned from the right and proxy addresses are
+    skipped, so values a visitor writes on the left can never be chosen.
+    """
+    peer = request.client.host if getattr(request, "client", None) else ""
+    peer_address = _parse_ip(peer)
+    if peer_address is None or not _is_proxy_address(peer_address):
+        return peer or "unknown"
+    forwarded = str(request.headers.get("x-forwarded-for", ""))
+    for item in reversed([part.strip() for part in forwarded.split(",") if part.strip()]):
+        address = _parse_ip(item)
+        if address is None:
+            return peer
+        if not _is_proxy_address(address):
+            return str(address)
+    return peer
 
 
 def env_flag(name: str, *, default: bool = False) -> bool:
@@ -89,7 +133,7 @@ def cors_origins(value: str | None, *, fallback: list[str] | None = None) -> lis
 
 def is_allowed_cors_origin(origin: str | None, configured_origins: set[str] | list[str] | tuple[str, ...]) -> bool:
     normalized = str(origin or "").strip().rstrip("/")
-    return normalized in configured_origins or bool(VERCEL_PREVIEW_ORIGIN_RE.fullmatch(normalized))
+    return normalized in configured_origins
 
 
 def bearer_token(value: str | None) -> str:

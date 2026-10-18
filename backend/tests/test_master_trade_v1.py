@@ -48,7 +48,7 @@ class MasterTradeSafetyTests(unittest.TestCase):
 
         main_source = (BACKEND / "app" / "main.py").read_text(encoding="utf-8")
         self.assertIn('PRODUCTION_WEB_ORIGIN', main_source)
-        self.assertIn('WEB_CORS_ORIGIN_REGEX = VERCEL_PREVIEW_ORIGIN_RE.pattern', main_source)
+        self.assertIn('WEB_CORS_ORIGIN_REGEX = None', main_source)
         self.assertNotIn('"http://127.0.0.1:4173"', main_source)
         self.assertNotIn('"http://localhost:4173"', main_source)
         self.assertNotIn('allow_origins=["*"]', main_source)

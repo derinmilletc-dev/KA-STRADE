@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 from . import account_store
 from .commercial_core import normalize_email
+from .web_security import client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ async def login_failure_limits(request, email: str, *, failed: bool = False) -> 
     rt = auth.runtime(request)
     if rt.get("auth_storage_sync_failed"):
         raise HTTPException(503, "Kimlik doğrulama depolama eşitlemesi başarısız")
-    host = request.client.host if request.client else "unknown"
+    host = client_ip(request)
     buckets = sorted([
         ("password-account:" + hashlib.sha256(normalize_email(email).encode()).hexdigest(), LOGIN_ACCOUNT),
         ("password-ip:" + hashlib.sha256(host.encode()).hexdigest(), LOGIN_IP),
