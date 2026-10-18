@@ -971,3 +971,53 @@
 #root .authCardRegister .authRegisterLinks button{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-height:48px!important;padding:0 16px!important;border-radius:14px!important;border:1px solid rgba(121,220,174,.35)!important;background:rgba(121,220,174,.07)!important;color:#79dcae!important;font:700 14px/1 system-ui,sans-serif!important;letter-spacing:.2px;transition:background .15s,border-color .15s,transform .1s}
 #root .authCardRegister .authRegisterLinks button:hover{background:rgba(121,220,174,.14)!important;border-color:rgba(121,220,174,.6)!important}
 #root .authCardRegister .authRegisterLinks button:active{transform:scale(.985)}
+
+/* ===== Profil menüsü: telefon (<=700px) yarı saydam hesap paneli. Masaüstü/tablet aynen kalır. ===== */
+html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMenu .authMemberAvatar, html body .authMemberMenu .authMemberName, html body .authMemberMenu .authMemberClose, html body .authMemberMenu .authMemberChevron, html body .authMemberMenu .authMemberMore { display: none; }
+@media (max-width: 700px) {
+  html body .authMemberScrim { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1500; background: rgba(3, 8, 14, .5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  html body .authMemberMenu.authMemberPortalMenu {
+    --am-w: min(88vw, 380px);
+    left: auto !important; right: 12px !important;
+    width: var(--am-w) !important; max-width: none !important;
+    max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain;
+    padding: 0 !important; margin: 0 !important;
+    border: 1px solid rgba(148, 181, 214, .18) !important; border-radius: 18px !important;
+    background: rgba(13, 22, 36, .86) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .28) !important;
+  }
+  html body .authMemberArrow {
+    display: block; position: fixed; z-index: 2101; width: 12px; height: 12px; pointer-events: none;
+    transform: rotate(45deg); border-top: 1px solid rgba(148, 181, 214, .18); border-left: 1px solid rgba(148, 181, 214, .18);
+    background: rgb(15, 25, 40); border-top-left-radius: 3px;
+  }
+  .authMemberMenu.authMemberPortalMenu .authMemberMenuHead {
+    position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 14px; align-items: center;
+    padding: 16px 52px 14px 16px; border-bottom: 1px solid rgba(148, 181, 214, .14);
+  }
+  .authMemberMenu.authMemberPortalMenu .authMemberMenuHead small { display: none; }
+  html body .authMemberMenu.authMemberPortalMenu .authMemberAvatar { display: grid; grid-row: 1 / span 2; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(148, 181, 214, .12); color: #e6edf5; }
+  .authMemberMenu.authMemberPortalMenu .authMemberAvatar svg { width: 26px; height: 26px; color: inherit; }
+  html body .authMemberMenu.authMemberPortalMenu .authMemberName { display: block; align-self: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f1f5f9; font: 600 17px/1.25 system-ui, sans-serif; }
+  .authMemberMenu.authMemberPortalMenu .authMemberMenuHead strong { align-self: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #93a3b6; font: 400 13px/1.3 system-ui, sans-serif; }
+  .authMemberMenu.authMemberPortalMenu .authMemberClose { display: grid !important; position: absolute; top: 6px; right: 6px; width: 40px; height: 40px; margin: 0; padding: 0; place-items: center; border: 0 !important; border-radius: 12px !important; background: transparent !important; color: #93a3b6; }
+  .authMemberMenu.authMemberPortalMenu .authMemberClose svg { width: 20px; height: 20px; color: inherit; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] {
+    display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; margin: 0 !important; padding: 12px 16px !important;
+    border: 0 !important; border-radius: 0 !important; background: transparent !important; text-align: left; color: #e6edf5;
+  }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] + button[role="menuitem"] { border-top: 1px solid rgba(148, 181, 214, .12) !important; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"]:active { background: rgba(148, 181, 214, .08) !important; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] > svg:first-child { flex: none; width: 36px; height: 36px; padding: 8px; border-radius: 12px; background: rgba(148, 181, 214, .08); color: #a9bdd3; stroke-width: 1.8; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] > span { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] b { color: #f1f5f9; font: 600 15px/1.25 system-ui, sans-serif; }
+  .authMemberMenu.authMemberPortalMenu > button[role="menuitem"] small { color: #93a3b6; font: 400 12.5px/1.3 system-ui, sans-serif; }
+  html body .authMemberMenu.authMemberPortalMenu .authMemberChevron { display: block; flex: none; width: 18px; height: 18px; color: #6f8197; }
+  html body .authMemberMenu.authMemberPortalMenu .authMemberMore { display: inline; }
+  html[lang="en"] body .authMemberMenu.authMemberPortalMenu .authMemberMore { display: none; }
+  .authMemberMenu.authMemberPortalMenu > button.authMemberLogout { margin-top: 0 !important; border-top: 1px solid rgba(148, 181, 214, .2) !important; }
+  .authMemberMenu.authMemberPortalMenu > button.authMemberLogout > svg:first-child { background: rgba(240, 128, 120, .1); color: #ef8a82; }
+  .authMemberMenu.authMemberPortalMenu > button.authMemberLogout b { color: #f0a29b; }
+  .authMemberMenu.authMemberPortalMenu > button.authMemberLogout small { color: #b98f8b; }
+}
