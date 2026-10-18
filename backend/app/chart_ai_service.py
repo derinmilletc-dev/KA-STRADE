@@ -337,14 +337,24 @@ def render_result(explanation: ModelExplanation, context: ValidatedContext) -> s
         **labels, "mtf": "MTF verisi", "market": "Piyasa verisi",
     }
     notices = []
+    trade_fields = {"signal", "entry", "stop_loss", "tp1", "tp2", "tp3"}
+    missing_trade = [code for code in context.warnings if code.rpartition("_")[0] in trade_fields
+                     and code.endswith("_missing")]
+    if missing_trade:
+        notices.append("Bu grafikte net bir işlem planı (sinyal, giriş, stop, hedef) yok; "
+                       "sistem şu an net bir fırsat görmüyor olabilir.")
     for code in context.warnings:
+        if code in missing_trade:
+            continue
         name, _, state = code.rpartition("_")
+        if name in {"adx", "atr", "volume_ratio"}:
+            continue
         label = warning_labels.get(name, "MTF güncelleme zamanı" if name.startswith("mtf_") else "Veri")
         notices.append(f"{label}: {'bayat' if state == 'stale' else 'eksik'}.")
     sections = [
         f"Genel yön\n{text['general_direction']}",
         f"Önemli seviyeler\n{text['important_levels']}\n"
-        + ("\n".join(levels) if levels else "Gösterilen seviyeler eksik; yeni seviye üretilmedi."),
+        + ("\n".join(levels) if levels else "Bu grafikte gösterilecek işlem seviyesi yok."),
         f"Yükseliş senaryosu\n{text['bullish_scenario']}",
         f"Düşüş senaryosu\n{text['bearish_scenario']}",
         f"Riskler ve veri uyarıları\n{text['risks']}\n"
