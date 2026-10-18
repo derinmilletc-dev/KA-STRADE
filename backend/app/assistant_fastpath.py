@@ -168,9 +168,8 @@ async def demo_positions_answer(tools: AssistantTools, user_id: str, language: L
     data = result.get("data") or {}
     reason = data.get("reason")
     if reason == "DEMO_OWNER_ONLY":
-        text = ("Demo pozisyon özeti şu an yalnızca yönetici hesabında kullanılabiliyor." if tr
-                else "The Demo positions summary is currently available to the owner account only.")
-        return {"reply": text, "language": language, "sources": ["get_demo_positions"], "fetched_at": result.get("fetched_at"), "stale": False}
+        # Demo özeti yalnız OWNER için: diğer üyeler önceki gibi normal akışa (model + kendi get_my_positions) gider.
+        return None
     if reason or result.get("stale"):
         text = ("Demo hesabındaki işlemleri şu an doğrulayamadım (bağlantı veya anahtar sorunu olabilir); açık işlem olmadığını söyleyemem."
                 if tr else "I could not verify your Demo positions right now (a connection or key problem is possible), so I cannot say there are none.")

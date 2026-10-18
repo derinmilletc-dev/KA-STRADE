@@ -186,7 +186,8 @@ class DirectAnswerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("doğrulayamadım", result["reply"])
             self.assertNotIn("işleminiz yok", result["reply"])
             self.assertTrue(result["stale"])
-        self.assertIn("yalnızca yönetici", (await fastpath.demo_positions_answer(FakeTools({"positions": [], "reason": "DEMO_OWNER_ONLY"}, True), "u", "tr"))["reply"])
+        # OWNER olmayan üye: hızlı yol cevap vermez, soru normal akışa (kendi pozisyon aracı) gider.
+        self.assertIsNone(await fastpath.demo_positions_answer(FakeTools({"positions": [], "reason": "DEMO_OWNER_ONLY"}, True), "u", "tr"))
         self.assertIsNone(await fastpath.demo_positions_answer(FakeTools({}, error=RuntimeError()), "u", "tr"))
 
     async def test_market_fresh_reply_has_scan_time_and_no_levels(self):
