@@ -7,6 +7,7 @@ import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
 import BackButton from './BackButton'
 import CoinAnalysisCenter from './CoinAnalysisCenter'
+import MobileHome from './MobileHome'
 import ScannerCenter from './ScannerCenter'
 import AssistantChat from './AssistantChat'
 import ComplianceContent from './ComplianceContent'
@@ -476,7 +477,22 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
   </div>
 }
 
+// Telefon ana sayfası yalnız dar ekranda; CSS :has() yerine JS medya sorgusu (performans).
+const PHONE_QUERY = '(max-width: 700px)'
+function usePhoneLayout() {
+  const [phone, setPhone] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(PHONE_QUERY)
+    const update = () => setPhone(query.matches)
+    update(); query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return phone
+}
+
 export default function TestnetFirstApp() {
+  const phoneLayout = usePhoneLayout()
   const [masterAssistantHost,setMasterAssistantHost] = useState<HTMLDivElement|null>(null)
   const [desktopHeader,setDesktopHeader] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
   useEffect(() => {
@@ -921,7 +937,7 @@ export default function TestnetFirstApp() {
     return () => window.removeEventListener('scroll',onScroll)
   },[mobileMenuOpen,notificationsOpen,marketPickerOpen,complianceOpen])
 
-  return <main ref={reactionArea} className={`v26App ${view === 'dashboard' ? 'homeRoute' : 'workspaceRoute'} ${view === 'master-trade' ? 'masterTradeRoute' : ''}${connectionState === 'offline' ? ' backendOffline' : ''}`}>
+  return <main ref={reactionArea} className={`v26App ${view === 'dashboard' ? 'homeRoute' : 'workspaceRoute'} ${view === 'master-trade' ? 'masterTradeRoute' : ''}${connectionState === 'offline' ? ' backendOffline' : ''}${view === 'dashboard' && phoneLayout ? ' mobileHomeRoute' : ''}`}>
     {tradingDefaults.error && <p className="v26MarketError" role="alert">İşlem tercihleri uygulanamadı: {tradingDefaults.error}</p>}
     {showConnectionNotice && <section className={`v26OfflineNotice ${connectionState}`} role="status" aria-live="polite"><span><i/><b>{connectionState === 'offline' ? 'Sunucu bağlantısı bekleniyor' : connectionState === 'checking' ? 'Sunucu bağlantısı kontrol ediliyor' : 'Sunucu bağlantısı kuruldu'}</b><small>{connectionState === 'offline' ? 'Veriler güncellenemiyor. Bağlantı kurulduğunda otomatik olarak yeniden denenecek.' : connectionState === 'checking' ? 'Sunucu ve piyasa verileri kontrol ediliyor…' : 'Veriler güncellenmeye devam ediyor.'}</small></span>{connectionState !== 'online' && <button type="button" onClick={() => void refresh()} disabled={loading}>{loading ? 'KONTROL EDİLİYOR…' : 'YENİDEN DENE'}</button>}</section>}
     <header className={`v26Header v26HomeHeader${headerHidden ? ' v26HeaderHidden' : ''}`} data-build-commit={BUILD_COMMIT}>
@@ -949,7 +965,8 @@ export default function TestnetFirstApp() {
       <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'support' ? 'Destek' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Ayarlar ve Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Tarama verisi üzerinden piyasa zekâsı ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'support' ? 'Sıkça sorulan sorular, hazır cevaplar ve destek ekibine mesaj.' : view === 'pricing' || view === 'billing' ? 'Planını seç, ödemeni yap, erişimini takip et.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
     </section>}
 
-    {view === 'dashboard' && <section className="v26Dashboard" aria-labelledby="dashboard-title">
+    {view === 'dashboard' && phoneLayout && <MobileHome markets={markets} onNavigate={target => target === 'billing' ? navigate('billing') : setView(target)}/>}
+    {view === 'dashboard' && !phoneLayout && <section className="v26Dashboard" aria-labelledby="dashboard-title">
       <header className="v26DashboardHero"><div><h1 id="dashboard-title"><span className="dashboardTitlePlain">İşlem</span>{' '}<span className="dashboardTitleGradient">Terminali</span></h1><p>Bir çalışma alanı seçin.</p></div></header>
       <section className="v26DashboardWorkspaces" aria-label="Çalışma alanları">
         <div className="v26DashboardChoices">
@@ -970,7 +987,7 @@ export default function TestnetFirstApp() {
         <MobileMarketPulse markets={markets} onSelect={selectPulseSymbol}/>
       </section>
     </section>}
-    {view === 'dashboard' && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="pending"/>Testnet öncelikli</span></footer>}
+    {view === 'dashboard' && !phoneLayout && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="pending"/>Testnet öncelikli</span></footer>}
 
     {view === 'trading' && <>
       <section className="v26MarketBar">
