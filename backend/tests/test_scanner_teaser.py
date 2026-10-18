@@ -32,6 +32,20 @@ class ScannerTeaserTests(unittest.TestCase):
             teaser = module.scanner_teaser(bad)
             self.assertEqual((teaser["coins_scanned"], teaser["eligible_count"], teaser["locked_count"]), (0, 0, 0))
 
+    def test_summary_shape_keeps_frontend_contract_without_leaks(self):
+        payload = {
+            "auto": {"enabled": True, "cycles": 7, "last_decision": "BTCUSDT LONG hazır"},
+            "settings": {"allowed_symbols": ["BTCUSDT"]}, "daily": {"remaining_loss_budget": 12.5},
+            "journal": [{"message": "BTCUSDT LONG"}], "automation_trades": [{"symbol": "BTCUSDT"}],
+            "certificate": {"x": 1}, "stream": {}, "account": {}, "protection": {},
+        }
+        filtered = module.public_projection(payload, allowlist=True)
+        shaped = module.summary_shape(filtered, payload)
+        self.assertEqual((shaped["journal"], shaped["automation_trades"], shaped["certificate"]), ([], [], {}))
+        self.assertEqual((shaped["auto"]["enabled"], shaped["auto"]["cycles"], shaped["auto"]["last_decision"]), (True, 7, ""))
+        self.assertEqual(shaped["daily"]["remaining_loss_budget"], 12.5)
+        self.assertNotIn("LONG", json.dumps(shaped))
+
 
 if __name__ == "__main__":
     unittest.main()

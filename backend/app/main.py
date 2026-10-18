@@ -1484,9 +1484,10 @@ async def owner_preview_gate(request, call_next):
         payload = json.loads(body)
         filtered = public_notification_projection(payload) if notification_response else public_projection(payload, allowlist=trading_payload)
         if isinstance(payload, dict) and isinstance(filtered, dict):
-            from .premium_access import scanner_teaser
+            from .premium_access import scanner_teaser, summary_shape
             if request.url.path == "/api/v21/summary":
                 filtered["scanner"] = scanner_teaser(payload.get("scanner"))
+                filtered = summary_shape(filtered, payload)
             elif request.url.path == "/api/v21/scanner":
                 filtered = scanner_teaser(payload)
         response = JSONResponse(filtered, status_code=response.status_code, headers=headers)
