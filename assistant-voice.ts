@@ -98,6 +98,9 @@ function chunks(value: string): string[] {
 /** Dilin en doğal sesini seçer (Edge "Natural"/"Online", Google, Apple gelişmiş sesleri önce). */
 const VOICE_KEY = 'kt_voice_name'
 /** Kullanıcının seçtiği ses (cihaz sesleri cinsiyet bilgisi vermediği için seçimi kullanıcı yapar). Boş = otomatik. */
+const RATE_KEY = 'kais-voice-rate'
+export const savedRate = (): number => { try { const v = Number(localStorage.getItem(RATE_KEY)); return v >= .8 && v <= 1.5 ? v : 1.15 } catch { return 1.15 } }
+export const saveRate = (value: number) => { try { localStorage.setItem(RATE_KEY, String(value)) } catch { /* yok say */ } }
 export const savedVoiceName = () => { try { return localStorage.getItem(VOICE_KEY) || '' } catch { return '' } }
 export const saveVoiceName = (name: string) => { try { if (name) localStorage.setItem(VOICE_KEY, name); else localStorage.removeItem(VOICE_KEY) } catch { /* saklanamazsa oturum boyunca geçerli olmaz */ } }
 export const voicesFor = (language: string): SpeechSynthesisVoice[] => typeof window === 'undefined' || !window.speechSynthesis ? []
@@ -177,7 +180,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = tag
       if (voice) utterance.voice = voice
-      utterance.rate = 1.15
+      utterance.rate = savedRate()
       utterance.pitch = savedVoiceName() || isKnownMale(voice) ? 1 : .7
       if (index === parts.length - 1) {
         utterance.onend = () => { window.clearTimeout(fallback); done() }
