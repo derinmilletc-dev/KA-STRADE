@@ -1,0 +1,17 @@
+.kaisOrder{position:fixed;inset:0;z-index:2600;display:flex;align-items:flex-end;justify-content:center;background:rgba(3,6,12,.78);backdrop-filter:blur(6px);padding:12px}
+.kaisOrderCard{width:min(440px,100%);max-height:92vh;overflow:auto;border:1px solid #1f2d42;border-radius:22px;background:rgba(10,16,28,.96);padding:16px;color:#e8eef7;display:grid;gap:10px}
+.kaisOrderCard header{display:flex;justify-content:space-between;align-items:center}
+.kaisOrderCard header button{width:36px;height:36px;border-radius:10px;border:1px solid #2a3d58;background:transparent;color:#9fb1c9;display:grid;place-items:center}
+.kaisOrderNote{margin:0;font-size:12px;color:#8fa3bd}
+.kaisOrderGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kaisOrderGrid label,.kaisOrderConfirm label{display:grid;gap:4px;font-size:11px;color:#8fa3bd}
+.kaisOrderCard input{height:42px;border-radius:10px;border:1px solid #2a3d58;background:#0c1422;color:#fff;padding:0 10px;font-size:15px;min-width:0}
+.kaisOrderSide{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kaisOrderSide button{height:42px;border-radius:10px;border:1px solid #2a3d58;background:#0f1a2b;color:#c5d1e3;font-weight:600}
+.kaisOrderSide button[aria-pressed=true][data-side=LONG]{background:#27D6A0;color:#04120d;border-color:#27D6A0}
+.kaisOrderSide button[aria-pressed=true][data-side=SHORT]{background:#e0675f;color:#1a0605;border-color:#e0675f}
+.kaisOrderMsg{margin:0;font-size:13px;color:#27D6A0}.kaisOrderMsg.err{color:#f08a83}
+.kaisOrderTest,.kaisOrderConfirm button{height:44px;border-radius:12px;border:1px solid #2a3d58;background:#16202f;color:#e8eef7;font-weight:600}
+.kaisOrderConfirm{display:grid;gap:8px;border-top:1px solid #1a2840;padding-top:10px}
+.kaisOrderConfirm button{background:#27D6A0;color:#04120d;border-color:#27D6A0}
+.kaisOrderConfirm button:disabled,.kaisOrderTest:disabled{opacity:.45}
