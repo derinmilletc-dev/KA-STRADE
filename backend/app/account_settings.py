@@ -712,7 +712,7 @@ async def setup_totp(payload: Proof, request: Request):
         doc["pending_totp_expires"] = time.time() + 600
         doc["pending_totp_version"] = int(user.get("auth_version", 1))
         doc["last_totp_step"] = -1
-    return {"secret": secret, "otpauth_uri": pyotp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="ProTreBot")}
+    return {"secret": secret, "otpauth_uri": pyotp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="KaisTrade")}
 
 
 @router.post("/account/2fa/enable")
