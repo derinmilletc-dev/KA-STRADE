@@ -166,10 +166,27 @@ class WebSecurityTests(unittest.TestCase):
         )
         self.assertEqual(cors_origins("", fallback=[]), [])
         self.assertTrue(is_allowed_cors_origin("https://frontend-nu-two-18.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
-        self.assertTrue(is_allowed_cors_origin("https://frontend-nu-two-18-git-main-ahmtt9871-dot.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
-        self.assertTrue(is_allowed_cors_origin("https://frontend-gh7asjvqj-ahmet-f11.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
+        self.assertFalse(is_allowed_cors_origin("https://frontend-nu-two-18-git-main-ahmtt9871-dot.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
+        self.assertFalse(is_allowed_cors_origin("https://frontend-nu-two-18-evil.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
         self.assertFalse(is_allowed_cors_origin("https://other-project.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
         self.assertFalse(is_allowed_cors_origin("http://frontend-nu-two-18.vercel.app", {"https://frontend-nu-two-18.vercel.app"}))
+
+    def test_client_ip_ignores_spoofed_forwarded_values(self):
+        from types import SimpleNamespace
+        from app.web_security import client_ip
+
+        def req(peer, forwarded=None):
+            headers = {"x-forwarded-for": forwarded} if forwarded is not None else {}
+            return SimpleNamespace(client=SimpleNamespace(host=peer), headers=headers)
+
+        self.assertEqual(client_ip(req("10.1.2.3", "9.9.9.9")), "9.9.9.9")
+        self.assertEqual(client_ip(req("10.1.2.3", "1.1.1.1, 9.9.9.9, 172.70.1.1")), "9.9.9.9")
+        self.assertEqual(client_ip(req("10.1.2.3", "9.9.9.9, 10.5.5.5")), "9.9.9.9")
+        self.assertEqual(client_ip(req("10.1.2.3")), "10.1.2.3")
+        self.assertEqual(client_ip(req("10.1.2.3", "garbage")), "10.1.2.3")
+        # A direct (non-proxy) peer cannot choose its own address.
+        self.assertEqual(client_ip(req("8.8.4.4", "1.2.3.4")), "8.8.4.4")
+        self.assertEqual(client_ip(SimpleNamespace(client=None, headers={})), "unknown")
 
     def test_production_auth_preflight_allows_login_and_session_headers(self):
         from fastapi import FastAPI

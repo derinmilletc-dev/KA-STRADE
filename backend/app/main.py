@@ -96,7 +96,7 @@ from .paper_autonomy import (
     dynamic_paper_allocation,
     rank_paper_candidates,
 )
-from .web_security import PUBLIC_PATHS, VERCEL_PREVIEW_ORIGIN_RE, bearer_token, cors_origins, env_flag, evaluate_access, is_allowed_cors_origin, validate_auth_security_configuration
+from .web_security import PUBLIC_PATHS, bearer_token, client_ip, cors_origins, env_flag, evaluate_access, is_allowed_cors_origin, validate_auth_security_configuration
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ WEB_CORS_ORIGINS = list(dict.fromkeys([
     LEGACY_PRODUCTION_WEB_ORIGIN,
     *cors_origins(os.getenv("PROTREBOT_CORS_ORIGINS"), fallback=[]),
 ]))
-WEB_CORS_ORIGIN_REGEX = VERCEL_PREVIEW_ORIGIN_RE.pattern
+WEB_CORS_ORIGIN_REGEX = None
 PAPER_ENABLED = env_flag("PROTREBOT_PAPER_ENABLED", default=True)
 RISK_PER_TRADE = 0.01
 SHORT_MTF_ALIGNMENT_MAX = 80.0
@@ -1548,7 +1548,7 @@ def monitoring_admin(request: Request) -> dict[str, Any]:
 @app.post("/api/client-errors")
 async def client_error(request: Request, payload: dict[str, Any]):
     now = time.monotonic()
-    client_key = request.client.host if request.client else "unknown"
+    client_key = client_ip(request)
     buckets = getattr(request.app.state, "client_error_buckets", {})
     request.app.state.client_error_buckets = buckets
     for key, stamps in list(buckets.items()):
@@ -1692,25 +1692,7 @@ async def admin_maintenance_set(request: Request, payload: dict[str, Any]):
 
 @app.get("/api/health")
 async def health():
-    return {
-        "status": "ok", "version": "28.0.0", "patch": DEPLOYMENT_PATCH,
-        "build_commit": os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or None,
-        "mode": "TESTNET_FIRST_CLOUD_DURABLE", "execution_mode": EXECUTION_MODE, "time": datetime.now(timezone.utc),
-        **app.state.infrastructure,
-        "paper": "DEVRE DIŞI",
-        "paper_bot": "DEVRE DIŞI",
-        "grid_engine": "DEVRE DIŞI",
-        "strategy_orchestrator": "DEVRE DIŞI",
-        "exchange_vault": "HAZIR" if getattr(app.state, "exchange_vault", {}).get("ready") else "BEKLİYOR",
-        "strategy_evolution": "DEVRE DIŞI",
-        "portfolio_risk": "DEVRE DIŞI",
-        "future_lab": "AKTİF",
-        "market_twin": app.state.market_twin.get("stream_health", "BEKLEMEDE"),
-        "testnet": testnet_readiness()["status"],
-        "live_guard": "DEVRE DIŞI" if not LIVE_CHANNEL_ENABLED else "API BEKLİYOR" if not app.state.v25_execution.get("connected") else "SALT OKUNUR BAĞLI",
-        "cloud_evidence": app.state.v27_cloud.get("status", "BAŞLIYOR"),
-        "web_access": "YÖNETİCİ KİLİTLİ" if WEB_REQUIRE_AUTH else "YEREL MOD",
-    }
+    return {"status": "ok", "time": datetime.now(timezone.utc)}
 
 
 @app.get("/api/health/database")

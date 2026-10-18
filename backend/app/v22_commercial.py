@@ -62,7 +62,7 @@ from .commercial_core import (
 )
 from .commerce_core import sanitize_business_settings
 from .local_storage import DATA_DIR, migrate_legacy_files
-from .web_security import MIN_ACCESS_TOKEN_LENGTH, bootstrap_access_allowed, env_flag, validate_auth_security_configuration
+from .web_security import MIN_ACCESS_TOKEN_LENGTH, bootstrap_access_allowed, client_ip, env_flag, validate_auth_security_configuration
 from .subscription_core import (
     ACCESS_STATUSES,
     MASTER_MODE_PRICE,
@@ -868,7 +868,7 @@ async def enforce_auth_limit(request: Request, action: str, account: str | None)
     if runtime(request).get("auth_storage_sync_failed"):
         raise HTTPException(503, "Kimlik doğrulama depolama eşitlemesi başarısız")
     limit, window = AUTH_LIMITS[action]
-    host = request.client.host if request.client else "unknown"
+    host = client_ip(request)
     identities = [("ip", host)]
     if account is not None:
         identities.append(("account", normalize_email(account)))
