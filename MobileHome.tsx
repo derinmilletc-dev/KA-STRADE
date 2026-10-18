@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Link2, Sparkles } from 'lucide-react'
 import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
@@ -21,7 +21,7 @@ const COPY = {
   tr: {greet: (h: number) => h < 5 ? 'İyi geceler' : h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar', home: 'Ana sayfa',
     liveTitle: 'Toplam bakiye · Binance Futures', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
     unrealized: 'Gerçekleşmemiş', open: (n: number) => `${n} açık işlem`, liveOff: 'Canlı hesap bağlı değil', demoOff: 'Demo hesap bağlı değil',
-    connect: 'Bağla', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
+    connect: 'Bağla', setupTitle: 'Hesabını bağla', setupText: 'Binance hesabını ya da demo hesabını bağla; bakiyen ve işlemlerin burada görünsün.', setupLive: 'Binance bağla', setupDemo: 'Demo hesap', notConnectedLink: 'Bağla', selectedOff: 'Bu hesap henüz bağlı değil.', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
     trial: 'Deneme', trialEnds: (d: string) => `${d} tarihinde sona erer`, trialOn: 'Deneme süresi devam ediyor',
     master: 'Master Mode', renews: (d: string) => `${d} tarihinde yenilenir`, ends: (d: string) => `${d} tarihinde sona erer`, active: 'Aktif',
     free: 'Ücretsiz plan', freeDetail: 'Master ile tüm sinyaller ve seviyeler', upgrade: 'Yükselt', days: (n: number) => `${n}g`,
@@ -30,7 +30,7 @@ const COPY = {
   en: {greet: (h: number) => h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', home: 'Home',
     liveTitle: 'Total balance · Binance Futures', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
     unrealized: 'Unrealized', open: (n: number) => `${n} open ${n === 1 ? 'trade' : 'trades'}`, liveOff: 'Live account not connected', demoOff: 'Demo account not connected',
-    connect: 'Connect', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
+    connect: 'Connect', setupTitle: 'Connect your account', setupText: 'Connect your Binance or demo account to see your balance and trades here.', setupLive: 'Connect Binance', setupDemo: 'Demo account', notConnectedLink: 'Connect', selectedOff: 'This account is not connected yet.', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
     trial: 'Trial', trialEnds: (d: string) => `Ends on ${d}`, trialOn: 'Trial in progress',
     master: 'Master Mode', renews: (d: string) => `Renews on ${d}`, ends: (d: string) => `Ends on ${d}`, active: 'Active',
     free: 'Free plan', freeDetail: 'All signals and levels with Master', upgrade: 'Upgrade', days: (n: number) => `${n}d`,
@@ -118,7 +118,15 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   return <section className="mobileHome" aria-label={t.home} data-i18n-skip="">
     <p className="mhHello">{t.greet(new Date().getHours())}{name ? <>, <b>{name}</b></> : null}</p>
 
-    <div className="mhBalance">
+    {!liveReady && !demoReady ? <div className="mhSetup">
+      <span className="mhSetupIcon"><Link2 aria-hidden="true"/></span>
+      <b>{t.setupTitle}</b>
+      <p>{t.setupText}</p>
+      <div className="mhSetupActions">
+        <button type="button" className="primary" onClick={() => onNavigate('setup')}>{t.setupLive}</button>
+        <button type="button" onClick={() => onNavigate('setup')}>{t.setupDemo}</button>
+      </div>
+    </div> : <div className="mhBalance">
       <div className="mhBalanceHead">
         <small>{active === 'live' ? t.liveTitle : t.demoTitle}</small>
         <div className="mhTabs" role="tablist" aria-label={t.account}>
@@ -133,17 +141,19 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
       </> : <div className="mhEmpty">
-        <span>{active === 'live' ? t.liveOff : t.demoOff}</span>
+        <span>{t.selectedOff}</span>
         <button type="button" onClick={() => onNavigate('setup')}>{t.connect}</button>
       </div>}
       <div className="mhOther">
         <span>{active === 'live' ? t.demoAcc : t.liveAcc}</span>
-        <span>{otherReady && other ? <><b>{money(other.wallet_balance as number)}</b> USDT</> : t.notConnected}</span>
+        {otherReady && other ? <span><b>{money(other.wallet_balance as number)}</b> USDT</span>
+          : <button type="button" className="mhLink" onClick={() => onNavigate('setup')}>{t.notConnectedLink}<ChevronRight aria-hidden="true"/></button>}
       </div>
-    </div>
+    </div>}
 
     <button type="button" className={`mhPlan mhPlan-${plan.kind}`} onClick={() => onNavigate('billing')}>
-      <span className="mhRing" style={{'--p': `${Math.round(plan.progress * 100)}%`} as CSSProperties}><span>{plan.days === null ? (plan.kind === 'free' ? '—' : '✓') : t.days(plan.days)}</span></span>
+      {plan.kind === 'free' ? <span className="mhRing mhRingIcon"><span><Sparkles aria-hidden="true"/></span></span>
+        : <span className="mhRing" style={{'--p': `${Math.round(plan.progress * 100)}%`} as CSSProperties}><span>{plan.days === null ? '✓' : t.days(plan.days)}</span></span>}
       <span className="mhPlanText"><b>{plan.title}</b><small>{plan.detail}</small></span>
       {plan.kind === 'master' ? <span className="mhPlanState">{t.active}</span> : <span className="mhPlanCta">{t.upgrade}</span>}
     </button>

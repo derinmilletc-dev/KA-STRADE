@@ -75,3 +75,19 @@ html body #root main.v26App .mhOpp > svg { width: 18px !important; height: 18px 
 @media (max-width: 700px) {
   html body #root > main.v26App.homeRoute.homeRoute.mobileHomeRoute > .v26Header .v26Refresh { display: none !important; }
 }
+
+/* Hesap bağlı değilken: hata değil, davet. */
+html body #root main.v26App .mhSetup { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border-radius: 18px; background: var(--mh-s1); }
+html body #root main.v26App .mhSetupIcon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 4px; border-radius: 11px; background: var(--mh-s2); color: var(--mh-up); }
+html body #root main.v26App .mhSetupIcon svg { width: 18px; height: 18px; }
+html body #root main.v26App .mhSetup b { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+html body #root main.v26App .mhSetup p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--mh-mut); }
+html body #root main.v26App .mhSetupActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 10px; }
+html body #root main.v26App .mhSetupActions button { height: 40px !important; min-height: 0 !important; margin: 0 !important; padding: 0 12px !important; border: 0 !important; border-radius: 12px !important; background: var(--mh-s2) !important; color: var(--mh-tx) !important; font-size: 13px !important; font-weight: 600 !important; box-shadow: none !important; }
+html body #root main.v26App .mhSetupActions button.primary { background: var(--mh-tx) !important; color: #09090b !important; }
+html body #root main.v26App .mhEmpty span { font-size: 13.5px; }
+html body #root main.v26App .mobileHome button.mhLink { display: inline-flex !important; align-items: center !important; gap: 2px !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; color: var(--mh-up) !important; font-size: 13px !important; font-weight: 500 !important; }
+html body #root main.v26App .mhLink svg { width: 15px; height: 15px; }
+html body #root main.v26App .mhRingIcon { background: var(--mh-s2) !important; }
+html body #root main.v26App .mhRingIcon span { color: #d4d4d8; }
+html body #root main.v26App .mhRingIcon svg { width: 17px; height: 17px; }
