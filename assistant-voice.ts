@@ -15,6 +15,7 @@ export const voiceCopy = {
     unsupported: 'Bu tarayıcı sesli girişi desteklemiyor. Chrome, Edge veya Safari kullan.',
     denied: 'Mikrofon izni verilmedi. Tarayıcı ayarlarından bu site için mikrofona izin ver.',
     noSpeech: 'Ses duyulmadı, tekrar dene.', failed: 'Ses algılanamadı, tekrar dene.',
+    noAnswer: 'Cevap alınamadı. Bağlantını ya da kullanım hakkını kontrol et.', speechFailed: 'Sesli cevap oynatılamadı; yazılı cevap sohbette.',
     hint: 'Mavi ses düğmesine bir kez bas, sonra konuşarak sohbet et. Kais konuşurken araya girebilirsin. Bitirmek için “bitir” de.',
     conversation: 'Sesli sohbet', endConversation: 'Sesli sohbeti bitir', interrupt: 'Sözünü kes', thinking: 'Düşünüyorum…', speaking: 'Konuşuyor…',
     open: 'Sohbeti aç', end: 'Bitir', ended: 'Sesli sohbet bitti.', idleEnded: 'Uzun süre ses gelmediği için sesli sohbet bitti.',
@@ -24,6 +25,7 @@ export const voiceCopy = {
     unsupported: 'This browser does not support voice input. Use Chrome, Edge or Safari.',
     denied: 'Microphone permission was not granted. Allow the microphone for this site in your browser settings.',
     noSpeech: 'No speech was heard, please try again.', failed: 'Speech could not be recognised, please try again.',
+    noAnswer: 'No answer received. Check your connection or usage limit.', speechFailed: 'The spoken reply could not be played; the written reply is in the chat.',
     hint: 'Tap the blue voice button once, then just talk. You can interrupt Kais while it speaks. Say “stop” to end.',
     conversation: 'Voice chat', endConversation: 'End voice chat', interrupt: 'Interrupt', thinking: 'Thinking…', speaking: 'Speaking…',
     open: 'Open chat', end: 'End', ended: 'Voice chat ended.', idleEnded: 'Voice chat ended after a long silence.',
@@ -109,6 +111,8 @@ function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string
   return matching.sort((a, b) => score(b) - score(a))[0]
 }
 
+const coarsePointer = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+
 export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
 
@@ -124,6 +128,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   callback.current = onTranscript
   const active = useRef(false)
   const failures = useRef(0)
+  const noAnswers = useRef(0)
   const lastSpeech = useRef(0)
   const speakToken = useRef(0)
   const [phase, setPhase] = useState<VoicePhase>('off')
@@ -141,7 +146,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const speak = useCallback((text: string, onDone?: () => void) => {
     const clean = speakableText(text)
     if (!outputSupported || !clean) { onDone?.(); return }
-    window.speechSynthesis.cancel()
+    // Chrome Android'de cancel() hemen ardından speak() ilk cümleyi yutabiliyor; yalnız bir şey çalıyorsa iptal et.
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) window.speechSynthesis.cancel()
+    window.speechSynthesis.resume()
     const token = ++speakToken.current
     const voices = window.speechSynthesis.getVoices()
     const voice = pickVoice(voices, tag, base)
@@ -159,9 +166,13 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         utterance.onend = () => { window.clearTimeout(fallback); done() }
         utterance.onerror = () => { window.clearTimeout(fallback); done() }
       }
+      utterance.addEventListener('error', event => {
+        const reason = (event as SpeechSynthesisErrorEvent).error
+        if (reason && reason !== 'canceled' && reason !== 'interrupted' && token === speakToken.current) setMessage(copy.speechFailed)
+      })
       window.speechSynthesis.speak(utterance)
     })
-  }, [base, outputSupported, tag])
+  }, [base, copy, outputSupported, tag])
 
   const end = useCallback((note = '') => {
     active.current = false
@@ -179,9 +190,18 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   /** Soruyu gönderir, cevabı okur; okurken araya girilirse dinlemeye devam eder. */
   const answer = useCallback((question: string) => {
     setPhase('thinking')
+    setMessage('')
     void callback.current(question).then(reply => {
       if (!active.current) return
-      if (!reply) { setPhase('listening'); listenRef.current(false); return }
+      if (!reply) {
+        // Cevap gelmediyse (bağlantı, hak, oturum) sessizce dinlemeye dönme; nedenini göster, 3 kez üst üste olursa bitir.
+        noAnswers.current += 1
+        if (noAnswers.current >= 3) { noAnswers.current = 0; end(copy.noAnswer); return }
+        setMessage(copy.noAnswer); setPhase('listening')
+        window.setTimeout(() => { if (active.current && !recognition.current) listenRef.current(false) }, 600)
+        return
+      }
+      noAnswers.current = 0
       setPhase('speaking')
       let finished = false
       lastReply.current = {text: reply, startedAt: Date.now(), endedAt: 0}
@@ -198,9 +218,10 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         }
       })
       // Kais konuşurken de dinle: kullanıcı araya girerse susup onu dinleriz.
-      if (!finished) listenRef.current(true, reply)
+      // Telefonda hoparlör sesi mikrofona karışıyor ve Android dinleme sırasında konuşma sesini kısabiliyor: araya girme yalnız düğmeyle.
+      if (!finished && !coarsePointer()) listenRef.current(true, reply)
     })
-  }, [speak])
+  }, [copy, end, speak])
 
   const listen = useCallback((bargeIn = false, spoken = '') => {
     const Constructor = recognitionConstructor()

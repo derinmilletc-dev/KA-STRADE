@@ -511,7 +511,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
 
   const phaseLabel = voice.phase === 'thinking' ? voice.copy.thinking : voice.phase === 'speaking' ? voice.copy.speaking : voice.copy.listening
   const voicePill = voice.active && !open && createPortal(<div className="assistantVoicePill" data-phase={voice.phase} role="status" aria-live="polite">
-      <button type="button" className="assistantVoicePillMain" onClick={openChat} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {phaseLabel}</button>
+      <button type="button" className="assistantVoicePillMain" onClick={openChat} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {voice.message || phaseLabel}</button>
       <button type="button" className="assistantVoicePillEnd" onClick={voice.stop} aria-label={voice.copy.endConversation}><X aria-hidden="true"/>{voice.copy.end}</button>
     </div>, document.body)
 
@@ -600,7 +600,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect className="b1" x="4" y="9" width="2.4" height="6" rx="1.2"/><rect className="b2" x="8.6" y="5" width="2.4" height="14" rx="1.2"/><rect className="b3" x="13" y="7" width="2.4" height="10" rx="1.2"/><rect className="b4" x="17.6" y="9.5" width="2.4" height="5" rx="1.2"/></svg>
             </button>}
             <button type="submit" className="assistantPrimary" disabled={busy || !usage || expired || !draft.trim()} aria-label={copy.send}><Send aria-hidden="true"/></button></div>
-          {(voice.active || voice.message) && <p className={voice.message && !voice.active ? 'assistantError' : 'assistantVoiceStatus'} role="status" aria-live="polite">{voice.active ? phaseLabel : voice.message}</p>}
+          {(voice.active || voice.message) && <p className={voice.message && !voice.active ? 'assistantError' : 'assistantVoiceStatus'} role="status" aria-live="polite">{voice.active ? (voice.message || phaseLabel) : voice.message}</p>}
           {!voice.active && !voice.message && voice.inputSupported && !messages.length && <p className="assistantVoiceHint">{voice.copy.hint}</p>}
           <footer><small id="assistant-secret">{!privateDraft && <><LockKeyhole aria-hidden="true"/>{copy.secret}</>}</small><small id="assistant-length" hidden={!usage || Array.from(draft).length < Math.ceil(usage.limits.max_input_chars * .8)}>{usage && `${Array.from(draft).length}/${usage.limits.max_input_chars}`}</small></footer>
           {privateDraft && <p id="assistant-secret-warning" className="assistantError" role="status">{copy.secret}</p>}
