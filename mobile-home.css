@@ -157,3 +157,16 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
     flex: none !important;
   }
 }
+
+/* Yalnız telefon ana sayfası: üst menü ayrı bir şerit olmasın, sayfanın lacivert zeminiyle bütünleşsin.
+   Diğer sayfaların (İşlem, Analist, Master, Menü) üst menüsü değişmez. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.mobileHomeRoute.mobileHomeRoute.mobileHomeRoute.mobileHomeRoute > .v26Header.v26HomeHeader.v26HomeHeader {
+    background: transparent !important;
+    background-image: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}
