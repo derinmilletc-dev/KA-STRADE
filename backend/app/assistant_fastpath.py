@@ -75,6 +75,16 @@ def intent(message: str) -> str | None:
         return "support"
     if words & {"trade", "order", "execute", "arm", "consent", "emir", "islem", "buy", "sell"}:
         return None
+    if len(words) <= 12:
+        # Piyasa özeti: tarayıcı adayları ve 24s hareketliler (yalnız okuma; model gerekmez).
+        if re.search(r"\b(en cok (yukselen|artan|dusen|kaybeden)|en iyi (long|short)|en yuksek guven|guveni en yuksek|guven skoru en yuksek|en iyi firsat|top (gainer|loser)s?|best (long|short)|highest confidence)\b", normalized):
+            return "get_market_overview"
+        # Demo hesap pozisyonları / kâr-zarar: yalnızca kişisel ve güncel bir ifade varsa.
+        if (any(word.startswith(("pozisyonlarim", "pozisyonum", "islemlerim", "islemim")) for word in words)
+                or ("my" in words and words & {"positions", "position", "trades"})
+                or ("acik" in words and any(word.startswith(("pozisyon", "islem")) for word in words))
+                or (words & {"kar", "zarar", "pnl"} and any(word.startswith("durum") for word in words))):
+            return "get_demo_positions"
     if re.fullmatch(r"(?:sen kimsin|kimsin|adin ne|senin adin ne|who are you|what is your name)(?:\s*[?!.])*", normalized.strip()):
         return "identity"
     if any(word.startswith(("analiz", "analysis")) for word in words) and any(
@@ -107,6 +117,68 @@ def intent(message: str) -> str | None:
     if words & {"price", "cost", "much"} and words <= {"what", "is", "the", "price", "how", "much", "does", "it", "cost"}:
         return "get_plans"
     return None
+
+
+def money(value: Any) -> str:
+    try:
+        return f"{float(value):+.2f}"
+    except (TypeError, ValueError):
+        return "?"
+
+
+async def demo_positions_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
+    """Binance Demo açık pozisyonları. Doğrulanamazsa None döner: soru normal akışa (model) gider, uydurma cevap verilmez."""
+    try:
+        result = await tools.dispatch(user_id, "get_demo_positions", {})
+    except Exception:  # noqa: BLE001 - hızlı yol hiçbir zaman hata cevabı üretmez
+        return None
+    data = result.get("data") or {}
+    if "reason" in data or result.get("stale"):
+        return None
+    positions = data.get("positions") or []
+    if not positions:
+        reply = ("Şu an açık Demo işleminiz yok; dolayısıyla kâr/zarar durumunuz da yok." if language == "tr"
+                 else "You have no open Demo positions right now, so there is no profit or loss.")
+    else:
+        rows = []
+        for row in positions:
+            pnl = money(row.get("unrealized_pnl"))
+            side = row.get("direction") or ""
+            rows.append((f"{row.get('symbol')} {side}: {pnl} USDT" + (" (kâr)" if pnl.startswith("+") and pnl != "+0.00" else " (zarar)" if pnl.startswith("-") else "")) if language == "tr"
+                        else f"{row.get('symbol')} {side}: {pnl} USDT")
+        reply = ("Açık Demo işlemleriniz: " if language == "tr" else "Your open Demo positions: ") + "; ".join(rows) + "."
+    return {"reply": reply, "language": language, "sources": ["get_demo_positions"],
+            "fetched_at": result.get("fetched_at"), "stale": False}
+
+
+async def market_overview_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
+    """Tarayıcı adayları + 24s hareketliler. Premium değilse, tarama yoksa veya veri alınamadıysa None (model akışı)."""
+    try:
+        result = await tools.dispatch(user_id, "get_market_overview", {})
+    except Exception:  # noqa: BLE001
+        return None
+    data = result.get("data") or {}
+    scan, movers = data.get("scan") or {}, data.get("movers") or {}
+    if "reason" in data or result.get("stale") or scan.get("note") or movers.get("note"):
+        return None
+    def brief(row: dict | None) -> str:
+        return "" if not row else f"{row.get('symbol')} (fırsat {row.get('opportunity_score')}, güven {row.get('confidence_label') or row.get('confidence')})" if language == "tr" \
+            else f"{row.get('symbol')} (opportunity {row.get('opportunity_score')}, confidence {row.get('confidence_label') or row.get('confidence')})"
+    parts = []
+    gainers = movers.get("top_gainers") or []
+    if gainers:
+        parts.append(("24 saatte en çok yükselen: " if language == "tr" else "Top 24h gainer: ") + f"{gainers[0]['symbol']} %{gainers[0]['change_24h_percent']}")
+    for key, label_tr, label_en in (("best_long", "En iyi long adayı", "Best long candidate"), ("best_short", "En iyi short adayı", "Best short candidate"),
+                                    ("highest_confidence", "Güveni en yüksek", "Highest confidence")):
+        text = brief(scan.get(key))
+        if text:
+            parts.append(f"{label_tr if language == 'tr' else label_en}: {text}")
+    if not parts:
+        return None
+    suffix = (f" Tarama zamanı: {scan.get('last_scan_at')}. Bunlar analiz çıktısıdır, al/sat talimatı değildir." if language == "tr"
+              else f" Scan time: {scan.get('last_scan_at')}. These are analysis outputs, not trading instructions.")
+    return {"reply": ". ".join(parts) + "." + suffix, "language": language, "sources": ["get_market_overview"],
+            "fetched_at": result.get("fetched_at"), "stale": False}
 
 
 async def answer(
@@ -163,6 +235,10 @@ async def answer(
             reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
         return {"reply": reply, "language": language, "sources": [name],
                 "fetched_at": result["fetched_at"], "stale": result["stale"]}
+    if name == "get_demo_positions":
+        return await demo_positions_answer(tools, user_id, language)
+    if name == "get_market_overview":
+        return await market_overview_answer(tools, user_id, language)
     result = await tools.dispatch(user_id, name, {})
     data = result["data"]
     if name == "get_plans":
