@@ -56,25 +56,19 @@ export const FAQS: Faq[] = [
     "id": "f5",
     "category": "billing",
     "q": "Ücretsiz deneme nasıl çalışır?",
-    "a": "Yeni üyelere 7 günlük ücretsiz deneme sunulur. Deneme süresince Master Trade özelliklerini kullanabilirsin. Süre sonunda abonelik, abonelik sayfasında gösterilen koşullarla otomatik başlar. İstediğin zaman iptal edebilirsin."
+    "a": "Yeni üyelere 7 günlük ücretsiz deneme sunulur. Deneme süresince Master Trade özelliklerini kullanabilirsin. Süre sonunda üyelik kendiliğinden yenilenmez. Devam etmek istersen abonelik sayfasından Binance ile ödeme yaparsın."
   },
   {
     "id": "f6",
     "category": "billing",
     "q": "Aboneliğimi nasıl iptal ederim?",
-    "a": "Abonelik sayfasındaki faturalama portalından aboneliğini iptal edebilirsin. İptal ettikten sonra ödediğin dönemin sonuna kadar erişimin devam eder."
-  },
-  {
-    "id": "f7",
-    "category": "billing",
-    "q": "Ödeme bilgilerim güvende mi?",
-    "a": "Ödemeler Stripe üzerinden güvenle işlenir. KaisTrade kart bilgilerini kendi sistemlerinde saklamaz."
+    "a": "Ödemeler Binance ile yapıldığı için otomatik ödeme veya bir sonraki ay kendiliğinden para çekme yoktur; iptal etmen gereken bir şey de yok. Üyeliğin bittiğinde devam etmek istersen yeniden ödeme yaparak üyeliğini uzatırsın, istemezsen hiçbir şey yapmana gerek kalmaz ve üyeliğin süre sonunda kendiliğinden biter. Yapılan ödemelerin iadesi yapılmaz."
   },
   {
     "id": "f8",
     "category": "billing",
     "q": "Ödemem başarısız oldu, ne yapmalıyım?",
-    "a": "Abonelik sayfasından ödeme yöntemini güncelle. Ödeme yeniden denenirken Master Trade erişimin geçici olarak devam eder. Güncelleme yapmazsan abonelik sona erebilir."
+    "a": "Destek sayfasındaki "Destek ekibine yaz" bölümünden bize ulaş. Ödeme bilgini ve yaşadığın sorunu yazman yeterli, ekibimiz en kısa sürede dönüş yapar."
   },
   {
     "id": "f9",
