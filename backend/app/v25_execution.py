@@ -6084,6 +6084,7 @@ def init_v25_execution(application: Any) -> None:
     if live_registry.enabled():
         registry = live_registry.LiveRegistry(application, new_member_state, member_engine)
         application.state.live_registry = registry
+        observation.OWNER_ID_PROVIDER = lambda: (application.state.v22_commercial["state"].get("owner_user_id") or "")
         registry.system["recovery_loaded"] = False  # the startup restore runs once, like the shared engine
         application.state.v25_execution_stopping = False
         add_event(registry.system, "V25_START", "V25 Live Guard başladı (çok kullanıcılı mod); canlı giriş ve otomasyon güvenlik için kapalı.")
