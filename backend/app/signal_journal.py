@@ -414,16 +414,52 @@ class Observer:
 _observer: Observer | None = None
 
 
+# Multi-user LIVE: the research journal must never mix members. The OWNER keeps the original
+# journal file; every other member gets a separate file of their own.
+_member_observers: dict[str, Observer] = {}
+OWNER_ID_PROVIDER: Any = None
+
+
+def _base_path() -> Path:
+    return Path(os.environ.get("PROTREBOT_SIGNAL_JOURNAL_PATH") or DATA_DIR / "live-signal-journal.sqlite3")
+
+
+def _member_to_journal() -> str:
+    """Member whose own journal this task writes to; '' means the original (OWNER/legacy) journal."""
+    from . import live_registry
+    if not live_registry.enabled():
+        return ""
+    user = live_registry.CURRENT_USER.get() or ""
+    try:
+        owner = str(OWNER_ID_PROVIDER() or "") if OWNER_ID_PROVIDER else ""
+    except Exception:
+        owner = ""
+    return "" if (not user or user == owner) else user
+
+
+def _observer_for(member: str) -> Observer:
+    global _observer
+    if not member:
+        if _observer is None or _observer.stopping.is_set():
+            _observer = Observer(Journal(_base_path()))
+        return _observer
+    observer = _member_observers.get(member)
+    if observer is None or observer.stopping.is_set():
+        import hashlib
+        base = _base_path()
+        digest = hashlib.sha256(member.encode("utf-8")).hexdigest()[:16]
+        observer = Observer(Journal(base.with_name(f"{base.stem}-{digest}{base.suffix}")))
+        _member_observers[member] = observer
+    return observer
+
+
 def emit(kind: str, **data: Any) -> None:
     """Only bounded, nonblocking enqueue; failures never escape to trading."""
     global _observer
     try:
         if not env_flag("PROTREBOT_SIGNAL_JOURNAL_ENABLED", default=True):
             return
-        if _observer is None or _observer.stopping.is_set():
-            path = Path(os.environ.get("PROTREBOT_SIGNAL_JOURNAL_PATH") or DATA_DIR / "live-signal-journal.sqlite3")
-            _observer = Observer(Journal(path))
-        _observer.publish(kind, ROUND.get(), data)
+        _observer_for(_member_to_journal()).publish(kind, ROUND.get(), data)
     except Exception as exc:
         if _observer is not None:
             _observer.dropped += 1
@@ -463,6 +499,12 @@ def finish_round(token: Token | None, reason: str | None) -> None:
 
 def shutdown() -> None:
     global _observer
+    for member_observer in list(_member_observers.values()):
+        try:
+            member_observer.close()
+        except Exception as exc:
+            report_error("SIGNAL_OBSERVATION_SHUTDOWN_FAILED error_type=%s", type(exc).__name__)
+    _member_observers.clear()
     if _observer is not None:
         try:
             _observer.close()

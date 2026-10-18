@@ -3677,85 +3677,99 @@ async def _abort_protection_installation(
     raise BinanceDemoError(close_message, http_status=409)
 
 
+async def _protect_demo_state(application: Any, user_id: str, state: dict[str, Any]) -> None:
+    if not state.get("plans"):
+        return
+    if not user_id and not credentials_configured():
+        return
+    try:
+        client = client_for_state(application, state)
+        await recover_pending_entry_intents(client, state)
+        changed = False
+        plans = [candidate for candidate in state["plans"].values() if isinstance(candidate, dict)]
+        for plan in plans:
+            if plan.get("status") in {"KAPANDI", "İPTAL", "GÜVENLİK İÇİN KAPATILDI"}:
+                continue
+            rows = response_rows(
+                await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": plan["symbol"]})
+            )
+            active_position = next((row for row in rows if Decimal(str(row.get("positionAmt", "0"))) != 0), None)
+            if not can_mutate_lifecycle(plan):
+                if active_position is None and plan.get("position_status") == "OPEN":
+                    if _within_plan_reconciliation_grace(plan):
+                        continue
+                    cleaned = await cleanup_closed_plan(
+                        client,
+                        plan,
+                        allow_closed_position_cleanup=True,
+                        plans=plans,
+                    )
+                    if cleaned:
+                        plan.update({"status": "KAPANDI", "position_status": "CLOSED", "remaining_quantity": "0", "closed_at": utc_now()})
+                        add_event(state, "POZİSYON KAPANDI", f"{plan['symbol']} Demo pozisyonu kapandı; kalan bot emirleri temizlendi.")
+                        changed = True
+                continue
+            if active_position is not None and plan.get("stop_protection_cancelled"):
+                continue
+            if active_position is not None:
+                lifecycle_before = (
+                    plan.get("remaining_quantity"), plan.get("position_status"),
+                    plan.get("tp1_status"), plan.get("tp2_status"), plan.get("tp3_status"),
+                )
+                update_position_lifecycle(plan, Decimal(str(active_position["positionAmt"])))
+                lifecycle_after = (
+                    plan.get("remaining_quantity"), plan.get("position_status"),
+                    plan.get("tp1_status"), plan.get("tp2_status"), plan.get("tp3_status"),
+                )
+                changed = changed or lifecycle_before != lifecycle_after
+            if active_position is not None:
+                protection_snapshot = await _fresh_protection_snapshot(client, plan["symbol"])
+                protection_state, _matched_ids, _missing_ids = _protection_classification(
+                    plan, protection_snapshot, plans=plans
+                )
+                if protection_state == "MISSING":
+                    changed = await _repair_missing_stop_protection(
+                        client, state, plan, protection_snapshot, plans=plans
+                    ) or changed
+                elif protection_state == "UNKNOWN":
+                    continue
+            elif active_position is None and plan.get("position_status") == "OPEN":
+                if _within_plan_reconciliation_grace(plan):
+                    continue
+                cleaned = await cleanup_closed_plan(client, plan, plans=plans)
+                if cleaned:
+                    plan["status"] = "KAPANDI"
+                    plan["position_status"] = "CLOSED"
+                    plan["remaining_quantity"] = "0"
+                    plan["closed_at"] = utc_now()
+                    add_event(state, "POZİSYON KAPANDI", f"{plan['symbol']} Demo pozisyonu kapandı; kalan bot emirleri temizlendi.")
+                    changed = True
+        if changed:
+            persist_runtime(state)
+    except BinanceDemoError as exc:
+        state["last_error"] = str(exc)[:240]
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        state["last_error"] = str(exc)[:240]
+
+
 async def protection_loop(application: Any) -> None:
+    # Members are checked at the same time (a few at once) so many members do not delay each other's protection.
+    limit = asyncio.Semaphore(8)
+
+    async def guarded(user_id: str, state: dict[str, Any]) -> None:
+        async with limit:
+            await _protect_demo_state(application, user_id, state)
+
     while True:
         await asyncio.sleep(2)
         states = [("", application.state.binance_demo)] + list(_demo_user_store(application).items())
-        for user_id, state in states:
-            if not state.get("plans"):
-                continue
-            if not user_id and not credentials_configured():
-                continue
-            try:
-                client = client_for_state(application, state)
-                await recover_pending_entry_intents(client, state)
-                changed = False
-                plans = [candidate for candidate in state["plans"].values() if isinstance(candidate, dict)]
-                for plan in plans:
-                    if plan.get("status") in {"KAPANDI", "İPTAL", "GÜVENLİK İÇİN KAPATILDI"}:
-                        continue
-                    rows = response_rows(
-                        await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": plan["symbol"]})
-                    )
-                    active_position = next((row for row in rows if Decimal(str(row.get("positionAmt", "0"))) != 0), None)
-                    if not can_mutate_lifecycle(plan):
-                        if active_position is None and plan.get("position_status") == "OPEN":
-                            if _within_plan_reconciliation_grace(plan):
-                                continue
-                            cleaned = await cleanup_closed_plan(
-                                client,
-                                plan,
-                                allow_closed_position_cleanup=True,
-                                plans=plans,
-                            )
-                            if cleaned:
-                                plan.update({"status": "KAPANDI", "position_status": "CLOSED", "remaining_quantity": "0", "closed_at": utc_now()})
-                                add_event(state, "POZİSYON KAPANDI", f"{plan['symbol']} Demo pozisyonu kapandı; kalan bot emirleri temizlendi.")
-                                changed = True
-                        continue
-                    if active_position is not None and plan.get("stop_protection_cancelled"):
-                        continue
-                    if active_position is not None:
-                        lifecycle_before = (
-                            plan.get("remaining_quantity"), plan.get("position_status"),
-                            plan.get("tp1_status"), plan.get("tp2_status"), plan.get("tp3_status"),
-                        )
-                        update_position_lifecycle(plan, Decimal(str(active_position["positionAmt"])))
-                        lifecycle_after = (
-                            plan.get("remaining_quantity"), plan.get("position_status"),
-                            plan.get("tp1_status"), plan.get("tp2_status"), plan.get("tp3_status"),
-                        )
-                        changed = changed or lifecycle_before != lifecycle_after
-                    if active_position is not None:
-                        protection_snapshot = await _fresh_protection_snapshot(client, plan["symbol"])
-                        protection_state, _matched_ids, _missing_ids = _protection_classification(
-                            plan, protection_snapshot, plans=plans
-                        )
-                        if protection_state == "MISSING":
-                            changed = await _repair_missing_stop_protection(
-                                client, state, plan, protection_snapshot, plans=plans
-                            ) or changed
-                        elif protection_state == "UNKNOWN":
-                            continue
-                    elif active_position is None and plan.get("position_status") == "OPEN":
-                        if _within_plan_reconciliation_grace(plan):
-                            continue
-                        cleaned = await cleanup_closed_plan(client, plan, plans=plans)
-                        if cleaned:
-                            plan["status"] = "KAPANDI"
-                            plan["position_status"] = "CLOSED"
-                            plan["remaining_quantity"] = "0"
-                            plan["closed_at"] = utc_now()
-                            add_event(state, "POZİSYON KAPANDI", f"{plan['symbol']} Demo pozisyonu kapandı; kalan bot emirleri temizlendi.")
-                            changed = True
-                if changed:
-                    persist_runtime(state)
-            except BinanceDemoError as exc:
-                state["last_error"] = str(exc)[:240]
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                state["last_error"] = str(exc)[:240]
+        results = await asyncio.gather(*(guarded(user_id, state) for user_id, state in states), return_exceptions=True)
+        for result in results:
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+
 
 
 def init_binance_demo(application: Any) -> None:
