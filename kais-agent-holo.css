@@ -35,9 +35,7 @@
 .kaisHoloScanBand[data-on=true]{opacity:1}
 .kaisHoloScanBand i{position:absolute;left:4%;right:4%;top:0;height:2px;background:linear-gradient(90deg,transparent,rgba(170,255,235,.9),transparent);box-shadow:0 0 8px rgba(39,214,160,.55);animation:kaisHoloScan 1.5s ease-in-out infinite}
 .kaisHoloFloor{position:absolute;left:14%;right:14%;bottom:-22px;height:28px;border-radius:50%;border:1px solid rgba(39,214,160,.22);background:radial-gradient(ellipse,rgba(39,214,160,.14),rgba(39,214,160,0) 68%);pointer-events:none}
-/* Ana göz hareketsiz: bileşenin yerleşik kırpma/bakış/etkileşim hareketleri yalnızca bu ekranda CSS ile kapatılır (kaynak dosyalar değişmez). */
-.kaisHoloEye .kaisEye,.kaisHoloEye .kaisEye *{animation:none!important;transition:none!important}
-.kaisHoloEye .kaisEyeGaze,.kaisHoloEye .kaisEyeOpening{transform:none!important}
+/* Ana göz: bileşenin KENDİ yerleşik hareketleri (bakış, düşünürken iris dönüşü, kırpma) açık; kaynak dosyalar ve geometri değişmez. */
 .kaisHoloChips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:340px}
 .kaisHoloChip{font:11px ui-monospace,monospace;padding:4px 8px;border:1px solid rgba(39,214,160,.4);border-radius:8px;background:rgba(10,24,22,.78);color:#27D6A0}
 .kaisHoloStatus{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#27D6A0;margin:0}
@@ -63,3 +61,9 @@
 .kaisHoloConfirm button.ok{background:#27D6A0;border-color:#27D6A0;color:#04120d}
 .kaisHoloConfirm button:disabled{opacity:.5}
 .kaisHoloSlow{margin:0;font-size:12px;color:#9fb1c9;text-align:center;max-width:320px}
+.kaisVoicePicker{position:absolute;top:max(14px,env(safe-area-inset-top));left:16px;z-index:4}
+.kaisVoicePickerToggle{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.7);color:#9fb1c9;font-size:13px}
+.kaisVoicePickerToggle svg{width:16px;height:16px}
+.kaisVoicePicker ul{list-style:none;margin:6px 0 0;padding:6px;width:min(280px,78vw);max-height:48vh;overflow:auto;border:1px solid #2a3d58;border-radius:14px;background:rgba(8,14,24,.96)}
+.kaisVoicePicker li button{width:100%;text-align:left;padding:10px 10px;border-radius:10px;border:0;background:transparent;color:#c5d1e3;font-size:13px}
+.kaisVoicePicker li button[aria-selected=true]{background:rgba(39,214,160,.16);color:#27D6A0}
