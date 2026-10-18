@@ -97,7 +97,7 @@ function RefErrorNotice({message}: {message: string}) {
   const offline = /^Bağlantı kesildi/.test(title)
   return <div className={`refError${offline ? ' refErrorOffline' : ''}`} role="alert">
     <span className="refErrorIcon" aria-hidden="true">{offline ? <WifiOff/> : <TriangleAlert/>}</span>
-    <span className="refErrorText"><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
+    <span className="refErrorText"><strong>{title}</strong>{detail && <small>{detail.split(/(?<=\.)\s+/).map((sentence, index) => <span key={index}>{index ? ' ' : ''}{sentence}</span>)}</small>}</span>
   </div>
 }
 
