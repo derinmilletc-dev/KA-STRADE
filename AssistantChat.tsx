@@ -50,7 +50,7 @@ type Usage = {remaining: number; total: number; resetsAt: string; limits: Limits
 type ProactivePreferences = {enabled: boolean; available: boolean; poll_interval_seconds: number}
 type Confirmation = {action: 'get_analysis'; symbol: string; timeframe: string; cost: number; confirmation_token: string}
 type Message = {id: string; role: 'user' | 'assistant'; content: string; language: Language; proactive?: boolean; unread?: boolean; confirmation?: Confirmation; decision?: 'pending' | 'confirmed' | 'cancelled' | 'expired'; pending?: boolean; failed?: boolean}
-type Issue = {kind: 'network' | 'session' | 'limit' | 'budget' | 'unavailable' | 'invalid' | 'forbidden' | 'credits' | 'secretBlocked'; reply?: string; retry?: number; confirmation?: boolean; checkIn?: boolean}
+type Issue = {kind: 'network' | 'session' | 'limit' | 'budget' | 'unavailable' | 'invalid' | 'forbidden' | 'credits' | 'secretBlocked'; reply?: string; retry?: number; status?: number; confirmation?: boolean; checkIn?: boolean}
 const launcherIntroKey = 'protrebot-kais-launcher-seen'
 
 function readLauncherIntro(): {show: boolean; problem: boolean} {
@@ -134,7 +134,7 @@ function issueFor(error: unknown, confirmation = false): Issue {
   const kind = error.status === 401 ? 'session' : error.status === 403 ? 'forbidden'
     : error.code === 'budget' ? 'budget' : error.code === 'invalid_response' ? 'invalid'
     : error.status === 429 ? confirmation ? 'credits' : 'limit' : 'unavailable'
-  return {kind, reply: error.reply, retry: error.retry, confirmation}
+  return {kind, reply: error.reply, retry: error.retry, status: error.status, confirmation}
 }
 
 function analysisText(payload: Record<string, unknown>, language: Language): string {
@@ -488,6 +488,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (confirmation && confirmation.cost === 0) {
         // Sunucunun belirlediği (token'a bağlı) maliyet 0 ise hiçbir kredi harcanmaz: "devam edeyim mi?" sorusu atlanır, analiz doğrudan getirilir.
         // Maliyeti 0'dan büyük her istek eskisi gibi ayrı, dokunuşla verilen onay ister.
+        setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Analysis requested' : 'Analiz isteniyor'])
         const done = await request('analysis/confirm', controller.signal, {symbol: confirmation.symbol, timeframe: confirmation.timeframe, confirmation_token: confirmation.confirmation_token, confirm: true})
         if (controller.signal.aborted) return null
         const summary = analysisText(done, language)
@@ -584,11 +585,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
         onConfirm: () => void confirm(pending), onCancel: () => { decide(pending.id, 'cancelled'); setIssue(null) }}
     })()} phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
-      status={voice.message || phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
+      status={voice.message ? `${voice.message}${issue ? ` (${copy[issue.kind as keyof typeof copy] as string}${issue.status ? ` · ${issue.status}` : ''})` : ''}` : phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
       onOpenChat={() => { setHoloOpen(false); openChat() }}
-      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} onRetry={voice.retry} onMinimize={() => setHoloOpen(false)}/>}
+      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} slowText={language === 'en' ? 'The server is taking longer than usual…' : 'Sunucu her zamankinden uzun sürüyor, bekliyorum…'} onRetry={voice.retry} onMinimize={() => setHoloOpen(false)}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>
