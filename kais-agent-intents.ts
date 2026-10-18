@@ -21,10 +21,24 @@ const VERB = /\b(ac|acar misin|git|gotur|goster|gec|open|go to|show|take me)\b/
 const fold = (value: string) => value.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
 
+export type MasterTab = 'analiz'|'canli'|'baglanti'|'pozisyonlar'
+const TABS: {tab: MasterTab; re: RegExp; label: {tr: string; en: string}}[] = [
+  {tab: 'pozisyonlar', re: /\b(pozisyon|position|emir|order)/, label: {tr: 'Master Pozisyonlar', en: 'Master Positions'}},
+  {tab: 'baglanti', re: /\b(baglanti|connection)/, label: {tr: 'Master Bağlantı', en: 'Master Connection'}},
+  {tab: 'canli', re: /\b(canli|live)/, label: {tr: 'Master Canlı', en: 'Master Live'}},
+  {tab: 'analiz', re: /\banaliz\b.*\b(sekme|tab)|\b(sekme|tab)\b.*\banaliz/, label: {tr: 'Master Analiz', en: 'Master Analysis'}},
+]
+
 /** "analist aç", "master'a git", "open scanner" → hedef sayfa. Emin değilse null (mesaj normal şekilde modele gider). */
-export function parseNavigation(message: string, language: 'tr' | 'en'): {view: AgentView; label: string} | null {
+export function parseNavigation(message: string, language: 'tr' | 'en'): {view: AgentView; label: string; tab?: MasterTab} | null {
   const text = fold(message)
-  if (!text || text.split(' ').length > 6 || !VERB.test(text)) return null
+  if (!text || text.split(' ').length > 8 || !VERB.test(text)) return null
+  // Master Trade sekmesi: yalnızca "master" geçiyorsa (ör. "master trade pozisyonlar sekmesini aç").
+  if (/\bmaster/.test(text)) {
+    const tab = TABS.find(item => item.re.test(text))
+    if (tab) return {view: 'master-trade', label: tab.label[language], tab: tab.tab}
+  }
+  if (text.split(' ').length > 6) return null
   // Para harcayan/belirsiz istekler (ör. "BTC analizi aç") sayfa komutu sayılmaz.
   if (/\banaliz/.test(text)) return null
   const hit = PAGES.find(page => page.names.some(name => new RegExp(`\\b${name}`).test(text)))

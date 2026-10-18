@@ -91,3 +91,4 @@
 @keyframes kaisPupilBreath{50%{opacity:.15}}
 @keyframes kaisPupilBlip{0%,100%{opacity:0}40%,60%{opacity:1}}
 @keyframes kaisPupilWave{0%{transform:scale(.1);opacity:.9}100%{transform:scale(1);opacity:0}}
+.kaisVoiceRate{display:flex!important;gap:6px!important;margin:6px 0!important}.kaisVoiceRate button{flex:1!important;padding:6px 4px!important;border:1px solid rgba(0,229,255,.4)!important;background:rgba(0,20,30,.7)!important;color:#bff!important;border-radius:8px!important;font-size:12px!important}.kaisVoiceRate button[aria-pressed=true]{background:rgba(0,229,255,.25)!important}

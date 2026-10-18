@@ -5,6 +5,7 @@ import { useVoice } from './assistant-voice'
 import KaisAgentHolo from './KaisAgentHolo'
 import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
+import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
 import { parseNavigation, type AgentView } from './kais-agent-intents'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
@@ -428,6 +429,22 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (!controller.signal.aborted) setPreferenceBusy(false)
     }
   }
+  useEffect(() => {
+    const timer = window.setInterval(async () => {
+      const rows = loadAlerts(); if (!rows.length) return
+      const left: typeof rows = []
+      for (const row of rows) {
+        const price = await fetchPrice(row.symbol)
+        const hit = price !== null && (row.side === 'above' ? price >= row.level : price <= row.level)
+        if (!hit) { left.push(row); continue }
+        const text = language === 'en' ? `${row.symbol} reached ${price}. Your alert at ${row.level} fired.` : `${row.symbol} ${price} oldu. ${row.level} alarmın tetiklendi.`
+        append(text, language)
+        voice.speak(text)
+      }
+      saveAlerts(left)
+    }, 15000)
+    return () => window.clearInterval(timer)
+  })
   const append = (content: string, replyLanguage: Language, confirmation?: Confirmation) => setMessages(previous => [...previous, {
     id: crypto.randomUUID(), role: 'assistant', content, language: replyLanguage, ...(confirmation ? {confirmation, decision: 'pending' as const} : {}),
   }])
@@ -438,6 +455,25 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     const message = value.trim()
     if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return null }
     if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); return null }
+    const localReply = (reply: string, action: string) => {
+      setDraft(''); setIssue(null); setLengthError(false)
+      setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
+      append(reply, language)
+      setAgentActions(previous => [...previous.slice(-3), action])
+      return reply
+    }
+    const alert = parseAlert(message)
+    if (alert) {
+      saveAlerts([...loadAlerts(), {...alert, id: crypto.randomUUID()}])
+      const level = String(alert.level)
+      return localReply(language === 'en'
+        ? `Alert set: I will tell you when ${alert.symbol} goes ${alert.side === 'above' ? 'above' : 'below'} ${level}. It works only while this site is open.`
+        : `Alarm kuruldu: ${alert.symbol} ${level} ${alert.side === 'above' ? 'üstüne çıkınca' : 'altına inince'} haber vereceğim. Yalnızca site açıkken çalışır.`, language === 'en' ? 'Price alert' : 'Fiyat alarmı')
+    }
+    if (/\b(neredeyim|bu ekranda ne var|hangi sayfa|where am i|what.s on (this|the) screen)/i.test(message.toLocaleLowerCase('tr'))) {
+      const tab = new URLSearchParams(window.location.search).get('tab')
+      return localReply(language === 'en' ? `You are on the ${pageContext}${tab ? ` page, "${tab}" tab` : ' page'}. Ask about positions or your account and I will check the real data.` : `Şu an ${({dashboard: 'ana', 'master-trade': 'Master Trade', analyst: 'Analist', scanner: 'Tarama', trading: 'İşlem', performance: 'Performans', risk: 'Risk'} as Record<string, string>)[pageContext] ?? pageContext} sayfasındasın${tab ? `, "${tab}" sekmesi` : ''}. Pozisyonlarını ya da hesabını sorarsan gerçek veriden bakarım.`, language === 'en' ? 'Screen info' : 'Ekran bilgisi')
+    }
     const nav = onNavigate ? parseNavigation(message, language) : null
     if (nav && onNavigate) {
       // Aşama 1: sayfa açma komutu yerelde çalışır; model/ağ isteği yok, veri okunmaz, işlem yapılmaz.
@@ -447,6 +483,10 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       append(reply, language)
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? `${nav.label} opened` : `${nav.label} açıldı`])
       setOpen(false); onNavigate(nav.view)
+      if (nav.tab) window.setTimeout(() => {
+        window.history.replaceState({}, '', `/master-trade?tab=${nav.tab}`)
+        window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0)
+      }, 80)
       if (viaVoice) window.setTimeout(() => setHoloOpen(false), 1800)
       return reply
     }
