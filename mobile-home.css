@@ -91,3 +91,28 @@ html body #root main.v26App .mhLink svg { width: 15px; height: 15px; }
 html body #root main.v26App .mhRingIcon { background: var(--mh-s2) !important; }
 html body #root main.v26App .mhRingIcon span { color: #d4d4d8; }
 html body #root main.v26App .mhRingIcon svg { width: 17px; height: 17px; }
+
+/* Telefon üst menü: kalın siyah zemin yerine ince, yarı saydam, hafif bulanık bar.
+   Logo, ikonlar ve düğmelerin kendisi değişmez; yalnız barın yüksekliği ve zemini. */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26Header.v26HomeHeader.v26HomeHeader {
+    min-height: 0 !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 2px) !important;
+    padding-bottom: 2px !important;
+    background: rgba(8, 10, 15, .66) !important;
+    -webkit-backdrop-filter: saturate(1.4) blur(14px) !important;
+    backdrop-filter: saturate(1.4) blur(14px) !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  /* Logo görseli şeffaf kenar boşluklarıyla 79px yükseklik veriyordu; görünen logo aynı yerde kalır, bar kısalır. */
+  html body #root > main.v26App > .v26Header.v26HomeHeader > .v26Brand {
+    display: flex !important;
+    align-items: center !important;
+    height: 50px !important;
+    overflow: visible !important;
+  }
+  html body #root > main.v26App > .v26Header.v26HomeHeader > .v26Brand > .v26BrandLogo {
+    flex: none !important;
+  }
+}
