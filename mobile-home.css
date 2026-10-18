@@ -177,3 +177,10 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
     transform: translateX(calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px)) !important;
   }
 }
+
+/* Telefon üst menü: bildirim butonu biraz sağa (profil ikonuna yaklaşır). */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26Header.v26HomeHeader .v26Notifications {
+    transform: translateX(6px);
+  }
+}
