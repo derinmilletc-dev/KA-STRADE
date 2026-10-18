@@ -558,11 +558,12 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo phase={voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
+    {holoVisible && <KaisAgentHolo phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
       status={voice.message || phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
-      onOpenChat={() => { setHoloOpen(false); openChat() }} onMinimize={() => setHoloOpen(false)}/>}
+      onOpenChat={() => { setHoloOpen(false); openChat() }}
+      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} onRetry={() => { voice.stop(); window.setTimeout(() => void voice.start(), 250) }} onMinimize={() => setHoloOpen(false)}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>
