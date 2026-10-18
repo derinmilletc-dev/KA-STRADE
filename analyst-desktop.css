@@ -1,0 +1,126 @@
+/* Analist sayfası — yalnızca bilgisayar görünümü (telefon/tablet stillerine dokunmaz). */
+@media (min-width: 1025px) {
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter {
+    --ad-card: #121a24; --ad-card2: #172230; --ad-line: rgba(255,255,255,.07);
+    --ad-ink: #eaf1f7; --ad-mute: #93a3b5; --ad-acc: #3ddc97; --ad-bad: #ff8479; --ad-warn: #f2c46d;
+  }
+  /* Ana yerleşim: üstte başlık ve komut kartları, altta solda coin listesi, sağda büyük sonuç + soru alanı */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace {
+    display: grid !important; grid-template-columns: minmax(340px, 400px) minmax(0, 1fr) !important;
+    grid-auto-rows: auto; gap: 20px !important; padding: 28px !important; border-radius: 28px !important;
+    background: linear-gradient(160deg, #11201f 0%, #0f1822 38%, #0d141c 100%) !important;
+    border: 1px solid rgba(61,220,151,.16) !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystLowerGrid, .analystDetailColumn) {
+    display: contents !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystWorkspaceHeader, .analystCommandGrid, .analystCreditError) { grid-column: 1 / -1 !important; }
+
+  /* Başlık */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystWorkspaceHeader {
+    display: flex !important; align-items: flex-start !important; justify-content: space-between !important; gap: 24px !important; padding: 0 0 4px !important;
+    background: transparent !important; border: 0 !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystWorkspaceHeader h2 { font-size: 32px !important; letter-spacing: -.02em; margin: 6px 0 8px !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystWorkspaceHeader p { max-width: 560px; font-size: 14px !important; line-height: 1.6 !important; color: var(--ad-mute) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystEyebrow {
+    display: inline-block; padding: 5px 12px; border-radius: 999px; background: rgba(61,220,151,.12) !important; color: var(--ad-acc) !important; letter-spacing: .14em !important; font-weight: 800 !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystHeaderControls {
+    display: flex !important; flex-wrap: nowrap; justify-content: flex-end; flex: 0 1 auto; align-items: stretch !important; gap: 12px !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystCreditBadge, .analystWorkspaceContext, .analystAutoScan) {
+    background: rgba(255,255,255,.045) !important; border: 1px solid var(--ad-line) !important; border-radius: 16px !important; padding: 12px 16px !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCreditBadge { border-color: rgba(61,220,151,.3) !important; background: rgba(61,220,151,.08) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCreditBadge strong { font-size: 16px !important; color: var(--ad-acc); }
+
+  /* Komut grupları: üç eşit kart */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystQuickGroup, .analystDecisionGroup, .analystCommandGroup) { grid-column: auto !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCommandGrid {
+    display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 16px !important; align-items: stretch;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCommandGroup {
+    background: var(--ad-card) !important; border: 1px solid var(--ad-line) !important; border-radius: 20px !important; padding: 18px !important; display: flex; flex-direction: column; gap: 14px;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCommandGroup > header { padding: 0 !important; gap: 10px !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCommandGroup > header > span {
+    display: inline-flex !important; align-items: center; justify-content: center; width: 30px !important; height: 30px !important; border-radius: 10px !important;
+    background: rgba(61,220,151,.14) !important; color: var(--ad-acc) !important; font-weight: 800; font-size: 12px;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCommandItems { gap: 8px !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystCommandItems, .analystPromptChips) button {
+    border: 1px solid var(--ad-line) !important; background: rgba(255,255,255,.045) !important; border-radius: 999px !important; padding: 9px 15px !important; font-size: 13px; font-weight: 600;
+    transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystCommandItems, .analystPromptChips) button:hover { background: rgba(255,255,255,.1) !important; border-color: rgba(61,220,151,.4) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace :is(.analystCommandItems, .analystPromptChips) button.active { background: var(--ad-acc) !important; border-color: var(--ad-acc) !important; color: #06281a !important; }
+
+  /* Coin seçici: solda, iki satır boyunca */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCoinSelector {
+    grid-column: 1 !important; grid-row: 3 / span 2 !important; align-self: stretch !important; display: flex !important; flex-direction: column; gap: 14px !important;
+    background: var(--ad-card) !important; border: 1px solid var(--ad-line) !important; border-radius: 22px !important; padding: 20px !important; min-width: 0;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCoinSelector > header { display: grid !important; gap: 4px; padding: 0 !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorToolbar { display: grid !important; gap: 10px !important; grid-template-columns: 1fr !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorFilters { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #0b1118; border-radius: 12px; padding: 4px; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorFilters button { border-radius: 9px !important; padding: 8px 0 !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorFilters button.active { background: var(--ad-acc) !important; color: #06281a !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList {
+    flex: 1 1 auto; min-height: 0; max-height: 520px !important; grid-auto-rows: auto !important; gap: 6px !important; padding-right: 4px;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button {
+    display: grid !important; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto !important; align-items: center; gap: 10px;
+    border: 1px solid transparent !important; border-radius: 14px !important; padding: 10px 12px !important; background: rgba(255,255,255,.035) !important; min-height: 56px;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button:hover { background: rgba(255,255,255,.08) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__),
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__):hover {
+    background: rgba(61,220,151,.1) !important; border-color: rgba(61,220,151,.5) !important; color: var(--ad-ink) !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__) :is(b, strong, small) { color: inherit; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__) .analystSelectorSignal.negative strong { color: var(--ad-bad) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__) .analystSelectorSignal.positive strong { color: var(--ad-acc) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystSelectorList > button.selected:not(#_):not(#__) small { color: var(--ad-mute) !important; }
+
+  /* Detaylı analiz sonucu: sağ sütunun tamamını doldurur */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace {
+    grid-column: 2 !important; grid-row: 3 !important; align-self: stretch !important; display: flex !important; flex-direction: column !important; gap: 22px !important;
+    min-height: 380px; margin: 0 !important; padding: 28px !important; border: 1px solid var(--ad-line) !important; border-radius: 22px !important; background: var(--ad-card) !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace > header { padding: 0 !important; align-items: center !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace h3 { font-size: 26px !important; letter-spacing: -.02em; margin: 6px 0 0 !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace > header > strong {
+    padding: 10px 16px; border-radius: 14px; background: var(--ad-card2); font-size: 15px !important; letter-spacing: .02em;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot {
+    display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 14px !important; margin: 0 !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot > div {
+    display: grid; gap: 8px; align-content: center; min-height: 96px; padding: 18px !important; border-radius: 18px !important; background: var(--ad-card2) !important; border: 1px solid var(--ad-line) !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot small { font-size: 11px !important; letter-spacing: .12em; font-weight: 700; color: var(--ad-mute) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot b { font-size: 20px !important; line-height: 1.25 !important; font-weight: 800 !important; color: var(--ad-ink) !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot b.negative { color: var(--ad-bad) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot b.positive { color: var(--ad-acc) !important; }
+  /* Boş durum ve sonuç gövdesi kalan alanı doldurur */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace > .analystEmpty {
+    flex: 1 1 auto; display: flex !important; align-items: center; justify-content: center; text-align: center !important; min-height: 160px; margin: 0 !important; padding: 24px !important;
+    border: 1px dashed rgba(255,255,255,.14) !important; border-radius: 18px !important; background: rgba(255,255,255,.02) !important; color: var(--ad-mute) !important; font-size: 15px !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystResultWorkspace > :is(.analystInsightRows, .analystOpportunityList, .analystResponseText, .analystOverviewLead, .analystMoverGrid) { flex: 0 0 auto; }
+
+  /* Analiste sor: sağ sütunda, sonucun altında */
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystAskBar {
+    grid-column: 2 !important; grid-row: 4 !important; align-self: start; display: grid !important; gap: 14px !important; margin: 0 !important;
+    padding: 20px 22px !important; border: 1px solid var(--ad-line) !important; border-radius: 22px !important; background: var(--ad-card) !important;
+  }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystAskBar > div:first-child > span { color: var(--ad-acc) !important; letter-spacing: .14em; font-weight: 800; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystAskBar > div:first-child small { display: block !important; margin-top: 4px; color: var(--ad-mute) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystPromptChips { display: flex !important; flex-wrap: wrap; gap: 8px !important; }
+}
+
+@media (min-width: 1025px) and (max-width: 1279px) {
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystCompactSnapshot { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace .analystHeaderControls { flex-wrap: wrap !important; }
+}
