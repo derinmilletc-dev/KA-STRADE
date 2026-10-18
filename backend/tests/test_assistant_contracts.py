@@ -216,7 +216,9 @@ class AssistantContractsTests(AssistantToolsTestCase):
 
     def test_tool_allowlist_contains_only_reads_and_no_confirmation_or_identity(self):
         expected = {"get_plans", "get_my_access", "get_my_credits", "search_help",
-                    "get_analysis", "get_my_positions", "get_protection_status"}
+                    "get_analysis", "get_my_positions", "get_protection_status",
+                    # İncelenmiş salt-okunur eklemeler: yalnızca readonly_demo_service üzerinden okur (aşağıdaki sınır testi).
+                    "get_demo_positions", "get_market_overview"}
         self.assertEqual(set(ARGUMENT_MODELS), expected)
         self.assertEqual({tool["name"] for tool in TOOL_DEFINITIONS}, expected)
         for tool in TOOL_DEFINITIONS:
@@ -229,10 +231,12 @@ class AssistantContractsTests(AssistantToolsTestCase):
             "subscription_core": {"parse_datetime"},
             "v22_commercial": {"authenticated_user", "access_snapshot", "subscription_for_user"},
             "binance_demo": set(),
+            # Asistan Demo/tarayıcı verisini YALNIZCA bu dar arayüzden okur; arayüzün kendisi aşağıdaki testte denetlenir.
+            "readonly_demo_service": {"read_demo_positions", "read_scanner_candidates", "read_market_movers"},
         }
 
         def sensitive(module):
-            return module in read_functions or bool(re.search(r"execution|consent|subscription|(?:^|_)arm$", module))
+            return module in read_functions or module == "v21_demo" or bool(re.search(r"execution|consent|subscription|(?:^|_)arm$", module))
 
         def allowed(module, symbol):
             return symbol.isupper() or symbol in read_functions.get(module, set())
@@ -264,6 +268,31 @@ class AssistantContractsTests(AssistantToolsTestCase):
                     elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr":
                         if node.args and isinstance(node.args[0], ast.Name):
                             self.assertNotIn(node.args[0].id, modules, f"{path.name}:{node.lineno}: dynamic domain access")
+
+    def test_readonly_demo_service_boundary_only_reaches_audited_read_functions(self):
+        allowed = {
+            "binance_demo": {"account_snapshot", "client_for"},
+            "v21_demo": {"state_for", "candidate_is_tradeable", "auto_trade_market_universe", "MAX_SIGNAL_AGE_SECONDS"},
+        }
+        path = Path(assistant_api.__file__).parent / "readonly_demo_service.py"
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        functions = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        self.assertEqual(functions, {"read_demo_positions", "read_scanner_candidates", "read_market_movers"})
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.level:
+                self.assertEqual(node.module, "", f"line {node.lineno}: relative import from .{node.module} is not audited")
+            if isinstance(node, ast.ImportFrom) and node.level:
+                self.assertTrue({item.name for item in node.names} <= set(allowed), f"line {node.lineno}: unaudited import")
+                self.assertTrue(all(item.asname is None for item in node.names))
+            if isinstance(node, ast.Import):
+                self.assertFalse({item.name.split(".")[0] for item in node.names} & {"app", "httpx", "requests", "aiohttp"})
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in allowed:
+                self.assertIn(node.attr, allowed[node.value.id], f"line {node.lineno}: {node.value.id}.{node.attr}")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                self.assertNotIn(node.func.id, {"__import__", "eval", "exec", "compile"}, f"line {node.lineno}")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" and node.args:
+                self.assertFalse(isinstance(node.args[0], ast.Name) and node.args[0].id in allowed, f"line {node.lineno}: dynamic domain access")
+        self.assertNotRegex(path.read_text(encoding="utf-8"), r"\b(order|close_position|cancel|arm|consent|place_|submit)\w*\(")
 
     async def test_model_write_attempts_never_call_execution_consent_arm_or_subscription_mutators(self):
         targets = (
