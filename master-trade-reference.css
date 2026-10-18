@@ -434,5 +434,7 @@
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawingTools summary { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools { opacity: 1; }
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools button { min-width: 40px; height: 40px; }
+  /* Dar ekranda butonlar ikon genişliğinde; metin harf harf alt alta dizilmesin diye yalnız ikon gösterilir. */
+  html body #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools .refZoomResetLabel { display: none !important; }
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { display: none; }
 }
