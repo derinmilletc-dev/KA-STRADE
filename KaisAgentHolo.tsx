@@ -42,10 +42,10 @@ function useMicLevel(enabled: boolean, target: React.RefObject<HTMLElement | nul
 /** Hologram ekran. Ana göz (KaisEye) olduğu gibi çizilir; dönüşüm, filtre veya üst katman yok.
  *  Hareketler gözün DIŞINDaki bağımsız katmanlardır ve gerçek duruma bağlıdır:
  *  listening = mikrofon açık · thinking = sunucu cevabı bekleniyor (ilk 1.8 sn tarama, sonra hizalama + ölçüm işaretleri)
- *  speaking = cevap geldi, sonuç alanına odak (ilk 1.6 sn köşe işaretleri) · error = sakin, amber, yeniden dene. */
+ *  speaking = cevap geldi, halkalar sakinleşir (köşe işareti yok: gerçek bir hedefleme aşaması olmadığı için) · error = sakin, amber, yeniden dene. */
 export default function KaisAgentHolo({phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
-  const [sub, setSub] = useState<'scan' | 'analyze' | 'lock' | ''>('')
+  const [sub, setSub] = useState<'scan' | 'analyze' | ''>('')
   const stage = useRef<HTMLDivElement>(null)
   const live = useMicLevel(phase === 'listening' && !hidden, stage)
   useEffect(() => {
@@ -55,7 +55,6 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
   }, [])
   useEffect(() => {
     if (phase === 'thinking') { setSub('scan'); const timer = window.setTimeout(() => setSub('analyze'), 1800); return () => window.clearTimeout(timer) }
-    if (phase === 'speaking') { setSub('lock'); const timer = window.setTimeout(() => setSub(''), 1600); return () => window.clearTimeout(timer) }
     setSub('')
   }, [phase])
   return createPortal(<div className="kaisHolo" data-phase={phase} data-sub={sub} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
@@ -69,7 +68,6 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
         <g className="ring r4"><circle r="138" strokeDasharray="30 12 6 12"/></g>
         <g className="rulers"><path transform="rotate(0)" d="M156 0h7M156 -3v6"/><path transform="rotate(90)" d="M156 0h7M156 -3v6"/><path transform="rotate(180)" d="M156 0h7M156 -3v6"/><path transform="rotate(270)" d="M156 0h7M156 -3v6"/></g>
         <g className="align"><path transform="rotate(0)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(90)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(180)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(270)" d="M-30 -150A153 153 0 0 1 30 -150"/></g>
-        <g className="lock"><path transform="rotate(0)" d="M-146 -146h24M-146 -146v24"/><path transform="rotate(90)" d="M-146 -146h24M-146 -146v24"/><path transform="rotate(180)" d="M-146 -146h24M-146 -146v24"/><path transform="rotate(270)" d="M-146 -146h24M-146 -146v24"/></g>
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '0.5s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.0s'} as React.CSSProperties} transform="translate(-150 34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.5s'} as React.CSSProperties} transform="translate(150 34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.0s'} as React.CSSProperties} transform="translate(-114 -98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.5s'} as React.CSSProperties} transform="translate(114 -98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.0s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.5s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
       <div className="kaisHoloEye"><KaisEye size={260} state="idle"/></div>

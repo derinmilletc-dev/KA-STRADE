@@ -563,7 +563,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
       onOpenChat={() => { setHoloOpen(false); openChat() }}
-      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} onRetry={() => { voice.stop(); window.setTimeout(() => void voice.start(), 250) }} onMinimize={() => setHoloOpen(false)}/>}
+      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} onRetry={voice.retry} onMinimize={() => setHoloOpen(false)}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>

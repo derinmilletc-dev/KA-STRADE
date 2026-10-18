@@ -188,7 +188,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const lastReply = useRef({text: '', startedAt: 0, endedAt: 0})
 
   /** Soruyu gönderir, cevabı okur; okurken araya girilirse dinlemeye devam eder. */
+  const lastQuestion = useRef('')
   const answer = useCallback((question: string) => {
+    lastQuestion.current = question
     setPhase('thinking')
     setMessage('')
     void callback.current(question).then(reply => {
@@ -222,6 +224,13 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       if (!finished && !coarsePointer()) listenRef.current(true, reply)
     })
   }, [copy, end, speak])
+
+  /** Cevap alınamadıysa aynı soruyu bir kez daha gönderir (yalnızca sohbet isteği; emir/onay içermez). */
+  const retryAnswer = useCallback(() => {
+    if (!active.current || !lastQuestion.current || phaseRef.current === 'thinking') return
+    recognition.current?.abort()
+    answer(lastQuestion.current)
+  }, [answer])
 
   const listen = useCallback((bargeIn = false, spoken = '') => {
     const Constructor = recognitionConstructor()
@@ -333,5 +342,5 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     return () => document.removeEventListener('visibilitychange', resume)
   }, [listen])
   useEffect(() => () => { active.current = false; recognition.current?.abort(); if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
-  return {inputSupported, outputSupported, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, start, stop, interrupt, speak, stopSpeaking, toggleReplies, copy}
+  return {inputSupported, outputSupported, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
 }
