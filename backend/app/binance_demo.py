@@ -3914,7 +3914,8 @@ async def demo_order_test(request: Request, body: DemoOrderRequest) -> dict[str,
         if await position_mode(client):
             raise BinanceDemoError("Pozisyon Modu 'Tek Yön / One-way' olmalı.", http_status=409)
         spec = await build_order_spec(client, body)
-        policy = getattr(request.app.state, "v21_demo", {}).get("settings", {})
+        from .v21_demo import state_for as v21_state_for
+        policy = v21_state_for(request).get("settings", {})
         adjust_manual_spec_to_risk(spec, policy)
         await submit_entry(client, spec, test_only=True)
         add_event(state, "EMİR TESTİ BAŞARILI", f"{spec['symbol']} {spec['direction']} planı Demo doğrulamasından geçti; emir oluşmadı.")

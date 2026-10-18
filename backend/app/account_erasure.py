@@ -256,7 +256,7 @@ async def ensure_erasure_schema(pool: Any) -> None:
         CREATE OR REPLACE FUNCTION commercial_erasure_snapshot_guard() RETURNS trigger AS $$
         DECLARE erased_user jsonb; uid text; field text; items jsonb;
         BEGIN
-          IF NEW.state_key LIKE 'binance_demo:user:%' OR NEW.state_key LIKE 'v21_demo:user:%' THEN
+          IF NEW.state_key LIKE 'binance_demo:user:%' OR NEW.state_key LIKE 'v21_demo:user:%' OR NEW.state_key LIKE 'v25_live:state:%' THEN
             IF EXISTS (SELECT 1 FROM commercial_erased_users
                        WHERE user_hash = encode(sha256(convert_to(split_part(NEW.state_key, ':', 3), 'UTF8')), 'hex')) THEN
               RETURN NULL;
@@ -389,7 +389,7 @@ async def erase_database(application: Any, user: dict[str, Any]) -> list[str]:
             for row in rows:
                 payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
                 identity = row[key]
-                if table == "application_state_snapshots" and identity in {f"v21_demo:user:{uid}", f"binance_demo:user:{uid}"}:
+                if table == "application_state_snapshots" and identity in {f"v21_demo:user:{uid}", f"binance_demo:user:{uid}", f"v25_live:state:{uid}"}:
                     # Keep trade-only evidence under an unrelated identifier.
                     evidence = {}
                     for category in ("journal", "events", "trades", "automation_trades", "paper_positions"):
@@ -453,6 +453,21 @@ async def erase_runtime(application: Any, user: dict[str, Any], session_ids: lis
                     "_persistence_blocked": True, "_user_id": ERASED, "_session_id": "",
                     "connected": False, "armed_until": 0, "auto": {"enabled": False},
                 })
+    from . import live_registry
+    registry = live_registry.registry_of(application)
+    if registry is not None:
+        # multi-user LIVE: stop this member's engine and drop their own state before anything else is scrubbed
+        member_state = registry.states.get(uid)
+        if isinstance(member_state, dict):
+            member_state.update({"armed_until": 0.0, "real_trading_locked": True, "live_auto_trade": False,
+                                 "_persistence_blocked": True})
+            if isinstance(member_state.get("auto"), dict):
+                member_state["auto"].update({"enabled": False, "session_until": 0.0})
+        engine = registry.engines.pop(uid, None)
+        if engine is not None and not engine.done():
+            engine.cancel()
+            await asyncio.gather(engine, return_exceptions=True)
+        registry.states.pop(uid, None)
     vault.clear_session_vault_for_user_cache(application, uid, session_ids)
     for name in ("binance_demo", "v21_demo", "v25_execution", "v27_cloud", "paper", "paper_bot", "error_events"):
         state = getattr(application.state, name, None)
