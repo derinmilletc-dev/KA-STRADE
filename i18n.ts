@@ -78,13 +78,19 @@ function translateCore(key: string, depth: number): string | null {
   return null
 }
 
+const HAS_LETTER = /[A-Za-zÇĞİÖŞÜçğıöşü]/
+// Canlı fiyat/skor metinleri ("RSI 65,37", "Skor 58,7") her tikte yeni anahtar üretir; sınırsız önbellek
+// uzun açık kalan sekmede belleği şişiriyordu. Sınır aşılınca önbellek sıfırlanır (sözlük aynı kalır).
+const CACHE_LIMIT = 4000
+
 export function translateText(text: string): string {
-  if (!text) return text
+  if (!text || !HAS_LETTER.test(text)) return text
   const key = norm(text)
-  if (!key || !/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(key)) return text
+  if (!key) return text
   let out = cache.get(key)
   if (out === undefined) {
     out = translateCore(key, 0) ?? key
+    if (cache.size >= CACHE_LIMIT) cache.clear()
     cache.set(key, out)
   }
   if (out === key) return text
@@ -106,14 +112,12 @@ function brandPiece(t: Text): boolean {
   return false
 }
 
+const SKIP_SELECTOR = 'script,style,textarea,noscript,code,pre,[data-i18n-skip],[translate="no"],[contenteditable="true"]'
+
+/** Düğüm veya atalarından biri çeviri dışıysa true. Tarayıcının yerel closest() sorgusu, ataları JS döngüsüyle gezmekten çok daha hızlıdır. */
 function skipped(node: Node): boolean {
-  for (let el: Node | null = node; el; el = el.parentNode) {
-    if (el.nodeType === 1) {
-      const e = el as Element
-      if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip') || e.getAttribute('translate') === 'no' || e.getAttribute('contenteditable') === 'true') return true
-    }
-  }
-  return false
+  const el = node.nodeType === 1 ? node as Element : node.parentElement
+  return el ? el.closest(SKIP_SELECTOR) !== null : false
 }
 
 function fixAttrs(el: Element) {
@@ -168,10 +172,51 @@ function nextAfter(tw: TreeWalker, el: Element): Node | null {
   return cur.nextSibling
 }
 
+/** MutationObserver kayıtlarını tekilleştirerek işler: aynı tikte gelen yinelenen düğümler ve
+ *  zaten eklenmiş bir alt ağacın içinde kalan değişiklikler bir kez taranır. */
+function processMutations(records: MutationRecord[]) {
+  const added = new Set<Node>()
+  const texts = new Set<Node>()
+  const attrs = new Set<Element>()
+  for (const r of records) {
+    if (r.type === 'characterData') texts.add(r.target)
+    else if (r.type === 'attributes') attrs.add(r.target as Element)
+    else r.addedNodes.forEach(n => { if (n.isConnected) added.add(n) })
+  }
+  const roots = [...added].filter(n => { for (let p = n.parentNode; p; p = p.parentNode) if (added.has(p)) return false; return true })
+  const inRoots = (n: Node) => roots.some(root => root !== n && root.contains(n))
+  for (const n of roots) walk(n)
+  for (const t of texts) if (t.isConnected && !inRoots(t)) walk(t)
+  for (const el of attrs) if (el.isConnected && !inRoots(el) && !skipped(el)) fixAttrs(el)
+}
+
+// Number.prototype.toLocaleString her çağrıda yeni bir biçimlendirici kurar; canlı fiyatlar saniyede
+// yüzlerce kez biçimlendirildiği için bu, profilde en pahalı JS kalemiydi. Aynı dil+seçenek için
+// Intl.NumberFormat bir kez kurulup yeniden kullanılır; çıktı birebir aynıdır.
+const NativeNumberFormat = Intl.NumberFormat
+const nativeNumberToLocale = Number.prototype.toLocaleString
+const numberFormats = new Map<string, Intl.NumberFormat>()
+let numberLocale = (l: unknown) => l
+
+function installNumberFormatCache() {
+  Number.prototype.toLocaleString = function (this: number, l?: Intl.LocalesArgument, o?: Intl.NumberFormatOptions) {
+    const locale = numberLocale(l) as Intl.LocalesArgument
+    let key: string
+    try { key = `${locale === undefined ? '~' : JSON.stringify(locale)}|${o === undefined ? '~' : JSON.stringify(o)}` }
+    catch { return nativeNumberToLocale.call(this, locale as string, o) }
+    let formatter = numberFormats.get(key)
+    if (!formatter) {
+      if (numberFormats.size >= 200) numberFormats.clear()
+      formatter = new NativeNumberFormat(locale, o)
+      numberFormats.set(key, formatter)
+    }
+    return formatter.format(Number(this))
+  }
+}
+
 function patchLocales() {
   const map = (l: unknown) => (typeof l === 'string' && /^tr(-|$)/i.test(l) ? 'en-US' : l)
-  const num = Number.prototype.toLocaleString
-  Number.prototype.toLocaleString = function (l?: Intl.LocalesArgument, o?: Intl.NumberFormatOptions) { return num.call(this, map(l) as string, o) }
+  numberLocale = map
   for (const name of ['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString'] as const) {
     const orig = Date.prototype[name]
     Date.prototype[name] = function (l?: Intl.LocalesArgument, o?: Intl.DateTimeFormatOptions) { return orig.call(this, map(l) as string, o) }
@@ -206,6 +251,7 @@ function fixHead() {
 }
 
 export async function initI18n(): Promise<void> {
+  installNumberFormatCache()
   const lang = currentLang()
   document.documentElement.lang = lang
   if (lang === 'tr') {
@@ -216,13 +262,7 @@ export async function initI18n(): Promise<void> {
     } catch { return }
     const startTr = () => {
       walk(document.body)
-      const obs = new MutationObserver(records => {
-        for (const r of records) {
-          if (r.type === 'characterData') walk(r.target)
-          else if (r.type === 'attributes') { if (!skipped(r.target)) fixAttrs(r.target as Element) }
-          else r.addedNodes.forEach(n => walk(n))
-        }
-      })
+      const obs = new MutationObserver(processMutations)
       obs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS })
     }
     if (document.body) startTr(); else document.addEventListener('DOMContentLoaded', startTr)
@@ -248,11 +288,7 @@ export async function initI18n(): Promise<void> {
   const start = () => {
     walk(document.body)
     const obs = new MutationObserver(records => {
-      for (const r of records) {
-        if (r.type === 'characterData') walk(r.target)
-        else if (r.type === 'attributes') { if (!skipped(r.target)) fixAttrs(r.target as Element) }
-        else r.addedNodes.forEach(n => walk(n))
-      }
+      processMutations(records)
       if (/Kripto Analiz|[çğıöşü]/i.test(document.title)) fixHead()
     })
     obs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS })
