@@ -485,6 +485,18 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
       const confirmation = parseConfirmation(response.needs_confirmation)
+      if (confirmation && confirmation.cost === 0) {
+        // Sunucunun belirlediği (token'a bağlı) maliyet 0 ise hiçbir kredi harcanmaz: "devam edeyim mi?" sorusu atlanır, analiz doğrudan getirilir.
+        // Maliyeti 0'dan büyük her istek eskisi gibi ayrı, dokunuşla verilen onay ister.
+        const done = await request('analysis/confirm', controller.signal, {symbol: confirmation.symbol, timeframe: confirmation.timeframe, confirmation_token: confirmation.confirmation_token, confirm: true})
+        if (controller.signal.aborted) return null
+        const summary = analysisText(done, language)
+        setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
+        append(summary, language)
+        const info = done.data as Record<string, unknown>
+        const confidence = typeof info.confidence === 'number' && Number.isFinite(info.confidence) ? info.confidence.toLocaleString(language === 'tr' ? 'tr-TR' : 'en-US', {maximumFractionDigits: 1}) : ''
+        return viaVoice ? (language === 'tr' ? `${confirmation.symbol} ${confirmation.timeframe} analizi hazır. Yön ${String(info.direction ?? 'belirsiz')}${confidence ? `, güven ${confidence}` : ''}. Ayrıntılar ekranda.` : `${confirmation.symbol} ${confirmation.timeframe} analysis is ready. Direction ${String(info.direction ?? 'unknown')}${confidence ? `, confidence ${confidence}` : ''}. Details on screen.`) : summary
+      }
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
       if (confirmation && viaVoice) return `${response.reply} ${response.language === 'en' ? 'Tap Confirm on the screen to continue.' : 'Devam etmek için ekranda Onayla düğmesine dokun.'}`
