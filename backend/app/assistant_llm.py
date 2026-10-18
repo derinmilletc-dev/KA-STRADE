@@ -198,7 +198,7 @@ def summary(name: str, result: dict[str, Any], language: Language) -> str:
         return f"{data.get('plan') or 'Free'}: {data.get('status')}."
     if name == "get_plans":
         return "; ".join(f"{row['name']}: {row['monthly_price']} {row['currency']}" for row in data.get("plans", []))
-    if name == "get_my_positions":
+    if name in ("get_my_positions", "get_demo_positions"):
         return "; ".join(
             f"{row['symbol']} {row['direction']}: {row['quantity']}, PnL {row['unrealized_pnl']}"
             for row in data.get("positions", [])
