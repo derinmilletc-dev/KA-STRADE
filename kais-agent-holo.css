@@ -67,3 +67,27 @@
 .kaisVoicePicker ul{list-style:none;margin:6px 0 0;padding:6px;width:min(280px,78vw);max-height:48vh;overflow:auto;border:1px solid #2a3d58;border-radius:14px;background:rgba(8,14,24,.96)}
 .kaisVoicePicker li button{width:100%;text-align:left;padding:10px 10px;border-radius:10px;border:0;background:transparent;color:#c5d1e3;font-size:13px}
 .kaisVoicePicker li button[aria-selected=true]{background:rgba(39,214,160,.16);color:#27D6A0}
+/* Göz bebeği içi animasyon katmanı (gözün çizimi değişmez; katman bebek alanına kırpılır) */
+.kaisHoloPupil{position:absolute;left:39.583%;top:39.583%;width:20.833%;aspect-ratio:1;clip-path:circle(49%);pointer-events:none;z-index:2;transition:transform .12s ease}
+.kaisHoloPupil *{fill:none;stroke:#27D6A0;stroke-width:.35;vector-effect:non-scaling-stroke;transform-origin:0 0;stroke-width:1px}
+.kaisHoloPupil .pDot{fill:#27D6A0;stroke:none;opacity:.8}
+.kaisHoloPupil .pBlips circle{fill:#9fffe0;stroke:none;opacity:0}
+.kaisHoloPupil .pWedge{fill:rgba(39,214,160,.28);stroke:none}
+.kaisHoloPupil .pLine{stroke:#9fffe0}
+.kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pWave,.pRing){opacity:0;transition:opacity .45s ease}
+.kaisHolo[data-phase=listening] .kaisHoloPupil .pRing{opacity:.5;animation:kaisPupilBreath 4s ease-in-out infinite}
+.kaisHolo[data-phase=thinking] .kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pRing){opacity:1}
+.kaisHolo[data-phase=thinking] .pSpinA{animation:kaisPupilSpin 2.6s linear infinite}
+.kaisHolo[data-phase=thinking] .pSpinB{animation:kaisPupilSpin 1.7s linear infinite reverse}
+.kaisHolo[data-phase=thinking] .pSweep{animation:kaisPupilSpin 1.3s linear infinite}
+.kaisHolo[data-phase=thinking] .pBlips circle{animation:kaisPupilBlip 1.3s ease-in-out infinite}
+.kaisHolo[data-phase=thinking] .pBlips circle:nth-child(2){animation-delay:.43s}.kaisHolo[data-phase=thinking] .pBlips circle:nth-child(3){animation-delay:.86s}
+.kaisHolo[data-phase=speaking] .kaisHoloPupil .pWave{opacity:1}
+.kaisHolo[data-phase=speaking] .pWave{animation:kaisPupilWave 1.4s ease-out infinite}
+.kaisHolo[data-phase=speaking] .pWave2{animation-delay:.7s}
+.kaisHolo[data-phase=error] .kaisHoloPupil *{stroke:#e8a85e}.kaisHolo[data-phase=error] .kaisHoloPupil .pDot{fill:#e8a85e}
+.kaisHolo[data-phase=error] .kaisHoloPupil .pRing{opacity:.6}
+@keyframes kaisPupilSpin{to{transform:rotate(360deg)}}
+@keyframes kaisPupilBreath{50%{opacity:.15}}
+@keyframes kaisPupilBlip{0%,100%{opacity:0}40%,60%{opacity:1}}
+@keyframes kaisPupilWave{0%{transform:scale(.1);opacity:.9}100%{transform:scale(1);opacity:0}}

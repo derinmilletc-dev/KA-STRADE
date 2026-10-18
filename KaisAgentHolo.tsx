@@ -65,6 +65,7 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     return () => window.clearTimeout(timer)
   }, [phase])
   const stage = useRef<HTMLDivElement>(null)
+  const pupil = useRef<SVGSVGElement>(null)
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
   useRings(phase, hidden, [primary, secondary, precision])
   // Gözün KENDİ mevcut bakış altyapısı (kais:react): telefonda işaretçi olmadığı için göz kıpırdamıyordu. Düşünürken sık, diğer durumlarda seyrek bakar.
@@ -82,6 +83,21 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     timer = window.setTimeout(next, 500)
     return () => window.clearTimeout(timer)
   }, [phase, hidden])
+  // Göz bakınca iris/göz bebeği gözün kendi altyapısıyla kayar (data-look-x/y). Göz bebeği katmanı aynı miktarda kaydırılır, böylece bebeğin içinde kalır.
+  useEffect(() => {
+    const eye = stage.current?.querySelector<SVGSVGElement>('.kaisEye')
+    const overlay = pupil.current
+    if (!eye || !overlay) return
+    const follow = () => {
+      const scale = eye.getBoundingClientRect().width / 96
+      const x = Number(eye.dataset.lookX) || 0, y = Number(eye.dataset.lookY) || 0
+      overlay.style.transform = `translate(${(x * 7 * scale).toFixed(2)}px, ${(y * 7 * .6 * scale).toFixed(2)}px)`
+    }
+    follow()
+    const observer = new MutationObserver(follow)
+    observer.observe(eye, {attributes: true, attributeFilter: ['data-look-x', 'data-look-y']})
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     const change = () => setHidden(document.hidden)
     document.addEventListener('visibilitychange', change)
@@ -107,7 +123,18 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
         <g className="rulers"><path transform="rotate(0)" d="M156 0h7M156 -3v6"/><path transform="rotate(90)" d="M156 0h7M156 -3v6"/><path transform="rotate(180)" d="M156 0h7M156 -3v6"/><path transform="rotate(270)" d="M156 0h7M156 -3v6"/></g>
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.1s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.2s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.3000000000000003s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
-      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/></div>
+      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/>
+        {/* Göz bebeği içi: ayrı, gözün çizimine dokunmayan katman (göz bebeği alanına kırpılı). Durumla değişir: tarama / yayılan dalga / sakin halka. */}
+        <svg className="kaisHoloPupil" ref={pupil} viewBox="-10 -10 20 20" aria-hidden="true">
+          <circle className="pRing" r="9.2"/>
+          <g className="pSpinA"><circle r="7.4" strokeDasharray="2.2 1.6"/></g>
+          <g className="pSpinB"><circle r="5" strokeDasharray="1 2"/></g>
+          <g className="pSweep"><path d="M0 0L0 -9.4" className="pLine"/><path d="M0 0L0 -9.4A9.4 9.4 0 0 0 -6.6 -6.7Z" className="pWedge"/></g>
+          <g className="pBlips"><circle cx="3.6" cy="-3.9" r=".55"/><circle cx="-4.4" cy="1.8" r=".55"/><circle cx="1.6" cy="5.2" r=".55"/></g>
+          <circle className="pWave pWave1" r="9"/><circle className="pWave pWave2" r="9"/>
+          <circle className="pDot" r=".9"/>
+        </svg>
+      </div>
       <div className="kaisHoloScanBand" data-on={beam && phase === 'thinking'} aria-hidden="true">{beam && <i/>}</div>
       <div className="kaisHoloFloor" aria-hidden="true"/>
     </div>
