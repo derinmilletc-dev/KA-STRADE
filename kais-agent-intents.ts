@@ -16,7 +16,7 @@ const PAGES: {view: AgentView; names: string[]; label: {tr: string; en: string}}
   {view: 'billing', names: ['fatura', 'billing'], label: {tr: 'Fatura', en: 'Billing'}},
   {view: 'dashboard', names: ['ana sayfa', 'anasayfa', 'ana ekran', 'home', 'dashboard'], label: {tr: 'Ana sayfa', en: 'Home'}},
 ]
-const VERB = /\b(ac|acar misin|git|gotur|goster|gec|open|go to|show|take me)\b/
+const VERB = /\b(ac|acar misin|acsana|acabilir misin|git|gotur|goster|gec|getir|open|go to|show|take me)\b/
 
 const fold = (value: string) => value.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -39,8 +39,16 @@ export function parseNavigation(message: string, language: 'tr' | 'en'): {view: 
     if (tab) return {view: 'master-trade', label: tab.label[language], tab: tab.tab}
   }
   if (text.split(' ').length > 6) return null
-  // Para harcayan/belirsiz istekler (ör. "BTC analizi aç") sayfa komutu sayılmaz.
-  if (/\banaliz/.test(text)) return null
+  // Para harcayan/belirsiz istekler (ör. "BTC analizi aç") sayfa komutu sayılmaz; "analiz sayfasını aç" ise sayfa komutudur (Analist).
+  if (/\banaliz/.test(text)) {
+    if (/\b(sayfa|ekran|bolum|page|screen)/.test(text) && !/\b(btc|eth|sol|bnb|xrp|doge|ada|avax)\b/.test(text)) return {view: 'analyst', label: language === 'en' ? 'Analyst' : 'Analist'}
+    if (!/\banalist\b/.test(text)) return null
+  }
   const hit = PAGES.find(page => page.names.some(name => new RegExp(`\\b${name}`).test(text)))
+  if (!hit) {
+    // "pozisyonlarımı aç", "bağlantı sekmesini göster" → Master Trade sekmesi ("emir" bilerek hariç: emir taslağı komutlarıyla karışmasın).
+    const tab = TABS.find(item => item.tab !== 'analiz' && /\b(pozisyon|position|baglanti|connection|canli islem|live trading)/.test(text) && item.re.test(text))
+    if (tab) return {view: 'master-trade', label: tab.label[language], tab: tab.tab}
+  }
   return hit ? {view: hit.view, label: hit.label[language]} : null
 }
