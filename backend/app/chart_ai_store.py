@@ -23,7 +23,11 @@ RESULT_RETENTION = timedelta(hours=24)
 POLICY_VERSION = "chart-ai-v1"
 PRIVACY_NOTICE = "Resmin sitemizde saklanmaz; analiz için yapay zeka sağlayıcımıza gönderilir."
 
-AccessType = Literal["trial", "subscriber", "owner"]
+FREE_LIFETIME_LIMIT = 3
+TRIAL_DAILY_LIMIT = 7
+SUBSCRIBER_WEEKLY_LIMIT = 35
+TURKEY = timezone(timedelta(hours=3))  # trial days renew at 00:00 Turkey time (no DST)
+AccessType = Literal["trial", "subscriber", "owner", "free"]
 RequestStatus = Literal["processing", "succeeded", "failed", "expired"]
 Row = Mapping[str, Any]
 
@@ -114,13 +118,17 @@ def quota_period(access: QuotaAccess, now: datetime) -> QuotaPeriod:
         return QuotaPeriod("owner", "owner", None, None, None)
     if access.kind == "subscriber":
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        return QuotaPeriod(f"week:{start.date().isoformat()}", "subscriber", start, start + timedelta(days=7), 20)
+        return QuotaPeriod(f"week:{start.date().isoformat()}", "subscriber", start, start + timedelta(days=7), SUBSCRIBER_WEEKLY_LIMIT)
+    if access.kind == "free":
+        return QuotaPeriod("free", "free", None, None, FREE_LIFETIME_LIMIT)
     if access.kind == "trial" and access.trial_start is not None and access.trial_end is not None:
         start, end = utc(access.trial_start), utc(access.trial_end)
         if end - start != timedelta(days=7):
             raise ValueError("The canonical seven-day trial period is required")
         if start <= now < end:
-            return QuotaPeriod("trial", "trial", start, end, 3)
+            local = now.astimezone(TURKEY)
+            day_start = local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+            return QuotaPeriod(f"trial-day:{local.date().isoformat()}", "trial", day_start, day_start + timedelta(hours=24), TRIAL_DAILY_LIMIT)
     raise ChartAiQuotaError("access_denied", "Grafik analizi erişiminiz bulunmuyor.", 403)
 
 
@@ -273,9 +281,11 @@ class ChartAiStore:
             quota = await self._period(conn, account_hash, period)
             if period.limit is not None and quota["used"] + quota["reserved"] >= period.limit:
                 message = (
-                    "Deneme süresindeki 3 analiz hakkınızı kullandınız. MASTER MODE ile haftada 20 analiz kullanabilirsiniz."
+                    "Ücretsiz analiz hakkınız bitmiştir. Devam etmek için premium (MASTER MODE) alın."
+                    if period.kind == "free"
+                    else "Bugünkü 7 analiz hakkınız bitti. Yarın (Türkiye saati 00:00) yenilenir."
                     if period.kind == "trial"
-                    else "Haftalık 20 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir."
+                    else "Haftalık 35 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir."
                 )
                 raise ChartAiQuotaError("quota_exhausted", message, 429)
             month = now.date().replace(day=1)

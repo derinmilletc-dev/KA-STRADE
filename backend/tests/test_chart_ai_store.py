@@ -264,41 +264,54 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
     def stored(self, key, user="user"):
         return self.pool.state.requests[(user_hash(user), key)]
 
-    async def test_trial_total_three_and_reconstructed_store_does_not_reset(self):
+    async def test_trial_seven_per_day_and_reconstructed_store_does_not_reset(self):
         access = QuotaAccess("trial", self.pool.now - timedelta(days=1), self.pool.now + timedelta(days=6))
-        for _ in range(3):
+        for _ in range(7):
             await self.complete(access=access)
         self.store = ChartAiStore(self.pool)
         snapshot = await self.store.usage("user", access)
-        self.assertEqual((snapshot.used, snapshot.reserved, snapshot.remaining), (3, 0, 0))
+        self.assertEqual((snapshot.used, snapshot.reserved, snapshot.remaining), (7, 0, 0))
         with self.assertRaises(ChartAiQuotaError) as error:
             await self.reserve(access=access)
         self.assertEqual((error.exception.code, error.exception.status_code), ("quota_exhausted", 429))
-        self.assertEqual(len(self.pool.state.requests), 3)
+        self.assertIn("Bugünkü 7 analiz", str(error.exception))
+        self.assertEqual(len(self.pool.state.requests), 7)
 
-    async def test_trial_does_not_reset_on_monday_and_expiration_is_inclusive(self):
+    async def test_trial_renews_at_turkey_midnight_and_expiration_is_inclusive(self):
         self.pool.now = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
         start = self.pool.now - timedelta(days=1)
         access = QuotaAccess("trial", start, start + timedelta(days=7))
-        for _ in range(3):
+        for _ in range(7):
             await self.complete(access=access)
-        self.pool.now = datetime(2026, 10, 19, tzinfo=timezone.utc)
+        self.pool.now = datetime(2026, 10, 18, 20, 59, 59, tzinfo=timezone.utc)  # 23:59:59 Turkey
         self.assertEqual((await self.store.usage("user", access)).remaining, 0)
+        self.pool.now = datetime(2026, 10, 18, 21, tzinfo=timezone.utc)  # 00:00 Turkey next day
+        self.assertEqual((await self.store.usage("user", access)).remaining, 7)
         self.pool.now = access.trial_end
         with self.assertRaises(ChartAiQuotaError) as error:
             await self.reserve(access=access)
         self.assertEqual(error.exception.code, "access_denied")
 
-    async def test_changed_trial_identity_cannot_create_three_new_credits(self):
+    async def test_changed_trial_identity_cannot_create_new_daily_credits(self):
         start = self.pool.now - timedelta(days=1)
         await self.complete(access=QuotaAccess("trial", start, start + timedelta(days=7)))
         shifted = QuotaAccess("trial", start + timedelta(hours=1), start + timedelta(days=7, hours=1))
-        with self.assertRaises(ChartAiStorageError):
-            await self.reserve(access=shifted)
+        self.assertEqual((await self.store.usage("user", shifted)).remaining, 6)
         self.assertEqual(len(self.pool.state.periods), 1)
 
-    async def test_subscriber_twenty_and_twenty_first_is_rejected(self):
-        for _ in range(20):
+    async def test_free_member_gets_three_lifetime_analyses_that_never_renew(self):
+        free = QuotaAccess("free")
+        for _ in range(3):
+            await self.complete(access=free)
+        self.pool.now += timedelta(days=90)
+        self.assertEqual((await self.store.usage("user", free)).remaining, 0)
+        with self.assertRaises(ChartAiQuotaError) as error:
+            await self.reserve(access=free)
+        self.assertEqual((error.exception.code, error.exception.status_code), ("quota_exhausted", 429))
+        self.assertIn("Ücretsiz analiz hakkınız bitmiştir", str(error.exception))
+
+    async def test_subscriber_thirty_five_and_thirty_sixth_is_rejected(self):
+        for _ in range(35):
             await self.complete()
         with self.assertRaises(ChartAiQuotaError) as error:
             await self.reserve()
@@ -313,11 +326,11 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.pool.now += timedelta(seconds=1)
         snapshot = await self.store.usage("user", self.access)
         self.assertEqual((snapshot.period.start, snapshot.remaining),
-                         (datetime(2026, 10, 19, tzinfo=timezone.utc), 20))
+                         (datetime(2026, 10, 19, tzinfo=timezone.utc), 35))
         await self.store.succeed("user", key, reservation.lease_token, "Result", 1000)
         old_period = self.pool.state.periods[(user_hash("user"), "week:2026-10-12")]
         self.assertEqual((old_period["used"], old_period["reserved"]), (1, 0))
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 20)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 35)
 
     async def test_month_rollover_charges_original_budget(self):
         self.pool.now = datetime(2026, 10, 31, 23, 59, 59, tzinfo=timezone.utc)
@@ -347,8 +360,8 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         trial = QuotaAccess("trial", self.pool.now - timedelta(days=1), self.pool.now + timedelta(days=6))
         await self.complete(access=trial)
         await self.complete(access=self.access)
-        self.assertEqual((await self.store.usage("user", trial)).remaining, 2)
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 19)
+        self.assertEqual((await self.store.usage("user", trial)).remaining, 6)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 34)
 
     async def test_concurrent_replays_get_only_one_private_lease(self):
         key = uuid4()
@@ -360,7 +373,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.store.usage("user", self.access)).reserved, 1)
 
     async def test_parallel_different_keys_cannot_oversubscribe_last_credit(self):
-        for _ in range(19):
+        for _ in range(34):
             await self.complete()
         responses = await asyncio.gather(*(self.reserve() for _ in range(10)), return_exceptions=True)
         self.assertEqual(sum(not isinstance(r, Exception) for r in responses), 1)
@@ -425,7 +438,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         await self.store.start_call("user", key, token)
         failed = await self.store.fail("user", key, token, "invalid_output", 12_000)
         self.assertFalse(failed.quota_consumed)
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 20)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 35)
         self.assertEqual(self.pool.state.budgets[self.month]["spent_microusd"], 12_000)
         self.assertEqual(self.pool.state.budgets[self.month]["reserved_microusd"], 0)
         await self.store.fail("user", key, token, "invalid_output", 12_000)
@@ -437,7 +450,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         key, token = reservation.request.request_key, reservation.lease_token
         await self.store.start_call("user", key, token)
         await self.store.fail("user", key, token, "ai_timeout")
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 20)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 35)
         self.assertEqual(self.pool.state.budgets[self.month]["reserved_microusd"], 20_000)
         await self.store.settle_held_cost("user", key, 15_000)
         await self.store.settle_held_cost("user", key, 15_000)
@@ -449,7 +462,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
     async def test_failure_before_provider_call_releases_budget_and_quota(self):
         reservation = await self.reserve()
         await self.store.fail("user", reservation.request.request_key, reservation.lease_token, "invalid_image")
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 20)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 35)
         self.assertEqual(self.pool.state.budgets[self.month]["reserved_microusd"], 0)
         self.assertEqual(self.pool.state.budgets[self.month]["spent_microusd"], 0)
 
@@ -461,7 +474,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         late = await self.store.succeed("user", reservation.request.request_key, reservation.lease_token, "Late", 1000)
         self.assertEqual(late.status, "failed")
         self.assertEqual(late.error_code, "lease_expired")
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 20)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 35)
         self.assertEqual(self.pool.state.budgets[self.month]["reserved_microusd"], 0)
 
     async def test_stale_started_lease_refunds_quota_without_restarting_provider(self):

@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Camera, Info, Loader2, Upload, X} from 'lucide-react'
+import {Camera, Info, Loader2, Lock, Upload, X} from 'lucide-react'
 import {ChartAiIcon} from './chart-ai-icon'
 import {ChartClientError, chartRequest, chartResult, chartUsage, captureChart, CHART_AI_DISCLAIMER, CHART_AI_PRIVACY,
   imageBase64, validateChartUpload, type ChartResult, type ChartSnapshot, type ChartUsage} from './chart-ai-client'
@@ -15,6 +15,12 @@ const sections = (text: string) => text.split(/\n{2,}/).map(block => {
   const [title, ...body] = block.split('\n')
   return {title, body: body.join('\n')}
 })
+const WALLS = {
+  free: {title: 'Ücretsiz hakkınız bitmiştir', text: 'Kais AI ile grafik analizine devam etmek için premium alın.', upgrade: true},
+  trial: {title: 'Bugünkü hakkınız bitti', text: 'Deneme üyeliğinde günde 7 analiz yapabilirsiniz. Haklarınız Türkiye saatiyle gece yarısı yenilenir.', upgrade: false},
+  subscriber: {title: 'Haftalık hakkınız doldu', text: 'Haftalık 35 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir.', upgrade: false},
+  owner: {title: 'Analiz şu anda yapılamıyor', text: 'Lütfen biraz sonra tekrar deneyin.', upgrade: false},
+} as const
 const message = (error: unknown) => error instanceof Error ? error.message : 'Kais AI işlemi tamamlanamadı.'
 
 export default function ChartAiPanel(props: Props) {
@@ -196,6 +202,8 @@ export default function ChartAiPanel(props: Props) {
   if (hidden || loading) return null
   const inputLocked = busy || Boolean(pending)
   const exhausted = Boolean(usage && !usage.quota.unlimited && (usage.quota.remaining ?? 0) <= 0)
+  const wall = exhausted || accessDenied || showPricing
+  const wallCopy = WALLS[usage?.access_type ?? 'free']
   const showResult = Boolean(result?.result_text) && !resultHidden
   const fileInput = (label: string, className: string, icon: boolean) => <label className={className} aria-label={icon ? label : undefined}>
     {icon ? <Upload aria-hidden="true"/> : <><Upload aria-hidden="true"/>{label}</>}
@@ -212,15 +220,18 @@ export default function ChartAiPanel(props: Props) {
         {usage && <span className="chartAiQuota">Kalan hak: <strong>{usage.quota.unlimited ? 'Sınırsız' : usage.quota.remaining}</strong></span>}
         <button type="button" className="chartAiIconButton chartAiClose" autoFocus aria-label="Kais AI panelini kapat" onClick={() => setOpen(false)}><X aria-hidden="true"/></button>
       </header>
-      <div className="chartAiBody">
-        {error && <div role="alert" className="chartAiNotice chartAiNotice--error">{error}</div>}
-        {exhausted && usage && <p role="status" className="chartAiNotice chartAiNotice--warn">
-          {usage.access_type === 'trial'
-            ? 'Deneme süresindeki 3 analiz hakkınızı kullandınız. MASTER MODE ile haftada 20 analiz kullanabilirsiniz.'
-            : 'Haftalık 20 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir.'}
-        </p>}
-        {(showPricing || usage?.access_type === 'trial' && exhausted)
-          && <a className="chartAiPricing" href="/pricing">MASTER MODE'a geç</a>}
+      <div className="chartAiStage">
+      {wall && <div className="chartAiWall" role="status">
+        <div className="chartAiWallCard">
+          <span className="chartAiWallIcon" aria-hidden="true"><Lock/></span>
+          <strong>{wallCopy.title}</strong>
+          <p>{wallCopy.text}</p>
+          {(wallCopy.upgrade || accessDenied) && <a className="chartAiPrimary chartAiWallAction" href="/pricing">MASTER MODE'a geç</a>}
+        </div>
+      </div>}
+      <div className="chartAiBody" inert={wall}>
+        {error && !wall && <div role="alert" className="chartAiNotice chartAiNotice--error">{error}</div>}
+        {usage?.access_type === 'free' && !wall && <p className="chartAiHint">Ücretsiz hesabınızda toplam 3 analiz hakkı vardır.</p>}
         {!accessDenied && <>
         {!usage && <button type="button" className="chartAiSecondary" onClick={() => {setError(''); void refresh().catch(failure => setError(message(failure)))}}>Durumu yeniden oku</button>}
         {usage && !usage.analysis_enabled && <p role="status" className="chartAiNotice chartAiNotice--warn">{usage.availability.message}</p>}
@@ -276,7 +287,7 @@ export default function ChartAiPanel(props: Props) {
         </>}
       </div>
 
-      <footer className="chartAiFooter">
+      <footer className="chartAiFooter" inert={wall}>
         {!accessDenied && (showResult ? <div className="chartAiRow chartAiRow--split">
           <button type="button" className="chartAiSecondary" onClick={() => setResultHidden(true)}>Soruyu değiştir</button>
           <button type="button" className="chartAiPrimary" onClick={() => {setResultHidden(true); setResult(null); setPreview(null); setCustom('')}}>Yeni analiz</button>
@@ -297,6 +308,7 @@ export default function ChartAiPanel(props: Props) {
           </details>
         </div>
       </footer>
+      </div>
     </dialog>, document.body)}
   </>
 }

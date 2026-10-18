@@ -102,13 +102,11 @@ def member_access(request: Request) -> tuple[str, QuotaAccess]:
     try:
         subscription = subscription_for_user(state, user["id"])
     except HTTPException as exc:
-        if exc.status_code == 403:
-            raise ChartAiQuotaError("access_denied", "Grafik analizi erişiminizin süresi dolmuş.", 403) from None
+        if exc.status_code == 403:  # expired or no plan: the free allowance still applies
+            return user["id"], QuotaAccess("free")
         raise ChartAiQuotaError("entitlement_unavailable", "Üyelik kanıtı doğrulanamadı.", 503) from None
     if subscription.get("master_trade_access") is not True:
-        raise ChartAiQuotaError(
-            "access_denied", "Grafik AI için aktif deneme veya MASTER MODE üyeliği gerekir.", 403,
-        )
+        return user["id"], QuotaAccess("free")
     if subscription.get("plan") == "TRIAL":
         start = parse_datetime(subscription.get("trial_start"))
         end = parse_datetime(subscription.get("trial_end"))
@@ -158,8 +156,8 @@ async def usage(request: Request) -> ChartAiUsage | JSONResponse:
         quota=ChartAiQuota(limit=period.limit, used=snapshot.used, reserved=snapshot.reserved,
                            remaining=snapshot.remaining, unlimited=period.limit is None),
         period_start=period.start, period_end=period.end,
-        resets_at=period.end if access.kind == "subscriber" else None,
-        trial_expires_at=period.end if access.kind == "trial" else None,
+        resets_at=period.end if access.kind in ("subscriber", "trial") else None,
+        trial_expires_at=access.trial_end if access.kind == "trial" else None,
         server_now=snapshot.server_now,
         acknowledgement=ChartAiAcknowledgement(accepted_at=accepted_at, required=accepted_at is None),
         availability=ChartAiAvailability(
