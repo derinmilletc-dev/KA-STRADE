@@ -141,7 +141,9 @@ const STORAGE_KEY = 'kt_voice_replies'
 const readReplies = () => { try { return localStorage.getItem(STORAGE_KEY) === '1' } catch { return false } }
 const writeReplies = (value: boolean) => { try { localStorage.setItem(STORAGE_KEY, value ? '1' : '0') } catch { /* tercih saklanamazsa oturum boyunca geçerli */ } }
 
-export function useVoice(language: VoiceLanguage, onTranscript: (text: string) => Promise<string | null>) {
+/** Süre ölçümü için: yalnızca BU konuşmanın istek anı (t0) ve gerçek çalma başlangıcı (speechMs). */
+export type SpeechMark = {t0: number; speechMs?: number}
+export function useVoice(language: VoiceLanguage, onTranscript: (text: string) => Promise<string | null>, takeMark?: () => SpeechMark | null) {
   const base = language.slice(0, 2).toLowerCase()
   const copy = voiceCopy[base as keyof typeof voiceCopy] ?? voiceCopy.en
   const recognition = useRef<Recognition | null>(null)
@@ -164,7 +166,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   tagRef.current = tag
 
   const stopSpeaking = useCallback(() => { speakToken.current += 1; if (outputSupported) window.speechSynthesis.cancel() }, [outputSupported])
-  const speak = useCallback((text: string, onDone?: () => void) => {
+  const speak = useCallback((text: string, onDone?: () => void, mark?: SpeechMark | null) => {
     const clean = speakableText(text)
     if (!outputSupported || !clean) { onDone?.(); return }
     // Chrome Android'de cancel() hemen ardından speak() ilk cümleyi yutabiliyor; yalnız bir şey çalıyorsa iptal et.
@@ -182,7 +184,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = tag
       if (voice) utterance.voice = voice
-      if (index === 0) utterance.onstart = () => { const last = (window as unknown as {__kaisLast?: {t0: number; speechMs?: number}}).__kaisLast; if (last && last.speechMs === undefined) last.speechMs = Math.round(performance.now() - last.t0) }
+      // İlk ses = gerçek çalma başlangıcı (start olayı); yalnızca bu konuşmanın kendi isteğine bağlı işaret güncellenir.
+      if (index === 0 && mark) utterance.onstart = () => { if (mark.speechMs === undefined) mark.speechMs = Math.round(performance.now() - mark.t0) }
       utterance.rate = savedRate()
       utterance.pitch = savedVoiceName() || isKnownMale(voice) ? 1 : .7
       if (index === parts.length - 1) {
@@ -232,6 +235,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       setPhase('speaking')
       let finished = false
       lastReply.current = {text: reply, startedAt: Date.now(), endedAt: 0}
+      const mark = takeMark?.() ?? null  // bu cevabı üreten sohbet isteğinin işareti (alarm/yerel konuşma işaret taşımaz)
       speak(reply, () => {
         finished = true
         lastReply.current.endedAt = Date.now()
@@ -243,12 +247,12 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
           // Hoparlördeki son sesin yankısı geçsin diye kısa bir ara.
           window.setTimeout(() => { if (active.current && !recognition.current) listenRef.current(false) }, 600)
         }
-      })
+      }, mark)
       // Kais konuşurken de dinle: kullanıcı araya girerse susup onu dinleriz.
       // Telefonda hoparlör sesi mikrofona karışıyor ve Android dinleme sırasında konuşma sesini kısabiliyor: araya girme yalnız düğmeyle.
       if (!finished && !coarsePointer()) listenRef.current(true, reply)
     })
-  }, [copy, end, speak])
+  }, [copy, end, speak, takeMark])
 
   /** Cevap alınamadıysa aynı soruyu bir kez daha gönderir (yalnızca sohbet isteği; emir/onay içermez). */
   const retryAnswer = useCallback(() => {

@@ -111,7 +111,8 @@ function parseProactiveMessage(value: unknown): Message | null {
 }
 
 // Süre ölçümü (yalnızca süre): ?kaisdebug=1 veya localStorage 'kais-debug'='1' ile açılır. İlk ses anı assistant-voice.ts'te işaretlenir.
-type KaisTiming = {t0: number; requestMs?: number; server?: string | null; speechMs?: number; textMs?: number}
+type KaisTiming = {t0: number; requestMs?: number; server?: string | null; speechMs?: number}
+const timingOf = new WeakMap<object, KaisTiming>()  // cevap nesnesi → o isteğin ölçümü
 declare global { interface Window { __kaisTimings?: KaisTiming[]; __kaisLast?: KaisTiming } }
 async function request(path: string, signal: AbortSignal, body?: object): Promise<Record<string, unknown>> {
   const timing: KaisTiming | null = path === 'chat' ? {t0: performance.now()} : null
@@ -132,6 +133,7 @@ async function request(path: string, signal: AbortSignal, body?: object): Promis
       retry !== null && Number.isFinite(Number(retry)) ? Math.max(0, Number(retry)) : undefined)
   }
   if (!object(payload)) throw new AssistantFailure(502, 'invalid_response')
+  if (timing) timingOf.set(payload, timing)
   return payload
 }
 
@@ -219,7 +221,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const input = useRef<HTMLTextAreaElement>(null)
   const working = useRef(false)
   const sendRef = useRef<(value: string, viaVoice?: boolean) => Promise<string | null>>(async () => null)
-  const voice = useVoice(language, transcript => sendRef.current(transcript, true))
+  const speechMark = useRef<KaisTiming | null>(null)
+  const voice = useVoice(language, transcript => sendRef.current(transcript, true), () => { const mark = speechMark.current; speechMark.current = null; return mark })
   const activeRequest = useRef<AbortController | null>(null)
   const usageRequest = useRef<AbortController | null>(null)
   const preferenceRequest = useRef<AbortController | null>(null)
@@ -481,6 +484,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const sendMessage = async (value: string, viaVoice = false): Promise<string | null> => {
     if (working.current || !usage || expired || !value.trim()) return null
     const message = value.trim()
+    speechMark.current = null  // yerel komutlar (alarm, sayfa, emir taslağı) önceki isteğin işaretini devralamaz
     if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return null }
     if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); return null }
     const localReply = (reply: string, action: string) => {
@@ -556,6 +560,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     try {
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Asked Kais' : 'Kais\'e soruldu'])
       const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
+      if (viaVoice) speechMark.current = timingOf.get(response) ?? null
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
       const confirmation = parseConfirmation(response.needs_confirmation)
