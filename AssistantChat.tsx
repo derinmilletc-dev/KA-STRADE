@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice } from './assistant-voice'
-import KaisAgentHolo from './KaisAgentHolo'
+import KaisAgentHolo, {type HoloPortal} from './KaisAgentHolo'
 import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
@@ -174,6 +174,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [storageProblem, setStorageProblem] = useState(intro.problem)
   const [open, setOpen] = useState(false)
   const [holoOpen, setHoloOpen] = useState(false)
+  const [portal, setPortal] = useState<HoloPortal | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
@@ -482,12 +483,18 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
       append(reply, language)
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? `${nav.label} opened` : `${nav.label} açıldı`])
-      setOpen(false); onNavigate(nav.view)
-      if (nav.tab) window.setTimeout(() => {
-        window.history.replaceState({}, '', `/master-trade?tab=${nav.tab}`)
-        window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0)
-      }, 80)
-      if (viaVoice) window.setTimeout(() => setHoloOpen(false), 1800)
+      const go = () => {
+        setOpen(false); onNavigate(nav.view)
+        if (nav.tab) window.setTimeout(() => {
+          window.history.replaceState({}, '', `/master-trade?tab=${nav.tab}`)
+          window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0)
+        }, 80)
+      }
+      if (viaVoice) {
+        // Sesli komutta sayfa göz bebeğinden açılır; gerçek yönlendirme sahne D'de yapılır, sonra hologram kapanır.
+        setOpen(false); setHoloOpen(true)
+        setPortal({view: nav.view, label: nav.label, commit: go, done: () => { setPortal(null); setHoloOpen(false) }})
+      } else go()
       return reply
     }
     // Sesle onay yoktur: bekleyen bir onay varken "evet/devam et" demek hiçbir şeyi onaylamaz, yalnızca ekrandaki düğmeye yönlendirir.
@@ -619,7 +626,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo confirm={(() => {
+    {holoVisible && <KaisAgentHolo portal={portal} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
