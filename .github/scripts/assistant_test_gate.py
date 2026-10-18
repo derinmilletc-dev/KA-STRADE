@@ -21,7 +21,7 @@ def node_id(case: ET.Element) -> str:
 
 
 def annotate(level: str, title: str, lines: list[str]) -> None:
-    body = "%0A".join(line.replace("%", "%25") for line in lines)
+    body = "%0A".join(" ".join(line.replace("%", "%25").split()) for line in lines)
     print(f"::{level} title={title}::{body}")
 
 
@@ -52,7 +52,7 @@ def main(report: str, known_file: str) -> int:
             continue
         lines = [line for line in (problem.text or "").strip().splitlines() if line.strip()]
         where = next((line.strip() for line in reversed(lines) if line.strip().startswith("tests/")), "")
-        details.append(f"{node_id(case)} | {where} | {(problem.get('message') or '')[:400]}")
+        details.append(f"{node_id(case)} | {where} | {" ".join((problem.get('message') or '').split())[:400]}")
     if details:  # bilinen ve yeni tüm başarısızlıkların kısa nedeni (log erişimi olmadan inceleme için)
         annotate("warning", "failure details", details)
     if fixed:
