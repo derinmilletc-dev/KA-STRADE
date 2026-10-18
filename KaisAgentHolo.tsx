@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {X, MessageSquare, RotateCcw} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
+import {emitKaisReaction} from './kais-reactions'
 import './kais-agent-holo.css'
 
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
@@ -48,6 +49,22 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
   const [sub, setSub] = useState<'scan' | 'analyze' | ''>('')
   const stage = useRef<HTMLDivElement>(null)
   const live = useMicLevel(phase === 'listening' && !hidden, stage)
+  // Bakış: gözün KENDİ mevcut altyapısı (kais:react → gaze) kullanılır; göz geometrisine dokunmayan, iris grubunu kaydıran standart hareket.
+  // Telefonda işaretçi olmadığı için göz hiç hareket etmiyordu; düşünürken daha sık, dinlerken/konuşurken seyrek etrafına bakar.
+  useEffect(() => {
+    if (hidden || phase === 'error') return
+    let timer = 0
+    const next = () => {
+      const rect = stage.current?.getBoundingClientRect()
+      if (rect) {
+        const angle = Math.random() * Math.PI * 2
+        emitKaisReaction({type: 'navigation', point: {x: rect.left + rect.width / 2 + Math.cos(angle) * 220, y: rect.top + rect.height / 2 + Math.sin(angle) * 90}})
+      }
+      timer = window.setTimeout(next, (phase === 'thinking' ? 1100 : 2200) + Math.random() * (phase === 'thinking' ? 900 : 1800))
+    }
+    timer = window.setTimeout(next, 600)
+    return () => window.clearTimeout(timer)
+  }, [phase, hidden])
   useEffect(() => {
     const change = () => setHidden(document.hidden)
     document.addEventListener('visibilitychange', change)
@@ -62,6 +79,7 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
     <div className="kaisHoloStage" ref={stage}>
       <div className="kaisHoloGlow" aria-hidden="true"/>
       <svg className="kaisHoloRings" viewBox="-160 -160 320 320" aria-hidden="true">
+        <circle className="ping" r="150"/>
         <g className="ring r1"><circle r="156"/></g>
         <g className="ring r2"><path d="M-150 0A150 150 0 0 1 0 -150M150 0A150 150 0 0 1 0 150"/></g>
         <g className="ring r3"><path d="M128 0h7" transform="rotate(0)"/><path d="M128 0h2" transform="rotate(6)"/><path d="M128 0h2" transform="rotate(12)"/><path d="M128 0h2" transform="rotate(18)"/><path d="M128 0h2" transform="rotate(24)"/><path d="M128 0h4" transform="rotate(30)"/><path d="M128 0h2" transform="rotate(36)"/><path d="M128 0h2" transform="rotate(42)"/><path d="M128 0h2" transform="rotate(48)"/><path d="M128 0h2" transform="rotate(54)"/><path d="M128 0h4" transform="rotate(60)"/><path d="M128 0h2" transform="rotate(66)"/><path d="M128 0h2" transform="rotate(72)"/><path d="M128 0h2" transform="rotate(78)"/><path d="M128 0h2" transform="rotate(84)"/><path d="M128 0h7" transform="rotate(90)"/><path d="M128 0h2" transform="rotate(96)"/><path d="M128 0h2" transform="rotate(102)"/><path d="M128 0h2" transform="rotate(108)"/><path d="M128 0h2" transform="rotate(114)"/><path d="M128 0h4" transform="rotate(120)"/><path d="M128 0h2" transform="rotate(126)"/><path d="M128 0h2" transform="rotate(132)"/><path d="M128 0h2" transform="rotate(138)"/><path d="M128 0h2" transform="rotate(144)"/><path d="M128 0h4" transform="rotate(150)"/><path d="M128 0h2" transform="rotate(156)"/><path d="M128 0h2" transform="rotate(162)"/><path d="M128 0h2" transform="rotate(168)"/><path d="M128 0h2" transform="rotate(174)"/><path d="M128 0h7" transform="rotate(180)"/><path d="M128 0h2" transform="rotate(186)"/><path d="M128 0h2" transform="rotate(192)"/><path d="M128 0h2" transform="rotate(198)"/><path d="M128 0h2" transform="rotate(204)"/><path d="M128 0h4" transform="rotate(210)"/><path d="M128 0h2" transform="rotate(216)"/><path d="M128 0h2" transform="rotate(222)"/><path d="M128 0h2" transform="rotate(228)"/><path d="M128 0h2" transform="rotate(234)"/><path d="M128 0h4" transform="rotate(240)"/><path d="M128 0h2" transform="rotate(246)"/><path d="M128 0h2" transform="rotate(252)"/><path d="M128 0h2" transform="rotate(258)"/><path d="M128 0h2" transform="rotate(264)"/><path d="M128 0h7" transform="rotate(270)"/><path d="M128 0h2" transform="rotate(276)"/><path d="M128 0h2" transform="rotate(282)"/><path d="M128 0h2" transform="rotate(288)"/><path d="M128 0h2" transform="rotate(294)"/><path d="M128 0h4" transform="rotate(300)"/><path d="M128 0h2" transform="rotate(306)"/><path d="M128 0h2" transform="rotate(312)"/><path d="M128 0h2" transform="rotate(318)"/><path d="M128 0h2" transform="rotate(324)"/><path d="M128 0h4" transform="rotate(330)"/><path d="M128 0h2" transform="rotate(336)"/><path d="M128 0h2" transform="rotate(342)"/><path d="M128 0h2" transform="rotate(348)"/><path d="M128 0h2" transform="rotate(354)"/></g>
@@ -70,7 +88,7 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
         <g className="align"><path transform="rotate(0)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(90)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(180)" d="M-30 -150A153 153 0 0 1 30 -150"/><path transform="rotate(270)" d="M-30 -150A153 153 0 0 1 30 -150"/></g>
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '0.5s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.0s'} as React.CSSProperties} transform="translate(-150 34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.5s'} as React.CSSProperties} transform="translate(150 34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.0s'} as React.CSSProperties} transform="translate(-114 -98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.5s'} as React.CSSProperties} transform="translate(114 -98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.0s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.5s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
-      <div className="kaisHoloEye"><KaisEye size={260} state="idle"/></div>
+      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/></div>
       <div className="kaisHoloScanBand" aria-hidden="true"><i/></div>
       <div className="kaisHoloCone" aria-hidden="true"/><div className="kaisHoloFloor" aria-hidden="true"/>
       <div className="kaisHoloWave" data-live={live} aria-hidden="true"><i style={{'--k': 0.40} as React.CSSProperties}/><i style={{'--k': 0.87} as React.CSSProperties}/><i style={{'--k': 0.98} as React.CSSProperties}/><i style={{'--k': 0.66} as React.CSSProperties}/><i style={{'--k': 0.67} as React.CSSProperties}/><i style={{'--k': 0.99} as React.CSSProperties}/><i style={{'--k': 0.86} as React.CSSProperties}/><i style={{'--k': 0.41} as React.CSSProperties}/><i style={{'--k': 0.88} as React.CSSProperties}/><i style={{'--k': 0.98} as React.CSSProperties}/><i style={{'--k': 0.65} as React.CSSProperties}/><i style={{'--k': 0.67} as React.CSSProperties}/><i style={{'--k': 0.99} as React.CSSProperties}/><i style={{'--k': 0.86} as React.CSSProperties}/><i style={{'--k': 0.42} as React.CSSProperties}/><i style={{'--k': 0.88} as React.CSSProperties}/><i style={{'--k': 0.98} as React.CSSProperties}/><i style={{'--k': 0.64} as React.CSSProperties}/><i style={{'--k': 0.68} as React.CSSProperties}/><i style={{'--k': 0.99} as React.CSSProperties}/><i style={{'--k': 0.85} as React.CSSProperties}/></div>

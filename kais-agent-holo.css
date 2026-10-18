@@ -10,24 +10,27 @@
 .kaisHoloRings{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:1}
 .kaisHoloRings *{fill:none;stroke:#27D6A0;stroke-width:.8;vector-effect:non-scaling-stroke}
 .ring{opacity:.42;transform-origin:0 0;transition:opacity .9s ease}
-.r1 circle{stroke-dasharray:2 6;opacity:.8}.r1{animation:kaisHoloSpin 70s linear infinite}
-.r2{opacity:.55;animation:kaisHoloSpin 34s linear infinite reverse}.r2 path{stroke-width:1}
-.r3{opacity:.34;animation:kaisHoloSpin 260s linear infinite}
-.r4{opacity:.36;animation:kaisHoloSpin 120s linear infinite reverse}
+.r1 circle{stroke-dasharray:2 6;opacity:.8}.r1{animation:kaisHoloSpin 26s linear infinite}
+.r2{opacity:.55;animation:kaisHoloSpin 15s linear infinite reverse}.r2 path{stroke-width:1}
+.r3{opacity:.34;animation:kaisHoloSpin 80s linear infinite}
+.r4{opacity:.36;animation:kaisHoloSpin 42s linear infinite reverse}
 .rulers{opacity:.4}
+.ping{transform-origin:0 0;opacity:0;stroke-width:1!important;animation:kaisHoloPing 3.4s ease-out infinite}
+.kaisHolo[data-phase=thinking] .ping{animation-duration:1.9s}
+.kaisHolo[data-phase=speaking] .ping,.kaisHolo[data-phase=error] .ping{animation:none}
 .align,.measure{opacity:0;transform-origin:0 0;transition:opacity .7s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
 .align{transform:scale(1.04)}
 .align path{stroke-width:1.1}
 .measure .m{opacity:0;animation:kaisHoloMeasure 3.6s ease-in-out infinite;animation-delay:var(--d)}
 .measure *{stroke-width:.7}.measure circle{fill:#27D6A0;stroke:none}
-.kaisHolo[data-sub=scan] .r1{animation-duration:42s}.kaisHolo[data-sub=scan] .r2{animation-duration:22s}
+.kaisHolo[data-sub=scan] .r1{animation-duration:12s}.kaisHolo[data-sub=scan] .r2{animation-duration:7s}
 .kaisHolo[data-sub=analyze] .align{opacity:.75;transform:scale(1)}
 .kaisHolo[data-sub=analyze] .measure{opacity:1}
-.kaisHolo[data-phase=listening] .r1{animation-duration:140s}.kaisHolo[data-phase=listening] .r2{animation-duration:90s}.kaisHolo[data-phase=speaking] .ring{opacity:.28}.kaisHolo[data-phase=speaking] .r1{animation-duration:140s}.kaisHolo[data-phase=speaking] .r2{animation-duration:90s}
+.kaisHolo[data-phase=listening] .r1{animation-duration:34s}.kaisHolo[data-phase=listening] .r2{animation-duration:20s}.kaisHolo[data-phase=speaking] .ring{opacity:.28}.kaisHolo[data-phase=speaking] .r1{animation-duration:40s}.kaisHolo[data-phase=speaking] .r2{animation-duration:24s}
 .kaisHolo[data-phase=error] .ring,.kaisHolo[data-phase=error] .kaisHoloGlow{animation-play-state:paused}
 .kaisHolo[data-phase=error] .kaisHoloRings *{stroke:#e8a85e}
 .kaisHoloScanBand{position:absolute;inset:9.375%;z-index:3;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .7s ease;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
-.kaisHoloScanBand i{position:absolute;left:4%;right:4%;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(150,255,230,.3),transparent);animation:kaisHoloScan 5s ease-in-out infinite}
+.kaisHoloScanBand i{position:absolute;left:4%;right:4%;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(150,255,230,.5),transparent);animation:kaisHoloScan 3.2s ease-in-out infinite}
 .kaisHolo[data-phase=thinking] .kaisHoloScanBand{opacity:1}
 .kaisHoloCone{position:absolute;left:30%;right:30%;bottom:-6px;height:12%;background:linear-gradient(rgba(39,214,160,0),rgba(39,214,160,.07));clip-path:polygon(0 0,100% 0,84% 100%,16% 100%);pointer-events:none}
 .kaisHoloFloor{position:absolute;left:14%;right:14%;bottom:-22px;height:28px;border-radius:50%;border:1px solid rgba(39,214,160,.22);background:radial-gradient(ellipse,rgba(39,214,160,.14),rgba(39,214,160,0) 68%);pointer-events:none;animation:kaisHoloBreath 7s ease-in-out infinite}
@@ -43,6 +46,7 @@
 .kaisHoloChat svg{width:16px;height:16px}
 .kaisHolo[data-paused=true] *{animation-play-state:paused!important}
 @keyframes kaisHoloIn{from{opacity:0}to{opacity:1}}
+@keyframes kaisHoloPing{0%{opacity:.5;transform:scale(.9)}100%{opacity:0;transform:scale(1.08)}}
 @keyframes kaisHoloSpin{to{transform:rotate(360deg)}}
 @keyframes kaisHoloBreath{50%{opacity:.6}}
 @keyframes kaisHoloScan{0%{transform:translateY(0)}100%{transform:translateY(256px)}}
