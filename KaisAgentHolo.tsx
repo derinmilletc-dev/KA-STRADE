@@ -4,6 +4,7 @@ import {X, MessageSquare, RotateCcw} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import KaisVoicePicker from './KaisVoicePicker'
 import {emitKaisReaction} from './kais-reactions'
+import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
 
 /** Gerçekten gözlemlenebilen durumlar (sesli oturum + sohbet isteği yaşam döngüsü):
@@ -12,7 +13,8 @@ import './kais-agent-holo.css'
  *  CANCELLED: bileşen kapanınca kaldırılır; rAF ve zamanlayıcılar temizlenir. */
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
-type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+export type HoloPortal = {view: string; label: string; commit: () => void; done: () => void}
+type Props = {portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -53,7 +55,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
+export default function KaisAgentHolo({portal, confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -67,7 +69,31 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
   const stage = useRef<HTMLDivElement>(null)
   const pupil = useRef<SVGSVGElement>(null)
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
-  useRings(phase, hidden, [primary, secondary, precision])
+  // Sayfa geçişi sahneleri (yalnızca ayrı katmanlar; ana göz hiç dönüştürülmez): A algıla → B göz bebeğinde pencere → C büyüme → D gerçek sayfa.
+  const [scene, setScene] = useState<'' | 'A' | 'B' | 'C' | 'D'>('')
+  const [fill, setFill] = useState(60)
+  useEffect(() => {
+    if (!portal) { setScene(''); return }
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timers: number[] = []
+    let committed = false
+    const commit = () => { if (committed) return; committed = true; try { portal.commit() } catch { /* sayfa açılamazsa mevcut güvenli davranış */ } }
+    const rect = stage.current?.getBoundingClientRect()
+    if (rect) {
+      // Çerçeve merkezden (göz bebeği) çıkar; en uzak ekran kenarını da kaplayacak ölçek.
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2
+      setFill(Math.max(Math.max(cx, window.innerWidth - cx) / 30, Math.max(cy, window.innerHeight - cy) / 22) * 1.12)
+    }
+    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms))
+    if (reduced) { setScene('B'); at(450, () => { commit(); setScene('D') }); at(800, () => portal.done()) }
+    else {
+      setScene('A'); at(550, () => setScene('B')); at(1050, () => setScene('C'))
+      at(1700, () => { commit(); setScene('D') }); at(2150, () => portal.done())
+    }
+    return () => { timers.forEach(window.clearTimeout); commit() }
+  }, [portal])  // eslint-disable-line react-hooks/exhaustive-deps
+  const ringPhase: HoloPhase = scene === 'A' || scene === 'B' ? 'thinking' : scene === 'C' || scene === 'D' ? 'speaking' : phase
+  useRings(ringPhase, hidden, [primary, secondary, precision])
   // Gözün KENDİ mevcut bakış altyapısı (kais:react): telefonda işaretçi olmadığı için göz kıpırdamıyordu. Düşünürken sık, diğer durumlarda seyrek bakar.
   useEffect(() => {
     if (hidden || phase === 'error') return
@@ -109,7 +135,7 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     const timer = window.setTimeout(() => setBeam(false), 450)
     return () => window.clearTimeout(timer)
   }, [phase])
-  return createPortal(<div className="kaisHolo" data-phase={phase} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
+  return createPortal(<div className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
     <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>
@@ -135,7 +161,11 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
           <circle className="pDot" r=".9"/>
         </svg>
       </div>
-      <div className="kaisHoloScanBand" data-on={beam && phase === 'thinking'} aria-hidden="true">{beam && <i/>}</div>
+      {scene && <div className="kaisHoloPortal" aria-hidden="true" style={{'--fill': fill} as React.CSSProperties}>
+        <i className="frame"/>
+        <div className="tag"><svg viewBox="0 0 24 24"><path d={PAGE_GLYPH[portal?.view ?? ''] ?? PAGE_GLYPH.dashboard}/></svg><b>{portal?.label}</b></div>
+      </div>}
+      <div className="kaisHoloScanBand" data-on={(beam && phase === 'thinking') || scene === 'A'} aria-hidden="true">{(beam || scene === 'A') && <i/>}</div>
       <div className="kaisHoloFloor" aria-hidden="true"/>
     </div>
     {actions.length > 0 && <div className="kaisHoloChips">{actions.slice(-4).map((action, index) => <span key={`${action}-${index}`} className="kaisHoloChip">▸ {action}</span>)}</div>}

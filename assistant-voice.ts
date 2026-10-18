@@ -103,13 +103,15 @@ export const savedRate = (): number => { try { const v = Number(localStorage.get
 export const saveRate = (value: number) => { try { localStorage.setItem(RATE_KEY, String(value)) } catch { /* yok say */ } }
 export const savedVoiceName = () => { try { return localStorage.getItem(VOICE_KEY) || '' } catch { return '' } }
 export const saveVoiceName = (name: string) => { try { if (name) localStorage.setItem(VOICE_KEY, name); else localStorage.removeItem(VOICE_KEY) } catch { /* saklanamazsa oturum boyunca geçerli olmaz */ } }
+export const otherVoices = (language: string): SpeechSynthesisVoice[] => typeof window === 'undefined' || !window.speechSynthesis ? []
+  : window.speechSynthesis.getVoices().filter(item => !item.lang.replace('_', '-').toLowerCase().startsWith(language.slice(0, 2).toLowerCase()))
 export const voicesFor = (language: string): SpeechSynthesisVoice[] => typeof window === 'undefined' || !window.speechSynthesis ? []
   : window.speechSynthesis.getVoices().filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language.slice(0, 2).toLowerCase()))
 
 function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string): SpeechSynthesisVoice | undefined {
   const matching = voices.filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language))
   const saved = savedVoiceName()
-  const chosen = saved ? matching.find(item => item.name === saved) : undefined
+  const chosen = saved ? voices.find(item => item.name === saved) : undefined  // kayıtlı ses başka dilden de olabilir (kullanıcı seçtiyse)
   if (chosen) return chosen
   const score = (item: SpeechSynthesisVoice) => {
     const name = item.name.toLowerCase()
