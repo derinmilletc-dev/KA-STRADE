@@ -21,7 +21,7 @@ from app.assistant_llm import AnthropicTransport, build_request
 from app.assistant_models import ChatInput, ModelAnswer, ToolCall
 from app.assistant_prompt import SYSTEM_POLICY, system_prompt
 from app.assistant_storage import SCHEMA, AssistantStore, month_key
-from app.assistant_tools import AssistantTools
+from app.assistant_tools import ARGUMENT_MODELS, AssistantTools
 from app.commercial_core import default_commercial_state, issue_token
 from app.main import owner_preview_gate
 from fastapi import FastAPI
@@ -386,7 +386,7 @@ class AssistantLlmTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_duplicate_ids_or_too_many_tools_are_billed_but_not_executed(self):
         for calls in ((ToolCall("same", "get_my_access", {}),) * 2,
-                      tuple(ToolCall(str(index), "get_my_access", {}) for index in range(8))):
+                      tuple(ToolCall(str(index), "get_my_access", {}) for index in range(len(ARGUMENT_MODELS) + 1))):  # sınır = araç sayısı (run_conversation)
             self.transport.generate.return_value = ModelAnswer("", 100, 20, tool_calls=calls)
             with patch.object(AssistantTools, "dispatch", AsyncMock()) as dispatch:
                 self.assertEqual((await self.chat()).status_code, 502)
