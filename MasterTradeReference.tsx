@@ -261,7 +261,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
         <div className="refZoomTools" role="group" aria-label="Grafik yakınlaştırma">
           <button type="button" aria-label="Uzaklaştır" title="Uzaklaştır (fare tekerleği)" disabled={count >= maxCount} onClick={() => setZoom(Math.min(maxCount, Math.round(count * 1.3)))}><ZoomOut/></button>
           <button type="button" aria-label="Yakınlaştır" title="Yakınlaştır (fare tekerleği)" disabled={count <= 10} onClick={() => setZoom(Math.max(10, Math.round(count / 1.3)))}><ZoomIn/></button>
-          {zoomed && <button type="button" className="refZoomReset" title="Varsayılan görünüme ve son mumlara dön (çift tık)" onClick={resetView}><RotateCcw/>Son mumlar</button>}
+          {zoomed && <button type="button" className="refZoomReset" aria-label="Son mumlara dön" title="Varsayılan görünüme ve son mumlara dön (çift tık)" onClick={resetView}><RotateCcw/><span className="refZoomResetLabel">Son mumlar</span></button>}
         </div>
         <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{axisPrice(label.value)}</span>)}</div>
       </>}
