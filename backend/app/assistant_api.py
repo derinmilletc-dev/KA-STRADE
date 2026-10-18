@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from .analyst_credits import CreditTransaction
 from .assistant_config import AssistantConfig, load_assistant_config
+from . import assistant_timing
 from .assistant_fastpath import answer as fastpath_answer
 from .assistant_fastpath import detect_language
 from .assistant_llm import (
@@ -119,13 +120,16 @@ class AssistantService:
         transport = AnthropicTransport(config)
         started = False
 
+        timing = assistant_timing.start()
+
         async def count(request: LLMRequest) -> int:
-            await self.preflight(user_id, config, first=not started)
-            if self.token_counter is not None:
-                return await self.token_counter(request)
-            if self.provider is not None:
-                return request.estimated_input()
-            return await transport.count(request)
+            with assistant_timing.stage("count"):
+                await self.preflight(user_id, config, first=not started)
+                if self.token_counter is not None:
+                    return await self.token_counter(request)
+                if self.provider is not None:
+                    return request.estimated_input()
+                return await transport.count(request)
 
         async def paid(request: LLMRequest, first: bool) -> ModelAnswer:
             nonlocal started
@@ -134,7 +138,9 @@ class AssistantService:
             return answer
 
         reply = await run_conversation(config, language, payload, user_id, tools, paid, count)
-        headers = {"Retry-After": str(reply.retry_after)} if reply.retry_after is not None else None
+        headers = {"Retry-After": str(reply.retry_after)} if reply.retry_after is not None else {}
+        headers.update(assistant_timing.header(timing))
+        headers = headers or None
         body: dict[str, Any] = {"reply": reply.reply, "language": reply.language, "sources": list(reply.sources)}
         if reply.needs_confirmation is not None:
             body["needs_confirmation"] = reply.needs_confirmation
@@ -189,7 +195,9 @@ class AssistantService:
         try:
             if await self.store.accounting_blocked(month):
                 raise AssistantStopped("storage")
+            lock_began = time.monotonic()
             async with self.store.monthly_transaction(month, config.request_timeout_seconds) as transaction:
+                assistant_timing.add("lock", (time.monotonic() - lock_began) * 1000)
                 now = self.clock()
                 if month_key(now) != month:
                     raise AssistantStopped("budget")
@@ -220,10 +228,11 @@ class AssistantService:
                     )
                 sent = True
                 try:
-                    answer = await asyncio.wait_for(
-                        self.provider(config, language, request.payload) if self.provider is not None else transport.generate(request),
-                        timeout=config.request_timeout_seconds,
-                    )
+                    with assistant_timing.stage("llm"):
+                        answer = await asyncio.wait_for(
+                            self.provider(config, language, request.payload) if self.provider is not None else transport.generate(request),
+                            timeout=config.request_timeout_seconds,
+                        )
                 except (anthropic.APIError, TimeoutError, json.JSONDecodeError):
                     answer = ModelAnswer("", None, None, failed=True)
                 values = (answer.input_tokens, answer.output_tokens, answer.cache_creation_input_tokens, answer.cache_read_input_tokens)

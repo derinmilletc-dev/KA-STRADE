@@ -14,7 +14,7 @@ import './kais-agent-holo.css'
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
 export type HoloPortal = {view: string; label: string; commit: () => void; done: () => void}
-type Props = {alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {timing?: string; alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -55,7 +55,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({alarm, portal, confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
+export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -169,6 +169,7 @@ export default function KaisAgentHolo({alarm, portal, confirm, phase, status, us
       <div className="kaisHoloScanBand" data-on={(beam && phase === 'thinking') || scene === 'A'} aria-hidden="true">{(beam || scene === 'A') && <i/>}</div>
       <div className="kaisHoloFloor" aria-hidden="true"/>
     </div>
+    {timing && <p className="kaisHoloTiming">{timing}</p>}
     {alarm && <p className="kaisHoloAlarmText" role="alert">{alarm}</p>}
     {actions.length > 0 && <div className="kaisHoloChips">{actions.slice(-4).map((action, index) => <span key={`${action}-${index}`} className="kaisHoloChip">▸ {action}</span>)}</div>}
     <p className="kaisHoloStatus" data-error={phase === 'error'}>{status}</p>

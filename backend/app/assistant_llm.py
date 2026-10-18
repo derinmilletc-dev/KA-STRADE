@@ -36,6 +36,7 @@ from .assistant_models import (
 )
 from .assistant_prompt import RISK_NOTES, system_prompt
 from .assistant_response import LEVEL_REDIRECTS, safe_response
+from . import assistant_timing
 from .assistant_tools import ARGUMENT_MODELS, TOOL_DEFINITIONS, AssistantTools
 
 _provider_guard: ContextVar[bool] = ContextVar("assistant_provider_guard", default=False)
@@ -302,7 +303,8 @@ async def run_conversation(
                     if tools is None:
                         raise HTTPException(503)
                     arguments = {**call.arguments, "language": language} if call.name == "search_help" else call.arguments
-                    result = await tools.dispatch(user_id, call.name, arguments)
+                    with assistant_timing.stage("tool"):
+                        result = await tools.dispatch(user_id, call.name, arguments)
                 except (HTTPException, ValidationError, asyncpg.PostgresError, asyncpg.InterfaceError, sqlite3.Error, OSError, TimeoutError):
                     result = {"data": {"error": "Could not verify tool data."}, "stale": True,
                               "fetched_at": datetime.fromtimestamp(tools.clock() if tools is not None else time.time(), timezone.utc).isoformat()}
