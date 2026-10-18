@@ -276,7 +276,7 @@ class AssistantTools:
             age = self.clock() - scanned.timestamp() if scanned else None
             scan: dict[str, Any] = {"last_scan_at": raw.get("last_scan_at"), "timeframe": raw.get("timeframe"), "coins_scanned": raw.get("coins_scanned"),
                                     "max_age_seconds": MAX_SIGNAL_AGE_SECONDS}
-            if raw.get("last_scan_at") and (age is None or age < -60):  # okunamayan/gelecekteki zaman: tazelik doğrulanamaz
+            if raw.get("last_scan_at") and (age is None or age < 0):  # okunamayan/gelecekteki zaman (analysis_summary ile aynı kural)
                 scan.update({"status": "unavailable", "note": "SCAN_TIMESTAMP_INVALID"}); stale = True
             elif age is None or not raw.get("candidate_count"):
                 scan.update({"status": "no_scan", "note": "NO_SCAN_RESULTS_YET"}); stale = True
@@ -289,7 +289,7 @@ class AssistantTools:
                 def best(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
                     # Aynı skorda güven değeri ve sembol ile deterministik sıralama.
                     return brief(max(rows, key=lambda row: (float(row.get(key) or 0), float(row.get("confidence_value") or 0), str(row.get("symbol"))))) if rows else None
-                scan.update({"status": "fresh", "age_seconds": max(0, math.floor(age)), "eligible_count": len(eligible),
+                scan.update({"status": "fresh", "age_seconds": math.floor(age), "eligible_count": len(eligible),
                              "best_long": best([r for r in eligible if r["direction"] == "LONG"], "opportunity_score"),
                              "best_short": best([r for r in eligible if r["direction"] == "SHORT"], "opportunity_score"),
                              "highest_confidence": best(eligible, "confidence_value"),

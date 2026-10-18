@@ -42,12 +42,18 @@ def row(symbol, direction, opportunity, confidence=70):
 
 class DirectIntentTests(unittest.TestCase):
     def test_read_only_position_questions_use_the_positions_path(self):
-        for message in ("işlemlerim ne durumda", "Şu an işlemlerim ne durum", "açık işlemim var mı", "kar zarar durumum ne", "what are my positions"):
+        for message in ("İşlemlerim ne durumda?", "işlemlerim ne durumda", "Şu an işlemlerim ne durum", "Açık işlemim var mı?", "açık işlemim var mı",
+                        "Pozisyonlarımı göster.", "kar zarar durumum ne", "How many open positions do I have?", "Show my positions.", "what are my positions"):
             self.assertEqual(fastpath.intent(message), "get_demo_positions", message)
 
     def test_action_requests_are_never_captured_by_read_only_paths(self):
         for message in ("pozisyonlarımı kapat", "işlemlerimi kapat", "tüm işlemlerimi sat", "açık pozisyonlarımı kapatır mısın",
                         "close my positions", "sell all my trades", "cancel my open positions", "BTC long emir hazırla", "pozisyon aç"):
+            self.assertIsNone(fastpath.intent(message), message)
+
+    def test_unlisted_action_verbs_and_ambiguous_requests_fall_through_to_the_model(self):
+        for message in ("Pozisyonumu bitir.", "Açık işlemlerimi durdur.", "Stop my positions.", "İşlemlerimden çık.", "Pozisyonlarımı sıfırla.",
+                        "End my trades.", "pozisyonlarım", "my positions", "açık işlemlerim", "kar zarar"):
             self.assertIsNone(fastpath.intent(message), message)
 
     def test_educational_questions_are_not_answered_with_lists_or_rankings(self):
@@ -93,6 +99,9 @@ class MarketOverviewToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.overview(scan(5, [], candidate_count=0)))["data"]["scan"]["status"], "no_scan")
         future = {**scan(0, [row("SOLUSDT", "LONG", 81)]), "last_scan_at": (NOW + timedelta(hours=1)).isoformat()}
         self.assertEqual((await self.overview(future))["data"]["scan"]["status"], "unavailable")
+        slightly_future = {**future, "last_scan_at": (NOW + timedelta(seconds=1)).isoformat()}  # tolerans yok
+        self.assertEqual((await self.overview(slightly_future))["data"]["scan"]["status"], "unavailable")
+        self.assertEqual((await self.overview(scan(0, [row("SOLUSDT", "LONG", 81)])))["data"]["scan"]["status"], "fresh")
         self.assertEqual((await self.overview({**future, "last_scan_at": "not-a-date"}))["data"]["scan"]["status"], "unavailable")
         self.assertEqual((await self.overview(scanner_error=PermissionError()))["data"]["scan"]["status"], "unavailable")
 

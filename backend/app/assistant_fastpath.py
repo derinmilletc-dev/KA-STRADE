@@ -81,7 +81,17 @@ MARKET_ASK = re.compile(
     r"|top (gainer|loser)s?|best (long|short)|highest confidence)\b")
 
 
+POSITION_READ_STEMS = ("durum", "goster", "listele")
+POSITION_READ_WORDS = {"var", "kac", "neler", "hangileri", "show", "list", "what", "whats", "any", "many", "much", "which"}
+
+
+def is_read_request(words: set[str]) -> bool:
+    return bool(words & POSITION_READ_WORDS or any(word.startswith(POSITION_READ_STEMS) for word in words))
+
+
 def is_action_or_educational(words: set[str]) -> bool:
+    if words & {"many", "much"}:  # "how many / how much" bir sayım sorusudur, nasıl-yapılır sorusu değil
+        words = words - {"how"}
     return bool(words & ACTION_WORDS
                 or any(word.startswith(ACTION_STEMS) for word in words) or any(word.startswith(EDUCATIONAL_STEMS) for word in words))
 
@@ -99,11 +109,13 @@ def intent(message: str) -> str | None:
         if (MARKET_ASK.search(normalized) and not analysis_targets(message)[0] and not words & YES_NO_PARTICLES
                 and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
             return "get_market_overview"
-        # Demo hesap pozisyonları / kâr-zarar: yalnızca kişisel ve güncel bir ifade varsa.
-        if (any(word.startswith(("pozisyonlarim", "pozisyonum", "islemlerim", "islemim")) for word in words)
-                or ("my" in words and words & {"positions", "position", "trades"})
-                or ("acik" in words and any(word.startswith(("pozisyon", "islem")) for word in words))
-                or (words & {"kar", "zarar", "pnl"} and any(word.startswith("durum") for word in words))):
+        # Demo hesap pozisyonları / kâr-zarar: kişisel bir pozisyon ifadesi VE açık bir okuma ifadesi (durum/var mı/göster/kaç,
+        # show/what/how many...) birlikte olmalı. Okuma ifadesi olmayan her cümle (bitir, durdur, stop, end...) modele gider.
+        about_positions = (any(word.startswith(("pozisyonlarim", "pozisyonum", "islemlerim", "islemim")) for word in words)
+                           or (words & {"my", "i"} and words & {"positions", "position", "trades"})
+                           or ("acik" in words and any(word.startswith(("pozisyon", "islem")) for word in words))
+                           or words & {"kar", "zarar", "pnl"})
+        if about_positions and is_read_request(words):
             return "get_demo_positions"
     if re.fullmatch(r"(?:sen kimsin|kimsin|adin ne|senin adin ne|who are you|what is your name)(?:\s*[?!.])*", normalized.strip()):
         return "identity"
