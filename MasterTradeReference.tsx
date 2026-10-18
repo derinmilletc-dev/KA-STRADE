@@ -275,7 +275,10 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           <button type="button" aria-label="Yakınlaştır" title="Yakınlaştır (fare tekerleği)" disabled={count <= 10} onClick={() => setZoom(Math.max(10, Math.round(count / 1.3)))}><ZoomIn/></button>
           {zoomed && <button type="button" className="refZoomReset" aria-label="Son mumlara dön" title="Varsayılan görünüme ve son mumlara dön (çift tık)" onClick={resetView}><RotateCcw/><span className="refZoomResetLabel">Son mumlar</span></button>}
         </div>
-        <div className="masterTradeChartPills">{labels.map(label => <span key={`${label.label}-${label.value}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{axisPrice(label.value)}</span>)}</div>
+        {/* Performans: etiketler fiyata göre değil sabit sırayla ve sabit anahtarla çizilir. Konumları zaten
+            mutlak (top) olduğu için görünüm aynıdır; ama canlı fiyat her tikte etiketleri söküp yeniden takmaz.
+            Sökme/takma, sayfadaki :has() kuralları yüzünden tüm sayfanın stilini yeniden hesaplatıyordu. */}
+        <div className="masterTradeChartPills">{[...labels].sort((left, right) => `${left.tone}-${left.label}`.localeCompare(`${right.tone}-${right.label}`)).map(label => <span key={`${label.tone}-${label.label}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{axisPrice(label.value)}</span>)}</div>
       </>}
     </div>
   </>
