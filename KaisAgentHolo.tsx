@@ -2,6 +2,8 @@ import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {X, MessageSquare, RotateCcw} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
+import KaisVoicePicker from './KaisVoicePicker'
+import {emitKaisReaction} from './kais-reactions'
 import './kais-agent-holo.css'
 
 /** Gerçekten gözlemlenebilen durumlar (sesli oturum + sohbet isteği yaşam döngüsü):
@@ -10,7 +12,7 @@ import './kais-agent-holo.css'
  *  CANCELLED: bileşen kapanınca kaldırılır; rAF ve zamanlayıcılar temizlenir. */
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
-type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -51,7 +53,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText}: Props) {
+export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -62,8 +64,24 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     const timer = window.setTimeout(() => setSlow(true), 8000)
     return () => window.clearTimeout(timer)
   }, [phase])
+  const stage = useRef<HTMLDivElement>(null)
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
   useRings(phase, hidden, [primary, secondary, precision])
+  // Gözün KENDİ mevcut bakış altyapısı (kais:react): telefonda işaretçi olmadığı için göz kıpırdamıyordu. Düşünürken sık, diğer durumlarda seyrek bakar.
+  useEffect(() => {
+    if (hidden || phase === 'error') return
+    let timer = 0
+    const next = () => {
+      const rect = stage.current?.getBoundingClientRect()
+      if (rect) {
+        const angle = Math.random() * Math.PI * 2
+        emitKaisReaction({type: 'navigation', point: {x: rect.left + rect.width / 2 + Math.cos(angle) * 220, y: rect.top + rect.height / 2 + Math.sin(angle) * 90}})
+      }
+      timer = window.setTimeout(next, (phase === 'thinking' ? 900 : 1800) + Math.random() * (phase === 'thinking' ? 700 : 1500))
+    }
+    timer = window.setTimeout(next, 500)
+    return () => window.clearTimeout(timer)
+  }, [phase, hidden])
   useEffect(() => {
     const change = () => setHidden(document.hidden)
     document.addEventListener('visibilitychange', change)
@@ -76,8 +94,9 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     return () => window.clearTimeout(timer)
   }, [phase])
   return createPortal(<div className="kaisHolo" data-phase={phase} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
+    <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
-    <div className="kaisHoloStage">
+    <div className="kaisHoloStage" ref={stage}>
       <div className="kaisHoloGlow" aria-hidden="true"/>
       <svg className="kaisHoloRings" viewBox="-160 -160 320 320" aria-hidden="true">
         <circle className="ping" r="150"/>
@@ -88,7 +107,7 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
         <g className="rulers"><path transform="rotate(0)" d="M156 0h7M156 -3v6"/><path transform="rotate(90)" d="M156 0h7M156 -3v6"/><path transform="rotate(180)" d="M156 0h7M156 -3v6"/><path transform="rotate(270)" d="M156 0h7M156 -3v6"/></g>
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.1s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.2s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.3000000000000003s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
-      <div className="kaisHoloEye"><KaisEye size={260} state="idle"/></div>
+      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/></div>
       <div className="kaisHoloScanBand" data-on={beam && phase === 'thinking'} aria-hidden="true">{beam && <i/>}</div>
       <div className="kaisHoloFloor" aria-hidden="true"/>
     </div>

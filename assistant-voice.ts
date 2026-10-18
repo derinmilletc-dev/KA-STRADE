@@ -96,8 +96,18 @@ function chunks(value: string): string[] {
 }
 
 /** Dilin en doğal sesini seçer (Edge "Natural"/"Online", Google, Apple gelişmiş sesleri önce). */
+const VOICE_KEY = 'kt_voice_name'
+/** Kullanıcının seçtiği ses (cihaz sesleri cinsiyet bilgisi vermediği için seçimi kullanıcı yapar). Boş = otomatik. */
+export const savedVoiceName = () => { try { return localStorage.getItem(VOICE_KEY) || '' } catch { return '' } }
+export const saveVoiceName = (name: string) => { try { if (name) localStorage.setItem(VOICE_KEY, name); else localStorage.removeItem(VOICE_KEY) } catch { /* saklanamazsa oturum boyunca geçerli olmaz */ } }
+export const voicesFor = (language: string): SpeechSynthesisVoice[] => typeof window === 'undefined' || !window.speechSynthesis ? []
+  : window.speechSynthesis.getVoices().filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language.slice(0, 2).toLowerCase()))
+
 function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string): SpeechSynthesisVoice | undefined {
   const matching = voices.filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language))
+  const saved = savedVoiceName()
+  const chosen = saved ? matching.find(item => item.name === saved) : undefined
+  if (chosen) return chosen
   const score = (item: SpeechSynthesisVoice) => {
     const name = item.name.toLowerCase()
     let value = item.lang.replace('_', '-') === tag ? 1 : 0
@@ -168,7 +178,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       utterance.lang = tag
       if (voice) utterance.voice = voice
       utterance.rate = 1.15
-      utterance.pitch = isKnownMale(voice) ? 1 : .7
+      utterance.pitch = savedVoiceName() || isKnownMale(voice) ? 1 : .7
       if (index === parts.length - 1) {
         utterance.onend = () => { window.clearTimeout(fallback); done() }
         utterance.onerror = () => { window.clearTimeout(fallback); done() }
