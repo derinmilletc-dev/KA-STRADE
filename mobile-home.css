@@ -170,3 +170,10 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
     box-shadow: none !important;
   }
 }
+
+/* Telefon üst menü: logo görselinin solundaki saydam boşluk (görsel genişliğinin %20,1'i + contain boşluğu) kadar sola kaydır; görünen logo sayfa kenar boşluğuyla (14px) hizalanır. */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26Header.v26HomeHeader > .v26Brand > .v26BrandLogo {
+    transform: translateX(calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px)) !important;
+  }
+}
