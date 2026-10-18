@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice } from './assistant-voice'
 import KaisAgentHolo from './KaisAgentHolo'
+import KaisOrderCard from './KaisOrderCard'
+import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseNavigation, type AgentView } from './kais-agent-intents'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
@@ -171,6 +173,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [storageProblem, setStorageProblem] = useState(intro.problem)
   const [open, setOpen] = useState(false)
   const [holoOpen, setHoloOpen] = useState(false)
+  const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
   const [greetingVisible, setGreetingVisible] = useState(false)
@@ -447,6 +450,18 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (viaVoice) window.setTimeout(() => setHoloOpen(false), 1800)
       return reply
     }
+    const draftOrder = parseOrderDraft(message)
+    if (draftOrder) {
+      // Aşama 2: yalnızca taslak. Emir kartta test + yazılı ONAYLA olmadan gönderilmez; model/ağ isteği yok.
+      const reply = language === 'en' ? 'Demo order draft is ready. Fill the missing fields, run the server test, then type ONAYLA to send.' : 'Demo emir taslağı hazır. Eksik alanları doldur, sunucuda test et, göndermek için ONAYLA yaz.'
+      setDraft(''); setIssue(null); setLengthError(false)
+      setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
+      append(reply, language)
+      setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Order draft' : 'Emir taslağı'])
+      setOpen(false); setHoloOpen(false); setOrderDraft(draftOrder)
+      window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+      return reply
+    }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
     const eligible = messages.filter(row => !row.proactive && !row.pending && !row.failed && row.content.trim() && !sensitive(row.content, usage.limits))
@@ -458,12 +473,14 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     const controller = new AbortController()
     activeRequest.current = controller
     try {
+      setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Asked Kais' : 'Kais\'e soruldu'])
       const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
       const confirmation = parseConfirmation(response.needs_confirmation)
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
+      setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Answer received' : 'Cevap geldi'])
       return response.reply
     } catch (error) {
       if (controller.signal.aborted) return null
@@ -540,6 +557,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   return <>
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
+    {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
     {holoVisible && <KaisAgentHolo phase={voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
       status={voice.message || phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
