@@ -8042,3 +8042,44 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active::before,
   html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active::after { content: none !important; display: none !important; }
 }
+
+/* Telefon alt menü: Kais gözü 3. sekme olarak (Analist 'Menü' içinde); yazısız, diğer sekmelerden biraz büyük. */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > .v26NavAssistantHost {
+    display: grid !important;
+    min-width: 0 !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher {
+    position: relative !important;
+    display: grid !important;
+    justify-items: center !important;
+    align-content: center !important;
+    gap: 3px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 46px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #7f93a8 !important;
+    flex: none !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher::before { display: none !important; }
+  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher > .kaisEye {
+    width: 50px !important;
+    height: 50px !important;
+    margin: -2px 0 !important;
+    filter: drop-shadow(0 0 6px rgba(39, 214, 160, .25));
+  }
+  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantIntro { display: none !important; }
+  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantBadge {
+    top: 2px !important;
+    right: calc(50% - 20px) !important;
+    min-width: 16px !important;
+    height: 16px !important;
+    font-size: 10px !important;
+  }
+}

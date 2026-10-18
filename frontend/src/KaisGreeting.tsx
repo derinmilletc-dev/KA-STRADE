@@ -60,7 +60,7 @@ export default function KaisGreeting({enabled, chatOpen, anchorRef, anchorHost, 
   const previousCycle = useRef(0)
   const previousRequest = useRef(openRequest)
   const bubbleRef = useRef<HTMLDivElement>(null)
-  const [placement, setPlacement] = useState({left: GAP, top: GAP, width: MAX_WIDTH, arrow: GAP, fits: false})
+  const [placement, setPlacement] = useState({left: GAP, top: GAP, width: MAX_WIDTH, arrow: GAP, fits: false, above: false})
   const shown = phase !== 'hidden' && !chatOpen
   const paused = hovered || touched || focused
   const pathname = window.location.pathname
@@ -218,12 +218,16 @@ export default function KaisGreeting({enabled, chatOpen, anchorRef, anchorHost, 
       const width = viewWidth <= 480 ? Math.max(0, viewWidth - GAP * 2) : Math.min(MAX_WIDTH, viewWidth - GAP * 2)
       element.style.width = `${width}px`
       const left = Math.max(viewLeft + GAP, Math.min(anchor.right - width, viewLeft + viewWidth - GAP - width))
-      const top = anchor.bottom + 10
+      // Alt menüdeki göz için balon aşağıya sığmazsa gözün üstüne açılır.
+      const belowTop = anchor.bottom + 10
+      const aboveTop = anchor.top - 10 - element.offsetHeight
+      const above = belowTop + element.offsetHeight > viewTop + viewHeight - GAP && aboveTop >= viewTop + GAP
+      const top = above ? aboveTop : belowTop
       const arrow = Math.max(GAP, Math.min(anchor.left + anchor.width / 2 - left, width - GAP))
       const fits = anchor.width > 0 && anchor.height > 0 && width > 0 &&
         top >= viewTop + GAP && top + element.offsetHeight <= viewTop + viewHeight - GAP
       setPlacement(previous => previous.left === left && previous.top === top && previous.width === width &&
-        previous.arrow === arrow && previous.fits === fits ? previous : {left, top, width, arrow, fits})
+        previous.arrow === arrow && previous.fits === fits && previous.above === above ? previous : {left, top, width, arrow, fits, above})
     }
     const trackLayout = () => {
       frame = undefined
@@ -266,7 +270,7 @@ export default function KaisGreeting({enabled, chatOpen, anchorRef, anchorHost, 
     width: placement.width, visibility: placement.fits ? 'visible' : 'hidden', '--kais-greeting-arrow': `${placement.arrow}px`}
   return createPortal(<div ref={bubbleRef} role="status" aria-live="polite" aria-atomic="true" lang="tr"
     className={shown ? 'kaisGreeting' : 'kaisGreetingAnnouncer'} data-kais-greeting={shown || undefined}
-    data-phase={phase} data-paused={paused || hidden} data-motion-paused={motionPaused} style={shown ? style : undefined}
+    data-phase={phase} data-side={placement.above ? 'above' : undefined} data-paused={paused || hidden} data-motion-paused={motionPaused} style={shown ? style : undefined}
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onTouchStart={() => setTouched(true)} onTouchEnd={() => setTouched(false)} onTouchCancel={() => setTouched(false)}
     onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}>
