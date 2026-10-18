@@ -21,7 +21,7 @@ def node_id(case: ET.Element) -> str:
 
 
 def annotate(level: str, title: str, lines: list[str]) -> None:
-    body = "%0A".join(line.replace("%", "%25") for line in lines)
+    body = "%0A".join(" ".join(line.replace("%", "%25").split()) for line in lines)
     print(f"::{level} title={title}::{body}")
 
 
@@ -45,6 +45,16 @@ def main(report: str, known_file: str) -> int:
     if not cases or collection_errors > 0:
         annotate("error", "assistant tests", summary + ["No test cases collected or collection errors occurred."])
         return 1
+    details = []
+    for case in cases:
+        problem = case.find("failure") if case.find("failure") is not None else case.find("error")
+        if problem is None:
+            continue
+        lines = [line for line in (problem.text or "").strip().splitlines() if line.strip()]
+        where = next((line.strip() for line in reversed(lines) if line.strip().startswith("tests/")), "")
+        details.append(f"{node_id(case)} | {where} | {" ".join((problem.get('message') or '').split())[:400]}")
+    if details:  # bilinen ve yeni tüm başarısızlıkların kısa nedeni (log erişimi olmadan inceleme için)
+        annotate("warning", "failure details", details)
     if fixed:
         annotate("warning", "known failures now passing (remove from list)", fixed)
     if new:

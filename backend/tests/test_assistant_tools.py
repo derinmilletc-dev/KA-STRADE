@@ -136,6 +136,8 @@ class AssistantToolsTests(AssistantToolsTestCase):
         self.assertEqual(set(ARGUMENT_MODELS), {
             "get_plans", "get_my_access", "get_my_credits", "search_help",
             "get_analysis", "get_my_positions", "get_protection_status",
+            # #63/#64 ile eklenen, readonly_demo_service üzerinden okuyan salt-okunur araçlar (sözleşme testiyle aynı liste).
+            "get_demo_positions", "get_market_overview",
         })
 
     async def test_all_tools_free_and_premium_have_metadata_and_safe_output(self):
