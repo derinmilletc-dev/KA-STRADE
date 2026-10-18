@@ -74,3 +74,6 @@
 .kaisGreeting .kaisGreetingClose { top: 0; right: 0; color: #8a9a94; }
 .kaisGreetingProgress { height: 2px; margin-top: 12px; border-radius: 2px; background: rgba(121, 220, 174, .1); }
 .kaisGreetingProgress > span { border-radius: 2px; background: linear-gradient(90deg, rgba(61, 220, 132, .75), rgba(61, 220, 132, .25)); }
+
+/* Balon gözün üstüne açıldığında ok aşağıya bakar. */
+.kaisGreeting[data-side="above"] .kaisGreetingArrow { top: auto; bottom: -7px; transform: rotate(225deg); }

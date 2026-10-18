@@ -494,6 +494,8 @@ function usePhoneLayout() {
 export default function TestnetFirstApp() {
   const phoneLayout = usePhoneLayout()
   const [masterAssistantHost,setMasterAssistantHost] = useState<HTMLDivElement|null>(null)
+  // Telefonda Kais gözü üst menüden alt menünün 3. sırasına taşınır (Analist 'Menü' içine geçer).
+  const [navAssistantHost,setNavAssistantHost] = useState<HTMLDivElement|null>(null)
   const [desktopHeader,setDesktopHeader] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)')
@@ -944,7 +946,7 @@ export default function TestnetFirstApp() {
       <div className="v26Brand" role="button" tabIndex={0} aria-label="Ana sayfaya dön" onClick={() => navigate('dashboard')} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate('dashboard') } }}><span className="v26BrandLogo"><img src="/kaistrade-logo.png" alt="KaisTrade"/></span></div>
       <div className="v26HomeHeaderStatus" aria-label="Sistem durumu"><i className={connectionState === 'online' && health?.status === 'ok' ? 'ok' : connectionState === 'offline' ? 'error' : 'pending'}/>{connectionState === 'offline' ? 'BAĞLANTI BEKLENİYOR' : connectionState === 'checking' ? 'KONTROL EDİLİYOR' : 'ÇEVRİMİÇİ'}</div>
       <div className="v26HeaderActions">
-        <AssistantChat pageContext={view} launcherTarget={view === 'master-trade' && desktopHeader ? masterAssistantHost : undefined}/>
+        <AssistantChat pageContext={view} launcherTarget={phoneLayout ? navAssistantHost : view === 'master-trade' && desktopHeader ? masterAssistantHost : undefined}/>
         <button className="v26Refresh" aria-label="Piyasa verisini yenile" title="Piyasa verisini yenile" onClick={refresh} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/></button>
         <div className="v26Notifications" ref={notificationRef}>
           <button className={`v26NotificationButton${unreadNotifications ? ' hasUnread' : ''}`} type="button" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(open => !open)}><Bell/>{unreadNotifications > 0 && <span className="v26NotificationBadge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>
@@ -1091,14 +1093,15 @@ export default function TestnetFirstApp() {
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">
       <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => navigate('dashboard')}><Home/><span>Ana sayfa</span></button>
       <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>İşlem</span></button>
-      <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>
+      {phoneLayout ? <div className="v26NavAssistantHost" ref={setNavAssistantHost}/> : <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>}
       <button className={view === 'master-trade' ? 'active' : ''} type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span>Master</span></button>
-      <button className={mobileMenuOpen ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
+      <button className={mobileMenuOpen || (phoneLayout && view === 'analyst') ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
     </nav>
     {mobileMenuOpen && <div className="v26MobileMenuBackdrop" role="presentation" onClick={event => {if (event.target === event.currentTarget) setMobileMenuOpen(false)}}>
       <section className="v26MobileMenuSheet" role="dialog" aria-modal="true" aria-label="Çalışma alanları">
         <header><div><h2>Çalışma alanları</h2></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <div className="v26MobileMenuChoices">
+          {phoneLayout && <button type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span><b>Analist</b><small>Coin analizi ve sinyaller</small></span></button>}
           <button type="button" onClick={() => navigate('performance')}><BarChart3/><span><b>Performans</b><small>Kâr ve kazanma oranı</small></span></button>
           <button type="button" onClick={() => navigate('scanner')}><Radar/><span><b>Tarama</b><small>Piyasa fırsatları</small></span></button>
           <button type="button" onClick={() => navigate('support')}><SupportIcon/><span><b>Destek</b><small>Sorular ve mesaj</small></span></button>
