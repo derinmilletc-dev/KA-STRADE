@@ -1091,10 +1091,10 @@ def test_missing_values_are_not_rendered_as_prices_and_stale_notices_are_in_resu
     response = post(client, payload)
     assert response.status_code == 200, response.text
     text = response.json()["result_text"]
-    assert "yeni seviye üretilmedi" in text and "bayat" in text and "eksik" in text
+    assert "işlem seviyesi yok" in text and "bayat" in text and "net bir işlem planı" in text
     levels_section = text.split("Önemli seviyeler\n", 1)[1].split("\n\nYükseliş senaryosu", 1)[0]
     assert "Giriş: 0" not in text and "TP1:" not in levels_section
-    assert "TP1: eksik." in text
+    assert "TP1: eksik." not in text
 
 
 def test_revoked_session_and_browser_csrf_cannot_read_or_launch(api):

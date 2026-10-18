@@ -123,7 +123,9 @@ def normalize(text: str) -> str:
 
 
 def format_number(value: float) -> str:
-    result = format(Decimal(str(value)), "f")
+    magnitude = abs(value)
+    places = 2 if magnitude >= 1000 else 4 if magnitude >= 1 else 8
+    result = format(round(Decimal(str(value)), places), "f")
     return result.rstrip("0").rstrip(".") if "." in result else result
 
 
