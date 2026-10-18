@@ -1,0 +1,77 @@
+/* Telefon ana sayfası (MobileHome). Yalnız <=700px'te render edilir; kaydırmasız tek ekran.
+   Seçiciler düz sınıf tabanlı; :has() kullanılmaz (performans ölçümünde pahalı çıktı). */
+html body #root main.v26App .mobileHome {
+  --mh-s1: #121215; --mh-s2: #1a1a1f; --mh-tx: #f4f4f5; --mh-mut: #8b8b94; --mh-dim: #5b5b64; --mh-up: #4ade80; --mh-dn: #f87171;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  box-sizing: border-box; width: 100%;
+  min-height: calc(100dvh - var(--mh-chrome, 150px));
+  padding: 4px 20px 16px;
+  color: var(--mh-tx); font-feature-settings: "tnum" 1;
+}
+html body #root main.v26App .mobileHome * { box-sizing: border-box; }
+html body #root main.v26App .mobileHome button { font: inherit !important; color: inherit !important; cursor: pointer !important; }
+html body #root main.v26App .mobileHome .up { color: var(--mh-up); }
+html body #root main.v26App .mobileHome .down { color: var(--mh-dn); }
+
+html body #root main.v26App .mhHello { margin: 0; font-size: 15px; color: var(--mh-mut); }
+html body #root main.v26App .mhHello b { color: var(--mh-tx); font-weight: 500; }
+
+html body #root main.v26App .mhBalanceHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+html body #root main.v26App .mhBalanceHead small { font-size: 12.5px; color: var(--mh-mut); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body #root main.v26App .mhTabs { display: flex !important; gap: 2px !important; flex: none !important; padding: 3px !important; border-radius: 999px !important; background: var(--mh-s1) !important; }
+html body #root main.v26App .mhTabs button { border: 0 !important; background: none !important; padding: 5px 12px !important; border-radius: 999px !important; font-size: 12px !important; font-weight: 500 !important; color: var(--mh-mut) !important; }
+html body #root main.v26App .mhTabs button.on { background: var(--mh-s2) !important; color: var(--mh-tx) !important; }
+html body #root main.v26App .mhAmount { margin-top: 10px; font-size: clamp(34px, 11vw, 44px); font-weight: 600; letter-spacing: -.045em; line-height: 1; }
+html body #root main.v26App .mhAmount span { margin-left: 6px; font-size: .42em; font-weight: 500; letter-spacing: 0; color: var(--mh-dim); }
+html body #root main.v26App .mhChange { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--mh-mut); }
+html body #root main.v26App .mhChange b { font-weight: 500; }
+html body #root main.v26App .mhEmpty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 15px; color: var(--mh-mut); }
+html body #root main.v26App .mhEmpty button { border: 0 !important; padding: 8px 14px !important; border-radius: 999px !important; background: var(--mh-tx) !important; color: #09090b !important; font-size: 12.5px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhOther { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--mh-s1); font-size: 13px; color: var(--mh-mut); }
+html body #root main.v26App .mhOther b { color: var(--mh-tx); font-weight: 500; }
+
+html body #root main.v26App .mhPlan { display: flex !important; align-items: center !important; gap: 14px !important; width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; background: var(--mh-s1) !important; text-align: left !important; }
+html body #root main.v26App .mhRing { --c: var(--mh-up); display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: conic-gradient(var(--c) var(--p, 0%), var(--mh-s2) 0); }
+html body #root main.v26App .mhRing span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--mh-s1); font-size: 12px; font-weight: 600; }
+html body #root main.v26App .mhPlan-trial .mhRing { --c: #fbbf24 !important; }
+html body #root main.v26App .mhPlan-free .mhRing { --c: var(--mh-dim) !important; }
+html body #root main.v26App .mhPlanText { flex: 1 !important; min-width: 0 !important; }
+html body #root main.v26App .mhPlanText b { display: block !important; font-size: 14px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhPlanText small { display: block !important; margin-top: 2px !important; font-size: 12.5px !important; color: var(--mh-mut) !important; }
+html body #root main.v26App .mhPlanState { display: flex !important; align-items: center !important; gap: 6px !important; font-size: 12px !important; font-weight: 500 !important; color: var(--mh-up) !important; }
+html body #root main.v26App .mhPlanState::before { content: "" !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: currentColor !important; }
+html body #root main.v26App .mhPlanCta { padding: 8px 13px !important; border-radius: 999px !important; background: var(--mh-tx) !important; color: #09090b !important; font-size: 12.5px !important; font-weight: 600 !important; }
+
+html body #root main.v26App .mhMarketHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+html body #root main.v26App .mhMarketHead h2 { margin: 0; font-size: 14px; font-weight: 600; }
+html body #root main.v26App .mhMarketHead span { font-size: 12.5px; color: var(--mh-mut); }
+html body #root main.v26App .mhMarketHead b { font-weight: 500; }
+html body #root main.v26App .mhRow { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 64px; align-items: center; gap: 10px; padding: 7px 0; }
+html body #root main.v26App .mhRow i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--mh-s1); font-style: normal; font-size: 10px; font-weight: 600; color: #d4d4d8; }
+html body #root main.v26App .mhRow b { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body #root main.v26App .mhRow span { font-size: 14px; text-align: right; }
+html body #root main.v26App .mhRow em { font-style: normal; font-size: 13px; font-weight: 500; text-align: right; }
+html body #root main.v26App .mhMuted { margin: 8px 0; font-size: 13px; color: var(--mh-mut); }
+
+html body #root main.v26App .mhOpp { display: flex !important; align-items: center !important; gap: 14px !important; width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; background: var(--mh-s1) !important; text-align: left !important; }
+html body #root main.v26App .mhScore { width: 44px; flex: none; text-align: center; font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+html body #root main.v26App .mhOppText { flex: 1 !important; min-width: 0 !important; }
+html body #root main.v26App .mhOppText small { display: block !important; font-size: 12px !important; color: var(--mh-mut) !important; }
+html body #root main.v26App .mhOppText b { display: block !important; margin: 1px 0 2px !important; font-size: 14.5px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhOppText b span { margin-left: 6px !important; font-size: 11.5px !important; font-weight: 500 !important; }
+html body #root main.v26App .mhOpp > svg { width: 18px !important; height: 18px !important; flex: none !important; color: var(--mh-dim) !important; }
+
+@media (max-height: 760px) {
+  html body #root main.v26App .mobileHome { gap: 10px; }
+  html body #root main.v26App .mhRow { padding: 5px 0; }
+  html body #root main.v26App .mhOther { margin-top: 10px; padding: 10px 12px; }
+}
+
+/* Telefonda ana sayfada da alt menü görünür (orta menü kaldırıldı); sayfa alt menüye kadar dolar. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.homeRoute.homeRoute.mobileHomeRoute { --mobile-bottom-nav-height: 59px !important; padding-bottom: 0 !important; }
+  html body #root > main.v26App.homeRoute.homeRoute.mobileHomeRoute > .v26MobileBottomNav.v26MobileBottomNav { display: grid !important; }
+}
+@media (max-width: 700px) {
+  html body #root > main.v26App.homeRoute.homeRoute.mobileHomeRoute > .v26Header .v26Refresh { display: none !important; }
+}
