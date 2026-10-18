@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
-import { ChevronRight, Link2, Sparkles } from 'lucide-react'
+import { BarChart3, ChevronRight, Sparkles, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
@@ -21,19 +21,19 @@ const COPY = {
   tr: {greet: (h: number) => h < 5 ? 'İyi geceler' : h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar', home: 'Ana sayfa',
     liveTitle: 'Toplam bakiye · Binance Futures', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
     unrealized: 'Gerçekleşmemiş', open: (n: number) => `${n} açık işlem`, liveOff: 'Canlı hesap bağlı değil', demoOff: 'Demo hesap bağlı değil',
-    connect: 'Bağla', setupTitle: 'Hesabını bağla', setupText: 'Binance hesabını ya da demo hesabını bağla; bakiyen ve işlemlerin burada görünsün.', setupLive: 'Binance bağla', setupDemo: 'Demo hesap', notConnectedLink: 'Bağla', selectedOff: 'Bu hesap henüz bağlı değil.', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
+    connect: 'Bağla', portfolio: 'Portföyüm', setupSub: 'Bakiyeni ve işlemlerini takip et.', aiTag: 'AI FIRSATI', setupTitle: 'Hesabını bağla', setupText: 'Binance hesabını ya da demo hesabını bağla; bakiyen ve işlemlerin burada görünsün.', setupLive: 'Binance bağla', setupDemo: 'Demo hesap', notConnectedLink: 'Bağla', selectedOff: 'Bu hesap henüz bağlı değil.', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
     trial: 'Deneme', trialEnds: (d: string) => `${d} tarihinde sona erer`, trialOn: 'Deneme süresi devam ediyor',
     master: 'Master Mode', renews: (d: string) => `${d} tarihinde yenilenir`, ends: (d: string) => `${d} tarihinde sona erer`, active: 'Aktif',
-    free: 'Ücretsiz plan', freeDetail: 'Master ile tüm sinyaller ve seviyeler', upgrade: 'Yükselt', days: (n: number) => `${n}g`,
+    free: 'Ücretsiz plan', freeDetail: 'AI sinyalleri ve piyasa analizi', upgrade: 'Yükselt', days: (n: number) => `${n}g`,
     market: 'Piyasa', direction: 'Genel yön', up: 'Yükseliş', down: 'Düşüş', flat: 'Dengeli', waiting: 'Piyasa verisi bekleniyor…',
     featured: 'Öne çıkan fırsat', scanning: 'Tarama yapılıyor…', change24: '24s', locale: 'tr-TR'},
   en: {greet: (h: number) => h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', home: 'Home',
     liveTitle: 'Total balance · Binance Futures', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
     unrealized: 'Unrealized', open: (n: number) => `${n} open ${n === 1 ? 'trade' : 'trades'}`, liveOff: 'Live account not connected', demoOff: 'Demo account not connected',
-    connect: 'Connect', setupTitle: 'Connect your account', setupText: 'Connect your Binance or demo account to see your balance and trades here.', setupLive: 'Connect Binance', setupDemo: 'Demo account', notConnectedLink: 'Connect', selectedOff: 'This account is not connected yet.', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
+    connect: 'Connect', portfolio: 'Portfolio', setupSub: 'Track your balance and trades.', aiTag: 'AI SETUP', setupTitle: 'Connect your account', setupText: 'Connect your Binance or demo account to see your balance and trades here.', setupLive: 'Connect Binance', setupDemo: 'Demo account', notConnectedLink: 'Connect', selectedOff: 'This account is not connected yet.', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
     trial: 'Trial', trialEnds: (d: string) => `Ends on ${d}`, trialOn: 'Trial in progress',
     master: 'Master Mode', renews: (d: string) => `Renews on ${d}`, ends: (d: string) => `Ends on ${d}`, active: 'Active',
-    free: 'Free plan', freeDetail: 'All signals and levels with Master', upgrade: 'Upgrade', days: (n: number) => `${n}d`,
+    free: 'Free plan', freeDetail: 'AI signals and market analysis', upgrade: 'Upgrade', days: (n: number) => `${n}d`,
     market: 'Market', direction: 'Trend', up: 'Bullish', down: 'Bearish', flat: 'Neutral', waiting: 'Waiting for market data…',
     featured: 'Top opportunity', scanning: 'Scanning…', change24: '24h', locale: 'en-US'},
 }
@@ -46,6 +46,18 @@ const signed = (value: number) => `${value >= 0 ? '+' : '−'}${money(Math.abs(v
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 const daysUntil = (iso?: string | null) => { const at = iso ? Date.parse(iso) : NaN; return Number.isFinite(at) ? Math.max(0, Math.ceil((at - Date.now()) / 86_400_000)) : null }
 const longDate = (iso: string | null | undefined, locale: string) => { const at = iso ? new Date(iso) : null; return at && Number.isFinite(at.getTime()) ? at.toLocaleDateString(locale, {day: 'numeric', month: 'long', year: 'numeric'}) : '' }
+
+const BinanceMark = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m12 3.5 2.2 2.2L9.4 10.5 7.2 8.3 12 3.5Zm4.8 4.8 2.2 2.2-2.2 2.2-2.2-2.2 2.2-2.2ZM7.2 13.7l2.2 2.2-2.2 2.2L5 15.9l2.2-2.2Zm9.6 0 2.2 2.2-2.2 2.2-2.2-2.2 2.2-2.2ZM12 8.9l3.1 3.1-3.1 3.1L8.9 12 12 8.9Zm0 7.6 2.2 2.2L12 21l-2.2-2.3 2.2-2.2Z"/></svg>
+
+function Coin({symbol}: {symbol: string}) {
+  const base = symbol.replace(/USDT$/, '')
+  const glyph = base === 'BTC' ? <text x="12" y="16.6" textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff">₿</text>
+    : base === 'ETH' ? <path fill="#fff" d="M12 4.5 7.3 12.2 12 15l4.7-2.8L12 4.5Zm0 11.6-4.7-2.8L12 19.5l4.7-6.2L12 16.1Z"/>
+    : base === 'BNB' ? <path fill="#fff" d="m12 5 2 2-4.4 4.4-2-2L12 5Zm4.4 4.4 2 2-2 2-2-2 2-2Zm-8.8 4.2 2 2-2 2-2-2 2-2Zm8.8 0 2 2-2 2-2-2 2-2ZM12 10l2 2-2 2-2-2 2-2Zm0 7 2 2-2 2-2-2 2-2Z" transform="translate(0 -1.5)"/>
+    : base === 'SOL' ? <g fill="#9be8c8"><path d="M7 8h10.5l-1.3 1.7H5.7zM7 11.2h10.5l-1.3 1.7H5.7zM5.7 14.4h10.5L17.5 16H7z"/></g>
+    : <text x="12" y="15.4" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#cbd5e1">{base.slice(0, 3)}</text>
+  return <svg className={`mhCoin mhCoin-${base}`} viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12"/>{glyph}</svg>
+}
 
 async function getJson<T>(path: string, signal: AbortSignal): Promise<T | null> {
   try {
@@ -118,22 +130,25 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   return <section className="mobileHome" aria-label={t.home} data-i18n-skip="">
     <p className="mhHello">{t.greet(new Date().getHours())}{name ? <>, <b>{name}</b></> : null}</p>
 
-    {!liveReady && !demoReady ? <div className="mhSetup">
-      <span className="mhSetupIcon"><Link2 aria-hidden="true"/></span>
-      <b>{t.setupTitle}</b>
+    {!liveReady && !demoReady ? <div className="mhCard mhSetup">
+      <div className="mhCoinArt" aria-hidden="true"><Coin symbol="ETHUSDT"/><Coin symbol="BNBUSDT"/><Coin symbol="BTCUSDT"/></div>
+      <div className="mhCardHead"><span className="mhIconTile"><Wallet aria-hidden="true"/></span><b>{t.portfolio}</b></div>
+      <h2>{t.setupTitle}</h2>
+      <strong>{t.setupSub}</strong>
       <p>{t.setupText}</p>
       <div className="mhSetupActions">
-        <button type="button" className="primary" onClick={() => onNavigate('setup')}>{t.setupLive}</button>
-        <button type="button" onClick={() => onNavigate('setup')}>{t.setupDemo}</button>
+        <button type="button" className="primary" onClick={() => onNavigate('setup')}><BinanceMark/>{t.setupLive}</button>
+        <button type="button" onClick={() => onNavigate('setup')}><BarChart3 aria-hidden="true"/>{t.setupDemo}</button>
       </div>
-    </div> : <div className="mhBalance">
-      <div className="mhBalanceHead">
-        <small>{active === 'live' ? t.liveTitle : t.demoTitle}</small>
+    </div> : <div className="mhCard mhBalance">
+      <div className="mhCardHead">
+        <span className="mhIconTile"><Wallet aria-hidden="true"/></span><b>{t.portfolio}</b>
         <div className="mhTabs" role="tablist" aria-label={t.account}>
           <button type="button" role="tab" aria-selected={active === 'live'} className={active === 'live' ? 'on' : ''} onClick={() => setTab('live')}>{t.live}</button>
           <button type="button" role="tab" aria-selected={active === 'demo'} className={active === 'demo' ? 'on' : ''} onClick={() => setTab('demo')}>{t.demo}</button>
         </div>
       </div>
+      <small className="mhBalanceLabel">{active === 'live' ? t.liveTitle : t.demoTitle}</small>
       {shownReady && shown ? <>
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>USDT</span></div>
         <div className="mhChange">
@@ -152,25 +167,26 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
     </div>}
 
     <button type="button" className={`mhPlan mhPlan-${plan.kind}`} onClick={() => onNavigate('billing')}>
-      {plan.kind === 'free' ? <span className="mhRing mhRingIcon"><span><Sparkles aria-hidden="true"/></span></span>
+      {plan.kind === 'free' ? <span className="mhIconTile mhPlanIcon"><Sparkles aria-hidden="true"/></span>
         : <span className="mhRing" style={{'--p': `${Math.round(plan.progress * 100)}%`} as CSSProperties}><span>{plan.days === null ? '✓' : t.days(plan.days)}</span></span>}
       <span className="mhPlanText"><b>{plan.title}</b><small>{plan.detail}</small></span>
-      {plan.kind === 'master' ? <span className="mhPlanState">{t.active}</span> : <span className="mhPlanCta">{t.upgrade}</span>}
+      {plan.kind === 'master' ? <span className="mhPlanState">{t.active}</span> : <span className="mhPlanCta">{t.upgrade}<ChevronRight aria-hidden="true"/></span>}
     </button>
 
     <div className="mhMarket">
       <div className="mhMarketHead"><h2>{t.market}</h2>{direction && <span>{t.direction}: <b className={direction === t.down ? 'down' : direction === t.up ? 'up' : ''}>{direction}</b></span>}</div>
       {watch.length ? watch.map(item => <div className="mhRow" key={item.symbol}>
-        <i>{item.symbol.replace(/USDT$/, '')}</i>
-        <b>{NAMES[item.symbol] || item.display}</b>
+        <Coin symbol={item.symbol}/>
+        <b>{item.symbol.replace(/USDT$/, '')}<small>{NAMES[item.symbol] || item.display}</small></b>
         <span>{price(item.price)}</span>
         <em className={item.change >= 0 ? 'up' : 'down'}>{pct(item.change)}</em>
       </div>) : <p className="mhMuted">{t.waiting}</p>}
     </div>
 
     {featured ? <button type="button" className="mhOpp" onClick={() => onNavigate('analyst')}>
-      <span className="mhScore">{Math.round(featured.final_decision_score ?? featured.smart_score ?? 0)}</span>
-      <span className="mhOppText"><small>{t.featured}</small><b>{featured.display}<span className={featured.direction === 'SHORT' ? 'down' : 'up'}>{featured.direction === 'SHORT' ? 'Short' : 'Long'}</span></b><small>{price(featured.price)} · {t.change24} {pct(featured.change)}</small></span>
+      <span className="mhScoreBox"><small>{t.aiTag}</small><span className="mhScore">{Math.round(featured.final_decision_score ?? featured.smart_score ?? 0)}</span>
+        <i className="mhMeter"><i style={{width: `${Math.max(4, Math.min(100, Math.round(featured.final_decision_score ?? featured.smart_score ?? 0)))}%`}}/></i></span>
+      <span className="mhOppText"><b><span className="mhPair">{featured.display}</span><span className={featured.direction === 'SHORT' ? 'mhDir down' : 'mhDir up'}>{featured.direction === 'SHORT' ? 'SHORT' : 'LONG'}</span></b><small>{price(featured.price)} · {t.change24} <em className={featured.change >= 0 ? 'up' : 'down'}>{pct(featured.change)}</em></small></span>
       <ChevronRight aria-hidden="true"/>
     </button> : <div className="mhOpp mhOppEmpty"><span className="mhOppText"><small>{t.featured}</small><b>{t.scanning}</b></span></div>}
   </section>

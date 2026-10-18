@@ -1,70 +1,126 @@
 /* Telefon ana sayfası (MobileHome). Yalnız <=700px'te render edilir; kaydırmasız tek ekran.
    Seçiciler düz sınıf tabanlı; :has() kullanılmaz (performans ölçümünde pahalı çıktı). */
 html body #root main.v26App .mobileHome {
-  --mh-s1: #121215; --mh-s2: #1a1a1f; --mh-tx: #f4f4f5; --mh-mut: #8b8b94; --mh-dim: #5b5b64; --mh-up: #4ade80; --mh-dn: #f87171;
-  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  --mh-card: rgba(15, 26, 41, .82); --mh-card2: rgba(21, 35, 54, .9); --mh-line: rgba(148, 181, 214, .13);
+  --mh-tx: #f1f5f9; --mh-mut: #93a3b6; --mh-dim: #66768a; --mh-acc: #27D6A0; --mh-up: #27D6A0; --mh-dn: #f87171;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 10px;
   box-sizing: border-box; width: 100%;
   min-height: calc(100dvh - var(--mh-chrome, 150px));
-  padding: 4px 20px 16px;
+  padding: 2px 14px 12px;
   color: var(--mh-tx); font-feature-settings: "tnum" 1;
 }
 html body #root main.v26App .mobileHome * { box-sizing: border-box; }
 html body #root main.v26App .mobileHome button { font: inherit !important; color: inherit !important; cursor: pointer !important; }
 html body #root main.v26App .mobileHome .up { color: var(--mh-up); }
 html body #root main.v26App .mobileHome .down { color: var(--mh-dn); }
+html body #root main.v26App .mhHello { margin: 0 2px; font-size: 14.5px; color: var(--mh-mut); }
+html body #root main.v26App .mhHello b { color: var(--mh-tx); font-weight: 600; }
 
-html body #root main.v26App .mhHello { margin: 0; font-size: 15px; color: var(--mh-mut); }
-html body #root main.v26App .mhHello b { color: var(--mh-tx); font-weight: 500; }
+/* Ortak kart */
+html body #root main.v26App .mhCard, html body #root main.v26App .mhPlan, html body #root main.v26App .mhOpp, html body #root main.v26App .mhRow { border: 1px solid var(--mh-line) !important; background: var(--mh-card) !important; box-shadow: 0 6px 18px rgba(0, 0, 0, .22) !important; }
+html body #root main.v26App .mhCard { position: relative; overflow: hidden; padding: 14px; border-radius: 16px; }
+html body #root main.v26App .mhCardHead { display: flex; align-items: center; gap: 10px; }
+html body #root main.v26App .mhCardHead > b { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; }
+html body #root main.v26App .mhIconTile { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; border: 1px solid rgba(39, 214, 160, .25); background: rgba(39, 214, 160, .1); color: var(--mh-acc); }
+html body #root main.v26App .mhIconTile svg { width: 17px; height: 17px; }
 
-html body #root main.v26App .mhBalanceHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-html body #root main.v26App .mhBalanceHead small { font-size: 12.5px; color: var(--mh-mut); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html body #root main.v26App .mhTabs { display: flex !important; gap: 2px !important; flex: none !important; padding: 3px !important; border-radius: 999px !important; background: var(--mh-s1) !important; }
+/* Hesap bağlı değil */
+html body #root main.v26App .mhSetup h2 { margin: 12px 0 0; max-width: 62%; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+html body #root main.v26App .mhSetup strong { display: block; margin-top: 3px; max-width: 62%; font-size: 13px; font-weight: 500; color: var(--mh-mut); }
+html body #root main.v26App .mhSetup p { margin: 6px 0 0; max-width: 78%; font-size: 12px; line-height: 1.45; color: var(--mh-dim); }
+html body #root main.v26App .mhCoinArt { position: absolute; top: 8px; right: -6px; width: 150px; height: 96px; opacity: .42; pointer-events: none; }
+html body #root main.v26App .mhCoinArt .mhCoin { position: absolute; width: 56px; height: 56px; }
+html body #root main.v26App .mhCoinArt .mhCoin:nth-child(1) { left: 8px; top: 30px; width: 44px; height: 44px; }
+html body #root main.v26App .mhCoinArt .mhCoin:nth-child(2) { right: 4px; top: 24px; width: 46px; height: 46px; }
+html body #root main.v26App .mhCoinArt .mhCoin:nth-child(3) { left: 42px; top: 0; width: 62px; height: 62px; z-index: 1; }
+html body #root main.v26App .mhSetupActions { display: grid; grid-template-columns: 1.15fr 1fr; gap: 8px; margin-top: 12px; }
+html body #root main.v26App .mhSetupActions button { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 7px !important; height: 40px !important; min-height: 0 !important; margin: 0 !important; padding: 0 10px !important; border: 1px solid var(--mh-line) !important; border-radius: 12px !important; background: transparent !important; color: var(--mh-tx) !important; font-size: 13px !important; font-weight: 600 !important; box-shadow: none !important; white-space: nowrap; }
+html body #root main.v26App .mhSetupActions button svg { width: 16px; height: 16px; flex: none; }
+html body #root main.v26App .mhSetupActions button.primary { border-color: transparent !important; background: linear-gradient(180deg, #34e0ab, #1fc693) !important; color: #04231a !important; }
+
+/* Bağlı hesap */
+html body #root main.v26App .mhTabs { display: flex !important; gap: 2px !important; flex: none !important; padding: 3px !important; border-radius: 999px !important; background: rgba(5, 12, 22, .6) !important; }
 html body #root main.v26App .mhTabs button { border: 0 !important; background: none !important; padding: 5px 12px !important; border-radius: 999px !important; font-size: 12px !important; font-weight: 500 !important; color: var(--mh-mut) !important; }
-html body #root main.v26App .mhTabs button.on { background: var(--mh-s2) !important; color: var(--mh-tx) !important; }
-html body #root main.v26App .mhAmount { margin-top: 10px; font-size: clamp(34px, 11vw, 44px); font-weight: 600; letter-spacing: -.045em; line-height: 1; }
-html body #root main.v26App .mhAmount span { margin-left: 6px; font-size: .42em; font-weight: 500; letter-spacing: 0; color: var(--mh-dim); }
-html body #root main.v26App .mhChange { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; color: var(--mh-mut); }
-html body #root main.v26App .mhChange b { font-weight: 500; }
-html body #root main.v26App .mhEmpty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 15px; color: var(--mh-mut); }
-html body #root main.v26App .mhEmpty button { border: 0 !important; padding: 8px 14px !important; border-radius: 999px !important; background: var(--mh-tx) !important; color: #09090b !important; font-size: 12.5px !important; font-weight: 600 !important; }
-html body #root main.v26App .mhOther { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--mh-s1); font-size: 13px; color: var(--mh-mut); }
-html body #root main.v26App .mhOther b { color: var(--mh-tx); font-weight: 500; }
+html body #root main.v26App .mhTabs button.on { background: var(--mh-card2) !important; color: var(--mh-tx) !important; }
+html body #root main.v26App .mhBalanceLabel { display: block; margin-top: 12px; font-size: 12px; color: var(--mh-mut); }
+html body #root main.v26App .mhAmount { margin-top: 6px; font-size: clamp(30px, 9.5vw, 38px); font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+html body #root main.v26App .mhAmount span { margin-left: 6px; font-size: .4em; font-weight: 500; letter-spacing: 0; color: var(--mh-dim); }
+html body #root main.v26App .mhChange { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--mh-mut); }
+html body #root main.v26App .mhChange b { font-weight: 600; }
+html body #root main.v26App .mhEmpty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 14px; color: var(--mh-mut); }
+html body #root main.v26App .mhEmpty button { border: 0 !important; padding: 8px 14px !important; border-radius: 999px !important; background: var(--mh-acc) !important; color: #04231a !important; font-size: 12.5px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhOther { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(5, 12, 22, .45); font-size: 12.5px; color: var(--mh-mut); }
+html body #root main.v26App .mhOther b { color: var(--mh-tx); font-weight: 600; }
+html body #root main.v26App .mobileHome button.mhLink { display: inline-flex !important; align-items: center !important; gap: 2px !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; color: var(--mh-acc) !important; font-size: 12.5px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhLink svg { width: 15px; height: 15px; }
 
-html body #root main.v26App .mhPlan { display: flex !important; align-items: center !important; gap: 14px !important; width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; background: var(--mh-s1) !important; text-align: left !important; }
-html body #root main.v26App .mhRing { --c: var(--mh-up); display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: conic-gradient(var(--c) var(--p, 0%), var(--mh-s2) 0); }
-html body #root main.v26App .mhRing span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--mh-s1); font-size: 12px; font-weight: 600; }
+/* Abonelik */
+html body #root main.v26App .mhPlan { display: flex !important; align-items: center !important; gap: 12px !important; width: 100% !important; padding: 10px 12px !important; border-radius: 14px !important; text-align: left !important; }
+html body #root main.v26App .mhPlanIcon { width: 38px; height: 38px; }
+html body #root main.v26App .mhRing { --c: var(--mh-acc); display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: conic-gradient(var(--c) var(--p, 0%), rgba(255, 255, 255, .08) 0); }
+html body #root main.v26App .mhRing span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #0f1a29; font-size: 11.5px; font-weight: 600; }
 html body #root main.v26App .mhPlan-trial .mhRing { --c: #fbbf24 !important; }
-html body #root main.v26App .mhPlan-free .mhRing { --c: var(--mh-dim) !important; }
 html body #root main.v26App .mhPlanText { flex: 1 !important; min-width: 0 !important; }
 html body #root main.v26App .mhPlanText b { display: block !important; font-size: 14px !important; font-weight: 600 !important; }
-html body #root main.v26App .mhPlanText small { display: block !important; margin-top: 2px !important; font-size: 12.5px !important; color: var(--mh-mut) !important; }
-html body #root main.v26App .mhPlanState { display: flex !important; align-items: center !important; gap: 6px !important; font-size: 12px !important; font-weight: 500 !important; color: var(--mh-up) !important; }
+html body #root main.v26App .mhPlanText small { display: block !important; margin-top: 1px !important; font-size: 12px !important; color: var(--mh-mut) !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body #root main.v26App .mhPlanState { display: flex !important; align-items: center !important; gap: 6px !important; font-size: 12px !important; font-weight: 600 !important; color: var(--mh-acc) !important; }
 html body #root main.v26App .mhPlanState::before { content: "" !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: currentColor !important; }
-html body #root main.v26App .mhPlanCta { padding: 8px 13px !important; border-radius: 999px !important; background: var(--mh-tx) !important; color: #09090b !important; font-size: 12.5px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhPlanCta { display: inline-flex !important; align-items: center !important; gap: 2px !important; padding: 7px 8px 7px 14px !important; border: 1px solid rgba(39, 214, 160, .55) !important; border-radius: 999px !important; color: var(--mh-acc) !important; font-size: 13px !important; font-weight: 600 !important; }
+html body #root main.v26App .mhPlanCta svg { width: 15px; height: 15px; }
 
-html body #root main.v26App .mhMarketHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-html body #root main.v26App .mhMarketHead h2 { margin: 0; font-size: 14px; font-weight: 600; }
-html body #root main.v26App .mhMarketHead span { font-size: 12.5px; color: var(--mh-mut); }
-html body #root main.v26App .mhMarketHead b { font-weight: 500; }
-html body #root main.v26App .mhRow { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 64px; align-items: center; gap: 10px; padding: 7px 0; }
-html body #root main.v26App .mhRow i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--mh-s1); font-style: normal; font-size: 10px; font-weight: 600; color: #d4d4d8; }
-html body #root main.v26App .mhRow b { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html body #root main.v26App .mhRow span { font-size: 14px; text-align: right; }
-html body #root main.v26App .mhRow em { font-style: normal; font-size: 13px; font-weight: 500; text-align: right; }
+/* Piyasa */
+html body #root main.v26App .mhMarketHead { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 6px; }
+html body #root main.v26App .mhMarketHead h2 { margin: 0; font-size: 15px; font-weight: 700; }
+html body #root main.v26App .mhMarketHead span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mh-mut); }
+html body #root main.v26App .mhMarketHead b { padding: 3px 10px; border-radius: 999px; font-weight: 600; background: rgba(148, 181, 214, .12); }
+html body #root main.v26App .mhMarketHead b.up { background: rgba(39, 214, 160, .13); }
+html body #root main.v26App .mhMarketHead b.down { background: rgba(248, 113, 113, .14); }
+html body #root main.v26App .mhRow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 62px; align-items: center; gap: 10px; margin-bottom: 5px; padding: 6px 12px; border-radius: 12px; box-shadow: none !important; }
+html body #root main.v26App .mhRow:last-child { margin-bottom: 0; }
+html body #root main.v26App .mhCoin { width: 28px; height: 28px; flex: none; }
+html body #root main.v26App .mhCoin circle { fill: #3b4757; }
+html body #root main.v26App .mhCoin-BTC circle { fill: #f7931a; }
+html body #root main.v26App .mhCoin-ETH circle { fill: #5b6bb5; }
+html body #root main.v26App .mhCoin-BNB circle { fill: #f3ba2f; }
+html body #root main.v26App .mhCoin-SOL circle { fill: #0b0b12; }
+html body #root main.v26App .mhRow > b { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13.5px; font-weight: 700; }
+html body #root main.v26App .mhRow > b small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 400; color: var(--mh-mut); }
+html body #root main.v26App .mhRow > span { font-size: 13.5px; font-weight: 500; text-align: right; }
+html body #root main.v26App .mhRow > em { font-style: normal; font-size: 13px; font-weight: 600; text-align: right; }
 html body #root main.v26App .mhMuted { margin: 8px 0; font-size: 13px; color: var(--mh-mut); }
 
-html body #root main.v26App .mhOpp { display: flex !important; align-items: center !important; gap: 14px !important; width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 16px !important; background: var(--mh-s1) !important; text-align: left !important; }
-html body #root main.v26App .mhScore { width: 44px; flex: none; text-align: center; font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+/* AI fırsatı */
+html body #root main.v26App .mhOpp { display: flex !important; align-items: center !important; gap: 14px !important; width: 100% !important; padding: 12px 14px !important; border-radius: 16px !important; border-color: rgba(39, 214, 160, .22) !important; background: linear-gradient(135deg, rgba(39, 214, 160, .09), var(--mh-card) 55%) !important; text-align: left !important; }
+html body #root main.v26App .mhScoreBox { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; flex: none; width: 92px; padding-right: 14px; border-right: 1px solid var(--mh-line); }
+html body #root main.v26App .mhScoreBox > small { padding: 2px 8px; border-radius: 6px; background: rgba(39, 214, 160, .12); color: var(--mh-acc); font-size: 9.5px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+html body #root main.v26App .mhScore { font-size: 30px; font-weight: 700; line-height: 1.05; letter-spacing: -.03em; }
+html body #root main.v26App .mhMeter { display: block; width: 100%; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+html body #root main.v26App .mhMeter i { display: block; height: 100%; border-radius: 4px; background: var(--mh-acc); }
 html body #root main.v26App .mhOppText { flex: 1 !important; min-width: 0 !important; }
-html body #root main.v26App .mhOppText small { display: block !important; font-size: 12px !important; color: var(--mh-mut) !important; }
-html body #root main.v26App .mhOppText b { display: block !important; margin: 1px 0 2px !important; font-size: 14.5px !important; font-weight: 600 !important; }
-html body #root main.v26App .mhOppText b span { margin-left: 6px !important; font-size: 11.5px !important; font-weight: 500 !important; }
-html body #root main.v26App .mhOpp > svg { width: 18px !important; height: 18px !important; flex: none !important; color: var(--mh-dim) !important; }
+html body #root main.v26App .mhOppText > b { display: flex !important; align-items: center; gap: 8px; font-size: 15px !important; font-weight: 700 !important; }
+html body #root main.v26App .mhOppText > small { display: block !important; margin-top: 3px; font-size: 12.5px !important; color: var(--mh-mut) !important; }
+html body #root main.v26App .mhOppText em { font-style: normal; font-weight: 600; }
+html body #root main.v26App .mhDir { padding: 2px 9px; border-radius: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; border: 1px solid currentColor; }
+html body #root main.v26App .mhOpp > svg { width: 18px !important; height: 18px !important; flex: none !important; color: var(--mh-mut) !important; }
+html body #root main.v26App .mhOppText > b { white-space: nowrap; }
+html body #root main.v26App .mhPair { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html body #root main.v26App .mhDir { flex: none; white-space: nowrap; }
+html body #root main.v26App .mhOppText > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 380px) {
+  html body #root main.v26App .mhScoreBox { width: 78px; padding-right: 10px; }
+  html body #root main.v26App .mhOpp { gap: 10px !important; padding: 12px !important; }
+  html body #root main.v26App .mhOppText > b { font-size: 14px !important; gap: 6px; }
+  html body #root main.v26App .mhSetup h2, html body #root main.v26App .mhSetup strong { max-width: 100%; }
+  html body #root main.v26App .mhSetup strong { font-size: 12.5px; }
+}
+html body #root main.v26App .mhOppEmpty { padding: 16px !important; }
+html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
 
 @media (max-height: 760px) {
-  html body #root main.v26App .mobileHome { gap: 10px; }
-  html body #root main.v26App .mhRow { padding: 5px 0; }
-  html body #root main.v26App .mhOther { margin-top: 10px; padding: 10px 12px; }
+  html body #root main.v26App .mobileHome { gap: 8px; }
+  html body #root main.v26App .mhRow { padding: 4px 12px; margin-bottom: 4px; }
+  html body #root main.v26App .mhCard { padding: 12px; }
+  html body #root main.v26App .mhSetup p { display: none; }
 }
 
 /* Telefonda ana sayfada da alt menü görünür (orta menü kaldırıldı); sayfa alt menüye kadar dolar. */
@@ -76,21 +132,6 @@ html body #root main.v26App .mhOpp > svg { width: 18px !important; height: 18px 
   html body #root > main.v26App.homeRoute.homeRoute.mobileHomeRoute > .v26Header .v26Refresh { display: none !important; }
 }
 
-/* Hesap bağlı değilken: hata değil, davet. */
-html body #root main.v26App .mhSetup { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border-radius: 18px; background: var(--mh-s1); }
-html body #root main.v26App .mhSetupIcon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 4px; border-radius: 11px; background: var(--mh-s2); color: var(--mh-up); }
-html body #root main.v26App .mhSetupIcon svg { width: 18px; height: 18px; }
-html body #root main.v26App .mhSetup b { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
-html body #root main.v26App .mhSetup p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--mh-mut); }
-html body #root main.v26App .mhSetupActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 10px; }
-html body #root main.v26App .mhSetupActions button { height: 40px !important; min-height: 0 !important; margin: 0 !important; padding: 0 12px !important; border: 0 !important; border-radius: 12px !important; background: var(--mh-s2) !important; color: var(--mh-tx) !important; font-size: 13px !important; font-weight: 600 !important; box-shadow: none !important; }
-html body #root main.v26App .mhSetupActions button.primary { background: var(--mh-tx) !important; color: #09090b !important; }
-html body #root main.v26App .mhEmpty span { font-size: 13.5px; }
-html body #root main.v26App .mobileHome button.mhLink { display: inline-flex !important; align-items: center !important; gap: 2px !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; color: var(--mh-up) !important; font-size: 13px !important; font-weight: 500 !important; }
-html body #root main.v26App .mhLink svg { width: 15px; height: 15px; }
-html body #root main.v26App .mhRingIcon { background: var(--mh-s2) !important; }
-html body #root main.v26App .mhRingIcon span { color: #d4d4d8; }
-html body #root main.v26App .mhRingIcon svg { width: 17px; height: 17px; }
 
 /* Telefon üst menü: kalın siyah zemin yerine ince, yarı saydam, hafif bulanık bar.
    Logo, ikonlar ve düğmelerin kendisi değişmez; yalnız barın yüksekliği ve zemini. */
