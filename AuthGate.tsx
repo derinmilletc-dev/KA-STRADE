@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Wrench, Zap } from 'lucide-react'
+import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -181,7 +181,7 @@ export default function AuthGate({children}:{children:ReactNode}) {
   const [memberMenuOpen,setMemberMenuOpen] = useState(false)
   const memberTriggerRef = useRef<HTMLButtonElement>(null)
   const memberMenuRef = useRef<HTMLDivElement>(null)
-  const [memberMenuPosition,setMemberMenuPosition] = useState({top:0,left:12})
+  const [memberMenuPosition,setMemberMenuPosition] = useState({top:0,left:12,center:0,scrim:56})
   const [profileHeaderSlot,setProfileHeaderSlot] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -257,7 +257,9 @@ export default function AuthGate({children}:{children:ReactNode}) {
       if (!trigger) return
       const rect = trigger.getBoundingClientRect()
       const menuWidth = window.innerWidth <= 600 ? 300 : 276
-      setMemberMenuPosition({top:rect.bottom + 9,left:Math.min(Math.max(12,rect.right - menuWidth),Math.max(12,window.innerWidth - menuWidth - 12))})
+      // Telefon paneli: ok tetikleyicinin merkezine, bulanık perde ise üst menünün altından başlar (üst menü net kalır).
+      const header = document.querySelector('.v26Header')
+      setMemberMenuPosition({top:rect.bottom + 9,left:Math.min(Math.max(12,rect.right - menuWidth),Math.max(12,window.innerWidth - menuWidth - 12)),center:rect.left + rect.width / 2,scrim:Math.max(0,Math.round(header?.getBoundingClientRect().bottom ?? rect.bottom))})
     }
     const closeMenu = (event:MouseEvent) => {
       const target = event.target as Node
@@ -622,7 +624,8 @@ export default function AuthGate({children}:{children:ReactNode}) {
     return <MaintenanceScreen mode={maintenanceMode as string}/>
   }
   if (path.startsWith('/moderator')) return <>{sessionNotice}<ModeratorPanel onLogout={() => void logout()}/></>
-  const memberMenu = memberMenuOpen ? createPortal(<div ref={memberMenuRef} className="authMemberMenu authMemberPortalMenu" role="menu" style={{top:memberMenuPosition.top,left:memberMenuPosition.left}}><div className="authMemberMenuHead"><small>SECURE ACCOUNT</small><strong>{session.user.email}</strong></div>{session.user.role === 'OWNER' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/admin')}}><ShieldCheck/><span><b>Admin Dashboard</b><small>Control center</small></span></button>}{session.user.role === 'MODERATOR' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/moderator')}}><ShieldCheck/><span><b>Moderatör paneli</b><small>Destek ve onaylar</small></span></button>}<button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/settings')}}><UserRound/><span><b>Profile &amp; Settings</b><small>Identity and security</small></span></button><button className="authMemberLogout" type="button" role="menuitem" onClick={() => void logout()}><LogOut/><span><b>Çıkış</b><small>End secure session</small></span></button></div>,document.body) : null
+  const chevron = <ChevronRight className="authMemberChevron" aria-hidden="true"/>
+  const memberMenu = memberMenuOpen ? createPortal(<><div className="authMemberScrim" aria-hidden="true" style={{top:memberMenuPosition.scrim}}/><i className="authMemberArrow" aria-hidden="true" style={{top:memberMenuPosition.top - 6,left:memberMenuPosition.center - 6}}/><div ref={memberMenuRef} className="authMemberMenu authMemberPortalMenu" role="menu" style={{top:memberMenuPosition.top,left:memberMenuPosition.left}}><div className="authMemberMenuHead"><span className="authMemberAvatar" aria-hidden="true"><UserRound/></span><b className="authMemberName" data-i18n-skip="">{session.user.display_name}</b><small>SECURE ACCOUNT</small><strong>{session.user.email}</strong><button type="button" className="authMemberClose" aria-label="Menüyü kapat" onClick={() => setMemberMenuOpen(false)}><X/></button></div>{session.user.role === 'OWNER' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/admin')}}><ShieldCheck/><span><b>Admin Dashboard</b><small>Control center</small></span>{chevron}</button>}{session.user.role === 'MODERATOR' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/moderator')}}><ShieldCheck/><span><b>Moderatör paneli</b><small>Destek ve onaylar</small></span>{chevron}</button>}<button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/settings')}}><UserRound/><span><b>Profile &amp; Settings</b><small>Identity and security</small></span>{chevron}</button><button className="authMemberLogout" type="button" role="menuitem" onClick={() => void logout()}><LogOut/><span><b>Çıkış<span className="authMemberMore"> yap</span></b><small>End secure session</small></span>{chevron}</button></div></>,document.body) : null
   const profileControl = <div className="authSessionBar"><button ref={memberTriggerRef} className="authMemberTrigger" type="button" aria-label="Profil menüsünü aç" aria-expanded={memberMenuOpen} aria-haspopup="menu" onClick={() => setMemberMenuOpen(value => !value)}><svg className="authProfileGlyph" viewBox="3.5 3.8 17 17.9" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><circle cx="12" cy="8" r="3.15"/><path d="M4.7 20.1c.55-3.55 3.35-5.55 7.3-5.55s6.75 2 7.3 5.55c.05.32-.2.6-.52.6H5.22c-.32 0-.57-.28-.52-.6Z"/></svg></button></div>
   const adminMaintenanceBanner = session.user.role === 'OWNER' && (maintenanceMode === 'MAINTENANCE' || maintenanceMode === 'EMERGENCY') ? <div className="authAdminMaintenanceBar" role="status"><span>{maintenanceMode === 'EMERGENCY' ? 'Acil durum modu aktif.' : 'Bakım modu aktif.'} Üyeler bakım ekranını görüyor.</span><button type="button" onClick={() => location.assign('/admin')}>Admin Panel</button></div> : null
   return <>{sessionNotice}{adminMaintenanceBanner}{profileHeaderSlot ? createPortal(profileControl,profileHeaderSlot) : profileControl}{memberMenu}<AccountLanguageSync/>{children}</>
