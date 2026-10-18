@@ -16,7 +16,7 @@ import './live-modern.css'
 import MasterTradeReference from './MasterTradeReference'
 import {useMasterMarketQuotes} from './useMasterMarketQuotes'
 import {useTradingPreferences} from './useTradingPreferences'
-import {MarketDataFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
+import {MarketDataFailure, isNetworkFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
 import {chartSnapshot} from './chart-ai-client'
@@ -238,7 +238,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         if (selected) setSnapshot(current => current?.symbol === draft.market ? { ...current, currentPrice: selected.price, priceUpdatedAt: new Date().toISOString() } : current)
         setMarketError('')
       } catch (error) {
-        if (active && !(error instanceof Error && error.name === 'AbortError')) setMarketError(`DATA STALE / DATA UNAVAILABLE · ${marketDataFailure(error).message}`)
+        if (active && !(error instanceof Error && error.name === 'AbortError')) setMarketError(isNetworkFailure(error) ? 'Bağlantı kesildi · Veriler güncellenemiyor. Bağlantı gelince otomatik yenilenir.' : `Piyasa verisi güncellenemedi · ${marketDataFailure(error).message} Birkaç saniye içinde yeniden denenecek.`)
       } finally {
         inFlight = false
         if (active) setMarketLoading(false)
@@ -266,7 +266,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       } catch (error) {
         if (active && !(error instanceof Error && error.name === 'AbortError')) {
           setScannerCandidates([])
-          setMarketError(current => current || 'MARKET ANALYSIS DELAYED · RAW MARKETS ACTIVE')
+          setMarketError(current => current || 'Piyasa analizi gecikiyor · Şimdilik ham piyasa verisi gösteriliyor.')
         }
       } finally {
         inFlight = false

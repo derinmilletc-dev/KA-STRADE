@@ -31,8 +31,15 @@ export async function marketDataResponseError(response: Response, scope: 'symbol
   return new MarketDataFailure('backend', `${unavailable} (${detail || 'backend veriyi sağlayamadı'}; HTTP ${response.status}).`)
 }
 
+/** Ağ kopması: fetch TypeError ("Failed to fetch", "Load failed", "NetworkError…") veya tarayıcı çevrimdışı. */
+export function isNetworkFailure(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+  return error instanceof TypeError && /failed to fetch|load failed|networkerror|network request failed/i.test(error.message)
+}
+
 export function marketDataFailure(error: unknown): MarketDataFailure {
   if (error instanceof MarketDataFailure) return error
+  if (isNetworkFailure(error)) return new MarketDataFailure('frontend', 'İnternet bağlantısı yok; veri alınamadı.')
   if (error instanceof Error && error.name === 'TimeoutError') return new MarketDataFailure('frontend', 'Bu sembol için yeterli veri yok (veri isteği zaman aşımına uğradı).')
   return new MarketDataFailure('backend', `Bu sembol için yeterli veri yok (${error instanceof Error ? error.message : 'veri isteği başarısız'}).`)
 }
