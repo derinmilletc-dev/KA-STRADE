@@ -7995,3 +7995,50 @@ body:has(#root .liveTradingPanel.liveUx),
   /* Alt menü yazıları */
   .v26MobileBottomNav > button > span { font-size: 9.5px !important; letter-spacing: -.01em !important; }
 }
+
+/* Telefon alt menü: kompakt uygulama menüsü. Aktif sekme yalnız yeşil ikon + yazı (kutu/çizgi/parlama yok),
+   pasifler gri-mavi; ince ve düşük kontrastlı kenarlık. Yalnız <=700px; masaüstü/tablet değişmez. */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav {
+    right: 8px !important;
+    left: 8px !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    gap: 0 !important;
+    padding: 4px 4px !important;
+    border: 1px solid rgba(148, 181, 214, .12) !important;
+    border-radius: 16px !important;
+    background: rgba(10, 18, 30, .96) !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button {
+    gap: 3px !important;
+    min-height: 46px !important;
+    padding: 2px 0 !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #7f93a8 !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button > svg {
+    width: 21px !important;
+    height: 21px !important;
+    stroke-width: 1.9 !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button > span {
+    font-size: 10.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active {
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #27D6A0 !important;
+  }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active > span { font-weight: 600 !important; }
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active::before,
+  html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active::after { content: none !important; display: none !important; }
+}
