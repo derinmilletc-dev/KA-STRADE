@@ -100,14 +100,14 @@ def test_invalid_feature_setting_is_explicit_and_not_logged_raw(chart_api, monke
     assert pool.queries == []
 
 
-def test_active_trial_has_fifteen_daily_rights_and_exact_warning(chart_api):
+def test_active_trial_has_seven_daily_rights_and_exact_warning(chart_api):
     client, _, pool = chart_api
     start_trial(client, pool)
     response = client.get(USAGE, headers=headers("customer", "CUSTOMER"))
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["eligible"] and payload["access_type"] == "trial"
-    assert payload["quota"] == {"limit": 15, "used": 0, "reserved": 0, "remaining": 15, "unlimited": False}
+    assert payload["quota"] == {"limit": 7, "used": 0, "reserved": 0, "remaining": 7, "unlimited": False}
     assert payload["resets_at"] == payload["period_end"]
     assert payload["trial_expires_at"] is not None and payload["trial_expires_at"] != payload["period_end"]
     assert payload["acknowledgement"] == {
@@ -135,7 +135,7 @@ def test_acknowledgement_is_persistent_idempotent_user_scoped_and_does_not_spend
     assert again.json() == first.json()
     usage = client.get(USAGE, headers=auth).json()
     assert usage["acknowledgement"] == first.json()["acknowledgement"]
-    assert usage["quota"]["remaining"] == 15
+    assert usage["quota"]["remaining"] == 7
     other = client.get(USAGE, headers=headers("owner", "OWNER")).json()
     assert other["acknowledgement"]["accepted_at"] is None
     assert len(pool.state.acknowledgements) == 1
@@ -161,12 +161,12 @@ def test_invalid_or_forged_acknowledgement_never_writes(chart_api, change, statu
     assert pool.state.acknowledgements == {} and pool.state.requests == {}
 
 
-def test_paid_master_mode_uses_twenty_rights_and_utc_monday_period(chart_api):
+def test_paid_master_mode_uses_thirty_five_rights_and_utc_monday_period(chart_api):
     client, _, pool = chart_api
     subscribe(client)
     payload = client.get(USAGE, headers=headers("customer", "CUSTOMER")).json()
     assert payload["access_type"] == "subscriber"
-    assert payload["quota"]["remaining"] == payload["quota"]["limit"] == 20
+    assert payload["quota"]["remaining"] == payload["quota"]["limit"] == 35
     start = datetime.fromisoformat(payload["period_start"].replace("Z", "+00:00"))
     assert start.weekday() == 0 and start.hour == start.minute == start.second == 0
     assert start.utcoffset() == timedelta(0)
@@ -174,7 +174,7 @@ def test_paid_master_mode_uses_twenty_rights_and_utc_monday_period(chart_api):
     assert payload["server_now"] == pool.now.isoformat().replace("+00:00", "Z")
 
 
-@pytest.mark.parametrize("grace,access_type,limit", [(1, "subscriber", 20), (-1, "free", 3)])
+@pytest.mark.parametrize("grace,access_type,limit", [(1, "subscriber", 35), (-1, "free", 3)])
 def test_paid_past_due_uses_existing_canonical_grace_rules(chart_api, grace, access_type, limit):
     client, _, pool = chart_api
     subscribe(client, status="PAST_DUE", expired=True, grace=grace)
@@ -195,14 +195,14 @@ def test_owner_is_unlimited_without_subscription_and_actual_role_is_authoritativ
     assert not pool.state.requests
 
 
-def test_moderator_gets_twenty_weekly_analyses_without_subscription(chart_api):
+def test_moderator_gets_thirty_five_weekly_analyses_without_subscription(chart_api):
     client, _, pool = chart_api
     response = client.get(USAGE, headers=headers("moderator"))
     assert response.status_code == 200, response.text
     payload = response.json()
     assert "access_type" in payload, payload
     assert payload["access_type"] == "subscriber"
-    assert payload["quota"] == {"limit": 20, "used": 0, "reserved": 0, "remaining": 20, "unlimited": False}
+    assert payload["quota"] == {"limit": 35, "used": 0, "reserved": 0, "remaining": 35, "unlimited": False}
     start = datetime.fromisoformat(payload["period_start"].replace("Z", "+00:00"))
     assert start.weekday() == 0 and start.hour == start.minute == start.second == 0
     assert payload["resets_at"] == payload["period_end"]
@@ -215,7 +215,7 @@ def test_claimed_owner_role_and_query_fields_cannot_promote_trial(chart_api):
     response = client.get(USAGE + "?user_id=owner&isPremium=true&plan=MASTER_MODE",
                           headers=headers("customer", "OWNER"))
     assert response.status_code == 200, response.text
-    assert response.json()["access_type"] == "trial" and response.json()["quota"]["limit"] == 15
+    assert response.json()["access_type"] == "trial" and response.json()["quota"]["limit"] == 7
 
 
 @pytest.mark.parametrize("status", ["ACTIVE", "CANCELLED", "EXPIRED", "UNPAID"])
@@ -385,4 +385,4 @@ def test_usage_reports_existing_used_and_reserved_counts(chart_api):
     period = next(iter(pool.state.periods.values()))
     period.update(used=1, reserved=1)
     payload = client.get(USAGE, headers=auth).json()
-    assert payload["quota"] == {"limit": 15, "used": 1, "reserved": 1, "remaining": 13, "unlimited": False}
+    assert payload["quota"] == {"limit": 7, "used": 1, "reserved": 1, "remaining": 5, "unlimited": False}

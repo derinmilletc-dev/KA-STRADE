@@ -1,4 +1,4 @@
--- Kais AI kotaları: ücretsiz üye (ömür boyu 3), deneme üyesi (günde 15). Mevcut satırlar geçerli kalır.
+-- Kais AI kotaları: ücretsiz üye (ömür boyu 3), deneme üyesi (günde 7), premium (haftada 35). Mevcut satırlar geçerli kalır.
 -- Geri alma gerekmez: yeni kural eskisinin üst kümesidir.
 BEGIN;
 SELECT pg_advisory_xact_lock(hashtextextended('chart-ai-schema-v1',0));
@@ -18,6 +18,8 @@ BEGIN
     END LOOP;
 END $$;
 
+UPDATE chart_ai_quota_periods SET quota_limit = 35 WHERE access_type = 'subscriber' AND quota_limit = 20;
+
 ALTER TABLE chart_ai_quota_periods ADD CONSTRAINT chart_ai_quota_access_kinds
     CHECK (access_type IN ('trial','subscriber','owner','free'));
 
@@ -26,11 +28,11 @@ ALTER TABLE chart_ai_quota_periods ADD CONSTRAINT chart_ai_quota_tiers CHECK (
     (access_type='trial' AND period_key='trial' AND quota_limit=3
         AND period_start IS NOT NULL AND period_end IS NOT NULL
         AND period_end=period_start + INTERVAL '168 hours')
-    -- yeni deneme: günde 15 hak, gün Türkiye saatiyle yenilenir
-    OR (access_type='trial' AND period_key ~ '^trial-day:[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND quota_limit=15
+    -- yeni deneme: günde 7 hak, gün Türkiye saatiyle yenilenir
+    OR (access_type='trial' AND period_key ~ '^trial-day:[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND quota_limit=7
         AND period_start IS NOT NULL AND period_end IS NOT NULL
         AND period_end=period_start + INTERVAL '24 hours')
-    OR (access_type='subscriber' AND quota_limit IS NOT NULL AND quota_limit=20
+    OR (access_type='subscriber' AND quota_limit IS NOT NULL AND quota_limit=35
         AND period_start IS NOT NULL AND period_end IS NOT NULL
         AND period_end=period_start + INTERVAL '168 hours'
         AND extract(isodow FROM period_start AT TIME ZONE 'UTC')=1

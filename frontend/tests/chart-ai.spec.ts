@@ -67,7 +67,7 @@ async function prepare(page: Page, options: {customer?: boolean; free?: boolean;
         }}})
       }
       const accessType = options.moderator ? 'subscriber' : options.free ? 'free' : options.customer ? 'trial' : 'owner'
-      const limit = accessType === 'free' ? 3 : accessType === 'trial' ? 15 : accessType === 'subscriber' ? 20 : null
+      const limit = accessType === 'free' ? 3 : accessType === 'trial' ? 7 : accessType === 'subscriber' ? 35 : null
       return route.fulfill({json: {
         analysis_enabled: !options.unavailable,
         access_type: accessType,
@@ -140,7 +140,7 @@ for (const customer of [false, true]) test(`old backend without chart API never 
 for (const account of ['CUSTOMER', 'MODERATOR'] as const) test(`${account} can acknowledge and use Chart AI with its assigned quota`, async ({page}) => {
   const state = await prepare(page, {customer: account === 'CUSTOMER', moderator: account === 'MODERATOR'})
   const dialog = await openAndCapture(page)
-  await expect(dialog.getByText(account === 'CUSTOMER' ? 'Kalan hak: 15' : 'Kalan hak: 20')).toBeVisible()
+  await expect(dialog.getByText(account === 'CUSTOMER' ? 'Kalan hak: 7' : 'Kalan hak: 35')).toBeVisible()
   await expect(dialog.getByText('Bu analiz yatırım tavsiyesi değildir.')).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).click()
   await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)

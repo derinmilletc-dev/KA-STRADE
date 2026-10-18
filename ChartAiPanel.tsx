@@ -17,8 +17,8 @@ const sections = (text: string) => text.split(/\n{2,}/).map(block => {
 })
 const WALLS = {
   free: {title: 'Ücretsiz hakkınız bitmiştir', text: 'Kais AI ile grafik analizine devam etmek için premium alın.', upgrade: true},
-  trial: {title: 'Bugünkü hakkınız bitti', text: 'Deneme üyeliğinde günde 15 analiz yapabilirsiniz. Haklarınız Türkiye saatiyle gece yarısı yenilenir.', upgrade: false},
-  subscriber: {title: 'Haftalık hakkınız doldu', text: 'Haftalık 20 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir.', upgrade: false},
+  trial: {title: 'Bugünkü hakkınız bitti', text: 'Deneme üyeliğinde günde 7 analiz yapabilirsiniz. Haklarınız Türkiye saatiyle gece yarısı yenilenir.', upgrade: false},
+  subscriber: {title: 'Haftalık hakkınız doldu', text: 'Haftalık 35 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir.', upgrade: false},
   owner: {title: 'Analiz şu anda yapılamıyor', text: 'Lütfen biraz sonra tekrar deneyin.', upgrade: false},
 } as const
 const message = (error: unknown) => error instanceof Error ? error.message : 'Kais AI işlemi tamamlanamadı.'

@@ -1,4 +1,4 @@
-"""Kais AI kota kurallarını günceller (ücretsiz üye 3 hak, deneme üyesi günde 15). Tablo/veri silmez.
+"""Kais AI kota kurallarını günceller (ücretsiz üye 3 hak, deneme üyesi günde 7, premium haftada 35). Tablo/veri silmez.
 
 Kullanım (PowerShell, backend klasöründe):  python tools/db_apply_chart_ai_quota.py
 Adres gizli girişle istenir. Güvenle tekrar çalıştırılabilir.
@@ -15,8 +15,8 @@ SQL = (Path(__file__).resolve().parents[1] / "migrations" / NAME).read_text(enco
 
 async def main() -> None:
     print("Uygulanacak güncelleme:", NAME)
-    print("Yaptığı tek şey: Kais AI kota tablosundaki kuralları genişletmek (ücretsiz üye ve günlük deneme hakkı).")
-    print("Hiçbir kayıt silinmez veya değişmez.")
+    print("Yaptığı tek şey: Kais AI kota tablosundaki kuralları genişletmek (ücretsiz üye 3, deneme günde 7, premium haftada 35).")
+    print("Hiçbir kayıt silinmez; bu haftaki premium haklar 20'den 35'e çıkar.")
     if input("Devam için tam olarak 'evet' yaz: ").strip().lower() != "evet":
         print("İptal edildi, hiçbir şey değişmedi.")
         return

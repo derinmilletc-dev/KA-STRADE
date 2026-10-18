@@ -24,7 +24,8 @@ POLICY_VERSION = "chart-ai-v1"
 PRIVACY_NOTICE = "Resmin sitemizde saklanmaz; analiz için yapay zeka sağlayıcımıza gönderilir."
 
 FREE_LIFETIME_LIMIT = 3
-TRIAL_DAILY_LIMIT = 15
+TRIAL_DAILY_LIMIT = 7
+SUBSCRIBER_WEEKLY_LIMIT = 35
 TURKEY = timezone(timedelta(hours=3))  # trial days renew at 00:00 Turkey time (no DST)
 AccessType = Literal["trial", "subscriber", "owner", "free"]
 RequestStatus = Literal["processing", "succeeded", "failed", "expired"]
@@ -117,7 +118,7 @@ def quota_period(access: QuotaAccess, now: datetime) -> QuotaPeriod:
         return QuotaPeriod("owner", "owner", None, None, None)
     if access.kind == "subscriber":
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        return QuotaPeriod(f"week:{start.date().isoformat()}", "subscriber", start, start + timedelta(days=7), 20)
+        return QuotaPeriod(f"week:{start.date().isoformat()}", "subscriber", start, start + timedelta(days=7), SUBSCRIBER_WEEKLY_LIMIT)
     if access.kind == "free":
         return QuotaPeriod("free", "free", None, None, FREE_LIFETIME_LIMIT)
     if access.kind == "trial" and access.trial_start is not None and access.trial_end is not None:
@@ -282,9 +283,9 @@ class ChartAiStore:
                 message = (
                     "Ücretsiz analiz hakkınız bitmiştir. Devam etmek için premium (MASTER MODE) alın."
                     if period.kind == "free"
-                    else "Bugünkü 15 analiz hakkınız bitti. Yarın (Türkiye saati 00:00) yenilenir."
+                    else "Bugünkü 7 analiz hakkınız bitti. Yarın (Türkiye saati 00:00) yenilenir."
                     if period.kind == "trial"
-                    else "Haftalık 20 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir."
+                    else "Haftalık 35 analiz hakkınız doldu. Yeni haklar Pazartesi yenilenir."
                 )
                 raise ChartAiQuotaError("quota_exhausted", message, 429)
             month = now.date().replace(day=1)
