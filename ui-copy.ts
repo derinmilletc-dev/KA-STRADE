@@ -91,6 +91,7 @@ export const analystCopy = {
   analysisCost: (cost: number) => `Taze analiz: ${cost} kredi. Önbellek ücretsiz.`,
   selectedCoin: 'SEÇİLİ COİN',
   waiting: 'VERİ BEKLENİYOR',
+  tabs: {quick: 'Hızlı', technical: 'Teknik', decision: 'Karar'},
   groups: {
     quick: 'HIZLI ANALİZ',
     technical: 'TEKNİK',
