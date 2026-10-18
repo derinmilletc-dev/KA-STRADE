@@ -60,6 +60,7 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "search_help": HelpArguments,
     "get_analysis": AnalysisArguments,
     "get_my_positions": NoArguments,
+    "get_demo_positions": NoArguments,
     "get_protection_status": ProtectionArguments,
 }
 TOOL_DEFINITIONS = [
@@ -241,6 +242,26 @@ class AssistantTools:
         if not self.premium(user_id):
             positions = public_projection(positions)
         return self.result({"positions": positions, "data_age_seconds": age}, stale=stale)
+
+    async def get_demo_positions(self, user_id: str) -> dict[str, Any]:
+        """Binance Futures DEMO hesabının açık pozisyonları (salt okunur). Yalnızca OWNER; gerçek hesap değildir.
+        Entry/SL/TP gibi seviyeler döndürülmez."""
+        user = self.user(user_id)
+        if user.get("role") != "OWNER":
+            return self.result({"positions": [], "reason": "DEMO_OWNER_ONLY", "account": "demo"}, stale=True)
+        from . import binance_demo  # gecikmeli içe aktarma: dairesel bağımlılığı önler
+        try:
+            snapshot = await asyncio.wait_for(
+                binance_demo.account_snapshot(binance_demo.client_for(self.request)),
+                timeout=self.config.request_timeout_seconds,
+            )
+        except Exception:  # borsa/anahtar/zaman aşımı: ayrıntıyı sızdırma, doğrulanamadı de
+            return self.result({"positions": [], "reason": "DEMO_UNAVAILABLE", "account": "demo"}, stale=True)
+        positions = [
+            {key: row.get(key) for key in ("symbol", "direction", "quantity", "unrealized_pnl", "leverage")}
+            for row in snapshot.get("positions", []) if row.get("quantity")
+        ]
+        return self.result({"positions": positions, "account": "demo", "data_age_seconds": 0})
 
     async def get_my_activity(self, user_id: str, transaction: CreditTransaction) -> dict[str, Any]:
         # Internal check-in read only; not exposed as an LLM tool.
