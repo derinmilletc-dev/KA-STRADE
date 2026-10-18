@@ -80,6 +80,8 @@ services:
         value: "6"
       - key: ASSISTANT_DAILY_LIMIT
         value: "20"
+      - key: ASSISTANT_TRIAL_DAILY_LIMIT
+        value: "5"
       - key: ASSISTANT_MONTHLY_BUDGET_USD
         value: "50"
       - key: ASSISTANT_MAX_OUTPUT_TOKENS
