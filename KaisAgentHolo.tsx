@@ -14,7 +14,7 @@ import './kais-agent-holo.css'
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
 export type HoloPortal = {view: string; label: string; commit: () => void; done: () => void}
-type Props = {portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -55,7 +55,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({portal, confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
+export default function KaisAgentHolo({alarm, portal, confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -135,11 +135,12 @@ export default function KaisAgentHolo({portal, confirm, phase, status, userText,
     const timer = window.setTimeout(() => setBeam(false), 450)
     return () => window.clearTimeout(timer)
   }, [phase])
-  return createPortal(<div className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
+  return createPortal(<div className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
     <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>
       <div className="kaisHoloGlow" aria-hidden="true"/>
+      {alarm && <svg className="kaisHoloAlarm" viewBox="-160 -160 320 320" aria-hidden="true"><circle r="146"/><circle r="152" className="b"/></svg>}
       <svg className="kaisHoloRings" viewBox="-160 -160 320 320" aria-hidden="true">
         <circle className="ping" r="150"/>
         <g className="ring r1" ref={primary}><circle r="156"/></g>
@@ -168,6 +169,7 @@ export default function KaisAgentHolo({portal, confirm, phase, status, userText,
       <div className="kaisHoloScanBand" data-on={(beam && phase === 'thinking') || scene === 'A'} aria-hidden="true">{(beam || scene === 'A') && <i/>}</div>
       <div className="kaisHoloFloor" aria-hidden="true"/>
     </div>
+    {alarm && <p className="kaisHoloAlarmText" role="alert">{alarm}</p>}
     {actions.length > 0 && <div className="kaisHoloChips">{actions.slice(-4).map((action, index) => <span key={`${action}-${index}`} className="kaisHoloChip">▸ {action}</span>)}</div>}
     <p className="kaisHoloStatus" data-error={phase === 'error'}>{status}</p>
     {slow && phase === 'thinking' && <p className="kaisHoloSlow">{slowText}</p>}

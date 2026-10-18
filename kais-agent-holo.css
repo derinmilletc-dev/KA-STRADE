@@ -107,3 +107,11 @@
 .kaisHolo[data-scene]>.kaisHoloChat,.kaisHolo[data-scene]>.kaisHoloClose,.kaisHolo[data-scene]>.kaisVoicePicker{pointer-events:none}
 @media (prefers-reduced-motion:reduce){.kaisHoloPortal .frame,.kaisHoloPortal .tag,.kaisHoloPortal .tag b,.kaisHolo[data-scene]{transition:none!important}.kaisHolo[data-scene=B] .kaisHoloPortal .frame{transform:scale(1.4)}}
 .kaisVoiceRate input[type=range]{flex:1 0 100%!important;margin-top:4px!important;accent-color:#2ee6ff}.kaisVoiceRate button{flex:1 1 30%!important}
+/* Alarm: yalnızca gerçek alarm olayında; ana göz değişmez, ayrı vurgu halkası amber→kırmızı iki kısa dalga yapıp söner (sürekli nabız yok). */
+.kaisHoloAlarm{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:1}
+.kaisHoloAlarm circle{fill:none;stroke:#ffb020;stroke-width:1.6;opacity:0;animation:kaisAlarmRing 1.3s ease-out 2 both;transform-origin:center}
+.kaisHoloAlarm circle.b{stroke:#ff4d4d;stroke-width:.8;animation-delay:.18s}
+.kaisHoloAlarmText{margin:0;font:600 12px/1.2 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#ffb020;animation:kaisAlarmFade 4s ease both}
+@keyframes kaisAlarmRing{0%{opacity:0;transform:scale(.94)}25%{opacity:.95}100%{opacity:0;transform:scale(1.06)}}
+@keyframes kaisAlarmFade{0%,85%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.kaisHoloAlarm circle{animation:none!important;opacity:.8}.kaisHoloAlarmText{animation:none!important}}

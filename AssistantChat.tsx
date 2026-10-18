@@ -174,6 +174,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [storageProblem, setStorageProblem] = useState(intro.problem)
   const [open, setOpen] = useState(false)
   const [holoOpen, setHoloOpen] = useState(false)
+  const [alarm, setAlarm] = useState<string | null>(null)
   const [portal, setPortal] = useState<HoloPortal | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const [agentActions, setAgentActions] = useState<string[]>([])
@@ -430,22 +431,32 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (!controller.signal.aborted) setPreferenceBusy(false)
     }
   }
-  useEffect(() => {
-    const timer = window.setInterval(async () => {
-      const rows = loadAlerts(); if (!rows.length) return
-      const left: typeof rows = []
+  const alertCheck = useRef<() => Promise<void>>(async () => undefined)
+  const alertBusy = useRef(false)
+  alertCheck.current = async () => {
+    if (alertBusy.current) return
+    const rows = loadAlerts(); if (!rows.length) return
+    alertBusy.current = true
+    try {
+      const fired: string[] = []
       for (const row of rows) {
         const price = await fetchPrice(row.symbol)
         const hit = price !== null && (row.side === 'above' ? price >= row.level : price <= row.level)
-        if (!hit) { left.push(row); continue }
+        if (!hit) continue
+        fired.push(row.id)
         const text = language === 'en' ? `${row.symbol} reached ${price}. Your alert at ${row.level} fired.` : `${row.symbol} ${price} oldu. ${row.level} alarmın tetiklendi.`
         append(text, language)
         voice.speak(text)
+        setAlarm(language === 'en' ? `Alert: ${row.symbol}` : `Alarm: ${row.symbol}`); window.setTimeout(() => setAlarm(null), 4000)
       }
-      saveAlerts(left)
-    }, 15000)
+      // Beklerken yeni alarm eklenmiş olabilir: yeniden okuyup yalnızca tetiklenenleri sil.
+      if (fired.length) saveAlerts(loadAlerts().filter(row => !fired.includes(row.id)))
+    } finally { alertBusy.current = false }
+  }
+  useEffect(() => {
+    const timer = window.setInterval(() => { void alertCheck.current() }, 15000)
     return () => window.clearInterval(timer)
-  })
+  }, [])
   const append = (content: string, replyLanguage: Language, confirmation?: Confirmation) => setMessages(previous => [...previous, {
     id: crypto.randomUUID(), role: 'assistant', content, language: replyLanguage, ...(confirmation ? {confirmation, decision: 'pending' as const} : {}),
   }])
@@ -626,7 +637,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo portal={portal} confirm={(() => {
+    {holoVisible && <KaisAgentHolo alarm={alarm} portal={portal} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
