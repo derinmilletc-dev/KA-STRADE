@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice } from './assistant-voice'
+import KaisAgentHolo from './KaisAgentHolo'
+import { parseNavigation, type AgentView } from './kais-agent-intents'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
@@ -154,7 +156,7 @@ function PlainText({content}: {content: string}) {
     part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part)}</>
 }
 
-function AssistantSession({userId, pageContext, language, launcherTarget}: {userId: string; pageContext: string; language: Language; launcherTarget?: HTMLElement | null}) {
+function AssistantSession({userId, pageContext, language, launcherTarget, onNavigate}: {userId: string; pageContext: string; language: Language; launcherTarget?: HTMLElement | null; onNavigate?: (view: AgentView) => void}) {
   const copy = assistantCopy[language]
   const motionPaused = useAssistantMotion()
   const privateFocus = useKaisPrivacy()
@@ -168,6 +170,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   const [messages, setMessages] = useState<Message[]>(initial.messages)
   const [storageProblem, setStorageProblem] = useState(intro.problem)
   const [open, setOpen] = useState(false)
+  const [holoOpen, setHoloOpen] = useState(false)
+  const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
   const [greetingVisible, setGreetingVisible] = useState(false)
   const [draft, setDraft] = useState('')
@@ -431,6 +435,18 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     const message = value.trim()
     if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return null }
     if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); return null }
+    const nav = onNavigate ? parseNavigation(message, language) : null
+    if (nav && onNavigate) {
+      // Aşama 1: sayfa açma komutu yerelde çalışır; model/ağ isteği yok, veri okunmaz, işlem yapılmaz.
+      const reply = language === 'en' ? `${nav.label} opened.` : `${nav.label} sayfası açıldı.`
+      setDraft(''); setIssue(null); setLengthError(false)
+      setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
+      append(reply, language)
+      setAgentActions(previous => [...previous.slice(-3), language === 'en' ? `${nav.label} opened` : `${nav.label} açıldı`])
+      setOpen(false); onNavigate(nav.view)
+      if (viaVoice) window.setTimeout(() => setHoloOpen(false), 1800)
+      return reply
+    }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
     const eligible = messages.filter(row => !row.proactive && !row.pending && !row.failed && row.content.trim() && !sensitive(row.content, usage.limits))
@@ -462,6 +478,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   }
 
   sendRef.current = sendMessage
+  useEffect(() => { setHoloOpen(voice.active); if (voice.active) setOpen(false) }, [voice.active])
   // Panel kapansa veya sayfa değişse de sesli sohbet sürer; yalnızca yazılı cevabın okunması durur.
   useEffect(() => { if (!open && !voice.active) voice.stopSpeaking() }, [open])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -510,8 +527,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
     '--assistant-origin-y': placement.above ? '100%' : '0%'} as CSSProperties
 
   const phaseLabel = voice.phase === 'thinking' ? voice.copy.thinking : voice.phase === 'speaking' ? voice.copy.speaking : voice.copy.listening
-  const voicePill = voice.active && !open && createPortal(<div className="assistantVoicePill" data-phase={voice.phase} role="status" aria-live="polite">
-      <button type="button" className="assistantVoicePillMain" onClick={openChat} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {voice.message || phaseLabel}</button>
+  const holoVisible = voice.active && holoOpen && !open
+  const voicePill = voice.active && !open && !holoOpen && createPortal(<div className="assistantVoicePill" data-phase={voice.phase} role="status" aria-live="polite">
+      <button type="button" className="assistantVoicePillMain" onClick={() => setHoloOpen(true)} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {voice.message || phaseLabel}</button>
       <button type="button" className="assistantVoicePillEnd" onClick={voice.stop} aria-label={voice.copy.endConversation}><X aria-hidden="true"/>{voice.copy.end}</button>
     </div>, document.body)
 
@@ -522,6 +540,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   return <>
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
+    {holoVisible && <KaisAgentHolo phase={voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
+      status={voice.message || phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
+      replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
+      chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
+      onOpenChat={() => { setHoloOpen(false); openChat() }} onMinimize={() => setHoloOpen(false)}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>
@@ -611,7 +634,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget}: {user
   </>
 }
 
-export default function AssistantChat({pageContext, launcherTarget}: {pageContext: string; launcherTarget?: HTMLElement | null}) {
+export default function AssistantChat({pageContext, launcherTarget, onNavigate}: {pageContext: string; launcherTarget?: HTMLElement | null; onNavigate?: (view: AgentView) => void}) {
   const {ready, userId, assistantAllowed} = useMemberAccess()
   const [historyEpoch, setHistoryEpoch] = useState(0)
   const [language, setLanguage] = useState<Language>(languageOfPage)
@@ -629,5 +652,5 @@ export default function AssistantChat({pageContext, launcherTarget}: {pageContex
     observer.observe(document.documentElement, {attributes: true, attributeFilter: ['lang']})
     return () => observer.disconnect()
   }, [])
-  return ready && userId && assistantAllowed ? <AssistantSession key={`${userId}:${historyEpoch}`} userId={userId} pageContext={pageContext} language={language} launcherTarget={launcherTarget}/> : null
+  return ready && userId && assistantAllowed ? <AssistantSession key={`${userId}:${historyEpoch}`} userId={userId} pageContext={pageContext} language={language} launcherTarget={launcherTarget} onNavigate={onNavigate}/> : null
 }
