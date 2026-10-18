@@ -62,3 +62,4 @@
 .kaisHoloConfirm button{height:44px;border-radius:12px;border:1px solid #2a3d58;background:#16202f;color:#e8eef7;font-weight:600}
 .kaisHoloConfirm button.ok{background:#27D6A0;border-color:#27D6A0;color:#04120d}
 .kaisHoloConfirm button:disabled{opacity:.5}
+.kaisHoloSlow{margin:0;font-size:12px;color:#9fb1c9;text-align:center;max-width:320px}

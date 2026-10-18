@@ -10,7 +10,7 @@ import './kais-agent-holo.css'
  *  CANCELLED: bileşen kapanınca kaldırılır; rAF ve zamanlayıcılar temizlenir. */
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
-type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -51,9 +51,17 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry}: Props) {
+export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
+  const [slow, setSlow] = useState(false)
+  // Gerçek bekleme süresi: cevap 8 sn'yi aşarsa kullanıcıya sunucunun geciktiğini söyler (sahte ilerleme değil).
+  useEffect(() => {
+    setSlow(false)
+    if (phase !== 'thinking') return
+    const timer = window.setTimeout(() => setSlow(true), 8000)
+    return () => window.clearTimeout(timer)
+  }, [phase])
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
   useRings(phase, hidden, [primary, secondary, precision])
   useEffect(() => {
@@ -86,6 +94,7 @@ export default function KaisAgentHolo({confirm, phase, status, userText, replyTe
     </div>
     {actions.length > 0 && <div className="kaisHoloChips">{actions.slice(-4).map((action, index) => <span key={`${action}-${index}`} className="kaisHoloChip">▸ {action}</span>)}</div>}
     <p className="kaisHoloStatus" data-error={phase === 'error'}>{status}</p>
+    {slow && phase === 'thinking' && <p className="kaisHoloSlow">{slowText}</p>}
     {userText && phase !== 'error' && <p className="kaisHoloUser">“{userText}”</p>}
     {replyText && phase === 'speaking' && <p className="kaisHoloReply">{replyText}</p>}
     {confirm && <div className="kaisHoloConfirm" role="group" aria-label={confirm.title}><b>{confirm.title}</b><small>{confirm.detail}</small>
