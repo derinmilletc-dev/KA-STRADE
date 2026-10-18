@@ -92,6 +92,33 @@ def scanner_teaser(scanner: Any) -> dict[str, Any]:
     }
 
 
+def summary_shape(filtered: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """Premium olmayan üyede /summary yanıtının iskeletini korur, içeriği boş bırakır.
+
+    Ön yüz bu anahtarların varlığını doğrular; allowlist bunları düşürünce "Demo merkez yanıtı
+    eksik veya geçersiz" hatası çıkıyordu. İşlem geçmişi, gerekçe ve sertifika verisi dahil edilmez.
+    """
+    auto = payload.get("auto") if isinstance(payload.get("auto"), dict) else {}
+    cycles = auto.get("cycles")
+    shaped_auto = dict(filtered.get("auto") if isinstance(filtered.get("auto"), dict) else {})
+    shaped_auto["enabled"] = auto.get("enabled") is True
+    shaped_auto["cycles"] = cycles if isinstance(cycles, (int, float)) and not isinstance(cycles, bool) else 0
+    shaped_auto["last_decision"] = ""
+    filtered["auto"] = shaped_auto
+    for key in ("settings", "stream", "daily", "account", "protection"):
+        if not isinstance(filtered.get(key), dict):
+            filtered[key] = {}
+    if not isinstance(filtered["settings"].get("allowed_symbols"), list):
+        filtered["settings"]["allowed_symbols"] = []
+    daily = filtered["daily"]
+    if not isinstance(daily.get("remaining_loss_budget"), (int, float)) or isinstance(daily.get("remaining_loss_budget"), bool):
+        daily["remaining_loss_budget"] = 0
+    filtered["certificate"] = {}
+    filtered["journal"] = []
+    filtered["automation_trades"] = []
+    return filtered
+
+
 def public_notification_projection(payload: Any) -> Any:
     projected = public_projection(payload, allowlist=True)
     if not isinstance(payload, dict) or not isinstance(payload.get("items"), list) or not isinstance(projected, dict):
