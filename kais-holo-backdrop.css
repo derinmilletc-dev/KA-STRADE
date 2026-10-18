@@ -1,0 +1,80 @@
+/* Kais hologram ekranı DEKORATİF arka planı. Yalnızca .kaisHoloBackdrop altında; göz (KaisEye) ve kontroller etkilenmez.
+   z-index:-1: .kaisHolo yığın bağlamında zeminin üstünde, tüm içerik ve kontrollerin altında. pointer-events:none. */
+.kaisHoloBackdrop{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict;
+  --kh-line:rgba(39,214,160,.16);--kh-trace:rgba(39,214,160,.34);--kh-hot:rgba(150,255,226,.95)}
+.kaisHoloBackdrop *{pointer-events:none}
+.kaisHoloBackdrop>i{position:absolute;display:block}
+/* İnce teknik ızgara: merkezde silinir, kenarlarda belirgin */
+.kaisHoloBackdrop .grid{inset:0;opacity:.55;
+  background-image:linear-gradient(var(--kh-line) 1px,transparent 1px),linear-gradient(90deg,var(--kh-line) 1px,transparent 1px),
+    linear-gradient(rgba(39,214,160,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(39,214,160,.06) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px;background-position:center;
+  -webkit-mask-image:radial-gradient(ellipse 60% 55% at 50% 42%,transparent 34%,#000 92%);mask-image:radial-gradient(ellipse 60% 55% at 50% 42%,transparent 34%,#000 92%)}
+/* Ortam ışığı SABİT (tam ekran opaklık animasyonu ölçümde kare süresini artırıyordu). Gözün arkasındaki nefes alan ışık
+   mevcut .kaisHoloGlow katmanıdır (kais-agent-holo.css); burada tekrarlanmaz. */
+.kaisHoloBackdrop .ambient{inset:0;background:
+  radial-gradient(circle at 50% 38%,rgba(39,214,160,.12),rgba(39,214,160,0) 32%),
+  radial-gradient(ellipse at 50% 120%,rgba(16,48,80,.45),rgba(16,48,80,0) 60%),
+  radial-gradient(ellipse at 50% -20%,rgba(12,30,52,.5),rgba(12,30,52,0) 55%)}
+/* Köşe devre izleri (kenarlardan içeri) */
+.kaisHoloCircuit{position:absolute;width:min(40vw,440px);height:auto;overflow:visible;opacity:.9}
+.kaisHoloCircuit.tl{left:0;top:0}
+.kaisHoloCircuit.tr{right:0;top:0;transform:scaleX(-1)}
+.kaisHoloCircuit.bl{left:0;bottom:0;transform:scaleY(-1)}
+.kaisHoloCircuit.br{right:0;bottom:0;transform:scale(-1,-1)}
+.kaisHoloCircuit .traces path,.kaisHoloCircuit .bracket{fill:none;stroke:var(--kh-trace);stroke-width:1;vector-effect:non-scaling-stroke}
+.kaisHoloCircuit .traces path:nth-child(even){stroke:rgba(64,224,208,.22)}
+.kaisHoloCircuit .bracket{stroke:rgba(39,214,160,.55);stroke-width:1.4}
+.kaisHoloCircuit .pads circle{fill:#04070e;stroke:rgba(39,214,160,.5);stroke-width:1;vector-effect:non-scaling-stroke}
+.kaisHoloCircuit .pulses path{fill:none;stroke:var(--kh-hot);stroke-width:1.6;vector-effect:non-scaling-stroke;stroke-linecap:round;
+  stroke-dasharray:5 95;stroke-dashoffset:100;opacity:0;filter:drop-shadow(0 0 3px rgba(39,214,160,.9));animation:kaisBgPulse 11s linear infinite}
+.kaisHoloCircuit.tr .pulses path{animation-duration:13s}
+.kaisHoloCircuit.bl .pulses path{animation-duration:12s}
+.kaisHoloCircuit.br .pulses path{animation-duration:14s}
+/* Büyük, çok soluk HUD halkaları (gözün çok dışında). Dönüş, her halkanın KENDİ <svg> öğesine uygulanır:
+   dönen katman sabit çizimlerden (tik, işaret) ayrıdır; SVG içindeki şekil her karede yeniden düzenlenmez. */
+.kaisHoloHud{position:absolute;left:50%;top:41%;width:min(150vmin,1100px);aspect-ratio:1;transform:translate(-50%,-50%)}
+.kaisHoloHud svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.kaisHoloHud circle{fill:none;stroke:rgba(39,214,160,.13);stroke-width:1;vector-effect:non-scaling-stroke}
+.kaisHoloHud .h1 circle{stroke-dasharray:40 8 2 8}
+.kaisHoloHud .h2 circle{stroke:rgba(64,224,208,.09);stroke-dasharray:1 5}
+.kaisHoloHud .spin{will-change:transform;animation:kaisBgSpin 120s linear infinite}
+.kaisHoloHud .spin.h2{animation-duration:180s;animation-direction:reverse}
+.kaisHoloHud .ticks path,.kaisHoloHud .marks path{fill:none;stroke:rgba(39,214,160,.22);stroke-width:1;vector-effect:non-scaling-stroke}
+.kaisHoloHud .marks path{stroke:rgba(39,214,160,.32)}
+/* Yavaş tarama çizgisi */
+.kaisHoloBackdrop .scan{left:0;right:0;top:0;height:120px;opacity:.5;
+  background:linear-gradient(180deg,rgba(39,214,160,0),rgba(39,214,160,.05) 70%,rgba(150,255,226,.16) 99%,rgba(39,214,160,0));
+  animation:kaisBgScan 14s linear infinite;will-change:transform}
+/* Seyrek parçacıklar */
+.kaisHoloBackdrop .particles{position:absolute;inset:0}
+.kaisHoloBackdrop .particles i{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(150,255,226,.8);box-shadow:0 0 6px rgba(39,214,160,.8);
+  opacity:.35;animation:kaisBgFloat 9s ease-in-out infinite}
+/* Perspektif zemin ızgarası */
+.kaisHoloBackdrop .floor{left:-20%;right:-20%;bottom:-6%;height:34%;transform:perspective(420px) rotateX(62deg);transform-origin:50% 100%;
+  background-image:linear-gradient(rgba(39,214,160,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(39,214,160,.18) 1px,transparent 1px);
+  background-size:64px 40px;background-position:center bottom;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 70%);mask-image:linear-gradient(180deg,transparent,#000 70%);opacity:.55}
+/* Durumlara hafif uyum: hata turuncuya döner ve sakinleşir */
+.kaisHolo[data-phase=error] .kaisHoloBackdrop{--kh-trace:rgba(232,168,94,.24);--kh-line:rgba(232,168,94,.1)}
+.kaisHolo[data-phase=error] .kaisHoloBackdrop .pulses,.kaisHolo[data-phase=error] .kaisHoloBackdrop .scan{display:none}
+/* Küçük ekranlar: kenar ayrıntısı küçülür, koordinat metni gizlenir; merkez ve kontroller boş kalır */
+@media (max-width:720px){
+  .kaisHoloCircuit{width:min(52vw,260px);opacity:.75}
+  .kaisHoloHud .marks{display:none}
+  /* Mobil: hareketli SVG'de filtre yok, ışık akışı yalnız iki köşede */
+  .kaisHoloCircuit .pulses path{filter:none;stroke-width:1.8}
+  .kaisHoloCircuit.tr .pulses,.kaisHoloCircuit.bl .pulses{display:none}
+  /* Mobil: parçacıkların yarısı (ölçümde ana iş parçacığı yükünün belirgin kalemi) */
+  .kaisHoloBackdrop .particles i:nth-child(even){display:none}
+  .kaisHoloBackdrop .grid{background-size:80px 80px,80px 80px,20px 20px,20px 20px}
+}
+@keyframes kaisBgPulse{0%{stroke-dashoffset:100;opacity:0}4%{opacity:1}30%{stroke-dashoffset:0;opacity:1}34%,100%{stroke-dashoffset:0;opacity:0}}
+@keyframes kaisBgSpin{to{transform:rotate(360deg)}}
+@keyframes kaisBgScan{from{transform:translateY(-130px)}to{transform:translateY(100vh)}}
+@keyframes kaisBgFloat{0%,100%{transform:translateY(0);opacity:.15}50%{transform:translateY(-14px);opacity:.6}}
+/* Hareket azaltma: tümü durağan (mevcut .kaisHolo kuralına ek, açıkça). Darbe ve tarama gizlenir, diğer katmanlar sabit görünür. */
+@media (prefers-reduced-motion:reduce){
+  .kaisHoloBackdrop *{animation:none!important;will-change:auto!important}
+  .kaisHoloBackdrop .pulses,.kaisHoloBackdrop .scan{display:none}
+}

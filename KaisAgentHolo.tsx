@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom'
 import {X, MessageSquare, RotateCcw} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import KaisVoicePicker from './KaisVoicePicker'
+import KaisHoloBackdrop from './KaisHoloBackdrop'
 import {emitKaisReaction} from './kais-reactions'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
@@ -136,6 +137,7 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     return () => window.clearTimeout(timer)
   }, [phase])
   return createPortal(<div className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
+    <KaisHoloBackdrop/>
     <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>
