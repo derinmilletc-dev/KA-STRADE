@@ -9,11 +9,12 @@ import './kais-agent-holo.css'
  *  IDLE (mikrofonsuz bekleme) ve ANALYZING (ayrı bir sunucu analiz olayı) uygulamada gözlemlenemediği için SİMÜLE EDİLMEZ.
  *  CANCELLED: bileşen kapanınca kaldırılır; rAF ve zamanlayıcılar temizlenir. */
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
-type Props = {phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
+type Props = {confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
-  listening: [12, -10, -5], thinking: [62, -36, -14], speaking: [12, -10, -5], error: [0, 0, 0],
+  listening: [24, -18, -8], thinking: [120, -80, -30], speaking: [38, -28, -12], error: [0, 0, 0],
 }
 const TIME_CONSTANT = .22
 
@@ -50,7 +51,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry}: Props) {
+export default function KaisAgentHolo({confirm, phase, status, userText, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
@@ -71,6 +72,7 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
     <div className="kaisHoloStage">
       <div className="kaisHoloGlow" aria-hidden="true"/>
       <svg className="kaisHoloRings" viewBox="-160 -160 320 320" aria-hidden="true">
+        <circle className="ping" r="150"/>
         <g className="ring r1" ref={primary}><circle r="156"/></g>
         <g className="ring r2" ref={secondary}><path d="M-150 0A150 150 0 0 1 0 -150M150 0A150 150 0 0 1 0 150"/></g>
         <g className="ring r3"><path d="M128 0h7" transform="rotate(0)"/><path d="M128 0h2" transform="rotate(6)"/><path d="M128 0h2" transform="rotate(12)"/><path d="M128 0h2" transform="rotate(18)"/><path d="M128 0h2" transform="rotate(24)"/><path d="M128 0h4" transform="rotate(30)"/><path d="M128 0h2" transform="rotate(36)"/><path d="M128 0h2" transform="rotate(42)"/><path d="M128 0h2" transform="rotate(48)"/><path d="M128 0h2" transform="rotate(54)"/><path d="M128 0h4" transform="rotate(60)"/><path d="M128 0h2" transform="rotate(66)"/><path d="M128 0h2" transform="rotate(72)"/><path d="M128 0h2" transform="rotate(78)"/><path d="M128 0h2" transform="rotate(84)"/><path d="M128 0h7" transform="rotate(90)"/><path d="M128 0h2" transform="rotate(96)"/><path d="M128 0h2" transform="rotate(102)"/><path d="M128 0h2" transform="rotate(108)"/><path d="M128 0h2" transform="rotate(114)"/><path d="M128 0h4" transform="rotate(120)"/><path d="M128 0h2" transform="rotate(126)"/><path d="M128 0h2" transform="rotate(132)"/><path d="M128 0h2" transform="rotate(138)"/><path d="M128 0h2" transform="rotate(144)"/><path d="M128 0h4" transform="rotate(150)"/><path d="M128 0h2" transform="rotate(156)"/><path d="M128 0h2" transform="rotate(162)"/><path d="M128 0h2" transform="rotate(168)"/><path d="M128 0h2" transform="rotate(174)"/><path d="M128 0h7" transform="rotate(180)"/><path d="M128 0h2" transform="rotate(186)"/><path d="M128 0h2" transform="rotate(192)"/><path d="M128 0h2" transform="rotate(198)"/><path d="M128 0h2" transform="rotate(204)"/><path d="M128 0h4" transform="rotate(210)"/><path d="M128 0h2" transform="rotate(216)"/><path d="M128 0h2" transform="rotate(222)"/><path d="M128 0h2" transform="rotate(228)"/><path d="M128 0h2" transform="rotate(234)"/><path d="M128 0h4" transform="rotate(240)"/><path d="M128 0h2" transform="rotate(246)"/><path d="M128 0h2" transform="rotate(252)"/><path d="M128 0h2" transform="rotate(258)"/><path d="M128 0h2" transform="rotate(264)"/><path d="M128 0h7" transform="rotate(270)"/><path d="M128 0h2" transform="rotate(276)"/><path d="M128 0h2" transform="rotate(282)"/><path d="M128 0h2" transform="rotate(288)"/><path d="M128 0h2" transform="rotate(294)"/><path d="M128 0h4" transform="rotate(300)"/><path d="M128 0h2" transform="rotate(306)"/><path d="M128 0h2" transform="rotate(312)"/><path d="M128 0h2" transform="rotate(318)"/><path d="M128 0h2" transform="rotate(324)"/><path d="M128 0h4" transform="rotate(330)"/><path d="M128 0h2" transform="rotate(336)"/><path d="M128 0h2" transform="rotate(342)"/><path d="M128 0h2" transform="rotate(348)"/><path d="M128 0h2" transform="rotate(354)"/></g>
@@ -86,6 +88,8 @@ export default function KaisAgentHolo({phase, status, userText, replyText, actio
     <p className="kaisHoloStatus" data-error={phase === 'error'}>{status}</p>
     {userText && phase !== 'error' && <p className="kaisHoloUser">“{userText}”</p>}
     {replyText && phase === 'speaking' && <p className="kaisHoloReply">{replyText}</p>}
+    {confirm && <div className="kaisHoloConfirm" role="group" aria-label={confirm.title}><b>{confirm.title}</b><small>{confirm.detail}</small>
+      <div><button type="button" className="ok" disabled={confirm.busy} onClick={confirm.onConfirm}>{confirm.confirmLabel}</button><button type="button" disabled={confirm.busy} onClick={confirm.onCancel}>{confirm.cancelLabel}</button></div></div>}
     {phase === 'error' && <button type="button" className="kaisHoloRetry" onClick={onRetry}><RotateCcw aria-hidden="true"/>{retryLabel}</button>}
     <button type="button" className="kaisHoloChat" onClick={onOpenChat}><MessageSquare aria-hidden="true"/>{chatLabel}</button>
   </div>, document.body)

@@ -106,12 +106,18 @@ function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string
     if (/google/.test(name)) value += 4
     if (/premium|enhanced|siri/.test(name)) value += 4
     if (item.localService === false) value += 1
+    // Erkek ses tercihi: cihaz cinsiyet bilgisi vermez, bilinen isimlerden anlaşılır.
+    if (/\b(male|erkek|ahmet|cem|tolga|yusuf|mehmet|emre|kerem|david|mark|guy|daniel|james|george|alex|fred)\b/.test(name) && !/female/.test(name)) value += 12
+    if (/female|kad[ıi]n|emel|filiz|yelda|seda|zira|hazel|susan|samantha|karen|moira|tessa|victoria/.test(name)) value -= 12
     return value
   }
   return matching.sort((a, b) => score(b) - score(a))[0]
 }
 
 const coarsePointer = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+
+/** Seçilen ses erkek olarak tanınmıyorsa tonu düşürürüz. */
+const isKnownMale = (voice?: SpeechSynthesisVoice) => !!voice && /\b(male|erkek|ahmet|cem|tolga|yusuf|mehmet|emre|kerem|david|mark|guy|daniel|james|george|alex|fred)\b/.test(voice.name.toLowerCase()) && !/female/.test(voice.name.toLowerCase())
 
 export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
@@ -161,7 +167,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = tag
       if (voice) utterance.voice = voice
-      utterance.rate = 1.05
+      utterance.rate = 1.15
+      utterance.pitch = isKnownMale(voice) ? 1 : .7
       if (index === parts.length - 1) {
         utterance.onend = () => { window.clearTimeout(fallback); done() }
         utterance.onerror = () => { window.clearTimeout(fallback); done() }

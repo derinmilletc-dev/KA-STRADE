@@ -450,6 +450,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (viaVoice) window.setTimeout(() => setHoloOpen(false), 1800)
       return reply
     }
+    // Sesle onay yoktur: bekleyen bir onay varken "evet/devam et" demek hiçbir şeyi onaylamaz, yalnızca ekrandaki düğmeye yönlendirir.
+    if (viaVoice && messages.some(row => row.decision === 'pending') && /^(evet|tamam|olur|devam|onayla|kabul|yes|ok|okay|confirm|continue|proceed|go ahead)\b/i.test(message)) {
+      const hint = language === 'en' ? 'I can only continue after you tap Confirm on the screen.' : 'Devam etmem için ekrandaki Onayla düğmesine dokunman gerekiyor.'
+      setMessages(previous => [...previous, {id: crypto.randomUUID(), role: 'user', content: message, language}])
+      append(hint, language)
+      return hint
+    }
     const draftOrder = parseOrderDraft(message)
     if (draftOrder) {
       // Aşama 2: yalnızca taslak. Emir kartta test + yazılı ONAYLA olmadan gönderilmez; model/ağ isteği yok.
@@ -480,6 +487,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       const confirmation = parseConfirmation(response.needs_confirmation)
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
+      if (confirmation && viaVoice) return `${response.reply} ${response.language === 'en' ? 'Tap Confirm on the screen to continue.' : 'Devam etmek için ekranda Onayla düğmesine dokun.'}`
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Answer received' : 'Cevap geldi'])
       return response.reply
     } catch (error) {
@@ -558,7 +566,12 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
+    {holoVisible && <KaisAgentHolo confirm={(() => {
+      const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
+      if (!pending?.confirmation) return undefined
+      return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
+        onConfirm: () => void confirm(pending), onCancel: () => { decide(pending.id, 'cancelled'); setIssue(null) }}
+    })()} phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
       status={voice.message || phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
