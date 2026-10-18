@@ -1499,7 +1499,9 @@ async def owner_preview_gate(request, call_next):
     staff_view = viewer.get("role") == "OWNER" or bool(getattr(request.state, "web_owner_authenticated", False))
     if request.url.path.startswith("/api/") and response.status_code >= 500 and not staff_view and "application/json" in response.headers.get("content-type", ""):
         from . import error_exposure
-        raw = b"".join([chunk.encode() if isinstance(chunk, str) else chunk async for chunk in response.body_iterator])
+        # call_next akış yanıtı döndürür; yakalanan istisna yolundaki JSONResponse'ta body_iterator yoktur (gövde .body'de).
+        iterator = getattr(response, "body_iterator", None)
+        raw = b"".join([chunk.encode() if isinstance(chunk, str) else chunk async for chunk in iterator]) if iterator is not None else bytes(response.body)
         replacement = error_exposure.safe_body(response.status_code, raw, request.url.path, request.state.request_id)
         kept_headers = {key: value for key, value in response.headers.items() if key.lower() not in {"content-length", "content-type", "content-encoding"}}
         if replacement is None:

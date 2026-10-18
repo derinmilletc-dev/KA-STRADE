@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
+from app import error_exposure
 from app import assistant_api, assistant_help, subscription_core, v25_execution
 from app.analyst_credits import AnalystCredits, CreditConfig, CreditStore
 from app.assistant_api import AssistantService, ModelAnswer, router
@@ -396,7 +397,10 @@ class AssistantToolsTests(AssistantToolsTestCase):
         with patch("app.assistant_tools.assistant_help.search", side_effect=assistant_help.KnowledgeBaseError("private diagnostic")):
             response = await self.tool("search_help", query="billing", language="en")
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json()["detail"], "Help knowledge base is unavailable")
+        # Üyeye genel güvenli mesaj + referans kodu gider (error_exposure); iç ayrıntı ve servis adı sızmaz.
+        self.assertEqual(response.json()["code"], "SERVER_ERROR")
+        self.assertTrue(response.json()["detail"].startswith(error_exposure.SAFE_MESSAGE))
+        self.assertNotIn("knowledge base", response.text)
         self.assertNotIn("private diagnostic", response.text)
         self.assertEqual(await self.credits.credits("a", False), before)
 

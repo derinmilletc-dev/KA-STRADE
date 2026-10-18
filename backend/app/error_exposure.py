@@ -6,6 +6,7 @@ goes to the admin error centre (and the log) under the same reference code.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 SAFE_MESSAGE = "Şu anda işlem tamamlanamadı. Lütfen birkaç dakika sonra tekrar deneyin. Sorun sürerse destek ekibine bu hata kodunu iletin:"
@@ -13,6 +14,29 @@ SAFE_MESSAGE = "Şu anda işlem tamamlanamadı. Lütfen birkaç dakika sonra tek
 # routes keep their short message; every other server-side field is dropped.
 KEEP_MESSAGE_PREFIXES = ("/api/exchange-connections/",)
 SAFE_KEYS = ("detail", "message", "code", "retry_after_seconds")
+# Kais sohbet yanıtları zaten üyeye gösterilmek üzere üretilir (sabit metin + üyenin kendi araç özetleri). 5xx'te de
+# yalnızca bu alanlar, tür ve biçim kontrolüyle korunur; başka her alan (iç hata ayrıntısı dahil) düşürülür.
+ASSISTANT_REPLY_PATHS = frozenset({"/api/assistant/chat"})
+SAFE_TOKEN = re.compile(r"[a-z][a-z0-9_]{0,39}")
+
+
+def assistant_reply(body: bytes, request_id: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(body)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("reply"), str) or not payload["reply"].strip():
+        return None
+    sources = payload.get("sources")
+    kept: dict[str, Any] = {
+        "reply": payload["reply"][:4000],
+        "language": payload.get("language") if payload.get("language") in ("tr", "en") else "tr",
+        "sources": [item for item in sources if isinstance(item, str) and SAFE_TOKEN.fullmatch(item)] if isinstance(sources, list) else [],
+        "request_id": request_id,
+    }
+    if isinstance(payload.get("error_code"), str) and SAFE_TOKEN.fullmatch(payload["error_code"]):
+        kept["error_code"] = payload["error_code"]
+    return kept
 
 
 def original_detail(body: bytes) -> str:
@@ -28,6 +52,10 @@ def safe_body(status: int, body: bytes, path: str, request_id: str) -> dict[str,
     """Replacement body for a member, or None when the response is left alone."""
     if status < 500:
         return None
+    if path in ASSISTANT_REPLY_PATHS:
+        kept = assistant_reply(body, request_id)
+        if kept is not None:
+            return kept
     if path.startswith(KEEP_MESSAGE_PREFIXES):
         try:
             payload = json.loads(body)
