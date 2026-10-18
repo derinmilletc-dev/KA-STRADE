@@ -8043,7 +8043,7 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > button.active::after { content: none !important; display: none !important; }
 }
 
-/* Telefon alt menü: Kais gözü 3. sekme olarak (Analist 'Menü' içinde). Diğer sekmelerle aynı ikon/yazı ölçüsü. */
+/* Telefon alt menü: Kais gözü 3. sekme olarak (Analist 'Menü' içinde); yazısız, diğer sekmelerden biraz büyük. */
 @media (max-width: 700px) {
   html body #root > main.v26App > .v26MobileBottomNav.v26MobileBottomNav > .v26NavAssistantHost {
     display: grid !important;
@@ -8057,9 +8057,9 @@ body:has(#root .liveTradingPanel.liveUx),
     gap: 3px !important;
     width: 100% !important;
     min-width: 0 !important;
-    height: auto !important;
-    min-height: 46px !important;
-    padding: 2px 0 !important;
+    height: 46px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
     border: 0 !important;
     border-radius: 12px !important;
     background: transparent !important;
@@ -8069,16 +8069,10 @@ body:has(#root .liveTradingPanel.liveUx),
   }
   html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher::before { display: none !important; }
   html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher > .kaisEye {
-    width: 36px !important;
-    height: 36px !important;
-    margin: -7px 0 -6px !important;
-  }
-  html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantLauncher::after {
-    content: "Kais AI";
-    font-size: 10.5px;
-    font-weight: 500;
-    line-height: 1.1;
-    white-space: nowrap;
+    width: 50px !important;
+    height: 50px !important;
+    margin: -2px 0 !important;
+    filter: drop-shadow(0 0 6px rgba(39, 214, 160, .25));
   }
   html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantIntro { display: none !important; }
   html body #root > main.v26App > .v26MobileBottomNav .v26NavAssistantHost .assistantBadge {
