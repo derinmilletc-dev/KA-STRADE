@@ -1,6 +1,7 @@
 name: Frontend Live Trading UI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'frontend/**'
