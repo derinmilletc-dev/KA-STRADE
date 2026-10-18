@@ -184,3 +184,17 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
     transform: translateX(6px);
   }
 }
+
+/* Yalnız telefon ana sayfası: üst menü yatay/dikey denge.
+   Sağ kenar boşluğu logonun sol boşluğuyla eşitlenir (~14,7px); logo, bildirim ve profil aynı dikey eksende durur. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.mobileHomeRoute > .v26Header.v26HomeHeader .v26HeaderActions {
+    padding-right: 2.2px !important;
+  }
+  html body #root > main.v26App.mobileHomeRoute > .v26Header.v26HomeHeader .v26HeaderProfileSlot {
+    transform: translateY(-.5px);
+  }
+  html body #root > main.v26App.mobileHomeRoute > .v26Header.v26HomeHeader > .v26Brand > .v26BrandLogo {
+    transform: translate(calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px), 1.2px) !important;
+  }
+}
