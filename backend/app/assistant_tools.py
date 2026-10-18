@@ -61,6 +61,7 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "get_analysis": AnalysisArguments,
     "get_my_positions": NoArguments,
     "get_demo_positions": NoArguments,
+    "get_market_overview": NoArguments,
     "get_protection_status": ProtectionArguments,
 }
 TOOL_DEFINITIONS = [
@@ -262,6 +263,43 @@ class AssistantTools:
             for row in snapshot.get("positions", []) if row.get("quantity")
         ]
         return self.result({"positions": positions, "account": "demo", "data_age_seconds": 0})
+    async def get_market_overview(self, user_id: str) -> dict[str, Any]:
+        """Salt okunur piyasa özeti: tarayıcının en iyi long/short adayları, en yüksek güven ve 24s en çok yükselen/düşen.
+        Yalnızca premium; giriş/stop/TP seviyeleri döndürülmez. Tarama hiç yapılmadıysa bunu açıkça belirtir."""
+        if not self.premium(user_id):
+            return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
+        from . import v21_demo  # gecikmeli içe aktarma: dairesel bağımlılığı önler
+        data: dict[str, Any] = {}
+        stale = False
+        try:
+            scanner = v21_demo.summary_payload(v21_demo.state_for(self.request)).get("scanner") or {}
+            candidates = [row for row in scanner.get("all_candidates") or [] if isinstance(row, dict) and row.get("symbol")]
+            def brief(row: dict[str, Any]) -> dict[str, Any]:
+                return {"symbol": row.get("symbol"), "direction": row.get("direction"), "opportunity_score": row.get("opportunity_score"),
+                        "analysis_score": row.get("analysis_score"), "confidence": row.get("confidence_value"), "confidence_label": row.get("confidence")}
+            def best(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+                return brief(max(rows, key=lambda row: float(row.get(key) or 0))) if rows else None
+            data["scan"] = {
+                "last_scan_at": scanner.get("last_scan_at"), "timeframe": scanner.get("last_scan_timeframe"),
+                "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(candidates),
+                "best_long": best([r for r in candidates if r.get("direction") == "LONG"], "opportunity_score"),
+                "best_short": best([r for r in candidates if r.get("direction") == "SHORT"], "opportunity_score"),
+                "highest_confidence": best(candidates, "confidence_value"),
+                "highest_opportunity": best(candidates, "opportunity_score"),
+            }
+            if not candidates:
+                data["scan"]["note"] = "NO_SCAN_RESULTS_YET"; stale = True
+        except Exception:
+            data["scan"] = {"note": "SCAN_UNAVAILABLE"}; stale = True
+        try:
+            markets = await asyncio.wait_for(v21_demo.auto_trade_market_universe(self.request.app), timeout=self.config.request_timeout_seconds)
+            liquid = [row for row in markets if row.get("volume", 0) >= 5_000_000]
+            ranked = sorted(liquid, key=lambda row: row["change"], reverse=True)
+            pick = lambda row: {"symbol": row["symbol"], "change_24h_percent": round(row["change"], 2), "price": row["price"]}
+            data["movers"] = {"top_gainers": [pick(r) for r in ranked[:3]], "top_losers": [pick(r) for r in ranked[-3:][::-1]], "min_volume_usdt": 5_000_000}
+        except Exception:
+            data["movers"] = {"note": "MARKET_DATA_UNAVAILABLE"}; stale = True
+        return self.result(data, stale=stale)
 
     async def get_my_activity(self, user_id: str, transaction: CreditTransaction) -> dict[str, Any]:
         # Internal check-in read only; not exposed as an LLM tool.
