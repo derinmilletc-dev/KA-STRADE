@@ -1483,6 +1483,12 @@ async def owner_preview_gate(request, call_next):
         from .premium_access import public_notification_projection
         payload = json.loads(body)
         filtered = public_notification_projection(payload) if notification_response else public_projection(payload, allowlist=trading_payload)
+        if isinstance(payload, dict) and isinstance(filtered, dict):
+            from .premium_access import scanner_teaser
+            if request.url.path == "/api/v21/summary":
+                filtered["scanner"] = scanner_teaser(payload.get("scanner"))
+            elif request.url.path == "/api/v21/scanner":
+                filtered = scanner_teaser(payload)
         response = JSONResponse(filtered, status_code=response.status_code, headers=headers)
     viewer = getattr(request.state, "member", None) or {}
     staff_view = viewer.get("role") == "OWNER" or bool(getattr(request.state, "web_owner_authenticated", False))

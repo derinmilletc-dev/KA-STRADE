@@ -62,6 +62,36 @@ def public_projection(payload: Any, *, allowlist: bool = False) -> Any:
     return payload
 
 
+def scanner_teaser(scanner: Any) -> dict[str, Any]:
+    """Premium olmayan üyeye tarama sonucunu değil, yalnızca "tarama yapıldı" bilgisini verir.
+
+    Aday listesi, semboller, yön ve skorlar hiçbir koşulda dahil edilmez; ekrandaki buzlu
+    görünüm yalnızca bu sayılarla çizilir.
+    """
+    source = scanner if isinstance(scanner, dict) else {}
+
+    def count(name: str) -> int:
+        value = source.get(name)
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+    candidates = source.get("all_candidates")
+    return {
+        "locked": True,
+        "scan_status": source.get("scan_status") if isinstance(source.get("scan_status"), str) else None,
+        "running": source.get("running") is True,
+        "last_scan_at": source.get("last_scan_at") if isinstance(source.get("last_scan_at"), str) else None,
+        "next_scan_at": source.get("next_scan_at") if isinstance(source.get("next_scan_at"), str) else None,
+        "last_scan_timeframe": source.get("last_scan_timeframe") if isinstance(source.get("last_scan_timeframe"), str) else None,
+        "last_scan_universe": source.get("last_scan_universe") if isinstance(source.get("last_scan_universe"), str) else None,
+        "last_error": "Tarama tamamlanamadı. Biraz sonra tekrar dene." if source.get("last_error") else None,
+        "coins_scanned": count("coins_scanned"),
+        "eligible_count": count("eligible_count"),
+        "locked_count": len(candidates) if isinstance(candidates, list) else 0,
+        "top_candidates": [],
+        "all_candidates": [],
+    }
+
+
 def public_notification_projection(payload: Any) -> Any:
     projected = public_projection(payload, allowlist=True)
     if not isinstance(payload, dict) or not isinstance(payload.get("items"), list) or not isinstance(projected, dict):

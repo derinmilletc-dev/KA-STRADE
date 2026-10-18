@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Activity, BarChart3, RefreshCw, SlidersHorizontal, Target, TrendingDown, TrendingUp, Volume2 } from 'lucide-react'
+import { Activity, BarChart3, LockKeyhole, RefreshCw, SlidersHorizontal, Target, TrendingDown, TrendingUp, Volume2 } from 'lucide-react'
 import { API_BASE } from './api'
 import ScannerInfo from './ScannerInfo'
+import './scanner-locked.css'
 
 type Market = {symbol:string;display:string;price:number;change:number;volume:number}
 type Analysis = {
@@ -16,6 +17,7 @@ type Candidate = {
 type ScannerState = {
   scan_status?:string;running?:boolean;last_scan_at?:string|null;next_scan_at?:string|null;coins_scanned?:number
   selected_count?:number;eligible_count?:number;last_error?:string|null;top_candidates?:Candidate[];all_candidates?:Candidate[]
+  locked?:boolean;locked_count?:number
   last_scan_timeframe?:string|null;last_scan_universe?:string|null;last_scan_symbols?:string[]
 }
 type Summary = {scanner?:ScannerState;stream?:{status?:string;last_error?:string|null}}
@@ -129,6 +131,8 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
     if (synchronizedSymbol !== symbol) onSymbolChange(synchronizedSymbol)
   },[active,visible,symbol,onSymbolChange])
 
+  const locked = summary?.scanner?.locked === true
+  const scannedCount = summary?.scanner?.coins_scanned ?? 0
   const strongLong = visible.filter(candidate => candidateDirection(candidate) === 'LONG' && candidateScore(candidate) >= 75).length
   const strongShort = visible.filter(candidate => candidateDirection(candidate) === 'SHORT' && candidateScore(candidate) >= 75).length
   const breakout = visible.filter(candidate => setupLabel(candidate).toUpperCase() === 'BREAKOUT').length
@@ -160,14 +164,27 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
     </section>
 
     <section className="scannerSummary" aria-label="Market Summary">
-      {[[TrendingUp,'STRONG LONG',strongLong], [TrendingDown,'STRONG SHORT',strongShort], [BarChart3,'BREAKOUT',breakout], [Volume2,'HIGH VOLUME',highVolume]].map(([Icon,label,value]) => <article key={String(label)}><Icon/><span><small>{label}</small><b>{loading ? '—' : value}</b></span></article>)}
+      {[[TrendingUp,'STRONG LONG',strongLong], [TrendingDown,'STRONG SHORT',strongShort], [BarChart3,'BREAKOUT',breakout], [Volume2,'HIGH VOLUME',highVolume]].map(([Icon,label,value]) => <article key={String(label)}><Icon/><span><small>{label}</small><b>{loading ? '—' : locked ? '•••' : value}</b></span></article>)}
     </section>
 
     {error && <section className="scannerState scannerError" role="alert"><strong>MARKET DATA UNAVAILABLE</strong><span>{errorMessage}</span><button type="button" onClick={() => void loadSummary(true)}>RETRY</button></section>}
     {!error && scanning && <section className="scannerState"><Activity className="spin"/><strong>Scanning market...</strong><span>Analysing symbols...</span></section>}
-    {!error && !scanning && !loading && !visible.length && <section className="scannerState"><Activity/><strong>NO SETUPS FOUND</strong><span>{summary?.scanner?.coins_scanned ? `Try changing the timeframe or scan filters. (${summary.scanner.coins_scanned} symbols scanned, ${summary?.scanner?.eligible_count ?? 0} eligible)` : 'No market data could be scanned. The exchange connection may be unavailable right now.'}</span></section>}
+    {!error && !scanning && !loading && !locked && !visible.length && <section className="scannerState"><Activity/><strong>NO SETUPS FOUND</strong><span>{summary?.scanner?.coins_scanned ? `Try changing the timeframe or scan filters. (${summary.scanner.coins_scanned} symbols scanned, ${summary?.scanner?.eligible_count ?? 0} eligible)` : 'No market data could be scanned. The exchange connection may be unavailable right now.'}</span></section>}
 
-    {!error && (loading || visible.length > 0) && <section className="scannerResults" aria-labelledby="scanner-results-title">
+    {!error && !scanning && !loading && locked && <section className="scannerResults scannerLockedResults" aria-labelledby="scanner-locked-title">
+      <div className="scannerSectionHeading"><div><span>TECHNICAL OPPORTUNITIES</span><h3 id="scanner-locked-title">SCANNER RESULTS</h3></div></div>
+      <div className="scannerLockedStage">
+        <div className="scannerLockedGhost" aria-hidden="true">{Array.from({length:8},(_,row) => <div key={row} className="scannerGhostRow">{Array.from({length:6},(_,cell) => <i key={cell} style={{width:`${40 + ((row * 7 + cell * 13) % 45)}%`}}/>)}</div>)}</div>
+        <div className="scannerLockedCard" role="status">
+          <LockKeyhole aria-hidden="true"/>
+          <h4>{scannedCount > 0 ? `${scannedCount} coin tarandı` : 'Tarama sonuçları premium üyelere açık'}</h4>
+          <p>{scannedCount > 0 ? `${summary?.scanner?.eligible_count ?? 0} fırsat bulundu. Hangi coinlerin olduğunu görmek için premium üyelik gerekir.` : 'Taramayı çalıştırabilirsin; sonuçları görmek için premium üyelik gerekir.'}</p>
+          <a className="scannerLockedAction" href="/pricing">MASTER MODE'a geç</a>
+        </div>
+      </div>
+    </section>}
+
+    {!error && !locked && (loading || visible.length > 0) && <section className="scannerResults" aria-labelledby="scanner-results-title">
       <div className="scannerSectionHeading"><div><span>TECHNICAL OPPORTUNITIES</span><h3 id="scanner-results-title">SCANNER RESULTS</h3><small className="scannerResultMetadata">{scanMetadata}</small></div><div className="scannerFilters">{(['ALL','LONG','SHORT','STRONG','BREAKOUT','HIGH VOLUME'] as Filter[]).map(item => <button type="button" key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div></div>
       <div className="scannerTableWrap"><table><thead><tr><th>SYMBOL</th><th>PRICE</th><th>DIRECTION</th><th>SCORE</th><th>TREND</th><th>RSI</th><th>MACD</th><th>ADX</th><th>VOLUME</th><th>SETUP</th></tr></thead><tbody>{loading ? <tr><td colSpan={10} className="scannerTableLoading">Loading current market data...</td></tr> : visible.map(candidate => { const market = marketBySymbol.get(candidate.symbol); const itemDirection = candidateDirection(candidate); return <tr key={candidate.symbol} className={candidate.symbol === symbol ? 'selected' : ''} onClick={() => onSymbolChange(candidate.symbol)} tabIndex={0} onKeyDown={event => {if (event.key === 'Enter') onSymbolChange(candidate.symbol)}}><td><strong>{candidate.symbol}</strong></td><td>{formatNumber(market?.price)}</td><td><b className={`scannerDirection scannerDirection-${itemDirection.toLowerCase()}`}>{itemDirection}</b></td><td><strong>{formatNumber(candidateScore(candidate),0)}</strong></td><td>{textValue(candidate.trend)}</td><td>{formatNumber(candidate.rsi,1)}</td><td>{candidate.macd_confirmation === undefined ? '—' : candidate.macd_confirmation ? 'Bullish' : 'Bearish'}</td><td>—</td><td>{formatNumber(candidate.volume_ratio,2)}x</td><td>{setupLabel(candidate)}</td></tr> })}</tbody></table></div>
     </section>}

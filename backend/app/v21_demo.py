@@ -2970,7 +2970,12 @@ async def v21_manual_scan(request: Request, body: ScannerScanRequest | None = No
         request.app, timeframe=scan_request.timeframe, universe=scan_request.universe,
         symbols=symbols, notification_state=state,
     )
-    return summary_payload(state)["scanner"]
+    scanner_result = summary_payload(state)["scanner"]
+    if getattr(request.state, "premium", True) is not True:
+        # Premium olmayan üyeye aday listesi gönderilmez; ekranda buzlu önizleme gösterilir.
+        from .premium_access import scanner_teaser
+        return scanner_teaser(scanner_result)
+    return scanner_result
 
 
 @router.get("/scanner/candidates")
