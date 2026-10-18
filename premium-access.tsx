@@ -4,6 +4,7 @@ import { Check, LockKeyhole, X } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
 import {emitKaisTargetReaction} from './kais-reactions'
 import {clearKaisChatHistory, resumeKaisChatHistory} from './frontend/src/kais-chat-storage'
+import {setStaffView} from './error-visibility'
 import './premium-access.css'
 
 type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; openUpgrade: (label: string) => void}
@@ -27,6 +28,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
       const sessionToken = userSessionToken()
       if (!sessionToken) {
         clearKaisChatHistory()
+        setStaffView(false)
         setAccess({premium: false, ready: true, userId: null, owner: false, error: 'Üyelik oturumu gerekli.',assistantAllowed:false,freeTrial:false,liveAllowed:false})
         return
       }
@@ -39,11 +41,13 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
             setAccess({premium: payload.access?.isPremium === true || payload.user.role === 'OWNER', ready: true, userId: payload.user.id, owner: payload.user.role === 'OWNER', error: '',
               assistantAllowed:payload.access?.assistantAllowed !== false,freeTrial:payload.access?.freeTrial === true,
               liveAllowed:payload.access?.canExecuteLive === true || payload.user.role === 'OWNER'})
+            setStaffView(payload.user.role === 'OWNER')
             if (userSessionToken() === sessionToken) resumeKaisChatHistory(payload.user.id)
           }
         })
         .catch((error: unknown) => {
           if (requestController.signal.aborted) return
+          setStaffView(false)
           setAccess({premium: false, ready: true, userId: null, owner: false, error: error instanceof Error ? error.message : 'Üyelik yetkisi doğrulanamadı.',assistantAllowed:false,freeTrial:false,liveAllowed:false})
         })
     }

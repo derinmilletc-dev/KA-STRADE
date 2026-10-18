@@ -17,7 +17,7 @@ import websockets
 from redis import asyncio as redis_async
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 from pydantic import BaseModel, Field
@@ -1484,6 +1484,24 @@ async def owner_preview_gate(request, call_next):
         payload = json.loads(body)
         filtered = public_notification_projection(payload) if notification_response else public_projection(payload, allowlist=trading_payload)
         response = JSONResponse(filtered, status_code=response.status_code, headers=headers)
+    viewer = getattr(request.state, "member", None) or {}
+    staff_view = viewer.get("role") == "OWNER" or bool(getattr(request.state, "web_owner_authenticated", False))
+    if request.url.path.startswith("/api/") and response.status_code >= 500 and not staff_view and "application/json" in response.headers.get("content-type", ""):
+        from . import error_exposure
+        raw = b"".join([chunk.encode() if isinstance(chunk, str) else chunk async for chunk in response.body_iterator])
+        replacement = error_exposure.safe_body(response.status_code, raw, request.url.path, request.state.request_id)
+        kept_headers = {key: value for key, value in response.headers.items() if key.lower() not in {"content-length", "content-type", "content-encoding"}}
+        if replacement is None:
+            response = Response(raw, status_code=response.status_code, headers=kept_headers, media_type="application/json")
+        else:
+            original = error_exposure.original_detail(raw)
+            if original != "Internal server error.":  # unhandled exceptions were already recorded above
+                await log_event(getattr(request.app.state, "db_pool", None), build_error_event(
+                    source="backend", kind=f"HttpError{response.status_code}", message=original,
+                    route=request.url.path, method=request.method, request_id=request.state.request_id, user_id=viewer.get("id"),
+                    details={"status": response.status_code, "hidden_from_member": True},
+                ))
+            response = JSONResponse(replacement, status_code=response.status_code, headers=kept_headers)
     if request.url.path.startswith("/api/analyst/") and response.status_code in {401, 403, 409, 422, 429}:
         logger.warning("Analyst request rejected path=%s status=%s", request.url.path, response.status_code)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")

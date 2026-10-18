@@ -7,11 +7,11 @@ export function redactConnectionMessage(message: string, credentials: readonly s
 }
 
 export function connectionFailureMessage(error: unknown, credentials: readonly string[]): string {
-  if (error instanceof TypeError) return 'Bağlantı servisine ulaşılamadı. Ağ bağlantısını ve sunucunun erişilebilirliğini kontrol edin.'
+  if (error instanceof TypeError) return 'Bağlantı servisine ulaşılamadı. İnternet bağlantını kontrol edip tekrar dene.'
   if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) {
-    return 'Binance bağlantı doğrulaması zaman aşımına uğradı. Sunucu veya sabit IP proxy bağlantısını kontrol edin; tekrar göndermeden önce bağlantı durumunu yenileyin.'
+    return 'Binance bağlantı doğrulaması zaman aşımına uğradı. Birkaç dakika sonra tekrar dene; önce bağlantı durumunu yenile.'
   }
-  if (error instanceof SyntaxError) return 'Bağlantı servisi geçerli bir yanıt döndürmedi. Sunucu durumunu kontrol edin.'
+  if (error instanceof SyntaxError) return 'Bağlantı servisi geçerli bir yanıt döndürmedi. Birkaç dakika sonra tekrar dene.'
   return redactConnectionMessage(
     error instanceof Error && error.message.trim() ? error.message : 'Binance bağlantısı kurulamadı. Sunucu ve bağlantı durumunu kontrol edin.',
     credentials,
@@ -20,7 +20,7 @@ export function connectionFailureMessage(error: unknown, credentials: readonly s
 
 export function connectionHttpMessage(status: number, reason: string, credentials: readonly string[]): string {
   if (status >= 500 && status !== 502 && status !== 503) {
-    return `Sunucu hatası (HTTP ${status}). Bağlantı kaydedilemedi veya doğrulanamadı; sunucu durumunu kontrol edin.`
+    return `Sunucu hatası (HTTP ${status}). Bağlantı şu anda kaydedilemedi veya doğrulanamadı; birkaç dakika sonra tekrar dene.`
   }
   return redactConnectionMessage(`Binance bağlantısı kurulamadı (HTTP ${status}): ${reason}`, credentials)
 }
