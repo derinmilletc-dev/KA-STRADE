@@ -31,7 +31,7 @@ export async function fetchWithTimeout(input:RequestInfo|URL, init:RequestInit =
   if (init.signal?.aborted) parentAbort()
   else init.signal?.addEventListener('abort', parentAbort, {once:true})
   const timer = window.setTimeout(() => controller.abort(new DOMException(
-    'İstek zaman aşımına uğradı. İşlemi tekrar göndermeden önce backend durumunu doğrulayın.',
+    'İstek zaman aşımına uğradı. İşlemi tekrar göndermeden önce güncel durumu kontrol edin.',
     'TimeoutError',
   )), timeoutMs)
   try {

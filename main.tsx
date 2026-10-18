@@ -26,7 +26,10 @@ import './mobile-premium.css'
 import './branding-overrides.css'
 import './back-to-top.css'
 
+import { reloadForNewVersion } from './error-visibility'
+
 installAuthorizedFetch()
+window.addEventListener('vite:preloadError', event => { if (reloadForNewVersion()) event.preventDefault() })
 applyPageMetadataForPath(window.location.pathname)
 installErrorMonitoring()
 const publicPolicy = publicPolicyForPath(window.location.pathname)
