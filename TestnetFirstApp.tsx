@@ -420,17 +420,17 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
     const ema200 = chart.addSeries(LineSeries,{color:'#8063d9',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:demoPresentation ? '' : 'EMA200'})
 
     const applyAnalysis = (analysis:Analysis) => {
-      ema20.setData(showEma ? analysis.series.ema20.map(point => ({time:point.time as never,value:point.value})) : [])
-      ema50.setData(showEma ? analysis.series.ema50.map(point => ({time:point.time as never,value:point.value})) : [])
-      ema200.setData(showEma ? analysis.series.ema200.map(point => ({time:point.time as never,value:point.value})) : [])
+      ema20.setData(showEma ? (analysis.series?.ema20 ?? []).map(point => ({time:point.time as never,value:point.value})) : [])
+      ema50.setData(showEma ? (analysis.series?.ema50 ?? []).map(point => ({time:point.time as never,value:point.value})) : [])
+      ema200.setData(showEma ? (analysis.series?.ema200 ?? []).map(point => ({time:point.time as never,value:point.value})) : [])
       priceLines.forEach(line => candles.removePriceLine(line))
-      const line = (price:number,color:string,title:string,width:1|2|3=2,style=2) => candles.createPriceLine({price,color,lineWidth:width,lineStyle:style,axisLabelVisible:!demoPresentation || title === 'STOP' || title === 'DİRENÇ' || title.endsWith(' GİRİŞ'),title})
-      priceLines = showLevels ? [
+      const line = (price:number,color:string,title:string,width:1|2|3=2,style=2) => Number.isFinite(price) ? candles.createPriceLine({price,color,lineWidth:width,lineStyle:style,axisLabelVisible:!demoPresentation || title === 'STOP' || title === 'DİRENÇ' || title.endsWith(' GİRİŞ'),title}) : null
+      priceLines = showLevels && Number.isFinite(analysis.entry) && Number.isFinite(analysis.stop_loss) ? [
         line(analysis.entry,'#078b4c',`${analysis.direction} GİRİŞ`,3,0),
         line(analysis.stop_loss,'#ed4f42','STOP',3,0),
         line(analysis.tp1,'#28a657','TP1'),line(analysis.tp2,'#28a657','TP2'),line(analysis.tp3,'#28a657','TP3'),
         line(analysis.support,'#e96b5f','DESTEK',1,3),line(analysis.resistance,'#228d51','DİRENÇ',1,3),
-      ] : []
+      ].filter((item): item is IPriceLine => item !== null) : []
       onAnalysis(analysis)
     }
 
