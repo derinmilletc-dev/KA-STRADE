@@ -1242,7 +1242,13 @@ def clear_session_vault_for_user_cache(
         if owner == user_id or (key[0] in known_sessions and not owner):
             _SESSION_CACHE.pop(key, None)
             _SESSION_META.pop(key, None)
-    state = getattr(application.state, "v25_execution", None)
+    from . import live_registry
+    registry = live_registry.registry_of(application)
+    if registry is not None:
+        # multi-user LIVE: lock the controller of the account that changed, not whichever state is bound here
+        state = registry.states.get(user_id)
+    else:
+        state = getattr(application.state, "v25_execution", None)
     if not isinstance(state, dict):
         return
     authorization = state.get("live_session_authorization") or {}
@@ -1261,6 +1267,14 @@ def _lock_runtime(application: Any, mode: str, request: Request) -> None:
         state = application.state.binance_demo
         state["armed_until"] = 0
         state["connected"] = False
+        try:  # the member's own demo state must be disarmed too, not only the shared default
+            from .binance_demo import state_for as demo_state_for
+            own = demo_state_for(request)
+            if own is not state:
+                own["armed_until"] = 0
+                own["connected"] = False
+        except Exception:
+            pass
     if mode == "LIVE" and hasattr(application.state, "v25_execution"):
         state = application.state.v25_execution
         from .v25_execution import current_user_id
