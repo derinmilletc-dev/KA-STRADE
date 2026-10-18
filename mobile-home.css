@@ -13,7 +13,7 @@ html body #root main.v26App .mobileHome * { box-sizing: border-box; }
 html body #root main.v26App .mobileHome button { font: inherit !important; color: inherit !important; cursor: pointer !important; }
 html body #root main.v26App .mobileHome .up { color: var(--mh-up); }
 html body #root main.v26App .mobileHome .down { color: var(--mh-dn); }
-html body #root main.v26App .mhHello { margin: 0 2px; font-size: 14.5px; color: var(--mh-mut); }
+html body #root main.v26App .mhHello { margin: 6px 2px 0; font-size: 14.5px; color: var(--mh-mut); }
 html body #root main.v26App .mhHello b { color: var(--mh-tx); font-weight: 600; }
 
 /* Ortak kart */
@@ -28,7 +28,7 @@ html body #root main.v26App .mhIconTile svg { width: 17px; height: 17px; }
 html body #root main.v26App .mhSetup h2 { margin: 12px 0 0; max-width: 62%; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
 html body #root main.v26App .mhSetup strong { display: block; margin-top: 3px; max-width: 62%; font-size: 13px; font-weight: 500; color: var(--mh-mut); }
 html body #root main.v26App .mhSetup p { margin: 6px 0 0; max-width: 78%; font-size: 12px; line-height: 1.45; color: var(--mh-dim); }
-html body #root main.v26App .mhCoinArt { position: absolute; top: 8px; right: -6px; width: 150px; height: 96px; opacity: .42; pointer-events: none; }
+html body #root main.v26App .mhCoinArt { position: absolute; top: 8px; right: -6px; width: 150px; height: 96px; opacity: .28; pointer-events: none; }
 html body #root main.v26App .mhCoinArt .mhCoin { position: absolute; width: 56px; height: 56px; }
 html body #root main.v26App .mhCoinArt .mhCoin:nth-child(1) { left: 8px; top: 30px; width: 44px; height: 44px; }
 html body #root main.v26App .mhCoinArt .mhCoin:nth-child(2) { right: 4px; top: 24px; width: 46px; height: 46px; }
