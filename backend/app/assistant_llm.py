@@ -237,6 +237,20 @@ def stop_reply(stop: AssistantStopped, results: dict[str, dict[str, Any]], langu
     return AssistantReply(evidence_reply(prefix, results, language), language, tuple(results), stop.status, stop.retry_after, error_code=stop.reason)
 
 
+def has_old_data(results: dict[str, dict[str, Any]]) -> bool:
+    """Yalnızca gerçekten BAYAT veri sunuluyorsa True. Araç "doğrulanamadı/yok" dediyse (reason, note, error) bu bayatlık değil,
+    veri yokluğudur: model bunu kendi cümlesiyle açıklar, başa "Bayat/doğrulanmamış veri." eklenmez."""
+    for result in results.values():
+        if not result.get("stale"):
+            continue
+        data = result.get("data") or {}
+        nested = [value for value in data.values() if isinstance(value, dict)]
+        if "reason" in data or "error" in data or "note" in data or any("note" in value for value in nested):
+            continue
+        return True
+    return False
+
+
 async def run_conversation(
     config: AssistantConfig, language: Language, payload: ChatInput, user_id: str, tools: AssistantTools | None,
     paid_call: Callable[[LLMRequest, bool], Awaitable[ModelAnswer]],
@@ -279,13 +293,14 @@ async def run_conversation(
                             reply += f" Veri {age} saniye önce alındı." if language == "tr" else f" Data was fetched {age} seconds ago."
                     else:
                         reply = summary("get_protection_status", protection, language)
-                elif "get_analysis" in results:
+                elif "get_analysis" in results and (analyses or len(results) == 1):
+                    # Yalnızca analiz araç sonucuyla cevap: şablon. Başka araçlar da kullanıldıysa (ör. piyasa özeti) modelin cevabı korunur.
                     reply = (" ".join(summary("get_analysis", result, language) for result in analyses) if analyses
                              else ("Analizi şu an doğrulayamadım." if language == "tr" else "I could not verify the analysis right now."))
                 elif re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):
                     reply = "Analizi şu an doğrulayamadım; karar sana aittir." if language == "tr" else "I could not verify the analysis right now; the decision is yours."
                 reply = safe_response(reply, language, free=tools is None or not tools.premium(user_id))
-                if any(result.get("stale") for result in results.values()):
+                if has_old_data(results):
                     reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
                 if re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):
                     reply += "\n\n" + RISK_NOTES[language]

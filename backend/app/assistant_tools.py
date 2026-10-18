@@ -245,60 +245,66 @@ class AssistantTools:
         return self.result({"positions": positions, "data_age_seconds": age}, stale=stale)
 
     async def get_demo_positions(self, user_id: str) -> dict[str, Any]:
-        """Binance Futures DEMO hesabının açık pozisyonları (salt okunur). Yalnızca OWNER; gerçek hesap değildir.
-        Entry/SL/TP gibi seviyeler döndürülmez."""
+        """Üyenin KENDİ Binance Demo hesabındaki açık pozisyonlar (salt okunur; gerçek hesap değil). Şimdilik yalnızca OWNER.
+        Veri dar servis arayüzünden (readonly_demo_service) gelir; seviye (entry/SL/TP) döndürülmez."""
         user = self.user(user_id)
         if user.get("role") != "OWNER":
             return self.result({"positions": [], "reason": "DEMO_OWNER_ONLY", "account": "demo"}, stale=True)
-        from . import binance_demo  # gecikmeli içe aktarma: dairesel bağımlılığı önler
+        from .readonly_demo_service import read_demo_positions
         try:
-            snapshot = await asyncio.wait_for(
-                binance_demo.account_snapshot(binance_demo.client_for(self.request)),
-                timeout=self.config.request_timeout_seconds,
-            )
+            positions = await read_demo_positions(self.request, self.config.request_timeout_seconds)
         except Exception:  # borsa/anahtar/zaman aşımı: ayrıntıyı sızdırma, doğrulanamadı de
             return self.result({"positions": [], "reason": "DEMO_UNAVAILABLE", "account": "demo"}, stale=True)
-        positions = [
-            {key: row.get(key) for key in ("symbol", "direction", "quantity", "unrealized_pnl", "leverage")}
-            for row in snapshot.get("positions", []) if row.get("quantity")
-        ]
         return self.result({"positions": positions, "account": "demo", "data_age_seconds": 0})
+
     async def get_market_overview(self, user_id: str) -> dict[str, Any]:
-        """Salt okunur piyasa özeti: tarayıcının en iyi long/short adayları, en yüksek güven ve 24s en çok yükselen/düşen.
-        Yalnızca premium; giriş/stop/TP seviyeleri döndürülmez. Tarama hiç yapılmadıysa bunu açıkça belirtir."""
+        """Piyasa özeti (salt okunur, yalnızca premium). Tarama sıralaması yalnızca TAZE taramada verilir; eski/yok ise sıralama uydurulmaz.
+        scan.status: fresh | stale | no_scan | unavailable. Gainer/loser yalnızca kesin pozitif/negatif 24s değişimle."""
         if not self.premium(user_id):
             return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
-        from . import v21_demo  # gecikmeli içe aktarma: dairesel bağımlılığı önler
+        from .readonly_demo_service import (
+            MAX_SIGNAL_AGE_SECONDS,
+            MIN_MOVER_VOLUME_USDT,
+            read_market_movers,
+            read_scanner_candidates,
+        )
         data: dict[str, Any] = {}
         stale = False
         try:
-            scanner = v21_demo.summary_payload(v21_demo.state_for(self.request)).get("scanner") or {}
-            candidates = [row for row in scanner.get("all_candidates") or [] if isinstance(row, dict) and row.get("symbol")]
-            def brief(row: dict[str, Any]) -> dict[str, Any]:
-                return {"symbol": row.get("symbol"), "direction": row.get("direction"), "opportunity_score": row.get("opportunity_score"),
-                        "analysis_score": row.get("analysis_score"), "confidence": row.get("confidence_value"), "confidence_label": row.get("confidence")}
-            def best(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
-                return brief(max(rows, key=lambda row: float(row.get(key) or 0))) if rows else None
-            data["scan"] = {
-                "last_scan_at": scanner.get("last_scan_at"), "timeframe": scanner.get("last_scan_timeframe"),
-                "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(candidates),
-                "best_long": best([r for r in candidates if r.get("direction") == "LONG"], "opportunity_score"),
-                "best_short": best([r for r in candidates if r.get("direction") == "SHORT"], "opportunity_score"),
-                "highest_confidence": best(candidates, "confidence_value"),
-                "highest_opportunity": best(candidates, "opportunity_score"),
-            }
-            if not candidates:
-                data["scan"]["note"] = "NO_SCAN_RESULTS_YET"; stale = True
+            raw = read_scanner_candidates(self.request)
+            scanned = parse_datetime(raw.get("last_scan_at")) if raw.get("last_scan_at") else None
+            age = self.clock() - scanned.timestamp() if scanned else None
+            scan: dict[str, Any] = {"last_scan_at": raw.get("last_scan_at"), "timeframe": raw.get("timeframe"), "coins_scanned": raw.get("coins_scanned"),
+                                    "max_age_seconds": MAX_SIGNAL_AGE_SECONDS}
+            if raw.get("last_scan_at") and (age is None or age < 0):  # okunamayan/gelecekteki zaman (analysis_summary ile aynı kural)
+                scan.update({"status": "unavailable", "note": "SCAN_TIMESTAMP_INVALID"}); stale = True
+            elif age is None or not raw.get("candidate_count"):
+                scan.update({"status": "no_scan", "note": "NO_SCAN_RESULTS_YET"}); stale = True
+            elif age > MAX_SIGNAL_AGE_SECONDS:
+                scan.update({"status": "stale", "age_seconds": math.floor(age)}); stale = True  # eski taramadan sıralama verilmez
+            else:
+                eligible = raw["eligible"]
+                def brief(row: dict[str, Any]) -> dict[str, Any]:
+                    return {key: row.get(key) for key in ("symbol", "direction", "opportunity_score", "analysis_score", "confidence_value", "confidence_label")}
+                def best(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+                    # Aynı skorda güven değeri ve sembol ile deterministik sıralama.
+                    return brief(max(rows, key=lambda row: (float(row.get(key) or 0), float(row.get("confidence_value") or 0), str(row.get("symbol"))))) if rows else None
+                scan.update({"status": "fresh", "age_seconds": math.floor(age), "eligible_count": len(eligible),
+                             "best_long": best([r for r in eligible if r["direction"] == "LONG"], "opportunity_score"),
+                             "best_short": best([r for r in eligible if r["direction"] == "SHORT"], "opportunity_score"),
+                             "highest_confidence": best(eligible, "confidence_value"),
+                             "highest_opportunity": best(eligible, "opportunity_score")})
+            data["scan"] = scan
         except Exception:
-            data["scan"] = {"note": "SCAN_UNAVAILABLE"}; stale = True
+            data["scan"] = {"status": "unavailable", "note": "SCAN_UNAVAILABLE"}; stale = True
         try:
-            markets = await asyncio.wait_for(v21_demo.auto_trade_market_universe(self.request.app), timeout=self.config.request_timeout_seconds)
-            liquid = [row for row in markets if row.get("volume", 0) >= 5_000_000]
-            ranked = sorted(liquid, key=lambda row: row["change"], reverse=True)
+            rows = await read_market_movers(self.request, self.config.request_timeout_seconds)
             pick = lambda row: {"symbol": row["symbol"], "change_24h_percent": round(row["change"], 2), "price": row["price"]}
-            data["movers"] = {"top_gainers": [pick(r) for r in ranked[:3]], "top_losers": [pick(r) for r in ranked[-3:][::-1]], "min_volume_usdt": 5_000_000}
+            data["movers"] = {"status": "fresh", "min_volume_usdt": MIN_MOVER_VOLUME_USDT,
+                              "top_gainers": [pick(r) for r in sorted((r for r in rows if r["change"] > 0), key=lambda r: r["change"], reverse=True)[:3]],
+                              "top_losers": [pick(r) for r in sorted((r for r in rows if r["change"] < 0), key=lambda r: r["change"])[:3]]}
         except Exception:
-            data["movers"] = {"note": "MARKET_DATA_UNAVAILABLE"}; stale = True
+            data["movers"] = {"status": "unavailable", "note": "MARKET_DATA_UNAVAILABLE"}; stale = True
         return self.result(data, stale=stale)
 
     async def get_my_activity(self, user_id: str, transaction: CreditTransaction) -> dict[str, Any]:
