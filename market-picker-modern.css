@@ -1,0 +1,169 @@
+/* İşlem Masası sembol seçici: modern liste düzeni.
+   Önceki tema dosyalarındaki genel ".v26MarketPicker button" kuralları seçenekleri
+   farklı genişlikte kutulara çeviriyor ve listeyi çerçeveden taşırıyordu. Bu dosya
+   en son yüklenir ve yalnız açılan menüyü (popover) hedefler. */
+
+html body #root main.v26App .v26MarketPicker .v26MarketPopover {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  left: 0 !important;
+  right: auto !important;
+  z-index: 60 !important;
+  width: max(100%, 340px) !important;
+  max-width: calc(100vw - 32px) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 10px !important;
+  border: 1px solid rgba(148, 163, 184, .16) !important;
+  border-radius: 14px !important;
+  background: rgba(12, 17, 23, .98) !important;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, .55), 0 0 0 1px rgba(212, 168, 79, .08) !important;
+  backdrop-filter: blur(14px);
+  overflow: hidden !important;
+  animation: mpmIn .14s ease-out;
+}
+
+@keyframes mpmIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketPopover > input {
+  width: 100% !important;
+  min-height: 40px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 12px 0 36px !important;
+  border: 1px solid rgba(148, 163, 184, .18) !important;
+  border-radius: 10px !important;
+  background: #151d26 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237f8fa3' stroke-width='2' stroke-linecap='round' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 12px center !important;
+  color: #f1f5f9 !important;
+  font-size: 13px !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketPopover > input::placeholder { color: #6b7a8c !important; }
+
+html body #root main.v26App .v26MarketPicker .v26MarketPopover > input:focus {
+  border-color: rgba(212, 168, 79, .55) !important;
+  background-color: #18212b !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  max-height: min(360px, 55vh) !important;
+  margin: 0 !important;
+  padding: 0 4px 0 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .25) transparent;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions::-webkit-scrollbar { width: 6px; }
+html body #root main.v26App .v26MarketPicker .v26MarketOptions::-webkit-scrollbar-thumb { border-radius: 6px; background: rgba(148, 163, 184, .25); }
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto 76px !important;
+  align-items: center !important;
+  column-gap: 14px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 8px 10px 8px 14px !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  transition: background-color .12s ease;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button:hover,
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button:focus-visible {
+  background: rgba(148, 163, 184, .08) !important;
+  outline: none !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button.active {
+  background: rgba(212, 168, 79, .1) !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button.active::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: #d4a84f;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button b {
+  overflow: hidden !important;
+  color: #e8eef4 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  letter-spacing: .01em !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button.active b { color: #f3d58c !important; }
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button span {
+  color: #b6c2cf !important;
+  font-size: 12.5px !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button em {
+  justify-self: end !important;
+  min-width: 64px !important;
+  box-sizing: border-box !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  font-size: 11.5px !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button em.up { color: #34d399 !important; background: rgba(52, 211, 153, .1) !important; }
+html body #root main.v26App .v26MarketPicker .v26MarketOptions > button em.down { color: #f87171 !important; background: rgba(248, 113, 113, .1) !important; }
+
+@media (max-width: 700px) {
+  html body #root main.v26App .v26MarketPicker .v26MarketPopover {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  html body #root main.v26App .v26MarketPicker .v26MarketOptions { max-height: min(320px, 50vh) !important; }
+  html body #root main.v26App .v26MarketPicker .v26MarketOptions > button {
+    grid-template-columns: minmax(0, 1fr) auto 68px !important;
+    column-gap: 10px !important;
+    min-height: 44px !important;
+  }
+  html body #root main.v26App .v26MarketPicker .v26MarketOptions > button em { min-width: 58px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body #root main.v26App .v26MarketPicker .v26MarketPopover { animation: none; }
+}
