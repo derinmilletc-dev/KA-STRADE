@@ -189,12 +189,14 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
 
   /** Soruyu gönderir, cevabı okur; okurken araya girilirse dinlemeye devam eder. */
   const lastQuestion = useRef('')
+  const answerId = useRef(0)
   const answer = useCallback((question: string) => {
     lastQuestion.current = question
+    const requestId = ++answerId.current
     setPhase('thinking')
     setMessage('')
     void callback.current(question).then(reply => {
-      if (!active.current) return
+      if (!active.current || requestId !== answerId.current) return  // eski isteğin cevabı yeni isteğin durumunu ezmesin
       if (!reply) {
         // Cevap gelmediyse (bağlantı, hak, oturum) sessizce dinlemeye dönme; nedenini göster, 3 kez üst üste olursa bitir.
         noAnswers.current += 1
