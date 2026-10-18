@@ -1,30 +1,40 @@
-.kaisHoloScan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(39,214,160,.04) 0 1px,transparent 1px 4px)}
+/* Ana göz (KaisEye) bu dosyada DEĞİŞTİRİLMEZ: filtre, scale, rotate, blend yok. Yalnızca gözün dışındaki bağımsız katmanlar. */
 .kaisHolo{position:fixed;inset:0;z-index:2200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px 20px;color:#e8eef7;
-  background:radial-gradient(ellipse at 50% 32%,rgba(39,214,160,.2),rgba(5,7,12,.95) 66%);backdrop-filter:blur(8px);animation:kaisHoloIn .28s ease-out}
-.kaisHoloClose{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.7);color:#9fb1c9;display:grid;place-items:center}
+  background:radial-gradient(ellipse at 50% 34%,rgba(18,70,70,.3),rgba(4,7,14,0) 68%),rgba(4,7,14,.95);backdrop-filter:blur(10px);animation:kaisHoloIn .35s ease-out}
+.kaisHoloClose{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.7);color:#9fb1c9;display:grid;place-items:center;z-index:3}
 .kaisHoloClose svg{width:20px;height:20px}
-.kaisHoloStage{position:relative;width:min(300px,86vw);margin-bottom:56px}
-.kaisHoloEye{position:relative;width:100%;aspect-ratio:1;filter:drop-shadow(0 0 18px rgba(39,214,160,.65))}
+.kaisHoloStage{position:relative;width:min(320px,88vw);aspect-ratio:1;margin-bottom:34px}
+.kaisHoloEye{position:absolute;inset:9.375%;z-index:2}
 .kaisHoloEye .kaisEye{width:100%!important;height:100%!important;display:block}
-.kaisHoloPupil{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .3s}
-.kaisHoloPupil circle,.kaisHoloPupil path{fill:none;stroke:#27D6A0;stroke-width:.6}
-.kaisHoloPupil .p1{stroke-dasharray:2 1.5;transform-origin:48px 48px}.kaisHoloPupil .p2{stroke-dasharray:1 2;transform-origin:48px 48px}
-.kaisHolo:not([data-phase=listening]) .kaisHoloPupil{opacity:.95}
-.kaisHolo:not([data-phase=listening]) .p1{animation:kaisHoloSpin 3s linear infinite}
-.kaisHolo:not([data-phase=listening]) .p2{animation:kaisHoloSpin 2s linear infinite reverse}
-.kaisHolo[data-phase=speaking] .p3{animation:kaisHoloPulse .6s ease-in-out infinite alternate}
-.kaisHoloBeam{position:absolute;left:12%;right:12%;top:78%;height:34%;background:linear-gradient(rgba(39,214,160,.22),transparent);clip-path:polygon(35% 0,65% 0,100% 100%,0 100%);pointer-events:none}
-.kaisHoloBase{position:absolute;left:18%;right:18%;top:108%;height:26px;border-radius:50%;border:1px solid rgba(39,214,160,.6);box-shadow:0 0 18px rgba(39,214,160,.55),inset 0 0 12px rgba(39,214,160,.25);pointer-events:none}
-.kaisHoloChip{position:absolute;font:11px ui-monospace,monospace;padding:5px 9px;border:1px solid rgba(39,214,160,.45);border-radius:8px;background:rgba(10,24,22,.75);color:#27D6A0;
-  left:calc(var(--i)%2*55%);top:calc(10% + var(--i)*21%);animation:kaisHoloFloat 3s ease-in-out infinite;animation-delay:calc(var(--i)*-.7s)}
-.kaisHoloChip:nth-child(odd){left:0}.kaisHoloChip:nth-child(even){right:0;left:auto}
+.kaisHoloGlow{position:absolute;inset:6%;border-radius:50%;background:radial-gradient(circle,rgba(39,214,160,.16),rgba(39,214,160,0) 66%);animation:kaisHoloBreath 7s ease-in-out infinite}
+.kaisHoloRings{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:1}
+.kaisHoloRings *{fill:none;stroke:#27D6A0;stroke-width:.6;vector-effect:non-scaling-stroke}
+.ring{opacity:.38;transform-origin:0 0}
+.r1 circle{stroke-dasharray:2 6;opacity:.8}.r1{animation:kaisHoloSpin 90s linear infinite}
+.r2{opacity:.5;animation:kaisHoloSpin 60s linear infinite reverse}.r2 path{stroke-width:1}
+.r3{opacity:.3;animation:kaisHoloSpin 140s linear infinite}
+.focus,.measure{opacity:0;transition:opacity .7s ease}
+.focus{transform-origin:0 0;transform:scale(1.05);transition:opacity .7s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
+.measure .m{opacity:0;animation:kaisHoloMeasure 3.6s ease-in-out infinite;animation-delay:var(--d)}
+.measure *{stroke-width:.7}.measure circle{fill:#27D6A0;stroke:none}
+.kaisHolo[data-phase=speaking] .focus{opacity:.85;transform:scale(1)}
+.kaisHolo[data-phase=thinking] .measure{opacity:1}
+.kaisHolo[data-phase=listening] .ring{animation-duration:140s,140s,200s}
+.kaisHoloScanBand{position:absolute;inset:9.375%;z-index:3;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .7s ease}
+.kaisHoloScanBand i{position:absolute;left:0;right:0;top:0;height:14%;background:linear-gradient(transparent,rgba(120,255,225,.2),transparent);animation:kaisHoloScan 3.4s ease-in-out infinite}
+.kaisHolo[data-phase=thinking] .kaisHoloScanBand{opacity:1}
+.kaisHoloFloor{position:absolute;left:14%;right:14%;bottom:-26px;height:34px;border-radius:50%;background:radial-gradient(ellipse,rgba(39,214,160,.2),rgba(39,214,160,0) 68%);animation:kaisHoloBreath 7s ease-in-out infinite}
+.kaisHoloChips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:340px}
+.kaisHoloChip{font:11px ui-monospace,monospace;padding:4px 8px;border:1px solid rgba(39,214,160,.4);border-radius:8px;background:rgba(10,24,22,.78);color:#27D6A0}
 .kaisHoloStatus{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#27D6A0;margin:0}
 .kaisHoloUser{font-size:18px;text-align:center;margin:0;max-width:420px}
-.kaisHoloReply{font-size:14px;line-height:1.45;color:#b9c8dc;text-align:center;margin:0;max-width:420px;max-height:22vh;overflow:auto;padding:12px;border:1px solid rgba(39,214,160,.27);border-radius:14px;background:rgba(12,24,26,.75)}
+.kaisHoloReply{font-size:14px;line-height:1.45;color:#b9c8dc;text-align:center;margin:0;max-width:420px;max-height:22vh;overflow:auto;padding:12px;border:1px solid rgba(39,214,160,.25);border-radius:14px;background:rgba(12,24,26,.75)}
 .kaisHoloChat{margin-top:6px;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.75);color:#c5d1e3;font-size:13px}
 .kaisHoloChat svg{width:16px;height:16px}
-@keyframes kaisHoloIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+.kaisHolo[data-paused=true] *{animation-play-state:paused!important}
+@keyframes kaisHoloIn{from{opacity:0}to{opacity:1}}
 @keyframes kaisHoloSpin{to{transform:rotate(360deg)}}
-@keyframes kaisHoloPulse{from{opacity:.4}to{opacity:1}}
-@keyframes kaisHoloFloat{50%{transform:translateY(-6px)}}
-@media (prefers-reduced-motion:reduce){.kaisHolo,.kaisHolo *{animation:none!important}}
+@keyframes kaisHoloBreath{50%{opacity:.6}}
+@keyframes kaisHoloScan{0%{transform:translateY(-100%)}100%{transform:translateY(720%)}}
+@keyframes kaisHoloMeasure{0%,100%{opacity:0}35%,65%{opacity:.9}}
+@media (prefers-reduced-motion:reduce){.kaisHolo,.kaisHolo *{animation:none!important;transition:none!important}.kaisHoloScanBand i{display:none}}
