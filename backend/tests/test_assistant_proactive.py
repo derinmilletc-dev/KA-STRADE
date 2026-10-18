@@ -186,6 +186,47 @@ class AssistantProactiveTests(AssistantToolsTestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("private-storage-detail", response.text)
 
+    def demo(self, positions=None, reason=None):
+        data = {"positions": positions or [], "account": "demo", **({"reason": reason} if reason else {"data_age_seconds": 0})}
+        return patch.object(AssistantTools, "get_demo_positions", AsyncMock(return_value={"data": data, "fetched_at": "t", "stale": bool(reason)}))
+
+    async def test_demo_positions_are_reported_separately_and_labelled(self):
+        self.account()
+        with self.demo([{"symbol": "ETHUSDT", "direction": "LONG", "quantity": 1, "unrealized_pnl": 5}]):
+            message = (await self.check_in()).json()["message"]
+        lines = message["reply"].split("\n")
+        self.assertEqual(lines[0], COPY["tr"]["live_header"])
+        self.assertIn("12,30", lines[1])  # gerçek hesap PnL'i kendi satırında
+        self.assertEqual(lines[-1], COPY["tr"]["demo_positions"].format(count=1, pnl="5,00"))
+        self.assertNotIn("17,30", message["reply"])  # iki hesap toplanmaz
+        self.assertEqual(message["sources"], ["get_my_positions", "get_protection_status", "get_demo_positions"])
+
+    async def test_demo_only_positions_create_a_message_without_live_data(self):
+        with self.demo([{"symbol": "BTCUSDT", "direction": "SHORT", "quantity": 1, "unrealized_pnl": -2.5}]):
+            message = (await self.check_in(language="en")).json()["message"]
+        self.assertEqual(message["reply"], COPY["en"]["demo_positions"].format(count=1, pnl="-2.50"))
+        self.assertEqual(message["sources"], ["get_demo_positions"])
+        self.assertNotIn(COPY["en"]["live_header"], message["reply"])
+
+    async def test_unverified_demo_never_claims_no_positions_and_never_alerts_alone(self):
+        with self.demo(reason="DEMO_UNAVAILABLE"):
+            self.assertIsNone((await self.check_in()).json()["message"])
+        self.now += timedelta(hours=self.config.proactive_cooldown_hours).total_seconds()
+        self.account()
+        with self.demo(reason="DEMO_UNAVAILABLE"):
+            message = (await self.check_in()).json()["message"]
+        self.assertEqual(message["reply"].split("\n")[-1], COPY["tr"]["demo_unverified"])
+
+    async def test_non_owner_and_empty_demo_leave_the_live_message_unchanged(self):
+        for reason, positions in (("DEMO_OWNER_ONLY", None), (None, [])):
+            with self.subTest(reason=reason):
+                self.now += timedelta(hours=self.config.proactive_cooldown_hours).total_seconds()
+                self.account()
+                with self.demo(positions, reason):
+                    message = (await self.check_in()).json()["message"]
+                self.assertEqual(message["sources"], ["get_my_positions", "get_protection_status"])
+                self.assertNotIn(COPY["tr"]["live_header"], message["reply"])
+
     def test_templates_contain_no_recommendations_or_profit_promises(self):
         forbidden = re.compile(r"\b(?:al|sat|fırsat|buy|sell|opportunity|recommend|guaranteed|guarantee)\b", re.IGNORECASE)
         for language, templates in COPY.items():
