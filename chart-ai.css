@@ -102,6 +102,20 @@
 .chartAiLegal details p { margin-top: 6px; text-align: left; }
 .chartAiPre { white-space: pre-line; }
 
+/* Hak bitti: arkası buzlu cam perdesi */
+.chartAiStage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.chartAiWall { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 24px;
+  background: rgba(15, 19, 22, .5); -webkit-backdrop-filter: blur(9px) saturate(1.15); backdrop-filter: blur(9px) saturate(1.15); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .chartAiWall { background: rgba(15, 19, 22, .94); } }
+.chartAiWallCard { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(320px, 100%); padding: 26px 22px; text-align: center;
+  border: 1px solid rgba(255, 255, 255, .14); border-radius: 18px; background: linear-gradient(180deg, rgba(34, 42, 48, .72), rgba(20, 26, 30, .72));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.chartAiWallIcon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: rgba(63, 182, 139, .16); color: #6fd3ae; }
+.chartAiWallIcon svg { width: 24px; height: 24px; }
+.chartAiWallCard strong { font-size: 17px; font-weight: 700; color: var(--cai-text); }
+.chartAiWallCard p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--cai-text-2); }
+.chartAiWallAction { width: 100%; margin-top: 6px; }
+
 /* Mobil: alttan açılan sayfa */
 @media (max-width: 700px) {
   .chartAiDialog { inset: auto 0 0 0; width: 100vw; height: calc(100dvh - 48px); border-left: 0; border-top: 1px solid var(--cai-line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px #0006; }

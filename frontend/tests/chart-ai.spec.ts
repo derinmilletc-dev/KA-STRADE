@@ -26,7 +26,7 @@ for (const mobile of [false, true]) test(`local design screenshots (${mobile ? '
   expect(state.generations).toHaveLength(0)
 })
 
-async function prepare(page: Page, options: {customer?: boolean; moderator?: boolean; noEntitlement?: boolean; quotaExhausted?: boolean; disabled?: boolean; unavailable?: boolean; processing?: boolean; failed?: boolean; legacy?: boolean; mobile?: boolean; getFailures?: number; unconfirmed?: boolean; deferUsage?: boolean; missingApi?: boolean} = {}) {
+async function prepare(page: Page, options: {customer?: boolean; free?: boolean; moderator?: boolean; noEntitlement?: boolean; quotaExhausted?: boolean; disabled?: boolean; unavailable?: boolean; processing?: boolean; failed?: boolean; legacy?: boolean; mobile?: boolean; getFailures?: number; unconfirmed?: boolean; deferUsage?: boolean; missingApi?: boolean} = {}) {
   await page.setViewportSize({width: options.mobile ? 390 : 1440, height: 900})
   await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort())
   await page.routeWebSocket(/^wss?:\/\//, socket => socket.close())
@@ -66,8 +66,8 @@ async function prepare(page: Page, options: {customer?: boolean; moderator?: boo
           code: 'access_denied', message: 'Kais AI için aktif deneme veya MASTER MODE üyeliği gerekir.',
         }}})
       }
-      const accessType = options.moderator ? 'subscriber' : options.customer ? 'trial' : 'owner'
-      const limit = accessType === 'trial' ? 3 : accessType === 'subscriber' ? 20 : null
+      const accessType = options.moderator ? 'subscriber' : options.free ? 'free' : options.customer ? 'trial' : 'owner'
+      const limit = accessType === 'free' ? 3 : accessType === 'trial' ? 15 : accessType === 'subscriber' ? 20 : null
       return route.fulfill({json: {
         analysis_enabled: !options.unavailable,
         access_type: accessType,
@@ -140,7 +140,7 @@ for (const customer of [false, true]) test(`old backend without chart API never 
 for (const account of ['CUSTOMER', 'MODERATOR'] as const) test(`${account} can acknowledge and use Chart AI with its assigned quota`, async ({page}) => {
   const state = await prepare(page, {customer: account === 'CUSTOMER', moderator: account === 'MODERATOR'})
   const dialog = await openAndCapture(page)
-  await expect(dialog.getByText(account === 'CUSTOMER' ? 'Kalan hak: 3' : 'Kalan hak: 20')).toBeVisible()
+  await expect(dialog.getByText(account === 'CUSTOMER' ? 'Kalan hak: 15' : 'Kalan hak: 20')).toBeVisible()
   await expect(dialog.getByText('Bu analiz yatırım tavsiyesi değildir.')).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true}).click()
   await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
@@ -152,19 +152,28 @@ test('account without trial or MASTER MODE sees access guidance and pricing link
   await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toBeVisible()
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
-  await expect(dialog.getByRole('alert')).toContainText('aktif deneme veya MASTER MODE')
+  await expect(dialog.getByRole('status')).toContainText('Ücretsiz hakkınız bitmiştir')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
   await expect(dialog.getByRole('button', {name: 'Grafiği yakala', exact: true})).toHaveCount(0)
   await expect(dialog.getByText('Bu analiz yatırım tavsiyesi değildir.')).toBeVisible()
   expect(state.generations).toHaveLength(0)
 })
 
-test('exhausted trial quota is explicit and offers MASTER MODE without sending analysis', async ({page}) => {
+test('exhausted free quota shows the frosted premium wall without sending analysis', async ({page}) => {
+  const state = await prepare(page, {customer: true, free: true, quotaExhausted: true})
+  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
+  await expect(dialog.getByRole('status')).toContainText('Ücretsiz hakkınız bitmiştir')
+  await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
+  expect(state.generations).toHaveLength(0)
+})
+
+test('exhausted daily trial quota explains the daily renewal without pushing an upgrade', async ({page}) => {
   const state = await prepare(page, {customer: true, quotaExhausted: true})
   await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
-  await expect(dialog.getByRole('status')).toContainText('Deneme süresindeki 3 analiz hakkınızı kullandınız')
-  await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
+  await expect(dialog.getByRole('status')).toContainText('Bugünkü hakkınız bitti')
+  await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveCount(0)
   expect(state.generations).toHaveLength(0)
 })
 

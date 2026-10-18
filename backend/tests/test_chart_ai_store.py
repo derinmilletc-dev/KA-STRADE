@@ -264,38 +264,51 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
     def stored(self, key, user="user"):
         return self.pool.state.requests[(user_hash(user), key)]
 
-    async def test_trial_total_three_and_reconstructed_store_does_not_reset(self):
+    async def test_trial_fifteen_per_day_and_reconstructed_store_does_not_reset(self):
         access = QuotaAccess("trial", self.pool.now - timedelta(days=1), self.pool.now + timedelta(days=6))
-        for _ in range(3):
+        for _ in range(15):
             await self.complete(access=access)
         self.store = ChartAiStore(self.pool)
         snapshot = await self.store.usage("user", access)
-        self.assertEqual((snapshot.used, snapshot.reserved, snapshot.remaining), (3, 0, 0))
+        self.assertEqual((snapshot.used, snapshot.reserved, snapshot.remaining), (15, 0, 0))
         with self.assertRaises(ChartAiQuotaError) as error:
             await self.reserve(access=access)
         self.assertEqual((error.exception.code, error.exception.status_code), ("quota_exhausted", 429))
-        self.assertEqual(len(self.pool.state.requests), 3)
+        self.assertIn("Bugünkü 15 analiz", str(error.exception))
+        self.assertEqual(len(self.pool.state.requests), 15)
 
-    async def test_trial_does_not_reset_on_monday_and_expiration_is_inclusive(self):
+    async def test_trial_renews_at_turkey_midnight_and_expiration_is_inclusive(self):
         self.pool.now = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
         start = self.pool.now - timedelta(days=1)
         access = QuotaAccess("trial", start, start + timedelta(days=7))
-        for _ in range(3):
+        for _ in range(15):
             await self.complete(access=access)
-        self.pool.now = datetime(2026, 10, 19, tzinfo=timezone.utc)
+        self.pool.now = datetime(2026, 10, 18, 20, 59, 59, tzinfo=timezone.utc)  # 23:59:59 Turkey
         self.assertEqual((await self.store.usage("user", access)).remaining, 0)
+        self.pool.now = datetime(2026, 10, 18, 21, tzinfo=timezone.utc)  # 00:00 Turkey next day
+        self.assertEqual((await self.store.usage("user", access)).remaining, 15)
         self.pool.now = access.trial_end
         with self.assertRaises(ChartAiQuotaError) as error:
             await self.reserve(access=access)
         self.assertEqual(error.exception.code, "access_denied")
 
-    async def test_changed_trial_identity_cannot_create_three_new_credits(self):
+    async def test_changed_trial_identity_cannot_create_new_daily_credits(self):
         start = self.pool.now - timedelta(days=1)
         await self.complete(access=QuotaAccess("trial", start, start + timedelta(days=7)))
         shifted = QuotaAccess("trial", start + timedelta(hours=1), start + timedelta(days=7, hours=1))
-        with self.assertRaises(ChartAiStorageError):
-            await self.reserve(access=shifted)
+        self.assertEqual((await self.store.usage("user", shifted)).remaining, 14)
         self.assertEqual(len(self.pool.state.periods), 1)
+
+    async def test_free_member_gets_three_lifetime_analyses_that_never_renew(self):
+        free = QuotaAccess("free")
+        for _ in range(3):
+            await self.complete(access=free)
+        self.pool.now += timedelta(days=90)
+        self.assertEqual((await self.store.usage("user", free)).remaining, 0)
+        with self.assertRaises(ChartAiQuotaError) as error:
+            await self.reserve(access=free)
+        self.assertEqual((error.exception.code, error.exception.status_code), ("quota_exhausted", 429))
+        self.assertIn("Ücretsiz analiz hakkınız bitmiştir", str(error.exception))
 
     async def test_subscriber_twenty_and_twenty_first_is_rejected(self):
         for _ in range(20):
@@ -347,7 +360,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         trial = QuotaAccess("trial", self.pool.now - timedelta(days=1), self.pool.now + timedelta(days=6))
         await self.complete(access=trial)
         await self.complete(access=self.access)
-        self.assertEqual((await self.store.usage("user", trial)).remaining, 2)
+        self.assertEqual((await self.store.usage("user", trial)).remaining, 14)
         self.assertEqual((await self.store.usage("user", self.access)).remaining, 19)
 
     async def test_concurrent_replays_get_only_one_private_lease(self):

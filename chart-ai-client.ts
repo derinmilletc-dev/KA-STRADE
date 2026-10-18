@@ -5,7 +5,7 @@ export const CHART_AI_PRIVACY = 'Resmin sitemizde saklanmaz; analiz için yapay 
 export const CHART_AI_DISCLAIMER = 'Bu analiz yatırım tavsiyesi değildir.'
 export type ChartUsage = {
   analysis_enabled: boolean
-  access_type: 'trial' | 'subscriber' | 'owner'
+  access_type: 'free' | 'trial' | 'subscriber' | 'owner'
   quota: {remaining: number | null; unlimited: boolean}
   acknowledgement: {required: boolean; policy_version: string; text: string}
   availability: {message: string}
@@ -31,7 +31,7 @@ export class ChartClientError extends Error {
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 const nullableNumber = (value: unknown) => value === null || typeof value === 'number' && Number.isFinite(value)
 const accessType = (value: unknown): value is ChartUsage['access_type'] =>
-  value === 'trial' || value === 'subscriber' || value === 'owner'
+  value === 'free' || value === 'trial' || value === 'subscriber' || value === 'owner'
 
 export async function chartRequest(path: string, init: RequestInit = {}): Promise<unknown> {
   const token = userSessionToken()

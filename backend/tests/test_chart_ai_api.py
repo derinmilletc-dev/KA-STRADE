@@ -100,15 +100,16 @@ def test_invalid_feature_setting_is_explicit_and_not_logged_raw(chart_api, monke
     assert pool.queries == []
 
 
-def test_active_trial_has_three_separate_rights_and_exact_warning(chart_api):
+def test_active_trial_has_fifteen_daily_rights_and_exact_warning(chart_api):
     client, _, pool = chart_api
     start_trial(client, pool)
     response = client.get(USAGE, headers=headers("customer", "CUSTOMER"))
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["eligible"] and payload["access_type"] == "trial"
-    assert payload["quota"] == {"limit": 3, "used": 0, "reserved": 0, "remaining": 3, "unlimited": False}
-    assert payload["trial_expires_at"] == payload["period_end"] and payload["resets_at"] is None
+    assert payload["quota"] == {"limit": 15, "used": 0, "reserved": 0, "remaining": 15, "unlimited": False}
+    assert payload["resets_at"] == payload["period_end"]
+    assert payload["trial_expires_at"] is not None and payload["trial_expires_at"] != payload["period_end"]
     assert payload["acknowledgement"] == {
         "policy_version": POLICY_VERSION, "accepted_at": None, "required": True, "text": NOTICE,
     }
@@ -134,7 +135,7 @@ def test_acknowledgement_is_persistent_idempotent_user_scoped_and_does_not_spend
     assert again.json() == first.json()
     usage = client.get(USAGE, headers=auth).json()
     assert usage["acknowledgement"] == first.json()["acknowledgement"]
-    assert usage["quota"]["remaining"] == 3
+    assert usage["quota"]["remaining"] == 15
     other = client.get(USAGE, headers=headers("owner", "OWNER")).json()
     assert other["acknowledgement"]["accepted_at"] is None
     assert len(pool.state.acknowledgements) == 1
@@ -173,16 +174,14 @@ def test_paid_master_mode_uses_twenty_rights_and_utc_monday_period(chart_api):
     assert payload["server_now"] == pool.now.isoformat().replace("+00:00", "Z")
 
 
-@pytest.mark.parametrize("grace,status", [(1, 200), (-1, 403)])
-def test_paid_past_due_uses_existing_canonical_grace_rules(chart_api, grace, status):
+@pytest.mark.parametrize("grace,access_type,limit", [(1, "subscriber", 20), (-1, "free", 3)])
+def test_paid_past_due_uses_existing_canonical_grace_rules(chart_api, grace, access_type, limit):
     client, _, pool = chart_api
     subscribe(client, status="PAST_DUE", expired=True, grace=grace)
     response = client.get(USAGE, headers=headers("customer", "CUSTOMER"))
-    assert response.status_code == status, response.text
-    if status == 200:
-        assert response.json()["quota"]["remaining"] == 20
-    else:
-        assert pool.queries == []
+    assert response.status_code == 200, response.text
+    assert response.json()["access_type"] == access_type
+    assert response.json()["quota"]["remaining"] == limit
 
 
 def test_owner_is_unlimited_without_subscription_and_actual_role_is_authoritative(chart_api):
@@ -216,33 +215,29 @@ def test_claimed_owner_role_and_query_fields_cannot_promote_trial(chart_api):
     response = client.get(USAGE + "?user_id=owner&isPremium=true&plan=MASTER_MODE",
                           headers=headers("customer", "OWNER"))
     assert response.status_code == 200, response.text
-    assert response.json()["access_type"] == "trial" and response.json()["quota"]["limit"] == 3
+    assert response.json()["access_type"] == "trial" and response.json()["quota"]["limit"] == 15
 
 
 @pytest.mark.parametrize("status", ["ACTIVE", "CANCELLED", "EXPIRED", "UNPAID"])
-def test_expired_or_inactive_subscription_cannot_read_or_acknowledge(chart_api, status):
+def test_expired_or_inactive_subscription_falls_back_to_free_allowance(chart_api, status):
     client, _, pool = chart_api
     subscribe(client, status=status, expired=True)
-    for method, path in (("GET", USAGE), ("POST", ACK)):
-        response = client.request(method, path, headers=headers("customer", "CUSTOMER"),
-                                  json=BODY if method == "POST" else None)
-        assert response.status_code == 403, response.text
-        assert response.json()["error"]["code"] == "access_denied"
-    assert pool.queries == []
+    response = client.get(USAGE, headers=headers("customer", "CUSTOMER"))
+    assert response.status_code == 200, response.text
+    assert response.json()["access_type"] == "free"
+    assert response.json()["quota"] == {"limit": 3, "used": 0, "reserved": 0, "remaining": 3, "unlimited": False}
 
 
-def test_expired_trial_cannot_read_or_acknowledge(chart_api):
+def test_expired_trial_falls_back_to_free_allowance(chart_api):
     client, _, pool = chart_api
     start_trial(client, pool)
     trial = client.app.state.v22_commercial["state"]["subscriptions"][0]
     expired = (pool.now - timedelta(seconds=1)).isoformat()
     trial["trial_end"] = expired
     trial["current_period_end"] = expired
-    for method, path in (("GET", USAGE), ("POST", ACK)):
-        response = client.request(method, path, headers=headers("customer", "CUSTOMER"),
-                                  json=BODY if method == "POST" else None)
-        assert response.status_code == 403, response.text
-    assert pool.queries == []
+    response = client.get(USAGE, headers=headers("customer", "CUSTOMER"))
+    assert response.status_code == 200, response.text
+    assert response.json()["access_type"] == "free"
 
 
 def test_unverifiable_subscription_fails_closed(chart_api, monkeypatch):
@@ -341,8 +336,8 @@ def test_owner_only_configuration_blocks_active_subscriber(chart_api, monkeypatc
 def test_unsubscribed_account_cannot_use_premium_hint_as_entitlement(chart_api):
     client, _, pool = chart_api
     response = client.get(USAGE + "?isPremium=true", headers=headers("customer", "CUSTOMER"))
-    assert response.status_code == 403, response.text
-    assert response.json()["error"]["code"] == "access_denied" and pool.queries == []
+    assert response.status_code == 200, response.text
+    assert response.json()["access_type"] == "free" and response.json()["quota"]["limit"] == 3
 
 
 @pytest.mark.parametrize("change", [{"trial_start": None}, {"trial_end": "not-a-date"},
@@ -390,4 +385,4 @@ def test_usage_reports_existing_used_and_reserved_counts(chart_api):
     period = next(iter(pool.state.periods.values()))
     period.update(used=1, reserved=1)
     payload = client.get(USAGE, headers=auth).json()
-    assert payload["quota"] == {"limit": 3, "used": 1, "reserved": 1, "remaining": 1, "unlimited": False}
+    assert payload["quota"] == {"limit": 15, "used": 1, "reserved": 1, "remaining": 13, "unlimited": False}
