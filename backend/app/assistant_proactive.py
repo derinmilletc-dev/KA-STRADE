@@ -24,6 +24,9 @@ COPY = {
         "stale": "Veri bayat veya güncelliği doğrulanamadı.",
         "unknown": "doğrulanamadı",
         "returning": "Tekrar hoş geldin. Uzun bir aranın ardından platform durumunu ilgili ekranlardan kontrol edebilirsin.",
+        "live_header": "Gerçek hesap:",
+        "demo_positions": "Demo hesap: {count} açık pozisyon. PnL: {pnl}.",
+        "demo_unverified": "Demo hesap doğrulanamadı.",
     },
     "en": {
         "positions": "{count} open positions. PnL: {pnl}.",
@@ -35,6 +38,9 @@ COPY = {
         "stale": "Data is stale or its freshness could not be verified.",
         "unknown": "could not be verified",
         "returning": "Welcome back. After an extended absence, you can check platform status on the relevant screens.",
+        "live_header": "Live account:",
+        "demo_positions": "Demo account: {count} open positions. PnL: {pnl}.",
+        "demo_unverified": "Demo account could not be verified.",
     },
 }
 
@@ -96,6 +102,22 @@ async def status_message(tools: AssistantTools, user_id: str, language: Language
     }
 
 
+async def demo_status(tools: AssistantTools, user_id: str, language: Language) -> tuple[str, bool] | None:
+    """Demo hesap satırı (yalnız OWNER; salt okunur, readonly_demo_service üzerinden). Gerçek hesap verisiyle asla toplanmaz.
+    None: gösterilecek bir şey yok (OWNER değil veya açık Demo pozisyonu yok). (satır, doğrulandı_mı) aksi halde."""
+    result = await tools.get_demo_positions(user_id)
+    data = result.get("data") or {}
+    if data.get("reason") == "DEMO_OWNER_ONLY":
+        return None
+    copy = COPY[language]
+    if data.get("reason") or result.get("stale"):
+        return copy["demo_unverified"], False
+    rows = data.get("positions") or []
+    if not rows:
+        return None
+    return copy["demo_positions"].format(count=len(rows), pnl=pnl_text(rows, language)), True
+
+
 class ProactiveAssistant:
     def __init__(self, store: AssistantStore, tools: AssistantTools, config: AssistantConfig):
         self.store, self.tools, self.config = store, tools, config
@@ -135,6 +157,16 @@ class ProactiveAssistant:
                 return response
             positions = await self.tools.get_my_positions(user_id)
             message = await status_message(self.tools, user_id, language, positions)
+            demo = await demo_status(self.tools, user_id, language)
+            if demo is not None:
+                line, verified = demo
+                if message is not None:
+                    # İki hesap ayrı satırlarda ve etiketli; değerler birleştirilmez.
+                    message = {**message, "reply": "\n".join([COPY[language]["live_header"], message["reply"], line]),
+                               "sources": [*message["sources"], "get_demo_positions"]}
+                elif verified:  # yalnız "doğrulanamadı" bilgisi tek başına bildirim üretmez
+                    message = {"reply": line, "language": language, "sources": ["get_demo_positions"],
+                               "fetched_at": positions["fetched_at"], "stale": False}
             inactive = activity["data"]["inactive_seconds"]
             if message is None and not activity["stale"] and inactive >= timedelta(days=self.config.proactive_inactive_days).total_seconds():
                 copy = COPY[language]
