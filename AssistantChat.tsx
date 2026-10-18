@@ -110,10 +110,15 @@ function parseProactiveMessage(value: unknown): Message | null {
   return {id: value.id, role: 'assistant', content: value.reply, language: value.language === 'en' ? 'en' : 'tr', proactive: true}
 }
 
+// Süre ölçümü (yalnızca süre): ?kaisdebug=1 veya localStorage 'kais-debug'='1' ile açılır. İlk ses anı assistant-voice.ts'te işaretlenir.
+type KaisTiming = {t0: number; requestMs?: number; server?: string | null; speechMs?: number; textMs?: number}
+declare global { interface Window { __kaisTimings?: KaisTiming[]; __kaisLast?: KaisTiming } }
 async function request(path: string, signal: AbortSignal, body?: object): Promise<Record<string, unknown>> {
+  const timing: KaisTiming | null = path === 'chat' ? {t0: performance.now()} : null
   const response = await fetch(`${API_BASE}/assistant/${path}`, {
     signal, ...(body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {}),
   })
+  if (timing) { timing.requestMs = Math.round(performance.now() - timing.t0); timing.server = response.headers.get('Server-Timing'); window.__kaisLast = timing; window.__kaisTimings = [...(window.__kaisTimings ?? []).slice(-19), timing] }
   let payload: unknown
   try { payload = await response.json() }
   catch (error) {
@@ -175,6 +180,17 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [open, setOpen] = useState(false)
   const [holoOpen, setHoloOpen] = useState(false)
   const [alarm, setAlarm] = useState<string | null>(null)
+  const [timingLine, setTimingLine] = useState('')
+  useEffect(() => {
+    let debug = false
+    try { debug = new URLSearchParams(window.location.search).has('kaisdebug') || window.localStorage.getItem('kais-debug') === '1' } catch { /* yok say */ }
+    if (!debug) return
+    const timer = window.setInterval(() => {
+      const last = window.__kaisLast; if (!last) return
+      setTimingLine(`istek ${last.requestMs ?? '…'} ms · ilk ses ${last.speechMs ?? '…'} ms${last.server ? ` · ${last.server.replace(/;dur=/g, ' ')}` : ''}`)
+    }, 500)
+    return () => window.clearInterval(timer)
+  }, [])
   const [portal, setPortal] = useState<HoloPortal | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const [agentActions, setAgentActions] = useState<string[]>([])
@@ -637,7 +653,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo alarm={alarm} portal={portal} confirm={(() => {
+    {holoVisible && <KaisAgentHolo timing={timingLine} alarm={alarm} portal={portal} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,

@@ -182,6 +182,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = tag
       if (voice) utterance.voice = voice
+      if (index === 0) utterance.onstart = () => { const last = (window as unknown as {__kaisLast?: {t0: number; speechMs?: number}}).__kaisLast; if (last && last.speechMs === undefined) last.speechMs = Math.round(performance.now() - last.t0) }
       utterance.rate = savedRate()
       utterance.pitch = savedVoiceName() || isKnownMale(voice) ? 1 : .7
       if (index === parts.length - 1) {
