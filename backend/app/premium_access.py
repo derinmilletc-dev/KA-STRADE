@@ -155,3 +155,45 @@ def requires_premium(path: str, method: str) -> bool:
     }:
         return True
     return path.startswith(("/api/paper/demo/", "/api/v20/profile/"))
+
+
+DEMO_LIMIT_KEYS = ("max_margin_usdt", "max_leverage", "max_notional_usdt", "max_open_positions", "arm_minutes")
+
+
+def _positive_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def demo_status_shape(filtered: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """Premium olmayan üyede /binance-demo/status ve /account yanıtının iskeletini korur.
+
+    Ön yüz (demo-request.ts) "limits" nesnesini zorunlu tutar; allowlist onu düşürünce
+    "Demo durum yanıtı eksik veya geçersiz" hatası çıkıyordu. Limitler sistem genelindeki
+    sabit üst sınırlardır, kullanıcıya özel veri değildir; yalnız bilinen sayısal alanlar geçer.
+    """
+    limits = payload.get("limits") if isinstance(payload.get("limits"), dict) else {}
+    filtered["limits"] = {key: limits[key] for key in DEMO_LIMIT_KEYS if _positive_number(limits.get(key))}
+    for key in ("configured", "connected", "armed"):
+        if not isinstance(filtered.get(key), bool):
+            filtered[key] = False
+    filtered["real_trading_locked"] = True
+    if not (filtered.get("armed_until") is None or isinstance(filtered.get("armed_until"), str)):
+        filtered["armed_until"] = None
+    return filtered
+
+
+def demo_account_shape(filtered: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """/binance-demo/account için iskelet: emir, plan ve pozisyon ayrıntıları boş liste olarak döner.
+
+    Premium olmayan üye Demo emri açamaz (requires_premium); bu listeler zaten boş olmalıdır.
+    Gizli alanlar (giriş fiyatı, planlar, açık emirler) hiçbir durumda geri eklenmez.
+    """
+    filtered = demo_status_shape(filtered, payload)
+    for key in ("positions", "open_orders", "open_algo_orders", "plans"):
+        filtered[key] = []
+    if filtered["configured"]:
+        for key in ("wallet_balance", "available_balance", "margin_balance", "unrealized_pnl"):
+            value = filtered.get(key)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                filtered[key] = 0
+    return filtered
