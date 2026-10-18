@@ -68,7 +68,7 @@ export const FAQS: Faq[] = [
     "id": "f8",
     "category": "billing",
     "q": "Ödemem başarısız oldu, ne yapmalıyım?",
-    "a": "Destek sayfasındaki "Destek ekibine yaz" bölümünden bize ulaş. Ödeme bilgini ve yaşadığın sorunu yazman yeterli, ekibimiz en kısa sürede dönüş yapar."
+    "a": "Destek sayfasındaki “Destek ekibine yaz” bölümünden bize ulaş. Ödeme bilgini ve yaşadığın sorunu yazman yeterli, ekibimiz en kısa sürede dönüş yapar."
   },
   {
     "id": "f9",
