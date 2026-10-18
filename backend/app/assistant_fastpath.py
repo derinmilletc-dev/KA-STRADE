@@ -67,6 +67,25 @@ STATUS_TR = {"ACTIVE": "aktif", "EXPIRED": "süresi dolmuş", "TRIALING": "denem
              "CANCELED": "iptal edilmiş", "CANCELLED": "iptal edilmiş", "PAST_DUE": "ödemesi gecikmiş", "NONE": "yok", "FREE": "ücretsiz"}
 
 
+# Hızlı yol YALNIZCA salt-okunur veri listesi isteklerini yakalar. Eylem (kapat/sat/iptal...), eğitim (nasıl/neden/açıkla/strateji...)
+# ve evet-hayır soruları (… mu?) modele bırakılır; belirsizlikte varsayılan "hızlı yol yok"tur.
+ACTION_STEMS = ("kapat", "kapa", "kapan", "sat", "iptal", "sil", "bosalt", "tasfiye", "azalt", "artir", "duzenle", "degistir", "acil",
+                "close", "sell", "cancel", "liquidat", "flatten", "reduc", "increas", "modify", "delete", "remove")
+ACTION_WORDS = {"ac", "acin", "acar", "acsin", "al", "alsana", "buy", "exit", "execute"}
+EDUCATIONAL_STEMS = ("nasil", "neden", "niye", "nedir", "nelerdir", "acikla", "anlat", "ogret", "strateji", "yontem", "mantik", "ornek",
+                     "how", "why", "explain", "teach", "strateg", "method", "example", "tutorial", "guide", "meaning", "mean", "learn")
+YES_NO_PARTICLES = {"mi", "mu"}
+EN_QUESTION_OPENERS = {"is", "are", "does", "do", "should", "can", "will", "would", "could"}
+MARKET_ASK = re.compile(
+    r"\b(en cok (yukselen|artan|dusen|kaybeden)|en iyi (long|short)|en yuksek guven|guveni en yuksek|guven skoru en yuksek|en iyi firsat"
+    r"|top (gainer|loser)s?|best (long|short)|highest confidence)\b")
+
+
+def is_action_or_educational(words: set[str]) -> bool:
+    return bool(words & ACTION_WORDS
+                or any(word.startswith(ACTION_STEMS) for word in words) or any(word.startswith(EDUCATIONAL_STEMS) for word in words))
+
+
 def intent(message: str) -> str | None:
     words = words_of(message)
     normalized = " ".join(re.findall(r"\w+|[?!.]", unicodedata.normalize("NFKD", message.casefold().translate(str.maketrans("çğıöşü", "cgiosu"))).replace("\u0307", "")))
@@ -75,9 +94,10 @@ def intent(message: str) -> str | None:
         return "support"
     if words & {"trade", "order", "execute", "arm", "consent", "emir", "islem", "buy", "sell"}:
         return None
-    if len(words) <= 12:
-        # Piyasa özeti: tarayıcı adayları ve 24s hareketliler (yalnız okuma; model gerekmez).
-        if re.search(r"\b(en cok (yukselen|artan|dusen|kaybeden)|en iyi (long|short)|en yuksek guven|guveni en yuksek|guven skoru en yuksek|en iyi firsat|top (gainer|loser)s?|best (long|short)|highest confidence)\b", normalized):
+    if len(words) <= 12 and not is_action_or_educational(words):
+        # Piyasa özeti: yalnızca sembol içermeyen, evet/hayır olmayan, açık liste isteyen sorular (yalnız okuma).
+        if (MARKET_ASK.search(normalized) and not analysis_targets(message)[0] and not words & YES_NO_PARTICLES
+                and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
             return "get_market_overview"
         # Demo hesap pozisyonları / kâr-zarar: yalnızca kişisel ve güncel bir ifade varsa.
         if (any(word.startswith(("pozisyonlarim", "pozisyonum", "islemlerim", "islemim")) for word in words)
@@ -127,58 +147,110 @@ def money(value: Any) -> str:
 
 
 async def demo_positions_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
-    """Binance Demo açık pozisyonları. Doğrulanamazsa None döner: soru normal akışa (model) gider, uydurma cevap verilmez."""
+    """Binance Demo açık pozisyonları (salt okunur). Doğrulanamayan her durum açıkça söylenir; veri uydurulmaz."""
+    tr = language == "tr"
     try:
         result = await tools.dispatch(user_id, "get_demo_positions", {})
     except Exception:  # noqa: BLE001 - hızlı yol hiçbir zaman hata cevabı üretmez
         return None
     data = result.get("data") or {}
-    if "reason" in data or result.get("stale"):
-        return None
+    reason = data.get("reason")
+    if reason == "DEMO_OWNER_ONLY":
+        text = ("Demo pozisyon özeti şu an yalnızca yönetici hesabında kullanılabiliyor." if tr
+                else "The Demo positions summary is currently available to the owner account only.")
+        return {"reply": text, "language": language, "sources": ["get_demo_positions"], "fetched_at": result.get("fetched_at"), "stale": False}
+    if reason or result.get("stale"):
+        text = ("Demo hesabındaki işlemleri şu an doğrulayamadım (bağlantı veya anahtar sorunu olabilir); açık işlem olmadığını söyleyemem."
+                if tr else "I could not verify your Demo positions right now (a connection or key problem is possible), so I cannot say there are none.")
+        return {"reply": text, "language": language, "sources": ["get_demo_positions"], "fetched_at": result.get("fetched_at"), "stale": True}
     positions = data.get("positions") or []
     if not positions:
-        reply = ("Şu an açık Demo işleminiz yok; dolayısıyla kâr/zarar durumunuz da yok." if language == "tr"
+        reply = ("Şu an açık Demo işleminiz yok; dolayısıyla kâr/zarar durumunuz da yok." if tr
                  else "You have no open Demo positions right now, so there is no profit or loss.")
     else:
         rows = []
         for row in positions:
             pnl = money(row.get("unrealized_pnl"))
             side = row.get("direction") or ""
-            rows.append((f"{row.get('symbol')} {side}: {pnl} USDT" + (" (kâr)" if pnl.startswith("+") and pnl != "+0.00" else " (zarar)" if pnl.startswith("-") else "")) if language == "tr"
+            rows.append((f"{row.get('symbol')} {side}: {pnl} USDT" + (" (kâr)" if pnl.startswith("+") and pnl != "+0.00" else " (zarar)" if pnl.startswith("-") else "")) if tr
                         else f"{row.get('symbol')} {side}: {pnl} USDT")
-        reply = ("Açık Demo işlemleriniz: " if language == "tr" else "Your open Demo positions: ") + "; ".join(rows) + "."
+        reply = ("Açık Demo işlemleriniz: " if tr else "Your open Demo positions: ") + "; ".join(rows) + "."
     return {"reply": reply, "language": language, "sources": ["get_demo_positions"],
             "fetched_at": result.get("fetched_at"), "stale": False}
 
 
-async def market_overview_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
-    """Tarayıcı adayları + 24s hareketliler. Premium değilse, tarama yoksa veya veri alınamadıysa None (model akışı)."""
+def market_focus(message: str) -> set[str]:
+    text = " ".join(re.findall(r"\w+", unicodedata.normalize("NFKD", message.casefold().translate(str.maketrans("çğıöşü", "cgiosu"))).replace("\u0307", "")))
+    focus = set()
+    if re.search(r"yuksel|artan|gainer", text): focus.add("gainer")
+    if re.search(r"dusen|kaybeden|loser", text): focus.add("loser")
+    if re.search(r"\blong\b", text): focus.add("long")
+    if re.search(r"\bshort\b", text): focus.add("short")
+    if re.search(r"guven|confidence", text): focus.add("confidence")
+    if re.search(r"firsat|opportunity", text): focus.add("opportunity")
+    return focus
+
+
+async def market_overview_answer(tools: AssistantTools, user_id: str, language: Language, message: str = "") -> dict | None:
+    """Tarayıcı adayları + 24s hareketliler. Eski/yok/erişilemeyen veri açıkça söylenir; sıralama ASLA uydurulmaz."""
+    tr = language == "tr"
     try:
         result = await tools.dispatch(user_id, "get_market_overview", {})
     except Exception:  # noqa: BLE001
         return None
     data = result.get("data") or {}
+    base = {"language": language, "sources": ["get_market_overview"], "fetched_at": result.get("fetched_at")}
+    if data.get("reason") == "PREMIUM_REQUIRED":
+        return {**base, "stale": False, "reply": ("Piyasa özeti Master Mode (premium) üyelik gerektirir." if tr
+                                                  else "The market overview requires a Master Mode (premium) membership.")}
     scan, movers = data.get("scan") or {}, data.get("movers") or {}
-    if "reason" in data or result.get("stale") or scan.get("note") or movers.get("note"):
-        return None
-    def brief(row: dict | None) -> str:
-        return "" if not row else f"{row.get('symbol')} (fırsat {row.get('opportunity_score')}, güven {row.get('confidence_label') or row.get('confidence')})" if language == "tr" \
-            else f"{row.get('symbol')} (opportunity {row.get('opportunity_score')}, confidence {row.get('confidence_label') or row.get('confidence')})"
-    parts = []
-    gainers = movers.get("top_gainers") or []
-    if gainers:
-        parts.append(("24 saatte en çok yükselen: " if language == "tr" else "Top 24h gainer: ") + f"{gainers[0]['symbol']} %{gainers[0]['change_24h_percent']}")
-    for key, label_tr, label_en in (("best_long", "En iyi long adayı", "Best long candidate"), ("best_short", "En iyi short adayı", "Best short candidate"),
-                                    ("highest_confidence", "Güveni en yüksek", "Highest confidence")):
-        text = brief(scan.get(key))
-        if text:
-            parts.append(f"{label_tr if language == 'tr' else label_en}: {text}")
-    if not parts:
-        return None
-    suffix = (f" Tarama zamanı: {scan.get('last_scan_at')}. Bunlar analiz çıktısıdır, al/sat talimatı değildir." if language == "tr"
-              else f" Scan time: {scan.get('last_scan_at')}. These are analysis outputs, not trading instructions.")
-    return {"reply": ". ".join(parts) + "." + suffix, "language": language, "sources": ["get_market_overview"],
-            "fetched_at": result.get("fetched_at"), "stale": False}
+    focus = market_focus(message) or {"gainer", "long", "short", "confidence"}
+    parts: list[str] = []
+    unverified = False
+    if focus & {"gainer", "loser"}:
+        if movers.get("status") != "fresh":
+            unverified = True
+            parts.append("24 saatlik piyasa verisini şu an alamadım." if tr else "I could not fetch the 24h market data right now.")
+        else:
+            if "gainer" in focus:
+                rows = movers.get("top_gainers") or []
+                parts.append((f"24 saatte en çok yükselen: {rows[0]['symbol']} %{rows[0]['change_24h_percent']}" if tr else f"Top 24h gainer: {rows[0]['symbol']} {rows[0]['change_24h_percent']}%")
+                             if rows else ("Şu an 24 saatte yükselişte olan coin yok (değişimi pozitif olan yok)." if tr else "No coin is up over 24h right now (none has a positive change)."))
+            if "loser" in focus:
+                rows = movers.get("top_losers") or []
+                parts.append((f"24 saatte en çok düşen: {rows[0]['symbol']} %{rows[0]['change_24h_percent']}" if tr else f"Top 24h loser: {rows[0]['symbol']} {rows[0]['change_24h_percent']}%")
+                             if rows else ("Şu an 24 saatte düşüşte olan coin yok." if tr else "No coin is down over 24h right now."))
+    wanted = [(k, tr_l, en_l) for k, tr_l, en_l in (("long", "En iyi long adayı", "Best long candidate"), ("short", "En iyi short adayı", "Best short candidate"),
+                                                    ("confidence", "Güveni en yüksek", "Highest confidence"), ("opportunity", "En yüksek fırsat", "Highest opportunity"))
+              if k in focus]
+    if wanted:
+        status = scan.get("status")
+        if status == "fresh":
+            keys = {"long": "best_long", "short": "best_short", "confidence": "highest_confidence", "opportunity": "highest_opportunity"}
+            for key, label_tr, label_en in wanted:
+                row = scan.get(keys[key])
+                if row:
+                    detail = (f"(fırsat {row.get('opportunity_score')}, güven {row.get('confidence_label')})" if tr
+                              else f"(opportunity {row.get('opportunity_score')}, confidence {row.get('confidence_label')})")
+                    parts.append(f"{label_tr if tr else label_en}: {row.get('symbol')} {detail}")
+                elif key in ("long", "short"):
+                    parts.append(f"Şu an kalite kurallarını geçen {key} adayı yok." if tr else f"No {key} candidate currently passes the quality rules.")
+                else:
+                    parts.append("Şu an kalite kurallarını geçen aday yok." if tr else "No candidate currently passes the quality rules.")
+            parts.append(f"Tarama zamanı: {scan.get('last_scan_at')}" if tr else f"Scan time: {scan.get('last_scan_at')}")
+        else:
+            unverified = True
+            if status == "stale":
+                minutes = int((scan.get("age_seconds") or 0) // 60)
+                parts.append(f"Son tarama {minutes} dk önceydi ve güncel sayılmıyor (en fazla {int(scan.get('max_age_seconds') or 0) // 60} dk); bu yüzden sıralama vermiyorum. Analyst sayfasından yeni tarama başlatabilirsin."
+                             if tr else f"The last scan is {minutes} min old and no longer counts as current (max {int(scan.get('max_age_seconds') or 0) // 60} min), so I will not give a ranking. Start a new scan from the Analyst page.")
+            elif status == "no_scan":
+                parts.append("Henüz tarama sonucu yok; sıralama veremem. Analyst sayfasından tarama başlatabilirsin." if tr
+                             else "There are no scan results yet, so I cannot rank anything. You can start a scan from the Analyst page.")
+            else:
+                parts.append("Tarama verisine şu an erişemedim; sıralama veremem." if tr else "I could not access the scan data right now, so I cannot rank anything.")
+    suffix = " Bunlar analiz çıktısıdır, al/sat talimatı değildir." if tr else " These are analysis outputs, not trading instructions."
+    return {**base, "stale": unverified, "reply": ". ".join(parts) + ("" if parts[-1].endswith(".") else ".") + suffix}
 
 
 async def answer(
@@ -238,7 +310,7 @@ async def answer(
     if name == "get_demo_positions":
         return await demo_positions_answer(tools, user_id, language)
     if name == "get_market_overview":
-        return await market_overview_answer(tools, user_id, language)
+        return await market_overview_answer(tools, user_id, language, message)
     result = await tools.dispatch(user_id, name, {})
     data = result["data"]
     if name == "get_plans":
