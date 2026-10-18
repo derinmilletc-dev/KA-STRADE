@@ -52,6 +52,7 @@ type LiveStatus = {
 }
 
 type ConnectionStatus = {
+  binance_allowlist_ips?: string[]
   vault?: {ready?: boolean}
   connections?: {LIVE?: {configured?: boolean; active?: boolean; last_test_ok?: boolean; fingerprint?: string | null; last_error?: string | null; account?: {wallet_balance?: number}}}
   binance_ban?: {
@@ -201,6 +202,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [credentials, setCredentials] = useState({apiKey: '', secretKey: '', accepted: false})
   const [keyCode, setKeyCode] = useState('')
   const [showSecret, setShowSecret] = useState(false)
+  const [ipCopied, setIpCopied] = useState(false)
   const [order, setOrder] = useState<OrderDraft>(initialOrder(symbol))
   const [policyDraft, setPolicyDraft] = useState<LivePolicy | null>(null)
   const [confirm, setConfirm] = useState<{title: string;message: string;expected?: string;simple?: boolean;understanding?: boolean;mfa?: boolean;action: (code?: string) => Promise<void>} | null>(null)
@@ -1229,6 +1231,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <label className="liveWsCheck masterTradeLiveCheck"><input type="checkbox" checked={credentials.accepted} onChange={event => setCredentials({...credentials, accepted: event.target.checked})}/><span>Anahtarlarımın şifreli sunucu kasasında saklanmasını kabul ediyorum.</span></label>
       <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={testConnection} disabled={Boolean(busy) || !connections?.vault?.ready}>{busy === 'test' ? <RefreshCw className="spin"/> : <ShieldCheck/>} Bağlantıyı test et</button><button type="button" className="liveWsPrimary" onClick={connectAndSave} disabled={Boolean(busy)}>{busy === 'connect-save' ? <RefreshCw className="spin"/> : <LockKeyhole/>} Kaydet ve bağlan</button></div>
       <p className="liveWsHint">Futures izni olan, para çekme izni olmayan bir anahtar kullan. Bu adım emir açmaz.</p>
+      {(connections?.binance_allowlist_ips?.length ?? 0) > 0 && <div className="liveWsIpInfo">
+        <b><Info/> Binance'te izinli IP listesi</b>
+        <p>Anahtarında IP kısıtlaması varsa, Binance'te API Management → anahtarın "Edit restrictions" bölümünde "Restrict access to trusted IPs only" listesine aşağıdaki IP adreslerinin <u>hepsini</u> ekle. Eklemezsen bağlantı "-2015" hatasıyla reddedilir. IP kısıtlamasını hiç kullanmıyorsan "Unrestricted" bırakabilirsin; para çekme izni her durumda kapalı olmalı.</p>
+        <div className="liveWsIpList">{connections?.binance_allowlist_ips?.map(ip => <code key={ip}>{ip}</code>)}</div>
+        <button type="button" className="liveWsGhost" onClick={() => { try { void navigator.clipboard.writeText((connections?.binance_allowlist_ips ?? []).join(', ')).then(() => { setIpCopied(true); window.setTimeout(() => setIpCopied(false), 2500) }).catch(() => undefined) } catch { /* panoya kopyalanamadi */ } }}>{ipCopied ? 'Kopyalandı' : 'IP adreslerini kopyala'}</button>
+      </div>}
     </div>
     const manualOrderCard = renderManualOrderCard()
     return <PremiumWorkspace>

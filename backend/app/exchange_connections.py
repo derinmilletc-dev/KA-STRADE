@@ -633,9 +633,23 @@ def _session_connection(mode: str, key: tuple[str, str]) -> dict[str, Any]:
     }
 
 
+def binance_allowlist_ips() -> list[str]:
+    """Static egress IPs (QuotaGuard) that members add to their Binance API key."""
+    found: list[str] = []
+    for item in os.getenv("QUOTAGUARD_PUBLIC_IPS", "").replace(";", ",").replace(" ", ",").split(","):
+        try:
+            address = str(ipaddress.ip_address(item.strip()))
+        except ValueError:
+            continue
+        if address not in found:
+            found.append(address)
+    return found[:8]
+
+
 def session_public_status(application: Any, request: Request) -> dict[str, Any]:
     state = application.state.exchange_vault
     return {
+        "binance_allowlist_ips": binance_allowlist_ips(),
         "version": VERSION,
         "vault": {"ready": bool(state.get("ready")), "storage": state.get("storage"), "reason": state.get("reason"), "loaded_at": state.get("loaded_at")},
         "connections": {
