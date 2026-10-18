@@ -430,3 +430,10 @@ html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTra
 html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTrade:not([data-layout-tab="analiz"]) .masterTradeTabs button {
   border: 0 !important; box-shadow: none !important; background-image: none !important;
 }
+
+.liveWsIpInfo { display: grid; gap: 8px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .045); color: #c9d3df; font-size: 13px; line-height: 1.5; }
+.liveWsIpInfo b { display: flex; align-items: center; gap: 6px; color: #edf2f8; }
+.liveWsIpInfo b svg { width: 16px; height: 16px; }
+.liveWsIpInfo p { margin: 0; }
+.liveWsIpList { display: flex; flex-wrap: wrap; gap: 8px; }
+.liveWsIpList code { padding: 4px 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); color: #edf2f8; user-select: all; }
