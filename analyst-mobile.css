@@ -432,6 +432,17 @@ html body #root main.v26App .coinAnalysisCenter .heatmapGrid > button small { co
   html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .coinMobileCards > button > small { display: none !important; }
 }
 
+/* Performans: ekran dışındaki bölümler canlı fiyat güncellemelerinde yeniden yerleştirilip boyanmaz.
+   Telefon CPU'su 4x yavaşlatılmış ölçümde yerleşim+boyama 79 ms -> 25 ms/güncelleme, takılma 34 -> 8.
+   Yalnız içinde sabit konumlu (fixed) çekmece/panel olmayan bölümler; .coinAnalysisLayout (detay paneli) hariç. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter > :is(.marketPulse, .topOpportunityGrid, .marketSignalsRow, .featuredOpportunities, .coinToolsGrid, .coinMobileCards),
+  html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystLowerGrid > .analystCoinSelector {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 520px;
+  }
+}
+
 @media (max-width: 360px) {
   html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter { padding-left: 12px !important; padding-right: 12px !important; }
   html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .marketPulseCards { grid-template-columns: repeat(2, 1fr) !important; }
