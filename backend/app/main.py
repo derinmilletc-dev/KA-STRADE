@@ -733,7 +733,7 @@ async def ensure_infrastructure(application: FastAPI) -> None:
             infrastructure["paper_storage"] = "BEKLENİYOR" if PAPER_ENABLED else "DEVRE DIŞI"
     if application.state.db_pool is None and DATABASE_URL:
         try:
-            application.state.db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=2, timeout=3)
+            application.state.db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=_db_pool_max(), timeout=3)
             application.state.paper_schema_ready = False
             application.state.market_twin_schema_ready = False
         except Exception as exc:
@@ -1272,6 +1272,14 @@ async def lifespan(app: FastAPI):
     await app.state.http.aclose()
     if app.state.market_http is not None:
         await app.state.market_http.aclose()
+
+
+
+def _db_pool_max() -> int:
+    try:
+        return max(2, min(int(os.getenv("DB_POOL_MAX", "20")), 80))
+    except ValueError:
+        return 20
 
 
 app = FastAPI(title="ProTreBot Elite X API", version="28.0.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
