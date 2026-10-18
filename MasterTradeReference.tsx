@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -87,6 +87,18 @@ function ReferenceBars({candles, neutral = false}: {candles: Candle[]; neutral?:
     const height = change / maximum * 25
     return <rect key={index} x={index * 8.3} y={28 - height} width="5.8" height={height}/>
   })}</svg>
+}
+
+/** Hata metnini "Başlık · açıklama" olarak iki satıra ayırır; bağlantı kopmasında wifi ikonu gösterir. */
+function RefErrorNotice({message}: {message: string}) {
+  const split = message.indexOf(' · ')
+  const title = split > 0 ? message.slice(0, split) : message
+  const detail = split > 0 ? message.slice(split + 3) : ''
+  const offline = /^Bağlantı kesildi/.test(title)
+  return <div className={`refError${offline ? ' refErrorOffline' : ''}`} role="alert">
+    <span className="refErrorIcon" aria-hidden="true">{offline ? <WifiOff/> : <TriangleAlert/>}</span>
+    <span className="refErrorText"><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
+  </div>
 }
 
 function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void}) {
@@ -419,7 +431,7 @@ export default function MasterTradeReference(props: Props) {
             </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
           </div>
-          {props.error && <p className="refError" role="alert">{props.error}</p>}
+          {props.error && <RefErrorNotice message={props.error}/>}
           <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
             drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
             onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
