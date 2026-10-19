@@ -70,6 +70,7 @@ from .v24_commerce import router as v24_commerce_router
 from .moderator_access import router as moderator_router
 from .audit_log import router as audit_router
 from .moderator_customers import router as moderator_customers_router
+from .moderator_payment_requests import router as moderator_payment_requests_router
 from .moderator_support import router as moderator_support_router
 from . import live_registry
 from .moderator_approvals import router as moderator_approvals_router
@@ -1532,6 +1533,7 @@ app.include_router(v22_commercial_router)
 app.include_router(moderator_router)
 app.include_router(audit_router)
 app.include_router(moderator_customers_router)
+app.include_router(moderator_payment_requests_router)
 app.include_router(moderator_support_router)
 app.include_router(moderator_approvals_router)
 app.include_router(admin_approvals_router)

@@ -45,7 +45,12 @@ def test_audit_migration_is_append_only_and_survives_user_erasure():
     payments_check = re.search(r"CHECK \(action IN \((.*?)\)\)", payments_extension, re.DOTALL)
     risk_extension = (Path(__file__).parents[1] / "migrations" / "20261014_001_original_live_risk_audit.sql").read_text(encoding="utf-8")
     risk_check = re.search(r"CHECK \(action IN \((.*?)\)\)", risk_extension, re.DOTALL)
-    assert tuple(re.findall(r"'([^']+)'", risk_check.group(1))) == AUDIT_ACTIONS
+    assert tuple(re.findall(r"'([^']+)'", risk_check.group(1))) == AUDIT_ACTIONS[:-1]
+    recommendation_sql = (Path(__file__).parents[1] / "migrations" / "20261019_001_payment_recommendations.sql").read_text(encoding="utf-8")
+    assert AUDIT_ACTIONS[-1] == "payment.binance.recommended"
+    assert "payment.binance.recommended" in recommendation_sql
+    assert "pg_get_expr(conbin, conrelid)" in recommendation_sql and "(%s) OR action =" in recommendation_sql
+    assert "CHECK (action IN (" not in recommendation_sql
     assert set(re.findall(r"'([^']+)'", payments_check.group(1))) < set(AUDIT_ACTIONS)
     assert set(re.findall(r"'([^']+)'", campaigns_check.group(1))) < set(AUDIT_ACTIONS)
     assert set(re.findall(r"'([^']+)'", events_check.group(1))) < set(AUDIT_ACTIONS)

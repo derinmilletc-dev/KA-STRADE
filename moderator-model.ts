@@ -20,6 +20,7 @@ export const moderatorSections = [
   {id: 'customers', label: 'Müşteriler', permission: 'customers.view'},
   {id: 'subscriptions', label: 'Abonelikler', permission: 'subscriptions.view'},
   {id: 'payments', label: 'Ödemeler', permission: 'payments.view'},
+  {id: 'payment-requests', label: 'Ödeme Talepleri', permission: 'payments.view'},
   {id: 'support', label: 'Destek Talepleri', permission: 'support.view'},
   {id: 'activity', label: 'Etkinlik', permission: 'events.view'},
   {id: 'approvals', label: 'Onay Talepleri', permission: 'approvals.create'},
@@ -120,4 +121,67 @@ export function parseCustomerPayments(value: unknown): CustomerPayments {
   if (!record(value) || !opaqueId(value.user_id) || !nullableDate(value.last_failed_payment_at) ||
     (value.payment_status !== 'PAID' && value.payment_status !== 'FAILED' && value.payment_status !== 'veri yok')) return fail()
   return {user_id: value.user_id, payment_status: value.payment_status, last_failed_payment_at: value.last_failed_payment_at}
+}
+
+export type PaymentQueueStatus = 'created' | 'pending' | 'approved' | 'rejected' | 'expired'
+const queueStatuses: readonly PaymentQueueStatus[] = ['created', 'pending', 'approved', 'rejected', 'expired']
+export type PaymentQueueCustomer = {
+  user_id: string; email_masked: string; active: boolean; email_verified: boolean; mfa_enabled: boolean;
+  registered_at: string | null; plan: CustomerSubscription['plan']; subscription_status: CustomerSubscription['subscription_status'];
+  plan_period_end: string | null; membership_end: string | null;
+  approved_count: number; rejected_count: number; expired_count: number;
+}
+export type PaymentQueueItem = {
+  id: string; reference_code: string; amount: string; currency: 'USDT'; status: PaymentQueueStatus;
+  transaction_hint: string | null; created_at: string; submitted_at: string | null; decided_at: string | null;
+  decision_note: string | null; recommended_at: string | null; customer: PaymentQueueCustomer;
+}
+export type PaymentQueuePage = {
+  items: PaymentQueueItem[]; total: number; limit: number; offset: number;
+  summary: {pending: number; approved: number; rejected: number};
+}
+export const paymentQueueStatusLabels: Record<PaymentQueueStatus, string> = {
+  created: 'Başlatıldı', pending: 'İnceleme bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi', expired: 'Süresi doldu',
+}
+function count(value: unknown): value is number {return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0}
+function nullableText(value: unknown): value is string | null {return value === null || typeof value === 'string'}
+function parseQueueCustomer(value: unknown): PaymentQueueCustomer {
+  if (!record(value) || !opaqueId(value.user_id) || typeof value.email_masked !== 'string' ||
+    !/^(?:\*{3}|[A-Za-z0-9*]\*{3}@[A-Za-z0-9.-]+)$/.test(value.email_masked) ||
+    typeof value.active !== 'boolean' || typeof value.email_verified !== 'boolean' || typeof value.mfa_enabled !== 'boolean' ||
+    !nullableDate(value.registered_at) || !nullableDate(value.plan_period_end) || !nullableDate(value.membership_end) ||
+    !count(value.approved_count) || !count(value.rejected_count) || !count(value.expired_count)) return fail()
+  const plan = value.plan === null ? null : plans.find(item => item === value.plan)
+  const status = value.subscription_status === null ? null : statuses.find(item => item === value.subscription_status)
+  if (plan === undefined || status === undefined) return fail()
+  return {user_id: value.user_id, email_masked: value.email_masked, active: value.active, email_verified: value.email_verified,
+    mfa_enabled: value.mfa_enabled, registered_at: value.registered_at, plan, subscription_status: status,
+    plan_period_end: value.plan_period_end, membership_end: value.membership_end,
+    approved_count: value.approved_count, rejected_count: value.rejected_count, expired_count: value.expired_count}
+}
+function parseQueueItem(value: unknown): PaymentQueueItem {
+  const status = record(value) ? queueStatuses.find(item => item === value.status) : undefined
+  if (!record(value) || typeof value.id !== 'string' || !/^[a-f0-9]{32}$/.test(value.id) ||
+    typeof value.reference_code !== 'string' || !/^KT-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/.test(value.reference_code) ||
+    typeof value.amount !== 'string' || !/^\d+\.\d{2}$/.test(value.amount) || value.currency !== 'USDT' || status === undefined ||
+    !nullableText(value.transaction_hint) || typeof value.created_at !== 'string' || !Number.isFinite(Date.parse(value.created_at)) ||
+    !nullableDate(value.submitted_at) || !nullableDate(value.decided_at) || !nullableText(value.decision_note) ||
+    !nullableDate(value.recommended_at)) return fail()
+  return {id: value.id, reference_code: value.reference_code, amount: value.amount, currency: value.currency, status,
+    transaction_hint: value.transaction_hint, created_at: value.created_at, submitted_at: value.submitted_at,
+    decided_at: value.decided_at, decision_note: value.decision_note, recommended_at: value.recommended_at,
+    customer: parseQueueCustomer(value.customer)}
+}
+export function parsePaymentQueuePage(value: unknown): PaymentQueuePage {
+  if (!record(value) || !Array.isArray(value.items) || value.items.length > 50 || !count(value.total) ||
+    !count(value.limit) || value.limit < 1 || value.limit > 50 || !count(value.offset) || !record(value.summary) ||
+    !count(value.summary.pending) || !count(value.summary.approved) || !count(value.summary.rejected)) return fail()
+  return {items: value.items.map(parseQueueItem), total: value.total, limit: value.limit, offset: value.offset,
+    summary: {pending: value.summary.pending, approved: value.summary.approved, rejected: value.summary.rejected}}
+}
+export type PaymentRecommendation = {id: string; recommended_at: string}
+export function parsePaymentRecommendation(value: unknown): PaymentRecommendation {
+  if (!record(value) || typeof value.id !== 'string' || !/^[a-f0-9]{32}$/.test(value.id) ||
+    typeof value.recommended_at !== 'string' || !Number.isFinite(Date.parse(value.recommended_at))) return fail()
+  return {id: value.id, recommended_at: value.recommended_at}
 }

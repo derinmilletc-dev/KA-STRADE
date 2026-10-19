@@ -38,6 +38,7 @@ AuditAction = Literal[
     "campaign.send_started", "campaign.cancelled", "campaign.completed",
     "payment.binance.approved", "payment.binance.rejected",
     "original_live.risk_changed",
+    "payment.binance.recommended",
 ]
 AUDIT_ACTIONS: tuple[str, ...] = get_args(AuditAction)
 ACTION_FIELDS = {
@@ -70,6 +71,7 @@ ACTION_FIELDS = {
     "campaign.completed": frozenset(),
     "payment.binance.approved": frozenset({"status"}),
     "payment.binance.rejected": frozenset({"status"}),
+    "payment.binance.recommended": frozenset({"status"}),
     "original_live.risk_changed": frozenset({
         "risk_percent", "daily_loss_percent", "warning_level", "daily_warning_level",
         "risk_acknowledged", "high_risk_confirmed", "understood", "warning_balance_usdt", "warning_version",

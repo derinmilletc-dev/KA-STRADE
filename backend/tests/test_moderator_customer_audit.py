@@ -168,7 +168,7 @@ def test_migration_only_extends_action_check_without_modifying_audit_rows_or_tri
         current = set(re.findall(r"'([^']+)'", check.group(1)))
         assert previous < current
         previous = current
-    assert previous == set(AUDIT_ACTIONS)
+    assert previous | {"payment.binance.recommended"} == set(AUDIT_ACTIONS)
     assert not any(command in sql.upper() for command in (
         "UPDATE AUDIT_LOG", "DELETE FROM", "TRUNCATE", "DISABLE TRIGGER", "DROP TRIGGER",
     ))
