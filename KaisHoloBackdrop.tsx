@@ -1,58 +1,58 @@
-/** Kais hologram ekranı — DEKORATİF sinematik "AI odası" (aria-hidden, pointer-events:none). Göz ve kontrollerle ilişkisi yoktur.
- *  Uzak düzlem: lacivert atmosfer, ortam ışığı, buz mavisi kenar ışığı, perspektif ızgara, vinyet.
- *  Orta düzlem: sol ve sağda FARKLI devre yapıları (ana hat, dallar, düğümler, yarı saydam teknik paneller, eksik geometrik çerçeveler).
- *  Gözün arkasındaki büyük eksik çerçeveler ve alt holografik platform sahneye bağlı CSS katmanlarıdır (kais-holo-backdrop.css).
- *  Panellerdeki çizgiler anlamsız teknik desendir; veri, sayı veya grafik göstermez. Hareket yalnız CSS; JS döngüsü/canvas yok. */
+/** Kais hologram ekranı — DEKORATİF sinematik holografik ortam (aria-hidden, pointer-events:none). Göz ve kontrollerle ilişkisi yoktur.
+ *  Kutu/panel YOK: yanlarda birbirine bağlı, dallanan ve göze doğru kıvrılan enerji yolları, küçük ışıklı bağlantı noktaları,
+ *  eğri teknik yaylar; havada süzülen seyrek holografik parçalar. Gözün arkasındaki radyal tarama yapıları ve alt platform sahneye
+ *  bağlı CSS katmanlarıdır (kais-holo-backdrop.css). Sayı, metin, veri veya grafik gösterilmez. Hareket yalnız CSS. */
 import './kais-holo-backdrop.css'
 
-type Side = {bus: string[]; branches: string[]; nodes: [number, number, number][]; panels: [number, number, number, number][]; frames: string[]; pulses: number[]}
+type Side = {trunk: string[]; flows: string[]; fine: string[]; arcs: string[]; junctions: [number, number, number][]; hot: [number, number][]; pulses: number[]}
 
-// viewBox 0 0 360 900; x=0 ekran kenarı. Yoğunluk kenara yakın, içe doğru seyrekleşir (mobilde yalnız dış şerit görünür).
+// viewBox 0 0 360 900; x=0 ekran kenarı. Ana gövde kenarda; akış yolları içe, göze doğru kıvrılarak ilerler ve silinir.
 const LEFT: Side = {
-  bus: ['M26 30V250L50 274V520L26 544V900', 'M70 150V236L92 258V338', 'M12 600V900'],
-  branches: [
-    'M26 92H84L112 120H196', 'M26 176H70', 'M50 330H130L158 302H252', 'M50 420H104L130 446V506H214', 'M92 300H124',
-    'M26 640H82L112 670H226L250 694', 'M26 724H58L86 752V900', 'M12 800H120L148 828H300', 'M12 860H210L232 838H340', 'M196 120V170',
+  trunk: ['M24 0V250C24 290 58 306 58 346V560C58 600 24 616 24 656V900'],
+  flows: [
+    'M24 118H96C156 118 196 158 232 214S300 290 352 300',
+    'M58 420H142C206 420 252 396 300 352S344 300 360 296',
+    'M58 498C122 498 168 536 226 592S300 650 360 660',
+    'M24 770H118C176 770 222 734 268 694S330 640 360 632',
   ],
-  nodes: [[196, 120, 4], [252, 302, 4], [214, 506, 4], [250, 694, 4], [300, 828, 3], [340, 838, 3], [26, 176, 5], [50, 420, 5], [26, 640, 5], [196, 170, 3], [124, 300, 3]],
-  panels: [[96, 194, 150, 76], [128, 566, 124, 58]],
-  frames: ['M300 380V270L330 240', 'M318 470V540L288 570H250'],
-  pulses: [0, 3, 7],
+  fine: ['M24 196H72L96 220H132', 'M58 330H108C128 330 140 316 150 300', 'M24 846H186C236 846 274 822 326 788', 'M96 118V64C96 44 110 32 130 32H210', 'M142 420V470'],
+  arcs: ['M150 22A560 560 0 0 1 356 236', 'M120 892A600 600 0 0 1 356 694'],
+  junctions: [[24, 118, 4], [58, 420, 4], [58, 498, 3], [24, 770, 4], [132, 220, 2.5], [150, 300, 2.5], [210, 32, 2.5], [326, 788, 2.5], [142, 470, 2.5], [24, 196, 3]],
+  hot: [[232, 214], [300, 352], [226, 592], [268, 694]],
+  pulses: [0, 1, 3],
 }
 const RIGHT: Side = {
-  bus: ['M34 60V200L14 220V470L38 494V900', 'M80 330V420L60 440V560'],
-  branches: [
-    'M34 140H120L146 166V230', 'M14 300H96L124 272H236', 'M38 520H90L118 548H190L214 524', 'M60 470H142',
-    'M38 610H70L98 638H270', 'M38 700H150L176 726V790', 'M38 860H164L190 834H320', 'M146 230H200', 'M14 390H52',
+  trunk: ['M30 0V180C30 220 12 236 12 276V470C12 510 40 526 40 566V900'],
+  flows: [
+    'M30 150H120C178 150 214 192 246 250S318 318 360 322',
+    'M12 360H84C150 360 200 392 252 440S326 490 360 494',
+    'M40 610H134C194 610 236 580 280 540S334 500 360 494',
+    'M40 724C112 724 160 760 214 806S292 860 352 868',
   ],
-  nodes: [[200, 230, 4], [236, 272, 4], [214, 524, 4], [270, 638, 4], [176, 790, 3], [320, 834, 3], [142, 470, 3], [14, 390, 5], [38, 610, 5], [52, 390, 3]],
-  panels: [[150, 330, 132, 64], [96, 742, 116, 54]],
-  frames: ['M290 120H330V200', 'M260 420H320V500L296 524'],
-  pulses: [1, 4, 6],
-}
-
-function Panel({x, y, w, h}: {x: number; y: number; w: number; h: number}) {
-  // Köşe çentikli yarı saydam panel; içinde anlamsız teknik desen (kısa çizgi dizileri), veri değildir.
-  const rows = Math.max(2, Math.floor((h - 20) / 12))
-  return <g className="panel">
-    <path className="shell" d={`M${x + 8} ${y}H${x + w}V${y + h - 8}L${x + w - 8} ${y + h}H${x}V${y + 8}Z`}/>
-    <path className="notch" d={`M${x} ${y + 14}V${y + 8}L${x + 8} ${y}H${x + 22}M${x + w} ${y + h - 14}V${y + h - 8}L${x + w - 8} ${y + h}H${x + w - 22}`}/>
-    <g className="pattern">{Array.from({length: rows}, (_, index) => <path key={index} d={`M${x + 12} ${y + 14 + index * 12}h${(w - 24) * (index % 3 === 0 ? .7 : index % 3 === 1 ? .45 : .85)}`}/>)}</g>
-  </g>
+  fine: ['M30 70H86C110 70 124 84 132 104', 'M12 440H62L88 466V512', 'M40 830H120', 'M120 150V206C120 226 136 238 156 238', 'M134 610V660'],
+  arcs: ['M200 0A520 520 0 0 1 356 330', 'M96 900A640 640 0 0 1 356 600'],
+  junctions: [[30, 150, 4], [12, 360, 4], [40, 610, 4], [40, 724, 3], [132, 104, 2.5], [88, 512, 2.5], [120, 830, 2.5], [156, 238, 2.5], [134, 660, 2.5], [12, 440, 3]],
+  hot: [[246, 250], [252, 440], [280, 540], [214, 806]],
+  pulses: [0, 2, 3],
 }
 
 function Structure({side, data}: {side: 'l' | 'r'; data: Side}) {
-  const paths = [...data.bus, ...data.branches]
   return <svg className={`kaisHoloSide ${side}`} viewBox="0 0 360 900" preserveAspectRatio="xMinYMid slice">
-    {data.panels.map(([x, y, w, h]) => <Panel key={`${x}-${y}`} x={x} y={y} w={w} h={h}/>)}
-    <g className="frames">{data.frames.map(d => <path key={d} d={d}/>)}</g>
-    <g className="bus">{data.bus.map(d => <path key={d} d={d}/>)}</g>
-    <g className="branches">{data.branches.map(d => <path key={d} d={d}/>)}</g>
-    <g className="nodes">{data.nodes.map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r}/>)}</g>
-    <g className="pulses">{data.pulses.map((index, order) => <path key={index} d={paths[index]} pathLength={100} style={{animationDelay: `${order * 4.5}s`}}/>)}</g>
+    <g className="arcs">{data.arcs.map(d => <path key={d} d={d}/>)}</g>
+    <g className="fine">{data.fine.map(d => <path key={d} d={d}/>)}</g>
+    <g className="flows">{data.flows.map(d => <path key={d} d={d}/>)}</g>
+    <g className="trunk">{data.trunk.map(d => <path key={d} d={d}/>)}</g>
+    <g className="junctions">{data.junctions.map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r}/>)}</g>
+    <g className="hot">{data.hot.map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="2"/>)}</g>
+    <g className="pulses">{data.pulses.map((index, order) => <path key={index} d={data.flows[index]} pathLength={100} style={{animationDelay: `${order * 4.7}s`}}/>)}</g>
   </svg>
 }
 
+// Havada süzülen seyrek holografik parçalar (kısa yay, açılı çizgi, çentik dizisi) — farklı derinlikte, kutu değil.
+const FRAGMENTS: [number, number, number, string][] = [
+  [17, 30, 1, 'M2 18A22 22 0 0 1 24 2'], [78, 22, .8, 'M2 2L12 12L2 22M10 2L20 12L10 22'], [84, 64, 1.1, 'M2 20A26 26 0 0 0 28 4'],
+  [12, 62, .7, 'M2 12H6M10 12H14M18 12H22M26 12H30'], [30, 84, .9, 'M2 4L16 16L30 4'], [68, 88, .75, 'M2 16A18 18 0 0 1 20 2M8 22A12 12 0 0 1 22 8'],
+]
 const PARTICLES = [[9, 24, 0], [18, 70, 2.4], [27, 86, 5.1], [72, 16, 3.6], [80, 74, 0.6], [91, 40, 4.4], [14, 46, 6], [86, 58, 7.2], [40, 92, 1.4], [62, 88, 3]]
 
 export default function KaisHoloBackdrop() {
@@ -64,8 +64,8 @@ export default function KaisHoloBackdrop() {
     <i className="floor"/>
     <Structure side="l" data={LEFT}/>
     <Structure side="r" data={RIGHT}/>
+    <div className="fragments">{FRAGMENTS.map(([x, y, scale, d], index) => <svg key={d} viewBox="0 0 32 24" style={{left: `${x}%`, top: `${y}%`, width: `${32 * scale}px`, animationDelay: `${index * 1.9}s`}}><path d={d}/></svg>)}</div>
     <div className="particles">{PARTICLES.map(([x, y, delay]) => <i key={`${x}-${y}`} style={{left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s`}}/>)}</div>
-    <i className="dock"/>
     <i className="vignette"/>
   </div>
 }
