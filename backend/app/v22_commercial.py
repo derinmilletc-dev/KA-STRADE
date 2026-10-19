@@ -2339,7 +2339,8 @@ async def v22_admin_update_role(user_id: str, payload: RoleUpdateRequest, reques
 
 @router.get("/operations")
 async def v22_operations(request: Request):
-    authenticated_user(request)
+    # Uygulama düzeyindeki ortak Demo/paper durumunu okur; yalnızca OWNER görebilir (üyeler için /api/v27/operations).
+    authenticated_user(request, owner=True)
     return operations_overview(request.app)
 
 
@@ -2711,7 +2712,8 @@ async def v22_release_evidence(evidence_key: str, payload: ReleaseEvidenceReques
 
 @router.get("/readiness")
 async def v22_readiness(request: Request):
-    user = authenticated_user(request)
+    # Platformun iç hazırlık kanıtlarını ve ortak durumu içerir; yalnızca OWNER görebilir.
+    user = authenticated_user(request, owner=True)
     state = runtime(request)["state"]
     now = datetime.now(timezone.utc)
     online_cutoff = now - timedelta(minutes=3)
