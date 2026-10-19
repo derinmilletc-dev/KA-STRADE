@@ -1023,4 +1023,4 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
 }
 
 /* Yönetim girişi (admin.kaistrade.com): tek kart, ortalı; müşteri tanıtım paneli yok. */
-main.authPage.authPageStaff{grid-template-columns:minmax(0,470px)!important;justify-content:center!important;justify-items:stretch}.authStaffNote{margin:18px 0 0;color:var(--auth-muted);font:500 11px/1.5 system-ui,sans-serif;text-align:center}
+main.authPage.authPageStaff{display:flex!important;align-items:center;justify-content:center}main.authPage.authPageStaff>.authCard{grid-column:auto!important;justify-self:auto!important;margin:0 auto!important;width:100%;max-width:470px;box-sizing:border-box}.authStaffNote{margin:18px 0 0;color:var(--auth-muted);font:500 11px/1.5 system-ui,sans-serif;text-align:center}
