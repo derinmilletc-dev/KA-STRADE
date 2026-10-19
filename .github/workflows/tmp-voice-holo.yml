@@ -46,4 +46,4 @@ jobs:
               try: return ''.join(open(path, errors='replace').readlines()[-n:])
               except OSError: return '(missing)'
           print('::notice title=VOICE HOLO::' + esc(tail('voice.log', 25)))
-                    PY
+          PY
