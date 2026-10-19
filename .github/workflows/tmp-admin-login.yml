@@ -1,0 +1,47 @@
+name: Tmp admin login screenshots (temporary, delete after run)
+on:
+  push:
+    branches: ['ui/staff-login-sizing']
+permissions:
+  contents: write
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout (submodules skipped)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          git init -q .
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            fetch -q --depth=1 "https://github.com/$REPO" "$SHA"
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund 2>&1 | tail -2
+      - working-directory: frontend
+        run: npm ci --no-audit --no-fund 2>&1 | tail -2 && npx playwright install --with-deps chromium webkit 2>&1 | tail -2
+      - name: Build (tsc + vite)
+        run: npm run build > build.log 2>&1; echo "rc=$?" >> build.log; tail -5 build.log
+      - name: Typecheck AuthGate (informational)
+        run: |
+          printf '%s' '{"extends":"./tsconfig.json","compilerOptions":{"types":["vite/client","node"],"noEmit":true},"include":["AuthGate.tsx","admin-main.tsx","account-surface.ts","vite-env.d.ts"]}' > tsconfig.tmp.json
+          node node_modules/typescript/bin/tsc -p tsconfig.tmp.json > tsc.log 2>&1; echo "rc=$?" >> tsc.log; tail -20 tsc.log
+      - name: Screenshots
+        working-directory: frontend/tmp-admin-shot
+        run: mkdir -p ../../shots && npx playwright test -c playwright.config.ts > ../../shots/run.log 2>&1; echo "rc=$?" >> ../../shots/run.log; tail -20 ../../shots/run.log
+      - name: Publish results to branch
+        if: always()
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cp build.log tsc.log shots/ 2>/dev/null || true
+          cd shots && git init -q . && git checkout -q -b ci-shots-admin-login && git add -A && \
+            git -c user.name=ci -c user.email=ci@example.invalid commit -qm "admin login screenshots" && \
+            git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+              push -qf "https://github.com/$REPO" ci-shots-admin-login
