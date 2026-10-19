@@ -56,14 +56,9 @@ jobs:
       - name: Behaviour check of account-surface helpers
         run: |
           set +e
-          cat > /tmp/build-surface.cjs <<'JS'
-          const ts = require(process.cwd() + '/node_modules/typescript'), fs = require('fs')
-          const [adminOrigin, customerOrigin, out] = process.argv.slice(2)
-          let src = ts.transpileModule(fs.readFileSync('account-surface.ts', 'utf8'), {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText
-          src = src.replace('import.meta.env.VITE_ADMIN_ORIGIN', JSON.stringify(adminOrigin)).replace('import.meta.env.VITE_CUSTOMER_ORIGIN', JSON.stringify(customerOrigin))
-          fs.writeFileSync(out, src)
-          JS
-          node /tmp/build-surface.cjs "https://admin.kaistrade.com" "" /tmp/surface.mjs > surface-build.log 2>&1
+          node node_modules/typescript/bin/tsc account-surface.ts --module esnext --target es2022 --skipLibCheck --outDir /tmp/surface-out > surface-build.log 2>&1
+          sed -e 's#import\.meta\.env\.VITE_ADMIN_ORIGIN#"https://admin.kaistrade.com"#' -e 's#import\.meta\.env\.VITE_CUSTOMER_ORIGIN#""#' /tmp/surface-out/account-surface.js > /tmp/surface.mjs
+          sed -e 's#import\.meta\.env\.VITE_ADMIN_ORIGIN#""#' -e 's#import\.meta\.env\.VITE_CUSTOMER_ORIGIN#""#' /tmp/surface-out/account-surface.js > /tmp/surface-off.mjs
           cat > /tmp/check.mjs <<'JS'
           let replaced = null
           globalThis.window = {location: {origin: 'https://kaistrade.com', replace: u => { replaced = u }}}
@@ -89,7 +84,6 @@ jobs:
           JS
           node /tmp/check.mjs > surface-check.log 2>&1; cat surface-build.log surface-check.log | tee -a surface-check.log >/dev/null
           # unset origin => no redirect at all
-          node /tmp/build-surface.cjs "" "" /tmp/surface-off.mjs >> surface-build.log 2>&1
           cat > /tmp/check-off.mjs <<'JS'
           globalThis.window = {location: {origin: 'https://kaistrade.com', replace: () => { throw new Error('must not redirect') }}}
           const m = await import('/tmp/surface-off.mjs')
