@@ -177,3 +177,8 @@
   .kaisHolo:not(:has(.kaisVoicePicker)) .kaisHoloChat{left:50%;translate:-50% 0}
 }
 @media (prefers-reduced-motion:reduce){.kaisHoloStatus::after{animation:none!important}}
+/* Oda kompozisyonu: durum ve kontroller alt platformun ALTINDA başlar (yalnız sahnenin alt boşluğu; sahne/göz boyutu değişmez) */
+.kaisHolo .kaisHoloStage{margin-bottom:92px}
+@media (max-width:720px){.kaisHolo .kaisHoloStage{margin-bottom:66px}}
+@media (max-height:700px){.kaisHolo .kaisHoloStage{margin-bottom:40px}}
+.kaisHoloStage+.kaisHoloStatus::before{height:34px}
