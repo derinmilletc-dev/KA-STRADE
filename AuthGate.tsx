@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, BarChart3, Bitcoin, ChevronDown, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -638,7 +638,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
           <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
           {/* Telefonda açılır-kapanır başlık; masaüstünde gizli ve liste her zaman açık (CSS). */}
           <button type="button" className="staffChecklistToggle" aria-expanded={checklistOpen} aria-controls="staff-checklist" onClick={() => setChecklistOpen(value => !value)}>
-            <span>Daily Management Checklist</span><ChevronDown aria-hidden="true"/>
+            <span>Daily Management Checklist</span>{checklistOpen ? <ChevronUp aria-hidden="true"/> : <ChevronDown aria-hidden="true"/>}
           </button>
           <ol id="staff-checklist" className="staffTasks" data-open={checklistOpen}>{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
             <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>

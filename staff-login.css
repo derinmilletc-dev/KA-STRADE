@@ -13,7 +13,7 @@
 
 /* Sol: hatırlatmalar */
 .staffBrief{grid-area:brief; display:flex; flex-direction:column; justify-content:center; padding:56px clamp(32px,5vw,72px); border-right:1px solid var(--staff-line-soft)}
-.staffLogo{display:block; align-self:flex-start; height:30px; width:auto; max-width:100%; object-fit:contain; margin:0 0 40px}  /* flex sütunu logoyu genişliğe germesin */
+.staffLogo{display:block; align-self:flex-start; height:40px; width:auto; max-width:100%; object-fit:contain; margin:0 0 40px}  /* flex sütunu logoyu genişliğe germesin */
 .staffEyebrow{margin:0 0 12px; color:var(--staff-muted); font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase}
 .staffBrief h1{margin:0; max-width:520px; font-size:clamp(28px,2.6vw,36px); line-height:1.18; font-weight:600; letter-spacing:-.01em; color:var(--staff-ink)}
 .staffLead{margin:12px 0 32px; max-width:480px; color:var(--staff-muted); font-size:15px; line-height:1.6}
@@ -39,8 +39,9 @@
 .staffField > span:first-child{font-size:13px; font-weight:600; color:var(--staff-ink)}
 .staffInput{position:relative; display:flex; align-items:center}
 .staffInput > svg{position:absolute; left:14px; width:17px; height:17px; color:var(--staff-muted); pointer-events:none}
-.staffInput input{width:100%; height:46px; padding:0 44px 0 42px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font:500 14px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; outline:none; transition:border-color .15s ease, box-shadow .15s ease}
+.staffInput input{width:100%; height:46px; padding:0 14px 0 42px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font:500 14px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; outline:none; transition:border-color .15s ease, box-shadow .15s ease}
 .staffInput input::placeholder{color:#6f838c}
+.staffInput:has(.staffReveal) input{padding-right:48px}
 .staffInput input:focus{border-color:var(--staff-emerald); box-shadow:0 0 0 3px rgba(0,201,141,.14)}
 .staffField.hasError .staffInput input{border-color:#d4746c}
 .staffField em{font-style:normal; font-size:12px; color:#e59a92}
@@ -72,7 +73,7 @@
   .staffLoginInner{display:flex; flex-direction:column}
   .staffPanel{align-items:flex-start; padding:max(28px, calc(env(safe-area-inset-top) + 16px)) max(20px, env(safe-area-inset-right)) 8px max(20px, env(safe-area-inset-left))}
   .staffForm{max-width:none}
-  .staffFormLogo{display:block; height:26px; margin:0 0 22px}
+  .staffFormLogo{display:block; height:34px; margin:0 0 22px}
   .staffForm h2{font-size:24px}
   .staffFormLead{margin:6px 0 22px; font-size:14px}
   .staffForm form{gap:16px}
@@ -86,12 +87,11 @@
   .staffBrief{justify-content:flex-start; border-right:0; border-top:1px solid var(--staff-line-soft); padding:4px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left))}
   .staffBrief .staffLogo, .staffEyebrow, .staffBrief h1, .staffLead{display:none}
   .staffChecklistToggle{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:52px; padding:0; border:0; background:transparent; color:var(--staff-ink); font:600 15px/1.3 "Plus Jakarta Sans Variable", system-ui, sans-serif; text-align:left; cursor:pointer}
-  .staffChecklistToggle svg{flex:none; width:18px; height:18px; color:var(--staff-muted); transition:transform .15s ease}
-  .staffChecklistToggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+  .staffChecklistToggle svg{flex:none; width:18px; height:18px; color:var(--staff-muted)}
   .staffChecklistToggle:focus-visible{outline:2px solid var(--staff-emerald); outline-offset:2px; border-radius:6px}
   .staffTasks[data-open="false"]{display:none}
   .staffTasks li{grid-template-columns:32px 1fr; gap:12px; padding:12px 0}
   .staffTaskIcon{width:32px; height:32px}
   .staffFooter{text-align:center; padding:16px max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))}
 }
-@media (prefers-reduced-motion: reduce){.staffChecklistToggle svg, .staffInput input, .staffSubmit{transition:none}}
+@media (prefers-reduced-motion: reduce){.staffInput input, .staffSubmit{transition:none}}
