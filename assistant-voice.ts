@@ -16,7 +16,7 @@ export const voiceCopy = {
     mic: 'Sesle sor', stopMic: 'Dinlemeyi durdur', listening: 'Dinliyorum…', repliesOn: 'Sesli cevap açık', repliesOff: 'Sesli cevap kapalı',
     unsupported: 'Bu tarayıcı sesli girişi desteklemiyor. Chrome, Edge veya Safari kullan.',
     denied: 'Mikrofon izni verilmedi. Tarayıcı ayarlarından bu site için mikrofona izin ver.',
-    noSpeech: 'Ses duyulmadı, tekrar dene.', failed: 'Ses algılanamadı, tekrar dene.',
+    starting: 'Mikrofon hazırlanıyor…', noSpeech: 'Ses duyulmadı, tekrar dene.', failed: 'Ses algılanamadı, tekrar dene.',
     noAnswer: 'Cevap alınamadı. Bağlantını ya da kullanım hakkını kontrol et.', speechFailed: 'Sesli cevap oynatılamadı; yazılı cevap sohbette.',
     hint: 'Mavi ses düğmesine bir kez bas, sonra konuşarak sohbet et. Kais konuşurken araya girebilirsin. Bitirmek için “bitir” de.',
     conversation: 'Sesli sohbet', endConversation: 'Sesli sohbeti bitir', interrupt: 'Sözünü kes', thinking: 'Düşünüyorum…', speaking: 'Konuşuyor…',
@@ -26,7 +26,7 @@ export const voiceCopy = {
     mic: 'Ask by voice', stopMic: 'Stop listening', listening: 'Listening…', repliesOn: 'Spoken replies on', repliesOff: 'Spoken replies off',
     unsupported: 'This browser does not support voice input. Use Chrome, Edge or Safari.',
     denied: 'Microphone permission was not granted. Allow the microphone for this site in your browser settings.',
-    noSpeech: 'No speech was heard, please try again.', failed: 'Speech could not be recognised, please try again.',
+    starting: 'Preparing the microphone…', noSpeech: 'No speech was heard, please try again.', failed: 'Speech could not be recognised, please try again.',
     noAnswer: 'No answer received. Check your connection or usage limit.', speechFailed: 'The spoken reply could not be played; the written reply is in the chat.',
     hint: 'Tap the blue voice button once, then just talk. You can interrupt Kais while it speaks. Say “stop” to end.',
     conversation: 'Voice chat', endConversation: 'End voice chat', interrupt: 'Interrupt', thinking: 'Thinking…', speaking: 'Speaking…',
@@ -161,6 +161,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const phaseRef = useRef<VoicePhase>('off')
   phaseRef.current = phase
   const [message, setMessage] = useState('')
+  // Düğmeye basıldıktan sonra mikrofon izni/tanıma başlayana kadar geçen süre: göz ekranı bu sürede de açık kalır.
+  const [starting, setStarting] = useState(false)
+  const startingRef = useRef(false)
   const [replies, setReplies] = useState(readReplies)
   const inputSupported = typeof window !== 'undefined' && recognitionConstructor() !== null
   const outputSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
@@ -335,29 +338,40 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       answer(question)
     }
     recognition.current = instance
-    try { instance.start(); if (!bargeIn) setPhase('listening') } catch { failures.current += 1; if (!bargeIn) window.setTimeout(() => listenRef.current(false), 800) }
+    if (!bargeIn) setPhase('listening')  // ekran/durum, start() sonucu beklenmeden tutarlı olsun
+    try { instance.start() } catch {
+      failures.current += 1
+      if (bargeIn) return
+      // start() her seferinde hata verirse (bazı tarayıcılarda) sessizce sonsuza dek denemek yerine nedeni göster ve bitir.
+      if (failures.current > 3) { end(copy.failed); return }
+      window.setTimeout(() => listenRef.current(false), 800)
+    }
   }, [answer, copy, end, stopSpeaking])
   listenRef.current = listen
 
   const start = useCallback(async () => {
+    if (startingRef.current) return
     if (!recognitionConstructor()) { setMessage(copy.unsupported); return }
     stopSpeaking()
-    // İzin penceresini doğrudan tıklamayla açmak için mikrofonu önce isteriz.
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({audio: true})
-        stream.getTracks().forEach(track => track.stop())
-      } catch (error) {
-        const name = error instanceof DOMException ? error.name : ''
-        setMessage(name === 'NotFoundError' ? copy.failed : copy.denied)
-        return
+    startingRef.current = true; setStarting(true); setMessage('')
+    try {
+      // İzin penceresini doğrudan tıklamayla açmak için mikrofonu önce isteriz.
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({audio: true})
+          stream.getTracks().forEach(track => track.stop())
+        } catch (error) {
+          const name = error instanceof DOMException ? error.name : ''
+          setMessage(name === 'NotFoundError' ? copy.failed : copy.denied)
+          return
+        }
       }
-    }
-    active.current = true
-    failures.current = 0
-    lastSpeech.current = Date.now()
-    setMessage('')
-    listen()
+      active.current = true
+      failures.current = 0
+      lastSpeech.current = Date.now()
+      setMessage('')
+      listen()
+    } finally { startingRef.current = false; setStarting(false) }
   }, [copy, listen, stopSpeaking])
 
   const stop = useCallback(() => end(''), [end])
@@ -384,5 +398,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     return () => document.removeEventListener('visibilitychange', resume)
   }, [listen])
   useEffect(() => () => { active.current = false; recognition.current?.abort(); if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
-  return {inputSupported, outputSupported, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
+  // Hata: oturum açılamadı/bitti ve nedeni var (normal bitiş notları hata sayılmaz).
+  const failed = phase === 'off' && !starting && message !== '' && message !== copy.ended && message !== copy.idleEnded
+  return {inputSupported, outputSupported, starting, failed, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
 }

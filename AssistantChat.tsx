@@ -597,7 +597,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   }
 
   sendRef.current = sendMessage
-  useEffect(() => { setHoloOpen(voice.active); if (voice.active) setOpen(false) }, [voice.active])
+  // Göz ekranı düğmeye basılır basılmaz (mikrofon hazırlanırken de) açılır ve hata olursa nedeniyle açık kalır; yalnızca normal bitişte kapanır.
+  useEffect(() => {
+    if (voice.active || voice.starting) { setHoloOpen(true); setOpen(false) }
+    else if (!voice.failed) setHoloOpen(false)
+  }, [voice.active, voice.starting, voice.failed])
   // Panel kapansa veya sayfa değişse de sesli sohbet sürer; yalnızca yazılı cevabın okunması durur.
   useEffect(() => { if (!open && !voice.active) voice.stopSpeaking() }, [open])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -645,8 +649,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     '--assistant-dialog-height': `${placement.height}px`, '--assistant-arrow-left': `${placement.arrowLeft}px`,
     '--assistant-origin-y': placement.above ? '100%' : '0%'} as CSSProperties
 
-  const phaseLabel = voice.phase === 'thinking' ? voice.copy.thinking : voice.phase === 'speaking' ? voice.copy.speaking : voice.copy.listening
-  const holoVisible = voice.active && holoOpen && !open
+  const phaseLabel = voice.phase === 'thinking' ? voice.copy.thinking : voice.phase === 'speaking' ? voice.copy.speaking : voice.starting && !voice.active ? voice.copy.starting : voice.copy.listening
+  const holoVisible = holoOpen && !open && (voice.active || voice.starting || voice.failed)
   const voicePill = voice.active && !open && !holoOpen && createPortal(<div className="assistantVoicePill" data-phase={voice.phase} role="status" aria-live="polite">
       <button type="button" className="assistantVoicePillMain" onClick={() => setHoloOpen(true)} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {voice.message || phaseLabel}</button>
       <button type="button" className="assistantVoicePillEnd" onClick={voice.stop} aria-label={voice.copy.endConversation}><X aria-hidden="true"/>{voice.copy.end}</button>
@@ -670,7 +674,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
       onOpenChat={() => { setHoloOpen(false); openChat() }}
-      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} language={language} slowText={language === 'en' ? 'The server is taking longer than usual…' : 'Sunucu her zamankinden uzun sürüyor, bekliyorum…'} onRetry={voice.retry} onMinimize={() => setHoloOpen(false)}/>}
+      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} language={language} slowText={language === 'en' ? 'The server is taking longer than usual…' : 'Sunucu her zamankinden uzun sürüyor, bekliyorum…'} onRetry={() => voice.active ? voice.retry() : void voice.start()} onMinimize={() => setHoloOpen(false)}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>
@@ -745,7 +749,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
             {voice.inputSupported && voice.outputSupported && <button type="button" className={`assistantVoiceTalk${voice.active ? ' active' : ''}`} data-phase={voice.phase}
               disabled={!voice.active && (busy || !usage || expired)} aria-pressed={voice.active}
               aria-label={voice.phase === 'speaking' ? voice.copy.interrupt : voice.active ? voice.copy.endConversation : voice.copy.conversation} title={voice.phase === 'speaking' ? voice.copy.interrupt : voice.active ? voice.copy.endConversation : voice.copy.conversation}
-              onClick={() => voice.phase === 'speaking' ? voice.interrupt() : voice.active ? voice.stop() : void voice.start()}>
+              onClick={() => { if (voice.phase === 'speaking') voice.interrupt(); else if (voice.active) voice.stop(); else { setOpen(false); setHoloOpen(true); void voice.start() } }}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect className="b1" x="4" y="9" width="2.4" height="6" rx="1.2"/><rect className="b2" x="8.6" y="5" width="2.4" height="14" rx="1.2"/><rect className="b3" x="13" y="7" width="2.4" height="10" rx="1.2"/><rect className="b4" x="17.6" y="9.5" width="2.4" height="5" rx="1.2"/></svg>
             </button>}
             <button type="submit" className="assistantPrimary" disabled={busy || !usage || expired || !draft.trim()} aria-label={copy.send}><Send aria-hidden="true"/></button></div>
