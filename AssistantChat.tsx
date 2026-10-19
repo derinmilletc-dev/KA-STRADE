@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
-import { useVoice } from './assistant-voice'
+import { useVoice, type VoiceAnswer } from './assistant-voice'
 import KaisAgentHolo, {type HoloPortal} from './KaisAgentHolo'
 import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
@@ -220,7 +220,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const previousLastMessage = useRef(messages.at(-1)?.id)
   const input = useRef<HTMLTextAreaElement>(null)
   const working = useRef(false)
-  const sendRef = useRef<(value: string, viaVoice?: boolean) => Promise<string | null>>(async () => null)
+  const sendRef = useRef<(value: string, viaVoice?: boolean) => Promise<VoiceAnswer>>(async () => null)
   const speechMark = useRef<KaisTiming | null>(null)
   const voice = useVoice(language, transcript => sendRef.current(transcript, true), () => { const mark = speechMark.current; speechMark.current = null; return mark })
   const activeRequest = useRef<AbortController | null>(null)
@@ -481,7 +481,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   }])
   const decide = (id: string, decision: Message['decision']) => setMessages(previous => previous.map(message => message.id === id ? {...message, decision} : message))
 
-  const sendMessage = async (value: string, viaVoice = false): Promise<string | null> => {
+  const sendMessage = async (value: string, viaVoice = false): Promise<VoiceAnswer> => {
     if (working.current || !usage || expired || !value.trim()) return null
     const message = value.trim()
     speechMark.current = null  // yerel komutlar (alarm, sayfa, emir taslağı) önceki isteğin işaretini devralamaz
@@ -579,9 +579,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       }
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false} : row))
       append(response.reply, response.language === 'en' ? 'en' : 'tr', confirmation)
-      if (confirmation && viaVoice) return `${response.reply} ${response.language === 'en' ? 'Tap Confirm on the screen to continue.' : 'Devam etmek için ekranda Onayla düğmesine dokun.'}`
+      // Sesli sohbette cevap, sunucunun algıladığı dille birlikte döner: o dilde okunur ve dinleme o dile geçer.
+      const replyLanguage = response.language === 'en' ? 'en' : 'tr'
+      if (confirmation && viaVoice) return {text: `${response.reply} ${replyLanguage === 'en' ? 'Tap Confirm on the screen to continue.' : 'Devam etmek için ekranda Onayla düğmesine dokun.'}`, language: replyLanguage}
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Answer received' : 'Cevap geldi'])
-      return response.reply
+      return {text: response.reply, language: replyLanguage}
     } catch (error) {
       if (controller.signal.aborted) return null
       setMessages(previous => previous.map(row => row.id === userMessageId ? {...row, pending: false, failed: true} : row))
