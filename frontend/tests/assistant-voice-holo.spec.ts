@@ -1,7 +1,7 @@
 import {expect, test, type Page} from '@playwright/test'
 import {mockAssistant, openChat} from './helpers/assistant-api'
 
-test.use({baseURL: 'http://127.0.0.1:4174'})
+test.use({baseURL: 'http://127.0.0.1:4174', locale: 'tr-TR'})
 
 /** Tarayıcının konuşma tanıma / mikrofon davranışını taklit eder (gerçek mikrofon veya ağ yok). Müşteri tarayıcılarında görülen durumlar:
  *  mic-denied (izin reddedildi), start-throws (start() hata fırlatır), service-denied (konuşma servisi izin vermez),
