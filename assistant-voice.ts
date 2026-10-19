@@ -66,9 +66,29 @@ export function normalizeKaisName(value: string): string {
   return value.replace(HEARD_AS_KAIS, 'KAİS')
 }
 
+/** Ses tanımanın sık yanlış yazdığı ticaret/platform sözcükleri (Türkçe tanıyıcı İngilizce terimleri bozar). */
+const VOCABULARY: [RegExp, string][] = [
+  [/(?<![\p{L}\p{N}])(?:bit ?koyun|bit ?koin|bit ?koyn|bitkoin|bit coin)(?![\p{L}\p{N}])/giu, 'Bitcoin'],
+  [/(?<![\p{L}\p{N}])(?:eter ?yum|eteryum|eterium|etheryum|ether ?eum)(?![\p{L}\p{N}])/giu, 'Ethereum'],
+  [/(?<![\p{L}\p{N}])(?:stop ?los|stoplos|stop lost|stop ?loss)(?![\p{L}\p{N}])/giu, 'stop loss'],
+  [/(?<![\p{L}\p{N}])(?:teyk ?profit|tek ?profit|take ?profit|teyk ?prof[iı]t)(?![\p{L}\p{N}])/giu, 'take profit'],
+  [/(?<![\p{L}\p{N}])(?:master ?tre[iy]d|mastır ?tre[iy]d|mastir ?tre[iy]d|master ?trade)(?![\p{L}\p{N}])/giu, 'Master Trade'],
+  [/(?<![\p{L}\p{N}])(?:binans|baynıns|bayn[ae]ns|binance)(?![\p{L}\p{N}])/giu, 'Binance'],
+  [/(?<![\p{L}\p{N}])(?:bi ti si|bitisi|b t c)(?![\p{L}\p{N}])/giu, 'BTC'],
+]
+/** Ad ve sözlük düzeltmelerini birlikte uygular. */
+export function fixVoiceText(value: string): string {
+  return VOCABULARY.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), normalizeKaisName(value))
+}
+/** Tek kelimelik “sus” komutları: Kais konuşurken bunlar duyulursa hemen susar. */
+export function isInterruptWord(value: string): boolean {
+  const text = value.toLocaleLowerCase('tr').replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim()
+  return /^(dur|sus|bekle|bekle bir dakika|yeter|tamam|kes|dur bir dakika|stop|wait|hold on|enough|be quiet)$/.test(text)
+}
+
 /** “Hey KAİS, …” önekini ve dolgu sözcüklerini soru metninden ayıklar; ad başka yerdeyse doğru yazılışa çevrilir. */
 export function stripWakeWord(value: string): string {
-  const named = normalizeKaisName(value.trim())
+  const named = fixVoiceText(value.trim())
   const cleaned = named.replace(/^(?:hey|hay|hi|merhaba|selam)?[\s,]*KAİS[\s,.:!?-]*/u, '').trim()
   return cleaned || named
 }
@@ -147,6 +167,10 @@ const isKnownMale = (voice?: SpeechSynthesisVoice) => !!voice && /\b(male|erkek|
 
 export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
+/** Kullanıcı sustuktan sonra cümlenin bittiğini varsaymadan önce beklenen süre (duraksamada cümle kesilmesin). */
+const SILENCE_MS = 1300
+const BARGE_GUARD_MS = 700
+const BARGE_MIN_WORDS = 2
 
 const STORAGE_KEY = 'kt_voice_replies'
 const readReplies = () => { try { return localStorage.getItem(STORAGE_KEY) === '1' } catch { return false } }
@@ -169,6 +193,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const phaseRef = useRef<VoicePhase>('off')
   phaseRef.current = phase
   const [message, setMessage] = useState('')
+  // Dinlerken tanınan canlı metin: kullanıcı ne anlaşıldığını görür, yanlışsa hemen düzeltir.
+  const [heard, setHeard] = useState('')
   // Düğmeye basıldıktan sonra mikrofon izni/tanıma başlayana kadar geçen süre: göz ekranı bu sürede de açık kalır.
   const [starting, setStarting] = useState(false)
   const startingRef = useRef(false)
@@ -230,7 +256,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   }, [stopSpeaking])
 
   const listenRef = useRef<(barge?: boolean, spoken?: string) => void>(() => undefined)
-  const barge = useRef<{instance: Recognition; interrupted: boolean; retired: boolean} | null>(null)
+  const barge = useRef<{instance: Recognition; interrupted: boolean; retired: boolean; wordOnly: boolean} | null>(null)
   const lastReply = useRef({text: '', startedAt: 0, endedAt: 0})
 
   /** Soruyu gönderir, cevabı okur; okurken araya girilirse dinlemeye devam eder. */
@@ -241,6 +267,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     const requestId = ++answerId.current
     setPhase('thinking')
     setMessage('')
+    setHeard(question)
     void callback.current(question).then(answerValue => {
       if (!active.current || requestId !== answerId.current) return  // eski isteğin cevabı yeni isteğin durumunu ezmesin
       const reply = typeof answerValue === 'string' ? answerValue : answerValue?.text ?? null
@@ -254,6 +281,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         return
       }
       noAnswers.current = 0
+      setHeard('')
       // Bir sonraki dinleme, kullanıcının konuştuğu dilde (sunucunun cevap dili) yapılır.
       if (replyLanguage) conversationTag.current = speechTag(replyLanguage)
       setPhase('speaking')
@@ -290,39 +318,58 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (!active.current || !Constructor) return
     if (!bargeIn && Date.now() - lastSpeech.current > IDLE_LIMIT_MS) { end(copy.idleEnded); return }
     recognition.current?.abort()
+    if (!bargeIn) setHeard('')
     const instance = new Constructor()
     // Dinleme dili: sohbetin dili (son cevabın dili); yoksa site dili. Site dili değişirse sohbet dili sıfırlanır.
     // Türkçe sitede dinleme hep Türkçe kalır: cümledeki birkaç İngilizce kelime sohbet dilini değiştirip sonraki
     // konuşmanın İngilizce tanıyıcıyla anlamsız metne dönmesine yol açmasın. Diğer dillerde sohbet dili izlenir.
     instance.lang = tagRef.current.toLowerCase().startsWith('tr') ? tagRef.current : (conversationTag.current ?? tagRef.current)
-    instance.interimResults = bargeIn
+    instance.interimResults = true
     instance.maxAlternatives = 1
-    instance.continuous = bargeIn
-    const state = {instance, interrupted: false, retired: false}
+    // Masaüstünde kesintisiz dinleriz ve duraksamayı kendimiz bekleriz; telefonda tarayıcının kendi bitişi kullanılır.
+    instance.continuous = bargeIn || !coarsePointer()
+    const state = {instance, interrupted: false, retired: false, wordOnly: false}
+    let silence = 0
+    const clearSilence = () => { if (silence) { window.clearTimeout(silence); silence = 0 } }
     if (bargeIn) barge.current = state
     let transcript = ''
     let fatal = false
     instance.onresult = event => {
       const rows = Array.from(event.results)
-      if (!bargeIn) { transcript = rows.map(result => result[0]?.transcript ?? '').join(' ').trim(); return }
+      if (!bargeIn) {
+        transcript = rows.map(result => result[0]?.transcript ?? '').join(' ').trim()
+        setHeard(fixVoiceText(transcript))
+        lastSpeech.current = Date.now()
+        clearSilence()
+        if (instance.continuous && transcript) silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
+        return
+      }
       // Kais'in kendi sesini (yankı) kullanıcı sanmamak için okunan metinle karşılaştırırız.
       const heard = rows.map(result => result[0]?.transcript ?? '').filter(text => !isEcho(text, spoken))
       const text = heard.join(' ').trim()
       if (!state.interrupted) {
         // Konuşmanın ilk anlarını ve kısa sesleri yok say; en az üç yeni kelime gerekir.
-        if (Date.now() - lastReply.current.startedAt < 1200 || text.split(/\s+/).filter(Boolean).length < 3) return
+        const stopWord = isInterruptWord(text)
+        if (Date.now() - lastReply.current.startedAt < (stopWord ? 300 : BARGE_GUARD_MS)) return
+        if (!stopWord && text.split(/\s+/).filter(Boolean).length < BARGE_MIN_WORDS) return
         state.interrupted = true
+        state.wordOnly = stopWord
         stopSpeaking()
         setPhase('listening')
+        if (stopWord) { transcript = ''; try { instance.stop() } catch { /* zaten durmuş */ } return }
       }
       transcript = text
+      setHeard(fixVoiceText(text))
+      clearSilence()
       if (rows[rows.length - 1]?.isFinal) instance.stop()
+      else silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
     }
     instance.onerror = event => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { fatal = true; end(copy.denied) }
       else if (event.error !== 'no-speech' && event.error !== 'aborted') failures.current += 1
     }
     instance.onend = () => {
+      clearSilence()
       if (recognition.current === instance) recognition.current = null
       if (barge.current === state) barge.current = null
       if (!active.current || fatal || state.retired) return
@@ -331,8 +378,10 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         if (phaseRef.current === 'speaking') window.setTimeout(() => { if (active.current && phaseRef.current === 'speaking') listenRef.current(true, spoken) }, 120)
         return
       }
+      if (state.wordOnly) { window.setTimeout(() => listenRef.current(false), 200); return }
       const question = stripWakeWord(transcript)
       if (!transcript || !question) {
+        setHeard('')
         if (failures.current > 5) { end(copy.failed); return }
         window.setTimeout(() => listenRef.current(false), failures.current ? 600 : 150)
         return
@@ -393,6 +442,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (current) { current.retired = true; current.instance.abort(); barge.current = null }
     stopSpeaking()
     lastReply.current.endedAt = Date.now()
+    setHeard('')
     setPhase('listening')
     window.setTimeout(() => listenRef.current(false), 250)
   }, [stopSpeaking])
@@ -410,5 +460,5 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   useEffect(() => () => { active.current = false; recognition.current?.abort(); if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
   // Hata: oturum açılamadı/bitti ve nedeni var (normal bitiş notları hata sayılmaz).
   const failed = phase === 'off' && !starting && message !== '' && message !== copy.ended && message !== copy.idleEnded
-  return {inputSupported, outputSupported, starting, failed, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
+  return {inputSupported, outputSupported, starting, failed, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, heard, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
 }
