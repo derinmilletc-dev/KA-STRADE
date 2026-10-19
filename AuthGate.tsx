@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowRight, BarChart3, Bitcoin, ChevronDown, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -164,6 +164,15 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   const [showPassword,setShowPassword] = useState(false)
   const [showConfirmPassword,setShowConfirmPassword] = useState(false)
   const [remember,setRemember] = useState(true)
+  // Yönetim girişi: günlük kontrol listesi masaüstünde açık, telefonda (<768px) varsayılan kapalı ve açılıp kapanabilir.
+  const [checklistOpen,setChecklistOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 768px)').matches)
+  useEffect(() => {
+    if (surface !== 'admin' || !window.matchMedia) return
+    const query = window.matchMedia('(min-width: 768px)')
+    const sync = () => { if (query.matches) setChecklistOpen(true) }
+    query.addEventListener?.('change', sync)
+    return () => query.removeEventListener?.('change', sync)
+  }, [surface])
   const [googleReturn] = useState(() => {
     const parameters = new URLSearchParams(window.location.search)
     return {result:parameters.get('google_login'),remember:parameters.get('google_remember') === '1'}
@@ -593,16 +602,6 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     // data-i18n-skip: sayfa çevirmeni bu ekranın İngilizce metinlerini karışık dile çevirmesin (ör. "Sign In" → "Giriş yap").
     return <main className="staffLogin" data-i18n-skip="">
       <div className="staffLoginInner">
-        <section className="staffBrief" aria-labelledby="staff-brief-title">
-          <img className="staffLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
-          <p className="staffEyebrow">Management panel</p>
-          <h1 id="staff-brief-title">Keep everything running smoothly</h1>
-          <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
-          <ol className="staffTasks">{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
-            <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>
-            <span className="staffTaskText"><b>{title}</b><span>{detail}</span></span>
-          </li>)}</ol>
-        </section>
         <section className="staffPanel" aria-labelledby="staff-login-title">
           <div className="staffForm">
             <img className="staffFormLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
@@ -631,6 +630,20 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
             {sessionUnavailable && <button type="button" className="staffSecondary" disabled={busy} onClick={() => void loadSession(token)}>Check session again</button>}
             <p className="staffNote"><LockKeyhole aria-hidden="true"/><span>Access is monitored. Never share your password or verification codes with anyone.</span></p>
           </div>
+        </section>
+        <section className="staffBrief" aria-labelledby="staff-brief-title">
+          <img className="staffLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
+          <p className="staffEyebrow">Management panel</p>
+          <h1 id="staff-brief-title">Keep everything running smoothly</h1>
+          <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
+          {/* Telefonda açılır-kapanır başlık; masaüstünde gizli ve liste her zaman açık (CSS). */}
+          <button type="button" className="staffChecklistToggle" aria-expanded={checklistOpen} aria-controls="staff-checklist" onClick={() => setChecklistOpen(value => !value)}>
+            <span>Daily Management Checklist</span><ChevronDown aria-hidden="true"/>
+          </button>
+          <ol id="staff-checklist" className="staffTasks" data-open={checklistOpen}>{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
+            <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>
+            <span className="staffTaskText"><b>{title}</b><span>{detail}</span></span>
+          </li>)}</ol>
         </section>
       </div>
       <footer className="staffFooter">© 2026 KaisTrade</footer>
