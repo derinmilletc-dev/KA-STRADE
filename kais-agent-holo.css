@@ -225,3 +225,8 @@
 @keyframes kaisIrisPulse{0%,100%{opacity:.3}50%{opacity:.7}}
 @keyframes kaisFocusBreath{0%,100%{opacity:.85}50%{opacity:.45}}
 @keyframes kaisFocusPulse{0%,100%{opacity:.55}50%{opacity:1}}
+
+.kaisHoloLive{opacity:.85;font-style:italic}
+.kaisHoloInterrupt{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:14px;border:1px solid rgba(232,168,94,.55);background:rgba(40,26,10,.7);color:#f6cf98;font-size:15px;font-weight:600;cursor:pointer}
+.kaisHoloInterrupt svg{width:18px;height:18px}
+.kaisHoloInterrupt:hover{background:rgba(60,38,12,.85)}
