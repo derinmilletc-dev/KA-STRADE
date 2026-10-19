@@ -198,3 +198,14 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
     transform: translate(calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px), 1.2px) !important;
   }
 }
+
+/* İlk yükleme iskeleti: gerçek kartlarla aynı yükseklikte, yanlış durum göstermez. */
+html body #root main.v26App .mobileHome .mhSkel { display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 148px; }
+html body #root main.v26App .mobileHome .mhSkel.mhSkelPlan { min-height: 58px; flex-direction: row !important; align-items: center !important; }
+html body #root main.v26App .mobileHome .mhSkel i { display: block; height: 12px; border-radius: 8px; background: linear-gradient(90deg, rgba(148,181,214,.08) 25%, rgba(148,181,214,.2) 50%, rgba(148,181,214,.08) 75%); background-size: 200% 100%; animation: mhSkel 1.3s ease-in-out infinite; }
+html body #root main.v26App .mobileHome .mhSkel i.w40 { width: 40%; }
+html body #root main.v26App .mobileHome .mhSkel i.w60 { width: 60%; }
+html body #root main.v26App .mobileHome .mhSkel i.big { width: 70%; height: 30px; }
+html body #root main.v26App .mobileHome .mhSkelPlan i.big { width: 38px; height: 38px; border-radius: 50%; flex: none; }
+@keyframes mhSkel { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { html body #root main.v26App .mobileHome .mhSkel i { animation: none; } }

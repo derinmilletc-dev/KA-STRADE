@@ -33,6 +33,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="KaisTrade"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<style>html,body{margin:0;background:#05070c}#boot{display:grid;place-items:center;min-height:100vh;min-height:100dvh}#boot i{width:30px;height:30px;border:3px solid rgba(148,181,214,.2);border-top-color:#27d6a0;border-radius:50%;animation:bootspin .8s linear infinite}@keyframes bootspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){#boot i{animation:none}}</style>
 </head>
-<body><div id="root"></div><script type="module" src="/main.tsx"></script></body>
+<body><div id="root"><div id="boot" role="status" aria-label="Yükleniyor"><i></i></div></div><script type="module" src="/main.tsx"></script></body>
 </html>
