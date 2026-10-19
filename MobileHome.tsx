@@ -75,23 +75,31 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   const [demo, setDemo] = useState<DemoAccount | null>(null)
   const [universe, setUniverse] = useState<UniverseRow[]>([])
   const [tab, setTab] = useState<'live' | 'demo' | null>(null)
+  // İlk yanıtlar gelene kadar yanlış durum (ör. bağlı hesap için "Hesabını bağla", premium için "Ücretsiz plan") göstermeyiz.
+  const [loaded, setLoaded] = useState({session: false, subscription: false, live: false, demo: false})
+  const [timedOut, setTimedOut] = useState(false)
+  const settled = timedOut || (loaded.session && loaded.subscription && loaded.live && loaded.demo)
+  const markLoaded = (key: keyof typeof loaded) => setLoaded(current => current[key] ? current : {...current, [key]: true})
 
   useEffect(() => {
     const controller = new AbortController()
     void getJson<{user?: {display_name?: string; email?: string}}>('/v22/session', controller.signal).then(payload => {
       const user = payload?.user
       setName((user?.display_name || user?.email?.split('@')[0] || '').trim().split(/\s+/)[0] || '')
+      markLoaded('session')
     })
-    void getJson<Subscription>('/v22/subscription', controller.signal).then(setSubscription)
+    void getJson<Subscription>('/v22/subscription', controller.signal).then(value => { setSubscription(value); markLoaded('subscription') })
     const balances = () => {
-      void getJson<LiveStatus>('/v25/status', controller.signal).then(setLive)
-      void getJson<DemoAccount>('/binance-demo/account', controller.signal).then(setDemo)
+      void getJson<LiveStatus>('/v25/status', controller.signal).then(value => { setLive(value); markLoaded('live') })
+      void getJson<DemoAccount>('/binance-demo/account', controller.signal).then(value => { setDemo(value); markLoaded('demo') })
     }
     const scan = () => void getJson<{results?: UniverseRow[]}>('/analysis-universe?interval=15m&limit=40', controller.signal).then(payload => setUniverse(Array.isArray(payload?.results) ? payload.results : []))
     balances(); scan()
     const balanceTimer = window.setInterval(balances, 30_000)
     const scanTimer = window.setInterval(scan, 60_000)
-    return () => { controller.abort(); window.clearInterval(balanceTimer); window.clearInterval(scanTimer) }
+    // Yavaş/asılı istekte sayfa sonsuza dek iskelette kalmasın.
+    const settleTimer = window.setTimeout(() => setTimedOut(true), 4000)
+    return () => { controller.abort(); window.clearInterval(balanceTimer); window.clearInterval(scanTimer); window.clearTimeout(settleTimer) }
   }, [])
 
   const liveReady = Boolean(live && (live.connected || live.credentials?.configured) && finite(live.account?.wallet_balance))
@@ -130,7 +138,8 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   return <section className="mobileHome" aria-label={t.home} data-i18n-skip="">
     <p className="mhHello">{t.greet(new Date().getHours())}{name ? <>, <b>{name}</b></> : null}</p>
 
-    {!liveReady && !demoReady ? <div className="mhCard mhSetup">
+    {!settled ? <div className="mhCard mhSkel" aria-busy="true" aria-hidden="true"><i className="w40"/><i className="big"/><i className="w60"/></div>
+    : !liveReady && !demoReady ? <div className="mhCard mhSetup">
       <div className="mhCoinArt" aria-hidden="true"><Coin symbol="ETHUSDT"/><Coin symbol="BNBUSDT"/><Coin symbol="BTCUSDT"/></div>
       <div className="mhCardHead"><span className="mhIconTile"><Wallet aria-hidden="true"/></span><b>{t.portfolio}</b></div>
       <h2>{t.setupTitle}</h2>
@@ -166,12 +175,12 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       </div>
     </div>}
 
-    <button type="button" className={`mhPlan mhPlan-${plan.kind}`} onClick={() => onNavigate('billing')}>
+    {!settled ? <div className="mhPlan mhSkel mhSkelPlan" aria-hidden="true"><i className="big"/><i className="w60"/></div> : <button type="button" className={`mhPlan mhPlan-${plan.kind}`} onClick={() => onNavigate('billing')}>
       {plan.kind === 'free' ? <span className="mhIconTile mhPlanIcon"><Sparkles aria-hidden="true"/></span>
         : <span className="mhRing" style={{'--p': `${Math.round(plan.progress * 100)}%`} as CSSProperties}><span>{plan.days === null ? '✓' : t.days(plan.days)}</span></span>}
       <span className="mhPlanText"><b>{plan.title}</b><small>{plan.detail}</small></span>
       {plan.kind === 'master' ? <span className="mhPlanState">{t.active}</span> : <span className="mhPlanCta">{t.upgrade}<ChevronRight aria-hidden="true"/></span>}
-    </button>
+    </button>}
 
     <div className="mhMarket">
       <div className="mhMarketHead"><h2>{t.market}</h2>{direction && <span>{t.direction}: <b className={direction === t.down ? 'down' : direction === t.up ? 'up' : ''}>{direction}</b></span>}</div>
