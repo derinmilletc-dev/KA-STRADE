@@ -96,6 +96,23 @@ def is_action_or_educational(words: set[str]) -> bool:
                 or any(word.startswith(ACTION_STEMS) for word in words) or any(word.startswith(EDUCATIONAL_STEMS) for word in words))
 
 
+# Önceki konuşmaya bağlı kısa takip soruları ("peki ya ETH?", "ya 4 saatlik?", "what about that?") bağlamsız hızlı yola düşmesin.
+FOLLOWUP_OPENERS = {"peki", "ya", "yani", "ama", "and", "but", "so", "then", "same", "aynisi"}
+FOLLOWUP_PRONOUNS = {"o", "bu", "bunu", "bunun", "sunu", "sunun", "onun", "onu", "digeri", "baska", "it", "that", "this", "those", "other", "another"}
+FOLLOWUP_MAX_WORDS = 8
+FOLLOWUP_PRONOUN_MAX_WORDS = 4
+
+
+def is_followup(message: str) -> bool:
+    ordered = re.findall(r"\w+", unicodedata.normalize("NFKD", message.casefold().replace("ı", "i")).replace("\u0307", ""))
+    ordered = ["".join(c for c in w if not unicodedata.combining(c)) for w in ordered]
+    if not ordered or len(ordered) > FOLLOWUP_MAX_WORDS:
+        return False
+    if ordered[0] in FOLLOWUP_OPENERS or ordered[:2] in (["what", "about"], ["how", "about"]):
+        return True
+    return len(ordered) <= FOLLOWUP_PRONOUN_MAX_WORDS and bool(set(ordered) & FOLLOWUP_PRONOUNS)
+
+
 def intent(message: str) -> str | None:
     words = words_of(message)
     normalized = " ".join(re.findall(r"\w+|[?!.]", unicodedata.normalize("NFKD", message.casefold().translate(str.maketrans("çğıöşü", "cgiosu"))).replace("\u0307", "")))
@@ -266,10 +283,13 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
 
 async def answer(
     tools: AssistantTools, user_id: str, message: str, language: Language,
-    usage_reader: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+    usage_reader: Callable[[], Awaitable[dict[str, Any]]] | None = None, has_history: bool = False,
 ) -> dict | None:
     name = intent(message)
     if name is None:
+        return None
+    # Destek yönlendirmesi dışında, önceki konuşmaya bağlı kısa takip soruları bağlamı gören modele gider.
+    if has_history and name != "support" and is_followup(message):
         return None
     if name == "identity":
         return {"reply": IDENTITY_REPLIES[language], "language": language, "sources": []}

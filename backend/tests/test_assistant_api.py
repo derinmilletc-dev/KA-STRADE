@@ -127,6 +127,7 @@ class AssistantApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("resetsAt", usage.json())
             self.assertEqual(usage.json()["limits"], {
                 "max_input_chars": self.config.max_input_chars,
+                "voice_max_input_chars": max(self.config.max_input_chars, self.config.voice_max_input_chars),
                 "history_messages": self.config.history_messages,
                 "history_message_max_chars": self.config.history_message_max_chars,
                 "page_context_max_chars": self.config.page_context_max_chars,
@@ -165,6 +166,13 @@ class AssistantApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload.history[0].content, history_content[:self.config.history_message_max_chars])
         self.assertEqual(len(payload.message), self.config.max_input_chars)
         self.assertEqual(len(payload.page_context), self.config.page_context_max_chars)
+
+    async def test_voice_messages_may_be_longer_than_typed_messages(self):
+        long_message = ("a " * 400).strip()[:self.config.voice_max_input_chars - 1] + "a"
+        self.assertGreater(len(long_message), self.config.max_input_chars)
+        self.assertEqual((await self.chat(message=long_message)).status_code, 422)
+        self.assertEqual((await self.chat(message=long_message, voice=True)).status_code, 200)
+        self.assertEqual((await self.chat(message=long_message + "x" * 10, voice=True)).status_code, 422)
 
     async def test_secrets_in_message_history_and_context_never_reach_provider(self):
         secrets = ["secret", "A" * self.config.secret_min_alphanumeric_chars, "sk-ant-test-only", "Bearer test-token", "password=test-value", "api_key=test-value"]
