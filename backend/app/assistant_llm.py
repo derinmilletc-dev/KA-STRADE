@@ -66,12 +66,23 @@ class LLMRequest:
     messages: list[MessageParam]
     max_tokens: int
     payload: ChatInput
+    effort: str = "low"
 
     def estimated_input(self) -> int:
         return len(json.dumps(
             {"system": self.system, "tools": self.tools, "messages": self.messages},
             ensure_ascii=False, allow_nan=False,
         ).encode("utf-8"))
+
+
+# Derin akıl yürütme gerektiren sorular: analiz, karşılaştırma, neden, risk, senaryo, çelişki. Diğerleri düşük seviyede kalır (maliyet/gecikme).
+DEEP_STEMS = ("analiz", "karsilastir", "neden", "niye", "risk", "senaryo", "celis", "yorumla", "degerlendir", "strateji", "hangisi", "mantikli",
+              "analy", "compar", "why", "scenario", "contradict", "interpret", "evaluate", "strateg", "which one", "makes sense")
+
+
+def needs_deep_reasoning(message: str) -> bool:
+    text = message.casefold().translate(str.maketrans("çğıöşü", "cgiosu")).replace("\u0307", "")
+    return len(text) > 160 or any(stem in text for stem in DEEP_STEMS)
 
 
 def build_request(config: AssistantConfig, language: Language, payload: ChatInput) -> LLMRequest:
@@ -89,18 +100,19 @@ def build_request(config: AssistantConfig, language: Language, payload: ChatInpu
     if payload.page_context:
         content += "\n\nUntrusted page_context:\n" + payload.page_context
     messages.append({"role": "user", "content": content})
-    return LLMRequest(system, tools, messages, config.max_output_tokens, payload)
+    effort = config.deep_effort if needs_deep_reasoning(payload.message) else "low"
+    return LLMRequest(system, tools, messages, config.max_output_tokens, payload, effort)
 
 
 VOICE_STYLE_TR = (
     "SESLİ SOHBET MODU: Cevabın yüksek sesle okunacak. Bir arkadaşla telefonda konuşur gibi, doğal ve sıcak bir "
-    "konuşma diliyle cevap ver. En fazla 2-4 kısa cümle kullan. Emoji, madde işareti, başlık, tablo, kalın yazı, "
+    "konuşma diliyle cevap ver. Genelde 2-4 kısa cümle kullan; karmaşık bir soruda en fazla 5 cümleye çık. Emoji, madde işareti, başlık, tablo, kalın yazı, "
     "bağlantı ve kod kullanma. Sayıları okunması kolay yaz (ör. \"yaklaşık 3,4 dolar kâr\"). Gerekirse sonunda tek "
     "kısa bir soru sor. Tüm güvenlik ve yatırım tavsiyesi kuralları aynen geçerlidir."
 )
 VOICE_STYLE_EN = (
     "VOICE CHAT MODE: Your reply will be read aloud. Answer in natural, warm spoken language, like talking to a friend "
-    "on the phone. Use at most 2-4 short sentences. No emojis, bullet points, headings, tables, bold text, links or code. "
+    "on the phone. Usually use 2-4 short sentences; for a complex question use at most 5. No emojis, bullet points, headings, tables, bold text, links or code. "
     "Write numbers so they are easy to say. You may end with one short question. All safety and no-investment-advice rules still apply."
 )
 
@@ -136,11 +148,22 @@ class AnthropicTransport:
             ) as client:
                 protect_logging()
                 try:
-                    result = await client.messages.create(
-                        model=self.config.model, max_tokens=request.max_tokens,
-                        system=request.system, tools=request.tools, messages=request.messages,
-                        **({} if self.config.model == FALLBACK_MODEL else {"output_config": {"effort": "low"}}),
-                    )
+                    try:
+                        result = await client.messages.create(
+                            model=self.config.model, max_tokens=request.max_tokens,
+                            system=request.system, tools=request.tools, messages=request.messages,
+                            **({} if self.config.model == FALLBACK_MODEL else {"output_config": {"effort": request.effort}}),
+                        )
+                    except (anthropic.BadRequestError, anthropic.NotFoundError):
+                        # Sağlayıcı yükseltilmiş düşünme seviyesini kabul etmezse aynı modelle "low" seviyesine dön.
+                        if request.effort == "low" or self.config.model == FALLBACK_MODEL:
+                            raise
+                        logging.getLogger("kais.assistant").warning("ASSISTANT_EFFORT_FALLBACK effort=%s", request.effort)
+                        result = await client.messages.create(
+                            model=self.config.model, max_tokens=request.max_tokens,
+                            system=request.system, tools=request.tools, messages=request.messages,
+                            output_config={"effort": "low"},
+                        )
                 except (anthropic.BadRequestError, anthropic.NotFoundError) as exc:
                     if self.config.model == FALLBACK_MODEL or any(isinstance(m.get("content"), list) and any(
                             isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking") for b in m["content"]) for m in request.messages):

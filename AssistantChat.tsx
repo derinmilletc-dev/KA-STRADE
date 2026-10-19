@@ -46,7 +46,7 @@ function ReplyCopy({content, language}: {content: string; language: Language}) {
     {result && <small role="status">{result === 'copied' ? copy.copied : copy.copyFailed}</small>}
   </div>
 }
-type Limits = {max_input_chars: number; history_messages: number; history_message_max_chars: number; page_context_max_chars: number; secret_min_alphanumeric_chars: number}
+type Limits = {max_input_chars: number; voice_max_input_chars?: number; history_messages: number; history_message_max_chars: number; page_context_max_chars: number; secret_min_alphanumeric_chars: number}
 type Usage = {remaining: number; total: number; resetsAt: string; limits: Limits; unlimited?: boolean}
 type ProactivePreferences = {enabled: boolean; available: boolean; poll_interval_seconds: number}
 type Confirmation = {action: 'get_analysis'; symbol: string; timeframe: string; cost: number; confirmation_token: string}
@@ -85,7 +85,7 @@ function parseUsage(value: Record<string, unknown>): Usage {
       !integer(limits.history_message_max_chars, 1) || !integer(limits.page_context_max_chars, 1) ||
       !integer(limits.secret_min_alphanumeric_chars, 1)) throw new AssistantFailure(502, 'invalid_response')
   return {remaining: value.remaining, total: value.total, resetsAt: value.resetsAt, unlimited: value.unlimited === true, limits: {
-    max_input_chars: limits.max_input_chars, history_messages: limits.history_messages,
+    max_input_chars: limits.max_input_chars, ...(integer(limits.voice_max_input_chars, 1) ? {voice_max_input_chars: limits.voice_max_input_chars} : {}), history_messages: limits.history_messages,
     history_message_max_chars: limits.history_message_max_chars, page_context_max_chars: limits.page_context_max_chars,
     secret_min_alphanumeric_chars: limits.secret_min_alphanumeric_chars,
   }}
@@ -485,7 +485,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     if (working.current || !usage || expired || !value.trim()) return null
     const message = value.trim()
     speechMark.current = null  // yerel komutlar (alarm, sayfa, emir taslağı) önceki isteğin işaretini devralamaz
-    if (Array.from(message).length > usage.limits.max_input_chars) { setLengthError(true); return null }
+    if (Array.from(message).length > (viaVoice ? Math.max(usage.limits.max_input_chars, usage.limits.voice_max_input_chars ?? 0) : usage.limits.max_input_chars)) { setLengthError(true); return null }
     if (sensitive(message, usage.limits)) { setIssue({kind: 'secretBlocked'}); return null }
     const localReply = (reply: string, action: string) => {
       setDraft(''); setIssue(null); setLengthError(false)

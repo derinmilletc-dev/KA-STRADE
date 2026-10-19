@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +25,9 @@ class AssistantConfig(BaseSettings):
         exclude=True,
     )
     max_input_chars: int = Field(default=500, gt=0)
-    history_messages: int = Field(default=4, ge=0)
+    # Sesli girişte tanınan cümleler daha uzun olabilir; yalnızca voice=true isteklerinde geçerli.
+    voice_max_input_chars: int = Field(default=800, gt=0)
+    history_messages: int = Field(default=8, ge=0)
     history_message_max_chars: int = Field(default=2000, gt=0)
     page_context_max_chars: int = Field(default=300, gt=0)
     request_timeout_seconds: int = Field(default=30, gt=0)
@@ -40,6 +43,8 @@ class AssistantConfig(BaseSettings):
     trial_daily_limit: int = Field(default=5, gt=0)
     monthly_budget_usd: Decimal = Field(default=Decimal(50), ge=0, allow_inf_nan=False)
     max_output_tokens: int = Field(default=1200, gt=0)
+    # Analiz/karşılaştırma gibi derin akıl yürütme isteyen sorularda kullanılan düşünme seviyesi; diğer sorularda "low".
+    deep_effort: Literal["low", "medium"] = "medium"
     max_llm_calls_per_message: int = Field(default=3, gt=0, le=3)
     max_total_input_tokens_per_message: int = Field(default=40000, gt=0)
     max_total_output_tokens_per_message: int = Field(default=3600, gt=0)

@@ -304,11 +304,12 @@ async def assistant_chat(request: Request) -> JSONResponse:
         audit(str(user["id"]), time.time(), None, None, warning=True)
         return reply_response(text(language, "Asistan kullanılamıyor.", "The assistant is unavailable."), language, 503)
     config = limited_config(request, user, config)
-    if len(payload.message) > config.max_input_chars or len(payload.history) > config.history_messages or len(payload.page_context or "") > config.page_context_max_chars:
+    message_limit = max(config.max_input_chars, config.voice_max_input_chars) if payload.voice else config.max_input_chars
+    if len(payload.message) > message_limit or len(payload.history) > config.history_messages or len(payload.page_context or "") > config.page_context_max_chars:
         return reply_response(text(
             language,
-            f"Mesaj en fazla {config.max_input_chars} karakter, geçmiş en fazla {config.history_messages} mesaj ve sayfa bağlamı en fazla {config.page_context_max_chars} karakter olabilir.",
-            f"Message limit: {config.max_input_chars} characters; history limit: {config.history_messages} messages; page context limit: {config.page_context_max_chars} characters.",
+            f"Mesaj en fazla {message_limit} karakter, geçmiş en fazla {config.history_messages} mesaj ve sayfa bağlamı en fazla {config.page_context_max_chars} karakter olabilir.",
+            f"Message limit: {message_limit} characters; history limit: {config.history_messages} messages; page context limit: {config.page_context_max_chars} characters.",
         ), language, 422)
     if contains_secret(payload, config):
         return reply_response(text(
@@ -323,7 +324,7 @@ async def assistant_chat(request: Request) -> JSONResponse:
         tools = AssistantTools(request, config=config, clock=assistant.clock)
         try:
             quick = await fastpath_answer(tools, str(user["id"]), payload.message, language,
-                                          usage_reader=lambda: usage_snapshot(assistant, str(user["id"]), config))
+                                          has_history=bool(payload.history), usage_reader=lambda: usage_snapshot(assistant, str(user["id"]), config))
         except (HTTPException, asyncpg.PostgresError, asyncpg.InterfaceError, sqlite3.Error, OSError, TimeoutError):
             audit(str(user["id"]), assistant.clock(), None, None, warning=True)
             return reply_response(text(language, "Asistan bilgisi alınamadı.", "Assistant information could not be fetched."), language, 503)
@@ -406,6 +407,7 @@ async def usage_snapshot(assistant: AssistantService, user_id: str, config: Assi
         "total": config.daily_limit,
         "limits": {
             "max_input_chars": config.max_input_chars,
+            "voice_max_input_chars": max(config.max_input_chars, config.voice_max_input_chars),
             "history_messages": config.history_messages,
             "history_message_max_chars": config.history_message_max_chars,
             "page_context_max_chars": config.page_context_max_chars,

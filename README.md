@@ -2339,7 +2339,9 @@ okunur; diğer modüller model, limit veya fiyat değerlerini tekrar sabitlememe
 | `ASSISTANT_MODEL` | `claude-haiku-4-5-20251001` | Kullanılacak model kimliği |
 | `ANTHROPIC_API_KEY` | boş | Yalnız backend secret store |
 | `ASSISTANT_MAX_INPUT_CHARS` | `500` | Tek mesaj karakter sınırı |
-| `ASSISTANT_HISTORY_MESSAGES` | `4` | LLM'e gönderilecek geçmiş mesaj sayısı |
+| `ASSISTANT_VOICE_MAX_INPUT_CHARS` | `800` | Sesli girişte mesaj karakter sınırı |
+| `ASSISTANT_DEEP_EFFORT` | `medium` | Analiz/karşılaştırma sorularında düşünme seviyesi (`low`/`medium`) |
+| `ASSISTANT_HISTORY_MESSAGES` | `8` | LLM'e gönderilecek geçmiş mesaj sayısı |
 | `ASSISTANT_HISTORY_MESSAGE_MAX_CHARS` | `2000` | Her geçmiş mesajı sunucuda bu uzunluğa kırpılır |
 | `ASSISTANT_PAGE_CONTEXT_MAX_CHARS` | `300` | Sayfa bağlamı karakter sınırı |
 | `ASSISTANT_REQUEST_TIMEOUT_SECONDS` | `30` | Sağlayıcı ve yerel veritabanı bekleme sınırı |
