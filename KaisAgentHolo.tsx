@@ -69,6 +69,7 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
   }, [phase])
   const stage = useRef<HTMLDivElement>(null)
   const pupil = useRef<SVGSVGElement>(null)
+  const iris = useRef<SVGSVGElement>(null)
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
   // Sayfa geçişi sahneleri (yalnızca ayrı katmanlar; ana göz hiç dönüştürülmez): A algıla → B göz bebeğinde pencere → C büyüme → D gerçek sayfa.
   const [scene, setScene] = useState<'' | 'A' | 'B' | 'C' | 'D'>('')
@@ -110,15 +111,16 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     timer = window.setTimeout(next, 500)
     return () => window.clearTimeout(timer)
   }, [phase, hidden])
-  // Göz bakınca iris/göz bebeği gözün kendi altyapısıyla kayar (data-look-x/y). Göz bebeği katmanı aynı miktarda kaydırılır, böylece bebeğin içinde kalır.
+  // Göz bakınca iris/göz bebeği gözün kendi altyapısıyla kayar (data-look-x/y). Optik iris ve göz bebeği katmanları aynı miktarda kaydırılır, böylece hizalı kalır.
   useEffect(() => {
     const eye = stage.current?.querySelector<SVGSVGElement>('.kaisEye')
-    const overlay = pupil.current
-    if (!eye || !overlay) return
+    const overlays = [pupil.current, iris.current].filter((node): node is SVGSVGElement => node !== null)
+    if (!eye || overlays.length === 0) return
     const follow = () => {
       const scale = eye.getBoundingClientRect().width / 96
       const x = Number(eye.dataset.lookX) || 0, y = Number(eye.dataset.lookY) || 0
-      overlay.style.transform = `translate(${(x * 7 * scale).toFixed(2)}px, ${(y * 7 * .6 * scale).toFixed(2)}px)`
+      const shift = `translate(${(x * 7 * scale).toFixed(2)}px, ${(y * 7 * .6 * scale).toFixed(2)}px)`
+      overlays.forEach(node => { node.style.transform = shift })
     }
     follow()
     const observer = new MutationObserver(follow)
@@ -153,6 +155,20 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.1s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.2s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.3000000000000003s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
       <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/>
+        {/* Optik iris: ayrı, gözün çizimine dokunmayan katman (iris dairesine kırpılı; r 10–18 halka bölgesi). İnce eşmerkezli halkalar,
+            radyal segmentler, hizalama işaretleri, cam parıltısı ve yansımalar; düşünürken seçili halkalar farklı hızlarda yavaşça döner. */}
+        <svg className="kaisHoloIris" ref={iris} viewBox="-18 -18 36 36" aria-hidden="true">
+          <defs>
+            <radialGradient id="kaisIrisGlass" cx="-6" cy="-7" r="9" gradientUnits="userSpaceOnUse"><stop stopColor="#e9fbff" stopOpacity=".5"/><stop offset="1" stopColor="#8ADFFF" stopOpacity="0"/></radialGradient>
+          </defs>
+          <circle className="iInner" r="11"/>
+          <g className="iRingA"><circle r="14.6" strokeDasharray="5 1.2 .6 1.2"/></g>
+          <g className="iSegments">{Array.from({length: 48}, (_, index) => <path key={index} d={index % 4 ? 'M0 -12.3V-13.4' : 'M0 -12V-13.9'} transform={`rotate(${index * 7.5})`}/>)}</g>
+          <g className="iRingB"><circle r="16.6" strokeDasharray=".5 1.4"/><path d="M0 -17.6V-15.6M17.6 0H15.6M0 17.6V15.6M-17.6 0H-15.6"/></g>
+          <g className="iScan"><path d="M0 -10.6L0 -17.4" className="iScanLine"/><path d="M0 -10.6L0 -17.4A17.4 17.4 0 0 0 -4.5 -16.8L-2.7 -10.2Z" className="iScanWedge"/></g>
+          <path className="iGlass" d="M-12.4 -6.6A14 14 0 0 1 -4.4 -13.3A12.6 12.6 0 0 0 -11.2 -5.8Z"/>
+          <path className="iReflect" d="M9.6 9.8A13.4 13.4 0 0 1 4.8 12.6"/>
+        </svg>
         {/* Göz bebeği içi: ayrı, gözün çizimine dokunmayan katman (göz bebeği alanına kırpılı). Durumla değişir: tarama / yayılan dalga / sakin halka. */}
         <svg className="kaisHoloPupil" ref={pupil} viewBox="-10 -10 20 20" aria-hidden="true">
           <circle className="pRing" r="9.2"/>
@@ -161,6 +177,8 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
           <g className="pSweep"><path d="M0 0L0 -9.4" className="pLine"/><path d="M0 0L0 -9.4A9.4 9.4 0 0 0 -6.6 -6.7Z" className="pWedge"/></g>
           <g className="pBlips"><circle cx="3.6" cy="-3.9" r=".55"/><circle cx="-4.4" cy="1.8" r=".55"/><circle cx="1.6" cy="5.2" r=".55"/></g>
           <circle className="pWave pWave1" r="9"/><circle className="pWave pWave2" r="9"/>
+          <g className="pFocus"><path d="M0 -2.6V-1.7M2.6 0H1.7M0 2.6V1.7M-2.6 0H-1.7"/></g>
+          <g className="pGlint"><ellipse cx="-3.2" cy="-4.4" rx="1.1" ry=".55" transform="rotate(-35 -3.2 -4.4)"/></g>
           <circle className="pDot" r=".9"/>
         </svg>
       </div>
