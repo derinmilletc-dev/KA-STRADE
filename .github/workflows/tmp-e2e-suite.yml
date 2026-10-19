@@ -1,0 +1,70 @@
+name: Tmp e2e suite diagnosis (temporary, delete after run)
+
+on:
+  push:
+    branches: ['fix/e2e-suite']
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout (submodules skipped)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          git init -q .
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            fetch -q --depth=1 "https://github.com/$REPO" "$SHA"
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund 2>&1 | tail -3
+      - name: Frontend deps
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund 2>&1 | tail -3
+      - name: Playwright chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium 2>&1 | tail -3
+      - name: Build
+        run: npm run build 2>&1 | tail -5
+      - name: Full e2e suite (same as frontend-e2e)
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: suite-results.json
+        run: npx playwright test --reporter=list,json > ../suite.log 2>&1; echo "rc=$?" >> ../suite.log; tail -30 ../suite.log
+      - name: Report as annotations
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, collections
+          def esc(s): return s.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+          try: data = json.load(open('frontend/suite-results.json'))
+          except Exception as error:
+              print('::notice title=SUITE MISSING::' + esc(str(error))); raise SystemExit
+          counts = collections.Counter(); fails = []
+          def walk(suite, file=''):
+              file = suite.get('file') or file
+              for spec in suite.get('specs', []):
+                  for t in spec.get('tests', []):
+                      r = t.get('results', [])
+                      st = r[-1].get('status') if r else 'skipped'
+                      counts[st] += 1
+                      if st not in ('passed', 'skipped'):
+                          msg = (r[-1].get('errors') or [{}])[0].get('message', '') if r else ''
+                          first = next((l for l in msg.splitlines() if l.strip()), '')[:230]
+                          fails.append(f"{file} :: {spec.get('title')[:90]} :: {first}")
+              for child in suite.get('suites', []): walk(child, file)
+          for s in data.get('suites', []): walk(s)
+          print('::notice title=SUITE COUNTS::' + esc(str(dict(counts))))
+          by_file = collections.Counter(f.split(' :: ')[0] for f in fails)
+          print('::notice title=SUITE FAILS BY FILE::' + esc('\n'.join(f'{n}  {f}' for f, n in by_file.most_common())))
+          for i in range(0, len(fails), 25):
+              print(f'::notice title=SUITE FAILS {i}::' + esc('\n'.join(fails[i:i+25])))
+          PY

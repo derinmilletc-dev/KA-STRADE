@@ -7,6 +7,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
+    // Testler Türkçe arayüz metinleri bekler; CI tarayıcısı varsayılan olarak İngilizce açıldığı için dil sabitlenir.
+    locale: 'tr-TR',
+    timezoneId: 'Europe/Istanbul',
   },
   webServer: [
     {
