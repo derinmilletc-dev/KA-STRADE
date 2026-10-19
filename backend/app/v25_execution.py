@@ -61,7 +61,12 @@ from .binance_demo import (
     verify_symbol_configuration,
 )
 from .credential_store import load_live_consent
-from .maintenance import guard_new_entry
+from .maintenance import (
+    MAINTENANCE_SKIP_REASON,
+    guard_new_entry,
+    is_maintenance_rejection,
+    maintenance_blocks_automation,
+)
 from .execution_core import (
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
@@ -2194,6 +2199,19 @@ def live_auto_symbol_scope(state: dict[str, Any]) -> list[str]:
     if not isinstance(symbols, list):
         return []
     return sanitize_execution_policy({"allowed_symbols": symbols}, preserve_empty_allowed_symbols=True)["allowed_symbols"]
+
+
+def record_maintenance_entry_skip(state: dict[str, Any]) -> None:
+    """Website maintenance blocks only NEW automatic entries: record an expected skip.
+
+    Deliberately touches nothing else - no ARM/lock/connection fields, no events,
+    no failure diagnostics - so reconciliation and protection state stay as they were."""
+    state["auto"].update({
+        "last_skip_reason": MAINTENANCE_SKIP_REASON,
+        "last_cycle_stage": "skipped",
+        "last_decision": "Bakım modu aktif; yeni otomatik canlı giriş yapılmadı.",
+    })
+    automation_telemetry("AUTOMATION_SKIP reason=maintenance", reason=MAINTENANCE_SKIP_REASON)
 
 
 def record_auto_symbol_block(state: dict[str, Any], reason: str, symbol: str | None = None) -> str:
@@ -5202,6 +5220,9 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
         state["auto"]["last_cycle_stage"] = "skipped"
         automation_telemetry("AUTOMATION_SKIP reason=scan_throttled", reason="scan_throttled")
         return
+    if maintenance_blocks_automation(getattr(application.state, "maintenance", None)):
+        record_maintenance_entry_skip(state)
+        return
     state["auto"]["last_scan"] = now_iso()
     state["auto"]["busy"] = True
     observation_token = None
@@ -5521,6 +5542,11 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
                 continue
             except HTTPException as exc:
                 observation.emit("candidate", symbol=symbol, execution_reject="EXECUTION_REJECTED")
+                if is_maintenance_rejection(exc):
+                    # Maintenance switched on mid-cycle: stop trying further candidates this
+                    # round and record an expected skip instead of the AUTO_EXCEPTION lock.
+                    record_maintenance_entry_skip(state)
+                    return
                 if exc.status_code == 409 and str(exc.detail).startswith("Canlı yön risk kapısı:"):
                     state["auto"]["last_decision"] = f"{symbol}: BEKLE · {exc.detail}"
                     count_rejection("entry_ineligible", "DIRECTIONAL_LIMIT")

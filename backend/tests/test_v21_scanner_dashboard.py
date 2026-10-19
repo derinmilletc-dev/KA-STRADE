@@ -356,6 +356,154 @@ class V21ScannerDashboardTests(unittest.TestCase):
         self.assertEqual(order.await_args_list[1].args[1].symbol, "USUALUSDT")
         self.assertEqual(state["scanner"]["selected_symbols"], ["USUALUSDT"])
 
+    MAINTENANCE_CANDIDATE = {"symbol": "STGUSDT", "direction": "LONG", "status": "SELECTED", "entry": 100.0,
+                             "stop_loss": 99.0, "tp1": 101.0, "tp2": 102.0, "tp3": 103.0, "score": 99,
+                             "opportunity_score": 99, "confidence": "HIGH", "reasons": []}
+
+    def _run_demo_cycle(self, app, candidates, order, snapshot=None, legacy_block=None):
+        scan = AsyncMock(return_value=candidates)
+        snapshot = snapshot or AsyncMock(return_value={"positions": [], "open_orders": []})
+        legacy_block = legacy_block or AsyncMock(return_value=None)
+        with patch.object(v21_demo, "armed", return_value=True), \
+                patch.object(v21_demo, "client_for", return_value=object()), \
+                patch.object(v21_demo, "account_snapshot", new=snapshot), \
+                patch.object(v21_demo, "_legacy_entry_block", new=legacy_block), \
+                patch.object(v21_demo, "scan_demo_universe", new=scan), \
+                patch.object(v21_demo, "execute_demo_order", new=order), \
+                patch.object(v21_demo, "persist_state"):
+            asyncio.run(v21_demo.automatic_cycle(app))
+        return scan
+
+    def _maintenance_demo_app(self):
+        state, app, candidate = self._automation_app(dict(self.MAINTENANCE_CANDIDATE))
+        state["settings"]["allowed_symbols"] = ["STGUSDT"]
+        state["settings"]["daily_loss_limit"] = 1_000_000.0  # isolate the percentage thresholds
+        state["settings"]["schedule_start_hour"], state["settings"]["schedule_end_hour"] = 0, 0  # always in schedule
+        app.state.maintenance = {"mode": "MAINTENANCE"}
+        return state, app, candidate
+
+    def test_demo_maintenance_same_day_refreshes_daily_risk_without_snapshot_or_entry(self):
+        state, app, candidate = self._maintenance_demo_app()
+        state["risk"].update({"date": v21_demo.today(), "daily_base_balance": 1000.0, "last_warning_pct": 0.0})
+        snapshot, order, legacy_block = AsyncMock(), AsyncMock(), AsyncMock(return_value=None)
+        with patch.object(v21_demo, "daily_metrics", return_value={"realized_pnl": -60.0}):
+            scan = self._run_demo_cycle(app, [candidate], order, snapshot=snapshot, legacy_block=legacy_block)
+        snapshot.assert_not_awaited()  # no extra exchange call per maintenance loop
+        legacy_block.assert_awaited_once()  # legacy loss guard still evaluated
+        scan.assert_not_awaited()
+        order.assert_not_awaited()
+        self.assertEqual(state["risk"]["daily_loss_pct"], 6.0)
+        self.assertEqual(state["risk"]["last_warning_pct"], 5.0)
+        self.assertEqual(state["risk"]["daily_base_balance"], 1000.0)
+        self.assertEqual(state["auto"]["rejection_gate"], "MAINTENANCE")
+        self.assertTrue(state["auto"]["enabled"])
+
+    def test_demo_maintenance_day_rollover_captures_base_balance_once(self):
+        state, app, candidate = self._maintenance_demo_app()
+        state["risk"].update({"date": "2000-01-01", "daily_base_balance": 500.0, "last_warning_pct": 15.0})
+        snapshot = AsyncMock(return_value={"positions": [], "open_orders": [], "wallet_balance": 800.0})
+        order = AsyncMock()
+        with patch.object(v21_demo, "daily_metrics", return_value={"realized_pnl": 0.0}):
+            self._run_demo_cycle(app, [candidate], order, snapshot=snapshot)
+            self._run_demo_cycle(app, [candidate], order, snapshot=snapshot)
+        self.assertEqual(snapshot.await_count, 1)  # only the first loop of the new UTC day
+        self.assertEqual(state["risk"]["date"], v21_demo.today())
+        self.assertEqual(state["risk"]["daily_base_balance"], 800.0)
+        self.assertEqual(state["risk"]["last_warning_pct"], 0.0)
+        order.assert_not_awaited()
+
+    def test_demo_maintenance_still_applies_all_thresholds_and_20pct_pause(self):
+        state, app, candidate = self._maintenance_demo_app()
+        state["risk"].update({"date": v21_demo.today(), "daily_base_balance": 1000.0, "last_warning_pct": 0.0})
+        order = AsyncMock()
+        notifications = []
+        with patch.object(v21_demo, "daily_metrics", return_value={"realized_pnl": -210.0}), \
+                patch.object(v21_demo, "emit_notification",
+                             side_effect=lambda _state, kind, *args, **kwargs: notifications.append(kind)):
+            self._run_demo_cycle(app, [candidate], order, snapshot=AsyncMock())
+        self.assertEqual(notifications, ["DAILY_LOSS_5", "DAILY_LOSS_10", "DAILY_LOSS_15", "DAILY_LOSS_20"])
+        self.assertEqual(state["auto"]["status"], "PAUSED")
+        self.assertFalse(state["auto"]["enabled"])
+        self.assertEqual(state["auto"]["rejection_gate"], "DAILY_LOSS_20")
+        order.assert_not_awaited()
+
+    def test_demo_maintenance_still_applies_absolute_daily_loss_limit(self):
+        state, app, candidate = self._maintenance_demo_app()
+        state["settings"]["daily_loss_limit"] = 50.0
+        snapshot, order = AsyncMock(), AsyncMock()
+        with patch.object(v21_demo, "daily_metrics", return_value={"realized_pnl": -60.0}):
+            self._run_demo_cycle(app, [candidate], order, snapshot=snapshot)
+        self.assertEqual(state["auto"]["rejection_gate"], "DAILY_LOSS_LIMIT")
+        self.assertFalse(state["auto"]["enabled"])
+        snapshot.assert_not_awaited()
+        order.assert_not_awaited()
+
+    def test_original_v2_demo_round_is_skipped_during_maintenance(self):
+        from app.strategies.original_v2_demo import STRATEGY_ID
+
+        state, app, candidate = self._maintenance_demo_app()
+        state["auto"]["strategy_id"] = STRATEGY_ID
+        original_round, order, snapshot = AsyncMock(), AsyncMock(), AsyncMock()
+        with patch("app.original_v2_demo_execution.automatic_cycle", new=original_round):
+            self._run_demo_cycle(app, [candidate], order, snapshot=snapshot)
+        original_round.assert_not_awaited()
+        snapshot.assert_not_awaited()
+        order.assert_not_awaited()
+        self.assertEqual(state["auto"]["rejection_gate"], "MAINTENANCE")
+
+    def test_demo_maintenance_rejection_mid_cycle_is_expected_skip(self):
+        from app.maintenance import guard_new_entry
+
+        first = dict(self.MAINTENANCE_CANDIDATE)
+        second = {**first, "symbol": "USUALUSDT", "score": 98, "opportunity_score": 98}
+        state, app, _ = self._automation_app(first)
+        state["settings"]["allowed_symbols"] = ["STGUSDT", "USUALUSDT"]
+
+        async def maintenance_turned_on(*args, **kwargs):
+            guard_new_entry({"mode": "MAINTENANCE"})
+
+        order = AsyncMock(side_effect=maintenance_turned_on)
+        self._run_demo_cycle(app, [first, second], order)  # must not raise
+        order.assert_awaited_once()
+        self.assertEqual(state["auto"]["rejection_gate"], "MAINTENANCE")
+        self.assertEqual(state["scanner"]["selected_symbols"], [])
+        self.assertTrue(state["auto"]["enabled"])
+
+    def test_demo_genuine_503_still_propagates_to_existing_handler(self):
+        state, app, candidate = self._automation_app(dict(self.MAINTENANCE_CANDIDATE))
+        state["settings"]["allowed_symbols"] = ["STGUSDT"]
+        order = AsyncMock(side_effect=HTTPException(503, "Demo borsası geçici olarak kullanılamıyor."))
+        with self.assertRaises(HTTPException):
+            self._run_demo_cycle(app, [candidate], order)
+        order.assert_awaited_once()
+
+    def test_original_v2_demo_maintenance_rejection_stops_round_without_raising(self):
+        from app import original_v2_demo_execution as original_demo
+        from app.maintenance import guard_new_entry
+
+        state, app, _ = self._automation_app(dict(self.MAINTENANCE_CANDIDATE))
+        analysis = {"direction": "LONG", "entry": 100.0, "stop_loss": 99.0, "tp1": 101.0, "tp2": 102.0, "tp3": 103.0}
+        decision = SimpleNamespace(legacy={"analysis": analysis},
+                                   signal=SimpleNamespace(symbol="STGUSDT", strategy_eligible=True))
+        eligible = [({"symbol": symbol}, decision) for symbol in ("STGUSDT", "USUALUSDT")]
+
+        async def maintenance_turned_on(*args, **kwargs):
+            guard_new_entry({"mode": "MAINTENANCE"})
+
+        order = AsyncMock(side_effect=maintenance_turned_on)
+        with patch.object(original_demo.demo, "_validate_execution_context"), \
+                patch.object(original_demo.demo, "armed", return_value=True), \
+                patch.object(original_demo, "candidates", new=AsyncMock(return_value=(eligible, {}))), \
+                patch.object(original_demo.strategy, "risk_preview", return_value={"margin_usdt": 10.0}), \
+                patch.object(original_demo.demo, "execute_demo_order", new=order), \
+                patch.object(v21_demo, "market_client_for", return_value=object()), \
+                patch.object(v21_demo, "persist_state"):
+            asyncio.run(original_demo.automatic_cycle(app, request=None, user_id="owner",
+                                                      demo_state={}, state=state))
+        order.assert_awaited_once()
+        self.assertEqual(state["auto"]["rejection_gate"], "MAINTENANCE")
+        self.assertFalse(any(item.get("kind") == "ORIGINAL_REJECTED" for item in state.get("events", [])))
+
     def test_demo_smoke_test_creates_local_paper_position_without_exchange_order(self):
         state = v21_demo.initial_state()
         state["auto"].update({"enabled": True, "user_confirmed": True})

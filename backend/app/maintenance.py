@@ -63,6 +63,30 @@ def guard_new_entry(state: dict[str, Any] | None) -> None:
         )
 
 
+MAINTENANCE_SKIP_REASON = "maintenance"
+
+
+def maintenance_blocks_automation(state: dict[str, Any] | None) -> bool:
+    """Pre-check for automation loops: skip a new-entry attempt up front.
+
+    Only an explicitly present state is consulted here, so the pre-check never
+    turns a missing attribute into a silent skip. ``guard_new_entry`` remains the
+    authoritative, fail-closed gate inside the order functions."""
+    return state is not None and new_entry_blocked(state)
+
+
+def is_maintenance_rejection(exc: BaseException) -> bool:
+    """True only for the exact rejection raised by ``guard_new_entry``.
+
+    Automation loops use this to treat a maintenance-blocked new entry as an
+    expected skip. Any other HTTP 503, or any other exception, returns False and
+    must keep following the caller's existing failure handling."""
+    if not isinstance(exc, HTTPException) or exc.status_code != 503:
+        return False
+    detail = exc.detail
+    return isinstance(detail, dict) and detail.get("code") == "MAINTENANCE_MODE"
+
+
 def set_maintenance_mode(
     state: dict[str, Any],
     mode: str,

@@ -17,6 +17,7 @@ from typing import Any, Awaitable, Callable, NoReturn, Protocol
 from fastapi import HTTPException
 
 from . import binance_demo as demo
+from .maintenance import is_maintenance_rejection
 from .strategies import original_v2_demo as strategy
 from .strategies.contracts import StrategyInput, StrategyResult
 
@@ -895,6 +896,9 @@ async def automatic_cycle(
                 source="ORIGINAL_V2", plan={**identity(result, demo.new_client_id("REJECT"))},
             )
         except HTTPException as exc:
+            if is_maintenance_rejection(exc):
+                control._set_rejection(state, control.MAINTENANCE_GATE, control.MAINTENANCE_DEMO_MESSAGE)
+                break
             if exc.status_code not in {409, 422}:
                 raise
             control.record_event(
