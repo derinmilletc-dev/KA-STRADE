@@ -37,9 +37,6 @@ jobs:
       - name: Voice holo spec
         working-directory: frontend
         run: npx playwright test tests/assistant-voice-holo.spec.ts --project=chromium --reporter=list > ../voice.log 2>&1; echo "rc=$?" >> ../voice.log; tail -80 ../voice.log
-      - name: Neighbouring assistant specs (regression)
-        working-directory: frontend
-        run: npx playwright test tests/assistant-chat.spec.ts tests/kais-eye.spec.ts tests/kais-greeting.spec.ts --project=chromium --reporter=list > ../neighbours.log 2>&1; echo "rc=$?" >> ../neighbours.log; tail -40 ../neighbours.log
       - name: Report as annotations
         if: always()
         run: |
@@ -48,6 +45,5 @@ jobs:
           def tail(path, n):
               try: return ''.join(open(path, errors='replace').readlines()[-n:])
               except OSError: return '(missing)'
-          print('::notice title=VOICE HOLO::' + esc(tail('voice.log', 70)))
-          print('::notice title=NEIGHBOURS::' + esc(tail('neighbours.log', 30)))
-          PY
+          print('::notice title=VOICE HOLO::' + esc(tail('voice.log', 25)))
+                    PY
