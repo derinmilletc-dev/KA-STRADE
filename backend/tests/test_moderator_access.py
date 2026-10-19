@@ -155,6 +155,8 @@ OWNER_ENDPOINTS = [
     ("POST", "/api/v22/admin/users/moderator/permissions", {"permission": "events.view"}),
     ("DELETE", "/api/v22/admin/users/moderator/permissions/events.view", None),
     ("GET", "/api/v22/admin/audit", None),
+    ("GET", "/api/v22/operations", None),
+    ("GET", "/api/v22/readiness", None),
 ]
 
 
