@@ -590,7 +590,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     // Hatırlatmalar herkese açık sayfada olduğu için gerçek sayı/durum göstermez. Giriş, 2FA ve oturum mantığı müşteri girişiyle aynıdır;
     // parola sıfırlama ana sitedeki mevcut akışa gider. Yetki her zaman backend'de denetlenir.
     const staffMode = mode === 'mfa' ? 'mfa' : 'login'
-    return <main className="staffLogin">
+    // data-i18n-skip: sayfa çevirmeni bu ekranın İngilizce metinlerini karışık dile çevirmesin (ör. "Sign In" → "Giriş yap").
+    return <main className="staffLogin" data-i18n-skip="">
       <div className="staffLoginInner">
         <section className="staffBrief" aria-labelledby="staff-brief-title">
           <img className="staffLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
