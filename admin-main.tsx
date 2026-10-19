@@ -6,6 +6,7 @@ import { initI18n } from './i18n'
 import { installAuthorizedFetch, installErrorMonitoring } from './api'
 import './tokens.css'
 import './theme.css'
+import './staff-login.css'
 
 /** Yönetim yüzeyi: yalnızca giriş + admin/moderatör panelleri. Müşteri uygulaması (TestnetFirstApp, piyasa, analiz) bu pakete girmez. */
 installAuthorizedFetch()
