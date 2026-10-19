@@ -5,7 +5,7 @@ import {ApprovalCards, ApprovalError, ApprovalOwnerDetail} from './approval-ui'
 import './moderator-panel.css'
 import AdminNotificationSummary from './AdminNotificationSummary'
 import CampaignApprovalPreview from './CampaignApprovalPreview'
-import {AdminPremiumRequests} from './PremiumRequests'
+import {AdminPremiumRequests} from './AdminPremiumRequests'
 
 export default function AdminApprovals() {
   const [query, setQuery] = useState<{status: ApprovalStatus | ''; offset: number; version: number}>({status: 'pending', offset: 0, version: 0})

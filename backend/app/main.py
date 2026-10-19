@@ -123,9 +123,11 @@ def _sanitize_db_error(exc: BaseException) -> str:
 WEB_REQUIRE_AUTH = env_flag("PROTREBOT_WEB_REQUIRE_AUTH", default=False)
 WEB_ACCESS_TOKEN = os.getenv("PROTREBOT_WEB_ACCESS_TOKEN", "").strip()
 PRODUCTION_WEB_ORIGIN = "https://kaistrade.com"
+ADMIN_WEB_ORIGIN = "https://admin.kaistrade.com"
 LEGACY_PRODUCTION_WEB_ORIGIN = "https://frontend-nu-two-18.vercel.app"
 WEB_CORS_ORIGINS = list(dict.fromkeys([
     PRODUCTION_WEB_ORIGIN,
+    ADMIN_WEB_ORIGIN,
     LEGACY_PRODUCTION_WEB_ORIGIN,
     *cors_origins(os.getenv("PROTREBOT_CORS_ORIGINS"), fallback=[]),
 ]))

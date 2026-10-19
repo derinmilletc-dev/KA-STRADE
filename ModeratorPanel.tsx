@@ -12,7 +12,7 @@ import './admin.css'
 import './moderator-panel.css'
 import ModeratorSupport, {SupportOverview} from './ModeratorSupport'
 import ModeratorApprovals, {ApprovalOverview, ApprovalRequestForm} from './ModeratorApprovals'
-import {ModeratorPremiumRequests, PremiumRequestForm} from './PremiumRequests'
+import {ModeratorPremiumRequests, PremiumRequestForm} from './ModeratorPremiumRequests'
 import CustomerEvents, {OwnerApprovalNotice} from './CustomerEvents'
 import ModeratorCampaigns from './ModeratorCampaigns'
 

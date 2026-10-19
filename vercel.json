@@ -19,6 +19,15 @@
       ]
     },
     {
+      "source": "/(.*)",
+      "has": [{"type": "host", "value": "admin.kaistrade.com"}],
+      "headers": [
+        {"key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"},
+        {"key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive"},
+        {"key": "Cache-Control", "value": "no-store"}
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [
         {"key": "Content-Type", "value": "text/javascript; charset=utf-8"},
@@ -44,6 +53,7 @@
   "rewrites": [
     {"source": "/announcements/unsubscribe", "destination": "https://protrebot-rkpt.onrender.com/announcements/unsubscribe"},
     {"source": "/api/:path*", "destination": "https://protrebot-rkpt.onrender.com/api/:path*"},
+    {"source": "/:path((?!api/|announcements/|sitemap\\.xml$|robots\\.txt$|sw\\.js$).*)", "has": [{"type": "host", "value": "admin.kaistrade.com"}], "destination": "/admin.html"},
     {"source": "/privacy", "destination": "/privacy.html"},
     {"source": "/terms", "destination": "/terms.html"},
     {"source": "/risk", "destination": "/risk.html"},
