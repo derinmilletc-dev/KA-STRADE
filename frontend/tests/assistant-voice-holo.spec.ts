@@ -37,12 +37,18 @@ async function pressVoiceButton(page: Page, scenario: Scenario) {
   const problems: string[] = []
   page.on('pageerror', error => problems.push(`pageerror: ${error.message}`))
   page.on('console', message => { if (message.type() === 'error') problems.push(`console: ${message.text().slice(0, 160)}`) })
-  let dialog
-  try { dialog = await openChat(page) }
-  catch (error) {
-    const body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 500)
-    throw new Error(`openChat failed: ${String(error).slice(0, 120)} | ${problems.slice(0, 5).join(' | ')} | BODY: ${body}`)
+  await page.goto('/')
+  const launcher = page.getByRole('button', {name: 'Kais AI', exact: true})
+  try {
+    await launcher.click({timeout: 10000})
+    await page.getByRole('button', {name: 'Sohbeti aç →', exact: true}).press('Enter', {timeout: 8000})
+  } catch (error) {
+    const body = (await page.locator('body').innerText({timeout: 2000}).catch(() => 'n/a')).replace(/\s+/g, ' ').slice(0, 400)
+    const launchers = await page.locator('.assistantLauncher').count().catch(() => -1)
+    throw new Error(`open failed: ${String(error).slice(0, 100)} | launchers=${launchers} | ${problems.slice(0, 5).join(' | ')} | BODY: ${body}`)
   }
+  const dialog = page.getByRole('dialog', {name: 'Kais AI'})
+  await expect(dialog.getByRole('textbox', {name: 'Kais AI mesajın'})).toBeEnabled()
   await dialog.locator('.assistantVoiceTalk').click()
 }
 
