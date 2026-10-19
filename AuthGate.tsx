@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowRight, BarChart3, Bitcoin, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -24,6 +24,15 @@ import './auth.css'
 const AdminPanel = lazy(() => import('./AdminPanel'))
 const ModeratorPanel = lazy(() => import('./ModeratorPanel'))
 const staffFallback = <main className="authLoading"><div className="authLoader"><LoaderCircle className="spin"/><b>Yükleniyor…</b></div></main>
+// Yönetim girişinin solundaki sabit günlük hatırlatmalar (herkese açık sayfa: gerçek görev sayısı veya sistem durumu içermez).
+const STAFF_REMINDERS = [
+  {icon: Mail, title: 'Check your emails', detail: 'Review and respond to important messages.'},
+  {icon: FileText, title: 'Review payment requests', detail: 'Verify uploaded receipts and check pending payments.'},
+  {icon: ShieldCheck, title: 'Check the approval queue', detail: 'Ensure no important requests are overlooked.'},
+  {icon: Activity, title: 'Monitor system health', detail: 'Check system status, APIs and recent errors.'},
+  {icon: Users, title: 'Review user reports', detail: 'Handle support cases and account issues.'},
+  {icon: Flag, title: 'Report issues', detail: 'Report bugs or unusual activity to the administrator.'},
+]
 
 type User = { id:string; email:string; display_name:string; role:AccountRole; active:boolean; email_verified?:boolean }
 type Session = { user:User; maintenance?:{mode:string} }
@@ -577,26 +586,53 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   if (sessionLoading && !session) return <main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b><span>Hesap durumu kontrol ediliyor…</span></div></main>
   if (autoVerifying) return <main className="authLoading"><div className="authLoader"><MailCheck/><b>E-POSTA DOĞRULANIYOR</b><span>E-posta doğrulanıyor...</span></div></main>
   if (surface === 'admin' && !session) {
-    // Yönetim girişi: yalnızca e-posta + parola (+ 2FA). Kayıt, Google, parola sıfırlama ve piyasa verisi yok;
-    // parola sıfırlama ana sitede (aynı hesap) yapılır. Yetki yine backend'de; bu ekran yalnızca görünümü ayırır.
+    // Yönetim girişi (admin.kaistrade.com): solda sabit günlük hatırlatmalar, sağda yalnızca e-posta + parola (+ 2FA).
+    // Hatırlatmalar herkese açık sayfada olduğu için gerçek sayı/durum göstermez. Giriş, 2FA ve oturum mantığı müşteri girişiyle aynıdır;
+    // parola sıfırlama ana sitedeki mevcut akışa gider. Yetki her zaman backend'de denetlenir.
     const staffMode = mode === 'mfa' ? 'mfa' : 'login'
-    return <main className="authPage authPageStaff">
-      <section className="authCard authCardLogin" aria-labelledby="staff-login-title">
-        <div className="authCardHead"><div className="authMark"><ShieldCheck/></div><div><span>YÖNETİM GİRİŞİ</span><h2 id="staff-login-title">KaisTrade Yönetim</h2></div></div>
-        <p className="authCardLead">{staffMode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : 'Yalnızca yönetici ve moderatör hesapları içindir.'}</p>
-        <form onSubmit={event => { if (mode !== staffMode) { event.preventDefault(); setMode(staffMode); return } void submit(event) }} noValidate={staffMode === 'login'} aria-busy={busy}>
-          {staffMode === 'login' && <>
-            <label className={fieldErrors.email ? 'authFieldError' : ''}>E-posta<div className="authInputWithIcon"><Mail aria-hidden="true"/><input type="email" required autoComplete="username" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'staff-email-error' : undefined} value={login.email} onChange={event => {setLogin({...login,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}}/></div>{fieldErrors.email && <em id="staff-email-error" role="alert">{fieldErrors.email}</em>}</label>
-            <label className={fieldErrors.password ? 'authFieldError' : ''}>Parola<div className="authPassword authInputWithIcon"><LockKeyhole aria-hidden="true"/><input data-private="true" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'staff-password-error' : undefined} value={login.password} onChange={event => {setLogin({...login,password:event.target.value});setFieldErrors(current => ({...current,password:''}))}}/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword}>{showPassword ? <EyeOff/> : <Eye/>}</button></div>{fieldErrors.password && <em id="staff-password-error" role="alert">{fieldErrors.password}</em>}</label>
-            <label className="authCheck"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/><span>Bu cihazda oturumu hatırla</span></label>
-          </>}
-          {staffMode === 'mfa' && <label>2FA veya kurtarma kodu<input data-private="true" required autoComplete="one-time-code" value={mfaCode} onChange={event => setMfaCode(event.target.value)} placeholder="Authenticator veya kurtarma kodu"/>{fieldErrors.mfa && <em role="alert">{fieldErrors.mfa}</em>}</label>}
-          <button className="authSubmit" disabled={busy} aria-busy={busy}>{busy ? 'İŞLENİYOR…' : staffMode === 'mfa' ? 'DOĞRULA VE GİRİŞ YAP' : 'Giriş yap'}</button>
-        </form>
-        {message && message !== 'Oturum doğrulanıyor…' && <p className={`authMessage${submitFailed ? ' authMessageError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
-        {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
-        <p className="authStaffNote">Parolanızı unuttuysanız ana sitedeki “Parolamı unuttum” adımını kullanın.</p>
-      </section>
+    return <main className="staffLogin">
+      <div className="staffLoginInner">
+        <section className="staffBrief" aria-labelledby="staff-brief-title">
+          <img className="staffLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
+          <p className="staffEyebrow">Management panel</p>
+          <h1 id="staff-brief-title">Keep everything running smoothly</h1>
+          <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
+          <ol className="staffTasks">{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
+            <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>
+            <span className="staffTaskText"><b>{title}</b><span>{detail}</span></span>
+          </li>)}</ol>
+        </section>
+        <section className="staffPanel" aria-labelledby="staff-login-title">
+          <div className="staffForm">
+            <img className="staffFormLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
+            <h2 id="staff-login-title">{staffMode === 'mfa' ? 'Two-step verification' : 'Welcome Back'}</h2>
+            <p className="staffFormLead">{staffMode === 'mfa' ? 'Enter the 6-digit code from your authenticator app, or a recovery code.' : 'Sign in to access the management panel.'}</p>
+            <form onSubmit={event => { if (mode !== staffMode) { event.preventDefault(); setMode(staffMode); return } void submit(event) }} noValidate={staffMode === 'login'} aria-busy={busy}>
+              {staffMode === 'login' && <>
+                <label className={`staffField${fieldErrors.email ? ' hasError' : ''}`}><span>Email Address</span>
+                  <span className="staffInput"><Mail aria-hidden="true"/><input type="email" required autoComplete="username" placeholder="Enter your email address" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'staff-email-error' : undefined} value={login.email} onChange={event => {setLogin({...login,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}}/></span>
+                  {fieldErrors.email && <em id="staff-email-error" role="alert">{fieldErrors.email}</em>}</label>
+                <label className={`staffField${fieldErrors.password ? ' hasError' : ''}`}><span>Password</span>
+                  <span className="staffInput"><LockKeyhole aria-hidden="true"/><input data-private="true" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'staff-password-error' : undefined} value={login.password} onChange={event => {setLogin({...login,password:event.target.value});setFieldErrors(current => ({...current,password:''}))}}/>
+                    <button type="button" className="staffReveal" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff/> : <Eye/>}</button></span>
+                  {fieldErrors.password && <em id="staff-password-error" role="alert">{fieldErrors.password}</em>}</label>
+                <div className="staffOptions">
+                  <label className="staffCheck"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/><span>Keep me signed in on this device</span></label>
+                  <a href={`${CUSTOMER_ORIGIN}/forgot-password`}>Forgot password?</a>
+                </div>
+              </>}
+              {staffMode === 'mfa' && <label className={`staffField${fieldErrors.mfa ? ' hasError' : ''}`}><span>Verification code</span>
+                <span className="staffInput"><ShieldCheck aria-hidden="true"/><input data-private="true" required autoComplete="one-time-code" inputMode="text" placeholder="Authenticator or recovery code" value={mfaCode} onChange={event => setMfaCode(event.target.value)}/></span>
+                {fieldErrors.mfa && <em role="alert">{fieldErrors.mfa}</em>}</label>}
+              <button type="submit" className="staffSubmit" disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : staffMode === 'mfa' ? 'Verify and Sign In' : <>Sign In <ArrowRight aria-hidden="true"/></>}</button>
+            </form>
+            {message && message !== 'Oturum doğrulanıyor…' && <p className={`staffMessage${submitFailed ? ' isError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
+            {sessionUnavailable && <button type="button" className="staffSecondary" disabled={busy} onClick={() => void loadSession(token)}>Check session again</button>}
+            <p className="staffNote"><LockKeyhole aria-hidden="true"/><span>Access is monitored. Never share your password or verification codes with anyone.</span></p>
+          </div>
+        </section>
+      </div>
+      <footer className="staffFooter">© 2026 KaisTrade</footer>
     </main>
   }
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {

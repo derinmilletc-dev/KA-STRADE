@@ -1,0 +1,74 @@
+/* Yönetim girişi (admin.kaistrade.com). Yalnızca admin paketinde yüklenir (admin-main.tsx).
+   Mevcut marka değerleri: zemin #071116, çizgi #263943, metin #dce8ee, soluk #8da0aa, vurgu #64e3a1, KAIS zümrüt #00C98D. */
+.staffLogin{
+  --staff-bg:#071116; --staff-surface:#0b181d; --staff-line:#263943; --staff-line-soft:rgba(220,232,238,.08);
+  --staff-ink:#dce8ee; --staff-muted:#8da0aa; --staff-accent:#64e3a1; --staff-emerald:#00C98D;
+  min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; box-sizing:border-box;
+  background:radial-gradient(1200px 700px at 0% 0%, rgba(0,201,141,.045), transparent 60%), var(--staff-bg);
+  color:var(--staff-ink); font-family:"Plus Jakarta Sans Variable", system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.staffLogin *, .staffLogin *::before, .staffLogin *::after{box-sizing:border-box}
+.staffLoginInner{flex:1; display:grid; grid-template-columns:52fr 48fr; width:100%; max-width:1280px; margin:0 auto}
+
+/* Sol: hatırlatmalar */
+.staffBrief{display:flex; flex-direction:column; justify-content:center; padding:56px clamp(32px,5vw,72px); border-right:1px solid var(--staff-line-soft)}
+.staffLogo{display:block; height:30px; width:auto; margin:0 0 40px}
+.staffEyebrow{margin:0 0 12px; color:var(--staff-muted); font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase}
+.staffBrief h1{margin:0; max-width:520px; font-size:clamp(28px,2.6vw,36px); line-height:1.18; font-weight:600; letter-spacing:-.01em; color:var(--staff-ink)}
+.staffLead{margin:12px 0 32px; max-width:480px; color:var(--staff-muted); font-size:15px; line-height:1.6}
+.staffTasks{list-style:none; margin:0; padding:0; max-width:520px}
+.staffTasks li{display:grid; grid-template-columns:36px 1fr; gap:14px; align-items:center; padding:13px 0; border-top:1px solid var(--staff-line-soft)}
+.staffTasks li:last-child{border-bottom:1px solid var(--staff-line-soft)}
+.staffTaskIcon{display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--staff-line); border-radius:8px; background:rgba(220,232,238,.02); color:var(--staff-accent)}
+.staffTaskIcon svg{width:16px; height:16px; stroke-width:1.6}
+.staffTaskText{display:grid; gap:2px; min-width:0}
+.staffTaskText b{font-size:14px; font-weight:600; color:var(--staff-ink)}
+.staffTaskText span{font-size:13px; line-height:1.45; color:var(--staff-muted)}
+
+/* Sağ: giriş formu */
+.staffPanel{display:flex; align-items:center; justify-content:center; padding:56px clamp(24px,4vw,64px)}
+.staffForm{width:100%; max-width:420px}
+.staffFormLogo{display:none; height:28px; width:auto; margin:0 0 28px}
+.staffForm h2{margin:0; font-size:26px; line-height:1.25; font-weight:600; letter-spacing:-.01em; color:var(--staff-ink)}
+.staffFormLead{margin:8px 0 28px; color:var(--staff-muted); font-size:14px; line-height:1.55}
+.staffForm form{display:grid; gap:18px}
+.staffField{display:grid; gap:8px}
+.staffField > span:first-child{font-size:13px; font-weight:600; color:var(--staff-ink)}
+.staffInput{position:relative; display:flex; align-items:center}
+.staffInput > svg{position:absolute; left:14px; width:17px; height:17px; color:var(--staff-muted); pointer-events:none}
+.staffInput input{width:100%; height:46px; padding:0 44px 0 42px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font:500 14px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; outline:none; transition:border-color .15s ease, box-shadow .15s ease}
+.staffInput input::placeholder{color:#62757e}
+.staffInput input:focus{border-color:var(--staff-emerald); box-shadow:0 0 0 3px rgba(0,201,141,.14)}
+.staffField.hasError .staffInput input{border-color:#d4746c}
+.staffField em{font-style:normal; font-size:12px; color:#e59a92}
+.staffReveal{position:absolute; right:6px; display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:6px; background:transparent; color:var(--staff-muted); cursor:pointer}
+.staffReveal:hover{color:var(--staff-ink)}
+.staffReveal:focus-visible{outline:2px solid var(--staff-emerald); outline-offset:1px}
+.staffReveal svg{width:17px; height:17px}
+.staffOptions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:-2px}
+.staffCheck{display:flex; align-items:center; gap:9px; color:var(--staff-ink); font-size:13px; cursor:pointer}
+.staffCheck input{width:16px; height:16px; margin:0; accent-color:var(--staff-emerald)}
+.staffOptions a{color:var(--staff-accent); font-size:13px; font-weight:600; text-decoration:none}
+.staffOptions a:hover{text-decoration:underline}
+.staffSubmit{display:flex; align-items:center; justify-content:center; gap:8px; height:46px; margin-top:4px; border:0; border-radius:8px; background:var(--staff-emerald); color:#04150f; font:600 15px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer; transition:filter .15s ease}
+.staffSubmit:hover{filter:brightness(1.06)}
+.staffSubmit:focus-visible{outline:2px solid var(--staff-accent); outline-offset:2px}
+.staffSubmit:disabled{opacity:.6; cursor:wait}
+.staffSubmit svg{width:17px; height:17px}
+.staffMessage{margin:16px 0 0; padding:10px 12px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font-size:13px; line-height:1.5}
+.staffMessage.isError{border-color:rgba(212,116,108,.5); color:#f0c3be}
+.staffSecondary{margin-top:12px; width:100%; height:40px; border:1px solid var(--staff-line); border-radius:8px; background:transparent; color:var(--staff-ink); font:600 13px "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer}
+.staffNote{display:flex; gap:12px; align-items:flex-start; margin:28px 0 0; padding-top:20px; border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:12.5px; line-height:1.55}
+.staffNote svg{flex:none; width:16px; height:16px; margin-top:1px}
+
+.staffFooter{width:100%; max-width:1280px; margin:0 auto; padding:18px clamp(24px,5vw,72px); border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:12px}
+
+/* Telefon/tablet: yalnızca giriş formu */
+@media (max-width:900px){
+  .staffLoginInner{grid-template-columns:1fr}
+  .staffBrief{display:none}
+  .staffPanel{padding:40px 20px}
+  .staffFormLogo{display:block}
+  .staffFooter{text-align:center}
+}
