@@ -34,7 +34,15 @@ async function stubBrowserSpeech(page: Page, scenario: Scenario) {
 async function pressVoiceButton(page: Page, scenario: Scenario) {
   await stubBrowserSpeech(page, scenario)
   await mockAssistant(page)
-  const dialog = await openChat(page)
+  const problems: string[] = []
+  page.on('pageerror', error => problems.push(`pageerror: ${error.message}`))
+  page.on('console', message => { if (message.type() === 'error') problems.push(`console: ${message.text().slice(0, 160)}`) })
+  let dialog
+  try { dialog = await openChat(page) }
+  catch (error) {
+    const body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 500)
+    throw new Error(`openChat failed: ${String(error).slice(0, 120)} | ${problems.slice(0, 5).join(' | ')} | BODY: ${body}`)
+  }
   await dialog.locator('.assistantVoiceTalk').click()
 }
 
