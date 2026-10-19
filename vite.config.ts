@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import {resolve} from 'node:path'
 import {assetInlineLimit} from './vite-asset-policy'
 import {publicPolicyHtml} from './tools/public-policy-html'
 export default defineConfig({
@@ -7,7 +8,7 @@ export default defineConfig({
 	resolve:{dedupe:['react','react-dom']},
 	publicDir:'frontend/public',
 	define:{'import.meta.env.VITE_BUILD_COMMIT':JSON.stringify(process.env.VITE_BUILD_COMMIT || 'unknown')},
-	build:{assetsInlineLimit:assetInlineLimit},
+	build:{assetsInlineLimit:assetInlineLimit,rollupOptions:{input:{main:resolve(__dirname,'index.html'),admin:resolve(__dirname,'admin.html')}}},
 	server:{
 		host:'127.0.0.1',
 		port:5173,
