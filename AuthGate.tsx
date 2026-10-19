@@ -136,8 +136,12 @@ function MaintenanceScreen({mode}:{mode:string}) {
 export default function AuthGate({children,surface='customer'}:{children:ReactNode;surface?:Surface}) {
   const [token,setToken] = useState(userSessionToken())
   const [session,setSession] = useState<Session|null>(null)
-  const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : window.location.pathname === '/register' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
-  useEffect(() => {applyPageMetadataForPath(window.location.pathname)})
+  const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : surface === 'admin' ? 'login' : window.location.pathname === '/register' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
+  useEffect(() => {
+    // Yönetim yüzeyi müşteri sayfa başlıklarını/arama motoru etiketlerini almaz (admin.html noindex kalır).
+    if (surface === 'admin') document.title = 'KaisTrade Yönetim'
+    else applyPageMetadataForPath(window.location.pathname)
+  })
   const isRegistration = mode === 'register' || mode === 'bootstrap'
   const isGoogleConsent = mode === 'google-consent'
   const [ownerSetupAvailable,setOwnerSetupAvailable] = useState(false)
@@ -572,6 +576,29 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   if (!session && expiredMemberMaintenance) return <MaintenanceScreen mode={expiredMemberMaintenance}/>
   if (sessionLoading && !session) return <main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b><span>Hesap durumu kontrol ediliyor…</span></div></main>
   if (autoVerifying) return <main className="authLoading"><div className="authLoader"><MailCheck/><b>E-POSTA DOĞRULANIYOR</b><span>E-posta doğrulanıyor...</span></div></main>
+  if (surface === 'admin' && !session) {
+    // Yönetim girişi: yalnızca e-posta + parola (+ 2FA). Kayıt, Google, parola sıfırlama ve piyasa verisi yok;
+    // parola sıfırlama ana sitede (aynı hesap) yapılır. Yetki yine backend'de; bu ekran yalnızca görünümü ayırır.
+    const staffMode = mode === 'mfa' ? 'mfa' : 'login'
+    return <main className="authPage authPageStaff">
+      <section className="authCard authCardLogin" aria-labelledby="staff-login-title">
+        <div className="authCardHead"><div className="authMark"><ShieldCheck/></div><div><span>YÖNETİM GİRİŞİ</span><h2 id="staff-login-title">KaisTrade Yönetim</h2></div></div>
+        <p className="authCardLead">{staffMode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : 'Yalnızca yönetici ve moderatör hesapları içindir.'}</p>
+        <form onSubmit={event => { if (mode !== staffMode) { event.preventDefault(); setMode(staffMode); return } void submit(event) }} noValidate={staffMode === 'login'} aria-busy={busy}>
+          {staffMode === 'login' && <>
+            <label className={fieldErrors.email ? 'authFieldError' : ''}>E-posta<div className="authInputWithIcon"><Mail aria-hidden="true"/><input type="email" required autoComplete="username" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'staff-email-error' : undefined} value={login.email} onChange={event => {setLogin({...login,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}}/></div>{fieldErrors.email && <em id="staff-email-error" role="alert">{fieldErrors.email}</em>}</label>
+            <label className={fieldErrors.password ? 'authFieldError' : ''}>Parola<div className="authPassword authInputWithIcon"><LockKeyhole aria-hidden="true"/><input data-private="true" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'staff-password-error' : undefined} value={login.password} onChange={event => {setLogin({...login,password:event.target.value});setFieldErrors(current => ({...current,password:''}))}}/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword}>{showPassword ? <EyeOff/> : <Eye/>}</button></div>{fieldErrors.password && <em id="staff-password-error" role="alert">{fieldErrors.password}</em>}</label>
+            <label className="authCheck"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/><span>Bu cihazda oturumu hatırla</span></label>
+          </>}
+          {staffMode === 'mfa' && <label>2FA veya kurtarma kodu<input data-private="true" required autoComplete="one-time-code" value={mfaCode} onChange={event => setMfaCode(event.target.value)} placeholder="Authenticator veya kurtarma kodu"/>{fieldErrors.mfa && <em role="alert">{fieldErrors.mfa}</em>}</label>}
+          <button className="authSubmit" disabled={busy} aria-busy={busy}>{busy ? 'İŞLENİYOR…' : staffMode === 'mfa' ? 'DOĞRULA VE GİRİŞ YAP' : 'Giriş yap'}</button>
+        </form>
+        {message && message !== 'Oturum doğrulanıyor…' && <p className={`authMessage${submitFailed ? ' authMessageError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
+        {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
+        <p className="authStaffNote">Parolanızı unuttuysanız ana sitedeki “Parolamı unuttum” adımını kullanın.</p>
+      </section>
+    </main>
+  }
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {
     const registrationStrength = strength(register.password)
     return <LoginMarketShell>{market => <main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
