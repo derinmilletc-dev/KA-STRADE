@@ -55,7 +55,7 @@ jobs:
           } > facts.log 2>&1; cat facts.log
       - name: Behaviour check of account-surface helpers
         run: |
-          node node_modules/esbuild/bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface.mjs \
+          ./node_modules/.bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface.mjs \
             --define:import.meta.env.VITE_ADMIN_ORIGIN='"https://admin.kaistrade.com"' --define:import.meta.env.VITE_CUSTOMER_ORIGIN='""' > surface-build.log 2>&1
           cat > /tmp/check.mjs <<'JS'
           let replaced = null
@@ -82,7 +82,7 @@ jobs:
           JS
           node /tmp/check.mjs > surface-check.log 2>&1; cat surface-build.log surface-check.log
           # unset origin => no redirect at all
-          node node_modules/esbuild/bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface-off.mjs --define:import.meta.env.VITE_ADMIN_ORIGIN='""' --define:import.meta.env.VITE_CUSTOMER_ORIGIN='""' >/dev/null 2>&1
+          ./node_modules/.bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface-off.mjs --define:import.meta.env.VITE_ADMIN_ORIGIN='""' --define:import.meta.env.VITE_CUSTOMER_ORIGIN='""' >/dev/null 2>&1
           cat > /tmp/check-off.mjs <<'JS'
           globalThis.window = {location: {origin: 'https://kaistrade.com', replace: () => { throw new Error('must not redirect') }}}
           const m = await import('/tmp/surface-off.mjs')
