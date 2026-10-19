@@ -89,22 +89,39 @@ SAMPLE_ID = "a" * 32
 
 
 def _is_api_route(route):
-    # Duck-typed on purpose: some FastAPI versions wrap included routes in subclasses/wrappers.
+    # Duck-typed on purpose: some FastAPI versions wrap included routers in lazy ``_IncludedRouter`` objects.
     return hasattr(route, "path") and hasattr(route, "endpoint") and bool(getattr(route, "methods", None))
 
 
-def _api_routes():
-    for route in main.app.routes:
+def _flatten(routes, prefix=""):
+    """Yield (full_path, route) for every endpoint route, descending into included-router wrappers."""
+    for route in routes:
         if _is_api_route(route):
-            for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
-                yield method, route.path, route
+            path = route.path
+            yield (path if path.startswith(prefix) else prefix + path), route
+            continue
+        inner = getattr(route, "router", None) or getattr(route, "original_router", None)
+        children = getattr(inner, "routes", None) if inner is not None else getattr(route, "routes", None)
+        if children is None:
+            continue
+        extra = getattr(route, "prefix", "") or ""
+        yield from _flatten(children, prefix + extra if not prefix.endswith(extra) else prefix)
 
 
-def test_route_walk_sees_the_application():
-    """Guards the guards: an empty walk would make every inventory assertion below vacuous."""
-    kinds = sorted({type(route).__name__ for route in main.app.routes})
-    paths = {path for _method, path, _route in _api_routes()}
-    assert len(paths) > 100 and "/api/mod/me" in paths, f"route walk is broken (route types: {kinds}, {len(paths)} paths)"
+def _api_routes():
+    for path, route in _flatten(main.app.routes):
+        for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
+            yield method, path, route
+
+
+def test_route_walk_matches_openapi():
+    """Guards the guards: an incomplete walk would make the inventory assertions below vacuous."""
+    walked = {path for _method, path, _route in _api_routes()}
+    documented = set(main.app.openapi()["paths"])
+    kinds = {type(route).__name__: sorted(a for a in vars(route) if not a.startswith("__"))[:12] for route in main.app.routes}
+    assert walked == documented, (
+        f"route walk differs from openapi: only walked={sorted(walked - documented)[:8]} only openapi={sorted(documented - walked)[:8]} "
+        f"(types: {kinds})")
 
 
 def _concrete(path):
@@ -162,8 +179,10 @@ def full(setup):  # noqa: F811
     """The shared fixture with every ``/api/`` route of the real application mounted."""
     client, pool = setup
     present = {(route.path, frozenset(route.methods or ())) for route in client.app.routes if hasattr(route, "path")}
-    for route in main.app.routes:
-        if _is_api_route(route) and route.path.startswith("/api/") \
+    for route in main.app.routes:  # whole entries, so wrapped (lazily included) routers are mounted too
+        if not _is_api_route(route) and not any(route is existing for existing in client.app.routes):
+            client.app.router.routes.append(route)
+        elif _is_api_route(route) and route.path.startswith("/api/") \
                 and (route.path, frozenset(route.methods or ())) not in present:
             client.app.router.routes.append(route)
     pool.settings["moderator"] = {"two_factor_enabled": True}
