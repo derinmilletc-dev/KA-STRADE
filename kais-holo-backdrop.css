@@ -1,10 +1,10 @@
 /* KAIS — sinematik ortam (yalnız dekoratif). Palet: gece mavisi #050B14/#08131F, zümrüt #00C98D, yumuşak yeşil #65F5BE,
    buz mavisi #8ADFFF (seyrek). Göz (KaisEye) ve kontroller etkilenmez; tüm katmanlar pointer-events:none.
    .kaisHoloBackdrop z-index:-1: .kaisHolo yığın bağlamında zeminin üstünde, tüm içerik ve kontrollerin altında. */
-.kaisHolo{--kh-emerald:0,201,141;--kh-soft:101,245,190;--kh-ice:138,223,255;--kh-ambient:.9;--kh-sweep:.32}
-.kaisHolo[data-phase=thinking]{--kh-ambient:1;--kh-sweep:.85}
-.kaisHolo[data-phase=speaking]{--kh-ambient:.95;--kh-sweep:.5}
-.kaisHolo[data-phase=error]{--kh-emerald:232,168,94;--kh-soft:240,197,141;--kh-ambient:.55;--kh-sweep:0}
+.kaisHolo{--kh-emerald:0,201,141;--kh-soft:101,245,190;--kh-ice:138,223,255;--kh-ambient:.9;--kh-sweep:.2;--kh-base:.75}
+.kaisHolo[data-phase=thinking]{--kh-ambient:1;--kh-sweep:.62;--kh-base:.9}
+.kaisHolo[data-phase=speaking]{--kh-ambient:.95;--kh-sweep:.34;--kh-base:1}
+.kaisHolo[data-phase=error]{--kh-emerald:232,168,94;--kh-soft:240,197,141;--kh-ambient:.55;--kh-sweep:0;--kh-base:.5}
 
 .kaisHoloBackdrop{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}
 .kaisHoloBackdrop *{pointer-events:none}
@@ -23,10 +23,10 @@
   radial-gradient(60% 45% at 0% 0%,rgba(var(--kh-ice),.07),rgba(var(--kh-ice),0) 70%),
   radial-gradient(55% 40% at 100% 100%,rgba(var(--kh-ice),.06),rgba(var(--kh-ice),0) 70%)}
 /* 4 · Uzak teknik ızgara: yalnız dış bölgede, merkezde tamamen silinir */
-.kaisHoloBackdrop .grid{inset:0;opacity:.5;
+.kaisHoloBackdrop .grid{inset:0;opacity:.32;
   background-image:linear-gradient(rgba(var(--kh-ice),.07) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--kh-ice),.07) 1px,transparent 1px);
   background-size:96px 96px;background-position:center;
-  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 42%,transparent 45%,#000 100%);mask-image:radial-gradient(ellipse 70% 60% at 50% 42%,transparent 45%,#000 100%)}
+  -webkit-mask-image:radial-gradient(ellipse 72% 64% at 50% 42%,transparent 58%,#000 100%);mask-image:radial-gradient(ellipse 72% 64% at 50% 42%,transparent 58%,#000 100%)}
 /* 5 · Perspektif zemin + ufuk çizgisi */
 .kaisHoloBackdrop .floor{left:-30%;right:-30%;bottom:-4%;height:38%;transform:perspective(520px) rotateX(64deg);transform-origin:50% 100%;
   background-image:linear-gradient(rgba(var(--kh-emerald),.2) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--kh-ice),.13) 1px,transparent 1px);
@@ -60,13 +60,21 @@
 .kaisHoloBackdrop .particles{position:absolute;inset:0}
 .kaisHoloBackdrop .particles i{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(var(--kh-soft),.75);opacity:.25;animation:kaisBgFloat 11s ease-in-out infinite}
 .kaisHoloBackdrop .particles i:nth-child(3n){background:rgba(var(--kh-ice),.75)}
+/* 10 · Holografik taban (yalnız mobil): alttaki kontrol yuvasının arkasında hafif ışık + iki ince elips. Durum yalnız opaklığı değiştirir. */
+.kaisHoloBackdrop .dock{display:none;left:50%;bottom:calc(-46px + env(safe-area-inset-bottom));width:min(160vw,680px);height:200px;transform:translateX(-50%);
+  opacity:var(--kh-base);transition:opacity .8s ease;
+  background:radial-gradient(50% 50% at 50% 55%,rgba(var(--kh-emerald),.2),rgba(var(--kh-emerald),.06) 55%,rgba(var(--kh-emerald),0) 74%)}
+.kaisHoloBackdrop .dock::before,.kaisHoloBackdrop .dock::after{content:"";position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%)}
+.kaisHoloBackdrop .dock::before{width:62%;height:40%;border:1px solid rgba(var(--kh-soft),.3)}
+.kaisHoloBackdrop .dock::after{width:90%;height:62%;border:1px solid rgba(var(--kh-ice),.14)}
+.kaisHolo[data-phase=speaking] .kaisHoloBackdrop .dock::before{will-change:opacity;animation:kaisBgBase 2.4s ease-in-out infinite}
 /* 9 · Vinyet: kenarları koyulaştırır, merkezi açık bırakır */
 .kaisHoloBackdrop .vignette{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 45%,rgba(5,11,20,0) 55%,rgba(3,7,13,.75) 100%)}
 
 /* Göz çevresi tarama sistemi: sahneye bağlı iki ayrı katman (gözün boyutu ve kendi halkaları değişmez).
    ::before = dış ölçek halkaları (çok yavaş dönüş) · ::after = ışık süpürmesi (göz dışında halka maskeli, opaklık duruma göre). */
 .kaisHolo .kaisHoloStage::before,.kaisHolo .kaisHoloStage::after{content:"";position:absolute;pointer-events:none;border-radius:50%;z-index:0}
-.kaisHolo .kaisHoloStage::before{inset:-58%;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200' fill='none'%3E%3Ccircle r='98.5' stroke='%2300C98D' stroke-opacity='.16' stroke-width='.3' stroke-dasharray='.6 2.4'/%3E%3Cpath d='M92 0L95.5 0M91.65 8.02L93.64 8.19M90.6 15.98L92.57 16.32M88.87 23.81L90.8 24.33M86.45 31.47L88.33 32.15M83.38 38.88L85.19 39.73M79.67 46L82.71 47.75M75.36 52.77L77 53.92M70.48 59.14L72.01 60.42M65.05 65.05L66.47 66.47M59.14 70.48L60.42 72.01M52.77 75.36L53.92 77M46 79.67L47.75 82.71M38.88 83.38L39.73 85.19M31.47 86.45L32.15 88.33M23.81 88.87L24.33 90.8M15.98 90.6L16.32 92.57M8.02 91.65L8.19 93.64M0 92L0 95.5M-8.02 91.65L-8.19 93.64M-15.98 90.6L-16.32 92.57M-23.81 88.87L-24.33 90.8M-31.47 86.45L-32.15 88.33M-38.88 83.38L-39.73 85.19M-46 79.67L-47.75 82.71M-52.77 75.36L-53.92 77M-59.14 70.48L-60.42 72.01M-65.05 65.05L-66.47 66.47M-70.48 59.14L-72.01 60.42M-75.36 52.77L-77 53.92M-79.67 46L-82.71 47.75M-83.38 38.88L-85.19 39.73M-86.45 31.47L-88.33 32.15M-88.87 23.81L-90.8 24.33M-90.6 15.98L-92.57 16.32M-91.65 8.02L-93.64 8.19M-92 0L-95.5 0M-91.65 -8.02L-93.64 -8.19M-90.6 -15.98L-92.57 -16.32M-88.87 -23.81L-90.8 -24.33M-86.45 -31.47L-88.33 -32.15M-83.38 -38.88L-85.19 -39.73M-79.67 -46L-82.71 -47.75M-75.36 -52.77L-77 -53.92M-70.48 -59.14L-72.01 -60.42M-65.05 -65.05L-66.47 -66.47M-59.14 -70.48L-60.42 -72.01M-52.77 -75.36L-53.92 -77M-46 -79.67L-47.75 -82.71M-38.88 -83.38L-39.73 -85.19M-31.47 -86.45L-32.15 -88.33M-23.81 -88.87L-24.33 -90.8M-15.98 -90.6L-16.32 -92.57M-8.02 -91.65L-8.19 -93.64M-0 -92L-0 -95.5M8.02 -91.65L8.19 -93.64M15.98 -90.6L16.32 -92.57M23.81 -88.87L24.33 -90.8M31.47 -86.45L32.15 -88.33M38.88 -83.38L39.73 -85.19M46 -79.67L47.75 -82.71M52.77 -75.36L53.92 -77M59.14 -70.48L60.42 -72.01M65.05 -65.05L66.47 -66.47M70.48 -59.14L72.01 -60.42M75.36 -52.77L77 -53.92M79.67 -46L82.71 -47.75M83.38 -38.88L85.19 -39.73M86.45 -31.47L88.33 -32.15M88.87 -23.81L90.8 -24.33M90.6 -15.98L92.57 -16.32M91.65 -8.02L93.64 -8.19' stroke='%238ADFFF' stroke-opacity='.2' stroke-width='.3'/%3E%3Cpath d='M44 -76.21A88 88 0 0 1 79.76 -37.19M-44 76.21A88 88 0 0 1 -79.76 37.19' stroke='%238ADFFF' stroke-opacity='.34' stroke-width='.45'/%3E%3Cpath d='M83.71 14.76A85 85 0 0 1 29.07 79.87M-83.71 -14.76A85 85 0 0 1 -29.07 -79.87' stroke='%2365F5BE' stroke-opacity='.16' stroke-width='.3'/%3E%3Ccircle r='78' stroke='%2300C98D' stroke-opacity='.12' stroke-width='.3' stroke-dasharray='6 3 1 3'/%3E%3Cg stroke='%2365F5BE' stroke-opacity='.38' stroke-width='.4'%3E%3Cpath transform='rotate%280%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%2890%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%28180%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%28270%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat;opacity:.95;animation:kaisBgSpin 200s linear infinite}
+.kaisHolo .kaisHoloStage::before{inset:-58%;opacity:.5;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200' fill='none'%3E%3Ccircle r='98.5' stroke='%2300C98D' stroke-opacity='.16' stroke-width='.3' stroke-dasharray='.6 2.4'/%3E%3Cpath d='M92 0L95.5 0M91.65 8.02L93.64 8.19M90.6 15.98L92.57 16.32M88.87 23.81L90.8 24.33M86.45 31.47L88.33 32.15M83.38 38.88L85.19 39.73M79.67 46L82.71 47.75M75.36 52.77L77 53.92M70.48 59.14L72.01 60.42M65.05 65.05L66.47 66.47M59.14 70.48L60.42 72.01M52.77 75.36L53.92 77M46 79.67L47.75 82.71M38.88 83.38L39.73 85.19M31.47 86.45L32.15 88.33M23.81 88.87L24.33 90.8M15.98 90.6L16.32 92.57M8.02 91.65L8.19 93.64M0 92L0 95.5M-8.02 91.65L-8.19 93.64M-15.98 90.6L-16.32 92.57M-23.81 88.87L-24.33 90.8M-31.47 86.45L-32.15 88.33M-38.88 83.38L-39.73 85.19M-46 79.67L-47.75 82.71M-52.77 75.36L-53.92 77M-59.14 70.48L-60.42 72.01M-65.05 65.05L-66.47 66.47M-70.48 59.14L-72.01 60.42M-75.36 52.77L-77 53.92M-79.67 46L-82.71 47.75M-83.38 38.88L-85.19 39.73M-86.45 31.47L-88.33 32.15M-88.87 23.81L-90.8 24.33M-90.6 15.98L-92.57 16.32M-91.65 8.02L-93.64 8.19M-92 0L-95.5 0M-91.65 -8.02L-93.64 -8.19M-90.6 -15.98L-92.57 -16.32M-88.87 -23.81L-90.8 -24.33M-86.45 -31.47L-88.33 -32.15M-83.38 -38.88L-85.19 -39.73M-79.67 -46L-82.71 -47.75M-75.36 -52.77L-77 -53.92M-70.48 -59.14L-72.01 -60.42M-65.05 -65.05L-66.47 -66.47M-59.14 -70.48L-60.42 -72.01M-52.77 -75.36L-53.92 -77M-46 -79.67L-47.75 -82.71M-38.88 -83.38L-39.73 -85.19M-31.47 -86.45L-32.15 -88.33M-23.81 -88.87L-24.33 -90.8M-15.98 -90.6L-16.32 -92.57M-8.02 -91.65L-8.19 -93.64M-0 -92L-0 -95.5M8.02 -91.65L8.19 -93.64M15.98 -90.6L16.32 -92.57M23.81 -88.87L24.33 -90.8M31.47 -86.45L32.15 -88.33M38.88 -83.38L39.73 -85.19M46 -79.67L47.75 -82.71M52.77 -75.36L53.92 -77M59.14 -70.48L60.42 -72.01M65.05 -65.05L66.47 -66.47M70.48 -59.14L72.01 -60.42M75.36 -52.77L77 -53.92M79.67 -46L82.71 -47.75M83.38 -38.88L85.19 -39.73M86.45 -31.47L88.33 -32.15M88.87 -23.81L90.8 -24.33M90.6 -15.98L92.57 -16.32M91.65 -8.02L93.64 -8.19' stroke='%238ADFFF' stroke-opacity='.2' stroke-width='.3'/%3E%3Cpath d='M44 -76.21A88 88 0 0 1 79.76 -37.19M-44 76.21A88 88 0 0 1 -79.76 37.19' stroke='%238ADFFF' stroke-opacity='.34' stroke-width='.45'/%3E%3Cpath d='M83.71 14.76A85 85 0 0 1 29.07 79.87M-83.71 -14.76A85 85 0 0 1 -29.07 -79.87' stroke='%2365F5BE' stroke-opacity='.16' stroke-width='.3'/%3E%3Ccircle r='78' stroke='%2300C98D' stroke-opacity='.12' stroke-width='.3' stroke-dasharray='6 3 1 3'/%3E%3Cg stroke='%2365F5BE' stroke-opacity='.38' stroke-width='.4'%3E%3Cpath transform='rotate%280%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%2890%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%28180%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3Cpath transform='rotate%28270%29' d='M97.5 -5v-0M97.5 -5h-2.5M97.5 -5V5M97.5 5h-2.5'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat;animation:kaisBgSpin 200s linear infinite}
 .kaisHolo .kaisHoloStage::after{inset:-26%;opacity:var(--kh-sweep);transition:opacity .8s ease;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200' fill='none'%3E%3Ccircle r='96' stroke='%2365F5BE' stroke-opacity='.14' stroke-width='.35' stroke-dasharray='14 5 2 5'/%3E%3Cpath d='M-78.81 -45.5A91 91 0 0 1 -42.72 -80.35M78.81 45.5A91 91 0 0 1 42.72 80.35' stroke='%238ADFFF' stroke-opacity='.3' stroke-width='.4'/%3E%3C/svg%3E") center/100% 100% no-repeat,
     conic-gradient(from 0deg,rgba(var(--kh-soft),0) 0deg,rgba(var(--kh-soft),0) 292deg,rgba(var(--kh-soft),.12) 344deg,rgba(var(--kh-ice),.26) 358deg,rgba(var(--kh-soft),0) 360deg);
@@ -80,21 +88,24 @@
   .kaisHoloBackdrop .rail{display:none}
   .kaisHoloBackdrop .particles i:nth-child(even){display:none}
   .kaisHoloBackdrop .grid{background-size:64px 64px}
-  .kaisHoloBackdrop .horizon{bottom:12%}
-  .kaisHolo .kaisHoloStage::before{inset:-30%}
+  .kaisHolo .kaisHoloStage::before{inset:-24%;opacity:.34}
+  .kaisHoloBackdrop .floor{opacity:.45}
+  .kaisHoloBackdrop .horizon{display:none}
+  .kaisHoloBackdrop .dock{display:block}
 }
 @media (min-width:1600px){.kaisHoloBackdrop .rail.l{left:8%}.kaisHoloBackdrop .rail.r{right:8%}}
 
 @keyframes kaisBgPulse{0%{stroke-dashoffset:100;opacity:0}4%{opacity:1}30%{stroke-dashoffset:0;opacity:1}34%,100%{stroke-dashoffset:0;opacity:0}}
 @keyframes kaisBgSpin{to{transform:rotate(360deg)}}
+@keyframes kaisBgBase{50%{opacity:.45}}
 @keyframes kaisBgFloat{0%,100%{transform:translateY(0);opacity:.12}50%{transform:translateY(-12px);opacity:.45}}
 
 /* Sekme gizliyken duraklatma: mevcut .kaisHolo[data-paused=true] * kuralı sözde öğeleri kapsamaz */
-.kaisHolo[data-paused=true] .kaisHoloStage::before,.kaisHolo[data-paused=true] .kaisHoloStage::after{animation-play-state:paused}
+.kaisHolo[data-paused=true] .kaisHoloStage::before,.kaisHolo[data-paused=true] .kaisHoloStage::after,.kaisHolo[data-paused=true] .kaisHoloBackdrop .dock::before{animation-play-state:paused}
 /* Hata: tarama ve ışık akışı durur */
 .kaisHolo[data-phase=error] .kaisHoloStage::after,.kaisHolo[data-phase=error] .kaisHoloCircuit .pulses{animation:none;display:none}
 /* Hareket azaltma: tüm ortam animasyonları kapalı, katmanlar durağan görünür */
 @media (prefers-reduced-motion:reduce){
-  .kaisHoloBackdrop *,.kaisHolo .kaisHoloStage::before,.kaisHolo .kaisHoloStage::after{animation:none!important}
+  .kaisHoloBackdrop *,.kaisHoloBackdrop .dock::before,.kaisHolo .kaisHoloStage::before,.kaisHolo .kaisHoloStage::after{animation:none!important}
   .kaisHoloBackdrop .pulses{display:none}
 }
