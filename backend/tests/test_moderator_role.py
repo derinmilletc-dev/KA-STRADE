@@ -176,6 +176,10 @@ def setup():
     application.include_router(notification_router)
     from app.binance_manual_admin import router as binance_payments_router
     application.include_router(binance_payments_router)
+    # Included routers are lazy wrappers without a ``path`` in current FastAPI, so the loop below cannot copy them;
+    # routers the OWNER inventory exercises must be included explicitly (this one used to answer 404, not 403).
+    from app.premium_requests import admin_router as premium_admin_router
+    application.include_router(premium_admin_router)
     for route in main.app.routes:
         if getattr(route, "path", "").startswith("/api/v22/admin/"):
             if not any(getattr(existing, "path", None) == route.path
