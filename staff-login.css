@@ -1,97 +1,146 @@
 /* Yönetim girişi (admin.kaistrade.com). Yalnızca admin paketinde yüklenir (admin-main.tsx).
-   Mevcut marka değerleri: zemin #071116, çizgi #263943, metin #dce8ee, soluk #8da0aa, vurgu #64e3a1, KAIS zümrüt #00C98D. */
+   Mevcut marka değerleri: zemin #071116, çizgi #263943, metin #dce8ee, soluk #8da0aa, vurgu #64e3a1, KAIS zümrüt #00C98D.
+   Masaüstü tüm görüntü alanını kullanır (dar orta kap yok); 1366×768'de kaydırmasız sığacak şekilde dikey ölçüler vh ile sınırlanır. */
 .staffLogin{
   --staff-bg:#071116; --staff-surface:#0b181d; --staff-line:#263943; --staff-line-soft:rgba(220,232,238,.08);
   --staff-ink:#dce8ee; --staff-muted:#8da0aa; --staff-accent:#64e3a1; --staff-emerald:#00C98D;
-  min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; box-sizing:border-box;
-  background:radial-gradient(1200px 700px at 0% 0%, rgba(0,201,141,.045), transparent 60%), var(--staff-bg);
+  --staff-pad-x:clamp(40px, 6vw, 112px); --staff-pad-y:clamp(24px, 5vh, 64px);
+  width:100%; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; box-sizing:border-box;
+  background:radial-gradient(900px 600px at 0% 0%, rgba(0,201,141,.04), transparent 65%), var(--staff-bg);
   color:var(--staff-ink); font-family:"Plus Jakarta Sans Variable", system-ui, sans-serif;
-  -webkit-font-smoothing:antialiased;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
 }
 .staffLogin *, .staffLogin *::before, .staffLogin *::after{box-sizing:border-box}
-.staffLoginInner{flex:1; display:grid; grid-template-columns:52fr 48fr; grid-template-areas:"brief panel"; width:100%; max-width:1280px; margin:0 auto}
+.staffLoginInner{flex:1; display:grid; grid-template-columns:52fr 48fr; grid-template-areas:"brief panel"; width:100%}
 
 /* Sol: hatırlatmalar */
-.staffBrief{grid-area:brief; display:flex; flex-direction:column; justify-content:center; padding:56px clamp(32px,5vw,72px); border-right:1px solid var(--staff-line-soft)}
-.staffLogo{display:block; align-self:flex-start; height:40px; width:auto; max-width:100%; object-fit:contain; margin:0 0 40px}  /* flex sütunu logoyu genişliğe germesin */
-.staffEyebrow{margin:0 0 12px; color:var(--staff-muted); font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase}
-.staffBrief h1{margin:0; max-width:520px; font-size:clamp(28px,2.6vw,36px); line-height:1.18; font-weight:600; letter-spacing:-.01em; color:var(--staff-ink)}
-.staffLead{margin:12px 0 32px; max-width:480px; color:var(--staff-muted); font-size:15px; line-height:1.6}
-.staffTasks{list-style:none; margin:0; padding:0; max-width:520px}
-.staffTasks li{display:grid; grid-template-columns:36px 1fr; gap:14px; align-items:center; padding:13px 0; border-top:1px solid var(--staff-line-soft)}
+.staffBrief{grid-area:brief; display:flex; flex-direction:column; justify-content:center; padding:var(--staff-pad-y) var(--staff-pad-x); border-right:1px solid var(--staff-line-soft)}
+.staffBriefBody{width:100%; max-width:640px}
+/* Kırpılmış resmi logo (kaistrade-logo-trim.png): kaynak dosyanın şeffaf kenarları yüzünden logo görünenden çok daha küçük kalıyordu. */
+.staffLogo{display:block; width:176px; height:auto; aspect-ratio:896 / 216; margin:0 0 clamp(16px, 3vh, 36px)}
+.staffEyebrow{margin:0 0 10px; color:var(--staff-muted); font-size:12.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase}
+.staffBrief h1{margin:0; font-size:clamp(32px, 2.9vw, 44px); line-height:1.12; font-weight:600; letter-spacing:-.015em; color:var(--staff-ink)}
+.staffLead{margin:10px 0 clamp(14px, 2.4vh, 24px); max-width:560px; color:var(--staff-muted); font-size:17px; line-height:1.55}
+.staffTasks{list-style:none; margin:0; padding:0}
+.staffTasks li{display:grid; grid-template-columns:40px 1fr; gap:16px; align-items:center; padding:clamp(7px, 1.15vh, 12px) 0; border-top:1px solid var(--staff-line-soft)}
 .staffTasks li:last-child{border-bottom:1px solid var(--staff-line-soft)}
-.staffTaskIcon{display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--staff-line); border-radius:8px; background:rgba(220,232,238,.02); color:var(--staff-accent)}
-.staffTaskIcon svg{width:16px; height:16px; stroke-width:1.6}
-.staffTaskText{display:grid; gap:2px; min-width:0}
+.staffTaskIcon{display:grid; place-items:center; width:40px; height:40px; border:1px solid var(--staff-line); border-radius:9px; background:rgba(220,232,238,.02); color:var(--staff-accent)}
+.staffTaskIcon svg{width:18px; height:18px; stroke-width:1.6}
+.staffTaskText{display:grid; gap:3px; min-width:0}
+.staffTaskText b{font-size:16px; line-height:1.3; font-weight:600; color:var(--staff-ink)}
+.staffTaskText span{font-size:14px; line-height:1.4; color:var(--staff-muted)}
 /* Kontrol listesi başlığı yalnızca telefonda görünür; masaüstünde liste her zaman açık. */
 .staffChecklistToggle{display:none}
-.staffTaskText b{font-size:14px; font-weight:600; color:var(--staff-ink)}
-.staffTaskText span{font-size:13px; line-height:1.45; color:var(--staff-muted)}
 
-/* Sağ: giriş formu */
-.staffPanel{grid-area:panel; display:flex; align-items:center; justify-content:center; padding:56px clamp(24px,4vw,64px)}
-.staffForm{width:100%; max-width:420px}
-.staffFormLogo{display:none; height:28px; width:auto; max-width:100%; object-fit:contain; margin:0 0 28px}
-.staffForm h2{margin:0; font-size:26px; line-height:1.25; font-weight:600; letter-spacing:-.01em; color:var(--staff-ink)}
-.staffFormLead{margin:8px 0 28px; color:var(--staff-muted); font-size:14px; line-height:1.55}
-.staffForm form{display:grid; gap:18px}
+/* Sağ: giriş formu (kart yok; sütunun ortasında) */
+.staffPanel{grid-area:panel; display:flex; align-items:center; justify-content:center; padding:var(--staff-pad-y) var(--staff-pad-x)}
+.staffForm{width:100%; max-width:460px}
+.staffFormLogo{display:none; width:136px; height:auto; aspect-ratio:896 / 216; margin:0 0 24px}
+.staffForm h2{margin:0; font-size:clamp(28px, 2.3vw, 34px); line-height:1.2; font-weight:600; letter-spacing:-.015em; color:var(--staff-ink)}
+.staffFormLead{margin:8px 0 clamp(20px, 4vh, 32px); color:var(--staff-muted); font-size:16px; line-height:1.55}
+.staffForm form{display:grid; gap:20px}
 .staffField{display:grid; gap:8px}
-.staffField > span:first-child{font-size:13px; font-weight:600; color:var(--staff-ink)}
+.staffField > span:first-child{font-size:14px; font-weight:600; color:var(--staff-ink)}
 .staffInput{position:relative; display:flex; align-items:center}
-.staffInput > svg{position:absolute; left:14px; width:17px; height:17px; color:var(--staff-muted); pointer-events:none}
-.staffInput input{width:100%; height:46px; padding:0 14px 0 42px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font:500 14px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; outline:none; transition:border-color .15s ease, box-shadow .15s ease}
+.staffInput > svg{position:absolute; left:16px; width:18px; height:18px; color:var(--staff-muted); pointer-events:none}
+.staffInput input{width:100%; height:54px; padding:0 16px 0 46px; border:1px solid var(--staff-line); border-radius:10px; background:var(--staff-surface); color:var(--staff-ink); font:500 15px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; outline:none; transition:border-color .15s ease, box-shadow .15s ease}
 .staffInput input::placeholder{color:#6f838c}
-.staffInput:has(.staffReveal) input{padding-right:48px}
+.staffInput:has(.staffReveal) input{padding-right:52px}
 .staffInput input:focus{border-color:var(--staff-emerald); box-shadow:0 0 0 3px rgba(0,201,141,.14)}
 .staffField.hasError .staffInput input{border-color:#d4746c}
-.staffField em{font-style:normal; font-size:12px; color:#e59a92}
-.staffReveal{position:absolute; right:6px; display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:6px; background:transparent; color:var(--staff-muted); cursor:pointer}
+.staffField em{font-style:normal; font-size:12.5px; color:#e59a92}
+.staffReveal{position:absolute; right:5px; display:grid; place-items:center; width:44px; height:44px; border:0; border-radius:8px; background:transparent; color:var(--staff-muted); cursor:pointer}
 .staffReveal:hover{color:var(--staff-ink)}
 .staffReveal:focus-visible{outline:2px solid var(--staff-emerald); outline-offset:1px}
-.staffReveal svg{width:17px; height:17px}
-.staffOptions{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:-2px}
-.staffCheck{display:flex; align-items:center; gap:9px; color:var(--staff-ink); font-size:13px; cursor:pointer}
-.staffCheck input{width:16px; height:16px; margin:0; accent-color:var(--staff-emerald)}
-.staffOptions a{color:var(--staff-accent); font-size:13px; font-weight:600; text-decoration:none}
+.staffReveal svg{width:18px; height:18px}
+.staffOptions{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:-4px}
+.staffCheck{display:flex; align-items:center; gap:10px; min-width:0; color:var(--staff-ink); font-size:14px; line-height:1.35; cursor:pointer}
+.staffCheck input{flex:none; width:17px; height:17px; margin:0; accent-color:var(--staff-emerald)}
+.staffOptions a{flex:none; color:var(--staff-accent); font-size:14px; font-weight:600; text-decoration:none; white-space:nowrap}
 .staffOptions a:hover{text-decoration:underline}
-.staffSubmit{display:flex; align-items:center; justify-content:center; gap:8px; height:46px; margin-top:4px; border:0; border-radius:8px; background:var(--staff-emerald); color:#04150f; font:600 15px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer; transition:filter .15s ease}
+.staffSubmit{display:flex; align-items:center; justify-content:center; gap:8px; height:54px; margin-top:2px; border:0; border-radius:10px; background:var(--staff-emerald); color:#04150f; font:600 16px/1 "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer; transition:filter .15s ease}
 .staffSubmit:hover{filter:brightness(1.06)}
 .staffSubmit:focus-visible{outline:2px solid var(--staff-accent); outline-offset:2px}
 .staffSubmit:disabled{opacity:.6; cursor:wait}
-.staffSubmit svg{width:17px; height:17px}
-.staffMessage{margin:16px 0 0; padding:10px 12px; border:1px solid var(--staff-line); border-radius:8px; background:var(--staff-surface); color:var(--staff-ink); font-size:13px; line-height:1.5}
+.staffSubmit svg{width:18px; height:18px}
+.staffMessage{margin:16px 0 0; padding:11px 13px; border:1px solid var(--staff-line); border-radius:10px; background:var(--staff-surface); color:var(--staff-ink); font-size:14px; line-height:1.5}
 .staffMessage.isError{border-color:rgba(212,116,108,.5); color:#f0c3be}
-.staffSecondary{margin-top:12px; width:100%; height:40px; border:1px solid var(--staff-line); border-radius:8px; background:transparent; color:var(--staff-ink); font:600 13px "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer}
-.staffNote{display:flex; gap:12px; align-items:flex-start; margin:28px 0 0; padding-top:20px; border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:12.5px; line-height:1.55}
-.staffNote svg{flex:none; width:16px; height:16px; margin-top:1px}
+.staffSecondary{margin-top:12px; width:100%; height:44px; border:1px solid var(--staff-line); border-radius:10px; background:transparent; color:var(--staff-ink); font:600 14px "Plus Jakarta Sans Variable", system-ui, sans-serif; cursor:pointer}
+.staffNote{display:flex; gap:12px; align-items:flex-start; margin:clamp(20px, 3.5vh, 30px) 0 0; padding-top:clamp(16px, 2.5vh, 22px); border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:13.5px; line-height:1.55}
+.staffNote svg{flex:none; width:17px; height:17px; margin-top:1px}
 
-.staffFooter{width:100%; max-width:1280px; margin:0 auto; padding:18px clamp(24px,5vw,72px); border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:12px}
+.staffFooter{width:100%; padding:14px var(--staff-pad-x); border-top:1px solid var(--staff-line-soft); color:var(--staff-muted); font-size:12.5px}
+
+/* Tablet ve küçük dizüstü: aynı iki sütun, orantılı küçülme. */
+@media (max-width:1100px) and (min-width:768px){
+  .staffLogin{--staff-pad-x:clamp(28px, 4vw, 48px)}
+  .staffLoginInner{grid-template-columns:1fr 1fr}
+  .staffLogo{width:150px}
+  .staffBrief h1{font-size:30px}
+  .staffLead{font-size:15.5px}
+  .staffTasks li{grid-template-columns:34px 1fr; gap:12px}
+  .staffTaskIcon{width:34px; height:34px}
+  .staffTaskText b{font-size:15px}
+  .staffTaskText span{font-size:13px}
+  .staffForm{max-width:400px}
+  .staffForm h2{font-size:27px}
+  .staffInput input{height:50px}
+  .staffSubmit{height:50px}
+  .staffOptions{flex-wrap:wrap; row-gap:4px}
+}
+
+/* Kısa masaüstü ekranları (1366×768, 1280×720): dikey boşlukları sıkılaştırıp kaydırmasız sığdır. */
+@media (min-width:768px) and (max-height:940px){
+  .staffLogin{--staff-pad-y:clamp(16px, 2.8vh, 30px)}
+  .staffLogo{margin-bottom:clamp(12px, 2.2vh, 22px)}
+  .staffBrief h1{font-size:clamp(28px, 2.5vw, 38px)}
+  .staffLead{margin:6px 0 12px; font-size:15.5px}
+  .staffTasks li{padding:6px 0}
+  .staffTaskText{gap:1px}
+  .staffTaskText b{font-size:15px}
+  .staffTaskText span{font-size:13.5px}
+  .staffTaskIcon{width:36px; height:36px}
+  .staffTasks li{grid-template-columns:36px 1fr}
+  .staffFooter{padding-top:10px; padding-bottom:10px}
+}
 
 /* Telefon (<768px): tek sütun. Önce logo + form, altında varsayılan kapalı "Daily Management Checklist".
-   Dokunma hedefleri ≥44px, alanlar/buton 50px; 16px yazı iOS'un otomatik yakınlaştırmasını önler; güvenli alanlar korunur. */
+   Yatay boşluk 22px (güvenli alanlar dahil); sayfa sabit yüksekliğe zorlanmaz, klavye açılınca kaydırılabilir. */
 @media (max-width:767.98px){
-  .staffLoginInner{display:flex; flex-direction:column}
-  .staffPanel{align-items:flex-start; padding:max(28px, calc(env(safe-area-inset-top) + 16px)) max(20px, env(safe-area-inset-right)) 8px max(20px, env(safe-area-inset-left))}
+  .staffLogin{--staff-pad-x:max(22px, env(safe-area-inset-left), env(safe-area-inset-right))}
+  .staffLoginInner{flex:0 0 auto; display:flex; flex-direction:column}
+  .staffPanel{display:block; padding:max(20px, calc(env(safe-area-inset-top) + 12px)) var(--staff-pad-x) 0}
   .staffForm{max-width:none}
-  .staffFormLogo{display:block; height:34px; margin:0 0 22px}
-  .staffForm h2{font-size:24px}
-  .staffFormLead{margin:6px 0 22px; font-size:14px}
+  .staffFormLogo{display:block; width:136px; margin:0 0 22px}
+  .staffForm h2{font-size:30px}
+  .staffFormLead{margin:6px 0 22px; font-size:16px}
   .staffForm form{gap:16px}
-  .staffInput input{height:50px; font-size:16px}
-  .staffReveal{right:3px; width:44px; height:44px}
-  .staffOptions{margin-top:-6px; row-gap:0}
-  .staffCheck{min-height:44px}
-  .staffOptions a{display:inline-flex; align-items:center; min-height:44px}
-  .staffSubmit{height:50px; font-size:16px}
-  .staffNote{margin-top:20px; padding-top:16px}
-  .staffBrief{justify-content:flex-start; border-right:0; border-top:1px solid var(--staff-line-soft); padding:4px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left))}
+  .staffField > span:first-child{font-size:15px}
+  .staffInput input{height:52px; font-size:16px}
+  .staffOptions{align-items:center; margin-top:-2px}
+  .staffCheck{min-height:44px; font-size:14px}
+  .staffOptions a{display:inline-flex; align-items:center; min-height:44px; font-size:14px}
+  .staffSubmit{height:54px; font-size:16px; margin-top:0}
+  .staffMessage{margin-top:14px}
+  .staffNote{margin-top:18px; padding-top:14px; font-size:13.5px}
+  .staffBrief{display:block; border-right:0; border-top:1px solid var(--staff-line-soft); margin-top:18px; padding:0 var(--staff-pad-x)}
+  .staffBriefBody{max-width:none}
   .staffBrief .staffLogo, .staffEyebrow, .staffBrief h1, .staffLead{display:none}
-  .staffChecklistToggle{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:52px; padding:0; border:0; background:transparent; color:var(--staff-ink); font:600 15px/1.3 "Plus Jakarta Sans Variable", system-ui, sans-serif; text-align:left; cursor:pointer}
+  .staffChecklistToggle{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:56px; padding:0; border:0; background:transparent; color:var(--staff-ink); font:600 15.5px/1.3 "Plus Jakarta Sans Variable", system-ui, sans-serif; text-align:left; cursor:pointer}
   .staffChecklistToggle svg{flex:none; width:18px; height:18px; color:var(--staff-muted)}
   .staffChecklistToggle:focus-visible{outline:2px solid var(--staff-emerald); outline-offset:2px; border-radius:6px}
   .staffTasks[data-open="false"]{display:none}
-  .staffTasks li{grid-template-columns:32px 1fr; gap:12px; padding:12px 0}
-  .staffTaskIcon{width:32px; height:32px}
-  .staffFooter{text-align:center; padding:16px max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left))}
+  .staffTasks{padding-bottom:8px}
+  .staffTasks li{grid-template-columns:32px 1fr; gap:12px; padding:11px 0}
+  .staffTasks li:last-child{border-bottom:0}
+  .staffTaskIcon{width:32px; height:32px; border-radius:8px}
+  .staffTaskIcon svg{width:16px; height:16px}
+  .staffTaskText b{font-size:15px}
+  .staffTaskText span{font-size:13.5px}
+  .staffFooter{text-align:left; padding:14px var(--staff-pad-x) max(14px, env(safe-area-inset-bottom))}
+}
+/* Çok dar ekranlar (≤359px): iki seçenek tek satıra sığmazsa düzenli şekilde alt alta. */
+@media (max-width:359.98px){
+  .staffOptions{flex-wrap:wrap; row-gap:0}
 }
 @media (prefers-reduced-motion: reduce){.staffInput input, .staffSubmit{transition:none}}

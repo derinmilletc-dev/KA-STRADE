@@ -604,7 +604,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
       <div className="staffLoginInner">
         <section className="staffPanel" aria-labelledby="staff-login-title">
           <div className="staffForm">
-            <img className="staffFormLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
+            <img className="staffFormLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>
             <h2 id="staff-login-title">{staffMode === 'mfa' ? 'Two-step verification' : 'Welcome Back'}</h2>
             <p className="staffFormLead">{staffMode === 'mfa' ? 'Enter the 6-digit code from your authenticator app, or a recovery code.' : 'Sign in to access the management panel.'}</p>
             <form onSubmit={event => { if (mode !== staffMode) { event.preventDefault(); setMode(staffMode); return } void submit(event) }} noValidate={staffMode === 'login'} aria-busy={busy}>
@@ -632,18 +632,20 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
           </div>
         </section>
         <section className="staffBrief" aria-labelledby="staff-brief-title">
-          <img className="staffLogo" src="/kaistrade-logo.png" alt="KaisTrade"/>
-          <p className="staffEyebrow">Management panel</p>
-          <h1 id="staff-brief-title">Keep everything running smoothly</h1>
-          <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
-          {/* Telefonda açılır-kapanır başlık; masaüstünde gizli ve liste her zaman açık (CSS). */}
-          <button type="button" className="staffChecklistToggle" aria-expanded={checklistOpen} aria-controls="staff-checklist" onClick={() => setChecklistOpen(value => !value)}>
-            <span>Daily Management Checklist</span>{checklistOpen ? <ChevronUp aria-hidden="true"/> : <ChevronDown aria-hidden="true"/>}
-          </button>
-          <ol id="staff-checklist" className="staffTasks" data-open={checklistOpen}>{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
-            <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>
-            <span className="staffTaskText"><b>{title}</b><span>{detail}</span></span>
-          </li>)}</ol>
+          <div className="staffBriefBody">
+            <img className="staffLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>
+            <p className="staffEyebrow">Management panel</p>
+            <h1 id="staff-brief-title">Keep everything running smoothly</h1>
+            <p className="staffLead">A quick reminder of key responsibilities for administrators and moderators.</p>
+            {/* Telefonda açılır-kapanır başlık; masaüstünde gizli ve liste her zaman açık (CSS). */}
+            <button type="button" className="staffChecklistToggle" aria-expanded={checklistOpen} aria-controls="staff-checklist" onClick={() => setChecklistOpen(value => !value)}>
+              <span>Daily Management Checklist</span>{checklistOpen ? <ChevronUp aria-hidden="true"/> : <ChevronDown aria-hidden="true"/>}
+            </button>
+            <ol id="staff-checklist" className="staffTasks" data-open={checklistOpen}>{STAFF_REMINDERS.map(({icon: Icon, title, detail}) => <li key={title}>
+              <span className="staffTaskIcon" aria-hidden="true"><Icon/></span>
+              <span className="staffTaskText"><b>{title}</b><span>{detail}</span></span>
+            </li>)}</ol>
+          </div>
         </section>
       </div>
       <footer className="staffFooter">© 2026 KaisTrade</footer>
