@@ -250,13 +250,14 @@ def send_auth_email(*, to_email: str, display_name: str, subject: str, title: st
             raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
             result = build("gmail", "v1", credentials=credentials, cache_discovery=False).users().messages().send(
                 userId="me", body={"raw": raw},
-            ).execute()
+            ).execute(http=httplib2.Http(timeout=10))
             if not isinstance(result, dict) or not result.get("id"):
                 raise EmailDeliveryError("Gmail gönderim kimliği vermedi.", provider=selected, code="invalid_response")
     except EmailDeliveryError as exc:
         logger.warning("Email delivery failed provider=%s code=%s recipient=%s", selected, exc.code, masked_recipient(to_email))
         raise
-    except (httpx.HTTPError, HttpError, GoogleAuthError, OSError, RuntimeError, ValueError) as exc:
+    except (httpx.HTTPError, HttpError, GoogleAuthError, httplib2.HttpLib2Error,
+            OSError, RuntimeError, ValueError) as exc:
         details = failure_details(exc)
         code = "timeout" if isinstance(exc, (httpx.TimeoutException, TimeoutError)) else details["code"]
         logger.warning("Email delivery failed provider=%s code=%s recipient=%s", selected, code, masked_recipient(to_email))
