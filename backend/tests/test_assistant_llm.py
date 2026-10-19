@@ -421,6 +421,16 @@ class AssistantLlmTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("customer assistant", prompt)
                 self.assertNotIn("müşteri yardımcısısın", prompt)
 
+    def test_prompt_knows_its_name_kais_and_tolerates_misheard_voice_input(self):
+        for language, phrases in (
+            ("tr", ("Adın KAİS", "Kayış", "Kaiz", "Kays", "tek kısa soruyla netleştir")),
+            ("en", ("Your name is spelled KAİS", "Kayış", "Kaiz", "Kays", "ask one short clarifying question")),
+        ):
+            with self.subTest(language=language):
+                prompt = system_prompt(language)
+                for phrase in phrases:
+                    self.assertIn(phrase, prompt)
+
     async def test_old_accounting_schema_upgrades_without_resetting_spend(self):
         old = Path(self.directory.name) / "old.sqlite3"
         with closing(sqlite3.connect(old)) as db, db:

@@ -59,10 +59,18 @@ const recognitionConstructor = (): RecognitionConstructor | null => {
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
 }
 
-/** “Hey Kais, …” önekini ve dolgu sözcüklerini soru metninden ayıklar. */
+/** Ses tanımanın “KAİS” adını yazdığı yaygın yanlışlar (Kayış, Kaiz, Kays, Kaes, Kay is, Ka is …). */
+const HEARD_AS_KAIS = /(?<![\p{L}\p{N}])(?:ka[iİıI][sSşŞzZ]|kay[iİıI][sSşŞzZ]|ka[eE][sSzZ]|kay[sSzZ]|ka[ -][iİıI][sSşŞ]|kay[ -][iİıI][sSşŞ])(?![\p{L}\p{N}])/giu
+/** Duyulan metindeki adın yanlış yazılışlarını “KAİS” yapar; asistan adını doğru görür. */
+export function normalizeKaisName(value: string): string {
+  return value.replace(HEARD_AS_KAIS, 'KAİS')
+}
+
+/** “Hey KAİS, …” önekini ve dolgu sözcüklerini soru metninden ayıklar; ad başka yerdeyse doğru yazılışa çevrilir. */
 export function stripWakeWord(value: string): string {
-  const cleaned = value.trim().replace(/^(hey|hay|hey,|hi|merhaba|selam)?[\s,]*(kais|kaiz|kays|kayis|kaız|kaes)[\s,.:!?-]*/i, '').trim()
-  return cleaned || value.trim()
+  const named = normalizeKaisName(value.trim())
+  const cleaned = named.replace(/^(?:hey|hay|hi|merhaba|selam)?[\s,]*KAİS[\s,.:!?-]*/u, '').trim()
+  return cleaned || named
 }
 
 /** Markdown ve simgeleri konuşmaya uygun düz metne çevirir. */
@@ -284,7 +292,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     recognition.current?.abort()
     const instance = new Constructor()
     // Dinleme dili: sohbetin dili (son cevabın dili); yoksa site dili. Site dili değişirse sohbet dili sıfırlanır.
-    instance.lang = conversationTag.current ?? tagRef.current
+    // Türkçe sitede dinleme hep Türkçe kalır: cümledeki birkaç İngilizce kelime sohbet dilini değiştirip sonraki
+    // konuşmanın İngilizce tanıyıcıyla anlamsız metne dönmesine yol açmasın. Diğer dillerde sohbet dili izlenir.
+    instance.lang = tagRef.current.toLowerCase().startsWith('tr') ? tagRef.current : (conversationTag.current ?? tagRef.current)
     instance.interimResults = bargeIn
     instance.maxAlternatives = 1
     instance.continuous = bargeIn
