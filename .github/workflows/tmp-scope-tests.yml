@@ -58,3 +58,16 @@ jobs:
           if bad:
               print('::notice title=FAILURES::' + esc('\n\n'.join(bad)))
           PY
+      - name: Baseline on main (same 4 tests)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir ../base && cd ../base && git init -q .
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            fetch -q --depth=1 "https://github.com/$REPO" main
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+          cd backend
+          python -m pytest "tests/test_moderator_access.py" "tests/test_v22_commercial.py" -q -k "premium-requests or gmail_delivery_builds" -p no:cacheprovider -rf --tb=line > ../../base.txt 2>&1 || true
+          msg=$(tail -12 ../../base.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          echo "::notice title=BASELINE MAIN::$msg"
