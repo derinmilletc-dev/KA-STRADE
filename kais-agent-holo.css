@@ -149,3 +149,31 @@
 /* Kısa ekranlar: içerik kesilmesin diye yalnız boşluklar sıkışır (göz boyutu sabit) */
 @media (max-height:700px){.kaisHolo{gap:8px}.kaisHoloStage{margin-bottom:26px}.kaisHoloReply{max-height:18vh}.kaisHoloUser{font-size:16px}}
 @media (prefers-reduced-motion:reduce){.kaisHoloChat,.kaisHoloRetry,.kaisHoloClose,.kaisVoicePickerToggle,.kaisHoloConfirm button{transition:none}}
+/* ── Denge turu: ortak kontrol dili, duruma bağlı ince ışık, mobil alt kontrol yuvası (yalnız görünüm/yerleşim). ── */
+/* Ses, Kapat ve Sohbeti aç aynı yüzey, kenar, renk ve ikon boyutunda */
+.kaisHoloChat,.kaisHoloClose,.kaisVoicePickerToggle{border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.74);color:#cbd9e8;font-size:14px;font-weight:500;
+  box-shadow:inset 0 1px 0 rgba(138,223,255,.06)}
+.kaisHoloChat svg,.kaisHoloClose svg,.kaisVoicePickerToggle svg{width:18px;height:18px}
+.kaisHoloChat:hover,.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,245,190,.45);color:#eef6ff;background:rgba(10,28,36,.82)}
+.kaisVoicePickerToggle[aria-expanded=true]{border-color:rgba(101,245,190,.5);color:#65F5BE}
+/* Durum altında duruma bağlı ince ışık: dinlerken sabit, düşünürken üzerinde kayan küçük ışık, konuşurken yumuşak nabız, hatada yok.
+   Yalnız mevcut data-phase kullanılır; mikrofon/ses verisi taklit edilmez. */
+.kaisHoloStatus::after{content:"";position:absolute;left:50%;top:calc(100% + 5px);width:72px;height:1px;transform:translateX(-50%);pointer-events:none;
+  background:linear-gradient(90deg,rgba(101,245,190,0),rgba(101,245,190,.45),rgba(101,245,190,0));opacity:.6}
+.kaisHolo[data-phase=thinking] .kaisHoloStatus::after{width:18px;background:linear-gradient(90deg,rgba(138,223,255,0),rgba(138,223,255,.9),rgba(138,223,255,0));opacity:1;animation:kaisStatusGlide 1.6s ease-in-out infinite alternate}
+.kaisHolo[data-phase=speaking] .kaisHoloStatus::after{animation:kaisStatusPulse 2.4s ease-in-out infinite}
+.kaisHoloStatus[data-error=true]::after{display:none}
+@keyframes kaisStatusGlide{from{transform:translateX(calc(-50% - 34px))}to{transform:translateX(calc(-50% + 34px))}}
+@keyframes kaisStatusPulse{50%{opacity:.2}}
+.kaisHolo[data-paused=true] .kaisHoloStatus::after{animation-play-state:paused}
+/* Mobil: Ses + Sohbeti aç altta, ortalanmış tek bir kontrol yuvası (başparmak erişimi); içerik yuvanın üstünde kalır, kesilmez. */
+@media (max-width:720px){
+  .kaisHolo{padding-bottom:calc(44px + 30px + max(22px,env(safe-area-inset-bottom)))}
+  .kaisHoloChat{position:absolute;margin:0;left:calc(50% - 23px);bottom:max(22px,env(safe-area-inset-bottom));z-index:4}
+  .kaisVoicePicker{top:auto;left:auto;right:calc(50% + 33px);bottom:max(22px,env(safe-area-inset-bottom));display:flex;flex-direction:column-reverse;align-items:flex-end}
+  .kaisVoicePicker ul{margin:0 0 6px;max-height:44vh}
+  .kaisVoiceRate{width:min(280px,78vw)}
+  /* Cihazda ses seçici yoksa (KaisVoicePicker null döner) Sohbeti aç tek başına ortalanır */
+  .kaisHolo:not(:has(.kaisVoicePicker)) .kaisHoloChat{left:50%;translate:-50% 0}
+}
+@media (prefers-reduced-motion:reduce){.kaisHoloStatus::after{animation:none!important}}

@@ -1,6 +1,6 @@
 /** Kais hologram ekranı için yalnızca DEKORATİF sinematik ortam (aria-hidden, pointer-events:none).
  *  Katmanlar (arkadan öne): lacivert taban · zümrüt ortam ışığı · buz mavisi kenar ışığı · uzak ızgara · perspektif zemin ·
- *  kenar devre izleri · masaüstü yan raylar · seyrek parçacıklar · vinyet. Gözün çevresindeki halkalar ve ışık süpürmesi
+ *  kenar devre izleri · masaüstü yan raylar · seyrek parçacıklar · mobil holografik taban · vinyet. Gözün çevresindeki halkalar ve ışık süpürmesi
  *  sahneye bağlı CSS katmanlarıdır (kais-holo-backdrop.css). Gözle (KaisEye) ve kontrollerle ilişkisi yoktur.
  *  Hareket yalnız CSS (transform/opacity/stroke-dashoffset); JS döngüsü, canvas, ses verisi veya ek kütüphane yok. */
 import './kais-holo-backdrop.css'
@@ -42,6 +42,7 @@ export default function KaisHoloBackdrop() {
     <i className="rail l"/>
     <i className="rail r"/>
     <div className="particles">{PARTICLES.map(([x, y, delay]) => <i key={`${x}-${y}`} style={{left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s`}}/>)}</div>
+    <i className="dock"/>
     <i className="vignette"/>
   </div>
 }
