@@ -27,6 +27,7 @@ from .strategies import original_v2_demo as strategy
 from .strategies.contracts import StrategyResult
 from . import original_live_risk as risk_settings
 from . import live_access
+from .maintenance import MAINTENANCE_SKIP_REASON, is_maintenance_rejection, maintenance_blocks_automation
 from .v22_commercial import authenticated_user
 
 router = APIRouter(prefix="/api/v25/original-v2", tags=["Original V2 LIVE"])
@@ -805,6 +806,12 @@ async def verify_targets(client: Any, state: dict[str, Any], plan: dict[str, Any
     live.persist_state(state)
 
 
+def _record_maintenance_skip(config: dict[str, Any], scanner: dict[str, Any]) -> None:
+    """Website maintenance blocks only new entries; the session stays running (not paused)."""
+    config["last_skip_reason"] = MAINTENANCE_SKIP_REASON
+    scanner.update(stage="MAINTENANCE", last_skip_reason=MAINTENANCE_SKIP_REASON)
+
+
 def _entry_rejection_category(error: Exception) -> str:
     key = str(getattr(error, "check_key", "") or "").lower()
     detail = str(getattr(error, "detail", error)).lower()
@@ -893,6 +900,11 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
     if config.get("last_decision_time", -1) >= at:
         scanner.update(stage="WAITING_NEXT_CANDLE")
         return
+    maintenance_active = maintenance_blocks_automation(getattr(application.state, "maintenance", None))
+    if maintenance_active and scanner.get("maintenance_checked_at") == at:
+        # check_entry already ran for this candle during maintenance; keep its normal cadence.
+        _record_maintenance_skip(config, scanner)
+        return
     scan_diagnostics: dict[str, Any] = {}
     try:
         if credentials is None:
@@ -904,6 +916,13 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
         client = live.client_for_with_credentials(application, credentials)
         snapshot = await live.account_snapshot(client, cached=True, source="original_strategy")
         await check_entry(application, client, state, snapshot)
+        if maintenance_active:
+            # Authority, lock and daily_guard checks above still ran (and still pause on
+            # failure); only the scan and new entries are skipped. The candle is not consumed.
+            scanner["maintenance_checked_at"] = at
+            _record_maintenance_skip(config, scanner)
+            live.persist_state(state)
+            return
         occupied = {
             item["symbol"]
             for item in (
@@ -1005,6 +1024,10 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
                 history_item["candidates"] = scanner["candidate_count"]
                 continue
             except Exception as exc:
+                if is_maintenance_rejection(exc):
+                    # Expected skip: no pause, no rejection record, no further candidates this round.
+                    _record_maintenance_skip(config, scanner)
+                    break
                 category = _entry_rejection_category(exc)
                 _record_order_rejection(
                     scanner, result, category, live.sanitized_exception_message(exc),

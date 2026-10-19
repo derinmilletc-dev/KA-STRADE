@@ -709,6 +709,127 @@ def test_original_minimum_trade_size_rejection_skips_symbol_and_keeps_automation
     assert execute.await_args.args[1].symbol == "ETHUSDT"
 
 
+def _original_entry_round(state, monkeypatch, *, execute, real_check_entry=False):
+    req = request_for(state)
+    monkeypatch.setattr(live, "readiness_for", Mock(return_value={"ready": True}))
+    monkeypatch.setattr(live, "client_for_with_credentials", Mock(return_value=object()))
+    monkeypatch.setattr(live, "account_snapshot", AsyncMock(return_value={
+        "wallet_balance": 1000, "positions": [], "open_orders": [],
+    }))
+    if not real_check_entry:
+        monkeypatch.setattr(original, "check_entry", AsyncMock())
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    monkeypatch.setattr(original, "resolve_live_universe", AsyncMock(return_value=symbols))
+    decision = result()
+    scan = AsyncMock(return_value=(
+        [({"symbol": symbol, "opportunity_score": 1.0}, decision) for symbol in symbols],
+        {symbol: decision for symbol in symbols},
+    ))
+    monkeypatch.setattr(original.original, "live_candidates", scan)
+    monkeypatch.setattr(original, "build_spec", AsyncMock(return_value={"margin_usdt": 10.0}))
+    monkeypatch.setattr(live, "execute_live_order", execute)
+    return req, scan
+
+
+def _assert_original_session_untouched(state):
+    assert original.running(state)
+    assert not state["original_v2_live"]["paused"]
+    assert state["real_trading_locked"] is False
+    assert not state.get("emergency", {}).get("active", False)
+    assert {item["kind"] for item in state["events"]}.isdisjoint(
+        {"AUTO_ERROR", "LIVE_FAIL_CLOSED", "RECONCILIATION_FAILURE_DIAGNOSTIC", "ORIGINAL_LIVE_PAUSED"}
+    )
+
+
+def test_original_live_maintenance_keeps_entry_checks_once_per_candle_without_scanning(state, monkeypatch):
+    execute = AsyncMock(return_value={"ok": True})
+    req, scan = _original_entry_round(state, monkeypatch, execute=execute)
+    req.app.state.maintenance = {"mode": "MAINTENANCE"}
+    # Start of the current real candle (+1s): stays inside the fixture's 1-hour session after +900s.
+    now = [float(int(time.time()) // 900 * 900 + 1)]
+    monkeypatch.setattr(original.time, "time", lambda: now[0])
+
+    run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))
+    run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))  # same candle
+
+    original.check_entry.assert_awaited_once()  # authority/lock/daily_guard still evaluated
+    scan.assert_not_awaited()
+    execute.assert_not_awaited()
+    scanner = original.public_config(state)["scanner"]
+    assert scanner["stage"] == "MAINTENANCE"
+    assert state["original_v2_live"]["last_skip_reason"] == "maintenance"
+    # The candle is not consumed, so the round runs normally once maintenance ends.
+    assert "last_decision_time" not in state["original_v2_live"]
+    _assert_original_session_untouched(state)
+
+    now[0] += 900  # next candle: checks run again
+    run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))
+    assert original.check_entry.await_count == 2
+
+    req.app.state.maintenance = {"mode": "NORMAL"}  # maintenance ends inside the same candle
+    run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))
+    scan.assert_awaited_once()
+    assert execute.await_count == 2  # both candidates entered after maintenance
+
+
+@pytest.mark.parametrize("failing", ["require_owner_authority", "daily_guard"])
+def test_original_live_safety_checks_still_pause_during_maintenance(state, monkeypatch, failing):
+    execute = AsyncMock(return_value={"ok": True})
+    req, scan = _original_entry_round(state, monkeypatch, execute=execute, real_check_entry=True)
+    req.app.state.maintenance = {"mode": "MAINTENANCE"}
+    authority =AsyncMock(side_effect=HTTPException(403, "Original V2 OWNER oturumu doğrulanamadı.")
+                          if failing == "require_owner_authority" else None)
+    daily = AsyncMock(side_effect=HTTPException(423, "Günlük kayıp sınırı aşıldı; bugün yeni işlem açılmaz.")
+                      if failing == "daily_guard" else None)
+    monkeypatch.setattr(original, "require_owner_authority", authority)
+    monkeypatch.setattr(original, "daily_guard", daily)
+
+    with pytest.raises(HTTPException):
+        run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))
+
+    authority.assert_awaited_once()
+    assert daily.await_count == (1 if failing == "daily_guard" else 0)
+    assert state["original_v2_live"]["paused"]
+    assert not original.running(state)
+    assert state["real_trading_locked"] is True
+    scan.assert_not_awaited()
+    execute.assert_not_awaited()
+
+
+def test_original_live_maintenance_rejection_mid_round_does_not_pause_or_raise(state, monkeypatch):
+    from app.maintenance import guard_new_entry
+
+    async def maintenance_turned_on(*args, **kwargs):
+        guard_new_entry({"mode": "MAINTENANCE"})
+
+    execute = AsyncMock(side_effect=maintenance_turned_on)
+    req, _scan = _original_entry_round(state, monkeypatch, execute=execute)
+    req.app.state.maintenance = {"mode": "NORMAL"}
+
+    run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))  # must not propagate
+
+    execute.assert_awaited_once()
+    scanner = original.public_config(state)["scanner"]
+    assert scanner["stage"] == "MAINTENANCE"
+    assert scanner["last_24h"]["trades"] == 0
+    assert not scanner.get("rejection_counts", {}).get("position_limit")
+    _assert_original_session_untouched(state)
+
+
+def test_original_live_genuine_503_still_pauses_and_propagates(state, monkeypatch):
+    execute = AsyncMock(side_effect=HTTPException(503, "Binance geçici olarak kullanılamıyor."))
+    req, _scan = _original_entry_round(state, monkeypatch, execute=execute)
+    req.app.state.maintenance = {"mode": "NORMAL"}
+
+    with pytest.raises(HTTPException):
+        run(live.automatic_cycle(req.app, ("offline-key", "offline-secret")))
+
+    execute.assert_awaited_once()
+    assert state["original_v2_live"]["paused"]
+    assert not original.running(state)
+    assert original.public_config(state)["scanner"]["stage"] == "BLOCKED"
+
+
 def test_original_live_cooldown_is_reported_without_becoming_an_empty_scan(state, monkeypatch):
     req = request_for(state)
     monkeypatch.setattr(live, "readiness_for", Mock(return_value={"ready": True}))

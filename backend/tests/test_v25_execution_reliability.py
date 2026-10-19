@@ -144,6 +144,65 @@ class ExecutionReliabilityTests(unittest.TestCase):
         self.assertEqual(reconcile.await_count, 2)
         self.assertIsNone(state["heartbeat"]["last_successful_cycle"])
 
+    def test_non_maintenance_503_escaping_cycle_still_uses_loop_failure_handling(self):
+        """Phase 1 guard: the maintenance exception must not widen to other 503s at loop level."""
+        application, state = application_for_loop()
+        state["armed_until"] = 10**12
+        state["real_trading_locked"] = False
+        sleeps = []
+
+        async def sleep(seconds):
+            sleeps.append(seconds)
+            raise asyncio.CancelledError
+
+        with patch.multiple(
+            execution,
+            auto_session_credentials=AsyncMock(return_value=("OFFLINE_KEY_PLACEHOLDER", "OFFLINE_SECRET_PLACEHOLDER")),
+            reconcile=AsyncMock(),
+            automatic_cycle=AsyncMock(side_effect=execution.HTTPException(503, "Geçici servis hatası.")),
+        ), patch.object(execution.asyncio, "sleep", side_effect=sleep):
+            with self.assertRaises(asyncio.CancelledError):
+                asyncio.run(execution.execution_loop(application))
+        self.assertEqual(sleeps, [5])
+        self.assertFalse(state["connected"])
+        self.assertTrue(state["real_trading_locked"])
+        self.assertEqual(state["armed_until"], 0.0)
+        self.assertEqual(state["connection"]["retry_count"], 1)
+        self.assertTrue(any(event["kind"] == "RECONCILIATION_FAILURE_DIAGNOSTIC" for event in state["events"]))
+
+    def test_reconciliation_keeps_running_while_maintenance_skips_live_entries(self):
+        application, state = application_for_loop()
+        application.state.maintenance = {"mode": "MAINTENANCE"}
+        state.update({"real_trading_locked": False, "live_auto_trade": True, "armed_until": 10**12})
+        state["auto"].update({"enabled": True, "session_until": 10**12})
+        state["policy"]["allowed_symbols"] = ["BTCUSDT"]
+        reconcile = AsyncMock()
+        scan = AsyncMock(side_effect=AssertionError("maintenance must not scan"))
+        sleeps = []
+
+        async def sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) == 2:
+                raise asyncio.CancelledError
+
+        with patch.multiple(
+            execution,
+            auto_session_credentials=AsyncMock(return_value=("OFFLINE_KEY_PLACEHOLDER", "OFFLINE_SECRET_PLACEHOLDER")),
+            reconcile=reconcile, readiness_for=lambda *args, **kwargs: {"ready": True},
+            consent_status=lambda *args, **kwargs: {"grace_active": False},
+            scan_market_candidates=scan, execute_live_order=AsyncMock(side_effect=AssertionError("no entry")),
+        ), patch.object(execution.asyncio, "sleep", side_effect=sleep):
+            with self.assertRaises(asyncio.CancelledError):
+                asyncio.run(execution.execution_loop(application))
+        self.assertEqual(reconcile.await_count, 2)  # every loop iteration
+        self.assertEqual(sleeps, [execution.RECONCILE_SECONDS, execution.RECONCILE_SECONDS])
+        self.assertEqual(state["auto"]["last_skip_reason"], "maintenance")
+        self.assertIsNotNone(state["heartbeat"]["last_successful_cycle"])
+        self.assertFalse(state["real_trading_locked"])
+        self.assertEqual(state["armed_until"], 10**12)
+        self.assertFalse(any(event["kind"] in {"RECONCILIATION_FAILURE_DIAGNOSTIC", "AUTO_ERROR", "LIVE_FAIL_CLOSED"}
+                             for event in state["events"]))
+
     def test_heartbeat_is_in_status_and_request_heartbeat_is_separate(self):
         application, state = application_for_loop()
         state["heartbeat"].update({"last_heartbeat": "request-time", "last_successful_cycle": "loop-time", "last_successful_cycle_epoch": 123})

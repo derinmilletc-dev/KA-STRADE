@@ -295,6 +295,82 @@ class AutoSymbolScopeTests(unittest.TestCase):
                 self.assertEqual(state["auto"]["last_error"], state["auto"]["last_decision"])
                 self.assertFalse(any(item["kind"] == "AUTO_ERROR" for item in state["events"]))
 
+    BUY_DECISION = {
+        "decision": "BUY", "entry_eligible": True,
+        "analysis": {
+            "direction": "LONG", "confidence": 95, "radar": {"trap_score": 1},
+            "entry": 100, "stop_loss": 99.5, "tp1": 102, "tp2": 104, "tp3": 106,
+        },
+    }
+
+    def assert_live_session_untouched(self, state, armed_until):
+        self.assertFalse(state["real_trading_locked"])
+        self.assertTrue(state["live_auto_trade"])
+        self.assertTrue(state["auto"]["enabled"])
+        self.assertEqual(state["armed_until"], armed_until)
+        self.assertFalse(state.get("emergency", {}).get("active", False))
+        self.assertNotEqual(state.get("execution_state"), "LOCKED")
+        self.assertFalse(state.get("reconciliation_required"))
+        kinds = {item["kind"] for item in state["events"]}
+        self.assertFalse(kinds & {"AUTO_ERROR", "LIVE_FAIL_CLOSED", "LIVE_UNKNOWN_EXECUTION"})
+
+    def test_maintenance_skips_live_auto_entry_before_scanning(self):
+        application, state = application_for(["BTCUSDT"])
+        application.state.maintenance = {"mode": "MAINTENANCE"}
+        armed_until = state["armed_until"]
+
+        scan, _candles, submit = self.cycle(application, [{"symbol": "BTCUSDT", "opportunity_score": 99}],
+                                            decision=self.BUY_DECISION)
+
+        scan.assert_not_awaited()
+        submit.assert_not_awaited()
+        self.assertEqual(state["auto"]["last_skip_reason"], "maintenance")
+        self.assertEqual(state["auto"]["last_cycle_stage"], "skipped")
+        self.assertFalse(state["auto"]["busy"])
+        self.assert_live_session_untouched(state, armed_until)
+
+    def test_maintenance_rejection_mid_cycle_is_expected_skip_without_lock(self):
+        from app.maintenance import guard_new_entry
+
+        application, state = application_for(["BTCUSDT", "ETHUSDT"])
+        armed_until = state["armed_until"]
+
+        async def maintenance_turned_on(*args, **kwargs):
+            guard_new_entry({"mode": "MAINTENANCE"})
+
+        _scan, _candles, submit = self.cycle(
+            application,
+            [{"symbol": "BTCUSDT", "opportunity_score": 99}, {"symbol": "ETHUSDT", "opportunity_score": 98}],
+            execution_effect=maintenance_turned_on, decision=self.BUY_DECISION,
+        )
+
+        submit.assert_awaited_once()  # no further candidates tried in the same round
+        self.assertEqual(state["auto"]["last_skip_reason"], "maintenance")
+        self.assertEqual(state["auto"]["last_cycle_stage"], "skipped")
+        self.assertFalse(state["auto"]["busy"])
+        self.assert_live_session_untouched(state, armed_until)
+
+    def test_genuine_503_during_live_entry_still_fails_closed(self):
+        for detail in ("Binance geçici olarak kullanılamıyor.", {"code": "SERVICE_UNAVAILABLE"}):
+            with self.subTest(detail=detail):
+                application, state = application_for(["BTCUSDT"])
+
+                async def unavailable(*args, **kwargs):
+                    raise execution.HTTPException(503, detail)
+
+                _scan, _candles, submit = self.cycle(
+                    application, [{"symbol": "BTCUSDT", "opportunity_score": 99}],
+                    execution_effect=unavailable, decision=self.BUY_DECISION,
+                )
+                submit.assert_awaited_once()
+                self.assertEqual(state["auto"]["last_skip_reason"], "reconcile_failed")
+                self.assertEqual(state["auto"]["last_cycle_stage"], "error")
+                self.assertTrue(state["real_trading_locked"])
+                self.assertFalse(state["auto"]["enabled"])
+                self.assertEqual(state["armed_until"], 0.0)
+                self.assertEqual(state["execution_state"], "LOCKED")
+                self.assertTrue(any(item["kind"] == "AUTO_ERROR" for item in state["events"]))
+
     def test_execute_cannot_bypass_saved_whitelist_with_call_scope(self):
         application, state = application_for(["BTCUSDT"])
         submit = AsyncMock(return_value={"orderId": 42, "status": "FILLED"})

@@ -26,6 +26,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from .analysis import analyze, atr, ema
+from .maintenance import is_maintenance_rejection, maintenance_blocks_automation
 from .binance_demo import (
     DEMO_REST_BASE,
     DEMO_WS_BASE,
@@ -705,6 +706,16 @@ def daily_loss_percent(state: dict[str, Any], balance_reference: float) -> float
     return max(0.0, round((-realized / balance_reference) * 100, 4))
 
 
+def maintenance_daily_base_balance(state: dict[str, Any]) -> float | None:
+    """Stored daily base when refresh_daily_risk_state would ignore a fresh balance anyway.
+
+    Returns None on a new UTC day or an unset base, so the caller takes the normal
+    snapshot path and the base balance is captured exactly as outside maintenance."""
+    risk = state.get("risk") if isinstance(state.get("risk"), dict) else {}
+    base = float(risk.get("daily_base_balance") or 0)
+    return base if risk.get("date") == today() and base > 0 else None
+
+
 def refresh_daily_risk_state(state: dict[str, Any], balance_reference: float) -> dict[str, Any]:
     day = today()
     risk = state.setdefault("risk", {})
@@ -849,6 +860,10 @@ def _candidate_confidence_label(confidence: int) -> str:
     if confidence >= 65:
         return "MEDIUM"
     return "LOW"
+
+
+MAINTENANCE_GATE = "MAINTENANCE"
+MAINTENANCE_DEMO_MESSAGE = "Bakım modu aktif; yeni otomatik Demo girişi yapılmadı."
 
 
 def _set_rejection(state: dict[str, Any], gate: str, reason: str) -> None:
@@ -2164,12 +2179,17 @@ async def _automatic_cycle_impl(
     if not armed(demo_state):
         _set_rejection(state, "DEMO_ARM", "10 dakikalık DEMO emir kilidi kapalı; otomasyon bekliyor.")
         return
+    maintenance_active = maintenance_blocks_automation(getattr(application.state, "maintenance", None))
     from .strategies.original_v2_demo import STRATEGY_ID, feature_enabled
 
     selected_strategy = auto.get("strategy_id")
     if selected_strategy not in {None, STRATEGY_ID}:
         raise BinanceDemoError("UNKNOWN_DEMO_STRATEGY_ID", http_status=409)
     if feature_enabled() or selected_strategy == STRATEGY_ID:
+        # The Original V2 demo round is entry-only (no daily-risk refresh), so skip it whole.
+        if maintenance_active:
+            _set_rejection(state, MAINTENANCE_GATE, MAINTENANCE_DEMO_MESSAGE)
+            return
         from .original_v2_demo_execution import automatic_cycle as original_cycle
 
         await original_cycle(
@@ -2189,11 +2209,21 @@ async def _automatic_cycle_impl(
         _set_rejection(state, "DAILY_LOSS_LIMIT", "Günlük Demo zarar limiti aktif; yeni giriş kilitli.")
         auto["enabled"] = False
         return
-    client = client_for(request) if request is not None else client_for_state(application, demo_state) if user_id else client_for(application)
-    snapshot = await account_snapshot(client)
-    refresh_daily_risk_state(state, float(snapshot.get("wallet_balance") or snapshot.get("available_balance") or 0))
+    daily_base = maintenance_daily_base_balance(state) if maintenance_active else None
+    if daily_base is not None:
+        # Maintenance, same UTC day, base already set: the balance argument is not used by
+        # refresh_daily_risk_state, so skip the exchange snapshot (no entry needs it).
+        refresh_daily_risk_state(state, daily_base)
+    else:
+        client = client_for(request) if request is not None else client_for_state(application, demo_state) if user_id else client_for(application)
+        snapshot = await account_snapshot(client)
+        refresh_daily_risk_state(state, float(snapshot.get("wallet_balance") or snapshot.get("available_balance") or 0))
     if state["auto"].get("status") == "PAUSED":
         _set_rejection(state, state["auto"].get("pause_reason") or "DAILY_LOSS_20", "Günlük Demo zarar koruması aktif; yeni otomatik giriş kilitli.")
+        persist_state(state)
+        return
+    if maintenance_active:
+        _set_rejection(state, MAINTENANCE_GATE, MAINTENANCE_DEMO_MESSAGE)
         persist_state(state)
         return
     max_positions = min(settings["max_positions"], MAX_OPEN_POSITIONS)
@@ -2277,6 +2307,9 @@ async def _automatic_cycle_impl(
             _set_rejection(state, "DEMO_EXECUTION", f"{symbol}: Demo emir reddi · {exc}")
             continue
         except HTTPException as exc:
+            if is_maintenance_rejection(exc):
+                _set_rejection(state, MAINTENANCE_GATE, MAINTENANCE_DEMO_MESSAGE)
+                break
             if exc.status_code not in {409, 422}:
                 raise
             _set_rejection(state, "DEMO_EXECUTION", f"{symbol}: Demo emir reddi · {exc.detail}")

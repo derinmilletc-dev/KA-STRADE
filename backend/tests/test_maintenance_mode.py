@@ -128,5 +128,83 @@ class MaintenanceWiringTests(unittest.TestCase):
         self.assertIn("if (document.visibilityState === 'hidden') return", auth_source)
 
 
+def _guard_exception(mode: str = "MAINTENANCE") -> HTTPException:
+    try:
+        MAINTENANCE.guard_new_entry({"mode": mode})
+    except HTTPException as exc:
+        return exc
+    raise AssertionError("guard_new_entry did not raise")
+
+
+class MaintenanceRejectionRecognitionTests(unittest.TestCase):
+    """Phase 1: only the exact guard rejection is an expected automation skip."""
+
+    def test_guard_rejection_is_recognized(self):
+        self.assertTrue(MAINTENANCE.is_maintenance_rejection(_guard_exception("MAINTENANCE")))
+        self.assertTrue(MAINTENANCE.is_maintenance_rejection(_guard_exception("EMERGENCY")))
+
+    def test_other_errors_are_not_suppressed(self):
+        for exc in (
+            HTTPException(503, "Binance geçici olarak kullanılamıyor."),
+            HTTPException(503, {"code": "SERVICE_UNAVAILABLE"}),
+            HTTPException(503, {"message": "MAINTENANCE_MODE"}),
+            HTTPException(409, {"code": "MAINTENANCE_MODE"}),
+            HTTPException(423, "Canlı yürütme kilitli."),
+            RuntimeError("MAINTENANCE_MODE"),
+        ):
+            with self.subTest(exc=repr(exc)):
+                self.assertFalse(MAINTENANCE.is_maintenance_rejection(exc))
+
+    def test_automation_precheck_only_reads_an_explicit_state(self):
+        self.assertFalse(MAINTENANCE.maintenance_blocks_automation(None))
+        self.assertFalse(MAINTENANCE.maintenance_blocks_automation({"mode": "NORMAL"}))
+        self.assertTrue(MAINTENANCE.maintenance_blocks_automation({"mode": "MAINTENANCE"}))
+        self.assertTrue(MAINTENANCE.maintenance_blocks_automation({"mode": "EMERGENCY"}))
+        # A present but unreadable state still fails closed for new entries.
+        self.assertTrue(MAINTENANCE.maintenance_blocks_automation({"mode": "garbage"}))
+
+
+class MaintenanceProtectionIsolationTests(unittest.TestCase):
+    """Phase 1 must not wire maintenance into protection, reconciliation, close or emergency code."""
+
+    MARKERS = ("maintenance", "MAINTENANCE")
+
+    @staticmethod
+    def _body(source: str, signature: str) -> str:
+        return source.split(signature, 1)[1].split("\n\n\n", 1)[0]
+
+    def test_protection_and_reconciliation_paths_do_not_consult_maintenance(self):
+        live = (APP_DIR / "v25_execution.py").read_text(encoding="utf-8")
+        demo = (APP_DIR / "binance_demo.py").read_text(encoding="utf-8")
+        v21 = (APP_DIR / "v21_demo.py").read_text(encoding="utf-8")
+        bodies = {
+            "v25.reconcile": self._body(live, "async def reconcile("),
+            "v25.install_protection": self._body(live, "async def install_protection("),
+            "v25.close_tracked_symbol": self._body(live, "async def close_tracked_symbol("),
+            "v25.cancel_owned_algos_for_symbol": self._body(live, "async def cancel_owned_algos_for_symbol("),
+            "v25._emergency_stop_locked": self._body(live, "async def _emergency_stop_locked("),
+            "v25.record_execution_loop_failure": self._body(live, "def record_execution_loop_failure("),
+            "demo.install_protection": self._body(demo, "async def install_protection("),
+            "demo.protection_loop": self._body(demo, "async def protection_loop("),
+            "v21.reconciliation_loop": self._body(v21, "async def reconciliation_loop("),
+        }
+        for name, body in bodies.items():
+            with self.subTest(function=name):
+                for marker in self.MARKERS:
+                    self.assertNotIn(marker, body)
+
+    def test_maintenance_skip_helper_leaves_locks_and_emergency_alone(self):
+        live = (APP_DIR / "v25_execution.py").read_text(encoding="utf-8")
+        helper = self._body(live, "def record_maintenance_entry_skip(")
+        for forbidden in ("lock_live_execution", "armed_until", "real_trading_locked", "emergency",
+                          "connected", "add_event", "/fapi/"):
+            self.assertNotIn(forbidden, helper.split('"""', 2)[-1])
+
+    def test_maintenance_module_never_touches_exchange_or_emergency(self):
+        source = (APP_DIR / "maintenance.py").read_text(encoding="utf-8")
+        for forbidden in ("v25_execution", "binance", "emergency_stop", "/api/v25/emergency", "algoOrder"):
+            self.assertNotIn(forbidden, source)
+
+
 if __name__ == "__main__":
     unittest.main()
