@@ -21,7 +21,6 @@ import inspect
 import re
 
 import pytest
-from fastapi.routing import APIRoute
 
 from app import main
 from app.moderator_access import PERMISSIONS
@@ -89,11 +88,23 @@ OWNER_GUARD_MARKERS = re.compile(r"owner\s*=\s*True|monitoring_admin\(|is_owner\
 SAMPLE_ID = "a" * 32
 
 
+def _is_api_route(route):
+    # Duck-typed on purpose: some FastAPI versions wrap included routes in subclasses/wrappers.
+    return hasattr(route, "path") and hasattr(route, "endpoint") and bool(getattr(route, "methods", None))
+
+
 def _api_routes():
     for route in main.app.routes:
-        if isinstance(route, APIRoute):
+        if _is_api_route(route):
             for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
                 yield method, route.path, route
+
+
+def test_route_walk_sees_the_application():
+    """Guards the guards: an empty walk would make every inventory assertion below vacuous."""
+    kinds = sorted({type(route).__name__ for route in main.app.routes})
+    paths = {path for _method, path, _route in _api_routes()}
+    assert len(paths) > 100 and "/api/mod/me" in paths, f"route walk is broken (route types: {kinds}, {len(paths)} paths)"
 
 
 def _concrete(path):
@@ -152,7 +163,7 @@ def full(setup):  # noqa: F811
     client, pool = setup
     present = {(route.path, frozenset(route.methods or ())) for route in client.app.routes if hasattr(route, "path")}
     for route in main.app.routes:
-        if isinstance(route, APIRoute) and route.path.startswith("/api/") \
+        if _is_api_route(route) and route.path.startswith("/api/") \
                 and (route.path, frozenset(route.methods or ())) not in present:
             client.app.router.routes.append(route)
     pool.settings["moderator"] = {"two_factor_enabled": True}
