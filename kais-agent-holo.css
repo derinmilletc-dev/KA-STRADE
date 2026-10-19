@@ -116,3 +116,36 @@
 @keyframes kaisAlarmFade{0%,85%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.kaisHoloAlarm circle{animation:none!important;opacity:.8}.kaisHoloAlarmText{animation:none!important}}
 .kaisHoloTiming{margin:0;font:11px/1.3 ui-monospace,monospace;color:#8fa6c0;text-align:center;max-width:92vw;word-break:break-word}
+/* ── Sinematik arayüz: yazı ve kontroller (yalnız görünüm). Sahne (.kaisHoloStage) ve göz (.kaisHoloEye) boyutları DEĞİŞMEZ. ── */
+.kaisHolo{background:#050B14;backdrop-filter:none;-webkit-backdrop-filter:none;gap:12px;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+/* Durum etiketi gözle bağlantılı: sahne zemininden inen ince ışık hattı (yalnız durum doğrudan sahnenin altındaysa) */
+.kaisHoloStatus{position:relative;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:.14em;color:#65F5BE;text-shadow:0 0 12px rgba(0,201,141,.35)}
+.kaisHoloStage+.kaisHoloStatus::before{content:"";position:absolute;left:50%;bottom:calc(100% + 6px);width:1px;height:18px;transform:translateX(-50%);
+  background:linear-gradient(180deg,rgba(101,245,190,0),rgba(101,245,190,.55));pointer-events:none}
+.kaisHoloStatus[data-error=true]{color:#f0b46a;text-shadow:none}
+.kaisHoloStage+.kaisHoloStatus[data-error=true]::before{background:linear-gradient(180deg,rgba(240,180,106,0),rgba(240,180,106,.5))}
+.kaisHoloUser{font-size:17px;font-weight:500;line-height:1.35;color:#e9f2fb}
+.kaisHoloReply{color:#b6c6d8;line-height:1.5;padding:12px 14px;border:1px solid rgba(138,223,255,.16);border-radius:14px;
+  background:linear-gradient(180deg,rgba(10,24,38,.86),rgba(6,16,26,.86));box-shadow:inset 0 1px 0 rgba(101,245,190,.16)}
+.kaisHoloSlow{color:#8fa3ba}
+.kaisHoloChips{gap:6px}
+.kaisHoloChip{font-size:11px;padding:4px 9px;border-color:rgba(101,245,190,.32);background:rgba(6,22,24,.8);color:#65F5BE}
+/* Kontroller: tek yükseklik/yarıçap; ikincil eylemler sakin, birincil (Onayla) belirgin; görünür odak/hover/aktif/devre dışı */
+.kaisHoloChat,.kaisHoloRetry,.kaisHoloClose,.kaisVoicePickerToggle,.kaisHoloConfirm button{min-height:44px;border-radius:12px;font-size:14px;cursor:pointer;
+  transition:border-color .2s ease,background-color .2s ease,color .2s ease,transform .1s ease}
+.kaisHoloChat{margin-top:4px;padding:0 18px;gap:8px;border:1px solid rgba(138,223,255,.22);background:rgba(8,19,31,.72);color:#d3e2f2}
+.kaisHoloChat:hover{border-color:rgba(101,245,190,.5);color:#eef6ff;background:rgba(10,28,36,.8)}
+.kaisHoloClose{width:44px;height:44px;border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
+.kaisVoicePickerToggle{height:44px;padding:0 14px;border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
+.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,245,190,.45);color:#e3eefa}
+.kaisHoloRetry{padding:0 18px}
+.kaisHoloConfirm{border-color:rgba(101,245,190,.32);background:linear-gradient(180deg,rgba(8,24,30,.9),rgba(6,16,24,.9))}
+.kaisHoloConfirm button{border:1px solid rgba(138,223,255,.22);background:rgba(10,22,36,.9)}
+.kaisHoloConfirm button.ok{background:#00C98D;border-color:#00C98D;color:#03140e}
+.kaisHoloConfirm button.ok:hover:not(:disabled){background:#14d99c}
+.kaisHoloChat:active,.kaisHoloRetry:active,.kaisHoloClose:active,.kaisVoicePickerToggle:active,.kaisHoloConfirm button:active:not(:disabled){transform:translateY(1px)}
+.kaisHoloChat:focus-visible,.kaisHoloRetry:focus-visible,.kaisHoloClose:focus-visible,.kaisVoicePickerToggle:focus-visible,.kaisHoloConfirm button:focus-visible{outline:2px solid #8ADFFF;outline-offset:2px}
+.kaisHoloConfirm button:disabled{cursor:not-allowed}
+/* Kısa ekranlar: içerik kesilmesin diye yalnız boşluklar sıkışır (göz boyutu sabit) */
+@media (max-height:700px){.kaisHolo{gap:8px}.kaisHoloStage{margin-bottom:26px}.kaisHoloReply{max-height:18vh}.kaisHoloUser{font-size:16px}}
+@media (prefers-reduced-motion:reduce){.kaisHoloChat,.kaisHoloRetry,.kaisHoloClose,.kaisVoicePickerToggle,.kaisHoloConfirm button{transition:none}}
