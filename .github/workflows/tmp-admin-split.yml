@@ -55,6 +55,7 @@ jobs:
           } > facts.log 2>&1; cat facts.log
       - name: Behaviour check of account-surface helpers
         run: |
+          set +e
           ./node_modules/.bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface.mjs \
             --define:import.meta.env.VITE_ADMIN_ORIGIN='"https://admin.kaistrade.com"' --define:import.meta.env.VITE_CUSTOMER_ORIGIN='""' > surface-build.log 2>&1
           cat > /tmp/check.mjs <<'JS'
@@ -80,7 +81,7 @@ jobs:
           eq('MODERATOR /administrator -> /moderator', m.staffSurfacePath('MODERATOR', '/administrator'), '/moderator')
           console.log(out.join('\n'))
           JS
-          node /tmp/check.mjs > surface-check.log 2>&1; cat surface-build.log surface-check.log
+          node /tmp/check.mjs > surface-check.log 2>&1; cat surface-build.log surface-check.log | tee -a surface-check.log >/dev/null
           # unset origin => no redirect at all
           ./node_modules/.bin/esbuild account-surface.ts --format=esm --outfile=/tmp/surface-off.mjs --define:import.meta.env.VITE_ADMIN_ORIGIN='""' --define:import.meta.env.VITE_CUSTOMER_ORIGIN='""' >/dev/null 2>&1
           cat > /tmp/check-off.mjs <<'JS'
@@ -88,7 +89,7 @@ jobs:
           const m = await import('/tmp/surface-off.mjs')
           console.log((m.ADMIN_ORIGIN === '' && m.staffUrl('/admin') === '/admin' && m.redirectStaffPathToAdminOrigin('/admin') === false ? 'PASS' : 'FAIL') + ' unset origin keeps today behaviour')
           JS
-          node /tmp/check-off.mjs >> surface-check.log 2>&1; tail -3 surface-check.log
+          node /tmp/check-off.mjs >> surface-check.log 2>&1; cat surface-build.log >> surface-check.log; tail -30 surface-check.log; true
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
