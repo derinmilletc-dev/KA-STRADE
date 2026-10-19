@@ -32,6 +32,8 @@ jobs:
       - name: Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium 2>&1 | tail -3
+      - name: Build (preview server needs dist)
+        run: npm run build 2>&1 | tail -3
       - name: Voice holo spec
         working-directory: frontend
         run: npx playwright test tests/assistant-voice-holo.spec.ts --project=chromium --reporter=list > ../voice.log 2>&1; echo "rc=$?" >> ../voice.log; tail -80 ../voice.log
