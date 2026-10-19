@@ -10,7 +10,11 @@ permissions:
 jobs:
   suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - name: Checkout (submodules skipped)
         env:
@@ -38,18 +42,21 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: suite-results.json
-        run: npx playwright test --reporter=list,json > ../suite.log 2>&1; echo "rc=$?" >> ../suite.log; tail -30 ../suite.log
+        run: npx playwright test --shard=${{ matrix.shard }}/6 --reporter=list,json > ../suite.log 2>&1; echo "rc=$?" >> ../suite.log; tail -30 ../suite.log
       - name: Report as annotations
         if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           python3 - <<'PY'
-          import json, collections
+          import json, collections, os
+          shard = os.environ.get('SHARD', '?')
           def esc(s): return s.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
-          try: print('::notice title=SUITE LOG TAIL::' + esc(''.join(open('suite.log', errors='replace').readlines()[-40:])))
+          try: print(f'::notice title=S{shard} LOG TAIL::' + esc(''.join(open('suite.log', errors='replace').readlines()[-40:])))
           except OSError: pass
           try: data = json.load(open('frontend/suite-results.json'))
           except Exception as error:
-              print('::notice title=SUITE MISSING::' + esc(str(error))); raise SystemExit
+              print(f'::notice title=S{shard} MISSING::' + esc(str(error))); raise SystemExit
           counts = collections.Counter(); fails = []
           def walk(suite, file=''):
               file = suite.get('file') or file
@@ -64,9 +71,9 @@ jobs:
                           fails.append(f"{file} :: {spec.get('title')[:90]} :: {first}")
               for child in suite.get('suites', []): walk(child, file)
           for s in data.get('suites', []): walk(s)
-          print('::notice title=SUITE COUNTS::' + esc(str(dict(counts))))
+          print(f'::notice title=S{shard} COUNTS::' + esc(str(dict(counts))))
           by_file = collections.Counter(f.split(' :: ')[0] for f in fails)
-          print('::notice title=SUITE FAILS BY FILE::' + esc('\n'.join(f'{n}  {f}' for f, n in by_file.most_common())))
+          print(f'::notice title=S{shard} FAILS BY FILE::' + esc('\n'.join(f'{n}  {f}' for f, n in by_file.most_common())))
           for i in range(0, len(fails), 25):
-              print(f'::notice title=SUITE FAILS {i}::' + esc('\n'.join(fails[i:i+25])))
+              print(f'::notice title=S{shard} FAILS {i}::' + esc('\n'.join(fails[i:i+25])))
           PY
