@@ -45,6 +45,8 @@ jobs:
           python3 - <<'PY'
           import json, collections
           def esc(s): return s.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+          try: print('::notice title=SUITE LOG TAIL::' + esc(''.join(open('suite.log', errors='replace').readlines()[-40:])))
+          except OSError: pass
           try: data = json.load(open('frontend/suite-results.json'))
           except Exception as error:
               print('::notice title=SUITE MISSING::' + esc(str(error))); raise SystemExit
