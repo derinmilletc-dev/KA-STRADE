@@ -56,7 +56,7 @@ jobs:
       - name: Behaviour check of account-surface helpers
         run: |
           set +e
-          node node_modules/typescript/bin/tsc account-surface.ts --module esnext --target es2022 --skipLibCheck --outDir /tmp/surface-out > surface-build.log 2>&1
+          node node_modules/typescript/bin/tsc account-surface.ts --ignoreConfig --module esnext --target es2022 --skipLibCheck --outDir /tmp/surface-out > surface-build.log 2>&1
           sed -e 's#import\.meta\.env\.VITE_ADMIN_ORIGIN#"https://admin.kaistrade.com"#' -e 's#import\.meta\.env\.VITE_CUSTOMER_ORIGIN#""#' /tmp/surface-out/account-surface.js > /tmp/surface.mjs
           sed -e 's#import\.meta\.env\.VITE_ADMIN_ORIGIN#""#' -e 's#import\.meta\.env\.VITE_CUSTOMER_ORIGIN#""#' /tmp/surface-out/account-surface.js > /tmp/surface-off.mjs
           cat > /tmp/check.mjs <<'JS'
