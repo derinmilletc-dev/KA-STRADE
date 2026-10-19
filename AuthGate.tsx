@@ -129,8 +129,8 @@ function MaintenanceScreen({mode}:{mode:string}) {
   const emergency = mode === 'EMERGENCY'
   return <main className={`authMaintenance${emergency ? ' emergency' : ''}`}>
     <section className="authMaintenancePanel" role="status" aria-live="polite">
-      <div className="authMaintenanceMark">{emergency ? <ShieldAlert/> : <Wrench/>}</div>
-      <span className="authMaintenanceBrand"><img src="/kaistrade-logo.png" alt="KaisTrade"/></span>
+      <img className="authMaintenanceLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>
+      <div className="authMaintenanceMark" aria-hidden="true">{emergency ? <ShieldAlert/> : <Wrench/>}</div>
       <h1>{emergency ? 'SİSTEM GEÇİCİ OLARAK KULLANILAMIYOR' : 'SİSTEM BAKIMDA'}</h1>
       <p>{emergency ? 'Sistem şu anda korunuyor.' : 'Kısa bir sistem bakımı yapıyoruz.'}</p>
       <div className="authMaintenanceStatus"><i/>{emergency ? 'Koruma modu aktif' : 'Bakım devam ediyor'}</div>
