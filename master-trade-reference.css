@@ -55,7 +55,7 @@
 .masterReferenceAnalysis .refConnection { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ref-muted); white-space: nowrap; }
 .masterReferenceAnalysis .refConnection i { width: 6px; height: 6px; border-radius: 50%; background: #899a9c; }
 .masterReferenceAnalysis .refConnection[data-connected="true"] i { background: var(--ref-green); }
-.masterReferenceAnalysis .refConnection svg { width: 12px; height: 12px; }
+.masterReferenceAnalysis .refConnection svg { width: 12px; height: 12px; margin-left: 4px; }
 .masterReferenceAnalysis .refUser { width: 22px; height: 22px; }
 .masterReferenceAnalysis .masterTradeProfileSlot { display: flex; align-items: center; justify-content: center; flex: 0 0 45px; min-width: 45px; min-height: 45px; }
 .masterReferenceAnalysis .assistantMasterSlot { width: 68px; min-width: 68px; }
