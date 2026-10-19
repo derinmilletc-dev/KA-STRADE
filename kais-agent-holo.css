@@ -77,9 +77,9 @@
 .kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pWave,.pRing){opacity:0;transition:opacity .45s ease}
 .kaisHolo[data-phase=listening] .kaisHoloPupil .pRing{opacity:.5;animation:kaisPupilBreath 4s ease-in-out infinite}
 .kaisHolo[data-phase=thinking] .kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pRing){opacity:1}
-.kaisHolo[data-phase=thinking] .pSpinA{animation:kaisPupilSpin 2.6s linear infinite}
-.kaisHolo[data-phase=thinking] .pSpinB{animation:kaisPupilSpin 1.7s linear infinite reverse}
-.kaisHolo[data-phase=thinking] .pSweep{animation:kaisPupilSpin 1.3s linear infinite}
+.kaisHolo[data-phase=thinking] .pSpinA{animation:kaisPupilSpin 7s linear infinite}
+.kaisHolo[data-phase=thinking] .pSpinB{animation:kaisPupilSpin 11s linear infinite reverse}
+.kaisHolo[data-phase=thinking] .pSweep{animation:kaisPupilSpin 3.2s linear infinite}
 .kaisHolo[data-phase=thinking] .pBlips circle{animation:kaisPupilBlip 1.3s ease-in-out infinite}
 .kaisHolo[data-phase=thinking] .pBlips circle:nth-child(2){animation-delay:.43s}.kaisHolo[data-phase=thinking] .pBlips circle:nth-child(3){animation-delay:.86s}
 .kaisHolo[data-phase=speaking] .kaisHoloPupil .pWave{opacity:1}
@@ -182,3 +182,46 @@
 @media (max-width:720px){.kaisHolo .kaisHoloStage{margin-bottom:66px}}
 @media (max-height:700px){.kaisHolo .kaisHoloStage{margin-bottom:40px}}
 .kaisHoloStage+.kaisHoloStatus::before{height:34px}
+/* ── Optik iris katmanı (gözün çizimine dokunmaz; iris dairesine kırpılı, bakışla birlikte kayar). Yalnız mevcut data-phase kullanılır.
+   İrisin parlak bölgesinde (r 11–14) koyu "kazıma" çizgiler, dış koyu bölgede (r 16–18) buz mavisi ince çizgiler okunur.
+   Dönen halkalar her zaman aynı animasyonu taşır; yalnız düşünürken "running" olur → durum geçişlerinde açı sıçraması olmaz. ── */
+.kaisHoloIris{position:absolute;left:31.25%;top:31.25%;width:37.5%;aspect-ratio:1;clip-path:circle(50%);pointer-events:none;z-index:2;transition:transform .12s ease}
+.kaisHoloIris *{fill:none;vector-effect:non-scaling-stroke;stroke-width:1px;transform-origin:0 0}
+.kaisHoloIris .iInner{stroke:rgba(3,14,20,.7);stroke-width:1.4px;opacity:.45;transition:opacity .8s ease}
+.kaisHoloIris .iRingA circle{stroke:rgba(3,14,20,.5)}
+.kaisHoloIris .iSegments path{stroke:rgba(3,14,20,.55)}
+.kaisHoloIris .iRingB :is(circle,path){stroke:rgba(190,240,255,.6)}
+.kaisHoloIris .iGlass{fill:url(#kaisIrisGlass);opacity:.8}
+.kaisHoloIris .iReflect{stroke:rgba(210,250,255,.7);stroke-width:1.4px;stroke-linecap:round}
+.kaisHoloIris .iScan{opacity:0;transition:opacity 1.2s ease}
+.kaisHoloIris .iScanLine{stroke:rgba(225,250,255,.95);stroke-width:1.4px}
+.kaisHoloIris .iScanWedge{fill:rgba(3,14,20,.32);stroke:none}
+.kaisHoloIris :is(.iRingA,.iRingB,.iSegments,.iScan){animation:kaisPupilSpin 28s linear infinite paused}
+.kaisHoloIris .iRingB{animation-duration:44s;animation-direction:reverse}
+.kaisHoloIris .iSegments{animation-duration:70s}
+.kaisHoloIris .iScan{animation-duration:4.2s}
+/* Dinleme: iç halka yumuşak nabız, merkez odak ışığı yavaş nefes */
+.kaisHolo[data-phase=listening] .kaisHoloIris .iInner{animation:kaisIrisPulse 4.5s ease-in-out infinite}
+.kaisHolo[data-phase=listening] .kaisHoloPupil .pDot{animation:kaisFocusBreath 4.5s ease-in-out infinite}
+/* Düşünme: seçili halkalar farklı hız/yönde döner, dar tarama ışığı iris içinde gezer, bebek içinde hareketli parıltı, odak deseni güçlenir */
+.kaisHolo[data-phase=thinking] .kaisHoloIris :is(.iRingA,.iRingB,.iSegments,.iScan){animation-play-state:running}
+.kaisHolo[data-phase=thinking] .kaisHoloIris .iScan{opacity:1}
+.kaisHolo[data-phase=thinking] .kaisHoloIris .iInner{opacity:.75}
+/* Cevap: tarama yavaşça söner, halkalar bulundukları açıda durur, merkez ışığı sabitlenir */
+.kaisHolo[data-phase=speaking] .kaisHoloIris .iScan{opacity:.25}
+.kaisHolo[data-phase=speaking] .kaisHoloIris .iInner{opacity:.55}
+.kaisHolo[data-phase=speaking] .kaisHoloPupil .pDot{opacity:.95}
+/* Bebek: odak deseni ve hareketli parıltı (bebek büyük ölçüde koyu kalır) */
+.kaisHoloPupil .pFocus{opacity:.25;transition:opacity .8s ease}
+.kaisHoloPupil .pFocus path{stroke:#65F5BE}
+.kaisHoloPupil .pGlint{opacity:.35;animation:kaisPupilSpin 6s linear infinite paused}
+.kaisHoloPupil .pGlint ellipse{fill:#d8fbff;stroke:none}
+.kaisHolo[data-phase=thinking] .kaisHoloPupil .pFocus{opacity:1;animation:kaisFocusPulse 2.4s ease-in-out infinite}
+.kaisHolo[data-phase=thinking] .kaisHoloPupil .pGlint{opacity:.6;animation-play-state:running}
+/* Hata: tarama durur, ölçülü amber vurgu */
+.kaisHolo[data-phase=error] .kaisHoloIris .iRingB :is(circle,path){stroke:rgba(240,190,120,.6)}
+.kaisHolo[data-phase=error] .kaisHoloIris :is(.iScan,.iReflect){display:none}
+.kaisHolo[data-phase=error] .kaisHoloPupil :is(.pFocus,.pGlint){opacity:0}
+@keyframes kaisIrisPulse{0%,100%{opacity:.3}50%{opacity:.7}}
+@keyframes kaisFocusBreath{0%,100%{opacity:.85}50%{opacity:.45}}
+@keyframes kaisFocusPulse{0%,100%{opacity:.55}50%{opacity:1}}
