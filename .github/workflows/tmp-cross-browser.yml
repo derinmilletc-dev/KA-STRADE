@@ -1,0 +1,67 @@
+name: Tmp cross-browser smoke (temporary, delete after run)
+
+on:
+  push:
+    branches: ['test/cross-browser-smoke']
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout (submodules skipped)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          git init -q .
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            fetch -q --depth=1 "https://github.com/$REPO" "$SHA"
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund 2>&1 | tail -3
+      - name: Frontend deps
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund 2>&1 | tail -3
+      - name: Playwright browsers (chromium, firefox, webkit)
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium firefox webkit 2>&1 | tail -3
+      - name: Cross-browser smoke
+        working-directory: frontend
+        run: npx playwright test -c playwright.cross-browser.config.ts > ../smoke.log 2>&1; echo "rc=$?" >> ../smoke.log; tail -60 ../smoke.log
+      - name: Report as annotations
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          def esc(s): return s.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+          try:
+              data = json.load(open('frontend/cross-browser-results.json'))
+          except Exception as error:
+              print('::notice title=SMOKE MISSING::' + esc(str(error)))
+              data = {'suites': []}
+          rows = {}
+          def walk(suite):
+              for spec in suite.get('specs', []):
+                  for t in spec.get('tests', []):
+                      project = t.get('projectName')
+                      results = t.get('results', [])
+                      status = results[-1].get('status') if results else 'none'
+                      err = ''
+                      if results and results[-1].get('errors'):
+                          err = results[-1]['errors'][0].get('message', '')[:500]
+                      notes = '; '.join(f"{a.get('type')}: {a.get('description','')}" for a in t.get('annotations', []))
+                      rows.setdefault(project, []).append(f"{'OK ' if status in ('passed','expected') else 'FAIL'} {spec.get('title')}" + (f"\n      notlar: {notes}" if notes else '') + (f"\n      hata: {err}" if err else ''))
+              for child in suite.get('suites', []):
+                  walk(child)
+          for suite in data.get('suites', []):
+              walk(suite)
+          for project, lines in rows.items():
+              print('::notice title=SMOKE ' + project + '::' + esc('\n'.join(lines)))
+          PY
