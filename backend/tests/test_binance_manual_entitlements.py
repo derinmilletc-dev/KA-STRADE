@@ -145,7 +145,11 @@ class EntitlementConnection(Connection):
             return copy.deepcopy([row for row in self.subscriptions if row["user_id"] == args[0]])
         if "LEFT JOIN commercial_auth_users" in sql:
             self.check()
-            return [{**copy.deepcopy(row), "email": "customer@example.test", "display_name": "Customer"}
+            return [{**copy.deepcopy(row), "email": "customer@example.test", "display_name": "Customer",
+                     "user_role": "CUSTOMER", "user_active": True, "email_verified": True, "mfa_enabled": False,
+                     "registered_at": None, "plan": None, "subscription_status": None, "plan_period_end": None,
+                     "membership_end": None, "recommended_at": None, "recommendation_note": None,
+                     "recommended_by_name": None, "approved_count": 2, "rejected_count": 1, "expired_count": 0}
                     for row in self.rows.values() if row["erased_at"] is None
                     and (args[0] is None or row["status"] == args[0])
                     and (len(args) < 4 or args[3] is None or row["id"] == args[3])][args[2]:args[2]+args[1]]
@@ -408,6 +412,11 @@ def test_owner_api_idempotent_approval_and_member_profile_use_same_durable_right
     assert listing.status_code == 200, listing.text
     assert listing.json()["summary"]["approved_today"] == 1
     assert listing.json()["items"][0]["amount"] == "119.90"
+    customer = listing.json()["items"][0]["customer"]
+    assert customer["role"] == "CUSTOMER" and customer["active"] is True and customer["email_verified"] is True
+    assert (customer["approved_count"], customer["rejected_count"], customer["expired_count"]) == (2, 1, 0)
+    assert customer["plan"] is None and customer["membership_end"] is None
+    assert listing.json()["items"][0]["recommendation"] is None
 
 
 def test_owner_deep_link_filter_returns_exactly_requested_card(api):

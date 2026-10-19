@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Activity, ChevronLeft, ChevronRight, CreditCard, Home, LogOut, Mail, Menu, MessageCircle, ShieldCheck, UserRound, Users, Wallet} from 'lucide-react'
+import {Activity, Banknote, ChevronLeft, ChevronRight, CreditCard, Home, LogOut, Mail, Menu, MessageCircle, ShieldCheck, UserRound, Users, Wallet} from 'lucide-react'
 import {accountRoleLabel} from './account-role'
 import {moderatorRequest} from './moderator-api'
 import {ModBadge, ModCard, ModEmpty, ModError, ModResourceView, ModSearch} from './moderator-ui'
@@ -15,8 +15,9 @@ import ModeratorApprovals, {ApprovalOverview, ApprovalRequestForm} from './Moder
 import {ModeratorPremiumRequests, PremiumRequestForm} from './ModeratorPremiumRequests'
 import CustomerEvents, {OwnerApprovalNotice} from './CustomerEvents'
 import ModeratorCampaigns from './ModeratorCampaigns'
+import ModeratorPaymentRequests from './ModeratorPaymentRequests'
 
-const icons = {overview: Home, customers: Users, subscriptions: Wallet, payments: CreditCard, support: MessageCircle, activity: Activity, approvals: ShieldCheck, campaigns: Mail}
+const icons = {overview: Home, customers: Users, subscriptions: Wallet, payments: CreditCard, 'payment-requests': Banknote, support: MessageCircle, activity: Activity, approvals: ShieldCheck, campaigns: Mail}
 type Navigate = (section: ModeratorSection, userId?: string) => void
 
 function CustomerResourcePanel({kind, initialUserId, onBack, canRequest = false, canViewEvents = false, onRequestCreated}: {kind: CustomerResource['kind']; initialUserId: string; onBack?: () => void; canRequest?: boolean; canViewEvents?: boolean; onRequestCreated?: () => void}) {
@@ -137,6 +138,7 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
         </div> : section === 'customers' ? <Customers key={`${section}:${userId}`} initialUserId={userId} permissions={me.permissions} owner={me.role === 'OWNER'} navigate={navigate}/> :
           section === 'support' ? <ModeratorSupport manage={me.permissions.includes('support.manage')} onCustomer={me.permissions.includes('customers.view') ? id => navigate('customers', id) : undefined}/> :
           section === 'approvals' ? me.role === 'OWNER' ? <OwnerApprovalNotice/> : <><ModeratorApprovals/><ModeratorPremiumRequests/></> :
+          section === 'payment-requests' ? <ModeratorPaymentRequests canRecommend={me.permissions.includes('approvals.create')} onCustomer={me.permissions.includes('customers.view') ? id => navigate('customers', id) : undefined}/> :
           section === 'campaigns' ? <ModeratorCampaigns owner={me.role === 'OWNER'} canRequest={me.permissions.includes('approvals.create')}/> :
           section === 'activity' ? <ModCard title="Teknik Olaylar"><p className="mod-secondary">Teknik olay geçmişi müşteri profilinde görüntülenir.</p><button className="mod-back" disabled={!me.permissions.includes('customers.view')} onClick={() => navigate('customers')}>Müşteri seç</button></ModCard> :
           section === 'subscriptions' || section === 'payments' ? <CustomerResourcePanel key={`${section}:${userId}`} kind={section === 'subscriptions' ? 'subscription' : 'payments'} initialUserId={userId}/> :

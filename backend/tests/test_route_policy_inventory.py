@@ -35,6 +35,8 @@ MOD_ROUTES = {
     ("GET", "/api/mod/customers/{user_id}/subscription"): "subscriptions.view",
     ("GET", "/api/mod/customers/{user_id}/payments"): "payments.view",
     ("GET", "/api/mod/customers/{user_id}/events"): "events.view",
+    ("GET", "/api/mod/payment-requests"): "payments.view",
+    ("POST", "/api/mod/payment-requests/{request_id}/recommend"): "approvals.create",
     ("GET", "/api/mod/support/cases"): "support.view",
     ("GET", "/api/mod/support/summary"): "support.view",
     ("GET", "/api/mod/support/cases/{case_id}"): "support.view",

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from . import binance_manual_payments as payments
 from .audit_log import AuditActor, write_audit
 from .member_entitlements import enabled
+from .payment_request_context import CONTEXT_COLUMNS, CONTEXT_JOINS, customer_context
 from .v22_commercial import authenticated_user, authenticated_user_async
 
 logger = logging.getLogger(__name__)
@@ -154,11 +155,16 @@ async def list_payments(request: Request, status: payments.Status | None = None,
     async with owner_connection(request) as (conn, _):
         await payments.expire_due(conn)
         rows = await conn.fetch(
-            """SELECT r.*,u.security->>'email' AS email,u.security->>'display_name' AS display_name
+            f"""SELECT r.*,u.security->>'email' AS email,u.security->>'display_name' AS display_name,
+                 u.security->>'role' AS user_role,rec.created_at AS recommended_at,rec.note AS recommendation_note,
+                 COALESCE(rb.security->>'display_name',rb.security->>'email') AS recommended_by_name,{CONTEXT_COLUMNS}
                FROM binance_manual_payment_requests r LEFT JOIN commercial_auth_users u ON u.user_id=r.user_id
+               LEFT JOIN binance_manual_payment_recommendations rec ON rec.payment_request_id=r.id
+               LEFT JOIN commercial_auth_users rb ON rb.user_id=rec.recommended_by
+               {CONTEXT_JOINS}
                WHERE r.erased_at IS NULL AND ($1::text IS NULL OR r.status=$1)
                  AND ($4::text IS NULL OR r.id=$4)
-               ORDER BY r.created_at DESC,r.id DESC LIMIT $2 OFFSET $3""", status, limit, offset, request_id,
+               ORDER BY (r.status<>'pending' OR rec.payment_request_id IS NULL),r.created_at DESC,r.id DESC LIMIT $2 OFFSET $3""", status, limit, offset, request_id,
         )
         total = await conn.fetchval(
             """SELECT COUNT(*) FROM binance_manual_payment_requests
@@ -173,7 +179,11 @@ async def list_payments(request: Request, status: payments.Status | None = None,
                FROM binance_manual_payment_requests WHERE erased_at IS NULL""",
         )
         return {"items": [{**payments.PaymentRequest.model_validate(dict(row)).model_dump(mode="json"),
-                           "email": row["email"], "display_name": row["display_name"]} for row in rows],
+                           "email": row["email"], "display_name": row["display_name"],
+                           "customer": {"role": row["user_role"], **customer_context(row)},
+                           "recommendation": None if row["recommended_at"] is None else {
+                               "at": row["recommended_at"].isoformat(), "by": row["recommended_by_name"],
+                               "note": row["recommendation_note"]}} for row in rows],
                 "total": total, "limit": limit, "offset": offset, "summary": dict(summary)}
 
 
