@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 
 export type VoiceLanguage = string
+/** Sohbet cevabı: düz metin ya da cevabın kendi dili ile (sunucunun algıladığı dil). Dil varsa ses o dilde okunur ve dinleme o dile geçer. */
+export type VoiceAnswer = string | {text: string; language?: string} | null
 
 /** Site dili → konuşma tanıma/okuma dil etiketi. Yeni dil eklenince buraya bir satır eklemek yeterli. */
 const SPEECH_TAGS: Record<string, string> = {
@@ -108,11 +110,12 @@ export const otherVoices = (language: string): SpeechSynthesisVoice[] => typeof 
 export const voicesFor = (language: string): SpeechSynthesisVoice[] => typeof window === 'undefined' || !window.speechSynthesis ? []
   : window.speechSynthesis.getVoices().filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language.slice(0, 2).toLowerCase()))
 
-function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string): SpeechSynthesisVoice | undefined {
+function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string, strict = false): SpeechSynthesisVoice | undefined {
   const matching = voices.filter(item => item.lang.replace('_', '-').toLowerCase().startsWith(language))
   const saved = savedVoiceName()
   const chosen = saved ? voices.find(item => item.name === saved) : undefined  // kayıtlı ses başka dilden de olabilir (kullanıcı seçtiyse)
-  if (chosen) return chosen
+  // Cevap site dilinden farklı bir dildeyse (strict), kayıtlı ses yalnız o dildense kullanılır; değilse o dilin en iyi sesi seçilir.
+  if (chosen && (!strict || chosen.lang.replace('_', '-').toLowerCase().startsWith(language))) return chosen
   const score = (item: SpeechSynthesisVoice) => {
     const name = item.name.toLowerCase()
     let value = item.lang.replace('_', '-') === tag ? 1 : 0
@@ -143,7 +146,7 @@ const writeReplies = (value: boolean) => { try { localStorage.setItem(STORAGE_KE
 
 /** Süre ölçümü için: yalnızca BU konuşmanın istek anı (t0) ve gerçek çalma başlangıcı (speechMs). */
 export type SpeechMark = {t0: number; speechMs?: number}
-export function useVoice(language: VoiceLanguage, onTranscript: (text: string) => Promise<string | null>, takeMark?: () => SpeechMark | null) {
+export function useVoice(language: VoiceLanguage, onTranscript: (text: string) => Promise<VoiceAnswer>, takeMark?: () => SpeechMark | null) {
   const base = language.slice(0, 2).toLowerCase()
   const copy = voiceCopy[base as keyof typeof voiceCopy] ?? voiceCopy.en
   const recognition = useRef<Recognition | null>(null)
@@ -163,10 +166,16 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   const outputSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
   const tag = speechTag(language)
   const tagRef = useRef(tag)
+  // Sohbetin dili: son cevabın (sunucunun algıladığı) dili. Dinleme bu dilde yapılır; site dili değişince site diline döner.
+  const conversationTag = useRef<string | null>(null)
+  if (tagRef.current !== tag) conversationTag.current = null
   tagRef.current = tag
 
   const stopSpeaking = useCallback(() => { speakToken.current += 1; if (outputSupported) window.speechSynthesis.cancel() }, [outputSupported])
-  const speak = useCallback((text: string, onDone?: () => void, mark?: SpeechMark | null) => {
+  const speak = useCallback((text: string, onDone?: () => void, mark?: SpeechMark | null, replyLanguage?: string) => {
+    // Cevap kendi dilinde okunur (Türkçe cevap Türkçe sesle, İngilizce cevap İngilizce sesle). Dil yoksa site dili.
+    const speakTag = replyLanguage ? speechTag(replyLanguage) : tag
+    const speakBase = replyLanguage ? replyLanguage.slice(0, 2).toLowerCase() : base
     const clean = speakableText(text)
     if (!outputSupported || !clean) { onDone?.(); return }
     // Chrome Android'de cancel() hemen ardından speak() ilk cümleyi yutabiliyor; yalnız bir şey çalıyorsa iptal et.
@@ -174,7 +183,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     window.speechSynthesis.resume()
     const token = ++speakToken.current
     const voices = window.speechSynthesis.getVoices()
-    const voice = pickVoice(voices, tag, base)
+    const voice = pickVoice(voices, speakTag, speakBase, speakBase !== base)
     const parts = chunks(clean)
     let finished = false
     const done = () => { if (finished || token !== speakToken.current) return; finished = true; onDone?.() }
@@ -182,7 +191,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     const fallback = window.setTimeout(done, 4000 + clean.length * 90)
     parts.forEach((part, index) => {
       const utterance = new SpeechSynthesisUtterance(part)
-      utterance.lang = tag
+      utterance.lang = speakTag
       if (voice) utterance.voice = voice
       // İlk ses = gerçek çalma başlangıcı (start olayı); yalnızca bu konuşmanın kendi isteğine bağlı işaret güncellenir.
       if (index === 0 && mark) utterance.onstart = () => { if (mark.speechMs === undefined) mark.speechMs = Math.round(performance.now() - mark.t0) }
@@ -221,8 +230,10 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     const requestId = ++answerId.current
     setPhase('thinking')
     setMessage('')
-    void callback.current(question).then(reply => {
+    void callback.current(question).then(answerValue => {
       if (!active.current || requestId !== answerId.current) return  // eski isteğin cevabı yeni isteğin durumunu ezmesin
+      const reply = typeof answerValue === 'string' ? answerValue : answerValue?.text ?? null
+      const replyLanguage = typeof answerValue === 'object' && answerValue ? answerValue.language : undefined
       if (!reply) {
         // Cevap gelmediyse (bağlantı, hak, oturum) sessizce dinlemeye dönme; nedenini göster, 3 kez üst üste olursa bitir.
         noAnswers.current += 1
@@ -232,6 +243,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         return
       }
       noAnswers.current = 0
+      // Bir sonraki dinleme, kullanıcının konuştuğu dilde (sunucunun cevap dili) yapılır.
+      if (replyLanguage) conversationTag.current = speechTag(replyLanguage)
       setPhase('speaking')
       let finished = false
       lastReply.current = {text: reply, startedAt: Date.now(), endedAt: 0}
@@ -247,7 +260,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
           // Hoparlördeki son sesin yankısı geçsin diye kısa bir ara.
           window.setTimeout(() => { if (active.current && !recognition.current) listenRef.current(false) }, 600)
         }
-      }, mark)
+      }, mark, replyLanguage)
       // Kais konuşurken de dinle: kullanıcı araya girerse susup onu dinleriz.
       // Telefonda hoparlör sesi mikrofona karışıyor ve Android dinleme sırasında konuşma sesini kısabiliyor: araya girme yalnız düğmeyle.
       if (!finished && !coarsePointer()) listenRef.current(true, reply)
@@ -267,8 +280,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (!bargeIn && Date.now() - lastSpeech.current > IDLE_LIMIT_MS) { end(copy.idleEnded); return }
     recognition.current?.abort()
     const instance = new Constructor()
-    // Sohbet sırasında site dili değişirse bir sonraki dinlemede yeni dil kullanılır.
-    instance.lang = tagRef.current
+    // Dinleme dili: sohbetin dili (son cevabın dili); yoksa site dili. Site dili değişirse sohbet dili sıfırlanır.
+    instance.lang = conversationTag.current ?? tagRef.current
     instance.interimResults = bargeIn
     instance.maxAlternatives = 1
     instance.continuous = bargeIn
