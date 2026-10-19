@@ -27,7 +27,7 @@ async function stubBrowserSpeech(page: Page, scenario: Scenario) {
     const getUserMedia = () => scenario === 'mic-denied'
       ? Promise.reject(new DOMException('Permission denied', 'NotAllowedError'))
       : Promise.resolve({getTracks: () => [{stop() { /* iz kapatıldı */ }}]})
-    Object.defineProperty(navigator, 'mediaDevices', {configurable: true, value: {getUserMedia}})
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {configurable: true, value: getUserMedia})  // mevcut nesne korunur (devicechange vb. çalışsın)
   }, scenario)
 }
 
