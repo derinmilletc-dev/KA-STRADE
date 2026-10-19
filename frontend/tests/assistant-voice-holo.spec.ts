@@ -45,7 +45,9 @@ async function pressVoiceButton(page: Page, scenario: Scenario) {
   } catch (error) {
     const body = (await page.locator('body').innerText({timeout: 2000}).catch(() => 'n/a')).replace(/\s+/g, ' ').slice(0, 400)
     const launchers = await page.locator('.assistantLauncher').count().catch(() => -1)
-    throw new Error(`open failed: ${String(error).slice(0, 100)} | launchers=${launchers} | ${problems.slice(0, 5).join(' | ')} | BODY: ${body}`)
+    const names = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map(b => (b.getAttribute('aria-label') || b.textContent || '').trim()).filter(t => /kais|sohbet|chat|karşıla/i.test(t)).slice(0, 12).join(' / ') + ' || greeting nodes: ' + document.querySelectorAll('[data-kais-greeting],.kaisGreeting,.kaisGreetingAnnouncer').length).catch(() => 'n/a')
+    problems.push(`buttons: ${names}`)
+    throw new Error(`open failed: ${String(error).slice(0, 100)} | launchers=${launchers} | ${problems.slice(0, 5).join(' | ')} | BODY: ${body.slice(0, 80)}`)
   }
   const dialog = page.getByRole('dialog', {name: 'Kais AI'})
   await expect(dialog.getByRole('textbox', {name: 'Kais AI mesajın'})).toBeEnabled()
