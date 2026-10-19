@@ -13,7 +13,7 @@ function assertPng(buffer, size) {
   assert.equal(buffer.readUInt32BE(20), size)
 }
 
-function assertIconPng(buffer, size) {
+function decodeRgbaPng(buffer, size) {
   assertPng(buffer, size)
   assert.equal(buffer[24], 8)
   assert.equal(buffer[25], 6)
@@ -52,6 +52,44 @@ function assertIconPng(buffer, size) {
     rows.push(row)
   }
   assert.equal(offset, raw.length)
+  return rows
+}
+
+function assertLogoVisible(rows, size) {
+  assert.ok(rows.some(row => {
+    for (let x = 0; x < size; x++) {
+      const [red, green, blue, alpha] = row.subarray(x * 4, x * 4 + 4)
+      if (alpha > 200 && green > (size < 32 ? 100 : 180) && red < 100 && green > blue * 1.1) return true
+    }
+    return false
+  }), 'KaisTrade green logo ring is present')
+  let white = 0
+  for (const row of rows) for (let x = 0; x < size; x++) {
+    if (row[x * 4 + 3] > 200 && Math.min(...row.subarray(x * 4, x * 4 + 3)) > 200) white++
+  }
+  assert.ok(white > size * size * (size >= 48 ? .03 : .01), 'White pulse remains visible on the dark fill')
+}
+
+// Browser-tab favicon: round mark on a transparent canvas; the dark fill must stay inside the green ring.
+function assertTabFavicon(buffer, size) {
+  const rows = decodeRgbaPng(buffer, size)
+  for (const [x, y] of [[0, 0], [size - 1, 0], [0, size - 1], [size - 1, size - 1]]) {
+    assert.equal(rows[y][x * 4 + 3], 0, `${size}px favicon corner (${x},${y}) is transparent`)
+  }
+  if (size >= 32) {
+    const center = size / 2, ring = size / 2 * .97
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const [red, green, blue, alpha] = rows[y].subarray(x * 4, x * 4 + 4)
+      if (Math.hypot(x + .5 - center, y + .5 - center) > ring && alpha > 128) {
+        assert.ok(Math.max(red, green, blue) >= 60, `${size}px favicon has no dark pixel outside the ring at (${x},${y})`)
+      }
+    }
+  }
+  assertLogoVisible(rows, size)
+}
+
+function assertIconPng(buffer, size) {
+  const rows = decodeRgbaPng(buffer, size)
   for (const row of rows) for (let x = 0; x < size; x++) assert.equal(row[x * 4 + 3], 255)
   const margin = Math.floor(size * .07)
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -61,26 +99,15 @@ function assertIconPng(buffer, size) {
       else assert.deepEqual(pixel, [10, 17, 24, 255])
     }
   }
-  assert.ok(rows.some(row => {
-    for (let x = 0; x < size; x++) {
-      const [red, green, blue] = row.subarray(x * 4, x * 4 + 3)
-      if (green > (size < 32 ? 100 : 180) && red < 100 && green > blue * 1.1) return true
-    }
-    return false
-  }), 'KaisTrade green logo ring is present')
-  let white = 0
-  for (const row of rows) for (let x = 0; x < size; x++) {
-    if (Math.min(...row.subarray(x * 4, x * 4 + 3)) > 200) white++
-  }
-  assert.ok(white > size * size * (size >= 48 ? .03 : .01), 'White pulse remains visible on the dark background')
+  assertLogoVisible(rows, size)
 }
 
 test('Both entrypoints declare stable same-origin favicon and touch icon URLs in the head', () => {
   const expected = [
-    {rel: 'icon', href: '/favicon.ico?v=kaistrade-mark-2', type: 'image/x-icon', sizes: '16x16 32x32 48x48'},
-    {rel: 'icon', href: '/favicon-48x48.png?v=kaistrade-mark-2', type: 'image/png', sizes: '48x48'},
-    {rel: 'icon', href: '/favicon-192x192.png?v=kaistrade-mark-2', type: 'image/png', sizes: '192x192'},
-    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=kaistrade-mark-2', sizes: '180x180'},
+    {rel: 'icon', href: '/favicon.ico?v=kaistrade-mark-3', type: 'image/x-icon', sizes: '16x16 32x32 48x48'},
+    {rel: 'icon', href: '/favicon-48x48.png?v=kaistrade-mark-3', type: 'image/png', sizes: '48x48'},
+    {rel: 'icon', href: '/favicon-192x192.png?v=kaistrade-mark-3', type: 'image/png', sizes: '192x192'},
+    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=kaistrade-mark-3', sizes: '180x180'},
   ]
   for (const entry of ['../index.html', '../frontend/index.html']) {
     const html = readFileSync(new URL(entry, import.meta.url), 'utf8')
@@ -97,8 +124,11 @@ test('Both entrypoints declare stable same-origin favicon and touch icon URLs in
   }
 })
 
-test('Search and Apple icons are real square PNGs with the declared sizes', () => {
-  for (const size of [48, 96, 192, 512]) assertIconPng(asset(`favicon-${size}x${size}.png`), size)
+test('Tab favicons are round with transparent corners and no dark edge outside the ring', () => {
+  for (const size of [48, 96, 192, 512]) assertTabFavicon(asset(`favicon-${size}x${size}.png`), size)
+})
+
+test('App and Apple icons are opaque dark square PNGs with the declared sizes', () => {
   for (const size of [192, 512]) assertIconPng(asset(`icon-${size}.png`), size)
   assertIconPng(asset('apple-touch-icon.png'), 180)
 })
@@ -125,7 +155,7 @@ test('Fallback ICO contains bounded 16px, 32px and 48px logo entries', () => {
     const length = ico.readUInt32LE(entry + 8)
     assert.equal(ico.readUInt32LE(entry + 12), offset)
     assert.ok(length > 24 && offset + length <= ico.length)
-    assertIconPng(ico.subarray(offset, offset + length), size)
+    assertTabFavicon(ico.subarray(offset, offset + length), size)
     offset += length
   }
   assert.equal(offset, ico.length)

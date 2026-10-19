@@ -47,10 +47,10 @@ test('home page publishes complete KaisTrade metadata before JavaScript in both 
       name: 'KaisTrade', alternateName: 'Kais Trade', url: 'https://kaistrade.com/',
     }])
     expect(metadata.icons).toEqual([
-      {href:'/favicon.ico?v=kaistrade-mark-2',type:'image/x-icon',sizes:'16x16 32x32 48x48'},
-      {href:'/favicon-48x48.png?v=kaistrade-mark-2',type:'image/png',sizes:'48x48'},
-      {href:'/favicon-192x192.png?v=kaistrade-mark-2',type:'image/png',sizes:'192x192'},
-      {href:'/apple-touch-icon.png?v=kaistrade-mark-2',type:null,sizes:'180x180'},
+      {href:'/favicon.ico?v=kaistrade-mark-3',type:'image/x-icon',sizes:'16x16 32x32 48x48'},
+      {href:'/favicon-48x48.png?v=kaistrade-mark-3',type:'image/png',sizes:'48x48'},
+      {href:'/favicon-192x192.png?v=kaistrade-mark-3',type:'image/png',sizes:'192x192'},
+      {href:'/apple-touch-icon.png?v=kaistrade-mark-3',type:null,sizes:'180x180'},
     ])
     for (const icon of metadata.icons) {
       if (!icon.href) throw new Error('Icon URL missing')
