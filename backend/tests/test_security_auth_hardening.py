@@ -93,6 +93,8 @@ class SharedStore:
 
     async def fetchrow(self, sql, *args):
         self.check(sql)
+        if "commercial_account_erasure_jobs" in sql:
+            return {"lease_owner": args[1]}  # sahte havuz: erasure kilidi her zaman alınır
         if "commercial_auth_failures" in sql:
             row = self.auth_failures.get(args[0])
             return {"payload": copy.deepcopy(row)} if row else None
@@ -1063,6 +1065,7 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
             flow.assert_not_awaited()
         with patch.object(auth, "authenticated_user", return_value=owner), \
              patch("app.account_settings.close_blocker", new=AsyncMock(return_value=None)), \
+             patch("app.account_exposure.gate_before_erasure", new=AsyncMock(return_value=None)), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             payload = auth.UserDeleteRequest(email=self.user["email"], confirmation="DELETE USER")
             self.assertEqual(await auth.v22_admin_delete_user(self.user["id"], payload, self.request), {"ok": True})
@@ -1099,6 +1102,7 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
         self.store.erased_hashes.add(erasure.user_hash(self.user["id"]))
         with patch.object(auth, "authenticated_user", return_value={"id": "owner", "role": "OWNER"}), \
              patch("app.account_settings.close_blocker", new=AsyncMock(return_value=None)), \
+             patch("app.account_exposure.gate_before_erasure", new=AsyncMock(return_value=None)), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             result = await auth.v22_admin_delete_user(self.user["id"], auth.UserDeleteRequest(
                 email=self.user["email"], confirmation="DELETE USER",

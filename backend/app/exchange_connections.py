@@ -240,10 +240,36 @@ def encrypt_credentials(api_key: str, secret_key: str, *, mode: str, master_secr
     return vault_cipher(master_secret).encrypt(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
 
 
+def _decrypt_secrets(master_secret: str | None) -> list[str]:
+    """Çözme denemesi sırası: önce etkin anahtar, sonra eski anahtarlar (geçiş dönemi).
+    Eski anahtarlar: PROTREBOT_VAULT_LEGACY_KEY ve (etkin anahtar farklıysa) PROTREBOT_WEB_ACCESS_TOKEN.
+    Şifreleme her zaman yalnızca etkin anahtarla yapılır; eski anahtar yalnızca mevcut kayıtları açmak için kullanılır."""
+    if master_secret is not None:
+        return [master_secret]
+    candidates = [_master_secret()]
+    for raw in (os.getenv("PROTREBOT_VAULT_LEGACY_KEY", ""), os.getenv("PROTREBOT_WEB_ACCESS_TOKEN", "")):
+        secret = raw.strip()
+        if secret and secret not in candidates:
+            candidates.append(secret)
+    return candidates
+
+
 def decrypt_credentials(ciphertext: bytes, *, mode: str, master_secret: str | None = None) -> tuple[str, str]:
+    token = bytes(ciphertext)
+    decrypted: bytes | None = None
+    for index, secret in enumerate(_decrypt_secrets(master_secret)):
+        try:
+            decrypted = vault_cipher(secret).decrypt(token)
+            break
+        except (InvalidToken, VaultError):
+            if index == 0 and master_secret is not None:
+                break
+            continue
+    if decrypted is None:
+        raise VaultError("Şifreli anahtar kaydı açılamadı; kasa anahtarı değişmiş olabilir.")
     try:
-        payload = json.loads(vault_cipher(master_secret).decrypt(bytes(ciphertext)).decode("utf-8"))
-    except (InvalidToken, ValueError, TypeError, json.JSONDecodeError, UnicodeError) as exc:
+        payload = json.loads(decrypted.decode("utf-8"))
+    except (ValueError, TypeError, json.JSONDecodeError, UnicodeError) as exc:
         raise VaultError("Şifreli anahtar kaydı açılamadı; kasa anahtarı değişmiş olabilir.") from exc
     expected_scope = f"BINANCE_USDM_FUTURES_{normalize_mode(mode)}"
     if not isinstance(payload, dict) or payload.get("scope") != expected_scope:

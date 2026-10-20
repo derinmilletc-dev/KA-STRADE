@@ -912,6 +912,8 @@ async def delete_account(payload: Erase, request: Request, response: Response):
         blocker = await close_blocker(request, user)
         if blocker:
             raise HTTPException(409, blocker)
+        from .account_exposure import gate_before_erasure
+        await gate_before_erasure(request.app, user, actor=user["id"])
         result = await erase_user_account(request, user)
     finally:
         running.discard(user["id"])

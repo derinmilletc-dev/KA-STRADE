@@ -1597,6 +1597,9 @@ def auto_session_is_active(state: dict[str, Any]) -> bool:
     return bool(state["auto"].get("enabled")) and float(state["auto"].get("session_until") or 0) > time.time()
 
 
+from .account_fence import ENTRY_ORDER_PATHS  # noqa: E402  (fence giriş emri yolları)
+
+
 class BinanceLiveClient:
     def __init__(self, http: httpx.AsyncClient, api_key: str, secret_key: str, *, require_credentials: bool = True, diagnostic_state: dict[str, Any] | None = None, application: Any | None = None, background_session: bool = False) -> None:
         if require_credentials and (len(api_key) < 10 or len(secret_key) < 10):
@@ -1705,6 +1708,31 @@ class BinanceLiveClient:
         return await self._request(method, path, {}, signed=False, api_key_header=True)
 
     async def _request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any],
+        *,
+        signed: bool,
+        api_key_header: bool = False,
+    ) -> Any:
+        """Giriş emirleri uçuş kaydıyla sarılır: fence aktifse gönderilmez; gönderim bitince kayıt silinir."""
+        if not (signed and method == "POST" and path in ENTRY_ORDER_PATHS):
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        from .account_fence import FenceError, begin_entry, end_entry, is_reduce_only_exit
+        if is_reduce_only_exit(params):
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        authorization = (self.diagnostic_state or {}).get("live_session_authorization") or {}
+        try:
+            token = await begin_entry(self.application, str(authorization.get("user_id") or ""))
+        except FenceError as exc:
+            raise LiveExchangeError("Hesap silme süreci için yeni giriş emirleri engellendi.", http_status=423) from exc
+        try:
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        finally:
+            await end_entry(self.application, token)
+
+    async def _request_unfenced(
         self,
         method: str,
         path: str,
