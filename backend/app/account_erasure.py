@@ -182,6 +182,14 @@ async def ensure_erasure_schema(pool: Any) -> None:
         CREATE TABLE IF NOT EXISTS commercial_erased_users (
           user_hash TEXT PRIMARY KEY, erased_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS commercial_account_erasure_jobs (
+          user_hash TEXT PRIMARY KEY,
+          status TEXT NOT NULL CHECK (status IN ('RUNNING', 'DONE', 'FAILED')),
+          lease_owner TEXT,
+          lease_expires_at TIMESTAMPTZ,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE OR REPLACE FUNCTION commercial_erasure_user_guard() RETURNS trigger AS $$
         BEGIN
           IF EXISTS (SELECT 1 FROM commercial_erased_users
@@ -520,7 +528,60 @@ def scrub_sqlite_file(path: Path, user_id: str) -> None:
         connection.execute("VACUUM")
 
 
+LEASE_SECONDS = 120
+
+
+async def acquire_erasure_lease(pool: Any, user_id: str, owner: str) -> bool:
+    """Süreçler arası kilit: aynı hesap için tek aktif silme. Süresi dolmuş kilit devralınabilir.
+    DONE kaydı yeni silmeyi engeller (zaten tamamlanmış). FAILED kaydı yeniden denemeye açıktır."""
+    row = await pool.fetchrow("""
+        INSERT INTO commercial_account_erasure_jobs (user_hash, status, lease_owner, lease_expires_at, attempts)
+        VALUES ($1, 'RUNNING', $2, NOW() + make_interval(secs => $3), 1)
+        ON CONFLICT (user_hash) DO UPDATE SET
+          status = 'RUNNING',
+          lease_owner = EXCLUDED.lease_owner,
+          lease_expires_at = EXCLUDED.lease_expires_at,
+          attempts = commercial_account_erasure_jobs.attempts + 1,
+          updated_at = NOW()
+        WHERE commercial_account_erasure_jobs.status <> 'DONE'
+          AND (commercial_account_erasure_jobs.lease_expires_at IS NULL
+               OR commercial_account_erasure_jobs.lease_expires_at < NOW())
+        RETURNING lease_owner
+    """, user_hash(user_id), owner, LEASE_SECONDS)
+    return row is not None
+
+
+async def release_erasure_lease(pool: Any, user_id: str, owner: str, *, done: bool) -> None:
+    await pool.execute("""
+        UPDATE commercial_account_erasure_jobs
+        SET status = CASE WHEN $3 THEN 'DONE' ELSE 'FAILED' END,
+            lease_owner = NULL, lease_expires_at = NULL, updated_at = NOW()
+        WHERE user_hash = $1 AND lease_owner = $2
+    """, user_hash(user_id), owner, done)
+
+
 async def erase_user_account(request: Any, user: dict[str, Any]) -> dict[str, Any]:
+    """Kilit ile sarılı silme. Kilit alınamazsa 409; sonuç ne olursa olsun kilit bırakılır."""
+    pool = getattr(request.app.state, "db_pool", None)
+    owner = uuid.uuid4().hex
+    if pool is not None:
+        try:
+            acquired = await acquire_erasure_lease(pool, user["id"], owner)
+        except Exception as exc:
+            raise HTTPException(503, "Silme kilidi alınamadı; silme durduruldu") from exc
+        if not acquired:
+            raise HTTPException(409, "Bu hesap için silme işlemi zaten sürüyor veya tamamlandı")
+    succeeded = False
+    try:
+        result = await _erase_user_account_locked(request, user)
+        succeeded = True
+        return result
+    finally:
+        if pool is not None:
+            await release_erasure_lease(pool, user["id"], owner, done=succeeded)
+
+
+async def _erase_user_account_locked(request: Any, user: dict[str, Any]) -> dict[str, Any]:
     from . import v22_commercial as auth
     from .local_storage import DATA_DIR, PROJECT_DATA_DIR
 
