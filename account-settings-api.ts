@@ -40,7 +40,9 @@ export async function accountRequest<T>(path: string, options: RequestInit = {})
   const headers = new Headers(options.headers)
   if (options.body) headers.set('Content-Type', 'application/json')
   headers.set('X-Requested-With', 'XMLHttpRequest')
-  const response = await fetchWithTimeout(`${API_BASE}/v22${path}`, {...options, headers, credentials: 'same-origin'}, 20000)
+  // Paths already starting with the API base (e.g. `/api/mod/...`) are used as-is; everything else lives under /v22.
+  const url = path.startsWith(`${API_BASE}/`) ? path : `${API_BASE}/v22${path}`
+  const response = await fetchWithTimeout(url, {...options, headers, credentials: 'same-origin'}, 20000)
   const payload: unknown = await response.json()
   if (!response.ok) {
     const detail = payload && typeof payload === 'object' && 'detail' in payload ? payload.detail : null

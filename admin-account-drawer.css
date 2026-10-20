@@ -1,0 +1,96 @@
+/* Admin user detail: right-side drawer. Rendered inside .adminAccountUsers, so selectors are scoped to win over its generic p/small/button rules. */
+.adminAccountUsers .adDrawer{--ad-bg:var(--admin-bg,#0a1115);--ad-surface:var(--admin-surface,#0f1a20);--ad-elevated:var(--admin-elevated,#13232b);--ad-line:var(--admin-line,#243943);--ad-text:var(--admin-text,#e5eff2);--ad-muted:var(--admin-muted,#93a7b0);--ad-accent:var(--admin-accent,#64e3a1);--ad-warn:var(--admin-warn,#f2c07a);--ad-danger:var(--admin-danger,#ef9a91);
+  position:fixed;inset:0 0 0 auto;margin:0;padding:0;width:min(85vw,1280px);max-width:100vw;height:100dvh;max-height:100dvh;border:0;border-left:1px solid var(--ad-line);border-radius:14px 0 0 14px;background:var(--ad-bg);color:var(--ad-text);font-family:"Plus Jakarta Sans",sans-serif;font-size:14px;line-height:1.5;color-scheme:dark;overflow:hidden;box-shadow:-24px 0 60px #0009}
+.adminAccountUsers .adDrawer[open]{display:flex;flex-direction:column;animation:adSlide .22s ease-out}
+.adminAccountUsers .adDrawer::backdrop{background:#02070a99;backdrop-filter:blur(2px)}
+@keyframes adSlide{from{transform:translateX(32px);opacity:.6}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.adminAccountUsers .adDrawer[open]{animation:none}}
+
+.adminAccountUsers .adDrawer button{font-size:14px;padding:9px 14px;min-height:40px;border-radius:8px;background:var(--ad-surface);border:1px solid var(--ad-line);color:var(--ad-text)}
+.adminAccountUsers .adDrawer button:hover:not(:disabled){border-color:var(--ad-accent)}
+.adminAccountUsers .adDrawer :focus-visible{outline:2px solid var(--ad-accent);outline-offset:2px}
+.adminAccountUsers .adDrawer button.adDanger{color:var(--ad-danger);border-color:#ef9a9155}
+.adminAccountUsers .adDrawer p,.adminAccountUsers .adDrawer small{color:var(--ad-muted);font-size:14px;margin:0}
+.adminAccountUsers .adDrawer small{font-size:13px;display:block;margin-top:2px}
+.adminAccountUsers .adDrawer h2{margin:0;font-size:22px}
+.adminAccountUsers .adDrawer h3{margin:0 0 10px;font-size:18px}
+.adminAccountUsers .adDrawer h4{margin:0 0 8px;font-size:15px}
+.adminAccountUsers .adDrawer h4 span{color:var(--ad-muted);font-weight:400}
+
+.adTop{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 28px;border-bottom:1px solid var(--ad-line);background:var(--ad-surface)}
+.adTop small{letter-spacing:.08em;font-size:12px!important}
+.adminAccountUsers .adDrawer .adClose{padding:0;width:40px;justify-content:center}
+.adBody{flex:1;min-height:0;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:16px}
+
+.adIdentity{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 18px;align-items:center;padding:18px;background:var(--ad-surface);border:1px solid var(--ad-line);border-radius:12px}
+.adIdentity>i{grid-row:1/3;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:#0b6b4f;color:#d9fbea;font-style:normal;font-weight:700;font-size:22px}
+.adIdentityMain h3{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:22px;overflow-wrap:anywhere}
+.adLine{display:flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.adLine span{color:var(--ad-text)}
+.adMono span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+.adBadges{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:0;padding:0;justify-content:flex-end}
+.adBadges li{padding:4px 12px;border-radius:999px;border:1px solid var(--ad-line);background:var(--ad-elevated);font-size:13px}
+.adBadges [data-tone=positive],.adDrawer [data-tone=positive]{color:var(--ad-accent)}
+.adBadges [data-tone=negative],.adDrawer [data-tone=negative]{color:var(--ad-danger)}
+.adBadges [data-tone=warn]{color:var(--ad-warn)}
+.adDates{grid-column:2/4}
+.adminAccountUsers .adDrawer .adContentCopy{display:inline-grid;place-items:center;width:30px;height:30px;min-height:30px;padding:0;border-radius:6px;background:transparent;border-color:transparent;color:var(--ad-muted)}
+.adminAccountUsers .adDrawer .adContentCopy:hover:not(:disabled){color:var(--ad-accent)}
+.adDrawer .adContentCopy svg{width:16px;height:16px}
+
+.adTabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--ad-line);scrollbar-width:thin}
+.adminAccountUsers .adDrawer .adTabs button{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--ad-muted);padding:10px 16px;font-size:15px}
+.adminAccountUsers .adDrawer .adTabs button[aria-selected=true]{color:var(--ad-accent);border-bottom-color:var(--ad-accent)}
+.adPanel{outline:0;min-width:0}
+.adStack{display:flex;flex-direction:column;gap:22px}
+.adColumns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.adFacts{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px 18px;margin:0;padding:16px;background:var(--ad-surface);border:1px solid var(--ad-line);border-radius:10px}
+.adFacts dt{color:var(--ad-muted);font-size:13px}
+.adFacts dd{margin:4px 0 0;font-size:15px;overflow-wrap:anywhere}
+.adHint{font-size:13px!important;margin:6px 0 10px!important}
+.adPrivacy{display:flex;gap:8px;align-items:flex-start;border-top:1px solid var(--ad-line);padding-top:14px}
+.adPrivacy svg{width:16px;height:16px;flex-shrink:0;margin-top:3px}
+.adRecords{list-style:none;margin:0 0 10px;padding:0}
+.adRecords li{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--ad-line);font-size:14px}
+.adRecords li>div:first-of-type,.adRecords li>span{min-width:0;overflow-wrap:anywhere}
+.adRecords svg{width:18px;height:18px;flex-shrink:0;color:var(--ad-muted)}
+.adRight{margin-left:auto;text-align:right;color:var(--ad-muted);font-size:13px;flex-shrink:0}
+.adChips{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:12px 0 0}
+.adChips li{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;border:1px solid var(--ad-line);font-size:13px;color:var(--ad-muted)}
+.adChips li[data-included=true]{color:var(--ad-accent)}
+.adChips svg{width:14px;height:14px}
+.adInline{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.adInline label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ad-muted)}
+.adInline select,.adInline input,.adDeleteFields input{background:var(--ad-surface);border:1px solid var(--ad-line);border-radius:8px;color:var(--ad-text);font:inherit;font-size:14px;padding:9px 10px;min-height:40px}
+
+.adState{padding:14px;border:1px dashed var(--ad-line);border-radius:10px;font-size:14px}
+.adError{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #ef9a9155;background:#5c1e2326}
+.adNotice{padding:16px;border:1px solid #f2c07a55;background:#f2c07a12;border-radius:10px}
+.adNotice b{display:block;margin-bottom:4px;color:var(--ad-warn);font-size:16px}
+.adNotice p{color:var(--ad-text)!important}
+.adSuccess{padding:12px 14px;border:1px solid #64e3a155;background:#64e3a114;border-radius:8px;color:var(--ad-accent)!important}
+.adCopyNote{min-height:0;font-size:13px!important;color:var(--ad-accent)!important}
+.adCopyNote:empty{display:none}
+.adminAccountUsers .adDrawer .adminAccountError{color:#ffc0c0;border:1px solid #f7777750;border-radius:8px;padding:12px;background:#5f182433}
+
+.adFooter{border-top:1px solid var(--ad-line);background:var(--ad-surface);padding:14px 28px;display:flex;flex-direction:column;gap:12px}
+.adDrawer .adminAccountActions{display:flex;flex-wrap:wrap;gap:10px}
+.adDrawer .adminAccountConfirmation{padding:14px;border:1px solid #f2c07a66;border-radius:10px;background:#f2c07a10}
+.adDrawer .adminAccountConfirmation p{color:var(--ad-text)}
+.adDeleteFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.adDeleteFields label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ad-muted)}
+.adConfirmButtons{display:flex;gap:10px;margin-top:12px}
+.adDrawer fieldset{border:1px solid var(--ad-line);border-radius:10px;margin:10px 0;padding:10px 14px}
+.adDrawer section[aria-label="Moderatör rolü ve izinleri"] h3{margin-top:4px}
+
+@media(max-width:1000px){.adColumns{grid-template-columns:1fr}.adIdentity{grid-template-columns:auto minmax(0,1fr)}.adBadges{grid-column:1/-1;justify-content:flex-start}.adDates{grid-column:1/-1}}
+@media(max-width:700px){
+  .adminAccountUsers .adDrawer{width:100vw;border-radius:0;border-left:0}
+  .adTop,.adBody,.adFooter{padding-left:16px;padding-right:16px}
+  .adIdentity{grid-template-columns:1fr;padding:14px}.adIdentity>i{grid-row:auto}
+  .adDeleteFields{grid-template-columns:1fr}
+  .adDrawer .adminAccountActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .adminAccountUsers .adDrawer .adminAccountActions button{font-size:13px;padding:8px 10px}
+  .adFooter{max-height:34dvh;overflow-y:auto;padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .adRecords li{flex-wrap:wrap}
+}
