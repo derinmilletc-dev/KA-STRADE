@@ -1098,6 +1098,7 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
         auth.runtime(self.request)["state"]["users"] = []
         self.store.erased_hashes.add(erasure.user_hash(self.user["id"]))
         with patch.object(auth, "authenticated_user", return_value={"id": "owner", "role": "OWNER"}), \
+             patch("app.account_settings.close_blocker", new=AsyncMock(return_value=None)), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             result = await auth.v22_admin_delete_user(self.user["id"], auth.UserDeleteRequest(
                 email=self.user["email"], confirmation="DELETE USER",
