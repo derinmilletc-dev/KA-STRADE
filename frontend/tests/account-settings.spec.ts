@@ -832,3 +832,47 @@ test('Admin detail drawer: ~85% wide on desktop, full screen on mobile, Escape c
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', {name: 'Ada Yılmaz detayları'})).toBeFocused()
 })
+
+test('Admin Subscriptions rows open the same new detail drawer instead of the legacy side panel', async ({page}) => {
+  const {closed} = await prepareAdmin(page)
+  const customer = {...closed.user, last_activity: closed.user.last_login, subscription: null, license: null}
+  await page.route('**/api/v22/admin/overview', route => route.fulfill({json: {total_users: 1, active_users: 1, verified_users: 1, admins: 0, new_users: 0, pro_users: 0, free_users: 1, active_subscriptions: 0, expired_subscriptions: 0, customers: [customer], audit: [], billing_live: false}}))
+  await page.goto(`${base}/admin`)
+  await page.getByRole('button', {name: 'Subscriptions', exact: true}).click()
+  await page.getByRole('button', {name: /Ada Yılmaz/}).first().click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('ada@example.test')
+  await expect(dialog.getByRole('tablist', {name: 'Kullanıcı bölümleri'})).toBeVisible()
+  await expect(page.locator('aside.adminDrawer')).toHaveCount(0)
+})
+
+test('Admin detail drawer: Accounts tab links and unlinks ownership mappings with confirmation', async ({page}) => {
+  await prepareAdmin(page)
+  const accounts = [{id: 'a1', provider: 'BINANCE', environment: 'TESTNET', account_reference: 'ref-1', status: 'UNASSIGNED', created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-01T12:00:00Z'}]
+  const calls: Array<{method: string; path: string; body?: Record<string, unknown>}> = []
+  await page.route('**/api/v22/admin/users/account-test-user/trading-accounts**', route => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET') return route.fulfill({json: {user_id: 'account-test-user', accounts}})
+    calls.push({method: request.method(), path, ...(request.method() === 'POST' ? {body: request.postDataJSON() as Record<string, unknown>} : {})})
+    if (request.method() === 'POST') accounts.push({...accounts[0], id: 'a2', account_reference: 'ref-2'})
+    else accounts.splice(0, 1)
+    return route.fulfill({json: {ok: true}})
+  })
+  const dialog = await openDetail(page)
+  await dialog.getByRole('tab', {name: 'Hesaplar'}).click()
+  await expect(dialog.getByRole('tabpanel')).toContainText('ref-1')
+  await dialog.getByRole('button', {name: '+ Hesap bağla'}).click()
+  await dialog.getByRole('button', {name: 'Kaydet'}).click()
+  await expect(dialog.getByRole('alert')).toHaveText('Hesap referansı gerekli.')
+  expect(calls).toEqual([])
+  await dialog.getByLabel('Hesap referansı').fill('ref-2')
+  await dialog.getByRole('button', {name: 'Kaydet'}).click()
+  await expect(dialog.getByRole('tabpanel')).toContainText('ref-2')
+  expect(calls).toEqual([{method: 'POST', path: '/api/v22/admin/users/account-test-user/trading-accounts', body: {provider: 'BINANCE', environment: 'TESTNET', account_reference: 'ref-2'}}])
+  await dialog.getByRole('button', {name: 'ref-1 eşlemesini kaldır'}).click()
+  expect(calls).toHaveLength(1)
+  await dialog.getByRole('button', {name: 'Evet, kaldır'}).click()
+  await expect(dialog.getByRole('tabpanel')).not.toContainText('ref-1')
+  expect(calls.at(-1)).toEqual({method: 'DELETE', path: '/api/v22/admin/users/account-test-user/trading-accounts/a1'})
+})
