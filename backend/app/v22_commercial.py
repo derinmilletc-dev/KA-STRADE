@@ -2428,7 +2428,14 @@ async def v22_admin_delete_user(user_id: str, payload: UserDeleteRequest, reques
             raise HTTPException(409, "OWNER hesabı silinemez")
         if email != normalize_email(user.get("email", "")):
             raise HTTPException(422, "Silinecek hesabın e-posta adresi eşleşmiyor")
-    return await erase_user_account(request, user)
+    from .account_settings import close_blocker
+    blocker = await close_blocker(request, user)
+    if blocker:
+        raise HTTPException(409, blocker)
+    result = await erase_user_account(request, user)
+    # Denetim: hedef kullanıcı kimliği kaydedilmez (silinen hesabın verisi kalmamalı); yalnızca yönetici ve olay türü.
+    record_event(request, owner, "admin.account_erased", "admin_erasure", "security", 200)
+    return result
 
 
 @router.post("/auth/change-password")

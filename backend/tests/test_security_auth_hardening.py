@@ -1062,10 +1062,22 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(caught.exception.status_code, 410)
             flow.assert_not_awaited()
         with patch.object(auth, "authenticated_user", return_value=owner), \
+             patch("app.account_settings.close_blocker", new=AsyncMock(return_value=None)), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             payload = auth.UserDeleteRequest(email=self.user["email"], confirmation="DELETE USER")
             self.assertEqual(await auth.v22_admin_delete_user(self.user["id"], payload, self.request), {"ok": True})
             flow.assert_awaited_once_with(self.request, target)
+
+    async def test_admin_erasure_is_blocked_by_open_exposure_and_not_erased(self):
+        owner = {"id": "owner", "role": "OWNER"}
+        payload = auth.UserDeleteRequest(email=self.user["email"], confirmation="DELETE USER")
+        with patch.object(auth, "authenticated_user", return_value=owner), \
+             patch("app.account_settings.close_blocker", new=AsyncMock(return_value="Açık pozisyon, emir veya otomasyon mevcut")), \
+             patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
+            with self.assertRaises(HTTPException) as caught:
+                await auth.v22_admin_delete_user(self.user["id"], payload, self.request)
+            self.assertEqual(caught.exception.status_code, 409)
+            flow.assert_not_awaited()
 
     async def test_owner_cannot_be_erased(self):
         owner = {**self.user, "role": "OWNER"}
@@ -1086,6 +1098,7 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
         auth.runtime(self.request)["state"]["users"] = []
         self.store.erased_hashes.add(erasure.user_hash(self.user["id"]))
         with patch.object(auth, "authenticated_user", return_value={"id": "owner", "role": "OWNER"}), \
+             patch("app.account_settings.close_blocker", new=AsyncMock(return_value=None)), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             result = await auth.v22_admin_delete_user(self.user["id"], auth.UserDeleteRequest(
                 email=self.user["email"], confirmation="DELETE USER",
