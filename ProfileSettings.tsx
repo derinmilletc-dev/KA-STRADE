@@ -12,7 +12,7 @@ import {MARKETING_CONSENT_TEXT} from './compliance-content'
 import LanguagePicker from './LanguagePicker'
 import {currentLang, setLang, type Lang} from './i18n'
 
-type DialogKind = 'profile' | 'email' | 'password' | 'two-factor' | 'sessions' | 'activity' | 'close'
+type DialogKind = 'profile' | 'email' | 'password' | 'two-factor' | 'sessions' | 'activity' | 'close' | 'delete'
 type Notice = {kind: 'success' | 'error'; text: string}
 const failureMessage = (error: unknown) => error instanceof Error ? error.message : 'Hesap işlemi tamamlanamadı.'
 
@@ -133,6 +133,9 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
         if (newPassword !== confirmPassword) throw new Error('Yeni parolalar eşleşmiyor.')
         await mutate('/account/password', {...proof, new_password: newPassword, confirm_password: confirmPassword}, 'Parola güncellendi; diğer cihazlardaki oturumlar kapatıldı.')
         closeDialog()
+      } else if (dialog === 'delete') {
+        await accountRequest<unknown>('/account/delete', {method: 'POST', body: JSON.stringify({...proof, confirmation})})
+        closeDialog(); onSessionEnded()
       } else if (dialog === 'close') {
         await mutate('/account/close', {...proof, confirmation}, 'Hesap kapatıldı.')
       } else if (dialog === 'two-factor') {
@@ -178,7 +181,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
     if (preferences && !preferences.symbols.includes(symbol)) setPreferences({...preferences, symbols: [...preferences.symbols, symbol]})
     setSymbolInput('')
   }
-  const titles: Record<DialogKind, string> = {profile: 'Profili düzenle', email: 'E-posta adresini değiştir', password: 'Parolayı değiştir', 'two-factor': 'İki aşamalı doğrulama', sessions: 'Aktif oturumlar', activity: 'Son aktiviteler', close: 'Hesabı kapat'}
+  const titles: Record<DialogKind, string> = {profile: 'Profili düzenle', email: 'E-posta adresini değiştir', password: 'Parolayı değiştir', 'two-factor': 'İki aşamalı doğrulama', sessions: 'Aktif oturumlar', activity: 'Son aktiviteler', close: 'Hesabı kapat', delete: 'Hesabımı kalıcı olarak sil'}
   const activity = (all = false) => <ol className="accountActivities">{(all ? data?.activity : data?.activity.slice(0, 5))?.map(item => <li key={item.id}><Activity/><div><b>{item.message}</b><small>{item.kind}</small></div><time dateTime={item.created_at}>{accountDate(item.created_at)}</time></li>)}</ol>
   return <main className="accountSettings">
     <header className="accountTopbar"><a href="/" className="accountBrand" translate="no" data-i18n-skip>kais<b>trade</b></a><button type="button" className="accountTopIdentity" aria-label="Profil bilgilerini düzenle" aria-haspopup="dialog" aria-expanded={dialog === 'profile'} disabled={busy || !data} onClick={() => openDialog('profile')}><i>{accountInitials(data?.user.display_name || '')}</i><span>{data?.user.display_name || '—'}</span><ChevronDown/></button><button type="button" onClick={onLogout} aria-label="Çıkış"><LogOut/></button></header>
@@ -217,7 +220,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           <LiveConnectionCard/>
           <NotificationSettings/>
           <section className="accountCard"><h2>Son aktiviteler<button onClick={() => openDialog('activity')}>Tümünü görüntüle<ArrowRight/></button></h2>{data.activity.length ? activity() : <p className="accountMuted">Kayıtlı hesap aktivitesi yok.</p>}</section>
-          <section className="accountCard accountDanger"><h2>Tehlikeli işlemler</h2><div><Trash2/><span><b>Hesabı kapat</b><p>Giriş ve erişim hakkınız sonlandırılır. Kayıtlarınız yetkili yönetici panelinde saklanmaya devam eder; borsadaki emirler otomatik kapatılmaz.</p></span><button disabled={busy || !data.security.can_close_account} onClick={() => openDialog('close')}>Hesabı kapat</button></div>{data.security.close_blocker && <p className="accountMuted">{data.security.close_blocker}</p>}</section>
+          <section className="accountCard accountDanger"><h2>Tehlikeli işlemler</h2><div><Trash2/><span><b>Hesabı kapat</b><p>Giriş ve erişim hakkınız sonlandırılır. Kayıtlarınız yetkili yönetici panelinde saklanmaya devam eder; borsadaki emirler otomatik kapatılmaz.</p></span><button disabled={busy || !data.security.can_close_account} onClick={() => openDialog('close')}>Hesabı kapat</button></div>{data.security.close_blocker && <p className="accountMuted">{data.security.close_blocker}</p>}<div><Trash2/><span><b>Hesabımı kalıcı olarak sil</b><p>Kişisel verileriniz kalıcı olarak silinir ve bu işlem geri alınamaz. Açık borsa pozisyonu veya emri varsa silme yapılmaz.</p></span><button disabled={busy} onClick={() => openDialog('delete')}>Hesabımı sil</button></div></section>
         </div>
       </>}
     </div>
@@ -232,9 +235,10 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           {dialog === 'profile' && <label>Ad soyad<input autoComplete="name" minLength={2} maxLength={80} required value={name} onChange={event => setName(event.target.value)}/></label>}
           {dialog === 'email' && <label>Yeni e-posta<input type="email" autoComplete="email" required maxLength={180} value={newEmail} onChange={event => setNewEmail(event.target.value)}/></label>}
           {dialog === 'password' && <><label>Yeni parola<input data-private="true" aria-label="Yeni parola" type="password" autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_LENGTH} required value={newPassword} onChange={event => setNewPassword(event.target.value)}/><div className="passwordRules">{passwordRules(newPassword).map(([label,passed]) => <span className={passed ? 'passed' : 'missing'} key={label}>{passed ? '✓' : '•'} {label}</span>)}</div></label><label>Yeni parola tekrar<input data-private="true" type="password" autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_LENGTH} required value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)}/></label><p>Bu cihazdaki oturumunuz korunur; yalnızca hesabınızın diğer cihazlardaki oturumları kapanır.</p><a href="/forgot-password">Parolamı unuttum</a></>}
+          {dialog === 'delete' && <><div className="accountWarning" role="note"><b>Bu işlem geri alınamaz.</b><ul><li>Profiliniz, oturumlarınız, bildirim ve kişisel ayarlarınız silinir.</li><li>Açık borsa pozisyonu veya emri varsa silme başlamaz; önce kapatın.</li><li>Finansal ve işlem kayıtları kimliksizleştirilerek saklanabilir.</li></ul></div><label>Onay için HESABIMI SIL yazın<input required pattern="HESABIMI SIL" autoComplete="off" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog === 'close' && <><p>Hesabınız kapatılacak; verileriniz yönetici panelinde kalacaktır.</p><label>Onay için HESABI KAPAT yazın<input required pattern="HESABI KAPAT" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog !== 'profile' && proofFields()}
-          <button className="accountPrimary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Check/>}{dialog === 'two-factor' ? '2FA devre dışı bırak' : dialog === 'close' ? 'Hesabı kapat' : dialog === 'email' ? 'Doğrulama gönder' : 'Kaydet'}</button>
+          <button className="accountPrimary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Check/>}{dialog === 'two-factor' ? '2FA devre dışı bırak' : dialog === 'close' ? 'Hesabı kapat' : dialog === 'delete' ? 'Kalıcı olarak sil' : dialog === 'email' ? 'Doğrulama gönder' : 'Kaydet'}</button>
         </form>}
     </SettingsDialog>}
   </main>
