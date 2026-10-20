@@ -173,6 +173,25 @@ def subscription_for_request(request: Request, user: dict[str, Any]) -> dict[str
     raise HTTPException(503, "Üyelik yetkisi doğrulanamadı.")
 
 
+async def admin_target_subscription(request: Request, user: dict[str, Any]) -> dict[str, Any]:
+    """Subscription of an account an OWNER inspects.
+
+    The request-scoped proof is prepared for the *caller*; checking it against another user always
+    failed with "Üyelik sahipliği doğrulanamadı". This mirrors prepare()'s source selection but never
+    reads or writes that proof, and uses the same per-user lookup as /admin/overview.
+    """
+    state = request.app.state.v22_commercial["state"]
+    original = stripe_subscription(state, user["id"])
+    from .free_trial import enabled as trial_enabled
+    if original["master_trade_access"] or user.get("role") == "OWNER" or not (enabled() or trial_enabled()):
+        return original
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        raise HTTPException(503, "Kullanıcı üyeliği doğrulanamadı.")
+    async with pool.acquire() as conn:
+        return await target_subscription(conn, state, user["id"])
+
+
 def access_for_request(request: Request, user: dict[str, Any]) -> dict[str, Any]:
     return access(subscription_for_request(request, user), user)
 
