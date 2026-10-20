@@ -53,6 +53,10 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
 
     async def insert_expired_job(self, status="RUNNING"):
         await self.pool.execute(
+            "INSERT INTO commercial_auth_users (user_id, email) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            USER["id"], USER["email"],
+        )
+        await self.pool.execute(
             """INSERT INTO commercial_account_erasure_jobs
                (user_hash, status, lease_owner, lease_expires_at, attempts, resume_user_id)
                VALUES ($1, $2, 'dead-owner', NOW() - interval '1 minute', 1, $3)""",
@@ -197,6 +201,18 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(USER["email"], text)
         self.assertTrue(report[0]["resumable"])
         self.assertIsInstance(datetime.fromisoformat(report[0]["updated_at"]), datetime)
+
+
+    async def test_email_mismatch_in_auth_store_blocks_resume(self):
+        await self.insert_expired_job()
+        await self.pool.execute("UPDATE commercial_auth_users SET email = 'changed@example.test' WHERE user_id = $1", USER["id"])
+        with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
+                patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(self.app)
+        self.assertEqual(results[0]["outcome"], "manuel_inceleme")
+        gate.assert_not_awaited()
+        erase.assert_not_awaited()
+        self.assertEqual((await self.job())["status"], "FAILED")
 
 
 if __name__ == "__main__":

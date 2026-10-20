@@ -804,6 +804,8 @@ class BinanceDemoClient:
     def __init__(self, http: httpx.AsyncClient, api_key: str, secret_key: str, *, public_only: bool = False) -> None:
         self.private_authority: Callable[[], Awaitable[None]] | None = None
         self.entry_authority: Callable[[], Awaitable[None]] | None = None
+        # (application, user_id): yalnızca kullanıcıya bağlı istemcilerde; giriş emirleri hesap silme fence'ine tabidir.
+        self.entry_fence: tuple[Any, str] | None = None
         if (not api_key or not secret_key) and not public_only:
             raise BinanceDemoError(
                 "Demo API bağlantısı aktif değil. Programdaki Borsa Bağlantıları bölümünden Testnet anahtarını kaydedip aktifleştirin.",
@@ -849,6 +851,23 @@ class BinanceDemoClient:
             self.last_time_sync = DEMO_CLOCK_SYNCED_AT
 
     async def signed(self, method: str, path: str, params: dict[str, Any] | None = None) -> Any:
+        """Giriş emirleri (POST, kapatma değilse) hesap silme fence'i ve uçuş kaydıyla sarılır."""
+        method = method.upper()
+        from .account_fence import ENTRY_ORDER_PATHS, FenceError, begin_entry, end_entry, is_reduce_only_exit
+        is_entry = method == "POST" and path in ENTRY_ORDER_PATHS and not is_reduce_only_exit(params or {})
+        if not is_entry or self.entry_fence is None:
+            return await self._signed_unfenced(method, path, params)
+        application, user_id = self.entry_fence
+        try:
+            token = await begin_entry(application, user_id)
+        except FenceError as exc:
+            raise BinanceDemoError("Hesap silme süreci için yeni giriş emirleri engellendi.", http_status=423) from exc
+        try:
+            return await self._signed_unfenced(method, path, params)
+        finally:
+            await end_entry(application, token)
+
+    async def _signed_unfenced(self, method: str, path: str, params: dict[str, Any] | None = None) -> Any:
         method = method.upper()
         if (method, path) not in PRIVATE_PATHS:
             raise BinanceDemoError("İzin verilmeyen özel Demo API işlemi.", http_status=500)
@@ -1045,6 +1064,7 @@ def bind_demo_private_authority(
         except HTTPException as exc:
             raise BinanceDemoError(str(exc.detail), http_status=exc.status_code) from exc
     client.entry_authority = validate_entry_authority
+    client.entry_fence = (application, user_id)
     return client
 
 

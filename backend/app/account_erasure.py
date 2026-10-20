@@ -661,6 +661,20 @@ def format_stale_report(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+async def _matches_auth_record(pool: Any, user: dict[str, Any]) -> bool:
+    """Süpürme yalnızca kimlik deposundaki kayıt, çalışma durumundaki kullanıcıyla aynı e-postaya sahipse devam eder.
+    Kayıt yoksa, okunamazsa veya e-posta farklıysa False (kapalı başarısızlık)."""
+    try:
+        row = await pool.fetchrow("SELECT email FROM commercial_auth_users WHERE user_id = $1", user["id"])
+        if row is None:
+            return False
+        stored = str(row["email"] or "").strip().casefold()
+    except Exception:
+        return False
+    live = str(user.get("email") or "").strip().casefold()
+    return bool(stored) and stored == live
+
+
 async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dict[str, Any]]:
     """Kesintiye uğramış silmeleri güvenli biçimde sürdürür.
 
@@ -691,6 +705,10 @@ async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dic
         if user is None or user.get("role") == "OWNER":
             results.append({"hash_prefix": prefix, "outcome": "manuel_inceleme",
                             "reason": "kullanıcı kaydı çalışma durumunda yok veya OWNER"})
+            continue
+        if not await _matches_auth_record(pool, user):
+            results.append({"hash_prefix": prefix, "outcome": "manuel_inceleme",
+                            "reason": "kimlik kaydı eşleşmiyor veya okunamadı"})
             continue
         owner = uuid.uuid4().hex
         if not await acquire_erasure_lease(pool, uid, owner):

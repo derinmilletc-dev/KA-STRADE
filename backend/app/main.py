@@ -1211,6 +1211,9 @@ async def lifespan(app: FastAPI):
     schedule_sweep(app)
     if os.getenv("CHART_AI_ENABLED", "false").strip().lower() in {"true", "1"}:
         app.state.runtime_tasks.append(asyncio.create_task(chart_ai_maintenance_loop(app)))
+    from .erasure_sweeper_worker import erasure_sweeper_loop, sweeper_enabled
+    if sweeper_enabled():
+        app.state.runtime_tasks.append(asyncio.create_task(erasure_sweeper_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),

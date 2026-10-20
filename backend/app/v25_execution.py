@@ -1716,17 +1716,34 @@ class BinanceLiveClient:
         signed: bool,
         api_key_header: bool = False,
     ) -> Any:
+        """Giriş emirleri uçuş kaydıyla sarılır: fence aktifse gönderilmez; gönderim bitince kayıt silinir."""
+        if not (signed and method == "POST" and path in ENTRY_ORDER_PATHS):
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        from .account_fence import FenceError, begin_entry, end_entry, is_reduce_only_exit
+        if is_reduce_only_exit(params):
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        authorization = (self.diagnostic_state or {}).get("live_session_authorization") or {}
+        try:
+            token = await begin_entry(self.application, str(authorization.get("user_id") or ""))
+        except FenceError as exc:
+            raise LiveExchangeError("Hesap silme süreci için yeni giriş emirleri engellendi.", http_status=423) from exc
+        try:
+            return await self._request_unfenced(method, path, params, signed=signed, api_key_header=api_key_header)
+        finally:
+            await end_entry(self.application, token)
+
+    async def _request_unfenced(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any],
+        *,
+        signed: bool,
+        api_key_header: bool = False,
+    ) -> Any:
         if (signed or api_key_header) and self.background_session:
             if not await background_authorization_active(self.application, self.diagnostic_state):
                 raise LiveExchangeError("Canlı oturum iptal edildi veya yetki kanıtı doğrulanamadı.", http_status=423)
-        if signed and method == "POST" and path in ENTRY_ORDER_PATHS:
-            from .account_fence import FenceError, assert_entries_allowed, is_reduce_only_exit
-            if not is_reduce_only_exit(params):
-                authorization = (self.diagnostic_state or {}).get("live_session_authorization") or {}
-                try:
-                    await assert_entries_allowed(self.application, str(authorization.get("user_id") or ""))
-                except FenceError as exc:
-                    raise LiveExchangeError("Hesap silme süreci için yeni giriş emirleri engellendi.", http_status=423) from exc
         if method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/order/test"} \
                 and not _truthy(params.get("reduceOnly")) and not _truthy(params.get("closePosition")):
             from . import original_v2_live

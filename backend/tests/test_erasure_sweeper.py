@@ -19,10 +19,12 @@ USER = {"id": "sweep-user-1", "email": "sweep-user-1@example.test", "role": "CUS
 class FakePool:
     """Yalnızca kullanılan çağrıları kaydeden sahte havuz."""
 
-    def __init__(self, *, fetch_rows=(), fetchrow_value=None, fetchrow_error=None):
+    def __init__(self, *, fetch_rows=(), fetchrow_value=None, fetchrow_error=None, auth_row=None):
         self.fetch_rows = list(fetch_rows)
         self.fetchrow_value = fetchrow_value
         self.fetchrow_error = fetchrow_error
+        # Kimlik deposu satırı: varsayılan olarak kullanıcının kendi e-postası (eşleşen kayıt).
+        self.auth_row = auth_row if auth_row is not None else {"email": USER["email"]}
         self.executed = []
         self.fetchrow_calls = []
 
@@ -30,6 +32,10 @@ class FakePool:
         return self.fetch_rows
 
     async def fetchrow(self, sql, *args):
+        if "commercial_auth_users" in sql:
+            if isinstance(self.auth_row, Exception):
+                raise self.auth_row
+            return self.auth_row
         self.fetchrow_calls.append(args)
         if self.fetchrow_error is not None:
             raise self.fetchrow_error
@@ -166,6 +172,66 @@ class SweeperTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["outcome"], "atlandı")
         gate.assert_not_awaited()
         self.assertEqual(pool.executed, [])
+
+
+class AuthMatchTests(unittest.IsolatedAsyncioTestCase):
+    def job_row(self):
+        return {"user_hash": erasure.user_hash(USER["id"]), "resume_user_id": USER["id"]}
+
+    async def test_email_mismatch_is_manual_and_takes_no_lease(self):
+        pool = FakePool(fetch_rows=[self.job_row()], fetchrow_value={"lease_owner": "x"},
+                        auth_row={"email": "someone-else@example.test"})
+        with patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(app_with(pool, users=[dict(USER)]))
+        self.assertEqual(results[0]["outcome"], "manuel_inceleme")
+        erase.assert_not_awaited()
+        self.assertEqual(pool.fetchrow_calls, [])
+
+    async def test_missing_auth_row_is_manual(self):
+        pool = FakePool(fetch_rows=[self.job_row()], auth_row=None)
+        pool.auth_row = None
+        with patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(app_with(pool, users=[dict(USER)]))
+        self.assertEqual(results[0]["outcome"], "manuel_inceleme")
+        erase.assert_not_awaited()
+
+    async def test_auth_store_error_is_manual_not_erased(self):
+        pool = FakePool(fetch_rows=[self.job_row()], auth_row=RuntimeError("store down"))
+        with patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(app_with(pool, users=[dict(USER)]))
+        self.assertEqual(results[0]["outcome"], "manuel_inceleme")
+        erase.assert_not_awaited()
+
+
+class WorkerTests(unittest.IsolatedAsyncioTestCase):
+    def test_disabled_by_default(self):
+        from app import erasure_sweeper_worker as worker
+
+        self.assertFalse(worker.sweeper_enabled({}))
+        self.assertFalse(worker.sweeper_enabled({"ERASURE_SWEEPER_ENABLED": "no"}))
+        self.assertTrue(worker.sweeper_enabled({"ERASURE_SWEEPER_ENABLED": "true"}))
+
+    def test_interval_has_a_floor_and_default(self):
+        from app import erasure_sweeper_worker as worker
+
+        self.assertEqual(worker.sweeper_interval({}), 300)
+        self.assertEqual(worker.sweeper_interval({"ERASURE_SWEEPER_INTERVAL_SECONDS": "5"}), 60)
+        self.assertEqual(worker.sweeper_interval({"ERASURE_SWEEPER_INTERVAL_SECONDS": "x"}), 300)
+
+    async def test_loop_survives_iteration_errors(self):
+        from app import erasure_sweeper_worker as worker
+
+        calls = []
+
+        async def flaky(application):
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("boom")
+            return []
+
+        with patch("app.account_erasure.sweep_stale_erasures", new=flaky):
+            await worker.erasure_sweeper_loop(SimpleNamespace(), interval=0, iterations=2)
+        self.assertEqual(len(calls), 2)
 
 
 if __name__ == "__main__":
