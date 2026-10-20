@@ -8,6 +8,12 @@
   },
   "headers": [
     {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        {"key": "Content-Type", "value": "application/json; charset=utf-8"}
+      ]
+    },
+    {
       "source": "/sitemap.xml",
       "headers": [
         {"key": "Content-Type", "value": "application/xml; charset=utf-8"}
@@ -30,6 +36,8 @@
     {"source": "/privacy/", "destination": "/privacy.html"},
     {"source": "/terms/", "destination": "/terms.html"},
     {"source": "/risk/", "destination": "/risk.html"},
-    {"source": "/:path((?!sitemap\\.xml$|robots\\.txt$).*)", "destination": "/index.html"}
+    {"source": "/hesap-silme", "destination": "/hesap-silme.html"},
+    {"source": "/hesap-silme/", "destination": "/hesap-silme.html"},
+    {"source": "/:path((?!sitemap\\.xml$|robots\\.txt$|\\.well-known/).*)", "destination": "/index.html"}
   ]
 }
