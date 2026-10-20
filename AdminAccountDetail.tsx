@@ -121,13 +121,50 @@ function TradingTab({data}: {data: AccountOverview}) {
 }
 
 function AccountsTab({id}: {id: string}) {
-  const {data, error, loading, reload} = useRemote<{accounts: TradingAccount[]}>(`/admin/users/${encodeURIComponent(id)}/trading-accounts`)
+  const path = `/admin/users/${encodeURIComponent(id)}/trading-accounts`
+  const {data, error, loading, reload} = useRemote<{accounts: TradingAccount[]}>(path)
   const rows = data?.accounts ?? []
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [reference, setReference] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [unlinking, setUnlinking] = useState<string | null>(null)
+  const run = async (operation: () => Promise<void>) => {
+    if (busy) return
+    setBusy(true); setActionError('')
+    try {await operation(); reload()} catch (failure) {setActionError(errorMessage(failure))} finally {setBusy(false)}
+  }
+  const link = () => {
+    const value = reference.trim()
+    if (!value) {setActionError('Hesap referansı gerekli.'); return}
+    void run(async () => {
+      await accountRequest(path, {method: 'POST', body: JSON.stringify({provider: 'BINANCE', environment: 'TESTNET', account_reference: value})})
+      setReference(''); setLinkOpen(false)
+    })
+  }
+  const unlink = (accountId: string) => void run(async () => {
+    await accountRequest(`${path}/${encodeURIComponent(accountId)}`, {method: 'DELETE'})
+    setUnlinking(null)
+  })
   return <div className="adStack"><section aria-label="Bağlı borsa hesapları"><h3>Bağlı borsa hesapları</h3>
     <p className="adHint">Yalnızca hesap eşlemesi gösterilir. API anahtarı, secret ve token bilgileri hiçbir zaman gösterilmez.</p>
     <State loading={loading} error={error} empty={!rows.length} onRetry={reload} emptyText="Bu kullanıcıya eşlenmiş borsa hesabı yok.">
-      <ul className="adRecords">{rows.map(row => <li key={row.id}><div><b>{row.provider}</b> · <span data-env={/demo|test/i.test(row.environment) ? 'demo' : 'real'}>{environmentLabel(row.environment)}</span><small>Referans: {row.account_reference}</small></div><div className="adRight"><b>{row.status}</b><small>Güncellendi: {accountDate(row.updated_at)}</small></div></li>)}</ul>
+      <ul className="adRecords">{rows.map(row => <li key={row.id}><div><b>{row.provider}</b> · <span data-env={/demo|test/i.test(row.environment) ? 'demo' : 'real'}>{environmentLabel(row.environment)}</span><small>Referans: {row.account_reference}</small></div><div className="adRight"><b>{row.status}</b><small>Güncellendi: {accountDate(row.updated_at)}</small></div>
+        {unlinking === row.id
+          ? <div className="adInline"><span>Eşleme kaldırılsın mı?</span><button type="button" className="adDanger" disabled={busy} onClick={() => unlink(row.id)}>Evet, kaldır</button><button type="button" disabled={busy} onClick={() => setUnlinking(null)}>Vazgeç</button></div>
+          : <button type="button" disabled={busy} aria-label={`${row.account_reference} eşlemesini kaldır`} onClick={() => setUnlinking(row.id)}>Eşlemeyi kaldır</button>}</li>)}</ul>
     </State>
+    {actionError && <p className="adminAccountError" role="alert">{actionError}</p>}
+    <div className="adInline">
+      <button type="button" disabled={busy} aria-expanded={linkOpen} onClick={() => setLinkOpen(value => !value)}>+ Hesap bağla</button>
+    </div>
+    {linkOpen && <div className="adInline" role="group" aria-label="Borsa hesabı bağla">
+      <label>Sağlayıcı<select disabled><option>BINANCE</option></select></label>
+      <label>Ortam<select disabled><option>TESTNET</option></select></label>
+      <label>Hesap referansı<input value={reference} onChange={event => setReference(event.target.value)} placeholder="Güvenli hesap referansı" autoComplete="off"/></label>
+      <button type="button" disabled={busy} onClick={link}>{busy ? 'Kaydediliyor...' : 'Kaydet'}</button>
+      <button type="button" disabled={busy} onClick={() => {setLinkOpen(false); setReference(''); setActionError('')}}>İptal</button>
+    </div>}
     <p className="adHint">Bot ilişkisi bilgisi yönetici API'sinde mevcut olmadığı için gösterilmiyor.</p></section></div>
 }
 
