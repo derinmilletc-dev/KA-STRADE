@@ -157,7 +157,8 @@ class ErasureGateTests(unittest.IsolatedAsyncioTestCase):
     async def gate(self, app, responder):
         client, fake = client_for(responder)
         try:
-            await exposure.gate_before_erasure(app, USER, http=client)
+            with patch.dict(os.environ, {"PROTREBOT_VAULT_MASTER_KEY": FAKE_MASTER}):
+                await exposure.gate_before_erasure(app, USER, http=client)
         finally:
             await client.aclose()
         return fake
