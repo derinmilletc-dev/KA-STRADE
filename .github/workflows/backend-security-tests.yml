@@ -9,8 +9,8 @@ name: Backend Security Tests
 #   (`--min-tests`) gerçek bir yeşil koşunun sayısından alınmıştır; düşüşü kırmızı yapar. JUnit `file` niteliği
 #   kullanılmaz: başka modülden miras alınan testlerde tanımlandığı dosyayı gösterir. Toplama ve koşu aynı dizinden
 #   (backend) yapılır; junit_family açıkça xunit2.
-# - Gerçek PostgreSQL gerekmez: bu iki dosya DSN okumaz ve veritabanı bağlantısı açmaz (testler sahte/yerel depo kullanır).
-#   Gerçek PG migration/trigger testleri sonraki aşamadadır.
+# - Gerçek PostgreSQL: test_account_erasure_pg.py geçici bir PostgreSQL 16 servisine (yalnızca CI, sır değil) bağlanır;
+#   hesap silme veritabanı akışı ve tetikleyiciler gerçek motorda doğrulanır. Diğer iki dosya DSN okumaz.
 # - Salt okunur: sır yok, deploy yok, migration yok.
 # - paths filtresi bilerek yok: bu iş "required check" yapılırsa backend dışı PR'larda askıda kalmasın.
 # - Kapı adımı `!cancelled()` ile çalışır: başarı ve başarısızlıkta çalışır, iptalde çalışmaz (iptalde rapor eksik/kısmi olur
@@ -28,6 +28,17 @@ jobs:
   security-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: erasure_ci
+          POSTGRES_PASSWORD: erasure_ci_only
+          POSTGRES_DB: erasure_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U erasure_ci -d erasure_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       # actions/checkout depodaki bozuk 'tradbt458-main' alt modül girdisi (.gitmodules yok) yüzünden çöküyor;
       # alt modüllere dokunmayan düz git fetch kullanılır (backend-assistant-tests.yml ile aynı). Jeton diske yazılmaz.
@@ -55,7 +66,7 @@ jobs:
         working-directory: backend
         run: |
           if ! python -m pytest --collect-only -q -p no:cacheprovider -o xfail_strict=true \
-              tests/test_account_settings.py tests/test_security_auth_hardening.py > security-collected.txt; then
+              tests/test_account_settings.py tests/test_security_auth_hardening.py tests/test_account_erasure_pg.py > security-collected.txt; then
             cat security-collected.txt
             exit 1
           fi
@@ -82,12 +93,15 @@ jobs:
             }
             END { if (len > 0) printf "::notice title=collected security test ids (part %d)::%s\n", ++k, msg }
           ' security-collected.txt
-      - name: pytest (account deletion + auth hardening)
+      - name: pytest (account deletion + auth hardening + PostgreSQL erasure)
         working-directory: backend
+        env:
+          ERASURE_PG_DSN: postgresql://erasure_ci:erasure_ci_only@localhost:5432/erasure_test
         run: >
           python -m pytest
           tests/test_account_settings.py
           tests/test_security_auth_hardening.py
+          tests/test_account_erasure_pg.py
           -q -rfEsxX --tb=short -p no:cacheprovider
           -o junit_family=xunit2 -o xfail_strict=true
           --junitxml=security-report.xml
@@ -101,5 +115,7 @@ jobs:
           --collected backend/security-collected.txt
           --require tests/test_account_settings.py
           --require tests/test_security_auth_hardening.py
+          --require tests/test_account_erasure_pg.py
           --min-tests tests/test_account_settings.py=33
           --min-tests tests/test_security_auth_hardening.py=74
+          --min-tests tests/test_account_erasure_pg.py=3
