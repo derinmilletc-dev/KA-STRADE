@@ -31,7 +31,7 @@ class ErasureDatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
         self.addAsyncCleanup(self.pool.close)
         await self.pool.execute("DROP TABLE IF EXISTS " + ", ".join(TEST_TABLES) + " CASCADE")
-        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL)")
+        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, auth_version BIGINT NOT NULL DEFAULT 1, security JSONB NOT NULL)")
         await self.pool.execute("CREATE TABLE commercial_account_settings (user_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         await self.pool.execute(
             "CREATE TABLE subscriptions (id SERIAL PRIMARY KEY, user_id TEXT, stripe_customer_id TEXT, "
@@ -45,7 +45,7 @@ class ErasureDatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.user = {"id": "pg-user-1", "email": "pg-user-1@example.test"}
         self.other = {"id": "pg-user-2", "email": "pg-user-2@example.test"}
         await self.pool.execute(
-            "INSERT INTO commercial_auth_users (user_id, email) VALUES ($1, $2), ($3, $4)",
+            "INSERT INTO commercial_auth_users (user_id, security) VALUES ($1, jsonb_build_object('email', $2::text)), ($3, jsonb_build_object('email', $4::text))",
             self.user["id"], self.user["email"], self.other["id"], self.other["email"],
         )
         await self.pool.execute(
@@ -85,7 +85,7 @@ class ErasureDatabaseTests(unittest.IsolatedAsyncioTestCase):
             "INSERT INTO commercial_account_settings (user_id, data) VALUES ($1, 'late')", self.user["id"],
         )
         await self.pool.execute(
-            "INSERT INTO commercial_auth_users (user_id, email) VALUES ($1, $2)", self.user["id"], self.user["email"],
+            "INSERT INTO commercial_auth_users (user_id, security) VALUES ($1, jsonb_build_object('email', $2::text))", self.user["id"], self.user["email"],
         )
         await self.pool.execute(
             "INSERT INTO subscriptions (user_id, stripe_customer_id) VALUES ($1, 'cus_late')", self.user["id"],
@@ -139,7 +139,7 @@ class ErasureLeaseTests(unittest.IsolatedAsyncioTestCase):
         self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4)
         self.addAsyncCleanup(self.pool.close)
         await self.pool.execute("DROP TABLE IF EXISTS " + ", ".join(TEST_TABLES) + " CASCADE")
-        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL)")
+        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, auth_version BIGINT NOT NULL DEFAULT 1, security JSONB NOT NULL)")
         await self.pool.execute(
             "CREATE TABLE application_state_snapshots (state_key TEXT PRIMARY KEY, payload JSONB NOT NULL)"
         )

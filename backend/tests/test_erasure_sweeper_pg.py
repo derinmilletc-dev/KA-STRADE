@@ -33,7 +33,10 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=6)
         self.addAsyncCleanup(self.pool.close)
         await self.pool.execute("DROP TABLE IF EXISTS " + ", ".join(TEST_TABLES) + " CASCADE")
-        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL)")
+        await self.pool.execute(
+            "CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, "
+            "auth_version BIGINT NOT NULL DEFAULT 1, security JSONB NOT NULL)"
+        )
         await self.pool.execute("CREATE TABLE commercial_account_settings (user_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         await self.pool.execute(
             "CREATE TABLE subscriptions (id SERIAL PRIMARY KEY, user_id TEXT, stripe_customer_id TEXT, "
@@ -53,14 +56,14 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
 
     async def insert_expired_job(self, status="RUNNING"):
         await self.pool.execute(
-            "INSERT INTO commercial_auth_users (user_id, email) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            "INSERT INTO commercial_auth_users (user_id, security) VALUES ($1, jsonb_build_object('email', $2::text)) ON CONFLICT DO NOTHING",
             USER["id"], USER["email"],
         )
         await self.pool.execute(
             """INSERT INTO commercial_account_erasure_jobs
-               (user_hash, status, lease_owner, lease_expires_at, attempts, resume_user_id)
-               VALUES ($1, $2, 'dead-owner', NOW() - interval '1 minute', 1, $3)""",
-            self.user_hash, status, USER["id"],
+               (user_hash, status, lease_owner, lease_expires_at, attempts)
+               VALUES ($1, $2, 'dead-owner', NOW() - interval '1 minute', 1)""",
+            self.user_hash, status,
         )
 
     async def job(self):
@@ -71,14 +74,14 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_acquire_keeps_resume_id_on_failure_and_clears_on_done(self):
         self.assertTrue(await erasure.acquire_erasure_lease(self.pool, USER["id"], "a"))
-        self.assertEqual((await self.job())["resume_user_id"], USER["id"])
+        self.assertIsNone((await self.job())["resume_user_id"])
         await erasure.release_erasure_lease(self.pool, USER["id"], "a", done=False)
         row = await self.job()
-        self.assertEqual((row["status"], row["resume_user_id"]), ("FAILED", USER["id"]))
+        self.assertEqual(row["status"], "FAILED")
         self.assertTrue(await erasure.acquire_erasure_lease(self.pool, USER["id"], "b"))
         await erasure.release_erasure_lease(self.pool, USER["id"], "b", done=True)
         row = await self.job()
-        self.assertEqual((row["status"], row["resume_user_id"]), ("DONE", None))
+        self.assertEqual(row["status"], "DONE")
 
     async def test_concurrent_takeover_of_expired_lease_has_one_winner(self):
         await self.insert_expired_job()
@@ -105,7 +108,7 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         gate.assert_awaited_once()
         erase.assert_awaited_once()
         row = await self.job()
-        self.assertEqual((row["status"], row["resume_user_id"]), ("DONE", None))
+        self.assertEqual(row["status"], "DONE")
 
     async def test_failed_resume_is_never_marked_done(self):
         await self.insert_expired_job()
@@ -115,7 +118,7 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["outcome"], "hata")
         row = await self.job()
         self.assertEqual(row["status"], "FAILED")
-        self.assertEqual(row["resume_user_id"], USER["id"])
+        self.assertIsNone(row["resume_user_id"])
 
     async def test_open_exposure_blocks_resume_without_erasing(self):
         await self.insert_expired_job()
@@ -206,9 +209,9 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_budget_is_exhausted_and_left_for_manual_review(self):
         await self.pool.execute(
             """INSERT INTO commercial_account_erasure_jobs
-               (user_hash, status, attempts, resume_user_id, updated_at)
-               VALUES ($1, 'FAILED', $2, $3, NOW())""",
-            self.user_hash, erasure.MAX_SWEEP_ATTEMPTS, USER["id"],
+               (user_hash, status, attempts, updated_at)
+               VALUES ($1, 'FAILED', $2, NOW())""",
+            self.user_hash, erasure.MAX_SWEEP_ATTEMPTS,
         )
         with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
                 patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
@@ -220,9 +223,53 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(report), 1)
         self.assertEqual(report[0]["attempts"], erasure.MAX_SWEEP_ATTEMPTS)
 
+    async def test_auth_email_is_read_from_security_document(self):
+        # Üretimde e-posta commercial_auth_users.security JSON içindedir; ayrı bir sütun yoktur.
+        await self.insert_expired_job()
+        self.assertTrue(await erasure._matches_auth_record(self.pool, dict(USER)))
+        self.assertTrue(await erasure._matches_auth_record(self.pool, {**USER, "email": USER["email"].upper()}))
+        self.assertFalse(await erasure._matches_auth_record(self.pool, {**USER, "id": "missing-user"}))
+
+    async def test_resume_finds_user_by_hash_without_any_stored_id(self):
+        await self.insert_expired_job()
+        with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()), \
+                patch.object(erasure, "_erase_user_account_locked", new=AsyncMock(return_value={})) as erase:
+            results = await erasure.sweep_stale_erasures(self.app)
+        self.assertEqual(results[0]["outcome"], "tamamlandı")
+        self.assertEqual(erase.await_args.args[1]["id"], USER["id"])
+
+    async def test_hash_resolves_only_the_owning_user(self):
+        other = {"id": "sweep-pg-other", "email": "sweep-pg-other@example.test", "role": "CUSTOMER"}
+        await self.pool.execute(
+            "INSERT INTO commercial_auth_users (user_id, security) VALUES ($1, jsonb_build_object('email', $2::text))",
+            other["id"], other["email"],
+        )
+        await self.insert_expired_job()
+        app = self.make_app(self.pool)
+        app.state.v22_commercial["state"]["users"].append(dict(other))
+        with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()), \
+                patch.object(erasure, "_erase_user_account_locked", new=AsyncMock(return_value={})) as erase:
+            await erasure.sweep_stale_erasures(app)
+        self.assertEqual(erase.await_count, 1)
+        self.assertEqual(erase.await_args.args[1]["id"], USER["id"])
+
+    async def test_missing_auth_record_is_manual_and_job_untouched(self):
+        await self.insert_expired_job()
+        await self.pool.execute("DELETE FROM commercial_auth_users WHERE user_id = $1", USER["id"])
+        with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
+                patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(self.app)
+        self.assertEqual(results[0]["outcome"], "manuel_inceleme")
+        gate.assert_not_awaited()
+        erase.assert_not_awaited()
+        self.assertEqual((await self.job())["status"], "RUNNING")
+
     async def test_email_mismatch_in_auth_store_blocks_resume(self):
         await self.insert_expired_job()
-        await self.pool.execute("UPDATE commercial_auth_users SET email = 'changed@example.test' WHERE user_id = $1", USER["id"])
+        await self.pool.execute(
+            "UPDATE commercial_auth_users SET security = jsonb_set(security, '{email}', to_jsonb('changed@example.test'::text)) WHERE user_id = $1",
+            USER["id"],
+        )
         with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
                 patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
             results = await erasure.sweep_stale_erasures(self.app)
@@ -231,7 +278,7 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         erase.assert_not_awaited()
         row = await self.job()
         # Manuel inceleme işi değiştirmez: durum ve sürdürme kimliği olduğu gibi kalır.
-        self.assertEqual((row["status"], row["resume_user_id"]), ("RUNNING", USER["id"]))
+        self.assertEqual(row["status"], "RUNNING")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ class FakePool:
         self.fetchrow_value = fetchrow_value
         self.fetchrow_error = fetchrow_error
         # Kimlik deposu satırı: varsayılan olarak kullanıcının kendi e-postası (eşleşen kayıt).
-        self.auth_row = auth_row if auth_row is not None else {"email": USER["email"]}
+        self.auth_row = auth_row if auth_row is not None else {"user_id": USER["id"], "email": USER["email"]}
         self.executed = []
         self.fetchrow_calls = []
 
@@ -121,7 +121,7 @@ class HeartbeatTests(unittest.IsolatedAsyncioTestCase):
 
 class SweeperTests(unittest.IsolatedAsyncioTestCase):
     def job_row(self):
-        return {"user_hash": erasure.user_hash(USER["id"]), "resume_user_id": USER["id"]}
+        return {"user_hash": erasure.user_hash(USER["id"])}
 
     async def test_missing_user_record_is_left_for_manual_review(self):
         pool = FakePool(fetch_rows=[self.job_row()])
@@ -176,11 +176,11 @@ class SweeperTests(unittest.IsolatedAsyncioTestCase):
 
 class AuthMatchTests(unittest.IsolatedAsyncioTestCase):
     def job_row(self):
-        return {"user_hash": erasure.user_hash(USER["id"]), "resume_user_id": USER["id"]}
+        return {"user_hash": erasure.user_hash(USER["id"])}
 
     async def test_email_mismatch_is_manual_and_takes_no_lease(self):
         pool = FakePool(fetch_rows=[self.job_row()], fetchrow_value={"lease_owner": "x"},
-                        auth_row={"email": "someone-else@example.test"})
+                        auth_row={"user_id": USER["id"], "email": "someone-else@example.test"})
         with patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
             results = await erasure.sweep_stale_erasures(app_with(pool, users=[dict(USER)]))
         self.assertEqual(results[0]["outcome"], "manuel_inceleme")
