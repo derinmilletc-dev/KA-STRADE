@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from . import account_store as store
 from . import v22_commercial as auth
+from .browser_security import clear_browser_cookie
 from .commercial_core import hash_password, issue_token, normalize_email, verify_password, verify_token
 from .member_entitlements import subscription_for_request
 from .auth_failures import MFA_ACCOUNT, decode_state, enforce_failure_wait, new_state, record_failure
@@ -110,6 +111,10 @@ class SessionRevoke(StrictModel):
 
 class Close(Proof):
     confirmation: Literal["HESABI KAPAT"]
+
+
+class Erase(Proof):
+    confirmation: Literal["HESABIMI SIL"]
 
 
 def iso(timestamp=None):
@@ -878,6 +883,40 @@ async def close_account(payload: Close, request: Request, response: Response):
     await persist_projection(request)
     auth.clear_rotated_session_cookie(request, response, user["id"])
     return {"ok": True, "reauthenticate": True}
+
+
+@router.post("/account/delete")
+async def delete_account(payload: Erase, request: Request, response: Response):
+    """Kalıcı hesap ve veri silme (Google Play hesap silme gereksinimi).
+
+    Geri döndürülemez; bu yüzden /account/close ile aynı korumalar: oturum, açık borsa pozisyonu/bağlantı engeli,
+    parola veya e-posta kodu + varsa TOTP yeniden doğrulaması ve yazılı onay. Silme `erase_user_account` ile yapılır
+    (kişisel veriler silinir, finansal kayıtlar kimliksizleştirilerek saklanır)."""
+    from .account_erasure import erase_user_account
+
+    user = await member(request)
+    # Aynı hesap için eşzamanlı silme istekleri: kontrol+ekleme arasında await yok, yani atomik (tek olay döngüsü).
+    running = getattr(request.app.state, "_account_delete_inflight", None)
+    if running is None:
+        running = set()
+        request.app.state._account_delete_inflight = running
+    if user["id"] in running:
+        raise HTTPException(409, "Bu hesap için silme işlemi zaten sürüyor")
+    running.add(user["id"])
+    try:
+        blocker = await close_blocker(request, user)
+        if blocker:
+            raise HTTPException(409, blocker)
+        await proof(request, user, payload)
+        # Kanıt doğrulaması beklerken durum değişmiş olabilir; geri alınamaz adımdan hemen önce yeniden kontrol.
+        blocker = await close_blocker(request, user)
+        if blocker:
+            raise HTTPException(409, blocker)
+        result = await erase_user_account(request, user)
+    finally:
+        running.discard(user["id"])
+    clear_browser_cookie(response, request, auth.SESSION_COOKIE_NAME)
+    return {**(result if isinstance(result, dict) else {}), "ok": True, "reauthenticate": True}
 
 
 async def admin_target(request, user_id):
