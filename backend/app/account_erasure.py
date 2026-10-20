@@ -536,20 +536,19 @@ async def acquire_erasure_lease(pool: Any, user_id: str, owner: str) -> bool:
     """Süreçler arası kilit: aynı hesap için tek aktif silme. Süresi dolmuş kilit devralınabilir.
     DONE kaydı yeni silmeyi engeller (zaten tamamlanmış). FAILED kaydı yeniden denemeye açıktır."""
     row = await pool.fetchrow("""
-        INSERT INTO commercial_account_erasure_jobs (user_hash, status, lease_owner, lease_expires_at, attempts, resume_user_id)
-        VALUES ($1, 'RUNNING', $2, NOW() + make_interval(secs => $3), 1, $4)
+        INSERT INTO commercial_account_erasure_jobs (user_hash, status, lease_owner, lease_expires_at, attempts)
+        VALUES ($1, 'RUNNING', $2, NOW() + make_interval(secs => $3), 1)
         ON CONFLICT (user_hash) DO UPDATE SET
           status = 'RUNNING',
           lease_owner = EXCLUDED.lease_owner,
           lease_expires_at = EXCLUDED.lease_expires_at,
-          resume_user_id = EXCLUDED.resume_user_id,
           attempts = commercial_account_erasure_jobs.attempts + 1,
           updated_at = NOW()
         WHERE commercial_account_erasure_jobs.status <> 'DONE'
           AND (commercial_account_erasure_jobs.lease_expires_at IS NULL
                OR commercial_account_erasure_jobs.lease_expires_at < NOW())
         RETURNING lease_owner
-    """, user_hash(user_id), owner, LEASE_SECONDS, user_id)
+    """, user_hash(user_id), owner, LEASE_SECONDS)
     return row is not None
 
 
@@ -637,7 +636,9 @@ async def stale_erasure_report(pool: Any, *, limit: int = 100) -> list[dict[str,
     rows = await pool.fetch("""
         SELECT left(user_hash, 12) AS hash_prefix, status, attempts,
                (lease_expires_at IS NULL OR lease_expires_at < NOW()) AS lease_expired,
-               updated_at, (resume_user_id IS NOT NULL) AS resumable
+               updated_at,
+               EXISTS (SELECT 1 FROM commercial_auth_users AS a
+                       WHERE encode(sha256(convert_to(a.user_id, 'UTF8')), 'hex') = commercial_account_erasure_jobs.user_hash) AS resumable
         FROM commercial_account_erasure_jobs
         WHERE status <> 'DONE'
         ORDER BY updated_at
@@ -677,6 +678,25 @@ async def _matches_auth_record(pool: Any, user: dict[str, Any]) -> bool:
     return bool(stored) and stored == live
 
 
+async def _resolve_user_id(pool: Any, job_user_hash: str) -> str | None:
+    """user_hash'ten kullanıcı kimliğini yalnızca kimlik deposundaki gerçek kayıt üzerinden bulur.
+    Eşleşme SHA-256 hex birebir karşılaştırmasıdır (user_hash ile aynı algoritma; Python tarafında da doğrulanır).
+    user_id birincil anahtar olduğu için en fazla bir kayıt eşleşir. Kayıt yoksa veya okunamazsa None."""
+    try:
+        row = await pool.fetchrow(
+            "SELECT user_id FROM commercial_auth_users WHERE encode(sha256(convert_to(user_id, 'UTF8')), 'hex') = $1",
+            job_user_hash,
+        )
+    except Exception:
+        return None
+    if row is None:
+        return None
+    uid = row["user_id"]
+    if not isinstance(uid, str):
+        return None
+    return uid if user_hash(uid) == job_user_hash else None
+
+
 async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dict[str, Any]]:
     """Kesintiye uğramış silmeleri güvenli biçimde sürdürür.
 
@@ -692,8 +712,8 @@ async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dic
     if pool is None:
         return []
     rows = await pool.fetch("""
-        SELECT user_hash, resume_user_id FROM commercial_account_erasure_jobs
-        WHERE resume_user_id IS NOT NULL AND status <> 'DONE'
+        SELECT user_hash FROM commercial_account_erasure_jobs
+        WHERE status <> 'DONE'
           AND attempts < $2
           AND (status = 'FAILED' OR lease_expires_at IS NULL OR lease_expires_at < NOW())
         ORDER BY updated_at
@@ -702,8 +722,12 @@ async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dic
     results: list[dict[str, Any]] = []
     rt = getattr(application.state, "v22_commercial", None) or {}
     for row in rows:
-        uid = row["resume_user_id"]
         prefix = str(row["user_hash"])[:12]
+        uid = await _resolve_user_id(pool, row["user_hash"])
+        if uid is None:
+            results.append({"hash_prefix": prefix, "outcome": "manuel_inceleme",
+                            "reason": "kimlik kaydı hash ile eşleşmiyor (silinmiş veya bulunamadı)"})
+            continue
         user = next((item for item in (rt.get("state") or {}).get("users", []) if item.get("id") == uid), None)
         if user is None or user.get("role") == "OWNER":
             results.append({"hash_prefix": prefix, "outcome": "manuel_inceleme",
