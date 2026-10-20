@@ -1,0 +1,9 @@
+# Güvenlik test kapısı ve hesap silme/kimlik testleri: bu dosyalardaki her değişiklik (test sayısı tabanı --min-tests dahil)
+# kod sahibi incelemesi gerektirir. Taban düşürme, kapıyı gevşetme veya testleri silme bu yolla gözden geçirilir.
+# NOT: Bu dosyanın etkisi yalnızca main için dal koruması/ruleset'te "Require review from Code Owners" açıkken olur;
+# tek geliştiricili depoda yazar kendi PR'ını onaylayamaz (ikinci inceleyici gerekir).
+/.github/CODEOWNERS                                @derinmilletc-dev
+/.github/workflows/backend-security-tests.yml      @derinmilletc-dev
+/.github/scripts/security_test_gate.py             @derinmilletc-dev
+/backend/tests/test_account_settings.py            @derinmilletc-dev
+/backend/tests/test_security_auth_hardening.py     @derinmilletc-dev
