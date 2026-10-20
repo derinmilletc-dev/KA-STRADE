@@ -47,6 +47,8 @@ class ReduceOnlyParsingTests(unittest.TestCase):
     def test_ambiguous_or_conflicting_values_fail_closed(self):
         self.assertFalse(fence.is_reduce_only_exit({"reduceOnly": "yes"}))
         self.assertFalse(fence.is_reduce_only_exit({"reduceOnly": 1}))
+        self.assertFalse(fence.is_reduce_only_exit({"closePosition": 1}))
+        self.assertFalse(fence.is_reduce_only_exit({"reduceOnly": 0}))
         self.assertFalse(fence.is_reduce_only_exit({"reduceOnly": ["true"]}))
         self.assertFalse(fence.is_reduce_only_exit({"reduceOnly": "true", "closePosition": "garbage"}))
 

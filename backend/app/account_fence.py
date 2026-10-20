@@ -28,13 +28,16 @@ class FenceError(Exception):
 
 
 def _flag(value: Any) -> bool | None:
-    try:
-        if value in (True, "true", "TRUE", "True"):
+    """Yalnızca gerçek bool ve açık metin değerleri kabul edilir. 1/0 gibi tamsayılar (1 == True) belirsiz sayılır."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        if value in ("true", "TRUE", "True"):
             return True
-        if value in (False, None, "false", "FALSE", "False", ""):
+        if value in ("false", "FALSE", "False", ""):
             return False
-    except TypeError:
-        return None
     return None
 
 
