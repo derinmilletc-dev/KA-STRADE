@@ -332,6 +332,189 @@ def test_pending_email_confirm_binding_single_use_duplicates_and_notification_fa
     assert separate.post("/api/v22/account/email/resend", headers=new, json={}).status_code == 409
 
 
+def test_permanent_deletion_needs_confirmation_proof_and_no_open_exposure_and_erases_once(setup):
+    client, h = setup.runtime(), headers()
+    client.get("/api/v22/account/overview", headers=h)
+    request = {"confirmation": "HESABIMI SIL", "current_password": PASSWORD}
+    with patch("app.account_erasure.erase_user_account", AsyncMock(return_value={"ok": True, "message": "erased"})) as erase:
+        # OWNER silinemez; açık pozisyon varken silinemez; yanlış onay metni ve yanlış parola reddedilir. Hiçbirinde silme çalışmaz.
+        assert client.post("/api/v22/account/delete", headers=headers("owner"), json=request).status_code == 409
+        client.app.state._v21_demo_user_state = {"customer": {"snapshot": {"positions": [{"symbol": "BTCUSDT"}]}}}
+        assert client.post("/api/v22/account/delete", headers=h, json=request).status_code == 409
+        client.app.state._v21_demo_user_state = {}
+        assert client.post("/api/v22/account/delete", headers=h, json={**request, "confirmation": "HESABI KAPAT"}).status_code == 422
+        assert client.post("/api/v22/account/delete", headers=h, json={"confirmation": "HESABIMI SIL"}).status_code in (401, 422)
+        assert client.post("/api/v22/account/delete", headers=h, json={**request, "current_password": "wrong-password-123!"}).status_code == 401
+        assert client.post("/api/v22/account/delete", headers=h, json={**request, "extra": 1}).status_code == 422
+        erase.assert_not_awaited()
+        # Doğru kanıt ve onayla silme tam bir kez çalışır.
+        done = client.post("/api/v22/account/delete", headers=h, json=request)
+        assert done.status_code == 200 and done.json()["ok"] is True and done.json()["reauthenticate"] is True
+        erase.assert_awaited_once()
+        assert erase.await_args.args[1]["id"] == "customer"
+
+
+def _enable_two_factor(client, h):
+    secret = client.post("/api/v22/account/2fa/setup", headers=h, json={"current_password": PASSWORD}).json()["secret"]
+    enabled = client.post("/api/v22/account/2fa/enable", headers=h, json={"code": pyotp.TOTP(secret).now()})
+    assert enabled.status_code == 200
+    return secret, {"Authorization": "Bearer " + enabled.json()["token"]}, enabled.json()["recovery_codes"]
+
+
+def test_permanent_deletion_with_two_factor_requires_valid_code_and_runs_once(setup):
+    client = setup.runtime()
+    client.get("/api/v22/account/overview", headers=headers())
+    secret, h, recovery = _enable_two_factor(client, headers())
+    body = {"confirmation": "HESABIMI SIL", "current_password": PASSWORD}
+    with patch("app.account_erasure.erase_user_account", AsyncMock(return_value={"ok": True})) as erase:
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 401
+        assert client.post("/api/v22/account/delete", headers=h, json={**body, "totp_code": "000000"}).status_code == 401
+        erase.assert_not_awaited()
+        done = client.post("/api/v22/account/delete", headers=h, json={**body, "totp_code": pyotp.TOTP(secret).now()})
+        assert done.status_code == 200
+        erase.assert_awaited_once()
+
+
+def test_permanent_deletion_is_blocked_by_every_open_exposure_kind(setup):
+    client, h = setup.runtime(), headers()
+    client.get("/api/v22/account/overview", headers=h)
+    body = {"confirmation": "HESABIMI SIL", "current_password": PASSWORD}
+    exposures = (
+        {"snapshot": {"open_orders": [{"orderId": 1}]}},
+        {"snapshot": {"open_algo_orders": [{"algoId": 1}]}},
+        {"snapshot": {"positions": [{"symbol": "BTCUSDT"}]}},
+        {"plans": [{"id": "p"}]},
+        {"paper_positions": [{"id": "x"}]},
+        {"auto": {"enabled": True}},
+        {"connected": True},
+        {"reconciliation_required": True},
+    )
+    with patch("app.account_erasure.erase_user_account", AsyncMock(return_value={"ok": True})) as erase:
+        for name in ("_binance_demo_user_state", "_v21_demo_user_state"):
+            for exposure in exposures:
+                setattr(client.app.state, name, {"customer": exposure})
+                response = client.post("/api/v22/account/delete", headers=h, json=body)
+                assert response.status_code == 409, (name, exposure)
+            setattr(client.app.state, name, {})
+        client.app.state.v25_execution = {"_user_id": "customer", "connected": True}
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 409
+        client.app.state.v25_execution = {}
+        erase.assert_not_awaited()
+
+
+def test_deletion_blocker_fails_closed_on_vault_state_and_active_exchange_session():
+    user = {"id": "customer", "role": "CUSTOMER"}
+
+    def blocker(pool):
+        state = SimpleNamespace(db_pool=pool)
+        return asyncio.run(account.close_blocker(SimpleNamespace(app=SimpleNamespace(state=state)), user))
+
+    assert blocker(SimpleNamespace(fetch=AsyncMock(return_value=[]))) is None
+    assert blocker(SimpleNamespace(fetch=AsyncMock(return_value=[{"active": True, "account_summary": {}}])))
+    assert blocker(SimpleNamespace(fetch=AsyncMock(return_value=[{"active": False, "account_summary": {"open_order_count": 2}}])))
+    assert blocker(SimpleNamespace(fetch=AsyncMock(return_value=[{"active": False, "account_summary": json.dumps({"positions": [1]})}])))
+    for bad in ("not-json", "[]"):
+        with pytest.raises(HTTPException) as caught:
+            blocker(SimpleNamespace(fetch=AsyncMock(return_value=[{"active": False, "account_summary": bad}])))
+        assert caught.value.status_code == 503
+    with pytest.raises(HTTPException) as caught:
+        blocker(SimpleNamespace(fetch=AsyncMock(side_effect=RuntimeError("db down"))))
+    assert caught.value.status_code == 503
+
+
+def test_permanent_deletion_repeat_request_and_incomplete_erasure(setup):
+    client, h = setup.runtime(), headers()
+    client.get("/api/v22/account/overview", headers=h)
+    body = {"confirmation": "HESABIMI SIL", "current_password": PASSWORD}
+
+    async def erase_for_real(request, user):
+        users = request.app.state.v22_commercial["state"]["users"]
+        users[:] = [row for row in users if row["id"] != user["id"]]
+        return {"ok": True}
+
+    with patch("app.account_erasure.erase_user_account", AsyncMock(side_effect=erase_for_real)) as erase:
+        first = client.post("/api/v22/account/delete", headers=h, json=body)
+        assert first.status_code == 200
+        assert auth.SESSION_COOKIE_NAME in first.headers.get("set-cookie", "")
+        # Aynı istek tekrar: kullanıcı artık yok, silme ikinci kez çalışmaz.
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 401
+        erase.assert_awaited_once()
+    # Silme yarım kalırsa istemciye başarı dönmez ve oturum çerezi temizlenmez.
+    other = setup.runtime()
+    failing = AsyncMock(side_effect=HTTPException(503, "Account disabled; application data erasure is incomplete. Retry or contact support."))
+    with patch("app.account_erasure.erase_user_account", failing):
+        response = other.post("/api/v22/account/delete", headers=headers("other"), json=body)
+        assert response.status_code == 503 and "ok" not in response.json()
+        assert "set-cookie" not in response.headers
+
+
+def test_permanent_deletion_never_touches_other_tenants_in_commercial_state(setup):
+    from app import account_erasure
+    client = setup.runtime()
+    state = client.app.state.v22_commercial["state"]
+    state["profiles"].append({"user_id": "other", "preferences": {"keep": True}})
+    account_erasure.scrub_commercial_state(state, setup.users[0])
+    ids = {row["id"] for row in state["users"]}
+    assert "customer" not in ids and {"owner", "other"} <= ids
+    assert all(row.get("user_id") != "customer" for row in state["profiles"])
+    assert any(row.get("user_id") == "other" for row in state["profiles"])
+
+
+def test_financial_evidence_is_anonymized_not_kept_with_identity():
+    from app import account_erasure
+    user = {"id": "u-1", "email": "member@example.test"}
+    state = {"subscriptions": [{"user_id": "u-1", "plan": "premium", "amount_usdt": "10", "email": "member@example.test", "note": "ad soyad"},
+                               {"user_id": "u-2", "plan": "free", "email": "x@example.test"}],
+             "support_tickets": [{"id": "t", "user_id": "u-1", "message": "private"}],
+             "audit": [{"actor": "u-1", "kind": "LOGIN", "message": "member@example.test girdi"}]}
+    cleaned = account_erasure.scrub_payload(state, user)
+    kept = cleaned["subscriptions"][0]
+    assert kept["user_id"] == "ERASED" and kept["plan"] == "premium" and kept["amount_usdt"] == "10"
+    assert "email" not in kept and "note" not in kept
+    assert cleaned["subscriptions"][1]["user_id"] == "u-2"
+    assert cleaned["support_tickets"] == []
+    assert "member@example.test" not in json.dumps(cleaned) and "u-1" not in json.dumps(cleaned)
+
+
+def test_push_subscriptions_are_part_of_account_erasure():
+    from app import account_erasure
+    assert "push_subscriptions" in account_erasure.PERSONAL_TABLES
+
+
+def test_legacy_profile_delete_is_gone_and_never_erases_or_signs_out(setup):
+    client, h = setup.runtime(), headers()
+    client.get("/api/v22/account/overview", headers=h)
+    with patch("app.account_erasure.erase_user_account", AsyncMock(return_value={"ok": True})) as erase, \
+            patch.object(auth, "erase_user_account", AsyncMock(return_value={"ok": True})) as legacy:
+        assert client.delete("/api/v22/profile", headers=h).status_code == 410
+        # Oturum açıkken bile (açık pozisyon yok, kanıt yok) hiçbir silme çalışmaz; hesap ve oturum bozulmaz.
+        erase.assert_not_awaited()
+        legacy.assert_not_awaited()
+    assert client.get("/api/v22/account/overview", headers=h).status_code == 200
+    assert client.delete("/api/v22/profile").status_code in (401, 403)
+
+
+def test_parallel_delete_guard_rejects_second_request_and_releases_after_success_or_failure(setup):
+    client, h = setup.runtime(), headers()
+    client.get("/api/v22/account/overview", headers=h)
+    body = {"confirmation": "HESABIMI SIL", "current_password": PASSWORD}
+    with patch("app.account_erasure.erase_user_account", AsyncMock(return_value={"ok": True})) as erase:
+        # Aynı hesap için bir silme sürerken ikinci istek 409 alır ve silmeyi tetiklemez.
+        client.app.state._account_delete_inflight = {"customer"}
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 409
+        erase.assert_not_awaited()
+        # Başka hesabın süren silmesi bu hesabı engellemez; başarıdan sonra kilit bırakılır.
+        client.app.state._account_delete_inflight = {"other"}
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 200
+        assert client.app.state._account_delete_inflight == {"other"}
+    # Silme hata verirse de kilit bırakılır (hesap sonsuza dek kilitli kalmaz).
+    failing = AsyncMock(side_effect=HTTPException(503, "incomplete"))
+    with patch("app.account_erasure.erase_user_account", failing):
+        client.app.state._account_delete_inflight = set()
+        assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 503
+        assert client.app.state._account_delete_inflight == set()
+
+
 def test_soft_closure_retention_blockers_login_rejected_and_admin_reopen(setup):
     client, h = setup.runtime(), headers()
     client.get("/api/v22/account/overview", headers=h)

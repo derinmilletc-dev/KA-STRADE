@@ -1794,13 +1794,10 @@ async def v22_update_profile(payload: ProfileUpdateRequest, request: Request):
 
 @router.delete("/profile")
 async def v22_delete_profile(request: Request, response: Response = None):
-    user = authenticated_user(request)
-    if user.get("role") == "OWNER":
-        raise HTTPException(422, "Ana yönetici hesabı bu ekrandan silinemez")
-    result = await erase_user_account(request, user)
-    if response is not None:
-        clear_browser_cookie(response, request, SESSION_COOKIE_NAME)
-    return result
+    """Devre dışı: bu yol parola/TOTP, yazılı onay ve açık pozisyon kontrolü olmadan kalıcı silme yapıyordu.
+    Kalıcı silme yalnızca POST /api/v22/account/delete (yeniden doğrulama + blokaj kontrolü) üzerinden yapılır."""
+    authenticated_user(request)
+    raise HTTPException(410, "Bu yol kaldırıldı. Hesabı silmek için Ayarlar > Hesabı ve verilerimi sil bölümünü kullanın.")
 
 
 def subscription_for_user(state: dict[str, Any], user_id: str) -> dict[str, Any]:

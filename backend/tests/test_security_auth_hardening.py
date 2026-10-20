@@ -1052,15 +1052,15 @@ class AccountErasureTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(self.user["id"], self.store.users)
         self.assertEqual([user["id"] for user in auth.runtime(self.request)["state"]["users"]], ["other-user"])
 
-    async def test_self_and_admin_routes_use_the_same_erasure_flow(self):
+    async def test_legacy_profile_delete_is_disabled_and_admin_route_keeps_the_erasure_flow(self):
         target = auth.runtime(self.request)["state"]["users"][0]
         owner = {"id": "owner", "role": "OWNER"}
         with patch.object(auth, "authenticated_user", return_value=target), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
-            response = Response()
-            self.assertEqual(await auth.v22_delete_profile(self.request, response), {"ok": True})
-            flow.assert_awaited_once_with(self.request, target)
-            self.assertIn("Max-Age=0", response.headers["set-cookie"])
+            with self.assertRaises(HTTPException) as caught:
+                await auth.v22_delete_profile(self.request, Response())
+            self.assertEqual(caught.exception.status_code, 410)
+            flow.assert_not_awaited()
         with patch.object(auth, "authenticated_user", return_value=owner), \
              patch.object(auth, "erase_user_account", new=AsyncMock(return_value={"ok": True})) as flow:
             payload = auth.UserDeleteRequest(email=self.user["email"], confirmation="DELETE USER")
