@@ -152,7 +152,7 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
             takeover["ok"] = await erasure.acquire_erasure_lease(self.pool, USER["id"], "intruder")
             result = await task
         self.assertFalse(takeover["ok"])
-        self.assertEqual(result["ok"], True)
+        self.assertEqual(result, {})
         self.assertEqual((await self.job())["status"], "DONE")
 
     async def test_lost_lease_during_erasure_cancels_and_leaves_job_resumable(self):
