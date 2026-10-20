@@ -93,6 +93,8 @@ class SharedStore:
 
     async def fetchrow(self, sql, *args):
         self.check(sql)
+        if "commercial_account_erasure_jobs" in sql:
+            return {"lease_owner": args[1]}  # sahte havuz: erasure kilidi her zaman alınır
         if "commercial_auth_failures" in sql:
             row = self.auth_failures.get(args[0])
             return {"payload": copy.deepcopy(row)} if row else None
