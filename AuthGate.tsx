@@ -23,6 +23,7 @@ import './auth.css'
 // Yönetim panelleri tembel yüklenir: müşteri paketine girmez, yalnızca ilgili yol açılınca indirilir.
 const AdminPanel = lazy(() => import('./AdminPanel'))
 const ModeratorPanel = lazy(() => import('./ModeratorPanel'))
+const RequiredTwoFactor = lazy(() => import('./RequiredTwoFactor'))
 const staffFallback = <main className="authLoading"><div className="authLoader"><LoaderCircle className="spin"/><b>Yükleniyor…</b></div></main>
 // Yönetim girişinin solundaki sabit günlük hatırlatmalar (herkese açık sayfa: gerçek görev sayısı veya sistem durumu içermez).
 const STAFF_REMINDERS = [
@@ -35,9 +36,9 @@ const STAFF_REMINDERS = [
 ]
 
 type User = { id:string; email:string; display_name:string; role:AccountRole; active:boolean; email_verified?:boolean }
-type Session = { user:User; maintenance?:{mode:string} }
+type Session = { user:User; maintenance?:{mode:string}; two_factor_setup_required?:boolean }
 type Mode = 'login'|'register'|'bootstrap'|'forgot'|'reset'|'verify'|'google-consent'|'mfa'
-type AuthResult = {token: string; user: User; remember?: boolean; email_verification_v2_enabled?: boolean} | {mfa_required: true; challenge_id: string}
+type AuthResult = {token: string; user: User; remember?: boolean; email_verification_v2_enabled?: boolean; two_factor_setup_required?: boolean} | {mfa_required: true; challenge_id: string}
 
 
 // Only Playwright's dedicated `--mode test` run bypasses login (it mocks every API response).
@@ -506,7 +507,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
           }
           setEmail(result.user.email); setResetToken(''); setMode('verify'); setMessage('Önce e-posta adresinizi doğrulayın. Doğrulama kodunu e-postanızdan alın.')
         } else {
-          saveUserSessionToken(result.token,remember); setMemberMenuOpen(false); setToken(result.token); setSession({user:result.user})
+          saveUserSessionToken(result.token,remember); setMemberMenuOpen(false); setToken(result.token); setSession({user:result.user,two_factor_setup_required:result.two_factor_setup_required})
         }
       } else if (mode === 'mfa') {
         const result = await request<{token:string;user:User;remember?:boolean}>('/auth/2fa/login',{method:'POST',body:JSON.stringify({challenge_id:mfaChallenge,code:mfaCode})})
@@ -521,8 +522,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         if (!('mfa_required' in result)) setMode('login')
       } else if (mode === 'bootstrap') {
         if (!ownerSetupAvailable) throw new Error('Yerel yönetici kurulumu kullanılamıyor.')
-        const result = await request<{token:string;user:User}>('/bootstrap',{method:'POST',body:JSON.stringify({...register,remember})})
-        saveUserSessionToken(result.token,remember); setMemberMenuOpen(false); setToken(result.token); setSession({user:result.user}); setOwnerSetupAvailable(false)
+        const result = await request<{token:string;user:User;two_factor_setup_required?:boolean}>('/bootstrap',{method:'POST',body:JSON.stringify({...register,remember})})
+        saveUserSessionToken(result.token,remember); setMemberMenuOpen(false); setToken(result.token); setSession({user:result.user,two_factor_setup_required:result.two_factor_setup_required}); setOwnerSetupAvailable(false)
         setRegister({...EMPTY_REGISTRATION})
       } else if (mode === 'register') {
         const result = await request<{verification_status_token?:string;message:string;email_verification_v2_enabled?:boolean}>('/auth/register',{method:'POST',body:JSON.stringify({...register,language:currentLang()})})
@@ -696,6 +697,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     </main>}</LoginMarketShell>
   }
 
+  if (session.two_factor_setup_required) return <Suspense fallback={<main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b></div></main>}><RequiredTwoFactor onDone={() => void loadSession(token)} onLogout={() => void logout()}/></Suspense>
   if (surface === 'admin' && session.user.role !== 'OWNER' && session.user.role !== 'MODERATOR') {
     return <main className="authLoading"><div className="authLoader"><ShieldCheck/><b>403 · ERİŞİM YOK</b><span>Bu adres yalnızca yönetici ve moderatör hesaplarına açıktır.</span><button onClick={() => void logout()}>Çıkış yap</button><button onClick={() => window.location.assign(CUSTOMER_ORIGIN)}>KaisTrade'e dön</button></div></main>
   }

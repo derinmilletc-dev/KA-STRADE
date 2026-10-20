@@ -828,7 +828,10 @@ async def authenticated_user_async(request: Request, *, owner: bool = False) -> 
     from .account_settings import track_session
     await track_session(request, token)
     request.state.v22_authoritative_token = token
-    return authenticated_user(request, owner=owner)
+    guarded = authenticated_user(request, owner=owner)
+    from .required_two_factor import enforce
+    await enforce(request, guarded)
+    return guarded
 
 
 async def update_auth_security(request: Request, user: dict[str, Any], updates: dict[str, Any]) -> None:
@@ -1325,7 +1328,9 @@ async def v22_bootstrap(payload: BootstrapRequest, request: Request, response: R
     token = browser_session_response_token(
         token, user, request, response, browser_session=payload.browser_session, remember=payload.remember,
     )
-    return {"token": token, "user": public_user(user), "license": active_license(state, user_id), "demo_only": True}
+    from . import required_two_factor
+    return {"token": token, "user": public_user(user), "license": active_license(state, user_id), "demo_only": True,
+            **({"two_factor_setup_required": True} if required_two_factor.required() else {})}
 
 
 def _ensure_bootstrap_owner_privileges(state: dict[str, Any], user: dict[str, Any]) -> None:
@@ -1414,7 +1419,9 @@ async def v22_login(payload: LoginRequest, request: Request, response: Response 
     token = browser_session_response_token(
         token, user, request, response, browser_session=payload.browser_session, remember=payload.remember,
     )
+    from . import required_two_factor
     return {"token": token, "user": public_user(user), "license": active_license(rt["state"], user["id"]), "demo_only": True,
+            **({"two_factor_setup_required": True} if required_two_factor.required() else {}),
             **({"email_verification_v2_enabled": True} if email_verification.enabled() else {})}
 
 
@@ -1754,7 +1761,8 @@ async def v22_session(request: Request):
     mode = get_maintenance_mode(getattr(request.app.state, "maintenance", None))
     _, access, entitlement_available = public_account_entitlement(request, user)
     return {"user": public_user(user), "license": active_license(state, user["id"]), "access": access,
-            "entitlement_available": entitlement_available, "demo_only": True, "maintenance": {"mode": mode}}
+            "entitlement_available": entitlement_available, "demo_only": True, "maintenance": {"mode": mode},
+            "two_factor_setup_required": bool(getattr(request.state, "two_factor_setup_required", False))}
 
 
 @router.get("/profile")

@@ -3020,3 +3020,13 @@ saklanır). OWNER hesapları ve süre/kayıt belirsizse hiçbir hesap silinmez; 
 
 Önerilen açılış sırası: önce `ENABLED=true` + `DRY_RUN=true` ile günlükte kaç hesabın etkileneceğine bakın, sonra
 `DRY_RUN=false`. Saklama süresinin hukuki gerekçesi ve gizlilik metni ayrıca belirlenmelidir.
+
+### Zorunlu iki aşamalı doğrulama (varsayılan KAPALI)
+
+`REQUIRE_2FA=true` (Render ortam değişkeni) açıldığında, 2FA'sı olmayan her hesap (yeni kayıt, mevcut üye, Google ile
+girenler, OWNER dâhil) parolayla girdikten sonra yalnızca kurulum ekranını görür; `backend/app/required_two_factor.py`
+kurulum/çıkış uç noktaları dışındaki her korumalı isteği 403 ile reddeder. 2FA'sı olanlara her girişte kod sorulması
+zaten mevcuttur (cihaz hatırlama yok). Kurulum bitince 10 yedek kod gösterilir.
+
+Açmadan önce: kendi hesabınızla yeni yapıyı doğrulayın. Açtıktan sonra sorun olursa `REQUIRE_2FA` değişkenini silip
+servisi yeniden başlatmak kapıyı kaldırır (kimse kilitli kalmaz, veri silinmez).
