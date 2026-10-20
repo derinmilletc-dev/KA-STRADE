@@ -212,7 +212,9 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["outcome"], "manuel_inceleme")
         gate.assert_not_awaited()
         erase.assert_not_awaited()
-        self.assertEqual((await self.job())["status"], "FAILED")
+        row = await self.job()
+        # Manuel inceleme işi değiştirmez: durum ve sürdürme kimliği olduğu gibi kalır.
+        self.assertEqual((row["status"], row["resume_user_id"]), ("RUNNING", USER["id"]))
 
 
 if __name__ == "__main__":
