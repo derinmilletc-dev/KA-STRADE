@@ -1214,6 +1214,9 @@ async def lifespan(app: FastAPI):
     from .erasure_sweeper_worker import erasure_sweeper_loop, sweeper_enabled
     if sweeper_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(erasure_sweeper_loop(app)))
+    from .closed_account_retention import closed_account_retention_loop, retention_enabled
+    if retention_enabled():
+        app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),
