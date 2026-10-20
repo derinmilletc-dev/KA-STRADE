@@ -48,7 +48,7 @@ export function publicPolicyHtml(): Plugin {
       handler(_options, bundle) {
         const entry = bundle['index.html']
         if (!entry || entry.type !== 'asset' || typeof entry.source !== 'string') throw new Error('Public page build requires index.html')
-        for (const page of ['privacy', 'terms', 'risk'] as const) {
+        for (const page of ['privacy', 'terms', 'risk', 'hesap-silme'] as const) {
           this.emitFile({type: 'asset', fileName: `${page}.html`, source: renderPublicPageHtml(entry.source, page)})
         }
       },

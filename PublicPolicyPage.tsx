@@ -17,6 +17,7 @@ export default function PublicPolicyPage({policy}:{policy:PublicPolicy}) {
       <a href="/privacy" aria-current={policy === 'privacy' ? 'page' : undefined}>Gizlilik Politikası</a>
       <a href="/terms" aria-current={policy === 'terms' ? 'page' : undefined}>Kullanım Şartları</a>
       <a href="/risk" aria-current={policy === 'risk' ? 'page' : undefined}>Risk Uyarısı</a>
+      <a href="/hesap-silme" aria-current={policy === 'hesap-silme' ? 'page' : undefined}>Hesap Silme</a>
     </nav>
     <article><h1>{title}</h1><ComplianceContent policy={policy}/></article>
     <footer><a href="/">Ana sayfaya dön</a></footer>
