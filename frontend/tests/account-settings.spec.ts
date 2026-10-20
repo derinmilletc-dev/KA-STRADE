@@ -909,3 +909,22 @@ test('Admin Subscriptions: expired status uses the amber tone while active stays
   await expect(page.locator('.subscriptionRow', {hasText: 'Süresi Dolmuş'}).locator('.adminStatus')).toHaveClass(/expired/)
   await expect(page.locator('.subscriptionRow', {hasText: 'Aktif Üye'}).locator('.adminStatus')).toHaveClass(/active/)
 })
+
+test('Zorunlu 2FA: kurulum tamamlanmadan uygulamaya geçilmez, bitince devam edilir', async ({page}) => {
+  const {data, mutations} = await prepare(page)
+  let required = true
+  await page.route('**/api/v22/session', route => route.fulfill({json: {user: data.user, profile: {preferences: data.preferences}, access: {isPremium: false, canAccessMasterTrade: false}, two_factor_setup_required: required}}))
+  await page.goto(`${base}/settings`)
+  await expect(page.getByRole('heading', {name: 'İki aşamalı doğrulama zorunlu'})).toBeVisible()
+  await expect(page.getByRole('heading', {name: 'Profil & Ayarlar'})).toHaveCount(0)
+  await page.getByLabel('Mevcut parola').fill('Correct-Pass-1!')
+  await page.getByRole('button', {name: 'Kurulumu başlat'}).click()
+  await page.getByRole('button', {name: 'Devam et'}).click()
+  await page.getByLabel('Doğrulama kodu 1. rakam').fill('123456')
+  await expect(page.locator('.verificationRecoveryCodes')).toContainText('OFFLINE-CODE-1')
+  required = false
+  await page.getByRole('checkbox', {name: 'Kodları güvenli bir yere kaydettim'}).check()
+  await page.getByRole('button', {name: 'Bitir', exact: true}).click()
+  await expect(page.getByRole('heading', {name: 'Profil & Ayarlar'})).toBeVisible()
+  expect(mutations.filter(item => item.path.includes('/2fa/')).map(item => item.path)).toEqual(['/api/v22/account/2fa/setup', '/api/v22/account/2fa/enable'])
+})
