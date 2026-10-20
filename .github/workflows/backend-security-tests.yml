@@ -5,7 +5,8 @@ name: Backend Security Tests
 # - Bilinen-hata listesi yok; atlanan/xfail test başarı sayılmaz (.github/scripts/security_test_gate.py).
 # - xfail_strict=true: beklenmedik geçen (XPASS) test başarısız sayılır; non-strict XPASS JUnit'te sıradan geçiş gibi görünür.
 # - `pytest --collect-only` çıktısı yetkili test listesidir; kapı, listedeki her düğüm kimliğini pytest'in JUnit
-#   (classname, name) kuralıyla dönüştürüp raporla birebir karşılaştırır (sabit taban sayı yok). JUnit `file` niteliği
+#   (classname, name) kuralıyla dönüştürüp raporla birebir karşılaştırır. Modül başına en az test sayısı
+#   (`--min-tests`) gerçek bir yeşil koşunun sayısından alınmıştır; düşüşü kırmızı yapar. JUnit `file` niteliği
 #   kullanılmaz: başka modülden miras alınan testlerde tanımlandığı dosyayı gösterir. Toplama ve koşu aynı dizinden
 #   (backend) yapılır; junit_family açıkça xunit2.
 # - Gerçek PostgreSQL gerekmez: bu iki dosya DSN okumaz ve veritabanı bağlantısı açmaz (testler sahte/yerel depo kullanır).
@@ -59,6 +60,21 @@ jobs:
             exit 1
           fi
           tail -n 3 security-collected.txt
+      # Kayıt amaçlı: toplanan test kimlikleri iş özetine ve bir bildirime yazılır (pass/fail'i etkilemez; kaynak: toplama listesi).
+      - name: Record collected test ids (job summary + annotation)
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: |
+          test -f security-collected.txt || exit 0
+          awk '/^[^ :]+\.py::/ { n++ } END { print n+0 " test ids collected" }' security-collected.txt
+          {
+            echo '### Collected security test ids'
+            echo '```'
+            awk '/^[^ :]+\.py::/' security-collected.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          IDS=$(awk 'BEGIN { ORS = "" } /^[^ :]+\.py::/ { gsub(/%/, "%25"); print $0 "%0A" }' security-collected.txt)
+          echo "::notice title=collected security test ids::${IDS}"
       - name: pytest (account deletion + auth hardening)
         working-directory: backend
         run: >
@@ -68,7 +84,9 @@ jobs:
           -q -rfEsxX --tb=short -p no:cacheprovider
           -o junit_family=xunit2 -o xfail_strict=true
           --junitxml=security-report.xml
-      - name: Gate (any failure, error, skip, missing/corrupt report or unexecuted test fails)
+      # Taban (--min-tests): PR #103'ün ilk gerçek koşusundan (run 39394558044, main@10ba250 paketi): 23 ve 74 çalıştırılan test.
+      # Düşürmek kod incelemesi gerektirir; test eklenince ARTIRILMALIDIR (ör. hesap silme testleri birleşince 23 -> daha yüksek).
+      - name: Gate (any failure, error, skip, missing/corrupt report, unexecuted test or count below minimum fails)
         if: ${{ !cancelled() }}
         run: >
           python .github/scripts/security_test_gate.py
@@ -76,3 +94,5 @@ jobs:
           --collected backend/security-collected.txt
           --require tests/test_account_settings.py
           --require tests/test_security_auth_hardening.py
+          --min-tests tests/test_account_settings.py=23
+          --min-tests tests/test_security_auth_hardening.py=74

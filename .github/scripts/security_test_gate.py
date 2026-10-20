@@ -19,8 +19,11 @@ testin TANIMLANDIĞI dosyadır; başka modülden miras alınan testlerde düğü
 bu yüzden kullanılmaz. Hem toplama hem koşu aynı çağrı dizininden (aynı rootdir) yapılmalıdır.
 
 Her zorunlu dosya için: toplanan > 0 ve toplanan her test JUnit'te çalışmış olmalıdır; JUnit'te olup
-toplama listesinde bulunmayan test de hatadır. Taban sayı sabitlenmez; sınır: koddan test silinirse
-toplanan da düşer ve kapı bunu yakalamaz. Başarıda dosya başına sayılar bildirimde yazılır.
+toplama listesinde bulunmayan test de hatadır. İsteğe bağlı `--min-tests DOSYA=N`: çalıştırılan test sayısı
+N'in altına düşerse kırmızı (silinen/yeniden adlandırılan/elenen/devre dışı bırakılan test). N yalnızca gerçek
+bir yeşil koşunun bildirimindeki sayıdan alınır, tahmin edilmez. Sınırlar: bir testi silip bir yenisini eklemek
+(takas) ve unittest alt testi/parametre değeri silmek tespit edilmez; taban yalnızca kod incelemesiyle korunur
+(PR taban/kapı/workflow'u birlikte değiştirebilir). Başarıda dosya başına sayılar bildirimde yazılır.
 """
 from __future__ import annotations
 
@@ -174,7 +177,8 @@ def more(items: list[str]) -> str:
     return "; ".join(items[:MAX_ITEMS]) + (f" (+{len(items) - MAX_ITEMS} more)" if len(items) > MAX_ITEMS else "")
 
 
-def main(report: str, collected: str, required: list[str]) -> int:
+def main(report: str, collected: str, required: list[str], floors: dict[str, int] | None = None) -> int:
+    floors = floors or {}
     problems: list[str] = []
     root, error = load_report(report)
     if error or root is None:
@@ -222,6 +226,10 @@ def main(report: str, collected: str, required: list[str]) -> int:
                 wanted = {key for key, file in expected.items() if path_matches(file, module)}
                 ran = wanted & executed
                 counts[module] = (len(wanted), len(ran))
+                floor = floors.get(module)
+                if floor is not None and len(ran) < floor:
+                    problems.append(f"Test count below the recorded minimum for {module}: executed {len(ran)} < {floor} "
+                                    "(tests deleted, renamed, deselected or disabled?). Lowering the minimum needs code review.")
                 if not wanted:
                     problems.append(f"Required file has no collected tests: {module}")
                 elif not ran:
@@ -231,7 +239,8 @@ def main(report: str, collected: str, required: list[str]) -> int:
                     problems.append(f"Required file executed {len(ran)} of {len(wanted)} collected tests: {module}; "
                                     "not executed: " + more(missing))
     summary = f"{passed} passed, {failed} failed, {skipped} skipped"
-    per_file = [f"{m}: collected {c}, executed {e}" for m, (c, e) in counts.items()]
+    per_file = [f"{m}: collected {c}, executed {e}" + (f", minimum {floors[m]}" if m in floors else "")
+                for m, (c, e) in counts.items()]
     if problems:
         annotate("error", "security tests", [summary, *per_file, *problems])
         return 1
@@ -245,13 +254,28 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--collected", required=True, help="output of pytest --collect-only -q")
     parser.add_argument("--require", action="append", required=True, metavar="FILE",
                         help="required test file, e.g. tests/test_account_settings.py (repeatable)")
-    return parser.parse_args(argv)
+    parser.add_argument("--min-tests", action="append", default=[], metavar="FILE=N",
+                        help="minimum number of executed tests for a required file (repeatable); "
+                             "N must come from a real green run, never a guess")
+    args = parser.parse_args(argv)
+    floors: dict[str, int] = {}
+    for item in args.min_tests:
+        name, sep, number = item.rpartition("=")
+        if not sep or not name or not number.isdigit() or int(number) < 1:
+            parser.error(f"--min-tests expects FILE=N with N >= 1, got: {item!r}")
+        if name not in args.require:
+            parser.error(f"--min-tests file is not in --require: {name}")
+        if name in floors:
+            parser.error(f"--min-tests given twice for: {name}")
+        floors[name] = int(number)
+    args.floors = floors
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
     try:
-        code = main(args.report, args.collected, args.require)
+        code = main(args.report, args.collected, args.require, args.floors)
     except Exception as exc:  # kapalı başarısızlık: beklenmeyen kapı hatası asla yeşil olmaz
         annotate("error", "security tests", [f"Gate internal error ({type(exc).__name__}): {exc}"])
         code = 1
