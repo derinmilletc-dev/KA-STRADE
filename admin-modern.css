@@ -1,0 +1,182 @@
+/* Admin control center — visual refresh only.
+   Scoped to .adminShell and loaded after admin.css. Colours, borders, typography and surfaces only:
+   layout properties (display/position/width/grid) are left to admin.css and the existing mobile rules.
+   The doubled class raises specificity over the global theme without touching other pages. */
+
+.adminShell.adminShell {
+  --admin-bg: #0a0d10;
+  --admin-surface: #11161a;
+  --admin-elevated: #161c21;
+  --admin-line: #232b31;
+  --admin-line-soft: #1b2227;
+  --admin-text: #e7ecef;
+  --admin-muted: #8a979f;
+  --admin-accent: #3ccf8e;
+  --admin-accent-soft: rgba(60, 207, 142, .12);
+  --admin-teal: #4fb3a9;
+  --admin-warn: #e9a84c;
+  --admin-warn-soft: rgba(233, 168, 76, .12);
+  --admin-danger: #e88a80;
+  --admin-font: "Plus Jakarta Sans", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--admin-bg) !important;
+  color: var(--admin-text) !important;
+  font-family: var(--admin-font) !important;
+  font-size: 14px;
+}
+.adminShell.adminShell :is(h1, h2, h3, h4, strong, b, button, input, select, small, span, p, time, dt, dd, th, td) {
+  font-family: var(--admin-font) !important;
+}
+.adminShell.adminShell :is(h1, h2, h3) { color: var(--admin-text) !important; letter-spacing: -.01em; font-weight: 700 !important; }
+
+/* Sidebar */
+.adminShell.adminShell .adminSidebar {
+  background: #0d1114 !important;
+  border-right: 1px solid var(--admin-line-soft) !important;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminBrand span { color: var(--admin-muted) !important; letter-spacing: .14em; font-size: 11px !important; }
+.adminShell.adminShell .adminBrand b { color: var(--admin-text) !important; font-size: 18px !important; }
+.adminShell.adminShell .adminBrand small { color: var(--admin-accent) !important; font-size: 10px !important; letter-spacing: .12em; opacity: .85; }
+.adminShell.adminShell .adminSidebar nav button {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  color: var(--admin-muted) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  transition: background .15s ease, color .15s ease;
+}
+.adminShell.adminShell .adminSidebar nav button svg { color: currentColor !important; opacity: .9; }
+.adminShell.adminShell .adminSidebar nav button:hover { background: var(--admin-elevated) !important; color: var(--admin-text) !important; }
+.adminShell.adminShell .adminSidebar nav button.active {
+  background: var(--admin-accent-soft) !important;
+  border-color: rgba(60, 207, 142, .28) !important;
+  color: var(--admin-accent) !important;
+  font-weight: 600 !important;
+}
+.adminShell.adminShell .adminSidebar nav button em {
+  background: var(--admin-warn-soft) !important; color: var(--admin-warn) !important;
+  border-radius: 999px !important; font-style: normal; font-size: 11px !important;
+}
+.adminShell.adminShell .adminSidebarFoot { border-top: 1px solid var(--admin-line-soft) !important; }
+.adminShell.adminShell .adminSidebarFoot button { color: var(--admin-muted) !important; background: transparent !important; border: 1px solid var(--admin-line) !important; border-radius: 8px !important; }
+
+/* Main + top bar */
+.adminShell.adminShell .adminMain { background: transparent !important; }
+.adminShell.adminShell .adminTopbar {
+  background: rgba(10, 13, 16, .92) !important;
+  border-bottom: 1px solid var(--admin-line-soft) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(6px);
+}
+.adminShell.adminShell .adminTopIdentity span { color: var(--admin-muted) !important; font-size: 11px !important; letter-spacing: .12em; }
+.adminShell.adminShell .adminTopIdentity h1 { font-size: 22px !important; margin: 4px 0 2px !important; }
+.adminShell.adminShell .adminTopIdentity p { color: var(--admin-muted) !important; font-size: 13px !important; }
+.adminShell.adminShell .adminCommandBar {
+  background: var(--admin-surface) !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminCommandBar:focus-within { border-color: rgba(60, 207, 142, .45) !important; }
+.adminShell.adminShell .adminCommandBar input { color: var(--admin-text) !important; font-size: 14px !important; background: transparent !important; }
+.adminShell.adminShell .adminCommandBar input::placeholder { color: #66737b !important; }
+.adminShell.adminShell .adminCommandBar svg { color: var(--admin-muted) !important; }
+.adminShell.adminShell .adminCommandBar button { background: transparent !important; border: 1px solid var(--admin-line) !important; border-radius: 8px !important; color: var(--admin-muted) !important; }
+.adminShell.adminShell .adminCommandBar button:hover:not(:disabled) { color: var(--admin-text) !important; border-color: var(--admin-accent) !important; }
+.adminShell.adminShell .adminMenuButton { background: var(--admin-surface) !important; border: 1px solid var(--admin-line) !important; color: var(--admin-text) !important; border-radius: 8px !important; }
+
+/* Cards, KPIs, section headers */
+.adminShell.adminShell :is(.adminPanelCard, .adminSectionCard) {
+  background: var(--admin-surface) !important;
+  border: 1px solid var(--admin-line-soft) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminSectionTitle { border-bottom: 1px solid var(--admin-line-soft) !important; }
+.adminShell.adminShell .adminSectionTitle h2 { font-size: 20px !important; }
+.adminShell.adminShell .adminKicker { color: var(--admin-teal) !important; font-size: 11px !important; letter-spacing: .14em; font-weight: 600 !important; }
+.adminShell.adminShell .adminKpi {
+  background: var(--admin-surface) !important;
+  border: 1px solid var(--admin-line-soft) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminKpi.accent { border-color: rgba(60, 207, 142, .3) !important; background: linear-gradient(180deg, rgba(60, 207, 142, .07), transparent 70%), var(--admin-surface) !important; }
+.adminShell.adminShell .adminKpi svg { color: var(--admin-teal) !important; }
+.adminShell.adminShell .adminKpi span { color: var(--admin-muted) !important; font-size: 11px !important; letter-spacing: .1em; text-transform: uppercase; }
+.adminShell.adminShell .adminKpi strong { color: var(--admin-text) !important; font-size: 26px !important; font-weight: 700 !important; }
+.adminShell.adminShell .adminKpi small { color: var(--admin-muted) !important; font-size: 12px !important; }
+
+/* Data tables (Subscriptions and other sections) */
+.adminShell.adminShell .adminTableWrap { border: 1px solid var(--admin-line-soft) !important; border-radius: 10px !important; background: transparent !important; }
+.adminShell.adminShell .adminDataHead {
+  background: #0e1317 !important;
+  border-bottom: 1px solid var(--admin-line) !important;
+  color: var(--admin-muted) !important;
+  font-size: 11px !important; letter-spacing: .1em; text-transform: uppercase;
+}
+.adminShell.adminShell .adminDataRow {
+  background: transparent !important;
+  border-bottom: 1px solid var(--admin-line-soft) !important;
+  border-top: 0 !important;
+  box-shadow: none !important;
+  font-size: 14px !important;
+  transition: background .12s ease;
+}
+.adminShell.adminShell .adminDataRow:hover { background: rgba(255, 255, 255, .025) !important; }
+.adminShell.adminShell .adminDataRow time { color: var(--admin-muted) !important; font-size: 13px !important; }
+.adminShell.adminShell .adminIdentity { background: transparent !important; border: 0 !important; color: inherit !important; text-align: left; cursor: pointer; }
+.adminShell.adminShell .adminIdentity b { color: var(--admin-text) !important; font-size: 14px !important; font-weight: 600 !important; }
+.adminShell.adminShell .adminIdentity small { color: var(--admin-muted) !important; font-size: 12px !important; }
+.adminShell.adminShell .adminIdentity:hover b { color: var(--admin-accent) !important; }
+.adminShell.adminShell .adminAvatar { background: var(--admin-elevated) !important; border: 1px solid var(--admin-line) !important; color: var(--admin-teal) !important; border-radius: 50% !important; }
+
+/* Status tags */
+.adminShell.adminShell .adminBadge {
+  background: var(--admin-elevated) !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 6px !important;
+  color: var(--admin-text) !important;
+  font-size: 11px !important; font-weight: 600 !important; letter-spacing: .04em;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminBadge.plan { color: var(--admin-teal) !important; border-color: rgba(79, 179, 169, .3) !important; }
+.adminShell.adminShell .adminStatus {
+  background: var(--admin-elevated) !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 999px !important;
+  color: var(--admin-muted) !important;
+  font-size: 11px !important; font-weight: 600 !important; letter-spacing: .04em;
+  box-shadow: none !important;
+}
+.adminShell.adminShell .adminStatus i { background: currentColor !important; box-shadow: none !important; }
+.adminShell.adminShell .adminStatus.active { color: var(--admin-accent) !important; background: var(--admin-accent-soft) !important; border-color: rgba(60, 207, 142, .25) !important; }
+.adminShell.adminShell .adminStatus.expired { color: var(--admin-warn) !important; background: var(--admin-warn-soft) !important; border-color: rgba(233, 168, 76, .3) !important; }
+.adminShell.adminShell .adminStatus.suspended { color: var(--admin-danger) !important; background: rgba(232, 138, 128, .1) !important; border-color: rgba(232, 138, 128, .3) !important; }
+
+/* Users list (AdminAccountUsers) */
+.adminShell.adminShell .adminAccountUsers h2 { font-size: 22px !important; }
+.adminShell.adminShell .adminAccountUsers h2 span { color: var(--admin-accent) !important; }
+.adminShell.adminShell .adminAccountUsers > header p,
+.adminShell.adminShell .adminAccountUsers > header small { color: var(--admin-muted) !important; font-size: 13px !important; }
+.adminShell.adminShell .adminAccountFilters label,
+.adminShell.adminShell .adminAccountFilters select { background: var(--admin-surface) !important; border: 1px solid var(--admin-line) !important; border-radius: 8px !important; color: var(--admin-text) !important; font-size: 14px !important; }
+.adminShell.adminShell .adminAccountFilters input { font-size: 14px !important; color: var(--admin-text) !important; }
+.adminShell.adminShell .adminAccountTableScroll { border: 1px solid var(--admin-line-soft) !important; border-radius: 10px !important; }
+.adminShell.adminShell .adminAccountUsers table { font-size: 14px !important; }
+.adminShell.adminShell .adminAccountUsers th { background: #0e1317 !important; color: var(--admin-muted) !important; font-size: 11px !important; letter-spacing: .1em; text-transform: uppercase; font-weight: 600 !important; border-bottom: 1px solid var(--admin-line) !important; }
+.adminShell.adminShell .adminAccountUsers td { border-top: 1px solid var(--admin-line-soft) !important; color: var(--admin-text) !important; }
+.adminShell.adminShell .adminAccountUsers tbody tr:hover { background: rgba(255, 255, 255, .025) !important; }
+.adminShell.adminShell .adminAccountUsers td small { font-size: 12px !important; color: var(--admin-muted) !important; }
+.adminShell.adminShell .adminAccountUser > i { background: var(--admin-elevated) !important; border: 1px solid var(--admin-line) !important; color: var(--admin-teal) !important; }
+.adminShell.adminShell .adminAccountUsers > footer { color: var(--admin-muted) !important; font-size: 13px !important; }
+.adminShell.adminShell .adminAccountUsers > footer button,
+.adminShell.adminShell .adminAccountUsers > header button,
+.adminShell.adminShell .adminAccountUsers td button { background: var(--admin-surface) !important; border: 1px solid var(--admin-line) !important; color: var(--admin-text) !important; border-radius: 8px !important; font-size: 13px !important; }
+.adminShell.adminShell .adminAccountUsers td button:hover:not(:disabled),
+.adminShell.adminShell .adminAccountUsers > footer button:hover:not(:disabled) { border-color: var(--admin-accent) !important; color: var(--admin-accent) !important; }
+
+/* Toasts */
+.adminShell.adminShell .adminToast { background: var(--admin-elevated) !important; border: 1px solid var(--admin-line) !important; color: var(--admin-text) !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, .35) !important; }
