@@ -366,6 +366,7 @@ export default function AdminAccountDetail({id, onClose, onChanged}: {id: string
           </ul>
           <p className="adDates">Kayıt: {accountDate(data.user.created_at)} · Son giriş: {accountDate(data.user.last_login)}</p>
         </section>
+        {!!data.unverified?.length && <div className="adNotice" role="note"><b>Bazı bilgiler doğrulanamadı</b><p>Sunucu şu alanları bu hesap için doğrulayamadı: {data.unverified.map(key => ({subscription: 'abonelik', exchange: 'borsa bağlantı durumu', auth_methods: 'giriş yöntemleri', settings: 'hesap ayarları'} as Record<string, string>)[key] ?? key).join(', ')}. Bu alanlar tahmin edilmez; hesap kapatma/silme işlemleri sunucuda yeniden denetlenir.</p></div>}
         <div className="adTabs" role="tablist" aria-label="Kullanıcı bölümleri">
           {TABS.map(([key, label], index) => <button key={key} type="button" role="tab" id={tabIds(key).tab} ref={node => {tabRefs.current[key] = node}} aria-selected={tab === key} aria-controls={tabIds(key).panel} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key)} onKeyDown={event => onTabKey(event, index)}>{label}</button>)}
         </div>
