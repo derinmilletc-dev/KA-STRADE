@@ -370,7 +370,8 @@ def test_permanent_deletion_with_two_factor_requires_valid_code_and_runs_once(se
         assert client.post("/api/v22/account/delete", headers=h, json=body).status_code == 401
         assert client.post("/api/v22/account/delete", headers=h, json={**body, "totp_code": "000000"}).status_code == 401
         erase.assert_not_awaited()
-        done = client.post("/api/v22/account/delete", headers=h, json={**body, "totp_code": pyotp.TOTP(secret).now()})
+        # Enrollment already consumed the current TOTP step (replay protection); use the next step.
+        done = client.post("/api/v22/account/delete", headers=h, json={**body, "totp_code": pyotp.TOTP(secret).at(time.time() + 30)})
         assert done.status_code == 200
         erase.assert_awaited_once()
 
