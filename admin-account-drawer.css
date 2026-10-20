@@ -89,7 +89,8 @@
   .adTop,.adBody,.adFooter{padding-left:16px;padding-right:16px}
   .adIdentity{grid-template-columns:1fr;padding:14px}.adIdentity>i{grid-row:auto}
   .adDeleteFields{grid-template-columns:1fr}
-  .adDrawer .adminAccountActions button{flex:1 1 100%}
-  .adFooter{max-height:45dvh;overflow-y:auto}
+  .adDrawer .adminAccountActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .adminAccountUsers .adDrawer .adminAccountActions button{font-size:13px;padding:8px 10px}
+  .adFooter{max-height:34dvh;overflow-y:auto;padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
   .adRecords li{flex-wrap:wrap}
 }
