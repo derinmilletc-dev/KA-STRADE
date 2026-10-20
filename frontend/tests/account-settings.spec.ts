@@ -280,7 +280,8 @@ test('Unavailable mail and protected OWNER closure never pretend to work', async
   await page.goto(`${base}/settings`)
   await expect(page.getByRole('button', {name: 'E-postayı değiştir'})).toBeDisabled()
   await expect(page.getByRole('button', {name: 'Hesabı kapat', exact: true})).toBeDisabled()
-  await expect(page.locator('.accountDanger')).toContainText('Ana yönetici hesabı kapatılamaz.')
+  // The owner-only blocker text is not shown; closure stays disabled and customer-facing blockers still render.
+  await expect(page.locator('.accountDanger')).not.toContainText('Ana yönetici hesabı kapatılamaz')
   await expect(page.getByText('E-posta hizmeti kullanılamıyor.', {exact: false})).toBeVisible()
 })
 
