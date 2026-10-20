@@ -65,3 +65,4 @@
 .accountGrid{display:block!important;column-count:2;column-gap:16px;column-fill:balance}
 .accountGrid>*{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;display:block;width:100%;box-sizing:border-box;margin:0 0 14px!important}
 @media(max-width:900px){.accountGrid{column-count:1}}
+.accountWarning{margin:0 0 14px;padding:12px 14px;border:1px solid #ff625b40;border-radius:10px;background:#ff625b12;color:#f1c9cb;font-size:12px;line-height:1.6}.accountWarning b{display:block;margin-bottom:6px;color:#ff8d92}.accountWarning ul{margin:0;padding-left:18px}.accountWarning li{margin:3px 0}
