@@ -183,6 +183,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
   const timeframeSummary = consensus ? `${consensus.timeframes.filter(item => item.direction === 'LONG').length}/${consensus.timeframes.length} bullish` : 'Ölçülüyor'
   const analystPrompts = useMemo(() => { const symbol = active?.symbol.replace(/USDT$/,'') || 'seçili coin'; return [`${symbol} neden hareket ediyor?`,`${symbol} trendi güçleniyor mu?`,`${symbol} desteği nerede?`,`${symbol} direnci nerede?`,`${symbol} momentumu nasıl?`,`${symbol} hacmi ne gösteriyor?`,`${symbol} riski nedir?`,`${symbol} neden ${active?.direction || 'LONG/SHORT'}?`] },[active?.direction,active?.symbol])
   const answerAnalyst = (question:string) => { if (!active) { setAnalystAnswer('Güncel piyasa verisiyle yanıt oluşturulamıyor.'); return }; const normalized = question.toLowerCase(); const volume = `${active.volume_ratio >= 1 ? '+' : ''}${fmt((active.volume_ratio - 1) * 100)}% ortalamaya göre`; const emaAligned = active.direction === 'LONG' ? active.ema20 > active.ema50 && active.ema50 > active.ema200 : active.direction === 'SHORT' ? active.ema20 < active.ema50 && active.ema50 < active.ema200 : false; let answer = `${active.display} şu anda ${active.direction}; Teknik Sinyal Skoru ${fmt(active.smart_score)}/100, yapı ${active.trend.toLowerCase()}, RSI ${fmt(active.rsi)}, MTF ${active.mtf_alignment} ve R/R ${fmt(active.risk_reward)}.`; if (normalized.includes('hareket')) answer = `${active.display}, ${active.direction} baskısıyla hareket ediyor: yapı ${active.trend.toLowerCase()}, RSI ${fmt(active.rsi)} ve hacim ${volume}.`; else if (normalized.includes('güçlen')) answer = `${active.display} trendi EMA yapısında ${emaAligned ? 'uyumlu' : 'tam uyumlu değil'}; MTF uyumu ${active.mtf_alignment} ve sinyal ${active.direction}.`; else if (normalized.includes('deste')) answer = `${active.display} desteği ${fmt(active.support)}, direnci ${fmt(active.resistance)} ve güncel fiyatı ${fmt(active.price)}.`; else if (normalized.includes('direnc')) answer = `${active.display} direnci ${fmt(active.resistance)}, desteği ${fmt(active.support)} ve güncel fiyatı ${fmt(active.price)}.`; else if (normalized.includes('risk')) answer = `${active.display} stop seviyesine göre ${fmt(active.risk_pct)}% model riski taşıyor; R/R ${fmt(active.risk_reward)} ve sinyal ${active.direction}.`; else if (normalized.includes('momentum')) answer = `${active.display} momentumu RSI ${fmt(active.rsi)} ile ${active.rsi >= 50 ? 'yukarı' : 'aşağı'} yönlü; güncel sinyal ${active.direction}.`; else if (normalized.includes('hacim')) answer = `${active.display} hacmi hareketi ${active.volume_ratio >= 1 ? 'doğruluyor' : 'doğrulamıyor'}: ${volume}.`; else if (normalized.includes('neden') && normalized.includes('long')) answer = `${active.display} LONG çünkü ${active.trend.toLowerCase()} yapı, ${active.mtf_alignment} MTF uyumu, RSI ${fmt(active.rsi)} ve R/R ${fmt(active.risk_reward)} sinyali destekliyor.`; else if (normalized.includes('neden') && normalized.includes('short')) answer = `${active.display} SHORT çünkü ${active.trend.toLowerCase()} yapı, ${active.mtf_alignment} MTF uyumu, RSI ${fmt(active.rsi)} ve R/R ${fmt(active.risk_reward)} sinyali destekliyor.`; setAnalystAnswer(answer) }
+  const showAnalystResult = () => window.requestAnimationFrame(() => resultRef.current?.scrollIntoView({behavior:'smooth',block:'start'}))
   const renderAnalyst = (label:string, question:string) => {
     const mode:AnalystMode = label === 'Market Overview' ? 'market-overview' : label === 'Best LONG' ? 'best-long' : label === 'Best SHORT' ? 'best-short' : label === 'Why This Coin' ? 'why-coin' : ['Trend Analysis','Momentum','Volume Intelligence','EMA Structure','RSI / MACD','Support / Resistance','Volatility'].includes(label) ? 'technical' : ['Market Regime','Entry Analysis','Exit Analysis','Risk / R:R','Signal Confidence'].includes(label) ? 'decision' : 'prompt'
     const needsCoin = mode === 'technical' || mode === 'decision' || mode === 'why-coin' || mode === 'prompt'
@@ -194,12 +195,12 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
       setAnalystError(analystCopy.selectCoin)
       setSelectorPulse(true)
       window.setTimeout(() => setSelectorPulse(false), 1200)
-      resultRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
+      showAnalystResult()
       return
     }
     if (loading || !rows.length) {
       setAnalystLoading(true)
-      resultRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
+      showAnalystResult()
       return
     }
     setAnalystLoading(true)
@@ -207,7 +208,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
     analystTimer.current = window.setTimeout(() => {
       setAnalystLoading(false)
       if (mode === 'why-coin' || mode === 'prompt') answerAnalyst(question)
-      resultRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'})
+      showAnalystResult()
     }, 220)
   }
   const requestAnalysis = async (symbol: string): Promise<Row | null> => {

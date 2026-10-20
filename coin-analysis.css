@@ -1401,3 +1401,7 @@
 	.coinAnalysisCenter .analystResultWorkspace { grid-column: 1; }
 	.coinAnalysisCenter .analystCommandGrid { grid-template-columns: 1fr; }
 }
+
+/* Analiste Sor: soru seçilince sonuç kartı ekranın üstüne hizalanır; sabit üst çubuğun altında kalmasın. */
+.coinAnalysisCenter .analystResultWorkspace { scroll-margin-top: 76px; }
+@media (max-width: 760px) { .coinAnalysisCenter .analystResultWorkspace { scroll-margin-top: 64px; } }
