@@ -66,7 +66,7 @@ jobs:
         working-directory: backend
         run: |
           if ! python -m pytest --collect-only -q -p no:cacheprovider -o xfail_strict=true \
-              tests/test_account_settings.py tests/test_security_auth_hardening.py tests/test_account_erasure_pg.py > security-collected.txt; then
+              tests/test_account_settings.py tests/test_security_auth_hardening.py tests/test_account_erasure_pg.py tests/test_account_exposure.py > security-collected.txt; then
             cat security-collected.txt
             exit 1
           fi
@@ -102,6 +102,7 @@ jobs:
           tests/test_account_settings.py
           tests/test_security_auth_hardening.py
           tests/test_account_erasure_pg.py
+          tests/test_account_exposure.py
           -q -rfEsxX --tb=short -p no:cacheprovider
           -o junit_family=xunit2 -o xfail_strict=true
           --junitxml=security-report.xml
@@ -116,6 +117,8 @@ jobs:
           --require tests/test_account_settings.py
           --require tests/test_security_auth_hardening.py
           --require tests/test_account_erasure_pg.py
+          --require tests/test_account_exposure.py
           --min-tests tests/test_account_settings.py=33
           --min-tests tests/test_security_auth_hardening.py=75
           --min-tests tests/test_account_erasure_pg.py=4
+          --min-tests tests/test_account_exposure.py=16
