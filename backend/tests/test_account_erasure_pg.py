@@ -9,6 +9,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
@@ -105,6 +106,29 @@ class ErasureDatabaseTests(unittest.IsolatedAsyncioTestCase):
             1,
         )
         self.assertEqual(await self.count("SELECT count(*) FROM commercial_account_settings WHERE user_id = $1", self.other["id"]), 1)
+
+    async def test_failure_mid_erasure_rolls_back_every_database_change(self):
+        real_table_exists = erasure.table_exists
+
+        async def fail_on_subscriptions(connection, name):
+            if name == "subscriptions":
+                raise RuntimeError("injected failure after earlier erasure writes")
+            return await real_table_exists(connection, name)
+
+        with patch.object(erasure, "table_exists", new=fail_on_subscriptions):
+            with self.assertRaisesRegex(RuntimeError, "injected failure"):
+                await erasure.erase_database(self.app, self.user)
+
+        self.assertEqual(await self.count("SELECT count(*) FROM commercial_auth_users WHERE user_id = $1", self.user["id"]), 1)
+        self.assertEqual(await self.count("SELECT count(*) FROM commercial_account_settings WHERE user_id = $1", self.user["id"]), 1)
+        kept = await self.pool.fetchrow("SELECT user_id, stripe_customer_id, stripe_subscription_id FROM subscriptions")
+        self.assertEqual(kept["user_id"], self.user["id"])
+        self.assertEqual(kept["stripe_customer_id"], "cus_pg")
+        self.assertEqual(kept["stripe_subscription_id"], "sub_pg")
+        self.assertEqual(
+            await self.count("SELECT count(*) FROM commercial_erased_users WHERE user_hash = $1", erasure.user_hash(self.user["id"])),
+            0,
+        )
 
 
 if __name__ == "__main__":

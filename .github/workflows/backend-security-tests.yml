@@ -118,4 +118,4 @@ jobs:
           --require tests/test_account_erasure_pg.py
           --min-tests tests/test_account_settings.py=33
           --min-tests tests/test_security_auth_hardening.py=74
-          --min-tests tests/test_account_erasure_pg.py=3
+          --min-tests tests/test_account_erasure_pg.py=4
