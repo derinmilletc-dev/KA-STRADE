@@ -73,8 +73,15 @@ jobs:
             awk '/^[^ :]+\.py::/' security-collected.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          IDS=$(awk 'BEGIN { ORS = "" } /^[^ :]+\.py::/ { gsub(/%/, "%25"); print $0 "%0A" }' security-collected.txt)
-          echo "::notice title=collected security test ids::${IDS}"
+          # Bildirim iletisi ~4 KB'ta kesilir: kimlikler <=3500 karakterlik parçalara bölünür (en fazla 10 bildirim/adım).
+          awk -v max=3500 '
+            /^[^ :]+\.py::/ {
+              s = $0; gsub(/%/, "%25", s)
+              if (len > 0 && len + length(s) + 3 > max) { printf "::notice title=collected security test ids (part %d)::%s\n", ++k, msg; msg = ""; len = 0 }
+              msg = msg s "%0A"; len += length(s) + 3
+            }
+            END { if (len > 0) printf "::notice title=collected security test ids (part %d)::%s\n", ++k, msg }
+          ' security-collected.txt
       - name: pytest (account deletion + auth hardening)
         working-directory: backend
         run: >
