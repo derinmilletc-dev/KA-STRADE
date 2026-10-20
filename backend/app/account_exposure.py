@@ -114,8 +114,16 @@ async def _gate(application: Any, user: dict[str, Any], http: httpx.AsyncClient)
         await check_live_exposure(http, normalized, api_key, secret_key, time_offset_ms=offset)
 
 
-async def gate_before_erasure(application: Any, user: dict[str, Any], *, http: httpx.AsyncClient | None = None) -> None:
-    """Silme rotalarından çağrılır. Kontrol geçmezse HTTPException fırlatır; geçerse döner."""
+async def gate_before_erasure(application: Any, user: dict[str, Any], *, http: httpx.AsyncClient | None = None, actor: str | None = None) -> None:
+    """Silme rotalarından çağrılır. Önce fence kurulur (yeni giriş emri engellenir), sonra canlı kontrol yapılır.
+    Kontrol geçmezse HTTPException fırlatır; fence kalır. Geçerse döner."""
+    pool = getattr(application.state, "db_pool", None)
+    if pool is not None:
+        from .account_fence import engage_fence
+        try:
+            await engage_fence(pool, user["id"], actor=actor or user["id"])
+        except Exception as exc:
+            raise HTTPException(503, "Silme güvenlik kilidi kurulamadı; silme durduruldu") from exc
     owns_client = http is None
     client = http or httpx.AsyncClient(timeout=CHECK_TIMEOUT_SECONDS)
     try:

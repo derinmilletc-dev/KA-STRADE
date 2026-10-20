@@ -5,7 +5,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
@@ -157,7 +157,8 @@ class ErasureGateTests(unittest.IsolatedAsyncioTestCase):
     async def gate(self, app, responder):
         client, fake = client_for(responder)
         try:
-            with patch.dict(os.environ, {"PROTREBOT_VAULT_MASTER_KEY": FAKE_MASTER}):
+            with patch.dict(os.environ, {"PROTREBOT_VAULT_MASTER_KEY": FAKE_MASTER}), \
+                 patch("app.account_fence.engage_fence", new=AsyncMock(return_value=None)):
                 await exposure.gate_before_erasure(app, USER, http=client)
         finally:
             await client.aclose()

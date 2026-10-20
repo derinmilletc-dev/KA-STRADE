@@ -2433,7 +2433,7 @@ async def v22_admin_delete_user(user_id: str, payload: UserDeleteRequest, reques
     if blocker:
         raise HTTPException(409, blocker)
     from .account_exposure import gate_before_erasure
-    await gate_before_erasure(request.app, user)
+    await gate_before_erasure(request.app, user, actor=owner["id"])
     result = await erase_user_account(request, user)
     # Denetim: hedef kullanıcı kimliği kaydedilmez (silinen hesabın verisi kalmamalı); yalnızca yönetici ve olay türü.
     record_event(request, owner, "admin.account_erased", "admin_erasure", "security", 200)

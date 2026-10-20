@@ -1597,6 +1597,9 @@ def auto_session_is_active(state: dict[str, Any]) -> bool:
     return bool(state["auto"].get("enabled")) and float(state["auto"].get("session_until") or 0) > time.time()
 
 
+from .account_fence import ENTRY_ORDER_PATHS  # noqa: E402  (fence giriş emri yolları)
+
+
 class BinanceLiveClient:
     def __init__(self, http: httpx.AsyncClient, api_key: str, secret_key: str, *, require_credentials: bool = True, diagnostic_state: dict[str, Any] | None = None, application: Any | None = None, background_session: bool = False) -> None:
         if require_credentials and (len(api_key) < 10 or len(secret_key) < 10):
@@ -1716,6 +1719,14 @@ class BinanceLiveClient:
         if (signed or api_key_header) and self.background_session:
             if not await background_authorization_active(self.application, self.diagnostic_state):
                 raise LiveExchangeError("Canlı oturum iptal edildi veya yetki kanıtı doğrulanamadı.", http_status=423)
+        if signed and method == "POST" and path in ENTRY_ORDER_PATHS:
+            from .account_fence import FenceError, assert_entries_allowed, is_reduce_only_exit
+            if not is_reduce_only_exit(params):
+                authorization = (self.diagnostic_state or {}).get("live_session_authorization") or {}
+                try:
+                    await assert_entries_allowed(self.application, str(authorization.get("user_id") or ""))
+                except FenceError as exc:
+                    raise LiveExchangeError("Hesap silme süreci için yeni giriş emirleri engellendi.", http_status=423) from exc
         if method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/order/test"} \
                 and not _truthy(params.get("reduceOnly")) and not _truthy(params.get("closePosition")):
             from . import original_v2_live
