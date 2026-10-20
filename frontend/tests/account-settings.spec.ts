@@ -876,3 +876,36 @@ test('Admin detail drawer: Accounts tab links and unlinks ownership mappings wit
   await expect(dialog.getByRole('tabpanel')).not.toContainText('ref-1')
   expect(calls.at(-1)).toEqual({method: 'DELETE', path: '/api/v22/admin/users/account-test-user/trading-accounts/a1'})
 })
+
+test('Admin Users list requests 50 accounts per page so every member is listed', async ({page}) => {
+  const {queries} = await prepareAdmin(page)
+  await page.goto(`${base}/admin`)
+  await page.getByRole('button', {name: 'Users', exact: true}).click()
+  await expect.poll(() => queries.at(-1)?.searchParams.get('page_size')).toBe('50')
+})
+
+test('Admin detail drawer: tab strip keeps its height with long content, and mobile stays full screen', async ({page}) => {
+  await prepareAdmin(page)
+  const dialog = await openDetail(page)
+  const strip = dialog.getByRole('tablist', {name: 'Kullanıcı bölümleri'})
+  expect((await strip.boundingBox())!.height).toBeGreaterThan(30)
+  await page.setViewportSize({width: 390, height: 700})
+  expect((await strip.boundingBox())!.height).toBeGreaterThan(30)
+  const box = (await dialog.boundingBox())!
+  expect(box.x).toBeCloseTo(0, 0)
+  expect(box.width).toBeCloseTo(390, 0)
+})
+
+test('Admin Subscriptions: expired status uses the amber tone while active stays green', async ({page}) => {
+  const {closed} = await prepareAdmin(page)
+  const base_ = {...closed.user, last_activity: closed.user.last_login, license: null}
+  const customers = [
+    {...base_, id: 'u-expired', display_name: 'Süresi Dolmuş', subscription: {status: 'EXPIRED', plan: 'FREE'}},
+    {...base_, id: 'u-active', display_name: 'Aktif Üye', subscription: {status: 'ACTIVE', plan: 'MASTER_MODE'}},
+  ]
+  await page.route('**/api/v22/admin/overview', route => route.fulfill({json: {total_users: 2, active_users: 2, verified_users: 2, admins: 0, new_users: 0, pro_users: 0, free_users: 1, active_subscriptions: 1, expired_subscriptions: 1, customers, audit: [], billing_live: false}}))
+  await page.goto(`${base}/admin`)
+  await page.getByRole('button', {name: 'Subscriptions', exact: true}).click()
+  await expect(page.locator('.subscriptionRow', {hasText: 'Süresi Dolmuş'}).locator('.adminStatus')).toHaveClass(/expired/)
+  await expect(page.locator('.subscriptionRow', {hasText: 'Aktif Üye'}).locator('.adminStatus')).toHaveClass(/active/)
+})

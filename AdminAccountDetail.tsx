@@ -243,15 +243,52 @@ function ActivityTab({data, id}: {data: AccountOverview; id: string}) {
       </State></section></div>
 }
 
+/** Presentation only: maps an existing status string to a colour tone (expired/cancelled → amber). */
+export const subscriptionTone = (status: string | null | undefined) =>
+  /EXPIRED|CANCEL|REVOKED|PAST_DUE|DOLDU|DOĞRULANAMADI/i.test(status ?? '') ? 'warn' : /ACTIVE|TRIAL|PAID/i.test(status ?? '') ? 'positive' : 'neutral'
+
+const Row = ({label, children}: {label: string; children: ReactNode}) => <div><dt>{label}</dt><dd>{children}</dd></div>
+const Tile = ({label, children, tone}: {label: string; children: ReactNode; tone?: string}) => <li data-tone={tone}><span>{label}</span><b>{children}</b></li>
+
 function OverviewTab({data, id, busy, setBusy, refresh, onChanged}: {data: AccountOverview; id: string; busy: boolean; setBusy: (value: boolean) => void; refresh: () => Promise<void>; onChanged: () => void}) {
   const {user, subscription, security} = data
+  const p = data.preferences
   return <div className="adStack">
-    <section aria-label="Profil ve kimlik"><h3>Profil ve kimlik</h3>
-      <dl className="adFacts"><Fact label="Hesap rolü">{accountRoleLabel(user.role)}</Fact><Fact label="Hesap durumu"><Tone ok={user.active} yes="Aktif" no="Kapalı / devre dışı"/></Fact><Fact label="E-posta doğrulaması">{user.email_verified ? 'Doğrulandı' : 'Doğrulanmadı'}</Fact><Fact label="Bekleyen e-posta">{data.pending_email?.email || '—'}</Fact><Fact label="Giriş yöntemleri">{user.auth_methods.join(' / ') || '—'}</Fact><Fact label="Kayıt tarihi">{accountDate(user.created_at)}</Fact><Fact label="Son giriş">{accountDate(user.last_login)}</Fact><Fact label="Son parola değişikliği">{accountDate(user.password_changed_at)}</Fact></dl></section>
+    <div className="adSplit">
+      <section className="adCard" aria-label="Profil ve kimlik"><h3>Profil ve kimlik</h3>
+        <dl className="adInfoList">
+          <Row label="Görünen ad">{user.display_name}</Row>
+          <Row label="E-posta">{user.email}</Row>
+          <Row label="Hesap rolü">{accountRoleLabel(user.role)}</Row>
+          <Row label="Hesap durumu"><Tone ok={user.active} yes="Aktif" no="Kapalı / devre dışı"/></Row>
+          <Row label="Bekleyen e-posta">{data.pending_email?.email || '—'}</Row>
+          <Row label="Kayıt tarihi">{accountDate(user.created_at)}</Row>
+        </dl></section>
+      <section className="adCard" aria-label="Güvenlik özeti"><h3>Güvenlik</h3>
+        <dl className="adInfoList">
+          <Row label="E-posta doğrulaması"><Tone ok={user.email_verified} yes="Doğrulandı" no="Doğrulanmadı"/></Row>
+          <Row label="İki adımlı doğrulama"><Tone ok={security.two_factor_enabled} yes="Etkin" no="Kapalı"/></Row>
+          <Row label="Giriş yöntemleri">{user.auth_methods.join(' / ') || '—'}</Row>
+          <Row label="Son giriş">{accountDate(user.last_login)}</Row>
+          <Row label="Son parola değişikliği">{accountDate(user.password_changed_at)}</Row>
+        </dl>
+        <p className="adHint adPrivacy"><ShieldCheck/>Şifreler, 2FA anahtarları, kurtarma kodları, oturum token'ları ve API anahtarları bu ekranda gösterilmez.</p></section>
+    </div>
     <section aria-label="Temel göstergeler"><h3>Temel göstergeler</h3>
-      <dl className="adFacts"><Fact label="Paket">{subscription.plan}</Fact><Fact label="Abonelik durumu">{subscription.status}</Fact><Fact label="Premium erişimi">{subscription.is_premium ? 'Var' : 'Yok'}{user.role === 'OWNER' && ' · Yönetici yetkisi ücretli paket değildir'}</Fact><Fact label="Paket bitişi">{accountDate(subscription.expires_at)}</Fact><Fact label="2FA">{security.two_factor_enabled ? 'Etkin' : 'Kapalı'}</Fact><Fact label="Aktif oturumlar">{security.active_sessions}</Fact><Fact label="Tercih edilen mod">{data.preferences.trading_mode}</Fact><Fact label="Zaman dilimi">{data.preferences.timeframe}</Fact><Fact label="Borsa">{data.preferences.exchange}</Fact><Fact label="Tercih edilen risk">{data.preferences.risk_per_trade}% · canlı politika değildir</Fact><Fact label="Semboller">{data.preferences.symbols.join(', ') || '—'}</Fact></dl></section>
-    <AdminModeratorAccess id={id} role={user.role} disabled={busy} onBusyChange={setBusy} onChanged={async () => {await refresh(); onChanged()}}/>
-    <p className="adHint adPrivacy"><ShieldCheck/>Şifreler, 2FA anahtarları, kurtarma kodları, oturum token'ları ve API anahtarları bu ekranda gösterilmez.</p>
+      <ul className="adTiles">
+        <Tile label="Paket">{subscription.plan}</Tile>
+        <Tile label="Abonelik durumu" tone={subscriptionTone(subscription.status)}>{subscription.status}</Tile>
+        <Tile label="Premium erişimi" tone={subscription.is_premium ? 'positive' : undefined}>{subscription.is_premium ? 'Var' : 'Yok'}{user.role === 'OWNER' && <small>Yönetici yetkisi ücretli paket değildir</small>}</Tile>
+        <Tile label="Paket bitişi">{accountDate(subscription.expires_at)}</Tile>
+        <Tile label="2FA" tone={security.two_factor_enabled ? 'positive' : 'warn'}>{security.two_factor_enabled ? 'Etkin' : 'Kapalı'}</Tile>
+        <Tile label="Aktif oturumlar">{security.active_sessions}</Tile>
+        <Tile label="Tercih edilen mod">{p.trading_mode}</Tile>
+        <Tile label="Zaman dilimi">{p.timeframe}</Tile>
+        <Tile label="Borsa">{p.exchange}</Tile>
+        <Tile label="Tercih edilen risk">{p.risk_per_trade}%<small>canlı politika değildir</small></Tile>
+        <Tile label="Semboller">{p.symbols.join(', ') || '—'}</Tile>
+      </ul></section>
+    <div className="adCard"><AdminModeratorAccess id={id} role={user.role} disabled={busy} onBusyChange={setBusy} onChanged={async () => {await refresh(); onChanged()}}/></div>
   </div>
 }
 
@@ -362,7 +399,7 @@ export default function AdminAccountDetail({id, onClose, onChanged}: {id: string
             <li>{accountRoleLabel(data.user.role)}</li>
             <li data-tone={data.user.active ? 'positive' : 'negative'}>{data.user.active ? 'Aktif' : 'Kapalı / devre dışı'}</li>
             <li data-tone={data.user.email_verified ? 'positive' : 'warn'}>{data.user.email_verified ? 'E-posta doğrulandı' : 'E-posta doğrulanmadı'}</li>
-            <li>Plan: {data.subscription.plan}</li>
+            <li data-tone={subscriptionTone(data.subscription.status) === 'warn' ? 'warn' : undefined}>Plan: {data.subscription.plan}</li>
           </ul>
           <p className="adDates">Kayıt: {accountDate(data.user.created_at)} · Son giriş: {accountDate(data.user.last_login)}</p>
         </section>
