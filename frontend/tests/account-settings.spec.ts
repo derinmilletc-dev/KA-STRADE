@@ -622,3 +622,212 @@ test('Admin mutations require confirmation, retain user records and explicitly r
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('E-posta sağlayıcısı kullanılamıyor.')
   await expect(page.getByText('Parola yenileme e-postası gönderildi.', {exact: true})).toHaveCount(0)
 })
+
+async function openDetail(page: Page) {
+  await page.goto(`${base}/admin`)
+  await page.getByRole('button', {name: 'Users', exact: true}).click()
+  await page.getByRole('button', {name: 'Ada Yılmaz detayları'}).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('ada@example.test')
+  return dialog
+}
+
+test('Admin detail drawer: copy buttons copy the full original values and report success', async ({page}) => {
+  await prepareAdmin(page)
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {origin: base})
+  const dialog = await openDetail(page)
+  // The UUID is abbreviated on screen, but the clipboard receives the complete value.
+  await expect(dialog).toContainText('account-…user')
+  await expect(dialog).not.toContainText('account-test-user')
+  await dialog.getByRole('button', {name: 'UUID kopyala'}).click()
+  await expect(dialog.getByText('UUID kopyalandı.')).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('account-test-user')
+  await dialog.getByRole('button', {name: 'E-posta kopyala'}).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ada@example.test')
+  await dialog.getByRole('button', {name: 'Görünen ad kopyala'}).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Ada Yılmaz')
+  await expect(dialog.getByText('Görünen ad kopyalandı.')).toBeVisible()
+})
+
+test('Admin detail drawer: a failed copy is reported instead of silently ignored', async ({page}) => {
+  await prepareAdmin(page)
+  const dialog = await openDetail(page)
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: () => Promise.reject(new Error('denied'))}})
+    document.execCommand = () => false
+  })
+  await dialog.getByRole('button', {name: 'E-posta kopyala'}).click()
+  await expect(dialog.getByText('E-posta kopyalanamadı.', {exact: false})).toBeVisible()
+  await expect(dialog.getByText('E-posta kopyalandı.')).toHaveCount(0)
+})
+
+test('Admin detail drawer: tabs are keyboard operable and Trading states the missing data source honestly', async ({page}) => {
+  await prepareAdmin(page)
+  const dialog = await openDetail(page)
+  const tabs = dialog.getByRole('tablist', {name: 'Kullanıcı bölümleri'})
+  await expect(tabs.getByRole('tab')).toHaveText(['Genel Bakış', 'Trading', 'Hesaplar', 'Abonelik', 'Güvenlik', 'Aktiviteler'])
+  await expect(tabs.getByRole('tab', {name: 'Genel Bakış'})).toHaveAttribute('aria-selected', 'true')
+  await tabs.getByRole('tab', {name: 'Genel Bakış'}).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(tabs.getByRole('tab', {name: 'Trading'})).toBeFocused()
+  await expect(tabs.getByRole('tab', {name: 'Trading'})).toHaveAttribute('aria-selected', 'true')
+  await expect(dialog.getByRole('tabpanel')).toContainText('İşlem verisi kullanılamıyor')
+  await expect(dialog.getByRole('tabpanel').locator('dt', {hasText: /Toplam işlem|Başarı oranı|Kâr|Zarar|K\/Z/i})).toHaveCount(0)
+  await page.keyboard.press('End')
+  await expect(tabs.getByRole('tab', {name: 'Aktiviteler'})).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Home')
+  await expect(tabs.getByRole('tab', {name: 'Genel Bakış'})).toHaveAttribute('aria-selected', 'true')
+})
+
+test('Admin detail drawer: Accounts tab shows loading, data, error with retry and empty states without secrets', async ({page}) => {
+  await prepareAdmin(page)
+  let mode: 'data' | 'error' | 'empty' = 'error'
+  let release: () => void = () => undefined
+  const gate = new Promise<void>(resolve => {release = resolve})
+  await page.route('**/api/v22/admin/users/account-test-user/trading-accounts', async route => {
+    await gate
+    if (mode === 'error') return route.fulfill({status: 503, json: {detail: 'Trading account ownership storage unavailable'}})
+    return route.fulfill({json: {user_id: 'account-test-user', accounts: mode === 'empty' ? [] : [{id: 'a1', provider: 'BINANCE', environment: 'DEMO', account_reference: 'ref-demo-1', status: 'UNASSIGNED', created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-02T12:00:00Z'}]}})
+  })
+  const dialog = await openDetail(page)
+  await dialog.getByRole('tab', {name: 'Hesaplar'}).click()
+  await expect(dialog.getByRole('status').filter({hasText: 'Yükleniyor'})).toBeVisible()
+  release()
+  await expect(dialog.getByRole('alert')).toHaveText('Trading account ownership storage unavailable')
+  mode = 'data'
+  await dialog.getByRole('button', {name: 'Yeniden dene'}).click()
+  await expect(dialog.getByRole('tabpanel')).toContainText('BINANCE')
+  await expect(dialog.getByRole('tabpanel')).toContainText('Demo / Testnet')
+  await expect(dialog.getByRole('tabpanel')).toContainText('ref-demo-1')
+  await expect(dialog.getByRole('tabpanel')).toContainText('Bot ilişkisi bilgisi')
+  const text = await dialog.getByRole('tabpanel').innerText()
+  expect(text).not.toMatch(/api[_ -]?secret|secret key|bearer /i)
+  await dialog.getByRole('tab', {name: 'Genel Bakış'}).click()
+  mode = 'empty'
+  await dialog.getByRole('tab', {name: 'Hesaplar'}).click()
+  await expect(dialog.getByText('Bu kullanıcıya eşlenmiş borsa hesabı yok.')).toBeVisible()
+})
+
+test('Admin detail drawer: Subscription tab reads real records and grants/revokes only after confirmation; backend 403 is surfaced', async ({page}) => {
+  await prepareAdmin(page)
+  await page.route('**/api/mod/customers/account-test-user/subscription', route => route.fulfill({json: {user_id: 'account-test-user', plan: 'MASTER_MODE', subscription_status: 'ACTIVE', current_period_end: '2026-11-01T00:00:00Z', cancel_at_period_end: false}}))
+  await page.route('**/api/mod/customers/account-test-user/payments', route => route.fulfill({json: {user_id: 'account-test-user', payment_status: 'veri yok', last_failed_payment_at: null}}))
+  const calls: Array<Record<string, unknown>> = []
+  let deny = false
+  await page.route('**/api/v22/subscriptions/activate-demo', route => {
+    if (deny) return route.fulfill({status: 403, json: {detail: 'Yönetici yetkisi gerekli'}})
+    calls.push(route.request().postDataJSON() as Record<string, unknown>)
+    return route.fulfill({json: {license: null, subscription: null}})
+  })
+  const dialog = await openDetail(page)
+  await dialog.getByRole('tab', {name: 'Abonelik'}).click()
+  const panel = dialog.getByRole('tabpanel')
+  await expect(panel).toContainText('MASTER_MODE')
+  await expect(panel).toContainText('veri yok')
+  await expect(panel).toContainText('Ödeme geçmişi listesi')
+  await panel.getByLabel('Gün').fill('45')
+  await panel.getByRole('button', {name: 'Erişim ver'}).click()
+  expect(calls).toEqual([])
+  await dialog.getByRole('button', {name: 'İşlemi onayla'}).click()
+  await expect(dialog.getByText('Erişim 45 gün için verildi.')).toBeVisible()
+  expect(calls).toEqual([{user_id: 'account-test-user', plan: 'MASTER_MODE', days: 45}])
+  await panel.getByRole('button', {name: 'Elle verilen erişimi kaldır'}).click()
+  await dialog.getByRole('button', {name: 'İşlemi onayla'}).click()
+  await expect.poll(() => calls.at(-1)).toEqual({user_id: 'account-test-user', plan: 'NONE', days: 1})
+  deny = true
+  await panel.getByRole('button', {name: 'Erişim ver'}).click()
+  await dialog.getByRole('button', {name: 'İşlemi onayla'}).click()
+  await expect(dialog.getByRole('alert')).toHaveText('Yönetici yetkisi gerekli')
+})
+
+test('Admin detail drawer: Activity tab pages events and audit records and shows empty and error states', async ({page}) => {
+  await prepareAdmin(page)
+  const offsets: string[] = []
+  const event = (n: number) => ({kind: 'auth.login_failed', code: 'invalid_credentials', feature: 'auth', http_status: 401, count: n, first_at: '2026-10-05T12:00:00Z', last_at: '2026-10-05T12:00:00Z', request_ref: null, source: 'customer_event', severity: 'WARNING', resolved: null})
+  await page.route('**/api/mod/customers/account-test-user/events?**', route => {
+    const url = new URL(route.request().url())
+    const offset = url.searchParams.get('offset') ?? '0'
+    offsets.push(offset)
+    expect(url.searchParams.get('limit')).toBe('25')
+    return route.fulfill({json: {items: offset === '0' ? [event(1), event(2)] : [event(3)], total: 3, limit: 25, offset: Number(offset)}})
+  })
+  await page.route('**/api/v22/admin/audit?**', route => {
+    expect(new URL(route.request().url()).searchParams.get('target')).toBe('account-test-user')
+    return route.fulfill({json: {items: [], total: 0, limit: 25, offset: 0}})
+  })
+  const dialog = await openDetail(page)
+  await dialog.getByRole('tab', {name: 'Aktiviteler'}).click()
+  const panel = dialog.getByRole('tabpanel')
+  await expect(panel).toContainText('Hesaba giriş yapıldı')
+  await expect(panel.getByText('Başarısız giriş', {exact: false})).toHaveCount(2)
+  await expect(panel).toContainText('Bu kullanıcı için denetim kaydı yok.')
+  await panel.getByRole('button', {name: 'Daha fazla göster'}).click()
+  await expect(panel.getByText('Başarısız giriş', {exact: false})).toHaveCount(3)
+  expect(offsets).toEqual(['0', '2'])
+  await expect(panel.getByRole('button', {name: 'Daha fazla göster'})).toHaveCount(0)
+})
+
+test('Admin detail drawer: Security tab uses real session data and reports a failing event source', async ({page}) => {
+  await prepareAdmin(page)
+  await page.route('**/api/mod/customers/account-test-user/events?**', route => route.fulfill({status: 429, json: {detail: 'Customer read rate limit exceeded'}}))
+  const dialog = await openDetail(page)
+  await dialog.getByRole('tab', {name: 'Güvenlik'}).click()
+  const panel = dialog.getByRole('tabpanel')
+  await expect(panel).toContainText('Kapalı')
+  await expect(panel).toContainText('Android · Chrome')
+  await expect(panel.getByRole('alert').first()).toHaveText('Customer read rate limit exceeded')
+})
+
+test('Admin detail drawer: deleting needs typed email and phrase, sends them, and a backend 403 keeps the drawer open', async ({page}) => {
+  await prepareAdmin(page)
+  const calls: Array<Record<string, unknown>> = []
+  let status = 403
+  await page.route('**/api/v22/admin/users/account-test-user', route => {
+    if (route.request().method() !== 'DELETE') return route.fallback()
+    if (status === 403) return route.fulfill({status: 403, json: {detail: 'Yönetici yetkisi gerekli'}})
+    calls.push(route.request().postDataJSON() as Record<string, unknown>)
+    return route.fulfill({json: {ok: true}})
+  })
+  const dialog = await openDetail(page)
+  await dialog.getByRole('button', {name: 'Hesabı sil'}).click()
+  const confirm = dialog.getByRole('button', {name: 'İşlemi onayla'})
+  await expect(confirm).toBeDisabled()
+  await dialog.getByLabel('Onay için hesabın e-postasını yazın').fill('ada@example.test')
+  await expect(confirm).toBeDisabled()
+  await dialog.getByLabel('Ardından DELETE USER yazın').fill('DELETE USER')
+  await expect(confirm).toBeEnabled()
+  await confirm.click()
+  await expect(dialog.getByRole('alert')).toHaveText('Yönetici yetkisi gerekli')
+  expect(calls).toEqual([])
+  status = 200
+  await confirm.click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(calls).toEqual([{email: 'ada@example.test', confirmation: 'DELETE USER'}])
+})
+
+test('Admin detail drawer: owner accounts cannot be suspended or deleted from the UI', async ({page}) => {
+  const {closed} = await prepareAdmin(page)
+  closed.user.role = 'OWNER'
+  const dialog = await openDetail(page)
+  await expect(dialog.getByRole('button', {name: 'Hesabı yeniden aç'})).toBeDisabled()
+  await expect(dialog.getByRole('button', {name: 'Hesabı sil'})).toBeDisabled()
+})
+
+test('Admin detail drawer: ~85% wide on desktop, full screen on mobile, Escape closes and restores focus', async ({page}) => {
+  await prepareAdmin(page)
+  const dialog = await openDetail(page)
+  await page.setViewportSize({width: 1440, height: 900})
+  const desktop = await dialog.boundingBox()
+  expect(desktop!.width).toBeGreaterThan(1440 * 0.84)
+  expect(desktop!.width).toBeLessThan(1440 * 0.86)
+  expect(desktop!.x + desktop!.width).toBeCloseTo(1440, 0)
+  await page.setViewportSize({width: 390, height: 800})
+  const mobile = await dialog.boundingBox()
+  expect(mobile!.width).toBeCloseTo(390, 0)
+  expect(mobile!.height).toBeCloseTo(800, 0)
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
+  await expect(dialog.getByRole('button', {name: 'Hesabı sil'})).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('button', {name: 'Ada Yılmaz detayları'})).toBeFocused()
+})
