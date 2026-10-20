@@ -32,3 +32,15 @@ service_account*.json
 *-service-account.json
 backtest-data/
 backtest-output/
+
+# Android / Google Play: imzalama anahtarları ve derleme çıktıları asla repoya girmez
+*.jks
+*.keystore
+*.p12
+keystore.properties
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+*.aab
+*.apk
