@@ -564,6 +564,8 @@ async def release_erasure_lease(pool: Any, user_id: str, owner: str, *, done: bo
 
 
 HEARTBEAT_SECONDS = 30
+# Süpürücü her iş için en fazla bu kadar deneme yapar; sonrası yalnızca operatör raporunda görünür (manuel inceleme).
+MAX_SWEEP_ATTEMPTS = 20
 
 
 async def renew_erasure_lease(pool: Any, user_id: str, owner: str) -> bool:
@@ -692,10 +694,11 @@ async def sweep_stale_erasures(application: Any, *, limit: int = 20) -> list[dic
     rows = await pool.fetch("""
         SELECT user_hash, resume_user_id FROM commercial_account_erasure_jobs
         WHERE resume_user_id IS NOT NULL AND status <> 'DONE'
+          AND attempts < $2
           AND (status = 'FAILED' OR lease_expires_at IS NULL OR lease_expires_at < NOW())
         ORDER BY updated_at
         LIMIT $1
-    """, limit)
+    """, limit, MAX_SWEEP_ATTEMPTS)
     results: list[dict[str, Any]] = []
     rt = getattr(application.state, "v22_commercial", None) or {}
     for row in rows:

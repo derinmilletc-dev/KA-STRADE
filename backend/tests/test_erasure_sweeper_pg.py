@@ -203,6 +203,23 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(datetime.fromisoformat(report[0]["updated_at"]), datetime)
 
 
+    async def test_retry_budget_is_exhausted_and_left_for_manual_review(self):
+        await self.pool.execute(
+            """INSERT INTO commercial_account_erasure_jobs
+               (user_hash, status, attempts, resume_user_id, updated_at)
+               VALUES ($1, 'FAILED', $2, $3, NOW())""",
+            self.user_hash, erasure.MAX_SWEEP_ATTEMPTS, USER["id"],
+        )
+        with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
+                patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
+            results = await erasure.sweep_stale_erasures(self.app)
+        self.assertEqual(results, [])
+        gate.assert_not_awaited()
+        erase.assert_not_awaited()
+        report = await erasure.stale_erasure_report(self.pool)
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]["attempts"], erasure.MAX_SWEEP_ATTEMPTS)
+
     async def test_email_mismatch_in_auth_store_blocks_resume(self):
         await self.insert_expired_job()
         await self.pool.execute("UPDATE commercial_auth_users SET email = 'changed@example.test' WHERE user_id = $1", USER["id"])

@@ -137,6 +137,6 @@ jobs:
           --min-tests tests/test_account_fence.py=13
           --min-tests tests/test_account_fence_pg.py=6
           --min-tests tests/test_erasure_sweeper.py=17
-          --min-tests tests/test_erasure_sweeper_pg.py=11
+          --min-tests tests/test_erasure_sweeper_pg.py=12
           --min-tests tests/test_entry_inflight_pg.py=4
           --min-tests tests/test_session_invalidation_pg.py=4
