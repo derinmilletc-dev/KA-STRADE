@@ -667,7 +667,7 @@ async def _matches_auth_record(pool: Any, user: dict[str, Any]) -> bool:
     """Süpürme yalnızca kimlik deposundaki kayıt, çalışma durumundaki kullanıcıyla aynı e-postaya sahipse devam eder.
     Kayıt yoksa, okunamazsa veya e-posta farklıysa False (kapalı başarısızlık)."""
     try:
-        row = await pool.fetchrow("SELECT email FROM commercial_auth_users WHERE user_id = $1", user["id"])
+        row = await pool.fetchrow("SELECT security->>'email' AS email FROM commercial_auth_users WHERE user_id = $1", user["id"])
         if row is None:
             return False
         stored = str(row["email"] or "").strip().casefold()

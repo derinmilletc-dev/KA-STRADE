@@ -33,7 +33,10 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=6)
         self.addAsyncCleanup(self.pool.close)
         await self.pool.execute("DROP TABLE IF EXISTS " + ", ".join(TEST_TABLES) + " CASCADE")
-        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL)")
+        await self.pool.execute(
+            "CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, "
+            "auth_version BIGINT NOT NULL DEFAULT 1, security JSONB NOT NULL)"
+        )
         await self.pool.execute("CREATE TABLE commercial_account_settings (user_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         await self.pool.execute(
             "CREATE TABLE subscriptions (id SERIAL PRIMARY KEY, user_id TEXT, stripe_customer_id TEXT, "
@@ -53,7 +56,7 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
 
     async def insert_expired_job(self, status="RUNNING"):
         await self.pool.execute(
-            "INSERT INTO commercial_auth_users (user_id, email) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            "INSERT INTO commercial_auth_users (user_id, security) VALUES ($1, jsonb_build_object('email', $2::text)) ON CONFLICT DO NOTHING",
             USER["id"], USER["email"],
         )
         await self.pool.execute(
@@ -220,9 +223,19 @@ class SweeperPgTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(report), 1)
         self.assertEqual(report[0]["attempts"], erasure.MAX_SWEEP_ATTEMPTS)
 
+    async def test_auth_email_is_read_from_security_document(self):
+        # Üretimde e-posta commercial_auth_users.security JSON içindedir; ayrı bir sütun yoktur.
+        await self.insert_expired_job()
+        self.assertTrue(await erasure._matches_auth_record(self.pool, dict(USER)))
+        self.assertTrue(await erasure._matches_auth_record(self.pool, {**USER, "email": USER["email"].upper()}))
+        self.assertFalse(await erasure._matches_auth_record(self.pool, {**USER, "id": "missing-user"}))
+
     async def test_email_mismatch_in_auth_store_blocks_resume(self):
         await self.insert_expired_job()
-        await self.pool.execute("UPDATE commercial_auth_users SET email = 'changed@example.test' WHERE user_id = $1", USER["id"])
+        await self.pool.execute(
+            "UPDATE commercial_auth_users SET security = jsonb_set(security, '{email}', to_jsonb('changed@example.test'::text)) WHERE user_id = $1",
+            USER["id"],
+        )
         with patch("app.account_exposure.gate_before_erasure", new=AsyncMock()) as gate, \
                 patch.object(erasure, "_erase_user_account_locked", new=AsyncMock()) as erase:
             results = await erasure.sweep_stale_erasures(self.app)
