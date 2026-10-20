@@ -26,12 +26,12 @@ class SessionInvalidationPgTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.pool.close)
         await self.pool.execute("DROP TABLE IF EXISTS commercial_auth_users CASCADE")
         await self.pool.execute(
-            "CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL, "
+            "CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, "
             "auth_version INTEGER NOT NULL DEFAULT 1, security JSONB NOT NULL DEFAULT '{}'::jsonb)"
         )
         await self.pool.execute(
-            "INSERT INTO commercial_auth_users (user_id, email, auth_version, security) "
-            "VALUES ('sess-user-1', 'sess-user-1@example.test', 3, '{\"active\": true}'::jsonb)"
+            "INSERT INTO commercial_auth_users (user_id, auth_version, security) "
+            "VALUES ('sess-user-1', 3, '{\"active\": true}'::jsonb)"
         )
         self.state = {"lock": None, "state": {"users": []}}
         self.app = SimpleNamespace(state=SimpleNamespace(db_pool=self.pool, v22_commercial=self.state))

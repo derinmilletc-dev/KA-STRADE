@@ -27,7 +27,7 @@ class FenceDatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.pool.close)
         self.addAsyncCleanup(self.other_process.close)
         await self.pool.execute("DROP TABLE IF EXISTS " + ", ".join(TABLES) + " CASCADE")
-        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL)")
+        await self.pool.execute("CREATE TABLE commercial_auth_users (user_id TEXT PRIMARY KEY, auth_version BIGINT NOT NULL DEFAULT 1, security JSONB NOT NULL)")
         await self.pool.execute("CREATE TABLE application_state_snapshots (state_key TEXT PRIMARY KEY, payload JSONB NOT NULL)")
         await erasure.ensure_erasure_schema(self.pool)
         await fence.ensure_fence_schema(self.pool)
