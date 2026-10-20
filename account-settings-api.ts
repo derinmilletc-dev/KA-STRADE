@@ -25,6 +25,8 @@ export type AccountOverview = {
   language?: 'tr' | 'en' | null;
   pending_email: {email: string; expires_at: string} | null;
   activity: AccountActivity[]; sessions: AccountSession[];
+  /** Admin view only: fields the server could not verify for this account (shown as unverified, never guessed). */
+  unverified?: string[];
   marketing_consent?: {accepted: boolean; revision: string | null; version: string | null; accepted_at: string | null; withdrawn_at: string | null};
 }
 export type AdminAccount = AccountUser & {subscription: AccountSubscription; two_factor_enabled: boolean; active_sessions: number; closed_at: string | null}

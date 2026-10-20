@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import base64
 import copy
 import hashlib
@@ -28,6 +29,7 @@ from .auth_failures import MFA_ACCOUNT, decode_state, enforce_failure_wait, new_
 from .password_policy import validate_new_password
 from .registration_consent import MarketingConsentUpdate, public_marketing, update_marketing
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v22", tags=["Account settings"])
 DEFAULT_PREFERENCES = {"trading_mode": "MANUAL", "timeframe": "15m", "exchange": "BINANCE",
                        "risk_per_trade": 1.0, "symbols": []}
@@ -446,7 +448,8 @@ async def close_blocker(request, user):
                 """,
                 user["id"],
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("Exchange vault status lookup failed type=%s", type(exc).__name__)
             raise HTTPException(503, "Borsa bağlantı durumu güvenli şekilde doğrulanamadı") from None
         for row in rows:
             summary = row["account_summary"] or {}
@@ -463,13 +466,34 @@ async def close_blocker(request, user):
 
 
 async def overview(request, user, *, current=True):
-    doc = await store.read(request, user["id"]) or store.defaults()
-    # current=False: an OWNER viewing someone else; the request proof belongs to the caller, not this user.
-    sub = subscription_for_request(request, user) if current else await admin_target_subscription(request, user)
+    # current=False: an OWNER viewing someone else. A failing per-user lookup must not hide the account from the
+    # admin list/detail; the affected field is reported as unverified instead. Mutations (close/delete/status)
+    # re-run these checks themselves and still fail closed.
+    unverified = []
+    if current:
+        doc = await store.read(request, user["id"]) or store.defaults()
+        sub = subscription_for_request(request, user)
+    else:
+        try:
+            doc = await store.read(request, user["id"]) or store.defaults()
+        except HTTPException as exc:
+            logger.warning("Admin view: account settings unavailable status=%s", exc.status_code)
+            doc, _ = store.defaults(), unverified.append("settings")
+        try:
+            sub = await admin_target_subscription(request, user)
+        except (HTTPException, RuntimeError) as exc:
+            logger.warning("Admin view: subscription unavailable type=%s status=%s", type(exc).__name__, getattr(exc, "status_code", None))
+            sub, _ = {"plan": "—", "status": "DOĞRULANAMADI", "master_trade_access": False, "entitlements": {}}, unverified.append("subscription")
     sessions = [row for row in doc.get("sessions", {}).values() if not row.get("revoked") and
                 row.get("exp", 0) > time.time() and row.get("auth_version") == int(user.get("auth_version", 1))]
     current_id = token_payload(request).get("jti") if current else None
-    blocker = await close_blocker(request, user)
+    try:
+        blocker = await close_blocker(request, user)
+    except HTTPException as exc:
+        if current:
+            raise
+        logger.warning("Admin view: close blocker unavailable status=%s", exc.status_code)
+        blocker, _ = str(exc.detail), unverified.append("exchange")
     pending = doc.get("pending_email")
     if pending and pending["expires"] <= time.time():
         pending = None
@@ -479,8 +503,11 @@ async def overview(request, user, *, current=True):
         try:
             pool = request.app.state.db_pool
             google_linked = bool(await pool.fetchrow("SELECT user_id FROM commercial_google_identities WHERE user_id = $1", user["id"]))
-        except Exception:
-            raise HTTPException(503, "Hesap giriş yöntemleri doğrulanamadı") from None
+        except Exception as exc:
+            logger.warning("Google identity lookup failed type=%s", type(exc).__name__)
+            if current:
+                raise HTTPException(503, "Hesap giriş yöntemleri doğrulanamadı") from None
+            unverified.append("auth_methods")
     user_dto.update(active=bool(user.get("active")), email_verified=bool(user.get("email_verified")),
                     last_login=doc.get("last_login"), password_changed_at=user.get("password_changed_at"),
                     auth_methods=(["password"] if user.get("password") else []) +
@@ -493,6 +520,7 @@ async def overview(request, user, *, current=True):
             "preferences": preferences(request, user, doc),
             "language": doc.get("language") if doc.get("language") in ("tr", "en") else None,
             "marketing_consent": public_marketing(doc),
+            **({} if current else {"unverified": unverified}),
             "security": {"two_factor_enabled": bool(doc.get("two_factor_enabled")), "active_sessions": len(sessions),
                          "email_delivery_available": auth.gmail_configured(), "can_close_account": blocker is None and bool(user.get("active")),
                          "close_blocker": blocker},
