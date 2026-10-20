@@ -3003,3 +3003,20 @@ Yalnizca yerel Vite gelistirmesinde `/local-owner-setup` adresinden erisilir.
 Backend uzak baglantilari ve `PROTREBOT_BOOTSTRAP_OWNER_EMAIL` ile eslesmeyen
 hesaplari reddeder; yonetici atandiktan sonra kurulum tekrar acilamaz.
 Mevcut bir hesabin ilk yoneticiye atanmasi dogru parolasini gerektirir.
+
+### Kapatılmış hesapların saklama süresi (varsayılan KAPALI)
+
+`backend/app/closed_account_retention.py`, kapatılmış (`active=false`, `closed_at` dolu) hesapları saklama süresi
+dolunca mevcut `erase_user_account` ile siler (kişisel veriler silinir, finansal kayıtlar kimliksizleştirilerek
+saklanır). OWNER hesapları ve süre/kayıt belirsizse hiçbir hesap silinmez; açık borsa pozisyonu/anahtar kontrolü
+(`gate_before_erasure`) silmeden önce uygulanır.
+
+| Ortam değişkeni | Varsayılan | Anlamı |
+| --- | --- | --- |
+| `CLOSED_ACCOUNT_RETENTION_ENABLED` | `false` | Döngüyü açar |
+| `CLOSED_ACCOUNT_RETENTION_DRY_RUN` | `true` | Yalnızca günlüğe sayı yazar, silmez; gerçek silme için `false` |
+| `CLOSED_ACCOUNT_RETENTION_DAYS` | `1826` (≈5 yıl) | En az 365 |
+| `CLOSED_ACCOUNT_RETENTION_INTERVAL_SECONDS` | `86400` | En az 3600 |
+
+Önerilen açılış sırası: önce `ENABLED=true` + `DRY_RUN=true` ile günlükte kaç hesabın etkileneceğine bakın, sonra
+`DRY_RUN=false`. Saklama süresinin hukuki gerekçesi ve gizlilik metni ayrıca belirlenmelidir.
