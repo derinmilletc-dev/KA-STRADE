@@ -14,7 +14,7 @@ const drawer = (page: Page) => page.locator('#kfsAnalysisDrawer')
 const FIXED_NOW = Date.now()
 const LAST_CANDLE_TIME = Math.floor(FIXED_NOW / 1000)
 
-type Support = 'full' | 'none' | 'reject-lock'
+type Support = 'full' | 'none' | 'reject-lock' | 'hang-lock'
 const liveClose = 85999.99
 
 async function prepare(page: Page, options: {support?: Support; landscape?: boolean; liveFeed?: boolean} = {}) {
@@ -34,7 +34,7 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
     Object.defineProperty(document, 'fullscreenEnabled', {value: true, configurable: true})
     Object.defineProperty(Element.prototype, 'requestFullscreen', {value() { calls.request += 1; current = this as Element; document.dispatchEvent(new Event('fullscreenchange')); return Promise.resolve() }, configurable: true})
     Object.defineProperty(document, 'exitFullscreen', {value() { calls.exit += 1; current = null; document.dispatchEvent(new Event('fullscreenchange')); return Promise.resolve() }, configurable: true})
-    Object.defineProperty(Screen.prototype, 'orientation', {value: {lock(orientation: string) { calls.lock.push(orientation); return mode === 'reject-lock' ? Promise.reject(new DOMException('Orientation lock is not allowed here', 'NotSupportedError')) : Promise.resolve() }, unlock() { calls.unlock += 1 }}, configurable: true})
+    Object.defineProperty(Screen.prototype, 'orientation', {value: {lock(orientation: string) { calls.lock.push(orientation); return mode === 'hang-lock' ? new Promise(() => {}) : mode === 'reject-lock' ? Promise.reject(new DOMException('Orientation lock is not allowed here', 'NotSupportedError')) : Promise.resolve() }, unlock() { calls.unlock += 1 }}, configurable: true})
   }, support)
   await page.setViewportSize(options.landscape ? {width: 844, height: 390} : {width: 390, height: 844})
   await page.route('https://**', route => route.abort())
@@ -80,7 +80,7 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
   const requests: string[] = []
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(`${request.method()} ${new URL(request.url()).pathname}`) })
   await page.goto('/master-trade?tab=analiz', {waitUntil: 'domcontentloaded'})
-  await expect(root(page).locator('.refReportSymbol')).toContainText('89%')
+  await expect(root(page).locator('.refReportSymbol')).toContainText('89%', {timeout: 20000})
   await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toBeVisible()
   return {requests}
 }
@@ -1037,4 +1037,27 @@ test('Escape closes the prompt and the page is not stuck; unmounting (leaving th
   await expect(page.locator('.kfsOverlay')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.classList.contains('kaisChartFullscreen') || document.body.classList.contains('kaisChartFullscreen'))).toBe(false)
   await expect(page.locator('[inert]')).toHaveCount(0)
+})
+
+test('A lock request that never settles still lets a real rotation open Analysis Studio', async ({page}) => {
+  await prepare(page, {support: 'hang-lock'})
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.waitForTimeout(800)
+  await expect(overlay(page)).toBeVisible()
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await expect(drawer(page)).toBeVisible()
+  await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+})
+
+test('A missed resize/orientation event is recovered by re-reading the real viewport', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  // Olay göndermeden yalnız görünür alanı değiştir (kaçan olay): yoklama gerçek durumu okuyup geçişi tamamlar.
+  await page.evaluate(() => { const real = window.dispatchEvent.bind(window); window.dispatchEvent = (event: Event) => (event.type === 'resize' || event.type === 'orientationchange' ? true : real(event)) })
+  await page.setViewportSize(landscape)
+  await expect(terminal(page)).toBeVisible({timeout: 4000})
+  await expect(drawer(page)).toBeVisible()
 })

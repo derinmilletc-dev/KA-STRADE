@@ -3,7 +3,7 @@ import {test} from 'node:test'
 import {FULLSCREEN_CLASS, HISTORY_MARKER, canLockOrientation, canRequestFullscreen, createLandscapeController as create, isLandscape, readLandscape} from '../master-trade-fullscreen.ts'
 
 // Testlerde bekleme kısa tutulur; davranış aynıdır.
-const createLandscapeController = (env, options = {}) => create(env, {settleMs: 5, ...options})
+const createLandscapeController = (env, options = {}) => create(env, {settleMs: 5, pollMs: 10, ...options})
 const settle = () => new Promise(resolve => setTimeout(resolve, 40))
 
 // Sahte tarayıcı ortamı: dinleyici sayaçları, tam ekran, ekran yönü kilidi ve geçmiş.
@@ -38,7 +38,7 @@ function makeEnv({width = 390, height = 844, fullscreen = 'ok', lock = 'ok', ori
   if (lock !== 'missing') {
     scr.orientation = Object.assign(orientationTarget, {
       get type() { return orientationType },
-      lock: async orientation => { if (lock === 'reject') throw new Error('NotSupportedError'); scr.locks.push(orientation) },
+      lock: async orientation => { if (lock === 'hang') return new Promise(() => {}); if (lock === 'reject') throw new Error('NotSupportedError'); scr.locks.push(orientation) },
       unlock() { scr.unlocks += 1 },
     })
   }
@@ -265,30 +265,53 @@ test('Real rotation is confirmed only after the layout settles, and a rotation b
   controller.close()
 })
 
-test('While the fullscreen/lock request is still pending, a landscape reading is not trusted; it is re-read afterwards', async () => {
+test('A transient landscape reading during a pending request that bounces back is not trusted', async () => {
   const {env, win, doc} = makeEnv()
   let finish
   doc.documentElement.requestFullscreen = () => new Promise(done => { finish = () => { doc.fullscreenElement = doc.documentElement; done() } })
-  const controller = createLandscapeController(env, {settleMs: 10})
+  const controller = createLandscapeController(env, {settleMs: 40})
   const opening = controller.open()
   win.innerWidth = 844; win.innerHeight = 390; win.fire('resize') // istek sürerken (geçici)
-  await settle()
-  assert.equal(controller.getSnapshot().landscape, false)
-  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize') // istek bitmeden eski hâline döner
-  finish(); await opening; await settle()
+  await tick()
+  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize') // oturmadan eski hâline döner
+  finish(); await opening; await settle(); await settle()
   assert.equal(controller.getSnapshot().landscape, false) // dikey kaldı: uyarı sürer
   assert.equal(controller.getSnapshot().open, true)
   controller.close()
 })
 
-test('Landscape sizes are ignored when the Screen Orientation API says the device is portrait', async () => {
-  const {env, win} = makeEnv({orientationType: 'portrait-primary'})
-  win.innerWidth = 844; win.innerHeight = 390
-  assert.equal(readLandscape(env), false)
-  const landscape = makeEnv({width: 844, height: 390, orientationType: 'landscape-primary'})
-  assert.equal(readLandscape(landscape.env), true)
-  const unknown = makeEnv({width: 844, height: 390}) // API yoksa/bilinmiyorsa boyutlar ve medya sorgusu yeter
+test('Landscape is judged from the viewport and media query; screen.orientation is only a signal and never vetoes it', async () => {
+  const stale = makeEnv({width: 844, height: 390, orientationType: 'portrait-primary'}) // eski/gecikmiş değer
+  assert.equal(readLandscape(stale.env), true)
+  const portrait = makeEnv({width: 390, height: 844, orientationType: 'landscape-primary'})
+  assert.equal(readLandscape(portrait.env), false)
+  const unknown = makeEnv({width: 844, height: 390})
   assert.equal(readLandscape(unknown.env), true)
+})
+
+test('A lock or fullscreen request that never settles does not block landscape detection', async () => {
+  const {env, win} = makeEnv({lock: 'hang'})
+  const controller = createLandscapeController(env)
+  void controller.open() // lock() hiç tamamlanmaz
+  await tick()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  await settle()
+  assert.equal(controller.getSnapshot().landscape, true)
+  controller.close()
+})
+
+test('A missed orientation event is recovered by re-reading the real state, and the poll is removed on close', async () => {
+  const {env, win} = makeEnv({lock: 'missing', fullscreen: 'missing'})
+  const controller = createLandscapeController(env)
+  await controller.open()
+  win.innerWidth = 844; win.innerHeight = 390 // hiçbir olay yok
+  await settle(); await settle()
+  assert.equal(controller.getSnapshot().landscape, true)
+  controller.close()
+  win.innerWidth = 390; win.innerHeight = 844
+  await settle(); await settle()
+  assert.equal(controller.getSnapshot().open, false) // kapalıyken yoklama durumu değiştirmez (zamanlayıcı temizlendi)
+  assert.equal(controller.getSnapshot().landscape, true)
 })
 
 test('If the device is already landscape the terminal opens immediately', async () => {
