@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, ChevronRight, Crosshair, Eraser, LockKeyhole, Maximize2, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, ChevronRight, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -9,6 +9,7 @@ import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTrad
 import {CoinIcon} from './src/components/CoinIcon'
 import {MasterTradeAccordions} from './MasterTradeAccordions'
 import {MasterTradeMarketWatch} from './MasterTradeMarketWatch'
+import {MasterTradeCoinPicker} from './MasterTradeCoinPicker'
 import type {MarketScore} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
@@ -105,7 +106,7 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void}) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchor, setAnchor] = useState<ChartPoint | null>(null)
@@ -190,7 +191,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   return <>
     <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
     <div className="refChartCanvas" ref={canvas}>
-      {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p></div></div> : <>
+      {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p>{dataIssue && recoverSymbol && onRecover && <button type="button" className="refChartRecover" onClick={onRecover}>Önceki sembole dön · {recoverSymbol}</button>}</div></div> : <>
         <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} data-dragging={dragging} onClick={event => {
           if (drawMode !== 'hline' && drawMode !== 'trend' && drawMode !== 'alarm') return
           const box = event.currentTarget.getBoundingClientRect()
@@ -302,6 +303,8 @@ function IndicatorTiles({analysis, decision, candles, opportunity = true}: {anal
 }
 
 
+const COIN_PICKER_HISTORY = 'kaisCoinPicker'
+
 /** Göstergeler menüsünü görünür alana sığdırır: sağdan taşarsa tetikleyicinin sağına hizalar, alttan taşarsa yukarı açar. */
 function placeIndicatorMenu(details: HTMLDetailsElement) {
   delete details.dataset.align
@@ -352,35 +355,60 @@ export default function MasterTradeReference(props: Props) {
   const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"]') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"]') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
   useEffect(() => { if (!terminal) setDrawingsHidden(false) }, [terminal])
-  const entryButton = useRef<HTMLButtonElement>(null)
   const studioButton = useRef<HTMLButtonElement>(null)
   const exitButton = useRef<HTMLButtonElement>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(false)
   // Analysis Studio: aynı tek denetleyici ve aynı yatay terminal. Dikeyde döndürme uyarısı, gerçek yatay algılanınca terminal
   // ve Analysis paneli otomatik açılır. Panel yalnız ilk yatay geçişte istenir; kullanıcı kapatırsa kendiliğinden geri açılmaz.
-  const [purpose, setPurpose] = useState<'chart' | 'studio'>('chart')
+  // Tek giriş noktası Analysis Studio düğmesidir (ayrı tam ekran düğmesi aynı deneyimi açtığı için kaldırıldı).
   const [studioPending, setStudioPending] = useState(false)
+  // Coin seçici (yalnız Analysis Studio başlığında). Seçim mevcut sembol akışından geçer (props.onMarket); emir/pozisyona dokunmaz.
+  const [coinPicker, setCoinPicker] = useState(false)
+  const [previousSymbol, setPreviousSymbol] = useState<string | null>(null)
+  const symbolButton = useRef<HTMLButtonElement>(null)
   const [overlaySession, setOverlaySession] = useState(0) // her açılışta uyarı yeniden kurulur: animasyon dik konumdan başlar
-  const openFullscreen = (kind: 'chart' | 'studio', button: HTMLButtonElement | null) => {
+  const openStudio = (button: HTMLButtonElement | null) => {
     opener.current = button
-    setPurpose(kind)
-    setStudioPending(kind === 'studio')
+    setStudioPending(true)
     setOverlaySession(value => value + 1)
     fullscreen.open()
   }
   const rotateOverlay = useExitTransition(rotating)
+  // Mobil geri: seçici açılırken kendi geçmiş kaydı eklenir (tam ekran işareti korunur); geri yalnız seçiciyi kapatır.
+  const openCoinPicker = () => {
+    try { window.history.pushState({...(window.history.state ?? {}), [COIN_PICKER_HISTORY]: true}, '') } catch { /* geçmiş yoksa yalnız Esc/dış tıklama */ }
+    setCoinPicker(true)
+  }
+  const closeCoinPicker = () => {
+    setCoinPicker(false)
+    try { if (window.history.state?.[COIN_PICKER_HISTORY]) window.history.back() } catch { /* yok say */ }
+  }
+  useEffect(() => {
+    if (!coinPicker) return
+    const onPop = () => { if (!window.history.state?.[COIN_PICKER_HISTORY]) setCoinPicker(false) }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [coinPicker])
+  useEffect(() => { if (!terminal) setCoinPicker(false) }, [terminal])
+  const pickCoin = (next: string) => {
+    closeCoinPicker()
+    if (next === props.symbol) return
+    // Veri yüklenemezse geri dönülebilecek son geçerli sembol.
+    if (liveChart.candles.length && !props.dataIssue) setPreviousSymbol(props.symbol)
+    props.onMarket(next)
+  }
   useEffect(() => { if (terminal && studioPending) { setDrawerOpen(true); setStudioPending(false) } }, [terminal, studioPending])
   useEffect(() => { if (!fullscreen.state.open) { setDrawerOpen(false); setStudioPending(false) } }, [fullscreen.state.open])
   useEffect(() => {
     // Klavye/ekran okuyucu odağı: açılınca Çıkış'a, kapanınca açan düğmeye.
     if (terminal) exitButton.current?.focus()
-    else if (wasOpen.current && !fullscreen.state.open) (opener.current ?? entryButton.current)?.focus()
+    else if (wasOpen.current && !fullscreen.state.open) (opener.current ?? studioButton.current)?.focus()
     wasOpen.current = fullscreen.state.open
   }, [terminal, fullscreen.state.open])
   // --- Fiyat alarmı: yalnız bu sayfa açıkken ve canlı fiyat akarken çalışır; tarayıcıda saklanır. ---
@@ -498,7 +526,8 @@ export default function MasterTradeReference(props: Props) {
       <section className="refCenter">
         <section className="refCard refChart" data-fs={terminal ? 'on' : undefined}>
           <div className="refToolbar" aria-label="Market chart controls">
-            {terminal && <div className="kfsIdent" aria-label={`${props.symbol} price`}><b>{props.symbol}</b><strong>{analysisPrice(cardPrice)}</strong>{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</div>}
+            {terminal && <div className="kfsIdent" aria-busy={props.refreshing && !liveChart.candles.length || undefined}><button type="button" ref={symbolButton} className="kfsSymbolBtn" aria-haspopup="dialog" aria-expanded={coinPicker} aria-label={`${props.symbol} · Piyasa seç`} onClick={() => { if (coinPicker) closeCoinPicker(); else openCoinPicker() }}><b>{props.symbol}</b><ChevronDown aria-hidden="true"/></button><strong>{analysisPrice(cardPrice)}</strong>{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</div>}
+            {terminal && coinPicker && <MasterTradeCoinPicker symbol={props.symbol} rows={props.marketFeed.rows} scores={props.scores} userId={userId} error={props.marketFeed.error} anchor={symbolButton.current} onSelect={pickCoin} onClose={closeCoinPicker}/>}
             <span className="refChartType" title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
             <details className="refIndicators" onToggle={event => placeIndicatorMenu(event.currentTarget)}><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
@@ -521,7 +550,6 @@ export default function MasterTradeReference(props: Props) {
                 </div>
               </details>
               <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
-              <button type="button" ref={entryButton} className="refFullscreenBtn" aria-label="Landscape fullscreen" title="Landscape fullscreen" aria-haspopup="dialog" onClick={() => openFullscreen('chart', entryButton.current)}><Maximize2/></button>
             </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
             {terminal && <div className="kfsActions">
@@ -536,6 +564,7 @@ export default function MasterTradeReference(props: Props) {
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
             <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
               drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
+              recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
               onDrawDone={() => setDrawMode('none')}/>
             {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
@@ -548,7 +577,7 @@ export default function MasterTradeReference(props: Props) {
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles}/>
         </div>
-        <button type="button" ref={studioButton} className="kfsStudioBtn" aria-haspopup="dialog" onClick={() => openFullscreen('studio', studioButton.current)}><BarChart3 aria-hidden="true"/><span>Analysis Studio</span><ChevronRight aria-hidden="true"/></button>
+        <button type="button" ref={studioButton} className="kfsStudioBtn" aria-haspopup="dialog" onClick={() => openStudio(studioButton.current)}><BarChart3 aria-hidden="true"/><span>Analysis Studio</span><ChevronRight aria-hidden="true"/></button>
         <div className="refMtfStrip"><span>MTF TEYİDİ {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
       </section>
       <aside className="refRight" aria-label="Analysis decision panel">
@@ -578,6 +607,6 @@ export default function MasterTradeReference(props: Props) {
         </section>
       </aside>
     </main>
-    {rotateOverlay.mounted && <RotateOverlay key={overlaySession} leaving={rotateOverlay.leaving} studio={purpose === 'studio'} onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
+    {rotateOverlay.mounted && <RotateOverlay key={overlaySession} leaving={rotateOverlay.leaving} studio onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
   </section>
 }
