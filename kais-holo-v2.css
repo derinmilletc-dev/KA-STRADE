@@ -1,0 +1,190 @@
+/* ── KAIS hologram v2 · MASAÜSTÜ sinematik katmanlar ──────────────────────────────────────────────────────────────────
+   Kapsam: yalnız .kaisHolo içi ve yalnız geniş ekran (≥1025px; yan paneller ≥1180px). Telefon/tablet görünümü DEĞİŞMEZ.
+   Ana göz (KaisEye) çizimi, boyutu ve kendi hareketleri değişmez; tüm yeni katmanlar dekoratif ve pointer-events:none.
+   Durum: kökteki data-phase (listening | thinking | speaking | error). Ses tepkisi: --kh-level (0–1, gerçek olaylardan, JS yazar).
+   Paralaks: --kh-px/--kh-py (−1…1). Renkler mevcut --kh-* belirteçlerinden (hata durumunda amber'e döner). */
+.kaisHolo{--kh-level:0;--kh-px:0;--kh-py:0;--kh-sph:.82;--kh-focus:.55;--kh-beam:.55}
+.kaisHolo[data-phase=thinking]{--kh-sph:1;--kh-focus:.5;--kh-beam:.85}
+.kaisHolo[data-phase=speaking]{--kh-sph:.92;--kh-focus:.7;--kh-beam:.65}
+.kaisHolo[data-phase=error]{--kh-sph:.42;--kh-focus:.2;--kh-beam:.22}
+
+/* Dar ekranda yeni katmanlar hiç çizilmez */
+.khSphere,.khPlatform,.khPanels,.kaisHoloCockpit{display:none}
+
+@media (min-width:1025px){
+  /* Eski masaüstü süslemeleri yerine yeni küre/platform/paneller (yalnız bu genişlikte gizlenir) */
+  .kaisHolo .kaisHoloStage::before,.kaisHolo .kaisHoloStage::after,.kaisHolo .kaisHoloGlow::before,
+  .kaisHolo .kaisHoloFloor,.kaisHolo .kaisHoloRings,.kaisHoloSide,.kaisHoloBackdrop .fragments{display:none}
+  .kaisHolo .kaisHoloStage{width:clamp(280px,36vh,400px);margin-bottom:calc(clamp(280px,36vh,400px) * .38)}
+  .kaisHolo .kaisHoloScanBand{display:none}  /* gözün üstünden geçen eski tarama yerine küre taraması (göz sabit ve net kalır) */
+
+  /* Gözün yerel ışığı: gözün ARKASINDA (göz çizimine filtre/ölçek uygulanmaz). Dikkat ve gerçek ses seviyesiyle hafifçe güçlenir. */
+  .kaisHoloEye::before{content:"";position:absolute;inset:6%;border-radius:50%;z-index:-1;pointer-events:none;
+    background:radial-gradient(circle at 50% 47%,rgba(var(--kh-soft),.34) 0%,rgba(var(--kh-emerald),.12) 34%,rgba(var(--kh-emerald),0) 62%);
+    opacity:calc(var(--kh-focus) + var(--kh-level) * .35);transition:opacity .5s cubic-bezier(.4,0,.2,1)}
+
+  /* ── Enerji küresi ── merkez = göz halkası merkezi (sahnenin %47.5'i) */
+  .khSphere{display:block;position:absolute;left:50%;top:47.5%;width:164%;aspect-ratio:1;z-index:1;overflow:visible;pointer-events:none;
+    translate:calc(-50% + var(--kh-px) * 3px) calc(-50% + var(--kh-py) * 2px);opacity:var(--kh-sph);transition:opacity .5s cubic-bezier(.4,0,.2,1)}
+  .khSphere :is(circle,ellipse,path,rect):not([fill]){fill:none}
+  .khSphere *{vector-effect:non-scaling-stroke;transform-origin:0 0}
+  .khSphere .rim{stroke:rgba(var(--kh-soft),.3);stroke-width:1}
+  .khSphere .lat ellipse{stroke:rgba(var(--kh-ice),.11);stroke-width:1}
+  .khSphere .lon ellipse{stroke:rgba(var(--kh-soft),.13);stroke-width:1;animation:khLon 40s ease-in-out infinite}
+  .khSphere .lon path{stroke:rgba(var(--kh-ice),.1);stroke-width:1}
+  .khSphere .orbit .path{stroke:rgba(var(--kh-ice),.16);stroke-width:1;stroke-dasharray:180 40 60 40}
+  .khSphere .orbit .runner{stroke:rgba(var(--kh-soft),.9);stroke-width:2;stroke-linecap:round;stroke-dasharray:2 98;animation:khRun 18s linear infinite}
+  .khSphere .o2 .runner{animation-duration:27s;animation-direction:reverse}
+  .khSphere .scanLine .edge{fill:rgba(var(--kh-ice),.55)}
+  .khSphere .scanLine{opacity:0;animation:khScanIdle 14s cubic-bezier(.45,0,.55,1) infinite}
+  .khSphere .pulse{stroke:rgba(var(--kh-soft),.5);stroke-width:1.2;opacity:0;animation:khSphPulse 11s cubic-bezier(.2,.6,.3,1) infinite}
+  /* Yörünge halkaları: yapısal halka ve ölçek sabit; iç halkalar farklı hız/yönde */
+  .khSphere .rings circle:not(.node){stroke:rgba(var(--kh-soft),.5);stroke-width:1}
+  .khSphere .rC{stroke:rgba(var(--kh-ice),.2)!important}
+  .khSphere .rTicks path{stroke:rgba(var(--kh-soft),.32);stroke-width:1}
+  .khSphere .rA{animation:khSpin 30s linear infinite}
+  .khSphere .rA circle:not(.node){stroke:rgba(var(--kh-soft),.55)}
+  .khSphere .rB{animation:khSpin 46s linear infinite reverse}
+  .khSphere .rB circle{stroke:rgba(var(--kh-ice),.38)!important;stroke-width:1.4!important}
+  .khSphere .rE{animation:khSpin 64s linear infinite}
+  .khSphere .rE circle:not(.node){stroke:rgba(var(--kh-soft),.22)}
+  .khSphere .node{fill:rgba(var(--kh-soft),.95)}
+  .khSphere .rScan{opacity:0;transition:opacity .45s ease;animation:khSpin 2.4s linear infinite}
+  .khSphere .rScan circle{stroke:rgba(var(--kh-ice),.95)!important;stroke-width:2.4!important;stroke-linecap:round}
+  .khSphere .rVoice circle{stroke:rgba(var(--kh-soft),.7)!important;stroke-width:1.4!important}
+  .khSphere .rVoice{opacity:0;transform:scale(calc(1 + var(--kh-level) * .06))}
+  .kaisHolo:is([data-phase=listening],[data-phase=speaking]) .khSphere .rVoice{opacity:calc(.08 + var(--kh-level) * .7)}
+  .khSphere .particles circle{fill:rgba(var(--kh-soft),.85);opacity:.32;animation:khDrift 9s ease-in-out infinite alternate}
+  /* Düşünme: tarama halkası ve küre taraması etkin, parçacıklar göze doğru akar (yoğunluk sabit kalır, süre uzasa da artmaz) */
+  .kaisHolo[data-phase=thinking] .khSphere .rScan{opacity:1}
+  .kaisHolo[data-phase=thinking] .khSphere .scanLine{animation:khScanBusy 2.6s cubic-bezier(.45,0,.55,1) infinite}
+  .kaisHolo[data-phase=thinking] .khSphere .particles circle{animation:khInward 2.6s cubic-bezier(.4,0,.6,1) infinite}
+  .kaisHolo[data-phase=speaking] .khSphere .pulse{animation-duration:5.5s}
+  .kaisHolo[data-phase=error] .khSphere :is(.pulse,.scanLine,.rScan){animation:none;opacity:0}
+
+  /* ── Enerji platformu ── merkezi gözün altında; ışın göze doğru silinir */
+  .khPlatform{display:block;position:absolute;left:50%;top:103%;width:240%;aspect-ratio:760/240;z-index:0;overflow:visible;pointer-events:none;translate:-50% -45.8%}
+  .khPlatform :is(circle,ellipse,path,rect):not([fill]){fill:none}
+  .khPlatform *{vector-effect:non-scaling-stroke;transform-origin:0 0}
+  .khPlatform .glow{animation:khBreathe 6s ease-in-out infinite}
+  .khPlatform .radials{stroke:rgba(var(--kh-ice),.1);stroke-width:1}
+  .khPlatform .pOuter{stroke:rgba(var(--kh-ice),.2);stroke-width:1.1}
+  .khPlatform .pOuterRun{stroke:rgba(var(--kh-ice),.85);stroke-width:2;stroke-linecap:round;stroke-dasharray:1 99;animation:khRun 26s linear infinite reverse}
+  .khPlatform .pTrack{stroke:rgba(var(--kh-emerald),.36);stroke-width:1.2;stroke-dasharray:10 6}
+  .khPlatform .pTrackRun{stroke:rgba(var(--kh-soft),.95);stroke-width:2.2;stroke-linecap:round;stroke-dasharray:1.4 98.6;animation:khRun 15s linear infinite}
+  .khPlatform .pScan{stroke:rgba(var(--kh-ice),.9);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:9 91;opacity:0;transition:opacity .45s ease;animation:khRun 2.2s linear infinite}
+  .khPlatform .pVoice ellipse{stroke:rgba(var(--kh-soft),.75);stroke-width:1.4}
+  .khPlatform .pVoice{opacity:.22;transform:scale(calc(1 + var(--kh-level) * .035))}
+  .kaisHolo:is([data-phase=listening],[data-phase=speaking]) .khPlatform .pVoice{opacity:calc(.28 + var(--kh-level) * .65)}
+  .khPlatform .pCoreRim{stroke:rgba(var(--kh-soft),.62);stroke-width:1.6}
+  .khPlatform .pCore{opacity:calc(.75 + var(--kh-level) * .25)}
+  .khPlatform .pPulse ellipse,.khPlatform .pDone ellipse{stroke:rgba(var(--kh-soft),.7);stroke-width:1.2}
+  .khPlatform .pPulse{opacity:0;animation:khPfPulse 8s cubic-bezier(.2,.6,.3,1) infinite}
+  .khPlatform .pDone{opacity:0;animation:khPfDone 1.5s cubic-bezier(.2,.6,.3,1) 1 both}
+  .khPlatform .beam{opacity:calc(var(--kh-beam) + var(--kh-level) * .3);transition:opacity .5s ease}
+  .khPlatform .beam path{stroke:rgba(var(--kh-soft),.5);stroke-width:1}
+  .khPlatform .wave path{stroke:rgba(var(--kh-soft),.9);stroke-width:2;stroke-linecap:round;transform-box:fill-box;transform-origin:50% 100%;
+    transform:scaleY(calc(.06 + var(--kh-level) * var(--k)));opacity:0;transition:opacity .4s ease}
+  .kaisHolo:is([data-phase=listening],[data-phase=speaking]) .khPlatform .wave path{opacity:.85}
+  .kaisHolo[data-phase=thinking] .khPlatform .pScan{opacity:1}
+  .kaisHolo[data-phase=thinking] .khPlatform .pCore{opacity:1}
+  .kaisHolo[data-phase=error] .khPlatform :is(.pScan,.pPulse,.pTrackRun,.pOuterRun){animation:none;opacity:0}
+
+  /* ── Kokpit arka planı (uzak düzlem, çok yavaş) ── */
+  .kaisHoloCockpit{display:block;position:absolute;inset:-12px;width:calc(100% + 24px);height:calc(100% + 24px);
+    translate:calc(var(--kh-px) * -6px) calc(var(--kh-py) * -4px);opacity:var(--kh-env)}
+  .kaisHoloCockpit *{fill:none;vector-effect:non-scaling-stroke}
+  .kaisHoloCockpit .ceiling{stroke:rgba(var(--kh-ice),.13);stroke-width:1}
+  .kaisHoloCockpit .c2{stroke:rgba(var(--kh-soft),.12);stroke-dasharray:3 9}
+  .kaisHoloCockpit .arcs path{stroke:rgba(var(--kh-emerald),.24);stroke-width:1.2}
+  .kaisHoloCockpit .rays path{stroke:rgba(var(--kh-ice),.08);stroke-width:1;stroke-dasharray:1 7}
+  .kaisHoloCockpit .rays .drop{stroke:rgba(var(--kh-soft),.55);stroke-dasharray:6 94;stroke-dashoffset:100;opacity:0;animation:khDrop 9s cubic-bezier(.4,0,.6,1) infinite}
+  .kaisHolo[data-phase=error] .kaisHoloCockpit .drop{animation:none}
+}
+
+/* Kısa masaüstü ekranlar: küre biraz küçülür, üst kenara taşmaz */
+@media (min-width:1025px) and (max-height:820px){.khSphere{width:150%}}
+
+/* ── Yan paneller (≥1180px) ── */
+@media (min-width:1180px){
+  .kaisHolo .kaisHoloChips{display:none}  /* gerçek eylemler sağdaki Eylemler panelinde */
+  .khPanels{display:block;position:absolute;inset:0;z-index:0;pointer-events:none}
+  .khColumn{position:absolute;top:50%;display:grid;gap:16px;width:clamp(212px,16vw,272px);translate:calc(var(--kh-px) * -8px) calc(-50% + var(--kh-py) * -5px)}
+  .khColumn.l{left:clamp(24px,3.2vw,60px)}
+  .khColumn.r{right:clamp(24px,3.2vw,60px)}
+  .khPanel{position:relative;min-height:112px;padding:12px 14px 13px;border:1px solid rgba(var(--kh-ice),.14);border-radius:10px;
+    background:linear-gradient(160deg,rgba(10,30,40,.58),rgba(5,14,22,.46));box-shadow:inset 0 1px 0 rgba(var(--kh-soft),.08);
+    opacity:.55;transition:opacity .5s cubic-bezier(.4,0,.2,1),border-color .5s ease}
+  .khPanel header{font-weight:600;font-size:10.5px;line-height:1.2;letter-spacing:.18em;text-transform:uppercase;color:rgba(var(--kh-soft),.85);margin-bottom:10px}
+  .khPanelCorner{position:absolute;left:-1px;top:-1px;width:14px;height:14px;border-left:2px solid rgba(var(--kh-soft),.75);border-top:2px solid rgba(var(--kh-soft),.75);border-top-left-radius:10px}
+  /* Panelden küreye ince bağlantı hattı */
+  .khPanel::after{content:"";position:absolute;top:50%;width:clamp(24px,3vw,48px);height:1px}
+  .khColumn.l .khPanel::after{left:100%;background:linear-gradient(90deg,rgba(var(--kh-soft),.4),rgba(var(--kh-soft),0))}
+  .khColumn.r .khPanel::after{right:100%;background:linear-gradient(270deg,rgba(var(--kh-soft),.4),rgba(var(--kh-soft),0))}
+  .khPanel svg{display:block;width:100%;height:auto;overflow:visible}
+  .khPanel svg *{vector-effect:non-scaling-stroke;transform-origin:0 0}
+  /* Gerçek içerikli paneller daha belirgin; dekoratif paneller yalnız ilgili gerçek aşamada parlar */
+  .khStatus,.khActions{opacity:.9}
+  .khPanels[data-phase=thinking] :is(.khNet,.khRadar){opacity:.95;border-color:rgba(var(--kh-soft),.3)}
+  .khPanels:is([data-phase=listening],[data-phase=speaking]) .khVoice{opacity:.95;border-color:rgba(var(--kh-soft),.28)}
+  .khPanels[data-phase=speaking] .khGlobe{opacity:.8}
+  /* Ağ (dekoratif) */
+  .khNet .links path{stroke:rgba(var(--kh-ice),.2);stroke-width:1;fill:none}
+  .khNet .nodes circle{fill:rgba(var(--kh-soft),.65)}
+  .khNet .run{fill:none;stroke:rgba(var(--kh-soft),.9);stroke-width:1.6;stroke-linecap:round;stroke-dasharray:7 93;animation:khRun 7s linear infinite}
+  /* Ses etkinliği (gerçek olaylar: --kh-level) */
+  .khVoiceBars{display:flex;align-items:center;justify-content:space-between;height:44px}
+  .khVoiceBars i{display:block;width:3px;height:40px;border-radius:2px;background:rgba(var(--kh-soft),.85);transform:scaleY(calc(.05 + var(--kh-level) * var(--k)))}
+  .khVoice small{display:block;margin-top:8px;font-size:11.5px;color:#8fa6bb}
+  /* Tarama radarı (dekoratif) */
+  .khRadar svg{width:96px;margin:0 auto}
+  .khRadar circle:not(.blip),.khRadar path:not(.sweep path){fill:none;stroke:rgba(var(--kh-ice),.2);stroke-width:1}
+  .khRadar .sweep{animation:khSpin 4s linear infinite}
+  .khRadar .sweep path{fill:rgba(var(--kh-soft),.2);stroke:none}
+  .khRadar .blip{fill:rgba(var(--kh-soft),.9);opacity:0}
+  .khPanels[data-phase=thinking] .khRadar .blip{animation:khBlip 2s ease-in-out infinite}
+  .khPanels[data-phase=thinking] .khRadar .b2{animation-delay:1s}
+  /* Durum (gerçek aşama; renk dışında içi dolu işaret ve kalın yazıyla da ayrılır) */
+  .khStatus ul,.khActions ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+  .khStatus li{display:flex;align-items:center;gap:9px;font-size:12.5px;color:#7f93a8;transition:color .35s ease}
+  .khStatus li i{width:7px;height:7px;border-radius:50%;border:1px solid currentColor;flex:none;transition:background-color .35s ease,box-shadow .35s ease}
+  .khStatus li[data-on=true]{color:rgb(var(--kh-soft));font-weight:650}
+  .khStatus li[data-on=true] i{background:currentColor;box-shadow:0 0 8px rgba(var(--kh-soft),.7)}
+  /* Eylemler (Kais'in bu oturumda yaptığı gerçek işlemler) */
+  .khActions li{font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:rgba(var(--kh-soft),.92);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .khActions p{margin:0;font-size:12px;color:#7f93a8}
+  /* Küre (dekoratif) */
+  .khGlobe svg{width:104px;margin:0 auto}
+  .khGlobe :is(circle,ellipse){fill:none;stroke:rgba(var(--kh-soft),.3);stroke-width:1}
+  .khGlobe .f{stroke:rgba(var(--kh-ice),.14)}
+  .khGlobe .spin ellipse{animation:khLon 18s ease-in-out infinite}
+  .khGlobe .spin ellipse:nth-child(2){animation-delay:-6s}
+  .khGlobe .orbit{stroke:rgba(var(--kh-ice),.3);stroke-dasharray:40 12}
+  .khGlobe .sat{fill:rgba(var(--kh-soft),.95);stroke:none}
+}
+
+@keyframes khSpin{to{transform:rotate(360deg)}}
+@keyframes khLon{0%,100%{transform:scaleX(1)}50%{transform:scaleX(-1)}}
+@keyframes khRun{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@keyframes khScanIdle{0%{transform:translateY(-240px);opacity:0}2%{opacity:.9}18%{transform:translateY(232px);opacity:.9}19%,100%{transform:translateY(232px);opacity:0}}
+@keyframes khScanBusy{0%{transform:translateY(-240px);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:translateY(232px);opacity:0}}
+@keyframes khSphPulse{0%{transform:scale(.52);opacity:0}4%{opacity:.4}30%{transform:scale(1);opacity:0}100%{transform:scale(1);opacity:0}}
+@keyframes khDrift{from{transform:translate(0,0)}to{transform:translate(calc(var(--dx) * -.06),calc(var(--dy) * -.06 - 4px))}}
+@keyframes khInward{0%{transform:translate(0,0);opacity:0}25%{opacity:.9}85%{opacity:.25}100%{transform:translate(var(--dx),var(--dy));opacity:0}}
+@keyframes khBreathe{0%,100%{opacity:.78}50%{opacity:1}}
+@keyframes khPfPulse{0%{transform:scale(1);opacity:0}5%{opacity:.55}40%{transform:scale(2.3);opacity:0}100%{transform:scale(2.3);opacity:0}}
+@keyframes khPfDone{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.6);opacity:0}}
+@keyframes khDrop{0%{stroke-dashoffset:100;opacity:0}6%{opacity:1}55%{stroke-dashoffset:0;opacity:.6}60%,100%{stroke-dashoffset:0;opacity:0}}
+@keyframes khBlip{0%,100%{opacity:0}40%,60%{opacity:1}}
+
+/* Hareket azaltma: dönüş/akış/paralaks yok, durum değişimi yine görünür (opaklık); boylamlar sabit açılarda */
+@media (prefers-reduced-motion:reduce){
+  .kaisHoloCockpit{translate:none!important}
+  .khColumn{translate:0 -50%!important}
+  .khSphere{translate:-50% -50%!important}
+  .khSphere .lon ellipse:nth-child(1){transform:scaleX(1)}
+  .khSphere .lon ellipse:nth-child(2){transform:scaleX(.62)}
+  .khSphere .lon ellipse:nth-child(3){transform:scaleX(.22)}
+  .khSphere .lon ellipse:nth-child(4){transform:scaleX(-.62)}
+  .khPlatform .pDone{display:none}
+}

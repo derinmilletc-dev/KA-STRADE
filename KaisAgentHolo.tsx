@@ -4,8 +4,12 @@ import {X, MessageSquare, RotateCcw, Hand} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import KaisVoicePicker from './KaisVoicePicker'
 import KaisHoloBackdrop from './KaisHoloBackdrop'
+import {KaisHoloSphere, KaisHoloPlatform} from './KaisHoloCore'
+import KaisHoloPanels from './KaisHoloPanels'
+import {VOICE_ACTIVITY_EVENT, type VoiceActivitySource} from './kais-voice-activity'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
+import './kais-holo-v2.css'
 
 /** Gerçekten gözlemlenebilen durumlar (sesli oturum + sohbet isteği yaşam döngüsü):
  *  listening = mikrofon açık · thinking = istek gönderildi, cevap bekleniyor (PROCESSING) · speaking = cevap geldi (RESPONSE_RECEIVED) · error = istek başarısız.
@@ -53,6 +57,70 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
   useEffect(() => { kick.current() }, [phase])
 }
 
+/** Masaüstü sinematik katmanları yalnız geniş ekranda çalışır (CSS ile aynı eşik); telefonda ek döngü açılmaz. */
+const DESKTOP_QUERY = '(min-width: 1025px)'
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/** Gerçek ses etkinliği → yumuşatılmış seviye (0–1). Kaynak: kais-voice-activity olayları (tanıma sonucu / okuma kelime sınırı).
+ *  Yalnız ilgili aşamada kabul edilir (dinlerken "input", konuşurken "output"); aşama değişince hızla sıfıra söner.
+ *  Değer React durumuna yazılmaz: kök öğedeki --kh-level değişkenine rAF ile yazılır, seviye sıfırlanınca döngü durur. */
+function useVoiceLevel(root: React.RefObject<HTMLDivElement | null>, phase: HoloPhase, paused: boolean) {
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
+  const kick = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    const node = root.current
+    if (!node || paused || reducedMotion() || !window.matchMedia(DESKTOP_QUERY).matches) { node?.style.setProperty('--kh-level', '0'); return }
+    let level = 0, target = 0, frame = 0, last = 0, stopped = false
+    const write = () => node.style.setProperty('--kh-level', level.toFixed(3))
+    const step = (now: number) => {
+      if (stopped) return
+      const dt = Math.min(.1, last ? (now - last) / 1000 : .016); last = now
+      const current = phaseRef.current
+      // Hedef her olayda yükselir, sonra kendiliğinden söner; konuşma/dinleme bitince sönme hızlanır.
+      target *= Math.exp(-dt / (current === 'listening' || current === 'speaking' ? .32 : .08))
+      level += (target - level) * (1 - Math.exp(-dt / .07))
+      if (level < .005 && target < .005) { level = 0; target = 0; write(); frame = 0; last = 0; return }
+      write()
+      frame = requestAnimationFrame(step)
+    }
+    const onActivity = (event: Event) => {
+      const source = (event as CustomEvent<VoiceActivitySource>).detail
+      const current = phaseRef.current
+      if (!((source === 'input' && current === 'listening') || (source === 'output' && current === 'speaking'))) return
+      target = Math.min(1, target + .55)
+      if (!frame) frame = requestAnimationFrame(step)
+    }
+    kick.current = () => { if (!frame && !stopped && level > 0) frame = requestAnimationFrame(step) }
+    window.addEventListener(VOICE_ACTIVITY_EVENT, onActivity)
+    return () => { stopped = true; cancelAnimationFrame(frame); window.removeEventListener(VOICE_ACTIVITY_EVENT, onActivity); node.style.setProperty('--kh-level', '0'); kick.current = () => undefined }
+  }, [paused])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { kick.current() }, [phase])
+}
+
+/** Hafif derinlik (paralaks): yalnız masaüstü + ince imleç + hareket azaltma kapalıyken. Göz ve tıklama alanları hiç kaydırılmaz;
+ *  yalnız dekoratif katmanlar --kh-px/--kh-py (−1…1) ile birkaç piksel kayar. İmleç değeri doğrudan kopyalanmaz, yumuşatılır. */
+function useParallax(root: React.RefObject<HTMLDivElement | null>, paused: boolean) {
+  useEffect(() => {
+    const node = root.current
+    if (!node || paused || reducedMotion() || !window.matchMedia(`${DESKTOP_QUERY} and (pointer: fine)`).matches) return
+    let tx = 0, ty = 0, x = 0, y = 0, frame = 0
+    const step = () => {
+      x += (tx - x) * .06; y += (ty - y) * .06
+      node.style.setProperty('--kh-px', x.toFixed(3)); node.style.setProperty('--kh-py', y.toFixed(3))
+      frame = Math.abs(tx - x) > .002 || Math.abs(ty - y) > .002 ? requestAnimationFrame(step) : 0
+    }
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return
+      tx = Math.max(-1, Math.min(1, (event.clientX / window.innerWidth) * 2 - 1))
+      ty = Math.max(-1, Math.min(1, (event.clientY / window.innerHeight) * 2 - 1))
+      if (!frame) frame = requestAnimationFrame(step)
+    }
+    window.addEventListener('pointermove', move, {passive: true})
+    return () => { window.removeEventListener('pointermove', move); cancelAnimationFrame(frame) }
+  }, [paused])  // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
 export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, status, interruptLabel, onInterrupt, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
@@ -67,6 +135,16 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     return () => window.clearTimeout(timer)
   }, [phase])
   const stage = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+  useVoiceLevel(root, phase, hidden)
+  useParallax(root, hidden)
+  // Cevap gerçekten bitip dinlemeye dönünce platformdan tek, ölçülü bir dışa doğru dalga (sayaç anahtarıyla bir kez oynar).
+  const [complete, setComplete] = useState(0)
+  const previousPhase = useRef(phase)
+  useEffect(() => {
+    if (previousPhase.current === 'speaking' && phase === 'listening') setComplete(value => value + 1)
+    previousPhase.current = phase
+  }, [phase])
   const pupil = useRef<SVGSVGElement>(null)
   const iris = useRef<SVGSVGElement>(null)
   const primary = useRef<SVGGElement>(null), secondary = useRef<SVGGElement>(null), precision = useRef<SVGGElement>(null)
@@ -127,12 +205,15 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     const timer = window.setTimeout(() => setBeam(false), 450)
     return () => window.clearTimeout(timer)
   }, [phase])
-  return createPortal(<div className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
+  return createPortal(<div ref={root} className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
     <KaisHoloBackdrop/>
+    <KaisHoloPanels phase={phase} actions={actions} language={language}/>
     <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>
       <div className="kaisHoloGlow" aria-hidden="true"/>
+      <KaisHoloSphere/>
+      <KaisHoloPlatform complete={complete}/>
       {alarm && <svg className="kaisHoloAlarm" viewBox="-160 -160 320 320" aria-hidden="true"><circle r="146"/><circle r="152" className="b"/></svg>}
       <svg className="kaisHoloRings" viewBox="-160 -160 320 320" aria-hidden="true">
         <circle className="ping" r="150"/>

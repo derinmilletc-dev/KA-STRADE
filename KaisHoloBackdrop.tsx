@@ -55,6 +55,11 @@ const FRAGMENTS: [number, number, number, string][] = [
 ]
 const PARTICLES = [[9, 24, 0], [18, 70, 2.4], [27, 86, 5.1], [72, 16, 3.6], [80, 74, 0.6], [91, 40, 4.4], [14, 46, 6], [86, 58, 7.2], [40, 92, 1.4], [62, 88, 3]]
 
+// Masaüstü kokpit katmanı (viewBox 1600×900, kenarlara yaslanır): tavan yayları, köşelerden kıvrılan yaylar, ışığı yukarıdan
+// aşağı süzülen ince dikey hatlar. Yalnız dekoratif; dar ekranlarda CSS ile gizli.
+const COCKPIT_ARCS = ['M0 120C240 120 360 40 560 18', 'M1600 120C1360 120 1240 40 1040 18', 'M0 190C200 190 300 120 420 70', 'M1600 190C1400 190 1300 120 1180 70']
+const COCKPIT_RAYS = [420, 500, 1100, 1180]
+
 export default function KaisHoloBackdrop() {
   return <div className="kaisHoloBackdrop" aria-hidden="true">
     <i className="base"/>
@@ -62,6 +67,12 @@ export default function KaisHoloBackdrop() {
     <i className="rim"/>
     <i className="grid"/>
     <i className="floor"/>
+    <svg className="kaisHoloCockpit" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+      <ellipse className="ceiling" cx="800" cy="-40" rx="560" ry="120"/>
+      <ellipse className="ceiling c2" cx="800" cy="-40" rx="470" ry="92"/>
+      <g className="arcs">{COCKPIT_ARCS.map(d => <path key={d} d={d}/>)}</g>
+      <g className="rays">{COCKPIT_RAYS.map((x, index) => <g key={x}><path d={`M${x} 0V520`}/><path className="drop" d={`M${x} 0V520`} pathLength={100} style={{animationDelay: `${index * 2.3}s`}}/></g>)}</g>
+    </svg>
     <Structure side="l" data={LEFT}/>
     <Structure side="r" data={RIGHT}/>
     <div className="fragments">{FRAGMENTS.map(([x, y, scale, d], index) => <svg key={d} viewBox="0 0 32 24" style={{left: `${x}%`, top: `${y}%`, width: `${32 * scale}px`, animationDelay: `${index * 1.9}s`}}><path d={d}/></svg>)}</div>
