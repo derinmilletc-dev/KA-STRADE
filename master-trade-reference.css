@@ -452,3 +452,39 @@
   html body #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refZoomTools .refZoomResetLabel { display: none !important; }
   #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refToolDivider { display: none; }
 }
+
+/* Göstergeler menüsü: içeriğe göre genişler (Türkçe etiketler hece hece kırılmaz), tetikleyiciye bağlı kalır, dar ekranda
+   görünür alana sığacak şekilde sağa hizalanır veya yukarı açılır (data-align / data-side, MasterTradeReference ölçer). */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div {
+  top: calc(100% + 6px) !important; bottom: auto; left: 0; right: auto; z-index: 30 !important;
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  width: max-content; min-width: max(176px, 100%); max-width: calc(100vw - 24px); box-sizing: border-box;
+  padding: 6px; border: 1px solid rgba(169, 212, 255, .12); border-radius: 10px !important;
+  background: #0c1418; box-shadow: 0 14px 32px rgba(0, 0, 0, .5);
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators[data-align="end"] > div { left: auto; right: 0; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators[data-side="top"] > div { top: auto !important; bottom: calc(100% + 6px); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button {
+  display: flex !important; align-items: center; justify-content: space-between !important; gap: 16px; width: 100%; min-width: 0 !important;
+  min-height: 40px; margin: 0; padding: 0 12px !important; border: 0 !important; border-radius: 8px !important;
+  background: transparent !important; color: #b9c8cf !important; font-size: 12.5px !important; font-weight: 600; line-height: 1.2; letter-spacing: .04em;
+  text-align: left; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; hyphens: none;
+  cursor: pointer; transition: background-color .14s ease, color .14s ease;
+}
+/* Durum göstergesi: seçili gösterge buz mavisi dolu nokta, kapalı olan içi boş halka. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button::after {
+  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid rgba(185, 200, 207, .5); background-color: transparent;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button[aria-pressed="true"] { color: #eaf4ff !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button[aria-pressed="true"]::after { border-color: #a9d4ff; background-color: #a9d4ff; }
+@media (hover: hover) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button:hover { background: rgba(169, 212, 255, .08) !important; color: #eaf4ff !important; }
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button:active { background: rgba(169, 212, 255, .14) !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button:focus-visible { outline: 2px solid #a9d4ff; outline-offset: -2px; }
+@media (pointer: coarse) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div > button { transition: none; }
+}

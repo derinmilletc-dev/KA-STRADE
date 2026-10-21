@@ -38,6 +38,10 @@ export type LandscapeOptions = {
   settleMs?: number
   /** Yedek doğrulama yoklaması aralığı (ms). */
   pollMs?: number
+  /** Dikeyden açılışta uyarının en az görünme süresi (ms). */
+  minPromptMs?: number
+  /** Test için saat. */
+  now?: () => number
 }
 /** Dönme sonrası yerleşim için varsayılan bekleme. */
 export const ORIENTATION_SETTLE_MS = 300
@@ -50,6 +54,12 @@ export function browserEnv(): LandscapeEnv {
 }
 
 export const isLandscape = (width: number, height: number) => width > height
+
+/**
+ * Analiz Studio'ya dikeyden girildiğinde dönme uyarısının en az görünme süresi. Bu süre bir açılış zamanlayıcısı değildir:
+ * terminal ancak hem bu süre dolmuş hem de cihaz gerçekten (oturmuş) yatay olduğunda açılır; dikey kalırsa uyarı süresiz kalır.
+ */
+export const MIN_PROMPT_MS = 3500
 
 /** Okumayı doğrulayan yedek yoklama aralığı: olay kaçarsa (mobil tarayıcılarda olur) gerçek durumu yeniden okur; zaman kanıt sayılmaz. */
 export const ORIENTATION_POLL_MS = 250
@@ -82,6 +92,8 @@ export function canLockOrientation(scr: LandscapeEnv['screen']): boolean {
 
 export function createLandscapeController(env: LandscapeEnv = browserEnv(), options: LandscapeOptions = {}) {
   const settleMs = options.settleMs ?? ORIENTATION_SETTLE_MS
+  const minPromptMs = options.minPromptMs ?? MIN_PROMPT_MS
+  const now = options.now ?? (() => Date.now())
   let snapshot: LandscapeSnapshot = {open: false, landscape: readLandscape(env), fullscreen: false, lock: 'none'}
   const listeners = new Set<Listener>()
   let attached = false
@@ -91,6 +103,9 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   // open()/close() asenkron adımlar arasında iptal edilebilir; her açılışa bir kimlik verilir.
   let session = 0
   let pollTimer: ReturnType<typeof setInterval> | undefined
+  // Uyarının dikeyden açıldığı an (yalnız ilk uyarı için; terminale bir kez geçildikten sonra temizlenir) ve en az süre beklemesi.
+  let promptSince: number | undefined
+  let holdTimer: ReturnType<typeof setTimeout> | undefined
   let settleTimer: ReturnType<typeof setTimeout> | undefined
   let orientationQuery: MediaListLike | undefined
 
@@ -106,7 +121,18 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   const commitOrientation = () => {
     settleTimer = undefined
     if (!snapshot.open) return
-    emit({landscape: readLandscape(env)})
+    const landscape = readLandscape(env)
+    if (landscape && !snapshot.landscape && promptSince !== undefined) {
+      // Durum geçişi: yatay doğrulandı ama uyarı henüz en az süresini doldurmadı → kalan süre kadar bekle, sonra YENİDEN oku.
+      const remaining = promptSince + minPromptMs - now()
+      if (remaining > 0) {
+        clearTimeout(holdTimer)
+        holdTimer = setTimeout(() => { holdTimer = undefined; commitOrientation() }, remaining)
+        return
+      }
+    }
+    if (landscape) promptSince = undefined
+    emit({landscape})
   }
   const scheduleSettle = () => {
     if (!snapshot.open) return
@@ -115,7 +141,7 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   }
   // Yedek: olay kaçsa da (veya tam ekran/kilit isteği hiç tamamlanmasa da) gerçek okuma ile durum ayrışırsa onay döngüsü başlar.
   const verifyOrientation = () => {
-    if (!snapshot.open || settleTimer !== undefined) return
+    if (!snapshot.open || settleTimer !== undefined || holdTimer !== undefined) return
     if (readLandscape(env) !== snapshot.landscape) scheduleSettle()
   }
   const onOrientationSignal = () => scheduleSettle()
@@ -174,6 +200,9 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
     env.screen.orientation?.removeEventListener?.('change', onOrientationSignal)
     clearTimeout(settleTimer)
     settleTimer = undefined
+    clearTimeout(holdTimer)
+    holdTimer = undefined
+    promptSince = undefined
     env.document.removeEventListener('fullscreenchange', onFullscreenChange)
     env.document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
     env.document.removeEventListener('keydown', onKeyDown, true)
@@ -232,7 +261,10 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
       historyPushed = true
     } catch { historyPushed = false }
     // Cihaz zaten yataysa terminal hemen açılır; dikeydeyse uyarı, yön gerçekten yatay ve oturmuş olana kadar kalır.
-    emit({open: true, landscape: readLandscape(env), fullscreen: fullscreenElementOf(env.document) !== null, lock: 'none'})
+    const initial = readLandscape(env)
+    // Dikeyden açılış: uyarı en az `minPromptMs` görünür. Zaten yataysa uyarı yoktur ve bekleme uygulanmaz.
+    promptSince = initial ? undefined : now()
+    emit({open: true, landscape: initial, fullscreen: fullscreenElementOf(env.document) !== null, lock: 'none'})
     return enterFullscreenAndLock(id)
   }
 

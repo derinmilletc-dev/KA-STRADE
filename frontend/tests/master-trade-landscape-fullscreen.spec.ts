@@ -80,7 +80,9 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
   const requests: string[] = []
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(`${request.method()} ${new URL(request.url()).pathname}`) })
   await page.goto('/master-trade?tab=analiz', {waitUntil: 'domcontentloaded'})
-  await expect(root(page).locator('.refReportSymbol')).toContainText('89%', {timeout: 20000})
+  // Rapor yüklendi mi: güven yüzdesi görünmeli. Sabit değer (89%) beklenmez; FIXED_NOW dosya yüklenirken alındığından uzun
+  // koşularda sonraki testlerde mumlar "eskir" ve güven değişebilir (85%), bu da sıraya bağlı kararsızlık yaratıyordu.
+  await expect(root(page).locator('.refReportSymbol')).toContainText(/\d+%/, {timeout: 20000})
   await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toBeVisible()
   return {requests}
 }
@@ -895,7 +897,7 @@ test('Reduced motion: static upright phone and an immediate hand-off; normal mot
   const still = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, box = phone.getBoundingClientRect(); return {animations: phone.getAnimations().length, upright: box.height > box.width, hint: getComputedStyle(phone.parentElement!, '::after').borderTopStyle} })
   expect(still).toEqual({animations: 0, upright: true, hint: 'dashed'})
   await rotateTo(page, landscape)
-  await expect(overlay(page)).toHaveCount(0, {timeout: 2000})
+  await expect(overlay(page)).toHaveCount(0, {timeout: 8000}) // en az uyarı süresi + oturma
   await expect(terminal(page)).toBeVisible()
   await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
   await pageIsRestored(page)
@@ -905,8 +907,10 @@ test('Reduced motion: static upright phone and an immediate hand-off; normal mot
   await studioButton(page).click()
   await expect(overlay(page)).toBeVisible()
   expect(await page.evaluate(() => document.querySelector('.kfsPhone')!.getAnimations().length)).toBe(1)
+  // Kapanış geçişi kısa sürer (~220 ms); yoklama yerine DOM gözlemcisiyle yakalanır.
+  await page.evaluate(() => { const flag = window as unknown as {__sawLeaving?: boolean}; flag.__sawLeaving = false; new MutationObserver(() => { if (document.querySelector('.kfsOverlay[data-leaving="true"]')) flag.__sawLeaving = true }).observe(document.body, {subtree: true, childList: true, attributes: true}) })
   await rotateTo(page, landscape)
-  await page.waitForSelector('.kfsOverlay[data-leaving="true"]', {state: 'attached', timeout: 1000})
+  await expect.poll(() => page.evaluate(() => (window as unknown as {__sawLeaving?: boolean}).__sawLeaving), {timeout: 10000}).toBe(true)
   await expect(page.locator('.kfsOverlay')).toHaveCount(0)
   await expect(terminal(page)).toBeVisible()
 })
@@ -1058,6 +1062,183 @@ test('A missed resize/orientation event is recovered by re-reading the real view
   // Olay göndermeden yalnız görünür alanı değiştir (kaçan olay): yoklama gerçek durumu okuyup geçişi tamamlar.
   await page.evaluate(() => { const real = window.dispatchEvent.bind(window); window.dispatchEvent = (event: Event) => (event.type === 'resize' || event.type === 'orientationchange' ? true : real(event)) })
   await page.setViewportSize(landscape)
-  await expect(terminal(page)).toBeVisible({timeout: 4000})
+  await expect(terminal(page)).toBeVisible({timeout: 8000}) // en az uyarı süresi (3,5 sn) + yoklama + oturma
   await expect(drawer(page)).toBeVisible()
 })
+
+// ---------- Dönme uyarısının en az süresi (3,5 sn) ----------
+const MIN_PROMPT = 3500
+const promptOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>(resolve => {
+  if (document.querySelector('.kfsOverlay')) return resolve(performance.now())
+  const observer = new MutationObserver(() => { if (document.querySelector('.kfsOverlay')) { observer.disconnect(); resolve(performance.now()) } })
+  observer.observe(document.body, {subtree: true, childList: true})
+}))
+const terminalOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>(resolve => {
+  const check = () => document.querySelector('.masterReferenceAnalysis .refChart[data-fs="on"]') && !document.querySelector('.kfsOverlay')
+  if (check()) return resolve(performance.now())
+  const observer = new MutationObserver(() => { if (check()) { observer.disconnect(); resolve(performance.now()) } })
+  observer.observe(document.body, {subtree: true, childList: true, attributes: true})
+}))
+
+test('Early landscape: the prompt stays at least 3.5 s, then Analysis Studio opens automatically', async ({page}) => {
+  await prepare(page)
+  const opened = promptOpenedAt(page)
+  await studioButton(page).click()
+  const start = await opened
+  await expect(overlay(page)).toBeVisible()
+  await page.waitForTimeout(400)
+  const done = terminalOpenedAt(page)
+  await rotateTo(page, landscape) // ~0,4 sn'de gerçek yatay
+  await page.waitForTimeout(1500)
+  await expect(overlay(page)).toBeVisible() // yatay ama süre dolmadı
+  await expect(terminal(page)).toHaveCount(0)
+  const end = await done
+  expect(end - start).toBeGreaterThanOrEqual(MIN_PROMPT)
+  expect(end - start).toBeLessThan(MIN_PROMPT + 2500) // ardından kendiliğinden açılır
+  await expect(drawer(page)).toBeVisible()
+})
+
+test('Still portrait after 3.5 s: the prompt stays until landscape is detected, then opens', async ({page}) => {
+  const {requests} = await prepare(page)
+  const before = requests.length
+  await studioButton(page).click()
+  await page.waitForTimeout(MIN_PROMPT + 1500)
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible({timeout: 3000}) // süre çoktan doldu: yalnız oturma beklenir
+  await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Cancel during the minimum wait (already landscape) never opens the terminal later', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await rotateTo(page, landscape)
+  await page.waitForTimeout(800)
+  await overlay(page).getByRole('button', {name: 'Cancel'}).click()
+  await pageIsRestored(page)
+  await page.waitForTimeout(MIN_PROMPT)
+  await expect(terminal(page)).toHaveCount(0)
+  await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+})
+
+// ---------- Göstergeler menüsü ----------
+for (const width of [320, 360, 390]) {
+  test(`Indicators menu at ${width}px: labels stay on one line, menu fits the viewport and toggles still work`, async ({page}) => {
+    await prepare(page)
+    await page.setViewportSize({width, height: 780})
+    const menu = root(page).locator('.refIndicators').first()
+    await menu.locator('summary').click()
+    const buttons = menu.locator(':scope > div > button')
+    await expect(buttons).toHaveCount(2)
+    const boxes = await page.evaluate(() => [...document.querySelectorAll('.masterReferenceAnalysis .refIndicators[open] > div, .masterReferenceAnalysis .refIndicators[open] > div > button')].map(element => {
+      const rect = element.getBoundingClientRect(), style = getComputedStyle(element)
+      return {left: rect.left, right: rect.right, height: rect.height, width: rect.width, lineHeight: parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2, fontSize: parseFloat(style.fontSize), scroll: element.scrollWidth - element.clientWidth, whiteSpace: style.whiteSpace}
+    }))
+    const [panel, ...items] = boxes
+    expect(panel.left).toBeGreaterThanOrEqual(0)
+    expect(panel.right).toBeLessThanOrEqual(width)
+    expect(panel.width).toBeGreaterThanOrEqual(150)
+    for (const item of items) {
+      expect(item.whiteSpace).toBe('nowrap')
+      expect(item.scroll).toBeLessThanOrEqual(1) // metin taşmıyor / kırpılmıyor
+      expect(item.height).toBeGreaterThanOrEqual(40) // dokunma hedefi
+      expect(item.height).toBeLessThan(56) // tek satır (hece hece kırılmadı)
+      expect(item.width).toBeCloseTo(items[0].width, 0) // tutarlı satır genişliği
+    }
+    // Menü üstte görünür (grafik/kart tarafından kırpılmıyor): her satırın ortasındaki öğe kendisi.
+    for (let index = 0; index < 2; index += 1) {
+      const hit = await buttons.nth(index).evaluate(button => { const rect = button.getBoundingClientRect(); return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === button })
+      expect(hit).toBe(true)
+    }
+    const levels = buttons.nth(0), volume = buttons.nth(1)
+    const levelsBefore = await levels.getAttribute('aria-pressed'), volumeBefore = await volume.getAttribute('aria-pressed')
+    await levels.click()
+    await expect(levels).toHaveAttribute('aria-pressed', levelsBefore === 'true' ? 'false' : 'true')
+    await volume.click()
+    await expect(volume).toHaveAttribute('aria-pressed', volumeBefore === 'true' ? 'false' : 'true')
+  })
+}
+
+test.describe('Turkish UI', () => {
+  test.use({locale: 'tr-TR'})
+  test('Indicators menu in Turkish at 320px: SEVİYELER and HACİM stay whole words on one line', async ({page}) => {
+    await prepare(page)
+    await page.setViewportSize({width: 320, height: 780})
+    const menu = root(page).locator('.refIndicators').first()
+    await menu.locator('summary').click()
+    const buttons = menu.locator(':scope > div > button')
+    await expect(buttons.nth(0)).toHaveText('SEVİYELER')
+    await expect(buttons.nth(1)).toHaveText('HACİM')
+    for (let index = 0; index < 2; index += 1) {
+      const metrics = await buttons.nth(index).evaluate(button => { const range = document.createRange(); range.selectNodeContents(button); return {lines: range.getClientRects().length, overflow: button.scrollWidth - button.clientWidth, right: button.getBoundingClientRect().right} })
+      expect(metrics.lines).toBe(1) // tek satır kutusu: kelime hece/harf olarak bölünmedi
+      expect(metrics.overflow).toBeLessThanOrEqual(1)
+      expect(metrics.right).toBeLessThanOrEqual(320)
+    }
+  })
+})
+
+test('Indicators menu is aligned to the trigger’s right edge when it would overflow the viewport', async ({page}) => {
+  await prepare(page)
+  const menu = root(page).locator('.refIndicators').first()
+  // Tetikleyiciyi sağ kenara yakın konumlandır (dar yatay terminaldeki gibi) ve menüyü aç.
+  await menu.evaluate(element => { (element as HTMLElement).style.position = 'fixed'; (element as HTMLElement).style.right = '6px'; (element as HTMLElement).style.top = '120px' })
+  await menu.locator('summary').click()
+  await expect(menu).toHaveAttribute('data-align', 'end')
+  const rect = await menu.locator(':scope > div').evaluate(element => { const box = element.getBoundingClientRect(); return {left: box.left, right: box.right} })
+  expect(rect.left).toBeGreaterThanOrEqual(0)
+  expect(rect.right).toBeLessThanOrEqual(390)
+})
+
+// ---------- Kais AI paneli ----------
+const aiUsage = {analysis_enabled: true, access_type: 'trial', quota: {limit: 7, used: 0, reserved: 0, remaining: 7, unlimited: false},
+  acknowledgement: {required: true, policy_version: 'chart-ai-v1', text: 'Bu analiz yatırım tavsiyesi değildir.'}, availability: {message: 'ok'}}
+for (const viewport of [{width: 390, height: 844}, {width: 375, height: 667}, {width: 360, height: 560}]) {
+  test(`Kais AI panel at ${viewport.width}x${viewport.height}: content scrolls independently and never passes under the footer`, async ({page}) => {
+    await prepare(page)
+    await page.route('**/api/chart-ai/usage', route => route.fulfill({json: aiUsage}))
+    await page.reload()
+    await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toBeVisible()
+    await page.setViewportSize(viewport)
+    await root(page).locator('.chartAiButton').first().click()
+    const dialog = page.locator('.chartAiDialog')
+    await expect(dialog.locator('.chartAiModes')).toBeVisible()
+    const box = (selector: string) => dialog.locator(selector).first().evaluate(element => { const rect = element.getBoundingClientRect(); return {top: rect.top, bottom: rect.bottom, height: rect.height} })
+    const [panel, header, body, modes, footer, send] = await Promise.all(['.chartAiDialog', '.chartAiHeader', '.chartAiBody', '.chartAiModes', '.chartAiFooter', '.chartAiSend'].map(selector => selector === '.chartAiDialog' ? dialog.evaluate(element => { const rect = element.getBoundingClientRect(); return {top: rect.top, bottom: rect.bottom, height: rect.height} }) : box(selector)))
+    // Panel görünür alanda; başlık, kaydırılan içerik ve alt eylem bölümü üst üste binmeden sıralanır.
+    expect(panel.top).toBeGreaterThanOrEqual(0)
+    expect(panel.bottom).toBeLessThanOrEqual(viewport.height + 0.5)
+    expect(header.bottom).toBeLessThanOrEqual(body.top + 0.5)
+    expect(body.bottom).toBeLessThanOrEqual(footer.top + 0.5)
+    expect(footer.bottom).toBeLessThanOrEqual(panel.bottom + 0.5)
+    // Analiz türü seçicisi ve ana düğme çakışmaz; seçici tam görünür ve tam boyutludur.
+    expect(modes.bottom).toBeLessThanOrEqual(footer.top + 0.5)
+    expect(modes.height).toBeGreaterThanOrEqual(40)
+    expect(send.height).toBeGreaterThanOrEqual(44)
+    expect(send.top).toBeGreaterThanOrEqual(footer.top)
+    await expect(dialog.getByRole('button', {name: /close the kais ai panel|Kais AI panelini kapat/i})).toBeVisible()
+    // Yakala / yükle denetimleri aynı yükseklikte ve kart içine sığar.
+    const controls = await dialog.locator('.chartAiImageEmpty > *').evaluateAll(elements => elements.map(element => { const rect = element.getBoundingClientRect(); return {height: rect.height, right: rect.right} }))
+    expect(controls).toHaveLength(2)
+    expect(Math.abs(controls[0].height - controls[1].height)).toBeLessThanOrEqual(1)
+    for (const control of controls) expect(control.right).toBeLessThanOrEqual(viewport.width)
+    // Yasal metin ve Ayrıntılar bağlantısı kaydırılan içerikte: alt bölüm yalnız onay + ana düğmeyi taşır.
+    await expect(dialog.locator('.chartAiBody .chartAiLegal')).toHaveCount(1)
+    await expect(dialog.locator('.chartAiFooter .chartAiLegal')).toHaveCount(0)
+    const scroll = await dialog.locator('.chartAiBody').evaluate(element => ({overflow: getComputedStyle(element).overflowY, scrollable: element.scrollHeight > element.clientHeight}))
+    expect(scroll.overflow).toBe('auto')
+    if (scroll.scrollable) {
+      const footerTop = footer.top
+      await dialog.locator('.chartAiBody').evaluate(element => { element.scrollTop = element.scrollHeight })
+      const legal = await dialog.locator('.chartAiLegal').evaluate(element => element.getBoundingClientRect().bottom)
+      expect(legal).toBeLessThanOrEqual(footerTop + 0.5) // sona kaydırınca yasal metin alt bölümün üstünde kalır
+      expect((await box('.chartAiFooter')).top).toBeCloseTo(footerTop, 0) // alt bölüm kaymadı
+    }
+    // Analiz türü seçimi çalışmaya devam eder.
+    const radios = dialog.getByRole('radio')
+    await radios.nth(1).click()
+    await expect(radios.nth(1)).toHaveAttribute('aria-checked', 'true')
+  })
+}
