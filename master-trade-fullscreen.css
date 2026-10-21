@@ -62,20 +62,27 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools .refZoomResetLabel { display: none !important; }
 }
 
-/* ---------- Analysis Studio düğmesi (analiz göstergelerinin altında) ---------- */
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn {
-  width: 100% !important; min-height: 46px !important; margin: 8px 0 0 !important; padding: 0 14px !important; display: flex !important; align-items: center !important; gap: 10px !important;
-  border: 1px solid rgba(169, 212, 255, .2) !important; border-radius: 12px !important; background: #0e1424 !important; color: #f1f5ff !important;
-  font-size: 14px !important; font-weight: 600 !important; text-align: left !important; cursor: pointer !important; touch-action: manipulation !important;
+/* ---------- Analysis Studio düğmesi: grafik kartının en üst satırı, belirgin buz mavisi ---------- */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn {
+  order: -1 !important; flex: none !important; box-sizing: border-box !important;
+  width: calc(100% - 24px) !important; min-height: 48px !important; margin: 12px 12px 0 !important; padding: 0 16px !important; display: flex !important; align-items: center !important; gap: 10px !important;
+  border: 0 !important; border-radius: 12px !important; background: #a9d4ff !important; color: #07111f !important;
+  box-shadow: 0 6px 18px rgba(169, 212, 255, .16) !important;
+  font-size: 15px !important; font-weight: 700 !important; letter-spacing: .01em !important; text-align: left !important; text-transform: none !important;
+  cursor: pointer !important; touch-action: manipulation !important; transition: background-color .14s ease, transform .1s ease !important;
 }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > span { flex: 1 1 auto !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > svg { width: 18px !important; height: 18px !important; flex: none !important; color: #a9d4ff !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > svg:last-child { width: 16px !important; height: 16px !important; color: #9aa8c2 !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn:hover { border-color: #a9d4ff !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn:focus-visible { outline: 2px solid #a9d4ff !important; outline-offset: 2px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn > span { flex: 1 1 auto !important; color: inherit !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn > svg { width: 20px !important; height: 20px !important; flex: none !important; color: #07111f !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn > svg:last-child { width: 18px !important; height: 18px !important; color: #07111f !important; opacity: .7 !important; }
+@media (hover: hover) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn:hover { background: #c2e0ff !important; } }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn:active { background: #8fc4f5 !important; transform: scale(.99) !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn:focus-visible { outline: 2px solid #eaf4ff !important; outline-offset: 2px !important; }
+/* Yatay terminal açıkken gizli (odak dönüşü için DOM'da kalır). */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] > .kfsStudioBtn { display: none !important; }
+@media (prefers-reduced-motion: reduce) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn { transition: none !important; } html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn:active { transform: none !important; } }
 /* Yatay terminal yalnız dokunmatik/dar ekranlar içindir; masaüstü fare düzeninde giriş düğmeleri gizli kalır. */
 @media (min-width: 1024px) and (pointer: fine) {
-  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn { display: none !important; }
 }
 
 /* ---------- Yatay terminal ---------- */

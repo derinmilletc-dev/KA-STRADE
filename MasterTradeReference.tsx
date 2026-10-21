@@ -525,6 +525,7 @@ export default function MasterTradeReference(props: Props) {
       </section>
       <section className="refCenter">
         <section className="refCard refChart" data-fs={terminal ? 'on' : undefined}>
+          <button type="button" ref={studioButton} className="kfsStudioBtn" aria-haspopup="dialog" onClick={() => openStudio(studioButton.current)}><BarChart3 aria-hidden="true"/><span>Analysis Studio</span><ChevronRight aria-hidden="true"/></button>
           <div className="refToolbar" aria-label="Market chart controls">
             {terminal && <div className="kfsIdent" aria-busy={props.refreshing && !liveChart.candles.length || undefined}><button type="button" ref={symbolButton} className="kfsSymbolBtn" aria-haspopup="dialog" aria-expanded={coinPicker} aria-label={`${props.symbol} · Piyasa seç`} onClick={() => { if (coinPicker) closeCoinPicker(); else openCoinPicker() }}><b>{props.symbol}</b><ChevronDown aria-hidden="true"/></button><strong>{analysisPrice(cardPrice)}</strong>{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</div>}
             {terminal && coinPicker && <MasterTradeCoinPicker symbol={props.symbol} rows={props.marketFeed.rows} scores={props.scores} userId={userId} error={props.marketFeed.error} anchor={symbolButton.current} onSelect={pickCoin} onClose={closeCoinPicker}/>}
@@ -577,7 +578,6 @@ export default function MasterTradeReference(props: Props) {
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles}/>
         </div>
-        <button type="button" ref={studioButton} className="kfsStudioBtn" aria-haspopup="dialog" onClick={() => openStudio(studioButton.current)}><BarChart3 aria-hidden="true"/><span>Analysis Studio</span><ChevronRight aria-hidden="true"/></button>
         <div className="refMtfStrip"><span>MTF TEYİDİ {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
       </section>
       <aside className="refRight" aria-label="Analysis decision panel">
