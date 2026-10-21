@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {fixVoiceText, pickAlternative} from './assistant-voice-text'
+import {emitVoiceActivity} from './kais-voice-activity'
 
 export type VoiceLanguage = string
 /** Sohbet cevabı: düz metin ya da cevabın kendi dili ile (sunucunun algıladığı dil). Dil varsa ses o dilde okunur ve dinleme o dile geçer. */
@@ -219,6 +220,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         utterance.onend = () => { window.clearTimeout(fallback); done() }
         utterance.onerror = () => { window.clearTimeout(fallback); done() }
       }
+      // Görsel tepki için gerçek konuşma ilerleyişi (kelime sınırları); okumayı etkilemez.
+      utterance.addEventListener('start', () => { if (token === speakToken.current) emitVoiceActivity('output') })
+      utterance.addEventListener('boundary', () => { if (token === speakToken.current) emitVoiceActivity('output') })
       utterance.addEventListener('error', event => {
         const reason = (event as SpeechSynthesisErrorEvent).error
         if (reason && reason !== 'canceled' && reason !== 'interrupted' && token === speakToken.current) setMessage(copy.speechFailed)
@@ -320,6 +324,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       if (!bargeIn) {
         transcript = rows.map(result => pickAlternative(result)).join(' ').trim()
         setHeard(fixVoiceText(transcript))
+        emitVoiceActivity('input')
         lastSpeech.current = Date.now()
         clearSilence()
         if (instance.continuous && transcript) silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
@@ -341,6 +346,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       }
       transcript = text
       setHeard(fixVoiceText(text))
+      emitVoiceActivity('input')
       clearSilence()
       if (rows[rows.length - 1]?.isFinal) instance.stop()
       else silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
