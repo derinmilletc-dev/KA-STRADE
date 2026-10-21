@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {fixVoiceText, pickAlternative} from './assistant-voice-text'
 
 export type VoiceLanguage = string
 /** Sohbet cevabı: düz metin ya da cevabın kendi dili ile (sunucunun algıladığı dil). Dil varsa ses o dilde okunur ve dinleme o dile geçer. */
@@ -34,7 +35,7 @@ export const voiceCopy = {
   },
 } as const
 
-type RecognitionEvent = {results: ArrayLike<ArrayLike<{transcript: string}> & {isFinal?: boolean}>}
+type RecognitionEvent = {results: ArrayLike<ArrayLike<{transcript: string; confidence?: number}> & {isFinal?: boolean}>}
 
 // Kelime kökü (ilk 4 harf): ses tanıma ekleri farklı yazsa da eşleşsin.
 const normalWords = (value: string) => value.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(word => word.length > 1).map(word => word.slice(0, 4))
@@ -59,27 +60,7 @@ const recognitionConstructor = (): RecognitionConstructor | null => {
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
 }
 
-/** Ses tanımanın “KAİS” adını yazdığı yaygın yanlışlar (Kayış, Kaiz, Kays, Kaes, Kay is, Ka is …). */
-const HEARD_AS_KAIS = /(?<![\p{L}\p{N}])(?:ka[iİıI][sSşŞzZ]|kay[iİıI][sSşŞzZ]|ka[eE][sSzZ]|kay[sSzZ]|ka[ -][iİıI][sSşŞ]|kay[ -][iİıI][sSşŞ])(?![\p{L}\p{N}])/giu
-/** Duyulan metindeki adın yanlış yazılışlarını “KAİS” yapar; asistan adını doğru görür. */
-export function normalizeKaisName(value: string): string {
-  return value.replace(HEARD_AS_KAIS, 'KAİS')
-}
-
-/** Ses tanımanın sık yanlış yazdığı ticaret/platform sözcükleri (Türkçe tanıyıcı İngilizce terimleri bozar). */
-const VOCABULARY: [RegExp, string][] = [
-  [/(?<![\p{L}\p{N}])(?:bit ?koyun|bit ?koin|bit ?koyn|bitkoin|bit coin)(?![\p{L}\p{N}])/giu, 'Bitcoin'],
-  [/(?<![\p{L}\p{N}])(?:eter ?yum|eteryum|eterium|etheryum|ether ?eum)(?![\p{L}\p{N}])/giu, 'Ethereum'],
-  [/(?<![\p{L}\p{N}])(?:stop ?los|stoplos|stop lost|stop ?loss)(?![\p{L}\p{N}])/giu, 'stop loss'],
-  [/(?<![\p{L}\p{N}])(?:teyk ?profit|tek ?profit|take ?profit|teyk ?prof[iı]t)(?![\p{L}\p{N}])/giu, 'take profit'],
-  [/(?<![\p{L}\p{N}])(?:master ?tre[iy]d|mastır ?tre[iy]d|mastir ?tre[iy]d|master ?trade)(?![\p{L}\p{N}])/giu, 'Master Trade'],
-  [/(?<![\p{L}\p{N}])(?:binans|baynıns|bayn[ae]ns|binance)(?![\p{L}\p{N}])/giu, 'Binance'],
-  [/(?<![\p{L}\p{N}])(?:bi ti si|bitisi|b t c)(?![\p{L}\p{N}])/giu, 'BTC'],
-]
-/** Ad ve sözlük düzeltmelerini birlikte uygular. */
-export function fixVoiceText(value: string): string {
-  return VOCABULARY.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), normalizeKaisName(value))
-}
+export {fixVoiceText, normalizeKaisName, pickAlternative, vocabularyHits} from './assistant-voice-text'
 /** Tek kelimelik “sus” komutları: Kais konuşurken bunlar duyulursa hemen susar. */
 export function isInterruptWord(value: string): boolean {
   const text = value.toLocaleLowerCase('tr').replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -168,7 +149,7 @@ const isKnownMale = (voice?: SpeechSynthesisVoice) => !!voice && /\b(male|erkek|
 export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
 /** Kullanıcı sustuktan sonra cümlenin bittiğini varsaymadan önce beklenen süre (duraksamada cümle kesilmesin). */
-const SILENCE_MS = 1300
+const SILENCE_MS = 2000
 const BARGE_GUARD_MS = 700
 const BARGE_MIN_WORDS = 2
 
@@ -325,7 +306,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     // konuşmanın İngilizce tanıyıcıyla anlamsız metne dönmesine yol açmasın. Diğer dillerde sohbet dili izlenir.
     instance.lang = tagRef.current.toLowerCase().startsWith('tr') ? tagRef.current : (conversationTag.current ?? tagRef.current)
     instance.interimResults = true
-    instance.maxAlternatives = 1
+    instance.maxAlternatives = 4  // bilinen terim (coin/gösterge) içeren alternatif varsa o seçilir (pickAlternative)
     // Masaüstünde kesintisiz dinleriz ve duraksamayı kendimiz bekleriz; telefonda tarayıcının kendi bitişi kullanılır.
     instance.continuous = bargeIn || !coarsePointer()
     const state = {instance, interrupted: false, retired: false, wordOnly: false}
@@ -337,7 +318,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     instance.onresult = event => {
       const rows = Array.from(event.results)
       if (!bargeIn) {
-        transcript = rows.map(result => result[0]?.transcript ?? '').join(' ').trim()
+        transcript = rows.map(result => pickAlternative(result)).join(' ').trim()
         setHeard(fixVoiceText(transcript))
         lastSpeech.current = Date.now()
         clearSilence()

@@ -108,12 +108,20 @@ VOICE_STYLE_TR = (
     "SESLİ SOHBET MODU: Cevabın yüksek sesle okunacak. Bir arkadaşla telefonda konuşur gibi, doğal ve sıcak bir "
     "konuşma diliyle cevap ver. Genelde 2-4 kısa cümle kullan; karmaşık bir soruda en fazla 5 cümleye çık. Emoji, madde işareti, başlık, tablo, kalın yazı, "
     "bağlantı ve kod kullanma. Sayıları okunması kolay yaz (ör. \"yaklaşık 3,4 dolar kâr\"). Gerekirse sonunda tek "
-    "kısa bir soru sor. Tüm güvenlik ve yatırım tavsiyesi kuralları aynen geçerlidir."
+    "kısa bir soru sor. Tüm güvenlik ve yatırım tavsiyesi kuralları aynen geçerlidir. "
+    "ANLAMA: Mesaj ses tanımayla yazıldığı için yanlış duyulmuş kelimeler içerebilir (ör. \"bit koyun\" = Bitcoin, \"eter yum\" = Ethereum, "
+    "\"ar es ay\" = RSI, \"stop los\" = stop loss, \"şort\" = short, \"kaldıraç\" yerine benzer sesli sözcükler). Önce kullanıcının "
+    "muhtemel niyetini bu platformun bağlamında (kripto, grafik, işlem, kredi, skor) çıkar ve doğrudan cevapla; sözcüğü düzeltmeyi anlatma. "
+    "Yalnız birden fazla makul anlam varsa veya hangi coin/işlem kastedildiği anlaşılmıyorsa tek kısa soruyla netleştir (ör. \"Bitcoin mi demek istedin?\"); "
+    "belirsiz bir isteği tahminle yanıtlama ve uydurma veri verme."
 )
 VOICE_STYLE_EN = (
     "VOICE CHAT MODE: Your reply will be read aloud. Answer in natural, warm spoken language, like talking to a friend "
     "on the phone. Usually use 2-4 short sentences; for a complex question use at most 5. No emojis, bullet points, headings, tables, bold text, links or code. "
-    "Write numbers so they are easy to say. You may end with one short question. All safety and no-investment-advice rules still apply."
+    "Write numbers so they are easy to say. You may end with one short question. All safety and no-investment-advice rules still apply. "
+    "UNDERSTANDING: The message came from speech recognition and may contain misheard words (e.g. \"bit coin\" variants, \"are ess eye\" = RSI, \"stop loss\" spelled oddly). "
+    "First infer the likely intent in this platform's context (crypto, charts, trades, credits, scores) and answer directly without explaining the correction. "
+    "Only if several plausible meanings remain, or it is unclear which coin or trade is meant, ask one short clarifying question; never answer an unclear request by guessing or invent data."
 )
 
 
