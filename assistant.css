@@ -140,6 +140,11 @@ body.site-copy-protected [data-assistant-chat] * { user-select: text; -webkit-us
 .assistantComposer footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--assistant-muted); font-size: 11px; }
 .assistantComposer footer small { font-size: inherit; }
 .assistantLauncher:focus-visible, .assistantDialog :is(button, textarea, input, a):focus-visible { outline: 2px solid var(--kais-accent, #23cbbd); outline-offset: 3px; }
+/* Üst menüdeki göz: yuvarlak odak çerçevesi yerine gözün kendi ışığı güçlenir (klavye odağı yine görünür, çerçeve yok). */
+#root .assistantLauncher:has(.kaisHeaderEye), #root .assistantLauncher:has(.kaisHeaderEye):is(:hover, :active, :focus, :focus-visible, [aria-expanded="true"]) {
+  outline: none !important; border-color: transparent !important; box-shadow: none !important; background: transparent !important;
+}
+.assistantLauncher:has(.kaisHeaderEye):focus-visible .kaisHeaderEye { filter: drop-shadow(0 0 7px var(--kais-glow, #4bf6df)) drop-shadow(0 0 2px var(--kais-glow, #4bf6df)); }
 .assistantDialog[data-motion-paused="true"] :is(.assistantTypingDots i, .assistantLayout) { animation: none; }
 .assistantLauncher[data-motion-paused="true"]::before { transition: none; }
 @keyframes assistant-pulse { 0%, 100% { transform: scale(.8); opacity: .5; } 50% { transform: scale(1.15); opacity: 1; } }

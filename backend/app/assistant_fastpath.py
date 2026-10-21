@@ -78,7 +78,8 @@ YES_NO_PARTICLES = {"mi", "mu"}
 EN_QUESTION_OPENERS = {"is", "are", "does", "do", "should", "can", "will", "would", "could"}
 MARKET_ASK = re.compile(
     r"\b(en cok (yukselen|artan|dusen|kaybeden)|en iyi (long|short)|en yuksek guven|guveni en yuksek|guven skoru en yuksek|en iyi firsat"
-    r"|top (gainer|loser)s?|best (long|short)|highest confidence)\b")
+    r"|en mantikli|en iyi coin|hangi coin (daha )?(iyi|mantikli)|en iyi (kripto|altcoin)"
+    r"|top (gainer|loser)s?|best (long|short)|highest confidence|best coin|which coin is (the )?best)\b")
 
 
 POSITION_READ_STEMS = ("durum", "goster", "listele")
@@ -121,11 +122,13 @@ def intent(message: str) -> str | None:
         return "support"
     if words & {"trade", "order", "execute", "arm", "consent", "emir", "islem", "buy", "sell"}:
         return None
+    # Piyasa özeti: yalnızca sembol içermeyen, evet/hayır olmayan, açık liste isteyen sorular (yalnız okuma).
+    # "en mantıklı coin" sorusu "mantık" eğitim kökünü içerdiği için piyasa sorusunda bu kök eğitim sayılmaz.
+    if (len(words) <= 12 and MARKET_ASK.search(normalized) and not is_action_or_educational({word for word in words if not word.startswith("mantik")})
+            and not analysis_targets(message)[0] and not words & YES_NO_PARTICLES
+            and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
+        return "get_market_overview"
     if len(words) <= 12 and not is_action_or_educational(words):
-        # Piyasa özeti: yalnızca sembol içermeyen, evet/hayır olmayan, açık liste isteyen sorular (yalnız okuma).
-        if (MARKET_ASK.search(normalized) and not analysis_targets(message)[0] and not words & YES_NO_PARTICLES
-                and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
-            return "get_market_overview"
         # Demo hesap pozisyonları / kâr-zarar: kişisel bir pozisyon ifadesi VE açık bir okuma ifadesi (durum/var mı/göster/kaç,
         # show/what/how many...) birlikte olmalı. Okuma ifadesi olmayan her cümle (bitir, durdur, stop, end...) modele gider.
         about_positions = (any(word.startswith(("pozisyonlarim", "pozisyonum", "islemlerim", "islemim")) for word in words)
@@ -231,6 +234,13 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
     if data.get("reason") == "PREMIUM_REQUIRED":
         return {**base, "stale": False, "reply": ("Piyasa özeti Master Mode (premium) üyelik gerektirir." if tr
                                                   else "The market overview requires a Master Mode (premium) membership.")}
+    usage = data.get("free_usage") or {}
+    if data.get("reason") == "FREE_DAILY_LIMIT":
+        return {**base, "stale": False, "reply": (f"Bugünkü {usage.get('daily_limit')} piyasa özeti hakkını kullandın; yarın yenilenir. Sınırsız kullanım için Master Mode (premium) üyeliğe geçebilirsin." if tr
+                                                  else f"You have used today's {usage.get('daily_limit')} market overviews; they renew tomorrow. Master Mode (premium) gives unlimited use.")}
+    if data.get("reason") == "CREDITS_EXHAUSTED":
+        return {**base, "stale": False, "reply": (f"Piyasa özeti {usage.get('cost')} kredi gerektiriyor ama şu an {usage.get('remaining_credits')} kredin var. Kredilerin yenilenince ya da Master Mode (premium) ile tekrar sorabilirsin." if tr
+                                                  else f"The market overview needs {usage.get('cost')} credits but you have {usage.get('remaining_credits')}. Ask again when your credits renew, or with Master Mode (premium).")}
     scan, movers = data.get("scan") or {}, data.get("movers") or {}
     focus = market_focus(message) or {"gainer", "long", "short", "confidence"}
     parts: list[str] = []
@@ -278,6 +288,10 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
             else:
                 parts.append("Tarama verisine şu an erişemedim; sıralama veremem." if tr else "I could not access the scan data right now, so I cannot rank anything.")
     suffix = " Bunlar analiz çıktısıdır, al/sat talimatı değildir." if tr else " These are analysis outputs, not trading instructions."
+    if usage:
+        left = max(0, int(usage.get("daily_limit") or 0) - int(usage.get("used_today") or 0))
+        suffix += (f" Bu cevap için {usage.get('cost')} kredi düştü; kalan kredin {usage.get('remaining_credits')}, bugün {left} piyasa özeti hakkın kaldı." if tr
+                   else f" This answer used {usage.get('cost')} credits; {usage.get('remaining_credits')} credits and {left} market overviews left today.")
     return {**base, "stale": unverified, "reply": ". ".join(parts) + ("" if parts[-1].endswith(".") else ".") + suffix}
 
 

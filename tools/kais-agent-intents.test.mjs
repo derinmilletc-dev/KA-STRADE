@@ -13,7 +13,19 @@ test('Page commands are understood with fillers, politeness and speech-recogniti
   ]) assert.equal(view(text), expected, text)
 })
 
+test('Joined, suffixed and synonym forms from speech recognition open the right page', () => {
+  for (const [text, expected] of [
+    ['Analist sayfasını açarmısın', 'analyst'], ['analiste götürür müsün', 'analyst'], ['analist sayfasına geçiş yap', 'analyst'],
+    ['analyst sayfasını açmanı istiyorum', 'analyst'], ['destek sayfasına gir', 'support'], ['ana sayfaya dön', 'dashboard'],
+    ['grafik sayfasını aç', 'master-trade'], ['profilimi aç', 'setup'], ['abonelik sayfasını aç', 'pricing'],
+    ['premium sayfasını aç', 'pricing'], ['ödeme sayfasını aç', 'billing'],
+  ]) assert.equal(view(text), expected, text)
+})
+
 test('Costly or unclear requests are not treated as page commands', () => {
+  assert.equal(view('acil durdurmayı aç'), null)
+  assert.equal(view('premium fiyatı ne kadar'), null)
+  assert.equal(view('işlem geçmişim nerede'), null)
   assert.equal(view('BTC analizi aç'), null)
   assert.equal(view('bugün hava nasıl'), null)
   assert.equal(view('riskim neden bu kadar yüksek bana uzun uzun açıklar mısın'), null)

@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice, type VoiceAnswer } from './assistant-voice'
-import KaisAgentHolo, {type HoloPortal} from './KaisAgentHolo'
+import KaisAgentHolo from './KaisAgentHolo'
+import KaisPupilDive, {pupilDiveOrigin, type PupilDive} from './KaisPupilDive'
 import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
@@ -193,7 +194,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     }, 500)
     return () => window.clearInterval(timer)
   }, [])
-  const [portal, setPortal] = useState<HoloPortal | null>(null)
+  // Sayfa açma geçişi: göz bebeğine dalış (yazılı ve sesli komutta aynı).
+  const [dive, setDive] = useState<PupilDive | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
@@ -389,7 +391,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       window.removeEventListener('resize', updateViewport)
       window.removeEventListener('scroll', updateViewport, true)
       element.close()
-      if (launcherRef.current?.isConnected) launcherRef.current.focus()
+      if (launcherRef.current?.isConnected) launcherRef.current.focus({focusVisible: false} as FocusOptions)  // fareyle kapatınca gözün etrafında odak halkası çıkmasın
       else if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
   }, [open])
@@ -521,11 +523,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
           window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0)
         }, 80)
       }
-      if (viaVoice) {
-        // Sesli komutta sayfa göz bebeğinden açılır; gerçek yönlendirme sahne D'de yapılır, sonra hologram kapanır.
-        setOpen(false); setHoloOpen(true)
-        setPortal({view: nav.view, label: nav.label, commit: go, done: () => { setPortal(null); setHoloOpen(false) }})
-      } else go()
+      // Sayfa göz bebeğinden açılır: göz bulunduğu yerden (hologram ya da üst menü) odaklanır, kamera göz bebeğine dalar,
+      // göz bebeği ekranı kapladığında gerçek yönlendirme yapılır, sonra göz bebeği açılarak yeni sayfa görünür.
+      const origin = pupilDiveOrigin(viaVoice && holoOpen ? document.querySelector('.kaisHolo .kaisHoloEye') : launcherRef.current?.querySelector('.kaisEye'))
+      setOpen(false)
+      setDive({view: nav.view, label: nav.label, origin,
+        commit: () => { go(); if (viaVoice) setHoloOpen(false) },
+        done: () => setDive(null)})
       return reply
     }
     // Sesle onay yoktur: bekleyen bir onay varken "evet/devam et" demek hiçbir şeyi onaylamaz, yalnızca ekrandaki düğmeye yönlendirir.
@@ -664,7 +668,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
-    {holoVisible && <KaisAgentHolo timing={timingLine} alarm={alarm} portal={portal} confirm={(() => {
+    {dive && <KaisPupilDive dive={dive}/>}
+    {holoVisible && <KaisAgentHolo timing={timingLine} alarm={alarm} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,

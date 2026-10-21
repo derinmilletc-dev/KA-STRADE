@@ -84,12 +84,14 @@ services:
         value: "20"
       - key: ASSISTANT_TRIAL_DAILY_LIMIT
         value: "5"
+      - key: ASSISTANT_FREE_MARKET_DAILY_LIMIT
+        value: "3"
       - key: ASSISTANT_MONTHLY_BUDGET_USD
         value: "50"
       - key: ASSISTANT_DEEP_MODEL
         value: "claude-opus-5-5"
       - key: ASSISTANT_DEEP_EFFORT
-        value: "high"
+        value: "medium"
       - key: ASSISTANT_DEEP_MAX_OUTPUT_TOKENS
         value: "4000"
       - key: ASSISTANT_DEEP_MAX_TOTAL_OUTPUT_TOKENS_PER_MESSAGE

@@ -57,14 +57,16 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
         for message in ("BTC analizini yorumla", "Why is ETH risky right now?", "iki senaryoyu karşılaştır", "x" * 200):
             with self.subTest(message=message[:30]):
                 self.assertTrue(needs_deep_reasoning(message))
-        for message in ("merhaba", "kredim ne kadar", "how do I connect my API key?"):
+        for message in ("merhaba", "kredim ne kadar", "how do I connect my API key?", "en mantıklı coin hangisi", "which one is cheaper"):
             with self.subTest(message=message):
                 self.assertFalse(needs_deep_reasoning(message))
 
     def test_request_effort_follows_question_and_config(self):
         config = AssistantConfig()
         self.assertEqual(build_request(config, "tr", ChatInput(message="merhaba")).effort, "low")
-        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "high")
+        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "medium")
+        high = AssistantConfig(deep_effort="high")
+        self.assertEqual(build_request(high, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "high")
         low = AssistantConfig(deep_effort="low")
         self.assertEqual(build_request(low, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "low")
 

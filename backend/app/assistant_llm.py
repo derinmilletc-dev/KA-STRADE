@@ -78,8 +78,9 @@ class LLMRequest:
 
 
 # Derin akıl yürütme gerektiren sorular: analiz, karşılaştırma, neden, risk, senaryo, çelişki. Diğerleri düşük seviyede kalır (maliyet/gecikme).
-DEEP_STEMS = ("analiz", "karsilastir", "neden", "niye", "risk", "senaryo", "celis", "yorumla", "degerlendir", "strateji", "hangisi", "mantikli",
-              "analy", "compar", "why", "scenario", "contradict", "interpret", "evaluate", "strateg", "which one", "makes sense")
+# Hız öncelikli: "hangisi / mantıklı" gibi gündelik seçim soruları hızlı modelde kalır (piyasa sıralaması zaten hızlı yoldan gelir).
+DEEP_STEMS = ("analiz", "karsilastir", "neden", "niye", "risk", "senaryo", "celis", "yorumla", "degerlendir", "strateji",
+              "analy", "compar", "why", "scenario", "contradict", "interpret", "evaluate", "strateg")
 
 
 def needs_deep_reasoning(message: str) -> bool:
@@ -293,6 +294,12 @@ async def run_conversation(
     count: Callable[[LLMRequest], Awaitable[int]],
 ) -> AssistantReply:
     request = build_request(config, language, payload)
+    context = getattr(tools, "account_context", None)
+    if context is not None:
+        # Premium/admin durumu sunucudan: model bunu tahmin etmez (ör. sınırsız üyeye "premium yok" demez).
+        account = context(user_id, language)
+        if isinstance(account, str) and account:
+            request.system.append({"type": "text", "text": account})
     results: dict[str, dict[str, Any]] = {}
     analyses: list[dict[str, Any]] = []
     total_input, total_output = 0, 0

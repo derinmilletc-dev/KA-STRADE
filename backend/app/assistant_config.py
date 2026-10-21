@@ -41,12 +41,14 @@ class AssistantConfig(BaseSettings):
     per_minute_limit: int = Field(default=6, gt=0)
     daily_limit: int = Field(default=20, gt=0)
     trial_daily_limit: int = Field(default=5, gt=0)
+    # Premium olmayan üyeye asistanda piyasa özeti ("en iyi coin/long/short") günde en fazla bu kadar, her seferinde analiz kredisi düşerek. 0 = yalnız premium.
+    free_market_daily_limit: int = Field(default=3, ge=0)
     monthly_budget_usd: Decimal = Field(default=Decimal(50), ge=0, allow_inf_nan=False)
     max_output_tokens: int = Field(default=1200, gt=0)
     # Analiz/karşılaştırma gibi derin akıl yürütme isteyen sorularda kullanılan model ve düşünme seviyesi;
     # diğer sorular `model` ile "low" seviyede kalır. deep_model boş bırakılırsa her soru `model` ile cevaplanır.
     deep_model: str = Field(default="claude-opus-5-5")
-    deep_effort: Literal["low", "medium", "high"] = "high"
+    deep_effort: Literal["low", "medium", "high"] = "medium"
     deep_max_output_tokens: int = Field(default=4000, gt=0)
     deep_max_total_output_tokens_per_message: int = Field(default=10000, gt=0)
     deep_input_price_usd_per_million: Decimal = Field(default=Decimal("4"), ge=0, allow_inf_nan=False)
