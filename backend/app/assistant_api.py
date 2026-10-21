@@ -240,11 +240,13 @@ class AssistantService:
                     estimated = True
                     answer = replace(answer, input_tokens=request.estimated_input(), output_tokens=request.max_tokens,
                                      cache_creation_input_tokens=0, cache_read_input_tokens=0)
-                input_price = max(config.input_price_usd_per_million, config.cache_write_price_usd_per_million, config.cache_read_price_usd_per_million) if estimated else config.input_price_usd_per_million
+                # Bütçe, isteğin gerçekten kullandığı modelin fiyatıyla hesaplanır (Opus derin sorular, Haiku diğerleri).
+                in_price, out_price, write_price, read_price = config.prices_for(request.model or config.model)
+                input_price = max(in_price, write_price, read_price) if estimated else in_price
                 cost = ((answer.input_tokens or 0) * input_price
-                        + (answer.output_tokens or 0) * config.output_price_usd_per_million
-                        + (answer.cache_creation_input_tokens or 0) * config.cache_write_price_usd_per_million
-                        + (answer.cache_read_input_tokens or 0) * config.cache_read_price_usd_per_million) / TOKENS_PER_MILLION
+                        + (answer.output_tokens or 0) * out_price
+                        + (answer.cache_creation_input_tokens or 0) * write_price
+                        + (answer.cache_read_input_tokens or 0) * read_price) / TOKENS_PER_MILLION
                 total = spent + cost
                 warn = not warned and total >= config.monthly_budget_usd * config.budget_warning_fraction
                 await transaction.execute(

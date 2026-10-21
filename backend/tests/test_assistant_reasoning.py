@@ -64,9 +64,38 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
     def test_request_effort_follows_question_and_config(self):
         config = AssistantConfig()
         self.assertEqual(build_request(config, "tr", ChatInput(message="merhaba")).effort, "low")
-        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "medium")
+        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "high")
         low = AssistantConfig(deep_effort="low")
         self.assertEqual(build_request(low, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "low")
+
+    def test_hard_questions_route_to_deep_model_and_simple_ones_stay_on_base_model(self):
+        config = AssistantConfig()
+        simple = build_request(config, "tr", ChatInput(message="merhaba"))
+        deep = build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir"))
+        self.assertEqual((simple.model, simple.deep, simple.max_tokens), ("claude-haiku-5-5", False, config.max_output_tokens))
+        self.assertEqual((deep.model, deep.deep, deep.max_tokens), ("claude-opus-5-5", True, config.deep_max_output_tokens))
+        single = AssistantConfig(deep_model="")
+        self.assertEqual(build_request(single, "tr", ChatInput(message="BTC için riskleri değerlendir")).model, "claude-haiku-5-5")
+
+    def test_cost_uses_prices_of_the_model_actually_called(self):
+        config = AssistantConfig()
+        self.assertEqual(config.prices_for("claude-haiku-5-5")[1], config.output_price_usd_per_million)
+        self.assertEqual(config.prices_for("claude-opus-5-5"), (
+            config.deep_input_price_usd_per_million, config.deep_output_price_usd_per_million,
+            config.deep_cache_write_price_usd_per_million, config.deep_cache_read_price_usd_per_million))
+
+    async def test_conversation_loop_keeps_deep_model_and_effort_on_every_call(self):
+        from app.assistant_llm import run_conversation
+        from app.assistant_models import ModelAnswer
+        config = AssistantConfig()
+        seen = []
+
+        async def paid(request, first):
+            seen.append((request.model, request.effort, request.max_tokens))
+            return ModelAnswer("Değerlendirme hazır.", 10, 10, 0, 0, ())
+
+        await run_conversation(config, "tr", ChatInput(message="BTC için riskleri değerlendir"), "u", None, paid, AsyncMock(return_value=10))
+        self.assertEqual(seen, [("claude-opus-5-5", "high", config.deep_max_output_tokens)])
 
     def test_history_is_passed_in_order_with_current_message_last(self):
         payload = ChatInput(message="peki ya ETH?", history=[{"role": "user", "content": "BTC nasıl?"}, {"role": "assistant", "content": "Doğrulanamadı."}])

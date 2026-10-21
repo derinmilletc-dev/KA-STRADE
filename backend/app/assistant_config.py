@@ -43,8 +43,16 @@ class AssistantConfig(BaseSettings):
     trial_daily_limit: int = Field(default=5, gt=0)
     monthly_budget_usd: Decimal = Field(default=Decimal(50), ge=0, allow_inf_nan=False)
     max_output_tokens: int = Field(default=1200, gt=0)
-    # Analiz/karşılaştırma gibi derin akıl yürütme isteyen sorularda kullanılan düşünme seviyesi; diğer sorularda "low".
-    deep_effort: Literal["low", "medium"] = "medium"
+    # Analiz/karşılaştırma gibi derin akıl yürütme isteyen sorularda kullanılan model ve düşünme seviyesi;
+    # diğer sorular `model` ile "low" seviyede kalır. deep_model boş bırakılırsa her soru `model` ile cevaplanır.
+    deep_model: str = Field(default="claude-opus-5-5")
+    deep_effort: Literal["low", "medium", "high"] = "high"
+    deep_max_output_tokens: int = Field(default=4000, gt=0)
+    deep_max_total_output_tokens_per_message: int = Field(default=10000, gt=0)
+    deep_input_price_usd_per_million: Decimal = Field(default=Decimal("4"), ge=0, allow_inf_nan=False)
+    deep_output_price_usd_per_million: Decimal = Field(default=Decimal("20"), ge=0, allow_inf_nan=False)
+    deep_cache_write_price_usd_per_million: Decimal = Field(default=Decimal("5"), ge=0, allow_inf_nan=False)
+    deep_cache_read_price_usd_per_million: Decimal = Field(default=Decimal("0.20"), ge=0, allow_inf_nan=False)
     max_llm_calls_per_message: int = Field(default=3, gt=0, le=3)
     max_total_input_tokens_per_message: int = Field(default=40000, gt=0)
     max_total_output_tokens_per_message: int = Field(default=3600, gt=0)
@@ -61,6 +69,23 @@ class AssistantConfig(BaseSettings):
         if isinstance(value, str):
             return value.strip()
         return value
+
+    def model_for(self, deep: bool) -> str:
+        return self.deep_model if deep and self.deep_model else self.model
+
+    def max_output_for(self, deep: bool) -> int:
+        return self.deep_max_output_tokens if deep and self.deep_model else self.max_output_tokens
+
+    def max_total_output_for(self, deep: bool) -> int:
+        return self.deep_max_total_output_tokens_per_message if deep and self.deep_model else self.max_total_output_tokens_per_message
+
+    def prices_for(self, model: str) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        """(input, output, cache_write, cache_read) USD per million tokens for the model actually used."""
+        if self.deep_model and model == self.deep_model:
+            return (self.deep_input_price_usd_per_million, self.deep_output_price_usd_per_million,
+                    self.deep_cache_write_price_usd_per_million, self.deep_cache_read_price_usd_per_million)
+        return (self.input_price_usd_per_million, self.output_price_usd_per_million,
+                self.cache_write_price_usd_per_million, self.cache_read_price_usd_per_million)
 
     @property
     def available(self) -> bool:
