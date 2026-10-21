@@ -89,23 +89,31 @@ test('Mouse and touch pointermove are RAF-throttled, clipped and bounded to 7 un
   await expect(eye).toHaveAttribute('data-look-y', '0')
 })
 
-for (const [random, interval] of [[0, 9000], [1, 11000]]) {
-  test(`First blink at 3 seconds, then ${interval}ms boundary with 200ms scaleY and glow dimming`, async ({page}) => {
+// Kırpma artık düzensizdir (planBlink); Math.random sabitlenince plan belirlenir: 0 → ilk kırpma 1,2 sn, ardından 180 ms sonra
+// ikinci (çift) kırpma ve 7,5 sn ara; 1 → ilk kırpma 4 sn, tek kırpma ve 6,2 sn ara. Kırpma 150 ms sürer ve üst üste binmez.
+for (const [random, first, double, next] of [[0, 1200, true, 7500], [1, 4000, false, 6200]] as const) {
+  test(`Irregular blink plan (random=${random}): first at ${first}ms, ${double ? 'a quick double blink' : 'a single blink'}, next after ${next}ms; 150ms scaleY with glow dimming`, async ({page}) => {
     await clock(page, random)
     await openHeader(page)
     const eye = page.locator('.assistantLauncher .kaisHeaderEye')
-    await page.clock.runFor(2999)
+    await page.clock.runFor(first - 1)
     await expect(eye).not.toHaveClass(/kaisEyeBlink/)
     await page.clock.runFor(2)
     await expect(eye).toHaveClass(/kaisEyeBlink/)
     await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-name', 'kais-eye-blink')
-    await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.2s')
+    await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.15s')
     await expect(eye.locator('.cyberEyeGlow')).toHaveCSS('animation-name', 'kais-header-glow-blink')
-    await page.clock.runFor(200)
+    await page.clock.runFor(150)
     await expect(eye).not.toHaveClass(/kaisEyeBlink/)
-    await page.clock.runFor(interval - 202)
+    if (double) {
+      await page.clock.runFor(180)
+      await expect(eye).toHaveClass(/kaisEyeBlink/)
+      await page.clock.runFor(150)
+      await expect(eye).not.toHaveClass(/kaisEyeBlink/)
+      await page.clock.runFor(next - 150 - 180 - 150 - 2)
+    } else await page.clock.runFor(next - 150 - 2)
     await expect(eye).not.toHaveClass(/kaisEyeBlink/)
-    await page.clock.runFor(2)
+    await page.clock.runFor(4)
     await expect(eye).toHaveClass(/kaisEyeBlink/)
   })
 }
