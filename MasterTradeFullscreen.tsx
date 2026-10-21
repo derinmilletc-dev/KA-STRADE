@@ -20,6 +20,27 @@ export function useLandscapeFullscreen(escapeGuard: () => boolean) {
   return {state, open: () => void controller.open(), close: controller.close}
 }
 
+/**
+ * Tam ekran/uyarı açıkken arkadaki sayfa klavye odağı alamasın: seçilen öğenin atalarındaki tüm kardeşler `inert` olur,
+ * kapanınca yalnız bizim eklediklerimiz geri alınır. `selector` null ise hiçbir şey yapılmaz.
+ */
+export function useIsolatedFocus(selector: string | null) {
+  useEffect(() => {
+    if (!selector) return
+    const target = document.querySelector(selector)
+    if (!target) return
+    const changed: Element[] = []
+    for (let node: Element | null = target; node && node !== document.body; node = node.parentElement) {
+      for (const sibling of Array.from(node.parentElement?.children ?? [])) {
+        if (sibling === node || sibling.hasAttribute('inert') || ['SCRIPT', 'STYLE', 'LINK'].includes(sibling.tagName)) continue
+        sibling.setAttribute('inert', '')
+        changed.push(sibling)
+      }
+    }
+    return () => changed.forEach(element => element.removeAttribute('inert'))
+  }, [selector])
+}
+
 /** Dikey modda gösterilen "telefonu yan çevir" uyarısı. İptal her zaman çıkış sağlar. */
 export function RotateOverlay({onCancel, canAutoRotate}: {onCancel: () => void; canAutoRotate: boolean}) {
   const cancel = useRef<HTMLButtonElement>(null)

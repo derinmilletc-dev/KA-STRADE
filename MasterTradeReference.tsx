@@ -14,7 +14,7 @@ import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
-import {AnalysisDrawer, RotateOverlay, useLandscapeFullscreen} from './MasterTradeFullscreen'
+import {AnalysisDrawer, RotateOverlay, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
 // Sonra yüklenmeli: yatay tam ekran kuralları mobil kuralların üstüne yazar.
@@ -316,6 +316,7 @@ export default function MasterTradeReference(props: Props) {
   const fullscreen = useLandscapeFullscreen(() => drawerOpen || drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open]') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
+  useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
   const entryButton = useRef<HTMLButtonElement>(null)
   const exitButton = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)

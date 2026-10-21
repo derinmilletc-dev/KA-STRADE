@@ -10,10 +10,14 @@ const entry = (page: Page) => root(page).getByRole('button', {name: 'Landscape f
 const terminal = (page: Page) => root(page).locator('.refChart[data-fs="on"]')
 const overlay = (page: Page) => page.getByRole('dialog', {name: 'Turn your phone sideways'})
 const drawer = (page: Page) => page.locator('#kfsAnalysisDrawer')
+// Sabit zaman: canlı mum mesajı, fixture'daki son mumla aynı zamana yazılabilsin.
+const FIXED_NOW = Date.now()
+const LAST_CANDLE_TIME = Math.floor(FIXED_NOW / 1000)
 
 type Support = 'full' | 'none'
+const liveClose = 85999.99
 
-async function prepare(page: Page, options: {support?: Support; landscape?: boolean} = {}) {
+async function prepare(page: Page, options: {support?: Support; landscape?: boolean; liveFeed?: boolean} = {}) {
   const support = options.support ?? 'full'
   // Fullscreen ve ekran yönü kilidi sahte API ile gözlenir; 'none' tarayıcıda hiç desteklenmediği durumu taklit eder.
   await page.addInitScript(mode => {
@@ -34,10 +38,32 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
   }, support)
   await page.setViewportSize(options.landscape ? {width: 844, height: 390} : {width: 390, height: 844})
   await page.route('https://**', route => route.abort())
-  await page.routeWebSocket('wss://**', socket => socket.close())
-  await page.route('**/api/**', route => route.fulfill({status: 501, json: {detail: 'Offline API fixture missing'}}))
+  // routeWebSocket kendi WebSocket sarmalayıcısını kurar ve sahte yayını ezer; canlı yayın testinde kullanılmaz.
+  if (!options.liveFeed) await page.routeWebSocket('wss://**', socket => socket.close())
   await page.emulateMedia({reducedMotion: 'reduce'})
   await mockAssistant(page)
+  // mockAssistant da routeWebSocket kurar; sahte yayın onun sarmalayıcısından SONRA yüklenmeli.
+  if (options.liveFeed) {
+    // Sahte canlı mum yayını (yalnız okunur veri): son mumun kapanışını periyodik olarak günceller.
+    await page.addInitScript(({time, close}) => {
+      class FakeSocket {
+        readyState = 0; onopen: (() => void) | null = null; onmessage: ((event: {data: string}) => void) | null = null; onclose: (() => void) | null = null; onerror: (() => void) | null = null
+        private timer: ReturnType<typeof setInterval> | undefined
+        constructor() {
+          setTimeout(() => {
+            this.readyState = 1; this.onopen?.()
+            const send = () => this.onmessage?.({data: JSON.stringify({k: {s: 'BTCUSDT', i: '15m', t: time * 1000, o: '85300', h: '86000', l: '85200', c: String(close), v: '999'}})})
+            send(); this.timer = setInterval(send, 300)
+          }, 50)
+        }
+        close() { this.readyState = 3; clearInterval(this.timer); this.onclose?.() }
+        send() {}
+        addEventListener() {}
+        removeEventListener() {}
+      }
+      ;(window as unknown as {WebSocket: unknown}).WebSocket = FakeSocket
+    }, {time: LAST_CANDLE_TIME, close: liveClose})
+  }
   const user = {id: 'landscape-member', email: 'member@example.test', display_name: 'Landscape Member', role: 'OWNER', active: true, email_verified: true}
   await page.route('**/api/v22/{profile,session}', route => route.fulfill({json: {user, access: {canAccessMasterTrade: true, isPremium: true}}}))
   const live = {
@@ -50,7 +76,7 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
   await page.route('**/api/markets**', route => route.fulfill({json: previewMarkets}))
   await page.route('**/api/analysis-universe**', route => route.fulfill({json: {results: previewMarkets.map((market, index) => ({...market, direction: 'LONG', confidence: 94 - index, final_decision_score: 94 - index, smart_score: 94 - index}))}}))
   await page.route('**/api/analysis/**', route => route.fulfill({json: previewAnalysis(new URL(route.request().url()).pathname.split('/').pop())}))
-  await page.route('**/api/klines/**', route => route.fulfill({json: previewCandles(new URL(route.request().url()).pathname.split('/').pop(), Date.now())}))
+  await page.route('**/api/klines/**', route => route.fulfill({json: previewCandles(new URL(route.request().url()).pathname.split('/').pop(), FIXED_NOW)}))
   const requests: string[] = []
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(`${request.method()} ${new URL(request.url()).pathname}`) })
   await page.goto('/master-trade?tab=analiz', {waitUntil: 'domcontentloaded'})
@@ -61,6 +87,7 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
 
 const fsCalls = (page: Page) => page.evaluate(() => (window as unknown as {__fs: {request: number; exit: number; lock: string[]; unlock: number}}).__fs)
 const pageIsRestored = async (page: Page) => {
+  await expect(page.locator('[inert]')).toHaveCount(0)
   await expect(terminal(page)).toHaveCount(0)
   await expect(overlay(page)).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.classList.contains('kaisChartFullscreen') || document.body.classList.contains('kaisChartFullscreen'))).toBe(false)
@@ -292,4 +319,113 @@ test('Desktop layout keeps its toolbar unchanged (no fullscreen button for mouse
   await expect(entry(page)).toBeHidden()
   await expect(root(page).locator('.refToolbar')).toBeVisible()
   await context.close()
+})
+
+test('Zoom, drawings and timeframe stay on the same chart instance through enter, use and exit, with no orders', async ({page}) => {
+  const {requests} = await prepare(page, {landscape: true})
+  const before = requests.length
+  const svg = root(page).locator('svg[data-chart-ai-capture="reference"]')
+  await root(page).locator('.refZoomTools button').nth(1).click() // yakınlaştır
+  const zoomedCandles = await root(page).locator('.refCandle').count()
+  await root(page).locator('.refDrawingTools button').nth(1).click() // yatay çizgi
+  await svg.click({position: {x: 200, y: 120}})
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1)
+  await svg.evaluate(element => { (window as unknown as {__chartNode: Element}).__chartNode = element })
+  const sameNode = () => page.evaluate(() => document.querySelector('.masterReferenceAnalysis svg[data-chart-ai-capture="reference"]') === (window as unknown as {__chartNode: Element}).__chartNode)
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  expect(await sameNode()).toBe(true) // aynı DOM düğümü: yeniden kurulmadı
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1)
+  expect(await root(page).locator('.refCandle').count()).toBeLessThanOrEqual(zoomedCandles + 20) // yakınlaştırma korunur (genişlik artınca biraz fazla mum sığabilir)
+  // Zaman dilimi seçici yatay çubukta çalışır ve çıkıştan sonra da seçili kalır.
+  const klines = page.waitForRequest(request => request.url().includes('/api/klines/BTCUSDT') && request.url().includes('5m'))
+  await terminal(page).locator('.refToolbar select').selectOption('5m')
+  await klines
+  await expect(svg).toBeVisible()
+  await svg.evaluate(element => { (window as unknown as {__chartNode: Element}).__chartNode = element }) // yeniden etiketle: zaman dilimi değişince veri yüklenirken çizim alanı zaten yenilenir (mevcut davranış)
+  await terminal(page).getByRole('button', {name: 'Analysis', exact: true}).click()
+  await expect(drawer(page)).toBeVisible()
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  await expect(root(page).locator('.refToolbar select')).toHaveValue('5m')
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1)
+  expect(await sameNode()).toBe(true)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Live candle updates keep flowing into the fullscreen price and chart', async ({page}) => {
+  await prepare(page, {landscape: true, liveFeed: true})
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  await expect(terminal(page).locator('.kfsIdent strong')).toHaveText('$85,999.99', {timeout: 8000})
+  await expect(terminal(page).locator('.refOhlc')).toContainText('$85,999.99')
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  await expect(root(page).locator('.refOhlc')).toContainText('$85,999.99')
+})
+
+test('Keyboard focus stays inside the fullscreen layer and the overlay', async ({page}) => {
+  await prepare(page, {landscape: true})
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  for (let step = 0; step < 14; step += 1) {
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest('.refChart[data-fs="on"]')) || document.activeElement === document.body)).toBe(true)
+  }
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  await page.setViewportSize({width: 390, height: 844})
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  for (let step = 0; step < 5; step += 1) {
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest('.kfsOverlay')) || document.activeElement === document.body)).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await pageIsRestored(page)
+})
+
+test('Escape closes an open chart menu first and only then leaves fullscreen', async ({page}) => {
+  await prepare(page, {landscape: true})
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  await terminal(page).locator('.refIndicators summary').click()
+  await expect(terminal(page).locator('.refIndicators')).toHaveAttribute('open', '')
+  await page.keyboard.press('Escape')
+  await expect(terminal(page).locator('.refIndicators')).not.toHaveAttribute('open', '')
+  await expect(terminal(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await pageIsRestored(page)
+})
+
+test('Back from the rotation overlay, and exiting, always leave the page scrollable again', async ({page}) => {
+  await prepare(page)
+  const url = page.url()
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.goBack()
+  await pageIsRestored(page)
+  expect(page.url()).toBe(url)
+  await page.evaluate(() => window.scrollTo(0, 120))
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0) // gerçekten kaydırılabiliyor
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await entry(page).click()
+  await page.setViewportSize({width: 844, height: 390})
+  await expect(terminal(page)).toBeVisible()
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  await page.setViewportSize({width: 390, height: 844})
+  await page.evaluate(() => window.scrollTo(0, 120))
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+})
+
+test('In normal portrait the added button keeps the drawing-tools row on one line (page does not shift)', async ({page}) => {
+  await prepare(page)
+  const row = page.locator('.masterReferenceAnalysis .refToolbar > .refDrawingTools')
+  const rowBox = (await row.boundingBox())!
+  const buttons = await row.locator(':scope > button, :scope > details').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return {y: Math.round(r.y), h: Math.round(r.height), w: Math.round(r.width)} }))
+  expect(buttons.length).toBe(9)
+  expect(rowBox.height).toBeLessThanOrEqual(40)
+  expect(new Set(buttons.map(button => button.y)).size).toBe(1)
+  expect(Math.min(...buttons.map(button => button.w))).toBeGreaterThanOrEqual(34)
 })

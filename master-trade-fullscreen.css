@@ -13,6 +13,11 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refDrawingTools .refFullscreenBtn { display: none !important; }
 }
 
+/* Dar ekranda araç satırı 8 sütunluk ızgara; dokuzuncu düğme ikinci satıra taşmasın diye yalnız normal düzende 9 sütun. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]) .refToolbar > .refDrawingTools:has(> .refFullscreenBtn) { grid-template-columns: repeat(9, minmax(0, 1fr)) !important; }
+}
+
 /* ---------- Dönme uyarısı ---------- */
 .masterReferenceAnalysis .kfsOverlay {
   position: fixed; inset: 0; z-index: 2147483001; display: grid; place-items: center;
