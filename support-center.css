@@ -40,3 +40,13 @@
   #root .scFaq article > p { padding-left: 18px; }
   #root .scCard > section { padding: 16px; border-radius: 18px; }
 }
+
+/* Destek sayfası sadeleştirme: bölümlerin dış çerçeveleri kaldırıldı, başlıklar
+   içerikten ayrıldı, kart çizgileri yumuşatıldı. Mobil kendi kurallarıyla aynı kalır. */
+#root main.v26App .scWrap > section.scBlock { border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
+#root main.v26App .scWrap { gap: 36px; }
+#root main.v26App .scWrap .scBlock { gap: 16px; }
+#root main.v26App .scWrap .scBlock > h3 { padding-bottom: 2px; }
+#root main.v26App .scWrap .scContact > .scNote { margin: -8px 0 4px; }
+#root main.v26App .scWrap :is(.scHero, .scSearch, .scCats button, .scQuick article, .scFaq article, .scEmpty, .scCard > section, #support-card *):not(:focus):not(:focus-within) { border-color: rgba(255,255,255,.06) !important; }
+#root main.v26App .scWrap :is(.scQuick article, .scFaq article, .scCard > section, .scEmpty) { box-shadow: none !important; }
