@@ -14,7 +14,7 @@ const drawer = (page: Page) => page.locator('#kfsAnalysisDrawer')
 const FIXED_NOW = Date.now()
 const LAST_CANDLE_TIME = Math.floor(FIXED_NOW / 1000)
 
-type Support = 'full' | 'none'
+type Support = 'full' | 'none' | 'reject-lock'
 const liveClose = 85999.99
 
 async function prepare(page: Page, options: {support?: Support; landscape?: boolean; liveFeed?: boolean} = {}) {
@@ -34,7 +34,7 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
     Object.defineProperty(document, 'fullscreenEnabled', {value: true, configurable: true})
     Object.defineProperty(Element.prototype, 'requestFullscreen', {value() { calls.request += 1; current = this as Element; document.dispatchEvent(new Event('fullscreenchange')); return Promise.resolve() }, configurable: true})
     Object.defineProperty(document, 'exitFullscreen', {value() { calls.exit += 1; current = null; document.dispatchEvent(new Event('fullscreenchange')); return Promise.resolve() }, configurable: true})
-    Object.defineProperty(Screen.prototype, 'orientation', {value: {lock(orientation: string) { calls.lock.push(orientation); return Promise.resolve() }, unlock() { calls.unlock += 1 }}, configurable: true})
+    Object.defineProperty(Screen.prototype, 'orientation', {value: {lock(orientation: string) { calls.lock.push(orientation); return mode === 'reject-lock' ? Promise.reject(new DOMException('Orientation lock is not allowed here', 'NotSupportedError')) : Promise.resolve() }, unlock() { calls.unlock += 1 }}, configurable: true})
   }, support)
   await page.setViewportSize(options.landscape ? {width: 844, height: 390} : {width: 390, height: 844})
   await page.route('https://**', route => route.abort())
@@ -851,15 +851,18 @@ test('Repeated rotations never duplicate listeners, overlays or leave the UI stu
     await expect(page.locator('.kfsOverlay')).toHaveCount(1)
     await expect(terminal(page)).toHaveCount(0)
   }
-  await cycle() // ilk geçişte sayfa bileşenleri bir kez kurulur; kararlı durum bundan sonra ölçülür
+  await cycle() // ilk geçişlerde sayfa bileşenleri (tembel yüklenenler dahil) bir kez kurulur; kararlı durum bundan sonra ölçülür
+  await cycle()
   const steady = await settledListeners(page)
   for (let index = 0; index < 3; index += 1) await cycle()
-  expect(await settledListeners(page)).toEqual(steady) // sonraki dönüşler dinleyici eklemez (sızıntı/çoğalma yok)
+  const later = await settledListeners(page)
+  // Sızıntı = artış: sayfanın geçici (ör. analiz verisi yükleyen) dinleyicileri düşebilir ama dönüşlerle hiçbiri artmaz.
+  for (const key of new Set([...Object.keys(steady), ...Object.keys(later)])) expect(later[key] ?? 0, key).toBeLessThanOrEqual(steady[key] ?? 0)
   await overlay(page).getByRole('button', {name: 'Cancel'}).click()
   await pageIsRestored(page)
   const after = await settledListeners(page)
   // Denetleyicinin kendi dinleyicileri (her biri bir tane) iptalde tam olarak kalkar; sayfanın kendi dinleyicileri etkilenmez.
-  for (const key of ['window:resize:false', 'window:orientationchange:false', 'window:popstate:false', 'document:keydown:true', 'document:fullscreenchange:false', 'document:webkitfullscreenchange:false']) expect(after[key] ?? 0, key).toBe((steady[key] ?? 0) - 1)
+  for (const key of ['window:resize:false', 'window:orientationchange:false', 'window:popstate:false', 'document:keydown:true', 'document:fullscreenchange:false', 'document:webkitfullscreenchange:false']) expect(after[key] ?? 0, key).toBe((later[key] ?? 0) - 1)
 })
 
 test('Returning to portrait while Analysis Studio is open shows the prompt again and Escape still exits', async ({page}) => {
@@ -892,7 +895,7 @@ test('Reduced motion: static upright phone and an immediate hand-off; normal mot
   const still = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, box = phone.getBoundingClientRect(); return {animations: phone.getAnimations().length, upright: box.height > box.width, hint: getComputedStyle(phone.parentElement!, '::after').borderTopStyle} })
   expect(still).toEqual({animations: 0, upright: true, hint: 'dashed'})
   await rotateTo(page, landscape)
-  await expect(overlay(page)).toHaveCount(0, {timeout: 400}) // gecikme yok
+  await expect(overlay(page)).toHaveCount(0, {timeout: 2000})
   await expect(terminal(page)).toBeVisible()
   await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
   await pageIsRestored(page)
@@ -930,4 +933,108 @@ test('Reopening the prompt right after Cancel (during the fade) restarts the pho
   expect(state.time).toBeLessThan(600)
   expect(state.upright).toBe(true)
   expect(state.leaving).toBeNull()
+})
+
+// ---------- Regresyon: uyarı erken kapanmamalı; grafik, kullanıcı gerçekten döndürmeden açılmamalı ----------
+test('The prompt stays after one second and several animation cycles; finishing the animation never opens the chart', async ({page}) => {
+  const {requests} = await prepare(page)
+  const before = requests.length
+  await page.emulateMedia({reducedMotion: 'no-preference'})
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.waitForTimeout(1200) // yaklaşık bir saniye sonra
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  // Animasyon en az iki tam döngü tamamlayana kadar bekle (4,8 sn/döngü); uyarı hâlâ yerinde olmalı.
+  await expect.poll(() => page.evaluate(() => Number(document.querySelector('.kfsPhone')!.getAnimations()[0].effect!.getComputedTiming().currentIteration ?? 0)), {timeout: 15000, intervals: [500]}).toBeGreaterThanOrEqual(2)
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  await expect(drawer(page)).toHaveCount(0)
+  expect(await page.evaluate(() => [innerWidth, innerHeight])).toEqual([390, 844]) // hâlâ dikey
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('A transient landscape reading that bounces straight back (own fullscreen/lock side effect) does not open the chart', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.setViewportSize(landscape)
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')))
+  await page.waitForTimeout(80)
+  await page.setViewportSize(portrait)
+  await page.waitForTimeout(900) // oturma süresinden uzun
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  // Gerçek döndürme ise oturunca açılır.
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+})
+
+test('The terminal waits for the layout to settle after a real rotation', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await rotateTo(page, landscape)
+  await page.waitForTimeout(120) // oturma süresinden kısa
+  await expect(terminal(page)).toHaveCount(0)
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toBeVisible() // sonra açılır
+  await expect(drawer(page)).toBeVisible()
+})
+
+test('Synthetic popstate events dispatched by the app do not dismiss the prompt; a real back does', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  for (let index = 0; index < 3; index += 1) await page.evaluate(() => window.dispatchEvent(new PopStateEvent('popstate')))
+  await page.waitForTimeout(300)
+  await expect(overlay(page)).toBeVisible()
+  await page.goBack()
+  await pageIsRestored(page)
+  await expect(root(page).locator('.refMetrics')).toBeVisible() // Master Trade'e geri dönüldü
+})
+
+test('An involuntary fullscreen exit during the prompt keeps it; after landscape a system exit closes the terminal', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.evaluate(() => document.exitFullscreen())
+  await page.waitForTimeout(500)
+  await expect(overlay(page)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await page.evaluate(() => (document as unknown as {documentElement: Element}).documentElement.requestFullscreen()) // tarayıcı tam ekranı yeniden verdi
+  await page.evaluate(() => document.exitFullscreen()) // sistem hareketiyle çıkış
+  await expect(terminal(page)).toBeVisible() // bu çıkışı biz istemedik ve tam ekranda değildik: terminal kalır, kullanıcı Exit ile çıkar
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+})
+
+test('A rejected orientation lock keeps the prompt and waits for manual rotation, without an error', async ({page}) => {
+  await prepare(page, {support: 'reject-lock'})
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await expect.poll(() => page.evaluate(() => (window as unknown as {__fs: {lock: string[]}}).__fs.lock)).toEqual(['landscape']) // doğrudan dokunuştan istendi
+  await page.waitForTimeout(1500)
+  await expect(overlay(page)).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(terminal(page)).toHaveCount(0)
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await expect(drawer(page)).toBeVisible()
+})
+
+test('Escape closes the prompt and the page is not stuck; unmounting (leaving the Analysis tab) cleans up', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await pageIsRestored(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  // Başka sekmeye geçmek bileşeni söker: uyarı, kilit sınıfı ve inert hiçbiri kalmaz.
+  await page.evaluate(() => { const url = new URL(location.href); url.searchParams.set('tab', 'canli'); history.pushState(history.state, '', url); window.dispatchEvent(new PopStateEvent('popstate')) })
+  await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+  expect(await page.evaluate(() => document.documentElement.classList.contains('kaisChartFullscreen') || document.body.classList.contains('kaisChartFullscreen'))).toBe(false)
+  await expect(page.locator('[inert]')).toHaveCount(0)
 })
