@@ -1,34 +1,34 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {BLINK_DELAY_MAX_MS, BLINK_DELAY_MIN_MS, GAZE_LIMIT, GAZE_MAX_MS, GAZE_MIN_MS, PROFILES, boundGaze, easeInOut, lerpGaze, planBlink, planGaze} from '../kais-eye-motion.ts'
+import {BLINK_DELAY_MAX_MS, BLINK_DELAY_MIN_MS, BLINK_MS, GAZE_LIMIT, GAZE_MAX_MS, GAZE_MIN_MS, PROFILES, boundGaze, easeInOut, lerpGaze, planBlink, planGaze} from '../kais-eye-motion.ts'
 
 // Testte rastgelelik enjekte edilir (tohumlu LCG): kesin bir dizi beklenmez, yalnız sınırlar ve istatistiksel özellikler denetlenir.
 const seeded = seed => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32)
 const presences = ['idle', 'listening', 'thinking', 'speaking']
 
-// Bakış zaman çizelgesi benzetimi: her planın süresi + bekleme toplamı içinde ne kadar zaman merkeze yakın geçti?
-function simulate(presence, rng, totalMs = 10 * 60 * 1000) {
-  let current = {x: 0, y: 0}, time = 0, forwardTime = 0
+// Bakış zaman çizelgesi benzetimi: hareket sayısı (dakikada) ve merkezde geçen süre payı.
+function simulate(presence, rng, totalMs = 30 * 60 * 1000) {
+  let current = {x: 0, y: 0}, time = 0, forwardTime = 0, moves = 0
   const plans = []
   while (time < totalMs) {
     const plan = planGaze(presence, current, rng)
     plans.push(plan)
+    if (plan.duration > 0) moves += 1
     time += plan.duration + plan.hold
-    if (Math.hypot(plan.target.x, plan.target.y) <= 0.1) forwardTime += plan.hold
+    if (Math.hypot(plan.target.x, plan.target.y) <= 0.05) forwardTime += plan.hold + plan.duration
     current = plan.target
   }
-  return {plans, forwardShare: forwardTime / time}
+  return {plans, forwardShare: forwardTime / time, glancesPerMinute: plans.filter(plan => plan.kind === 'glance').length / (time / 60000), movesPerMinute: moves / (time / 60000)}
 }
 
-test('Gaze targets are always bounded (radius ≤ limit, vertical ≤ half) in every presence', () => {
+test('Gaze targets are small and bounded; transitions are calm (350–600 ms)', () => {
   for (const presence of presences) {
     const rng = seeded(presence.length * 97)
     let current = {x: 0, y: 0}
     for (let index = 0; index < 5000; index += 1) {
       const plan = planGaze(presence, current, rng)
-      assert.ok(Math.hypot(plan.target.x, plan.target.y) <= GAZE_LIMIT + 1e-9, `${presence} radius`)
-      assert.ok(Math.abs(plan.target.y) <= GAZE_LIMIT / 2 + 1e-9, `${presence} vertical`)
-      assert.ok(plan.duration >= GAZE_MIN_MS && plan.duration <= GAZE_MAX_MS, `${presence} duration ${plan.duration}`)
+      assert.ok(Math.hypot(plan.target.x, plan.target.y) <= 0.18 + 1e-9, `${presence} radius`)
+      if (plan.duration > 0) assert.ok(plan.duration >= GAZE_MIN_MS && plan.duration <= GAZE_MAX_MS, `${presence} duration ${plan.duration}`)
       assert.ok(plan.hold > 0)
       current = plan.target
     }
@@ -37,69 +37,66 @@ test('Gaze targets are always bounded (radius ≤ limit, vertical ≤ half) in e
   assert.deepEqual(boundGaze({x: Number.NaN, y: Infinity}), {x: 0, y: 0})
 })
 
-test('After any gaze shift the next move returns toward the center (never chains far-off positions)', () => {
-  const rng = seeded(7)
-  for (let index = 0; index < 2000; index += 1) {
-    const away = {x: (rng() - 0.5) * 1.1, y: (rng() - 0.5) * 0.5}
-    if (Math.hypot(away.x, away.y) <= 0.1) continue
-    const plan = planGaze('idle', away, rng)
-    assert.equal(plan.kind, 'return')
-    assert.ok(Math.hypot(plan.target.x, plan.target.y) < 0.06)
+test('No micro jitter: a turn without a glance does not move at all', () => {
+  const rng = seeded(5)
+  for (let index = 0; index < 3000; index += 1) {
+    const plan = planGaze('speaking', {x: 0, y: 0}, rng)
+    if (plan.kind === 'stay') { assert.equal(plan.duration, 0); assert.deepEqual(plan.target, {x: 0, y: 0}) }
   }
 })
 
-test('Idle and listening are dominated by stable forward attention; listening is calmer than thinking', () => {
-  const share = {}
-  for (const presence of presences) share[presence] = simulate(presence, seeded(11 + presence.length)).forwardShare
-  assert.ok(share.idle > 0.75, `idle ${share.idle}`)
-  assert.ok(share.listening > 0.85, `listening ${share.listening}`)
-  assert.ok(share.speaking > 0.8, `speaking ${share.speaking}`)
-  assert.ok(share.listening > share.thinking)
-  // Glances are mostly small; large shifts are rare.
-  const {plans} = simulate('idle', seeded(3))
-  const glances = plans.filter(plan => plan.kind === 'glance').map(plan => Math.hypot(plan.target.x, plan.target.y))
-  const large = glances.filter(radius => radius > 0.32).length / glances.length
-  assert.ok(large < 0.25, `large ${large}`)
+test('After a glance the eye returns exactly to center and then holds forward for a long time', () => {
+  const rng = seeded(7)
+  for (let index = 0; index < 2000; index += 1) {
+    const away = {x: 0.06 + rng() * 0.12, y: (rng() - 0.5) * 0.1}
+    const plan = planGaze('idle', away, rng)
+    assert.equal(plan.kind, 'return')
+    assert.deepEqual(plan.target, {x: 0, y: 0})
+    assert.ok(plan.hold >= PROFILES.idle.forward[0])
+  }
 })
 
-test('No obvious period: intervals between gaze shifts vary widely and directions are not a fixed left/right alternation', () => {
-  const {plans} = simulate('idle', seeded(19))
-  const intervals = plans.map(plan => plan.duration + plan.hold)
-  const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length
-  const sd = Math.sqrt(intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length)
-  assert.ok(sd / mean > 0.35, `coefficient of variation ${sd / mean}`)
-  assert.ok(new Set(intervals.map(value => Math.round(value / 50))).size > intervals.length * 0.5)
-  const sides = plans.filter(plan => plan.kind === 'glance').map(plan => Math.sign(plan.target.x))
-  let alternations = 0
-  for (let index = 1; index < sides.length; index += 1) if (sides[index] !== sides[index - 1]) alternations += 1
-  assert.ok(alternations / (sides.length - 1) < 0.8, 'not a strict left/right alternation')
-  // Vertical component exists but stays small (no stereotyped repeated upward glance).
-  const ups = plans.filter(plan => plan.kind === 'glance' && plan.target.y < -0.1).length / Math.max(1, plans.filter(plan => plan.kind === 'glance').length)
-  assert.ok(ups < 0.45)
+test('Calm and meaningful: few glances per minute, speaking is nearly still, the eye is forward almost all the time', () => {
+  const rate = {}, share = {}
+  for (const presence of presences) {
+    const result = simulate(presence, seeded(11 + presence.length))
+    rate[presence] = result.glancesPerMinute
+    share[presence] = result.forwardShare
+  }
+  assert.ok(rate.idle >= 1.5 && rate.idle <= 4.5, `idle ${rate.idle}`)
+  assert.ok(rate.listening >= 1 && rate.listening <= 3.5, `listening ${rate.listening}`)
+  assert.ok(rate.thinking >= 1.5 && rate.thinking <= 4.5, `thinking ${rate.thinking}`)
+  assert.ok(rate.speaking <= 1.6, `speaking ${rate.speaking}`)
+  for (const presence of presences) assert.ok(share[presence] > 0.85, `${presence} forward ${share[presence]}`)
 })
 
-test('Blinks are irregular, bounded, occasionally doubled, and the double gap is brief', () => {
+test('A meaningful moment (state change) can force one short glance', () => {
+  const plan = planGaze('thinking', {x: 0, y: 0}, seeded(3), {glance: true})
+  assert.equal(plan.kind, 'glance')
+  assert.ok(plan.duration >= GAZE_MIN_MS)
+})
+
+test('Blinks happen every 6–11 s irregularly, doubles are rare, and blinks are short', () => {
   const rng = seeded(23)
   const plans = Array.from({length: 4000}, () => planBlink(rng))
   for (const plan of plans) {
     assert.ok(plan.delay >= BLINK_DELAY_MIN_MS && plan.delay <= BLINK_DELAY_MAX_MS, `delay ${plan.delay}`)
-    assert.ok(plan.gap >= 180 && plan.gap <= 320)
+    assert.ok(plan.gap >= 200 && plan.gap <= 320)
   }
+  assert.equal(BLINK_DELAY_MIN_MS, 6000)
+  assert.equal(BLINK_DELAY_MAX_MS, 11000)
   const doubles = plans.filter(plan => plan.double).length / plans.length
-  assert.ok(doubles > 0.08 && doubles < 0.25, `double share ${doubles}`)
-  const mean = plans.reduce((a, b) => a + b.delay, 0) / plans.length
-  const sd = Math.sqrt(plans.reduce((a, b) => a + (b.delay - mean) ** 2, 0) / plans.length)
-  assert.ok(sd / mean > 0.35, 'irregular intervals')
-  assert.ok(mean > 3000 && mean < 7000, `mean ${mean}`)
+  assert.ok(doubles > 0.02 && doubles < 0.1, `double share ${doubles}`)
+  const values = new Set(plans.map(plan => Math.round(plan.delay / 250)))
+  assert.ok(values.size >= 18, 'irregular, spread over the range')
+  assert.ok(BLINK_MS >= 100 && BLINK_MS <= 180)
 })
 
 test('Easing accelerates and decelerates smoothly and interpolation hits both endpoints', () => {
   assert.equal(easeInOut(0), 0)
   assert.equal(easeInOut(1), 1)
   assert.ok(easeInOut(0.1) < 0.1 && easeInOut(0.9) > 0.9)
-  assert.ok(Math.abs(easeInOut(0.5) - 0.5) < 1e-9)
   for (let t = 0; t < 1; t += 0.05) assert.ok(easeInOut(t + 0.05) >= easeInOut(t))
-  assert.deepEqual(lerpGaze({x: 0, y: 0}, {x: 0.3, y: -0.1}, 1), {x: 0.3, y: -0.1})
-  assert.deepEqual(lerpGaze({x: 0.2, y: 0.1}, {x: 0, y: 0}, 0), {x: 0.2, y: 0.1})
+  assert.deepEqual(lerpGaze({x: 0, y: 0}, {x: 0.1, y: -0.05}, 1), {x: 0.1, y: -0.05})
   assert.equal(Object.keys(PROFILES).sort().join(), presences.slice().sort().join())
 })

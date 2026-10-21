@@ -5,9 +5,6 @@ import {getKaisPrivacy, useKaisPrivacy} from '../../useKaisPrivacy'
 import {isKaisReaction, KAIS_REACTION_EVENT, type KaisReaction} from '../../kais-reactions'
 import {BLINK_MS, lerpGaze, planBlink, planGaze, type EyePresence, type GazePoint} from '../../kais-eye-motion'
 
-/** İlk kırpma için kısa, değişken bir başlangıç aralığı (ms). Sonraki kırpmalar planBlink ile düzensizdir. */
-export const FIRST_BLINK_MIN_MS = 1200
-export const FIRST_BLINK_MAX_MS = 4000
 export const BLINK_DURATION_MS = BLINK_MS
 
 type Point = {x: number; y: number}
@@ -16,6 +13,7 @@ const randomDelay = (min: number, max: number) => min + Math.random() * (max - m
 
 export function useHeaderKaisEye(requestedState: KaisEyeState, presenceOverride?: EyePresence) {
   const eyeRef = useRef<SVGSVGElement>(null)
+  const lastPresence = useRef<EyePresence | null>(null)
   const gazeRef = useRef<SVGGElement>(null)
   const paused = useAssistantMotion()
   const privateArea = useKaisPrivacy()
@@ -118,7 +116,7 @@ export function useHeaderKaisEye(requestedState: KaisEyeState, presenceOverride?
       inactivityTimer = schedule(watchInactivity, Math.max(1, (sleepy ? 180000 : 60000) - elapsed))
     }
     const activity = () => {
-      if (!mayInteract() || state !== 'idle') return
+      if (!mayInteract() || state !== 'idle' || presence !== 'idle') return
       lastActivity = performance.now()
       if (!sleepy && !drowsy) return
       sleepy = false; drowsy = false
@@ -187,21 +185,23 @@ export function useHeaderKaisEye(requestedState: KaisEyeState, presenceOverride?
       const from = readGaze()
       const start = performance.now()
       gaze.style.transition = 'none' // CSS geçişi kare kare yazımla çakışmasın
-      const step = (now: number) => {
+      // Süre kare zaman damgasından değil performance.now()'dan ölçülür: farklı zaman tabanı/eksik damga bakışı yarı yolda bırakmasın.
+      const step = () => {
         gazeFrame = undefined
         if (stopped || !mayInteract()) { gaze.style.transition = ''; return }
-        const t = Math.min(1, (now - start) / duration)
+        const t = Math.min(1, (performance.now() - start) / duration)
         paint(lerpGaze(from, to, t))
         if (t < 1) gazeFrame = window.requestAnimationFrame(step)
         else { gaze.style.transition = ''; done() }
       }
       gazeFrame = window.requestAnimationFrame(step)
     }
-    const look = () => {
+    const look = (glanceNow = false) => {
       gazeTimer = undefined
       // İşaretçi, yönlendirilmiş tepki veya üzerine gelme sürüyorsa bakışa karışılmaz; kısa süre sonra yeniden denenir.
       if (hovered || drowsy || directed || !mayInteract() || performance.now() - lastPointer < 1200) { gazeTimer = schedule(look, 900 + Math.random() * 1600); return }
-      const plan = planGaze(presence, readGaze(), Math.random)
+      const plan = planGaze(presence, readGaze(), Math.random, {glance: glanceNow})
+      if (plan.duration <= 0) { gazeTimer = schedule(look, plan.hold); return } // yerinde kal: hiç kare çizilmez
       glide(plan.target, plan.duration, () => { gazeTimer = schedule(look, plan.hold) })
     }
     const react = (event: CustomEvent<KaisReaction>) => {
@@ -224,10 +224,17 @@ export function useHeaderKaisEye(requestedState: KaisEyeState, presenceOverride?
         directed = false; setReaction('none')
       }, detail.type === 'unread' ? 1200 : detail.type === 'error' ? 600 : 650)
     }
-    if (state === 'idle') inactivityTimer = schedule(watchInactivity, 60000)
+    // Uyku/uyuşukluk yalnız gerçek boşta: konuşan asistan dinlerken/düşünürken/konuşurken göz yarı kapanmaz.
+    if (state === 'idle' && presence === 'idle') inactivityTimer = schedule(watchInactivity, 60000)
     // Kırpma ve otonom bakış hareketli her durumda (boşta/dinliyor/düşünüyor/konuşuyor) çalışır; tek döngü, efekt temizlenince durur.
-    schedule(blink, randomDelay(FIRST_BLINK_MIN_MS, FIRST_BLINK_MAX_MS))
-    gazeTimer = schedule(look, randomDelay(1200, 3200))
+    schedule(blink, planBlink(Math.random).delay)
+    // Yerinde ve zamanında: düşünmeye geçerken bir kez kısa bir bakış; bakış kenardaysa sakin dönüş; aksi hâlde uzun süre öne sabit.
+    const previous = lastPresence.current
+    lastPresence.current = presence
+    const off = Math.hypot(readGaze().x, readGaze().y) > 0.05
+    if (presence === 'thinking' && previous !== null && previous !== 'thinking') gazeTimer = schedule(() => look(true), randomDelay(450, 900))
+    else if (off) gazeTimer = schedule(look, randomDelay(250, 600))
+    else gazeTimer = schedule(look, randomDelay(4000, 9000))
     window.addEventListener('pointermove', move, {passive: true})
     window.addEventListener('pointerdown', touch, {passive: true})
     window.addEventListener('pointerout', out, {passive: true})

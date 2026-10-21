@@ -1,39 +1,39 @@
 // Kais gözü için prosedürel bakış ve göz kırpma planlayıcısı (saf fonksiyonlar; React/DOM bağımsız, testte rastgelelik enjekte edilir).
-// Amaç: sabit aralıklı sağ-sol döngüsü yerine çoğunlukla öne bakan, ara sıra küçük ve değişken bakış kaymaları ile düzensiz kırpmalar.
+// Amaç: az ama yerinde hareket. Göz çoğunlukla öne sabit bakar; dakikada yalnız birkaç küçük, yavaş bakış ve 6–11 sn'de bir düzensiz kırpma.
+// Rastgele mikro kıpırdama yoktur: hareket etmeyen turlar gerçekten durağandır.
 
 export type EyePresence = 'idle' | 'listening' | 'thinking' | 'speaking'
 export type Rng = () => number
 export type GazePoint = {x: number; y: number}
-export type GazePlan = {target: GazePoint; duration: number; hold: number; kind: 'return' | 'glance' | 'drift'}
+export type GazePlan = {target: GazePoint; duration: number; hold: number; kind: 'return' | 'glance' | 'stay'}
 export type BlinkPlan = {delay: number; double: boolean; gap: number}
 
 /** Otonom bakışın çıkabileceği en büyük normalize yarıçap (işaretçi takibi 1'e kadar gidebilir). */
-export const GAZE_LIMIT = 0.55
-/** Bakış kayması süresi sınırları (ms): mesafeye göre 180–500. */
-export const GAZE_MIN_MS = 180
-export const GAZE_MAX_MS = 500
+export const GAZE_LIMIT = 0.3
+/** Bakış kayması süresi sınırları (ms): sakin, yumuşak geçiş (mesafeye göre 350–600). */
+export const GAZE_MIN_MS = 350
+export const GAZE_MAX_MS = 600
 /** Kırpma süresi (ms): kısa ve yumuşak. */
-export const BLINK_MS = 150
-export const BLINK_DELAY_MIN_MS = 1800
-export const BLINK_DELAY_MAX_MS = 12000
+export const BLINK_MS = 170
+/** Kırpma aralığı: 6–11 sn, düzensiz. */
+export const BLINK_DELAY_MIN_MS = 6000
+export const BLINK_DELAY_MAX_MS = 11000
 
 type Profile = {
-  /** Merkezdeyken kısa bir bakış kayması yapma olasılığı (aksi hâlde neredeyse durağan mikro kayma). */
+  /** Öne bakış turunun sonunda kısa bir bakış yapma olasılığı (aksi hâlde göz yerinde kalır). */
   glance: number
-  /** Öne bakışın sürdüğü aralık (ms). */
+  /** Öne sabit bakışın sürdüğü aralık (ms). */
   forward: [number, number]
   /** Kaymadan sonra o noktada kalma aralığı (ms). */
   glanceHold: [number, number]
-  /** Nadiren daha büyük kayma olasılığı. */
-  large: number
 }
 
-// Dinlerken sakin ve dikkatli; düşünürken biraz daha sık ama kısa; konuşurken çoğunlukla öne.
+// Hedef: boşta dakikada ~2–4, dinlerken ~2, düşünürken ~3, konuşurken ~1 küçük bakış. Konuşurken göz öne sabittir.
 export const PROFILES: Record<EyePresence, Profile> = {
-  idle: {glance: 0.45, forward: [2200, 8500], glanceHold: [450, 1500], large: 0.12},
-  listening: {glance: 0.28, forward: [3000, 9500], glanceHold: [350, 1000], large: 0.05},
-  thinking: {glance: 0.55, forward: [1500, 5000], glanceHold: [400, 1100], large: 0.1},
-  speaking: {glance: 0.35, forward: [2000, 7000], glanceHold: [350, 1000], large: 0.06},
+  idle: {glance: 0.6, forward: [8000, 16000], glanceHold: [700, 1400]},
+  listening: {glance: 0.45, forward: [9000, 16000], glanceHold: [600, 1100]},
+  thinking: {glance: 0.55, forward: [6000, 12000], glanceHold: [700, 1300]},
+  speaking: {glance: 0.22, forward: [10000, 18000], glanceHold: [500, 900]},
 }
 
 const between = (rng: Rng, [min, max]: [number, number]) => min + rng() * (max - min)
@@ -48,36 +48,43 @@ export function boundGaze({x, y}: GazePoint): GazePoint {
 
 /** Mesafeye bağlı, biraz da rastgele süre (ms): kısa kaymalar hızlı, uzunlar biraz daha yavaş. */
 export function gazeDuration(distance: number, rng: Rng): number {
-  const base = GAZE_MIN_MS + Math.min(1, distance / GAZE_LIMIT) * (GAZE_MAX_MS - GAZE_MIN_MS) * 0.8
+  const base = GAZE_MIN_MS + Math.min(1, distance / 0.2) * (GAZE_MAX_MS - GAZE_MIN_MS) * 0.75
   return Math.round(Math.min(GAZE_MAX_MS, Math.max(GAZE_MIN_MS, base + (rng() - 0.5) * 80)))
 }
 
-/** Bir sonraki bakış: merkezden uzaktaysa doğal dönüş; merkezdeyse ya kısa bir kayma ya da çok küçük bir mikro kayma. */
-export function planGaze(presence: EyePresence, current: GazePoint, rng: Rng): GazePlan {
-  const profile = PROFILES[presence]
-  if (magnitude(current) > 0.1) {
-    // Merkeze tam değil, yakına döner (her seferinde aynı noktaya oturmaz).
-    const target = boundGaze({x: (rng() - 0.5) * 0.06, y: (rng() - 0.5) * 0.03})
-    return {target, duration: gazeDuration(magnitude(current), rng), hold: Math.round(between(rng, profile.forward)), kind: 'return'}
-  }
-  if (rng() < profile.glance) {
-    const large = rng() < profile.large
-    const radius = large ? 0.32 + rng() * (GAZE_LIMIT - 0.32) : 0.12 + rng() * 0.16
-    // Yön: çoğunlukla yatay, biraz dikey; düşünürken yukarı bakma klişesine özel ağırlık verilmez.
-    const angle = rng() * Math.PI * 2
-    const target = boundGaze({x: current.x + Math.cos(angle) * radius, y: current.y + Math.sin(angle) * radius * 0.45})
-    return {target, duration: gazeDuration(magnitude({x: target.x - current.x, y: target.y - current.y}), rng), hold: Math.round(between(rng, profile.glanceHold)), kind: 'glance'}
-  }
-  const target = boundGaze({x: current.x * 0.5 + (rng() - 0.5) * 0.05, y: current.y * 0.5 + (rng() - 0.5) * 0.025})
-  return {target, duration: Math.round(between(rng, [260, 480])), hold: Math.round(between(rng, profile.forward)), kind: 'drift'}
+/** Küçük bir bakış hedefi: 0,08–0,18 yarıçap, çoğunlukla yatay (dikey bileşen basık ama hedef her zaman en az 0,08 uzakta). */
+function glanceTarget(rng: Rng): GazePoint {
+  const radius = 0.08 + rng() * 0.1
+  const angle = rng() * Math.PI * 2
+  const point = {x: Math.cos(angle) * radius, y: Math.sin(angle) * radius * 0.4}
+  const length = Math.hypot(point.x, point.y)
+  return boundGaze({x: point.x / length * radius, y: point.y / length * radius})
 }
 
-/** Düzensiz kırpma: çoğunlukla 2,5–6 sn, bazen hızlı ardışık (çift) kırpma, bazen uzun ara. */
+/**
+ * Bir sonraki bakış: merkezden uzaktaysa sakin bir dönüş; merkezdeyse ya kısa bir bakış ya da tamamen yerinde kalma.
+ * `glance: true` durum değişimi gibi anlamlı anlarda kısa bir bakışı zorlar.
+ */
+export function planGaze(presence: EyePresence, current: GazePoint, rng: Rng, options: {glance?: boolean} = {}): GazePlan {
+  const profile = PROFILES[presence]
+  // Merkezde değilse (bir bakışın ya da kesilen bir geçişin ardından) her zaman sakin dönüş: göz kenarda takılı kalmaz.
+  if (magnitude(current) > 0.001) {
+    return {target: {x: 0, y: 0}, duration: gazeDuration(magnitude(current), rng), hold: Math.round(between(rng, profile.forward)), kind: 'return'}
+  }
+  if (options.glance || rng() < profile.glance) {
+    const target = glanceTarget(rng)
+    return {target, duration: gazeDuration(magnitude(target), rng), hold: Math.round(between(rng, profile.glanceHold)), kind: 'glance'}
+  }
+  // Yerinde kal: hiçbir hareket yok (mikro kıpırdama göz yorucu ve "robotik" görünüyordu).
+  return {target: current, duration: 0, hold: Math.round(between(rng, profile.forward)), kind: 'stay'}
+}
+
+/** Düzensiz kırpma: 6–11 sn aralık (eşit olmayan dağılım), çok nadiren hızlı çift kırpma. */
 export function planBlink(rng: Rng): BlinkPlan {
-  const roll = rng()
-  const delay = roll < 0.12 ? between(rng, [7500, BLINK_DELAY_MAX_MS]) : roll < 0.3 ? between(rng, [BLINK_DELAY_MIN_MS, 2800]) : between(rng, [2800, 6200])
-  const double = rng() < 0.16
-  return {delay: Math.round(delay), double, gap: Math.round(between(rng, [180, 320]))}
+  // İki rastgele değerin ortalaması: uçlardan çok ortalara yakın ama yine de düzensiz aralıklar.
+  const spread = (rng() + rng()) / 2
+  const delay = BLINK_DELAY_MIN_MS + spread * (BLINK_DELAY_MAX_MS - BLINK_DELAY_MIN_MS)
+  return {delay: Math.round(delay), double: rng() < 0.06, gap: Math.round(between(rng, [200, 320]))}
 }
 
 /** Yumuşak hızlanma ve yavaşlama. */
