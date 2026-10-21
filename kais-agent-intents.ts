@@ -9,14 +9,16 @@ const PAGES: {view: AgentView; names: string[]; label: {tr: string; en: string}}
   {view: 'performance', names: ['performans', 'performance'], label: {tr: 'Performans', en: 'Performance'}},
   {view: 'risk', names: ['risk'], label: {tr: 'Risk', en: 'Risk'}},
   {view: 'trading', names: ['islem sayfa', 'islemler', 'trading'], label: {tr: 'İşlem', en: 'Trading'}},
-  {view: 'support', names: ['destek', 'support'], label: {tr: 'Destek', en: 'Support'}},
+  {view: 'support', names: ['destek', 'yardim', 'support'], label: {tr: 'Destek', en: 'Support'}},
   {view: 'setup', names: ['ayarlar', 'kurulum', 'settings'], label: {tr: 'Ayarlar', en: 'Settings'}},
   {view: 'ops', names: ['operasyon', 'operations'], label: {tr: 'Operasyon', en: 'Operations'}},
   {view: 'pricing', names: ['paketler', 'fiyatlar', 'planlar', 'pricing'], label: {tr: 'Paketler', en: 'Plans'}},
   {view: 'billing', names: ['fatura', 'billing'], label: {tr: 'Fatura', en: 'Billing'}},
-  {view: 'dashboard', names: ['ana sayfa', 'anasayfa', 'ana ekran', 'home', 'dashboard'], label: {tr: 'Ana sayfa', en: 'Home'}},
+  {view: 'dashboard', names: ['ana sayfa', 'anasayfa', 'ana ekran', 'ana menu', 'kontrol paneli', 'home', 'dashboard'], label: {tr: 'Ana sayfa', en: 'Home'}},
 ]
-const VERB = /\b(ac|acar misin|acsana|acabilir misin|git|gotur|goster|gec|getir|open|go to|show|take me)\b/
+const VERB = /\b(ac|aciver|acar misin|acar misiniz|acsana|acsin|acalim|acin|acabilir misin|acabilir misiniz|git|gidelim|gidebilir misin|gotur|goster|gosterir misin|gorelim|goruntule|gec|gecelim|gecer misin|getir|yonlendir|open|go to|show|take me)\b/
+/** Komut sayısını şişiren dolgu sözcükleri (ses tanıma "bana analist sayfasını bir açar mısın lütfen" gibi uzun yazar). */
+const FILLER = /\b(lutfen|bana|kais|kays|hemen|simdi|bir|su|bu|artik|abi|kanka|ya|hey|rica|ederim|tesekkurler|sayin|bakalim|mi|mu|misin|misiniz)\b/g
 
 const fold = (value: string) => value.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -32,13 +34,15 @@ const TABS: {tab: MasterTab; re: RegExp; label: {tr: string; en: string}}[] = [
 /** "analist aç", "master'a git", "open scanner" → hedef sayfa. Emin değilse null (mesaj normal şekilde modele gider). */
 export function parseNavigation(message: string, language: 'tr' | 'en'): {view: AgentView; label: string; tab?: MasterTab} | null {
   const text = fold(message)
-  if (!text || text.split(' ').length > 8 || !VERB.test(text)) return null
+  // Sözcük sınırı dolgu sözcükleri çıkarılmadan sayılır; fiil kalıpları ("acar misin") özgün metinde aranır.
+  const core = text.replace(FILLER, ' ').replace(/\s+/g, ' ').trim()
+  if (!text || text.split(' ').length > 10 || !VERB.test(text)) return null
   // Master Trade sekmesi: yalnızca "master" geçiyorsa (ör. "master trade pozisyonlar sekmesini aç").
   if (/\bmaster/.test(text)) {
     const tab = TABS.find(item => item.re.test(text))
     if (tab) return {view: 'master-trade', label: tab.label[language], tab: tab.tab}
   }
-  if (text.split(' ').length > 6) return null
+  if (core.split(' ').length > 6) return null
   // Para harcayan/belirsiz istekler (ör. "BTC analizi aç") sayfa komutu sayılmaz; "analiz sayfasını aç" ise sayfa komutudur (Analist).
   if (/\banaliz/.test(text)) {
     if (/\b(sayfa|ekran|bolum|page|screen)/.test(text) && !/\b(btc|eth|sol|bnb|xrp|doge|ada|avax)\b/.test(text)) return {view: 'analyst', label: language === 'en' ? 'Analyst' : 'Analist'}

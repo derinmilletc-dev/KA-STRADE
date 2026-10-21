@@ -14,7 +14,7 @@ import './kais-agent-holo.css'
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
 export type HoloPortal = {view: string; label: string; commit: () => void; done: () => void}
-type Props = {timing?: string; alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; userText?: string; liveText?: string; interruptLabel?: string; onInterrupt?: () => void; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {timing?: string; alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; interruptLabel?: string; onInterrupt?: () => void; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -55,7 +55,7 @@ function useRings(phase: HoloPhase, paused: boolean, refs: React.RefObject<SVGGE
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, status, userText, liveText, interruptLabel, onInterrupt, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
+export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, status, interruptLabel, onInterrupt, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -183,8 +183,6 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     {actions.length > 0 && <div className="kaisHoloChips">{actions.slice(-4).map((action, index) => <span key={`${action}-${index}`} className="kaisHoloChip">▸ {action}</span>)}</div>}
     <p className="kaisHoloStatus" data-error={phase === 'error'}>{status}</p>
     {slow && phase === 'thinking' && <p className="kaisHoloSlow">{slowText}</p>}
-    {phase === 'listening' && liveText && <p className="kaisHoloUser kaisHoloLive" aria-live="off">“{liveText}”</p>}
-    {userText && phase !== 'error' && !(phase === 'listening' && liveText) && <p className="kaisHoloUser">“{userText}”</p>}
     {replyText && phase === 'speaking' && <p className="kaisHoloReply">{replyText}</p>}
     {confirm && <div className="kaisHoloConfirm" role="group" aria-label={confirm.title}><b>{confirm.title}</b><small>{confirm.detail}</small>
       <div><button type="button" className="ok" disabled={confirm.busy} onClick={confirm.onConfirm}>{confirm.confirmLabel}</button><button type="button" disabled={confirm.busy} onClick={confirm.onCancel}>{confirm.cancelLabel}</button></div></div>}

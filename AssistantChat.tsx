@@ -670,8 +670,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
         onConfirm: () => void confirm(pending), onCancel: () => { decide(pending.id, 'cancelled'); setIssue(null) }}
     })()} phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
-      status={voice.message ? `${voice.message}${issue ? ` (${copy[issue.kind as keyof typeof copy] as string}${issue.status ? ` · ${issue.status}` : ''})` : ''}` : phaseLabel} userText={[...messages].reverse().find(row => row.role === 'user')?.content}
-      liveText={voice.heard} interruptLabel={voice.copy.interrupt} onInterrupt={voice.interrupt}
+      status={voice.message ? `${voice.message}${issue ? ` (${copy[issue.kind as keyof typeof copy] as string}${issue.status ? ` · ${issue.status}` : ''})` : ''}` : phaseLabel} 
+      interruptLabel={voice.copy.interrupt} onInterrupt={voice.interrupt}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
       onOpenChat={() => { setHoloOpen(false); openChat() }}
