@@ -795,8 +795,8 @@ test('Analysis Studio is the prominent first row of the chart card, above the to
   expect(placement.height).toBeGreaterThanOrEqual(44)
   expect(Math.abs(placement.left - placement.right)).toBeLessThanOrEqual(1) // ortalı, tam genişlik
   expect(placement.left).toBeLessThanOrEqual(16)
-  expect(placement.background).toBe('rgb(169, 212, 255)') // belirgin buz mavisi dolgu
-  expect(placement.color).toBe('rgb(7, 17, 31)')
+  expect(placement.background).toBe('rgb(10, 18, 31)') // koyu zemin, gradyan çerçeve (::before) ile belirgin
+  expect(placement.color).toBe('rgb(234, 244, 255)')
   await button.tap()
   await expect(overlay(page)).toBeVisible()
   await expect(overlay(page).getByText(studioText)).toBeVisible()
