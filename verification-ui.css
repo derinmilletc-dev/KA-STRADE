@@ -24,6 +24,8 @@
 .verificationFlow .verificationPrimary:hover:not(:disabled),.accountDialog .verificationFlow .verificationPrimary:hover:not(:disabled){background:var(--verification-green);filter:brightness(.95)}
 .verificationQR{display:inline-flex;padding:16px;margin:4px auto 16px;background:white;border:1px solid var(--verification-green);border-radius:12px}
 .verificationQR svg{display:block}
+/* .accountSettings svg (ikon boyutu 16px) QR kodunu da küçültüyordu; QR her ekranda taranabilir boyutta kalmalı. */
+.verificationFlow .verificationQR svg{width:200px;height:200px;max-width:100%}
 .verificationConnect{display:flex;flex-direction:column}
 .accountDialog .verificationFlow .verificationQR svg{width:180px;height:180px}
 .accountDialog .verificationFlow .verificationSymbolOutline{width:34px;height:34px}

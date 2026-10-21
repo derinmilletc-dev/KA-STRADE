@@ -100,11 +100,11 @@ export default function TwoFactorSetup({enrollment, setupForm, onBusyChange, onE
     <VerificationSteps step={step}/>
     <VerificationSymbol success={verified}/>
     {step === 1 ? <>
-      <h3>Uygulamayı bağla</h3><p>Telefonundaki doğrulama uygulamasını hesabına bağla.</p>
+      <h3>Uygulamayı bağla</h3><p>Doğrulama, telefonundaki bir Authenticator uygulamasıyla yapılır (Google Authenticator, Microsoft Authenticator veya benzeri). Uygulama yüklü değilse önce App Store ya da Google Play’den indir.</p>
       {!enrollment ? setupForm : <>
         <div className="verificationConnect">
-        <div className="verificationQR" data-private="true"><QRCodeSVG value={enrollment.otpauth_uri} size={180} title="Doğrulama uygulaması bağlantı kodu"/></div>
-        <p>Uygulamada QR kodunu tara. Bu telefondaysan kurulum anahtarını kopyalayıp uygulamaya ekle.</p>
+        <div className="verificationQR" data-private="true"><QRCodeSVG value={enrollment.otpauth_uri} size={200} title="Doğrulama uygulaması bağlantı kodu"/></div>
+        <p>Authenticator uygulamasında “+” ile yeni hesap ekle ve bu QR kodunu tara. Siteyi aynı telefondan açtıysan kurulum anahtarını kopyalayıp uygulamaya elle ekle.</p>
         <div className="verificationKey" data-private="true"><strong>Kurulum anahtarı</strong><code aria-label={visible ? 'Kurulum anahtarı' : 'Kurulum anahtarı gizli'}>{visible ? enrollment.secret : '•••• •••• •••• ••••'}</code>
           <div className="verificationActions"><button type="button" aria-pressed={visible} onClick={() => setVisible(value => !value)}>{visible ? 'Gizle' : 'Göster'}</button><button type="button" onClick={() => void copy()}><Copy/>Kopyala</button></div>
         </div>
@@ -112,7 +112,7 @@ export default function TwoFactorSetup({enrollment, setupForm, onBusyChange, onE
         <button ref={nextButton} type="button" className="verificationPrimary" onClick={() => {setStep(2); setNotice(''); setError('')}}>Devam et</button>
       </>}
     </> : <div className={`verificationCodeScreen ${verified ? 'is-verified' : ''}`}>
-      <h3>Kodu doğrula</h3><p>Doğrulama uygulamandaki altı rakamlı kodu gir.</p>
+      <h3>Kodu doğrula</h3><p>Authenticator uygulamasında KaisTrade için görünen altı rakamlı kodu gir.</p>
       <div className={`verificationDigits ${invalid ? 'is-error' : ''}`} role="group" aria-label="Altı rakamlı doğrulama kodu" data-private="true">
         {digits.map((digit, index) => <input key={index} ref={element => {inputs.current[index] = element}} aria-label={`Doğrulama kodu ${index + 1}. rakam`}
           aria-invalid={invalid} aria-describedby={error ? 'verification-code-error' : undefined} inputMode="numeric" autoComplete={index === 0 ? 'one-time-code' : 'off'} pattern="[0-9]*"
