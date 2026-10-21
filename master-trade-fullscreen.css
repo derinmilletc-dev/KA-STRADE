@@ -64,6 +64,14 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
 .masterReferenceAnalysis .kfsCancel:hover { border-color: var(--kfs-ice); color: var(--kfs-ice); }
 .masterReferenceAnalysis .kfsCancel:focus-visible { outline: 2px solid var(--kfs-ice); outline-offset: 2px; }
 
+/* ---------- Yakınlaştırma çubuğu: dar ekran (mobile-premium.css'in 36 px kutu düğmelerini aşar) ---------- */
+@media (max-width: 700px), (pointer: coarse) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools { top: 8px !important; left: 8px !important; gap: 2px !important; padding: 3px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools button { min-width: 40px !important; width: 40px !important; height: 40px !important; border: 0 !important; border-radius: 10px !important; background: transparent !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools button:hover:not(:disabled), html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools button:active:not(:disabled) { background: rgba(169, 212, 255, .12) !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis.masterReferenceAnalysis .refZoomTools .refZoomResetLabel { display: none !important; }
+}
+
 /* ---------- Analysis Studio düğmesi (analiz göstergelerinin altında) ---------- */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn {
   width: 100% !important; min-height: 46px !important; margin: 8px 0 0 !important; padding: 0 14px !important; display: flex !important; align-items: center !important; gap: 10px !important;

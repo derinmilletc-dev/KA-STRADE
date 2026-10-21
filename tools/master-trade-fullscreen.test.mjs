@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {FULLSCREEN_CLASS, HISTORY_MARKER, canLockOrientation, canRequestFullscreen, createLandscapeController, isLandscape} from '../master-trade-fullscreen.ts'
+import {FULLSCREEN_CLASS, HISTORY_MARKER, canLockOrientation, canRequestFullscreen, createLandscapeController as create, isLandscape, readLandscape} from '../master-trade-fullscreen.ts'
+
+// Testlerde bekleme kısa tutulur; davranış aynıdır.
+const createLandscapeController = (env, options = {}) => create(env, {settleMs: 5, ...options})
+const settle = () => new Promise(resolve => setTimeout(resolve, 40))
 
 // Sahte tarayıcı ortamı: dinleyici sayaçları, tam ekran, ekran yönü kilidi ve geçmiş.
-function makeEnv({width = 390, height = 844, fullscreen = 'ok', lock = 'ok'} = {}) {
+function makeEnv({width = 390, height = 844, fullscreen = 'ok', lock = 'ok', orientationType} = {}) {
   const classes = () => { const set = new Set(); return {add: name => set.add(name), remove: name => set.delete(name), has: name => set.has(name)} }
   const target = () => {
     const handlers = new Map(), adds = {}, removes = {}
@@ -16,6 +20,8 @@ function makeEnv({width = 390, height = 844, fullscreen = 'ok', lock = 'ok'} = {
     }
   }
   const win = Object.assign(target(), {innerWidth: width, innerHeight: height})
+  const mediaTarget = target()
+  win.matchMedia = () => Object.assign(mediaTarget, {get matches() { return win.innerWidth > win.innerHeight }})
   win.history = {state: null, pushes: 0, backs: 0, pushState(state) { this.state = state; this.pushes += 1 }, back() { this.backs += 1; this.state = null }}
   const doc = Object.assign(target(), {fullscreenElement: null, fullscreenEnabled: fullscreen !== 'missing', exits: 0})
   doc.body = {classList: classes()}
@@ -27,14 +33,16 @@ function makeEnv({width = 390, height = 844, fullscreen = 'ok', lock = 'ok'} = {
     }
     doc.exitFullscreen = async () => { doc.exits += 1; doc.fullscreenElement = null; doc.fire('fullscreenchange') }
   }
-  const scr = {orientation: undefined, locks: [], unlocks: 0}
+  const orientationTarget = target()
+  const scr = {orientation: undefined, locks: [], unlocks: 0, orientationTarget}
   if (lock !== 'missing') {
-    scr.orientation = {
+    scr.orientation = Object.assign(orientationTarget, {
+      get type() { return orientationType },
       lock: async orientation => { if (lock === 'reject') throw new Error('NotSupportedError'); scr.locks.push(orientation) },
       unlock() { scr.unlocks += 1 },
-    }
+    })
   }
-  return {env: {window: win, document: doc, screen: scr}, win, doc, scr}
+  return {env: {window: win, document: doc, screen: scr}, win, doc, scr, mediaTarget}
 }
 const listenerBalance = target => Object.keys({...target.adds, ...target.removes}).every(type => (target.adds[type] ?? 0) === (target.removes[type] ?? 0))
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
@@ -102,8 +110,10 @@ test('Unsupported orientation lock falls back to manual rotation and never traps
   assert.equal(controller.getSnapshot().landscape, false)
   // Kullanıcı telefonu elle çevirir.
   win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  await settle()
   assert.equal(controller.getSnapshot().landscape, true)
   win.innerWidth = 390; win.innerHeight = 844; win.fire('orientationchange')
+  await settle()
   assert.equal(controller.getSnapshot().landscape, false)
   controller.close()
   assert.equal(controller.getSnapshot().open, false)
@@ -142,7 +152,7 @@ test('A denied fullscreen request keeps the layout and lets the user rotate manu
 })
 
 test('Leaving fullscreen with the system gesture closes the layout and releases the lock', async () => {
-  const {env, doc, scr} = makeEnv()
+  const {env, doc, scr} = makeEnv({width: 844, height: 390}) // terminal aşaması: cihaz yatay
   const controller = createLandscapeController(env)
   await controller.open()
   doc.fullscreenElement = null; doc.fire('fullscreenchange')
@@ -226,4 +236,123 @@ test('Subscribers are notified once per real change and dispose cleans up', asyn
   controller.dispose() // bileşen kalkarken açık düzen kapanır
   assert.equal(controller.getSnapshot().open, false)
   assert.equal(doc.documentElement.classList.has(FULLSCREEN_CLASS), false)
+})
+
+test('A single transient landscape reading (own fullscreen/lock side effect) never opens the terminal', async () => {
+  const {env, win} = makeEnv()
+  const controller = createLandscapeController(env, {settleMs: 30})
+  await controller.open()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize') // geçici
+  await new Promise(resolve => setTimeout(resolve, 10))
+  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize') // eski hâline döndü
+  await new Promise(resolve => setTimeout(resolve, 80))
+  assert.equal(controller.getSnapshot().landscape, false)
+  assert.equal(controller.getSnapshot().open, true) // uyarı kalır
+  controller.close()
+})
+
+test('Real rotation is confirmed only after the layout settles, and a rotation back is confirmed the same way', async () => {
+  const {env, win} = makeEnv()
+  const controller = createLandscapeController(env, {settleMs: 30})
+  await controller.open()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('orientationchange')
+  assert.equal(controller.getSnapshot().landscape, false) // henüz oturmadı
+  await new Promise(resolve => setTimeout(resolve, 80))
+  assert.equal(controller.getSnapshot().landscape, true)
+  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize')
+  await new Promise(resolve => setTimeout(resolve, 80))
+  assert.equal(controller.getSnapshot().landscape, false)
+  controller.close()
+})
+
+test('While the fullscreen/lock request is still pending, a landscape reading is not trusted; it is re-read afterwards', async () => {
+  const {env, win, doc} = makeEnv()
+  let finish
+  doc.documentElement.requestFullscreen = () => new Promise(done => { finish = () => { doc.fullscreenElement = doc.documentElement; done() } })
+  const controller = createLandscapeController(env, {settleMs: 10})
+  const opening = controller.open()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize') // istek sürerken (geçici)
+  await settle()
+  assert.equal(controller.getSnapshot().landscape, false)
+  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize') // istek bitmeden eski hâline döner
+  finish(); await opening; await settle()
+  assert.equal(controller.getSnapshot().landscape, false) // dikey kaldı: uyarı sürer
+  assert.equal(controller.getSnapshot().open, true)
+  controller.close()
+})
+
+test('Landscape sizes are ignored when the Screen Orientation API says the device is portrait', async () => {
+  const {env, win} = makeEnv({orientationType: 'portrait-primary'})
+  win.innerWidth = 844; win.innerHeight = 390
+  assert.equal(readLandscape(env), false)
+  const landscape = makeEnv({width: 844, height: 390, orientationType: 'landscape-primary'})
+  assert.equal(readLandscape(landscape.env), true)
+  const unknown = makeEnv({width: 844, height: 390}) // API yoksa/bilinmiyorsa boyutlar ve medya sorgusu yeter
+  assert.equal(readLandscape(unknown.env), true)
+})
+
+test('If the device is already landscape the terminal opens immediately', async () => {
+  const {env} = makeEnv({width: 844, height: 390})
+  const controller = createLandscapeController(env)
+  const opening = controller.open()
+  assert.equal(controller.getSnapshot().landscape, true)
+  await opening
+  controller.close()
+})
+
+test('A synthetic popstate that leaves our history marker in place does not dismiss the prompt', async () => {
+  const {env, win} = makeEnv()
+  const controller = createLandscapeController(env)
+  await controller.open()
+  win.fire('popstate') // uygulamanın kendi gönderdiği olay: işaret durumda duruyor
+  assert.equal(controller.getSnapshot().open, true)
+  win.history.state = null // gerçek geri: işaret gitti
+  win.fire('popstate')
+  assert.equal(controller.getSnapshot().open, false)
+})
+
+test('An involuntary fullscreen exit during the prompt keeps it; after landscape the same exit closes the terminal', async () => {
+  const prompt = makeEnv()
+  const first = createLandscapeController(prompt.env)
+  await first.open()
+  prompt.doc.fullscreenElement = null; prompt.doc.fire('fullscreenchange')
+  assert.equal(first.getSnapshot().open, true)
+  assert.equal(first.getSnapshot().fullscreen, false)
+  first.close()
+  const terminal = makeEnv({width: 844, height: 390})
+  const second = createLandscapeController(terminal.env)
+  await second.open()
+  terminal.doc.fullscreenElement = null; terminal.doc.fire('fullscreenchange')
+  assert.equal(second.getSnapshot().open, false)
+})
+
+test('Media-query and Screen Orientation change events feed the same settle path, and all of it is detached on close', async () => {
+  const {env, win, mediaTarget, scr} = makeEnv()
+  const controller = createLandscapeController(env)
+  await controller.open()
+  assert.equal(mediaTarget.active('change'), 1)
+  assert.equal(scr.orientationTarget.active('change'), 1)
+  win.innerWidth = 844; win.innerHeight = 390
+  scr.orientationTarget.fire('change')
+  await settle()
+  assert.equal(controller.getSnapshot().landscape, true)
+  controller.close()
+  assert.equal(mediaTarget.active('change'), 0)
+  assert.equal(scr.orientationTarget.active('change'), 0)
+  assert.equal(listenerBalance(win), true)
+})
+
+test('No timer fires after close: a pending settle never reopens or updates anything', async () => {
+  const {env, win} = makeEnv()
+  const controller = createLandscapeController(env, {settleMs: 20})
+  await controller.open()
+  let calls = 0
+  controller.subscribe(() => { calls += 1 })
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  controller.close()
+  const afterClose = calls
+  await new Promise(resolve => setTimeout(resolve, 60))
+  assert.equal(calls, afterClose)
+  assert.equal(controller.getSnapshot().open, false)
+  assert.equal(controller.getSnapshot().landscape, false)
 })
