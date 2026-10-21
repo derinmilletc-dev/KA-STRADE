@@ -5335,6 +5335,19 @@ body {
 #root > main.v26App > .v26Header.v26HomeHeader.v26HeaderHidden {
   transform: translateY(-100%);
 }
+/* Masaüstü: menü sayfanın en üstünde normal akışta durur; aşağı kaydırınca
+   sayfayla birlikte çıkar, yalnız en üste dönünce görünür. Ekranı takip edip
+   içeriğin üstüne binmez (mobil davranış değişmez). */
+@media (min-width: 1025px) {
+  #root > main.v26App > .v26Header.v26HomeHeader,
+  #root > main.v26App > .v26Header.v26HomeHeader.v26HeaderHidden {
+    position: relative !important;
+    top: auto !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   #root > main.v26App > .v26Header.v26HomeHeader {
     transition: none !important;
