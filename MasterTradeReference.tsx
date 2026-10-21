@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minus, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Maximize2, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -14,8 +14,11 @@ import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
+import {AnalysisDrawer, RotateOverlay, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
+// Sonra yüklenmeli: yatay tam ekran kuralları mobil kuralların üstüne yazar.
+import './master-trade-fullscreen.css'
 
 type Candle = {time: number; open: number; high: number; low: number; close: number; volume: number}
 type Props = {
@@ -284,6 +287,19 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   </>
 }
 
+// Göstergeler tek yerde: hem alttaki ızgara hem yatay tam ekrandaki analiz paneli bu değerleri kullanır (yeniden hesaplama yok).
+function IndicatorTiles({analysis, decision, candles, opportunity = true}: {analysis: DecisionAnalysis | null; decision: TradeDecision; candles: Candle[]; opportunity?: boolean}) {
+  return <>
+    <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={candles}/></MasterTradeMetricTile>
+    <MasterTradeMetricTile label="MOMENTUM" value={trLabel(analysis?.momentum)} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={candles} neutral/></MasterTradeMetricTile>
+    <MasterTradeMetricTile label="RSI" value={numeric(analysis?.rsi, '', 2)}><MasterTradeMetricVisual kind="rsi" value={analysis?.rsi}/></MasterTradeMetricTile>
+    <MasterTradeMetricTile label="MACD" value={analysisValue(analysis?.macd)} tone={typeof analysis?.macd === 'number' ? analysis.macd >= 0 ? 'positive' : 'negative' : 'neutral'}><MasterTradeMetricVisual kind="macd" value={analysis?.macd}/></MasterTradeMetricTile>
+    <MasterTradeMetricTile label="HACİM" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
+    <MasterTradeMetricTile label="GÜVEN" value={numeric(decision.confidenceScore, '%')} tone={decision.confidenceScore === null ? 'neutral' : 'positive'}><MasterTradeMetricVisual kind="confidence" value={decision.confidenceScore}/></MasterTradeMetricTile>
+    {opportunity && <MasterTradeMetricTile label="FIRSAT" value={numeric(decision.opportunityScore)}><MasterTradeMetricVisual kind="confidence" value={decision.opportunityScore}/></MasterTradeMetricTile>}
+  </>
+}
+
 export default function MasterTradeReference(props: Props) {
   const {premium, ready, userId, openUpgrade} = useMemberAccess()
   const [notice, setNotice] = useState('')
@@ -295,6 +311,22 @@ export default function MasterTradeReference(props: Props) {
   const symbolDrawings = drawings.symbol === props.symbol ? drawings.list : readDrawings(props.symbol)
   const changeDrawings = (next: Drawing[]) => { setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next) }
   const pickTool = (mode: DrawMode) => setDrawMode(current => current === mode ? 'none' : mode)
+  // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const fullscreen = useLandscapeFullscreen(() => drawerOpen || drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open]') !== null)
+  const terminal = fullscreen.state.open && fullscreen.state.landscape
+  const rotating = fullscreen.state.open && !fullscreen.state.landscape
+  useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
+  const entryButton = useRef<HTMLButtonElement>(null)
+  const exitButton = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(false)
+  useEffect(() => { if (!fullscreen.state.open) setDrawerOpen(false) }, [fullscreen.state.open])
+  useEffect(() => {
+    // Klavye/ekran okuyucu odağı: açılınca Çıkış'a, kapanınca açan düğmeye.
+    if (terminal) exitButton.current?.focus()
+    else if (wasOpen.current && !fullscreen.state.open) entryButton.current?.focus()
+    wasOpen.current = fullscreen.state.open
+  }, [terminal, fullscreen.state.open])
   // --- Fiyat alarmı: yalnız bu sayfa açıkken ve canlı fiyat akarken çalışır; tarayıcıda saklanır. ---
   const audio = useRef<AudioContext | null>(null)
   const [alarmToast, setAlarmToast] = useState('')
@@ -408,8 +440,10 @@ export default function MasterTradeReference(props: Props) {
         <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{trLabel(decision.entryQuality)} · Hedef R/Ö; canlıda TP1'de %60, kalanı TP3'te.</span></article>
       </section>
       <section className="refCenter">
-        <section className="refCard refChart">
-          <div className="refToolbar" aria-label="Market chart controls"><span title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
+        <section className="refCard refChart" data-fs={terminal ? 'on' : undefined}>
+          <div className="refToolbar" aria-label="Market chart controls">
+            {terminal && <div className="kfsIdent" aria-label={`${props.symbol} price`}><b>{props.symbol}</b><strong>{analysisPrice(cardPrice)}</strong>{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</div>}
+            <span className="refChartType" title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
             <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
             <div className="refDrawingTools">
@@ -431,25 +465,29 @@ export default function MasterTradeReference(props: Props) {
                 </div>
               </details>
               <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
+              <button type="button" ref={entryButton} className="refFullscreenBtn" aria-label="Landscape fullscreen" title="Landscape fullscreen" aria-haspopup="dialog" onClick={fullscreen.open}><Maximize2/></button>
             </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
+            {terminal && <div className="kfsActions">
+              <button type="button" className="kfsAnalysisBtn" aria-expanded={drawerOpen} aria-controls="kfsAnalysisDrawer" onClick={() => setDrawerOpen(open => !open)}><PanelRight aria-hidden="true"/>Analysis</button>
+              <button type="button" ref={exitButton} className="kfsExitBtn" aria-label="Exit fullscreen" title="Exit fullscreen" onClick={fullscreen.close}><Minimize2 aria-hidden="true"/></button>
+            </div>}
           </div>
           {props.error && <RefErrorNotice message={props.error}/>}
-          <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
-            drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
-            onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
-            onDrawDone={() => setDrawMode('none')}/>
+          <div className="kfsStage">
+            <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+              drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
+              onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
+              onDrawDone={() => setDrawMode('none')}/>
+            {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+              <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
+            </AnalysisDrawer>}
+          </div>
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'alarm' ? 'Alarm kurmak istediğin fiyata tıkla.' : drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
         <div className="refIndicatorGrid" aria-label="Market indicators">
-          <MasterTradeMetricTile label="TREND" value={trLabel(analysis?.trend)} tone={directionTone(decision.direction)}><ReferenceBars candles={liveChart.candles}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="MOMENTUM" value={trLabel(analysis?.momentum)} tone={analysis?.momentum === 'POSITIVE' ? 'positive' : analysis?.momentum === 'NEGATIVE' ? 'negative' : 'neutral'}><ReferenceBars candles={liveChart.candles} neutral/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="RSI" value={numeric(analysis?.rsi, '', 2)}><MasterTradeMetricVisual kind="rsi" value={analysis?.rsi}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="MACD" value={analysisValue(analysis?.macd)} tone={typeof analysis?.macd === 'number' ? analysis.macd >= 0 ? 'positive' : 'negative' : 'neutral'}><MasterTradeMetricVisual kind="macd" value={analysis?.macd}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="HACİM" value={numeric(analysis?.volume_ratio, 'x')}><MasterTradeMetricVisual kind="volume" volumes={liveChart.candles.slice(-14).map(candle => candle.volume)}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="GÜVEN" value={numeric(decision.confidenceScore, '%')} tone={decision.confidenceScore === null ? 'neutral' : 'positive'}><MasterTradeMetricVisual kind="confidence" value={decision.confidenceScore}/></MasterTradeMetricTile>
-          <MasterTradeMetricTile label="FIRSAT" value={numeric(decision.opportunityScore)}><MasterTradeMetricVisual kind="confidence" value={decision.opportunityScore}/></MasterTradeMetricTile>
+          <IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles}/>
         </div>
         <div className="refMtfStrip"><span>MTF TEYİDİ {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
       </section>
@@ -480,5 +518,6 @@ export default function MasterTradeReference(props: Props) {
         </section>
       </aside>
     </main>
+    {rotating && <RotateOverlay onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
   </section>
 }
