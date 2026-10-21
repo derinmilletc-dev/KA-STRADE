@@ -67,6 +67,8 @@ class LLMRequest:
     max_tokens: int
     payload: ChatInput
     effort: str = "low"
+    model: str = ""
+    deep: bool = False
 
     def estimated_input(self) -> int:
         return len(json.dumps(
@@ -100,8 +102,10 @@ def build_request(config: AssistantConfig, language: Language, payload: ChatInpu
     if payload.page_context:
         content += "\n\nUntrusted page_context:\n" + payload.page_context
     messages.append({"role": "user", "content": content})
-    effort = config.deep_effort if needs_deep_reasoning(payload.message) else "low"
-    return LLMRequest(system, tools, messages, config.max_output_tokens, payload, effort)
+    deep = needs_deep_reasoning(payload.message)
+    effort = config.deep_effort if deep else "low"
+    return LLMRequest(system, tools, messages, config.max_output_for(deep), payload, effort,
+                      config.model_for(deep), deep)
 
 
 VOICE_STYLE_TR = (
@@ -140,7 +144,7 @@ class AnthropicTransport:
             ) as client:
                 protect_logging()
                 result = await asyncio.wait_for(client.messages.count_tokens(
-                    model=self.config.model, system=request.system, tools=request.tools, messages=request.messages,
+                    model=request.model or self.config.model, system=request.system, tools=request.tools, messages=request.messages,
                 ), timeout=self.config.request_timeout_seconds)
                 if type(result.input_tokens) is not int or result.input_tokens < 0:
                     raise AssistantStopped("provider", 502)
@@ -155,29 +159,30 @@ class AnthropicTransport:
                 api_key=self.config.api_key.get_secret_value(), max_retries=0, timeout=self.config.request_timeout_seconds,
             ) as client:
                 protect_logging()
+                model = request.model or self.config.model
                 try:
                     try:
                         result = await client.messages.create(
-                            model=self.config.model, max_tokens=request.max_tokens,
+                            model=model, max_tokens=request.max_tokens,
                             system=request.system, tools=request.tools, messages=request.messages,
-                            **({} if self.config.model == FALLBACK_MODEL else {"output_config": {"effort": request.effort}}),
+                            **({} if model == FALLBACK_MODEL else {"output_config": {"effort": request.effort}}),
                         )
                     except (anthropic.BadRequestError, anthropic.NotFoundError):
                         # Sağlayıcı yükseltilmiş düşünme seviyesini kabul etmezse aynı modelle "low" seviyesine dön.
-                        if request.effort == "low" or self.config.model == FALLBACK_MODEL:
+                        if request.effort == "low" or model == FALLBACK_MODEL:
                             raise
                         logging.getLogger("kais.assistant").warning("ASSISTANT_EFFORT_FALLBACK effort=%s", request.effort)
                         result = await client.messages.create(
-                            model=self.config.model, max_tokens=request.max_tokens,
+                            model=model, max_tokens=request.max_tokens,
                             system=request.system, tools=request.tools, messages=request.messages,
                             output_config={"effort": "low"},
                         )
                 except (anthropic.BadRequestError, anthropic.NotFoundError) as exc:
-                    if self.config.model == FALLBACK_MODEL or any(isinstance(m.get("content"), list) and any(
+                    if model == FALLBACK_MODEL or any(isinstance(m.get("content"), list) and any(
                             isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking") for b in m["content"]) for m in request.messages):
                         raise
                     # Yeni model isteği reddederse sohbet kesilmesin: bir kez önceki modelle dene.
-                    logging.getLogger("kais.assistant").warning("ASSISTANT_MODEL_FALLBACK model=%s error=%s", self.config.model, type(exc).__name__)
+                    logging.getLogger("kais.assistant").warning("ASSISTANT_MODEL_FALLBACK model=%s error=%s", model, type(exc).__name__)
                     result = await client.messages.create(
                         model=FALLBACK_MODEL, max_tokens=request.max_tokens,
                         system=request.system, tools=request.tools, messages=request.messages,
@@ -293,11 +298,13 @@ async def run_conversation(
     total_input, total_output = 0, 0
     try:
         for index in range(config.max_llm_calls_per_message):
-            remaining_output = config.max_total_output_tokens_per_message - total_output
+            remaining_output = config.max_total_output_for(request.deep) - total_output
             if remaining_output <= 0:
                 raise AssistantStopped("output", 429)
+            # effort/model/deep must survive every loop turn; previously they were dropped and every call ran at "low".
             request = LLMRequest(request.system, request.tools, list(request.messages),
-                                 min(config.max_output_tokens, remaining_output), payload)
+                                 min(config.max_output_for(request.deep), remaining_output), payload,
+                                 request.effort, request.model, request.deep)
             predicted = await count(request)
             if type(predicted) is not int or predicted < 0:
                 raise AssistantStopped("provider", 502)
@@ -308,7 +315,7 @@ async def run_conversation(
             total_output += turn.output_tokens or 0
             if turn.failed or turn.protocol_error:
                 raise AssistantStopped("provider", 502)
-            if total_input > config.max_total_input_tokens_per_message or total_output > config.max_total_output_tokens_per_message:
+            if total_input > config.max_total_input_tokens_per_message or total_output > config.max_total_output_for(request.deep):
                 raise AssistantStopped("input", 429)
             if not turn.tool_calls:
                 if not turn.reply.strip():
