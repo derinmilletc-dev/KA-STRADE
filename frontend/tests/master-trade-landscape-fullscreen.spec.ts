@@ -6,7 +6,7 @@ import {previewAnalysis, previewCandles, previewMarkets} from './helpers/master-
 test.use({baseURL: 'http://127.0.0.1:4174', hasTouch: true, isMobile: true, viewport: {width: 390, height: 844}})
 test.setTimeout(60000)
 const root = (page: Page) => page.locator('.masterReferenceAnalysis')
-const entry = (page: Page) => root(page).getByRole('button', {name: 'Landscape fullscreen'})
+const entry = (page: Page) => root(page).getByRole('button', {name: 'Analysis Studio', exact: true}) // tek giriş noktası (ayrı tam ekran düğmesi kaldırıldı)
 const terminal = (page: Page) => root(page).locator('.refChart[data-fs="on"]')
 const overlay = (page: Page) => page.getByRole('dialog', {name: 'Turn your phone sideways'})
 const drawer = (page: Page) => page.locator('#kfsAnalysisDrawer')
@@ -87,6 +87,12 @@ async function prepare(page: Page, options: {support?: Support; landscape?: bool
   return {requests}
 }
 
+// Analysis Studio ilk yatay geçişte Analiz panelini otomatik açar; grafik odaklı testler önce paneli kapatır.
+const closeAutoDrawer = async (page: Page) => {
+  await expect(drawer(page)).toBeVisible()
+  await drawer(page).getByRole('button', {name: 'Close analysis'}).click()
+  await expect(drawer(page)).toBeHidden()
+}
 const fsCalls = (page: Page) => page.evaluate(() => (window as unknown as {__fs: {request: number; exit: number; lock: string[]; unlock: number}}).__fs)
 const pageIsRestored = async (page: Page) => {
   await expect(page.locator('[inert]')).toHaveCount(0)
@@ -122,13 +128,13 @@ const chartMatchesCanvas = async (page: Page) => {
   return box!
 }
 
-test('The fullscreen button is labelled, compact and only an entry point (no trading request)', async ({page}) => {
+test('Analysis Studio is the single entry point: the redundant fullscreen button is gone (no trading request)', async ({page}) => {
   const {requests} = await prepare(page)
   const before = requests.length
+  await expect(root(page).getByRole('button', {name: 'Landscape fullscreen'})).toHaveCount(0)
+  await expect(root(page).locator('.refFullscreenBtn')).toHaveCount(0)
   await expect(entry(page)).toBeVisible()
   await expect(entry(page)).toHaveAttribute('type', 'button')
-  const box = await entry(page).boundingBox()
-  expect(box!.width).toBeLessThanOrEqual(48)
   await entry(page).click()
   await expect(overlay(page)).toBeVisible()
   expect(mutations(requests, before)).toEqual([])
@@ -140,7 +146,7 @@ test('Portrait users see the rotation overlay and Cancel restores the page compl
   const url = page.url()
   await entry(page).click()
   await expect(overlay(page)).toBeVisible()
-  await expect(overlay(page)).toContainText('Switch to landscape for a wider trading chart.')
+  await expect(overlay(page)).toContainText('Rotate your device to open Analysis Studio.')
   await expect(terminal(page)).toHaveCount(0)
   await expect(overlay(page).getByRole('button', {name: 'Cancel'})).toBeFocused()
   expect(await page.evaluate(() => document.documentElement.classList.contains('kaisChartFullscreen'))).toBe(true)
@@ -202,6 +208,7 @@ test('The landscape terminal is chart-first with a compact toolbar and a closed 
   await expect(toolbar.locator('.refIndicators summary')).toBeVisible()
   await expect(toolbar.getByRole('button', {name: 'Analysis', exact: true})).toBeVisible()
   await expect(toolbar.getByRole('button', {name: 'Exit fullscreen'})).toBeFocused()
+  await closeAutoDrawer(page)
   // Emirle ilgili kısayollar tam ekranda gösterilmez.
   await expect(toolbar.locator('.refOrderTools')).toBeHidden()
   await controlsReachable(page)
@@ -220,6 +227,7 @@ test('The analysis drawer opens beside the chart, reuses the existing values and
   await prepare(page, {landscape: true})
   await entry(page).click()
   await expect(terminal(page)).toBeVisible()
+  await closeAutoDrawer(page)
   const url = page.url()
   const closedCanvas = await chartMatchesCanvas(page)
   await terminal(page).getByRole('button', {name: 'Analysis', exact: true}).click()
@@ -258,6 +266,7 @@ test('The chart recalculates its size when the device rotates or the viewport ch
   await prepare(page, {landscape: true})
   await entry(page).click()
   await expect(terminal(page)).toBeVisible()
+  await closeAutoDrawer(page)
   await chartMatchesCanvas(page)
   await page.setViewportSize({width: 667, height: 375})
   await controlsReachable(page)
@@ -277,6 +286,7 @@ test('On very small landscape screens the analysis panel is an overlay drawer an
   await page.setViewportSize({width: 568, height: 320})
   await entry(page).click()
   await expect(terminal(page)).toBeVisible()
+  await closeAutoDrawer(page)
   await controlsReachable(page)
   const before = await chartMatchesCanvas(page)
   await terminal(page).getByRole('button', {name: 'Analysis', exact: true}).click()
@@ -338,6 +348,7 @@ test('Zoom, drawings and timeframe stay on the same chart instance through enter
   const sameNode = () => page.evaluate(() => document.querySelector('.masterReferenceAnalysis svg[data-chart-ai-capture="reference"]') === (window as unknown as {__chartNode: Element}).__chartNode)
   await entry(page).click()
   await expect(terminal(page)).toBeVisible()
+  await closeAutoDrawer(page)
   expect(await sameNode()).toBe(true) // aynı DOM düğümü: yeniden kurulmadı
   await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1)
   expect(await root(page).locator('.refCandle').count()).toBeLessThanOrEqual(zoomedCandles + 20) // yakınlaştırma korunur (genişlik artınca biraz fazla mum sığabilir)
@@ -423,12 +434,15 @@ test('Back from the rotation overlay, and exiting, always leave the page scrolla
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
 })
 
-test('In normal portrait the added button keeps the drawing-tools row on one line (page does not shift)', async ({page}) => {
+test('In normal portrait the drawing-tools row stays on one line without the removed fullscreen button (no gap)', async ({page}) => {
   await prepare(page)
   const row = page.locator('.masterReferenceAnalysis .refToolbar > .refDrawingTools')
   const rowBox = (await row.boundingBox())!
   const buttons = await row.locator(':scope > button, :scope > details').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return {y: Math.round(r.y), h: Math.round(r.height), w: Math.round(r.width)} }))
-  expect(buttons.length).toBe(9)
+  expect(buttons.length).toBe(8)
+  // Satır boşluksuz: düğmeler satırı kenardan kenara doldurur.
+  const last = await row.locator(':scope > button, :scope > details').last().evaluate(node => node.getBoundingClientRect().right)
+  expect(Math.abs(last - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(2)
   expect(rowBox.height).toBeLessThanOrEqual(40)
   expect(new Set(buttons.map(button => button.y)).size).toBe(1)
   expect(Math.min(...buttons.map(button => button.w))).toBeGreaterThanOrEqual(34)
@@ -1062,12 +1076,12 @@ test('A missed resize/orientation event is recovered by re-reading the real view
   // Olay göndermeden yalnız görünür alanı değiştir (kaçan olay): yoklama gerçek durumu okuyup geçişi tamamlar.
   await page.evaluate(() => { const real = window.dispatchEvent.bind(window); window.dispatchEvent = (event: Event) => (event.type === 'resize' || event.type === 'orientationchange' ? true : real(event)) })
   await page.setViewportSize(landscape)
-  await expect(terminal(page)).toBeVisible({timeout: 8000}) // en az uyarı süresi (3,5 sn) + yoklama + oturma
+  await expect(terminal(page)).toBeVisible({timeout: 8000}) // en az uyarı süresi (2,5 sn) + yoklama + oturma
   await expect(drawer(page)).toBeVisible()
 })
 
-// ---------- Dönme uyarısının en az süresi (3,5 sn) ----------
-const MIN_PROMPT = 3500
+// ---------- Dönme uyarısının en az süresi (2,5 sn) ----------
+const MIN_PROMPT = 2500
 const promptOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>(resolve => {
   if (document.querySelector('.kfsOverlay')) return resolve(performance.now())
   const observer = new MutationObserver(() => { if (document.querySelector('.kfsOverlay')) { observer.disconnect(); resolve(performance.now()) } })
@@ -1080,7 +1094,7 @@ const terminalOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>
   observer.observe(document.body, {subtree: true, childList: true, attributes: true})
 }))
 
-test('Early landscape: the prompt stays at least 3.5 s, then Analysis Studio opens automatically', async ({page}) => {
+test('Early landscape: the prompt stays at least 2.5 s, then Analysis Studio opens automatically', async ({page}) => {
   await prepare(page)
   const opened = promptOpenedAt(page)
   await studioButton(page).click()
@@ -1089,16 +1103,16 @@ test('Early landscape: the prompt stays at least 3.5 s, then Analysis Studio ope
   await page.waitForTimeout(400)
   const done = terminalOpenedAt(page)
   await rotateTo(page, landscape) // ~0,4 sn'de gerçek yatay
-  await page.waitForTimeout(1500)
+  await page.waitForTimeout(900)
   await expect(overlay(page)).toBeVisible() // yatay ama süre dolmadı
   await expect(terminal(page)).toHaveCount(0)
   const end = await done
   expect(end - start).toBeGreaterThanOrEqual(MIN_PROMPT)
-  expect(end - start).toBeLessThan(MIN_PROMPT + 2500) // ardından kendiliğinden açılır
+  expect(end - start).toBeLessThan(MIN_PROMPT + 2000) // ardından kendiliğinden açılır
   await expect(drawer(page)).toBeVisible()
 })
 
-test('Still portrait after 3.5 s: the prompt stays until landscape is detected, then opens', async ({page}) => {
+test('Still portrait after 2.5 s: the prompt stays until landscape is detected, then opens', async ({page}) => {
   const {requests} = await prepare(page)
   const before = requests.length
   await studioButton(page).click()
@@ -1242,3 +1256,198 @@ for (const viewport of [{width: 390, height: 844}, {width: 375, height: 667}, {w
     await expect(radios.nth(1)).toHaveAttribute('aria-checked', 'true')
   })
 }
+
+// ---------- Analysis Studio coin seçici ----------
+const picker = (page: Page) => page.locator('.kfsCoinPicker')
+const symbolButton = (page: Page) => terminal(page).locator('.kfsSymbolBtn')
+const coinRow = (page: Page, symbol: string) => picker(page).locator(`.kfsCoinRow[data-symbol="${symbol}"]`)
+const openTerminal = async (page: Page) => {
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  await closeAutoDrawer(page)
+}
+// Büyük liste: mevcut sembollere ek olarak geçerli biçimli çok sayıda USDT çifti (yalnız testte; test:true değil).
+const manyMarkets = () => [...previewMarkets, ...Array.from({length: 140}, (_, index) => ({
+  symbol: `ALT${String(index).padStart(3, '0')}USDT`, display: `ALT${String(index).padStart(3, '0')}/USDT`, price: 1 + index / 100, change: (index % 9 - 4) / 2, volume: 900000 - index * 1000,
+}))]
+
+test('Coin selector opens from the Studio header symbol and closes via close button, Escape, outside tap and back (terminal stays open)', async ({page}) => {
+  const {requests} = await prepare(page, {landscape: true})
+  const before = requests.length
+  await openTerminal(page)
+  await expect(symbolButton(page)).toHaveText(/BTCUSDT/)
+  await expect(symbolButton(page)).toHaveAttribute('aria-expanded', 'false')
+  // Kapat düğmesi
+  await symbolButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await expect(symbolButton(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(picker(page).getByRole('heading')).toHaveText(/Markets|Piyasalar/)
+  await expect(picker(page).locator('input[type="search"]')).toHaveAttribute('placeholder', /Search coin or symbol...|Coin veya sembol ara.../)
+  await picker(page).locator('.kfsCoinPickerClose').click()
+  await expect(picker(page)).toHaveCount(0)
+  await expect(symbolButton(page)).toBeFocused()
+  // Esc yalnız seçiciyi kapatır, terminal açık kalır.
+  await symbolButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(picker(page)).toHaveCount(0)
+  await expect(terminal(page)).toBeVisible()
+  // Dış tıklama
+  await symbolButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await page.mouse.click(800, 300)
+  await expect(picker(page)).toHaveCount(0)
+  await expect(terminal(page)).toBeVisible()
+  // Geri: önce seçici kapanır, terminal açık kalır; ikinci geri terminali kapatır.
+  await symbolButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await page.goBack()
+  await expect(picker(page)).toHaveCount(0)
+  await page.waitForTimeout(300)
+  await expect(terminal(page)).toBeVisible()
+  await page.goBack()
+  await pageIsRestored(page)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Coin selector searches by symbol and by coin name and marks the selected symbol', async ({page}) => {
+  await prepare(page, {landscape: true})
+  await openTerminal(page)
+  await symbolButton(page).click()
+  await expect(coinRow(page, 'BTCUSDT')).toHaveAttribute('aria-pressed', 'true')
+  await expect(coinRow(page, 'BTCUSDT').locator('.kfsCoinMark svg')).toHaveCount(1)
+  await expect(coinRow(page, 'ETHUSDT')).toHaveAttribute('aria-pressed', 'false')
+  // Satır içeriği: taban sembol, çift, ad, fiyat ve değişim gerçek akıştan gelir.
+  await expect(coinRow(page, 'ETHUSDT').locator('.kfsCoinId b')).toHaveText('ETH')
+  await expect(coinRow(page, 'ETHUSDT').locator('.kfsCoinId small')).toContainText('ETH/USDT')
+  await expect(coinRow(page, 'ETHUSDT').locator('.kfsCoinQuote strong')).toHaveText('$3,212.80')
+  await expect(coinRow(page, 'ETHUSDT').locator('.kfsCoinQuote small')).toHaveText('+2.08%')
+  const search = picker(page).locator('input[type="search"]')
+  await search.fill('sol')
+  await expect(picker(page).locator('.kfsCoinRow')).toHaveCount(1)
+  await expect(coinRow(page, 'SOLUSDT')).toBeVisible()
+  const name = await page.evaluate(() => document.querySelector('.kfsCoinRow[data-symbol="SOLUSDT"] .kfsCoinName')?.textContent ?? '')
+  expect(name.length).toBeGreaterThan(0) // ad mevcut veriden (coinDisplayName)
+  await search.fill(name)
+  await expect(coinRow(page, 'SOLUSDT')).toBeVisible()
+  await search.fill('zzzz-yok')
+  await expect(picker(page).locator('.kfsCoinEmpty')).toBeVisible()
+  await expect(picker(page).locator('.kfsCoinRow')).toHaveCount(0)
+})
+
+for (const viewport of [{width: 844, height: 390}, {width: 667, height: 375}, {width: 568, height: 320}]) {
+  test(`Coin selector at ${viewport.width}x${viewport.height}: fits the viewport; only the list scrolls through a large list while header and search stay put`, async ({page}) => {
+    await prepare(page, {landscape: true})
+    await page.route('**/api/markets**', route => route.fulfill({json: manyMarkets()}))
+    await page.setViewportSize(viewport)
+    await openTerminal(page)
+    await symbolButton(page).click()
+    await expect(picker(page)).toBeVisible()
+    await expect.poll(() => picker(page).locator('.kfsCoinPickerTitle > span').innerText(), {timeout: 10000}).toBe(String(manyMarkets().length))
+    const panel = (await picker(page).boundingBox())!
+    expect(panel.x).toBeGreaterThanOrEqual(0)
+    expect(panel.y).toBeGreaterThanOrEqual(0)
+    expect(panel.x + panel.width).toBeLessThanOrEqual(viewport.width)
+    expect(panel.y + panel.height).toBeLessThanOrEqual(viewport.height)
+    // Grafiğin büyük bölümü görünür kalır (tam ekranı kaplamaz).
+    expect(panel.width * panel.height).toBeLessThan(viewport.width * viewport.height * 0.75)
+    const list = picker(page).locator('.kfsCoinList')
+    const metrics = await list.evaluate(element => ({overflow: getComputedStyle(element).overflowY, scrollable: element.scrollHeight > element.clientHeight + 10}))
+    expect(metrics).toEqual({overflow: 'auto', scrollable: true})
+    const rowHeight = await picker(page).locator('.kfsCoinRow').first().evaluate(element => element.getBoundingClientRect().height)
+    expect(rowHeight).toBeGreaterThanOrEqual(54)
+    expect(rowHeight).toBeLessThanOrEqual(64)
+    const head = async () => (await picker(page).locator('.kfsCoinPickerHead').boundingBox())!
+    const headBefore = await head()
+    const searchBefore = (await picker(page).locator('.kfsCoinSearch').boundingBox())!
+    // Panelin kendisi kaymaz: tek kaydırma kabı liste.
+    expect(await picker(page).evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
+    await list.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await page.waitForTimeout(100)
+    expect(await head()).toEqual(headBefore)
+    expect((await picker(page).locator('.kfsCoinSearch').boundingBox())!).toEqual(searchBefore)
+    // Son satır kırpılmadan tamamen görünür ve erişilebilir.
+    const lastSymbol = manyMarkets().slice().sort((a, b) => b.volume - a.volume || a.symbol.localeCompare(b.symbol)).at(-1)!.symbol
+    const last = coinRow(page, lastSymbol)
+    await expect(last).toBeVisible()
+    const lastBox = (await last.boundingBox())!, listBox = (await list.boundingBox())!
+    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(listBox.y + listBox.height + 1)
+    expect(lastBox.y).toBeGreaterThanOrEqual(listBox.y - 1)
+    // Arama listeyi daraltır ve başa döner.
+    await picker(page).locator('input[type="search"]').fill('ALT13')
+    await expect(picker(page).locator('.kfsCoinPickerTitle > span')).toHaveText('10') // ALT130–ALT139
+    await expect(coinRow(page, 'ALT130USDT')).toBeVisible()
+    expect(await list.evaluate(element => element.scrollTop)).toBe(0)
+  })
+}
+
+test('Selecting a coin closes the selector and switches the chart through the existing data flow, with no orders', async ({page}) => {
+  const {requests} = await prepare(page, {landscape: true})
+  const before = requests.length
+  await openTerminal(page)
+  await symbolButton(page).click()
+  const klines = page.waitForRequest(request => request.url().includes('/api/klines/ETHUSDT') && request.url().includes('interval=15m'))
+  const analysis = page.waitForRequest(request => request.url().includes('/api/analysis/ETHUSDT'))
+  await coinRow(page, 'ETHUSDT').click()
+  await expect(picker(page)).toHaveCount(0)
+  await klines; await analysis // zaman dilimi korunur (15m)
+  await expect(symbolButton(page)).toHaveText(/ETHUSDT/)
+  await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveAttribute('aria-label', /ETHUSDT 15m/)
+  await expect(root(page).locator('.refOhlc b')).toContainText('ETHUSDT')
+  await expect(terminal(page)).toBeVisible() // terminalde kalınır
+  // Seçici yeniden açılınca yeni sembol seçili.
+  await symbolButton(page).click()
+  await expect(coinRow(page, 'ETHUSDT')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+  expect(mutations(requests, before)).toEqual([]) // emir/pozisyon isteği yok
+})
+
+test('While a new symbol loads, the previous symbol levels are never shown, and a stale earlier response cannot overwrite the latest choice', async ({page}) => {
+  await prepare(page, {landscape: true})
+  await openTerminal(page)
+  await expect(terminal(page).locator('.masterTradeChartPills span').first()).toBeVisible()
+  // ETH yanıtları geciktirilir; bu sırada SOL seçilir. ETH yanıtı geç gelse de grafik SOL'da kalmalı.
+  let releaseEth: () => void = () => {}
+  const ethGate = new Promise<void>(resolve => { releaseEth = resolve })
+  await page.route('**/api/klines/ETHUSDT**', async route => { await ethGate; await route.fulfill({json: previewCandles('ETHUSDT', FIXED_NOW)}).catch(() => {}) })
+  await page.route('**/api/analysis/ETHUSDT**', async route => { await ethGate; await route.fulfill({json: previewAnalysis('ETHUSDT')}).catch(() => {}) })
+  await symbolButton(page).click()
+  await coinRow(page, 'ETHUSDT').click()
+  await expect(symbolButton(page)).toHaveText(/ETHUSDT/)
+  // Yükleme durumu: hafif bir boş/yükleniyor durumu; BTC seviyeleri (TP/SL/giriş etiketleri) yok.
+  await expect(terminal(page).locator('.refChartEmpty')).toBeVisible()
+  await expect(terminal(page).locator('.masterTradeChartPills span')).toHaveCount(0)
+  await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveCount(0)
+  await symbolButton(page).click()
+  await coinRow(page, 'SOLUSDT').click()
+  await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveAttribute('aria-label', /SOLUSDT/)
+  releaseEth()
+  await page.waitForTimeout(800)
+  await expect(symbolButton(page)).toHaveText(/SOLUSDT/)
+  await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveAttribute('aria-label', /SOLUSDT/)
+  const axis = Number(await root(page).locator('svg[data-chart-ai-capture="reference"]').getAttribute('data-axis-high'))
+  expect(axis).toBeLessThan(1000) // SOL ölçeği (~145); ETH (~3200) veya BTC (~85000) değil
+})
+
+test('An unavailable symbol shows an error state and lets the user return to the previous valid symbol', async ({page}) => {
+  test.setTimeout(90000)
+  await prepare(page, {landscape: true})
+  await page.route('**/api/markets**', route => route.fulfill({json: [...previewMarkets, {symbol: 'DEADUSDT', display: 'DEAD/USDT', price: null, change: null, volume: null}]}))
+  await page.route('**/api/klines/DEADUSDT**', route => route.fulfill({status: 404, json: {detail: 'Symbol not found'}}))
+  await page.route('**/api/analysis/DEADUSDT**', route => route.fulfill({status: 404, json: {detail: 'Symbol not found'}}))
+  await openTerminal(page)
+  await symbolButton(page).click()
+  await picker(page).locator('input[type="search"]').fill('DEAD')
+  // Fiyatı olmayan satır uydurulmaz: nötr yer tutucu.
+  await expect(coinRow(page, 'DEADUSDT')).toBeVisible({timeout: 10000})
+  await expect(coinRow(page, 'DEADUSDT').locator('.kfsCoinQuote strong')).toHaveText('—')
+  await expect(coinRow(page, 'DEADUSDT').locator('.kfsCoinQuote small')).toHaveText('—')
+  await coinRow(page, 'DEADUSDT').click()
+  const recover = terminal(page).locator('.refChartRecover')
+  await expect(recover).toBeVisible({timeout: 30000}) // mevcut akış: tek başarısızlıktan sonra bir kez yeniden dener, ikincide hata gösterir
+  await expect(recover).toContainText('BTCUSDT')
+  await recover.click()
+  await expect(symbolButton(page)).toHaveText(/BTCUSDT/)
+  await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveAttribute('aria-label', /BTCUSDT/, {timeout: 15000})
+  await expect(terminal(page)).toBeVisible()
+})

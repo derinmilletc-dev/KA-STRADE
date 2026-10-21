@@ -8,16 +8,6 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
 /* Normal düzende sahne yalnız bir taşıyıcıdır; mevcut yerleşimi değiştirmez. */
 .masterReferenceAnalysis .kfsStage { display: contents; }
 
-/* Giriş düğmesi: dokunmatik/dar ekranlarda görünür; masaüstü fare düzeninde gizli kalır. */
-@media (min-width: 1024px) and (pointer: fine) {
-  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refDrawingTools .refFullscreenBtn { display: none !important; }
-}
-
-/* Dar ekranda araç satırı 8 sütunluk ızgara; dokuzuncu düğme ikinci satıra taşmasın diye yalnız normal düzende 9 sütun. */
-@media (max-width: 700px) {
-  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]) .refToolbar > .refDrawingTools:has(> .refFullscreenBtn) { grid-template-columns: repeat(9, minmax(0, 1fr)) !important; }
-}
-
 /* ---------- Dönme uyarısı ---------- */
 .masterReferenceAnalysis .kfsOverlay {
   position: fixed; inset: 0; z-index: 2147483001; display: grid; place-items: center;
@@ -99,7 +89,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   & .refToolbar { display: flex !important; flex: 0 0 auto !important; flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important; min-height: 40px !important; padding: 4px 8px !important; }
   & .refToolbar :is(button, select, summary) { min-height: 34px !important; }
   & .refToolbar select { height: 34px !important; }
-  & .refChartType, & .refOrderTools, & .refFullscreenBtn { display: none !important; }
+  & .refChartType, & .refOrderTools { display: none !important; }
   /* Çizim araçları sol dikey çubukta (.kfsRail); üst çubukta yalnız grafik ayarları ve görüntü indirme kalır. */
   & .refDrawingTools :is(.refDrawTool, .refToolDivider) { display: none !important; }
   & .refOhlc { flex-wrap: nowrap !important; overflow: hidden !important; white-space: nowrap !important; padding: 2px 10px !important; font-size: 11px !important; gap: 8px !important; }
@@ -214,4 +204,111 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   /* Sabit ipucu: dik telefonun yanında yatay yönü gösteren ince kesikli çerçeve. */
   .masterReferenceAnalysis .kfsPhoneStage::after { content: ""; position: absolute; width: 78px; height: 44px; border: 1.5px dashed rgba(167, 154, 245, .5); border-radius: 9px; box-sizing: border-box; pointer-events: none; }
   .masterReferenceAnalysis .kfsDrawer, .masterReferenceAnalysis .kfsDrawer[data-open], html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer[data-open] { transition: none !important; }
+}
+
+/* ---------- Analysis Studio coin seçici ---------- */
+/* Başlıktaki sembol: çerçevesiz, tıklanabilir; yanında küçük ok. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn {
+  display: inline-flex !important; align-items: center !important; gap: 4px !important; flex: none !important;
+  min-width: 0 !important; min-height: 32px !important; height: 32px !important; margin: 0 -4px 0 -6px !important; padding: 0 6px !important;
+  border: 0 !important; border-radius: 8px !important; background: transparent !important; color: #eef4ff !important; cursor: pointer;
+  align-self: center !important; transition: background-color .14s ease;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn b { font-size: 13px !important; font-weight: 700 !important; letter-spacing: .01em; color: #eef4ff !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn svg { width: 14px !important; height: 14px !important; color: #8fa3c0 !important; transition: transform .16s ease; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn[aria-expanded="true"] { background: rgba(169, 212, 255, .12) !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn[aria-expanded="true"] svg { transform: rotate(180deg); color: #a9d4ff !important; }
+@media (hover: hover) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn:hover { background: rgba(169, 212, 255, .08) !important; } }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn:focus-visible { outline: 2px solid #a9d4ff !important; outline-offset: 1px !important; }
+@media (pointer: coarse) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refToolbar .kfsIdent > .kfsSymbolBtn { min-height: 40px !important; height: 40px !important; }
+}
+
+/* Panel: grafiğe bağlı, yüzen, gece mavisi cam yüzey; başlık/arama/filtre sabit, yalnız liste kayar. */
+.masterReferenceAnalysis .kfsCoinPicker {
+  position: fixed; z-index: 80; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden;
+  border: 1px solid rgba(169, 212, 255, .12); border-radius: 14px; background-color: rgba(11, 15, 24, .97);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, .55), 0 1px 0 rgba(255, 255, 255, .04) inset; color: #e6edf7; outline: none;
+  animation: kfsCoinIn .16s ease-out; font-variant-numeric: tabular-nums;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .masterReferenceAnalysis .kfsCoinPicker { background-color: rgba(11, 15, 24, .86); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+}
+.masterReferenceAnalysis .kfsCoinPicker[data-sheet] { padding-bottom: env(safe-area-inset-bottom); }
+@keyframes kfsCoinIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.masterReferenceAnalysis .kfsCoinPickerHead { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 10px; border-bottom: 1px solid rgba(169, 212, 255, .08); }
+.masterReferenceAnalysis .kfsCoinPickerTitle { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.masterReferenceAnalysis .kfsCoinPickerTitle h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .01em; color: #f3f7fd; }
+.masterReferenceAnalysis .kfsCoinPickerTitle > span { font-size: 11px; color: #8796ad; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker button { font: inherit; text-transform: none; letter-spacing: normal; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinPickerClose {
+  margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #a8b5c8; cursor: pointer;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinPickerClose svg { width: 18px; height: 18px; }
+@media (hover: hover) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinPickerClose:hover { background: rgba(169, 212, 255, .08); color: #eef4ff; } }
+.masterReferenceAnalysis .kfsCoinSearch { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid rgba(169, 212, 255, .1); border-radius: 10px; background-color: rgba(20, 26, 38, .9); }
+.masterReferenceAnalysis .kfsCoinSearch:focus-within { border-color: rgba(169, 212, 255, .45); }
+.masterReferenceAnalysis .kfsCoinSearch svg { width: 16px; height: 16px; flex: none; color: #8796ad; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinSearch input {
+  flex: 1 1 auto; min-width: 0; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; outline: none; box-shadow: none !important;
+  background: transparent !important; color: #eef4ff !important; font-size: 16px !important; /* iOS yakınlaştırmasın */ -webkit-appearance: none; appearance: none;
+}
+.masterReferenceAnalysis .kfsCoinSearch input::placeholder { color: #6f7d92; }
+.masterReferenceAnalysis .kfsCoinSearch input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.masterReferenceAnalysis .kfsCoinFilters { display: flex; gap: 6px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button {
+  min-height: 30px; height: 30px; padding: 0 12px; border: 1px solid rgba(169, 212, 255, .1); border-radius: 999px; background: transparent; color: #9aa8bc; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button[aria-pressed="true"] { border-color: rgba(169, 212, 255, .4); background: rgba(169, 212, 255, .14); color: #eaf4ff; }
+@media (pointer: coarse) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button { min-height: 34px; height: 34px; } }
+
+/* Liste: tek kaydırma kabı (iç içe kaydırma yok), dokunmatik momentum, ince kaydırma çubuğu; satırlar ezilmez (60 px). */
+.masterReferenceAnalysis .kfsCoinList {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  scrollbar-width: thin; scrollbar-color: rgba(169, 212, 255, .22) transparent;
+}
+.masterReferenceAnalysis .kfsCoinList::-webkit-scrollbar { width: 6px; }
+.masterReferenceAnalysis .kfsCoinList::-webkit-scrollbar-thumb { border-radius: 6px; background-color: rgba(169, 212, 255, .22); }
+.masterReferenceAnalysis .kfsCoinCanvas { position: relative; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow {
+  position: absolute; top: 0; left: 0; right: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px;
+  height: 60px; min-height: 60px; margin: 0; padding: 0 14px; border: 0; border-bottom: 1px solid rgba(169, 212, 255, .06); border-radius: 0; background: transparent; color: inherit; text-align: left; cursor: pointer;
+  transition: background-color .12s ease;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow[aria-pressed="true"] { background: rgba(169, 212, 255, .1); box-shadow: inset 2px 0 0 #a9d4ff; }
+@media (hover: hover) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow:hover { background: rgba(169, 212, 255, .06); } }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow:active { background: rgba(169, 212, 255, .12); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow:focus-visible { outline: 2px solid #a9d4ff; outline-offset: -2px; }
+.masterReferenceAnalysis .kfsCoinId { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.masterReferenceAnalysis .kfsCoinId b { font-size: 14px; font-weight: 700; line-height: 1.15; color: #f3f7fd; }
+.masterReferenceAnalysis .kfsCoinId small { display: flex; gap: 6px; min-width: 0; font-size: 11.5px; line-height: 1.2; color: #8796ad; white-space: nowrap; }
+.masterReferenceAnalysis .kfsCoinId small > span:first-child { flex: none; }
+.masterReferenceAnalysis .kfsCoinName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.masterReferenceAnalysis .kfsCoinName::before { content: "·"; margin-right: 6px; color: #56637a; }
+.masterReferenceAnalysis .kfsCoinQuote { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; white-space: nowrap; }
+.masterReferenceAnalysis .kfsCoinQuote strong { font-size: 13px; font-weight: 600; line-height: 1.15; color: #eef4ff; }
+.masterReferenceAnalysis .kfsCoinQuote small { font-size: 11.5px; line-height: 1.2; color: #8796ad; }
+.masterReferenceAnalysis .kfsCoinQuote small[data-tone="positive"] { color: #5fd3a6; }
+.masterReferenceAnalysis .kfsCoinQuote small[data-tone="negative"] { color: #f07a7a; }
+.masterReferenceAnalysis .kfsCoinMark { display: grid; place-items: center; width: 16px; color: #a9d4ff; }
+.masterReferenceAnalysis .kfsCoinMark svg { width: 16px; height: 16px; }
+.masterReferenceAnalysis .kfsCoinEmpty { margin: 0; padding: 28px 16px; text-align: center; font-size: 13px; color: #8796ad; }
+@media (prefers-reduced-motion: reduce) {
+  .masterReferenceAnalysis .kfsCoinPicker { animation: none; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis :is(.kfsCoinPicker .kfsCoinRow, .kfsCoinFilters button, .refToolbar .kfsIdent > .kfsSymbolBtn, .refToolbar .kfsIdent > .kfsSymbolBtn svg) { transition: none; }
+}
+
+/* Çok kısa yatay ekranlar: başlık sıkılaşır, liste en az iki satır gösterir; panel kendisi kaymaz. */
+@media (max-height: 360px) {
+  .masterReferenceAnalysis .kfsCoinPickerHead { gap: 6px; padding: 8px 10px 8px; }
+  .masterReferenceAnalysis .kfsCoinPickerTitle { min-height: 28px; }
+  .masterReferenceAnalysis .kfsCoinSearch { height: 36px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinPickerClose { width: 32px; height: 32px; min-height: 32px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button { min-height: 28px; height: 28px; }
+}
+
+/* Veri yüklenemezse önceki sembole dönüş. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChartEmpty .refChartRecover {
+  margin: 12px auto 0; min-height: 40px; padding: 0 14px; border: 1px solid rgba(169, 212, 255, .28); border-radius: 10px; background: rgba(169, 212, 255, .08); color: #eaf4ff; font-size: 13px; font-weight: 600; cursor: pointer;
 }
