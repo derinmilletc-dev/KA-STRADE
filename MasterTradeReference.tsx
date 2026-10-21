@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Maximize2, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
+import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, ChevronRight, Crosshair, Eraser, LockKeyhole, Maximize2, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -14,7 +14,7 @@ import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
-import {AnalysisDrawer, RotateOverlay, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
+import {AnalysisDrawer, RotateOverlay, useExitTransition, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {DrawingRail} from './MasterTradeDrawingRail'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
@@ -337,19 +337,35 @@ export default function MasterTradeReference(props: Props) {
   const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawerOpen || drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsRail[data-menu-open="true"]') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"]') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
   useEffect(() => { if (!terminal) setDrawingsHidden(false) }, [terminal])
   const entryButton = useRef<HTMLButtonElement>(null)
+  const studioButton = useRef<HTMLButtonElement>(null)
   const exitButton = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(false)
-  useEffect(() => { if (!fullscreen.state.open) setDrawerOpen(false) }, [fullscreen.state.open])
+  // Analysis Studio: aynı tek denetleyici ve aynı yatay terminal. Dikeyde döndürme uyarısı, gerçek yatay algılanınca terminal
+  // ve Analysis paneli otomatik açılır. Panel yalnız ilk yatay geçişte istenir; kullanıcı kapatırsa kendiliğinden geri açılmaz.
+  const [purpose, setPurpose] = useState<'chart' | 'studio'>('chart')
+  const [studioPending, setStudioPending] = useState(false)
+  const [overlaySession, setOverlaySession] = useState(0) // her açılışta uyarı yeniden kurulur: animasyon dik konumdan başlar
+  const openFullscreen = (kind: 'chart' | 'studio', button: HTMLButtonElement | null) => {
+    opener.current = button
+    setPurpose(kind)
+    setStudioPending(kind === 'studio')
+    setOverlaySession(value => value + 1)
+    fullscreen.open()
+  }
+  const rotateOverlay = useExitTransition(rotating)
+  useEffect(() => { if (terminal && studioPending) { setDrawerOpen(true); setStudioPending(false) } }, [terminal, studioPending])
+  useEffect(() => { if (!fullscreen.state.open) { setDrawerOpen(false); setStudioPending(false) } }, [fullscreen.state.open])
   useEffect(() => {
     // Klavye/ekran okuyucu odağı: açılınca Çıkış'a, kapanınca açan düğmeye.
     if (terminal) exitButton.current?.focus()
-    else if (wasOpen.current && !fullscreen.state.open) entryButton.current?.focus()
+    else if (wasOpen.current && !fullscreen.state.open) (opener.current ?? entryButton.current)?.focus()
     wasOpen.current = fullscreen.state.open
   }, [terminal, fullscreen.state.open])
   // --- Fiyat alarmı: yalnız bu sayfa açıkken ve canlı fiyat akarken çalışır; tarayıcıda saklanır. ---
@@ -490,7 +506,7 @@ export default function MasterTradeReference(props: Props) {
                 </div>
               </details>
               <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
-              <button type="button" ref={entryButton} className="refFullscreenBtn" aria-label="Landscape fullscreen" title="Landscape fullscreen" aria-haspopup="dialog" onClick={fullscreen.open}><Maximize2/></button>
+              <button type="button" ref={entryButton} className="refFullscreenBtn" aria-label="Landscape fullscreen" title="Landscape fullscreen" aria-haspopup="dialog" onClick={() => openFullscreen('chart', entryButton.current)}><Maximize2/></button>
             </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
             {terminal && <div className="kfsActions">
@@ -517,6 +533,7 @@ export default function MasterTradeReference(props: Props) {
         <div className="refIndicatorGrid" aria-label="Market indicators">
           <IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles}/>
         </div>
+        <button type="button" ref={studioButton} className="kfsStudioBtn" aria-haspopup="dialog" onClick={() => openFullscreen('studio', studioButton.current)}><BarChart3 aria-hidden="true"/><span>Analysis Studio</span><ChevronRight aria-hidden="true"/></button>
         <div className="refMtfStrip"><span>MTF TEYİDİ {decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal}`}</span><div className="refMtfPills">{MASTER_MTF_INTERVALS.map(timeframe => {const row = decision.mtfRows.find(row => row.timeframe === timeframe); return <span key={timeframe} data-tone={directionTone(row?.direction ?? 'NEUTRAL')}>{timeframe} <b>{row?.available ? row.direction : '—'}</b></span>})}</div></div>
       </section>
       <aside className="refRight" aria-label="Analysis decision panel">
@@ -546,6 +563,6 @@ export default function MasterTradeReference(props: Props) {
         </section>
       </aside>
     </main>
-    {rotating && <RotateOverlay onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
+    {rotateOverlay.mounted && <RotateOverlay key={overlaySession} leaving={rotateOverlay.leaving} studio={purpose === 'studio'} onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
   </section>
 }

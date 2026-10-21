@@ -484,7 +484,7 @@ test('Cancel stops the illustration and reopening restarts it upright', async ({
   expect(await phoneAngleAt(page, 1800)).toBe(90)
   await page.getByRole('button', {name: 'Cancel'}).click()
   await expect(overlay(page)).toHaveCount(0)
-  expect(await page.locator('.kfsPhone').count()).toBe(0)
+  await expect(page.locator('.kfsPhone')).toHaveCount(0) // kapanış kısa bir geçişle olur
   await entry(page).click()
   await expect(overlay(page)).toBeVisible()
   const restart = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, a = phone.getAnimations()[0]; return {time: Number(a.currentTime), upright: phone.getBoundingClientRect().height > phone.getBoundingClientRect().width} })
@@ -517,7 +517,7 @@ test('The phone illustration draws its screen detail even under the global backg
     const line = getComputedStyle(document.querySelector('.kfsPhone i')!, '::before')
     return {color: line.backgroundColor, height: line.height, transform: line.transform}
   })
-  expect(detail.color).toBe('rgb(0, 228, 164)')
+  expect(detail.color).toBe('rgb(169, 212, 255)')
   expect(parseFloat(detail.height)).toBeGreaterThan(0)
   expect(detail.transform).not.toBe('none')
 })
@@ -719,4 +719,215 @@ test('Portrait and the normal toolbar keep their drawing buttons; the rail only 
   await expect(root(page).locator('.kfsRail')).toHaveCount(0)
   await expect(root(page).locator('.refDrawingTools .refDrawTool')).toHaveCount(6)
   await expect(root(page).locator('.refDrawingTools .refDrawTool:visible')).toHaveCount(6)
+})
+
+// ---------- Analysis Studio: dikeyde döndürme uyarısı, gerçek yatay algılanınca otomatik açılış ----------
+const studioButton = (page: Page) => root(page).getByRole('button', {name: 'Analysis Studio', exact: true})
+const studioText = 'Rotate your device to open Analysis Studio.'
+const portrait = {width: 390, height: 844}, landscape = {width: 844, height: 390}
+// Pencere/belge üzerindeki etkin dinleyicileri sayar (aynı işleyici tekrar eklenirse bir kez sayılır); sızıntı ve çoğalma denetimi.
+const countListeners = () => {
+  const registry = new Map<string, Set<unknown>>()
+  const wrap = (proto: {addEventListener: Function; removeEventListener: Function}) => {
+    const add = proto.addEventListener, remove = proto.removeEventListener
+    const keyOf = (target: unknown, type: string, options: unknown) => `${target === window ? 'window' : target === document ? 'document' : 'other'}:${type}:${typeof options === 'boolean' ? options : !!(options as {capture?: boolean} | undefined)?.capture}`
+    proto.addEventListener = function (this: unknown, type: string, listener: unknown, options?: unknown) {
+      if (this === window || this === document) { const key = keyOf(this, type, options); if (!registry.has(key)) registry.set(key, new Set()); registry.get(key)!.add(listener) }
+      return add.call(this, type, listener, options)
+    }
+    proto.removeEventListener = function (this: unknown, type: string, listener: unknown, options?: unknown) {
+      if (this === window || this === document) registry.get(keyOf(this, type, options))?.delete(listener)
+      return remove.call(this, type, listener, options)
+    }
+  }
+  wrap(EventTarget.prototype as never)
+  ;(window as unknown as {__listeners: () => Record<string, number>}).__listeners = () => {
+    const out: Record<string, number> = {}
+    for (const [key, set] of registry) if (/(resize|orientationchange|popstate|fullscreenchange|keydown)/.test(key)) out[key] = set.size
+    return out
+  }
+}
+const listenerCounts = (page: Page) => page.evaluate(() => (window as unknown as {__listeners: () => Record<string, number>}).__listeners())
+// Sayfanın kendi gecikmeli kurulumları bitene kadar bekler: art arda iki ölçüm aynı olunca sayılar durulmuştur.
+const settledListeners = async (page: Page) => {
+  let last = JSON.stringify(await listenerCounts(page))
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await page.waitForTimeout(250)
+    const next = JSON.stringify(await listenerCounts(page))
+    if (next === last) return JSON.parse(next) as Record<string, number>
+    last = next
+  }
+  return JSON.parse(last) as Record<string, number>
+}
+const rotateTo = async (page: Page, size: {width: number; height: number}) => { await page.setViewportSize(size); await page.evaluate(() => window.dispatchEvent(new Event('orientationchange'))) }
+
+test('Analysis Studio sits under the indicator table and tapping it in portrait shows the rotation prompt', async ({page}) => {
+  const {requests} = await prepare(page)
+  const before = requests.length
+  const button = studioButton(page)
+  await expect(button).toBeVisible()
+  const placement = await page.evaluate(() => { const grid = document.querySelector('.refIndicatorGrid')!.getBoundingClientRect(), btn = document.querySelector('.kfsStudioBtn')!.getBoundingClientRect(); return {gridBottom: grid.bottom, top: btn.top, height: btn.height, width: btn.width, grid: grid.width} })
+  expect(placement.top).toBeGreaterThanOrEqual(placement.gridBottom - 1)
+  expect(placement.height).toBeGreaterThanOrEqual(44)
+  expect(Math.abs(placement.width - placement.grid)).toBeLessThan(2)
+  await button.tap()
+  await expect(overlay(page)).toBeVisible()
+  await expect(overlay(page).getByText(studioText)).toBeVisible()
+  await expect(terminal(page)).toHaveCount(0)
+  await expect(drawer(page)).toHaveCount(0)
+  await expect(overlay(page).getByRole('button', {name: 'Cancel'})).toBeFocused()
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('The prompt stays up while the viewport is portrait and a single overlay exists', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await rotateTo(page, {width: 360, height: 740}) // hâlâ dikey
+  await page.waitForTimeout(500)
+  await expect(overlay(page)).toBeVisible()
+  await expect(page.locator('.kfsOverlay')).toHaveCount(1)
+  await expect(terminal(page)).toHaveCount(0)
+})
+
+test('Real landscape closes the prompt, opens the terminal and the Analysis panel, and keeps the same chart', async ({page}) => {
+  const {requests} = await prepare(page)
+  const before = requests.length
+  const svg = chartSvg(page)
+  await svg.evaluate(element => { (window as unknown as {__chartNode: Element}).__chartNode = element })
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await rotateTo(page, landscape)
+  await expect(overlay(page)).toHaveCount(0)
+  await expect(terminal(page)).toBeVisible()
+  await expect(drawer(page)).toBeVisible() // Analysis Studio = terminal + açık Analysis paneli
+  await expect(terminal(page).getByRole('button', {name: 'Analysis', exact: true})).toHaveAttribute('aria-expanded', 'true')
+  await expect(terminal(page).getByRole('button', {name: 'Exit fullscreen'})).toBeFocused()
+  expect(await page.evaluate(() => document.querySelector('.masterReferenceAnalysis svg[data-chart-ai-capture="reference"]') === (window as unknown as {__chartNode: Element}).__chartNode)).toBe(true)
+  await controlsReachable(page)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Manual rotation works when orientation lock and fullscreen are unavailable', async ({page}) => {
+  const {requests} = await prepare(page, {support: 'none'})
+  const before = requests.length
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await expect(overlay(page).getByText(/turn on auto-rotate/i)).toBeVisible() // hata değil, sakin bir ipucu
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await expect(drawer(page)).toBeVisible()
+  expect(await page.evaluate(() => (window as unknown as {__fs?: {request: number}}).__fs?.request ?? 0)).toBe(0)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Cancel returns to Master Trade without touching trading state and restores focus to the Studio button', async ({page}) => {
+  const {requests} = await prepare(page)
+  const before = requests.length
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await overlay(page).getByRole('button', {name: 'Cancel'}).click()
+  await pageIsRestored(page)
+  await expect(studioButton(page)).toBeFocused()
+  await expect(root(page).locator('.refMetrics')).toBeVisible()
+  expect(mutations(requests, before)).toEqual([])
+  // Yeniden açınca yine aynı akış: uyarı → yatay → terminal.
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await expect(page.locator('.kfsOverlay')).toHaveCount(1)
+})
+
+test('Repeated rotations never duplicate listeners, overlays or leave the UI stuck; cancel removes everything', async ({page}) => {
+  await page.addInitScript(countListeners)
+  await prepare(page)
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const cycle = async () => {
+    await rotateTo(page, landscape)
+    await expect(terminal(page)).toBeVisible()
+    await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+    await rotateTo(page, portrait)
+    await expect(page.locator('.kfsOverlay')).toHaveCount(1)
+    await expect(terminal(page)).toHaveCount(0)
+  }
+  await cycle() // ilk geçişte sayfa bileşenleri bir kez kurulur; kararlı durum bundan sonra ölçülür
+  const steady = await settledListeners(page)
+  for (let index = 0; index < 3; index += 1) await cycle()
+  expect(await settledListeners(page)).toEqual(steady) // sonraki dönüşler dinleyici eklemez (sızıntı/çoğalma yok)
+  await overlay(page).getByRole('button', {name: 'Cancel'}).click()
+  await pageIsRestored(page)
+  const after = await settledListeners(page)
+  // Denetleyicinin kendi dinleyicileri (her biri bir tane) iptalde tam olarak kalkar; sayfanın kendi dinleyicileri etkilenmez.
+  for (const key of ['window:resize:false', 'window:orientationchange:false', 'window:popstate:false', 'document:keydown:true', 'document:fullscreenchange:false', 'document:webkitfullscreenchange:false']) expect(after[key] ?? 0, key).toBe((steady[key] ?? 0) - 1)
+})
+
+test('Returning to portrait while Analysis Studio is open shows the prompt again and Escape still exits', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await rotateTo(page, landscape)
+  await expect(drawer(page)).toBeVisible()
+  await rotateTo(page, portrait)
+  await expect(overlay(page)).toBeVisible()
+  await expect(overlay(page).getByText(studioText)).toBeVisible()
+  await page.keyboard.press('Escape') // panel açık kalmış olsa bile Esc kilitlenmez
+  await pageIsRestored(page)
+  // Panel yalnız ilk yatay geçişte istenir: kullanıcı kapatırsa döndürünce kendiliğinden geri açılmaz.
+  await studioButton(page).click()
+  await rotateTo(page, landscape)
+  await expect(drawer(page)).toBeVisible()
+  await terminal(page).getByRole('button', {name: 'Close analysis'}).click()
+  await expect(drawer(page)).toBeHidden()
+  await rotateTo(page, portrait)
+  await expect(overlay(page)).toBeVisible()
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await expect(drawer(page)).toBeHidden()
+})
+
+test('Reduced motion: static upright phone and an immediate hand-off; normal motion fades the prompt out', async ({page}) => {
+  await prepare(page) // prepare() hareketi azaltır
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const still = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, box = phone.getBoundingClientRect(); return {animations: phone.getAnimations().length, upright: box.height > box.width, hint: getComputedStyle(phone.parentElement!, '::after').borderTopStyle} })
+  expect(still).toEqual({animations: 0, upright: true, hint: 'dashed'})
+  await rotateTo(page, landscape)
+  await expect(overlay(page)).toHaveCount(0, {timeout: 400}) // gecikme yok
+  await expect(terminal(page)).toBeVisible()
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  // Normal hareket: telefon canlı döner ve kapanış kısa bir geçişle olur.
+  await rotateTo(page, portrait)
+  await page.emulateMedia({reducedMotion: 'no-preference'})
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  expect(await page.evaluate(() => document.querySelector('.kfsPhone')!.getAnimations().length)).toBe(1)
+  await rotateTo(page, landscape)
+  await page.waitForSelector('.kfsOverlay[data-leaving="true"]', {state: 'attached', timeout: 1000})
+  await expect(page.locator('.kfsOverlay')).toHaveCount(0)
+  await expect(terminal(page)).toBeVisible()
+})
+
+test('The Studio button is hidden for desktop mouse users', async ({browser}) => {
+  const context = await browser.newContext({baseURL: 'http://127.0.0.1:4174', viewport: {width: 1440, height: 900}, hasTouch: false, isMobile: false})
+  const page = await context.newPage()
+  await prepare(page)
+  await page.setViewportSize({width: 1440, height: 900})
+  await expect(studioButton(page)).toBeHidden()
+  await context.close()
+})
+
+test('Reopening the prompt right after Cancel (during the fade) restarts the phone upright', async ({page}) => {
+  await prepare(page)
+  await page.emulateMedia({reducedMotion: 'no-preference'})
+  await studioButton(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.evaluate(() => { const a = document.querySelector('.kfsPhone')!.getAnimations()[0]; a.pause(); a.currentTime = 1800 }) // yatay evrede
+  await overlay(page).getByRole('button', {name: 'Cancel'}).click()
+  await studioButton(page).click() // geçiş bitmeden yeniden aç
+  await expect(page.locator('.kfsOverlay')).toHaveCount(1)
+  const state = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, a = phone.getAnimations()[0], box = phone.getBoundingClientRect(); return {time: Number(a.currentTime), upright: box.height > box.width, leaving: document.querySelector('.kfsOverlay')!.getAttribute('data-leaving')} })
+  expect(state.time).toBeLessThan(600)
+  expect(state.upright).toBe(true)
+  expect(state.leaving).toBeNull()
 })
