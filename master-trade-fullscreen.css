@@ -39,7 +39,9 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
   animation: kfsRotate 4.8s infinite;
 }
 .masterReferenceAnalysis .kfsPhone::before { content: ""; position: absolute; top: 4px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 2px; background: #9fb4b6; }
-.masterReferenceAnalysis .kfsPhone i { position: absolute; inset: 14px 6px 8px; border-bottom: 2px solid var(--ref-line); background: linear-gradient(135deg, transparent 44%, var(--ref-green) 45% 53%, transparent 54%); opacity: .9; }
+/* Ekran detayı: sayfadaki genel kural (.v26App.workspaceRoute * { background-image: none }) degrade çizimini engeller; bu yüzden düz renkli, eğik bir çizgi kullanılır. */
+.masterReferenceAnalysis .kfsPhone i { position: absolute; inset: 14px 6px 8px; overflow: hidden; border-bottom: 2px solid var(--ref-line); opacity: .9; }
+.masterReferenceAnalysis .kfsPhone i::before { content: ""; position: absolute; left: -30%; top: 50%; width: 160%; height: 2px; margin-top: -1px; border-radius: 2px; background-color: var(--ref-green); transform: rotate(-58deg); }
 @keyframes kfsRotate {
   0%, 10.4% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }
   37.5%, 62.5% { transform: rotate(90deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }

@@ -506,3 +506,16 @@ test('Reduced motion shows a static upright phone with a landscape hint', async 
   expect(state.hintStyle).toBe('dashed')
   expect(parseFloat(state.hintWidth)).toBeGreaterThan(parseFloat('44px'))
 })
+
+test('The phone illustration draws its screen detail even under the global background-image reset', async ({page}) => {
+  await prepare(page)
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const detail = await page.evaluate(() => {
+    const line = getComputedStyle(document.querySelector('.kfsPhone i')!, '::before')
+    return {color: line.backgroundColor, height: line.height, transform: line.transform}
+  })
+  expect(detail.color).toBe('rgb(0, 228, 164)')
+  expect(parseFloat(detail.height)).toBeGreaterThan(0)
+  expect(detail.transform).not.toBe('none')
+})
