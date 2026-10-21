@@ -4,7 +4,6 @@ import {X, MessageSquare, RotateCcw, Hand} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import KaisVoicePicker from './KaisVoicePicker'
 import KaisHoloBackdrop from './KaisHoloBackdrop'
-import {emitKaisReaction} from './kais-reactions'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
 
@@ -96,28 +95,18 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
   }, [portal])  // eslint-disable-line react-hooks/exhaustive-deps
   const ringPhase: HoloPhase = scene === 'A' || scene === 'B' ? 'thinking' : scene === 'C' || scene === 'D' ? 'speaking' : phase
   useRings(ringPhase, hidden, [primary, secondary, precision])
-  // Gözün KENDİ mevcut bakış altyapısı (kais:react): telefonda işaretçi olmadığı için göz kıpırdamıyordu. Düşünürken sık, diğer durumlarda seyrek bakar.
-  useEffect(() => {
-    if (hidden || phase === 'error') return
-    let timer = 0
-    const next = () => {
-      const rect = stage.current?.getBoundingClientRect()
-      if (rect) {
-        const angle = Math.random() * Math.PI * 2
-        emitKaisReaction({type: 'navigation', point: {x: rect.left + rect.width / 2 + Math.cos(angle) * 220, y: rect.top + rect.height / 2 + Math.sin(angle) * 90}})
-      }
-      timer = window.setTimeout(next, (phase === 'thinking' ? 900 : 1800) + Math.random() * (phase === 'thinking' ? 700 : 1500))
-    }
-    timer = window.setTimeout(next, 500)
-    return () => window.clearTimeout(timer)
-  }, [phase, hidden])
+  // Bakış artık gözün kendi prosedürel sistemiyle sürülür (presence = dinliyor/düşünüyor/konuşuyor): sabit aralıklı, hep kenara giden
+  // rastgele "navigation" tepkileri kaldırıldı. Göz çoğunlukla öne bakar, ara sıra küçük ve değişken kaymalar yapar.
   // Göz bakınca iris/göz bebeği gözün kendi altyapısıyla kayar (data-look-x/y). Optik iris ve göz bebeği katmanları aynı miktarda kaydırılır, böylece hizalı kalır.
   useEffect(() => {
     const eye = stage.current?.querySelector<SVGSVGElement>('.kaisEye')
     const overlays = [pupil.current, iris.current].filter((node): node is SVGSVGElement => node !== null)
     if (!eye || overlays.length === 0) return
+    // Ölçek yalnız boyut değişince okunur; bakış her karede güncellenirken düzen hesaplaması zorlanmaz.
+    let scale = eye.getBoundingClientRect().width / 96
+    const resize = new ResizeObserver(() => { scale = eye.getBoundingClientRect().width / 96; follow() })
+    resize.observe(eye)
     const follow = () => {
-      const scale = eye.getBoundingClientRect().width / 96
       const x = Number(eye.dataset.lookX) || 0, y = Number(eye.dataset.lookY) || 0
       const shift = `translate(${(x * 7 * scale).toFixed(2)}px, ${(y * 7 * .6 * scale).toFixed(2)}px)`
       overlays.forEach(node => { node.style.transform = shift })
@@ -125,7 +114,7 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
     follow()
     const observer = new MutationObserver(follow)
     observer.observe(eye, {attributes: true, attributeFilter: ['data-look-x', 'data-look-y']})
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); resize.disconnect() }
   }, [])
   useEffect(() => {
     const change = () => setHidden(document.hidden)
@@ -154,7 +143,7 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
         <g className="rulers"><path transform="rotate(0)" d="M156 0h7M156 -3v6"/><path transform="rotate(90)" d="M156 0h7M156 -3v6"/><path transform="rotate(180)" d="M156 0h7M156 -3v6"/><path transform="rotate(270)" d="M156 0h7M156 -3v6"/></g>
         <g className="measure"><g className="m" style={{'--d': '0.0s'} as React.CSSProperties} transform="translate(-146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '1.1s'} as React.CSSProperties} transform="translate(146 -34)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '2.2s'} as React.CSSProperties} transform="translate(-114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g><g className="m" style={{'--d': '3.3000000000000003s'} as React.CSSProperties} transform="translate(114 98)"><circle r="1.6"/><path d="M-6 0h3M3 0h3M0-6v3M0 3v3"/></g></g>
       </svg>
-      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'}/>
+      <div className="kaisHoloEye"><KaisEye size={260} state={phase === 'thinking' ? 'thinking' : 'idle'} presence={phase === 'error' ? 'listening' : phase}/>
         {/* Optik iris: ayrı, gözün çizimine dokunmayan katman (iris dairesine kırpılı; r 10–18 halka bölgesi). İnce eşmerkezli halkalar,
             radyal segmentler, hizalama işaretleri, cam parıltısı ve yansımalar; düşünürken seçili halkalar farklı hızlarda yavaşça döner. */}
         <svg className="kaisHoloIris" ref={iris} viewBox="-18 -18 36 36" aria-hidden="true">

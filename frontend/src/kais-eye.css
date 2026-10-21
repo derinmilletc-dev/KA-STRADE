@@ -35,9 +35,9 @@
 .kaisHeaderEye .kaisEyeUnread { fill: var(--header-eye-accent); stroke: var(--text); }
 .kaisHeaderEye[data-state="private"] .cyberEyeGlow { opacity: .3; }
 .kaisHeaderEye.kaisEyeMotion.kaisEyeBlink :is(.kaisEyeInterior, .kaisEyeUpperLid, .kaisEyeLowerLid) {
-  animation-duration: 200ms;
+  animation-duration: 150ms;
 }
-.kaisHeaderEye.kaisEyeMotion.kaisEyeBlink .cyberEyeGlow { animation: kais-header-glow-blink 200ms ease-in-out; }
+.kaisHeaderEye.kaisEyeMotion.kaisEyeBlink .cyberEyeGlow { animation: kais-header-glow-blink 150ms ease-in-out; }
 @keyframes kais-header-glow-blink {
   0%, 100% { opacity: .9; }
   50% { opacity: .15; }

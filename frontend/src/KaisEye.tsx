@@ -2,14 +2,16 @@ import {useId} from 'react'
 import type {KaisEyeProps} from '../../KaisEye'
 import {assistantCopy} from '../../ui-copy'
 import {useHeaderKaisEye} from './useHeaderKaisEye'
+import type {EyePresence} from '../../kais-eye-motion'
 import '../../kais-eye.css'
 import './kais-eye.css'
 
-type HeaderKaisEyeProps = Pick<KaisEyeProps, 'size' | 'state' | 'unreadBadge'>
+// presence: konuşan asistanın bağlamı (dinliyor/düşünüyor/konuşuyor); verilmezse durumdan türetilir.
+type HeaderKaisEyeProps = Pick<KaisEyeProps, 'size' | 'state' | 'unreadBadge'> & {presence?: EyePresence}
 
-export default function KaisEye({size = 56, state: requestedState, unreadBadge = false}: HeaderKaisEyeProps) {
+export default function KaisEye({size = 56, state: requestedState, unreadBadge = false, presence}: HeaderKaisEyeProps) {
   const id = `kais-header-eye-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
-  const {eyeRef, gazeRef, state, motion, transitions, blinking, engaged, slowBlinking, attention, reaction} = useHeaderKaisEye(requestedState)
+  const {eyeRef, gazeRef, state, motion, transitions, blinking, engaged, slowBlinking, attention, reaction} = useHeaderKaisEye(requestedState, presence)
   if (!Number.isFinite(size) || size <= 0) throw new RangeError('KaisEye size must be a positive finite number')
   const closed = state === 'private'
   const dimmed = state === 'error' || state === 'off'
