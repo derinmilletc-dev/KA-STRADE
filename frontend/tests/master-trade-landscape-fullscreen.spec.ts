@@ -107,6 +107,8 @@ const controlsReachable = async (page: Page) => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(size.height)
   }
 }
+// Sol çizim araç çubuğunun açık hâldeki sütun genişliği (CSS: .kfsRail width).
+const RAIL_WIDTH = 44
 const chartMatchesCanvas = async (page: Page) => {
   const canvas = root(page).locator('.refChartCanvas')
   const box = await canvas.boundingBox()
@@ -203,7 +205,7 @@ test('The landscape terminal is chart-first with a compact toolbar and a closed 
   await controlsReachable(page)
   const canvas = await chartMatchesCanvas(page)
   expect(canvas.height).toBeGreaterThan(390 * 0.6)
-  expect(canvas.width).toBe(844)
+  expect(canvas.width).toBe(844 - RAIL_WIDTH) // grafik, solundaki 44 px'lik çizim çubuğu dışındaki tüm genişliği kullanır
   await expect(drawer(page)).toBeHidden()
   // Sayfa kaydırması kilitli.
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden')
@@ -258,7 +260,7 @@ test('The chart recalculates its size when the device rotates or the viewport ch
   await page.setViewportSize({width: 667, height: 375})
   await controlsReachable(page)
   await page.setViewportSize({width: 740, height: 360})
-  await expect.poll(async () => Math.round((await root(page).locator('.refChartCanvas').boundingBox())!.width)).toBe(740)
+  await expect.poll(async () => Math.round((await root(page).locator('.refChartCanvas').boundingBox())!.width)).toBe(740 - RAIL_WIDTH)
   await chartMatchesCanvas(page)
   await terminal(page).getByRole('button', {name: 'Analysis', exact: true}).click()
   await expect(drawer(page)).toBeVisible()
@@ -518,4 +520,203 @@ test('The phone illustration draws its screen detail even under the global backg
   expect(detail.color).toBe('rgb(0, 228, 164)')
   expect(parseFloat(detail.height)).toBeGreaterThan(0)
   expect(detail.transform).not.toBe('none')
+})
+
+// ---------- Sol çizim araç çubuğu (yalnız simge) ----------
+const rail = (page: Page) => terminal(page).getByRole('toolbar', {name: 'Drawing tools'})
+const railTool = (page: Page, name: string) => rail(page).getByRole('button', {name, exact: true})
+const chartSvg = (page: Page) => root(page).locator('svg[data-chart-ai-capture="reference"]')
+async function enterTerminal(page: Page, options: Parameters<typeof prepare>[1] = {landscape: true}) {
+  const context = await prepare(page, options)
+  await entry(page).click()
+  await expect(terminal(page)).toBeVisible()
+  await expect(rail(page)).toBeVisible()
+  return context
+}
+const openMore = async (page: Page) => { await railTool(page, 'More tools').click(); await expect(terminal(page).getByRole('menu', {name: 'More tools'})).toBeVisible() }
+const drawHorizontal = async (page: Page, y = 120) => { await railTool(page, 'Horizontal line').click(); await chartSvg(page).click({position: {x: 200, y}}) }
+
+test('The drawing rail is a compact icon-only vertical toolbar beside the chart', async ({page}) => {
+  await enterTerminal(page)
+  const info = await page.evaluate(() => {
+    const bar = document.querySelector('.kfsRail')!.getBoundingClientRect()
+    const canvas = document.querySelector('.kfsStage > .refChartCanvas')!.getBoundingClientRect()
+    const buttons = Array.from(document.querySelectorAll('.kfsRail button')).map(node => {
+      const r = node.getBoundingClientRect(), svg = node.querySelector('svg')
+      return {name: node.getAttribute('aria-label'), text: (node.textContent ?? '').trim(), w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right, hasIcon: !!svg}
+    })
+    return {bar: {left: bar.left, right: bar.right, width: bar.width}, canvasLeft: canvas.left, buttons}
+  })
+  expect(info.buttons.map(button => button.name)).toEqual(['Collapse drawing tools', 'Crosshair', 'Trend line', 'Horizontal line', 'Eraser', 'Undo', 'Redo', 'More tools'])
+  for (const button of info.buttons) { expect(button.text, button.name!).toBe(''); expect(button.hasIcon, button.name!).toBe(true) }
+  for (const button of info.buttons.slice(1)) { expect(button.w, button.name!).toBeGreaterThanOrEqual(36); expect(button.h, button.name!).toBeGreaterThanOrEqual(36) }
+  // Çubuk grafiğin solunda ayrı bir sütun: grafiği ve fiyat etiketlerini örtmez; düğmeler birbirine binmez.
+  expect(info.bar.right).toBeLessThanOrEqual(info.canvasLeft + 1)
+  expect(info.bar.width).toBeLessThanOrEqual(48)
+  const sorted = [...info.buttons].sort((a, b) => a.top - b.top)
+  for (let index = 1; index < sorted.length; index += 1) expect(sorted[index].top, sorted[index].name!).toBeGreaterThanOrEqual(sorted[index - 1].bottom - 0.5)
+  const size = page.viewportSize()!
+  for (const button of info.buttons) { expect(button.bottom).toBeLessThanOrEqual(size.height); expect(button.right).toBeLessThanOrEqual(size.width) }
+  // Eski üst çubuktaki çizim düğmeleri terminalde gizli (yinelenen kontrol yok).
+  await expect(terminal(page).locator('.refToolbar .refDrawTool:visible')).toHaveCount(0)
+})
+
+test('Selecting a tool shows a clear active state, single selection and creates the drawing without orders', async ({page}) => {
+  const {requests} = await enterTerminal(page)
+  const before = requests.length
+  const trend = railTool(page, 'Trend line'), horizontal = railTool(page, 'Horizontal line')
+  await expect(trend).toHaveAttribute('aria-pressed', 'false')
+  await trend.click()
+  await expect(trend).toHaveAttribute('aria-pressed', 'true')
+  const styles = await trend.evaluate(node => { const c = getComputedStyle(node); return {border: c.borderTopColor, background: c.backgroundColor} })
+  const idle = await horizontal.evaluate(node => { const c = getComputedStyle(node); return {border: c.borderTopColor, background: c.backgroundColor} })
+  expect(styles).not.toEqual(idle)
+  await horizontal.click()
+  await expect(horizontal).toHaveAttribute('aria-pressed', 'true')
+  await expect(trend).toHaveAttribute('aria-pressed', 'false') // tek seçili araç
+  await chartSvg(page).click({position: {x: 200, y: 120}})
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1)
+  await expect(horizontal).toHaveAttribute('aria-pressed', 'false') // çizim bitince araç bırakılır (mevcut davranış)
+  await trend.click()
+  await chartSvg(page).click({position: {x: 160, y: 140}})
+  await chartSvg(page).click({position: {x: 300, y: 90}})
+  await expect(root(page).locator('.refDrawing--trend:not(.refDrawing--draft)')).toHaveCount(1)
+  // Artı imleç düğmesi açılıp kapanır ve durumunu gösterir.
+  const crosshair = railTool(page, 'Crosshair')
+  await crosshair.click(); await expect(crosshair).toHaveAttribute('aria-pressed', 'true')
+  await crosshair.click(); await expect(crosshair).toHaveAttribute('aria-pressed', 'false')
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Undo and redo step through drawings; eraser removes a line; undo also restores an erased line', async ({page}) => {
+  await enterTerminal(page)
+  const lines = root(page).locator('.refDrawing--hline')
+  await expect(railTool(page, 'Undo')).toBeDisabled()
+  await expect(railTool(page, 'Redo')).toBeDisabled()
+  await drawHorizontal(page, 100)
+  await drawHorizontal(page, 180)
+  await expect(lines).toHaveCount(2)
+  await railTool(page, 'Undo').click()
+  await expect(lines).toHaveCount(1)
+  await expect(railTool(page, 'Redo')).toBeEnabled()
+  await railTool(page, 'Redo').click()
+  await expect(lines).toHaveCount(2)
+  await expect(railTool(page, 'Redo')).toBeDisabled()
+  // Silgi: seçili araç aktif görünür; çizgiye tıklayınca siler.
+  await railTool(page, 'Eraser').click()
+  await expect(railTool(page, 'Eraser')).toHaveAttribute('aria-pressed', 'true')
+  await root(page).locator('.refDrawing--hline .refDrawingHit').first().dispatchEvent('click')
+  await expect(lines).toHaveCount(1)
+  await railTool(page, 'Undo').click()
+  await expect(lines).toHaveCount(2)
+  // Kalıcılık: geri alma sonucu tarayıcı kaydına da yazılır.
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kaistrade-chart-drawings') ?? '{}').BTCUSDT?.length)).toBe(2)
+})
+
+test('Hide and show drawings keep them stored; clear all asks for confirmation first', async ({page}) => {
+  await enterTerminal(page)
+  const lines = root(page).locator('.refDrawing--hline')
+  await drawHorizontal(page)
+  await expect(lines).toHaveCount(1)
+  await openMore(page)
+  await terminal(page).getByRole('menuitem', {name: 'Hide drawings'}).or(terminal(page).getByRole('button', {name: 'Hide drawings'})).click()
+  await expect(lines).toHaveCount(0)
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kaistrade-chart-drawings') ?? '{}').BTCUSDT?.length)).toBe(1) // yalnız gizlendi, silinmedi
+  await openMore(page)
+  await terminal(page).getByRole('button', {name: 'Show drawings'}).click()
+  await expect(lines).toHaveCount(1)
+  // Hepsini sil: önce vazgeç → çizim kalır; sonra onayla → silinir.
+  const dialogs: string[] = []
+  page.once('dialog', dialog => { dialogs.push(dialog.message()); void dialog.dismiss() })
+  await openMore(page)
+  await terminal(page).getByRole('button', {name: 'Clear all drawings'}).click()
+  await expect(lines).toHaveCount(1)
+  expect(dialogs.length).toBe(1)
+  page.once('dialog', dialog => { dialogs.push(dialog.message()); void dialog.accept() })
+  await openMore(page)
+  await terminal(page).getByRole('button', {name: 'Clear all drawings'}).click()
+  await expect(lines).toHaveCount(0)
+  expect(dialogs.length).toBe(2)
+  await expect(railTool(page, 'Undo')).toBeEnabled() // silme de geri alınabilir
+  await railTool(page, 'Undo').click()
+  await expect(lines).toHaveCount(1)
+})
+
+test('The rail collapses to a thin strip and the chart reclaims the width, then expands again', async ({page}) => {
+  await enterTerminal(page)
+  const canvasWidth = () => page.evaluate(() => document.querySelector('.kfsStage > .refChartCanvas')!.getBoundingClientRect().width)
+  const open = await canvasWidth()
+  const toggle = rail(page).getByRole('button', {name: 'Collapse drawing tools'})
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await toggle.click()
+  const collapsed = rail(page).getByRole('button', {name: 'Expand drawing tools'})
+  await expect(collapsed).toHaveAttribute('aria-expanded', 'false')
+  await expect(railTool(page, 'Trend line')).toBeHidden()
+  await expect.poll(canvasWidth).toBeGreaterThan(open + 12)
+  const strip = await rail(page).boundingBox()
+  expect(strip!.width).toBeLessThanOrEqual(26)
+  await collapsed.click()
+  await expect(railTool(page, 'Trend line')).toBeVisible()
+  await expect.poll(canvasWidth).toBeLessThanOrEqual(open + 1)
+})
+
+test('Tools can be identified without hover: mouse hover, keyboard focus and a touch tap all show the name', async ({page}) => {
+  await enterTerminal(page)
+  const tip = terminal(page).locator('.kfsTip')
+  const box = (await railTool(page, 'Trend line').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(tip).toHaveText('Trend line')
+  await page.mouse.move(600, 200)
+  await expect(tip).toHaveCount(0)
+  await railTool(page, 'Horizontal line').tap()
+  await expect(tip).toHaveText('Horizontal line') // dokunmatik: hover olmadan görünür
+  await expect(tip).toHaveCount(0, {timeout: 4000}) // kısa süre sonra kendiliğinden kapanır
+  await railTool(page, 'Horizontal line').tap() // aracı bırak
+  await railTool(page, 'Crosshair').focus()
+  await page.keyboard.press('Tab')
+  await expect(tip).toHaveText('Trend line')
+  const named = await rail(page).getByRole('button').evaluateAll(nodes => nodes.every(node => (node.getAttribute('aria-label') ?? '').length > 0))
+  expect(named).toBe(true)
+})
+
+test('Escape closes the More menu first, then fullscreen; leaving restores everything and shows drawings again', async ({page}) => {
+  await enterTerminal(page)
+  await drawHorizontal(page)
+  await openMore(page)
+  await page.keyboard.press('Escape')
+  await expect(terminal(page).getByRole('menu', {name: 'More tools'})).toHaveCount(0)
+  await expect(terminal(page)).toBeVisible()
+  await openMore(page)
+  await terminal(page).getByRole('button', {name: 'Hide drawings'}).click()
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await pageIsRestored(page)
+  await expect(root(page).locator('.refDrawing--hline')).toHaveCount(1) // normal düzende çizimler gizli kalmaz
+})
+
+test('Drawings stay at the same price position when the viewport changes while the rail is open', async ({page}) => {
+  await enterTerminal(page)
+  await drawHorizontal(page, 140)
+  // Çizgi, saklanan fiyatına denk gelen yükseklikte kalmalı (görünür aralık genişliğe göre değişebilir; fiyat değişmez).
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kaistrade-chart-drawings') ?? '{}').BTCUSDT[0].price as number)
+  const drawnPrice = () => page.evaluate(() => {
+    const line = document.querySelector('.refDrawing--hline > line:not(.refDrawingHit)') as SVGLineElement, svg = document.querySelector('svg[data-chart-ai-capture="reference"]') as SVGSVGElement
+    const low = Number(svg.getAttribute('data-axis-low')), high = Number(svg.getAttribute('data-axis-high')), height = Number(svg.getAttribute('data-price-height'))
+    return high - Number(line.getAttribute('y1')) / height * (high - low)
+  })
+  expect(Math.abs((await drawnPrice()) - stored) / stored).toBeLessThan(0.0005)
+  const sizeBefore = (await chartSvg(page).boundingBox())!.width
+  await page.setViewportSize({width: 667, height: 375})
+  await expect(rail(page)).toBeVisible()
+  await expect.poll(async () => (await chartSvg(page).boundingBox())!.width).not.toBe(sizeBefore)
+  await expect.poll(async () => Math.abs((await drawnPrice()) - stored) / stored).toBeLessThan(0.0005)
+  const fit = await page.evaluate(() => { const size = {w: innerWidth, h: innerHeight}; return Array.from(document.querySelectorAll('.kfsRail button')).every(node => { const r = node.getBoundingClientRect(); return r.bottom <= size.h && r.right <= size.w }) })
+  expect(fit).toBe(true) // 667x375'te de tüm düğmeler ekranda
+})
+
+test('Portrait and the normal toolbar keep their drawing buttons; the rail only exists in the landscape terminal', async ({page}) => {
+  await prepare(page)
+  await expect(root(page).locator('.kfsRail')).toHaveCount(0)
+  await expect(root(page).locator('.refDrawingTools .refDrawTool')).toHaveCount(6)
+  await expect(root(page).locator('.refDrawingTools .refDrawTool:visible')).toHaveCount(6)
 })
