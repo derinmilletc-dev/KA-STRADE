@@ -15,6 +15,7 @@ import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
 import {AnalysisDrawer, RotateOverlay, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
+import {DrawingRail} from './MasterTradeDrawingRail'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
 // Sonra yüklenmeli: yatay tam ekran kuralları mobil kuralların üstüne yazar.
@@ -309,14 +310,38 @@ export default function MasterTradeReference(props: Props) {
   const [drawMode, setDrawMode] = useState<DrawMode>('none')
   const [drawings, setDrawings] = useState<{symbol: string; list: Drawing[]}>(() => ({symbol: props.symbol, list: readDrawings(props.symbol)}))
   const symbolDrawings = drawings.symbol === props.symbol ? drawings.list : readDrawings(props.symbol)
-  const changeDrawings = (next: Drawing[]) => { setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next) }
-  const pickTool = (mode: DrawMode) => setDrawMode(current => current === mode ? 'none' : mode)
+  // Geri al / yinele: yalnız çizim listesinin tarayıcıdaki anlık görüntüleri; emir veya veri akışıyla ilgisi yok.
+  const [history, setHistory] = useState<{symbol: string; past: Drawing[][]; future: Drawing[][]}>({symbol: props.symbol, past: [], future: []})
+  const ownHistory = history.symbol === props.symbol ? history : {symbol: props.symbol, past: [] as Drawing[][], future: [] as Drawing[][]}
+  const storeDrawings = (next: Drawing[]) => { setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next) }
+  // `record=false`: alarm "çaldı" işareti gibi otomatik güncellemeler geri alma geçmişine girmez.
+  const changeDrawings = (next: Drawing[], record = true) => {
+    if (record) setHistory({symbol: props.symbol, past: [...ownHistory.past, symbolDrawings].slice(-30), future: []})
+    storeDrawings(next)
+  }
+  const undoDrawing = () => {
+    const previous = ownHistory.past[ownHistory.past.length - 1]
+    if (!previous) return
+    setHistory({symbol: props.symbol, past: ownHistory.past.slice(0, -1), future: [symbolDrawings, ...ownHistory.future]})
+    storeDrawings(previous)
+  }
+  const redoDrawing = () => {
+    const next = ownHistory.future[0]
+    if (!next) return
+    setHistory({symbol: props.symbol, past: [...ownHistory.past, symbolDrawings].slice(-30), future: ownHistory.future.slice(1)})
+    storeDrawings(next)
+  }
+  const [drawingsHidden, setDrawingsHidden] = useState(false)
+  const clearDrawings = () => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }
+  // Yeni çizim aracı seçilince gizli çizimler tekrar görünür; kullanıcı çizdiğini görsün.
+  const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawerOpen || drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open]') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawerOpen || drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsRail[data-menu-open="true"]') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
+  useEffect(() => { if (!terminal) setDrawingsHidden(false) }, [terminal])
   const entryButton = useRef<HTMLButtonElement>(null)
   const exitButton = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
@@ -362,7 +387,7 @@ export default function MasterTradeReference(props: Props) {
     const hit = symbolDrawings.filter(item => item.type === 'hline' && item.alarm && !item.alarm.fired
       && (item.alarm.side === 'above' ? alarmPrice >= item.price : alarmPrice <= item.price))
     if (!hit.length) return
-    changeDrawings(symbolDrawings.map(item => hit.includes(item) && item.type === 'hline' && item.alarm ? {...item, alarm: {...item.alarm, fired: true}} : item))
+    changeDrawings(symbolDrawings.map(item => hit.includes(item) && item.type === 'hline' && item.alarm ? {...item, alarm: {...item.alarm, fired: true}} : item), false)
     const message = hit.map(item => item.type === 'hline' ? `${props.symbol} fiyatı ${analysisPrice(item.price)} seviyesine ulaştı` : '').join(' · ')
     setAlarmToast(message); beep()
     try { if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('KaisTrade fiyat alarmı', {body: message}) } catch { /* bildirim gösterilemedi */ }
@@ -447,13 +472,13 @@ export default function MasterTradeReference(props: Props) {
             <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
             <div className="refDrawingTools">
-              <button type="button" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
+              <button type="button" className="refDrawTool" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
               <span className="refToolDivider" aria-hidden="true"/>
-              <button type="button" aria-label="Yatay çizgi çiz" title="Yatay çizgi: grafikte bir fiyata tıkla" aria-pressed={drawMode === 'hline'} onClick={() => pickTool('hline')}><Minus/></button>
-              <button type="button" aria-label="Trend çizgisi çiz" title="Trend çizgisi: iki noktaya tıkla" aria-pressed={drawMode === 'trend'} onClick={() => pickTool('trend')}><TrendingUp/></button>
-              <button type="button" aria-label="Fiyat alarmı kur" title="Alarm: bir fiyata tıkla; fiyat oraya gelince uyarır (sayfa açıkken)" aria-pressed={drawMode === 'alarm'} onClick={() => {pickTool('alarm'); primeAlarm()}}><Bell/></button>
-              <button type="button" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla (ya da çizgiye sağ tıkla)" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
-              <button type="button" aria-label="Tüm çizimleri sil" title="Bu coindeki tüm çizimleri sil" disabled={!symbolDrawings.length} onClick={() => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }}><Trash2/></button>
+              <button type="button" className="refDrawTool" aria-label="Yatay çizgi çiz" title="Yatay çizgi: grafikte bir fiyata tıkla" aria-pressed={drawMode === 'hline'} onClick={() => pickTool('hline')}><Minus/></button>
+              <button type="button" className="refDrawTool" aria-label="Trend çizgisi çiz" title="Trend çizgisi: iki noktaya tıkla" aria-pressed={drawMode === 'trend'} onClick={() => pickTool('trend')}><TrendingUp/></button>
+              <button type="button" className="refDrawTool" aria-label="Fiyat alarmı kur" title="Alarm: bir fiyata tıkla; fiyat oraya gelince uyarır (sayfa açıkken)" aria-pressed={drawMode === 'alarm'} onClick={() => {pickTool('alarm'); primeAlarm()}}><Bell/></button>
+              <button type="button" className="refDrawTool" aria-label="Çizim sil" title="Silgi: silmek istediğin çizgiye tıkla (ya da çizgiye sağ tıkla)" aria-pressed={drawMode === 'erase'} disabled={!symbolDrawings.length} onClick={() => pickTool('erase')}><Eraser/></button>
+              <button type="button" className="refDrawTool" aria-label="Tüm çizimleri sil" title="Bu coindeki tüm çizimleri sil" disabled={!symbolDrawings.length} onClick={clearDrawings}><Trash2/></button>
               <span className="refToolDivider" aria-hidden="true"/>
               <details className="refChartSettings">
                 <summary aria-label="Grafik ayarları" title="Grafik ayarları"><Settings2/></summary>
@@ -475,8 +500,11 @@ export default function MasterTradeReference(props: Props) {
           </div>
           {props.error && <RefErrorNotice message={props.error}/>}
           <div className="kfsStage">
+            {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
+              hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
+              canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
             <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
-              drawings={symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
+              drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
               onDrawDone={() => setDrawMode('none')}/>
             {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
