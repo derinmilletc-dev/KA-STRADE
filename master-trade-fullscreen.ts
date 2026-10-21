@@ -20,7 +20,7 @@ type Target = {addEventListener: (type: string, handler: (event: any) => void, o
 type MediaListLike = {matches: boolean; addEventListener?: (type: 'change', handler: () => void) => void; removeEventListener?: (type: 'change', handler: () => void) => void}
 
 export type LandscapeEnv = {
-  window: Target & {innerWidth: number; innerHeight: number; history: History; matchMedia?: (query: string) => MediaListLike}
+  window: Target & {visualViewport?: Target | null; innerWidth: number; innerHeight: number; history: History; matchMedia?: (query: string) => MediaListLike}
   document: Target & {
     documentElement: Element & {requestFullscreen?: (options?: FullscreenOptions) => Promise<void>; webkitRequestFullscreen?: () => Promise<void> | void}
     body: Element
@@ -36,6 +36,8 @@ export type LandscapeEnv = {
 export type LandscapeOptions = {
   /** Yön okuması bu kadar ms boyunca değişmeden kalınca onaylanır (düzen oturana kadar bekler). */
   settleMs?: number
+  /** Yedek doğrulama yoklaması aralığı (ms). */
+  pollMs?: number
 }
 /** Dönme sonrası yerleşim için varsayılan bekleme. */
 export const ORIENTATION_SETTLE_MS = 300
@@ -49,16 +51,19 @@ export function browserEnv(): LandscapeEnv {
 
 export const isLandscape = (width: number, height: number) => width > height
 
+/** Okumayı doğrulayan yedek yoklama aralığı: olay kaçarsa (mobil tarayıcılarda olur) gerçek durumu yeniden okur; zaman kanıt sayılmaz. */
+export const ORIENTATION_POLL_MS = 250
+
 /**
- * Cihaz/pencere şu an gerçekten yatay mı? Tek bir sinyale güvenilmez: boyutlar yatay olmalı, `(orientation: landscape)`
- * medya sorgusu aynı fikirde olmalı ve Screen Orientation API varsa dikey demiyor olmalı. Tam ekran durumu yön kanıtı sayılmaz.
+ * Düzen şu an gerçekten yatay mı? Tek bir sinyale güvenilmez: görünür alan boyutları yatay olmalı ve `(orientation: landscape)`
+ * medya sorgusu (varsa) aynı fikirde olmalı. Terminal bir CSS yerleşimidir; bu yüzden karar görünür alandan verilir.
+ * `screen.orientation` yalnız sinyal kaynağıdır (değişimde yeniden okunur); anlık/eski değeri yatayı veto etmez, çünkü
+ * mobil tarayıcılarda fiziksel yön ile CSS görünür alanı her zaman aynı anda güncellenmez. Tam ekran durumu yön kanıtı sayılmaz.
  */
 export function readLandscape(env: LandscapeEnv): boolean {
   if (!isLandscape(env.window.innerWidth, env.window.innerHeight)) return false
   const query = env.window.matchMedia?.('(orientation: landscape)')
   if (query && !query.matches) return false
-  const type = env.screen.orientation?.type
-  if (typeof type === 'string' && type.startsWith('portrait')) return false
   return true
 }
 
@@ -85,8 +90,7 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   let escapeGuard: () => boolean = () => false
   // open()/close() asenkron adımlar arasında iptal edilebilir; her açılışa bir kimlik verilir.
   let session = 0
-  // Tam ekran/kilit isteği sürerken oluşan geçici boyut değişimleri yön kanıtı sayılmaz.
-  let busy = false
+  let pollTimer: ReturnType<typeof setInterval> | undefined
   let settleTimer: ReturnType<typeof setTimeout> | undefined
   let orientationQuery: MediaListLike | undefined
 
@@ -101,13 +105,18 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   // geçişi ya da kilit isteğinin yan etkisi) hemen eski hâline dönerse terminal hiç açılmaz; dikeyde uyarı kalır.
   const commitOrientation = () => {
     settleTimer = undefined
-    if (!snapshot.open || busy) return
+    if (!snapshot.open) return
     emit({landscape: readLandscape(env)})
   }
   const scheduleSettle = () => {
     if (!snapshot.open) return
     clearTimeout(settleTimer)
     settleTimer = setTimeout(commitOrientation, settleMs)
+  }
+  // Yedek: olay kaçsa da (veya tam ekran/kilit isteği hiç tamamlanmasa da) gerçek okuma ile durum ayrışırsa onay döngüsü başlar.
+  const verifyOrientation = () => {
+    if (!snapshot.open || settleTimer !== undefined) return
+    if (readLandscape(env) !== snapshot.landscape) scheduleSettle()
   }
   const onOrientationSignal = () => scheduleSettle()
   const onFullscreenChange = () => {
@@ -140,6 +149,9 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
     env.window.addEventListener('resize', onOrientationSignal)
     env.window.addEventListener('orientationchange', onOrientationSignal)
     env.window.addEventListener('popstate', onPopState)
+    env.window.visualViewport?.addEventListener('resize', onOrientationSignal)
+    pollTimer = setInterval(verifyOrientation, options.pollMs ?? ORIENTATION_POLL_MS)
+    ;(pollTimer as {unref?: () => void} | undefined)?.unref?.() // Node testlerinde süreci canlı tutmasın (tarayıcıda sayıdır, etkisiz)
     orientationQuery = env.window.matchMedia?.('(orientation: landscape)')
     orientationQuery?.addEventListener?.('change', onOrientationSignal)
     env.screen.orientation?.addEventListener?.('change', onOrientationSignal)
@@ -154,6 +166,9 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
     env.window.removeEventListener('resize', onOrientationSignal)
     env.window.removeEventListener('orientationchange', onOrientationSignal)
     env.window.removeEventListener('popstate', onPopState)
+    env.window.visualViewport?.removeEventListener('resize', onOrientationSignal)
+    clearInterval(pollTimer)
+    pollTimer = undefined
     orientationQuery?.removeEventListener?.('change', onOrientationSignal)
     orientationQuery = undefined
     env.screen.orientation?.removeEventListener?.('change', onOrientationSignal)
@@ -173,7 +188,7 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   }
 
   async function enterFullscreenAndLock(id: number) {
-    try { await requestFullscreenAndLock(id) } finally { if (id === session) { busy = false; scheduleSettle() } }
+    try { await requestFullscreenAndLock(id) } finally { if (id === session) scheduleSettle() }
   }
 
   async function requestFullscreenAndLock(id: number) {
@@ -216,7 +231,6 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
       env.window.history.pushState({...(env.window.history.state ?? {}), [HISTORY_MARKER]: true}, '')
       historyPushed = true
     } catch { historyPushed = false }
-    busy = true
     // Cihaz zaten yataysa terminal hemen açılır; dikeydeyse uyarı, yön gerçekten yatay ve oturmuş olana kadar kalır.
     emit({open: true, landscape: readLandscape(env), fullscreen: fullscreenElementOf(env.document) !== null, lock: 'none'})
     return enterFullscreenAndLock(id)
@@ -225,7 +239,6 @@ export function createLandscapeController(env: LandscapeEnv = browserEnv(), opti
   function close() {
     if (!snapshot.open) return
     session += 1
-    busy = false
     detach()
     setPageLock(false)
     releaseLock()
