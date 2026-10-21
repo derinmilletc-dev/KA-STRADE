@@ -59,7 +59,7 @@ export const isLandscape = (width: number, height: number) => width > height
  * Analiz Studio'ya dikeyden girildiğinde dönme uyarısının en az görünme süresi. Bu süre bir açılış zamanlayıcısı değildir:
  * terminal ancak hem bu süre dolmuş hem de cihaz gerçekten (oturmuş) yatay olduğunda açılır; dikey kalırsa uyarı süresiz kalır.
  */
-export const MIN_PROMPT_MS = 2500
+export const MIN_PROMPT_MS = 3500
 
 /** Okumayı doğrulayan yedek yoklama aralığı: olay kaçarsa (mobil tarayıcılarda olur) gerçek durumu yeniden okur; zaman kanıt sayılmaz. */
 export const ORIENTATION_POLL_MS = 250
