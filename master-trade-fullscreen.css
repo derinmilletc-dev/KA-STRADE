@@ -31,14 +31,20 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
 .masterReferenceAnalysis .kfsBrand { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: #eef7f4; }
 .masterReferenceAnalysis .kfsBrand b { color: var(--ref-green); font-weight: 700; }
 .masterReferenceAnalysis .kfsBrand svg { width: 16px; height: 16px; color: var(--ref-green); }
-.masterReferenceAnalysis .kfsPhoneStage { height: 112px; display: grid; place-items: center; }
+.masterReferenceAnalysis .kfsPhoneStage { position: relative; height: 112px; width: 112px; display: grid; place-items: center; }
+/* Telefon tek parça olarak döner (çerçeve ve iç detaylar birlikte). 4.8 sn döngü: 0.5 sn dik bekleme, 1.3 sn saat yönünde 90°, 1.2 sn yatay bekleme, 1.3 sn geri dönüş, 0.5 sn dinlenme. */
 .masterReferenceAnalysis .kfsPhone {
-  position: relative; width: 44px; height: 78px; border: 2px solid #9fb4b6; border-radius: 9px;
-  animation: kfsRotate 2.8s ease-in-out infinite; will-change: transform;
+  position: relative; width: 44px; height: 78px; border: 1.5px solid #9fb4b6; border-radius: 9px; box-sizing: border-box;
+  transform: rotate(0deg); transform-origin: 50% 50%; backface-visibility: hidden; will-change: transform;
+  animation: kfsRotate 4.8s infinite;
 }
 .masterReferenceAnalysis .kfsPhone::before { content: ""; position: absolute; top: 4px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 2px; background: #9fb4b6; }
 .masterReferenceAnalysis .kfsPhone i { position: absolute; inset: 14px 6px 8px; border-bottom: 2px solid var(--ref-line); background: linear-gradient(135deg, transparent 44%, var(--ref-green) 45% 53%, transparent 54%); opacity: .9; }
-@keyframes kfsRotate { 0%, 15% { transform: rotate(0deg); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
+@keyframes kfsRotate {
+  0%, 10.4% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }
+  37.5%, 62.5% { transform: rotate(90deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }
+  89.6%, 100% { transform: rotate(0deg); }
+}
 .masterReferenceAnalysis .kfsOverlay h2 { font-size: 20px; line-height: 1.25; color: #eef7f4; }
 .masterReferenceAnalysis .kfsOverlay p { font-size: 14px; line-height: 1.45; color: #a8bebc; }
 .masterReferenceAnalysis .kfsOverlay .kfsOverlayHint { font-size: 12px; color: var(--ref-muted); }
@@ -128,6 +134,8 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .masterReferenceAnalysis .kfsPhone { animation: none; transform: rotate(-90deg); }
+  .masterReferenceAnalysis .kfsPhone { animation: none; transform: rotate(0deg); will-change: auto; }
+  /* Sabit ipucu: dik telefonun yanında yatay yönü gösteren ince kesikli çerçeve. */
+  .masterReferenceAnalysis .kfsPhoneStage::after { content: ""; position: absolute; width: 78px; height: 44px; border: 1.5px dashed rgba(159, 180, 182, .45); border-radius: 9px; box-sizing: border-box; pointer-events: none; }
   .masterReferenceAnalysis .kfsDrawer, .masterReferenceAnalysis .kfsDrawer[data-open], html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer[data-open] { transition: none !important; }
 }

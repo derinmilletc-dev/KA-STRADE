@@ -429,3 +429,80 @@ test('In normal portrait the added button keeps the drawing-tools row on one lin
   expect(new Set(buttons.map(button => button.y)).size).toBe(1)
   expect(Math.min(...buttons.map(button => button.w))).toBeGreaterThanOrEqual(34)
 })
+
+// Telefon animasyonu: zaman çizelgesini Web Animations API ile durdurup belirli anlara götürür (uyku/bekleme yok).
+const phoneAngleAt = (page: Page, ms: number) => page.evaluate(time => {
+  const phone = document.querySelector('.kfsPhone') as HTMLElement
+  const animation = phone.getAnimations()[0]
+  animation.pause(); animation.currentTime = time
+  const m = new DOMMatrixReadOnly(getComputedStyle(phone).transform)
+  return Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI)
+}, ms)
+
+test('Rotation illustration starts upright, turns 90 degrees clockwise, holds, returns and repeats', async ({page}) => {
+  await prepare(page)
+  await page.emulateMedia({reducedMotion: 'no-preference'}) // prepare() sabit görüntü için hareketi kapatır
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const info = await page.evaluate(() => {
+    const phone = document.querySelector('.kfsPhone') as HTMLElement
+    const [animation] = phone.getAnimations()
+    const box = phone.getBoundingClientRect(), stage = phone.parentElement!.getBoundingClientRect()
+    const timing = animation.effect!.getComputedTiming()
+    return {upright: box.height > box.width, inStage: box.left >= stage.left && box.right <= stage.right, duration: timing.duration, iterations: timing.iterations}
+  })
+  expect(info.upright).toBe(true)
+  expect(info.iterations).toBe(Infinity)
+  expect(info.duration).toBe(4800)
+  expect(await phoneAngleAt(page, 0)).toBe(0)
+  expect(await phoneAngleAt(page, 480)).toBe(0) // ~500 ms bekleme
+  const mid = await phoneAngleAt(page, 1100)
+  expect(mid).toBeGreaterThan(0) // saat yönü = pozitif açı
+  expect(mid).toBeLessThan(90)
+  expect(await phoneAngleAt(page, 1800)).toBe(90)
+  expect(await phoneAngleAt(page, 2900)).toBe(90) // yatay bekleme
+  const back = await phoneAngleAt(page, 3600)
+  expect(back).toBeGreaterThan(0); expect(back).toBeLessThan(90)
+  expect(await phoneAngleAt(page, 4500)).toBe(0)
+  // Taşma yok: dönerken de sahne içinde kalır.
+  for (const time of [600, 1000, 1400]) {
+    await phoneAngleAt(page, time)
+    const fits = await page.evaluate(() => { const box = document.querySelector('.kfsPhone')!.getBoundingClientRect(), stage = document.querySelector('.kfsPhoneStage')!.getBoundingClientRect(); return box.left >= stage.left && box.right <= stage.right && box.top >= stage.top && box.bottom <= stage.bottom })
+    expect(fits).toBe(true)
+  }
+})
+
+test('Cancel stops the illustration and reopening restarts it upright', async ({page}) => {
+  const {requests} = await prepare(page)
+  await page.emulateMedia({reducedMotion: 'no-preference'})
+  const before = requests.length
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  await page.evaluate(() => { const a = document.querySelector('.kfsPhone')!.getAnimations()[0]; a.pause(); a.currentTime = 1800 })
+  expect(await phoneAngleAt(page, 1800)).toBe(90)
+  await page.getByRole('button', {name: 'Cancel'}).click()
+  await expect(overlay(page)).toHaveCount(0)
+  expect(await page.locator('.kfsPhone').count()).toBe(0)
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const restart = await page.evaluate(() => { const phone = document.querySelector('.kfsPhone') as HTMLElement, a = phone.getAnimations()[0]; return {time: Number(a.currentTime), upright: phone.getBoundingClientRect().height > phone.getBoundingClientRect().width} })
+  expect(restart.time).toBeLessThan(500)
+  expect(restart.upright).toBe(true)
+  expect(mutations(requests, before)).toEqual([])
+})
+
+test('Reduced motion shows a static upright phone with a landscape hint', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'reduce'})
+  await prepare(page)
+  await entry(page).click()
+  await expect(overlay(page)).toBeVisible()
+  const state = await page.evaluate(() => {
+    const phone = document.querySelector('.kfsPhone') as HTMLElement
+    const box = phone.getBoundingClientRect(), hint = getComputedStyle(phone.parentElement!, '::after')
+    return {animations: phone.getAnimations().length, upright: box.height > box.width, hintWidth: hint.width, hintStyle: hint.borderTopStyle}
+  })
+  expect(state.animations).toBe(0)
+  expect(state.upright).toBe(true)
+  expect(state.hintStyle).toBe('dashed')
+  expect(parseFloat(state.hintWidth)).toBeGreaterThan(parseFloat('44px'))
+})
