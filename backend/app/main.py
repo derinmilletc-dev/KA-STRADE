@@ -99,6 +99,16 @@ from .paper_autonomy import (
 )
 from .web_security import PUBLIC_PATHS, bearer_token, client_ip, cors_origins, env_flag, evaluate_access, is_allowed_cors_origin, validate_auth_security_configuration
 
+# Without a handler on the "app" logger, Python only prints WARNING+ through its
+# last-resort handler, so INFO diagnostics (BINANCE_ACCOUNT_METRICS,
+# PUBLIC_MARKET_METRICS, LIVE_ACCOUNT_SNAPSHOT) never reached Render logs.
+_app_logger = logging.getLogger("app")
+if not _app_logger.handlers:
+    _app_handler = logging.StreamHandler()
+    _app_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    _app_logger.addHandler(_app_handler)
+    _app_logger.setLevel(os.getenv("APP_LOG_LEVEL", "INFO").upper())
+
 logger = logging.getLogger(__name__)
 
 BINANCE_API = "https://api.binance.com"

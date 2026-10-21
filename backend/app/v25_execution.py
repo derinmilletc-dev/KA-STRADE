@@ -104,6 +104,8 @@ PersistenceWriteResult = Literal["INSERTED", "UPDATED", "SKIPPED"]
 
 
 logger = logging.getLogger(__name__)
+CLOCK_OFFSET_REUSE_SECONDS = float(os.getenv("LIVE_CLOCK_OFFSET_REUSE_SECONDS", "300"))
+_SHARED_CLOCK: dict[str, float | int] = {"offset_ms": 0, "synced_at": 0.0}
 AUTOMATION_TELEMETRY_INTERVAL = 30.0
 _automation_telemetry_at: dict[str, float] = {}
 
@@ -1662,8 +1664,24 @@ class BinanceLiveClient:
         async with self._clock_lock:
             if time.monotonic() - self.last_time_sync < 30:
                 return
-            await self.public_get("/fapi/v1/time")
+            try:
+                await self.public_get("/fapi/v1/time")
+            except LiveExchangeError as exc:
+                # Clients are created per request, so reuse the process-wide
+                # offset measured recently instead of failing the signed account
+                # read. Binance still rejects a truly skewed timestamp (-1021).
+                age = time.monotonic() - _SHARED_CLOCK["synced_at"]
+                if _SHARED_CLOCK["synced_at"] > 0 and age < CLOCK_OFFSET_REUSE_SECONDS:
+                    self.time_offset_ms = _SHARED_CLOCK["offset_ms"]
+                    self.last_time_sync = time.monotonic()
+                    logger.warning("LIVE_CLOCK_SYNC_SKIPPED reason=%s offset_ms=%s age_seconds=%s",
+                                   type(exc).__name__, self.time_offset_ms, round(age))
+                    return
+                logger.warning("LIVE_CLOCK_SYNC_FAILED reason=%s message=%s", type(exc).__name__, exc)
+                raise
             self.last_time_sync = time.monotonic()
+            _SHARED_CLOCK["offset_ms"] = self.time_offset_ms
+            _SHARED_CLOCK["synced_at"] = self.last_time_sync
 
     def _require_global_ban_clear(self, method: str, path: str) -> None:
         ban_status = BINANCE_GLOBAL_BAN.public_status()
