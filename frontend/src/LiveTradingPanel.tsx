@@ -1143,14 +1143,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     ? <p role="status">Kayıtlı anahtar ve güncel Binance bakiyesi okunuyor; emir yetkisi kapalı.</p>
     : !statusVerified
     ? <div className="liveNotice error" role="alert" data-testid="live-status-unverified"><TriangleAlert aria-hidden="true"/><span>{localStatusError && !sharedStatusError ? `${localStatusError} ` : ''}{blocker}</span>{[sharedStatusError, notice.text].some(message => message.includes('LIVE kontrolü başka bir kullanıcı veya oturuma ait.')) && <button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)} title="Aynı OWNER ve hesap için 2FA ile oturumu geri bağla"><RefreshCw size={16} aria-hidden="true"/> LIVE oturumunu geri bağla</button>}</div>
+    : !liveArmed && status?.live_lock_reason?.message
+      ? <div className="liveNotice error" role="alert" data-testid="live-arm-cancellation"><TriangleAlert aria-hidden="true"/><span>{status.live_lock_reason.message}</span>{emergency && <button type="button" className="masterTradeLiveSecondary" onClick={clearEmergency} disabled={Boolean(busy)}>Acil durdurma kilidini kaldır</button>}</div>
     : emergency
       ? <div className="liveNotice error" role="alert" data-testid="live-emergency-active"><TriangleAlert aria-hidden="true"/><span>{emergencyNoticeText}</span><button type="button" className="masterTradeLiveSecondary" onClick={clearEmergency} disabled={Boolean(busy)}>Acil durdurma kilidini kaldır</button></div>
+    : status?.account_rate_limit?.pending_verification
+      ? <div className="liveNotice error" role="alert" data-testid="live-account-rate-limit-wait"><TriangleAlert aria-hidden="true"/><span>{blocker}</span></div>
     : recoveryRequired
       ? <div className="liveNotice error" role="alert" data-testid="live-recovery-required"><TriangleAlert aria-hidden="true"/><span>{status?.recovery_error || status?.reconciliation_diagnostic?.exception_message || 'Hesap ve pozisyon kurtarma kontrolü gerekiyor; bakiye ve risk ayarları bu kontrol tamamlanana kadar kilitli.'}</span><button type="button" className="masterTradeLiveSecondary" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolünü yap</button></div>
-    : !liveArmed && status?.live_lock_reason?.message
-      ? <div className="liveNotice error" role="alert" data-testid="live-arm-cancellation"><TriangleAlert aria-hidden="true"/><span>{status.live_lock_reason.message}</span></div>
-      : status?.account_rate_limit?.pending_verification
-        ? <div className="liveNotice error" role="alert" data-testid="live-account-rate-limit-wait"><TriangleAlert aria-hidden="true"/><span>{blocker}</span></div>
       : null
   if (masterTrade && (masterTradeTab ?? 'canli') === 'canli' && status?.original_v2_live?.available) {
     const snapshotVerified = statusVerified && connected && !recoveryRequired

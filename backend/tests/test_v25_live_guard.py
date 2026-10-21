@@ -1854,6 +1854,27 @@ class V25LiveGuardIntegrationContractTests(unittest.TestCase):
         self.assertTrue(state["emergency"]["active"])
         self.assertEqual(state["emergency"]["reason"], "LIVE_CREDENTIALS_UNAVAILABLE")
 
+    def test_transient_lock_emergency_clears_after_clean_snapshot_but_stays_locked(self):
+        for reason in ("BINANCE_ACCOUNT_RATE_LIMITED", "LIVE_CREDENTIALS_UNAVAILABLE", "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE"):
+            state = initial_state()
+            with patch.object(v25_execution, "persist_state"):
+                v25_execution.lock_live_execution(state, reason)
+            self.assertTrue(state["emergency"]["active"])
+            self.assertTrue(v25_execution.clear_transient_emergency_after_clean_snapshot(state))
+            self.assertFalse(state["emergency"]["active"])
+            self.assertEqual(state["execution_state"], "LOCKED")
+            self.assertTrue(state["real_trading_locked"])
+            self.assertFalse(v25_execution.is_armed(state))
+            self.assertTrue(any(event["kind"] == "LIVE_EMERGENCY_AUTO_CLEARED" for event in state["events"]))
+
+    def test_manual_or_uncertain_emergency_is_never_auto_cleared(self):
+        for reason, unknown in (("MANUAL_EMERGENCY_STOP", False), ("AUTO_EXCEPTION", False), ("RECONCILIATION_FAILURE", True)):
+            state = initial_state()
+            with patch.object(v25_execution, "persist_state"):
+                v25_execution.lock_live_execution(state, reason, unknown=unknown)
+            self.assertFalse(v25_execution.clear_transient_emergency_after_clean_snapshot(state))
+            self.assertTrue(state["emergency"]["active"])
+
     def test_wrapped_pre_submit_credential_failure_does_not_create_unknown_execution(self):
         state = initial_state()
         application = SimpleNamespace(state=SimpleNamespace(v25_execution=state))
