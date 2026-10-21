@@ -42,7 +42,7 @@ type LiveStatus = {
   daily?: {realized_pnl?: number; remaining_loss_budget?: number; entries?: number; consecutive_losses?: number; unverified_closures?: number}
   plans?: Array<Record<string, unknown> & {targets?: unknown[]; stop_loss?: unknown; protection_state?: string; protection_status?: string; exchange_protection?: {stop: boolean; tp1: boolean; tp3: boolean}}>
   events?: Array<{kind?: string; message?: string; created_at?: string; symbol?: string; failures?: string[]}>
-  emergency?: {active?: boolean; reason?: string | null}
+  emergency?: {active?: boolean; reason?: string | null; triggered_at?: string | null}
   recovery_ready?: boolean
   recovery_error?: string | null
   execution_state?: string
@@ -1137,10 +1137,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
 
   if (!active) return null
   if (!masterTrade) return <section className="originalLiveWorkspace" aria-label="Canlı İşlem"><h2>Canlı İşlem</h2><p>Canlı strateji ve risk ayarları Master Trade’de, API anahtarları yalnız Bağlantı sekmesinde yönetilir.</p><a href="/master-trade?tab=canli">Canlı İşlem’i aç →</a><a href="/master-trade?tab=baglanti">Bağlantı ayarları →</a></section>
+  const emergencyTriggeredAt = status?.emergency?.triggered_at ? new Date(status.emergency.triggered_at) : null
+  const emergencyNoticeText = `Acil durdurma kilidi açık${emergencyTriggeredAt && !Number.isNaN(emergencyTriggeredAt.getTime()) ? ` (${emergencyTriggeredAt.toLocaleString('tr-TR')})` : ''}. Bağlantı ve bakiye sorunu yok; kilit kalkana kadar risk ayarları ve yeni girişler kapalı. Açık pozisyonun yoksa kilidi 2FA ile kaldırabilirsin.`
   const statusNotice = !statusVerified && statusLoading
     ? <p role="status">Kayıtlı anahtar ve güncel Binance bakiyesi okunuyor; emir yetkisi kapalı.</p>
     : !statusVerified
     ? <div className="liveNotice error" role="alert" data-testid="live-status-unverified"><TriangleAlert aria-hidden="true"/><span>{localStatusError && !sharedStatusError ? `${localStatusError} ` : ''}{blocker}</span>{[sharedStatusError, notice.text].some(message => message.includes('LIVE kontrolü başka bir kullanıcı veya oturuma ait.')) && <button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)} title="Aynı OWNER ve hesap için 2FA ile oturumu geri bağla"><RefreshCw size={16} aria-hidden="true"/> LIVE oturumunu geri bağla</button>}</div>
+    : emergency
+      ? <div className="liveNotice error" role="alert" data-testid="live-emergency-active"><TriangleAlert aria-hidden="true"/><span>{emergencyNoticeText}</span><button type="button" className="masterTradeLiveSecondary" onClick={clearEmergency} disabled={Boolean(busy)}>Acil durdurma kilidini kaldır</button></div>
+    : recoveryRequired
+      ? <div className="liveNotice error" role="alert" data-testid="live-recovery-required"><TriangleAlert aria-hidden="true"/><span>{status?.recovery_error || status?.reconciliation_diagnostic?.exception_message || 'Hesap ve pozisyon kurtarma kontrolü gerekiyor; bakiye ve risk ayarları bu kontrol tamamlanana kadar kilitli.'}</span><button type="button" className="masterTradeLiveSecondary" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolünü yap</button></div>
     : !liveArmed && status?.live_lock_reason?.message
       ? <div className="liveNotice error" role="alert" data-testid="live-arm-cancellation"><TriangleAlert aria-hidden="true"/><span>{status.live_lock_reason.message}</span></div>
       : status?.account_rate_limit?.pending_verification
@@ -1166,7 +1172,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         entryChecks={originalEntryChecks} armed={liveArmed} automationActive={status.live_auto_trade === true}
         blocked={Boolean(busy) || !statusVerified || !connected || recoveryRequired || freeTrial || globalBanActive}
         connected={connected && statusVerified} statusVerified={statusVerified} prepareStart={prepareOriginal}
-        loading={statusLoading && !snapshotVerified} balanceError={sharedStatusError || localStatusError || status.connection?.last_error || status.recovery_error || status.account_rate_limit?.message} userId={userId}
+        loading={statusLoading && !snapshotVerified && !recoveryRequired} balanceError={(emergency ? emergencyNoticeText : '') || sharedStatusError || localStatusError || status.connection?.last_error || status.recovery_error || status.account_rate_limit?.message} userId={userId}
         request={(path, body) => call(V25, path, {method: 'POST', ...(body ? {body: JSON.stringify(body)} : {})})}
         readDiagnostics={() => call(V25, '/original-v2/persistence-diagnostics', {method: 'GET', cache: 'no-store'})}
         refresh={() => refresh(false)} notice={originalNotice} onNotice={setOriginalNotice}
