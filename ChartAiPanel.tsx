@@ -285,6 +285,15 @@ export default function ChartAiPanel(props: Props) {
           }}>Bekleyen kayıt bilgisini bırak</button>
         </div>}
         </>}
+        <div className="chartAiLegal">
+          <p>{CHART_AI_DISCLAIMER}</p>
+          <p>{CHART_AI_PRIVACY}</p>
+          <details>
+            <summary><Info aria-hidden="true"/>Ayrıntılar</summary>
+            <p>Yalnız grafiğin görseli ve gösterilen piyasa verileri gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez. Aylık bütçe sınırı geçerlidir.</p>
+            {usage?.acknowledgement.text && <p className="chartAiPre">{usage.acknowledgement.text}</p>}
+          </details>
+        </div>
       </div>
 
       <footer className="chartAiFooter" inert={wall}>
@@ -298,15 +307,6 @@ export default function ChartAiPanel(props: Props) {
             {busy && <Loader2 className="chartAiSpin" aria-hidden="true"/>}Grafiği analiz et
           </button>
         </>)}
-        <div className="chartAiLegal">
-          <p>{CHART_AI_DISCLAIMER}</p>
-          <p>{CHART_AI_PRIVACY}</p>
-          <details>
-            <summary><Info aria-hidden="true"/>Ayrıntılar</summary>
-            <p>Yalnız grafiğin görseli ve gösterilen piyasa verileri gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez. Aylık bütçe sınırı geçerlidir.</p>
-            {usage?.acknowledgement.text && <p className="chartAiPre">{usage.acknowledgement.text}</p>}
-          </details>
-        </div>
       </footer>
       </div>
     </dialog>, document.body)}

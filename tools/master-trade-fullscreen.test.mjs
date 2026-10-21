@@ -3,7 +3,7 @@ import {test} from 'node:test'
 import {FULLSCREEN_CLASS, HISTORY_MARKER, canLockOrientation, canRequestFullscreen, createLandscapeController as create, isLandscape, readLandscape} from '../master-trade-fullscreen.ts'
 
 // Testlerde bekleme kısa tutulur; davranış aynıdır.
-const createLandscapeController = (env, options = {}) => create(env, {settleMs: 5, pollMs: 10, ...options})
+const createLandscapeController = (env, options = {}) => create(env, {settleMs: 5, pollMs: 10, minPromptMs: 0, ...options})
 const settle = () => new Promise(resolve => setTimeout(resolve, 40))
 
 // Sahte tarayıcı ortamı: dinleyici sayaçları, tam ekran, ekran yönü kilidi ve geçmiş.
@@ -378,4 +378,56 @@ test('No timer fires after close: a pending settle never reopens or updates anyt
   assert.equal(calls, afterClose)
   assert.equal(controller.getSnapshot().open, false)
   assert.equal(controller.getSnapshot().landscape, false)
+})
+
+test('Minimum prompt duration: early landscape waits until the minimum has elapsed, then opens', async () => {
+  const {env, win} = makeEnv()
+  let clock = 0
+  const controller = createLandscapeController(env, {minPromptMs: 120, now: () => clock})
+  await controller.open()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  await settle()
+  assert.equal(controller.getSnapshot().landscape, false) // yatay ama süre dolmadı: uyarı kalır
+  clock = 120
+  await new Promise(resolve => setTimeout(resolve, 160))
+  assert.equal(controller.getSnapshot().landscape, true) // iki koşul da sağlandı
+  controller.close()
+})
+
+test('Minimum prompt duration never opens the terminal by itself while the device stays portrait', async () => {
+  const {env} = makeEnv()
+  let clock = 0
+  const controller = createLandscapeController(env, {minPromptMs: 30, now: () => clock})
+  await controller.open()
+  clock = 1000
+  await settle(); await settle(); await settle()
+  assert.equal(controller.getSnapshot().landscape, false)
+  assert.equal(controller.getSnapshot().open, true)
+  controller.close()
+})
+
+test('Returning to portrait during the minimum wait keeps the prompt; cancel clears the pending wait', async () => {
+  const {env, win} = makeEnv({lock: 'missing', fullscreen: 'missing'})
+  let clock = 0
+  const controller = createLandscapeController(env, {minPromptMs: 60, now: () => clock})
+  await controller.open()
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  await settle()
+  win.innerWidth = 390; win.innerHeight = 844; win.fire('resize') // bekleme sürerken dikeye döndü
+  clock = 60
+  await settle(); await settle()
+  assert.equal(controller.getSnapshot().landscape, false)
+  win.innerWidth = 844; win.innerHeight = 390; win.fire('resize')
+  controller.close() // bekleyen zamanlayıcılar temizlenir; kapalıyken hiçbir şey açılmaz
+  await settle(); await settle()
+  assert.equal(controller.getSnapshot().open, false)
+  assert.equal(win.active('resize'), 0)
+})
+
+test('Opening while already landscape applies no minimum wait', async () => {
+  const {env} = makeEnv({width: 844, height: 390})
+  const controller = createLandscapeController(env, {minPromptMs: 10000})
+  void controller.open()
+  assert.equal(controller.getSnapshot().landscape, true)
+  controller.close()
 })

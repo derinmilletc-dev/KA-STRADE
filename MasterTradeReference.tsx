@@ -301,6 +301,21 @@ function IndicatorTiles({analysis, decision, candles, opportunity = true}: {anal
   </>
 }
 
+
+/** Göstergeler menüsünü görünür alana sığdırır: sağdan taşarsa tetikleyicinin sağına hizalar, alttan taşarsa yukarı açar. */
+function placeIndicatorMenu(details: HTMLDetailsElement) {
+  delete details.dataset.align
+  delete details.dataset.side
+  if (!details.open) return
+  const menu = details.querySelector<HTMLElement>(':scope > div')
+  if (!menu) return
+  const margin = 8
+  let rect = menu.getBoundingClientRect()
+  if (rect.right > window.innerWidth - margin) details.dataset.align = 'end'
+  rect = menu.getBoundingClientRect()
+  if (rect.bottom > window.innerHeight - margin && details.getBoundingClientRect().top - rect.height - margin > 0) details.dataset.side = 'top'
+}
+
 export default function MasterTradeReference(props: Props) {
   const {premium, ready, userId, openUpgrade} = useMemberAccess()
   const [notice, setNotice] = useState('')
@@ -485,7 +500,7 @@ export default function MasterTradeReference(props: Props) {
           <div className="refToolbar" aria-label="Market chart controls">
             {terminal && <div className="kfsIdent" aria-label={`${props.symbol} price`}><b>{props.symbol}</b><strong>{analysisPrice(cardPrice)}</strong>{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</div>}
             <span className="refChartType" title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
-            <details className="refIndicators"><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
+            <details className="refIndicators" onToggle={event => placeIndicatorMenu(event.currentTarget)}><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
             <div className="refDrawingTools">
               <button type="button" className="refDrawTool" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
