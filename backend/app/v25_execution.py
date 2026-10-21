@@ -332,6 +332,40 @@ def lock_live_execution(
     )
 
 
+# Locks caused by temporary read/session conditions, never by an uncertain order.
+# Once a fresh account snapshot succeeds with no unresolved execution evidence,
+# the emergency latch is released; trading stays LOCKED and must be re-ARMed.
+AUTO_CLEARABLE_EMERGENCY_REASONS = frozenset({
+    "BINANCE_ACCOUNT_RATE_LIMITED",
+    "BINANCE_MARKET_RATE_LIMITED",
+    "LIVE_CREDENTIALS_UNAVAILABLE",
+    "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE",
+    "USER_SESSION_EXPIRED_OR_UNPROVEN",
+})
+
+
+def clear_transient_emergency_after_clean_snapshot(state: dict[str, Any]) -> bool:
+    emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
+    reason = emergency.get("reason")
+    if emergency.get("active") is not True or reason not in AUTO_CLEARABLE_EMERGENCY_REASONS:
+        return False
+    if state.get("execution_state") == "UNKNOWN" or state.get("reconciliation_required"):
+        return False
+    if unresolved_execution_evidence(state, clean_reconciliation_snapshot=True):
+        return False
+    emergency.update({"active": False, "reason": f"{reason}_RECOVERED"})
+    state["execution_state"] = "LOCKED"
+    state["real_trading_locked"] = True
+    add_event(
+        state,
+        "LIVE_EMERGENCY_AUTO_CLEARED",
+        "Geçici kilit nedeni düzeldi ve Binance hesabı yeniden doğrulandı; acil durdurma kalktı. Canlı işlem için ARM yeniden onaylanmalı.",
+        reason=reason,
+    )
+    logger.warning("LIVE_EMERGENCY_AUTO_CLEARED reason=%s", reason)
+    return True
+
+
 def unresolved_execution_evidence(
     state: dict[str, Any], *, clean_reconciliation_snapshot: bool = False,
 ) -> bool:
@@ -2095,6 +2129,8 @@ async def account_snapshot(
                 account_rate_limit_wait_seconds(state)
                 state["account_rate_limit"] = None
                 add_event(state, "LIVE_ACCOUNT_RATE_LIMIT_RECOVERED", "Binance hesap bilgileri yeniden doğrulandı; önceki ARM süresi uzatılmadı.")
+            if clear_transient_emergency_after_clean_snapshot(state):
+                persist_state(state)
             store["refreshes"] += 1
             logger.info("LIVE_ACCOUNT_SNAPSHOT source=%s refresh_seconds=%s elapsed_ms=%s cache_hits=%s upstream_refreshes=%s budget_weight=%s", source, ttl, round((time.monotonic() - started) * 1000), store["hits"], store["refreshes"], observed_weight)
             return result
