@@ -4,7 +4,7 @@ import {expect, test, type Page} from '@playwright/test'
 // üreteçle enjekte edilir (kesin bir dizi beklenmez, yalnız sınırlar ve davranış özellikleri denetlenir).
 test.use({baseURL: 'http://127.0.0.1:4174'})
 
-const GAZE_LIMIT = 0.55
+const GLANCE_MAX = 0.18 // en büyük bakış yarıçapı (normalize): küçük ve sakin
 
 type Probe = {
   rafPending: number; rafMaxPending: number; rafCalls: number
@@ -45,6 +45,8 @@ async function setup(page: Page, {seed = 12345, reduced = false} = {}) {
 }
 
 const eye = (page: Page) => page.locator('.kaisEye')
+// İşaretçi olayı üretmeden düğmeye bas: işaretçi takibi gözü meşru olarak imlece çevirir, bu testler otonom hareketi ölçer.
+const press = (page: Page, name: string) => page.evaluate(label => [...document.querySelectorAll('button')].find(button => button.textContent === label)!.click(), name)
 const look = (page: Page) => page.evaluate(() => { const element = document.querySelector('.kaisEye') as SVGSVGElement | null; return element ? {x: Number(element.dataset.lookX), y: Number(element.dataset.lookY)} : null })
 
 // Bakışı düzenli aralıklarla örnekler (saat ilerletilerek).
@@ -58,76 +60,103 @@ async function sample(page: Page, totalMs: number, stepMs = 100) {
   return points
 }
 
-for (const presence of ['idle', 'listening'] as const) {
-  test(`${presence}: gaze stays bounded, mostly forward, with occasional small shifts (no constant scanning)`, async ({page}) => {
-    await setup(page, {seed: presence === 'idle' ? 7 : 99})
-    await page.getByRole('button', {name: presence}).click()
-    const points = await sample(page, 60000)
+// Gözün merkezden ayrıldığı (bakış) anlar: dakikada kaç kez?
+const glancesIn = (points: Array<{x: number; y: number}>) => {
+  let count = 0
+  for (let index = 1; index < points.length; index += 1) if (Math.hypot(points[index].x, points[index].y) > 0.05 && Math.hypot(points[index - 1].x, points[index - 1].y) <= 0.05) count += 1
+  return count
+}
+
+for (const [presence, maxPerMinute] of [['idle', 5], ['listening', 4], ['speaking', 2]] as const) {
+  test(`${presence}: calm — mostly forward, at most ${maxPerMinute} small glances per minute, no jitter, no scanning`, async ({page}) => {
+    await setup(page, {seed: presence.length * 31})
+    await press(page, presence)
+    test.setTimeout(180000)
+    const points = await sample(page, 120000)
     const radii = points.map(point => Math.hypot(point.x, point.y))
-    expect(Math.max(...radii)).toBeLessThanOrEqual(GAZE_LIMIT + 0.01) // sınırlı
-    const forward = radii.filter(radius => radius <= 0.1).length / radii.length
-    expect(forward).toBeGreaterThan(presence === 'listening' ? 0.8 : 0.7) // uzun süreli öne bakış
-    expect(radii.some(radius => radius > 0.1)).toBe(true) // yine de ara sıra kayar
-    // Sürekli sağ-sol taraması yok: yön değişimleri seyrek.
-    let flips = 0
-    for (let index = 1; index < points.length; index += 1) if (Math.abs(points[index].x) > 0.1 && Math.abs(points[index - 1].x) > 0.1 && Math.sign(points[index].x) !== Math.sign(points[index - 1].x)) flips += 1
-    expect(flips).toBeLessThan(6)
+    expect(Math.max(...radii)).toBeLessThanOrEqual(GLANCE_MAX + 0.01) // küçük ve sınırlı
+    const forward = radii.filter(radius => radius <= 0.05).length / radii.length
+    expect(forward).toBeGreaterThan(0.85) // neredeyse hep öne
+    expect(glancesIn(points) / 2).toBeLessThanOrEqual(maxPerMinute) // 2 dakikada
+    // Öne bakarken mikro kıpırdama yok: merkezdeki örnekler tam olarak sabit.
+    // Öne bakarken mikro kıpırdama yok: bakış zamanın büyük kısmında tam merkezde; merkeze yakın ara değerler yalnız kısa geçişlerde.
+    const exact = points.filter(point => point.x === 0 && point.y === 0).length / points.length
+    const nearButNotZero = points.filter(point => { const radius = Math.hypot(point.x, point.y); return radius > 0 && radius <= 0.05 }).length / points.length
+    expect(exact).toBeGreaterThan(0.75)
+    expect(nearButNotZero).toBeLessThan(0.12)
   })
 }
 
-test('Gaze shifts are smooth (eased over several frames, not jumps) and intervals vary without a fixed period', async ({page}) => {
+test('Gaze shifts are slow and smooth (eased over many frames, no jumps) and do not repeat at a fixed period', async ({page}) => {
+  test.setTimeout(300000)
   await setup(page, {seed: 4242})
-  await page.getByRole('button', {name: 'thinking'}).click()
-  const points = await sample(page, 45000, 16)
-  // Hareket başlangıçları: önceki örnekten belirgin değişim.
+  await press(page, 'idle')
+  const points = await sample(page, 150000, 32)
   const deltas = points.slice(1).map((point, index) => Math.hypot(point.x - points[index].x, point.y - points[index].y))
-  expect(Math.max(...deltas)).toBeLessThan(0.2) // tek karede büyük sıçrama yok
+  expect(Math.max(...deltas)).toBeLessThan(0.06) // 32 ms'de sıçrama yok (sakin geçiş)
+  // Her hareket en az ~350 ms sürer: hareketli ardışık kare dizileri uzun.
+  const runs: number[] = []
+  let run = 0
+  for (const delta of deltas) { if (delta > 0) run += 1; else if (run) { runs.push(run * 32); run = 0 } }
+  expect(runs.length).toBeGreaterThan(3)
+  const sorted = runs.slice().sort((a, b) => a - b)
+  expect(sorted[Math.floor(sorted.length / 2)]).toBeGreaterThanOrEqual(150) // tipik geçiş çok karelik (tek karelik sıçrama değil)
   const starts: number[] = []
-  for (let index = 1; index < deltas.length; index += 1) if (deltas[index] > 0.004 && deltas[index - 1] <= 0.004 && (!starts.length || index * 16 - starts[starts.length - 1] > 600)) starts.push(index * 16)
-  expect(starts.length).toBeGreaterThan(4)
+  let moving = false
+  deltas.forEach((delta, index) => { if (delta > 0 && !moving) starts.push(index * 32); moving = delta > 0 })
   const gaps = starts.slice(1).map((start, index) => start - starts[index])
   const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length
   const sd = Math.sqrt(gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length)
-  expect(sd / mean).toBeGreaterThan(0.3) // aralıklar belirgin biçimde değişken: sabit bir periyot yok
+  expect(sd / mean).toBeGreaterThan(0.3) // sabit bir periyot yok
+})
+
+test('Entering thinking produces one short, timely glance and then a calm return', async ({page}) => {
+  await setup(page, {seed: 808})
+  await press(page, 'listening')
+  await page.clock.runFor(1000)
+  await press(page, 'thinking')
+  const points = await sample(page, 4000, 50)
+  const firstAway = points.findIndex(point => Math.hypot(point.x, point.y) > 0.05)
+  expect(firstAway).toBeGreaterThanOrEqual(0)
+  expect(firstAway * 50).toBeLessThanOrEqual(1700) // düşünmeye geçince ~0,5–0,9 sn içinde
+  const back = points.slice(firstAway).findIndex(point => Math.hypot(point.x, point.y) <= 0.05)
+  expect(back).toBeGreaterThan(0) // ardından merkeze döner
 })
 
 test('Blinks are brief, irregular, never overlap, and both lids blink together', async ({page}) => {
+  test.setTimeout(120000)
   await setup(page, {seed: 2026})
-  // Sınıf durumu 25 ms adımlarla örneklenir (React işleme zamanlaması ölçümü bozmasın): süre ±25 ms hassasiyetle ölçülür.
-  const blinks: Array<{start: number; end: number}> = []
-  let open: number | null = null
-  for (let time = 0; time < 90000; time += 25) {
-    await page.clock.runFor(25)
-    const on = await eye(page).evaluate(element => element.classList.contains('kaisEyeBlink'))
-    if (on && open === null) open = time
-    if (!on && open !== null) { blinks.push({start: open, end: time}); open = null }
-  }
+  await press(page, 'listening') // konuşan asistan bağlamı (boştaki uyku moduna girmez)
+  await page.clock.runFor(180000)
+  // Sınıf değişimleri sayfa içinde (sahte saatle) kaydedilir.
   const probe = await page.evaluate(() => window.__eye)
-  expect(probe.overlaps).toBe(0)
-  expect(blinks.length).toBeGreaterThan(10)
-  expect(blinks.length).toBeLessThan(60)
-  // Gerçek süre 150 ms'dir (zamanlayıcı ve CSS animation-duration); örnekleme adımı ve React işleme gecikmesi için pay bırakılır.
-  // Tek tek ölçümler ±1 adım oynar; ortanca tipik süreyi verir. Hiçbir kırpma uzun süre kapalı kalmaz.
-  for (const blink of blinks) { expect(blink.end - blink.start).toBeGreaterThanOrEqual(50); expect(blink.end - blink.start).toBeLessThanOrEqual(300) }
+  const blinks = probe.blinks.filter(blink => blink.end !== null) as Array<{start: number; end: number}>
+  // 6–11 sn aralık: 3 dakikada ~16–30 kırpma (nadir çiftler dahil).
+  expect(blinks.length).toBeGreaterThanOrEqual(15)
+  expect(blinks.length).toBeLessThanOrEqual(34)
+  // Kırpma kısa (170 ms); React işleme zamanlaması için küçük pay. Hiçbir kırpma uzun süre kapalı kalmaz.
   const durations = blinks.map(blink => blink.end - blink.start).sort((a, b) => a - b)
-  const median = durations[Math.floor(durations.length / 2)]
-  expect(median).toBeGreaterThanOrEqual(100)
-  expect(median).toBeLessThanOrEqual(200)
+  expect(durations[Math.floor(durations.length / 2)]).toBeGreaterThanOrEqual(120)
+  expect(durations[Math.floor(durations.length / 2)]).toBeLessThanOrEqual(220)
+  expect(durations[durations.length - 1]).toBeLessThanOrEqual(400)
   for (let index = 1; index < blinks.length; index += 1) expect(blinks[index].start).toBeGreaterThanOrEqual(blinks[index - 1].end) // çakışma yok
-  const intervals = blinks.slice(1).map((blink, index) => blink.start - blinks[index].start)
-  expect(new Set(intervals.map(value => Math.round(value / 100))).size).toBeGreaterThan(intervals.length * 0.6)
-  expect(intervals.some(value => value < 400)).toBe(true) // ara sıra çift kırpma
+  // Çift kırpmanın ikincisi bir gruba aittir: düzenli aralık her grubun ilk kırpmasından ölçülür.
+  const groups = blinks.filter((blink, index) => index === 0 || blink.start - blinks[index - 1].start > 1000)
+  const regular = groups.slice(1).map((blink, index) => blink.start - groups[index].start)
+  for (const value of regular) { expect(value).toBeGreaterThanOrEqual(6000 - 50); expect(value).toBeLessThanOrEqual(11000 + 400) }
+  expect(new Set(regular.map(value => Math.round(value / 250))).size).toBeGreaterThan(regular.length * 0.5) // düzensiz
+  expect(blinks.length - groups.length).toBeLessThanOrEqual(4) // çift kırpma nadir
   // Tek sınıf her iki göz kapağını ve iç kısmı birlikte canlandırır.
   await page.evaluate(() => document.querySelector('.kaisEye')!.classList.add('kaisEyeBlink'))
   for (const layer of ['.kaisEyeUpperLid', '.kaisEyeLowerLid', '.kaisEyeInterior']) await expect(eye(page).locator(layer)).toHaveCSS('animation-name', 'kais-eye-blink')
-  await expect(eye(page).locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.15s')
+  await expect(eye(page).locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.17s')
 })
 
 test('State changes never start a second loop, keep the current gaze, and unmount cancels every frame and timer', async ({page}) => {
   await setup(page, {seed: 31})
   for (let round = 0; round < 6; round += 1) {
     for (const presence of ['listening', 'thinking', 'speaking', 'idle']) {
-      await page.getByRole('button', {name: presence}).click()
+      await press(page, presence)
       await page.clock.runFor(700 + round * 113)
     }
   }
@@ -135,14 +164,14 @@ test('State changes never start a second loop, keep the current gaze, and unmoun
   expect(probe.rafMaxPending).toBeLessThanOrEqual(1) // aynı anda en fazla tek kare isteği: yinelenen döngü yok
   expect(probe.blinks.filter(blink => blink.end === null).length).toBeLessThanOrEqual(1)
   // Durum değişince bakış her seferinde merkeze sıfırlanmaz.
-  await page.getByRole('button', {name: 'idle'}).click()
-  await page.clock.runFor(20000)
+  await press(page, 'idle')
+  await page.clock.runFor(1000)
   let offCenter: {x: number; y: number} | null = null
-  for (let index = 0; index < 400 && !offCenter; index += 1) { await page.clock.runFor(50); const point = await look(page); if (point && Math.hypot(point.x, point.y) > 0.15) offCenter = point }
+  for (let index = 0; index < 2400 && !offCenter; index += 1) { await page.clock.runFor(50); const point = await look(page); if (point && Math.hypot(point.x, point.y) > 0.07) offCenter = point }
   expect(offCenter).not.toBeNull()
-  await page.getByRole('button', {name: 'speaking'}).click()
+  await press(page, 'speaking')
   const after = await look(page)
-  expect(Math.hypot(after!.x, after!.y)).toBeGreaterThan(0.05)
+  expect(Math.hypot(after!.x, after!.y)).toBeGreaterThan(0.03) // bakış sıfırlanmaz; ardından sakin dönüş
   // Sökme: hiçbir kare isteği ve zamanlayıcı kalmaz.
   await page.getByRole('button', {name: 'Toggle eye'}).click()
   await expect(eye(page)).toHaveCount(0)

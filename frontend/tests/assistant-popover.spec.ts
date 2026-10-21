@@ -91,7 +91,7 @@ test('New title eye tracks and blinks, while reduced motion disables popover ani
   await page.clock.install({time: new Date('2026-01-01T00:00:00Z')})
   await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'))
   await page.emulateMedia({reducedMotion: 'no-preference'})
-  // Kırpma düzensizdir (planBlink); Math.random sabitlenince ilk kırpma 1,2 sn'de olur.
+  // Kırpma düzensizdir (planBlink, 6–11 sn); Math.random sabitlenince ilk kırpma 6 sn'de olur.
   await page.addInitScript(() => { Math.random = () => 0 })
   await prepare(page)
   await openChatFromHint(page)
@@ -101,9 +101,9 @@ test('New title eye tracks and blinks, while reduced motion disables popover ani
   await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointermove', {pointerType: 'touch', clientX: 0, clientY: 0})))
   await page.clock.runFor(32)
   expect(Number(await eye.getAttribute('data-look-x'))).toBeLessThan(0)
-  await page.clock.runFor(1169)
+  await page.clock.runFor(5969)
   await expect(eye).toHaveClass(/kaisEyeBlink/)
-  await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.15s')
+  await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.17s')
   await page.emulateMedia({reducedMotion: 'reduce'})
   await expect(dialog).toHaveCSS('animation-name', 'none')
   await expect(eye).not.toHaveClass(/kaisEyeMotion/)

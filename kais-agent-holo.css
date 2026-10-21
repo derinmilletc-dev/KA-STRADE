@@ -230,3 +230,9 @@
 .kaisHoloInterrupt{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:14px;border:1px solid rgba(232,168,94,.55);background:rgba(40,26,10,.7);color:#f6cf98;font-size:15px;font-weight:600;cursor:pointer}
 .kaisHoloInterrupt svg{width:18px;height:18px}
 .kaisHoloInterrupt:hover{background:rgba(60,38,12,.85)}
+
+/* Kırpma: gözün üstündeki ayrı iris/göz bebeği katmanları da gözle aynı anda kapanır; kapalı gözde çentik/halka çizgisi kalmaz. */
+.kaisHoloEye:has(.kaisEyeBlink) :is(.kaisHoloIris,.kaisHoloPupil){animation:kaisHoloLidBlink 170ms ease-in-out}
+.kaisHoloEye:has(.kaisEyeSlowBlink) :is(.kaisHoloIris,.kaisHoloPupil){animation:kaisHoloLidBlink 600ms ease-in-out}
+@keyframes kaisHoloLidBlink{0%,100%{opacity:1}30%,70%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.kaisHoloEye :is(.kaisHoloIris,.kaisHoloPupil){animation:none!important}}

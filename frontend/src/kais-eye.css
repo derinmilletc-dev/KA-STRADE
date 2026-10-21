@@ -18,7 +18,7 @@
 .cyberEyeInkStop { stop-color: var(--header-eye-dark); }
 .cyberEyeScleraStop { stop-color: var(--header-eye-ink); }
 .kaisHeaderEye .kaisEyeSclera { opacity: 1; }
-.kaisHeaderEye :is(.kaisEyeOpening, .kaisEyeInterior, .kaisEyeUpperLid, .kaisEyeLowerLid, .kaisEyePulse, .kaisEyeRotor) {
+.kaisHeaderEye :is(.kaisEyeOpening, .kaisEyeInterior, .kaisEyeUpperLid, .kaisEyeLowerLid, .kaisEyePulse, .kaisEyeRotor, .kaisEyeRingGlow) {
   transform-origin: 48px 48px;
 }
 .kaisHeaderEye .kaisEyeLids {
@@ -35,12 +35,14 @@
 .kaisHeaderEye .kaisEyeUnread { fill: var(--header-eye-accent); stroke: var(--text); }
 .kaisHeaderEye[data-state="private"] .cyberEyeGlow { opacity: .3; }
 .kaisHeaderEye.kaisEyeMotion.kaisEyeBlink :is(.kaisEyeInterior, .kaisEyeUpperLid, .kaisEyeLowerLid) {
-  animation-duration: 150ms;
+  animation-duration: 170ms;
 }
-.kaisHeaderEye.kaisEyeMotion.kaisEyeBlink .cyberEyeGlow { animation: kais-header-glow-blink 150ms ease-in-out; }
+/* Kırparken parıltı çizgileri de kapakla birlikte kapanır (açık kalıp ayrı çizgiler gibi görünmesin). */
+.kaisHeaderEye.kaisEyeMotion.kaisEyeBlink .cyberEyeGlow { animation: kais-header-glow-blink 170ms ease-in-out; }
+.kaisHeaderEye.kaisEyeMotion.kaisEyeSlowBlink .cyberEyeGlow { animation: kais-header-glow-blink 600ms ease-in-out; }
 @keyframes kais-header-glow-blink {
-  0%, 100% { opacity: .9; }
-  50% { opacity: .15; }
+  0%, 100% { opacity: .9; transform: scaleY(1); }
+  50% { opacity: 0; transform: scaleY(.03); }
 }
 @media (prefers-reduced-motion: reduce) {
   .kaisHeaderEye .cyberEyeGlow { animation: none !important; }

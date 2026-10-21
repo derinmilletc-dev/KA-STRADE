@@ -89,10 +89,10 @@ test('Mouse and touch pointermove are RAF-throttled, clipped and bounded to 7 un
   await expect(eye).toHaveAttribute('data-look-y', '0')
 })
 
-// Kırpma artık düzensizdir (planBlink); Math.random sabitlenince plan belirlenir: 0 → ilk kırpma 1,2 sn, ardından 180 ms sonra
-// ikinci (çift) kırpma ve 7,5 sn ara; 1 → ilk kırpma 4 sn, tek kırpma ve 6,2 sn ara. Kırpma 150 ms sürer ve üst üste binmez.
-for (const [random, first, double, next] of [[0, 1200, true, 7500], [1, 4000, false, 6200]] as const) {
-  test(`Irregular blink plan (random=${random}): first at ${first}ms, ${double ? 'a quick double blink' : 'a single blink'}, next after ${next}ms; 150ms scaleY with glow dimming`, async ({page}) => {
+// Kırpma düzensizdir (planBlink, 6–11 sn); Math.random sabitlenince plan belirlenir: 0 → ilk kırpma 6 sn, ardından 200 ms sonra
+// nadir çift kırpma ve 6 sn ara; 1 → ilk kırpma 11 sn, tek kırpma ve 11 sn ara. Kırpma 170 ms sürer ve üst üste binmez.
+for (const [random, first, double, next] of [[0, 6000, true, 6000], [1, 11000, false, 11000]] as const) {
+  test(`Irregular blink plan (random=${random}): first at ${first}ms, ${double ? 'a rare double blink' : 'a single blink'}, next after ${next}ms; 170ms scaleY with the glow closing too`, async ({page}) => {
     await clock(page, random)
     await openHeader(page)
     const eye = page.locator('.assistantLauncher .kaisHeaderEye')
@@ -101,17 +101,18 @@ for (const [random, first, double, next] of [[0, 1200, true, 7500], [1, 4000, fa
     await page.clock.runFor(2)
     await expect(eye).toHaveClass(/kaisEyeBlink/)
     await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-name', 'kais-eye-blink')
-    await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.15s')
+    await expect(eye.locator('.kaisEyeInterior')).toHaveCSS('animation-duration', '0.17s')
     await expect(eye.locator('.cyberEyeGlow')).toHaveCSS('animation-name', 'kais-header-glow-blink')
-    await page.clock.runFor(150)
+    await expect(eye.locator('.cyberEyeGlow')).toHaveCSS('animation-duration', '0.17s')
+    await page.clock.runFor(170)
     await expect(eye).not.toHaveClass(/kaisEyeBlink/)
     if (double) {
-      await page.clock.runFor(180)
+      await page.clock.runFor(200)
       await expect(eye).toHaveClass(/kaisEyeBlink/)
-      await page.clock.runFor(150)
+      await page.clock.runFor(170)
       await expect(eye).not.toHaveClass(/kaisEyeBlink/)
-      await page.clock.runFor(next - 150 - 180 - 150 - 2)
-    } else await page.clock.runFor(next - 150 - 2)
+      await page.clock.runFor(next - 170 - 200 - 170 - 2)
+    } else await page.clock.runFor(next - 170 - 2)
     await expect(eye).not.toHaveClass(/kaisEyeBlink/)
     await page.clock.runFor(4)
     await expect(eye).toHaveClass(/kaisEyeBlink/)
