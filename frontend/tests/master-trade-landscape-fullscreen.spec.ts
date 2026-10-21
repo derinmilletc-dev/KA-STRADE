@@ -1087,12 +1087,12 @@ test('A missed resize/orientation event is recovered by re-reading the real view
   // Olay göndermeden yalnız görünür alanı değiştir (kaçan olay): yoklama gerçek durumu okuyup geçişi tamamlar.
   await page.evaluate(() => { const real = window.dispatchEvent.bind(window); window.dispatchEvent = (event: Event) => (event.type === 'resize' || event.type === 'orientationchange' ? true : real(event)) })
   await page.setViewportSize(landscape)
-  await expect(terminal(page)).toBeVisible({timeout: 8000}) // en az uyarı süresi (2,5 sn) + yoklama + oturma
+  await expect(terminal(page)).toBeVisible({timeout: 8000}) // en az uyarı süresi (3,5 sn) + yoklama + oturma
   await expect(drawer(page)).toBeVisible()
 })
 
-// ---------- Dönme uyarısının en az süresi (2,5 sn) ----------
-const MIN_PROMPT = 2500
+// ---------- Dönme uyarısının en az süresi (3,5 sn) ----------
+const MIN_PROMPT = 3500
 const promptOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>(resolve => {
   if (document.querySelector('.kfsOverlay')) return resolve(performance.now())
   const observer = new MutationObserver(() => { if (document.querySelector('.kfsOverlay')) { observer.disconnect(); resolve(performance.now()) } })
@@ -1105,7 +1105,7 @@ const terminalOpenedAt = (page: Page) => page.evaluate(() => new Promise<number>
   observer.observe(document.body, {subtree: true, childList: true, attributes: true})
 }))
 
-test('Early landscape: the prompt stays at least 2.5 s, then Analysis Studio opens automatically', async ({page}) => {
+test('Early landscape: the prompt stays at least 3.5 s, then Analysis Studio opens automatically', async ({page}) => {
   await prepare(page)
   const opened = promptOpenedAt(page)
   await studioButton(page).click()
@@ -1123,7 +1123,7 @@ test('Early landscape: the prompt stays at least 2.5 s, then Analysis Studio ope
   await expect(drawer(page)).toBeVisible()
 })
 
-test('Still portrait after 2.5 s: the prompt stays until landscape is detected, then opens', async ({page}) => {
+test('Still portrait after 3.5 s: the prompt stays until landscape is detected, then opens', async ({page}) => {
   const {requests} = await prepare(page)
   const before = requests.length
   await studioButton(page).click()
