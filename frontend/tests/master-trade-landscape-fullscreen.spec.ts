@@ -777,15 +777,26 @@ const settledListeners = async (page: Page) => {
 }
 const rotateTo = async (page: Page, size: {width: number; height: number}) => { await page.setViewportSize(size); await page.evaluate(() => window.dispatchEvent(new Event('orientationchange'))) }
 
-test('Analysis Studio sits under the indicator table and tapping it in portrait shows the rotation prompt', async ({page}) => {
+test('Analysis Studio is the prominent first row of the chart card, above the toolbar, and tapping it in portrait shows the rotation prompt', async ({page}) => {
   const {requests} = await prepare(page)
   const before = requests.length
   const button = studioButton(page)
   await expect(button).toBeVisible()
-  const placement = await page.evaluate(() => { const grid = document.querySelector('.refIndicatorGrid')!.getBoundingClientRect(), btn = document.querySelector('.kfsStudioBtn')!.getBoundingClientRect(); return {gridBottom: grid.bottom, top: btn.top, height: btn.height, width: btn.width, grid: grid.width} })
-  expect(placement.top).toBeGreaterThanOrEqual(placement.gridBottom - 1)
+  await expect(root(page).locator('.kfsStudioBtn')).toHaveCount(1) // tek giriş, kopya yok
+  const placement = await page.evaluate(() => {
+    const card = document.querySelector('.masterReferenceAnalysis .refChart')!, btn = card.querySelector(':scope > .kfsStudioBtn')!, toolbar = card.querySelector(':scope > .refToolbar')!
+    const c = card.getBoundingClientRect(), b = btn.getBoundingClientRect(), t = toolbar.getBoundingClientRect(), style = getComputedStyle(btn)
+    return {inCard: card.contains(btn), topGap: b.top - c.top, below: t.top - b.bottom, height: b.height, left: b.left - c.left, right: c.right - b.right, background: style.backgroundColor, color: style.color}
+  })
+  expect(placement.inCard).toBe(true)
+  expect(placement.topGap).toBeGreaterThanOrEqual(0)
+  expect(placement.topGap).toBeLessThanOrEqual(16) // kartın en üstünde
+  expect(placement.below).toBeGreaterThanOrEqual(0) // araç satırının üstünde, çakışmadan
   expect(placement.height).toBeGreaterThanOrEqual(44)
-  expect(Math.abs(placement.width - placement.grid)).toBeLessThan(2)
+  expect(Math.abs(placement.left - placement.right)).toBeLessThanOrEqual(1) // ortalı, tam genişlik
+  expect(placement.left).toBeLessThanOrEqual(16)
+  expect(placement.background).toBe('rgb(169, 212, 255)') // belirgin buz mavisi dolgu
+  expect(placement.color).toBe('rgb(7, 17, 31)')
   await button.tap()
   await expect(overlay(page)).toBeVisible()
   await expect(overlay(page).getByText(studioText)).toBeVisible()
@@ -1450,4 +1461,16 @@ test('An unavailable symbol shows an error state and lets the user return to the
   await expect(symbolButton(page)).toHaveText(/BTCUSDT/)
   await expect(root(page).locator('svg[data-chart-ai-capture="reference"]')).toHaveAttribute('aria-label', /BTCUSDT/, {timeout: 15000})
   await expect(terminal(page)).toBeVisible()
+})
+
+test('The Studio button is hidden inside the landscape terminal and visible again after exit', async ({page}) => {
+  await prepare(page)
+  await studioButton(page).click()
+  await rotateTo(page, landscape)
+  await expect(terminal(page)).toBeVisible()
+  await expect(root(page).locator('.kfsStudioBtn')).toBeHidden()
+  await closeAutoDrawer(page)
+  await terminal(page).getByRole('button', {name: 'Exit fullscreen'}).click()
+  await pageIsRestored(page)
+  await expect(studioButton(page)).toBeVisible()
 })
