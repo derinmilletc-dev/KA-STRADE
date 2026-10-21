@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode} from 'react'
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react'
 import {Activity, X} from 'lucide-react'
 import {createLandscapeController, type LandscapeController, type LandscapeSnapshot} from './master-trade-fullscreen'
 
@@ -41,16 +41,32 @@ export function useIsolatedFocus(selector: string | null) {
   }, [selector])
 }
 
-/** Dikey modda gösterilen "telefonu yan çevir" uyarısı. İptal her zaman çıkış sağlar. */
-export function RotateOverlay({onCancel, canAutoRotate}: {onCancel: () => void; canAutoRotate: boolean}) {
+/**
+ * Bir öğenin kapanışında kısa bir çıkış geçişi için gecikmeli kaldırma. `visible` false olunca `leaving` true olur ve öğe
+ * `ms` sonra kalkar; azaltılmış harekette gecikme yoktur. Zamanlayıcı kalkışta/yeniden açılışta temizlenir.
+ */
+export function useExitTransition(visible: boolean, ms = 220) {
+  const [mounted, setMounted] = useState(visible)
+  useEffect(() => {
+    if (visible) { setMounted(true); return }
+    const reduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) { setMounted(false); return }
+    const timer = setTimeout(() => setMounted(false), ms)
+    return () => clearTimeout(timer)
+  }, [visible, ms])
+  return {mounted: visible || mounted, leaving: !visible && mounted}
+}
+
+/** Dikey modda gösterilen "telefonu yan çevir" uyarısı. İptal her zaman çıkış sağlar. `studio`: Analysis Studio'dan açıldı. */
+export function RotateOverlay({onCancel, canAutoRotate, studio = false, leaving = false}: {onCancel: () => void; canAutoRotate: boolean; studio?: boolean; leaving?: boolean}) {
   const cancel = useRef<HTMLButtonElement>(null)
   useEffect(() => { cancel.current?.focus() }, [])
-  return <div className="kfsOverlay" role="dialog" aria-modal="true" aria-labelledby="kfsRotateTitle" aria-describedby="kfsRotateText">
+  return <div className="kfsOverlay" data-leaving={leaving ? 'true' : undefined} aria-hidden={leaving || undefined} role="dialog" aria-modal="true" aria-labelledby="kfsRotateTitle" aria-describedby="kfsRotateText">
     <div className="kfsOverlayCard">
       <span className="kfsBrand" translate="no" data-i18n-skip><Activity aria-hidden="true"/>kais<b>trade</b></span>
       <div className="kfsPhoneStage" aria-hidden="true"><div className="kfsPhone"><i/></div></div>
       <h2 id="kfsRotateTitle">Turn your phone sideways</h2>
-      <p id="kfsRotateText">Switch to landscape for a wider trading chart.</p>
+      <p id="kfsRotateText">{studio ? 'Rotate your device to open Analysis Studio.' : 'Switch to landscape for a wider trading chart.'}</p>
       {!canAutoRotate && <p className="kfsOverlayHint">If it does not rotate, turn on auto-rotate or turn your phone by hand.</p>}
       <button ref={cancel} type="button" className="kfsCancel" onClick={onCancel}>Cancel</button>
     </div>

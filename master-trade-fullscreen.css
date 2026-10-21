@@ -22,39 +22,63 @@ html.kaisChartFullscreen, html.kaisChartFullscreen body { overflow: hidden !impo
 .masterReferenceAnalysis .kfsOverlay {
   position: fixed; inset: 0; z-index: 2147483001; display: grid; place-items: center;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  background: rgba(5, 9, 11, .94); color: #dce9e7; overscroll-behavior: contain;
+  /* Gece siyahı; genel `background-image: none` sıfırlaması nedeniyle yalnız düz renkler kullanılır. */
+  --kfs-ice: #a9d4ff; --kfs-violet: #a79af5; --kfs-text: #f1f5ff; --kfs-muted: #9aa8c2;
+  background: rgba(6, 9, 16, .97); color: var(--kfs-text); overscroll-behavior: contain;
+  opacity: 1; transition: opacity .22s ease; animation: kfsFadeIn .22s ease-out both;
 }
+.masterReferenceAnalysis .kfsOverlay[data-leaving="true"] { opacity: 0; pointer-events: none; }
+@keyframes kfsFadeIn { from { opacity: 0; } to { opacity: 1; } }
 .masterReferenceAnalysis .kfsOverlayCard {
   width: min(340px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
-  padding: 26px 22px 22px; border: 1px solid var(--ref-line); border-radius: 14px; background: #0c1519;
+  position: relative; padding: 28px 22px 22px; border: 1px solid rgba(169, 212, 255, .14); border-radius: 16px; background: #0e1424;
 }
-.masterReferenceAnalysis .kfsBrand { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: #eef7f4; }
-.masterReferenceAnalysis .kfsBrand b { color: var(--ref-green); font-weight: 700; }
-.masterReferenceAnalysis .kfsBrand svg { width: 16px; height: 16px; color: var(--ref-green); }
+/* Üstte ince, yumuşak mor bir vurgu çizgisi (tek ve ölçülü ayrıntı). */
+.masterReferenceAnalysis .kfsOverlayCard::before { content: ""; position: absolute; top: -1px; left: 50%; width: 44px; height: 2px; margin-left: -22px; border-radius: 2px; background-color: rgba(167, 154, 245, .7); }
+.masterReferenceAnalysis .kfsBrand { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--kfs-text); }
+.masterReferenceAnalysis .kfsBrand b { color: var(--kfs-ice); font-weight: 700; }
+.masterReferenceAnalysis .kfsBrand svg { width: 16px; height: 16px; color: var(--kfs-ice); }
 .masterReferenceAnalysis .kfsPhoneStage { position: relative; height: 112px; width: 112px; display: grid; place-items: center; }
 /* Telefon tek parça olarak döner (çerçeve ve iç detaylar birlikte). 4.8 sn döngü: 0.5 sn dik bekleme, 1.3 sn saat yönünde 90°, 1.2 sn yatay bekleme, 1.3 sn geri dönüş, 0.5 sn dinlenme. */
 .masterReferenceAnalysis .kfsPhone {
-  position: relative; width: 44px; height: 78px; border: 1.5px solid #9fb4b6; border-radius: 9px; box-sizing: border-box;
+  position: relative; width: 44px; height: 78px; border: 1.5px solid rgba(169, 212, 255, .8); border-radius: 9px; box-sizing: border-box;
   transform: rotate(0deg); transform-origin: 50% 50%; backface-visibility: hidden; will-change: transform;
   animation: kfsRotate 4.8s infinite;
 }
-.masterReferenceAnalysis .kfsPhone::before { content: ""; position: absolute; top: 4px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 2px; background: #9fb4b6; }
+.masterReferenceAnalysis .kfsPhone::before { content: ""; position: absolute; top: 4px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 2px; background-color: var(--kfs-violet); }
 /* Ekran detayı: sayfadaki genel kural (.v26App.workspaceRoute * { background-image: none }) degrade çizimini engeller; bu yüzden düz renkli, eğik bir çizgi kullanılır. */
-.masterReferenceAnalysis .kfsPhone i { position: absolute; inset: 14px 6px 8px; overflow: hidden; border-bottom: 2px solid var(--ref-line); opacity: .9; }
-.masterReferenceAnalysis .kfsPhone i::before { content: ""; position: absolute; left: -30%; top: 50%; width: 160%; height: 2px; margin-top: -1px; border-radius: 2px; background-color: var(--ref-green); transform: rotate(-58deg); }
+.masterReferenceAnalysis .kfsPhone i { position: absolute; inset: 14px 6px 8px; overflow: hidden; border-bottom: 2px solid rgba(169, 212, 255, .18); opacity: .9; }
+.masterReferenceAnalysis .kfsPhone i::before { content: ""; position: absolute; left: -30%; top: 50%; width: 160%; height: 2px; margin-top: -1px; border-radius: 2px; background-color: var(--kfs-ice); transform: rotate(-58deg); }
 @keyframes kfsRotate {
   0%, 10.4% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }
   37.5%, 62.5% { transform: rotate(90deg); animation-timing-function: cubic-bezier(.45, .05, .2, 1); }
   89.6%, 100% { transform: rotate(0deg); }
 }
-.masterReferenceAnalysis .kfsOverlay h2 { font-size: 20px; line-height: 1.25; color: #eef7f4; }
-.masterReferenceAnalysis .kfsOverlay p { font-size: 14px; line-height: 1.45; color: #a8bebc; }
-.masterReferenceAnalysis .kfsOverlay .kfsOverlayHint { font-size: 12px; color: var(--ref-muted); }
+.masterReferenceAnalysis .kfsOverlay h2 { font-size: 20px; line-height: 1.25; color: var(--kfs-text); }
+.masterReferenceAnalysis .kfsOverlay p { font-size: 14px; line-height: 1.45; color: var(--kfs-muted); }
+.masterReferenceAnalysis .kfsOverlay .kfsOverlayHint { font-size: 12px; color: #7d8aa5; }
 .masterReferenceAnalysis .kfsCancel {
-  margin-top: 8px; min-height: 44px; min-width: 140px; padding: 0 22px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 8px;
-  background: transparent; color: #dce9e7; font-weight: 600;
+  margin-top: 8px; min-height: 44px; min-width: 140px; padding: 0 22px; border: 1px solid rgba(169, 212, 255, .28); border-radius: 10px;
+  background: transparent; color: var(--kfs-text); font-weight: 600;
 }
-.masterReferenceAnalysis .kfsCancel:hover { border-color: var(--ref-green); color: var(--ref-green); }
+.masterReferenceAnalysis .kfsCancel:hover { border-color: var(--kfs-ice); color: var(--kfs-ice); }
+.masterReferenceAnalysis .kfsCancel:focus-visible { outline: 2px solid var(--kfs-ice); outline-offset: 2px; }
+
+/* ---------- Analysis Studio düğmesi (analiz göstergelerinin altında) ---------- */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn {
+  width: 100% !important; min-height: 46px !important; margin: 8px 0 0 !important; padding: 0 14px !important; display: flex !important; align-items: center !important; gap: 10px !important;
+  border: 1px solid rgba(169, 212, 255, .2) !important; border-radius: 12px !important; background: #0e1424 !important; color: #f1f5ff !important;
+  font-size: 14px !important; font-weight: 600 !important; text-align: left !important; cursor: pointer !important; touch-action: manipulation !important;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > span { flex: 1 1 auto !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > svg { width: 18px !important; height: 18px !important; flex: none !important; color: #a9d4ff !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn > svg:last-child { width: 16px !important; height: 16px !important; color: #9aa8c2 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn:hover { border-color: #a9d4ff !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn:focus-visible { outline: 2px solid #a9d4ff !important; outline-offset: 2px !important; }
+/* Yatay terminal yalnız dokunmatik/dar ekranlar içindir; masaüstü fare düzeninde giriş düğmeleri gizli kalır. */
+@media (min-width: 1024px) and (pointer: fine) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsStudioBtn { display: none !important; }
+}
 
 /* ---------- Yatay terminal ---------- */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] {
@@ -178,7 +202,8 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 
 @media (prefers-reduced-motion: reduce) {
   .masterReferenceAnalysis .kfsPhone { animation: none; transform: rotate(0deg); will-change: auto; }
+  .masterReferenceAnalysis .kfsOverlay { animation: none; transition: none; }
   /* Sabit ipucu: dik telefonun yanında yatay yönü gösteren ince kesikli çerçeve. */
-  .masterReferenceAnalysis .kfsPhoneStage::after { content: ""; position: absolute; width: 78px; height: 44px; border: 1.5px dashed rgba(159, 180, 182, .45); border-radius: 9px; box-sizing: border-box; pointer-events: none; }
+  .masterReferenceAnalysis .kfsPhoneStage::after { content: ""; position: absolute; width: 78px; height: 44px; border: 1.5px dashed rgba(167, 154, 245, .5); border-radius: 9px; box-sizing: border-box; pointer-events: none; }
   .masterReferenceAnalysis .kfsDrawer, .masterReferenceAnalysis .kfsDrawer[data-open], html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsDrawer[data-open] { transition: none !important; }
 }
