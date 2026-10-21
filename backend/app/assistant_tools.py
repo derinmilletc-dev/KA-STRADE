@@ -17,7 +17,7 @@ from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from . import assistant_help, subscription_core, v25_execution
-from .analyst_credits import AnalystCredits, ConsumeAnalysis, CreditTransaction
+from .analyst_credits import ANALYSIS_COST, AnalystCredits, ConsumeAnalysis, CreditConfig, CreditTransaction
 from .analyst_credits import service as credit_service
 from .assistant_config import AssistantConfig, load_assistant_config
 from .member_entitlements import access_for_request, subscription_for_request
@@ -331,10 +331,10 @@ class AssistantTools:
         unlimited = bool((rights.get("entitlements") or {}).get("unlimitedAnalyst"))
         trial = bool(rights.get("freeTrial"))
         limit = int(getattr(self.config, "free_market_daily_limit", 0) or 0)
-        try:
-            cost = self.credits().config.cost
-        except Exception:  # noqa: BLE001
-            cost = 10
+        try:  # yalnız yapılandırma okunur; kredi servisi (uygulama durumu) oluşturulmaz
+            cost = CreditConfig.from_environment().cost
+        except ValueError:
+            cost = ANALYSIS_COST
         tr = language == "tr"
         if owner:
             status = ("Bu kullanıcı sitenin yöneticisi (admin). Premium erişimi VAR ve tüm analizleri sınırsız."

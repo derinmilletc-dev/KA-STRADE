@@ -97,7 +97,7 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
             return ModelAnswer("Değerlendirme hazır.", 10, 10, 0, 0, ())
 
         await run_conversation(config, "tr", ChatInput(message="BTC için riskleri değerlendir"), "u", None, paid, AsyncMock(return_value=10))
-        self.assertEqual(seen, [("claude-opus-5-5", "high", config.deep_max_output_tokens)])
+        self.assertEqual(seen, [("claude-opus-5-5", config.deep_effort, config.deep_max_output_tokens)])
 
     def test_history_is_passed_in_order_with_current_message_last(self):
         payload = ChatInput(message="peki ya ETH?", history=[{"role": "user", "content": "BTC nasıl?"}, {"role": "assistant", "content": "Doğrulanamadı."}])

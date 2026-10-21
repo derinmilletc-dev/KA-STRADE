@@ -141,8 +141,7 @@ class IntentTests(unittest.TestCase):
 
 class AccountContextTests(unittest.TestCase):
     def context(self, role, rights, language="tr"):
-        fake = SimpleNamespace(user=lambda user_id: {"id": user_id, "role": role}, request=None,
-                               config=AssistantConfig(), credits=lambda: SimpleNamespace(config=CreditConfig()))
+        fake = SimpleNamespace(user=lambda user_id: {"id": user_id, "role": role}, request=None, config=AssistantConfig())
         with patch("app.assistant_tools.access_for_request", return_value=rights):
             return AssistantTools.account_context(fake, "u", language)
 
