@@ -38,6 +38,7 @@ class PublicMarketData:
         self.sequence = 0
         self.active = 0
         self.retry_at = 0.0
+        self._cooldown_warned = False
         self.last_rejection = 429
         self.original_symbols = set(ORIGINAL_SYMBOLS)
         self.counts: Counter[str] = Counter()
@@ -81,10 +82,22 @@ class PublicMarketData:
         if global_block is not None:
             self.counts["global_ban_hits"] += 1
             return global_block
+        if path == "/fapi/v1/time":
+            # Clock sync (weight 1) gates every signed account read. A local
+            # market-data cooldown caused by scanner klines must not block it,
+            # otherwise account verification fails as a fake "account rate limit".
+            # A real Binance ban (global ban above) still blocks it.
+            return None
         remaining = math.ceil(self.retry_at - self.clock())
         if remaining <= 0:
             return None
         self.counts["backoff_hits"] += 1
+        if not self._cooldown_warned:
+            self._cooldown_warned = True
+            logger.warning(
+                "PUBLIC_MARKET_COOLDOWN_ACTIVE path=%s remaining_seconds=%s last_rejection=%s",
+                path, remaining, self.last_rejection,
+            )
         return httpx.Response(
             self.last_rejection, headers={"Retry-After": str(remaining)},
             json={"code": -1003, "msg": "Binance public market-data cooldown active."},
@@ -100,6 +113,11 @@ class PublicMarketData:
             delay = retry_after_seconds(response) or 30
             self.retry_at = max(self.retry_at, self.clock() + delay)
             self.last_rejection = response.status_code
+            self._cooldown_warned = False
+            logger.warning(
+                "PUBLIC_MARKET_RATE_LIMITED path=%s status=%s retry_after_seconds=%s used_weight_1m=%s source=%s",
+                path, response.status_code, delay, self.used_weight_1m, source,
+            )
             if source != "other":
                 BINANCE_GLOBAL_BAN.record(
                     response,
@@ -217,9 +235,11 @@ class PublicMarketData:
                 while len(self.cache) > 2048:
                     self.cache.popitem(last=False)
                 return response
-        except httpx.RequestError:
+        except httpx.RequestError as exc:
             self.retry_at = max(self.retry_at, self.clock() + 15)
             self.last_rejection = 503
+            self._cooldown_warned = False
+            logger.warning("PUBLIC_MARKET_NETWORK_COOLDOWN path=%s error=%s", path, type(exc).__name__)
             raise
         finally:
             self.inflight.pop(key, None)
