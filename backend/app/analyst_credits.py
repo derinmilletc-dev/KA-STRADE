@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analyst", tags=["Analyst credits"])
 
 ANALYSIS_COST = 10
+# Premium olmayan üyenin asistandaki piyasa özeti kullanımları analyst_requests'e bu sembol + UTC gün ile yazılır (günlük sayaç).
+MARKET_OVERVIEW_SYMBOL = "MARKET_OVERVIEW"
 
 
 @dataclass(frozen=True)
@@ -169,6 +171,32 @@ class AnalystCredits:
         async with self.store.transaction(user_id, self.config, now) as transaction:
             remaining, start = await self.account(transaction, user_id, now)
             return self.snapshot(remaining, start)
+
+    async def charge_market_overview(self, user_id: str, day: str, daily_limit: int) -> dict[str, Any]:
+        """Premium olmayan üyenin piyasa özeti hakkı: günde en fazla daily_limit kez, her seferinde analiz maliyeti kadar kredi.
+        Tek işlemde (satır kilidiyle) sayar, kontrol eder ve düşer; aynı anda gelen iki istek sınırı aşamaz."""
+        now = self.clock()
+        cost = self.config.cost
+        async with self.store.transaction(user_id, self.config, now) as transaction:
+            remaining, start = await self.account(transaction, user_id, now)
+            row = await transaction.row(
+                "SELECT COUNT(*) AS used FROM analyst_requests WHERE user_id=$1 AND symbol=$2 AND timeframe=$3",
+                user_id, MARKET_OVERVIEW_SYMBOL, day,
+            )
+            used = int(row["used"]) if row and row.get("used") is not None else 0
+            usage = {"cost": cost, "daily_limit": daily_limit, "used_today": used, "remaining_credits": remaining}
+            if used >= daily_limit:
+                return {"allowed": False, "reason": "FREE_DAILY_LIMIT", **usage}
+            if remaining < cost:
+                return {"allowed": False, "reason": "CREDITS_EXHAUSTED", **usage}
+            remaining -= cost
+            start = now if start is None else start
+            await transaction.execute("UPDATE analyst_credits SET credits_remaining=$1, window_start=$2 WHERE user_id=$3", remaining, start, user_id)
+            await transaction.execute(
+                "INSERT INTO analyst_requests (user_id,idempotency_key,symbol,timeframe,status_code,result) VALUES ($1,$2,$3,$4,$5,$6)",
+                user_id, f"market-{day}-{used + 1}-{int(now * 1000)}", MARKET_OVERVIEW_SYMBOL, day, 200, "{}",
+            )
+            return {"allowed": True, **usage, "used_today": used + 1, "remaining_credits": remaining}
 
     async def cached_analysis(self, user_id: str, symbol: str, timeframe: str) -> dict[str, Any] | None:
         now = self.clock()

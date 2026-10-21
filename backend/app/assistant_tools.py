@@ -17,7 +17,7 @@ from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from . import assistant_help, subscription_core, v25_execution
-from .analyst_credits import AnalystCredits, ConsumeAnalysis, CreditTransaction
+from .analyst_credits import ANALYSIS_COST, AnalystCredits, ConsumeAnalysis, CreditConfig, CreditTransaction
 from .analyst_credits import service as credit_service
 from .assistant_config import AssistantConfig, load_assistant_config
 from .member_entitlements import access_for_request, subscription_for_request
@@ -260,7 +260,9 @@ class AssistantTools:
     async def get_market_overview(self, user_id: str) -> dict[str, Any]:
         """Piyasa özeti (salt okunur, yalnızca premium). Tarama sıralaması yalnızca TAZE taramada verilir; eski/yok ise sıralama uydurulmaz.
         scan.status: fresh | stale | no_scan | unavailable. Gainer/loser yalnızca kesin pozitif/negatif 24s değişimle."""
-        if not self.premium(user_id):
+        premium = self.premium(user_id)
+        free_limit = int(getattr(self.config, "free_market_daily_limit", 0) or 0)
+        if not premium and free_limit <= 0:
             return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
         from .readonly_demo_service import (
             MAX_SIGNAL_AGE_SECONDS,
@@ -305,7 +307,56 @@ class AssistantTools:
                               "top_losers": [pick(r) for r in sorted((r for r in rows if r["change"] < 0), key=lambda r: r["change"])[:3]]}
         except Exception:
             data["movers"] = {"status": "unavailable", "note": "MARKET_DATA_UNAVAILABLE"}; stale = True
+        if not premium:
+            # Gösterilecek hiçbir şey yoksa kredi düşülmez; varsa günlük hak + kredi tek işlemde kontrol edilip düşülür.
+            if data["scan"].get("status") != "fresh" and data["movers"].get("status") != "fresh":
+                return self.result(data, stale=True)
+            day = datetime.fromtimestamp(self.clock(), timezone.utc).date().isoformat()
+            usage = await self.credits().charge_market_overview(user_id, day, free_limit)
+            allowed = usage.pop("allowed")
+            if not allowed:
+                return self.result({"reason": usage.pop("reason"), "free_usage": usage}, stale=True)
+            data["free_usage"] = usage
         return self.result(data, stale=stale)
+
+    def account_context(self, user_id: str, language: Language) -> str:
+        """Sunucunun doğruladığı hesap durumu (model premium/admin durumunu tahmin etmesin, uydurmasın). Doğrulanamazsa boş."""
+        try:
+            user = self.user(user_id)
+            rights = access_for_request(self.request, user)
+        except Exception:  # noqa: BLE001 - yalnız yardımcı bağlam; doğrulanamazsa model bu bilgiyi almaz, sohbet sürer
+            return ""
+        owner = user.get("role") == "OWNER"
+        premium = bool(rights.get("isPremium"))
+        unlimited = bool((rights.get("entitlements") or {}).get("unlimitedAnalyst"))
+        trial = bool(rights.get("freeTrial"))
+        limit = int(getattr(self.config, "free_market_daily_limit", 0) or 0)
+        try:  # yalnız yapılandırma okunur; kredi servisi (uygulama durumu) oluşturulmaz
+            cost = CreditConfig.from_environment().cost
+        except ValueError:
+            cost = ANALYSIS_COST
+        tr = language == "tr"
+        if owner:
+            status = ("Bu kullanıcı sitenin yöneticisi (admin). Premium erişimi VAR ve tüm analizleri sınırsız."
+                      if tr else "This user is the site administrator (admin). They HAVE premium access and unlimited analyses.")
+        elif premium:
+            status = (("Bu kullanıcının premium erişimi VAR" + (" ve analizleri sınırsız." if unlimited else " (deneme süresinde).")) if tr
+                      else ("This user HAS premium access" + (" with unlimited analyses." if unlimited else " (free trial).")))
+        else:
+            status = (f"Bu kullanıcı premium DEĞİL; kendi analiz kredileri var (bir analiz {cost} kredi). "
+                      f"Piyasa özeti (en iyi/en mantıklı coin, en iyi long/short) ona günde en fazla {limit} kez, her seferinde {cost} kredi düşerek verilir; "
+                      "get_market_overview sonucundaki free_usage/reason ne diyorsa onu söyle." if tr else
+                      f"This user is NOT premium; they have their own analysis credits (one analysis costs {cost} credits). "
+                      f"The market overview (best coin, best long/short) is available to them at most {limit} times a day, {cost} credits each; "
+                      "report exactly what free_usage/reason in the get_market_overview result says.")
+        rules = ("Premium veya yetki eksikliğinden YALNIZ bir araç sonucu açıkça PREMIUM_REQUIRED, FREE_DAILY_LIMIT veya CREDITS_EXHAUSTED dediğinde bahset. "
+                 "Bir araç hata verirse veya veri gelmezse bunu yetki sorunu sanma; kısaca 'şu an doğrulayamadım' de, hata uydurma."
+                 if tr else
+                 "Mention missing premium or rights ONLY when a tool result explicitly says PREMIUM_REQUIRED, FREE_DAILY_LIMIT or CREDITS_EXHAUSTED. "
+                 "If a tool fails or returns no data, do not treat it as a permissions problem; briefly say you could not verify it right now and never invent an error.")
+        header = "SUNUCU DOĞRULAMALI HESAP DURUMU (güvenilir sistem bilgisi):" if tr else "SERVER-VERIFIED ACCOUNT STATUS (trusted system information):"
+        trial_note = (" Ücretsiz deneme üyesi." if tr else " Free-trial member.") if trial and not owner else ""
+        return f"{header} {status}{trial_note} {rules}"
 
     async def get_my_activity(self, user_id: str, transaction: CreditTransaction) -> dict[str, Any]:
         # Internal check-in read only; not exposed as an LLM tool.

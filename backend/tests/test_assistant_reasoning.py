@@ -57,14 +57,16 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
         for message in ("BTC analizini yorumla", "Why is ETH risky right now?", "iki senaryoyu karşılaştır", "x" * 200):
             with self.subTest(message=message[:30]):
                 self.assertTrue(needs_deep_reasoning(message))
-        for message in ("merhaba", "kredim ne kadar", "how do I connect my API key?"):
+        for message in ("merhaba", "kredim ne kadar", "how do I connect my API key?", "en mantıklı coin hangisi", "which one is cheaper"):
             with self.subTest(message=message):
                 self.assertFalse(needs_deep_reasoning(message))
 
     def test_request_effort_follows_question_and_config(self):
         config = AssistantConfig()
         self.assertEqual(build_request(config, "tr", ChatInput(message="merhaba")).effort, "low")
-        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "high")
+        self.assertEqual(build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "medium")
+        high = AssistantConfig(deep_effort="high")
+        self.assertEqual(build_request(high, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "high")
         low = AssistantConfig(deep_effort="low")
         self.assertEqual(build_request(low, "tr", ChatInput(message="BTC için riskleri değerlendir")).effort, "low")
 
@@ -95,7 +97,7 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
             return ModelAnswer("Değerlendirme hazır.", 10, 10, 0, 0, ())
 
         await run_conversation(config, "tr", ChatInput(message="BTC için riskleri değerlendir"), "u", None, paid, AsyncMock(return_value=10))
-        self.assertEqual(seen, [("claude-opus-5-5", "high", config.deep_max_output_tokens)])
+        self.assertEqual(seen, [("claude-opus-5-5", config.deep_effort, config.deep_max_output_tokens)])
 
     def test_history_is_passed_in_order_with_current_message_last(self):
         payload = ChatInput(message="peki ya ETH?", history=[{"role": "user", "content": "BTC nasıl?"}, {"role": "assistant", "content": "Doğrulanamadı."}])

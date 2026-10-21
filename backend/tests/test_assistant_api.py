@@ -261,15 +261,16 @@ class AssistantApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_provider_timeout_counts_and_estimates_cost_without_disabling(self):
         self.provider.side_effect = anthropic.APIConnectionError(request=httpx.Request("POST", "https://provider.test"))
         payload = ChatInput(message="How can you help?")
-        expected = (Decimal(estimated_input_tokens("en", payload)) * self.config.cache_write_price_usd_per_million
-                    + self.config.max_output_tokens * self.config.output_price_usd_per_million) / assistant_api.TOKENS_PER_MILLION
         with self.assertLogs(assistant_api.logger, logging.WARNING) as logs:
             response = await self.chat()
         self.assertEqual(response.status_code, 502)
         self.assertTrue(any("estimated=True" in item for item in logs.output))
         record = await self.call_record()
         self.assertEqual(record["estimated"], 1)
-        self.assertEqual(record["input_tokens"], estimated_input_tokens("en", payload))
+        # Tahmin, isteğe eklenen sunucu doğrulamalı hesap bağlamını da sayar (taban istekten az olamaz).
+        self.assertGreaterEqual(record["input_tokens"], estimated_input_tokens("en", payload))
+        expected = (Decimal(record["input_tokens"]) * self.config.cache_write_price_usd_per_million
+                    + self.config.max_output_tokens * self.config.output_price_usd_per_million) / assistant_api.TOKENS_PER_MILLION
         self.assertEqual(record["output_tokens"], self.config.max_output_tokens)
         self.assertEqual(Decimal(record["cost_usd"]), expected)
         self.assertEqual(Decimal((await self.ledger())["spent_usd"]), expected)
