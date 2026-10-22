@@ -78,7 +78,15 @@ const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk
 
 export default function LiveCockpit({status, verified, loading, guideInput, wallet, availableBalance, marketBanSeconds, externalBusy, userId, request, refresh, findPlan, extras}: Props) {
   const original = status?.original_v2_live
-  const guide = liveGuide(guideInput)
+  // Risk adımı: sunucuda risk revizyonu varsa tamam. Eski kayıtlarda revizyon olmayabilir (aynı değer yeniden
+  // kaydedilince sunucu yeni revizyon yazmaz); bu durumda bu tarayıcıda sunucunun DOĞRULADIĞI son kayıt
+  // (aynı yüzdeler) adımı tamamlar. Başlatma isteği riski sunucuda yeniden doğrular.
+  const confirmKey = userId ? `kais-live-risk-confirmed:${userId}` : null
+  const [riskConfirmed, setRiskConfirmed] = useState<string | null>(() => { try { return confirmKey ? localStorage.getItem(confirmKey) : null } catch { return null } })
+  const riskSignature = original ? `${original.risk_percent}|${original.daily_loss_percent}` : null
+  const riskConfirmedHere = riskSignature !== null && riskConfirmed === riskSignature
+  const effectiveInput: GuideInput = {...guideInput, riskApproved: guideInput.riskApproved || riskConfirmedHere}
+  const guide = liveGuide(effectiveInput)
   const [sheet, setSheet] = useState<Sheet>(null)
   const [working, setWorking] = useState('')
   const flight = useRef(false)
@@ -91,7 +99,9 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
   const hoursKey = userId ? `protrebot-original-live-hours:${userId}` : null
   const savedRisk = original?.risk_percent ?? 1
   const savedDaily = original?.daily_loss_percent ?? 3
-  const riskSaved = (original?.risk_revision ?? 0) > 0
+  const riskSaved = (original?.risk_revision ?? 0) > 0 || riskConfirmedHere
+  const [riskError, setRiskError] = useState('')
+  const [sheetError, setSheetError] = useState('')
   const [draft, setDraft] = useState(() => ({
     risk: savedRisk, daily: savedDaily,
     coins: readStored(coinsKey, validCoins) ?? original?.universe?.requested_count ?? 40,
@@ -126,7 +136,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
   }
 
   // ---- Tek uçuşlu istek yürütücü: aynı anda ikinci değiştiren istek gitmez.
-  const perform = async (key: string, action: () => Promise<void>, success?: string) => {
+  const perform = async (key: string, action: () => Promise<void>, success?: string, onError?: (message: string) => void) => {
     if (flight.current) return false
     flight.current = true
     setWorking(key)
@@ -135,7 +145,9 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
       if (success) setFlash({tone: 'ok', text: success})
       return true
     } catch (error) {
-      setFlash({tone: 'stop', text: errorText(error, 'İşlem tamamlanamadı.')})
+      const message = errorText(error, 'İşlem tamamlanamadı.')
+      setFlash({tone: 'stop', text: message})
+      onError?.(message)
       return false
     } finally {
       try { await refresh() } catch { /* yenileme hatası rehberde "doğrulanamadı" olarak görünür */ }
@@ -145,6 +157,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
   }
 
   const saveRisk = () => perform('risk', async () => {
+    setRiskError('')
     if (wallet === null) throw new Error('Güncel Binance bakiyesi doğrulanamadı; risk ayarı kaydedilmedi.')
     const payload = await request('/original-v2/risk-settings', {
       risk_percent: draft.risk, daily_loss_percent: draft.daily, risk_acknowledged: draft.risk > 2 && riskAck,
@@ -153,8 +166,11 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     }) as {risk_percent?: unknown; daily_loss_percent?: unknown; risk_revision?: unknown} | null
     if (!payload || payload.risk_percent !== draft.risk || payload.daily_loss_percent !== draft.daily || !Number.isSafeInteger(payload.risk_revision))
       throw new Error('Risk ayarının kaydı doğrulanamadı; güncel ayarları kontrol et.')
+    const signature = `${draft.risk}|${draft.daily}`
+    setRiskConfirmed(signature)
+    try { if (confirmKey) localStorage.setItem(confirmKey, signature) } catch { /* kayıt kapalıysa bu sayfa açıkken geçerli */ }
     setSettingsOpen(false)
-  }, 'Risk ayarın kaydedildi. Yalnız yeni işlemlere uygulanır; açık pozisyonlar değişmez.')
+  }, 'Risk ayarın kaydedildi. Yalnız yeni işlemlere uygulanır; açık pozisyonlar değişmez.', setRiskError)
 
   // ---- Onaylar: sırayla, her birinin sonucu ayrı gösterilir.
   const approvalDone = {consent: guideInput.authorizationValid, policy: guideInput.policyAcknowledged, arm: guideInput.armed}
@@ -205,7 +221,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     const enabled = payload && typeof payload === 'object' ? (payload.original_v2_live?.enabled ?? payload.enabled) : undefined
     if (enabled !== true) throw new Error('Başlatma sonucu doğrulanamadı; güncel durumu kontrol et.')
     setSheet(null); setStartUnderstood(false); setStartAck(false); setStartPhrase('')
-  }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`)
+  }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
@@ -218,12 +234,12 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
       await request('/auto/stop')
     }
     setSheet(null)
-  }, 'Durduruldu. Yeni işlem açılmaz; açık pozisyonların stop ve hedefleri Binance’te duruyor.')
+  }, 'Durduruldu. Yeni işlem açılmaz; açık pozisyonların stop ve hedefleri Binance’te duruyor.', setSheetError)
   const [closePhrase, setClosePhrase] = useState('')
   const closeAll = () => perform('close-all', async () => {
     await request('/emergency', {confirmation: CLOSE_ALL_PHRASE, close_tracked_positions: true})
     setSheet(null); setClosePhrase('')
-  }, 'Acil durdurma gönderildi: bota ait emirler iptal ediliyor, pozisyonlar reduce-only emirle kapatılıyor.')
+  }, 'Acil durdurma gönderildi: bota ait emirler iptal ediliyor, pozisyonlar reduce-only emirle kapatılıyor.', setSheetError)
 
   // ---- 2FA isteyen işlemler.
   const [code, setCode] = useState('')
@@ -239,7 +255,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     }
     setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase('')
   }, key === 'emergency-clear' ? 'Acil durdurma kaldırıldı. Yeniden başlatmak için rehberdeki adımı izle.'
-    : key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.')
+    : key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.', setSheetError)
 
   // ---- Kendiliğinden düzelme: yalnız durum okuması, artan aralıklarla.
   const [retry, setRetry] = useState({attempt: 0, at: 0})
@@ -292,7 +308,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     if (action === 'upgrade') { window.location.href = '/pricing'; return }
     if (action === 'choose-risk') { setSettingsOpen(true); window.setTimeout(() => document.getElementById('lc-strategy')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 30); return }
     const sheets: Record<string, Sheet> = {approve: 'approvals', start: 'start', stop: 'stop', 'clear-emergency': 'emergency-clear', recovery: 'recovery', 'review-fill-lock': 'fill-lock'}
-    if (action && sheets[action]) { setApprovalState({}); setApprovalAccepted(false); setSheet(sheets[action]) }
+    if (action && sheets[action]) { setApprovalState({}); setApprovalAccepted(false); setSheetError(''); setSheet(sheets[action]) }
   }
 
   // ---- Görünen veriler.
@@ -325,7 +341,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     RATE_LIMIT_WAIT: 'Binance sınırı bekleniyor', NO_ELIGIBLE_SYMBOLS: 'Filtreye uyan coin yok', BLOCKED: 'Yeni girişler engelli',
   }
   // Sorun varken ilerleme, gerçekten tamamlanmış adımlardan sayılır (sorunun kendisi adım değildir).
-  const completed = [guideInput.connected && guideInput.balance !== null, guideInput.riskApproved, guideInput.authorizationValid && guideInput.policyAcknowledged]
+  const completed = [guideInput.connected && guideInput.balance !== null, effectiveInput.riskApproved, guideInput.authorizationValid && guideInput.policyAcknowledged]
   const progressDone = guide.phase === 'running' ? GUIDE_STEPS.length : guide.phase === 'problem' ? Math.min(completed.indexOf(false) === -1 ? 3 : completed.indexOf(false), guide.step - 1 >= 0 && guide.step > 1 ? guide.step - 1 : 3) : guide.step - 1
   const currentIndex = guide.phase === 'problem' ? progressDone : guide.step - 1
   const kaisQuestion = running && why ? 'Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.'
@@ -378,11 +394,13 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
         {draft.risk > 5 && <label className="lcField">Onay için <b>{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
         <label className="lcCheck"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
         <button type="button" className="lcBtn lcPrimary" disabled={busy || wallet === null || !understood || !tierReady(draft.risk, riskAck, phrase)} onClick={() => void saveRisk()}>{working === 'risk' ? 'Kaydediliyor…' : 'Bu ayarı kaydet'}</button>
+        {riskError && <p className="lcHint stop" role="alert" data-testid="live-risk-error">Kaydedilemedi: {riskError}</p>}
       </div>}
       {!riskDirty && <p className="lcHint">{riskSaved ? 'Kayıtlı risk ayarın bu. Coin sayısı ve süre seçimin bu tarayıcıda hatırlanır.' : 'Bir seçenek seç ve kaydet; rehber seni sıradaki adıma geçirir.'}</p>}
       {!riskSaved && !riskDirty && draftValid && <div className="lcConfirmBox">
         <label className="lcCheck"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
         <button type="button" className="lcBtn lcPrimary" disabled={busy || wallet === null || !understood || !tierReady(draft.risk, riskAck, phrase)} onClick={() => void saveRisk()}>{working === 'risk' ? 'Kaydediliyor…' : 'Bu ayarı kaydet'}</button>
+        {riskError && <p className="lcHint stop" role="alert" data-testid="live-risk-error">Kaydedilemedi: {riskError}</p>}
       </div>}
     </div>}
   </section>
@@ -594,6 +612,7 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
       <section className="lcSheet" role="dialog" aria-modal="true" aria-labelledby="lc-sheet-title" onKeyDown={event => { if (event.key === 'Escape') closeSheet() }}>
         <button type="button" className="lcSheetClose" aria-label="Kapat" onClick={closeSheet} disabled={Boolean(working)}><X aria-hidden="true"/></button>
         {sheetView}
+        {sheetError && sheet !== 'approvals' && <p className="lcHint stop" role="alert" data-testid="live-sheet-error">İşlem tamamlanamadı: {sheetError}</p>}
       </section>
     </div>}
   </section>

@@ -223,6 +223,16 @@ def test_no_change_creates_no_duplicate_audit():
     assert conn.audits == []
 
 
+def test_legacy_record_without_revision_is_recorded_once_when_reconfirmed():
+    request, state, conn = context()
+    state["original_v2_live"]["understood"] = True  # eski kayıt: aynı değerler, risk_revision yok
+    choice = risk.RiskChoice(understood=True, warning_balance_usdt=1000)
+    config = save(request, state, choice)
+    assert config["risk_revision"] == 1 and conn.committed and len(conn.audits) == 1
+    save(request, state, choice.model_copy(update={"expected_risk_revision": 1}))
+    assert len(conn.audits) == 1
+
+
 def test_legacy_daily_record_without_opening_wallet_can_save_without_postcommit_failure():
     request, state, conn = context()
     state["original_v2_live"]["daily"] = {"day": "saved-day", "loss": 12, "locked": False}
