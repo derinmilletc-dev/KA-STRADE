@@ -299,7 +299,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const connectionAction = base === CONNECTIONS && isConnectionAction(path)
     let response: Response
     try {
-      response = await fetchWithTimeout(`${base}${path}`, {...options, headers}, connectionAction ? CONNECTION_REQUEST_TIMEOUT_MS : undefined)
+      const {timeoutMs, ...requestOptions} = options as RequestInit & {timeoutMs?: number}
+      response = await fetchWithTimeout(`${base}${path}`, {...requestOptions, headers}, connectionAction ? CONNECTION_REQUEST_TIMEOUT_MS : timeoutMs)
     } catch (error) {
       if (connectionAction) throw new Error(connectionFailureMessage(error, [credentials.apiKey, credentials.secretKey]))
       throw error
@@ -1182,7 +1183,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       key={userId} status={status} verified={Boolean(status && statusVerified)} loading={statusLoading} guideInput={guideInput}
       wallet={snapshotVerified ? status.account.wallet_balance : null} availableBalance={snapshotVerified && Number.isFinite(available) ? available : null}
       marketBanSeconds={globalBanActive ? banCountdown : 0} externalBusy={Boolean(busy)} userId={userId}
-      request={(path, body) => call(V25, path, {method: 'POST', ...(body ? {body: JSON.stringify(body)} : {})})}
+      request={(path, body) => call(V25, path, {method: 'POST', timeoutMs: 60000, ...(body ? {body: JSON.stringify(body)} : {})})}
       refresh={() => refresh(true)} findPlan={findActivePlanForPosition}
       extras={<>
         {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}
