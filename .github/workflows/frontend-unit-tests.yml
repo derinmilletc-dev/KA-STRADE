@@ -1,0 +1,47 @@
+name: Frontend Unit Tests
+
+# Saf mantık testleri (tarayıcı ve ağ yok): Canlı İşlem rehberi, risk özeti, uyarılar. Sır yok, deploy yok.
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/live-guide.ts'
+      - 'tools/live-guide.test.mjs'
+      - '.github/workflows/frontend-unit-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/live-guide.ts'
+      - 'tools/live-guide.test.mjs'
+      - '.github/workflows/frontend-unit-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-guide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # actions/checkout bozuk 'tradbt458-main' alt modül girdisi yüzünden çöküyor; düz git fetch kullanılır.
+      - name: Checkout (submodules skipped)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          git init -q .
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            fetch -q --depth=1 "https://github.com/$REPO" "$SHA"
+          git -c advice.detachedHead=false checkout -q FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: node --test (Canlı İşlem rehberi)
+        shell: bash
+        run: |
+          set +e
+          node --test tools/live-guide.test.mjs 2>&1 | tee node-test-out.txt
+          status=${PIPESTATUS[0]}
+          grep -E "^not ok|AssertionError|Error:" node-test-out.txt | head -40 | sed 's/^/::error::/'
+          exit $status

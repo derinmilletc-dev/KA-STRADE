@@ -31,7 +31,7 @@ CATEGORIES: dict[str, tuple[str, re.Pattern[str]]] = {
     "connection": ("Bağlantı sorunu", re.compile(
         r"^(?!.*(RECOVERED|RESTORED|RESUMED)).*(STALE|RATE_LIMIT|RATE_LIMITED|AUTO_ERROR|MONITORING)")),
     "arm": ("İzin süresi / kilit", re.compile(
-        r"LIVE_CONSENT_REAUTH_REQUIRED|LIVE_CONSENT_GRACE_EXPIRED|LIVE_AUTO_FAIL_CLOSED|^LIVE_DISARM$")),
+        r"LIVE_CONSENT_REAUTH_REQUIRED|LIVE_CONSENT_GRACE_EXPIRED|LIVE_AUTO_FAIL_CLOSED|^LIVE_DISARM$|^ORIGINAL_SESSION_EXPIRING$|^ORIGINAL_LIVE_PAUSED$")),
     "emergency": ("Acil durum", re.compile(r"^LIVE_EMERGENCY$|UNKNOWN_ORDER")),
 }
 DEFAULT_KINDS = list(CATEGORIES)

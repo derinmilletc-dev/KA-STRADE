@@ -34,6 +34,7 @@ router = APIRouter(prefix="/api/v25/original-v2", tags=["Original V2 LIVE"])
 FLAG = "PROTREBOT_LIVE_KAIS_ORIGINAL_V2_ENABLED"
 SOURCE = "ORIGINAL_V2_LIVE"
 SCANNER_HISTORY_LIMIT = 128
+SESSION_WARNING_SECONDS = 60 * 60  # müşteriye "1 saat kaldı" uyarısı + push
 logger = logging.getLogger(__name__)
 
 
@@ -312,9 +313,9 @@ def check_session_time(state: dict[str, Any]) -> None:
     remaining = expires - time.time()
     if remaining <= 0:
         pause(state, "Original V2 oturum süresi doldu; yeni oturum için ARM ve güncel 2FA gerekli.")
-    elif remaining <= 30 * 60 and not config.get("session_warning_sent"):
+    elif remaining <= SESSION_WARNING_SECONDS and not config.get("session_warning_sent"):
         config["session_warning_sent"] = True
-        event = live.add_event(state, "ORIGINAL_SESSION_EXPIRING", "Original V2 LIVE oturumu 30 dakika içinde bitecek; otomatik yenilenmez.", recipient_user_id=config.get("owner_id"), source=SOURCE)
+        event = live.add_event(state, "ORIGINAL_SESSION_EXPIRING", "Canlı oturum 1 saat içinde bitecek; otomatik yenilenmez. Devam etmek için bittiğinde yeniden başlat.", recipient_user_id=config.get("owner_id"), source=SOURCE)
         config.setdefault("alerts", []).insert(0, {
             "id": "original-live:" + event["id"], "type": "ORIGINAL_SESSION_EXPIRING", "severity": "WARNING",
             "title": "Original V2 oturumu bitmek üzere", "message": event["message"],

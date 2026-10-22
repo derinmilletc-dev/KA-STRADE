@@ -13,7 +13,7 @@ import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
 import {PremiumWorkspace, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
-import OriginalLiveOverview from './OriginalLiveOverview'
+import LiveCockpit from './LiveCockpit'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
 
@@ -1152,43 +1152,54 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     : recoveryRequired
       ? <div className="liveNotice error" role="alert" data-testid="live-recovery-required"><TriangleAlert aria-hidden="true"/><span>{status?.recovery_error || status?.reconciliation_diagnostic?.exception_message || 'Hesap ve pozisyon kurtarma kontrolü gerekiyor; bakiye ve risk ayarları bu kontrol tamamlanana kadar kilitli.'}</span><button type="button" className="masterTradeLiveSecondary" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolünü yap</button></div>
       : null
-  if (masterTrade && (masterTradeTab ?? 'canli') === 'canli' && status?.original_v2_live?.available) {
-    const snapshotVerified = statusVerified && connected && !recoveryRequired
+  if (masterTrade && (masterTradeTab ?? 'canli') === 'canli' && (status === null || status.original_v2_live?.available)) {
+    const runtime = status?.original_v2_live
+    const snapshotVerified = Boolean(status && statusVerified && connected && !recoveryRequired
       && !status.account_rate_limit?.pending_verification
-      && typeof status.account?.wallet_balance === 'number' && Number.isFinite(status.account.wallet_balance)
-      && Array.isArray(status.account?.positions)
-    const prepareOriginal = async () => {
-      if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
-      if (!status.policy_acknowledged) await call(V25, '/policy/acknowledge', {method: 'POST', body: JSON.stringify({understood: true})})
-      if (!liveArmed) await call(V25, '/arm', {method: 'POST', body: JSON.stringify({understood: true})})
+      && typeof status.account?.wallet_balance === 'number' && Number.isFinite(status.account.wallet_balance) && status.account.wallet_balance > 0
+      && Array.isArray(status.account?.positions))
+    const available = Number(status?.account?.available_balance)
+    const sessionConflict = [sharedStatusError, localStatusError, notice.text].some(message => message.includes('LIVE kontrolü başka bir kullanıcı veya oturuma ait.'))
+    const entryBlocker = originalEntryChecks.find(check => !check.passed && check.key !== 'ui_request')?.reason ?? null
+    const guideInput = {
+      statusLoaded: status !== null, statusVerified: Boolean(status && statusVerified), statusError: sharedStatusError || localStatusError || null,
+      loading: statusLoading, freeTrial: Boolean(freeTrial), credentialsConfigured: configured, connected: Boolean(status && statusVerified && connected),
+      balance: snapshotVerified ? status.account.wallet_balance : null,
+      emergency, emergencyText: status?.emergency?.reason === 'LIVE_EXCEPTION' && status.reconciliation_diagnostic?.exception_message
+        ? `Beklenmeyen bir hata nedeniyle durduruldu: ${status.reconciliation_diagnostic.exception_message}.`
+        : status?.emergency?.triggered_at ? `Acil durdurma ${new Date(status.emergency.triggered_at).toLocaleString('tr-TR')} tarihinde açıldı; yeni işlemler kapalı.` : null,
+      recoveryRequired: recoveryRequired && !emergency, recoveryText: status?.recovery_error || status?.reconciliation_diagnostic?.exception_message || null,
+      accountRateLimited: Boolean(status?.account_rate_limit?.pending_verification || status?.account_rate_limit?.locked), accountRateLimitText: status?.account_rate_limit?.message || null,
+      marketBanSeconds: globalBanActive ? banCountdown : 0,
+      fillLocked: runtime?.fill_lock?.active === true, fillLockSymbol: runtime?.fill_lock?.symbol || null,
+      dailyLocked: runtime?.daily?.locked === true, riskApproved: (runtime?.risk_revision ?? 0) > 0,
+      authorizationValid, policyAcknowledged: status?.policy_acknowledged === true, armed: liveArmed,
+      running: runtime?.enabled === true || status?.live_auto_trade === true,
+      paused: runtime?.paused === true, pauseReason: runtime?.pause_reason || null,
+      entryBlocker, sessionRemainingSeconds: runtime?.session?.remaining_seconds ?? 0,
     }
-    return <PremiumWorkspace><section className="originalLiveWorkspace" aria-label="Canlı İşlem">
-      <div className="originalConnectionStrip"><span data-connected={connected && statusVerified}>{connected && statusVerified ? '● Binance bağlı' : 'Binance bağlantısı doğrulanmadı'}</span><a href="/master-trade?tab=baglanti">Bağlantı ayarları →</a></div>
-      {statusNotice}
-      {globalBanActive && <p role="alert" data-testid="binance-global-ban">{globalBanMessage}</p>}
-      <OriginalV2LiveCard
-        key={userId}
-        className="masterTradeLiveOriginalCard" status={status.original_v2_live}
-        entryChecks={originalEntryChecks} armed={liveArmed} automationActive={status.live_auto_trade === true}
-        blocked={Boolean(busy) || !statusVerified || !connected || recoveryRequired || freeTrial || globalBanActive}
-        connected={connected && statusVerified} statusVerified={statusVerified} prepareStart={prepareOriginal}
-        loading={statusLoading && !snapshotVerified && !recoveryRequired} balanceError={(emergency ? emergencyNoticeText : '') || sharedStatusError || localStatusError || status.connection?.last_error || status.recovery_error || status.account_rate_limit?.message} userId={userId}
-        request={(path, body) => call(V25, path, {method: 'POST', ...(body ? {body: JSON.stringify(body)} : {})})}
-        readDiagnostics={() => call(V25, '/original-v2/persistence-diagnostics', {method: 'GET', cache: 'no-store'})}
-        refresh={() => refresh(false)} notice={originalNotice} onNotice={setOriginalNotice}
-        walletBalance={snapshotVerified ? status.account?.wallet_balance : null}
-        overview={<OriginalLiveOverview status={status} verified={snapshotVerified} findPlan={findActivePlanForPosition}/>}
-      />
-      <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
-        <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
-      </details>
-      <details className="originalAdvanced"><summary>Gelişmiş · kurtarma</summary>
-        <button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolü</button>
-        <button type="button" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>Acil durdurma kilidini kaldır</button>
-        <button type="button" onClick={emergencyStop} disabled={Boolean(busy)}>Pozisyonları kapatan tam acil durdurma</button>
-      </details>
-      {confirmationModal}
-    </section></PremiumWorkspace>
+    return <PremiumWorkspace><LiveCockpit
+      key={userId} status={status} verified={Boolean(status && statusVerified)} loading={statusLoading} guideInput={guideInput}
+      wallet={snapshotVerified ? status.account.wallet_balance : null} availableBalance={snapshotVerified && Number.isFinite(available) ? available : null}
+      marketBanSeconds={globalBanActive ? banCountdown : 0} externalBusy={Boolean(busy)} userId={userId}
+      request={(path, body) => call(V25, path, {method: 'POST', ...(body ? {body: JSON.stringify(body)} : {})})}
+      refresh={() => refresh(true)} findPlan={findActivePlanForPosition}
+      extras={<>
+        {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}
+        {status && <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
+          <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
+        </details>}
+        {status && <details className="originalAdvanced"><summary>Gelişmiş · kurtarma ve teşhis</summary>
+          <button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolü</button>
+          <button type="button" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>Acil durdurma kilidini kaldır</button>
+          <button type="button" onClick={emergencyStop} disabled={Boolean(busy)}>Pozisyonları kapatan tam acil durdurma</button>
+          {originalEntryChecks.length > 0 && <details className="originalEntryChecks" data-testid="original-entry-checks"><summary>Giriş kontrolleri · {originalEntryChecks.filter(check => check.passed).length}/{originalEntryChecks.length} geçti</summary>
+            <ul>{originalEntryChecks.map(check => <li key={check.key} data-result={check.passed ? 'passed' : 'failed'}><strong>{check.passed ? 'GEÇTİ' : 'GEÇMEDİ'} · {check.label}</strong> <span>{check.reason}</span></li>)}</ul>
+          </details>}
+        </details>}
+        {confirmationModal}
+      </>}
+    /></PremiumWorkspace>
   }
   if (masterTrade) {
     const running = Boolean(status?.live_auto_trade)

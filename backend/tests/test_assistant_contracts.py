@@ -218,7 +218,9 @@ class AssistantContractsTests(AssistantToolsTestCase):
         expected = {"get_plans", "get_my_access", "get_my_credits", "search_help",
                     "get_analysis", "get_my_positions", "get_protection_status",
                     # İncelenmiş salt-okunur eklemeler: yalnızca readonly_demo_service üzerinden okur (aşağıdaki sınır testi).
-                    "get_demo_positions", "get_market_overview"}
+                    "get_demo_positions", "get_market_overview",
+                    # Kais Original V2 canlı strateji özeti: yalnız public_config okur, canlı oturum sahibine.
+                    "get_live_strategy"}
         self.assertEqual(set(ARGUMENT_MODELS), expected)
         self.assertEqual({tool["name"] for tool in TOOL_DEFINITIONS}, expected)
         for tool in TOOL_DEFINITIONS:

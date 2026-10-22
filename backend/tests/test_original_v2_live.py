@@ -1199,7 +1199,7 @@ def test_original_session_warning_is_once_and_expiry_keeps_positions_and_latches
     now = 2_000_000_000.0
     monkeypatch.setattr(original.time, "time", lambda: now)
     config = state["original_v2_live"]
-    config.update(session_expires_at_epoch=now + 1801, session_warning_sent=False,
+    config.update(session_expires_at_epoch=now + 3601, session_warning_sent=False,
                   daily={"locked": True}, fill_lock={"active": True})
     state["plans"] = {"saved": {"symbol": "BTCUSDT", "status": "OPEN"}}
     state["intents"] = {"saved-intent": {"status": "UNKNOWN"}}
@@ -1212,7 +1212,7 @@ def test_original_session_warning_is_once_and_expiry_keeps_positions_and_latches
     assert config["alerts"][0]["type"] == "ORIGINAL_SESSION_EXPIRING"
     assert config["alerts"][0]["read"] is False
     assert state["events"][0]["recipient_user_id"] == "owner"
-    monkeypatch.setattr(original.time, "time", lambda: now + 1801)
+    monkeypatch.setattr(original.time, "time", lambda: now + 3601)
     original.check_session_time(state)
     assert not original.running(state)
     assert not state["auto"]["enabled"] and not state["live_auto_trade"]

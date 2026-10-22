@@ -63,6 +63,7 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "get_demo_positions": NoArguments,
     "get_market_overview": NoArguments,
     "get_protection_status": ProtectionArguments,
+    "get_live_strategy": NoArguments,
 }
 TOOL_DEFINITIONS = [
     {"name": name, "input_schema": model.model_json_schema()}
@@ -318,6 +319,43 @@ class AssistantTools:
                 return self.result({"reason": usage.pop("reason"), "free_usage": usage}, stale=True)
             data["free_usage"] = usage
         return self.result(data, stale=stale)
+
+    async def get_live_strategy(self, user_id: str) -> dict[str, Any]:
+        """Kais Original V2 canlı stratejisinin özeti (salt okunur): çalışıyor mu, oturum, risk ayarı, günlük sınır, son tarama ve
+        işlem açılmama sebepleri. Yalnız canlı oturumun sahibine; seviye (entry/SL/TP), anahtar veya başka üye verisi döndürmez."""
+        member_id = str(self.user(user_id)["id"])
+        state = getattr(self.request.app.state, "v25_execution", None)
+        if not isinstance(state, dict) or not isinstance(state.get("lock"), asyncio.Lock):
+            return self.result({"reason": "LIVE_NOT_VERIFIED"}, stale=True)
+        from . import original_v2_live
+        lock = state["lock"]
+        await asyncio.wait_for(lock.acquire(), timeout=self.config.request_timeout_seconds)
+        try:
+            if (state.get("live_session_authorization") or {}).get("user_id") != member_id:
+                return self.result({"reason": "LIVE_NOT_OWNER"}, stale=True)
+            config = original_v2_live.public_config(state)
+        finally:
+            lock.release()
+        scanner = config.get("scanner") if isinstance(config.get("scanner"), dict) else {}
+        counts = scanner.get("rejection_counts") if isinstance(scanner.get("rejection_counts"), dict) else {}
+        top = sorted(((str(key), value) for key, value in counts.items() if isinstance(value, int) and value > 0), key=lambda row: -row[1])[:3]
+        near = [{key: row.get(key) for key in ("symbol", "reason_code", "confidence", "confidence_threshold")}
+                for row in (scanner.get("near_misses") or [])[:3] if isinstance(row, dict)]
+        daily = config.get("daily") if isinstance(config.get("daily"), dict) else {}
+        failure = scanner.get("last_failure") if isinstance(scanner.get("last_failure"), dict) else None
+        return self.result({
+            "enabled": bool(config.get("enabled")), "paused": bool(config.get("paused")), "pause_reason": config.get("pause_reason"),
+            "session_remaining_seconds": (config.get("session") or {}).get("remaining_seconds", 0),
+            "risk_percent": config.get("risk_percent"), "daily_loss_percent": config.get("daily_loss_percent"),
+            "daily": {key: daily.get(key) for key in ("loss", "limit", "locked")},
+            "fill_lock_active": bool((config.get("fill_lock") or {}).get("active")),
+            "scanner": {
+                "stage": scanner.get("stage"), "last_scan_at": scanner.get("last_scan_at"),
+                "scanned_symbol_count": scanner.get("scanned_symbol_count"), "candidate_count": scanner.get("candidate_count"),
+                "last_24h": scanner.get("last_24h"), "top_rejections": [{"reason_code": key, "count": value} for key, value in top],
+                "near_misses": near, "last_failure": failure.get("message") if failure else None,
+            },
+        })
 
     def account_context(self, user_id: str, language: Language) -> str:
         """Sunucunun doğruladığı hesap durumu (model premium/admin durumunu tahmin etmesin, uydurmasın). Doğrulanamazsa boş."""

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import {KAIS_ASK_EVENT, kaisAskMessage} from './kais-ask'
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice, type VoiceAnswer } from './assistant-voice'
@@ -601,6 +602,17 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   }
 
   sendRef.current = sendMessage
+  // "Kais'e sor" düğmesi: sohbeti açar ve soruyu kullanıcının kendi mesajı olarak gönderir.
+  useEffect(() => {
+    const asked = (event: Event) => {
+      const message = kaisAskMessage(event)
+      if (!message || expired) return
+      openChat()
+      if (!working.current) void sendRef.current(message)
+    }
+    window.addEventListener(KAIS_ASK_EVENT, asked)
+    return () => window.removeEventListener(KAIS_ASK_EVENT, asked)
+  }, [expired])  // eslint-disable-line react-hooks/exhaustive-deps
   // Göz ekranı düğmeye basılır basılmaz (mikrofon hazırlanırken de) açılır ve hata olursa nedeniyle açık kalır; yalnızca normal bitişte kapanır.
   useEffect(() => {
     if (voice.active || voice.starting) { setHoloOpen(true); setOpen(false) }
