@@ -98,6 +98,37 @@ def audit_snapshot(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+TERMINAL_PLAN_STATUSES = {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED", "CLOSED_CONFIRMED"}
+
+
+def rebound_config(state: dict[str, Any], previous: dict[str, Any], fingerprint: str) -> dict[str, Any]:
+    """Aynı üye Binance anahtarını değiştirdiyse Original kaydını yeni anahtara güvenle taşır.
+
+    Taşıma yalnız şu koşullarda yapılır; aksi halde net sebeple reddedilir (kayıt değişmez):
+    strateji çalışmıyor, dolum kilidi yok, açık/bekleyen Original planı yok ve bugünkü kayıp sınırı dolmamış.
+    Günlük kayıt yeni hesabın gün başı bakiyesiyle yeniden kurulur (başlatmada daily_guard); risk seçimi korunur.
+    Bu sayede anahtar değiştirerek günlük kayıp kilidi atlatılamaz, ama eski anahtar müşteriyi sonsuza dek kilitlemez."""
+    from . import original_v2_live as original
+
+    if original.running(state):
+        raise HTTPException(423, "Strateji çalışırken Binance anahtarı değişti; önce stratejiyi durdur.")
+    if original.fill_locked(state):
+        raise HTTPException(423, "Dolum güvenlik kilidi açık; anahtar değişikliğinden önce kilidi incele.")
+    open_plans = [plan for plan in (state.get("plans") or {}).values()
+                  if original.plan_is_original(plan) and str(plan.get("status") or "").upper() not in TERMINAL_PLAN_STATUSES]
+    if open_plans:
+        raise HTTPException(423, "Eski anahtarla açılmış Original pozisyonu/emri var; kapanmadan yeni anahtara geçilemez.")
+    day = previous.get("daily") if isinstance(previous.get("daily"), dict) else {}
+    if day.get("day") == datetime.now(timezone.utc).date().isoformat() and day.get("locked") is True:
+        raise HTTPException(423, "Bugünkü kayıp sınırı doldu; yeni anahtarla yarın (UTC 00:00 sonrası) devam edebilirsin.")
+    rebound = copy.deepcopy(previous)
+    rebound["fingerprint"] = fingerprint
+    rebound.pop("daily", None)
+    rebound["account_rebound_at"] = datetime.now(timezone.utc).isoformat()
+    logger.info("ORIGINAL_ACCOUNT_REBOUND")
+    return rebound
+
+
 async def save_choice(
     request: Request, user: dict[str, Any], state: dict[str, Any], body: RiskChoice,
     snapshot: dict[str, Any], fingerprint: str,
@@ -105,6 +136,8 @@ async def save_choice(
     from . import v25_execution as live
 
     previous = state.get("original_v2_live", {})
+    if previous and previous.get("owner_id") == user["id"] and previous.get("fingerprint") != fingerprint:
+        previous = rebound_config(state, previous, fingerprint)
     if previous and (previous.get("owner_id") != user["id"] or previous.get("fingerprint") != fingerprint):
         raise HTTPException(423, "Original V2 hesap bağlantısı değişti; risk ve günlük limit kaydı korunuyor.")
     if body.expected_risk_revision != previous.get("risk_revision", 0):
