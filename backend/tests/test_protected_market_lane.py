@@ -69,8 +69,11 @@ def test_ban_on_the_account_ip_closes_the_lane(lane):
     async def run():
         ban("quotaguard")
         assert not protected_lane_available()
-        response = await PublicMarketData().get("/fapi/v1/klines", KLINES, AsyncMock(), source="original_live")
-        assert response.status_code == 418
+        # Engel hesap IP'sindeyse Render çıkışı serbesttir: okuma doğrudan gider, korumalı yol kullanılmaz.
+        direct = AsyncMock(return_value=ok())
+        response = await PublicMarketData().get("/fapi/v1/klines", KLINES, direct, source="original_live")
+        assert response.status_code == 200
+        direct.assert_awaited_once()
         lane.assert_not_awaited()
     asyncio.run(run())
 
