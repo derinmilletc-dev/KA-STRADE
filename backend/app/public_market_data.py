@@ -27,6 +27,68 @@ PUBLIC_PATHS = frozenset({
 })
 
 
+# Korumalı yol: Render'ın paylaşımlı IP'si Binance'ten engel/bekleme yediğinde canlı strateji (yalnız source="original_live")
+# küçük bir bütçeyle hesap isteklerinin sabit IP'sinden (QuotaGuard) okur. Böylece başka uygulamaların doldurduğu paylaşımlı IP,
+# canlı taramayı saatlerce durdurmaz. Kurallar:
+# - Ağır istekler (sembolsüz 24 saatlik ticker, ağırlık 40) bu yoldan hiç gitmez; evren önbellekten gelir.
+# - Dakikada en fazla FALLBACK_WEIGHT_PER_MINUTE ağırlık; hesap/emir trafiğine (aynı IP) bol pay kalır.
+# - Bu yoldan 418/429 gelirse küresel engel KAYDEDİLMEZ (hesap trafiğini durdurmasın); yalnız bu yol bir süre kapanır.
+FALLBACK_SOURCES = frozenset({"original_live"})
+FALLBACK_WEIGHT_PER_MINUTE = 120
+FALLBACK_MIN_PAUSE_SECONDS = 60
+
+
+class ProtectedLane:
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
+        self.clock = clock
+        self.fetch: Callable[[str, dict[str, Any]], Awaitable[httpx.Response]] | None = None
+        self.paused_until = 0.0
+        self.window: list[tuple[float, int]] = []
+        self.lock = asyncio.Lock()
+        self.counts: Counter[str] = Counter()
+
+    def configure(self, fetch: Callable[[str, dict[str, Any]], Awaitable[httpx.Response]] | None) -> None:
+        self.fetch = fetch
+
+    def _used(self) -> int:
+        cutoff = self.clock() - 60
+        self.window = [item for item in self.window if item[0] > cutoff]
+        return sum(weight for _, weight in self.window)
+
+    def allows(self, source: str, path: str, values: dict[str, Any]) -> bool:
+        if self.fetch is None or source not in FALLBACK_SOURCES or self.paused_until > self.clock():
+            return False
+        if path == "/fapi/v1/ticker/24hr" and not values.get("symbol"):
+            return False
+        return self._used() + PublicMarketData.estimated_request_weight(path, values) <= FALLBACK_WEIGHT_PER_MINUTE
+
+    def available(self) -> bool:
+        """Canlı strateji, paylaşımlı IP engelliyken bu yolla taramaya devam edebilir mi."""
+        if self.fetch is None or self.paused_until > self.clock():
+            return False
+        # Hesap yolunun (QuotaGuard) kendisine konmuş bir engel varsa bu yol da kapalıdır.
+        return not BINANCE_GLOBAL_BAN.applies_to("quotaguard")
+
+    async def get(self, path: str, values: dict[str, Any]) -> httpx.Response:
+        assert self.fetch is not None
+        async with self.lock:
+            self.window.append((self.clock(), PublicMarketData.estimated_request_weight(path, values)))
+            self.counts[f"protected:GET:{path}"] += 1
+            response = await self.fetch(path, values)
+        if response.status_code in {418, 429}:
+            delay = max(FALLBACK_MIN_PAUSE_SECONDS, retry_after_seconds(response) or 0)
+            self.paused_until = self.clock() + delay
+            logger.warning("PUBLIC_MARKET_PROTECTED_LANE_LIMITED path=%s status=%s pause_seconds=%s", path, response.status_code, delay)
+        return response
+
+
+PROTECTED_LANE = ProtectedLane()
+
+
+def protected_lane_available() -> bool:
+    return PROTECTED_LANE.available()
+
+
 class PublicMarketData:
     def __init__(self, clock: Callable[[], float] = time.monotonic):
         self.clock = clock
@@ -184,7 +246,10 @@ class PublicMarketData:
         else:
             blocked = self.blocked(path)
             if blocked is not None:
-                return blocked
+                if not (PROTECTED_LANE.allows(source, path, values) and PROTECTED_LANE.available()):
+                    return blocked
+                response = await self._protected(key, path, values, source)
+                return self._trim(response, values, limit)
             task = self.inflight.get(key)
             if task is None:
                 task = asyncio.create_task(self._fetch(key, path, values, fetch, source))
@@ -193,6 +258,9 @@ class PublicMarketData:
             else:
                 self.counts["shared_waiters"] += 1
             response = await asyncio.shield(task)
+        return self._trim(response, values, limit)
+
+    def _trim(self, response: httpx.Response, values: dict[str, Any], limit: int | None) -> httpx.Response:
         if limit is not None and response.is_success:
             rows = response.json()
             if isinstance(rows, list):
@@ -202,6 +270,28 @@ class PublicMarketData:
                 headers = {name: value for name, value in response.headers.items() if name not in {"content-length", "content-encoding"}}
                 return httpx.Response(response.status_code, json=rows, headers=headers, request=response.request)
         return response
+
+    async def _protected(self, key, path, values, source: str) -> httpx.Response:
+        self.counts["protected_lane"] += 1
+        frame = values.get("interval", "bulk") if path.endswith("klines") else "bulk"
+        self.source_counts[f"{source}:protected:GET:{path}:{frame}"] += 1
+        response = await PROTECTED_LANE.get(path, values)
+        if response.is_success:
+            self._store(key, path, values, response, time.time())
+        return response
+
+    def _store(self, key, path, values, response: httpx.Response, request_started_at: float) -> None:
+        ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
+        if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
+            seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
+            if seconds:
+                next_close = (math.floor(request_started_at / seconds) + 1) * seconds
+                ttl = max(0.0, next_close - time.time())
+        if ttl > 0:
+            self.cache[key] = (self.clock() + ttl, response)
+            self.cache.move_to_end(key)
+        while len(self.cache) > 2048:
+            self.cache.popitem(last=False)
 
     async def _dispatch(self, key, path, values, fetch, source: str) -> httpx.Response:
         blocked = self.blocked(path)

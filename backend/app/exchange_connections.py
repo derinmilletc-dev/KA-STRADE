@@ -131,6 +131,16 @@ class BinanceServerTimeRejected(VaultError):
         self.used_weight_1m = used_weight_1m
 
 
+
+def binance_ban_view() -> dict[str, Any]:
+    """Ekrana giden engel durumu. Engel yalnız paylaşımlı Render IP'sindeyse ve canlı strateji korumalı yoldan (sabit IP)
+    okuyabiliyorsa `live_scanning_continues` true olur: piyasa ekranları bekler ama canlı tarama ve emirler sürer."""
+    from .public_market_data import protected_lane_available
+    view = BINANCE_GLOBAL_BAN.public_status()
+    view["live_scanning_continues"] = bool(view.get("active") and not BINANCE_GLOBAL_BAN.applies_to(account_egress_route())
+                                           and protected_lane_available())
+    return view
+
 def _active_global_ban_error(egress_route: str | None = None) -> BinanceServerTimeRejected | None:
     status = BINANCE_GLOBAL_BAN.public_status(egress_route)
     if not status["active"]:
@@ -682,7 +692,7 @@ def session_public_status(application: Any, request: Request) -> dict[str, Any]:
             mode: _session_connection(mode, (_vault_scope(request, mode)[0], mode))
             for mode in HOSTS
         },
-        "binance_ban": BINANCE_GLOBAL_BAN.public_status(),
+        "binance_ban": binance_ban_view(),
         "safety": {"https_required": True, "secrets_returned_to_browser": False, "connection_test_creates_orders": False, "activation_arms_orders": False, "live_orders_require_v25_gates": True, "withdrawals_supported": False},
     }
 
@@ -1243,7 +1253,7 @@ def public_status(application: Any) -> dict[str, Any]:
             "loaded_at": state.get("loaded_at"),
         },
         "connections": {mode: _public_connection(mode) for mode in HOSTS},
-        "binance_ban": BINANCE_GLOBAL_BAN.public_status(),
+        "binance_ban": binance_ban_view(),
         "safety": {
             "https_required": True,
             "secrets_returned_to_browser": False,

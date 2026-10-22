@@ -890,7 +890,10 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
         scanner["last_24h"] = _scanner_history_summary(scanner, time.time())
         return
     global_ban_seconds = live.BINANCE_GLOBAL_BAN.remaining_seconds()
-    if global_ban_seconds > 0:
+    # Engel yalnız paylaşımlı Render IP'sindeyse ve korumalı yol açıksa tarama sürer (hesap/emir zaten sabit IP'den gider).
+    from .public_market_data import protected_lane_available
+    render_only = global_ban_seconds > 0 and not live.BINANCE_GLOBAL_BAN.applies_to(live.account_egress_route())
+    if global_ban_seconds > 0 and not (render_only and protected_lane_available()):
         scanner.update(stage="RATE_LIMIT_WAIT", last_failure={
             "stage": "cooldown", "reason_code": "binance_global_ban",
             "message": f"Binance geçici engeli sürüyor; {global_ban_seconds} saniye bekleniyor.",

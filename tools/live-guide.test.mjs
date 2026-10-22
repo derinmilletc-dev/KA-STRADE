@@ -78,6 +78,9 @@ test('notices cover market ban, daily lock and an ending session without blockin
   assert.equal(result.notices.length, 3)
   assert.match(result.notices[0].text, /12 dk 40 sn/)
   assert.equal(guide({}).notices.length, 0)
+  const continuing = guide({running: true, marketBanSeconds: 300, scanningContinues: true}).notices[0]
+  assert.equal(continuing.tone, 'ok')
+  assert.match(continuing.text, /sabit IP'den devam ediyor/)
 })
 
 test('a stopped session reason is carried into the next step', () => {
