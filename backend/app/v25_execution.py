@@ -1698,6 +1698,16 @@ class BinanceLiveClient:
         async with self._clock_lock:
             if time.monotonic() - self.last_time_sync < 30:
                 return
+            # İstemciler istek başına oluşturulur; her imzalı okuma Binance'e ayrı saat isteği atıyordu. Süreç genelindeki
+            # taze ölçüm (30 sn) yeniden kullanılır. Binance hız sınırı/engeli veya yerel bekleme sürerken saat isteği
+            # hiç gönderilmez (429 sırasında tekrar istek 418 IP engeline dönüşür); son ölçüm CLOCK_OFFSET_REUSE_SECONDS'a kadar geçerli.
+            shared_age = time.monotonic() - _SHARED_CLOCK["synced_at"] if _SHARED_CLOCK["synced_at"] > 0 else None
+            service = getattr(getattr(self.application, "state", None), "public_market_data", None)
+            limited = BINANCE_GLOBAL_BAN.public_status()["active"] or bool(service is not None and service.cooling_down())
+            if shared_age is not None and (shared_age < 30 or (limited and shared_age < CLOCK_OFFSET_REUSE_SECONDS)):
+                self.time_offset_ms = _SHARED_CLOCK["offset_ms"]
+                self.last_time_sync = time.monotonic()
+                return
             try:
                 await self.public_get("/fapi/v1/time")
             except LiveExchangeError as exc:
@@ -1748,6 +1758,9 @@ class BinanceLiveClient:
                 raise LiveExchangeError(str(exc.detail), http_status=exc.status_code) from exc
         self._require_global_ban_clear(method, path)
         await self.sync_clock()
+        # Saat eşitleme sırasında Binance engeli başlamış olabilir: engel bitene kadar (dakikalarca) sessizce beklemek yerine
+        # hemen "hız sınırı, X sn sonra" bilgisiyle dön; ekran bekleme süresini gösterir.
+        self._require_global_ban_clear(method, path)
         payload = {key: value for key, value in dict(params or {}).items() if value is not None}
         return await self._request(method, path, payload, signed=True)
 
