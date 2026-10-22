@@ -127,7 +127,9 @@ async def save_choice(
         ("risk_acknowledged", False), ("high_risk_confirmed", False),
         ("understood", False),
     ))
-    if not changed:
+    # Eski kayıtlarda risk_revision hiç yazılmamış olabilir: aynı değerler müşteri tarafından açıkça yeniden
+    # onaylanınca (understood) ilk revizyon kaydedilir; yoksa onay ekranı hiç "tamam" olamaz.
+    if not changed and not (body.understood and previous.get("risk_revision", 0) == 0):
         return previous
     candidate["risk_revision"] = previous.get("risk_revision", 0) + 1
     current_day = previous.get("daily") or {}
