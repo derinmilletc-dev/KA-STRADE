@@ -43,12 +43,12 @@ jobs:
       - name: Install
         working-directory: backend
         run: pip install -r requirements-dev.txt
-      - name: pytest (saat eşitleme + piyasa verisi kuyruğu)
+      - name: pytest (saat eşitleme, piyasa verisi kuyruğu, Original V2 canlı, bildirim)
         working-directory: backend
         shell: bash
         run: |
           set +e
-          python -m pytest tests/test_live_clock_reuse.py tests/test_binance_queued_clock.py tests/test_public_market_data.py tests/test_binance_rate_limit.py tests/test_exchange_connections_server_time.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee pytest-out.txt
+          python -m pytest tests/test_live_clock_reuse.py tests/test_binance_queued_clock.py tests/test_public_market_data.py tests/test_binance_rate_limit.py tests/test_exchange_connections_server_time.py tests/test_web_push.py tests/test_original_v2_live.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee pytest-out.txt
           status=${PIPESTATUS[0]}
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'

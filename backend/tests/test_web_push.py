@@ -9,6 +9,7 @@ class WebPushTests(unittest.TestCase):
         expected = {
             "LIVE_ENTRY": "entry", "LIVE_ENTRY_RECOVERED": "entry", "LIVE_CLOSE": "close", "LIVE_ENTRY_CANCELLED": "close",
             "PROTECTION_FAIL": "protection", "LIVE_STREAM_STALE": "connection", "LIVE_DISARM": "arm", "LIVE_EMERGENCY": "emergency",
+            "ORIGINAL_SESSION_EXPIRING": "arm", "ORIGINAL_LIVE_PAUSED": "arm",
             "LIVE_STREAM_RECOVERED": None, "SCAN_STARTED": None,
         }
         for kind, category in expected.items():

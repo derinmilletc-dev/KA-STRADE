@@ -139,6 +139,7 @@ class AssistantToolsTests(AssistantToolsTestCase):
             "get_analysis", "get_my_positions", "get_protection_status",
             # #63/#64 ile eklenen, readonly_demo_service üzerinden okuyan salt-okunur araçlar (sözleşme testiyle aynı liste).
             "get_demo_positions", "get_market_overview",
+            "get_live_strategy",  # canlı strateji özeti (salt okunur, yalnız oturum sahibine)
         })
 
     async def test_all_tools_free_and_premium_have_metadata_and_safe_output(self):

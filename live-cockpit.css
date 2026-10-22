@@ -1,0 +1,248 @@
+/* Canlı İşlem kokpiti (LiveCockpit.tsx). Sayfanın genel "çerçeve yok" kurallarını (live-modern.css) daha yüksek
+   özgüllükle geçer; renkler aynı --lm-* paletinden gelir. Masaüstü iki sütun, dar ekranda tek sütun. */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot{
+  --lc-bg:var(--lm-bg,#0b1118);--lc-card:var(--lm-card,#121a24);--lc-raised:var(--lm-card2,#172230);--lc-soft:rgba(255,255,255,.045);
+  --lc-line:rgba(150,190,215,.10);--lc-ink:var(--lm-ink,#eaf1f7);--lc-mute:var(--lm-mute,#93a3b5);
+  --lc-go:var(--lm-accent,#3ddc97);--lc-go-ink:var(--lm-accent-ink,#06281a);--lc-warn:var(--lm-warn,#f2c46d);--lc-bad:var(--lm-bad,#ff8479);--lc-info:#7cb8ff;
+  display:grid!important;gap:18px!important;color:var(--lc-ink);font-variant-numeric:tabular-nums;position:relative
+}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot :where(h2,h3,p,ol,ul){margin:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(ol,ul)>li{margin:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot :where(small){color:var(--lc-mute)!important;font-size:12px;letter-spacing:.02em}
+
+/* Üst şerit */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTopbar{display:flex!important;flex-wrap:wrap;gap:8px;align-items:center}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTopSpacer{flex:1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPill{display:inline-flex!important;align-items:center;gap:8px;min-height:34px;padding:0 14px!important;border-radius:999px!important;background:var(--lc-soft)!important;color:var(--lc-mute)!important;font-size:13px;font-weight:600;text-decoration:none!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPill i{width:8px;height:8px;border-radius:50%;background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPill[data-on] {background:rgba(61,220,151,.12)!important;color:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPill[data-on] i{background:var(--lc-go);box-shadow:0 0 0 4px rgba(61,220,151,.16)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPillPlain b{color:var(--lc-ink);font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPillLink{color:var(--lc-ink)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPillLink:hover{background:rgba(255,255,255,.08)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPillLink svg{width:15px;height:15px}
+
+/* Yerleşim */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGrid{display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:18px;align-items:start}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMain,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSide{display:grid!important;gap:16px;min-width:0;align-content:start}
+@media (max-width:1080px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGrid{grid-template-columns:minmax(0,1fr)}}
+
+/* Kartlar */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCard{background:var(--lc-card)!important;border-radius:20px!important;padding:20px!important;display:grid!important;gap:14px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCardHead{display:flex!important;justify-content:space-between;align-items:flex-start;gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCardHead small{display:block;font-size:11px;letter-spacing:.14em;font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCardHead h3{font-size:16px;font-weight:700;margin-top:3px;color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEmpty{color:var(--lc-mute);font-size:14px;line-height:1.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHint{color:var(--lc-mute);font-size:13px;line-height:1.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHint.warn{color:#ffdca0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHint.stop{color:#ffb3ab}
+
+/* Düğmeler */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 20px!important;border-radius:14px!important;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;text-decoration:none!important;background:var(--lc-raised)!important;color:var(--lc-ink)!important;transition:transform .15s,background .15s,opacity .15s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn svg{width:17px;height:17px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn:hover:not(:disabled){transform:translateY(-1px);background:#1d2b3b!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn:disabled{opacity:.45;cursor:not-allowed}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalHead:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAsk:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLink:focus-visible{outline:2px solid var(--lc-go)!important;outline-offset:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPrimary{background:var(--lc-go)!important;color:var(--lc-go-ink)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPrimary:hover:not(:disabled){background:#5ae6a8!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDanger{background:rgba(255,132,121,.16)!important;color:var(--lc-bad)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDanger:hover:not(:disabled){background:rgba(255,132,121,.26)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGhost{background:transparent!important;color:var(--lc-mute)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGhost:hover:not(:disabled){background:var(--lc-soft)!important;color:var(--lc-ink)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLink{display:inline-flex!important;align-items:center;gap:4px;background:none!important;padding:4px 2px!important;min-height:0;color:var(--lc-go)!important;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLink svg{width:15px;height:15px;transition:transform .2s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLink svg[data-open]{transform:rotate(180deg)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAsk{display:inline-flex!important;align-items:center;gap:6px;padding:7px 12px!important;border-radius:999px!important;background:rgba(124,184,255,.12)!important;color:#b9d8ff!important;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;min-height:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAsk:hover{background:rgba(124,184,255,.2)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAsk svg{width:14px;height:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSpin{animation:lcSpin 1s linear infinite}
+@keyframes lcSpin{to{transform:rotate(360deg)}}
+
+/* 1 · Rehber */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide{position:relative;display:grid!important;gap:14px;padding:22px 24px!important;border-radius:22px!important;overflow:hidden;
+  background:linear-gradient(155deg,rgba(61,220,151,.13),var(--lc-card) 42%)!important;box-shadow:inset 0 0 0 1px rgba(61,220,151,.24),0 14px 34px rgba(0,0,0,.28)!important;animation:lcIn .45s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="warn"]{background:linear-gradient(155deg,rgba(242,196,109,.13),var(--lc-card) 42%)!important;box-shadow:inset 0 0 0 1px rgba(242,196,109,.26),0 14px 34px rgba(0,0,0,.28)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="stop"]{background:linear-gradient(155deg,rgba(255,132,121,.14),var(--lc-card) 42%)!important;box-shadow:inset 0 0 0 1px rgba(255,132,121,.28),0 14px 34px rgba(0,0,0,.28)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="wait"]{background:linear-gradient(155deg,rgba(124,184,255,.11),var(--lc-card) 42%)!important;box-shadow:inset 0 0 0 1px rgba(124,184,255,.2),0 14px 34px rgba(0,0,0,.28)!important}
+@keyframes lcIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideHead{display:flex!important;align-items:center;gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideHead>div{flex:1;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideHead b{display:block;font-size:12px;letter-spacing:.16em;color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="warn"] .lcGuideHead b{color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="stop"] .lcGuideHead b{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide[data-tone="wait"] .lcGuideHead b{color:var(--lc-info)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideHead small{display:block;margin-top:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEye{--eye:var(--lc-go);width:40px;height:40px;flex:none;border-radius:50%!important;
+  background:radial-gradient(circle at 50% 50%,#04161a 26%,color-mix(in srgb,var(--eye) 55%,white) 29%,var(--eye) 46%,color-mix(in srgb,var(--eye) 35%,#000) 72%)!important;
+  box-shadow:0 0 16px color-mix(in srgb,var(--eye) 55%,transparent)!important;animation:lcBreathe 3.6s ease-in-out infinite}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEye[data-tone="warn"]{--eye:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEye[data-tone="stop"]{--eye:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEye[data-tone="wait"]{--eye:var(--lc-info)}
+@keyframes lcBreathe{50%{transform:scale(.94);filter:brightness(1.15)}}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps{display:grid!important;grid-template-columns:repeat(4,1fr);gap:8px;list-style:none;padding:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps li{display:grid!important;gap:6px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps i{display:block;height:5px;border-radius:99px;background:rgba(255,255,255,.08)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps span{font-size:11.5px;color:var(--lc-mute);font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="done"] i{background:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="done"] span{color:#bdf3da}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="current"] i{background:linear-gradient(90deg,var(--lc-go) 0 45%,rgba(255,255,255,.08) 45%);background-size:200% 100%;animation:lcPulse 2.2s ease-in-out infinite}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="current"] span{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="problem"] i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSteps [data-state="problem"] span{color:#ffdca0}
+@keyframes lcPulse{50%{opacity:.6}}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDone{display:flex!important;align-items:center;gap:10px;padding:10px 12px!important;border-radius:12px!important;background:rgba(61,220,151,.1)!important;color:#c3f5df;font-size:13.5px;font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDone span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--lc-go);color:var(--lc-go-ink);flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDone svg{width:13px;height:13px;stroke-width:3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideTitle{font-size:21px;font-weight:750;letter-spacing:-.01em;color:var(--lc-ink);text-wrap:balance}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideMsg{font-size:15.5px;line-height:1.6;color:#d3dee8;max-width:68ch}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideActions{display:flex!important;flex-wrap:wrap;gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhy{font-size:13.5px;line-height:1.6;color:#c9d6e1;padding:12px 14px!important;border-radius:12px!important;background:rgba(0,0,0,.18)!important;animation:lcIn .25s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRetry{display:flex!important;align-items:center;gap:8px;font-size:12.5px;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRetry svg{width:14px;height:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRunMeta{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRunMeta span{display:grid;gap:3px;padding:10px 12px!important;border-radius:12px!important;background:rgba(0,0,0,.18)!important;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRunMeta b{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:720px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRunMeta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Uyarılar ve "neden işlem açılmadı" */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAlerts{display:grid!important;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAlert{display:flex!important;gap:10px;align-items:flex-start;padding:12px 14px!important;border-radius:14px!important;font-size:13.5px;line-height:1.5;background:rgba(242,196,109,.1)!important;color:#ffe2ad}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAlert svg{width:17px;height:17px;flex:none;margin-top:1px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAlert[data-tone="ok"]{background:rgba(61,220,151,.1)!important;color:#c3f5df}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcAlert[data-tone="stop"]{background:rgba(255,132,121,.12)!important;color:#ffc2bb}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhyNo{display:flex!important;gap:14px;align-items:center;padding:16px 18px!important;border-radius:18px!important;background:var(--lc-card)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhyNo>div{flex:1;min-width:0;display:grid;gap:4px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhyNo small{font-size:11px;letter-spacing:.14em;font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhyNo p{font-size:14px;line-height:1.55;color:#d3dee8}
+
+/* Metrikler */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMetrics{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMetrics article{display:grid!important;gap:6px;align-content:start;padding:16px 18px!important;border-radius:18px!important;background:var(--lc-card)!important;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMetrics b{font-size:18px;font-weight:750;color:var(--lc-ink);overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMetrics b.lcSmall{font-size:15px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot [data-sign="up"]{color:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot [data-sign="down"]{color:var(--lc-bad)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBar{height:6px;border-radius:99px!important;background:rgba(255,255,255,.07)!important;overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBar i{display:block;height:100%;border-radius:99px;background:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBar[data-high] i{background:var(--lc-warn)!important}
+@media (max-width:860px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Pozisyonlar */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPositions{display:grid!important;gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition{display:grid!important;gap:10px;padding:14px 16px!important;border-radius:16px!important;background:var(--lc-raised)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition header{display:flex!important;justify-content:space-between;align-items:center;gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition header b{display:flex;align-items:center;gap:8px;font-size:15px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition header b span{font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;background:rgba(61,220,151,.14);color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition header b span[data-dir="SHORT"]{background:rgba(255,132,121,.14);color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosition header strong{font-size:15px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels span{display:grid;gap:2px;min-width:0;align-content:start}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels i{font-style:normal;font-size:11px;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels i[data-ok]{color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcNote{font-size:13px;color:#c9d6e1;padding:8px 10px!important;border-radius:10px!important;background:rgba(0,0,0,.16)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcNote[data-tone="warn"]{color:#ffe2ad}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcNote[data-tone="ok"]{color:#c3f5df}
+@media (max-width:720px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLevels{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Strateji */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow span{display:grid;gap:2px;padding:12px!important;border-radius:14px!important;background:var(--lc-raised)!important;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow b{font-size:17px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow em{font-style:normal;font-size:12px;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyEdit{display:grid!important;gap:12px;animation:lcIn .25s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresets{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset{display:grid!important;gap:4px;text-align:left;padding:13px 14px!important;border-radius:14px!important;background:var(--lc-raised)!important;color:var(--lc-ink)!important;font:inherit;cursor:pointer;box-shadow:inset 0 0 0 1px transparent!important;transition:box-shadow .15s,background .15s;min-height:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset:hover:not(:disabled){background:#1d2b3b!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset[data-selected]{box-shadow:inset 0 0 0 2px var(--lc-go)!important;background:rgba(61,220,151,.08)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetHead{display:flex;justify-content:space-between;align-items:center;gap:6px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetHead b{font-size:14.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetHead em{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--lc-go-ink);background:var(--lc-go);padding:2px 7px;border-radius:99px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetLine{font-size:12.5px;color:#c9d6e1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetLine b{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetLine em{font-style:normal;font-size:11px;color:var(--lc-mute);margin-left:4px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset small{font-size:11.5px;line-height:1.4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom label,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcField{display:grid!important;gap:6px;font-size:12.5px;color:var(--lc-mute);font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcField b{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(.lcCustom,.lcField,.lcSheet) :is(input:not([type="checkbox"]),select){width:100%;min-height:44px;padding:0 12px!important;border-radius:12px!important;background:rgba(255,255,255,.06)!important;color:var(--lc-ink)!important;font:inherit;font-size:14.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTier{font-size:13px;line-height:1.5;padding:10px 12px!important;border-radius:12px!important;background:rgba(242,196,109,.1)!important;color:#ffe2ad}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTier[data-tier="yellow"]{background:rgba(242,220,109,.08)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTier[data-tier="red"]{background:rgba(255,132,121,.12)!important;color:#ffc2bb}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcConfirmBox{display:grid!important;gap:10px;padding:14px!important;border-radius:14px!important;background:rgba(0,0,0,.18)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCheck{display:flex!important;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:#d7e3eb;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCheck input{width:19px;height:19px;margin:1px 0 0;flex:none;accent-color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToday p{font-size:14px;line-height:1.55}
+
+/* Olaylar */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents ul{list-style:none;padding:0;display:grid!important;gap:2px;max-height:360px;overflow:auto}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li{display:grid!important;grid-template-columns:auto 1fr;gap:10px;padding:8px 6px 8px 14px!important;position:relative;font-size:13px;line-height:1.45}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li::before{content:"";position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li[data-tone="ok"]::before{background:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li[data-tone="warn"]::before{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li[data-tone="bad"]::before{background:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents time{color:var(--lc-mute);font-size:12px;padding-top:1px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents span{color:#d3dee8;overflow-wrap:anywhere}
+
+/* Bildirim (toast) */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast{position:fixed;z-index:60;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex!important;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 32px));padding:12px 12px 12px 16px!important;border-radius:16px!important;background:#0f1a23!important;box-shadow:0 18px 40px rgba(0,0,0,.45),inset 0 0 0 1px var(--lc-line)!important;font-size:14px;line-height:1.45;animation:lcToast .3s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast>i{width:9px;height:9px;border-radius:50%;flex:none;background:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast[data-tone="warn"]>i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast[data-tone="stop"]>i{background:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast span{flex:1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast button{display:grid;place-items:center;width:30px;height:30px;min-height:0;padding:0!important;border-radius:10px!important;background:transparent!important;color:var(--lc-mute)!important;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcToast svg{width:16px;height:16px}
+@keyframes lcToast{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* Alt pencere (sheet) */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBackdrop{position:fixed;inset:0;z-index:70;display:grid!important;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))!important;background:rgba(3,8,12,.66)!important;backdrop-filter:blur(6px);animation:lcFade .2s ease both}
+@keyframes lcFade{from{opacity:0}}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheet{position:relative;width:min(560px,100%);max-height:calc(100vh - 48px);overflow:auto;display:grid!important;gap:14px;padding:26px 24px 22px!important;border-radius:22px!important;background:var(--lc-card)!important;box-shadow:0 30px 70px rgba(0,0,0,.55),inset 0 0 0 1px var(--lc-line)!important;animation:lcIn .28s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheet h2{font-size:19px;font-weight:750;padding-right:36px;color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetClose{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:34px;height:34px;min-height:0;padding:0!important;border-radius:10px!important;background:var(--lc-soft)!important;color:var(--lc-mute)!important;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetClose svg{width:17px;height:17px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetLead{font-size:14px;line-height:1.6;color:#c9d6e1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetActions{display:flex!important;flex-wrap:wrap;justify-content:flex-end;gap:10px;margin-top:4px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetActions .lcPrimary,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetActions .lcDanger{flex:1 1 220px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetNote{display:flex!important;gap:10px;padding:12px 14px!important;border-radius:14px!important;background:rgba(61,220,151,.08)!important;color:#c3f5df;font-size:13.5px;line-height:1.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSheetNote svg{width:18px;height:18px;flex:none;margin-top:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRiskGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRiskGrid div{display:grid;gap:3px;padding:13px 14px!important;border-radius:14px!important;background:var(--lc-raised)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRiskGrid b{font-size:20px;font-weight:750}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRiskGrid em{font-style:normal;font-size:11.5px;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovals{list-style:none;padding:0;display:grid!important;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovals>li{border-radius:16px!important;background:var(--lc-raised)!important;overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovals>li[data-state="error"]{box-shadow:inset 0 0 0 1px rgba(255,132,121,.4)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovals>li>.lcHint{padding:0 16px 12px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalHead{display:flex!important;align-items:center;gap:12px;width:100%;padding:13px 14px!important;background:transparent!important;color:var(--lc-ink)!important;font:inherit;text-align:left;cursor:pointer;border-radius:0!important;min-height:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalHead>svg{width:17px;height:17px;color:var(--lc-mute);transition:transform .2s;flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalHead>svg[data-open]{transform:rotate(180deg)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalNo{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;flex:none;background:rgba(255,255,255,.08);font-size:13px;font-weight:800}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalNo svg{width:14px;height:14px;stroke-width:3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot [data-state="done"]>.lcApprovalHead .lcApprovalNo{background:var(--lc-go);color:var(--lc-go-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalTitle{flex:1;min-width:0;display:grid;gap:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalTitle b{font-size:14.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChip{font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:99px;background:rgba(255,255,255,.08);color:var(--lc-mute);white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChip[data-state="done"]{background:rgba(61,220,151,.14);color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChip[data-state="working"]{background:rgba(124,184,255,.16);color:#b9d8ff}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChip[data-state="error"]{background:rgba(255,132,121,.16);color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalBody{margin:0;padding:0 18px 14px 52px!important;display:grid!important;gap:6px;font-size:13px;line-height:1.55;color:#c9d6e1;animation:lcIn .2s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcApprovalBody b{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList{list-style:none;padding:0;display:grid!important;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList li{display:flex!important;gap:12px;align-items:flex-start;padding:12px 14px!important;border-radius:14px!important;background:var(--lc-raised)!important;font-size:14px;line-height:1.5;color:#d3dee8}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList svg{width:18px;height:18px;flex:none;margin-top:2px;color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList [data-tone="mute"] svg{color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCloseAll{justify-self:center;color:var(--lc-bad)!important;font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcFacts{padding-left:18px;display:grid;gap:6px;font-size:13.5px;line-height:1.55;color:#d3dee8}
+
+@media (max-width:560px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresets,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRiskGrid{grid-template-columns:minmax(0,1fr)}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow{grid-template-columns:minmax(0,1fr)}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuide{padding:18px!important}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcGuideTitle{font-size:19px}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWhyNo{flex-direction:column;align-items:stretch}
+}
+@media (prefers-reduced-motion:reduce){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(.lcGuide,.lcEye,.lcSteps i,.lcToast,.lcSheet,.lcBackdrop,.lcWhy,.lcStrategyEdit,.lcApprovalBody,.lcSpin){animation:none!important}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcBtn:hover:not(:disabled){transform:none}
+}
