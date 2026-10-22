@@ -216,6 +216,43 @@ def test_stale_revision_balance_and_account_binding_reject_change(fields, snapsh
     assert not conn.committed
 
 
+def stopped_context():
+    request, state, conn = context()
+    state["original_v2_live"].update(enabled=False, paused=True, risk_revision=3,
+                                     daily={"day": "2020-01-01", "opening_wallet": 900, "loss": 0, "limit": 45, "locked": False})
+    return request, state, conn
+
+
+def test_new_key_rebinds_stopped_record_and_rebuilds_daily_from_new_account():
+    request, state, conn = stopped_context()
+    config = save(request, state, risk.RiskChoice(understood=True, warning_balance_usdt=1000, expected_risk_revision=3),
+                  {"wallet_balance": 1000}, "new-key")
+    assert conn.committed and config["fingerprint"] == "new-key" and config["risk_revision"] == 4
+    assert "daily" not in config and state["original_v2_live"]["fingerprint"] == "new-key"
+
+
+@pytest.mark.parametrize("change", ["running", "locked_today", "open_plan", "fill_lock", "other_owner"])
+def test_new_key_rebind_is_refused_when_unsafe(change):
+    request, state, conn = stopped_context()
+    config = state["original_v2_live"]
+    if change == "running":
+        config["enabled"] = True
+    elif change == "locked_today":
+        config["daily"] = {"day": datetime.now(timezone.utc).date().isoformat(), "opening_wallet": 1000, "loss": 60, "limit": 50, "locked": True}
+    elif change == "open_plan":
+        state["plans"]["open"] = {"source": original.SOURCE, "status": "AÇIK"}
+    elif change == "fill_lock":
+        config["fill_lock"] = {"id": "lock", "active": True}
+    else:
+        config["owner_id"] = "someone-else"
+    before = copy.deepcopy(config)
+    with pytest.raises(HTTPException) as error:
+        save(request, state, risk.RiskChoice(understood=True, warning_balance_usdt=1000, expected_risk_revision=3),
+             {"wallet_balance": 1000}, "new-key")
+    assert error.value.status_code == 423
+    assert not conn.committed and state["original_v2_live"] == before
+
+
 def test_no_change_creates_no_duplicate_audit():
     request, state, conn = context()
     save(request, state, risk.RiskChoice())

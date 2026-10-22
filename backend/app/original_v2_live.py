@@ -1164,6 +1164,8 @@ async def start(request: Request, body: Start) -> dict[str, Any]:
         _, _, fingerprint = live.live_credentials_status(request)
         if not fingerprint:
             raise HTTPException(423, "Original V2 için doğrulanmış LIVE bağlantısı gerekli.")
+        if previous and previous.get("owner_id") == user["id"] and previous.get("fingerprint") != fingerprint:
+            state["original_v2_live"] = previous = risk_settings.rebound_config(state, previous, fingerprint)
         if previous and (previous.get("owner_id") != user["id"] or previous.get("fingerprint") != fingerprint):
             raise HTTPException(423, "Original V2 hesap bağlantısı değişti; günlük limit kaydı korunuyor.")
         client = live.client_for(request.app, request)
