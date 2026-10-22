@@ -77,6 +77,10 @@ class PublicMarketData:
                 self.active -= 1
                 self.condition.notify_all()
 
+    def cooling_down(self) -> bool:
+        """Yerel piyasa verisi beklemesi (429/ağ sonrası) sürüyor mu."""
+        return self.retry_at > self.clock()
+
     def blocked(self, path: str) -> httpx.Response | None:
         global_block = BINANCE_GLOBAL_BAN.synthetic_response(path)
         if global_block is not None:
@@ -197,8 +201,39 @@ class PublicMarketData:
                 return httpx.Response(response.status_code, json=rows, headers=headers, request=response.request)
         return response
 
+    async def _dispatch(self, key, path, values, fetch, source: str) -> httpx.Response:
+        blocked = self.blocked(path)
+        if blocked is not None:
+            return blocked
+        frame = values.get("interval", "bulk") if path.endswith("klines") else "bulk"
+        source_key = f"{source}:GET:{path}:{frame}"
+        self.source_counts[source_key] += 1
+        self.source_weights[source_key] += self.estimated_request_weight(path, values)
+        request_started_at = time.time()
+        response = await fetch(path, values)
+        self.observe(path, response, source=source)
+        if response.is_success:
+            ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
+            if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
+                seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
+                if seconds:
+                    next_close = (math.floor(request_started_at / seconds) + 1) * seconds
+                    ttl = max(0.0, next_close - time.time())
+            if ttl > 0:
+                self.cache[key] = (self.clock() + ttl, response)
+                self.cache.move_to_end(key)
+        elif response.status_code not in {418, 429}:
+            self.cache[key] = (self.clock() + 15, response)
+        while len(self.cache) > 2048:
+            self.cache.popitem(last=False)
+        return response
+
     async def _fetch(self, key, path, values, fetch, source: str) -> httpx.Response:
         try:
+            if path == "/fapi/v1/time":
+                # Saat eşitleme (ağırlık 1) her imzalı hesap okumasının önündedir. Tarama/strateji kuyruğunu
+                # (2 eşzamanlı yuva + 0,52 sn aralık) beklerse hesap/bakiye okuması dakikalarca gecikiyordu; kuyruğa girmez.
+                return await self._dispatch(key, path, values, fetch, source)
             priority = source in {"original_live", "original_warmer"} or values.get("symbol") in self.original_symbols
             async with self.slot(priority):
                 blocked = self.blocked(path)
@@ -213,28 +248,7 @@ class PublicMarketData:
                         if blocked is not None:
                             return blocked
                         self.next_original_request_at = self.clock() + ORIGINAL_REQUEST_INTERVAL_SECONDS
-                frame = values.get("interval", "bulk") if path.endswith("klines") else "bulk"
-                source_key = f"{source}:GET:{path}:{frame}"
-                self.source_counts[source_key] += 1
-                self.source_weights[source_key] += self.estimated_request_weight(path, values)
-                request_started_at = time.time()
-                response = await fetch(path, values)
-                self.observe(path, response, source=source)
-                if response.is_success:
-                    ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
-                    if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
-                        seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
-                        if seconds:
-                            next_close = (math.floor(request_started_at / seconds) + 1) * seconds
-                            ttl = max(0.0, next_close - time.time())
-                    if ttl > 0:
-                        self.cache[key] = (self.clock() + ttl, response)
-                        self.cache.move_to_end(key)
-                elif response.status_code not in {418, 429}:
-                    self.cache[key] = (self.clock() + 15, response)
-                while len(self.cache) > 2048:
-                    self.cache.popitem(last=False)
-                return response
+                return await self._dispatch(key, path, values, fetch, source)
         except httpx.RequestError as exc:
             self.retry_at = max(self.retry_at, self.clock() + 15)
             self.last_rejection = 503
