@@ -288,7 +288,8 @@ def test_429_waits_full_retry_after_across_symbols_and_paths():
 
 
 def test_local_market_cooldown_does_not_block_clock_sync():
-    """Scanner kline 429s must not turn signed account reads into fake account rate limits."""
+    """Yerel bekleme (ör. ağ hatası sonrası) saat eşitlemeyi engellemez. Binance'in gerçek 429/418'i ise
+    küresel engel kaydeder ve saat isteğini de durdurur (aşağıdaki küresel engel testi)."""
     now = [100.0]
 
     async def run():
@@ -297,21 +298,16 @@ def test_local_market_cooldown_does_not_block_clock_sync():
 
         async def fetch(path, params):
             calls.append(path)
-            status = 429 if path == "/fapi/v1/klines" else 200
-            response = httpx.Response(status, headers={"Retry-After": "120"},
-                                      json={"code": -1003} if status == 429 else {"serverTime": 1},
-                                      request=httpx.Request("GET", "https://offline.invalid"))
-            service.observe(path, response)
-            return response
+            return httpx.Response(200, json={"serverTime": 1}, request=httpx.Request("GET", "https://offline.invalid"))
 
-        await service.get("/fapi/v1/klines", {"symbol": "BTCUSDT"}, fetch)
+        service.retry_at = now[0] + 120  # yerel bekleme
+        assert service.cooling_down()
         assert (await service.get("/fapi/v1/klines", {"symbol": "ETHUSDT"}, fetch)).status_code == 429
         response = await service.get("/fapi/v1/time", None, fetch)
         assert response.status_code == 200
-        assert calls == ["/fapi/v1/klines", "/fapi/v1/time"]
+        assert calls == ["/fapi/v1/time"]
 
-    with patch("app.binance_rate_limit.time.time", side_effect=lambda: now[0]):
-        asyncio.run(run())
+    asyncio.run(run())
 
 
 def test_global_ban_blocks_public_fetch_without_upstream_request():

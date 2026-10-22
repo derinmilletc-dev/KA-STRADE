@@ -19,18 +19,20 @@ def recording_http(calls):
     return SimpleNamespace(request=request)
 
 
-def test_fresh_shared_offset_is_reused_without_a_time_request():
+def test_fresh_shared_offset_is_reused_without_a_time_request(monkeypatch):
+    monkeypatch.setattr(live.time, "monotonic", lambda: 10_000.0)
     calls = []
-    live._SHARED_CLOCK.update(offset_ms=42, synced_at=time.monotonic() - 5)
+    live._SHARED_CLOCK.update(offset_ms=42, synced_at=9_995.0)
     client = live.BinanceLiveClient(recording_http(calls), "offline-key", "offline-secret")
     asyncio.run(client.sync_clock())
     assert calls == []
     assert client.time_offset_ms == 42
 
 
-def test_public_cooldown_reuses_older_offset_instead_of_calling_binance():
+def test_public_cooldown_reuses_older_offset_instead_of_calling_binance(monkeypatch):
+    monkeypatch.setattr(live.time, "monotonic", lambda: 10_000.0)
     calls = []
-    live._SHARED_CLOCK.update(offset_ms=-17, synced_at=time.monotonic() - 120)
+    live._SHARED_CLOCK.update(offset_ms=-17, synced_at=9_880.0)
     service = SimpleNamespace(cooling_down=lambda: True)
     client = live.BinanceLiveClient(recording_http(calls), "offline-key", "offline-secret",
                                     application=SimpleNamespace(state=SimpleNamespace(public_market_data=service)))
