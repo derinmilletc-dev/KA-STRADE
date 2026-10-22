@@ -212,12 +212,13 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
     if (!guideInput.authorizationValid) await request('/consent', {understood: true})
     if (!guideInput.policyAcknowledged) await request('/policy/acknowledge', {understood: true})
     if (!guideInput.armed) await request('/arm', {understood: true})
-    const payload = await request('/original-v2/start', {
+    let payload: {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
+    try { payload = await request('/original-v2/start', {
       risk_percent: savedRisk, daily_loss_percent: savedDaily, risk_acknowledged: savedRisk > 2 && startAck,
       high_risk_confirmation: savedRisk > 5 ? startPhrase : '', warning_balance_usdt: wallet,
       expected_risk_revision: original?.risk_revision ?? 0, understood: true,
       symbol_count: draft.coins, session_hours: draft.hours,
-    }) as {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
+    }) as typeof payload } catch (error) { await settleAfterTimeout(error, true); payload = {enabled: true} }
     const enabled = payload && typeof payload === 'object' ? (payload.original_v2_live?.enabled ?? payload.enabled) : undefined
     if (enabled !== true) throw new Error('Başlatma sonucu doğrulanamadı; güncel durumu kontrol et.')
     setSheet(null); setStartUnderstood(false); setStartAck(false); setStartPhrase('')
@@ -225,9 +226,26 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
+  const runningRef = useRef(running)
+  runningRef.current = running
+  /** Yanıt gecikince (zaman aşımı) istek sunucuda yine de tamamlanmış olabilir: tekrar GÖNDERMEDEN durumu birkaç kez
+   *  okuyup gerçek sonucu buluruz. İstenen duruma ulaşıldıysa başarı sayılır; ulaşılmadıysa hata açıkça söylenir. */
+  const settleAfterTimeout = async (error: unknown, wantRunning: boolean) => {
+    if (!/zaman aşımı|timeout|aborted/i.test(error instanceof Error ? error.message : '')) throw error
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await new Promise(resolve => window.setTimeout(resolve, 4000))
+      try { await refresh() } catch { /* bir sonraki denemede tekrar okunur */ }
+      await new Promise(resolve => window.setTimeout(resolve, 50))
+      if (runningRef.current === wantRunning) return
+    }
+    throw new Error(wantRunning
+      ? 'Sunucu yanıtı gecikti; durum kontrol edildi ve strateji başlamamış görünüyor. Birkaç saniye sonra tekrar başlatabilirsin.'
+      : 'Sunucu yanıtı gecikti; strateji hâlâ çalışıyor görünüyor. Tekrar durdur.')
+  }
   const stop = () => perform('stop', async () => {
     if (original?.enabled) {
-      const payload = await request('/original-v2/stop') as {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
+      let payload: {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
+      try { payload = await request('/original-v2/stop') as typeof payload } catch (error) { await settleAfterTimeout(error, false); payload = {enabled: false} }
       const enabled = payload && typeof payload === 'object' ? (payload.original_v2_live?.enabled ?? payload.enabled) : undefined
       if (enabled !== false) throw new Error('Durdurma sonucu doğrulanamadı; güncel durumu kontrol et.')
     } else {
