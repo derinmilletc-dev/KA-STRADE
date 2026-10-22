@@ -26,6 +26,8 @@ export type GuideInput = {
   accountRateLimited: boolean
   accountRateLimitText?: string | null
   marketBanSeconds: number
+  /** Engel yalnız paylaşımlı sunucu IP'sinde ve canlı tarama sabit IP'den sürüyor. */
+  scanningContinues?: boolean
   fillLocked: boolean
   fillLockSymbol?: string | null
   dailyLocked: boolean
@@ -75,7 +77,9 @@ const WHY: Record<number, string> = {
 
 function notices(input: GuideInput): GuideNotice[] {
   const list: GuideNotice[] = []
-  if (input.marketBanSeconds > 0) list.push({tone: 'warn', text: `Binance piyasa verisini ${duration(input.marketBanSeconds)} sınırladı; bu sürede tarama yapılamaz. Hesabın ve açık pozisyonların korumaları etkilenmez.`})
+  if (input.marketBanSeconds > 0) list.push(input.scanningContinues
+    ? {tone: 'ok', text: `Binance paylaşımlı sunucu IP'sini ${duration(input.marketBanSeconds)} sınırladı; canlı tarama ve emirler sabit IP'den devam ediyor. Piyasa ekranları bu sürede gecikebilir.`}
+    : {tone: 'warn', text: `Binance piyasa verisini ${duration(input.marketBanSeconds)} sınırladı; bu sürede tarama yapılamaz. Hesabın ve açık pozisyonların korumaları etkilenmez.`})
   if (input.dailyLocked) list.push({tone: 'warn', text: 'Bugünkü kayıp sınırına ulaşıldı; yarına kadar yeni işlem açılmaz. Açık pozisyonların korumaları devam eder.'})
   if (input.running && input.sessionRemainingSeconds > 0 && input.sessionRemainingSeconds <= 3600) list.push({tone: 'warn', text: `Oturumun bitmesine ${duration(input.sessionRemainingSeconds)} kaldı. Süre bitince yeni işlem açılmaz.`})
   return list

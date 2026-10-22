@@ -489,7 +489,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       && Number.isFinite(autoSessionExpiresAt)
       && autoSessionExpiresAt > Date.now()
     const accountRateLimited = status.account_rate_limit?.locked === true || status.account_rate_limit?.pending_verification === true
-    const hasGlobalBanStatus = backendBan?.active === false
+    // Engel yalnız paylaşımlı Render IP'sindeyse canlı strateji sabit IP'li korumalı yoldan taramaya devam eder.
+    const hasGlobalBanStatus = backendBan?.active === false || backendBan?.live_scanning_continues === true
     const originalDaily = originalRuntime.daily
     const originalDailyLossReady = originalDaily?.locked === false
       && typeof originalDaily.loss === 'number'
@@ -519,7 +520,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }
     addCheck('live_status', 'Güncel LIVE durumu', statusVerified === true, statusVerified ? 'Sunucu durumu doğrulandı.' : 'Sunucu durumu doğrulanmadı; eski bilgiyle girişe izin verilmez.')
     addCheck('global_binance_ban', 'Binance genel engeli', hasGlobalBanStatus, hasGlobalBanStatus
-      ? 'Aktif Binance genel engeli yok.'
+      ? backendBan?.live_scanning_continues === true ? 'Engel yalnız paylaşımlı sunucu IP\'sinde; canlı tarama sabit IP\'den sürüyor.' : 'Aktif Binance genel engeli yok.'
       : backendBan?.active === true
         ? globalBanMessage || `Binance geçici engel aktif${banUntilText ? ` – bitiş saati ${banUntilText}` : '; bitiş saati sunucudan alınamadı'}.`
         : 'Binance engel durumu doğrulanamadı; girişe izin verilmez.')
@@ -1171,7 +1172,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         : status?.emergency?.triggered_at ? `Acil durdurma ${new Date(status.emergency.triggered_at).toLocaleString('tr-TR')} tarihinde açıldı; yeni işlemler kapalı.` : null,
       recoveryRequired: recoveryRequired && !emergency, recoveryText: status?.recovery_error || status?.reconciliation_diagnostic?.exception_message || null,
       accountRateLimited: Boolean(status?.account_rate_limit?.pending_verification || status?.account_rate_limit?.locked), accountRateLimitText: status?.account_rate_limit?.message || null,
-      marketBanSeconds: globalBanActive ? banCountdown : 0,
+      marketBanSeconds: globalBanActive ? banCountdown : 0, scanningContinues: backendBan?.live_scanning_continues === true,
       fillLocked: runtime?.fill_lock?.active === true, fillLockSymbol: runtime?.fill_lock?.symbol || null,
       dailyLocked: runtime?.daily?.locked === true, riskApproved: (runtime?.risk_revision ?? 0) > 0,
       authorizationValid, policyAcknowledged: status?.policy_acknowledged === true, armed: liveArmed,

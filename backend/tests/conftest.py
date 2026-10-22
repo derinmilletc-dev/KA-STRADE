@@ -31,3 +31,17 @@ def isolate_live_shared_clock():
     finally:
         v25_execution._SHARED_CLOCK.clear()
         v25_execution._SHARED_CLOCK.update(previous)
+
+
+@pytest.fixture(autouse=True)
+def isolate_protected_market_lane():
+    """Canlı stratejinin korumalı (sabit IP) piyasa yolu süreç geneli tekildir; testler arasında taşınmasın."""
+    from app.public_market_data import PROTECTED_LANE
+
+    previous = (PROTECTED_LANE.fetch, PROTECTED_LANE.clock)
+    PROTECTED_LANE.fetch, PROTECTED_LANE.paused_until, PROTECTED_LANE.window = None, 0.0, []
+    try:
+        yield
+    finally:
+        PROTECTED_LANE.fetch, PROTECTED_LANE.clock = previous
+        PROTECTED_LANE.paused_until, PROTECTED_LANE.window = 0.0, []

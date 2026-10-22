@@ -11,6 +11,7 @@ import websockets
 from websockets.exceptions import WebSocketException
 
 from .binance_rate_limit import BINANCE_GLOBAL_BAN
+from .public_market_data import protected_lane_available
 from .public_market_data import ORIGINAL_INTERVALS
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,8 @@ class BinanceKlineStream:
         )
         if needs_backfill:
             retry_after = BINANCE_GLOBAL_BAN.remaining_seconds()
-            if retry_after > 0:
+            # Paylaşımlı IP engelliyken eksik mum, korumalı yoldan (sabit IP, küçük bütçe) tamamlanabilir.
+            if retry_after > 0 and not protected_lane_available():
                 raise KlineStreamUnavailable(retry_after)
             reason = "bootstrap" if len(rows) < limit else "missing_current_candle"
             logger.info(

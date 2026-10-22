@@ -36,7 +36,7 @@ from .email_service import validate_app_base_url
 from .binance_rate_limit import BINANCE_GLOBAL_BAN, BINANCE_RATE_LIMITER
 from .binance_kline_stream import BinanceKlineStream
 from .market_universe import MarketUniverseCache, active_usdt_perpetual
-from .public_market_data import PublicMarketData, PUBLIC_PATHS as PUBLIC_MARKET_PATHS
+from .public_market_data import PROTECTED_LANE, PublicMarketData, PUBLIC_PATHS as PUBLIC_MARKET_PATHS
 from .exchange_connections import (
     clear_vault_cache,
     ensure_exchange_vault,
@@ -1901,12 +1901,24 @@ async def market_data_request(
     service = getattr(application.state, "public_market_data", None)
     if service is None:
         service = application.state.public_market_data = PublicMarketData()
+    if PROTECTED_LANE.fetch is None and os.getenv("QUOTAGUARD_URL", "").strip():
+        PROTECTED_LANE.configure(lambda route, values: _fetch_protected_market_data(application, route, values))
     return await service.get(
         path,
         params,
         lambda route, values: _fetch_public_market_data(application, service, route, values),
         source=source,
     )
+
+
+async def _fetch_protected_market_data(application: FastAPI, path: str, params: dict[str, Any]) -> httpx.Response:
+    """Paylaşımlı Render IP'si engelliyken canlı stratejinin küçük bütçeli okuması: hesap isteklerinin sabit IP'li istemcisi."""
+    client = await ensure_http_client(application)
+    host = BINANCE_API if path.startswith("/api/v3/") else "https://fapi.binance.com"
+    response = await asyncio.wait_for(client.get(f"{host}{path}", params=params), timeout=MARKET_DATA_REQUEST_TIMEOUT_SECONDS)
+    if response.status_code >= 500:
+        logger.warning("Public market protected-lane upstream response: path=%s status=%s", path, response.status_code)
+    return response
 
 
 async def _fetch_public_market_data(application: FastAPI, service: PublicMarketData, path: str, params: dict[str, Any]) -> httpx.Response:
