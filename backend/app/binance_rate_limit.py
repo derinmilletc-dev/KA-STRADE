@@ -68,16 +68,15 @@ class BinanceGlobalBan:
         self._persistence_tasks: set[asyncio.Task] = set()
         self._load()
 
-    def _validated_state(self, payload: Any) -> dict[str, Any] | None:
+    @staticmethod
+    def _entry(payload: Any) -> dict[str, Any] | None:
         if not isinstance(payload, dict):
-            logger.error("BINANCE_GLOBAL_BAN load_failed error_type=InvalidPayload")
             return None
         try:
             blocked_until = float(payload.get("blocked_until_epoch") or 0)
             observed_at = float(payload.get("observed_at_epoch") or time.time())
             status_code = int(payload.get("status_code") or 429)
         except (TypeError, ValueError, OverflowError):
-            logger.error("BINANCE_GLOBAL_BAN load_failed error_type=InvalidDeadline")
             return None
         if blocked_until <= time.time():
             return None
@@ -90,6 +89,66 @@ class BinanceGlobalBan:
             "source": str(payload.get("source") or "unknown")[:80],
             "egress_route": str(payload.get("egress_route") or "unknown")[:40],
         }
+
+    @staticmethod
+    def _summary(routes: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        # Üst düzey alanlar en uzun engeli yansıtır (eski kayıt biçimi ve DB koşulu bununla uyumlu kalır);
+        # her çıkış yolunun kendi süresi "routes" altında ayrı tutulur.
+        if not routes:
+            return {}
+        longest = max(routes.values(), key=lambda entry: entry["blocked_until_epoch"])
+        return {**longest, "routes": {route: dict(entry) for route, entry in routes.items()}}
+
+    def _validated_state(self, payload: Any) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            logger.error("BINANCE_GLOBAL_BAN load_failed error_type=InvalidPayload")
+            return None
+        top = self._entry(payload)
+        if top is None and not isinstance(payload.get("routes"), dict):
+            try:
+                float(payload.get("blocked_until_epoch") or 0)
+                int(payload.get("status_code") or 429)
+            except (TypeError, ValueError, OverflowError):
+                logger.error("BINANCE_GLOBAL_BAN load_failed error_type=InvalidDeadline")
+            return None
+        routes: dict[str, dict[str, Any]] = {}
+        stored = payload.get("routes")
+        if isinstance(stored, dict):
+            for route, value in list(stored.items())[:8]:
+                entry = self._entry(value)
+                if entry is not None:
+                    entry["egress_route"] = str(route or "unknown")[:40]
+                    routes[entry["egress_route"]] = entry
+        elif top is not None:
+            routes[top["egress_route"]] = top
+        return self._summary(routes) or None
+
+    def _routes(self) -> dict[str, dict[str, Any]]:
+        routes = self._state.get("routes") if self._state else None
+        if not isinstance(routes, dict):
+            return {}
+        now = time.time()
+        live = {route: entry for route, entry in routes.items()
+                if isinstance(entry, dict) and float(entry.get("blocked_until_epoch") or 0) > now}
+        if len(live) != len(routes):
+            self._state = self._summary(live)
+            if not self._state:
+                self._delete_expired_file()
+        return live
+
+    def _route_entry(self, egress_route: str | None) -> dict[str, Any] | None:
+        """Bir çıkış yolunu durduran en uzun engel. Yol belirtilmezse her engel geçerlidir; yolu bilinmeyen
+        (eski) kayıt her yolu durdurur. Bir yolun engeli diğer yolun süresini uzatmaz."""
+        routes = self._routes()
+        if not routes:
+            return None
+        if egress_route in (None, "unknown"):
+            candidates = list(routes.values())
+        else:
+            candidates = [entry for route, entry in routes.items() if route in (egress_route, "unknown")]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda entry: entry["blocked_until_epoch"])
 
     def _load(self) -> None:
         try:
@@ -224,10 +283,7 @@ class BinanceGlobalBan:
     def applies_to(self, egress_route: str | None) -> bool:
         """Binance engeli IP'ye konur. QuotaGuard varken hesap/emir istekleri ayrı (sabit) IP'den çıkar; Render IP'sine gelen
         engel onları durdurmamalı. egress_route verilmezse ya da kaydın çıkış yolu bilinmiyorsa her engel geçerlidir (eski davranış)."""
-        if not self.active():
-            return False
-        recorded = str(self._state.get("egress_route") or "unknown")
-        return egress_route in (None, "unknown") or recorded == "unknown" or recorded == egress_route
+        return self._route_entry(egress_route) is not None
 
     def record(
         self,
@@ -253,19 +309,15 @@ class BinanceGlobalBan:
             return False
         delay = retry_after_seconds(response) or max(1, RATE_LIMIT_FALLBACK_SECONDS)
         now = time.time()
-        blocked_until = max(
-            float(self._state.get("blocked_until_epoch") or 0),
-            now + delay,
-        )
+        route = str(egress_route or "unknown")[:40]
+        routes = self._routes()
+        previous = routes.get(route)
         headers = getattr(response, "headers", {})
         used_weight = headers.get("X-MBX-USED-WEIGHT-1M")
-        route = str(egress_route or "unknown")[:40]
-        previous_route = str(self._state.get("egress_route") or "unknown") if self.active() else None
-        if previous_route is not None and previous_route != route:
-            # Süren bir engel başka çıkış yolundaysa ikisi de engelli sayılır (tek kayıt tutulur; güvenli taraf).
-            route = "unknown"
-        self._state = {
-            "blocked_until_epoch": blocked_until,
+        # Her çıkış yolu kendi süresini taşır: QuotaGuard'a gelen kısa bir 429, Render IP'sindeki saatlik
+        # engelin süresini hesap/emir yoluna kopyalamaz (eskiden ikisi "unknown" altında birleşip her şeyi kilitliyordu).
+        routes[route] = {
+            "blocked_until_epoch": max(float((previous or {}).get("blocked_until_epoch") or 0), now + delay),
             "observed_at_epoch": now,
             "status_code": status_code or 429,
             "exchange_code": code,
@@ -273,24 +325,30 @@ class BinanceGlobalBan:
             "source": str(source or "unknown")[:80],
             "egress_route": route,
         }
+        self._state = self._summary(routes)
+        recorded = routes[route]
         self._persist()
         self._schedule_database_persist()
         logger.warning(
             "BINANCE_GLOBAL_BAN recorded status=%s code=%s retry_after_seconds=%s "
-            "blocked_until=%s source=%s egress_route=%s used_weight_1m=%s",
-            self._state["status_code"],
-            self._state["exchange_code"],
+            "blocked_until=%s source=%s egress_route=%s used_weight_1m=%s active_routes=%s",
+            recorded["status_code"],
+            recorded["exchange_code"],
             delay,
-            self.public_status()["blocked_until"],
-            self._state["source"],
-            self._state["egress_route"],
-            self._state["used_weight_1m"],
+            self.public_status(route)["blocked_until"],
+            recorded["source"],
+            route,
+            recorded["used_weight_1m"],
+            ",".join(sorted(routes)),
         )
         return True
 
     def public_status(self, egress_route: str | None = None) -> dict[str, Any]:
-        remaining = self.remaining_seconds()
-        if remaining <= 0 or not self.applies_to(egress_route):
+        entry = self._route_entry(egress_route) if self.remaining_seconds() > 0 else None
+        remaining = 0
+        if entry is not None:
+            remaining = max(0, int(float(entry["blocked_until_epoch"]) - time.time() + 0.999))
+        if entry is None or remaining <= 0:
             return {
                 "active": False,
                 "blocked_until": None,
@@ -302,18 +360,18 @@ class BinanceGlobalBan:
                 "exchange_code": None,
                 "used_weight_1m": None,
             }
-        blocked_until_epoch = float(self._state["blocked_until_epoch"])
+        blocked_until_epoch = float(entry["blocked_until_epoch"])
         blocked_until = datetime.fromtimestamp(blocked_until_epoch, timezone.utc).isoformat()
         return {
             "active": True,
             "blocked_until": blocked_until,
             "remaining_seconds": remaining,
             "message": f"Binance geçici olarak engelledi, {blocked_until} tarihine kadar bekleniyor.",
-            "source": self._state.get("source"),
-            "egress_route": self._state.get("egress_route"),
-            "status_code": self._state.get("status_code"),
-            "exchange_code": self._state.get("exchange_code"),
-            "used_weight_1m": self._state.get("used_weight_1m"),
+            "source": entry.get("source"),
+            "egress_route": entry.get("egress_route"),
+            "status_code": entry.get("status_code"),
+            "exchange_code": entry.get("exchange_code"),
+            "used_weight_1m": entry.get("used_weight_1m"),
         }
 
     def synthetic_response(self, path: str, egress_route: str | None = None) -> Any | None:
@@ -330,8 +388,8 @@ class BinanceGlobalBan:
 
     async def wait(self, egress_route: str | None = None) -> None:
         while True:
-            remaining = self.remaining_seconds()
-            if remaining <= 0 or not self.applies_to(egress_route):
+            remaining = self.public_status(egress_route)["remaining_seconds"]
+            if remaining <= 0:
                 return
             await asyncio.sleep(remaining)
 

@@ -269,6 +269,67 @@ class BinanceRateLimitTests(unittest.IsolatedAsyncioTestCase):
             for call in pool.execute.await_args_list
         ))
 
+    def _ban_response(self, status, retry_after):
+        return httpx.Response(
+            status,
+            headers={"Retry-After": str(retry_after)},
+            json={"code": -1003},
+            request=httpx.Request("GET", "https://fapi.binance.com/fapi/v1/klines"),
+        )
+
+    async def test_short_fixed_ip_limit_does_not_inherit_the_long_render_ban(self):
+        path = BINANCE_GLOBAL_BAN.path.with_name("route-scoped.json")
+        with patch("app.binance_rate_limit.time.time", return_value=1_000.0):
+            clock = BinanceGlobalBan(path)
+            clock.record(self._ban_response(418, 5752), source="original_live", egress_route="render_direct")
+            self.assertFalse(clock.applies_to("quotaguard"))
+            clock.record(self._ban_response(429, 60), source="live_browser", egress_route="quotaguard")
+            account = clock.public_status("quotaguard")
+            render = clock.public_status("render_direct")
+            self.assertEqual(account["remaining_seconds"], 60)
+            self.assertEqual(account["egress_route"], "quotaguard")
+            self.assertEqual(render["remaining_seconds"], 5752)
+            self.assertEqual(clock.public_status()["remaining_seconds"], 5752)
+        with patch("app.binance_rate_limit.time.time", return_value=1_061.0):
+            self.assertFalse(clock.applies_to("quotaguard"))
+            self.assertFalse(clock.public_status("quotaguard")["active"])
+            self.assertTrue(clock.applies_to("render_direct"))
+            restored = BinanceGlobalBan(path)
+            self.assertFalse(restored.applies_to("quotaguard"))
+            self.assertEqual(restored.public_status("render_direct")["remaining_seconds"], 5691)
+        path.unlink(missing_ok=True)
+
+    async def test_route_deadlines_survive_restart_separately(self):
+        path = BINANCE_GLOBAL_BAN.path.with_name("route-restart.json")
+        with patch("app.binance_rate_limit.time.time", return_value=1_000.0):
+            clock = BinanceGlobalBan(path)
+            clock.record(self._ban_response(418, 3600), source="original_live", egress_route="render_direct")
+            clock.record(self._ban_response(429, 120), source="live_browser", egress_route="quotaguard")
+        with patch("app.binance_rate_limit.time.time", return_value=1_010.0):
+            restored = BinanceGlobalBan(path)
+            self.assertEqual(restored.public_status("quotaguard")["remaining_seconds"], 110)
+            self.assertEqual(restored.public_status("render_direct")["remaining_seconds"], 3590)
+        path.unlink(missing_ok=True)
+
+    async def test_legacy_record_without_route_still_blocks_every_route(self):
+        path = BINANCE_GLOBAL_BAN.path.with_name("route-legacy.json")
+        path.write_text('{"blocked_until_epoch": 1300.0, "observed_at_epoch": 1000.0, "status_code": 418}', encoding="utf-8")
+        with patch("app.binance_rate_limit.time.time", return_value=1_000.0):
+            clock = BinanceGlobalBan(path)
+            self.assertTrue(clock.applies_to("quotaguard"))
+            self.assertTrue(clock.applies_to("render_direct"))
+            self.assertEqual(clock.public_status("quotaguard")["remaining_seconds"], 300)
+        path.unlink(missing_ok=True)
+
+    async def test_repeated_limit_on_same_route_never_shortens_its_deadline(self):
+        path = BINANCE_GLOBAL_BAN.path.with_name("route-extend.json")
+        with patch("app.binance_rate_limit.time.time", return_value=1_000.0):
+            clock = BinanceGlobalBan(path)
+            clock.record(self._ban_response(418, 600), source="a", egress_route="render_direct")
+            clock.record(self._ban_response(429, 5), source="b", egress_route="render_direct")
+            self.assertEqual(clock.public_status("render_direct")["remaining_seconds"], 600)
+        path.unlink(missing_ok=True)
+
     async def test_binance_minus_1003_creates_cooldown(self):
         await self._request(Response(payload={"code": -1003, "msg": "Too many requests"}))
         self.assertGreater(BINANCE_RATE_LIMITER.snapshot(self.HOST)["cooldown_until"], 0.0)
