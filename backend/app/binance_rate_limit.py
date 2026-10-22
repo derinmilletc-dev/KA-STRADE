@@ -221,6 +221,14 @@ class BinanceGlobalBan:
     def active(self) -> bool:
         return self.remaining_seconds() > 0
 
+    def applies_to(self, egress_route: str | None) -> bool:
+        """Binance engeli IP'ye konur. QuotaGuard varken hesap/emir istekleri ayrı (sabit) IP'den çıkar; Render IP'sine gelen
+        engel onları durdurmamalı. egress_route verilmezse ya da kaydın çıkış yolu bilinmiyorsa her engel geçerlidir (eski davranış)."""
+        if not self.active():
+            return False
+        recorded = str(self._state.get("egress_route") or "unknown")
+        return egress_route in (None, "unknown") or recorded == "unknown" or recorded == egress_route
+
     def record(
         self,
         response: Any,
@@ -251,6 +259,11 @@ class BinanceGlobalBan:
         )
         headers = getattr(response, "headers", {})
         used_weight = headers.get("X-MBX-USED-WEIGHT-1M")
+        route = str(egress_route or "unknown")[:40]
+        previous_route = str(self._state.get("egress_route") or "unknown") if self.active() else None
+        if previous_route is not None and previous_route != route:
+            # Süren bir engel başka çıkış yolundaysa ikisi de engelli sayılır (tek kayıt tutulur; güvenli taraf).
+            route = "unknown"
         self._state = {
             "blocked_until_epoch": blocked_until,
             "observed_at_epoch": now,
@@ -258,7 +271,7 @@ class BinanceGlobalBan:
             "exchange_code": code,
             "used_weight_1m": int(used_weight) if str(used_weight or "").isdigit() else None,
             "source": str(source or "unknown")[:80],
-            "egress_route": str(egress_route or "unknown")[:40],
+            "egress_route": route,
         }
         self._persist()
         self._schedule_database_persist()
@@ -275,9 +288,9 @@ class BinanceGlobalBan:
         )
         return True
 
-    def public_status(self) -> dict[str, Any]:
+    def public_status(self, egress_route: str | None = None) -> dict[str, Any]:
         remaining = self.remaining_seconds()
-        if remaining <= 0:
+        if remaining <= 0 or not self.applies_to(egress_route):
             return {
                 "active": False,
                 "blocked_until": None,
@@ -303,8 +316,8 @@ class BinanceGlobalBan:
             "used_weight_1m": self._state.get("used_weight_1m"),
         }
 
-    def synthetic_response(self, path: str) -> Any | None:
-        status = self.public_status()
+    def synthetic_response(self, path: str, egress_route: str | None = None) -> Any | None:
+        status = self.public_status(egress_route)
         if not status["active"]:
             return None
         import httpx
@@ -315,10 +328,10 @@ class BinanceGlobalBan:
             request=httpx.Request("GET", f"https://fapi.binance.com{path}"),
         )
 
-    async def wait(self) -> None:
+    async def wait(self, egress_route: str | None = None) -> None:
         while True:
             remaining = self.remaining_seconds()
-            if remaining <= 0:
+            if remaining <= 0 or not self.applies_to(egress_route):
                 return
             await asyncio.sleep(remaining)
 
@@ -405,7 +418,7 @@ class BinanceRateLimiter:
             state.pending.append(ticket)
         admitted = False
         try:
-            await BINANCE_GLOBAL_BAN.wait()
+            await BINANCE_GLOBAL_BAN.wait(egress_route)
             await self._wait(state)
             async with state.condition:
                 await state.condition.wait_for(lambda: state.active < BINANCE_MAX_CONCURRENT_REQUESTS_PER_HOST and ticket == min(state.pending))
@@ -415,7 +428,7 @@ class BinanceRateLimiter:
                 state.condition.notify_all()
             async with state.lock:
                 await self._wait(state)
-                await BINANCE_GLOBAL_BAN.wait()
+                await BINANCE_GLOBAL_BAN.wait(egress_route)
             yield RateLimitPermit(self, host, state, source, egress_route)
         finally:
             async with state.condition:

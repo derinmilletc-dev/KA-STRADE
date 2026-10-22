@@ -1249,6 +1249,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {notice.kind !== 'info' && <div className={`liveNotice masterTradeLiveNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.kind === 'error' ? <TriangleAlert/> : <CheckCircle2/>}<span>{notice.text}</span></div>}
       <section id="master-trade-live-terminal" className="liveWs" aria-label="Canlı işlem" hidden={masterTradeTab === 'pozisyonlar'}>
         {masterTradeTab === 'canli' && <>
+          {/* Masaüstünde iki sütun: solda yapılacak adımlar, sağda hesap/durum paneli (telefonda alt alta). */}
+          <div className="liveWsMain">
           <header className={`liveWsHero ${next.tone}`}>
             <div className="liveWsHeroTop"><div><small>CANLI İŞLEM · GERÇEK PARA</small><h2>Canlı İşlem</h2></div><span className={`liveWsPill ${running ? 'on' : emergency || recoveryRequired ? 'stop' : ''}`}><i/>{stateText}</span></div>
             <div id="master-trade-auto-trade" tabIndex={-1} aria-label="Şimdi yapman gereken" className="liveWsNext">
@@ -1337,7 +1339,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(3)} disabled={stepLocked(3)} onClick={() => setOpenStep(stepOpen(3) ? -1 : 3)}><span className={`liveWsBadge ${manualOrderReady ? 'current' : ''}`}>4</span><span><b>Manuel emir</b><small>{stepsMeta[3].sub}</small></span><ChevronDown className="liveWsChev"/></button>
             {stepOpen(3) && <div className="liveWsBody">{manualOrderCard}</div>}
           </section>
+          </div>
 
+          <aside className="liveWsSide" aria-label="Hesap ve durum">
           <section className="liveWsSection masterTradeLiveAccountHud" aria-label="Hesap özeti">
             <h3>Hesap özeti</h3>
             <div className="masterTradeLiveAccountMetrics">
@@ -1376,6 +1380,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <div><b>Acil durum</b><small>Yeni emirleri ve otomatik işlemi hemen durdurur.</small></div>
             <div className="liveWsRow"><button type="button" className="liveWsGhost danger" onClick={emergencyStop} disabled={Boolean(busy)}><ShieldAlert/> ACİL DURDUR</button>{emergency && <button type="button" className="liveWsGhost" onClick={clearEmergency} disabled={Boolean(busy)}>Kurtarma sonrası kaldır</button>}</div>
           </section>
+          </aside>
         </>}
 
         {masterTradeTab === 'baglanti' && <>

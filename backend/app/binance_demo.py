@@ -917,7 +917,7 @@ class BinanceDemoClient:
         signature: str = "",
         api_key_header: bool = False,
     ) -> Any:
-        ban_status = BINANCE_GLOBAL_BAN.public_status()
+        ban_status = BINANCE_GLOBAL_BAN.public_status(account_egress_route())  # Demo istekleri hesap çıkış yolundan gider
         if ban_status["active"]:
             raise BinanceDemoError(
                 str(ban_status["message"]),

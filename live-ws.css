@@ -437,3 +437,16 @@ html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTra
 .liveWsIpInfo p { margin: 0; }
 .liveWsIpList { display: flex; flex-wrap: wrap; gap: 8px; }
 .liveWsIpList code { padding: 4px 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); color: #edf2f8; user-select: all; }
+
+/* Masaüstü (≥1200px): tek dar sütun (telefon görünümü) yerine iki sütun. Solda "şimdi yapman gereken" ve adımlar,
+   sağda hesap özeti, sinyal, son olaylar ve acil durum. Telefonda/tablette sarmalayıcılar alt alta akar (görünüm aynı). */
+#master-trade-live-terminal.liveWs :is(.liveWsMain, .liveWsSide) { display: grid; gap: 14px; min-width: 0; align-content: start; }
+@media (min-width: 1200px) {
+  #master-trade-live-terminal.liveWs:has(> .liveWsMain) {
+    max-width: 1480px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    align-items: start;
+    column-gap: 20px;
+  }
+  #master-trade-live-terminal.liveWs:has(> .liveWsMain) > :not(.liveWsMain, .liveWsSide) { grid-column: 1 / -1; }
+}
