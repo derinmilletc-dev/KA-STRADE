@@ -131,8 +131,8 @@ class BinanceServerTimeRejected(VaultError):
         self.used_weight_1m = used_weight_1m
 
 
-def _active_global_ban_error() -> BinanceServerTimeRejected | None:
-    status = BINANCE_GLOBAL_BAN.public_status()
+def _active_global_ban_error(egress_route: str | None = None) -> BinanceServerTimeRejected | None:
+    status = BINANCE_GLOBAL_BAN.public_status(egress_route)
     if not status["active"]:
         return None
     return BinanceServerTimeRejected(
@@ -919,7 +919,7 @@ def exchange_rejection_message(code: Any) -> str:
 
 
 async def _signed_get(http: httpx.AsyncClient, host: str, path: str, api_key: str, secret_key: str, time_offset_ms: int) -> Any:
-    active_ban = _active_global_ban_error()
+    active_ban = _active_global_ban_error(account_egress_route())
     if active_ban is not None:
         raise active_ban
     fingerprint = key_fingerprint(api_key)
@@ -1019,7 +1019,7 @@ async def _server_time_offset(
     egress_route: str | None = None,
 ) -> int:
     normalized = normalize_mode(mode)
-    active_ban = _active_global_ban_error()
+    active_ban = _active_global_ban_error(egress_route or account_egress_route())
     if active_ban is not None:
         raise active_ban
     now = time.monotonic()

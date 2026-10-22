@@ -56,3 +56,38 @@ def test_ban_started_during_clock_sync_fails_fast_instead_of_waiting():
         asyncio.run(client.signed("GET", "/fapi/v3/account"))
     assert time.monotonic() - started < 5
     assert calls == []
+
+
+def record_ban(route):
+    BINANCE_GLOBAL_BAN.record(httpx.Response(418, headers={"Retry-After": "600"}, json={"code": -1003},
+                                             request=httpx.Request("GET", "https://fapi.binance.com/fapi/v1/klines")),
+                              source="original_live", egress_route=route)
+
+
+def test_render_ip_ban_does_not_block_account_requests_through_quotaguard(monkeypatch):
+    monkeypatch.setenv("QUOTAGUARD_URL", "http://user:pass@proxy.invalid:9293")
+    record_ban("render_direct")
+    assert BINANCE_GLOBAL_BAN.public_status()["active"]  # ekrandaki genel durum yine görünür
+    assert not BINANCE_GLOBAL_BAN.public_status("quotaguard")["active"]
+    client = live.BinanceLiveClient(recording_http([]), "offline-key", "offline-secret")
+    client._require_global_ban_clear("GET", "/fapi/v3/account")  # hesap yolu engelli değil: hata yok
+
+
+def test_render_ip_ban_still_blocks_accounts_without_a_proxy(monkeypatch):
+    monkeypatch.delenv("QUOTAGUARD_URL", raising=False)
+    record_ban("render_direct")
+    client = live.BinanceLiveClient(recording_http([]), "offline-key", "offline-secret")
+    with pytest.raises(live.LiveRateLimitError):
+        client._require_global_ban_clear("GET", "/fapi/v3/account")
+
+
+def test_proxy_ip_ban_blocks_accounts_but_not_public_market_data(monkeypatch):
+    from app.public_market_data import PublicMarketData
+    monkeypatch.setenv("QUOTAGUARD_URL", "http://user:pass@proxy.invalid:9293")
+    record_ban("quotaguard")
+    assert PublicMarketData().blocked("/fapi/v1/klines") is None
+    client = live.BinanceLiveClient(recording_http([]), "offline-key", "offline-secret")
+    with pytest.raises(live.LiveRateLimitError):
+        client._require_global_ban_clear("GET", "/fapi/v3/account")
+    record_ban("render_direct")  # iki yol birden engelliyse her şey durur (güvenli taraf)
+    assert PublicMarketData().blocked("/fapi/v1/klines") is not None

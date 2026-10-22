@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 ORIGINAL_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT")
 ORIGINAL_INTERVALS = ("15m", "1h", "4h")
 ORIGINAL_REQUEST_INTERVAL_SECONDS = 0.52
+PUBLIC_EGRESS_ROUTE = "render_direct"
 PUBLIC_PATHS = frozenset({
     "/fapi/v1/ping", "/fapi/v1/time", "/fapi/v1/exchangeInfo",
     "/fapi/v1/ticker/price", "/fapi/v1/ticker/bookTicker",
@@ -82,7 +83,8 @@ class PublicMarketData:
         return self.retry_at > self.clock()
 
     def blocked(self, path: str) -> httpx.Response | None:
-        global_block = BINANCE_GLOBAL_BAN.synthetic_response(path)
+        # Herkese açık piyasa verisi her zaman Render'dan doğrudan çıkar; yalnız bu çıkışa konan engel onu durdurur.
+        global_block = BINANCE_GLOBAL_BAN.synthetic_response(path, PUBLIC_EGRESS_ROUTE)
         if global_block is not None:
             self.counts["global_ban_hits"] += 1
             return global_block

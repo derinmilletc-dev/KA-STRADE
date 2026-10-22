@@ -1703,13 +1703,17 @@ class BinanceLiveClient:
             # hiç gönderilmez (429 sırasında tekrar istek 418 IP engeline dönüşür); son ölçüm CLOCK_OFFSET_REUSE_SECONDS'a kadar geçerli.
             shared_age = time.monotonic() - _SHARED_CLOCK["synced_at"] if _SHARED_CLOCK["synced_at"] > 0 else None
             service = getattr(getattr(self.application, "state", None), "public_market_data", None)
-            limited = BINANCE_GLOBAL_BAN.public_status()["active"] or bool(service is not None and service.cooling_down())
+            limited = BINANCE_GLOBAL_BAN.public_status("render_direct")["active"] or bool(service is not None and service.cooling_down())
             if shared_age is not None and (shared_age < 30 or (limited and shared_age < CLOCK_OFFSET_REUSE_SECONDS)):
                 self.time_offset_ms = _SHARED_CLOCK["offset_ms"]
                 self.last_time_sync = time.monotonic()
                 return
             try:
-                await self.public_get("/fapi/v1/time")
+                if limited and account_egress_route() != "render_direct":
+                    # Render çıkışı engelliyken saat, hesap isteklerinin sabit IP'li yolundan (QuotaGuard) ölçülür.
+                    await self._request("GET", "/fapi/v1/time", {}, signed=False)
+                else:
+                    await self.public_get("/fapi/v1/time")
             except LiveExchangeError as exc:
                 # Clients are created per request, so reuse the process-wide
                 # offset measured recently instead of failing the signed account
@@ -1728,7 +1732,8 @@ class BinanceLiveClient:
             _SHARED_CLOCK["synced_at"] = self.last_time_sync
 
     def _require_global_ban_clear(self, method: str, path: str) -> None:
-        ban_status = BINANCE_GLOBAL_BAN.public_status()
+        # Hesap/emir istekleri hesap çıkış yolundan (QuotaGuard varsa sabit IP) gider; yalnız o yola konan engel durdurur.
+        ban_status = BINANCE_GLOBAL_BAN.public_status(account_egress_route())
         if not ban_status["active"]:
             return
         error = LiveRateLimitError(
