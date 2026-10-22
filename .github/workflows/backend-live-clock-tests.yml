@@ -45,4 +45,11 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: pytest (saat eşitleme + piyasa verisi kuyruğu)
         working-directory: backend
-        run: python -m pytest tests/test_live_clock_reuse.py tests/test_binance_queued_clock.py tests/test_public_market_data.py -q -rfE --tb=short -p no:cacheprovider
+        shell: bash
+        run: |
+          set +e
+          python -m pytest tests/test_live_clock_reuse.py tests/test_binance_queued_clock.py tests/test_public_market_data.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee pytest-out.txt
+          status=${PIPESTATUS[0]}
+          # Hatalar iş özetinde görünsün diye bildirime de yazılır.
+          grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
+          exit $status
