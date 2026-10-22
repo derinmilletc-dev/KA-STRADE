@@ -41,6 +41,8 @@ export type GuideInput = {
   /** Çalışırken ilk geçmeyen giriş kontrolünün açıklaması (yoksa girişler açık). */
   entryBlocker?: string | null
   sessionRemainingSeconds: number
+  /** Sunucudaki strateji döngüsünün son çalıştığı andan bu yana geçen süre (sn); bilinmiyorsa null. */
+  lastCycleAgeSeconds?: number | null
 }
 
 export type GuideNotice = {tone: GuideTone; text: string}
@@ -60,6 +62,8 @@ export type Guide = {
 
 export const GUIDE_STEPS = ['Hesap', 'Risk ayarı', 'Onaylar', 'Başlat'] as const
 export const GUIDE_TOTAL = GUIDE_STEPS.length
+/** Döngü normalde dakikada birkaç kez çalışır; 10 dakikadır çalışmadıysa sunucu uyumuş/takılmış sayılır. */
+export const STALL_SECONDS = 600
 
 const usdt = (value: number) => `${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT`
 export const duration = (seconds: number) => {
@@ -103,11 +107,16 @@ export function liveGuide(input: GuideInput): Guide {
   if (input.fillLocked) return problem('Dolum güvenlik kilidi', `${input.fillLockSymbol ? `${input.fillLockSymbol} işleminde ` : ''}beklenmeyen bir dolum oldu; yeni işlemler senin incelemene kadar kapalı. Açık pozisyon değiştirilmedi.`, 'review-fill-lock', 'İncele')
   if (input.accountRateLimited) return problem('Binance hesap doğrulaması bekleniyor', `${input.accountRateLimitText?.trim() || 'Binance kısa süreli hız sınırı uyguladı.'} Süre bitince kendiliğinden devam eder.`, null, undefined, 'warn')
 
+  if (input.running && (input.lastCycleAgeSeconds ?? 0) > STALL_SECONDS) {
+    return {...base, phase: 'running', tone: 'stop', step: GUIDE_TOTAL, title: 'Strateji bir süredir çalışmıyor',
+      message: `Sunucudaki tarama döngüsü ${duration(input.lastCycleAgeSeconds ?? 0)} önce son kez çalıştı. Sunucu uyumuş, yeniden başlıyor ya da takılmış olabilir. Birkaç dakika içinde düzelmezse Render panelinde servisin çalıştığını kontrol et. Açık pozisyonların stop ve hedefleri Binance'te durur.`,
+      action: 'retry', actionLabel: 'Durumu yenile'}
+  }
   if (input.running) {
     const blocked = input.entryBlocker?.trim()
     return {...base, phase: 'running', tone: blocked || input.dailyLocked ? 'warn' : 'ok', step: GUIDE_TOTAL,
       title: blocked || input.dailyLocked ? 'Çalışıyor · yeni girişler beklemede' : 'Otomatik işlem çalışıyor',
-      message: blocked || (input.dailyLocked ? 'Günlük kayıp sınırı doldu.' : `Strateji coinleri tarıyor; uygun fırsatta stop ve hedefleriyle emir açar.${input.sessionRemainingSeconds > 0 ? ` Oturumun bitmesine ${duration(input.sessionRemainingSeconds)} var.` : ''}`),
+      message: blocked || (input.dailyLocked ? 'Günlük kayıp sınırı doldu.' : 'Strateji coinleri her 15 dakikalık mum kapanışında tarıyor; kurallara uyan fırsatta stop ve hedefleriyle emir açar. Senin bir şey yapmana gerek yok.'),
       action: 'stop', actionLabel: 'Durdur'}
   }
 
@@ -246,4 +255,31 @@ export function dailySummary(input: {realizedPnl?: unknown; entries?: unknown; l
   if (pnl !== null && trades !== 0) parts.push(`gerçekleşen ${pnl > 0 ? '+' : ''}${usdt(pnl)}`)
   if (scans !== null) parts.push(`son 24 saatte ${scans} tarama, ${candidates ?? 0} aday`)
   return {pnl, trades, scans, candidates, lossUsed, text: parts.join(' · ') + '.'}
+}
+
+/** Durum okunamadığında müşteriye "ne yapmalıyım" cevabı: hata metnine göre somut yol. */
+export function statusHelp(error: string | null | undefined): {text: string; href?: string; linkLabel?: string} {
+  const message = String(error || '')
+  if (/2FA/i.test(message)) return {text: 'Canlı işlem için site girişinde iki adımlı doğrulama (2FA) açık olmalı.', href: '/profile', linkLabel: '2FA ayarına git'}
+  if (/başka bir kullanıcı veya oturuma/i.test(message)) return {text: 'Canlı kontrol başka bir oturuma bağlı. Aşağıdaki “Oturumu geri bağla” ile 2FA kodunla devam edebilirsin.'}
+  if (/(401|oturum(un)? (süresi|sona))/i.test(message)) return {text: 'Oturumun sona ermiş olabilir. Sayfayı yenileyip tekrar giriş yap.'}
+  if (/anahtar|fingerprint|uyuşmuyor/i.test(message)) return {text: 'Kayıtlı Binance anahtarı ile canlı durum eşleşmiyor. Bağlantı sekmesinden anahtarı kontrol et.', href: '/master-trade?tab=baglanti', linkLabel: 'Bağlantı'}
+  return {text: 'Sunucu şu an yanıt vermiyor; yeniden başlıyor ya da uykudan uyanıyor olabilir (ücretsiz planda yaklaşık 1 dakika). Kendiliğinden tekrar deneniyor; 2 dakikadan uzun sürerse Render panelinde servisin çalıştığını kontrol et.'}
+}
+
+/** Sıradaki tarama: strateji her 15 dakikalık mum kapanışında (UTC hizalı) tarar. Engel bekleniyorsa engelin bitişi. */
+export function nextScan(nowMs: number, opts: {waitUntilMs?: number | null} = {}): {at: number; inSeconds: number} {
+  const boundary = Math.ceil((nowMs + 1) / 900_000) * 900_000
+  const at = opts.waitUntilMs && opts.waitUntilMs > nowMs ? Math.max(boundary, Math.ceil(opts.waitUntilMs / 900_000) * 900_000) : boundary
+  return {at, inSeconds: Math.max(0, Math.round((at - nowMs) / 1000))}
+}
+
+/** Bağlantı geçici koptuğunda: son DOĞRULANAN durum ve ne kadar önce olduğu; ilerleme sıfırlanmaz. */
+export function reconnectingGuide(last: GuideInput, ageSeconds: number, error: string | null | undefined): Guide {
+  const before = liveGuide(last)
+  const help = statusHelp(error)
+  const state = before.phase === 'running' ? 'otomatik işlem çalışıyordu' : `kurulumda ${before.step}. adımdaydın (${GUIDE_STEPS[before.step - 1]})`
+  return {phase: 'problem', tone: 'wait', step: before.step, title: 'Bağlantı geçici olarak koptu',
+    message: `Son doğrulanan durum (${duration(ageSeconds)} önce): ${state}. ${help.text} Yeni işlem ancak durum yeniden doğrulanınca açılır; açık pozisyonların stop ve hedefleri Binance'te durur.`,
+    action: 'retry', actionLabel: 'Şimdi tekrar dene', notices: []}
 }
