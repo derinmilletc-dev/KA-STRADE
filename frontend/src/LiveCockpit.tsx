@@ -3,7 +3,7 @@ import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, 
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
-  smartAlerts, whyNoTrade, type GuideInput, type GuideNotice,
+  smartAlerts, whyNoTrade, statusHelp, nextScan, reconnectingGuide, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -74,9 +74,28 @@ const writeStored = (key: string | null, value: number) => {
 }
 const validCoins = (value: number) => Number.isInteger(value) && value >= 10 && value <= 100
 const validHours = (value: number) => [1, 4, 12, 24].includes(value)
+const NEAR_TEXT: Record<string, string> = {
+  confidence_low: 'güven skoru düşük', signal_conditions: 'trend/sinyal oluşmadı', stop_too_wide: 'stop %6 sınırından geniş', spread_wide: 'alış-satış farkı geniş',
+  market_volume: 'hacim düşük', market_move: 'fiyat hareketi yetersiz', minimum_trade_size: 'Binance minimum tutarı', minimum_margin: 'teminat sınırı', position_limit: 'pozisyon sınırı dolu',
+}
 const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk > 1 ? 'yellow' : 'normal'
 
-export default function LiveCockpit({status, verified, loading, guideInput, wallet, availableBalance, marketBanSeconds, externalBusy, userId, request, refresh, findPlan, extras}: Props) {
+const STALE_LIMIT_MS = 30 * 60 * 1000
+
+export default function LiveCockpit(props: Props) {
+  const {loading, availableBalance, marketBanSeconds, userId, request, refresh, findPlan, extras} = props
+  // Bağlantı geçici koparsa (zaman aşımı, sunucu yeniden başlıyor) son DOĞRULANAN görünüm 30 dk'ya kadar soluk ve
+  // "x önce" etiketiyle gösterilir; rehber ilerlemeyi sıfırlamaz. Bu sırada değiştiren istekler kapalıdır (durdurma hariç).
+  const lastGood = useRef<{status: SharedLiveStatus; input: GuideInput; wallet: number | null; at: number} | null>(null)
+  if (props.verified && props.status && props.guideInput.connected) lastGood.current = {status: props.status, input: props.guideInput, wallet: props.wallet, at: Date.now()}
+  const staleSnapshot = !props.verified && !props.loading && lastGood.current && Date.now() - lastGood.current.at < STALE_LIMIT_MS ? lastGood.current : null
+  const stale = staleSnapshot !== null
+  const status = staleSnapshot ? staleSnapshot.status : props.status
+  const guideInput = staleSnapshot ? staleSnapshot.input : props.guideInput
+  const wallet = staleSnapshot ? staleSnapshot.wallet : props.wallet
+  const verified = props.verified || stale
+  const externalBusy = props.externalBusy || stale
+  const staleAge = staleSnapshot ? Math.max(0, Math.round((Date.now() - staleSnapshot.at) / 1000)) : 0
   const original = status?.original_v2_live
   // Risk adımı: sunucuda risk revizyonu varsa tamam. Eski kayıtlarda revizyon olmayabilir (aynı değer yeniden
   // kaydedilince sunucu yeni revizyon yazmaz); bu durumda bu tarayıcıda sunucunun DOĞRULADIĞI son kayıt
@@ -85,8 +104,11 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
   const [riskConfirmed, setRiskConfirmed] = useState<string | null>(() => { try { return confirmKey ? localStorage.getItem(confirmKey) : null } catch { return null } })
   const riskSignature = original ? `${original.risk_percent}|${original.daily_loss_percent}` : null
   const riskConfirmedHere = riskSignature !== null && riskConfirmed === riskSignature
-  const effectiveInput: GuideInput = {...guideInput, riskApproved: guideInput.riskApproved || riskConfirmedHere}
-  const guide = liveGuide(effectiveInput)
+  const cycleAt = Date.parse(String(original?.scanner?.last_cycle_at || ''))
+  const effectiveInput: GuideInput = {...guideInput, riskApproved: guideInput.riskApproved || riskConfirmedHere,
+    lastCycleAgeSeconds: Number.isFinite(cycleAt) ? Math.max(0, (Date.now() - cycleAt) / 1000) : null}
+  const guide = staleSnapshot ? reconnectingGuide(effectiveInput, staleAge, props.guideInput.statusError) : liveGuide(effectiveInput)
+  const help = guide.phase === 'problem' && guide.action === 'retry' && !staleSnapshot ? statusHelp(props.guideInput.statusError) : null
   const [sheet, setSheet] = useState<Sheet>(null)
   const [working, setWorking] = useState('')
   const flight = useRef(false)
@@ -348,7 +370,6 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
   }) : [])]
   const why = running ? whyNoTrade(original?.scanner) : null
   const today = live ? dailySummary({realizedPnl: status?.daily?.realized_pnl, entries: status?.daily?.entries, last24h: original?.scanner?.last_24h, dailyLoss, dailyLimit}) : null
-  const events = (status?.events ?? []).slice(0, 12)
   const eventTone = (kind: unknown) => NOTIFY_KINDS.find(item => item.pattern.test(String(kind || '')))?.tone ?? 'mute'
   const notify = useMemo(() => {
     try { const prefs = loadNotifyPrefs(); return prefs.browser && browserNotificationState() === 'granted' } catch { return false }
@@ -526,41 +547,80 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
       <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || code.length < 6 || Boolean(working)} onClick={() => void secure(sheet)}>{working === sheet ? 'Doğrulanıyor…' : sheet === 'recovery' ? 'Kontrolü yap' : 'Kilidi kaldır'}</button></div>
   </> : null
 
-  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase}>
-    <div className="lcTopbar">
-      <span className="lcPill" data-on={guideInput.connected && verified || undefined}><i aria-hidden="true"/>{verified ? guideInput.connected ? 'Binance bağlı' : guideInput.credentialsConfigured ? 'Binance okunamıyor' : 'Binance bağlı değil' : loading ? 'Durum okunuyor' : 'Durum doğrulanamadı'}</span>
-      {verified && wallet !== null && <span className="lcPill lcPillPlain">Bakiye <b>{usdt(wallet)}</b></span>}
-      <span className="lcTopSpacer"/>
-      <a className="lcPill lcPillLink" href="/profile#notify-settings"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
-      <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı ayarları →</a>
-    </div>
+  // ---- Durum çubuğu, tarama kartı ve akış için türetilen değerler.
+  const pnlToday = live ? finite(status?.daily?.realized_pnl) : null
+  const scanner = original?.scanner
+  const banWaits = marketBanSeconds > 0 && !guideInput.scanningContinues
+  const upcoming = running ? nextScan(now, {waitUntilMs: banWaits ? now + marketBanSeconds * 1000 : null}) : null
+  const lastScanMs = Date.parse(String(scanner?.last_scan_at || ''))
+  const ago = (ms: number) => Number.isFinite(ms) ? `${duration(Math.max(0, (now - ms) / 1000))} önce` : ''
+  const sessionEndsAt = Date.parse(String(original?.session?.expires_at || ''))
+  const sessionStartedAt = Date.parse(String(original?.session?.started_at || ''))
+  const barState = stale ? {tone: 'wait', label: 'Bağlantı yok · yeniden bağlanıyor'}
+    : guide.phase === 'loading' ? {tone: 'wait', label: 'Durum okunuyor'}
+    : guide.phase === 'running' ? guide.tone === 'stop' ? {tone: 'stop', label: 'Çalışıyor · döngü yanıt vermiyor'} : guide.tone === 'warn' ? {tone: 'warn', label: 'Çalışıyor · girişler beklemede'} : {tone: 'ok', label: 'Çalışıyor'}
+    : guide.phase === 'problem' ? {tone: guide.tone === 'stop' ? 'stop' : 'warn', label: 'Dikkat gerekiyor'}
+    : guideInput.paused ? {tone: 'mute', label: 'Durdu'} : {tone: 'go', label: `Kurulum · Adım ${guide.step}/${GUIDE_STEPS.length}`}
+  const [eventFilter, setEventFilter] = useState<'all' | 'trade' | 'warn' | 'system'>('all')
+  const eventGroup = (kind: unknown): 'trade' | 'warn' | 'system' => {
+    const match = NOTIFY_KINDS.find(item => item.pattern.test(String(kind || '')))
+    return !match ? 'system' : match.id === 'entry' || match.id === 'close' ? 'trade' : 'warn'
+  }
+  const allEvents = status?.events ?? []
+  const shownEvents = allEvents.filter(event => eventFilter === 'all' || eventGroup(event.kind) === eventFilter).slice(0, 14)
+  const nearMisses = (scanner?.near_misses ?? []).slice(0, 3)
+  // Çalışırken bağlantı koparsa da koç görünümü kalır (adım çubuğuna geri dönülmez).
+  const coach = guide.phase === 'running' || (stale && guideInput.running)
+  const timeline = coach ? [
+    {label: 'Başladı', value: Number.isFinite(sessionStartedAt) ? clock(original?.session?.started_at) : '—', state: 'done'},
+    {label: 'Son tarama', value: Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : 'bekleniyor', state: 'done'},
+    {label: 'Sıradaki tarama', value: upcoming ? `${new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})} · ${duration(upcoming.inSeconds)}` : '—', state: 'now'},
+    {label: 'Oturum biter', value: Number.isFinite(sessionEndsAt) ? clock(original?.session?.expires_at) : '—', state: 'todo'},
+  ] : []
+  const settingsDrawerOpen = settingsOpen && coach
+
+  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined}>
+    <header className="lcStatusBar" data-tone={barState.tone}>
+      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div></div>
+      <dl className="lcStatusStats">
+        {running && <div><dt>Oturum</dt><dd data-testid="original-session-remaining">{sessionLeft > 0 ? `${duration(sessionLeft)} kaldı` : '—'}</dd></div>}
+        {running && <div><dt>Son tarama</dt><dd>{Number.isFinite(lastScanMs) ? `${clock(scanner?.last_scan_at)} · ${scanner?.scanned_symbol_count ?? 0} coin` : 'bekleniyor'}</dd></div>}
+        {upcoming && <div><dt>Sonraki tarama</dt><dd data-testid="live-next-scan">{new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})} · {duration(upcoming.inSeconds)}</dd></div>}
+        <div><dt>Bakiye</dt><dd>{verified && wallet !== null ? usdt(wallet) : '—'}</dd></div>
+        <div><dt>Bugün</dt><dd data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</dd></div>
+      </dl>
+      <div className="lcStatusLinks">
+        <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
+        <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı →</a>
+        {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
+      </div>
+    </header>
+    {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
     <div className="lcGrid">
       <div className="lcMain">
         <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
-            <div><b>KAİS REHBER</b><small>{guide.phase === 'running' ? 'Kurulum tamam · çalışıyor' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · sonra kaldığın adımdan devam' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
+            <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
             <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
           </header>
-          <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
-            const state = index < progressDone ? 'done' : index === currentIndex && guide.phase !== 'running' && guide.phase !== 'loading' ? guide.phase === 'problem' ? 'problem' : 'current' : 'todo'
+          {!coach && <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
+            const state = index < progressDone ? 'done' : index === currentIndex && guide.phase !== 'loading' ? guide.phase === 'problem' ? 'problem' : 'current' : 'todo'
             return <li key={label} data-state={state} aria-current={state === 'current' ? 'step' : undefined}><i/><span>{label}</span></li>
-          })}</ol>
+          })}</ol>}
           {guide.done && <p className="lcDone"><span aria-hidden="true"><Check/></span>{guide.done}</p>}
           <h2 className="lcGuideTitle">{guide.title}</h2>
           <p className="lcGuideMsg">{guide.message}</p>
-          {running && <div className="lcRunMeta">
-            <span><small>Oturum</small><b data-testid="original-session-remaining">{sessionLeft > 0 ? `${duration(sessionLeft)} kaldı` : '—'}</b></span>
-            <span><small>Tarama</small><b>{scanStage[original?.scanner?.stage || ''] || 'İlk tarama bekleniyor'}</b></span>
-            <span><small>Son tarama</small><b>{clock(original?.scanner?.last_scan_at)} · {original?.scanner?.scanned_symbol_count ?? 0} coin</b></span>
-            <span><small>Yeni giriş</small><b data-testid="original-entry-status">{guideInput.entryBlocker ? 'Beklemede' : 'Açık · sinyal bekleniyor'}</b></span>
-          </div>}
+          {help && <p className="lcHelp"><b>Ne yapmalıyım?</b> {help.text}{help.href && <> <a href={help.href}>{help.linkLabel} →</a></>}</p>}
+          {coach && <ol className="lcTimeline" aria-label="Oturum zaman çizelgesi">{timeline.map(item => <li key={item.label} data-state={item.state}><i aria-hidden="true"/><small>{item.label}</small><b>{item.value}</b></li>)}</ol>}
+          {coach && !stale && <p className="lcCoachLine" data-testid="original-entry-status">{guideInput.entryBlocker ? `Yeni giriş beklemede: ${guideInput.entryBlocker}` : 'Yeni giriş açık · kurallara uyan fırsat çıkınca stop ve hedefleriyle emir açılır.'}</p>}
           <div className="lcGuideActions">
-            {guide.action && guide.actionLabel && (guide.action === 'open-connection'
+            {guide.action && guide.actionLabel && guide.action !== 'stop' && (guide.action === 'open-connection'
               ? <a className="lcBtn lcPrimary" href="/master-trade?tab=baglanti" data-testid="live-guide-action" onClick={event => { event.preventDefault(); goTab('baglanti') }}>{guide.actionLabel}</a>
-              : <button type="button" className={`lcBtn ${guide.action === 'stop' ? 'lcDanger' : 'lcPrimary'}`} data-testid="live-guide-action" disabled={busy && guide.action !== 'stop' || working === 'stop'} onClick={() => act()}>{actionIcon}{guide.action === 'retry' && working === 'retry' ? 'Okunuyor…' : guide.actionLabel}</button>)}
+              : <button type="button" className="lcBtn lcPrimary" data-testid="live-guide-action" disabled={busy && guide.action !== 'retry'} onClick={() => act()}>{actionIcon}{guide.action === 'retry' && working === 'retry' ? 'Okunuyor…' : guide.actionLabel}</button>)}
             {guide.why && <button type="button" className="lcBtn lcGhost" aria-expanded={whyOpen} onClick={() => setWhyOpen(value => !value)}>Neden gerekli?</button>}
+            {coach && <button type="button" className="lcBtn lcGhost" onClick={() => { setSettingsOpen(true); window.setTimeout(() => document.getElementById('lc-drawer')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 30) }}>Risk ayarını gör</button>}
           </div>
           {whyOpen && guide.why && <p className="lcWhy">{guide.why}</p>}
           {retryIn !== null && <p className="lcRetry" role="status"><RefreshCw aria-hidden="true" className="lcSpin"/>{retryIn > 0 ? `${retryIn} sn sonra kendiliğinden tekrar denenecek` : 'Tekrar deneniyor…'}{retry.attempt > 0 ? ` · ${retry.attempt + 1}. deneme` : ''}</p>}
@@ -568,19 +628,26 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
 
         {alerts.length > 0 && <div className="lcAlerts">{alerts.map((item, index) => <p key={index} className="lcAlert" data-tone={item.tone}>{item.tone === 'ok' ? <ShieldCheck aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{item.text}</p>)}</div>}
 
-        {why && <section className="lcWhyNo" aria-label="Neden işlem açılmadı?"><div><small>NEDEN İŞLEM AÇILMADI?</small><p>{why}</p></div>
-          <button type="button" className="lcAsk" onClick={() => askKais('Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.')}><MessageCircle aria-hidden="true"/>Kais’e sor</button></section>}
-
-        <div className="lcMetrics">
-          <article><small>Bakiye</small><b>{verified && wallet !== null ? usdt(wallet) : '—'}</b></article>
-          <article><small>Bugün · gerçekleşen</small><b data-sign={(finite(status?.daily?.realized_pnl) ?? 0) < 0 ? 'down' : (finite(status?.daily?.realized_pnl) ?? 0) > 0 ? 'up' : undefined}>{live ? usdt(finite(status?.daily?.realized_pnl), true) : '—'}</b></article>
-          <article><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></article>
-          <article><small>Günlük kayıp sınırı</small><b className="lcSmall">{dailyLoss !== null && dailyLimit !== null ? `${usdt(dailyLoss)} / ${usdt(dailyLimit)}` : '—'}</b>
-            {dailyLoss !== null && dailyLimit !== null && <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={Math.min(dailyLimit, Math.max(0, dailyLoss))} data-high={dailyLoss / dailyLimit >= 0.8 || undefined}><i style={{width: `${Math.min(100, Math.max(0, dailyLoss / dailyLimit * 100))}%`}}/></div>}</article>
-        </div>
+        {(running || scanner?.last_scan_at) && <section className="lcCard lcScan" aria-label="Canlı tarama">
+          <header className="lcCardHead"><div><small>CANLI TARAMA</small><h3>{scanStage[scanner?.stage || ''] || (running ? 'İlk tarama bekleniyor' : 'Strateji durdu')}</h3></div>
+            <button type="button" className="lcAsk" onClick={() => askKais('Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.')}><MessageCircle aria-hidden="true"/>Kais’e sor</button></header>
+          <div className="lcScanStats">
+            <span><small>Son tarama</small><b>{Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : '—'}</b><em>{Number.isFinite(lastScanMs) ? ago(lastScanMs) : 'henüz yok'}</em></span>
+            <span data-accent><small>Sonraki tarama</small><b>{upcoming ? new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</b><em>{upcoming ? banWaits ? 'Binance engeli bitince' : `${duration(upcoming.inSeconds)} sonra` : 'strateji çalışmıyor'}</em></span>
+            <span><small>Taranan</small><b>{scanner?.scanned_symbol_count ?? 0} coin</b><em>{scanner?.candidate_count ? `${scanner.candidate_count} aday` : 'aday yok'}</em></span>
+            <span><small>Son 24 saat</small><b>{scanner?.last_24h?.scans ?? 0} tarama</b><em>{scanner?.last_24h?.candidates ?? 0} aday · {scanner?.last_24h?.trades ?? 0} işlem</em></span>
+          </div>
+          {why && <div className="lcWhyNo"><small>NEDEN İŞLEM AÇILMADI?</small><p>{why}</p></div>}
+          {nearMisses.length > 0 && <ul className="lcNear" aria-label="Sinyale en yakın coinler">{nearMisses.map(item => {
+            const conf = finite(item.confidence), need = finite(item.confidence_threshold)
+            return <li key={item.symbol}><b>{item.symbol.replace('USDT', '')}</b><span>{NEAR_TEXT[item.reason_code] ?? item.reason ?? 'kurallara uymadı'}</span>
+              {conf !== null && need !== null && <i className="lcConf" title={`Güven %${conf}, gereken %${need}`}><em style={{width: `${Math.min(100, Math.max(0, conf))}%`}} data-pass={conf >= need || undefined}/><u style={{left: `${Math.min(100, Math.max(0, need))}%`}}/></i>}
+              <small>{conf !== null ? `güven %${conf}${need !== null ? ` / %${need}` : ''}` : ''}</small></li>
+          })}</ul>}
+        </section>}
 
         <section className="lcCard" aria-label="Açık pozisyonlar">
-          <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>Açık pozisyonlar</h3></div><small>{live ? 'Binance verisi' : 'Doğrulama bekleniyor'}</small></header>
+          <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>Açık pozisyonlar{live ? ` · ${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : ''}</h3></div><small>{live ? stale ? `${duration(staleAge)} önce` : 'Binance verisi' : 'Doğrulama bekleniyor'}</small></header>
           {positions.length === 0 ? <p className="lcEmpty">{live ? running ? 'Şu an açık pozisyon yok. Uygun fırsat çıkınca stop ve hedefleriyle burada görünür.' : 'Açık pozisyon yok.' : 'Güncel pozisyonlar doğrulanamadı.'}</p>
             : <div className="lcPositions">{positions.map((position, index) => {
               const plan = findPlan(position)
@@ -608,22 +675,31 @@ export default function LiveCockpit({status, verified, loading, guideInput, wall
       </div>
 
       <aside className="lcSide">
-        {original && strategyCard}
-        {today && <section className="lcCard lcToday" aria-label="Gün özeti">
+        {original && !coach && strategyCard}
+        <section className="lcCard lcToday" aria-label="Gün özeti">
           <header className="lcCardHead"><div><small>GÜN ÖZETİ</small><h3>Bugün</h3></div></header>
-          <p>{today.text}</p>
-          {today.lossUsed !== null && today.lossUsed > 0 && <p className="lcHint">Günlük kayıp sınırı kullanımı: %{Math.round(today.lossUsed)}</p>}
-        </section>}
+          <p>{today ? today.text : 'Hesap doğrulanınca bugünün özeti burada görünür.'}</p>
+          <div className="lcDayLimit"><span><small>Günlük kayıp sınırı</small><b>{dailyLoss !== null && dailyLimit !== null ? `${usdt(dailyLoss)} / ${usdt(dailyLimit)}` : '—'}</b></span>
+            {dailyLoss !== null && dailyLimit !== null && <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={Math.min(dailyLimit, Math.max(0, dailyLoss))} data-high={dailyLoss / dailyLimit >= 0.8 || undefined}><i style={{width: `${Math.min(100, Math.max(0, dailyLoss / dailyLimit * 100))}%`}}/></div>}</div>
+        </section>
         <section className="lcCard lcEvents" aria-label="Son olaylar">
           <header className="lcCardHead"><div><small>AKIŞ</small><h3>Son olaylar</h3></div></header>
-          {!verified && events.length > 0 && <p className="lcHint">Son görülen kayıtlar; güncel durum doğrulanamadı.</p>}
-          {events.length === 0 ? <p className="lcEmpty">Henüz olay yok.</p> : <ul>{events.map((event, index) => <li key={`${event.created_at}-${index}`} data-tone={eventTone(event.kind)}>
+          <div className="lcChips" role="tablist" aria-label="Olay filtresi">{([['all', 'Tümü'], ['trade', 'İşlemler'], ['warn', 'Uyarılar'], ['system', 'Sistem']] as const).map(([id, label]) =>
+            <button type="button" role="tab" key={id} aria-selected={eventFilter === id} data-on={eventFilter === id || undefined} onClick={() => setEventFilter(id)}>{label}</button>)}</div>
+          {!verified && allEvents.length > 0 && <p className="lcHint">Son görülen kayıtlar; güncel durum doğrulanamadı.</p>}
+          {shownEvents.length === 0 ? <p className="lcEmpty">{allEvents.length ? 'Bu filtrede olay yok.' : 'Henüz olay yok.'}</p> : <ul>{shownEvents.map((event, index) => <li key={`${event.created_at}-${index}`} data-tone={eventTone(event.kind)}>
             <time>{clock(event.created_at)}</time><span>{event.message ?? String(event.kind || '').replaceAll('_', ' ')}</span></li>)}</ul>}
         </section>
       </aside>
     </div>
 
-    {extras}
+    <details className="lcDrawer" id="lc-drawer" open={settingsDrawerOpen || undefined} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (coach) setSettingsOpen(open) }}>
+      <summary><span><b>Ayarlar ve gelişmiş</b><small>Risk ayarı · manuel emir · kurtarma ve acil durdurma</small></span><ChevronDown aria-hidden="true"/></summary>
+      <div className="lcDrawerBody">
+        {original && coach && strategyCard}
+        {extras}
+      </div>
+    </details>
 
     {flash && <div className="lcToast" data-tone={flash.tone} role="status"><i aria-hidden="true"/><span>{flash.text}</span><button type="button" aria-label="Kapat" onClick={() => setFlash(null)}><X aria-hidden="true"/></button></div>}
     {sheetView && <div className="lcBackdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeSheet() }}>

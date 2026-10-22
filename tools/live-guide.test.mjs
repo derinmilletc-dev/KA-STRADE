@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary} from '../frontend/src/live-guide.ts'
+import {liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide} from '../frontend/src/live-guide.ts'
 
 const ready = {
   statusLoaded: true, statusVerified: true, statusError: null, loading: false, freeTrial: false,
@@ -67,7 +67,7 @@ test('missing balance blocks the risk step instead of guessing amounts', () => {
 test('running state explains blocked entries and offers stop', () => {
   const ok = guide({running: true, sessionRemainingSeconds: 7200})
   assert.deepEqual([ok.phase, ok.tone, ok.action], ['running', 'ok', 'stop'])
-  assert.match(ok.message, /2 sa 0 dk/)
+  assert.match(ok.message, /her 15 dakikalık mum/)
   const blocked = guide({running: true, entryBlocker: 'Binance genel engeli aktif.'})
   assert.equal(blocked.tone, 'warn')
   assert.equal(blocked.message, 'Binance genel engeli aktif.')
@@ -158,4 +158,31 @@ test('daily summary reads like a sentence and needs data', () => {
   const busy = dailySummary({entries: 2, realizedPnl: -1.5, dailyLoss: 1.5, dailyLimit: 6})
   assert.equal(busy.text, 'Bugün 2 işlem · gerçekleşen -1,50 USDT.')
   assert.equal(busy.lossUsed, 25)
+})
+
+test('a stalled strategy loop is reported while running', () => {
+  assert.equal(guide({running: true, lastCycleAgeSeconds: 90}).tone, 'ok')
+  const stalled = guide({running: true, lastCycleAgeSeconds: 1500})
+  assert.deepEqual([stalled.tone, stalled.action], ['stop', 'retry'])
+  assert.match(stalled.message, /25 dk 0 sn önce/)
+})
+
+test('status help gives a concrete next step', () => {
+  assert.match(statusHelp('İstek zaman aşımına uğradı.').text, /Render panelinde/)
+  assert.equal(statusHelp('LIVE için site girişinde 2FA korumasını etkinleştirin.').href, '/profile')
+  assert.match(statusHelp('LIVE kontrolü başka bir kullanıcı veya oturuma ait.').text, /Oturumu geri bağla/)
+})
+
+test('next scan follows the 15 minute close and waits for a ban', () => {
+  const now = Date.parse('2026-10-22T10:47:30Z')
+  assert.deepEqual(nextScan(now), {at: Date.parse('2026-10-22T11:00:00Z'), inSeconds: 750})
+  assert.equal(nextScan(Date.parse('2026-10-22T11:00:00Z')).at, Date.parse('2026-10-22T11:15:00Z'))
+  assert.equal(nextScan(now, {waitUntilMs: Date.parse('2026-10-22T12:16:00Z')}).at, Date.parse('2026-10-22T12:30:00Z'))
+})
+
+test('a dropped connection keeps the last verified progress', () => {
+  const lost = reconnectingGuide({...ready, running: true}, 125, 'İstek zaman aşımına uğradı.')
+  assert.deepEqual([lost.phase, lost.tone, lost.action, lost.step], ['problem', 'wait', 'retry', 4])
+  assert.match(lost.message, /2 dk 5 sn önce\): otomatik işlem çalışıyordu/)
+  assert.match(reconnectingGuide({...ready, riskApproved: false}, 30, '').message, /2\. adımdaydın \(Risk ayarı\)/)
 })
