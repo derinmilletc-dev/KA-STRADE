@@ -7323,6 +7323,7 @@ async def require_live_understanding(request: Request, user: dict[str, Any], und
 async def _start_live_auto_session(
     request: Request, body: Confirmation, *,
     state_lock_held: bool = False,
+    unlimited_daily_trades: bool = False,
 ) -> dict[str, Any]:
     user = execution_owner(request)
     await require_live_understanding(request, user, body.understood)
@@ -7339,7 +7340,7 @@ async def _start_live_auto_session(
             "message": "LIVE Auto Trade yalnızca 15m zaman diliminde çalışır. Başlatmak için timeframe'i 15m seçip politikayı kaydedin.",
             "required_interval": "15m",
         })
-    allowed, reason = live_auto_start_gate(request.app, state, request)
+    allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades)
     if not allowed:
         raise HTTPException(423, reason)
     lock_context = nullcontext() if state_lock_held else state["lock"]
@@ -7348,7 +7349,7 @@ async def _start_live_auto_session(
             raise HTTPException(409, "Canlı otomasyon zaten aktif; mevcut oturum uzatılmadı.")
         if state["policy"].get("interval") != "15m":
             raise HTTPException(423, "Onay sırasında politika değişti; LIVE Auto Trade yalnız 15m ile başlar.")
-        allowed, reason = live_auto_start_gate(request.app, state, request)
+        allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades)
         if not allowed:
             raise HTTPException(423, reason)
         state["auto"].update({"enabled": True, "session_until": time.time() + LIVE_AUTO_SESSION_SECONDS, "last_error": None, "last_decision": "Bir saatlik gözetimli canlı tarama başlatıldı."})

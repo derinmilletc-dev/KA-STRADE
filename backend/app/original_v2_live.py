@@ -1206,7 +1206,7 @@ async def start(request: Request, body: Start) -> dict[str, Any]:
                 raise HTTPException(423, "Original V2 başlatma sırasında durduruldu.")
             await live._start_live_auto_session(
                 request, live.Confirmation(understood=True),
-                state_lock_held=True,
+                state_lock_held=True, unlimited_daily_trades=True,
             )
             started = time.time()
             consent = live.consent_status(state, request)
