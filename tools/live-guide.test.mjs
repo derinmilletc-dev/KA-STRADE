@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide} from '../frontend/src/live-guide.ts'
+import {liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
 
 const ready = {
   statusLoaded: true, statusVerified: true, statusError: null, loading: false, freeTrial: false,
@@ -185,4 +185,33 @@ test('a dropped connection keeps the last verified progress', () => {
   assert.deepEqual([lost.phase, lost.tone, lost.action, lost.step], ['problem', 'wait', 'retry', 4])
   assert.match(lost.message, /2 dk 5 sn önce\): otomatik işlem çalışıyordu/)
   assert.match(reconnectingGuide({...ready, riskApproved: false}, 30, '').message, /2\. adımdaydın \(Risk ayarı\)/)
+})
+
+test('24h rejection breakdown ranks reasons and gates from real counts only', () => {
+  const now = Date.parse('2026-10-23T10:00:00Z')
+  const since = now / 1000 - 5 * 3600
+  const result = rejectionBreakdown({scans: 20, since_epoch: since, reasons: {signal_conditions: 600, stop_too_wide: 120, confidence_low: 80, junk: 0}, checks: {direction: 600, mtf: 50, confidence: 80, bogus_zero: 0}}, now)
+  assert.equal(result.scans, 20)
+  assert.deepEqual(result.reasons.map(row => [row.key, row.count, row.percent]), [['signal_conditions', 600, 75], ['stop_too_wide', 120, 15], ['confidence_low', 80, 10]])
+  assert.equal(result.reasons[0].bar, 100)
+  assert.equal(result.reasons[1].bar, 20)
+  assert.equal(result.reasons[0].label, 'Trend/sinyal koşulu oluşmadı')
+  assert.deepEqual(result.gates.map(row => row.key), ['direction', 'confidence', 'mtf'])
+  assert.equal(result.gates[0].label, 'Net trend yok (yön belirsiz)')
+  assert.match(result.headline, /^Son 5 saatte 20 taramada en sık eleme: trend\/sinyal koşulu oluşmadı \(%75\)\.$/)
+  assert.equal(result.thin, false)
+})
+
+test('24h rejection breakdown never invents data when nothing was recorded', () => {
+  assert.equal(rejectionBreakdown(undefined, Date.now()), null)
+  assert.equal(rejectionBreakdown(null, Date.now()), null)
+  assert.equal(rejectionBreakdown({scans: 0, reasons: {a: 5}}, Date.now()), null)
+  assert.equal(rejectionBreakdown({scans: 3, reasons: {}}, Date.now()), null)
+  const few = rejectionBreakdown({scans: 2, since_epoch: null, reasons: {signal_conditions: 10}}, Date.now())
+  assert.equal(few.thin, true)
+  assert.equal(few.hours, null)
+  assert.match(few.headline, /^Kayıtlı taramalarda 2 taramada/)
+  const recent = rejectionBreakdown({scans: 4, since_epoch: Date.now() / 1000 - 600, reasons: {stop_too_wide: 3}}, Date.now())
+  assert.match(recent.headline, /^Son bir saatte/)
+  assert.equal(recent.reasons[0].label, "Stop %6 sınırından geniş")
 })

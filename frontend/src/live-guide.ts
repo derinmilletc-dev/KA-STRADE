@@ -193,6 +193,38 @@ export function whyNoTrade(scanner: Scanner): string | null {
   return top ? `Son taramada ${scanned} coinin hiçbiri kurallara uymadı; en sık sebep: ${REJECTION_TEXT[top[0]] ?? top[0]} (${top[1]} coin).` : `Son taramada ${scanned} coinde uygun fırsat çıkmadı.`
 }
 
+export type RejectionSummary = {scans?: number; since_epoch?: number | null; reasons?: Record<string, number>; checks?: Record<string, number>} | null | undefined
+export type RejectionRow = {key: string; label: string; count: number; percent: number; bar: number}
+export type RejectionBreakdown = {scans: number; hours: number | null; reasons: RejectionRow[]; gates: RejectionRow[]; headline: string; thin: boolean}
+
+const GATE_TEXT: Record<string, string> = {
+  direction: 'Net trend yok (yön belirsiz)', confidence: 'Güven eşiğin altında', trap: 'Tuzak skoru yüksek',
+  breakout: 'Kırılım kalitesi düşük', mtf: '1h/4h yönü uyuşmuyor',
+}
+const cap = (text: string) => text.charAt(0).toLocaleUpperCase('tr-TR') + text.slice(1)
+
+function rows(counts: Record<string, number> | undefined, labels: (key: string) => string, limit: number): RejectionRow[] {
+  const entries = Object.entries(counts ?? {}).filter(([, count]) => Number.isFinite(count) && count > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  const total = entries.reduce((sum, [, count]) => sum + count, 0)
+  const top = entries[0]?.[1] ?? 0
+  return entries.slice(0, limit).map(([key, count]) => ({key, label: labels(key), count, percent: total ? Math.round(count / total * 100) : 0, bar: top ? Math.round(count / top * 100) : 0}))
+}
+
+/** Son 24 saatte coinlerin hangi kapıda elendiği. Sayılar "coin × tarama"dır; veri yoksa null (uydurma yok). */
+export function rejectionBreakdown(summary: RejectionSummary, nowMs: number): RejectionBreakdown | null {
+  const scans = Number(summary?.scans)
+  if (!summary || !Number.isFinite(scans) || scans < 1) return null
+  const reasons = rows(summary.reasons, key => cap(REJECTION_TEXT[key] ?? key), 6)
+  const gates = rows(summary.checks, key => GATE_TEXT[key] ?? key, 5)
+  if (!reasons.length) return null
+  const since = Number(summary.since_epoch)
+  const hours = Number.isFinite(since) && since > 0 && nowMs / 1000 >= since ? Math.max(0, (nowMs / 1000 - since) / 3600) : null
+  const thin = scans < 4
+  const span = hours !== null ? (hours < 1 ? 'son bir saatte' : `son ${Math.round(hours)} saatte`) : 'kayıtlı taramalarda'
+  const headline = `${cap(span)} ${scans} taramada en sık eleme: ${REJECTION_TEXT[reasons[0].key] ?? reasons[0].key} (%${reasons[0].percent}).`
+  return {scans, hours, reasons, gates, headline, thin}
+}
+
 /** Okuma hatalarında kendiliğinden yeniden deneme aralığı (sn): 5, 10, 20, 40, sonra 60'ta sabit.
  *  Yalnız durum OKUMASI tekrarlanır; emir, izin veya başlatma gibi değiştiren istekler asla kendiliğinden tekrarlanmaz. */
 export const retryDelay = (attempt: number) => Math.min(60, 5 * 2 ** Math.max(0, Math.min(4, Math.floor(attempt))))

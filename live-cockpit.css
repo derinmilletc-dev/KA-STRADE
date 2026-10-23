@@ -297,6 +297,25 @@
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcConf em{display:block;height:100%;border-radius:99px;background:var(--lc-warn)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcConf em[data-pass]{background:var(--lc-go)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcConf u{position:absolute;top:-3px;width:2px;height:12px;background:var(--lc-ink);border-radius:2px;text-decoration:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej{border-radius:14px!important;background:rgba(0,0,0,.18)!important;overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary{display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px!important;cursor:pointer;list-style:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary::-webkit-details-marker{display:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary>span{display:grid;gap:3px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary small{font-size:11px;letter-spacing:.14em;font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary b{font-size:13.5px;font-weight:650;line-height:1.5;color:#d3dee8}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary svg{flex:none;width:18px;height:18px;color:var(--lc-mute);transition:transform .18s ease}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej[open]>summary svg{transform:rotate(180deg)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRej>summary:focus-visible{outline:2px solid var(--lc-go);outline-offset:-2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 22px;padding:2px 14px 14px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody h4{margin:0 0 8px!important;font-size:12px;letter-spacing:.06em;color:var(--lc-mute);font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody ul{list-style:none;padding:0;margin:0!important;display:grid!important;gap:7px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody li{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 40px;align-items:center;gap:10px;font-size:13px;margin:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody li span{color:#c9d6e1;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody li b{text-align:right;font-variant-numeric:tabular-nums}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody i{display:block;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody i em{display:block;height:100%;border-radius:99px;background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody>p{grid-column:1/-1;margin:0!important;font-size:12px;line-height:1.55;color:var(--lc-mute)}
+@media (max-width:720px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody{grid-template-columns:minmax(0,1fr)}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRejBody li{grid-template-columns:minmax(0,1fr) 72px 40px}}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChips{display:flex!important;flex-wrap:wrap;gap:6px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChips button{min-height:30px;padding:0 12px!important;border-radius:99px!important;background:var(--lc-soft)!important;color:var(--lc-mute)!important;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChips button[data-on]{background:rgba(61,220,151,.16)!important;color:var(--lc-go)!important}
