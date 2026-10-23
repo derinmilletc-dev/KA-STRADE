@@ -368,6 +368,7 @@ def clear_transient_emergency_after_clean_snapshot(state: dict[str, Any]) -> boo
 
 def unresolved_execution_evidence(
     state: dict[str, Any], *, clean_reconciliation_snapshot: bool = False,
+    allow_confirmed_active_plans: bool = False,
 ) -> bool:
     """Return whether state contains evidence of an unresolved LIVE execution."""
     events = state.get("events") if isinstance(state.get("events"), list) else []
@@ -401,7 +402,7 @@ def unresolved_execution_evidence(
             return True
         if plan.get("protection_cleanup_state") in {"UNKNOWN", "RETRY_REQUIRED"}:
             return True
-    if active_plan_ids:
+    if active_plan_ids and not allow_confirmed_active_plans:
         return True
 
     intents = state.get("intents") if isinstance(state.get("intents"), dict) else {}
@@ -417,9 +418,47 @@ def unresolved_execution_evidence(
             for plan in plans.values()
             if isinstance(plan, dict)
         )
-        if not resolved or active_plan_ids:
+        if not resolved or (active_plan_ids and not allow_confirmed_active_plans):
             return True
     return False
+
+
+def positions_fully_accounted_by_confirmed_plans(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
+    """True only when every open position AND every bot-owned order belongs to a live, fully
+    confirmed, exactly-protected plan. Anything unexplained keeps the lock."""
+    plans = state.get("plans") if isinstance(state.get("plans"), dict) else {}
+    active: dict[str, dict[str, Any]] = {}
+    for plan in plans.values():
+        if not isinstance(plan, dict) or not live_plan_is_active(plan):
+            continue
+        symbol = normalize_symbol(str(plan.get("symbol") or ""))
+        if (
+            not symbol
+            or plan.get("provenance_state") != "CONFIRMED"
+            or plan.get("mutation_policy") == "READ_ONLY_EXTERNAL"
+            or plan.get("protection_state") != "MATCHED"
+            or plan.get("protection_match_reason") != "EXACT_IDENTITY"
+            or plan.get("protection_cleanup_state") in {"UNKNOWN", "RETRY_REQUIRED"}
+        ):
+            return False
+        active[symbol] = plan
+    if not active:
+        return False
+    position_symbols = {
+        normalize_symbol(str(row.get("symbol") or ""))
+        for row in snapshot.get("positions", [])
+        if normalize_symbol(str(row.get("symbol") or ""))
+    }
+    if position_symbols != set(active):
+        return False
+    for row in [*snapshot.get("open_orders", []), *snapshot.get("open_algo_orders", [])]:
+        owned = any(
+            str(row.get(key) or "").startswith(LIVE_CLIENT_PREFIX)
+            for key in ("clientOrderId", "client_order_id", "clientAlgoId", "client_algo_id")
+        )
+        if owned and normalize_symbol(str(row.get("symbol") or "")) not in active:
+            return False
+    return True
 
 
 def lock_reconciliation_failure(state: dict[str, Any]) -> None:
@@ -477,11 +516,12 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         for row in snapshot[collection]:
             if not isinstance(row, dict) or not required_fields.issubset(row):
                 return False
+    accounted = emergency.get("reason") == "RECONCILIATION_FAILURE" and positions_fully_accounted_by_confirmed_plans(state, snapshot)
     for row in [*snapshot["open_orders"], *snapshot["open_algo_orders"]]:
         if any(
             str(row.get(key) or "").startswith(LIVE_CLIENT_PREFIX)
             for key in ("clientOrderId", "client_order_id", "clientAlgoId", "client_algo_id")
-        ):
+        ) and not accounted:
             return False
     position_symbols = {
         normalize_symbol(str(row.get("symbol") or ""))
@@ -524,7 +564,7 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         and not state.get("intents")
     )
     if unresolved_execution_evidence(
-        state, clean_reconciliation_snapshot=True,
+        state, clean_reconciliation_snapshot=True, allow_confirmed_active_plans=accounted,
     ) and not clean_credential_precondition_failure:
         return False
     if stale_intent_ids:
