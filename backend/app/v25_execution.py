@@ -4337,7 +4337,8 @@ async def fresh_auto_submission_credentials(
     return credentials
 
 
-def live_auto_start_gate(application: Any, state: dict[str, Any], request: Request | None = None) -> tuple[bool, str]:
+def live_auto_start_gate(application: Any, state: dict[str, Any], request: Request | None = None,
+                         *, unlimited_daily_trades: bool = False) -> tuple[bool, str]:
     """Require every entry authority to be valid before opening automation."""
     from . import original_v2_live
     if original_v2_live.fill_locked(state):
@@ -4389,7 +4390,8 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
         symbol=str(allowed_symbols[0]),
         signal={"direction": direction, "confidence": 100, "radar": {"trap_score": 0}},
         snapshot=snapshot,
-        policy=state["policy"],
+        # Original V2 LIVE'da günlük işlem sayısı sınırı yoktur (0 = sınırsız); diğer kilitler aynen kalır.
+        policy={**state["policy"], "daily_trade_limit": 0} if unlimited_daily_trades else state["policy"],
         daily=daily,
         spread_bps=0.0,
         armed=True,
