@@ -4,7 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "env": {
-    "VITE_API_URL": "https://protrebot-rkpt.onrender.com"
+    "VITE_API_URL": "https://api.kaistrade.com"
   },
   "headers": [
     {
@@ -23,7 +23,7 @@
     }
   ],
   "rewrites": [
-    {"source": "/announcements/unsubscribe", "destination": "https://protrebot-rkpt.onrender.com/announcements/unsubscribe"},
+    {"source": "/announcements/unsubscribe", "destination": "https://api.kaistrade.com/announcements/unsubscribe"},
     {"source": "/privacy", "destination": "/privacy.html"},
     {"source": "/terms", "destination": "/terms.html"},
     {"source": "/risk", "destination": "/risk.html"},

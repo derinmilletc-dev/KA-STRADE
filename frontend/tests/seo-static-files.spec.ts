@@ -48,10 +48,10 @@ test('general crawling is allowed while private routes and sensitive query URLs 
 
 test('Vercel serves SEO files outside the SPA fallback without changing API or OAuth routing',() => {
   expect(rootDeployment.rewrites[0]).toEqual({
-    source:'/api/:path*',destination:'https://protrebot-rkpt.onrender.com/api/:path*',
+    source:'/api/:path*',destination:'https://api.kaistrade.com/api/:path*',
   })
   expect(rootDeployment.env).toEqual({VITE_API_BASE:'/api'})
-  expect(frontendDeployment.env).toEqual({VITE_API_URL:'https://protrebot-rkpt.onrender.com'})
+  expect(frontendDeployment.env).toEqual({VITE_API_URL:'https://api.kaistrade.com'})
   expect(rootDeployment.headers.find(rule => rule.source === '/(.*)')?.headers).toEqual([
     {key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.binance.com wss://stream.binance.com:9443; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"},
     {key:'Strict-Transport-Security',value:'max-age=31536000; includeSubDomains'},
@@ -97,8 +97,8 @@ test('Vercel serves SEO files outside the SPA fallback without changing API or O
     }
     return null
   }
-  expect(resolveRootRoute('/api/v22/auth/google/callback')).toBe('https://protrebot-rkpt.onrender.com/api/v22/auth/google/callback')
-  expect(resolveRootRoute('/api/v22/session')).toBe('https://protrebot-rkpt.onrender.com/api/v22/session')
+  expect(resolveRootRoute('/api/v22/auth/google/callback')).toBe('https://api.kaistrade.com/api/v22/auth/google/callback')
+  expect(resolveRootRoute('/api/v22/session')).toBe('https://api.kaistrade.com/api/v22/session')
   expect(resolveRootRoute('/verify-email')).toBe('/index.html')
   for (const policy of ['privacy','terms','risk']) expect(resolveRootRoute(`/${policy}`)).toBe(`/${policy}.html`)
   expect(resolveRootRoute('/sitemap.xml')).toBeNull()
