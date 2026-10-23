@@ -34,7 +34,7 @@ PUBLIC_PATHS = frozenset({
 # - Dakikada en fazla FALLBACK_WEIGHT_PER_MINUTE ağırlık; hesap/emir trafiğine (aynı IP) bol pay kalır.
 # - Bu yoldan 418/429 gelirse küresel engel KAYDEDİLMEZ (hesap trafiğini durdurmasın); yalnız bu yol bir süre kapanır.
 FALLBACK_SOURCES = frozenset({"original_live"})
-FALLBACK_WEIGHT_PER_MINUTE = 120
+FALLBACK_WEIGHT_PER_MINUTE = 900
 FALLBACK_MIN_PAUSE_SECONDS = 60
 
 
@@ -244,9 +244,16 @@ class PublicMarketData:
             self.counts["cache_hits"] += 1
             response = cached[1]
         else:
+            lane_ok = PROTECTED_LANE.allows(source, path, values) and PROTECTED_LANE.available()
+            if lane_ok and path != "/fapi/v1/time":
+                # Canlı strateji birincil olarak sabit IP'li yoldan okur: Render'ın paylaşımlı IP'sinde başka
+                # uygulamaların harcadığı ağırlık (ve oradaki ban) canlı taramayı hiç etkilemez.
+                response = await self._protected(key, path, values, source)
+                if response.status_code not in {418, 429}:
+                    return self._trim(response, values, limit)
             blocked = self.blocked(path)
             if blocked is not None:
-                if not (PROTECTED_LANE.allows(source, path, values) and PROTECTED_LANE.available()):
+                if not lane_ok:
                     return blocked
                 response = await self._protected(key, path, values, source)
                 return self._trim(response, values, limit)

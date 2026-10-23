@@ -416,6 +416,34 @@ class ExecutionReliabilityTests(unittest.TestCase):
         self.assertFalse(any(event["kind"] == "LIVE_FAIL_CLOSED" for event in state["events"]))
         self.assertTrue(any(event["kind"] == "LIVE_MARKET_RATE_LIMIT_WAIT" for event in state["events"]))
 
+    def test_public_rate_limit_in_any_stage_never_locks_and_wait_is_capped(self):
+        application, state = application_for_loop()
+        session_until = execution.time.time() + 300
+        state["auto"].update({"enabled": True, "session_until": session_until})
+        state.update(live_auto_trade=True, real_trading_locked=False)
+        state["original_v2_live"] = {"enabled": True, "paused": False, "pause_reason": None,
+                                     "session_expires_at_epoch": session_until}
+        failure = execution.LiveRateLimitError("Binance hız sınırı.", retry_after=120, exchange_code=-1003)
+        failure.request_method = "GET"
+        failure.request_path = "/fapi/v1/time"
+
+        async def sleep(seconds):
+            self.assertEqual(seconds, 15.0)
+            raise asyncio.CancelledError
+
+        with patch.multiple(
+            execution,
+            auto_session_credentials=AsyncMock(return_value=("OFFLINE_KEY_PLACEHOLDER", "OFFLINE_SECRET_PLACEHOLDER")),
+            reconcile=AsyncMock(side_effect=failure),
+        ), patch.object(execution.asyncio, "sleep", side_effect=sleep):
+            with self.assertRaises(asyncio.CancelledError):
+                asyncio.run(execution.execution_loop(application))
+
+        self.assertFalse(state["original_v2_live"]["paused"])
+        self.assertTrue(state["live_auto_trade"])
+        self.assertFalse(state["real_trading_locked"])
+        self.assertTrue(any(event["kind"] == "LIVE_MARKET_RATE_LIMIT_WAIT" for event in state["events"]))
+
     def test_public_market_rate_limit_records_get_request_metadata(self):
         application, state = application_for_loop()
         response = execution.httpx.Response(

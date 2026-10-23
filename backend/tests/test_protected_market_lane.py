@@ -93,15 +93,26 @@ def test_lane_rate_limit_pauses_lane_without_recording_an_account_ban(lane):
 
 def test_lane_weight_budget_is_bounded(lane):
     async def run():
+        service = PublicMarketData()
+        direct = AsyncMock(return_value=ok())
+        # klines limit 260 = ağırlık 2 → dakikada en fazla BÜTÇE // 2 istek sabit IP'den gider; kalanı Render çıkışına taşar.
+        total = FALLBACK_WEIGHT_PER_MINUTE // 2 + 5
+        for index in range(total):
+            response = await service.get("/fapi/v1/klines", {**KLINES, "symbol": f"C{index}USDT"}, direct, source="original_live")
+            assert response.status_code == 200
+        assert lane.await_count == FALLBACK_WEIGHT_PER_MINUTE // 2
+        assert direct.await_count == 5
+    asyncio.run(run())
+
+
+def test_lane_budget_exhausted_while_render_banned_returns_the_ban(lane):
+    async def run():
         ban()
         service = PublicMarketData()
-        statuses = []
-        for index in range(FALLBACK_WEIGHT_PER_MINUTE):
-            response = await service.get("/fapi/v1/klines", {**KLINES, "symbol": f"C{index}USDT"}, AsyncMock(), source="original_live")
-            statuses.append(response.status_code)
-        # klines limit 260 = ağırlık 2 → dakikada en fazla 60 istek korumalı yoldan gider.
-        assert lane.await_count == FALLBACK_WEIGHT_PER_MINUTE // 2
-        assert statuses.count(418) == FALLBACK_WEIGHT_PER_MINUTE - FALLBACK_WEIGHT_PER_MINUTE // 2
+        for index in range(FALLBACK_WEIGHT_PER_MINUTE // 2):
+            await service.get("/fapi/v1/klines", {**KLINES, "symbol": f"C{index}USDT"}, AsyncMock(), source="original_live")
+        response = await service.get("/fapi/v1/klines", {**KLINES, "symbol": "LASTUSDT"}, AsyncMock(), source="original_live")
+        assert response.status_code == 418
     asyncio.run(run())
 
 
@@ -127,4 +138,36 @@ def test_main_configures_lane_only_with_quotaguard(monkeypatch):
         monkeypatch.setenv("QUOTAGUARD_URL", "http://user:pass@proxy.example:9293")
         await main.market_data_request(application, "/fapi/v1/klines", KLINES, source="original_live")
         assert PROTECTED_LANE.fetch is not None
+    asyncio.run(run())
+
+
+def test_live_strategy_prefers_the_fixed_ip_lane_even_without_a_ban(lane):
+    async def run():
+        direct = AsyncMock()
+        response = await PublicMarketData().get("/fapi/v1/klines", KLINES, direct, source="original_live")
+        assert response.status_code == 200
+        direct.assert_not_awaited()
+        lane.assert_awaited_once()
+    asyncio.run(run())
+
+
+def test_lane_429_falls_back_to_direct_without_a_global_ban(lane):
+    async def run():
+        lane.return_value = httpx.Response(429, headers={"Retry-After": "5"}, json={"code": -1003},
+                                           request=httpx.Request("GET", "https://fapi.binance.com/x"))
+        direct = AsyncMock(return_value=ok())
+        response = await PublicMarketData().get("/fapi/v1/klines", KLINES, direct, source="original_live")
+        assert response.status_code == 200
+        direct.assert_awaited_once()
+        assert not BINANCE_GLOBAL_BAN.applies_to("quotaguard")
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("source", ["public_api", "analysis"])
+def test_customer_and_ui_traffic_stays_on_the_shared_route(lane, source):
+    async def run():
+        direct = AsyncMock(return_value=ok())
+        await PublicMarketData().get("/fapi/v1/klines", KLINES, direct, source=source)
+        direct.assert_awaited_once()
+        lane.assert_not_awaited()
     asyncio.run(run())

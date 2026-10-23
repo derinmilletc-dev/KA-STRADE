@@ -6071,10 +6071,12 @@ async def execution_loop(application: Any) -> None:
             automation_telemetry("AUTOMATION_SKIP reason=binance_rate_limited", reason="binance_rate_limited")
             state = application.state.v25_execution
             if (
-                reconciliation_stage == "automatic_cycle"
-                and exc.request_method == "GET"
+                exc.request_method == "GET"
                 and exc.request_path in PUBLIC_PATHS
             ):
+                # Herkese açık piyasa verisi (Render çıkışı) hız sınırı hiçbir aşamada hesabı/ARM'ı kilitlemez:
+                # imzalı hesap yolu ayrı IP'dir ve sağlamdır. Yalnız bekleriz.
+                backoff_wait = min(15.0, rate_limit_backoff_seconds(exc, backoff))
                 state["connection"].update({"last_checked": now_iso(), "last_error": None})
                 state["connection"]["retry_count"] = 0
                 add_event(
@@ -6085,7 +6087,7 @@ async def execution_loop(application: Any) -> None:
                     retry_after_seconds=exc.retry_after,
                 )
                 persist_state(state)
-                await asyncio.sleep(rate_limit_backoff_seconds(exc, backoff))
+                await asyncio.sleep(backoff_wait)
                 backoff = min(60, backoff * 2) if exc.retry_after is None else 5
                 continue
             if account_rate_limit_active(state) and exc.request_method in {None, "GET"}:
