@@ -1,0 +1,7 @@
+__DOMAIN__ {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000 {
+		health_uri /healthz
+		health_interval 15s
+	}
+}
