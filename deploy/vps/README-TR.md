@@ -24,3 +24,12 @@ Sunucuda `systemctl stop kaistrade`, Render'da servisi Resume edin, Vercel yönl
 
 ## Güncelleme
 `bash /opt/kaistrade/deploy/vps/update.sh`
+
+
+## Veritabanını bu sunucuya taşıma (Render'dan tamamen çıkış)
+
+Strateji durdurulmuşken: `sudo bash /opt/kaistrade/deploy/vps/migrate-db.sh`
+
+Script: Render sürümünü okur, aynı sürüm PostgreSQL'i kurar, yedek alır, yükler, tabloları sayar,
+yalnızca sayımlar tutarsa `DATABASE_URL` değerini değiştirir. Şifre ekrana yazılmaz.
+Geri dönüş: `sudo cp /etc/kaistrade.env.render-backup /etc/kaistrade.env && sudo systemctl restart kaistrade`
