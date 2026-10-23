@@ -6003,6 +6003,8 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
         elif protection_state == "MATCHED" and plan.get("status") == "DOLUM BEKLİYOR":
             plan["status"] = "KORUMA AKTİF"
     clear_clean_reconciliation_state(state, snapshot)
+    from . import original_v2_live
+    original_v2_live.resume_after_transient_pause(state, snapshot)
     clear_resolved_credential_diagnostic(state)
     persist_state(state)
 
