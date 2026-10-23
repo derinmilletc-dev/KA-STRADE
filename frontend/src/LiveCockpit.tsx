@@ -33,11 +33,14 @@ type Props = {
   extras?: ReactNode
 }
 
-type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
+type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
+type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
 const CLOSE_ALL_PHRASE = 'CANLI ACİL DURDUR'
+// Sunucu bu cümleyi ister; tek pozisyonu kapatırken kullanıcıya yazdırmayız, onay penceresindeki "Evet, kapat" gönderir.
+const CLOSE_POSITION_PHRASE = 'CANLI POZİSYONU KAPAT'
 const usdt = (value: number | null | undefined, signed = false) => typeof value === 'number' && Number.isFinite(value)
   ? `${signed && value > 0 ? '+' : ''}${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT` : '—'
 const pct = (value: number) => `%${value.toLocaleString('tr-TR', {maximumFractionDigits: 2})}`
@@ -276,6 +279,17 @@ export default function LiveCockpit(props: Props) {
     setSheet(null)
   }, 'Durduruldu. Yeni işlem açılmaz; açık pozisyonların stop ve hedefleri Binance’te duruyor.', setSheetError)
   const [closePhrase, setClosePhrase] = useState('')
+  // ---- Tek pozisyonu kapat: yalnız o sembolü piyasa fiyatından reduce-only emirle kapatır; Stop/TP temizliğini sunucu yapar.
+  const [closeTarget, setCloseTarget] = useState<CloseTarget | null>(null)
+  const askClosePosition = (target: CloseTarget) => { setSheetError(''); setCloseTarget(target); setSheet('close-position') }
+  const closePosition = () => {
+    const target = closeTarget
+    if (!target) return Promise.resolve(false)
+    return perform('close-position', async () => {
+      await request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE})
+      setSheet(null); setCloseTarget(null)
+    }, `${target.symbol.replace('USDT', '')} kapanış emri gönderildi. Pozisyon kapanınca Stop/TP emirleri otomatik temizlenir.`, setSheetError)
+  }
   const closeAll = () => perform('close-all', async () => {
     await request('/emergency', {confirmation: CLOSE_ALL_PHRASE, close_tracked_positions: true})
     setSheet(null); setClosePhrase('')
@@ -285,7 +299,7 @@ export default function LiveCockpit(props: Props) {
   const [code, setCode] = useState('')
   const [secureAccepted, setSecureAccepted] = useState(false)
   const [fillPhrase, setFillPhrase] = useState('')
-  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase(''); setClosePhrase('') } }
+  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase(''); setClosePhrase(''); setCloseTarget(null) } }
   const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => perform(key, async () => {
     if (key === 'emergency-clear') await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code})
     else if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
@@ -524,6 +538,15 @@ export default function LiveCockpit(props: Props) {
     <label className="lcField">Onay için <b>{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
       <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
+  </> : sheet === 'close-position' && closeTarget ? <>
+    <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
+    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon <b>piyasa fiyatından, reduce-only</b> emirle hemen kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
+    <ul className="lcStopList">
+      <li data-tone={closeTarget.pnl !== null && closeTarget.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şu anki sonuç: {usdt(closeTarget.pnl, true)}</b> (kesin sonuç emir fiyatına göre değişir).</span></li>
+      <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Pozisyon kapanınca bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.</span></li>
+    </ul>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+      <button type="button" className="lcBtn lcDanger" disabled={Boolean(working)} onClick={() => void closePosition()}>{working === 'close-position' ? 'Gönderiliyor…' : 'Evet, kapat'}</button></div>
   </> : sheet === 'fill-lock' ? <>
     <h2 id="lc-sheet-title">Dolum güvenlik kilidi{original?.fill_lock?.symbol ? ` · ${original.fill_lock.symbol}` : ''}</h2>
     <p className="lcSheetLead">Bir emir beklenenden farklı doldu, bu yüzden yeni işlemler durduruldu. Açık pozisyon değiştirilmedi.</p>
@@ -662,6 +685,9 @@ export default function LiveCockpit(props: Props) {
               const protection = !external && plan?.provenance_state === 'CONFIRMED' ? plan.exchange_protection : undefined
               const note = external ? null : positionNote(position, plan as Parameters<typeof positionNote>[1], now)
               const pnl = finite(position.unrealized_pnl)
+              // Yalnız sahipliği doğrulanmış bot pozisyonu kapatılabilir (sunucu da aynısını ister); dış pozisyona dokunulmaz.
+              const planId = plan && typeof plan.id === 'string' ? plan.id : ''
+              const closable = !external && plan?.provenance_state === 'CONFIRMED' && planId.length >= 6 && live
               const flag = (ok: boolean | undefined) => <i data-ok={ok === true || undefined}>{ok === true ? 'Binance’te ✓' : 'doğrulanamadı'}</i>
               return <article className="lcPosition" key={`${String(position.symbol)}-${index}`}>
                 <header><b>{String(position.symbol || '—').replace('USDT', '')}<span data-dir={String(position.direction || '').toUpperCase()}>{String(position.direction || '—')}</span></b>
@@ -674,6 +700,9 @@ export default function LiveCockpit(props: Props) {
                   <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
                 </div>
                 {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}
+                {closable && <button type="button" className="lcPosClose" disabled={busy}
+                  onClick={() => askClosePosition({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl})}>
+                  <X aria-hidden="true"/>Pozisyonu kapat</button>}
                 {external && <p className="lcNote" data-tone="mute">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
                 {!external && plan?.provenance_state !== 'CONFIRMED' && <p className="lcNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
               </article>

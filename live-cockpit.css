@@ -233,6 +233,12 @@
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList svg{width:18px;height:18px;flex:none;margin-top:2px;color:var(--lc-go)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList [data-tone="mute"] svg{color:var(--lc-mute)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCloseAll{justify-self:center;color:var(--lc-bad)!important;font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStopList [data-tone="warn"] svg{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosClose{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;min-height:46px;width:100%;margin-top:2px;padding:0 16px!important;border-radius:14px!important;border:1px solid rgba(255,132,121,.55)!important;background:rgba(255,132,121,.12)!important;color:var(--lc-bad)!important;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;transition:background .15s,transform .15s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosClose svg{width:17px;height:17px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosClose:hover:not(:disabled){background:rgba(255,132,121,.24)!important;transform:translateY(-1px)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosClose:disabled{opacity:.45;cursor:not-allowed}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosClose:focus-visible{outline:2px solid var(--lc-go)!important;outline-offset:2px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcFacts{padding-left:18px;display:grid;gap:6px;font-size:13.5px;line-height:1.55;color:#d3dee8}
 
 @media (max-width:560px){
