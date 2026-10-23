@@ -4391,7 +4391,7 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
         signal={"direction": direction, "confidence": 100, "radar": {"trap_score": 0}},
         snapshot=snapshot,
         # Original V2 LIVE'da günlük işlem sayısı sınırı yoktur (0 = sınırsız); diğer kilitler aynen kalır.
-        policy={**state["policy"], "daily_trade_limit": 0} if unlimited_daily_trades else state["policy"],
+        policy={**state["policy"], "daily_trade_limit": 0, "consecutive_loss_limit": 0} if unlimited_daily_trades else state["policy"],
         daily=daily,
         spread_bps=0.0,
         armed=True,

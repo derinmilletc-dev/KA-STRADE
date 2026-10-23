@@ -139,7 +139,7 @@ def sanitize_execution_policy(payload: Any, *, preserve_empty_allowed_symbols: b
     # 0 = günlük işlem sayısı sınırı yok. Yalnız canlı Original V2 katmanı bu değeri kurar;
     # kullanıcı ayar uçları (ge=1) ve demo/geriye dönük testler 1..12 aralığında kalır.
     base["daily_trade_limit"] = _integer(source.get("daily_trade_limit"), 3, 0, HARD_MAX_DAILY_TRADES)
-    base["consecutive_loss_limit"] = _integer(source.get("consecutive_loss_limit"), 3, 1, HARD_MAX_CONSECUTIVE_LOSSES)
+    base["consecutive_loss_limit"] = _integer(source.get("consecutive_loss_limit"), 3, 0, HARD_MAX_CONSECUTIVE_LOSSES)
     base["min_confidence"] = _integer(source.get("min_confidence"), configured_min_confidence(), 70, 95)
     base["mtf_allow_either_timeframe"] = bool(source.get("mtf_allow_either_timeframe", configured_mtf_allow_either_timeframe()))
     base["max_trap_score"] = _integer(source.get("max_trap_score"), 35, 10, 60)
@@ -444,7 +444,8 @@ def evaluate_entry_gates(
         GateResult(float(daily.get("realized_pnl", 0)) > -float(settings["daily_loss_limit"]), "daily_loss", "Günlük kayıp kilidi", f"{daily.get('realized_pnl', 0):.2f} USDT"),
         GateResult(float(snapshot.get("unrealized_pnl") or 0) > -float(settings["daily_loss_limit"]), "open_loss", "Açık zarar kilidi", f"{float(snapshot.get('unrealized_pnl') or 0):.2f} USDT"),
         GateResult(int(daily.get("unverified_closures", 0)) == 0, "pnl_verified", "Kesinleşmiş PnL", f"Doğrulanmamış kapanış: {daily.get('unverified_closures', 0)}"),
-        GateResult(int(daily.get("consecutive_losses", 0)) < settings["consecutive_loss_limit"], "consecutive_losses", "Ardışık kayıp kilidi", f"{daily.get('consecutive_losses', 0)} / {settings['consecutive_loss_limit']} kayıp"),
+        GateResult(settings["consecutive_loss_limit"] == 0 or int(daily.get("consecutive_losses", 0)) < settings["consecutive_loss_limit"], "consecutive_losses", "Ardışık kayıp kilidi",
+                   f"{daily.get('consecutive_losses', 0)} / limitsiz kayıp" if settings["consecutive_loss_limit"] == 0 else f"{daily.get('consecutive_losses', 0)} / {settings['consecutive_loss_limit']} kayıp"),
     ]
     gates.extend(directional_entry_gates(
         symbol=safe_symbol, direction=direction, snapshot=snapshot, policy=settings,

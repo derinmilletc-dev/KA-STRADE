@@ -103,6 +103,7 @@ def test_original_live_execution_policy_changes_only_the_daily_symbol_scope(stat
     assert policy["max_positions"] == 5
     assert policy["max_same_direction_positions"] == 2
     assert policy["daily_trade_limit"] == 0  # canlı katmanda günlük işlem sayısı sınırı yok
+    assert policy["consecutive_loss_limit"] == 0  # canlı katmanda ardışık kayıp sınırı yok
     assert policy["max_stop_distance_pct"] == 6
 
 
@@ -1476,3 +1477,34 @@ def test_original_live_unlimited_daily_trades_gate_passes_but_other_locks_remain
     assert core.sanitize_execution_policy(policy)["daily_trade_limit"] == 0
     assert core.sanitize_execution_policy({**policy, "daily_trade_limit": 3})["daily_trade_limit"] == 3
     assert core.sanitize_execution_policy({**policy, "daily_trade_limit": 99})["daily_trade_limit"] == core.HARD_MAX_DAILY_TRADES
+
+
+def test_original_live_consecutive_loss_limit_disabled_but_daily_loss_lock_remains():
+    from datetime import datetime, timezone
+    from app import execution_core as core
+
+    events = [
+        {"kind": "LIVE_POSITION_CLOSED", "realized_pnl": -2, "created_at": f"2026-09-12T{hour}:00:00+00:00"}
+        for hour in (10, 11, 12)
+    ]
+    metrics = core.daily_execution_metrics(events, datetime(2026, 9, 12, 13, tzinfo=timezone.utc))
+    assert metrics["consecutive_losses"] == 3
+    kwargs = dict(
+        symbol="BTCUSDT", signal={"direction": "LONG", "confidence": 100, "radar": {"trap_score": 1}},
+        snapshot={"positions": [], "open_orders": [], "hedge_mode": False},
+        spread_bps=1, armed=True, allowed_symbols=["BTCUSDT"], daily=metrics,
+    )
+
+    limited = core.sanitize_execution_policy({"consecutive_loss_limit": 3})
+    assert not core.evaluate_entry_gates(policy=limited, **kwargs)["passed"]
+
+    unlimited = core.sanitize_execution_policy({"consecutive_loss_limit": 0})
+    assert unlimited["consecutive_loss_limit"] == 0
+    result = core.evaluate_entry_gates(policy=unlimited, **kwargs)
+    gate = next(item for item in result["gates"] if item["key"] == "consecutive_losses")
+    assert gate["passed"] and "limitsiz" in gate["detail"]
+    assert result["passed"]
+
+    # Günlük kayıp kilidi hâlâ devrede: toplam -6 USDT, limit 5 USDT.
+    tight = core.sanitize_execution_policy({"consecutive_loss_limit": 0, "daily_loss_limit": 5})
+    assert not core.evaluate_entry_gates(policy=tight, **kwargs)["passed"]
