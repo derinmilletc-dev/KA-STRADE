@@ -1196,14 +1196,55 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {status && <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
           <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
         </details>}
-        {status && <details className="originalAdvanced"><summary>Gelişmiş · kurtarma ve teşhis</summary>
-          <button type="button" onClick={checkRecovery} disabled={Boolean(busy)}>Kurtarma kontrolü</button>
-          <button type="button" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>Acil durdurma kilidini kaldır</button>
-          <button type="button" onClick={emergencyStop} disabled={Boolean(busy)}>Pozisyonları kapatan tam acil durdurma</button>
-          {originalEntryChecks.length > 0 && <details className="originalEntryChecks" data-testid="original-entry-checks"><summary>Giriş kontrolleri · {originalEntryChecks.filter(check => check.passed).length}/{originalEntryChecks.length} geçti</summary>
-            <ul>{originalEntryChecks.map(check => <li key={check.key} data-result={check.passed ? 'passed' : 'failed'}><strong>{check.passed ? 'GEÇTİ' : 'GEÇMEDİ'} · {check.label}</strong> <span>{check.reason}</span></li>)}</ul>
-          </details>}
-        </details>}
+        {status && (() => {
+          const failedChecks = originalEntryChecks.filter(check => !check.passed)
+          const passedChecks = originalEntryChecks.filter(check => check.passed)
+          const orderedChecks = [...failedChecks, ...passedChecks]
+          const openPositions = (status?.account?.positions || []).length
+          const pct = originalEntryChecks.length ? Math.round(passedChecks.length / originalEntryChecks.length * 100) : 0
+          return <details className="originalAdvanced advPanel" data-testid="original-advanced">
+            <summary className="advHead">
+              <span className="advHeadIcon"><ShieldCheck aria-hidden="true"/></span>
+              <span className="advHeadText"><small>GELİŞMİŞ</small><b>Gelişmiş · kurtarma ve teşhis</b></span>
+              <span className={`advChip ${emergency ? 'bad' : 'ok'}`}><i aria-hidden="true"/>{emergency ? 'Acil durdurma kilidi var' : 'Kilit yok'} · Açık pozisyon {openPositions} / 5</span>
+              <ChevronDown className="advChevron" aria-hidden="true"/>
+            </summary>
+            <div className="advActions">
+              <button type="button" className="advAction info" onClick={checkRecovery} disabled={Boolean(busy)}>
+                <span className="advActionTop"><span className="advActionIcon"><RefreshCw aria-hidden="true"/></span><em>GÜVENLİ</em></span>
+                <b>Kurtarma kontrolü</b>
+                <span>Binance ile sistemin kayıtlarını karşılaştırır. Emir açmaz, kapatmaz.</span>
+                <strong>Kontrolü çalıştır →</strong>
+              </button>
+              <button type="button" className="advAction warn" onClick={clearEmergency} disabled={Boolean(busy) || !emergency}>
+                <span className="advActionTop"><span className="advActionIcon"><UnlockKeyhole aria-hidden="true"/></span><em>{emergency ? 'KİLİT VAR' : 'KİLİT YOK'}</em></span>
+                <b>Acil durdurma kilidini kaldır</b>
+                <span>Acil durdurma sonrası girişleri yeniden açar. 2 adımlı doğrulama ister.</span>
+                <strong>{emergency ? 'Kilidi kaldır →' : 'Şu an gerekmiyor'}</strong>
+              </button>
+              <button type="button" className="advAction danger" onClick={emergencyStop} disabled={Boolean(busy)}>
+                <span className="advActionTop"><span className="advActionIcon"><TriangleAlert aria-hidden="true"/></span><em>GERİ ALINAMAZ</em></span>
+                <b>Pozisyonları kapatan tam acil durdurma</b>
+                <span>Tüm pozisyonları piyasa fiyatından kapatır, bekleyen emirleri iptal eder, girişleri kilitler.</span>
+                <strong>Onay penceresini aç →</strong>
+              </button>
+            </div>
+            {originalEntryChecks.length > 0 && <div className="advChecks" data-testid="original-entry-checks">
+              <div className="advChecksHead">
+                <div><b>Giriş kontrolleri · {passedChecks.length}/{originalEntryChecks.length} geçti</b><span>Yeni işlem açılmadan önce sunucunun doğruladığı koşullar.</span></div>
+                <div className="advProgress"><div><span>Geçen</span><code>{passedChecks.length} / {originalEntryChecks.length}</code></div><i><u style={{width: `${pct}%`}}/></i></div>
+              </div>
+              <div className="advChips">
+                {failedChecks.length > 0 && <span className="bad">{failedChecks.length} geçmedi</span>}
+                <span className="ok">{passedChecks.length} geçti</span>
+              </div>
+              <ul className="advCheckGrid">{orderedChecks.map(check => <li key={check.key} data-result={check.passed ? 'passed' : 'failed'}>
+                <span className="advDot" aria-hidden="true">{check.passed ? <CheckCircle2/> : <AlertTriangle/>}</span>
+                <span><strong>{check.passed ? 'GEÇTİ' : 'GEÇMEDİ'} · {check.label}</strong><small>{check.reason}</small></span>
+              </li>)}</ul>
+            </div>}
+          </details>
+        })()}
         {confirmationModal}
       </>}
     /></PremiumWorkspace>
