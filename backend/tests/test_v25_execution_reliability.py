@@ -444,6 +444,20 @@ class ExecutionReliabilityTests(unittest.TestCase):
         self.assertFalse(state["real_trading_locked"])
         self.assertTrue(any(event["kind"] == "LIVE_MARKET_RATE_LIMIT_WAIT" for event in state["events"]))
 
+    def test_entry_authority_accepts_active_auto_session_without_arm(self):
+        _, state = application_for_loop()
+        state["armed_until"] = 0.0
+        state["auto"].update({"enabled": True, "session_until": execution.time.time() + 300})
+        state["live_auto_trade"] = True
+        self.assertTrue(execution.live_entry_authority_open(state))
+        state["live_auto_trade"] = False
+        self.assertFalse(execution.live_entry_authority_open(state))
+        state["live_auto_trade"] = True
+        state["auto"].update({"enabled": False, "session_until": 0.0})
+        self.assertFalse(execution.live_entry_authority_open(state))
+        state["armed_until"] = execution.time.time() + 300
+        self.assertTrue(execution.live_entry_authority_open(state))
+
     def test_public_market_rate_limit_records_get_request_metadata(self):
         application, state = application_for_loop()
         response = execution.httpx.Response(
