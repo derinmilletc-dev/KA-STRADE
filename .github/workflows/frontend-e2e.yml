@@ -1,6 +1,7 @@
 name: Frontend Live Trading UI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'frontend/**'
@@ -34,4 +35,4 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm --prefix .. run build
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --reporter=github,line

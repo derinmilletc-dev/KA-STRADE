@@ -13,7 +13,7 @@ for (const mobile of [false, true]) test(`local design screenshots (${mobile ? '
   if (!directory) return
   await mkdir(directory, {recursive: true})
   const state = await prepare(page, {mobile})
-  const button = page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})
+  const button = page.getByRole('button', {name: "Kais AI'a Sor", exact: true})
   await expect(button).toBeEnabled()
   await button.scrollIntoViewIfNeeded()
   const name = mobile ? 'mobile' : 'desktop'
@@ -110,7 +110,7 @@ async function prepare(page: Page, options: {customer?: boolean; free?: boolean;
 }
 
 async function openAndCapture(page: Page) {
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', {name: 'Grafiği yakala', exact: true}).click()
@@ -122,7 +122,7 @@ async function openAndCapture(page: Page) {
 test('feature off hides the OWNER control without producing an analysis', async ({page}) => {
   const state = await prepare(page, {disabled: true})
   await expect.poll(state.usageCalls).toBeGreaterThan(0)
-  await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toHaveCount(0)
   expect(state.generations).toHaveLength(0)
   await page.unroute('**/api/chart-ai/**')
 })
@@ -133,7 +133,7 @@ for (const customer of [false, true]) test(`old backend without chart API never 
   await (await response).finished()
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
   await expect.poll(state.usageReplies).toBeGreaterThan(0)
-  await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toHaveCount(0)
   expect(state.generations).toHaveLength(0)
 })
 
@@ -149,8 +149,8 @@ for (const account of ['CUSTOMER', 'MODERATOR'] as const) test(`${account} can a
 
 test('account without trial or MASTER MODE sees access guidance and pricing link', async ({page}) => {
   const state = await prepare(page, {customer: true, noEntitlement: true})
-  await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toBeVisible()
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toBeVisible()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog.getByRole('status')).toContainText('Ücretsiz hakkınız bitmiştir')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
@@ -161,7 +161,7 @@ test('account without trial or MASTER MODE sees access guidance and pricing link
 
 test('exhausted free quota shows the frosted premium wall without sending analysis', async ({page}) => {
   const state = await prepare(page, {customer: true, free: true, quotaExhausted: true})
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog.getByRole('status')).toContainText('Ücretsiz hakkınız bitmiştir')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveAttribute('href', '/pricing')
@@ -170,7 +170,7 @@ test('exhausted free quota shows the frosted premium wall without sending analys
 
 test('exhausted daily trial quota explains the daily renewal without pushing an upgrade', async ({page}) => {
   const state = await prepare(page, {customer: true, quotaExhausted: true})
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await expect(dialog.getByRole('status')).toContainText('Bugünkü hakkınız bitti')
   await expect(dialog.getByRole('link', {name: "MASTER MODE'a geç"})).toHaveCount(0)
@@ -182,18 +182,18 @@ for (const legacy of [false, true]) {
     const state = await prepare(page, {legacy, disabled: true, deferUsage: true})
     try {
       await expect.poll(state.usageCalls).toBeGreaterThan(0)
-      await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toHaveCount(0)
+      await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toHaveCount(0)
     } finally {
       state.releaseUsage()
     }
     await expect.poll(state.usageReplies).toBeGreaterThan(0)
-    await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toHaveCount(0)
+    await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toHaveCount(0)
     expect(state.generations).toHaveLength(0)
   })
   for (const mobile of [false, true]) test(`feature off never exposes the CUSTOMER control (${legacy ? 'legacy' : 'reference'}, ${mobile ? 'mobile' : 'desktop'})`, async ({page}) => {
     const state = await prepare(page, {legacy, mobile, customer: true, disabled: true})
     await expect.poll(state.usageReplies).toBeGreaterThan(0)
-    await expect(page.getByRole('button', {name: 'Kais AI'a Sor', exact: true})).toHaveCount(0)
+    await expect(page.getByRole('button', {name: "Kais AI'a Sor", exact: true})).toHaveCount(0)
     expect(state.usageCalls()).toBeGreaterThan(0)
     expect(state.generations).toHaveLength(0)
   })
@@ -251,7 +251,7 @@ test('reload resumes only GET for the same pending UUID; image never goes to sto
   await page.reload()
   await expect.poll(state.gets).toBeGreaterThan(prior)
   state.finish()
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   await expect(page.getByRole('region', {name: 'Kais AI sonucu'})).toContainText(FINAL)
   expect(state.generations).toHaveLength(1)
 })
@@ -292,7 +292,7 @@ test('timeframe changes discard the old preview and require a fresh capture', as
   const dialog = await openAndCapture(page)
   await dialog.getByRole('button', {name: 'Kais AI panelini kapat'}).click()
   await page.getByRole('combobox', {name: 'Zaman dilimi', exact: true}).selectOption('1h')
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toHaveCount(0)
   await expect(dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true})).toBeDisabled()
   await dialog.getByRole('button', {name: 'Grafiği yakala', exact: true}).click()
@@ -313,7 +313,7 @@ test('switching OWNER identity unmounts the pending panel without transferring i
   }}))
   await page.evaluate(() => window.dispatchEvent(new Event('protrebot-access-refresh')))
   await expect(dialog).not.toBeVisible()
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   await expect(dialog).toBeVisible()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toHaveCount(0)
   await expect(dialog.getByRole('region', {name: 'Kais AI sonucu'})).toHaveCount(0)
@@ -339,7 +339,7 @@ test('OWNER-to-CUSTOMER role change clears prior request data and applies trial 
   }}))
   await page.evaluate(() => window.dispatchEvent(new Event('protrebot-access-refresh')))
   await expect(dialog).not.toBeVisible()
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   await expect(dialog.getByText('Kalan hak: 3')).toBeVisible()
   await expect(dialog.getByAltText('Gönderilecek grafik önizlemesi')).toHaveCount(0)
   await expect(dialog.getByRole('button', {name: 'Grafiği analiz et', exact: true})).toBeDisabled()
@@ -356,7 +356,7 @@ test('unavailable provider is explicit and cannot submit', async ({page}) => {
 
 test('mobile panel and upload validation preserve isolation', async ({page}) => {
   const state = await prepare(page, {mobile: true})
-  await page.getByRole('button', {name: 'Kais AI'a Sor', exact: true}).click()
+  await page.getByRole('button', {name: "Kais AI'a Sor", exact: true}).click()
   const dialog = page.getByRole('dialog', {name: 'Kais AI', exact: true})
   await dialog.locator('input[type=file]').setInputFiles({name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>')})
   await expect(dialog.getByRole('alert')).toContainText('PNG, JPEG veya WebP')
