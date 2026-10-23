@@ -201,8 +201,10 @@ def minimum_order_parts(
     step: Decimal,
     min_qty: Decimal,
     min_notional: Decimal,
+    tp1_fraction: Decimal = Decimal("0.60"),
 ) -> dict[str, Any]:
-    tp1_quantity = demo.floor_step(quantity * Decimal("0.60"), step)
+    # Demo ve eski çağıranlar %60 kalır; yalnız canlı Original V2 kendi oranını açıkça verir.
+    tp1_quantity = demo.floor_step(quantity * tp1_fraction, step)
     remaining_quantity = quantity - tp1_quantity
     values = {
         "total_quantity": quantity,
@@ -274,14 +276,22 @@ def live_minimum_order_assessment(
         fail(exc.reason)
     base_quantity = demo.floor_step(Decimal(str(profile_size["notional_usdt"])) / entry, base_step)
     cost_per_unit = entry * (fee_bps + slippage_bps) * 2 / 10000
+    try:
+        # Canlı Original V2 70/30 böler; bu yüzden TP1 oranını ve miktar adım katını bağlamdan okur (varsayılan 60/40).
+        tp1_fraction = Decimal(str(sizing_context.get("tp1_fraction", "0.60")))
+        split_steps = int(sizing_context.get("split_steps", 5))
+        if not tp1_fraction.is_finite() or not Decimal("0") < tp1_fraction < Decimal("1") or split_steps < 1:
+            fail("INVALID_ORIGINAL_SYMBOL_RULES")
+    except (TypeError, ValueError, InvalidOperation):
+        fail("INVALID_ORIGINAL_SYMBOL_RULES")
     quantity = demo.floor_step(
         min(base_quantity, budget / (abs(entry - stop) + cost_per_unit), max_margin * 3 / entry),
-        step * 5,
+        step * split_steps,
     )
-    parts = minimum_order_parts(quantity, entry, step, min_qty, min_notional)
+    parts = minimum_order_parts(quantity, entry, step, min_qty, min_notional, tp1_fraction)
     return {**parts, "reason": (
         f"Toplam {parts['total_notional_usdt']} USDT ({parts['total_quantity']}); "
-        f"TP1 %60 {parts['tp1_notional_usdt']} USDT ({parts['tp1_quantity']}); "
+        f"TP1 %{int(tp1_fraction * 100)} {parts['tp1_notional_usdt']} USDT ({parts['tp1_quantity']}); "
         f"kalan {parts['remaining_notional_usdt']} USDT ({parts['remaining_quantity']}); "
         f"Binance minimumu {parts['min_notional_usdt']} USDT ve {parts['min_qty']} miktar."
     )}

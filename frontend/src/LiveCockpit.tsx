@@ -39,6 +39,11 @@ type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
 const CLOSE_ALL_PHRASE = 'CANLI ACİL DURDUR'
+// TP1'de kapanan oran planın kendisinden okunur; alanı olmayan eski planlar %60 gösterilir.
+const tp1Percent = (plan: Record<string, unknown> | undefined) => {
+  const value = Number(plan?.tp1_fraction)
+  return Number.isFinite(value) && value > 0 && value < 1 ? Math.round(value * 100) : 60
+}
 // Sunucu bu cümleyi ister; tek pozisyonu kapatırken kullanıcıya yazdırmayız, onay penceresindeki "Evet, kapat" gönderir.
 const CLOSE_POSITION_PHRASE = 'CANLI POZİSYONU KAPAT'
 const usdt = (value: number | null | undefined, signed = false) => typeof value === 'number' && Number.isFinite(value)
@@ -696,7 +701,7 @@ export default function LiveCockpit(props: Props) {
                   <span><small>Giriş</small><b>{String(position.entry_price ?? '—')}</b></span>
                   <span><small>Fiyat</small><b>{String(position.mark_price ?? '—')}</b></span>
                   <span><small>Stop</small><b>{String(plan?.stop_loss ?? '—')}</b>{!external && flag(protection?.stop)}</span>
-                  <span><small>TP1 (%60)</small><b>{String(plan?.targets?.[0] ?? '—')}</b>{!external && flag(protection?.tp1)}</span>
+                  <span><small>TP1 (%{tp1Percent(plan)})</small><b>{String(plan?.targets?.[0] ?? '—')}</b>{!external && flag(protection?.tp1)}</span>
                   <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
                 </div>
                 {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}
