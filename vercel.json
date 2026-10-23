@@ -51,8 +51,8 @@
     }
   ],
   "rewrites": [
-    {"source": "/announcements/unsubscribe", "destination": "https://protrebot-rkpt.onrender.com/announcements/unsubscribe"},
-    {"source": "/api/:path*", "destination": "https://protrebot-rkpt.onrender.com/api/:path*"},
+    {"source": "/announcements/unsubscribe", "destination": "https://api.kaistrade.com/announcements/unsubscribe"},
+    {"source": "/api/:path*", "destination": "https://api.kaistrade.com/api/:path*"},
     {"source": "/:path((?!api/|announcements/|sitemap\\.xml$|robots\\.txt$|sw\\.js$).*)", "has": [{"type": "host", "value": "admin.kaistrade.com"}], "destination": "/admin.html"},
     {"source": "/privacy", "destination": "/privacy.html"},
     {"source": "/terms", "destination": "/terms.html"},

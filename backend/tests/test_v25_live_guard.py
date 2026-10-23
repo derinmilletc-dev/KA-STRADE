@@ -2834,7 +2834,7 @@ class V25LiveGuardIntegrationContractTests(unittest.TestCase):
         api_rewrites = [rewrite for rewrite in config["rewrites"] if rewrite["source"] == "/api/:path*"]
         self.assertEqual(api_rewrites, [{
             "source": "/api/:path*",
-            "destination": "https://protrebot-rkpt.onrender.com/api/:path*",
+            "destination": "https://api.kaistrade.com/api/:path*",
         }])
         self.assertLess(config["rewrites"].index(api_rewrites[0]), len(config["rewrites"]) - 1)
         self.assertEqual(config["rewrites"][-1], {
