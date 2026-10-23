@@ -269,6 +269,25 @@ class BinanceRateLimitTests(unittest.IsolatedAsyncioTestCase):
             for call in pool.execute.await_args_list
         ))
 
+    async def test_global_ban_writes_to_the_replaced_database_pool(self):
+        old_pool = AsyncMock()
+        old_pool.fetchrow.return_value = None
+        old_pool.execute.side_effect = RuntimeError("pool is closed")
+        new_pool = AsyncMock()
+        holder = {"pool": old_pool}
+        clock = BinanceGlobalBan(BINANCE_GLOBAL_BAN.path.with_name("database-replaced.json"))
+        await clock.configure_persistence(old_pool)
+        clock.use_pool_provider(lambda: holder["pool"])
+        holder["pool"] = new_pool  # ensure_infrastructure havuzu yeniden kurdu
+        response = httpx.Response(
+            429, headers={"Retry-After": "180"}, json={"code": -1003},
+            request=httpx.Request("GET", "https://fapi.binance.com/fapi/v1/time"),
+        )
+        self.assertTrue(clock.record(response, source="original_live", egress_route="render_direct"))
+        await clock.flush_persistence()
+        self.assertTrue(any("INSERT INTO binance_global_ban_state" in str(call.args[0]) for call in new_pool.execute.await_args_list))
+        self.assertFalse(any("INSERT INTO binance_global_ban_state" in str(call.args[0]) for call in old_pool.execute.await_args_list[1:]))
+
     def _ban_response(self, status, retry_after):
         return httpx.Response(
             status,

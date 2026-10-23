@@ -1210,6 +1210,7 @@ async def lifespan(app: FastAPI):
     init_v25_execution(app)
     await ensure_infrastructure(app)
     await BINANCE_GLOBAL_BAN.configure_persistence(app.state.db_pool)
+    BINANCE_GLOBAL_BAN.use_pool_provider(lambda: app.state.db_pool)
     await init_exchange_connections(app)
     await init_v27_cloud(app)
     await restore_health_snapshot(app)
