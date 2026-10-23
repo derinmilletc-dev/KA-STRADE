@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, AsyncIterator
 
 from .local_storage import DATA_DIR
@@ -65,6 +66,7 @@ class BinanceGlobalBan:
         self.path = path
         self._state: dict[str, Any] = {}
         self._pool: Any | None = None
+        self._pool_provider: Callable[[], Any] | None = None
         self._persistence_tasks: set[asyncio.Task] = set()
         self._load()
 
@@ -192,8 +194,22 @@ class BinanceGlobalBan:
         self._persistence_tasks.add(task)
         task.add_done_callback(self._persistence_tasks.discard)
 
+    def use_pool_provider(self, provider: Callable[[], Any] | None) -> None:
+        """Uygulama veritabanı havuzunu yeniden kurduğunda (ensure_infrastructure) eski havuza yazmayı bırakır."""
+        self._pool_provider = provider
+
+    def _current_pool(self) -> Any | None:
+        if self._pool_provider is not None:
+            try:
+                pool = self._pool_provider()
+            except Exception:
+                pool = None
+            if pool is not None:
+                self._pool = pool
+        return self._pool
+
     def _schedule_database_persist(self) -> None:
-        if self._pool is None or not self._state:
+        if self._current_pool() is None or not self._state:
             return
         try:
             task = asyncio.create_task(self._persist_database(dict(self._state)))
@@ -203,8 +219,11 @@ class BinanceGlobalBan:
         self._track_persistence(task)
 
     async def _persist_database(self, state: dict[str, Any]) -> None:
+        pool = self._current_pool()
+        if pool is None:
+            return
         try:
-            await self._pool.execute(
+            await pool.execute(
                 """
                 INSERT INTO binance_global_ban_state (state_key, payload, updated_at)
                 VALUES ('global', $1::jsonb, NOW())
