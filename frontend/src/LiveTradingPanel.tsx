@@ -506,7 +506,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const dailyTradeUnlimited = dailyTradeLimitRaw === 0 || Boolean(status.original_v2_live)
     const dailyTradeLimit = dailyTradeUnlimited ? null : policyNumber('daily_trade_limit')
     const dailyLossLimit = policyNumber('daily_loss_limit')
-    const consecutiveLossLimit = policyNumber('consecutive_loss_limit')
+    // Sahip kararı: canlı Original V2'de ardışık kayıp sınırı yok (sunucu 0 = kapalı uygular).
+    const consecutiveLossUnlimited = status.policy?.consecutive_loss_limit === 0 || Boolean(status.original_v2_live)
+    const consecutiveLossLimit = consecutiveLossUnlimited ? null : policyNumber('consecutive_loss_limit')
     const dailyEntries = status.daily?.entries
     const realizedPnl = status.daily?.realized_pnl
     const consecutiveLosses = status.daily?.consecutive_losses
@@ -573,8 +575,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       : typeof openPnl === 'number' && dailyLossLimit !== null
         ? `Açık zarar sınırı doldu (${money(openPnl)} / -${money(dailyLossLimit)}).`
         : 'Açık PnL veya zarar limiti doğrulanamadı.')
-    const consecutiveLossReady = typeof consecutiveLosses === 'number' && consecutiveLossLimit !== null && consecutiveLosses < consecutiveLossLimit
-    addCheck('consecutive_losses', 'Ardışık kayıp sınırı', consecutiveLossReady, consecutiveLossReady
+    const consecutiveLossReady = consecutiveLossUnlimited
+      || (typeof consecutiveLosses === 'number' && consecutiveLossLimit !== null && consecutiveLosses < consecutiveLossLimit)
+    addCheck('consecutive_losses', 'Ardışık kayıp sınırı', consecutiveLossReady, consecutiveLossUnlimited
+      ? `Ardışık kayıp ${typeof consecutiveLosses === 'number' ? consecutiveLosses : 0} · sınır yok.`
+      : consecutiveLossReady
       ? `Ardışık kayıp ${consecutiveLosses}/${consecutiveLossLimit}; sınır içinde.`
       : typeof consecutiveLosses === 'number' && consecutiveLossLimit !== null
         ? `Ardışık kayıp sınırı doldu (${consecutiveLosses}/${consecutiveLossLimit}).`
