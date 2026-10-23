@@ -461,8 +461,11 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     result = {**current, **fixed, "max_stop_distance_pct": 6}
     result["allowed_symbols"] = symbols
     for key in ("max_margin_per_trade", "max_positions", "max_same_direction_positions",
-                "max_total_exposure_usdt", "daily_trade_limit", "consecutive_loss_limit", "max_spread_bps"):
+                "max_total_exposure_usdt", "consecutive_loss_limit", "max_spread_bps"):
         result[key] = min(current[key], fixed[key])
+    # Sahip kararı: canlı Original V2'de günlük işlem sayısı sınırı yok (0 = sınırsız).
+    # Pozisyon, yön, maruziyet, günlük kayıp ve ardışık kayıp kilitleri aynen çalışır.
+    result["daily_trade_limit"] = 0
     result["max_direction_exposure_usdt"] = current.get("max_direction_exposure_usdt")
     for key in ("allow_long", "allow_short"):
         result[key] = current[key] and fixed[key]

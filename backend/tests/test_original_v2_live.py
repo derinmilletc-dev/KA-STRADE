@@ -102,7 +102,7 @@ def test_original_live_execution_policy_changes_only_the_daily_symbol_scope(stat
     assert policy["max_leverage"] == 3
     assert policy["max_positions"] == 5
     assert policy["max_same_direction_positions"] == 2
-    assert policy["daily_trade_limit"] == 3
+    assert policy["daily_trade_limit"] == 0  # canlı katmanda günlük işlem sayısı sınırı yok
     assert policy["max_stop_distance_pct"] == 6
 
 
@@ -1468,3 +1468,11 @@ def test_legacy_notification_request_without_live_runtime_is_unchanged():
     with pytest.raises(HTTPException) as error:
         original.merge_bell(SimpleNamespace(), items, read_id="original-live:unknown")
     assert error.value.status_code == 404
+
+
+def test_original_live_unlimited_daily_trades_gate_passes_but_other_locks_remain():
+    from app import execution_core as core
+    policy = {**core.DEFAULT_EXECUTION_POLICY, "daily_trade_limit": 0}
+    assert core.sanitize_execution_policy(policy)["daily_trade_limit"] == 0
+    assert core.sanitize_execution_policy({**policy, "daily_trade_limit": 3})["daily_trade_limit"] == 3
+    assert core.sanitize_execution_policy({**policy, "daily_trade_limit": 99})["daily_trade_limit"] == core.HARD_MAX_DAILY_TRADES

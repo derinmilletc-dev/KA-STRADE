@@ -136,7 +136,9 @@ def sanitize_execution_policy(payload: Any, *, preserve_empty_allowed_symbols: b
     base["max_direction_exposure_usdt"] = direction_cap
     base["max_total_exposure_usdt"] = _number(source.get("max_total_exposure_usdt"), 350, 25, HARD_MAX_TOTAL_EXPOSURE_USDT)
     base["daily_loss_limit"] = _number(source.get("daily_loss_limit"), 10, 5, HARD_MAX_DAILY_LOSS_USDT)
-    base["daily_trade_limit"] = _integer(source.get("daily_trade_limit"), 3, 1, HARD_MAX_DAILY_TRADES)
+    # 0 = günlük işlem sayısı sınırı yok. Yalnız canlı Original V2 katmanı bu değeri kurar;
+    # kullanıcı ayar uçları (ge=1) ve demo/geriye dönük testler 1..12 aralığında kalır.
+    base["daily_trade_limit"] = _integer(source.get("daily_trade_limit"), 3, 0, HARD_MAX_DAILY_TRADES)
     base["consecutive_loss_limit"] = _integer(source.get("consecutive_loss_limit"), 3, 1, HARD_MAX_CONSECUTIVE_LOSSES)
     base["min_confidence"] = _integer(source.get("min_confidence"), configured_min_confidence(), 70, 95)
     base["mtf_allow_either_timeframe"] = bool(source.get("mtf_allow_either_timeframe", configured_mtf_allow_either_timeframe()))
@@ -437,7 +439,8 @@ def evaluate_entry_gates(
         GateResult(exposure_known and existing_exposure + max(0.0, float(candidate_notional_usdt)) <= float(settings["max_total_exposure_usdt"]), "exposure", "Toplam maruziyet sınırı",
                    f"{existing_exposure + max(0.0, float(candidate_notional_usdt)):.2f} / {settings['max_total_exposure_usdt']:.2f} USDT" if exposure_known else
                    "Mevcut pozisyon maruziyeti doğrulanamadı; yeni giriş reddedildi."),
-        GateResult(int(daily.get("entries", 0)) < settings["daily_trade_limit"], "daily_trades", "Günlük işlem sınırı", f"{daily.get('entries', 0)} / {settings['daily_trade_limit']}"),
+        GateResult(settings["daily_trade_limit"] == 0 or int(daily.get("entries", 0)) < settings["daily_trade_limit"], "daily_trades", "Günlük işlem sınırı",
+                   f"{daily.get('entries', 0)} / limitsiz" if settings["daily_trade_limit"] == 0 else f"{daily.get('entries', 0)} / {settings['daily_trade_limit']}"),
         GateResult(float(daily.get("realized_pnl", 0)) > -float(settings["daily_loss_limit"]), "daily_loss", "Günlük kayıp kilidi", f"{daily.get('realized_pnl', 0):.2f} USDT"),
         GateResult(float(snapshot.get("unrealized_pnl") or 0) > -float(settings["daily_loss_limit"]), "open_loss", "Açık zarar kilidi", f"{float(snapshot.get('unrealized_pnl') or 0):.2f} USDT"),
         GateResult(int(daily.get("unverified_closures", 0)) == 0, "pnl_verified", "Kesinleşmiş PnL", f"Doğrulanmamış kapanış: {daily.get('unverified_closures', 0)}"),

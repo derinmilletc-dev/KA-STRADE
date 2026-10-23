@@ -502,7 +502,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const value = status.policy?.[key]
       return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
     }
-    const dailyTradeLimit = policyNumber('daily_trade_limit')
+    const dailyTradeLimitRaw = status.policy?.daily_trade_limit
+    const dailyTradeUnlimited = dailyTradeLimitRaw === 0
+    const dailyTradeLimit = dailyTradeUnlimited ? null : policyNumber('daily_trade_limit')
     const dailyLossLimit = policyNumber('daily_loss_limit')
     const consecutiveLossLimit = policyNumber('consecutive_loss_limit')
     const dailyEntries = status.daily?.entries
@@ -550,8 +552,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     addCheck('original_daily_loss', 'Original V2 günlük kayıp sınırı', originalDailyLossReady, originalDailyLossReady
       ? `Günlük kayıp ${money(originalDaily?.loss)} / limit ${money(originalDaily?.limit)}; kilit yok.`
       : originalDaily?.locked === true ? 'Original V2 günlük kayıp kilidi aktif.' : 'Original V2 günlük kayıp durumu doğrulanamadı veya limit doldu.')
-    const dailyTradesReady = typeof dailyEntries === 'number' && dailyTradeLimit !== null && dailyEntries < dailyTradeLimit
-    addCheck('daily_trades', 'Günlük işlem adedi', dailyTradesReady, dailyTradesReady
+    const dailyTradesReady = dailyTradeUnlimited
+      || (typeof dailyEntries === 'number' && dailyTradeLimit !== null && dailyEntries < dailyTradeLimit)
+    addCheck('daily_trades', 'Günlük işlem adedi', dailyTradesReady, dailyTradeUnlimited
+      ? `Bugün ${typeof dailyEntries === 'number' ? dailyEntries : 0} işlem; günlük işlem sınırı yok.`
+      : dailyTradesReady
       ? `Bugün ${dailyEntries}/${dailyTradeLimit} işlem; günlük sınır içinde.`
       : typeof dailyEntries === 'number' && dailyTradeLimit !== null
         ? `Günlük işlem sınırı doldu (${dailyEntries}/${dailyTradeLimit}).`
