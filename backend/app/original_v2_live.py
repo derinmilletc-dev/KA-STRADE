@@ -292,6 +292,10 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
             "symbols": symbols}
 
 
+TRANSIENT_PAUSE_REASON_PREFIX = "Canlı salt-okunur veri geçici olarak alınamadı"
+TRANSIENT_RESUME_WINDOW_SECONDS = 600.0
+
+
 def pause(state: dict[str, Any], reason: str) -> None:
     from . import v25_execution as live
     config = settings(state)
@@ -299,6 +303,8 @@ def pause(state: dict[str, Any], reason: str) -> None:
         return
     already = config.get("paused") and config.get("pause_reason") == reason
     config.update(enabled=False, paused=True, pause_reason=reason)
+    if not already:
+        config["paused_at_epoch"] = time.time()
     state["auto"].update(enabled=False, session_until=0.0)
     state.update(live_auto_trade=False, real_trading_locked=True, armed_until=0.0)
     if not already:
@@ -312,6 +318,48 @@ def pause(state: dict[str, Any], reason: str) -> None:
         })
         del config["alerts"][100:]
     live.persist_state(state)
+
+
+def resume_after_transient_pause(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
+    """Kısa bir salt-okunur veri/ağ kesintisi yüzünden duraklayan oturumu, hesap temiz ve
+    korumalı doğrulandığında kendiliğinden sürdürür. Başka hiçbir duraklatma nedeni için çalışmaz."""
+    from . import v25_execution as live
+    config = settings(state)
+    if not config or config.get("paused") is not True or config.get("enabled") is True:
+        return False
+    if not str(config.get("pause_reason") or "").startswith(TRANSIENT_PAUSE_REASON_PREFIX):
+        return False
+    now = time.time()
+    paused_at = float(config.get("paused_at_epoch") or 0)
+    expires = float(config.get("session_expires_at_epoch") or 0)
+    if paused_at <= 0 or now - paused_at > TRANSIENT_RESUME_WINDOW_SECONDS or expires <= now:
+        return False
+    emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
+    if emergency.get("active") is True or state.get("reconciliation_required") or state.get("execution_state") != "LOCKED":
+        return False
+    if fill_locked(state) or live.account_rate_limit_active(state):
+        return False
+    if not isinstance(snapshot, dict) or snapshot.get("open_algo_orders_available") is not True \
+            or snapshot.get("algo_orders_quality") not in {"VALID_EMPTY", "VALID_ORDERS"}:
+        return False
+    positions = snapshot.get("positions") if isinstance(snapshot.get("positions"), list) else None
+    if positions is None:
+        return False
+    accounted = live.positions_fully_accounted_by_confirmed_plans(state, snapshot)
+    if positions and not accounted:
+        return False
+    if live.unresolved_execution_evidence(state, clean_reconciliation_snapshot=True, allow_confirmed_active_plans=accounted):
+        return False
+    if not (state.get("auto_authorization") or {}).get("user_id"):
+        return False
+    config.update(enabled=True, paused=False, pause_reason=None)
+    state["auto"].update(enabled=True, session_until=expires, last_skip_reason=None, last_error=None)
+    state["auto_authorization"]["expires_at_epoch"] = expires
+    state.update(live_auto_trade=True, real_trading_locked=False, armed_until=0.0)
+    live.add_event(state, "ORIGINAL_LIVE_RESUMED",
+                   "Kısa veri kesintisi düzeldi; hesap ve korumalar doğrulandı, Original V2 oturumu kaldığı yerden devam ediyor.",
+                   recipient_user_id=config.get("owner_id"), source=SOURCE)
+    return True
 
 
 def check_session_time(state: dict[str, Any]) -> None:
