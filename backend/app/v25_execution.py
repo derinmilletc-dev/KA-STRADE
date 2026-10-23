@@ -1609,6 +1609,21 @@ def is_armed(state: dict[str, Any]) -> bool:
     return active
 
 
+def live_entry_authority_open(state: dict[str, Any]) -> bool:
+    """Yeni giriş yetkisi: elle girişte ARM; otomatik girişte etkin gözetimli oturum.
+
+    `/auto/start` ARM'ı tüketir (armed_until=0) ve otomatik girişler ARM aramaz (execute_live_order yalnız elle girişte ister);
+    emir kuyruğundan sonraki yeniden doğrulama da aynı kuralı izlemelidir, yoksa her otomatik giriş 423 ile düşer.
+    """
+    if is_armed(state):
+        return True
+    return (
+        isinstance(state.get("auto"), dict)
+        and auto_session_is_active(state)
+        and state.get("live_auto_trade") is True
+    )
+
+
 def live_execution_blocked(state: dict[str, Any]) -> bool:
     return bool(
         account_rate_limit_active(state)
@@ -1838,7 +1853,7 @@ class BinanceLiveClient:
                         raise LiveExchangeError("Hesap yeniden doğrulanana kadar yeni LIVE giriş kapalı.", http_status=423)
                     if self.background_session and not await background_authorization_active(self.application, self.diagnostic_state):
                         raise LiveExchangeError("Canlı oturum yetkisi doğrulanamadı; yeni giriş gönderilmedi.", http_status=423)
-                    if isinstance(self.diagnostic_state, dict) and (not is_armed(self.diagnostic_state) or live_execution_blocked(self.diagnostic_state) or self.diagnostic_state.get("real_trading_locked") is not False):
+                    if isinstance(self.diagnostic_state, dict) and (not live_entry_authority_open(self.diagnostic_state) or live_execution_blocked(self.diagnostic_state) or self.diagnostic_state.get("real_trading_locked") is not False):
                         raise LiveExchangeError("Kuyruk beklemesinden sonra LIVE giriş yetkisi kapalı; emir gönderilmedi.", http_status=423)
                 self._require_global_ban_clear(method, path)
                 if method != "GET" and self.application is not None:
