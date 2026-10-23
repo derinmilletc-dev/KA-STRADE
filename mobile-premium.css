@@ -8098,3 +8098,10 @@ body:has(#root .liveTradingPanel.liveUx),
     font-size: 10px !important;
   }
 }
+
+/* Master Trade (telefon): Kais gözü alt menüye taşındığında sağ üstteki sabit başlık kutusu boş kalıyordu ve profil
+   ikonu ona yer açmak için 58px içeride duruyordu. Başlıkta göz yoksa boş kutu gizlenir, profil sağ kenara hizalanır. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.workspaceRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute:has(.masterReferenceAnalysis):not(:has(> .v26Header .assistantLauncher)) > .v26Header.v26HomeHeader.v26HomeHeader { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute:not(:has(> .v26Header .assistantLauncher)) .masterReferenceAnalysis.masterReferenceAnalysis > .refHeader > .masterTradeProfileSlot { margin: 0 !important; justify-self: end !important; }
+}
