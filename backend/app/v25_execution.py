@@ -1765,7 +1765,7 @@ class BinanceLiveClient:
         method = method.upper()
         if (method, path) not in PRIVATE_PATHS:
             raise LiveExchangeError("İzin verilmeyen canlı hesap API işlemi.", http_status=500)
-        if self.background_session and not await background_authorization_active(self.application, self.diagnostic_state):
+        if self.background_session and not await background_authorization_recent(self.application, self.diagnostic_state):
             raise LiveExchangeError("Canlı oturum iptal edildi veya yetki kanıtı doğrulanamadı.", http_status=423)
         if self.application is not None and method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/order/test"} \
                 and str((params or {}).get("reduceOnly", "false")).lower() != "true" \
@@ -1827,7 +1827,7 @@ class BinanceLiveClient:
         api_key_header: bool = False,
     ) -> Any:
         if (signed or api_key_header) and self.background_session:
-            if not await background_authorization_active(self.application, self.diagnostic_state):
+            if not await background_authorization_recent(self.application, self.diagnostic_state):
                 raise LiveExchangeError("Canlı oturum iptal edildi veya yetki kanıtı doğrulanamadı.", http_status=423)
         if method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/order/test"} \
                 and not _truthy(params.get("reduceOnly")) and not _truthy(params.get("closePosition")):
@@ -4184,6 +4184,31 @@ async def background_authorization_active(application: Any, state: dict[str, Any
     if not valid:
         clear_session_vault_for_user_cache(application, str(authorization.get("user_id") or ""))
         lock_live_execution(state, "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE")
+    return valid
+
+
+_BACKGROUND_AUTH_RECENT: dict[int, float] = {}
+BACKGROUND_AUTH_RECENT_SECONDS = 15.0
+
+
+async def background_authorization_recent(application: Any, state: dict[str, Any] | None) -> bool:
+    """Okuma/koruma istekleri için olumlu oturum doğrulamasını 15 sn yeniden kullanır.
+
+    Bir hesap taraması ~9 imzalı istek yapar; her biri için uzak veritabanına gitmek taramayı
+    saniyelere uzatıyor, geçici gecikmede tüm kontrolü düşürüyordu. Yalnız olumlu sonuç
+    tutulur; olumsuz sonuç önbelleğe alınmaz. Yeni giriş emri (POST /order) bu önbelleği
+    kullanmaz, her seferinde tam doğrulama yapar.
+    """
+    key = id(state)
+    now = time.monotonic()
+    checked = _BACKGROUND_AUTH_RECENT.get(key)
+    if checked is not None and 0 <= now - checked < BACKGROUND_AUTH_RECENT_SECONDS:
+        return True
+    valid = await background_authorization_active(application, state)
+    if valid:
+        _BACKGROUND_AUTH_RECENT[key] = now
+    else:
+        _BACKGROUND_AUTH_RECENT.pop(key, None)
     return valid
 
 
