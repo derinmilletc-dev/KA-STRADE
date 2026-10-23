@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from .binance_rate_limit import BINANCE_GLOBAL_BAN, retry_after_seconds
+from .binance_ticker_stream import TICKER_STREAM
 
 logger = logging.getLogger(__name__)
 ORIGINAL_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT")
@@ -231,6 +232,13 @@ class PublicMarketData:
         if path not in PUBLIC_PATHS or any(key in (params or {}) for key in ("signature", "timestamp", "recvWindow")):
             raise ValueError("Market-data transport only accepts public read-only endpoints.")
         values = dict(params or {})
+        if path == "/fapi/v1/ticker/24hr" and not values.get("symbol"):
+            # Sembolsüz toplu 24 saatlik ticker 40 ağırlıktır; sağlıklı WebSocket akışı varsa ağırlık harcamadan oradan döner.
+            TICKER_STREAM.ensure_started()
+            streamed = TICKER_STREAM.snapshot()
+            if streamed is not None:
+                self.counts["ticker_stream_hits"] += 1
+                return httpx.Response(200, json=streamed, request=httpx.Request("GET", "https://fapi.binance.com/fapi/v1/ticker/24hr"))
         limit = None
         if path == "/fapi/v1/klines":
             limit = int(values.get("limit", 500))
