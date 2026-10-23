@@ -1193,7 +1193,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       refresh={() => refresh(true)} findPlan={findActivePlanForPosition}
       extras={<>
         {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}
-        {status && <details className="originalSurface originalManualOrder"><summary>Manuel emir · gerçek para</summary>
+        {status && <details className="originalSurface originalManualOrder advRow"><summary className="advHead">
+          <span className="advHeadIcon amber"><CircleDollarSign aria-hidden="true"/></span>
+          <span className="advHeadText"><small>MANUEL</small><b>Manuel emir · gerçek para</b></span>
+          <span className="advChip warn">GERÇEK PARA</span>
+          <ChevronDown className="advChevron" aria-hidden="true"/>
+        </summary>
           <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
         </details>}
         {status && (() => {
@@ -1229,20 +1234,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                 <strong>Onay penceresini aç →</strong>
               </button>
             </div>
-            {originalEntryChecks.length > 0 && <div className="advChecks" data-testid="original-entry-checks">
-              <div className="advChecksHead">
-                <div><b>Giriş kontrolleri · {passedChecks.length}/{originalEntryChecks.length} geçti</b><span>Yeni işlem açılmadan önce sunucunun doğruladığı koşullar.</span></div>
-                <div className="advProgress"><div><span>Geçen</span><code>{passedChecks.length} / {originalEntryChecks.length}</code></div><i><u style={{width: `${pct}%`}}/></i></div>
-              </div>
-              <div className="advChips">
-                {failedChecks.length > 0 && <span className="bad">{failedChecks.length} geçmedi</span>}
-                <span className="ok">{passedChecks.length} geçti</span>
-              </div>
+            {originalEntryChecks.length > 0 && <details className="advChecks" data-testid="original-entry-checks">
+              <summary className="advChecksHead">
+                <b>Giriş kontrolleri · {passedChecks.length}/{originalEntryChecks.length} geçti</b>
+                <span className="advProgress"><i><u style={{width: `${pct}%`}}/></i></span>
+                {failedChecks.length > 0 && <span className="advMini bad">{failedChecks.length} geçmedi</span>}
+                <span className="advMore">Ayrıntıları göster →</span>
+              </summary>
               <ul className="advCheckGrid">{orderedChecks.map(check => <li key={check.key} data-result={check.passed ? 'passed' : 'failed'}>
                 <span className="advDot" aria-hidden="true">{check.passed ? <CheckCircle2/> : <AlertTriangle/>}</span>
                 <span><strong>{check.passed ? 'GEÇTİ' : 'GEÇMEDİ'} · {check.label}</strong><small>{check.reason}</small></span>
               </li>)}</ul>
-            </div>}
+            </details>}
           </details>
         })()}
         {confirmationModal}
