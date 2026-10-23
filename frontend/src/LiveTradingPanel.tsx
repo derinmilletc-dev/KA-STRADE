@@ -503,7 +503,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
     }
     const dailyTradeLimitRaw = status.policy?.daily_trade_limit
-    const dailyTradeUnlimited = dailyTradeLimitRaw === 0
+    const dailyTradeUnlimited = dailyTradeLimitRaw === 0 || Boolean(status.original_v2_live)
     const dailyTradeLimit = dailyTradeUnlimited ? null : policyNumber('daily_trade_limit')
     const dailyLossLimit = policyNumber('daily_loss_limit')
     const consecutiveLossLimit = policyNumber('consecutive_loss_limit')

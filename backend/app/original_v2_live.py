@@ -1176,7 +1176,7 @@ async def start(request: Request, body: Start) -> dict[str, Any]:
         check_session_time(state)
         if live.auto_session_is_active(state) or running(state):
             raise HTTPException(409, "Önce mevcut LIVE otomasyonunu durdurun.")
-        allowed, reason = live.live_auto_start_gate(request.app, state, request)
+        allowed, reason = live.live_auto_start_gate(request.app, state, request, unlimited_daily_trades=True)
         if not allowed:
             raise HTTPException(423, reason)
         previous = settings(state)
