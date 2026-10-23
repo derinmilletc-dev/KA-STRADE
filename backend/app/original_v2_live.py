@@ -26,6 +26,7 @@ from .market_universe import (
 from .strategies import original_v2_demo as strategy
 from .strategies.contracts import StrategyResult
 from . import original_live_risk as risk_settings
+from . import scan_rejections
 from . import live_access
 from .maintenance import MAINTENANCE_SKIP_REASON, is_maintenance_rejection, maintenance_blocks_automation
 from .v22_commercial import authenticated_user
@@ -140,11 +141,19 @@ def _scanner_history_summary(scanner: dict[str, Any], now: float) -> dict[str, i
     }
 
 
-def _record_scanner_scan(scanner: dict[str, Any], at: float, candidates: int) -> dict[str, Any]:
+def _record_scanner_scan(scanner: dict[str, Any], at: float, candidates: int,
+                         rejections: Any = None, checks: Any = None) -> dict[str, Any]:
     history = scanner.get("history")
     if not isinstance(history, list):
         history = []
-    history.append({"at": at, "candidates": candidates, "trades": 0})
+    item: dict[str, Any] = {"at": at, "candidates": candidates, "trades": 0}
+    if rejections is not None:
+        try:
+            # Yalnızca bilgi amaçlı döküm: hata olursa tarama ve emirler etkilenmez.
+            item.update(scan_rejections.history_fields(rejections, checks))
+        except Exception:
+            logger.warning("SCAN_REJECTION_RECORD_FAILED")
+    history.append(item)
     scanner["history"] = history[-SCANNER_HISTORY_LIMIT:]
     return scanner["history"][-1]
 
@@ -261,6 +270,7 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
     scanner = copy.deepcopy(config.get("scanner"))
     if isinstance(scanner, dict):
         scanner["last_24h"] = _scanner_history_summary(scanner, time.time())
+        scanner["rejections_24h"] = scan_rejections.summarize(scanner.get("history"), time.time())
     expires = float(config.get("session_expires_at_epoch") or ((state.get("auto") or {}).get("session_until") if running(state) else 0) or 0)
     return {"available": available(), "enabled": running(state),
             "paused": config.get("paused", False), "pause_reason": config.get("pause_reason"),
@@ -982,7 +992,10 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
             kline_fetch=fetch_streamed_klines if stream is not None else None,
         )
         config["last_decision_time"] = at
-        history_item = _record_scanner_scan(scanner, time.time(), len(eligible))
+        history_item = _record_scanner_scan(
+            scanner, time.time(), len(eligible),
+            scan_diagnostics.get("rejection_counts", {}), scan_diagnostics.get("check_failure_counts", {}),
+        )
         scanner.update(stage="SCAN_COMPLETE", last_scan_at=live.now_iso(),
                        scanned_symbol_count=len(symbols), scanned_symbols=symbols,
                        data_complete_count=scan_diagnostics.get("data_complete_count", 0),

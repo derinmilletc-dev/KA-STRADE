@@ -3,7 +3,7 @@ import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, 
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
-  smartAlerts, whyNoTrade, statusHelp, nextScan, reconnectingGuide, type GuideInput, type GuideNotice,
+  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -569,6 +569,7 @@ export default function LiveCockpit(props: Props) {
   const allEvents = status?.events ?? []
   const shownEvents = allEvents.filter(event => eventFilter === 'all' || eventGroup(event.kind) === eventFilter).slice(0, 14)
   const nearMisses = (scanner?.near_misses ?? []).slice(0, 3)
+  const breakdown = rejectionBreakdown(scanner?.rejections_24h, Date.now())
   // Çalışırken bağlantı koparsa da koç görünümü kalır (adım çubuğuna geri dönülmez).
   const coach = guide.phase === 'running' || (stale && guideInput.running)
   const timeline = coach ? [
@@ -644,6 +645,12 @@ export default function LiveCockpit(props: Props) {
               {conf !== null && need !== null && <i className="lcConf" title={`Güven %${conf}, gereken %${need}`}><em style={{width: `${Math.min(100, Math.max(0, conf))}%`}} data-pass={conf >= need || undefined}/><u style={{left: `${Math.min(100, Math.max(0, need))}%`}}/></i>}
               <small>{conf !== null ? `güven %${conf}${need !== null ? ` / %${need}` : ''}` : ''}</small></li>
           })}</ul>}
+          {breakdown && <details className="lcRej"><summary><span><small>SON 24 SAAT · NEREDE ELENDİ?</small><b>{breakdown.headline}</b></span><ChevronDown aria-hidden="true"/></summary>
+            <div className="lcRejBody">
+              <div><h4>Elenme sebebi</h4><ul>{breakdown.reasons.map(row => <li key={row.key}><span>{row.label}</span><i><em style={{width: `${row.bar}%`}}/></i><b>{row.percent < 1 ? '<%1' : `%${row.percent}`}</b></li>)}</ul></div>
+              {breakdown.gates.length > 0 && <div><h4>Hangi sinyal kapısı tutmadı</h4><ul>{breakdown.gates.map(row => <li key={row.key}><span>{row.label}</span><i><em style={{width: `${row.bar}%`}}/></i><b>{row.count}</b></li>)}</ul></div>}
+              <p>Sayılar coin × tarama olarak toplanır; bir coin birden fazla kapıda takılabilir. Bu bilgi yalnızca açıklama içindir, kuralları değiştirmez.{breakdown.thin ? ' Henüz az tarama var; döküm biriktikçe netleşir.' : ''}</p>
+            </div></details>}
         </section>}
 
         <section className="lcCard" aria-label="Açık pozisyonlar">

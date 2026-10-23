@@ -119,6 +119,7 @@ export type OriginalV2LiveStatus = {
     rejection_counts?: Record<string, number>
     near_misses?: OriginalScanNearMiss[]
     last_24h?: {scans: number; candidates: number; trades: number}
+    rejections_24h?: {scans?: number; since_epoch?: number | null; reasons?: Record<string, number>; checks?: Record<string, number>} | null
     last_failure?: {stage: string; reason_code: string; symbol?: string; interval?: string; message: string} | null
   } | null
   fill_lock?: {id: string; active: boolean; symbol: string; violations: string[]; evidence?: {

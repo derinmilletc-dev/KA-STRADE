@@ -352,7 +352,8 @@ class AssistantTools:
             "scanner": {
                 "stage": scanner.get("stage"), "last_scan_at": scanner.get("last_scan_at"),
                 "scanned_symbol_count": scanner.get("scanned_symbol_count"), "candidate_count": scanner.get("candidate_count"),
-                "last_24h": scanner.get("last_24h"), "top_rejections": [{"reason_code": key, "count": value} for key, value in top],
+                "last_24h": scanner.get("last_24h"), "rejections_24h": scanner.get("rejections_24h"),
+                "top_rejections": [{"reason_code": key, "count": value} for key, value in top],
                 "near_misses": near, "last_failure": failure.get("message") if failure else None,
             },
         })
