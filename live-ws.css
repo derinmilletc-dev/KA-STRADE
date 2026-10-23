@@ -450,3 +450,67 @@ html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTra
   }
   #master-trade-live-terminal.liveWs:has(> .liveWsMain) > :not(.liveWsMain, .liveWsSide) { grid-column: 1 / -1; }
 }
+
+/* Gelişmiş · kurtarma ve teşhis */
+#root .originalAdvanced.advPanel{background:#0f1a14;border:1px solid #22382b;border-radius:18px;padding:0;overflow:hidden}
+.advPanel>.advHead{list-style:none;display:flex;align-items:center;gap:14px;padding:18px 22px;cursor:pointer;font-weight:400}
+.advPanel>.advHead::-webkit-details-marker{display:none}
+.advHeadIcon{width:42px;height:42px;border-radius:12px;background:#12261a;border:1px solid #24432f;display:flex;align-items:center;justify-content:center;color:#5fe39a;flex-shrink:0}
+.advHeadIcon svg{width:21px;height:21px}
+.advHeadText{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.advHeadText small{font-size:11px;letter-spacing:.14em;font-weight:600;color:#7f9a88}
+.advHeadText b{font-size:18px;font-weight:600;color:#e8f1ea}
+.advChip{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap}
+.advChip i{width:8px;height:8px;border-radius:50%;background:currentColor}
+.advChip.ok{background:#10261a;border:1px solid #24432f;color:#9fe8bd}
+.advChip.bad{background:#2a1517;border:1px solid #4a2a2c;color:#ff9a9e}
+.advChevron{width:20px;height:20px;color:#7f9a88;transition:transform .15s}
+.advPanel[open] .advChevron{transform:rotate(180deg)}
+.advActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:0 22px}
+.advAction{text-align:left;display:flex;flex-direction:column;gap:10px;padding:18px;border-radius:16px;background:#111c16;border:1px solid #22382b;color:#e8f1ea;cursor:pointer;font:inherit;transition:border-color .15s}
+.advAction:hover:not(:disabled){border-color:#3a5a47}
+.advAction:disabled{cursor:not-allowed;opacity:.6}
+.advActionTop{display:flex;align-items:center;justify-content:space-between}
+.advActionIcon{width:38px;height:38px;border-radius:10px;background:#12231a;display:flex;align-items:center;justify-content:center}
+.advActionIcon svg{width:20px;height:20px}
+.advAction em{font-style:normal;font-size:11px;font-weight:600;letter-spacing:.08em;color:#7f9a88}
+.advAction b{font-size:15px;font-weight:600}
+.advAction>span:not(.advActionTop){font-size:13px;line-height:1.5;color:#93a99a}
+.advAction strong{margin-top:auto;padding-top:4px;font-size:13px;font-weight:600}
+.advAction.info .advActionIcon{color:#7fd7ff}.advAction.info strong{color:#7fd7ff}
+.advAction.warn .advActionIcon{color:#f2c14e;background:#1a1d12}.advAction.warn strong{color:#f2c14e}
+.advAction.warn:disabled strong{color:#6c8274}
+.advAction.danger{background:#1b1112;border-color:#4a2a2c}
+.advAction.danger .advActionIcon{color:#ff7a7f;background:#2a1517}
+.advAction.danger em,.advAction.danger strong{color:#ff7a7f}
+.advAction.danger>span:not(.advActionTop){color:#c9a3a5}
+.advChecks{margin:16px 22px 22px;padding:20px 22px;border-radius:16px;background:#111c16;border:1px solid #22382b;display:flex;flex-direction:column;gap:14px}
+.advChecksHead{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.advChecksHead>div:first-child{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}
+.advChecksHead b{font-size:16px;font-weight:600}
+.advChecksHead span{font-size:13px;color:#93a99a}
+.advProgress{width:240px;max-width:100%}
+.advProgress>div{display:flex;justify-content:space-between;font-size:12px;color:#93a99a;margin-bottom:6px}
+.advProgress code{font-family:'JetBrains Mono',ui-monospace,monospace;color:#e8f1ea}
+.advProgress i{display:block;height:8px;border-radius:999px;background:#1c2b22;overflow:hidden}
+.advProgress u{display:block;height:100%;background:linear-gradient(90deg,#3fcf84,#5fe39a);text-decoration:none}
+.advChips{display:flex;gap:8px;flex-wrap:wrap}
+.advChips span{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600}
+.advChips .bad{background:#2a1517;border:1px solid #4a2a2c;color:#ff9a9e}
+.advChips .ok{background:#10261a;border:1px solid #24432f;color:#9fe8bd}
+.advCheckGrid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.advCheckGrid li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#0f1a14;border:1px solid #1c2b22;min-width:0}
+.advCheckGrid li[data-result="failed"]{background:#1b1112;border-color:#4a2a2c}
+.advDot{width:24px;height:24px;border-radius:50%;background:#5fe39a;color:#0a110d;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.advCheckGrid li[data-result="failed"] .advDot{background:#ff7a7f}
+.advDot svg{width:14px;height:14px}
+.advCheckGrid li>span:last-child{min-width:0;display:flex;flex-direction:column;gap:2px}
+.advCheckGrid strong{font-size:14px;font-weight:600;color:#e8f1ea}
+.advCheckGrid small{font-size:12px;color:#93a99a;overflow-wrap:anywhere}
+@media (max-width:900px){
+  .advActions{grid-template-columns:1fr;padding:0 14px}
+  .advCheckGrid{grid-template-columns:1fr}
+  .advChecks{margin:14px}
+  .advPanel>.advHead{flex-wrap:wrap;padding:14px}
+  .advChip{order:3;white-space:normal}
+}
