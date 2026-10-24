@@ -165,6 +165,19 @@ class Start(risk_settings.RiskChoice):
             raise ValueError("Original V2 oturumu 1, 4, 12 veya 24 saat olabilir.")
         return value
 
+class ExtendSession(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_hours: int = Field(strict=True)
+    understood: bool = Field(default=False, strict=True)
+
+    @field_validator("session_hours")
+    @classmethod
+    def validate_session_hours(cls, value: int) -> int:
+        if value not in {1, 4, 12, 24}:
+            raise ValueError("Original V2 oturumu 1, 4, 12 veya 24 saat olabilir.")
+        return value
+
+
 class MarginModeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     mode: str = Field(max_length=16)
@@ -538,7 +551,7 @@ def check_session_time(state: dict[str, Any]) -> None:
         pause(state, "Original V2 oturum süresi doldu; yeni oturum için ARM ve güncel 2FA gerekli.")
     elif remaining <= SESSION_WARNING_SECONDS and not config.get("session_warning_sent"):
         config["session_warning_sent"] = True
-        event = live.add_event(state, "ORIGINAL_SESSION_EXPIRING", "Canlı oturum 1 saat içinde bitecek; otomatik yenilenmez. Devam etmek için bittiğinde yeniden başlat.", recipient_user_id=config.get("owner_id"), source=SOURCE)
+        event = live.add_event(state, "ORIGINAL_SESSION_EXPIRING", "Canlı oturum 1 saat içinde bitecek; otomatik yenilenmez. Süreyi Canlı İşlem ekranındaki \"Oturumu uzat\" ile uzatabilirsin; yoksa bittiğinde yeniden başlat.", recipient_user_id=config.get("owner_id"), source=SOURCE)
         config.setdefault("alerts", []).insert(0, {
             "id": "original-live:" + event["id"], "type": "ORIGINAL_SESSION_EXPIRING", "severity": "WARNING",
             "title": "Original V2 oturumu bitmek üzere", "message": event["message"],
@@ -1645,6 +1658,71 @@ async def update_risk(request: Request, body: risk_settings.RiskUpdate) -> dict[
             raise live.safe_exchange_error(exc) from exc
         await risk_settings.save_choice(request, user, state, body, snapshot, fingerprint)
     return await status(request)
+
+@router.post("/extend-session")
+async def extend_session(request: Request, body: ExtendSession) -> dict[str, Any]:
+    """Çalışan oturumun bitişini ileri alır. Yeni giriş izni, risk ayarı, ARM veya açık pozisyon değişmez.
+
+    Yeni bitiş = şimdi + seçilen süre, canlı risk izninin bitişiyle sınırlı. Süre kısalmaz; kazanç yoksa reddedilir."""
+    from . import v25_execution as live
+    user = live_access.require_live_member(request)
+    if not available():
+        raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
+    live.execution_owner(request)
+    state = request.app.state.v25_execution
+    async with state["lock"]:
+        if not state.get("recovery_ready"):
+            raise HTTPException(503, "Canlı durum kurtarma tamamlanmadı; oturum uzatılmadı.")
+        await live.require_live_understanding(request, user, body.understood)
+        config = settings(state)
+        if config.get("owner_id") != user["id"]:
+            raise HTTPException(403, "Oturum yalnız hesabın sahibi tarafından uzatılabilir.")
+        if not running(state) or config.get("paused"):
+            raise HTTPException(409, "Uzatılacak çalışan bir oturum yok; yeni oturum başlatın.")
+        now = time.time()
+        current = float(config.get("session_expires_at_epoch") or (state.get("auto") or {}).get("session_until") or 0)
+        if current <= now:
+            raise HTTPException(409, "Oturum süresi doldu; yeni oturum başlatın.")
+        consent = live.consent_status(state, request)
+        if not consent.get("active") or not consent.get("expires_at"):
+            raise HTTPException(423, "Original V2 canlı risk izni doğrulanamadı; oturum uzatılmadı.")
+        consent_expiry = datetime.fromisoformat(consent["expires_at"]).timestamp()
+        requested = now + body.session_hours * 3600
+        new_expiry = min(requested, consent_expiry)
+        if new_expiry <= current + 60:
+            raise HTTPException(409, "Oturum zaten bu süreye ya da canlı risk izninin bitişine kadar açık; daha fazla uzatılamaz.")
+        keys = ("session_expires_at_epoch", "session_hours", "session_authority_limited", "session_warning_sent")
+        previous = {key: config.get(key) for key in keys}
+        had = {key: key in config for key in keys}
+        previous_auto = (state["auto"].get("session_until"), state["auto_authorization"].get("expires_at_epoch"))
+        config.update(session_expires_at_epoch=new_expiry, session_hours=body.session_hours,
+                      session_authority_limited=new_expiry < requested, session_warning_sent=False)
+        state["auto"]["session_until"] = new_expiry
+        state["auto_authorization"]["expires_at_epoch"] = new_expiry
+        persisted = False
+        try:
+            await persist_required(state)
+            persisted = True
+        except live.LiveExchangeError:
+            raise HTTPException(503, "Oturum uzatması kalıcı kaydedilemedi; eski süre korundu.") from None
+        finally:
+            if not persisted:
+                for key in keys:
+                    if had[key]:
+                        config[key] = previous[key]
+                    else:
+                        config.pop(key, None)
+                state["auto"]["session_until"], state["auto_authorization"]["expires_at_epoch"] = previous_auto
+                live.persist_state(state)
+        live.add_event(
+            state, "ORIGINAL_SESSION_EXTENDED",
+            f"Canlı oturum uzatıldı: {body.session_hours} saat (yeni bitiş " + datetime.fromtimestamp(new_expiry, timezone.utc).strftime("%H:%M UTC") + ")."
+            + (" Bitiş canlı risk iziniyle sınırlı." if new_expiry < requested else ""),
+            actor=user["id"], previous_expiry=current, new_expiry=new_expiry,
+        )
+        live.persist_state(state)
+    return await status(request)
+
 
 @router.post("/margin-mode")
 async def update_margin_mode(request: Request, body: MarginModeUpdate) -> dict[str, Any]:

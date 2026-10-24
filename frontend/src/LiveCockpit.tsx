@@ -36,7 +36,7 @@ type Props = {
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
 const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
-type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
+type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
@@ -214,6 +214,16 @@ export default function LiveCockpit(props: Props) {
   const [modeAck, setModeAck] = useState(false)
   const [modePhrase, setModePhrase] = useState('')
   const [modeError, setModeError] = useState('')
+  const [modeHelpOpen, setModeHelpOpen] = useState(false)
+  const [extendHours, setExtendHours] = useState(12)
+  const [extendUnderstood, setExtendUnderstood] = useState(false)
+  const extendSession = () => perform('extend', async () => {
+    const before = original?.session?.expires_at ? Date.parse(original.session.expires_at) : 0
+    const payload = await request('/original-v2/extend-session', {session_hours: extendHours, understood: extendUnderstood}) as {session?: {expires_at?: string | null}} | null
+    const after = payload?.session?.expires_at ? Date.parse(payload.session.expires_at) : NaN
+    if (!Number.isFinite(after) || after <= before) throw new Error('Oturum uzatması doğrulanamadı; güncel süreyi kontrol et.')
+    setSheet(null); setExtendUnderstood(false)
+  }, 'Oturum uzatıldı. Açık pozisyonlar ve ayarlar değişmedi.', setSheetError)
   const chosenMode = modePick ?? savedMode
   const modeReady = chosenMode !== savedMode && modeUnderstood && (chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE)
   const pickMode = (mode: string) => { setModePick(mode === savedMode ? null : mode); setModeAck(false); setModePhrase(''); setModeError('') }
@@ -486,7 +496,8 @@ export default function LiveCockpit(props: Props) {
   </>
   const modeRows = original?.margin_modes ?? []
   const modeBlock = verified && original && guideInput.connected && !guideInput.emergency && modeRows.length > 0 ? <div className="lcMode" id="lc-mode">
-    <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin.</p>
+    <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin. <button type="button" className="lcLink lcWhatIs" aria-expanded={modeHelpOpen} onClick={() => setModeHelpOpen(value => !value)}>Bu ne?</button></p>
+    {modeHelpOpen && <p className="lcWhy">Teminat, her işleme bakiyenden ayırdığın paradır. Modu yükseltirsen işlem büyür: kazanç da kayıp da büyür. Stop-loss her zaman çalışır ve zarar o seviyede durur. Toplam teminat sınırı her modda aynıdır.</p>}
     <div className="lcModes" role="radiogroup" aria-label="Teminat modu">
       {modeRows.map(row => {
         const view = wallet !== null ? marginModePreview(wallet, caps, row.per_trade_percent) : null
@@ -598,6 +609,15 @@ export default function LiveCockpit(props: Props) {
     </> : <div className="lcSheetActions"><button type="button" className="lcBtn lcPrimary" onClick={closeSheet}>Tamam</button></div>}
   </> : sheet === 'start' ? <>
     <h2 id="lc-sheet-title">Başlatmadan önce son kontrol</h2>
+    <ul className="lcChecklist" aria-label="Hazırlık kontrol listesi">
+      {([
+        [guideInput.connected, 'Binance bağlantısı', guideInput.connected ? 'Bağlı, emir göndermeye hazır' : 'Bağlantı doğrulanamadı'],
+        [wallet !== null, 'Bakiye', wallet !== null ? `${usdt(wallet)} doğrulandı` : 'Okunamadı'],
+        [riskSaved, 'Risk ayarı', riskSaved ? `Seçildi · hedef ${pct(savedRisk)} · yalnız yeni işlemlere` : 'Henüz seçilmedi'],
+        [true, 'Teminat modu', `${original?.margin_modes?.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} · işlem başı en çok %${original?.margin_modes?.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}`],
+        [guideInput.authorizationValid && guideInput.policyAcknowledged, 'Güvenlik onayları', guideInput.authorizationValid && guideInput.policyAcknowledged ? 'Tamam' : 'Başlatınca eksik olanlar verilir'],
+      ] as [boolean, string, string][]).map(([ok, title, note]) => <li key={title} data-ok={ok || undefined}><i aria-hidden="true">{ok ? <Check/> : null}</i><span><b>{title}</b><small>{note}</small></span></li>)}
+    </ul>
     {summary ? <div className="lcRiskGrid">
       <div><small>Bir işlemde en fazla kayıp</small><b>{usdt(summary.perTrade)}</b>{summary.perTradeCapped && <em>sunucu tavanı uygulandı</em>}</div>
       <div><small>Kötü bir günde en fazla</small><b>{usdt(summary.perDay)}</b>{summary.perDayCapped && <em>sunucu tavanı uygulandı</em>}</div>
@@ -613,6 +633,15 @@ export default function LiveCockpit(props: Props) {
     <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
+  </> : sheet === 'extend' ? <>
+    <h2 id="lc-sheet-title">Oturumu uzat</h2>
+    <div className="lcSheetNote"><ShieldCheck aria-hidden="true"/><p>{sessionLeft > 0 ? `Oturumun ${duration(sessionLeft)} sonra bitiyor. ` : ''}Seçtiğin süre <b>şu andan itibaren</b> sayılır. Açık pozisyonlar, risk ayarı ve teminat modu değişmez. Süre, canlı risk izninin bitişini aşamaz.</p></div>
+    <div className="lcPresets" role="radiogroup" aria-label="Uzatma süresi">
+      {[4, 12, 24].map(hours => <button type="button" role="radio" aria-checked={extendHours === hours} key={hours} className="lcPreset" data-selected={extendHours === hours || undefined} disabled={Boolean(working)} onClick={() => setExtendHours(hours)}><span className="lcPresetHead"><b>{hours} saat</b></span></button>)}
+    </div>
+    <label className="lcCheck"><input type="checkbox" checked={extendUnderstood} onChange={event => setExtendUnderstood(event.target.checked)}/><span>Gerçek parayla işlemin bu süre boyunca açılmaya devam edeceğini anladım.</span></label>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+      <button type="button" className="lcBtn lcPrimary" disabled={!extendUnderstood || busy} onClick={() => void extendSession()}>{working === 'extend' ? 'Uzatılıyor…' : `${extendHours} saat uzat`}</button></div>
   </> : sheet === 'stop' ? <>
     <h2 id="lc-sheet-title">Otomatik işlemi durdur</h2>
     <ul className="lcStopList">
@@ -704,11 +733,13 @@ export default function LiveCockpit(props: Props) {
         <div><dt>Bugün</dt><dd data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</dd></div>
       </dl>
       <div className="lcStatusLinks">
+        {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %{original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}</b></span>}
         <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
         <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı →</a>
         {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
       </div>
     </header>
+    <p className="lcLegend" aria-label="Renklerin anlamı"><b data-tone="ok">Yeşil</b> sağlıklı · <b data-tone="warn">turuncu</b> dikkat · <b data-tone="stop">kırmızı</b> sorun</p>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
     <div className="lcGrid">
@@ -734,6 +765,7 @@ export default function LiveCockpit(props: Props) {
               ? <a className="lcBtn lcPrimary" href="/master-trade?tab=baglanti" data-testid="live-guide-action" onClick={event => { event.preventDefault(); goTab('baglanti') }}>{guide.actionLabel}</a>
               : <button type="button" className="lcBtn lcPrimary" data-testid="live-guide-action" disabled={busy && guide.action !== 'retry'} onClick={() => act()}>{actionIcon}{guide.action === 'retry' && working === 'retry' ? 'Okunuyor…' : guide.actionLabel}</button>)}
             {guide.why && <button type="button" className="lcBtn lcGhost" aria-expanded={whyOpen} onClick={() => setWhyOpen(value => !value)}>Neden gerekli?</button>}
+            {coach && running && !stale && <button type="button" className="lcBtn lcPrimary lcExtend" data-urgent={(sessionLeft > 0 && sessionLeft <= 3600) || undefined} disabled={busy} onClick={() => { setExtendUnderstood(false); setSheetError(''); setSheet('extend') }}>Oturumu uzat</button>}
             {coach && <button type="button" className="lcBtn lcGhost" onClick={() => { setSettingsOpen(true); window.setTimeout(() => document.getElementById('lc-drawer')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 30) }}>Risk ayarını gör</button>}
           </div>
           {whyOpen && guide.why && <p className="lcWhy">{guide.why}</p>}
