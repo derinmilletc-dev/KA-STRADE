@@ -2968,7 +2968,6 @@ async def install_verified_stop(
     raise LiveExchangeError("Stop sınırlı denemeler sonunda doğrulanamadı.", exchange_code=last_error.exchange_code, unknown_execution=True) from last_error
 
 
-<<<<<<< HEAD
 async def manual_breakeven_after_tp1(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -3039,7 +3038,9 @@ async def manual_breakeven_after_tp1(
     plan["breakeven_at"] = now_iso()
     add_event(state, "BREAKEVEN_STOP", f"{symbol} TP1 doldu; stop giriş fiyatına ({plan['stop_loss']}) çekildi.", symbol=symbol, plan_id=plan.get("id"))
     persist_state(state)
-=======
+    return True
+
+
 MANUAL_FILL_RISK_TOLERANCE = Decimal("1.25")
 
 
@@ -3086,7 +3087,6 @@ async def manual_fill_risk_audit(
     plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
     persist_state(state)
     await close_tracked_symbol(client, symbol, close_intent)
->>>>>>> d3d7b1e (feat(live): manuel emirde gerçek dolum fiyatıyla risk kontrolü (yalnız MANUAL))
     return True
 
 
