@@ -68,3 +68,13 @@
   .kaisPupilDive[data-phase=reveal]{-webkit-mask-image:none;mask-image:none;animation:kpdFade .28s linear both}
   @keyframes kpdFade{to{opacity:0}}
 }
+
+/* ── Sinematik bilinç geçişi (tuval): tuval tüm ekranı kaplar, portal tuvalde gerçek delik olarak açılır ── */
+.kpdCinema{background:transparent}
+.kpdCinema .kpdCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.kpdCinema .kpdShade{display:none}
+/* Sade yol (hareket azaltma / sahne kurulamadı): kısa kararma, sonra yumuşak açılma */
+.kpdCinema[data-flat] .kpdCanvas{display:none}
+.kpdCinema[data-flat] .kpdShade{display:block;opacity:0;background:#02080e;transition:opacity .16s linear}
+.kpdCinema[data-flat=in] .kpdShade{opacity:1}
+.kpdCinema[data-flat=out] .kpdShade{opacity:0;transition:opacity .3s linear}

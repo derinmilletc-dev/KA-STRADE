@@ -1,20 +1,17 @@
-/** Sayfa geçişi: göz bebeğine dalış. Kais'in gözü bulunduğu yerden (üst menüdeki göz ya da hologramdaki göz) belirir,
- *  odaklanır, kamera göz bebeğine doğru ilerler; göz bebeği ekranı kapladığı anda gerçek sayfa değişir (commit), ardından
- *  göz bebeği merkezden açılarak yeni sayfayı gösterir. Tamamen görsel: veri okumaz, ağ isteği yapmaz.
- *  Hareket azaltma açıksa yalnız kısa bir kararma/açılma yapılır. Bileşen kapanınca zamanlayıcılar temizlenir ve
- *  sayfa değişimi en geç o anda yapılır (geçiş yarıda kalsa da komut kaybolmaz). */
+/** Sayfa geçişi: sinematik bilinç geçişi. Tek bir zaman çizelgesi (requestAnimationFrame) dört aşamayı sürer:
+ *  AWARENESS 0–350 ms · SYNCHRONIZATION 350–750 ms · TRANSIT 750–1250 ms · MATERIALIZATION 1100–1800 ms (kais-transit-scene).
+ *  Gerçek sayfa değişimi (commit) SYNCHRONIZATION içinde yapılır, böylece hedef sayfa portal açılmadan önce arkada hazırlanır.
+ *  Sayfa hazır değilse zaman çizelgesi portal açılmadan hemen önce bekler (en çok 2,4 sn); sonra güvenli biçimde devam eder.
+ *  Yeni komut gelirse eski geçiş iptal edilir (eski sayfa değişimi yine yapılır) ve yenisi başlar. Ses/komut/yönlendirme mantığına
+ *  dokunmaz: yalnız görsel katman. Sahne kurulamazsa ya da hareket azaltma açıksa kısa, sade bir kararma/açılma yapılır. */
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
+import {createTransitScene, TRANSIT} from './kais-transit-scene'
 import './kais-pupil-dive.css'
 
 export type PupilDiveOrigin = {x: number; y: number; size: number}
 export type PupilDive = {view: string; label: string; origin: PupilDiveOrigin; commit: () => void; done: () => void}
-
-type Phase = 'appear' | 'focus' | 'dive' | 'hold' | 'reveal'
-const PUPIL_RATIO = .09  // göz bebeği yarıçapı / göz kutusu (viewBox 100'de r=9)
-const SEGMENTS = Array.from({length: 60}, (_, index) => index)
-const STREAKS = Array.from({length: 28}, (_, index) => index)
 
 /** Ekrandaki gerçek Kais gözünün konumu: önce hologram gözü, sonra üst menüdeki göz; yoksa ekran ortası. */
 export function pupilDiveOrigin(preferred?: Element | null): PupilDiveOrigin {
@@ -28,68 +25,63 @@ export function pupilDiveOrigin(preferred?: Element | null): PupilDiveOrigin {
   return {x: window.innerWidth / 2, y: window.innerHeight / 2, size: Math.min(240, window.innerWidth * .5)}
 }
 
+const MAX_HOLD_MS = 2400
+
 export default function KaisPupilDive({dive}: {dive: PupilDive}) {
-  const [phase, setPhase] = useState<Phase>('appear')
-  const committed = useRef(false)
-  const {x, y, size} = dive.origin
-  // Göz önce bulunduğu yerden ekran ortasına gelip büyür (odak), sonra kamera göz bebeğine dalar.
-  // SVG odak boyutunda çizilir ve başlangıçta küçültülür: odakta keskin kalır (büyütülmüş bulanık görüntü olmaz).
-  const width = window.innerWidth, height = window.innerHeight
-  const focus = Math.max(160, Math.min(300, Math.min(width, height) * .36))
-  const reach = Math.hypot(width / 2, height / 2)
-  const diveScale = Math.max(4, (reach / (focus * PUPIL_RATIO)) * 1.08)
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+  const [flat, setFlat] = useState<'' | 'in' | 'out'>('')
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timers: number[] = []
-    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms))
+    let committed = false, finished = false
     const commit = () => {
-      if (committed.current) return
-      committed.current = true
+      if (committed) return
+      committed = true
       try { dive.commit() } catch { /* sayfa açılamazsa mevcut güvenli davranış */ }
     }
-    if (reduced) {
-      setPhase('hold'); at(180, commit); at(220, () => setPhase('reveal')); at(520, () => dive.done())
-    } else {
-      at(30, () => setPhase('focus'))
-      at(470, () => setPhase('dive'))
-      at(1060, () => { setPhase('hold'); commit() })
-      at(1320, () => setPhase('reveal'))
-      at(2040, () => dive.done())
+    const finish = () => { if (finished) return; finished = true; try { dive.done() } catch { /* yok say */ } }
+    const timers: number[] = []
+    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms))
+    // Sade yol: hareket azaltma, gizli sekme ya da sahne kurulamadı
+    const simple = () => { setFlat('in'); at(180, commit); at(240, () => setFlat('out')); at(560, finish) }
+    const node = canvas.current
+    if (reduced || !node || document.hidden) { simple(); return () => { timers.forEach(window.clearTimeout); commit() } }
+    const holo = document.querySelector('.kaisHolo')
+    const khCore = holo?.querySelector<HTMLCanvasElement>('.khCore')?.getBoundingClientRect()
+    const levelOf = () => Number(document.querySelector<HTMLElement>('.kaisHolo')?.style.getPropertyValue('--kh-level')) || 0
+    let scene: ReturnType<typeof createTransitScene> = null
+    try {
+      scene = createTransitScene({
+        canvas: node, origin: dive.origin, lite: window.matchMedia('(max-width: 1024px)').matches, label: dive.label,
+        glyph: PAGE_GLYPH[dive.view] ?? PAGE_GLYPH.dashboard, getLevel: levelOf,
+        core: khCore && khCore.width > 40 ? {x: khCore.left + khCore.width / 2, y: khCore.top + khCore.height / 2, r: khCore.width / 4} : null,
+      })
+    } catch { scene = null }
+    if (!scene) { simple(); return () => { timers.forEach(window.clearTimeout); commit() } }
+    scene.resize()
+    const resize = () => scene?.resize()
+    window.addEventListener('resize', resize)
+    let raf = 0, last = 0, held = 0, waited = 0, commitAt = 0, commitFrames = 0
+    const start = performance.now()
+    const ready = (now: number) => committed && commitFrames >= 4 && now - commitAt >= 450 && document.readyState !== 'loading' && !document.querySelector('.moduleLazyLoading')
+    const frame = (now: number) => {
+      const dt = last ? now - last : 16; last = now
+      let tt = now - start - held
+      if (committed) commitFrames += 1
+      if (tt >= TRANSIT.commitAt && !committed) { commit(); commitAt = now; commitFrames = 0 }
+      // Sayfa hazır değilse portal açılmadan önce bekle (sahne ortam hareketiyle canlı kalır); zaman aşımında güvenle devam et
+      if (tt >= TRANSIT.holdAt && waited < MAX_HOLD_MS && !ready(now)) { held += dt; waited += dt; tt = TRANSIT.holdAt }
+      try { scene?.draw(tt, (now - start) / 1000) } catch { cleanup(); commit(); finish(); return }
+      if (root.current) root.current.style.pointerEvents = tt >= TRANSIT.holdAt ? 'none' : 'auto'
+      if (tt >= TRANSIT.endAt) { finish(); return }
+      raf = requestAnimationFrame(frame)
     }
-    return () => { timers.forEach(window.clearTimeout); commit() }
+    const cleanup = () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize) }
+    raf = requestAnimationFrame(frame)
+    return () => { cleanup(); timers.forEach(window.clearTimeout); scene?.dispose(); commit() }
   }, [dive])
-  const style = {'--kpd-x': `${x}px`, '--kpd-y': `${y}px`, '--kpd-size': `${focus}px`, '--kpd-start': (size / focus).toFixed(3),
-    '--kpd-dx': `${width / 2 - x}px`, '--kpd-dy': `${height / 2 - y}px`, '--kpd-scale': diveScale.toFixed(2)} as React.CSSProperties
-  return createPortal(<div className="kaisPupilDive" data-phase={phase} style={style} aria-hidden="true">
+  return createPortal(<div ref={root} className="kaisPupilDive kpdCinema" data-flat={flat || undefined} aria-hidden="true">
+    <canvas ref={canvas} className="kpdCanvas"/>
     <i className="kpdShade"/>
-    <svg className="kpdStreaks" viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid slice">
-      {STREAKS.map(index => <path key={index} d={`M0 -${30 + (index * 7) % 18}V-${70 + (index * 13) % 30}`} transform={`rotate(${index * (360 / STREAKS.length) + (index % 3) * 4})`}/>)}
-    </svg>
-    <svg className="kpdEye" viewBox="-50 -50 100 100">
-      <defs>
-        <radialGradient id="kpdIris" r="1" cx="0" cy="0" gradientUnits="userSpaceOnUse" gradientTransform="scale(22)">
-          <stop offset=".38" stopColor="#031414"/>
-          <stop offset=".5" stopColor="#1fd3b4"/>
-          <stop offset=".72" stopColor="#7dffe0"/>
-          <stop offset=".9" stopColor="#14a98f"/>
-          <stop offset="1" stopColor="#063a35"/>
-        </radialGradient>
-        <radialGradient id="kpdPupil" r="1" cx="0" cy="0" gradientUnits="userSpaceOnUse" gradientTransform="scale(9)">
-          <stop offset="0" stopColor="#06201f"/>
-          <stop offset=".8" stopColor="#020b0c"/>
-          <stop offset="1" stopColor="#010607"/>
-        </radialGradient>
-      </defs>
-      <path className="lid" d="M-46 0Q0 -40 46 0Q0 40 -46 0Z"/>
-      <circle r="22" fill="url(#kpdIris)"/>
-      <g className="irisRing">{SEGMENTS.map(index => <path key={index} d={index % 5 ? 'M0 -12.6V-14' : 'M0 -12V-15'} transform={`rotate(${index * 6})`}/>)}</g>
-      <circle className="irisEdge" r="22"/>
-      <circle className="focusRing" r="16.5" strokeDasharray="4 2.2"/>
-      <circle r="9" fill="url(#kpdPupil)"/>
-      <circle className="pupilRim" r="9"/>
-      <ellipse className="glint" cx="-4" cy="-4.6" rx="2" ry="1.1" transform="rotate(-35 -4 -4.6)"/>
-    </svg>
-    <div className="kpdTag"><svg viewBox="0 0 24 24"><path d={PAGE_GLYPH[dive.view] ?? PAGE_GLYPH.dashboard}/></svg><b>{dive.label}</b></div>
-    <i className="kpdRim"/>
   </div>, document.body)
 }
