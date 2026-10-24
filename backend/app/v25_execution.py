@@ -7608,7 +7608,17 @@ async def _clear_emergency_locked(
     if emergency.get("active") is not True:
         raise HTTPException(409, "Aktif emergency kilidi yok.")
     if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN":
-        raise HTTPException(409, "Önce recovery/reconciliation tamamlanmalı.")
+        # Kullanıcıya ayrı bir "kurtarma kontrolü" adımı yaptırmak yerine, 2FA'yla gelen bu istekte
+        # hesabı taze doğrularız; temiz çıkarsa kilit kendiliğinden kalkar, çıkmazsa kalır.
+        try:
+            await reconcile(request.app, credentials=live_credentials_status(request)[:2])
+        except (LiveExchangeError, BinanceDemoError) as exc:
+            raise safe_exchange_error(exc) from exc
+        emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
+        if emergency.get("active") is not True:
+            return {"ok": True, "emergency": False, "execution_state": state.get("execution_state"), "armed": False}
+        if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN":
+            raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin.")
     active_plans = [
         plan for plan in state.get("plans", {}).values()
         if isinstance(plan, dict) and live_plan_can_mutate(plan)
