@@ -2968,6 +2968,7 @@ async def install_verified_stop(
     raise LiveExchangeError("Stop sınırlı denemeler sonunda doğrulanamadı.", exchange_code=last_error.exchange_code, unknown_execution=True) from last_error
 
 
+<<<<<<< HEAD
 async def manual_breakeven_after_tp1(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -3038,6 +3039,54 @@ async def manual_breakeven_after_tp1(
     plan["breakeven_at"] = now_iso()
     add_event(state, "BREAKEVEN_STOP", f"{symbol} TP1 doldu; stop giriş fiyatına ({plan['stop_loss']}) çekildi.", symbol=symbol, plan_id=plan.get("id"))
     persist_state(state)
+=======
+MANUAL_FILL_RISK_TOLERANCE = Decimal("1.25")
+
+
+async def manual_fill_risk_audit(
+    client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any],
+) -> bool:
+    """Manual plans only: re-check risk from the real fill. Returns True when the position was closed.
+
+    Slippage or a partial fill that pushes the real stop risk beyond 125% of the planned
+    risk is treated as a breach: the position is closed reduce-only. Other plans are never touched.
+    """
+    if plan.get("source") != "MANUAL" or plan.get("manual_fill_audit"):
+        return False
+    try:
+        entry = Decimal(str(position["entry_price"]))
+        quantity = Decimal(str(position["quantity"]))
+        stop = Decimal(str(plan["stop_loss"]))
+        planned = Decimal(str(plan["initial_risk_usdt"]))
+        if not all(v.is_finite() and v > 0 for v in (entry, quantity, stop, planned)):
+            raise ValueError("invalid")
+        actual = quantity * abs(entry - stop)
+        wrong_side = (plan["direction"] == "LONG" and stop >= entry) or (plan["direction"] == "SHORT" and stop <= entry)
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        plan["manual_fill_audit"] = {"checked_at": now_iso(), "result": "UNVERIFIED"}
+        add_event(state, "MANUAL_FILL_AUDIT_UNVERIFIED", f"{plan.get('symbol')} dolum riski doğrulanamadı; Stop korunuyor.", symbol=plan.get("symbol"))
+        persist_state(state)
+        return False
+    breach = wrong_side or actual > planned * MANUAL_FILL_RISK_TOLERANCE
+    plan["manual_fill_audit"] = {
+        "checked_at": now_iso(), "result": "BREACH" if breach else "OK",
+        "actual_risk_usdt": decimal_text(actual), "planned_risk_usdt": decimal_text(planned),
+        "fill_price": decimal_text(entry), "filled_quantity": decimal_text(quantity),
+    }
+    if not breach:
+        persist_state(state)
+        return False
+    symbol = plan["symbol"]
+    add_event(state, "MANUAL_FILL_RISK_BREACH", f"{symbol} gerçek dolum riski {decimal_text(actual)} USDT, plan {decimal_text(planned)} USDT; pozisyon reduce-only kapatılıyor.", symbol=symbol, plan_id=plan.get("id"))
+    close_intent = f"fillrisk-{plan['id']}"
+    close_ids = plan.setdefault("close_client_order_ids", [])
+    close_id = client_id_for("CLOSE", close_intent)
+    if close_id not in close_ids:
+        close_ids.append(close_id)
+    plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
+    persist_state(state)
+    await close_tracked_symbol(client, symbol, close_intent)
+>>>>>>> d3d7b1e (feat(live): manuel emirde gerçek dolum fiyatıyla risk kontrolü (yalnız MANUAL))
     return True
 
 
@@ -3166,6 +3215,8 @@ async def install_protection(
     if original_plan:
         await original_v2_live.audit_fill(state, plan, position_view)
         await original_v2_live.install_targets(client, state, plan, position_view, existing_algos)
+        return
+    if plan.get("source") == "MANUAL" and await manual_fill_risk_audit(client, state, plan, position_view):
         return
     try:
         if plan.get("min_notional") is None or plan.get("order_type") == "LIMIT":
