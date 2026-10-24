@@ -4,6 +4,8 @@
  *  Durum (listening/thinking/speaking/error) ve ses seviyesi dışarıdan GERÇEK uygulama durumundan verilir; burada durum uydurulmaz.
  *  Seviye (0–1), konuşma tanıma/okuma olaylarından türetilen --kh-level değeridir; gerçek ses genliği değildir. */
 
+import {acquireQuality, getQuality} from './kais-holo-quality'
+
 export type CorePhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type CoreOptions = {
   getPhase: () => CorePhase
@@ -97,7 +99,7 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
   function resize() {
     const rect = canvas.getBoundingClientRect()
     const cssWidth = canvas.clientWidth || rect.width || 600
-    dpr = Math.min(window.devicePixelRatio || 1, 2, 1500 / Math.max(cssWidth, 1))
+    dpr = Math.min(window.devicePixelRatio || 1, 1.25, (lite ? 760 : 1100) / Math.max(cssWidth, 1))
     width = Math.max(2, Math.round(cssWidth * dpr)); height = width
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height }
   }
@@ -117,11 +119,28 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
     return [x * Math.cos(ring.roll) - y1 * Math.sin(ring.roll), x * Math.sin(ring.roll) + y1 * Math.cos(ring.roll), z1]
   }
 
+  // Parıltı noktaları: renk başına bir kez çizilen küçük sprite (8'lik renk adımlarıyla); her karede gradyan üretmek yerine drawImage
+  const glowCache = new Map<number, HTMLCanvasElement>()
+  const glowSprite = (color: V3) => {
+    const key = ((color[0] >> 3) << 10) | ((color[1] >> 3) << 5) | (color[2] >> 3)
+    let sprite = glowCache.get(key)
+    if (!sprite) {
+      sprite = document.createElement('canvas'); sprite.width = sprite.height = 64
+      const g = sprite.getContext('2d')
+      if (g) {
+        const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32), c: V3 = [(color[0] >> 3) << 3, (color[1] >> 3) << 3, (color[2] >> 3) << 3]
+        gr.addColorStop(0, rgba(c, 1)); gr.addColorStop(.35, rgba(c, .35)); gr.addColorStop(1, rgba(c, 0))
+        g.fillStyle = gr; g.fillRect(0, 0, 64, 64)
+      }
+      glowCache.set(key, sprite)
+    }
+    return sprite
+  }
   function glowDot(x: number, y: number, radius: number, color: V3, alpha: number) {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, radius)
-    g.addColorStop(0, rgba(color, alpha)); g.addColorStop(.35, rgba(color, alpha * .35)); g.addColorStop(1, rgba(color, 0))
-    ctx.fillStyle = g
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+    if (alpha <= .004 || radius < .5) return
+    ctx.globalAlpha = Math.min(1, alpha)
+    ctx.drawImage(glowSprite(color), x - radius, y - radius, radius * 2, radius * 2)
+    ctx.globalAlpha = 1
   }
 
   function frame(now: number) {
@@ -547,12 +566,14 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
 
   let handle = 0
   let running = false
-  const loop = (now: number) => { if (!running) return; frame(now); handle = requestAnimationFrame(loop) }
+  let drawnAt = 0
+  let releaseQuality: (() => void) | null = null
+  const loop = (now: number) => { if (!running) return; const gap = [41, 32, 0][getQuality()]; if (now - drawnAt >= gap - 2) { drawnAt = now; frame(now) } handle = requestAnimationFrame(loop) }
   return {
     resize,
-    start() { if (running) return; running = true; last = 0; if (options.reduced) { resize(); frame(performance.now()); frame(performance.now() + 16); running = false; return } handle = requestAnimationFrame(loop) },
-    stop() { running = false; cancelAnimationFrame(handle) },
+    start() { if (running) return; running = true; last = 0; if (options.reduced) { resize(); frame(performance.now()); frame(performance.now() + 16); running = false; return } releaseQuality = acquireQuality(); handle = requestAnimationFrame(loop) },
+    stop() { running = false; cancelAnimationFrame(handle); releaseQuality?.(); releaseQuality = null },
     redraw() { resize(); frame(performance.now()) },
-    dispose() { running = false; cancelAnimationFrame(handle); ctx.clearRect(0, 0, canvas.width, canvas.height) },
+    dispose() { running = false; cancelAnimationFrame(handle); releaseQuality?.(); releaseQuality = null; ctx.clearRect(0, 0, canvas.width, canvas.height) },
   }
 }
