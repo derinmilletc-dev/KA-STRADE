@@ -429,3 +429,13 @@ details.advChecks>.advCheckGrid{padding:4px 18px 18px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcPreset[data-selected]{background:#123329!important;box-shadow:inset 0 0 0 2px var(--lc-go)!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcCustom{background:#1a2636!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcConfirmBox{background:#1a2636!important}
+
+/* ---- Dürüst risk: hedef / uygulanabilir maksimum / gerçekleşecek ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonest{display:grid!important;gap:10px;padding:16px 18px!important;border-radius:16px!important;background:#1a2636!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonest[data-warn]{background:#2a2210!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestHead{font-size:14px;line-height:1.55;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestHead b{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestRows{display:grid!important;gap:6px;margin:0;padding:0;list-style:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestRows li{display:flex!important;justify-content:space-between;gap:12px;font-size:13.5px;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestRows b{color:var(--lc-ink);text-align:right;font-weight:700}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonest small{font-size:12px;line-height:1.5;color:var(--lc-mute)}

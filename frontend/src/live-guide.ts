@@ -164,6 +164,30 @@ export function riskSummary(balance: number, riskPercent: number, dailyPercent: 
   return {perTrade, perDay, dayShare: perDay / balance * 100, perTradeCapped: perTrade < rawTrade, perDayCapped: perDay < rawDay}
 }
 
+export type RiskCapsLike = {max_margin_usdt?: number; leverage?: number; estimated_cost_pct?: number; max_stop_distance_pct?: number} | null | undefined
+export type CapacityRow = {stopPct: number; loss: number; percent: number}
+/** Aday yokken gösterilen teorik üst sınır: boş hesapta, işlem başı teminat sınırı ve kaldıraçla bir işlemde ulaşılabilecek en büyük stop kaybı.
+ *  Açık pozisyonlar, anlık kullanılabilir bakiye ve Binance sınırları işlem anında bunu ayrıca düşürebilir. Hesaplanamazsa null. */
+export function capacityPreview(wallet: number, caps: RiskCapsLike): {maxNotional: number; rows: CapacityRow[]; atMaxStop: CapacityRow} | null {
+  if (!(wallet > 0) || !caps) return null
+  const margin = caps.max_margin_usdt, leverage = caps.leverage, cost = caps.estimated_cost_pct
+  if (typeof margin !== 'number' || typeof leverage !== 'number' || typeof cost !== 'number') return null
+  if (![margin, leverage, cost].every(Number.isFinite) || margin <= 0 || leverage < 1 || cost < 0) return null
+  const maxStop = typeof caps.max_stop_distance_pct === 'number' && caps.max_stop_distance_pct > 0 ? caps.max_stop_distance_pct : 6
+  const maxNotional = margin * leverage
+  const row = (stopPct: number): CapacityRow => { const loss = maxNotional * (stopPct + cost) / 100; return {stopPct, loss, percent: loss / wallet * 100} }
+  const rows = [1, 2, 3, maxStop].filter((value, index, all) => value <= maxStop && all.indexOf(value) === index).map(row)
+  return {maxNotional, rows, atMaxStop: row(maxStop)}
+}
+
+export type RiskBreakdown = {
+  status: 'verified' | 'partial' | 'unavailable'; unverified?: string[]; reason?: string
+  target_loss_usdt?: number; target_percent?: number; budget_loss_usdt?: number
+  max_applicable_loss_usdt?: number; max_applicable_percent?: number
+  effective_loss_usdt?: number; effective_percent?: number
+  reachable?: boolean; limiting_factor?: string; unreached_reason?: string | null; stop_distance_pct?: number
+}
+
 type NearMiss = {symbol: string; reason_code: string; reason?: string; confidence?: number | null; confidence_threshold?: number | null; failed_checks?: string[]}
 type Scanner = {stage?: string; last_scan_at?: string; candidate_count?: number; scanned_symbol_count?: number; near_misses?: NearMiss[]; rejection_counts?: Record<string, number>; last_failure?: {message: string} | null} | null | undefined
 

@@ -75,6 +75,8 @@ def limits(state: dict[str, Any]) -> dict[str, Any] | None:
     reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else float(wallet)
     ceilings = system_ceilings()
     per_trade_pct, total_pct = original.margin_percent_limits()
+    fixed_policy = original.strategy.fixed_profile()["execution_policy"]
+    cost_pct = (float(fixed_policy["fee_bps_per_side"]) + float(fixed_policy["slippage_bps_per_side"])) * 2 / 100
     return {
         "max_loss_per_trade_usdt": min(float(wallet) * float(config.get("risk_percent", 0.5)) / 100, ceilings["max_loss_per_trade_usdt"]),
         "daily_loss_limit_usdt": min(reference * float(config.get("daily_loss_percent", 5)) / 100, ceilings["max_daily_loss_usdt"]),
@@ -83,6 +85,9 @@ def limits(state: dict[str, Any]) -> dict[str, Any] | None:
         "min_margin_usdt": 5,
         "leverage": original.ORIGINAL_LEVERAGE,
         "system_ceilings": ceilings,
+        # Salt bilgi: seçilen riskin gerçekte ulaşılabilir olup olmadığını ekranda göstermek için.
+        "estimated_cost_pct": cost_pct,
+        "max_stop_distance_pct": 6,
     }
 
 
