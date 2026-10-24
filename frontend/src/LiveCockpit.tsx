@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
 import './copy-phrase.css'
 import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
@@ -721,6 +721,20 @@ export default function LiveCockpit(props: Props) {
     {label: 'Oturum biter', value: Number.isFinite(sessionEndsAt) ? clock(original?.session?.expires_at) : '—', state: 'todo'},
   ] : []
   const settingsDrawerOpen = settingsOpen && coach
+  const ringPct = (() => {
+    if (!upcoming || !Number.isFinite(lastScanMs)) return 0
+    const elapsed = Math.max(0, (now - lastScanMs) / 1000)
+    const total = elapsed + Math.max(0, upcoming.inSeconds)
+    return total > 0 ? Math.min(100, Math.max(0, Math.round(elapsed / total * 100))) : 0
+  })()
+  const minMargin = finite(caps?.min_margin_usdt)
+  const coachChecks: {ok: boolean; text: string}[] = coach ? [
+    {ok: Boolean(guideInput.connected), text: guideInput.connected ? 'Binance bağlı' : 'Binance bağlantısı yok'},
+    {ok: availableBalance !== null && (minMargin === null || availableBalance >= minMargin), text: availableBalance === null ? 'Bakiye okunuyor' : minMargin !== null && availableBalance < minMargin ? `Bakiye düşük · ${usdt(availableBalance)}` : `Bakiye yeterli · ${usdt(availableBalance)}`},
+    {ok: !guideInput.dailyLocked, text: guideInput.dailyLocked ? 'Günlük kayıp sınırı doldu' : dailyLoss !== null && dailyLimit !== null ? `Günlük kayıp ${usdt(dailyLoss)} / ${usdt(dailyLimit)}` : 'Günlük sınır açık'},
+    {ok: sessionLeft <= 0 || sessionLeft > 3600, text: sessionLeft > 0 ? sessionLeft <= 3600 ? `Oturum ${duration(sessionLeft)} sonra bitiyor` : `Oturum ${duration(sessionLeft)} kaldı` : 'Oturum süresi okunuyor'},
+  ] : []
+  const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
   return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined}>
     <header className="lcStatusBar" data-tone={barState.tone}>
@@ -767,6 +781,15 @@ export default function LiveCockpit(props: Props) {
           {help && <p className="lcHelp"><b>Ne yapmalıyım?</b> {help.text}{help.href && <> <a href={help.href}>{help.linkLabel} →</a></>}</p>}
           {coach && <ol className="lcTimeline" aria-label="Oturum zaman çizelgesi">{timeline.map(item => <li key={item.label} data-state={item.state}><i aria-hidden="true"/><small>{item.label}</small><b>{item.value}</b></li>)}</ol>}
           {coach && !stale && <p className="lcCoachLine" data-testid="original-entry-status">{guideInput.entryBlocker ? `Yeni giriş beklemede: ${guideInput.entryBlocker}` : 'Yeni giriş açık · kurallara uyan fırsat çıkınca stop ve hedefleriyle emir açılır.'}</p>}
+          {coach && !stale && <div className="lcCoachDeck" data-testid="coach-deck">
+            <div className="lcCoachRing" role="img" aria-label={upcoming ? `Sonraki taramaya ${duration(upcoming.inSeconds)} kaldı` : 'Sonraki tarama yok'} style={{'--p': `${ringPct}%`} as CSSProperties}>
+              <div><b>{upcoming ? duration(upcoming.inSeconds) : '—'}</b><small>sonraki tarama</small></div></div>
+            <div className="lcCoachBody">
+              <small className="lcCoachCap">BAŞLAMADAN ÖNCE KONTROL</small>
+              <ul className="lcCoachChecks">{coachChecks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '!'}</i>{item.text}</li>)}</ul>
+              {coachNote && <p className="lcCoachNote"><small>KOÇ YORUMU</small>{coachNote}</p>}
+            </div>
+          </div>}
           <div className="lcGuideActions">
             {guide.action && guide.actionLabel && guide.action !== 'stop' && (guide.action === 'open-connection'
               ? <a className="lcBtn lcPrimary" href="/master-trade?tab=baglanti" data-testid="live-guide-action" onClick={event => { event.preventDefault(); goTab('baglanti') }}>{guide.actionLabel}</a>
