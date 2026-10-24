@@ -34,7 +34,16 @@ class Article:
 
 
 def placeholder_values(config: CreditConfig) -> dict[str, str]:
+    from . import original_v2_live  # geç içe aktarma: yalnız yüzdeleri okur
+
+    safe, total = original_v2_live.margin_percent_limits("guvenli")
+    mid, _ = original_v2_live.margin_percent_limits("orta")
+    aggressive, _ = original_v2_live.margin_percent_limits("agresif")
     return {
+        "MARGIN_SAFE_PERCENT": f"{safe:g}",
+        "MARGIN_MID_PERCENT": f"{mid:g}",
+        "MARGIN_AGGRESSIVE_PERCENT": f"{aggressive:g}",
+        "MARGIN_TOTAL_PERCENT": f"{total:g}",
         "ANALYST_BUDGET": str(config.total),
         "ANALYSIS_COST": str(config.cost),
         "CREDIT_WINDOW_HOURS": str(config.window_hours),

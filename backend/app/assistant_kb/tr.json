@@ -671,5 +671,239 @@
       "MasterTradeReference.tsx",
       "AuthGate.tsx"
     ]
+  },
+  {
+    "id": "live-guide",
+    "title": "Canlı İşlem rehberi (Kais Rehber / Kais Koç)",
+    "keywords": [
+      "rehber",
+      "koç",
+      "adım",
+      "başlat",
+      "son kontrol",
+      "kurulum",
+      "canlı işlem",
+      "nasıl başlarım",
+      "onay"
+    ],
+    "content": "Canlı İşlem sekmesinin en üstündeki Kais Rehber seni sırayla yönlendirir: Hesap (Binance bağlantısı), Risk ayarı, Onaylar ve Başlat. Her adımda ne yapman gerektiğini söyler ve gereken yere götürür. Hazır olunca 'Son kontrol ve başlat' düğmesine basıp onay kutusunu işaretlersin; bot ancak ondan sonra çalışır, sayfa açılınca kendiliğinden başlamaz. Bot çalışırken rehber Kais Koç'a dönüşür: durumu, sonraki taramayı ve oturum süresini gösterir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-screen",
+    "title": "Canlı İşlem ekranında hangi bölüm ne işe yarar?",
+    "keywords": [
+      "ekran",
+      "bölüm",
+      "bu ne",
+      "canlı işlem",
+      "özet",
+      "kart",
+      "açık pozisyonlar",
+      "gün özeti",
+      "son olaylar",
+      "ayarlar ve gelişmiş",
+      "durum çubuğu"
+    ],
+    "content": "Üstte durum çubuğu botun durumunu gösterir (Çalışıyor, Durdu, Dikkat gerekiyor). Altındaki özet kartlar toplam bakiyeyi, bugünkü kâr/zararı, kullanılabilir bakiyeyi ve açık pozisyon sayısını gösterir. Kais Rehber / Koç kutusu kurulumu ve çalışma durumunu yönetir. Canlı tarama kutusu botun son ve sonraki taramasını ve işlem açılmama sebeplerini anlatır. Açık pozisyonlar bölümü açık işlemleri, stop ve hedeflerini gösterir. Strateji bölümü risk ve teminat ayarını içerir. Gün özeti ve Son olaylar günün kısa özetini ve olay kayıtlarını verir. 'Ayarlar ve gelişmiş' kutusu risk ayarı, manuel emir, kurtarma ve acil durdurmayı tek yerde toplar.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-status",
+    "title": "Durum etiketleri ve renkler ne demek?",
+    "keywords": [
+      "durum",
+      "çalışıyor",
+      "durdu",
+      "dikkat",
+      "renk",
+      "yeşil",
+      "turuncu",
+      "kırmızı",
+      "sağlıklı"
+    ],
+    "content": "Yeşil: her şey yolunda. Turuncu: dikkat gerekiyor ama bot güvende (ör. girişler beklemede, bağlantı yeniden kuruluyor). Kırmızı: bir sorun var, ekrandaki yazı ne yapman gerektiğini söyler. Çalışıyor botun taradığını, Durdu botun yeni işlem aramadığını gösterir. Bağlantı kesilirse ekran son doğrulanan bilgileri 'önce doğrulandı' notuyla gösterir; bu bilgiler güncel kabul edilmemelidir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-scan",
+    "title": "Canlı tarama: neden işlem açılmadı?",
+    "keywords": [
+      "tarama",
+      "neden işlem açılmadı",
+      "aday",
+      "sinyal",
+      "güven",
+      "elendi",
+      "sonraki tarama",
+      "işlem açmıyor",
+      "trend"
+    ],
+    "content": "Bot belirli aralıklarla coinleri tarar ve yalnız tüm kuralları sağlayanlar için işlem açar. İşlem açılmaması çoğu zaman bozulma değil, piyasada kurallara uyan bir fırsat olmamasıdır. 'Neden işlem açılmadı?' kutusu en sık eleme sebebini, 'Sinyale en yakın coinler' listesi güven puanının eşiğe ne kadar yaklaştığını gösterir. 'Son yirmi dört saat · nerede elendi?' bölümü elenme sebeplerini oranlarıyla açar. Bu bilgiler yalnız açıklama içindir, kuralları değiştirmez. Sonraki tarama saati kutuda yazar; Binance geçici engel koyarsa bot engel bitince devam eder.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "margin-mode",
+    "title": "Teminat modu: Güvenli, Orta, Agresif",
+    "keywords": [
+      "teminat",
+      "mod",
+      "güvenli",
+      "orta",
+      "agresif",
+      "margin",
+      "işlem başı",
+      "pozisyon büyüklüğü"
+    ],
+    "content": "Teminat modu, her işleme bakiyenin en çok yüzde kaçının ayrılabileceğini belirler: Güvenli %{MARGIN_SAFE_PERCENT}, Orta %{MARGIN_MID_PERCENT}, Agresif %{MARGIN_AGGRESSIVE_PERCENT}. Yükselttikçe işlem büyür; kazanç da kayıp da büyür. Her mod için ekranda işlem başı teminat ve stop uzaklığına göre olası en yüksek kayıp tahmini görünür. Toplam teminat sınırı (%{MARGIN_TOTAL_PERCENT}), her işlemin stop-loss'u, günlük kayıp sınırı ve diğer korumalar her modda aynen çalışır. Mod yalnız senin hesabında geçerlidir ve istediğin zaman değiştirebilirsin; Orta ve Agresif için ek onay istenir, değişiklik yalnız yeni girişlere uygulanır.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts",
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
+    "id": "risk-target",
+    "title": "Hedef risk, günlük kayıp sınırı ve gerçek risk",
+    "keywords": [
+      "risk",
+      "hedef risk",
+      "günlük kayıp",
+      "kayıp sınırı",
+      "stop",
+      "gerçek risk",
+      "yüzde",
+      "kaybedebilir miyim"
+    ],
+    "content": "Seçtiğin işlem başı risk bir hedeftir, garanti edilen gerçek kayıp değildir. Gerçek kayıp, stop mesafesine ve teminat sınırlarına göre her işlemde ayrı hesaplanır; ekrandaki 'Stop uzaktaysa en fazla ≈' satırları tahmindir. Hedef bu bakiye ve kaldıraçla ulaşılamıyorsa ekran bunu açıkça yazar ve işlem yine de daha düşük riskle açılabilir. Günlük kayıp sınırına ulaşılırsa bot o gün yeni işlem açmaz. Kayıp mümkündür; bu bilgi yatırım tavsiyesi değildir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-session",
+    "title": "Oturum süresi ve Oturumu uzat",
+    "keywords": [
+      "oturum",
+      "süre",
+      "uzat",
+      "oturumu uzat",
+      "bitti",
+      "kaldı",
+      "saat",
+      "arm",
+      "durdu",
+      "yeniden başlat"
+    ],
+    "content": "Canlı bot seçtiğin süre boyunca çalışan bir oturumla işler. Süre bitmeden önce bildirim ve ekranda uyarı gelir; 'Oturumu uzat' düğmesiyle süreyi uzatırsın. Oturum bitince bot yeni işlem aramayı bırakır ve açık pozisyonlar stop/hedefleriyle korunmaya devam eder; yeniden devam için 'Son kontrol ve başlat' ile yeniden başlatman gerekir. Sistem bakım yeniden başlatması da oturumu durdurabilir; ekran bunu 'Durdu' olarak gösterir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts",
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
+    "id": "live-positions",
+    "title": "Açık pozisyonlar ve Pozisyonu kapat",
+    "keywords": [
+      "pozisyon",
+      "açık pozisyon",
+      "kapat",
+      "pozisyonu kapat",
+      "stop",
+      "hedef",
+      "tp",
+      "sl",
+      "kâr",
+      "zarar"
+    ],
+    "content": "Açık pozisyonlar bölümü açık işlemlerin yönünü (LONG/SHORT), giriş fiyatını, anlık kâr/zararı, stop ve hedef seviyelerini gösterir. Stop ve hedeflerin borsada kayıtlı olup olmadığı pozisyon kartında yazar; doğrulanamıyorsa kart bunu belirtir. 'Pozisyonu kapat' düğmesi pozisyonu piyasa fiyatından kapatır ve ayrıca onay ister. Pozisyon yoksa bölüm 'Açık pozisyon yok' der. Verinin güncelliği doğrulanamıyorsa güncel kabul etme.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-notify",
+    "title": "Bildirimleri açma ve türleri",
+    "keywords": [
+      "bildirim",
+      "push",
+      "bildirimleri aç",
+      "uyarı",
+      "telefon",
+      "tarayıcı bildirimi"
+    ],
+    "content": "Canlı İşlem üst çubuğundaki 'Bildirimleri aç' düğmesi veya Profil → Bildirim ayarları ile işlem açılışı, kapanışı, oturum bitişi ve uyarı bildirimlerini açarsın. Tarayıcı veya telefon izin istediğinde izin vermen gerekir. Bildirimler bilgilendirme içindir; bot bildirimden bağımsız çalışır.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "connection-tab",
+    "title": "Bağlantı sekmesi: Binance bağlantısı",
+    "keywords": [
+      "bağlantı",
+      "binance",
+      "api",
+      "salt okunur",
+      "anahtar",
+      "bağlan",
+      "bağlantı sekmesi"
+    ],
+    "content": "Master Trade → Bağlantı sekmesi Binance API bağlantını ve durumunu gösterir. Canlı işlem için anahtarın yalnız okuma ve Futures işlem izni olmalı; para çekme izni asla açık olmamalıdır. Kayıt sırasında bağlantı salt-okunur olarak doğrulanır. API Secret'ını sohbete veya kimseye yazma.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "how-bot-works",
+    "title": "Kais Original nasıl çalışır?",
+    "keywords": [
+      "kais original",
+      "strateji",
+      "bot",
+      "nasıl çalışır",
+      "otomatik",
+      "ne zaman işlem açar",
+      "kural"
+    ],
+    "content": "Kais Original, seçtiğin coin sayısını belirli aralıklarla tarar; trend, sinyal ve güven kurallarını birlikte sağlayan fırsat olursa işlem açar, olmazsa beklemeyi tercih eder. Her işlemde stop-loss konur ve kâr hedefleri belirlenir. Risk, teminat ve günlük kayıp sınırları senin seçtiğin ayarlara göre uygulanır. Hiçbir sonuç garanti edilmez; kayıp olabilir. Bu bir yatırım tavsiyesi değildir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "kais-ai",
+    "title": "Kais AI neler yapabilir?",
+    "keywords": [
+      "kais ai",
+      "asistan",
+      "yapay zeka",
+      "ne yapabilir",
+      "yardım",
+      "soru"
+    ],
+    "content": "Kais AI sitedeki bölümleri, ekranlardaki terimleri ve ayarları açıklar, seni doğru menüye yönlendirir ve hesabındaki bilgileri okuyarak yanıtlar. Hangi ekranda olduğunu bilir; 'bu ne?' diye sorarsan bulunduğun bölümü anlatır. Al-sat tavsiyesi vermez, para veya şifre bilgisi istemez. Destek ekibinin yapması gereken işler için seni destek formuna yönlendirir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "AssistantChat.tsx"
+    ]
   }
 ]

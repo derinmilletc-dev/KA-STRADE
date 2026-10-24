@@ -505,7 +505,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
         ? `Alert set: I will tell you when ${alert.symbol} goes ${alert.side === 'above' ? 'above' : 'below'} ${level}. It works only while this site is open.`
         : `Alarm kuruldu: ${alert.symbol} ${level} ${alert.side === 'above' ? 'üstüne çıkınca' : 'altına inince'} haber vereceğim. Yalnızca site açıkken çalışır.`, language === 'en' ? 'Price alert' : 'Fiyat alarmı')
     }
-    if (/\b(neredeyim|bu ekranda ne var|hangi sayfa|where am i|what.s on (this|the) screen)/i.test(message.toLocaleLowerCase('tr'))) {
+    if (/\b(neredeyim|hangi sayfa|where am i)/i.test(message.toLocaleLowerCase('tr'))) {
       const tab = new URLSearchParams(window.location.search).get('tab')
       return localReply(language === 'en' ? `You are on the ${pageContext}${tab ? ` page, "${tab}" tab` : ' page'}. Ask about positions or your account and I will check the real data.` : `Şu an ${({dashboard: 'ana', 'master-trade': 'Master Trade', analyst: 'Analist', scanner: 'Tarama', trading: 'İşlem', performance: 'Performans', risk: 'Risk'} as Record<string, string>)[pageContext] ?? pageContext} sayfasındasın${tab ? `, "${tab}" sekmesi` : ''}. Pozisyonlarını ya da hesabını sorarsan gerçek veriden bakarım.`, language === 'en' ? 'Screen info' : 'Ekran bilgisi')
     }
@@ -564,7 +564,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     activeRequest.current = controller
     try {
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Asked Kais' : 'Kais\'e soruldu'])
-      const response = await request('chat', controller.signal, {message, history, page_context: truncate(pageContext, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
+      const response = await request('chat', controller.signal, {message, history, page_context: truncate(`${pageContext}${new URLSearchParams(window.location.search).get('tab') ? ` · sekme: ${new URLSearchParams(window.location.search).get('tab')}` : ''}`, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
       if (viaVoice) speechMark.current = timingOf.get(response) ?? null
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')
