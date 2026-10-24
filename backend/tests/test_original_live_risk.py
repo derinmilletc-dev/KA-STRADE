@@ -318,12 +318,14 @@ def test_effective_trade_risk_reports_existing_limits_without_changing_demo_poli
     before_plans = copy.deepcopy(state["plans"])
     client = EntryClient()
     spec = asyncio.run(original.build_spec(client, result(), state, {"wallet_balance": 1000}))
-    assert spec["margin_usdt"] <= 25
+    # Dinamik mimari: sabit 3/25 USDT yok; tavanlar bakiye yüzdesi (işlem başı teminat %30) ve seçilen risk %10.
+    assert spec["margin_usdt"] <= 1000 * 0.30 + 1e-6
     assert spec["leverage"] == 3
-    assert spec["estimated_stop_loss_usdt"] <= 3
+    assert spec["estimated_stop_loss_usdt"] <= 1000 * 0.10 + 1e-6
     assert spec["risk_adjustment"]["selected_percent"] == 10
-    assert spec["risk_adjustment"]["effective_percent"] <= 0.3
-    assert spec["risk_adjustment"]["reasons"]
+    assert 0 < spec["risk_adjustment"]["effective_percent"] <= 10 + 1e-9
+    # Gösterilen risk ile gerçek stop riski aynı sayı olmalı.
+    assert spec["risk_adjustment"]["effective_loss_usdt"] == spec["estimated_stop_loss_usdt"]
     assert original.strategy.fixed_profile() == fixed
     assert state["plans"] == before_plans
     assert not any(method == "POST" for method, _, _ in client.calls)

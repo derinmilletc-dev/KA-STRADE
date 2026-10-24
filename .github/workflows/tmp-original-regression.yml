@@ -39,5 +39,6 @@ jobs:
           grep -E "^(FAILED|ERROR)" main.txt | sed 's/ - .*//' | sort -u > main.f
           echo "::notice::main failures: $(wc -l < main.f); PR failures: $(wc -l < pr.f)"
           tail -1 pr.txt | sed 's/^/::notice::PR: /'; tail -1 main.txt | sed 's/^/::notice::MAIN: /'
+          for f in main pr; do echo "::notice::$f by file: $(sed 's/::.*//' $f.f | sort | uniq -c | sort -rn | head -8 | tr '\n' ';')"; done
           comm -13 main.f pr.f | head -9 | while read l; do echo "::error::NEW FAIL $l"; done
           exit 0
