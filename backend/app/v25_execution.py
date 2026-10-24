@@ -2968,6 +2968,128 @@ async def install_verified_stop(
     raise LiveExchangeError("Stop sınırlı denemeler sonunda doğrulanamadı.", exchange_code=last_error.exchange_code, unknown_execution=True) from last_error
 
 
+async def manual_breakeven_after_tp1(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    position: dict[str, Any],
+    open_algos: list[dict[str, Any]],
+) -> bool:
+    """Manual plans only: after the TP1 order really filled, move the stop to entry.
+
+    Original V2 and any non-MANUAL plan are never touched. The old stop is cancelled only
+    after TP1 execution is proven; if the new stop cannot be verified the remainder is
+    closed reduce-only, so the position is never left without a stop.
+    """
+    if plan.get("source") != "MANUAL" or plan.get("breakeven_done") or not plan.get("tp12_algo_id"):
+        return False
+    if plan.get("protection_state") != "MATCHED" or not plan.get("stop_algo_id"):
+        return False
+    ids = {int(row.get("algo_id", row.get("algoId", 0)) or 0) for row in open_algos if isinstance(row, dict)}
+    if int(plan["tp12_algo_id"]) in ids:
+        return False
+    symbol = plan["symbol"]
+    direction = plan["direction"]
+    try:
+        quantity = Decimal(str(position["quantity"]))
+        original_quantity = Decimal(str(plan["quantity"]))
+        entry = Decimal(str(position["entry_price"]))
+        mark = Decimal(str(position["mark_price"]))
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return False
+    if not all(v.is_finite() and v > 0 for v in (quantity, original_quantity, entry, mark)) or quantity >= original_quantity:
+        return False
+    native = await client.signed("GET", "/fapi/v1/algoOrder", {"algoId": plan["tp12_algo_id"]})
+    actual = int((native or {}).get("actualOrderId") or 0) if isinstance(native, dict) else 0
+    if actual <= 0:
+        return False
+    order = await client.signed("GET", "/fapi/v1/order", {"symbol": symbol, "orderId": actual})
+    if not isinstance(order, dict) or order.get("status") != "FILLED" or not _truthy(order.get("reduceOnly")) \
+            or order.get("symbol") != symbol:
+        return False
+    rules = await live_symbol_rules(client, symbol, "MARKET")
+    breakeven = round_tick(entry, rules["tick"])
+    if (direction == "LONG" and mark <= breakeven) or (direction == "SHORT" and mark >= breakeven):
+        return False  # a stop at entry would trigger immediately; try again later
+    old_stop = plan["stop_loss"]
+    await client.signed("DELETE", "/fapi/v1/algoOrder", {"symbol": symbol, "algoId": plan["stop_algo_id"]})
+    plan.update(stop_loss=decimal_text(breakeven), stop_client_id=client_id_for("SLBE", plan["intent_id"]),
+                stop_algo_id=None, breakeven_started_at=now_iso(), previous_stop_loss=old_stop)
+    persist_state(state)
+    params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
+              "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "STOP_MARKET",
+              "triggerPrice": plan["stop_loss"], "closePosition": "true", "clientAlgoId": plan["stop_client_id"]}
+    try:
+        result = await install_verified_stop(client, state, plan, params, None)
+        plan["stop_algo_id"] = int(result["algoId"])
+    except LiveExchangeError as exc:
+        add_event(state, "BREAKEVEN_FAIL", f"{symbol} TP1 sonrası stop girişe çekilemedi; kalan pozisyon reduce-only kapatılıyor.", symbol=symbol)
+        close_intent = f"breakeven-{plan['id']}"
+        close_ids = plan.setdefault("close_client_order_ids", [])
+        close_id = client_id_for("CLOSE", close_intent)
+        if close_id not in close_ids:
+            close_ids.append(close_id)
+        plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
+        plan["last_error"] = sanitized_exception_message(exc)
+        persist_state(state)
+        await close_tracked_symbol(client, symbol, close_intent)
+        return True
+    plan["breakeven_done"] = True
+    plan["breakeven_at"] = now_iso()
+    add_event(state, "BREAKEVEN_STOP", f"{symbol} TP1 doldu; stop giriş fiyatına ({plan['stop_loss']}) çekildi.", symbol=symbol, plan_id=plan.get("id"))
+    persist_state(state)
+    return True
+
+
+MANUAL_FILL_RISK_TOLERANCE = Decimal("1.25")
+
+
+async def manual_fill_risk_audit(
+    client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any],
+) -> bool:
+    """Manual plans only: re-check risk from the real fill. Returns True when the position was closed.
+
+    Slippage or a partial fill that pushes the real stop risk beyond 125% of the planned
+    risk is treated as a breach: the position is closed reduce-only. Other plans are never touched.
+    """
+    if plan.get("source") != "MANUAL" or plan.get("manual_fill_audit"):
+        return False
+    try:
+        entry = Decimal(str(position["entry_price"]))
+        quantity = Decimal(str(position["quantity"]))
+        stop = Decimal(str(plan["stop_loss"]))
+        planned = Decimal(str(plan["initial_risk_usdt"]))
+        if not all(v.is_finite() and v > 0 for v in (entry, quantity, stop, planned)):
+            raise ValueError("invalid")
+        actual = quantity * abs(entry - stop)
+        wrong_side = (plan["direction"] == "LONG" and stop >= entry) or (plan["direction"] == "SHORT" and stop <= entry)
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        plan["manual_fill_audit"] = {"checked_at": now_iso(), "result": "UNVERIFIED"}
+        add_event(state, "MANUAL_FILL_AUDIT_UNVERIFIED", f"{plan.get('symbol')} dolum riski doğrulanamadı; Stop korunuyor.", symbol=plan.get("symbol"))
+        persist_state(state)
+        return False
+    breach = wrong_side or actual > planned * MANUAL_FILL_RISK_TOLERANCE
+    plan["manual_fill_audit"] = {
+        "checked_at": now_iso(), "result": "BREACH" if breach else "OK",
+        "actual_risk_usdt": decimal_text(actual), "planned_risk_usdt": decimal_text(planned),
+        "fill_price": decimal_text(entry), "filled_quantity": decimal_text(quantity),
+    }
+    if not breach:
+        persist_state(state)
+        return False
+    symbol = plan["symbol"]
+    add_event(state, "MANUAL_FILL_RISK_BREACH", f"{symbol} gerçek dolum riski {decimal_text(actual)} USDT, plan {decimal_text(planned)} USDT; pozisyon reduce-only kapatılıyor.", symbol=symbol, plan_id=plan.get("id"))
+    close_intent = f"fillrisk-{plan['id']}"
+    close_ids = plan.setdefault("close_client_order_ids", [])
+    close_id = client_id_for("CLOSE", close_intent)
+    if close_id not in close_ids:
+        close_ids.append(close_id)
+    plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
+    persist_state(state)
+    await close_tracked_symbol(client, symbol, close_intent)
+    return True
+
+
 async def install_protection(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -3093,6 +3215,8 @@ async def install_protection(
     if original_plan:
         await original_v2_live.audit_fill(state, plan, position_view)
         await original_v2_live.install_targets(client, state, plan, position_view, existing_algos)
+        return
+    if plan.get("source") == "MANUAL" and await manual_fill_risk_audit(client, state, plan, position_view):
         return
     try:
         if plan.get("min_notional") is None or plan.get("order_type") == "LIMIT":
@@ -6002,6 +6126,11 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
             await install_protection(client, state, plan, existing_algos=open_algos)
         elif protection_state == "MATCHED" and plan.get("status") == "DOLUM BEKLİYOR":
             plan["status"] = "KORUMA AKTİF"
+        if protection_state == "MATCHED" and plan.get("source") == "MANUAL" and not original_v2_live.plan_is_original(plan):
+            try:
+                await manual_breakeven_after_tp1(client, state, plan, position, open_algos)
+            except LiveExchangeError as exc:
+                logger.warning("MANUAL_BREAKEVEN_DEFERRED symbol=%s reason=%s", symbol, sanitized_exception_message(exc))
     clear_clean_reconciliation_state(state, snapshot)
     from . import original_v2_live
     original_v2_live.resume_after_transient_pause(state, snapshot)
@@ -6845,6 +6974,30 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
         return {"ok": True, "exchange_response": result, "created_order": False, "message": "Binance canlı imza ve emir şeması doğrulandı; gerçek emir oluşturulmadı."}
     except (LiveExchangeError, BinanceDemoError) as exc:
         raise safe_exchange_error(exc) from exc
+
+
+class GridPlanRequest(BaseModel):
+    direction: Literal["LONG", "SHORT"]
+    start_price: float = Field(gt=0)
+    end_price: float = Field(gt=0)
+    levels: int = Field(ge=2, le=5)
+    stop_loss: float = Field(gt=0)
+    total_capital_usdt: float = Field(gt=0)
+    total_risk_usdt: float = Field(gt=0)
+    leverage: int = Field(ge=1, le=125)
+
+
+@router.post("/grid/plan")
+async def v25_grid_plan(request: Request, body: GridPlanRequest) -> dict[str, Any]:
+    """Hesap-only grid hesaplayıcı: emir göndermez, yalnız risk dağılımını ve hesap sınırlarını gösterir."""
+    execution_owner(request)
+    from . import manual_grid
+    state = request.app.state.v25_execution
+    try:
+        result = manual_grid.plan_grid(policy=sanitize_execution_policy(state["policy"]), **body.model_dump())
+    except manual_grid.GridError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "created_order": False, "live_orders_enabled": False, "plan": result}
 
 
 @router.post("/risk/preview")
