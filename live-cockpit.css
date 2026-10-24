@@ -467,3 +467,4 @@ details.advChecks>.advCheckGrid{padding:4px 18px 18px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li[data-ok] i{background:#3ddc97;box-shadow:none}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li i svg{width:14px;height:14px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li span{display:grid;gap:1px}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li b{font-size:14.5px}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li small{font-size:12.5px;color:#a9b8cb}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcChecklist li:not([data-ok]) small{color:#f5b84a}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcExtend[data-urgent]{box-shadow:0 0 0 3px rgba(245,184,74,.55)!important}

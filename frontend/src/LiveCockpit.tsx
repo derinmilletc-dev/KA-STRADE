@@ -36,7 +36,7 @@ type Props = {
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
 const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
-type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
+type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
@@ -624,6 +624,15 @@ export default function LiveCockpit(props: Props) {
     <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
+  </> : sheet === 'extend' ? <>
+    <h2 id="lc-sheet-title">Oturumu uzat</h2>
+    <div className="lcSheetNote"><ShieldCheck aria-hidden="true"/><p>{sessionLeft > 0 ? `Oturumun ${duration(sessionLeft)} sonra bitiyor. ` : ''}Seçtiğin süre <b>şu andan itibaren</b> sayılır. Açık pozisyonlar, risk ayarı ve teminat modu değişmez. Süre, canlı risk izninin bitişini aşamaz.</p></div>
+    <div className="lcPresets" role="radiogroup" aria-label="Uzatma süresi">
+      {[4, 12, 24].map(hours => <button type="button" role="radio" aria-checked={extendHours === hours} key={hours} className="lcPreset" data-selected={extendHours === hours || undefined} disabled={Boolean(working)} onClick={() => setExtendHours(hours)}><span className="lcPresetHead"><b>{hours} saat</b></span></button>)}
+    </div>
+    <label className="lcCheck"><input type="checkbox" checked={extendUnderstood} onChange={event => setExtendUnderstood(event.target.checked)}/><span>Gerçek parayla işlemin bu süre boyunca açılmaya devam edeceğini anladım.</span></label>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+      <button type="button" className="lcBtn lcPrimary" disabled={!extendUnderstood || busy} onClick={() => void extendSession()}>{working === 'extend' ? 'Uzatılıyor…' : `${extendHours} saat uzat`}</button></div>
   </> : sheet === 'stop' ? <>
     <h2 id="lc-sheet-title">Otomatik işlemi durdur</h2>
     <ul className="lcStopList">
@@ -747,6 +756,7 @@ export default function LiveCockpit(props: Props) {
               ? <a className="lcBtn lcPrimary" href="/master-trade?tab=baglanti" data-testid="live-guide-action" onClick={event => { event.preventDefault(); goTab('baglanti') }}>{guide.actionLabel}</a>
               : <button type="button" className="lcBtn lcPrimary" data-testid="live-guide-action" disabled={busy && guide.action !== 'retry'} onClick={() => act()}>{actionIcon}{guide.action === 'retry' && working === 'retry' ? 'Okunuyor…' : guide.actionLabel}</button>)}
             {guide.why && <button type="button" className="lcBtn lcGhost" aria-expanded={whyOpen} onClick={() => setWhyOpen(value => !value)}>Neden gerekli?</button>}
+            {coach && running && !stale && <button type="button" className="lcBtn lcPrimary lcExtend" data-urgent={(sessionLeft > 0 && sessionLeft <= 3600) || undefined} disabled={busy} onClick={() => { setExtendUnderstood(false); setSheetError(''); setSheet('extend') }}>Oturumu uzat</button>}
             {coach && <button type="button" className="lcBtn lcGhost" onClick={() => { setSettingsOpen(true); window.setTimeout(() => document.getElementById('lc-drawer')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 30) }}>Risk ayarını gör</button>}
           </div>
           {whyOpen && guide.why && <p className="lcWhy">{guide.why}</p>}
