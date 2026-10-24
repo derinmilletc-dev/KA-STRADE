@@ -3785,7 +3785,7 @@ def recover_plan_from_intent(intent_id: str, intent: dict[str, Any], order: dict
     }
     from . import original_v2_live
     if original_v2_live.plan_is_original(plan):
-        for key in ("initial_stop_loss", "initial_quantity", "original_risk_budget", "original_cost_bps"):
+        for key in ("initial_stop_loss", "initial_quantity", "original_risk_budget", "original_cost_bps", "risk_adjustment"):
             plan[key] = spec.get(key)
         if spec.get("tp1_fraction") is not None:
             plan["tp1_fraction"] = spec["tp1_fraction"]

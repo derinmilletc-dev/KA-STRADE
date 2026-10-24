@@ -439,3 +439,11 @@ details.advChecks>.advCheckGrid{padding:4px 18px 18px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestRows li{display:flex!important;justify-content:space-between;gap:12px;font-size:13.5px;color:#c4d0e4}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonestRows b{color:var(--lc-ink);text-align:right;font-weight:700}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHonest small{font-size:12px;line-height:1.5;color:var(--lc-mute)}
+
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMode{display:grid!important;gap:10px;padding:16px 18px!important;border-radius:16px!important;background:#1a2636!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModes{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard small{font-size:12.5px;line-height:1.45;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeConfirm{display:grid!important;gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcField{display:grid;gap:6px;font-size:13px;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcField input{padding:10px 12px;border-radius:10px;border:0;background:var(--lc-raised);color:var(--lc-ink);font:inherit}
+@media (max-width:640px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModes{grid-template-columns:1fr}}

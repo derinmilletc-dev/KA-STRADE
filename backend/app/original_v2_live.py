@@ -72,11 +72,46 @@ def _percent_setting(name: str, default: float) -> float:
     return value
 
 
-def margin_percent_limits() -> tuple[float, float]:
-    """(işlem başı %, toplam %). İşlem başı oran toplam orandan büyük olamaz."""
+MARGIN_MODES = ("guvenli", "orta", "agresif")
+MARGIN_MODE_LABELS = {"guvenli": "Güvenli", "orta": "Orta", "agresif": "Agresif"}
+MARGIN_MODE_FIXED_PERCENT = {"orta": 50.0, "agresif": 65.0}
+AGGRESSIVE_MARGIN_CONFIRMATION = "AGRESİF MODU KABUL EDİYORUM"
+
+
+def margin_percent_limits(mode: str = "guvenli") -> tuple[float, float]:
+    """(işlem başı %, toplam %). İşlem başı oran toplam orandan büyük olamaz.
+
+    Güvenli mod bugünkü davranıştır (ortam değişkeni / varsayılan %30); Orta %50, Agresif %65.
+    Toplam teminat sınırı (varsayılan %80) her modda aynen geçerlidir."""
     total = _percent_setting(TOTAL_MARGIN_ENV, DEFAULT_MAX_TOTAL_MARGIN_PCT)
-    per_trade = min(_percent_setting(MARGIN_PER_TRADE_ENV, DEFAULT_MAX_MARGIN_PER_TRADE_PCT), total)
-    return per_trade, total
+    if mode not in MARGIN_MODES:
+        raise ValueError("Bilinmeyen teminat modu")
+    base = MARGIN_MODE_FIXED_PERCENT.get(mode)
+    if base is None:
+        base = _percent_setting(MARGIN_PER_TRADE_ENV, DEFAULT_MAX_MARGIN_PER_TRADE_PCT)
+    return min(base, total), total
+
+
+def margin_mode_percents() -> dict[str, float]:
+    return {mode: margin_percent_limits(mode)[0] for mode in MARGIN_MODES}
+
+
+def selected_margin_mode(config: dict[str, Any]) -> str:
+    """Hesabın seçili modu. Kayıt yoksa Güvenli; bozuk/onaysız kayıt hata verir (sessizce düşürmez)."""
+    mode = config.get("margin_mode", "guvenli")
+    if mode not in MARGIN_MODES:
+        raise HTTPException(423, "Teminat modu geçersiz; yeni giriş kapalı.")
+    if mode == "agresif" and config.get("margin_mode_confirmed") is not True:
+        raise HTTPException(423, "Agresif mod onayı kayıtlı değil; yeni giriş kapalı.")
+    if mode in {"orta", "agresif"} and config.get("margin_mode_acknowledged") is not True:
+        raise HTTPException(423, "Teminat modu onayı kayıtlı değil; yeni giriş kapalı.")
+    return mode
+
+
+def margin_mode_status() -> list[dict[str, Any]]:
+    percents = margin_mode_percents()
+    return [{"mode": mode, "label": MARGIN_MODE_LABELS[mode], "per_trade_percent": percents[mode],
+             "total_percent": margin_percent_limits(mode)[1]} for mode in MARGIN_MODES]
 
 
 def percent_text(fraction: Decimal) -> str:
@@ -129,6 +164,14 @@ class Start(risk_settings.RiskChoice):
         if value not in {1, 4, 12, 24}:
             raise ValueError("Original V2 oturumu 1, 4, 12 veya 24 saat olabilir.")
         return value
+
+class MarginModeUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: str = Field(max_length=16)
+    acknowledged: bool = Field(default=False, strict=True)
+    confirmation: str = Field(default="", max_length=64, repr=False)
+    understood: bool = Field(default=False, strict=True)
+
 
 class FillLockApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -354,6 +397,8 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
             "risk_percent": config.get("risk_percent", 0.5), "daily_loss_percent": config.get("daily_loss_percent", 5),
             "risk_revision": config.get("risk_revision", 0),
             "risk_limits": risk_settings.limits(state),
+            "margin_mode": settings(state).get("margin_mode", "guvenli"),
+            "margin_modes": margin_mode_status(),
             "risk_projection": copy.deepcopy(config.get("risk_projection")),
             "last_risk_adjustment": copy.deepcopy(config.get("last_risk_adjustment")),
             "daily": copy.deepcopy(config.get("daily")),
@@ -636,7 +681,7 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     wallet = float(snapshot["wallet_balance"])
     if not math.isfinite(wallet) or wallet <= 0:
         raise HTTPException(423, "Güncel Binance bakiyesi doğrulanamadı; yeni giriş kapalı.")
-    per_trade_pct, total_pct = margin_percent_limits()
+    per_trade_pct, total_pct = margin_percent_limits(selected_margin_mode(config))
     ceilings = system_ceilings()
     # Dinamik değerler sistem tavanlarıyla sınırlanır; kırpma olursa sebebi plan/ekran bilgisinde görünür (bkz. risk_adjustment).
     result["max_margin_per_trade"] = min(wallet * per_trade_pct / 100, ceilings["max_margin_per_trade_usdt"])
@@ -1013,6 +1058,18 @@ async def audit_fill(state: dict[str, Any], plan: dict[str, Any], position: dict
         violations.append("Gerçek dolum risk kanıtı doğrulanamadı")
     audit = {"id": uuid.uuid4().hex, "checked_at": live.now_iso(), "violations": violations, **evidence}
     plan["original_fill_audit"] = audit
+    try:
+        adjustment = plan.get("risk_adjustment")
+        breakdown = adjustment.get("breakdown") if isinstance(adjustment, dict) else None
+        if isinstance(breakdown, dict) and breakdown.get("reachable") is False:
+            live.add_event(
+                state, "ORIGINAL_RISK_TARGET_UNREACHED",
+                f"{plan['symbol']}: seçilen risk %{breakdown.get('target_percent'):.2f} bu işlemde uygulanamadı; "
+                f"gerçek risk %{breakdown.get('effective_percent'):.2f}. Sebep: {breakdown.get('unreached_reason')}.",
+                plan_id=plan.get("id"), symbol=plan["symbol"],
+            )
+    except Exception:  # noqa: BLE001 - yalnız bildirim; dolum denetimini bozmaz
+        logger.exception("ORIGINAL_RISK_SHORTFALL_EVENT_FAILED")
     if violations:
         config = settings(state)
         previous = config.get("fill_lock") or {}
@@ -1588,6 +1645,59 @@ async def update_risk(request: Request, body: risk_settings.RiskUpdate) -> dict[
             raise live.safe_exchange_error(exc) from exc
         await risk_settings.save_choice(request, user, state, body, snapshot, fingerprint)
     return await status(request)
+
+@router.post("/margin-mode")
+async def update_margin_mode(request: Request, body: MarginModeUpdate) -> dict[str, Any]:
+    """Yalnız bu hesabın teminat modunu değiştirir; yalnız YENİ girişlere uygulanır, açık pozisyona dokunmaz."""
+    from . import v25_execution as live
+    user = live_access.require_live_member(request)
+    if not available():
+        raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
+    live.execution_owner(request)
+    if body.mode not in MARGIN_MODES:
+        raise HTTPException(422, "Teminat modu Güvenli, Orta veya Agresif olmalı.")
+    if body.mode in {"orta", "agresif"} and not body.acknowledged:
+        raise HTTPException(422, "Bu mod için yüksek teminat riskini onaylamalısınız.")
+    if body.mode == "agresif" and body.confirmation.strip() != AGGRESSIVE_MARGIN_CONFIRMATION:
+        raise HTTPException(422, f"Agresif mod için {AGGRESSIVE_MARGIN_CONFIRMATION} yazın.")
+    state = request.app.state.v25_execution
+    async with state["lock"]:
+        if not state.get("recovery_ready"):
+            raise HTTPException(503, "Canlı durum kurtarma tamamlanmadı; teminat modu değiştirilmedi.")
+        await live.require_live_understanding(request, user, body.understood)
+        config = settings(state)
+        if config.get("owner_id") not in {None, user["id"]}:
+            raise HTTPException(403, "Teminat modu yalnız hesabın sahibi tarafından değiştirilebilir.")
+        keys = ("margin_mode", "margin_mode_acknowledged", "margin_mode_confirmed", "margin_mode_changed_at")
+        previous_values = {key: config.get(key) for key in keys}
+        had = {key: key in config for key in keys}
+        old_mode = config.get("margin_mode", "guvenli")
+        config["margin_mode"] = body.mode
+        config["margin_mode_acknowledged"] = body.mode in {"orta", "agresif"}
+        config["margin_mode_confirmed"] = body.mode == "agresif"
+        config["margin_mode_changed_at"] = live.now_iso()
+        persisted = False
+        try:
+            await persist_required(state)
+            persisted = True
+        except live.LiveExchangeError:
+            raise HTTPException(503, "Teminat modu kalıcı kaydedilemedi; eski mod korundu.") from None
+        finally:
+            if not persisted:
+                for key in keys:
+                    if had[key]:
+                        config[key] = previous_values[key]
+                    else:
+                        config.pop(key, None)
+                live.persist_state(state)
+        live.add_event(
+            state, "ORIGINAL_MARGIN_MODE_CHANGED",
+            f"Teminat modu {MARGIN_MODE_LABELS.get(old_mode, old_mode)} → {MARGIN_MODE_LABELS[body.mode]} (yalnız yeni girişler).",
+            actor=user["id"], previous=old_mode, mode=body.mode,
+        )
+        live.persist_state(state)
+    return await status(request)
+
 
 @router.post("/fill-lock/approve")
 async def approve_fill_lock(request: Request, body: FillLockApproval) -> dict[str, Any]:

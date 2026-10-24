@@ -71,6 +71,9 @@ jobs:
           python -m pytest tests/test_original_live_risk.py -q -rfE --tb=line -p no:cacheprovider \
             -k "honest_breakdown or breakdown_is_information_only or breakdown_failure_never or unreachable_selection or expose_cost_assumption or do_not_use_the_live_breakdown or effective_trade_risk_reports" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Teminat modları (Güvenli %30 / Orta %50 / Agresif %65): hesap bazlı, onaylı; Güvenli = bugünkü davranış.
+          python -m pytest tests/test_original_margin_modes.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
           exit $status

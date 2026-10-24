@@ -74,7 +74,11 @@ def limits(state: dict[str, Any]) -> dict[str, Any] | None:
     opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
     reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else float(wallet)
     ceilings = system_ceilings()
-    per_trade_pct, total_pct = original.margin_percent_limits()
+    try:
+        mode = original.selected_margin_mode(config)
+    except Exception:  # noqa: BLE001 - yalnız ekran bilgisi; giriş tarafı geçersiz kaydı reddeder
+        mode = "guvenli"
+    per_trade_pct, total_pct = original.margin_percent_limits(mode)
     fixed_policy = original.strategy.fixed_profile()["execution_policy"]
     cost_pct = (float(fixed_policy["fee_bps_per_side"]) + float(fixed_policy["slippage_bps_per_side"])) * 2 / 100
     return {
@@ -88,6 +92,7 @@ def limits(state: dict[str, Any]) -> dict[str, Any] | None:
         # Salt bilgi: seçilen riskin gerçekte ulaşılabilir olup olmadığını ekranda göstermek için.
         "estimated_cost_pct": cost_pct,
         "max_stop_distance_pct": 6,
+        "margin_mode": mode,
     }
 
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {capacityPreview, liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
+import {marginModePreview, capacityPreview, liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
 
 const ready = {
   statusLoaded: true, statusVerified: true, statusError: null, loading: false, freeTrial: false,
@@ -238,4 +238,17 @@ test('capacity preview is null when the wallet or limits cannot be verified', ()
   assert.equal(capacityPreview(144.78, {...caps, leverage: 0}), null)
   // Üst stop mesafesi gönderilmezse güvenli varsayılan %6 kullanılır.
   assert.equal(capacityPreview(144.78, caps).atMaxStop.stopPct, 6)
+})
+
+test('margin mode preview scales with the mode percent and respects the system ceiling', () => {
+  const caps = {leverage: 3, estimated_cost_pct: 0.16, max_stop_distance_pct: 6, system_ceilings: {max_margin_per_trade_usdt: 100}}
+  const safe = marginModePreview(144.78, caps, 30), mid = marginModePreview(144.78, caps, 50), aggressive = marginModePreview(144.78, caps, 65)
+  assert.ok(Math.abs(safe.marginUsdt - 43.434) < 1e-6)
+  assert.ok(safe.atMaxStop.loss < mid.atMaxStop.loss && mid.atMaxStop.loss < aggressive.atMaxStop.loss)
+  assert.ok(Math.abs(aggressive.atMaxStop.percent - 94.107 * 3 * 6.16 / 100 / 144.78 * 100) < 1e-6)
+  assert.equal(safe.capped, false)
+  const rich = marginModePreview(1000, caps, 65)
+  assert.equal(rich.marginUsdt, 100); assert.equal(rich.capped, true)
+  assert.equal(marginModePreview(0, caps, 30), null)
+  assert.equal(marginModePreview(100, null, 30), null)
 })

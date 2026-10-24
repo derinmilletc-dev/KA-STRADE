@@ -104,7 +104,9 @@ export type OriginalV2LiveStatus = {
   risk_percent: number
   daily_loss_percent: number
   risk_revision?: number
-  risk_limits?: {max_loss_per_trade_usdt: number; daily_loss_limit_usdt: number; max_margin_usdt: number; min_margin_usdt: number; leverage: number; estimated_cost_pct?: number; max_stop_distance_pct?: number}
+  risk_limits?: {max_loss_per_trade_usdt: number; daily_loss_limit_usdt: number; max_margin_usdt: number; min_margin_usdt: number; leverage: number; estimated_cost_pct?: number; max_stop_distance_pct?: number; margin_mode?: string; max_total_margin_usdt?: number; system_ceilings?: {max_margin_per_trade_usdt?: number}}
+  margin_mode?: string
+  margin_modes?: {mode: string; label: string; per_trade_percent: number; total_percent: number}[]
   last_risk_adjustment?: {symbol: string; selected_percent: number; effective_percent: number; requested_loss_usdt: number; effective_loss_usdt: number; reasons: string[]; breakdown?: RiskBreakdown | null} | null
   session?: {hours: number; started_at?: string | null; expires_at?: string | null; remaining_seconds: number; authority_limited: boolean; warning_sent: boolean} | null
   daily?: {day: string; opening_wallet?: number; loss?: number; limit?: number; locked: boolean} | null
