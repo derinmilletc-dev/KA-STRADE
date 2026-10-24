@@ -31,6 +31,11 @@ async def go():
         print("kilit_nedeni", d.get("live_lock_reason"))
         for e in d.get("events", [])[:14]:
             print(str(e.get("created_at"))[11:19], e.get("kind"), str(e.get("message"))[:140])
+            if e.get("kind") == "RECONCILIATION_FAILURE_DIAGNOSTIC":
+                print("    ->", e.get("reconciliation_stage"), e.get("exception_type"), str(e.get("exception_message"))[:160], e.get("function"), e.get("line"))
+        original = d.get("original_v2_live") or {}
+        print("original universe_filter_failure", original.get("universe_filter_failure"))
+        print("original scanner son_hata", (original.get("scanner") or {}).get("last_failure"))
     await c.close()
 
 asyncio.run(go())
