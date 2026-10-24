@@ -9,13 +9,13 @@ const COPY = {
     recent: 'Son konuşma', noRecent: 'Henüz konuşma yok', youLabel: 'Sen', kaisLabel: 'Kais', io: 'Mikrofon ve ses', micLabel: 'Mikrofon', outLabel: 'Sesli cevap',
     mic: {unsupported: 'Bu tarayıcıda desteklenmiyor', starting: 'Hazırlanıyor', failed: 'Sorun var', listening: 'Açık · dinliyor', on: 'Açık'},
     out: {unsupported: 'Bu tarayıcıda desteklenmiyor', on: 'Açık', off: 'Kapalı'}, turnOn: 'Aç', turnOff: 'Kapat',
-    you: 'Sen konuşuyorsun', kais: 'Kais konuşuyor', quiet: 'Sessiz',
+    you: 'Seni dinliyor', kais: 'Kais konuşuyor', quiet: 'Sessiz',
     phases: {listening: 'Dinliyor', thinking: 'Düşünüyor', speaking: 'Konuşuyor', error: 'Sorun var'}},
   en: {status: 'Status', voice: 'Voice activity', actions: 'Actions', none: 'No actions yet',
     recent: 'Recent conversation', noRecent: 'No conversation yet', youLabel: 'You', kaisLabel: 'Kais', io: 'Microphone and audio', micLabel: 'Microphone', outLabel: 'Spoken replies',
     mic: {unsupported: 'Not supported in this browser', starting: 'Preparing', failed: 'Problem', listening: 'On · listening', on: 'On'},
     out: {unsupported: 'Not supported in this browser', on: 'On', off: 'Off'}, turnOn: 'Turn on', turnOff: 'Turn off',
-    you: 'You are speaking', kais: 'Kais is speaking', quiet: 'Quiet',
+    you: 'Listening to you', kais: 'Kais is speaking', quiet: 'Quiet',
     phases: {listening: 'Listening', thinking: 'Thinking', speaking: 'Speaking', error: 'Problem'}},
 }
 const PHASES: HoloPhase[] = ['listening', 'thinking', 'speaking', 'error']
@@ -38,25 +38,17 @@ export default function KaisHoloPanels({phase, actions, language, recent = [], i
   const speaker = phase === 'listening' ? copy.you : phase === 'speaking' ? copy.kais : copy.quiet
   return <div className="khPanels" data-phase={phase}>
     <div className="khColumn l">
-      <Panel className="khNet" hidden>
-        <svg viewBox="0 0 214 108"><g className="links">{LINKS.map(([a, b]) => <path key={`${a}-${b}`} d={`M${NET[a][0]} ${NET[a][1]}L${NET[b][0]} ${NET[b][1]}`}/>)}</g>
-          <path className="run" pathLength={100} d={`M${[0, 6, 7, 8, 9, 10, 5].map(index => NET[index].join(' ')).join('L')}`}/>
-          <g className="nodes">{NET.map(([x, y], index) => <circle key={index} cx={x} cy={y} r={index % 5 === 2 ? 2.6 : 1.6}/>)}</g></svg>
+      <Panel className="khRecent" title={copy.recent}>
+        {recent.length ? <ul>{recent.slice(-3).map((row, index) => <li key={index} data-role={row.role}><b>{row.role === 'user' ? copy.youLabel : copy.kaisLabel}</b> {row.text.length > 90 ? `${row.text.slice(0, 90)}…` : row.text}</li>)}</ul> : <p>{copy.noRecent}</p>}
       </Panel>
       <Panel className="khVoice" title={copy.voice} hidden>
         <div className="khVoiceBars">{BARS.map((k, index) => <i key={index} style={{'--k': k} as React.CSSProperties}/>)}</div>
         <small>{speaker}</small>
       </Panel>
-      <Panel className="khRecent" title={copy.recent}>
-        {recent.length ? <ul>{recent.slice(-3).map((row, index) => <li key={index} data-role={row.role}><b>{row.role === 'user' ? copy.youLabel : copy.kaisLabel}</b> {row.text.length > 90 ? `${row.text.slice(0, 90)}…` : row.text}</li>)}</ul> : <p>{copy.noRecent}</p>}
-      </Panel>
     </div>
     <div className="khColumn r">
       <Panel className="khStatus" title={copy.status} hidden>
         <ul>{PHASES.map(item => <li key={item} data-on={item === phase}><i/>{copy.phases[item]}</li>)}</ul>
-      </Panel>
-      <Panel className="khActions" title={copy.actions}>
-        {actions.length ? <ul>{actions.slice(-4).map((action, index) => <li key={`${action}-${index}`}>▸ {action}</li>)}</ul> : <p>{copy.none}</p>}
       </Panel>
       {io && <Panel className="khIO" title={copy.io}>
         <ul>
@@ -65,6 +57,9 @@ export default function KaisHoloPanels({phase, actions, language, recent = [], i
         </ul>
         {io.outputSupported && <button type="button" className="khIOToggle" onClick={io.onToggleReplies}>{copy.outLabel}: {io.repliesOn ? copy.turnOff : copy.turnOn}</button>}
       </Panel>}
+      <Panel className="khActions" title={copy.actions}>
+        {actions.length ? <ul>{actions.slice(-4).map((action, index) => <li key={`${action}-${index}`}>▸ {action}</li>)}</ul> : <p>{copy.none}</p>}
+      </Panel>
     </div>
   </div>
 }

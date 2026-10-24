@@ -237,3 +237,36 @@
 @media (min-width:1025px) and (min-height:760px) and (max-height:899px){.kaisHolo .kaisHoloStage{scale:1.14;margin-bottom:110px}}
 @media (prefers-reduced-motion:reduce){.khNeuralSpin,.khNeuralPulses path{animation:none!important}}
 @media (max-width:720px){.khBrand span{display:none}.kaisHolo{padding-bottom:84px}}
+
+/* ===== v4: Canvas enerji çekirdeği (derinlikli tek çizim). Eski SVG katmanları DOM'da kalır ama görünmez. ===== */
+.khCore{position:absolute;left:50%;top:50%;width:300%;aspect-ratio:1;translate:-50% -50%;z-index:1;pointer-events:none}
+.kaisHolo .khSphere,.kaisHolo .khNeural,.kaisHolo .khPlatform,.kaisHolo .kaisHoloRings,.kaisHolo .kaisHoloGlow,.kaisHolo .kaisHoloFloor{display:none!important}
+.kaisHolo .kaisHoloEye{opacity:0;pointer-events:none}
+@media (min-width:1025px) and (min-height:900px){.kaisHolo .kaisHoloStage{margin-bottom:262px}}
+@media (min-width:1025px) and (min-height:760px) and (max-height:899px){.kaisHolo .kaisHoloStage{margin-bottom:205px}}
+
+/* ===== v4: sinematik koyu zemin + şeffaf cam paneller ===== */
+.kaisHolo{background:radial-gradient(ellipse 70% 62% at 50% 44%,rgba(13,48,66,.92) 0%,rgba(6,22,36,.96) 42%,rgba(2,8,14,.99) 82%),#02080e!important}
+@media (min-width:1025px){
+  .kaisHolo .khPanel{opacity:1;min-height:0;padding:16px 18px 17px;border-radius:18px;border:1px solid rgba(181,255,255,.12);
+    background:linear-gradient(155deg,rgba(181,255,255,.085),rgba(53,221,226,.025) 55%,rgba(6,18,29,.35));
+    backdrop-filter:blur(18px) saturate(1.25);box-shadow:0 14px 44px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.07)}
+  .kaisHolo .khPanelCorner,.kaisHolo .khPanel::after{display:none}
+  .kaisHolo .khPanel header{font-size:11px;letter-spacing:.16em;color:#8DAFBE;margin-bottom:12px}
+  .kaisHolo .khColumn{gap:14px;width:clamp(228px,17vw,300px)}
+  .kaisHolo .khStatus ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .kaisHolo .khStatus li{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;font-size:13px;color:#6f93a3}
+  .kaisHolo .khStatus li i{width:7px;height:7px;border-radius:50%;background:#2b5566;flex:none}
+  .kaisHolo .khStatus li[data-on=true]{background:rgba(53,221,226,.12);color:#EAFBFF;font-weight:600}
+  .kaisHolo .khStatus li[data-on=true] i{background:#65F0DE;box-shadow:0 0 10px #35DDE2}
+  .kaisHolo .khActions p{margin:0;font-size:13px;color:#6f93a3}
+  .kaisHolo .khRecent li{font-size:13px;line-height:1.45}
+}
+@media (min-width:1025px) and (min-height:900px){.kaisHolo .kaisHoloStage{scale:1.1;margin-bottom:178px}}
+@media (min-width:1025px) and (min-height:760px) and (max-height:899px){.kaisHolo .kaisHoloStage{scale:.98;margin-bottom:150px}}
+
+/* Mobil: "Sohbeti aç" yazı alanının üstünde durur, üst üste binmez */
+@media (max-width:720px){
+  html body .kaisHolo .kaisHoloChat{bottom:calc(max(22px,env(safe-area-inset-bottom)) + 62px)!important;left:50%!important;translate:-50% 0!important}
+  .kaisHolo{padding-bottom:140px}
+}
