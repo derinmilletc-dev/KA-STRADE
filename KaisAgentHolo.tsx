@@ -8,6 +8,7 @@ import {KaisHoloSphere, KaisHoloPlatform, KaisHoloNeural} from './KaisHoloCore'
 import KaisHoloDock, {KaisHoloBrand} from './KaisHoloDock'
 import KaisHoloCanvas from './KaisHoloCanvas'
 import KaisHoloPanels, {type HoloIO, type HoloRecent} from './KaisHoloPanels'
+import {micMeterActive, readMicLevel} from './kais-mic-meter'
 import {VOICE_ACTIVITY_EVENT, type VoiceActivitySource} from './kais-voice-activity'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
@@ -79,6 +80,10 @@ function useVoiceLevel(root: React.RefObject<HTMLDivElement | null>, phase: Holo
       if (stopped) return
       const dt = Math.min(.1, last ? (now - last) / 1000 : .016); last = now
       const current = phaseRef.current
+      if (current === 'listening' && micMeterActive()) {
+        // GERÇEK mikrofon genliği (AnalyserNode); olay tabanlı hedef bu aşamada kullanılmaz.
+        target = 0; level = readMicLevel(dt); write(); frame = requestAnimationFrame(step); return
+      }
       // Hedef her olayda yükselir, sonra kendiliğinden söner; konuşma/dinleme bitince sönme hızlanır.
       target *= Math.exp(-dt / (current === 'listening' || current === 'speaking' ? .32 : .08))
       level += (target - level) * (1 - Math.exp(-dt / .07))
@@ -89,15 +94,22 @@ function useVoiceLevel(root: React.RefObject<HTMLDivElement | null>, phase: Holo
     const onActivity = (event: Event) => {
       const source = (event as CustomEvent<VoiceActivitySource>).detail
       const current = phaseRef.current
+      if (source === 'input' && current === 'listening' && micMeterActive()) return
       if (!((source === 'input' && current === 'listening') || (source === 'output' && current === 'speaking'))) return
       target = Math.min(1, target + .55)
       if (!frame) frame = requestAnimationFrame(step)
     }
-    kick.current = () => { if (!frame && !stopped && level > 0) frame = requestAnimationFrame(step) }
+    kick.current = () => { if (!frame && !stopped && (level > 0 || (phaseRef.current === 'listening' && micMeterActive()))) { last = 0; frame = requestAnimationFrame(step) } }
     window.addEventListener(VOICE_ACTIVITY_EVENT, onActivity)
     return () => { stopped = true; cancelAnimationFrame(frame); window.removeEventListener(VOICE_ACTIVITY_EVENT, onActivity); node.style.setProperty('--kh-level', '0'); kick.current = () => undefined }
   }, [paused])  // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { kick.current() }, [phase])
+  useEffect(() => {
+    kick.current()
+    // Ölçer dinleme başladıktan kısa süre sonra hazır olur: döngüyü o zaman başlat
+    if (phase !== 'listening') return
+    const id = window.setTimeout(() => kick.current(), 300)
+    return () => window.clearTimeout(id)
+  }, [phase])
 }
 
 /** Hafif derinlik (paralaks): yalnız masaüstü + ince imleç + hareket azaltma kapalıyken. Göz ve tıklama alanları hiç kaydırılmaz;

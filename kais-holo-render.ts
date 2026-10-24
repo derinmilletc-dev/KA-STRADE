@@ -66,6 +66,8 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
   // ---- Yumuşatılmış durum ----
   const live = {speed: 1, glow: .85, pulse: .8, pupil: 0, err: 0, net: .75, level: 0, lookX: 0, lookY: 0, spin: 0, ringSpin: 0, pulseClock: 0, phaseSince: 0}
   let lastPhase: CorePhase = options.getPhase()
+  const waves: {born: number; dir: number; power: number}[] = []   // gerçek ses artışlarında doğan radyal dalgalar
+  let prevLevel = 0, lastWave = -9, nextBlink = 3 + rnd() * 4, blinkAt = -9
   let last = 0
   let width = 0, height = 0, dpr = 1
 
@@ -111,6 +113,15 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
     live.pupil += (goal.pupil - live.pupil) * k; live.err += (goal.err - live.err) * k; live.net += (goal.net - live.net) * k
     const level = options.getLevel()
     live.level += (level - live.level) * (1 - Math.exp(-dt / .09))
+    // Ses yükselişi (gerçek seviyenin yukarı eşik geçişi) → dalga. Dinlerken içe, konuşurken dışa.
+    if ((phase === 'listening' || phase === 'speaking') && level > .22 && prevLevel <= .22 && t - lastWave > .35) {
+      lastWave = t; waves.push({born: t, dir: phase === 'listening' ? -1 : 1, power: clamp01(level)}); if (waves.length > 6) waves.shift()
+    }
+    prevLevel = level
+    // Nadir, yumuşak göz kısılması (ışık daralması); hata durumunda yok
+    if (t > nextBlink && live.err < .2) { blinkAt = t; nextBlink = t + 4 + rnd() * 6 }
+    const bu = (t - blinkAt) / .34
+    const blink = bu >= 0 && bu < 1 ? Math.sin(bu * Math.PI) : 0
     const [lookX, lookY] = options.getLook()
     live.lookX += (lookX - live.lookX) * (1 - Math.exp(-dt / .18)); live.lookY += (lookY - live.lookY) * (1 - Math.exp(-dt / .18))
     live.spin += dt * .16 * live.speed; live.ringSpin += dt * live.speed; live.pulseClock += dt * live.pulse
@@ -290,6 +301,16 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
 
     // 7) GÖZ (iris küresi)
     drawEye()
+    // Radyal ses dalgaları (göz düzleminde): içe = dinleme, dışa = konuşma
+    ctx.globalCompositeOperation = 'lighter'
+    for (let i = waves.length - 1; i >= 0; i--) {
+      const w = waves[i], u = (t - w.born) / 1.3
+      if (u >= 1) { waves.splice(i, 1); continue }
+      const e = w.dir > 0 ? u : 1 - u
+      const rr = R * (.36 + e * .64)
+      ctx.strokeStyle = rgba(ice, (1 - u) * (1 - u) * .55 * (.5 + w.power * .5)); ctx.lineWidth = (1.2 + (1 - u) * 1.6) * dpr
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.stroke()
+    }
 
     // 8) Ön sinir ağı, teller, halkalar, taban ön yarısı
     network(true); wire(true); ringPass(true); baseRings(true)
@@ -349,7 +370,7 @@ export function createHoloRenderer(canvas: HTMLCanvasElement, options: CoreOptio
       ctx.globalCompositeOperation = 'source-over'
       // ses çubukları: iris içinde ince dairesel dalga (gerçek seviye)
       // göz bebeği
-      const pupilR = eyeR * (.36 + live.pupil + live.level * .06 + Math.sin(t * .8) * .006)
+      const pupilR = eyeR * (.36 + live.pupil + live.level * .06 + Math.sin(t * .8) * .006) * (1 - blink * .22)
       const px0 = ex + ox, py0 = ey + oy
       const pupil = ctx.createRadialGradient(px0, py0, 0, px0, py0, pupilR * 1.2)
       pupil.addColorStop(0, 'rgba(0,4,10,1)'); pupil.addColorStop(.78, 'rgba(0,6,14,1)'); pupil.addColorStop(1, 'rgba(0,10,20,0)')

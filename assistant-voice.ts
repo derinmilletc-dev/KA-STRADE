@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {fixVoiceText, pickAlternative} from './assistant-voice-text'
 import {emitVoiceActivity} from './kais-voice-activity'
+import {startMicMeter, stopMicMeter} from './kais-mic-meter'
 
 export type VoiceLanguage = string
 /** Sohbet cevabı: düz metin ya da cevabın kendi dili ile (sunucunun algıladığı dil). Dil varsa ses o dilde okunur ve dinleme o dile geçer. */
@@ -235,6 +236,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     active.current = false
     recognition.current?.abort()
     recognition.current = null
+    stopMicMeter()
     stopSpeaking()
     setPhase('off')
     setMessage(note)
@@ -405,7 +407,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       if (navigator.mediaDevices?.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({audio: true})
-          stream.getTracks().forEach(track => track.stop())
+          // Masaüstünde akış, görsel ses ölçer için açık tutulur (kaydedilmez); başarısızsa ölçer kapanır, tanıma etkilenmez.
+          void startMicMeter(stream).catch(() => undefined)
         } catch (error) {
           const name = error instanceof DOMException ? error.name : ''
           setMessage(name === 'NotFoundError' ? copy.failed : copy.denied)
@@ -444,7 +447,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     document.addEventListener('visibilitychange', resume)
     return () => document.removeEventListener('visibilitychange', resume)
   }, [listen])
-  useEffect(() => () => { active.current = false; recognition.current?.abort(); if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
+  useEffect(() => () => { active.current = false; stopMicMeter(); recognition.current?.abort(); if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
   // Hata: oturum açılamadı/bitti ve nedeni var (normal bitiş notları hata sayılmaz).
   const failed = phase === 'off' && !starting && message !== '' && message !== copy.ended && message !== copy.idleEnded
   return {inputSupported, outputSupported, starting, failed, active: phase !== 'off', phase, listening: phase === 'listening', message, replies, heard, start, stop, interrupt, retry: retryAnswer, speak, stopSpeaking, toggleReplies, copy}
