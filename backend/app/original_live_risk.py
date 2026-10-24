@@ -60,10 +60,12 @@ def verified_wallet(snapshot: dict[str, Any]) -> float:
     return float(value)
 
 
-def limits(state: dict[str, Any]) -> dict[str, float] | None:
+def limits(state: dict[str, Any]) -> dict[str, Any] | None:
     """Ekranda gösterilen sınırlar güncel bakiyeden ve seçilen yüzdelerden dinamik gelir (sabit USDT yok).
+    Bir sistem tavanı seçilen değeri kırparsa, kırpılmış değer döner; ekran bunu "tavan nedeniyle" diye gösterir.
     Bakiye doğrulanmamışsa None döner; ekran bu bölümü göstermez."""
     from . import original_v2_live as original
+    from .execution_core import system_ceilings
     wallet = (state.get("snapshot") or {}).get("wallet_balance")
     if isinstance(wallet, bool) or not isinstance(wallet, (int, float)) or not math.isfinite(wallet) or wallet <= 0:
         return None
@@ -71,12 +73,16 @@ def limits(state: dict[str, Any]) -> dict[str, float] | None:
     day = config.get("daily") if isinstance(config.get("daily"), dict) else {}
     opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
     reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else float(wallet)
+    ceilings = system_ceilings()
+    per_trade_pct, total_pct = original.margin_percent_limits()
     return {
-        "max_loss_per_trade_usdt": float(wallet) * float(config.get("risk_percent", 0.5)) / 100,
-        "daily_loss_limit_usdt": reference * float(config.get("daily_loss_percent", 5)) / 100,
-        "max_margin_usdt": float(wallet) * original.MAX_MARGIN_PER_TRADE_PCT / 100,
+        "max_loss_per_trade_usdt": min(float(wallet) * float(config.get("risk_percent", 0.5)) / 100, ceilings["max_loss_per_trade_usdt"]),
+        "daily_loss_limit_usdt": min(reference * float(config.get("daily_loss_percent", 5)) / 100, ceilings["max_daily_loss_usdt"]),
+        "max_margin_usdt": min(float(wallet) * per_trade_pct / 100, ceilings["max_margin_per_trade_usdt"]),
+        "max_total_margin_usdt": min(float(wallet) * total_pct / 100, ceilings["max_total_exposure_usdt"] / original.ORIGINAL_LEVERAGE),
         "min_margin_usdt": 5,
         "leverage": original.ORIGINAL_LEVERAGE,
+        "system_ceilings": ceilings,
     }
 
 

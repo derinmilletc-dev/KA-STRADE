@@ -26,6 +26,18 @@ HARD_MAX_DAILY_LOSS_USDT = 100.0
 HARD_MAX_DAILY_TRADES = 12
 HARD_MAX_CONSECUTIVE_LOSSES = 10
 HARD_MAX_TOTAL_EXPOSURE_USDT = 350.0
+HARD_MAX_LOSS_PER_TRADE_USDT = 25.0
+
+
+def system_ceilings() -> dict[str, float]:
+    """Sistem genelinde, TÜM stratejiler (manuel, V25, Original V2) için geçerli mutlak güvenlik tavanları.
+    Strateji bazlı dinamik risk hesabı bunları aşamaz; bir tavan devreye girerse sessizce değil, ekranda sebebiyle gösterilir."""
+    return {
+        "max_loss_per_trade_usdt": HARD_MAX_LOSS_PER_TRADE_USDT,
+        "max_margin_per_trade_usdt": HARD_MAX_MARGIN_USDT,
+        "max_total_exposure_usdt": HARD_MAX_TOTAL_EXPOSURE_USDT,
+        "max_daily_loss_usdt": HARD_MAX_DAILY_LOSS_USDT,
+    }
 DEFAULT_MIN_CONFIDENCE = 80
 MIN_CONFIDENCE_ENV = "PROTREBOT_MIN_CONFIDENCE"
 DEFAULT_MTF_ALLOW_EITHER_TIMEFRAME = False
@@ -119,7 +131,7 @@ def sanitize_execution_policy(payload: Any, *, preserve_empty_allowed_symbols: b
     for name in ("allow_long", "allow_short", "require_one_way", "require_isolated", "stop_required"):
         base[name] = bool(source.get(name, base[name]))
     base["max_margin_per_trade"] = _number(source.get("max_margin_per_trade"), 25, 5, HARD_MAX_MARGIN_USDT)
-    base["max_loss_per_trade"] = _number(source.get("max_loss_per_trade"), 3, 0.5, 25)
+    base["max_loss_per_trade"] = _number(source.get("max_loss_per_trade"), 3, 0.5, HARD_MAX_LOSS_PER_TRADE_USDT)
     base["max_leverage"] = _integer(source.get("max_leverage"), 30, 1, HARD_MAX_LEVERAGE)
     base["max_positions"] = _integer(source.get("max_positions"), 5, 1, HARD_MAX_POSITIONS)
     base["max_same_direction_positions"] = _integer(source.get("max_same_direction_positions"), 2, 1, HARD_MAX_POSITIONS)
