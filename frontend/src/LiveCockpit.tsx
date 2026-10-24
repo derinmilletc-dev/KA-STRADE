@@ -215,6 +215,15 @@ export default function LiveCockpit(props: Props) {
   const [modePhrase, setModePhrase] = useState('')
   const [modeError, setModeError] = useState('')
   const [modeHelpOpen, setModeHelpOpen] = useState(false)
+  const [extendHours, setExtendHours] = useState(12)
+  const [extendUnderstood, setExtendUnderstood] = useState(false)
+  const extendSession = () => perform('extend', async () => {
+    const before = original?.session?.expires_at ? Date.parse(original.session.expires_at) : 0
+    const payload = await request('/original-v2/extend-session', {session_hours: extendHours, understood: extendUnderstood}) as {session?: {expires_at?: string | null}} | null
+    const after = payload?.session?.expires_at ? Date.parse(payload.session.expires_at) : NaN
+    if (!Number.isFinite(after) || after <= before) throw new Error('Oturum uzatması doğrulanamadı; güncel süreyi kontrol et.')
+    setSheet(null); setExtendUnderstood(false)
+  }, 'Oturum uzatıldı. Açık pozisyonlar ve ayarlar değişmedi.', setSheetError)
   const chosenMode = modePick ?? savedMode
   const modeReady = chosenMode !== savedMode && modeUnderstood && (chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE)
   const pickMode = (mode: string) => { setModePick(mode === savedMode ? null : mode); setModeAck(false); setModePhrase(''); setModeError('') }
