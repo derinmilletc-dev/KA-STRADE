@@ -36,6 +36,48 @@ FLAG = "PROTREBOT_LIVE_KAIS_ORIGINAL_V2_ENABLED"
 SOURCE = "ORIGINAL_V2_LIVE"
 SCANNER_HISTORY_LIMIT = 128
 SESSION_WARNING_SECONDS = 60 * 60  # müşteriye "1 saat kaldı" uyarısı + push
+# Çıkış politikası (yalnız canlı Original V2): TP1, sinyalin TP1 mesafesinin %80'ine kurulur ve orada pozisyonun %70'i
+# kapanır; kalan %30 değişmeyen ilk stop ve TP3 ile devam eder. Demo ve eski planlar %60 / 1R'de kalır.
+TP1_PRICE_RATIO = Decimal("0.80")
+TP1_FRACTION = Decimal("0.70")
+# 70/30'un tam bölünmesi için miktar sembolün adımının 10 katına yuvarlanır (60/40'ta 5 idi).
+SPLIT_STEPS = 10
+
+
+def percent_text(fraction: Decimal) -> str:
+    return f"%{int((fraction * 100).to_integral_value())}"
+
+
+def scaled_targets(spec: dict[str, Any], tick: Decimal) -> list[str]:
+    """Sinyalin TP1'ini girişe doğru %80'e çeker; TP2/TP3 ve stop aynen kalır.
+
+    LONG: entry + (tp1 - entry) * 0.80 · SHORT: entry - (entry - tp1) * 0.80. Sinyal TP1'i girişin doğru
+    tarafında değilse ya da yuvarlama sonrası seviye girişe/TP3'e çarparsa giriş açılmaz.
+    """
+    from . import v25_execution as live
+    try:
+        entry = Decimal(str(spec["entry_price"]))
+        targets = [Decimal(str(value)) for value in spec["targets"]]
+        direction = str(spec.get("direction") or "").upper()
+        tick = Decimal(str(tick))
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise HTTPException(423, "Original V2 TP1 seviyesi hesaplanamadı; giriş açılmadı.") from exc
+    if len(targets) != 3 or not all(value.is_finite() and value > 0 for value in (entry, tick, *targets)):
+        raise HTTPException(423, "Original V2 TP1 seviyesi hesaplanamadı; giriş açılmadı.")
+    signal_tp1 = targets[0]
+    if direction == "LONG":
+        valid = entry < signal_tp1 <= targets[2]
+    elif direction == "SHORT":
+        valid = targets[2] <= signal_tp1 < entry
+    else:
+        valid = False
+    if not valid:
+        raise HTTPException(423, "Original V2 sinyal TP1 seviyesi girişin doğru tarafında değil; giriş açılmadı.")
+    tp1 = live.round_tick(entry + (signal_tp1 - entry) * TP1_PRICE_RATIO, tick)
+    inside = entry < tp1 <= targets[2] if direction == "LONG" else targets[2] <= tp1 < entry
+    if not inside:
+        raise HTTPException(423, "Original V2 TP1 seviyesi fiyat adımına yuvarlanınca geçersiz kaldı; giriş açılmadı.")
+    return [live.decimal_text(tp1), spec["targets"][1], spec["targets"][2]]
 logger = logging.getLogger(__name__)
 
 
@@ -553,20 +595,23 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     entry, stop = Decimal(spec["entry_price"]), Decimal(spec["stop_loss"])
     budget = Decimal(str(policy["max_loss_per_trade"]))
     rules = await live.live_symbol_rules(client, spec["symbol"], "MARKET")
+    # TP1 girişe doğru %80'e çekilir ve plan kendi %70 oranını taşır; TP2/TP3 ve stop değişmez.
+    spec["targets"] = scaled_targets(spec, rules["tick"])
+    spec["tp1_fraction"] = str(TP1_FRACTION)
     # The percentage budget includes estimated commission and slippage, not only stop distance.
     cost_per_unit = entry * Decimal(str(policy["fee_bps_per_side"] + policy["slippage_bps_per_side"])) * 2 / 10000
     native_quantity = Decimal(spec["quantity"])
     risk_quantity = budget / (abs(entry - stop) + cost_per_unit)
     margin_quantity = Decimal(str(policy["max_margin_per_trade"])) * 3 / entry
     unrounded_quantity = min(native_quantity, risk_quantity, margin_quantity)
-    quantity = live.floor_step(unrounded_quantity, rules["step"] * 5)
+    quantity = live.floor_step(unrounded_quantity, rules["step"] * SPLIT_STEPS)
     size_metrics = original.minimum_order_parts(
-        quantity, entry, rules["step"], rules["min_qty"], rules["min_notional"],
+        quantity, entry, rules["step"], rules["min_qty"], rules["min_notional"], TP1_FRACTION,
     )
     if not size_metrics["passes"]:
         live.record_live_entry_check(
             check_results, "minimum_quantity", False,
-            "Toplam miktar, TP1 %60 veya kalan miktar Binance minimum miktar/notional şartını karşılamıyor.",
+            f"Toplam miktar, TP1 {percent_text(TP1_FRACTION)} veya kalan miktar Binance minimum miktar/notional şartını karşılamıyor.",
             symbol=spec["symbol"],
         )
         raise live.MinimumTradeSizeError(spec["symbol"], {
@@ -577,7 +622,7 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         })
     live.record_live_entry_check(
         check_results, "minimum_quantity", True,
-        "Toplam miktar, TP1 %60 ve kalan miktar Binance minimum miktar/notional şartını karşılıyor.",
+        f"Toplam miktar, TP1 {percent_text(TP1_FRACTION)} ve kalan miktar Binance minimum miktar/notional şartını karşılıyor.",
         symbol=spec["symbol"],
     )
     margin = float(quantity * entry / 3)
@@ -758,14 +803,17 @@ async def install_targets(client: Any, state: dict[str, Any], plan: dict[str, An
     quantity = Decimal(position["quantity"])
     if not plan.get("original_tp_attempted"):
         plan["initial_quantity"] = live.decimal_text(quantity)
-    partial = live.floor_step(Decimal(plan["initial_quantity"]) * Decimal("0.60"), Decimal(plan["step"]))
-    if not plan.get("original_tp_attempted") and partial != Decimal(plan["initial_quantity"]) * Decimal("0.60"):
-        pause(state, f"{plan['symbol']} doğrulanan dolum tam %60 TP1 bölünmesine uygun değil")
-        raise live.LiveExchangeError("Original V2 TP1 tam %60 miktarı kurulamadı; pozisyon kapatılmadı.", http_status=423)
+    # Oran planın kendisinden okunur: alanı olmayan eski planlar %60'ta kalır, yeni planlar %70 taşır.
+    fraction = live.plan_tp1_fraction(plan)
+    pct = percent_text(fraction)
+    partial = live.floor_step(Decimal(plan["initial_quantity"]) * fraction, Decimal(plan["step"]))
+    if not plan.get("original_tp_attempted") and partial != Decimal(plan["initial_quantity"]) * fraction:
+        pause(state, f"{plan['symbol']} doğrulanan dolum tam {pct} TP1 bölünmesine uygun değil")
+        raise live.LiveExchangeError(f"Original V2 TP1 tam {pct} miktarı kurulamadı; pozisyon kapatılmadı.", http_status=423)
     if not plan.get("original_tp_attempted") and (
         partial < Decimal(plan["min_qty"]) or partial * Decimal(str(position["mark_price"])) < Decimal(plan["min_notional"])
     ):
-        pause(state, f"{plan['symbol']} TP1 %60 borsa minimumunu karşılamıyor")
+        pause(state, f"{plan['symbol']} TP1 {pct} borsa minimumunu karşılamıyor")
         raise live.LiveExchangeError("Original V2 TP1 miktarı kurulamadı; pozisyon kapatılmadı.", http_status=423)
     common = {"algoType": "CONDITIONAL", "symbol": plan["symbol"],
               "side": "SELL" if plan["direction"] == "LONG" else "BUY",
@@ -823,7 +871,7 @@ async def verify_targets(client: Any, state: dict[str, Any], plan: dict[str, Any
     for target, identity, quantity in [
         (plan["targets"][2], plan.get("original_tp3_algo_id"), None),
         (plan["targets"][0], plan.get("tp12_algo_id"),
-         live.decimal_text(live.floor_step(Decimal(plan["initial_quantity"]) * Decimal("0.60"), Decimal(plan["step"])))),
+         live.decimal_text(live.floor_step(Decimal(plan["initial_quantity"]) * live.plan_tp1_fraction(plan), Decimal(plan["step"])))),
     ]:
         if not any(row.get("algo_id") == identity for row in normalized):
             continue
@@ -858,12 +906,12 @@ async def verify_targets(client: Any, state: dict[str, Any], plan: dict[str, Any
         pause(state, f"{plan['symbol']} TP1 yürütme kanıtı yok")
         return
     order = await client.signed("GET", "/fapi/v1/order", {"symbol": plan["symbol"], "orderId": actual})
-    allocation = live.floor_step(Decimal(plan["initial_quantity"]) * Decimal("0.60"), Decimal(plan["step"]))
+    allocation = live.floor_step(Decimal(plan["initial_quantity"]) * live.plan_tp1_fraction(plan), Decimal(plan["step"]))
     if (not isinstance(order, dict) or int(order.get("orderId") or 0) != actual
             or order.get("symbol") != plan["symbol"] or order.get("side") != ("SELL" if plan["direction"] == "LONG" else "BUY")
             or not live._truthy(order.get("reduceOnly")) or order.get("status") != "FILLED"
             or Decimal(str(order.get("executedQty", 0))) != allocation):
-        pause(state, f"{plan['symbol']} TP1 %60 dolumu doğrulanamadı")
+        pause(state, f"{plan['symbol']} TP1 {percent_text(live.plan_tp1_fraction(plan))} dolumu doğrulanamadı")
         return
     plan["original_tp1_complete"] = True
     live.persist_state(state)
@@ -1016,6 +1064,8 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
             "max_margin_per_trade": sizing_policy["max_margin_per_trade"],
             "fee_bps_per_side": sizing_policy["fee_bps_per_side"],
             "slippage_bps_per_side": sizing_policy["slippage_bps_per_side"],
+            "tp1_fraction": str(TP1_FRACTION),
+            "split_steps": SPLIT_STEPS,
         }
         stream = getattr(application.state, "original_kline_stream", None)
 

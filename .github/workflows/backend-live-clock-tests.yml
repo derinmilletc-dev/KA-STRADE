@@ -54,6 +54,13 @@ jobs:
           python -m pytest tests/test_original_live_risk.py -q -rfE --tb=line -p no:cacheprovider \
             -k "boundaries or invalid_or_unconfirmed or projection or initial_default or commit_together or failed_atomic or unverified_balance or stale_revision or no_change or legacy or invalid_daily or durable_database or tightening or new_key" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Original V2 canlı çıkış politikası (TP1 %80 seviyesi, %70 kapanış, eski planlar %60): yeni ve ilgili mevcut testler.
+          python -m pytest tests/test_original_v2_live.py -q -rfE --tb=line -p no:cacheprovider \
+            -k "scaled_tp1 or tp1_is_scaled or build_spec_uses_scaled or new_original_plan_installs or old_original_plan_without or invalid_plan_fraction or seventy_percent or live_sizing_context or exact_tp60 or native_sizing_with_costs or changed_original_targets or protection_identity_survives or partial_entry_tp60 or tp1_not_reallocated or cannot_split" 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          python -m pytest tests/test_original_v2_demo_execution.py -q -rfE --tb=line -p no:cacheprovider \
+            -k "protection_60 or entry_requires_total or live_minimum_sizing" 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
           exit $status

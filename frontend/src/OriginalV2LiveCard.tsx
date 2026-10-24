@@ -390,7 +390,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
       </ul>
       <p>ARM başlatma aşamasında kullanılır; açık otomasyon kendi süresi ve yukarıdaki kapılarla kontrol edilir. Her adayda sembol, sinyal, risk, bakiye ve Binance emir kuralları sunucuda yeniden doğrulanır. “Açık” emir garantisi değildir.</p>
     </details>
-    <p>USDT-M Futures · 24 saatlik hacimde ilk N; hacim en az 1.000.000 USDT, liste yaşı en az {status.universe?.minimum_age_days ?? 45} gün (en uzun mum geçmişine göre), spread en fazla 8 bps. Evren UTC gününde bir kez yenilenir. Geçmişi eksik sembol veri eksik olarak elenir; tarama diğer sembollerle devam eder. Strateji: 3x · en fazla %6 stop · TP1’de %60 kapanır; kalan TP3 veya ilk stopta kapanır. Stop taşınmaz.</p>
+    <p>USDT-M Futures · 24 saatlik hacimde ilk N; hacim en az 1.000.000 USDT, liste yaşı en az {status.universe?.minimum_age_days ?? 45} gün (en uzun mum geçmişine göre), spread en fazla 8 bps. Evren UTC gününde bir kez yenilenir. Geçmişi eksik sembol veri eksik olarak elenir; tarama diğer sembollerle devam eder. Strateji: 3x · en fazla %6 stop · TP1’de (hedefin %80’i) %70 kapanır; kalan %30 TP3 veya ilk stopta kapanır. Stop taşınmaz.</p>
     <small>Son taramadaki semboller: {(status.scanner?.scanned_symbols ?? status.symbols).map(symbol => symbol.replace('USDT', '')).join(' · ') || 'Günlük seçim bekleniyor'}</small>
     <small>Uygun: {status.universe?.eligible_count ?? 0} · Seçilen: {status.universe?.selected_count ?? status.symbols.length} · Liste yenileme: {status.universe?.updated_at ? new Date(status.universe.updated_at).toLocaleString('tr-TR') : 'Henüz yapılmadı'}</small>
     <details data-testid="original-scan-diagnostics">
@@ -414,7 +414,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
           {item.market_move_percent != null && <> · 24s hareket %{item.market_move_percent.toFixed(2)}</>}
           {item.total_notional_usdt != null && <>
             {' '}· Pozisyon {item.total_notional_usdt} USDT ({item.total_quantity})
-            {' '}· TP1 %60 {item.tp1_notional_usdt} USDT ({item.tp1_quantity})
+            {' '}· TP1 %70 {item.tp1_notional_usdt} USDT ({item.tp1_quantity})
             {' '}· Kalan {item.remaining_notional_usdt} USDT ({item.remaining_quantity})
             {' '}· Borsa minimumu {item.min_notional_usdt} USDT / {item.min_qty}
           </>}

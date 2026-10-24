@@ -1508,3 +1508,132 @@ def test_original_live_consecutive_loss_limit_disabled_but_daily_loss_lock_remai
     # Günlük kayıp kilidi hâlâ devrede: toplam -6 USDT, limit 5 USDT.
     tight = core.sanitize_execution_policy({"consecutive_loss_limit": 0, "daily_loss_limit": 5})
     assert not core.evaluate_entry_gates(policy=tight, **kwargs)["passed"]
+
+# ---- TP1 %80 seviyesi ve %70 kapanış (yalnız canlı Original V2) ----
+
+def test_tp1_is_scaled_to_eighty_percent_for_long_and_short():
+    long_spec = {"entry_price": "100", "direction": "LONG", "targets": ["110", "120", "130"]}
+    assert original.scaled_targets(long_spec, Decimal("0.01")) == ["108", "120", "130"]
+    short_spec = {"entry_price": "100", "direction": "SHORT", "targets": ["90", "80", "70"]}
+    assert original.scaled_targets(short_spec, Decimal("0.01")) == ["92", "80", "70"]
+
+
+def test_scaled_tp1_rounds_to_tick_and_keeps_tp2_tp3_text():
+    spec = {"entry_price": "100", "direction": "LONG", "targets": ["110.55", "121.1", "131.65"]}
+    scaled = original.scaled_targets(spec, Decimal("0.1"))
+    assert scaled[0] == "108.4"          # 100 + 10.55 * 0.8 = 108.44 → tick 0.1
+    assert scaled[1:] == ["121.1", "131.65"]
+
+
+@pytest.mark.parametrize("spec", [
+    {"entry_price": "100", "direction": "LONG", "targets": ["99", "120", "130"]},    # TP1 girişin yanlış tarafında
+    {"entry_price": "100", "direction": "SHORT", "targets": ["101", "80", "70"]},
+    {"entry_price": "100", "direction": "LONG", "targets": ["110", "120"]},          # eksik hedef
+    {"entry_price": "100", "direction": "BEKLE", "targets": ["110", "120", "130"]},
+])
+def test_scaled_tp1_rejects_invalid_signal_levels(spec):
+    with pytest.raises(HTTPException) as error:
+        original.scaled_targets(spec, Decimal("0.01"))
+    assert error.value.status_code == 423
+
+
+def test_scaled_tp1_that_rounds_onto_entry_is_rejected():
+    spec = {"entry_price": "100", "direction": "LONG", "targets": ["100.2", "100.4", "100.6"]}
+    with pytest.raises(HTTPException):
+        original.scaled_targets(spec, Decimal("1"))     # 100.16 → tick 1 → 100 = giriş
+
+
+def test_build_spec_uses_scaled_tp1_and_seventy_percent(state):
+    client = EntryClient()
+    state["policy"]["max_margin_per_trade"] = 25
+    signal = result().legacy["analysis"]
+    spec = run(original.build_spec(client, result(), state, {"wallet_balance": 300}))
+    entry, tp1, tp3 = Decimal(spec["entry_price"]), Decimal(spec["targets"][0]), Decimal(spec["targets"][2])
+    assert spec["tp1_fraction"] == "0.70"
+    direction = spec["direction"]
+    expected = entry + (Decimal(str(signal["tp1"])) - entry) * Decimal("0.80")
+    assert abs(tp1 - expected) <= Decimal("0.5") * Decimal(str(spec["step"])) + Decimal("1")  # tick payı
+    assert (entry < tp1 < tp3) if direction == "LONG" else (tp3 < tp1 < entry)
+    # miktar sembolün adımının 10 katı: 70/30 tam bölünür
+    assert Decimal(spec["quantity"]) % (Decimal(str(spec["step"])) * 10) == 0
+    quantity = Decimal(spec["quantity"])
+    assert quantity * Decimal("0.70") + quantity * Decimal("0.30") == quantity
+
+
+def test_new_original_plan_installs_seventy_percent_tp1(state):
+    plan = native_plan(tp1_fraction="0.70")
+    client = PartialFillClient(plan, quantity="0.010")
+    run(live.install_protection(client, state, plan))
+    assert [row["type"] for row in client.algos] == ["STOP_MARKET", "TAKE_PROFIT_MARKET", "TAKE_PROFIT_MARKET"]
+    assert Decimal(client.algos[1]["quantity"]) == Decimal("0.007")
+    assert client.algos[1]["triggerPrice"] == "51000"
+    assert client.algos[2]["closePosition"] == "true"
+    assert client.algos[0]["triggerPrice"] == "49000"      # stop değişmez
+
+
+def test_old_original_plan_without_fraction_stays_sixty_percent(state):
+    plan = native_plan()
+    assert "tp1_fraction" not in plan
+    assert live.plan_tp1_fraction(plan) == Decimal("0.60")
+    client = PartialFillClient(plan, quantity="0.010")
+    run(live.install_protection(client, state, plan))
+    assert Decimal(client.algos[1]["quantity"]) == Decimal("0.006")
+
+
+@pytest.mark.parametrize("value", [None, "", "abc", "0", "1", "1.5", "-0.2", "nan"])
+def test_invalid_plan_fraction_falls_back_to_sixty_percent(value):
+    assert live.plan_tp1_fraction({"tp1_fraction": value}) == Decimal("0.60")
+
+
+def test_seventy_percent_plan_survives_restart_and_verifies_without_reallocation(state):
+    plan = native_plan(tp1_fraction="0.70")
+    client = PartialFillClient(plan, quantity="0.010")
+    run(live.install_protection(client, state, plan))
+    state["plans"][plan["id"]] = plan
+    restored = live.sanitized_state(state)
+    restored_plan = restored["plans"][plan["id"]]
+    assert restored_plan["tp1_fraction"] == "0.70"
+    before = len(client.calls)
+    run(original.verify_targets(client, restored, restored_plan, client.snapshot()["open_algo_orders"]))
+    assert len(client.calls) == before
+    assert Decimal(client.algos[1]["quantity"]) == Decimal("0.007")
+
+
+def test_seventy_percent_tp1_quantity_change_pauses_without_closing(state):
+    plan = native_plan(tp1_fraction="0.70")
+    client = PartialFillClient(plan, quantity="0.010")
+    run(live.install_protection(client, state, plan))
+    client.algos[1]["quantity"] = "0.006"        # eski %60 miktarı artık beklenen değil
+    with pytest.raises(live.LiveExchangeError):
+        run(original.verify_targets(client, state, plan, client.snapshot()["open_algo_orders"]))
+    assert not original.running(state)
+    assert plan["tp_protection_state"] == "UNPROTECTED"
+    assert client.quantity == "0.010"
+
+
+def test_partial_fill_that_cannot_split_seventy_thirty_pauses_without_closing(state, monkeypatch):
+    plan = native_plan(entry_order_status="PARTIALLY_FILLED", tp1_fraction="0.70", step="0.003")
+    close = AsyncMock()
+    monkeypatch.setattr(live, "close_tracked_symbol", close)
+    with pytest.raises(live.LiveExchangeError):
+        run(original.install_targets(object(), state, plan, {"quantity": "0.010", "mark_price": "50000"}, []))
+    close.assert_not_awaited()
+    assert not original.running(state)
+
+
+def test_live_sizing_context_checks_seventy_thirty_minimums():
+    info = {"filters": [
+        {"filterType": "LOT_SIZE", "stepSize": "0.01", "minQty": "0.01"},
+        {"filterType": "MARKET_LOT_SIZE", "stepSize": "0.01", "minQty": "0.01"},
+        {"filterType": "MIN_NOTIONAL", "notional": "5"},
+    ]}
+    signal = {"entry": "100", "stop_loss": "99.5"}
+    base = {"max_loss_per_trade": "1", "max_margin_per_trade": "25", "fee_bps_per_side": "0", "slippage_bps_per_side": "0"}
+    old_style = demo_execution.live_minimum_order_assessment(signal, info, base)
+    new_style = demo_execution.live_minimum_order_assessment(signal, info, {**base, "tp1_fraction": "0.70", "split_steps": 10})
+    assert "TP1 %60" in old_style["reason"]
+    assert "TP1 %70" in new_style["reason"]
+    total = Decimal(new_style["total_quantity"])
+    assert total % Decimal("0.10") == 0                                   # 10 adım × 0,01
+    assert Decimal(new_style["tp1_quantity"]) == (total * Decimal("0.70")).quantize(Decimal("0.01"), rounding="ROUND_DOWN")
+    assert Decimal(new_style["tp1_quantity"]) + Decimal(new_style["remaining_quantity"]) == total

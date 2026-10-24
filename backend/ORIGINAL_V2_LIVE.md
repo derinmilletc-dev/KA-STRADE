@@ -20,12 +20,18 @@ volume below 1,000,000 USDT or spread above 8 bps are excluded. The selected
 list and daily ranking are persisted, so changing N during the day reuses the
 same daily market snapshot. Fewer than N may be selected if fewer pass filters.
 
-Orders remain 3x isolated, with at most 6% stop distance. TP1 closes 60%; the
-remaining position exits at TP3 or the initial stop. There is no TP2 order,
-trailing stop or break-even move. Quantity is rounded down to five lot steps so
-the initial position can split exactly 60/40. An incompatible partial fill
-pauses entries after installing the stop; it is not silently resized or
-automatically closed. Demo Original V2 keeps its immutable eight-symbol policy.
+Orders remain 3x isolated, with at most 6% stop distance. LIVE places TP1 at
+80% of the distance from entry to the signal's TP1 (LONG: `entry + (tp1 - entry) * 0.80`,
+SHORT: `entry - (entry - tp1) * 0.80`, rounded to the tick) and TP1 closes 70%;
+the remaining 30% exits at TP3 or the initial stop. TP3 and the initial stop are
+unchanged. There is no TP2 order, trailing stop or break-even move. Quantity is
+rounded down to ten lot steps so the initial position can split exactly 70/30.
+Each new LIVE plan stores its own `tp1_fraction` ("0.70"); plans without that
+field (opened before this change) keep the previous 60/40 behaviour, so protection
+checks, restarts and repairs always use the plan's own ratio. An incompatible
+partial fill pauses entries after installing the stop; it is not silently
+resized or automatically closed. Demo Original V2 keeps its immutable
+eight-symbol policy and its 1R / 60% exit model; only LIVE uses the 80% / 70% rule.
 
 As approved, no new 100-day trend filter is added. The historical reference's
 18-day *future-gap inventory* is not causal LIVE data and is not represented as

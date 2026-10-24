@@ -2085,6 +2085,23 @@ def safe_exchange_error(exc: LiveExchangeError | BinanceDemoError) -> HTTPExcept
     return error
 
 
+DEFAULT_TP1_FRACTION = Decimal("0.60")
+
+
+def plan_tp1_fraction(plan: dict[str, Any]) -> Decimal:
+    """TP1'de kapanacak oran. Plan kendi oranını taşır; alanı olmayan ya da geçersiz planlar eski %60'ta kalır."""
+    raw = plan.get("tp1_fraction")
+    if raw is None:
+        return DEFAULT_TP1_FRACTION
+    try:
+        value = Decimal(str(raw))
+    except (ArithmeticError, ValueError):
+        return DEFAULT_TP1_FRACTION
+    if not value.is_finite() or not Decimal("0") < value < Decimal("1"):
+        return DEFAULT_TP1_FRACTION
+    return value
+
+
 def validate_protection_readiness(spec: dict[str, Any], policy: dict[str, Any]) -> None:
     if not sanitize_execution_policy(policy).get("stop_required", True):
         raise LiveExchangeError("Canlı giriş için Stop koruması zorunludur.", http_status=423)
@@ -3233,7 +3250,7 @@ async def install_protection(
         raise LiveExchangeError("Canlı TP miktar/notional kuralları veya mark fiyatı geçersiz.", http_status=422)
     ids: list[int] = [plan["stop_algo_id"]] if plan.get("stop_algo_id") else []
     monitoring: list[str] = []
-    combined_partial = floor_step(abs(amount) * Decimal("0.60"), step)
+    combined_partial = floor_step(abs(amount) * plan_tp1_fraction(plan), step)
     if combined_partial > 0 and combined_partial >= min_qty and combined_partial * mark_price >= min_notional:
         key = client_id_for("TP12", plan["intent_id"])
         try:
@@ -3750,6 +3767,8 @@ def recover_plan_from_intent(intent_id: str, intent: dict[str, Any], order: dict
     if original_v2_live.plan_is_original(plan):
         for key in ("initial_stop_loss", "initial_quantity", "original_risk_budget", "original_cost_bps"):
             plan[key] = spec.get(key)
+        if spec.get("tp1_fraction") is not None:
+            plan["tp1_fraction"] = spec["tp1_fraction"]
         plan["original_tp_attempted"] = True
     return plan
 
@@ -4200,7 +4219,7 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
         try:
             if label == "tp1":
                 params["quantity"] = decimal_text(floor_step(
-                    Decimal(str(plan.get("initial_quantity") or plan.get("quantity"))) * Decimal("0.60"),
+                    Decimal(str(plan.get("initial_quantity") or plan.get("quantity"))) * plan_tp1_fraction(plan),
                     Decimal(str(plan["step"])),
                 ))
             result[label] = existing_entry_protection_algo({**common, **params}, rows) is not None
@@ -4254,7 +4273,7 @@ def reconcile_monitoring_targets(state: dict[str, Any], plan: dict[str, Any], ro
                 "clientAlgoId": client_id_for("TP12" if combined else "TP3", str(plan.get("intent_id") or "")),
             }
             if combined:
-                params["quantity"] = decimal_text(floor_step(Decimal(str(plan["quantity"])) * Decimal("0.60"), Decimal(str(plan["step"]))))
+                params["quantity"] = decimal_text(floor_step(Decimal(str(plan["quantity"])) * plan_tp1_fraction(plan), Decimal(str(plan["step"]))))
                 params["reduceOnly"] = "true"
             else:
                 params["closePosition"] = "true"
@@ -5185,6 +5204,8 @@ async def execute_live_order(
                 serializable_spec.update({key: spec[key] for key in (
                     "initial_stop_loss", "initial_quantity", "original_risk_budget", "original_cost_bps",
                 )})
+                if spec.get("tp1_fraction") is not None:
+                    serializable_spec["tp1_fraction"] = str(spec["tp1_fraction"])
             audit_snapshot = MappingProxyType({
                 "decision_id": intent_id,
                 "timestamp": now_iso(),
@@ -5290,6 +5311,8 @@ async def execute_live_order(
                 plan.update({key: serializable_spec[key] for key in (
                     "initial_stop_loss", "initial_quantity", "original_risk_budget", "original_cost_bps",
                 )})
+                if "tp1_fraction" in serializable_spec:
+                    plan["tp1_fraction"] = serializable_spec["tp1_fraction"]
             state["plans"] = {plan_id: plan, **state.get("plans", {})}
             add_event(state, "LIVE_ENTRY_RECOVERED" if result.get("recovered") else "LIVE_ENTRY", f"{spec['symbol']} {spec['direction']} {spec['order_type']} canlı emir gönderildi ({source}).", symbol=spec["symbol"], direction=spec["direction"], client_order_id=client_id)
             # Persist exchange acceptance before any later API call. If the process

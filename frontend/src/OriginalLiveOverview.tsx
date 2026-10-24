@@ -4,6 +4,11 @@ type Plan = NonNullable<SharedLiveStatus['plans']>[number]
 type Props = {status: SharedLiveStatus; verified: boolean; findPlan: (position: Record<string, unknown>) => Plan | undefined}
 const amount = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
   ? `${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT` : '—'
+// TP1'de kapanan oran planın kendisinden okunur; alanı olmayan eski planlar %60 gösterilir.
+const tp1Percent = (plan: Record<string, unknown> | undefined) => {
+  const value = Number(plan?.tp1_fraction)
+  return Number.isFinite(value) && value > 0 && value < 1 ? Math.round(value * 100) : 60
+}
 const display = (value: unknown) => typeof value === 'string' || typeof value === 'number' ? String(value) : '—'
 
 export default function OriginalLiveOverview({status, verified, findPlan}: Props) {
@@ -35,7 +40,7 @@ export default function OriginalLiveOverview({status, verified, findPlan}: Props
           return <article className="originalPosition" key={`${display(position.symbol)}-${index}`}>
             <header><strong>{display(position.symbol)} <span>{display(position.direction)}</span></strong><b>{verified ? amount(position.unrealized_pnl) : '—'}</b></header>
             <div><span>Giriş <b>{display(position.entry_price)}</b></span><span>Stop <b>{display(plan?.stop_loss)}</b><small>{protection?.stop === true ? 'Binance’te ✓' : 'Doğrulanamadı'}</small></span>
-              <span>TP1 (%60) <b>{display(plan?.targets?.[0])}</b><small>{protection?.tp1 === true ? 'Binance’te ✓' : 'Doğrulanamadı'}</small></span>
+              <span>TP1 (%{tp1Percent(plan)}) <b>{display(plan?.targets?.[0])}</b><small>{protection?.tp1 === true ? 'Binance’te ✓' : 'Doğrulanamadı'}</small></span>
               <span>TP3 <b>{display(plan?.targets?.[2])}</b><small>{protection?.tp3 === true ? 'Binance’te ✓' : 'Doğrulanamadı'}</small></span></div>
             {external && <p>Dış pozisyon · bot tarafından yönetilmiyor.</p>}
             {!external && plan?.provenance_state !== 'CONFIRMED' && <p>Plan sahipliği doğrulanamadı.</p>}
