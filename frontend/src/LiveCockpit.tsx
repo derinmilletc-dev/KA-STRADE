@@ -631,7 +631,7 @@ export default function LiveCockpit(props: Props) {
     {savedRisk > 2 && savedRisk <= 5 && <label className="lcCheck"><input type="checkbox" checked={startAck} onChange={event => setStartAck(event.target.checked)}/><span>%{savedRisk} işlem riskinin yüksek olduğunu anladım.</span></label>}
     {savedRisk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label></>}
     <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.</span></label>
-    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true) }} disabled={Boolean(working)}>Ayarları değiştir</button>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true); window.setTimeout(() => (document.querySelector('#lc-strategy .lcStrategyEdit') || document.getElementById('lc-strategy') || document.getElementById('lc-drawer'))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 120) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
   </> : sheet === 'extend' ? <>
     <h2 id="lc-sheet-title">Oturumu uzat</h2>
