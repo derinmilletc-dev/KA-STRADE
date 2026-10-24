@@ -814,7 +814,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         </div>
 
         <div className="masterTradeSticky">
-        <section className={`masterTradeFocusPanel${masterTradeOffline ? ' offline' : ''}`} aria-label="Primary trade decision" hidden={layoutTab === 'canli' || layoutTab === 'baglanti'}>
+        <section className={`masterTradeFocusPanel${masterTradeOffline ? ' offline' : ''}`} aria-label="Primary trade decision" hidden={layoutTab !== 'analiz'}>
           <div className="masterTradeFocusIdentity">
             <span className="panelEyebrow">PRIMARY DECISION</span>
             <strong>{draft.market}</strong>
