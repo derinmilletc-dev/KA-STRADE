@@ -120,3 +120,31 @@ export function KaisHoloPlatform({complete}: {complete: number}) {
     <g className="wave">{BARS.map(bar => <path key={bar.x} d={`M${bar.x} ${bar.y}v-16`} style={{'--k': bar.k} as React.CSSProperties}/>)}</g>
   </svg>
 }
+
+
+// Sinir ağı katmanı: sabit (deterministik) düğümler, yakın düğümleri bağlayan ince çizgiler ve çizgiler boyunca ilerleyen küçük sinyaller.
+// Tamamen dekoratif; durumla yalnız hızı ve parlaklığı değişir (CSS). Göz bölgesi (r < 124) boş bırakılır.
+const NEURAL_NODES = Array.from({length: 46}, (_, index) => {
+  const angle = index * 137.508 * Math.PI / 180
+  const radius = 128 + ((index * 53) % 100)
+  return {x: round(Math.cos(angle) * radius), y: round(Math.sin(angle) * radius), r: radius}
+})
+const NEURAL_LINKS: [number, number][] = (() => {
+  const links: [number, number][] = []
+  NEURAL_NODES.forEach((a, i) => {
+    NEURAL_NODES.map((b, j) => ({j, d: Math.hypot(a.x - b.x, a.y - b.y)})).filter(item => item.j > i && item.d < 74)
+      .sort((x, y) => x.d - y.d).slice(0, 2).forEach(item => links.push([i, item.j]))
+  })
+  return links
+})()
+const NEURAL_PULSES = NEURAL_LINKS.filter((_, index) => index % 5 === 0).slice(0, 9)
+
+export function KaisHoloNeural() {
+  return <svg className="khNeural" viewBox="-250 -250 500 500" aria-hidden="true" focusable="false">
+    <g className="khNeuralSpin">
+      <g className="khNeuralLinks">{NEURAL_LINKS.map(([a, b]) => <path key={`${a}-${b}`} d={`M${NEURAL_NODES[a].x} ${NEURAL_NODES[a].y}L${NEURAL_NODES[b].x} ${NEURAL_NODES[b].y}`} style={{opacity: round(.12 + (1 - (NEURAL_NODES[a].r - 128) / 100) * .32)}}/>)}</g>
+      <g className="khNeuralPulses">{NEURAL_PULSES.map(([a, b], index) => <path key={`${a}-${b}`} pathLength={100} d={`M${NEURAL_NODES[a].x} ${NEURAL_NODES[a].y}L${NEURAL_NODES[b].x} ${NEURAL_NODES[b].y}`} style={{animationDelay: `${-(index * .45).toFixed(2)}s`}}/>)}</g>
+      <g className="khNeuralNodes">{NEURAL_NODES.map((node, index) => <circle key={index} cx={node.x} cy={node.y} r={index % 6 === 0 ? 2.8 : 1.7} style={{opacity: round(.35 + (1 - (node.r - 128) / 100) * .6)}}/>)}</g>
+    </g>
+  </svg>
+}
