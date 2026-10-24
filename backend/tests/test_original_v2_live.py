@@ -25,6 +25,21 @@ def run(awaitable):
     return asyncio.run(awaitable)
 
 
+@pytest.fixture(autouse=True)
+def _live_member_uses_patched_identity(monkeypatch):
+    """Çok kullanıcılı LIVE ile uç noktalar live_access.require_live_member çağırır; bu testler kimliği
+    `original.authenticated_user` üzerinden taklit eder. OWNER geçer, diğer roller 403 alır."""
+    from app import live_access
+
+    def require(request):
+        user = original.authenticated_user(request)
+        if user.get("role") == "OWNER":
+            return user
+        raise HTTPException(403, "OWNER required")
+
+    monkeypatch.setattr(live_access, "require_live_member", require)
+
+
 @pytest.fixture
 def state(monkeypatch):
     monkeypatch.setenv(original.FLAG, "true")
