@@ -474,12 +474,12 @@ export default function LiveCockpit(props: Props) {
   const lastBreakdown = lastAdj?.breakdown ?? null
   const honestBlock = <>
     {honestTarget !== null && <div className="lcHonest" data-warn={unreachableAtMax || preview === null || undefined}>
-      <p className="lcHonestHead"><b>Seçtiğin {pct(honestTarget)} bir hedeftir, gerçek risk değil.</b> Bot her işlemde riski stop mesafesine ve teminat sınırlarına göre ayrı hesaplar.</p>
+      <p className="lcHonestHead"><b>Seçtiğin {pct(honestTarget)} bir hedeftir, gerçek risk değil.</b> Gerçek kayıp, stop mesafesine göre işlem başına hesaplanır.</p>
       {preview ? <>
         <ul className="lcHonestRows">{preview.rows.map(row => <li key={row.stopPct}><span>Stop %{row.stopPct} uzaktaysa</span><b>en fazla ≈ {usdt(row.loss)} ({pct(row.percent)})</b></li>)}</ul>
         {unreachableAtMax && <p className="lcHint warn" role="alert">Seçtiğin {pct(honestTarget)} bu bakiye ve {original?.risk_limits?.leverage}x kaldıraçla hiçbir işlemde tam uygulanamaz. En iyi durumda (stop %{preview.atMaxStop.stopPct} uzakta) bile en fazla {pct(preview.atMaxStop.percent)} olur. Bunun sebebi işlem başı teminat sınırıdır.</p>}
       </> : <p className="lcHint warn" role="alert">Bakiye veya sınırlar doğrulanamadı; gerçekte ulaşılabilecek risk hesaplanamıyor. Seçtiğin değer yalnızca bir hedeftir.</p>}
-      <small>Tahmindir: ücret ve kayma tahmini dahil; stop'un boşlukla aşılması ve fonlama hariç. Açık pozisyonlar ve anlık kullanılabilir bakiye işlem anında bu sınırı daha da düşürebilir. Likidasyon payı ayrıca kontrol edilir.</small>
+      <details className="lcFine"><summary>Hesap nasıl yapılıyor?</summary><small>Tahmindir: ücret ve kayma tahmini dahil; stop'un boşlukla aşılması ve fonlama hariç. Açık pozisyonlar ve anlık kullanılabilir bakiye işlem anında bu sınırı daha da düşürebilir. Likidasyon payı ayrıca kontrol edilir.</small></details>
     </div>}
     {lastAdj && <div className="lcHonest" data-last>
       <p className="lcHonestHead"><b>Son işlem adayı · {lastAdj.symbol}</b></p>
@@ -503,14 +503,14 @@ export default function LiveCockpit(props: Props) {
         const view = wallet !== null ? marginModePreview(wallet, caps, row.per_trade_percent) : null
         const selected = chosenMode === row.mode
         return <button type="button" role="radio" aria-checked={selected} key={row.mode} className="lcPreset lcModeCard" data-id={row.mode} data-selected={selected || undefined} disabled={busy} onClick={() => pickMode(row.mode)}>
-          <span className="lcPresetHead"><b>{row.label} · %{row.per_trade_percent}</b>{savedMode === row.mode && <em>AKTİF</em>}</span>
+          <span className="lcPresetHead"><b>{row.label}</b><i>%{row.per_trade_percent}</i>{savedMode === row.mode && <em>AKTİF</em>}</span>
           <small>{MODE_TEXT[row.mode]}</small>
           <small>İşlem başı teminat ≈ {view ? usdt(view.marginUsdt) : '—'}</small>
           <small>{view ? `En iyi durumda (stop %${view.atThreeStop?.stopPct ?? 3} uzakta) en fazla ≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} (${pct((view.atThreeStop ?? view.atMaxStop).percent)}) kayıp` : 'Bakiye doğrulanınca görünür'}</small>
         </button>
       })}
     </div>
-    <small>Toplam teminat sınırı (%{modeRows[0].total_percent}), her işlemin stop-loss'u, günlük kayıp sınırı ve diğer korumalar her modda aynen çalışır. Seçtiğin risk bir hedeftir: sistem karşılayamazsa işlem yine açılabilir ama gerçek risk daha düşük olur. Bunu "Son işlem adayı" kutusunda ve olay kaydında açıkça görürsün; sessizce düşürülmez.</small>
+    <details className="lcFine"><summary>Her modda değişmeyenler</summary><small>Toplam teminat sınırı (%{modeRows[0].total_percent}), her işlemin stop-loss'u, günlük kayıp sınırı ve diğer korumalar her modda aynen çalışır. Seçtiğin risk bir hedeftir: sistem karşılayamazsa işlem yine açılabilir ama gerçek risk daha düşük olur. Bunu "Son işlem adayı" kutusunda ve olay kaydında açıkça görürsün; sessizce düşürülmez.</small></details>
     {chosenMode !== savedMode && <div className="lcModeConfirm">
       <label className="lcCheck"><input type="checkbox" checked={modeUnderstood} onChange={event => setModeUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
       {chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini kabul ediyorum.</span></label>}
@@ -739,7 +739,6 @@ export default function LiveCockpit(props: Props) {
         {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
       </div>
     </header>
-    <p className="lcLegend" aria-label="Renklerin anlamı"><b data-tone="ok">Yeşil</b> sağlıklı · <b data-tone="warn">turuncu</b> dikkat · <b data-tone="stop">kırmızı</b> sorun</p>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
     <div className="lcGrid">
@@ -830,10 +829,10 @@ export default function LiveCockpit(props: Props) {
               </article>
             })}</div>}
         </section>
+        {original && !coach && strategyCard}
       </div>
 
       <aside className="lcSide">
-        {original && !coach && strategyCard}
         <section className="lcCard lcToday" aria-label="Gün özeti">
           <header className="lcCardHead"><div><small>GÜN ÖZETİ</small><h3>Bugün</h3></div></header>
           <p>{today ? today.text : 'Hesap doğrulanınca bugünün özeti burada görünür.'}</p>
