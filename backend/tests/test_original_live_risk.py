@@ -362,6 +362,15 @@ def test_breakdown_is_information_only_and_never_changes_the_sized_trade():
         assert spec["risk_adjustment"]["effective_loss_usdt"] == baseline["risk_adjustment"]["effective_loss_usdt"]
 
 
+def test_breakdown_failure_never_blocks_or_changes_an_entry(monkeypatch):
+    baseline, _ = _build({"wallet_balance": 1000})
+    monkeypatch.setattr(original.risk_capacity, "trade_risk_breakdown", Mock(side_effect=RuntimeError("boom")))
+    spec, _ = _build({"wallet_balance": 1000})
+    assert spec["risk_adjustment"]["breakdown"]["status"] == "unavailable"
+    for key in ("quantity", "margin_usdt", "notional_usdt", "stop_loss", "targets", "estimated_stop_loss_usdt"):
+        assert spec[key] == baseline[key], key
+
+
 def test_unreachable_selection_is_stated_explicitly_in_the_breakdown():
     request, state, _ = context()
     save(request, state, high_choice())

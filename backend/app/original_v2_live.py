@@ -782,17 +782,21 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         "reasons": reasons,
     }
     # Salt okunur: hedef / uygulanabilir maksimum / gerçekleşecek risk ayrımı. Miktarı ve kapıları değiştirmez.
-    open_margin_now, _ = open_position_totals(state)
-    adjustment["breakdown"] = risk_capacity.trade_risk_breakdown(
-        wallet=wallet, selected_percent=selected_percent, budget_loss=float(budget),
-        entry=entry, stop=stop, cost_per_unit=cost_per_unit, leverage=ORIGINAL_LEVERAGE,
-        margin_cap_usdt=float(policy["max_margin_per_trade"]),
-        total_margin_room_usdt=float(policy["max_total_margin_usdt"]) - open_margin_now,
-        available_balance=snapshot.get("available_balance"),
-        fee_rate=float(policy["fee_bps_per_side"]) / 10000,
-        max_quantity=rules.get("max_qty"), quantity_step=rules["step"] * SPLIT_STEPS,
-        effective_loss=effective_loss,
-    )
+    try:
+        open_margin_now, _ = open_position_totals(state)
+        adjustment["breakdown"] = risk_capacity.trade_risk_breakdown(
+            wallet=wallet, selected_percent=selected_percent, budget_loss=float(budget),
+            entry=entry, stop=stop, cost_per_unit=cost_per_unit, leverage=ORIGINAL_LEVERAGE,
+            margin_cap_usdt=float(policy["max_margin_per_trade"]),
+            total_margin_room_usdt=float(policy["max_total_margin_usdt"]) - open_margin_now,
+            available_balance=snapshot.get("available_balance"),
+            fee_rate=float(policy["fee_bps_per_side"]) / 10000,
+            max_quantity=rules.get("max_qty"), quantity_step=rules["step"] * SPLIT_STEPS,
+            effective_loss=effective_loss,
+        )
+    except Exception:  # noqa: BLE001 - yalnız bilgi; hiçbir koşulda giriş kararını bozmaz
+        logger.exception("ORIGINAL_RISK_BREAKDOWN_FAILED")
+        adjustment["breakdown"] = {"status": "unavailable", "reason": "Risk ayrıntısı hesaplanamadı."}
     spec["risk_adjustment"] = adjustment
     settings(state)["last_risk_adjustment"] = adjustment
     loss_budget_passed = float(spec["estimated_stop_loss_usdt"]) <= float(budget) + 1e-8
