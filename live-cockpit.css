@@ -390,3 +390,34 @@ details.advChecks>.advCheckGrid{padding:4px 18px 18px}
   .lcDrawerChip{display:none}
   details.advChecks>summary.advChecksHead{flex-wrap:wrap}
 }
+
+/* ---- Risk ayarı: sade ve modern görünüm (özet kutuları, hazır ayar kartları, süre düğmeleri) ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow{gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow span{padding:16px 18px!important;border-radius:16px!important;gap:4px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow b{font-size:30px;font-weight:800;line-height:1.1;letter-spacing:-.01em;color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow span:nth-child(-n+2) b{color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow em{font-size:13px;font-weight:600;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyEdit{gap:18px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresets{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset{padding:18px!important;border-radius:16px!important;gap:8px;box-shadow:inset 0 0 0 2px transparent!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetHead b{font-size:17px;font-weight:800}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresetLine{font-size:13px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset small{font-size:12px;line-height:1.45;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset[data-selected]{background:rgba(61,220,151,.1)!important;box-shadow:inset 0 0 0 2px var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPreset[data-selected] .lcPresetHead b::after{content:"✓";margin-left:8px;color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom{gap:20px 28px;padding:20px!important;border-radius:18px!important;background:var(--lc-card)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom label{font-size:14px;font-weight:700;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(.lcCustom) :is(input:not([type="checkbox"])){min-height:48px;font-size:18px;font-weight:800;background:rgba(0,0,0,.28)!important;border:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSegWrap{display:grid;gap:6px;font-size:14px;font-weight:700;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:5px;border-radius:14px;background:rgba(0,0,0,.28)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg button{min-height:44px;border:0!important;border-radius:10px!important;background:transparent!important;color:var(--lc-mute)!important;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg button[aria-pressed="true"]{background:var(--lc-go)!important;color:var(--lc-go-ink)!important;font-weight:800}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg button:disabled{opacity:.5;cursor:not-allowed}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg button:focus-visible{outline:2px solid var(--lc-go);outline-offset:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTier{padding:16px 18px!important;border-radius:16px!important;font-size:14px;line-height:1.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTier b{color:var(--lc-warn)}
+@media (max-width:720px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategyNow b{font-size:26px}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresets{grid-template-columns:minmax(0,1fr)}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom{padding:16px!important}
+}

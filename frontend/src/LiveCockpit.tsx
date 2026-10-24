@@ -437,8 +437,8 @@ export default function LiveCockpit(props: Props) {
     <header className="lcCardHead"><div><small>STRATEJİ</small><h3>Kais Original V2 · risk ayarı</h3></div>
       {verified && guideInput.connected && !guideInput.emergency && <button type="button" className="lcLink" aria-expanded={editorOpen} onClick={() => setSettingsOpen(value => !value)}>{editorOpen ? 'Kapat' : riskSaved ? 'Değiştir' : 'Seç'}<ChevronDown aria-hidden="true" data-open={editorOpen || undefined}/></button>}</header>
     <div className="lcStrategyNow">
-      <span><small>İşlem başı risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b><em>{riskSaved && wallet !== null ? `≈ ${usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}` : riskSaved ? '' : 'seçilmedi'}</em></span>
-      <span><small>Günlük kayıp sınırı</small><b>{riskSaved ? pct(savedDaily) : '—'}</b><em>{riskSaved && wallet !== null ? `≈ ${usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perDay)}` : ''}</em></span>
+      <span><small>İşlem başı risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
+      <span><small>Günlük kayıp sınırı</small><b>{riskSaved ? pct(savedDaily) : '—'}</b>{riskSaved && wallet !== null && <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perDay)}</em>}</span>
       <span><small>Tarama</small><b>{draft.coins} coin</b><em>{draft.hours} saatlik oturum</em></span>
     </div>
     {editorOpen && <div className="lcStrategyEdit">
@@ -448,11 +448,12 @@ export default function LiveCockpit(props: Props) {
         <label>İşlem başı risk (%)<input type="number" min="0.5" max="10" step="0.1" value={draft.risk} disabled={busy} onChange={event => { setDraft(current => ({...current, risk: Number(event.target.value)})); setRiskAck(false); setPhrase('') }}/></label>
         <label>Günlük kayıp sınırı (%)<input type="number" min="1" max="25" step="0.5" value={draft.daily} disabled={busy} onChange={event => setDraft(current => ({...current, daily: Number(event.target.value)}))}/></label>
         <label>Taranacak coin (10–100)<input type="number" min="10" max="100" step="5" value={draft.coins} disabled={busy || running} onChange={event => setStartParam('coins', Number(event.target.value))}/></label>
-        <label>Oturum süresi<select value={draft.hours} disabled={busy || running} onChange={event => setStartParam('hours', Number(event.target.value))}>{[1, 4, 12, 24].map(value => <option key={value} value={value}>{value} saat</option>)}</select></label>
+        <div className="lcSegWrap" role="group" aria-label="Oturum süresi"><span>Oturum süresi</span>
+          <div className="lcSeg">{[1, 4, 12, 24].map(value => <button type="button" key={value} aria-pressed={draft.hours === value} disabled={busy || running} onClick={() => setStartParam('hours', value)}>{value} saat</button>)}</div></div>
       </div>}
       {!draftValid && <p className="lcHint stop" role="alert">İşlem riski %0,5–10, günlük sınır %1–25 ve işlem riskinden küçük olmamalı; coin sayısı 10–100.</p>}
       {draftValid && tier !== 'normal' && <p className="lcTier" data-tier={tier}>{tier === 'yellow' ? 'Ortalamanın üstünde risk.' : tier === 'orange' ? 'Yüksek risk: üst üste birkaç kayıp bakiyeni belirgin düşürür.' : 'Çok yüksek risk: ani hareketlerde kayıp daha büyük olabilir.'}
-        {wallet !== null && <> 10 kayıp üst üste gelirse bakiye ≈ <b>{usdt(wallet * (1 - draft.risk / 100) ** 10)}</b> olur.</>}</p>}
+        {wallet !== null && <> 10 kayıp üst üste gelirse bakiye ≈ <b>{usdt(wallet * (1 - draft.risk / 100) ** 10)}</b> (−%{Math.round((1 - (1 - draft.risk / 100) ** 10) * 100)}) olur.</>}</p>}
       {running && <p className="lcHint">Çalışırken yalnız risk yüzdeleri değişir ve yeni işlemlere uygulanır; coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
       {riskDirty && draftValid && <div className="lcConfirmBox">
         {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
