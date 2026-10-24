@@ -33,6 +33,8 @@ type Props = {
   extras?: ReactNode
 }
 
+// Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
+const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
 type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
@@ -303,16 +305,15 @@ export default function LiveCockpit(props: Props) {
   // ---- 2FA isteyen işlemler.
   const [code, setCode] = useState('')
   const [secureAccepted, setSecureAccepted] = useState(false)
-  const [fillPhrase, setFillPhrase] = useState('')
-  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase(''); setClosePhrase(''); setCloseTarget(null) } }
+  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setClosePhrase(''); setCloseTarget(null) } }
   const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => perform(key, async () => {
     if (key === 'emergency-clear') await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code})
     else if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
     else {
-      const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: fillPhrase, totp_code: code}) as {fill_lock?: {active?: unknown}} | null
+      const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: FILL_LOCK_PHRASE}) as {fill_lock?: {active?: unknown}} | null
       if (payload?.fill_lock?.active !== false) throw new Error('Dolum kilidi onayı doğrulanamadı; güncel durumu kontrol et.')
     }
-    setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase('')
+    setSheet(null); setCode(''); setSecureAccepted(false)
   }, key === 'emergency-clear' ? 'Acil durdurma kaldırıldı. Yeniden başlatmak için rehberdeki adımı izle.'
     : key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.', setSheetError)
 
@@ -560,10 +561,9 @@ export default function LiveCockpit(props: Props) {
       <li>Stop mesafesi: <b>{original?.fill_lock?.evidence?.stop_percent ?? '—'}%</b> · Risk: <b>{original?.fill_lock?.evidence?.risk_usdt ?? '—'} / {original?.fill_lock?.evidence?.risk_budget_usdt ?? '—'} USDT</b> · Teminat: <b>{original?.fill_lock?.evidence?.margin_usdt ?? '—'} USDT</b></li>
     </ul>
     <p className="lcHint warn">Kilidi kaldırmak pozisyonun riskini düzeltmez ve stratejiyi başlatmaz. Gerekirse pozisyonu Binance’ten kontrol et.</p>
-    <label className="lcField">Onay için <b>DOLUM RİSKİNİ İNCELEDİM</b> yaz<input value={fillPhrase} autoComplete="off" onChange={event => setFillPhrase(event.target.value)}/></label>
-    <label className="lcField">2FA kodu<input type="password" inputMode="numeric" autoComplete="one-time-code" data-private="true" maxLength={32} value={code} onChange={event => setCode(event.target.value.trim())}/></label>
+    <label className="lcCheck"><input type="checkbox" checked={secureAccepted} onChange={event => setSecureAccepted(event.target.checked)}/><span>Dolum riskini inceledim ve onaylıyorum.</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
-      <button type="button" className="lcBtn lcPrimary" disabled={fillPhrase !== 'DOLUM RİSKİNİ İNCELEDİM' || code.length < 6 || Boolean(working)} onClick={() => void secure('fill-lock')}>{working === 'fill-lock' ? 'Kaldırılıyor…' : 'Kilidi kaldır'}</button></div>
+      <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || Boolean(working)} onClick={() => void secure('fill-lock')}>{working === 'fill-lock' ? 'Kaldırılıyor…' : 'Kilidi kaldır'}</button></div>
   </> : sheet === 'emergency-clear' || sheet === 'recovery' ? <>
     <h2 id="lc-sheet-title">{sheet === 'recovery' ? 'Kurtarma kontrolü' : 'Acil durdurmayı kaldır'}</h2>
     <p className="lcSheetLead">{sheet === 'recovery'

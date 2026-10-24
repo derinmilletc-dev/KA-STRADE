@@ -156,21 +156,21 @@ def locked_context(state, monkeypatch):
     monkeypatch.setattr(account_settings, "require_totp", AsyncMock())
     return request, state, original.FillLockApproval(
         lock_id=state["original_v2_live"]["fill_lock"]["id"],
-        confirmation="DOLUM RİSKİNİ İNCELEDİM", totp_code="123456",
+        confirmation="DOLUM RİSKİNİ İNCELEDİM",
     )
 
 
-def test_only_explicit_owner_mfa_approval_clears_lock_without_starting(locked_context):
+def test_only_explicit_owner_approval_clears_lock_without_starting_and_without_2fa(locked_context):
     request,state,body = locked_context
     response = run(original.approve_fill_lock(request, body))
-    account_settings.require_totp.assert_awaited_once_with(request, {"id":"owner","role":"OWNER"}, "123456", required=True)
+    account_settings.require_totp.assert_not_awaited()
     assert response["fill_lock"]["active"] is False
     assert response["fill_lock"]["approved_by"] == "owner"
     assert not response["enabled"] and state["real_trading_locked"] and state["armed_until"] == 0
     assert not state["auto"]["enabled"]
 
 
-@pytest.mark.parametrize("failure", ["customer","owner-mismatch","phrase","stale-lock","invalid-mfa","persistence"])
+@pytest.mark.parametrize("failure", ["customer","owner-mismatch","phrase","stale-lock","persistence"])
 def test_failed_approval_cannot_clear_lock(locked_context, failure):
     request,state,body = locked_context
     if failure == "customer":
@@ -181,8 +181,6 @@ def test_failed_approval_cannot_clear_lock(locked_context, failure):
         body.confirmation = "wrong"
     elif failure == "stale-lock":
         body.lock_id = "old-lock"
-    elif failure == "invalid-mfa":
-        account_settings.require_totp.side_effect = HTTPException(401,"invalid MFA")
     else:
         live.persist_state_awaited.return_value = "SKIPPED"
     with pytest.raises((HTTPException,live.LiveExchangeError)):
@@ -199,19 +197,6 @@ def test_original_start_cannot_clear_lock_even_with_arm_and_valid_mfa(locked_con
     assert error.value.status_code == 423
     assert original.fill_locked(state)
     account_settings.require_totp.assert_not_awaited()
-
-
-def test_new_violation_during_mfa_invalidates_previous_approval(locked_context):
-    request, state, body = locked_context
-    async def new_violation(*args, **kwargs):
-        await original.audit_fill(state, native_plan(id="second-plan", original_risk_budget=1),
-                                  {"entry_price":"50000", "quantity":"0.010"})
-    account_settings.require_totp.side_effect = new_violation
-    with pytest.raises(HTTPException) as error:
-        run(original.approve_fill_lock(request, body))
-    assert error.value.status_code == 409
-    assert original.fill_locked(state)
-    assert state["original_v2_live"]["fill_lock"]["id"] != body.lock_id
 
 
 @pytest.mark.parametrize("failure", [False, True])
