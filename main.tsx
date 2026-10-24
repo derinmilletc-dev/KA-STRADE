@@ -24,6 +24,7 @@ import './scanner-modern.css'
 import './theme.css'
 import './mobile-premium.css'
 import './branding-overrides.css'
+import './site-background.css'
 import './back-to-top.css'
 import './market-picker-modern.css'
 

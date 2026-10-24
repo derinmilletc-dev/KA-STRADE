@@ -1,0 +1,15 @@
+/* TEK ARKA PLAN: sayfa zemini yalnızca <body> (#05070c). Aradaki kaplar (main, sayfa sarmalayıcı, çerçeve) zemin
+   rengi/gradyanı boyamaz; yalnızca kartlar yüzey rengi taşır. Böylece iç içe 2-3 farklı koyu ton görünmez.
+   Master Trade canlı sekmeleri kendi tek zeminini live-terminal.css ile verir (bu kuralların özgüllüğü daha düşük). */
+html body #root > main.v26App.v26App.v26App,
+html body #root > main.v26App.v26App.v26App.workspaceRoute,
+html body #root > main.v26App.v26App.v26App.homeRoute,
+html body #root > main.v26App.v26App.v26App.masterTradeRoute { background-color: transparent !important; background-image: none !important; }
+html body #root > main.v26App.workspaceRoute > .subscriptionPage.ktBill,
+html body #root > main.v26App.workspaceRoute > .refWorkspace.masterAnalysis,
+html body #root main.v26App .subscriptionPage.ktBill,
+html body #root main.v26App .refWorkspace.masterAnalysis { background: transparent !important; background-image: none !important; box-shadow: none !important; }
+html body #root main.v26App .coinAnalysisCenter .analystWorkspace,
+html body #root main.v26App .lpWrap { background: transparent !important; background-image: none !important; border-color: transparent !important; box-shadow: none !important; }
+/* Analist: kartları saran büyük çerçeve (kart içinde kart) zemin/kenarlık taşımaz; iç kartlar yüzey rengini korur. */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .analystWorkspace.analystWorkspace.analystWorkspace.analystWorkspace { background: transparent !important; background-image: none !important; border-color: transparent !important; box-shadow: none !important; }
