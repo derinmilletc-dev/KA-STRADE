@@ -7,6 +7,7 @@ import KaisHoloBackdrop from './KaisHoloBackdrop'
 import {KaisHoloSphere, KaisHoloPlatform, KaisHoloNeural} from './KaisHoloCore'
 import KaisHoloDock, {KaisHoloBrand} from './KaisHoloDock'
 import KaisHoloCanvas from './KaisHoloCanvas'
+import KaisHoloUniverse from './KaisHoloUniverse'
 import KaisHoloPanels, {type HoloIO, type HoloRecent} from './KaisHoloPanels'
 import {micMeterActive, readMicLevel} from './kais-mic-meter'
 import {VOICE_ACTIVITY_EVENT, type VoiceActivitySource} from './kais-voice-activity'
@@ -221,6 +222,7 @@ export default function KaisAgentHolo({onSendText, onStopListening, busy, recent
   }, [phase])
   return createPortal(<div ref={root} className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
     <KaisHoloBackdrop/>
+    <KaisHoloUniverse phase={phase} root={root} paused={hidden}/>
     <KaisHoloBrand label={language === 'en' ? 'KAIS AI · DIGITAL CONSCIOUSNESS' : 'KAIS AI · DİJİTAL BİLİNÇ'}/>
     <KaisHoloPanels phase={phase} actions={actions} language={language} recent={recent} io={io}/>
     <KaisVoicePicker language={language}/>

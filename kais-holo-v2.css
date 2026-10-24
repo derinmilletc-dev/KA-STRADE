@@ -270,3 +270,8 @@
   html body .kaisHolo .kaisHoloChat{bottom:calc(max(22px,env(safe-area-inset-bottom)) + 62px)!important;left:50%!important;translate:-50% 0!important}
   .kaisHolo{padding-bottom:140px}
 }
+
+/* ── Canlı dijital evren (Canvas): arka plan ağı, derinlik parçacıkları, veri akışları, perspektif zemin ──
+   Eski CSS zemin/ızgara bu katmanla yer değiştirdi (çift ızgara olmasın). Backdrop'tan sonra gelir: aynı düzlemde üstte, içeriğin altında. */
+.kaisHolo .khUniverse{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:block}
+.kaisHolo .kaisHoloBackdrop .floor,.kaisHolo .kaisHoloBackdrop .grid{display:none!important}
