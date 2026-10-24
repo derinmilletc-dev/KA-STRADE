@@ -1316,6 +1316,22 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {notice.kind !== 'info' && <div className={`liveNotice masterTradeLiveNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.kind === 'error' ? <TriangleAlert/> : <CheckCircle2/>}<span>{notice.text}</span></div>}
       <section id="master-trade-live-terminal" className="liveWs" aria-label="Canlı işlem" hidden={masterTradeTab === 'pozisyonlar'}>
         {masterTradeTab === 'canli' && <>
+          <section className="liveWsSection liveWsBand masterTradeLiveAccountHud" aria-label="Hesap özeti">
+            <h3>Hesap özeti</h3>
+            <div className="masterTradeLiveAccountMetrics">
+              <span><small>CÜZDAN</small><b>{money(status?.account?.wallet_balance)}</b><em>USDT</em></span>
+              <span><small>KULLANILABİLİR</small><b>{money(status?.account?.available_balance)}</b><em>USDT</em></span>
+              <span><small>AÇIK KÂR/ZARAR</small><b className={Number(status?.account?.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status?.account?.unrealized_pnl)}</b><em>Açık pozisyonlar</em></span>
+              <span><small>TOPLAM MARUZİYET</small><b>{money(liveExposure)}</b><em>Pozisyon değeri</em></span>
+              <span><small>AÇIK POZİSYON</small><b>{positions.length}</b><em>Anlık</em></span>
+              <span><small>AÇIK EMİR</small><b>{openOrders.length}</b><em>Anlık</em></span>
+              <span><small>KALDIRAÇ</small><b>{positions.length ? positions.map(positionLeverage).join(' / ') : '--'}</b><em>Pozisyon başına</em></span>
+              <span><small>RİSK</small><b>{gateTr(riskState)}</b><em>Risk kapısı</em></span>
+              <span><small>KORUMA</small><b>{gateTr(currentProtection === 'PROTECTED' ? 'READY' : currentProtection === 'UNKNOWN' ? 'UNKNOWN' : 'BLOCKED')}</b><em>Stop/hedef emirleri</em></span>
+              <span><small>KURTARMA</small><b>{gateTr(recoveryState)}</b><em>Uzlaştırma</em></span>
+            </div>
+          </section>
+
           {/* Masaüstünde iki sütun: solda yapılacak adımlar, sağda hesap/durum paneli (telefonda alt alta). */}
           <div className="liveWsMain">
           <header className={`liveWsHero ${next.tone}`}>
@@ -1328,8 +1344,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               {status?.reconciliation_diagnostic && <p className="liveWsWarn" role="alert">Uzlaştırma hatası: {text(status.reconciliation_diagnostic.exception_message)}</p>}
               <button type="button" className="liveWsPrimary big" onClick={next.run} disabled={next.off}>{next.label}</button>
             </div>
+            <div className="liveWsHeroStats">
+              <span><small>Tarayıcı</small><b>{scannerStatus}</b></span>
+              <span><small>Son tarama</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span>
+              <span><small>Tarama aralığı</small><b>{numericPolicy('scan_seconds', 60)} sn</b></span>
+            </div>
             <ol className="liveWsStepper" aria-label="Canlı işlem adımları">{stepsMeta.map((item, index) => <li key={item.key} className={stepDone[index] ? 'done' : index === currentStep ? 'current' : stepLocked(index) ? 'locked' : ''}><button type="button" disabled={stepLocked(index)} onClick={() => setOpenStep(index)} aria-current={index === currentStep ? 'step' : undefined}><span className="liveWsNum">{stepDone[index] ? <CheckCircle2/> : stepLocked(index) ? <LockKeyhole/> : index + 1}</span><span><b>{item.title.slice(4)}</b><small>{item.sub}</small></span></button></li>)}</ol>
           </header>
+          <section className="liveWsSection liveWsPositions" aria-label="Açık pozisyonlar">
+            <div className="liveWsPosHead"><h3>Açık pozisyonlar <em>{positions.length}</em></h3><small>En fazla 5</small></div>
+            {positions.length ? <div className="liveWsPosScroll"><table className="liveWsPosTable"><thead><tr><th>Sembol</th><th>Yön</th><th>Miktar</th><th>Giriş</th><th>Mark</th><th>K/Z (USDT)</th><th>Kaldıraç</th></tr></thead><tbody>{positions.map((position, index) => {
+              const pnl = Number(position.unrealized_pnl || 0)
+              const direction = String(position.direction || '')
+              return <tr key={`${text(position.symbol)}-${index}`}><td><b>{text(position.symbol)}</b></td><td><span className={`liveWsDir ${direction === 'LONG' ? 'up' : direction === 'SHORT' ? 'down' : ''}`}>{direction || '—'}</span></td><td>{text(position.quantity)}</td><td>{text(position.entry_price)}</td><td>{text(position.mark_price)}</td><td className={pnl >= 0 ? 'up' : 'down'}>{money(pnl)}</td><td>{positionLeverage(position)}</td></tr>
+            })}</tbody></table></div> : <div className="liveWsPosEmpty" role="status"><b>Açık pozisyon bulunmuyor</b><small>Uygun sinyal bulunduğunda işlemler burada görünür.</small></div>}
+          </section>
 
           <section className={`liveWsCard ${stepOpen(0) ? 'open' : ''}`}>
             <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(0)} onClick={() => setOpenStep(stepOpen(0) ? -1 : 0)}><span className={`liveWsBadge ${step1Done ? 'done' : 'current'}`}>{step1Done ? <CheckCircle2/> : '1'}</span><span><b>Bağlantı</b><small>{stepsMeta[0].sub}</small></span><ChevronDown className="liveWsChev"/></button>
@@ -1409,27 +1438,23 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </div>
 
           <aside className="liveWsSide" aria-label="Hesap ve durum">
-          <section className="liveWsSection masterTradeLiveAccountHud" aria-label="Hesap özeti">
-            <h3>Hesap özeti</h3>
-            <div className="masterTradeLiveAccountMetrics">
-              <span><small>CÜZDAN</small><b>{money(status?.account?.wallet_balance)}</b><em>USDT</em></span>
-              <span><small>KULLANILABİLİR</small><b>{money(status?.account?.available_balance)}</b><em>USDT</em></span>
-              <span><small>AÇIK KÂR/ZARAR</small><b className={Number(status?.account?.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status?.account?.unrealized_pnl)}</b><em>Açık pozisyonlar</em></span>
-              <span><small>TOPLAM MARUZİYET</small><b>{money(liveExposure)}</b><em>Pozisyon değeri</em></span>
-              <span><small>AÇIK POZİSYON</small><b>{positions.length}</b><em>Anlık</em></span>
-              <span><small>AÇIK EMİR</small><b>{openOrders.length}</b><em>Anlık</em></span>
-              <span><small>KALDIRAÇ</small><b>{positions.length ? positions.map(positionLeverage).join(' / ') : '--'}</b><em>Pozisyon başına</em></span>
-              <span><small>RİSK</small><b>{gateTr(riskState)}</b><em>Risk kapısı</em></span>
-              <span><small>KORUMA</small><b>{gateTr(currentProtection === 'PROTECTED' ? 'READY' : currentProtection === 'UNKNOWN' ? 'UNKNOWN' : 'BLOCKED')}</b><em>Stop/hedef emirleri</em></span>
-              <span><small>KURTARMA</small><b>{gateTr(recoveryState)}</b><em>Uzlaştırma</em></span>
+          <section className="liveWsSection liveWsScan" aria-label="Canlı tarama" data-state={!running ? 'off' : candidateCount > 0 ? 'signal' : 'idle'}>
+            <div className="liveWsScanHead"><h3>Canlı tarama</h3><span className={`liveWsScanPill ${running ? 'on' : ''}`}><i aria-hidden="true"/>{running ? 'Tarıyor' : 'Beklemede'}</span></div>
+            <div className="liveWsScanGrid">
+              <span><small>Tarayıcı</small><b>{scannerStatus}</b></span>
+              <span><small>Taranan coin</small><b>{status?.scanner?.scanned_symbol_count ?? 0}</b></span>
+              <span><small>Aday</small><b>{candidateCount}</b></span>
+              <span><small>Son tarama</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span>
+              <span><small>Sonraki tarama</small><b>{(() => { const last = Date.parse(String(status?.scanner?.last_scan_at || status?.auto?.last_scan || '')); if (!running || !Number.isFinite(last)) return '—'; const next = last + numericPolicy('scan_seconds', 60) * 1000; return next > Date.now() ? new Date(next).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : 'Birazdan' })()}</b></span>
             </div>
+            {candidateCount === 0 && <div className="liveWsScanEmpty" role="status"><b>Şu an uygun sinyal yok</b><small>Strateji koşulları sağlanmadığında bot işlem açmaz. Bu normaldir; tarama sürerken bekler.</small></div>}
           </section>
 
           <section className="liveWsSection liveWsSignal masterTradeLiveSignal">
             <h3>Son sinyal · {symbol}</h3>
             <div className="masterTradeLiveSignalGrid">
               <span><small>YÖN</small><b>{analysis?.direction || '—'}</b></span>
-              <span><small>GÜVEN</small><b>{analysis?.confidence !== undefined ? `${analysis.confidence}%` : '—'}</b></span>
+              <span className="liveWsConf"><small>GÜVEN</small><b>{analysis?.confidence !== undefined ? `${analysis.confidence}%` : '—'}</b><u aria-hidden="true"><i style={{width: `${Math.max(0, Math.min(100, Number(analysis?.confidence) || 0))}%`}}/></u></span>
               <span><small>GİRİŞ</small><b title={text(analysis?.entry)}>{signalPrice(analysis?.entry)}</b></span>
               <span><small>STOP</small><b title={text(analysis?.stop_loss)}>{signalPrice(analysis?.stop_loss)}</b></span>
               <span><small>HEDEF 1</small><b title={text(analysis?.tp1)}>{signalPrice(analysis?.tp1)}</b></span>
