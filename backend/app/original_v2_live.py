@@ -49,6 +49,10 @@ DEFAULT_MAX_MARGIN_PER_TRADE_PCT = 30.0   # tek işlemin teminatı güncel bakiy
 DEFAULT_MAX_TOTAL_MARGIN_PCT = 80.0       # açık tüm pozisyonların toplam teminatı bakiyenin en fazla %80'i
 MARGIN_PER_TRADE_ENV = "ORIGINAL_V2_MAX_MARGIN_PER_TRADE_PCT"
 TOTAL_MARGIN_ENV = "ORIGINAL_V2_MAX_TOTAL_MARGIN_PCT"
+# Stop kurulamazsa: ilk turdan sonra 90 sn arayla en fazla 3 yeniden deneme turu; hepsi başarısızsa pozisyon
+# reduce-only kapatılır. Her tur kendi içinde install_verified_stop'un kısa (1-2 sn) denemelerini içerir.
+STOP_REPAIR_RETRY_SECONDS = 90
+STOP_REPAIR_MAX_RETRIES = 3
 
 
 def _percent_setting(name: str, default: float) -> float:
@@ -368,7 +372,7 @@ TRANSIENT_PAUSE_REASON_PREFIX = "Canlı salt-okunur veri geçici olarak alınama
 TRANSIENT_RESUME_WINDOW_SECONDS = 600.0
 
 
-def pause(state: dict[str, Any], reason: str) -> None:
+def pause(state: dict[str, Any], reason: str, *, note: str | None = None) -> None:
     from . import v25_execution as live
     config = settings(state)
     if not config:
@@ -380,8 +384,10 @@ def pause(state: dict[str, Any], reason: str) -> None:
     state["auto"].update(enabled=False, session_until=0.0)
     state.update(live_auto_trade=False, real_trading_locked=True, armed_until=0.0)
     if not already:
+        # Varsayılan cümle aynen korunur; yalnız stop-kurulamadı akışı kendi (doğru) notunu verir.
+        suffix = note if note is not None else "Açık pozisyon otomatik kapatılmadı."
         event = live.add_event(state, "ORIGINAL_LIVE_PAUSED",
-                               f"Original V2 LIVE durduruldu: {reason}. Açık pozisyon otomatik kapatılmadı.",
+                               f"Original V2 LIVE durduruldu: {reason}. {suffix}",
                                recipient_user_id=config.get("owner_id"), source=SOURCE)
         config.setdefault("alerts", []).insert(0, {
             "id": "original-live:" + event["id"], "type": "ORIGINAL_LIVE_PAUSED", "severity": "CRITICAL",
@@ -390,6 +396,47 @@ def pause(state: dict[str, Any], reason: str) -> None:
         })
         del config["alerts"][100:]
     live.persist_state(state)
+
+
+def stop_repair_wait(plan: dict[str, Any]) -> bool:
+    """Önceki başarısız stop turundan beri 90 sn dolmadıysa True: bu turda stop yeniden denenmez.
+
+    Alan bozuk ya da sayı değilse bekleme yok sayılır (koruma kurmayı geciktirmek yerine denemeye devam)."""
+    retry_at = plan.get("original_stop_retry_at")
+    if isinstance(retry_at, bool) or not isinstance(retry_at, (int, float)) or not math.isfinite(retry_at):
+        return False
+    return time.time() < float(retry_at)
+
+
+def clear_stop_failures(plan: dict[str, Any]) -> None:
+    """Stop doğrulandı: sayaç ve bekleme sıfırlanır (stop sonradan silinirse sayım baştan başlar)."""
+    for key in ("original_stop_failures", "original_stop_retry_at", "original_stop_close_requested"):
+        plan.pop(key, None)
+
+
+def record_stop_failure(state: dict[str, Any], plan: dict[str, Any], symbol: str, message: str) -> bool:
+    """Original planın stop turu başarısız oldu.
+
+    False: 90 sn sonra yeni tur denenecek (yeni girişler kilitli, pozisyon açık kalır).
+    True: ilk tur + 3 yeniden deneme tükendi; çağıran pozisyonu reduce-only kapatmalıdır.
+    """
+    previous = plan.get("original_stop_failures")
+    failures = (previous if isinstance(previous, int) and not isinstance(previous, bool) and previous > 0 else 0) + 1
+    plan["original_stop_failures"] = failures
+    plan.update(stop_install_failed=True, protection_state="MISSING", last_error=message)
+    if failures > STOP_REPAIR_MAX_RETRIES:
+        plan.pop("original_stop_retry_at", None)
+        plan["original_stop_close_requested"] = True
+        plan["status"] = "STOP BAŞARISIZ · KAPATILIYOR"
+        pause(state, f"{symbol} Stop {STOP_REPAIR_MAX_RETRIES} yeniden denemeden sonra da kurulamadı: {message}",
+              note="Korumasız kalmasın diye pozisyon reduce-only güvenlik kapatmasıyla kapatılıyor.")
+        return True
+    plan["original_stop_retry_at"] = time.time() + STOP_REPAIR_RETRY_SECONDS
+    plan["status"] = "STOP BAŞARISIZ · YENİ GİRİŞLER KİLİTLİ"
+    pause(state, f"{symbol} Stop kurulamadı: {message}",
+          note=f"Açık pozisyon şimdilik kapatılmadı; stop {STOP_REPAIR_RETRY_SECONDS} saniye arayla en fazla "
+               f"{STOP_REPAIR_MAX_RETRIES} kez yeniden denenecek, kurulamazsa pozisyon kapatılacak.")
+    return False
 
 
 def resume_after_transient_pause(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:

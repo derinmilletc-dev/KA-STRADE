@@ -392,6 +392,129 @@ def test_stop_failure_original_keeps_position_legacy_closes(state, monkeypatch):
     close.assert_awaited_once()
 
 
+def _failing_stop(monkeypatch, *, fail_times=None):
+    """install_verified_stop'u ilk `fail_times` çağrıda başarısız yapar (None: hep başarısız); sonra gerçeğine devreder."""
+    real = live.install_verified_stop
+    calls = {"count": 0}
+
+    async def stop(*args, **kwargs):
+        calls["count"] += 1
+        if fail_times is None or calls["count"] <= fail_times:
+            raise live.LiveExchangeError("stop rejected")
+        return await real(*args, **kwargs)
+
+    mock = AsyncMock(side_effect=stop)
+    monkeypatch.setattr(live, "install_verified_stop", mock)
+    return mock
+
+
+def _alerts(state):
+    return [item["message"] for item in state["original_v2_live"]["alerts"]]
+
+
+def test_original_stop_repair_retries_three_times_ninety_seconds_apart_then_closes(state, monkeypatch):
+    plan = native_plan()
+    client = PartialFillClient(plan, quantity="0.010")
+    stop = _failing_stop(monkeypatch)
+    close = AsyncMock(return_value={"orderId": 55})
+    monkeypatch.setattr(live, "close_tracked_symbol", close)
+    monkeypatch.setattr(live, "log_event", AsyncMock())
+
+    # 1. tur (dolum anı): başarısız, pozisyon açık, 90 sn bekleme kurulur.
+    with pytest.raises(live.LiveExchangeError):
+        run(live.install_protection(client, state, plan))
+    assert plan["original_stop_failures"] == 1
+    assert 85 <= plan["original_stop_retry_at"] - time.time() <= 95
+    assert original.STOP_REPAIR_RETRY_SECONDS == 90 and original.STOP_REPAIR_MAX_RETRIES == 3
+    assert not original.running(state)
+    assert "yeniden denenecek" in _alerts(state)[0] and "kapatılmadı" in _alerts(state)[0]
+
+    # 90 sn dolmadan gelen tur (10 sn'lik uzlaştırma) hiçbir şey denemez ve hata da vermez.
+    run(live.install_protection(client, state, plan))
+    assert stop.await_count == 1 and plan["original_stop_failures"] == 1
+
+    # 2., 3. ve 4. tur (= 3 yeniden deneme): her biri süre dolunca bir kez dener.
+    for expected_failures in (2, 3):
+        plan["original_stop_retry_at"] = time.time() - 1
+        with pytest.raises(live.LiveExchangeError):
+            run(live.install_protection(client, state, plan))
+        assert plan["original_stop_failures"] == expected_failures
+        assert stop.await_count == expected_failures
+        close.assert_not_awaited()
+        assert plan["status"] == "STOP BAŞARISIZ · YENİ GİRİŞLER KİLİTLİ"
+
+    plan["original_stop_retry_at"] = time.time() - 1
+    run(live.install_protection(client, state, plan))  # 3. yeniden deneme de başarısız -> kapatma, hata fırlatmaz
+    assert stop.await_count == 4
+    close.assert_awaited_once()
+    assert close.await_args.args[1] == "BTCUSDT"
+    assert plan["status"] == "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
+    assert plan["safety_close_status"] == "SUBMITTED"
+    assert plan["stop_loss"] == plan["initial_stop_loss"] == "49000"
+    assert not original.running(state)
+    assert "3 yeniden denemeden sonra" in _alerts(state)[0]
+    assert "otomatik kapatılmadı" not in _alerts(state)[0]
+    assert state["original_v2_live"]["alerts"][0]["severity"] == "CRITICAL"
+
+
+def test_original_stop_repair_success_on_a_retry_never_closes_and_resets_counters(state, monkeypatch):
+    plan = native_plan()
+    client = PartialFillClient(plan, quantity="0.010")
+    monkeypatch.setattr(live, "STOP_RETRY_BASE_SECONDS", 0)
+    stop = _failing_stop(monkeypatch, fail_times=2)
+    close = AsyncMock()
+    monkeypatch.setattr(live, "close_tracked_symbol", close)
+    monkeypatch.setattr(live, "log_event", AsyncMock())
+
+    for _ in range(2):
+        with pytest.raises(live.LiveExchangeError):
+            run(live.install_protection(client, state, plan))
+        plan["original_stop_retry_at"] = time.time() - 1
+    assert plan["original_stop_failures"] == 2
+
+    run(live.install_protection(client, state, plan))  # 3. tur: stop kurulur, TP'ler arkasından gelir
+    assert stop.await_count == 3
+    assert plan["stop_algo_id"]
+    assert "original_stop_failures" not in plan and "original_stop_retry_at" not in plan
+    assert [row["type"] for row in client.algos] == ["STOP_MARKET", "TAKE_PROFIT_MARKET", "TAKE_PROFIT_MARKET"]
+    assert plan["status"] == "KORUMA AKTİF"
+    close.assert_not_awaited()
+
+
+def test_original_stop_repair_retries_the_close_every_round_until_it_succeeds(state, monkeypatch):
+    plan = native_plan(original_stop_failures=3)
+    client = PartialFillClient(plan, quantity="0.010")
+    stop = _failing_stop(monkeypatch)
+    close = AsyncMock(side_effect=[live.LiveExchangeError("close rejected"), {"orderId": 77}])
+    monkeypatch.setattr(live, "close_tracked_symbol", close)
+    monkeypatch.setattr(live, "log_event", AsyncMock())
+
+    with pytest.raises(live.LiveExchangeError):
+        run(live.install_protection(client, state, plan))  # 4. başarısızlık -> kapatma denenir ama borsa reddeder
+    assert plan["original_stop_close_requested"] is True
+    assert close.await_count == 1 and stop.await_count == 1
+
+    run(live.install_protection(client, state, plan))  # sonraki tur: stop denenmez, yalnız kapatma yeniden denenir
+    assert close.await_count == 2 and stop.await_count == 1
+    assert plan["safety_close_status"] == "SUBMITTED"
+    assert 77 in plan["exchange_order_ids"]
+
+
+def test_original_stop_repair_does_not_touch_legacy_plans_or_other_pauses(state, monkeypatch):
+    legacy = make_plan(entry_order_status="FILLED")
+    stop = _failing_stop(monkeypatch)
+    close = AsyncMock(return_value={"orderId": 56})
+    monkeypatch.setattr(live, "close_tracked_symbol", close)
+    monkeypatch.setattr(live, "log_event", AsyncMock())
+    run(live.install_protection(PartialFillClient(legacy, quantity="0.010"), live.initial_state(), legacy))
+    assert stop.await_count == 1  # eski plan: tek tur, hemen kapatma (önceki davranış aynen)
+    close.assert_awaited_once()
+    assert "original_stop_failures" not in legacy and "original_stop_retry_at" not in legacy
+
+    original.pause(state, "başka bir sebep")  # varsayılan cümle korunur
+    assert _alerts(state)[0].endswith("Açık pozisyon otomatik kapatılmadı.")
+
+
 def test_exact_tp60_tp3_and_fixed_stop(state):
     plan = native_plan()
     client = PartialFillClient(plan, quantity="0.010")
