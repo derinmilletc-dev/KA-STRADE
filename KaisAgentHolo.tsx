@@ -6,6 +6,7 @@ import KaisVoicePicker from './KaisVoicePicker'
 import KaisHoloBackdrop from './KaisHoloBackdrop'
 import {KaisHoloSphere, KaisHoloPlatform, KaisHoloNeural} from './KaisHoloCore'
 import KaisHoloDock, {KaisHoloBrand} from './KaisHoloDock'
+import KaisHoloCanvas from './KaisHoloCanvas'
 import KaisHoloPanels, {type HoloIO, type HoloRecent} from './KaisHoloPanels'
 import {VOICE_ACTIVITY_EVENT, type VoiceActivitySource} from './kais-voice-activity'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
@@ -214,6 +215,7 @@ export default function KaisAgentHolo({onSendText, onStopListening, busy, recent
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>
       <div className="kaisHoloGlow" aria-hidden="true"/>
+      <KaisHoloCanvas phase={phase} root={root} paused={hidden}/>
       <KaisHoloSphere/>
       <KaisHoloNeural/>
       <KaisHoloPlatform complete={complete}/>
