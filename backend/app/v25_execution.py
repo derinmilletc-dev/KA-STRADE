@@ -6976,6 +6976,30 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
         raise safe_exchange_error(exc) from exc
 
 
+class GridPlanRequest(BaseModel):
+    direction: Literal["LONG", "SHORT"]
+    start_price: float = Field(gt=0)
+    end_price: float = Field(gt=0)
+    levels: int = Field(ge=2, le=5)
+    stop_loss: float = Field(gt=0)
+    total_capital_usdt: float = Field(gt=0)
+    total_risk_usdt: float = Field(gt=0)
+    leverage: int = Field(ge=1, le=125)
+
+
+@router.post("/grid/plan")
+async def v25_grid_plan(request: Request, body: GridPlanRequest) -> dict[str, Any]:
+    """Hesap-only grid hesaplayıcı: emir göndermez, yalnız risk dağılımını ve hesap sınırlarını gösterir."""
+    execution_owner(request)
+    from . import manual_grid
+    state = request.app.state.v25_execution
+    try:
+        result = manual_grid.plan_grid(policy=sanitize_execution_policy(state["policy"]), **body.model_dump())
+    except manual_grid.GridError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "created_order": False, "live_orders_enabled": False, "plan": result}
+
+
 @router.post("/risk/preview")
 async def v25_risk_preview(request: Request, body: RiskPreviewRequest) -> dict[str, Any]:
     execution_owner(request)
