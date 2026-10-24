@@ -3107,6 +3107,56 @@ async def manual_fill_risk_audit(
     return True
 
 
+async def safety_close_after_stop_failure(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    symbol: str,
+    exc: Exception,
+) -> None:
+    """Stop kurulamadığında izlenen pozisyonu reduce-only kapatır (V25 ve Original V2 ortak)."""
+    plan["status"] = "STOP BAŞARISIZ · KAPATILIYOR"
+    plan["stop_install_failed"] = True
+    add_event(state, "PROTECTION_FAIL", f"{symbol} Stop kurulamadı; tracked pozisyon reduce-only kapatılıyor.", symbol=symbol)
+    close_intent = f"protection-{plan['id']}"
+    close_client_id = client_id_for("CLOSE", close_intent)
+    close_ids = plan.setdefault("close_client_order_ids", [])
+    if close_client_id not in close_ids:
+        close_ids.append(close_client_id)
+    persist_state(state)
+    cancellation_error = None
+    if entry_remainder_needs_settlement(plan):
+        plan["entry_remainder_pending"] = True
+        persist_state(state)
+        try:
+            await settle_live_entry_remainder(client, state, plan)
+        except LiveExchangeError as entry_exc:
+            cancellation_error = entry_exc
+            record_entry_remainder_uncertain(state, plan, entry_exc)
+        latest_position = await live_plan_position(client, symbol)
+        if latest_position is not None and not confirm_live_plan_provenance(plan, latest_position):
+            plan["provenance_state"] = "BROKEN"
+            plan["protection_state"] = "UNKNOWN"
+            ownership_error = LiveExchangeError("Stop hatası sonrası pozisyon sahipliği doğrulanamadı; belirsiz pozisyon kapatılmadı.", unknown_execution=True)
+            record_entry_remainder_uncertain(state, plan, ownership_error)
+            raise ownership_error
+    close_result = await close_tracked_symbol(client, symbol, close_intent)
+    if close_result and close_result.get("orderId"):
+        order_id = int(close_result["orderId"])
+        known = plan.setdefault("exchange_order_ids", [])
+        if order_id not in known:
+            known.append(order_id)
+    plan["close_reason"] = close_reason_for_intent(close_intent)
+    plan["safety_close_status"] = "SUBMITTED" if close_result is not None else "NO_POSITION"
+    plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR" if close_result is not None else "GÜVENLİK KONTROLÜ · POZİSYON YOK"
+    plan["last_error"] = str(exc)[:240]
+    if cancellation_error is not None:
+        persist_state(state)
+        raise LiveExchangeError("Stop kurulamadı; reduce-only kapatma denendi ancak giriş kalanının iptali belirsiz.", unknown_execution=True) from cancellation_error
+    plan["entry_remainder_pending"] = False
+    persist_state(state)
+
+
 async def install_protection(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -3119,6 +3169,8 @@ async def install_protection(
     if original_plan and plan.get("stop_loss") != plan.get("initial_stop_loss"):
         original_v2_live.pause(state, f"{plan['symbol']} ilk stop değişti")
         raise LiveExchangeError("Original V2 ilk stop değiştirilemez.", unknown_execution=True)
+    if original_plan and original_v2_live.stop_repair_wait(plan):
+        return  # önceki başarısız stop turundan beri 90 sn dolmadı; sıradaki tur zamanı gelince denenecek
     symbol = plan["symbol"]
     plan.setdefault("protection_state", "UNKNOWN")
     if plan.get("provenance_state") not in {"PROVISIONAL", "CONFIRMED"}:
@@ -3158,6 +3210,14 @@ async def install_protection(
         state["auto"]["session_until"] = 0.0
         add_event(state, "PROTECTION_BLOCK", f"{symbol} yön uyuşmazlığı; koruma kurulmadı.", symbol=symbol)
         return
+    if original_plan and plan.get("original_stop_close_requested"):
+        # Yeniden denemeler bitti ve kapatma henüz doğrulanmadı: stop yeniden kurulmaz, kapatma (aynı emir
+        # kimliğiyle, tekrar emir açmadan) her turda yeniden denenir.
+        await safety_close_after_stop_failure(
+            client, state, plan, symbol,
+            LiveExchangeError(str(plan.get("last_error") or "Original V2 stop kurulamadı.")),
+        )
+        return
     common = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if amount > 0 else "BUY", "workingType": "MARK_PRICE", "priceProtect": "TRUE"}
     stop_client = plan.setdefault("stop_client_id", client_id_for("SL", plan["intent_id"]))
     try:
@@ -3165,57 +3225,17 @@ async def install_protection(
         plan["stop_algo_id"] = int(stop_result.get("algoId") or 0) or None
         if not plan["stop_algo_id"]:
             raise LiveExchangeError("Stop yanıtında emir kimliği yok; koruma doğrulanamadı.", unknown_execution=True)
-    except LiveExchangeError as exc:
         if original_plan:
-            plan.update(status="STOP BAŞARISIZ · YENİ GİRİŞLER KİLİTLİ", stop_install_failed=True,
-                        protection_state="MISSING", last_error=sanitized_exception_message(exc))
-            original_v2_live.pause(state, f"{symbol} Stop kurulamadı: {sanitized_exception_message(exc)}")
-            raise
+            original_v2_live.clear_stop_failures(plan)
+    except LiveExchangeError as exc:
+        if original_plan and not original_v2_live.record_stop_failure(state, plan, symbol, sanitized_exception_message(exc)):
+            raise  # yeni tur 90 sn sonra; pozisyon açık kalır, yeni girişler kilitli
         await log_event(getattr(client.application.state, "db_pool", None) if client.application is not None else None, build_error_event(
             source="backend", service="trading_engine", kind="ProtectionError", code="STOP_LOSS_FAILED", message=str(exc), severity="CRITICAL",
             user_id=((state.get("live_session_authorization") or {}).get("user_id")), context={"exchange":"BINANCE","symbol":symbol,"direction":direction,"order_type":"STOP_MARKET","quantity":decimal_text(abs(amount)),"price":plan.get("stop_loss"),"bot":"V25"},
             details={"exchange_code":exc.exchange_code,"response_time_ms":None,"attempt":plan.get("stop_install_attempts", 1),"order_id":stop_client},
         ))
-        plan["status"] = "STOP BAŞARISIZ · KAPATILIYOR"
-        plan["stop_install_failed"] = True
-        add_event(state, "PROTECTION_FAIL", f"{symbol} Stop kurulamadı; tracked pozisyon reduce-only kapatılıyor.", symbol=symbol)
-        close_intent = f"protection-{plan['id']}"
-        close_client_id = client_id_for("CLOSE", close_intent)
-        close_ids = plan.setdefault("close_client_order_ids", [])
-        if close_client_id not in close_ids:
-            close_ids.append(close_client_id)
-        persist_state(state)
-        cancellation_error = None
-        if entry_remainder_needs_settlement(plan):
-            plan["entry_remainder_pending"] = True
-            persist_state(state)
-            try:
-                await settle_live_entry_remainder(client, state, plan)
-            except LiveExchangeError as entry_exc:
-                cancellation_error = entry_exc
-                record_entry_remainder_uncertain(state, plan, entry_exc)
-            latest_position = await live_plan_position(client, symbol)
-            if latest_position is not None and not confirm_live_plan_provenance(plan, latest_position):
-                plan["provenance_state"] = "BROKEN"
-                plan["protection_state"] = "UNKNOWN"
-                ownership_error = LiveExchangeError("Stop hatası sonrası pozisyon sahipliği doğrulanamadı; belirsiz pozisyon kapatılmadı.", unknown_execution=True)
-                record_entry_remainder_uncertain(state, plan, ownership_error)
-                raise ownership_error
-        close_result = await close_tracked_symbol(client, symbol, close_intent)
-        if close_result and close_result.get("orderId"):
-            order_id = int(close_result["orderId"])
-            known = plan.setdefault("exchange_order_ids", [])
-            if order_id not in known:
-                known.append(order_id)
-        plan["close_reason"] = close_reason_for_intent(close_intent)
-        plan["safety_close_status"] = "SUBMITTED" if close_result is not None else "NO_POSITION"
-        plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR" if close_result is not None else "GÜVENLİK KONTROLÜ · POZİSYON YOK"
-        plan["last_error"] = str(exc)[:240]
-        if cancellation_error is not None:
-            persist_state(state)
-            raise LiveExchangeError("Stop kurulamadı; reduce-only kapatma denendi ancak giriş kalanının iptali belirsiz.", unknown_execution=True) from cancellation_error
-        plan["entry_remainder_pending"] = False
-        persist_state(state)
+        await safety_close_after_stop_failure(client, state, plan, symbol, exc)
         return
     if entry_remainder_needs_settlement(plan):
         # closePosition protects late fills while the exact entry remainder is cancelled.

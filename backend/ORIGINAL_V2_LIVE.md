@@ -183,7 +183,16 @@ switching accounts cannot reset it through this card.
 Use **Acil durdur / Yeni girisleri kapat** to disable entries immediately.
 Disconnects, rejected orders and missing stop/TP protection also pause entries
 and create an OWNER bell notification plus LIVE event. Existing positions
-are not automatically closed. Protection reconciliation continues when valid
+are not automatically closed, with one exception: the initial stop. If the
+stop cannot be installed and verified after a fill, entries pause at once and
+the position stays open while the stop is retried in up to 3 further rounds,
+90 seconds apart (each round itself makes the short 1-2 second attempts of
+`install_verified_stop`). If the stop is still not verified after the third
+retry round, the position is closed with a reduce-only market order and a second
+CRITICAL OWNER notification states that. If that close is rejected it is
+retried on every reconciliation tick (same client order id, no duplicate order).
+A verified stop resets the counters. A TP failure never closes anything.
+Protection reconciliation continues when valid
 credentials are available; TP1 is never recreated as 60% of the remainder.
 Inspect Binance directly if protection cannot be confirmed.
 
