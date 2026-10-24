@@ -4,7 +4,7 @@ import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, 
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
-  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, type GuideInput, type GuideNotice,
+  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -41,6 +41,8 @@ type CloseTarget = {planId: string; symbol: string; direction: string; entry: st
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
+const AGGRESSIVE_PHRASE = 'AGRESİF MODU KABUL EDİYORUM'
+const MODE_TEXT: Record<string, string> = {guvenli: 'Daha az teminat, daha küçük işlem. Bugünkü ayar.', orta: 'Daha büyük işlem; kayıp ve kazanç büyür.', agresif: 'En büyük işlem; kayıp ve kazanç en yüksek.'}
 const CLOSE_ALL_PHRASE = 'CANLI ACİL DURDUR'
 // TP1'de kapanan oran planın kendisinden okunur; alanı olmayan eski planlar %60 gösterilir.
 const tp1Percent = (plan: Record<string, unknown> | undefined) => {
@@ -204,6 +206,26 @@ export default function LiveCockpit(props: Props) {
     try { if (confirmKey) localStorage.setItem(confirmKey, signature) } catch { /* kayıt kapalıysa bu sayfa açıkken geçerli */ }
     setSettingsOpen(false)
   }, 'Risk ayarın kaydedildi. Yalnız yeni işlemlere uygulanır; açık pozisyonlar değişmez.', setRiskError)
+
+  // ---- Teminat modu: yalnız bu hesap; yalnız yeni girişlere uygulanır.
+  const savedMode = original?.margin_mode ?? 'guvenli'
+  const [modePick, setModePick] = useState<string | null>(null)
+  const [modeUnderstood, setModeUnderstood] = useState(false)
+  const [modeAck, setModeAck] = useState(false)
+  const [modePhrase, setModePhrase] = useState('')
+  const [modeError, setModeError] = useState('')
+  const chosenMode = modePick ?? savedMode
+  const modeReady = chosenMode !== savedMode && modeUnderstood && (chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE)
+  const pickMode = (mode: string) => { setModePick(mode === savedMode ? null : mode); setModeAck(false); setModePhrase(''); setModeError('') }
+  const saveMode = () => perform('mode', async () => {
+    setModeError('')
+    const payload = await request('/original-v2/margin-mode', {
+      mode: chosenMode, acknowledged: chosenMode !== 'guvenli' && modeAck,
+      confirmation: chosenMode === 'agresif' ? modePhrase.trim() : '', understood: modeUnderstood,
+    }) as {margin_mode?: unknown} | null
+    if (!payload || payload.margin_mode !== chosenMode) throw new Error('Teminat modunun kaydı doğrulanamadı; güncel modu kontrol et.')
+    setModePick(null); setModeUnderstood(false); setModeAck(false); setModePhrase('')
+  }, 'Teminat modun kaydedildi. Yalnız yeni işlemlere uygulanır; açık pozisyonlar değişmez.', setModeError)
 
   // ---- Onaylar: sırayla, her birinin sonucu ayrı gösterilir.
   const approvalDone = {consent: guideInput.authorizationValid, policy: guideInput.policyAcknowledged, arm: guideInput.armed}
@@ -462,6 +484,30 @@ export default function LiveCockpit(props: Props) {
       {lastAdj.reasons.length > 0 && <small>Düşürme sebepleri: {lastAdj.reasons.join(' · ')}.</small>}
     </div>}
   </>
+  const modeRows = original?.margin_modes ?? []
+  const modeBlock = verified && original && guideInput.connected && !guideInput.emergency && modeRows.length > 0 ? <div className="lcMode" id="lc-mode">
+    <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin.</p>
+    <div className="lcModes" role="radiogroup" aria-label="Teminat modu">
+      {modeRows.map(row => {
+        const view = wallet !== null ? marginModePreview(wallet, caps, row.per_trade_percent) : null
+        const selected = chosenMode === row.mode
+        return <button type="button" role="radio" aria-checked={selected} key={row.mode} className="lcPreset lcModeCard" data-id={row.mode} data-selected={selected || undefined} disabled={busy} onClick={() => pickMode(row.mode)}>
+          <span className="lcPresetHead"><b>{row.label} · %{row.per_trade_percent}</b>{savedMode === row.mode && <em>AKTİF</em>}</span>
+          <small>{MODE_TEXT[row.mode]}</small>
+          <small>İşlem başı teminat ≈ {view ? usdt(view.marginUsdt) : '—'}</small>
+          <small>{view ? `En iyi durumda (stop %${view.atThreeStop?.stopPct ?? 3} uzakta) en fazla ≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} (${pct((view.atThreeStop ?? view.atMaxStop).percent)}) kayıp` : 'Bakiye doğrulanınca görünür'}</small>
+        </button>
+      })}
+    </div>
+    <small>Toplam teminat sınırı (%{modeRows[0].total_percent}), her işlemin stop-loss'u, günlük kayıp sınırı ve diğer korumalar her modda aynen çalışır. Seçtiğin risk bir hedeftir: sistem karşılayamazsa işlem yine açılabilir ama gerçek risk daha düşük olur. Bunu "Son işlem adayı" kutusunda ve olay kaydında açıkça görürsün; sessizce düşürülmez.</small>
+    {chosenMode !== savedMode && <div className="lcModeConfirm">
+      <label className="lcCheck"><input type="checkbox" checked={modeUnderstood} onChange={event => setModeUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
+      {chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini kabul ediyorum.</span></label>}
+      {chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
+      {modeError && <p className="lcHint warn" role="alert">{modeError}</p>}
+      <button type="button" className="lcBtn lcPrimary" disabled={busy || !modeReady} onClick={() => void saveMode()}>{working === 'mode' ? 'Kaydediliyor…' : `${modeRows.find(row => row.mode === chosenMode)?.label ?? ''} modunu uygula`}</button>
+    </div>}
+  </div> : null
   const strategyCard = <section className="lcCard lcStrategy" id="lc-strategy" aria-label="Strateji ve risk">
     <header className="lcCardHead"><div><small>STRATEJİ</small><h3>Kais Original V2 · risk ayarı</h3></div>
       {verified && guideInput.connected && !guideInput.emergency && <button type="button" className="lcLink" aria-expanded={editorOpen} onClick={() => setSettingsOpen(value => !value)}>{editorOpen ? 'Kapat' : riskSaved ? 'Değiştir' : 'Seç'}<ChevronDown aria-hidden="true" data-open={editorOpen || undefined}/></button>}</header>
@@ -471,6 +517,7 @@ export default function LiveCockpit(props: Props) {
       <span><small>Tarama</small><b>{draft.coins} coin</b><em>{draft.hours} saatlik oturum</em></span>
     </div>
     {honestBlock}
+    {modeBlock}
     {editorOpen && <div className="lcStrategyEdit">
       {wallet === null && <p className="lcHint warn">Bakiye doğrulanınca her seçeneğin USDT karşılığı burada görünür.</p>}
       {presetCards}
