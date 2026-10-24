@@ -127,6 +127,7 @@ export default function LiveCockpit(props: Props) {
   const flight = useRef(false)
   const [flash, setFlash] = useState<{tone: 'ok' | 'warn' | 'stop'; text: string} | null>(null)
   const [whyOpen, setWhyOpen] = useState(false)
+  const [msgOpen, setMsgOpen] = useState(false)
   const busy = Boolean(working) || externalBusy
 
   // ---- Strateji ayarı: risk yüzdeleri sunucuda saklanır; coin sayısı ve süre başlatma parametresidir (tarayıcıda hatırlanır).
@@ -777,13 +778,19 @@ export default function LiveCockpit(props: Props) {
           })}</ol>}
           {guide.done && <p className="lcDone"><span aria-hidden="true"><Check/></span>{guide.done}</p>}
           <h2 className="lcGuideTitle">{guide.title}</h2>
-          <p className="lcGuideMsg">{guide.message}</p>
+          <p className="lcGuideMsg" data-open={msgOpen || undefined}>{guide.message}</p>
+          {String(guide.message || '').length > 90 && <button type="button" className="lcMsgToggle" aria-expanded={msgOpen} onClick={() => setMsgOpen(value => !value)}>{msgOpen ? 'Daha az' : 'Devamını göster'}</button>}
           {help && <p className="lcHelp"><b>Ne yapmalıyım?</b> {help.text}{help.href && <> <a href={help.href}>{help.linkLabel} →</a></>}</p>}
           {coach && <ol className="lcTimeline" aria-label="Oturum zaman çizelgesi">{timeline.map(item => <li key={item.label} data-state={item.state}><i aria-hidden="true"/><small>{item.label}</small><b>{item.value}</b></li>)}</ol>}
           {coach && !stale && <p className="lcCoachLine" data-testid="original-entry-status">{guideInput.entryBlocker ? `Yeni giriş beklemede: ${guideInput.entryBlocker}` : 'Yeni giriş açık · kurallara uyan fırsat çıkınca stop ve hedefleriyle emir açılır.'}</p>}
-          {coach && !stale && <div className="lcCoachDeck" data-testid="coach-deck">
-            <div className="lcCoachRing" role="img" aria-label={upcoming ? `Sonraki taramaya ${duration(upcoming.inSeconds)} kaldı` : 'Sonraki tarama yok'} style={{'--p': `${ringPct}%`} as CSSProperties}>
+          {coach && !stale && <div className="lcCoachDeck" data-testid="coach-deck" style={{'--p': `${ringPct}%`} as CSSProperties}>
+            <div className="lcCoachRing" role="img" aria-label={upcoming ? `Sonraki taramaya ${duration(upcoming.inSeconds)} kaldı` : 'Sonraki tarama yok'} >
               <div><b>{upcoming ? duration(upcoming.inSeconds) : '—'}</b><small>sonraki tarama</small></div></div>
+            <div className="lcCoachTimes" aria-label="Tarama saatleri">
+              <span><small>Son tarama</small><b>{Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : '—'}</b></span>
+              <span><small>Sonraki tarama</small><b>{upcoming ? new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</b></span>
+              <i className="lcCoachBar" aria-hidden="true"/>
+            </div>
             <div className="lcCoachBody">
               <small className="lcCoachCap">BAŞLAMADAN ÖNCE KONTROL</small>
               <ul className="lcCoachChecks">{coachChecks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '!'}</i>{item.text}</li>)}</ul>

@@ -14,6 +14,7 @@ import { analysisPrice, analysisValue, autoTradePresentation, masterLayoutV2Enab
 import './master-trade-analysis-v2.css'
 import './live-modern.css'
 import './live-terminal.css'
+import './live-mobile.css'
 import MasterTradeReference from './MasterTradeReference'
 import {useMasterMarketQuotes} from './useMasterMarketQuotes'
 import {useTradingPreferences} from './useTradingPreferences'
