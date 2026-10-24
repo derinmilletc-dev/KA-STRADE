@@ -1637,3 +1637,49 @@ def test_live_sizing_context_checks_seventy_thirty_minimums():
     assert total % Decimal("0.10") == 0                                   # 10 adım × 0,01
     assert Decimal(new_style["tp1_quantity"]) == (total * Decimal("0.70")).quantize(Decimal("0.01"), rounding="ROUND_DOWN")
     assert Decimal(new_style["tp1_quantity"]) + Decimal(new_style["remaining_quantity"]) == total
+
+
+def _scaling_state(state, **config):
+    symbols = [f"TOKEN{index}USDT" for index in range(10)]
+    state["original_v2_live"].update(
+        symbol_count=10,
+        universe={
+            "updated_day": datetime.now(timezone.utc).date().isoformat(),
+            "minimum_age_days": original.ORIGINAL_MIN_SYMBOL_AGE_DAYS,
+            "ranked_symbols": symbols,
+            "eligible_count": 10,
+        },
+        **config,
+    )
+    return state
+
+
+def test_original_live_default_risk_keeps_fixed_caps(state):
+    _scaling_state(state)
+    policy = original.execution_policy(state, {"wallet_balance": 143})
+    assert policy["max_loss_per_trade"] == pytest.approx(143 * 0.5 / 100)
+    assert policy["max_margin_per_trade"] == 25 and "risk_scale_factor" not in policy
+    assert policy["daily_loss_limit"] == 10
+
+
+def test_original_live_risk_at_or_below_fixed_loss_does_not_scale(state):
+    _scaling_state(state, risk_percent=2, daily_loss_percent=5)
+    policy = original.execution_policy(state, {"wallet_balance": 143})
+    assert policy["max_loss_per_trade"] == pytest.approx(2.86)
+    assert policy["max_margin_per_trade"] == 25 and "risk_scale_factor" not in policy
+
+
+def test_original_live_acknowledged_five_percent_risk_takes_effect_and_scales_caps(state):
+    _scaling_state(state, risk_percent=5, daily_loss_percent=10, risk_acknowledged=True)
+    policy = original.execution_policy(state, {"wallet_balance": 143})
+    assert policy["max_loss_per_trade"] == pytest.approx(7.15)
+    factor = 7.15 / 3
+    assert policy["risk_scale_factor"] == pytest.approx(factor, rel=1e-3)
+    assert policy["max_margin_per_trade"] == pytest.approx(25 * factor)
+    assert policy["max_leverage"] == 3 and policy["max_stop_distance_pct"] == 6
+
+
+def test_original_live_risk_above_two_percent_without_acknowledgement_is_still_refused(state):
+    _scaling_state(state, risk_percent=5, daily_loss_percent=10, risk_acknowledged=False)
+    with pytest.raises(HTTPException):
+        original.execution_policy(state, {"wallet_balance": 143})

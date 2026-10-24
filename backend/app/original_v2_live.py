@@ -564,9 +564,29 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     result["daily_loss_limit"] = min(current["daily_loss_limit"], fixed["daily_loss_limit"])
     for key in ("min_confidence", "fee_bps_per_side", "slippage_bps_per_side", "minimum_net_reward_usdt"):
         result[key] = max(current[key], fixed[key])
-    result["max_loss_per_trade"] = min(float(snapshot["wallet_balance"]) * settings(state)["risk_percent"] / 100,
-                                      current["max_loss_per_trade"], fixed["max_loss_per_trade"])
+    base_loss = min(current["max_loss_per_trade"], fixed["max_loss_per_trade"])
+    wanted_loss = float(snapshot["wallet_balance"]) * settings(state)["risk_percent"] / 100
+    result["max_loss_per_trade"] = min(wanted_loss, base_loss)
+    # Owner-chosen risk (already validated and acknowledged in RiskChoice) must take effect: when it asks for more
+    # than the fixed per-trade loss, the margin, exposure and daily loss caps grow by the same factor so they do not
+    # silently cut the position back. At or below the fixed loss nothing changes.
+    if config_scaling_allowed(settings(state)) and wanted_loss > base_loss > 0:
+        factor = wanted_loss / base_loss
+        result["max_loss_per_trade"] = wanted_loss
+        for key in ("max_margin_per_trade", "max_total_exposure_usdt", "daily_loss_limit"):
+            result[key] = result[key] * factor
+        result["risk_scale_factor"] = round(factor, 4)
     return result
+
+
+def config_scaling_allowed(config: dict[str, Any]) -> bool:
+    """Scaling needs the owner's explicit risk acknowledgement; high risk (>5%) also its confirmation."""
+    risk = config.get("risk_percent", 0.5)
+    if not isinstance(risk, (int, float)) or isinstance(risk, bool):
+        return False
+    if risk > 5:
+        return config.get("risk_acknowledged") is True and config.get("high_risk_confirmed") is True
+    return risk <= 2 or config.get("risk_acknowledged") is True
 
 
 async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
