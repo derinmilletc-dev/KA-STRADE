@@ -421,3 +421,11 @@ details.advChecks>.advCheckGrid{padding:4px 18px 18px}
   #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPresets{grid-template-columns:minmax(0,1fr)}
   #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustom{padding:16px!important}
 }
+
+/* ---- Risk ayarı: kartlar zeminden ayrışsın (zemin ile kart aynı renkteydi) ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcDrawerBody .lcStrategy{background:#0e151e!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcStrategyNow span,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcPreset{background:#1a2636!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcPreset:hover:not(:disabled){background:#213248!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcPreset[data-selected]{background:#123329!important;box-shadow:inset 0 0 0 2px var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcCustom{background:#1a2636!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcStrategy .lcConfirmBox{background:#1a2636!important}
