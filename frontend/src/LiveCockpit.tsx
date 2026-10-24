@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import './copy-phrase.css'
-import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TriangleAlert, X} from 'lucide-react'
+import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
@@ -733,15 +733,23 @@ export default function LiveCockpit(props: Props) {
         <div><dt>Bugün</dt><dd data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</dd></div>
       </dl>
       <div className="lcStatusLinks">
+        <span className="lcUpdated"><small>Son güncelleme</small><b>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '—'}</b></span>
+        <button type="button" className="lcRefresh" aria-label="Yenile" title="Yenile" onClick={() => { void Promise.resolve(refresh()).catch(() => undefined) }}><RefreshCw aria-hidden="true"/></button>
         {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %{original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}</b></span>}
         <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
         <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı →</a>
         {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
       </div>
     </header>
+    <div className="lcSummary" aria-label="Hesap özeti">
+      <article><i aria-hidden="true"><Wallet/></i><span><small>Toplam bakiye</small><b>{verified && wallet !== null ? usdt(wallet) : '—'}</b></span></article>
+      <article><i aria-hidden="true"><TrendingUp/></i><span><small>Bugünkü kâr/zarar</small><b data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</b></span></article>
+      <article><i aria-hidden="true"><Coins/></i><span><small>Kullanılabilir bakiye</small><b>{verified && availableBalance !== null ? usdt(availableBalance) : '—'}</b></span></article>
+      <article><i aria-hidden="true"><Layers/></i><span><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></span></article>
+    </div>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
-    <div className="lcGrid">
+    <div className="lcGrid" data-coach={coach || undefined} data-noscan={!(running || scanner?.last_scan_at) || undefined}>
       <div className="lcMain">
         <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
