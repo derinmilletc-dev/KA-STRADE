@@ -681,7 +681,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
     {dive && <KaisPupilDive dive={dive}/>}
-    {holoVisible && <KaisAgentHolo timing={timingLine} alarm={alarm} confirm={(() => {
+    {holoVisible && <KaisAgentHolo recent={messages.filter(row => !row.proactive && typeof row.content === 'string' && row.content.trim()).slice(-3).map(row => ({role: row.role === 'user' ? 'user' as const : 'assistant' as const, text: String(row.content)}))}
+      io={{micState: !voice.inputSupported ? 'unsupported' : voice.starting ? 'starting' : voice.failed ? 'failed' : voice.listening ? 'listening' : 'on', outputSupported: voice.outputSupported, repliesOn: voice.replies, onToggleReplies: voice.toggleReplies}} timing={timingLine} alarm={alarm} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,

@@ -1,14 +1,14 @@
 /* Ana göz (KaisEye) bu dosyada DEĞİŞTİRİLMEZ: filtre, scale, rotate, blend yok. Yalnızca gözün dışındaki bağımsız katmanlar. */
 .kaisHolo{position:fixed;inset:0;z-index:2200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px 20px;color:#e8eef7;
-  background:radial-gradient(ellipse at 50% 34%,rgba(18,70,70,.3),rgba(4,7,14,0) 68%),rgba(4,7,14,.95);backdrop-filter:blur(10px);animation:kaisHoloIn .35s ease-out}
-.kaisHoloClose{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.7);color:#9fb1c9;display:grid;place-items:center;z-index:3}
+  background:radial-gradient(ellipse at 50% 34%,rgba(16,43,60,.55),rgba(4,7,14,0) 68%),rgba(6,18,29,.96);backdrop-filter:blur(10px);animation:kaisHoloIn .35s ease-out}
+.kaisHoloClose{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px;width:40px;height:40px;border-radius:12px;border:1px solid #1C4555;background:rgba(10,28,42,.7);color:#8DAFBE;display:grid;place-items:center;z-index:3}
 .kaisHoloClose svg{width:20px;height:20px}
 .kaisHoloStage{position:relative;width:min(320px,88vw);aspect-ratio:1;margin-bottom:34px}
 .kaisHoloEye{position:absolute;inset:9.375%;z-index:2}
 .kaisHoloEye .kaisEye{width:100%!important;height:100%!important;display:block}
-.kaisHoloGlow{position:absolute;inset:6%;border-radius:50%;background:radial-gradient(circle,rgba(39,214,160,.16),rgba(39,214,160,0) 66%);opacity:.9;animation:kaisHoloBreath 4s ease-in-out infinite;transition:opacity .6s ease}
+.kaisHoloGlow{position:absolute;inset:6%;border-radius:50%;background:radial-gradient(circle,rgba(53,221,226,.16),rgba(53,221,226,0) 66%);opacity:.9;animation:kaisHoloBreath 4s ease-in-out infinite;transition:opacity .6s ease}
 .kaisHoloRings{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:1}
-.kaisHoloRings *{fill:none;stroke:#27D6A0;stroke-width:.8;vector-effect:non-scaling-stroke}
+.kaisHoloRings *{fill:none;stroke:#35DDE2;stroke-width:.8;vector-effect:non-scaling-stroke}
 .ring{opacity:.42;transition:opacity .6s ease}
 .r1 circle{stroke-dasharray:2 6;opacity:.85}
 .r2{opacity:.55}.r2 path{stroke-width:1}
@@ -21,7 +21,7 @@
 .kaisHolo[data-phase=error] .ping{animation:none}
 .measure{opacity:0;transition:opacity .5s ease}
 .measure .m{opacity:0}
-.measure *{stroke-width:.7}.measure circle{fill:#27D6A0;stroke:none}
+.measure *{stroke-width:.7}.measure circle{fill:#35DDE2;stroke:none}
 .kaisHolo[data-phase=thinking] .measure{opacity:1}
 .kaisHolo[data-phase=thinking] .measure .m{animation:kaisHoloMeasure 4.4s ease-in-out infinite;animation-delay:var(--d)}
 .kaisHolo[data-phase=thinking] .ring{opacity:.7}
@@ -29,19 +29,19 @@
 .kaisHolo[data-phase=thinking] .kaisHoloGlow{opacity:1}
 .kaisHolo[data-phase=speaking] .kaisHoloGlow{animation-duration:2.2s}
 .kaisHoloRings *{transition:stroke .35s ease}
-.kaisHolo[data-phase=error] .kaisHoloRings *{stroke:#e8a85e}
-.kaisHolo[data-phase=error] .kaisHoloGlow{animation:none;opacity:.5;background:radial-gradient(circle,rgba(232,168,94,.1),rgba(232,168,94,0) 66%)}
+.kaisHolo[data-phase=error] .kaisHoloRings *{stroke:#F06B75}
+.kaisHolo[data-phase=error] .kaisHoloGlow{animation:none;opacity:.5;background:radial-gradient(circle,rgba(240,107,117,.1),rgba(240,107,117,0) 66%)}
 .kaisHoloScanBand{position:absolute;inset:9.375%;z-index:3;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .45s ease;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
 .kaisHoloScanBand[data-on=true]{opacity:1}
-.kaisHoloScanBand i{position:absolute;left:4%;right:4%;top:0;height:2px;background:linear-gradient(90deg,transparent,rgba(170,255,235,.9),transparent);box-shadow:0 0 8px rgba(39,214,160,.55);animation:kaisHoloScan 1.5s ease-in-out infinite}
-.kaisHoloFloor{position:absolute;left:14%;right:14%;bottom:-22px;height:28px;border-radius:50%;border:1px solid rgba(39,214,160,.22);background:radial-gradient(ellipse,rgba(39,214,160,.14),rgba(39,214,160,0) 68%);pointer-events:none}
+.kaisHoloScanBand i{position:absolute;left:4%;right:4%;top:0;height:2px;background:linear-gradient(90deg,transparent,rgba(170,255,235,.9),transparent);box-shadow:0 0 8px rgba(53,221,226,.55);animation:kaisHoloScan 1.5s ease-in-out infinite}
+.kaisHoloFloor{position:absolute;left:14%;right:14%;bottom:-22px;height:28px;border-radius:50%;border:1px solid rgba(53,221,226,.22);background:radial-gradient(ellipse,rgba(53,221,226,.14),rgba(53,221,226,0) 68%);pointer-events:none}
 /* Ana göz: bileşenin KENDİ yerleşik hareketleri (bakış, düşünürken iris dönüşü, kırpma) açık; kaynak dosyalar ve geometri değişmez. */
 .kaisHoloChips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:340px}
-.kaisHoloChip{font:11px ui-monospace,monospace;padding:4px 8px;border:1px solid rgba(39,214,160,.4);border-radius:8px;background:rgba(10,24,22,.78);color:#27D6A0}
-.kaisHoloStatus{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#27D6A0;margin:0}
+.kaisHoloChip{font:11px ui-monospace,monospace;padding:4px 8px;border:1px solid rgba(53,221,226,.4);border-radius:8px;background:rgba(10,24,22,.78);color:#35DDE2}
+.kaisHoloStatus{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#35DDE2;margin:0}
 .kaisHoloUser{font-size:18px;text-align:center;margin:0;max-width:420px}
-.kaisHoloReply{font-size:14px;line-height:1.45;color:#b9c8dc;text-align:center;margin:0;max-width:420px;max-height:22vh;overflow:auto;padding:12px;border:1px solid rgba(39,214,160,.25);border-radius:14px;background:rgba(12,24,26,.75)}
-.kaisHoloChat{margin-top:6px;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.75);color:#c5d1e3;font-size:13px}
+.kaisHoloReply{font-size:14px;line-height:1.45;color:#b9c8dc;text-align:center;margin:0;max-width:420px;max-height:22vh;overflow:auto;padding:12px;border:1px solid rgba(53,221,226,.25);border-radius:14px;background:rgba(12,24,26,.75)}
+.kaisHoloChat{margin-top:6px;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid #1C4555;background:rgba(12,20,34,.75);color:#c5d1e3;font-size:13px}
 .kaisHoloChat svg{width:16px;height:16px}
 .kaisHolo[data-paused=true] *{animation-play-state:paused!important}
 @keyframes kaisHoloIn{from{opacity:0}to{opacity:1}}
@@ -51,29 +51,29 @@
 @keyframes kaisHoloMeasure{0%,100%{opacity:0}35%,65%{opacity:.9}}
 @media (prefers-reduced-motion:reduce){.kaisHolo,.kaisHolo *{animation:none!important;transition:none!important}.kaisHoloScanBand i{display:none}}
 .kaisHoloStatus{text-align:center;max-width:340px}
-.kaisHoloStatus[data-error=true]{color:#e8a85e;letter-spacing:.04em;text-transform:none;font-size:13px}
-.kaisHoloRetry{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid rgba(232,168,94,.5);background:rgba(40,26,10,.6);color:#f0c58d;font-size:13px}
+.kaisHoloStatus[data-error=true]{color:#F06B75;letter-spacing:.04em;text-transform:none;font-size:13px}
+.kaisHoloRetry{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid rgba(240,107,117,.5);background:rgba(40,26,10,.6);color:#f0c58d;font-size:13px}
 .kaisHoloRetry svg{width:16px;height:16px}
-.kaisHoloConfirm{display:grid;gap:8px;max-width:340px;width:100%;padding:12px;border:1px solid rgba(39,214,160,.45);border-radius:14px;background:rgba(10,24,22,.85);text-align:center}
-.kaisHoloConfirm small{color:#9fb1c9}
+.kaisHoloConfirm{display:grid;gap:8px;max-width:340px;width:100%;padding:12px;border:1px solid rgba(53,221,226,.45);border-radius:14px;background:rgba(10,24,22,.85);text-align:center}
+.kaisHoloConfirm small{color:#8DAFBE}
 .kaisHoloConfirm div{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.kaisHoloConfirm button{height:44px;border-radius:12px;border:1px solid #2a3d58;background:#16202f;color:#e8eef7;font-weight:600}
-.kaisHoloConfirm button.ok{background:#27D6A0;border-color:#27D6A0;color:#04120d}
+.kaisHoloConfirm button{height:44px;border-radius:12px;border:1px solid #1C4555;background:#16202f;color:#e8eef7;font-weight:600}
+.kaisHoloConfirm button.ok{background:#35DDE2;border-color:#35DDE2;color:#04120d}
 .kaisHoloConfirm button:disabled{opacity:.5}
-.kaisHoloSlow{margin:0;font-size:12px;color:#9fb1c9;text-align:center;max-width:320px}
+.kaisHoloSlow{margin:0;font-size:12px;color:#8DAFBE;text-align:center;max-width:320px}
 .kaisVoicePicker{position:absolute;top:max(14px,env(safe-area-inset-top));left:16px;z-index:4}
-.kaisVoicePickerToggle{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-radius:12px;border:1px solid #2a3d58;background:rgba(12,20,34,.7);color:#9fb1c9;font-size:13px}
+.kaisVoicePickerToggle{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-radius:12px;border:1px solid #1C4555;background:rgba(10,28,42,.7);color:#8DAFBE;font-size:13px}
 .kaisVoicePickerToggle svg{width:16px;height:16px}
-.kaisVoicePicker ul{list-style:none;margin:6px 0 0;padding:6px;width:min(280px,78vw);max-height:48vh;overflow:auto;border:1px solid #2a3d58;border-radius:14px;background:rgba(8,14,24,.96)}
+.kaisVoicePicker ul{list-style:none;margin:6px 0 0;padding:6px;width:min(280px,78vw);max-height:48vh;overflow:auto;border:1px solid #1C4555;border-radius:14px;background:rgba(8,14,24,.96)}
 .kaisVoicePicker li button{width:100%;text-align:left;padding:10px 10px;border-radius:10px;border:0;background:transparent;color:#c5d1e3;font-size:13px}
-.kaisVoicePicker li button[aria-selected=true]{background:rgba(39,214,160,.16);color:#27D6A0}
+.kaisVoicePicker li button[aria-selected=true]{background:rgba(53,221,226,.16);color:#35DDE2}
 /* Göz bebeği içi animasyon katmanı (gözün çizimi değişmez; katman bebek alanına kırpılır) */
 .kaisHoloPupil{position:absolute;left:39.583%;top:39.583%;width:20.833%;aspect-ratio:1;clip-path:circle(49%);pointer-events:none;z-index:2;transition:transform .12s ease}
-.kaisHoloPupil *{fill:none;stroke:#27D6A0;stroke-width:.35;vector-effect:non-scaling-stroke;transform-origin:0 0;stroke-width:1px}
-.kaisHoloPupil .pDot{fill:#27D6A0;stroke:none;opacity:.8}
-.kaisHoloPupil .pBlips circle{fill:#9fffe0;stroke:none;opacity:0}
-.kaisHoloPupil .pWedge{fill:rgba(39,214,160,.28);stroke:none}
-.kaisHoloPupil .pLine{stroke:#9fffe0}
+.kaisHoloPupil *{fill:none;stroke:#35DDE2;stroke-width:.35;vector-effect:non-scaling-stroke;transform-origin:0 0;stroke-width:1px}
+.kaisHoloPupil .pDot{fill:#35DDE2;stroke:none;opacity:.8}
+.kaisHoloPupil .pBlips circle{fill:#B5FFFF;stroke:none;opacity:0}
+.kaisHoloPupil .pWedge{fill:rgba(53,221,226,.28);stroke:none}
+.kaisHoloPupil .pLine{stroke:#B5FFFF}
 .kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pWave,.pRing){opacity:0;transition:opacity .45s ease}
 .kaisHolo[data-phase=listening] .kaisHoloPupil .pRing{opacity:.5;animation:kaisPupilBreath 4s ease-in-out infinite}
 .kaisHolo[data-phase=thinking] .kaisHoloPupil :is(.pSpinA,.pSpinB,.pSweep,.pBlips,.pRing){opacity:1}
@@ -85,7 +85,7 @@
 .kaisHolo[data-phase=speaking] .kaisHoloPupil .pWave{opacity:1}
 .kaisHolo[data-phase=speaking] .pWave{animation:kaisPupilWave 1.4s ease-out infinite}
 .kaisHolo[data-phase=speaking] .pWave2{animation-delay:.7s}
-.kaisHolo[data-phase=error] .kaisHoloPupil *{stroke:#e8a85e}.kaisHolo[data-phase=error] .kaisHoloPupil .pDot{fill:#e8a85e}
+.kaisHolo[data-phase=error] .kaisHoloPupil *{stroke:#F06B75}.kaisHolo[data-phase=error] .kaisHoloPupil .pDot{fill:#F06B75}
 .kaisHolo[data-phase=error] .kaisHoloPupil .pRing{opacity:.6}
 @keyframes kaisPupilSpin{to{transform:rotate(360deg)}}
 @keyframes kaisPupilBreath{50%{opacity:.15}}
@@ -117,50 +117,50 @@
 @media (prefers-reduced-motion:reduce){.kaisHoloAlarm circle{animation:none!important;opacity:.8}.kaisHoloAlarmText{animation:none!important}}
 .kaisHoloTiming{margin:0;font:11px/1.3 ui-monospace,monospace;color:#8fa6c0;text-align:center;max-width:92vw;word-break:break-word}
 /* ── Sinematik arayüz: yazı ve kontroller (yalnız görünüm). Sahne (.kaisHoloStage) ve göz (.kaisHoloEye) boyutları DEĞİŞMEZ. ── */
-.kaisHolo{background:#050B14;backdrop-filter:none;-webkit-backdrop-filter:none;gap:12px;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+.kaisHolo{background:#06121D;backdrop-filter:none;-webkit-backdrop-filter:none;gap:12px;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
 /* Durum etiketi gözle bağlantılı: sahne zemininden inen ince ışık hattı (yalnız durum doğrudan sahnenin altındaysa) */
-.kaisHoloStatus{position:relative;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:.14em;color:#65F5BE;text-shadow:0 0 12px rgba(0,201,141,.35)}
+.kaisHoloStatus{position:relative;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:.14em;color:#65F0DE;text-shadow:0 0 12px rgba(0,201,141,.35)}
 .kaisHoloStage+.kaisHoloStatus::before{content:"";position:absolute;left:50%;bottom:calc(100% + 4px);width:1px;height:28px;transform:translateX(-50%);
-  background:linear-gradient(180deg,rgba(101,245,190,0),rgba(101,245,190,.55));pointer-events:none}
+  background:linear-gradient(180deg,rgba(101,240,222,0),rgba(101,240,222,.55));pointer-events:none}
 .kaisHoloStatus[data-error=true]{color:#f0b46a;text-shadow:none}
 .kaisHoloStage+.kaisHoloStatus[data-error=true]::before{background:linear-gradient(180deg,rgba(240,180,106,0),rgba(240,180,106,.5))}
 .kaisHoloUser{font-size:17px;font-weight:500;line-height:1.35;color:#e9f2fb}
-.kaisHoloReply{color:#b6c6d8;line-height:1.5;padding:12px 14px;border:1px solid rgba(138,223,255,.16);border-radius:14px;
-  background:linear-gradient(180deg,rgba(10,24,38,.86),rgba(6,16,26,.86));box-shadow:inset 0 1px 0 rgba(101,245,190,.16)}
+.kaisHoloReply{color:#b6c6d8;line-height:1.5;padding:12px 14px;border:1px solid rgba(181,255,255,.16);border-radius:14px;
+  background:linear-gradient(180deg,rgba(10,24,38,.86),rgba(6,16,26,.86));box-shadow:inset 0 1px 0 rgba(101,240,222,.16)}
 .kaisHoloSlow{color:#8fa3ba}
 .kaisHoloChips{gap:6px}
-.kaisHoloChip{font-size:11px;padding:4px 9px;border-color:rgba(101,245,190,.32);background:rgba(6,22,24,.8);color:#65F5BE}
+.kaisHoloChip{font-size:11px;padding:4px 9px;border-color:rgba(101,240,222,.32);background:rgba(6,22,24,.8);color:#65F0DE}
 /* Kontroller: tek yükseklik/yarıçap; ikincil eylemler sakin, birincil (Onayla) belirgin; görünür odak/hover/aktif/devre dışı */
 .kaisHoloChat,.kaisHoloRetry,.kaisHoloClose,.kaisVoicePickerToggle,.kaisHoloConfirm button{min-height:44px;border-radius:12px;font-size:14px;cursor:pointer;
   transition:border-color .2s ease,background-color .2s ease,color .2s ease,transform .1s ease}
-.kaisHoloChat{margin-top:4px;padding:0 18px;gap:8px;border:1px solid rgba(138,223,255,.22);background:rgba(8,19,31,.72);color:#d3e2f2}
-.kaisHoloChat:hover{border-color:rgba(101,245,190,.5);color:#eef6ff;background:rgba(10,28,36,.8)}
-.kaisHoloClose{width:44px;height:44px;border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
-.kaisVoicePickerToggle{height:44px;padding:0 14px;border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
-.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,245,190,.45);color:#e3eefa}
+.kaisHoloChat{margin-top:4px;padding:0 18px;gap:8px;border:1px solid rgba(181,255,255,.22);background:rgba(8,19,31,.72);color:#d3e2f2}
+.kaisHoloChat:hover{border-color:rgba(101,240,222,.5);color:#EAFBFF;background:rgba(10,28,36,.8)}
+.kaisHoloClose{width:44px;height:44px;border:1px solid rgba(181,255,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
+.kaisVoicePickerToggle{height:44px;padding:0 14px;border:1px solid rgba(181,255,255,.2);background:rgba(8,19,31,.7);color:#a9bccf}
+.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,240,222,.45);color:#e3eefa}
 .kaisHoloRetry{padding:0 18px}
-.kaisHoloConfirm{border-color:rgba(101,245,190,.32);background:linear-gradient(180deg,rgba(8,24,30,.9),rgba(6,16,24,.9))}
-.kaisHoloConfirm button{border:1px solid rgba(138,223,255,.22);background:rgba(10,22,36,.9)}
-.kaisHoloConfirm button.ok{background:#00C98D;border-color:#00C98D;color:#03140e}
+.kaisHoloConfirm{border-color:rgba(101,240,222,.32);background:linear-gradient(180deg,rgba(8,24,30,.9),rgba(6,16,24,.9))}
+.kaisHoloConfirm button{border:1px solid rgba(181,255,255,.22);background:rgba(10,22,36,.9)}
+.kaisHoloConfirm button.ok{background:#35DDE2;border-color:#35DDE2;color:#03140e}
 .kaisHoloConfirm button.ok:hover:not(:disabled){background:#14d99c}
 .kaisHoloChat:active,.kaisHoloRetry:active,.kaisHoloClose:active,.kaisVoicePickerToggle:active,.kaisHoloConfirm button:active:not(:disabled){transform:translateY(1px)}
-.kaisHoloChat:focus-visible,.kaisHoloRetry:focus-visible,.kaisHoloClose:focus-visible,.kaisVoicePickerToggle:focus-visible,.kaisHoloConfirm button:focus-visible{outline:2px solid #8ADFFF;outline-offset:2px}
+.kaisHoloChat:focus-visible,.kaisHoloRetry:focus-visible,.kaisHoloClose:focus-visible,.kaisVoicePickerToggle:focus-visible,.kaisHoloConfirm button:focus-visible{outline:2px solid #B5FFFF;outline-offset:2px}
 .kaisHoloConfirm button:disabled{cursor:not-allowed}
 /* Kısa ekranlar: içerik kesilmesin diye yalnız boşluklar sıkışır (göz boyutu sabit) */
 @media (max-height:700px){.kaisHolo{gap:8px}.kaisHoloStage{margin-bottom:26px}.kaisHoloReply{max-height:18vh}.kaisHoloUser{font-size:16px}}
 @media (prefers-reduced-motion:reduce){.kaisHoloChat,.kaisHoloRetry,.kaisHoloClose,.kaisVoicePickerToggle,.kaisHoloConfirm button{transition:none}}
 /* ── Denge turu: ortak kontrol dili, duruma bağlı ince ışık, mobil alt kontrol yuvası (yalnız görünüm/yerleşim). ── */
 /* Ses, Kapat ve Sohbeti aç aynı yüzey, kenar, renk ve ikon boyutunda */
-.kaisHoloChat,.kaisHoloClose,.kaisVoicePickerToggle{border:1px solid rgba(138,223,255,.2);background:rgba(8,19,31,.74);color:#cbd9e8;font-size:14px;font-weight:500;
-  box-shadow:inset 0 1px 0 rgba(138,223,255,.06)}
+.kaisHoloChat,.kaisHoloClose,.kaisVoicePickerToggle{border:1px solid rgba(181,255,255,.2);background:rgba(8,19,31,.74);color:#cbd9e8;font-size:14px;font-weight:500;
+  box-shadow:inset 0 1px 0 rgba(181,255,255,.06)}
 .kaisHoloChat svg,.kaisHoloClose svg,.kaisVoicePickerToggle svg{width:18px;height:18px}
-.kaisHoloChat:hover,.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,245,190,.45);color:#eef6ff;background:rgba(10,28,36,.82)}
-.kaisVoicePickerToggle[aria-expanded=true]{border-color:rgba(101,245,190,.5);color:#65F5BE}
+.kaisHoloChat:hover,.kaisHoloClose:hover,.kaisVoicePickerToggle:hover{border-color:rgba(101,240,222,.45);color:#EAFBFF;background:rgba(10,28,36,.82)}
+.kaisVoicePickerToggle[aria-expanded=true]{border-color:rgba(101,240,222,.5);color:#65F0DE}
 /* Durum altında duruma bağlı ince ışık: dinlerken sabit, düşünürken üzerinde kayan küçük ışık, konuşurken yumuşak nabız, hatada yok.
    Yalnız mevcut data-phase kullanılır; mikrofon/ses verisi taklit edilmez. */
 .kaisHoloStatus::after{content:"";position:absolute;left:50%;top:calc(100% + 5px);width:72px;height:1px;transform:translateX(-50%);pointer-events:none;
-  background:linear-gradient(90deg,rgba(101,245,190,0),rgba(101,245,190,.45),rgba(101,245,190,0));opacity:.6}
-.kaisHolo[data-phase=thinking] .kaisHoloStatus::after{width:18px;background:linear-gradient(90deg,rgba(138,223,255,0),rgba(138,223,255,.9),rgba(138,223,255,0));opacity:1;animation:kaisStatusGlide 1.6s ease-in-out infinite alternate}
+  background:linear-gradient(90deg,rgba(101,240,222,0),rgba(101,240,222,.45),rgba(101,240,222,0));opacity:.6}
+.kaisHolo[data-phase=thinking] .kaisHoloStatus::after{width:18px;background:linear-gradient(90deg,rgba(181,255,255,0),rgba(181,255,255,.9),rgba(181,255,255,0));opacity:1;animation:kaisStatusGlide 1.6s ease-in-out infinite alternate}
 .kaisHolo[data-phase=speaking] .kaisHoloStatus::after{animation:kaisStatusPulse 2.4s ease-in-out infinite}
 .kaisHoloStatus[data-error=true]::after{display:none}
 @keyframes kaisStatusGlide{from{transform:translateX(calc(-50% - 34px))}to{transform:translateX(calc(-50% + 34px))}}
@@ -213,7 +213,7 @@
 .kaisHolo[data-phase=speaking] .kaisHoloPupil .pDot{opacity:.95}
 /* Bebek: odak deseni ve hareketli parıltı (bebek büyük ölçüde koyu kalır) */
 .kaisHoloPupil .pFocus{opacity:.25;transition:opacity .8s ease}
-.kaisHoloPupil .pFocus path{stroke:#65F5BE}
+.kaisHoloPupil .pFocus path{stroke:#65F0DE}
 .kaisHoloPupil .pGlint{opacity:.35;animation:kaisPupilSpin 6s linear infinite paused}
 .kaisHoloPupil .pGlint ellipse{fill:#d8fbff;stroke:none}
 .kaisHolo[data-phase=thinking] .kaisHoloPupil .pFocus{opacity:1;animation:kaisFocusPulse 2.4s ease-in-out infinite}
@@ -227,7 +227,7 @@
 @keyframes kaisFocusPulse{0%,100%{opacity:.55}50%{opacity:1}}
 
 .kaisHoloLive{opacity:.85;font-style:italic}
-.kaisHoloInterrupt{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:14px;border:1px solid rgba(232,168,94,.55);background:rgba(40,26,10,.7);color:#f6cf98;font-size:15px;font-weight:600;cursor:pointer}
+.kaisHoloInterrupt{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:14px;border:1px solid rgba(240,107,117,.55);background:rgba(40,26,10,.7);color:#f6cf98;font-size:15px;font-weight:600;cursor:pointer}
 .kaisHoloInterrupt svg{width:18px;height:18px}
 .kaisHoloInterrupt:hover{background:rgba(60,38,12,.85)}
 

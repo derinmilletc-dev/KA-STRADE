@@ -188,3 +188,19 @@
   .khSphere .lon ellipse:nth-child(4){transform:scaleX(-.62)}
   .khPlatform .pDone{display:none}
 }
+
+/* Gerçek veri panelleri: Son konuşma (sohbet kayıtları) ve Mikrofon/ses (tarayıcının gerçek durumu) */
+@media (min-width:1025px){
+  .khRecent ul,.khIO ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .khRecent li{font-size:12.5px;line-height:1.4;color:#EAFBFF}
+  .khRecent li b{color:rgb(var(--kh-soft));font-weight:700;margin-right:4px}
+  .khRecent li[data-role=user] b{color:#8DAFBE}
+  .khRecent p{margin:0;font-size:12.5px;color:#8DAFBE}
+  .khIO li{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:#8DAFBE}
+  .khIO li b{color:#EAFBFF;font-weight:600;text-align:right}
+  .khIO li b[data-state=failed],.khIO li b[data-state=unsupported]{color:#F06B75}
+  .khIO li b[data-state=listening],.khIO li b[data-state=on]{color:rgb(var(--kh-soft))}
+  .khIOToggle{pointer-events:auto;margin-top:10px;width:100%;min-height:34px;padding:0 12px;border-radius:8px;border:1px solid #1C4555;background:rgba(53,221,226,.08);color:#EAFBFF;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .khIOToggle:hover{background:rgba(53,221,226,.16)}
+  .khIOToggle:focus-visible{outline:2px solid #35DDE2;outline-offset:2px}
+}
