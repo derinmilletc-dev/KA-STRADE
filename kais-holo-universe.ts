@@ -4,6 +4,8 @@
  *  Durum (dinliyor/düşünüyor/konuşuyor/hata) ve ses seviyesi dışarıdan GERÇEK uygulama durumundan verilir; burada durum uydurulmaz.
  *  Merkezi hologram (konum ve yarıçap) çizimde dışarıdan alınır: ağ ve akışlar hologramla yarışmaz, ona yaklaştıkça hafifçe parlar ve gözden önce söner. */
 
+import {acquireQuality, getQuality} from './kais-holo-quality'
+
 export type UniversePhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type UniverseCore = {x: number; y: number; r: number}
 export type UniverseOptions = {
@@ -107,11 +109,79 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
   function resize() {
     const cssW = canvas.clientWidth || canvas.getBoundingClientRect().width || 1280
     const cssH = canvas.clientHeight || canvas.getBoundingClientRect().height || 720
-    dpr = Math.min(window.devicePixelRatio || 1, lite ? 1.25 : 1.5)
+    // Arka plan yumuşak bir katman: en fazla 1280 piksel genişlikte çizilir, CSS ile büyütülür (GPU/CPU yükü düşük kalır)
+    dpr = Math.min(1, (lite ? 800 : 1280) / Math.max(cssW, 1))
     width = cssW; height = cssH
     const pw = Math.max(2, Math.round(cssW * dpr)), ph = Math.max(2, Math.round(cssH * dpr))
     if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph }
     coreCheck = -9
+  }
+
+  // ---- Durağan katmanlar (halo + zemin, uzak ağ, orta ağ) bir kez ön-çizilir; her karede yalnız drawImage + az sayıda dinamik öğe çizilir ----
+  const makeBuffer = () => { const c = document.createElement('canvas'); return c }
+  const buffers = {bg: makeBuffer(), net: [makeBuffer(), makeBuffer()]}
+  let layerPos: {x: number; y: number}[][] = [[], []]
+  let builtKey = ''
+  const away = (x: number, y: number) => .12 + .88 * smooth(1.15, 2.7, Math.hypot(x - core.x, y - core.y) / core.r)
+
+  function buildStatic(alarm: boolean) {
+    const pal = alarm ? ALARM : NORMAL
+    const sp = alarm ? sprites.alarm : sprites.normal
+    const rgb = (c: RGB, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`
+    const prep = (buffer: HTMLCanvasElement) => {
+      buffer.width = canvas.width; buffer.height = canvas.height
+      const g = buffer.getContext('2d')
+      if (g) { g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, width, height); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round' }
+      return g
+    }
+    const W = width, H = height, cx = core.x, cy = core.y, R = core.r
+    // arka plan: hale + perspektifli zemin
+    const g0 = prep(buffers.bg)
+    if (g0) {
+      const halo = g0.createRadialGradient(cx, cy, R * .3, cx, cy, R * 3.6)
+      halo.addColorStop(0, rgb(pal.cyan, .2)); halo.addColorStop(.35, rgb(pal.petrol, .14)); halo.addColorStop(1, rgb(pal.petrol, 0))
+      g0.fillStyle = halo; g0.fillRect(Math.max(0, cx - R * 3.6), Math.max(0, cy - R * 3.6), R * 7.2, R * 7.2)
+      const vpY = cy + R * .9
+      if (vpY < H - 8) {
+        const depthH = H - vpY, K = lite ? 8 : 13
+        for (let kx = 1; kx <= K; kx++) {
+          const f = kx / K, y = vpY + depthH * Math.pow(f, 2.2)
+          const g = g0.createLinearGradient(0, 0, W, 0)
+          const a = .3 * Math.pow(f, .75)
+          g.addColorStop(0, rgb(pal.cyan, 0)); g.addColorStop(.5, rgb(pal.cyan, a)); g.addColorStop(1, rgb(pal.cyan, 0))
+          g0.strokeStyle = g; g0.lineWidth = 1; g0.beginPath(); g0.moveTo(0, y); g0.lineTo(W, y); g0.stroke()
+        }
+        const N = lite ? 9 : 17
+        for (let i = 0; i < N; i++) {
+          const u = i / (N - 1) - .5, ex = cx + u * W * 2.3
+          const g = g0.createLinearGradient(cx, vpY, ex, H)
+          const a = .24 * (1 - Math.abs(u) * .8)
+          g.addColorStop(0, rgb(pal.cyan, 0)); g.addColorStop(.25, rgb(pal.cyan, a * .5)); g.addColorStop(1, rgb(pal.cyan, a))
+          g0.strokeStyle = g; g0.beginPath(); g0.moveTo(cx, vpY); g0.lineTo(ex, H); g0.stroke()
+        }
+        g0.save(); g0.translate(cx, vpY); g0.scale(1, .08); g0.globalAlpha = .22; g0.drawImage(sp.cyan, -W * .45, -W * .45, W * .9, W * .9); g0.restore()
+      }
+    }
+    // ağ katmanları: sabit konumlar (parallax çizimde eklenir)
+    layers.forEach((layer, li) => {
+      const g = prep(buffers.net[li])
+      const pos = layer.nodes.map(n => ({x: n.bx * W, y: n.by * H}))
+      layerPos[li] = pos
+      if (!g) return
+      g.strokeStyle = rgb(pal.soft, .13 * layer.alpha); g.lineWidth = layer.depth < .5 ? .8 : 1
+      g.beginPath()
+      layer.links.forEach(([a, b]) => {
+        const pa = pos[a], pb = pos[b]
+        if (away((pa.x + pb.x) / 2, (pa.y + pb.y) / 2) < .3) return
+        g.moveTo(pa.x, pa.y); g.lineTo(pb.x, pb.y)
+      })
+      g.stroke()
+      layer.nodes.forEach((n, i) => {
+        const f = away(pos[i].x, pos[i].y), tw = .55 + .45 * Math.sin(n.ph * 3), size = (layer.depth < .5 ? 7 : 11) * (1 + tw * .3)
+        g.globalAlpha = Math.min(1, (.3 + tw * .3) * layer.alpha * f)
+        g.drawImage(sp.soft, pos[i].x - size / 2, pos[i].y - size / 2, size, size)
+      })
+    })
   }
 
   function frame(now: number, still = false) {
@@ -125,6 +195,10 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
     live.flow += (goal.flow - live.flow) * k; live.err += (goal.err - live.err) * k
     live.level += (options.getLevel() - live.level) * (1 - Math.exp(-dt / .18))
     if (t - coreCheck > .5) { coreCheck = t; const c = options.getCore(); if (c) core = c; else core = {x: width / 2, y: height * .4, r: Math.min(width, height) * .3} }
+    const quality = getQuality()
+    const alarmMode = live.err > .5
+    const key = `${Math.round(core.x / 3)}|${Math.round(core.y / 3)}|${Math.round(core.r / 3)}|${canvas.width}x${canvas.height}|${alarmMode ? 1 : 0}`
+    if (key !== builtKey) { builtKey = key; buildStatic(alarmMode) }
     const [px, py] = options.getParallax()
     const sp = live.err > .5 ? sprites.alarm : sprites.normal
     const W = width, H = height, cx = core.x, cy = core.y, R = core.r
@@ -140,50 +214,32 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
     }
     const rgb = (c: RGB, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`
     const pal = live.err > .5 ? ALARM : NORMAL
-    // merkeze yakın ağ/akış sönük, uzaklaştıkça tam
-    const away = (x: number, y: number) => .12 + .88 * smooth(1.15, 2.7, Math.hypot(x - cx, y - cy) / R)
-    const par = (depth: number): [number, number] => [px * W * .012 * depth, py * H * .01 * depth]
 
-    // 1) Ambiyans: hologramın arkasında geniş yumuşak turkuaz hale + yavaş hareket eden derin ışık kümeleri
-    const halo = ctx.createRadialGradient(cx, cy, R * .3, cx, cy, R * 3.6)
-    halo.addColorStop(0, rgb(pal.cyan, .2 * glow)); halo.addColorStop(.35, rgb(pal.petrol, .14 * glow)); halo.addColorStop(1, rgb(pal.petrol, 0))
-    ctx.globalAlpha = 1; ctx.fillStyle = halo; ctx.fillRect(Math.max(0, cx - R * 3.6), Math.max(0, cy - R * 3.6), R * 7.2, R * 7.2)
+    // 1) Ambiyans: ön-çizilmiş hale + zemin; yavaş hareket eden derin ışık kümeleri
+    ctx.globalAlpha = Math.min(1, glow * (1 + live.level * .15)); ctx.drawImage(buffers.bg, 0, 0, W, H)
     CLUSTERS.forEach(c => {
       const x = (c.bx + Math.sin(t * c.fx + c.ph) * c.ax) * W, y = (c.by + Math.cos(t * c.fy + c.ph) * c.ay) * H
       sprite(c.petrol ? sp.petrol : sp.cyan, x, y, Math.max(W, H) * c.size * 1.6, c.a * glow * (1 + live.level * .4))
     })
 
-    // 2) Katmanlı sinir ağı + parçacıklar
-    const drawNetwork = (layer: NetLayer) => {
+    // 2) Katmanlı sinir ağı: durağan kısım ön-çizili; yalnız ışıklanan bağlantılar dinamik. Paralaks katman başına kaydırmayla.
+    const par = (depth: number): [number, number] => [px * W * .012 * depth, py * H * .01 * depth]
+    const drawNetwork = (li: number) => {
+      const layer = layers[li], pos = layerPos[li]
       const [ox, oy] = par(layer.depth)
-      const pos = layer.nodes.map(n => ({x: (n.bx + Math.sin(t * n.sw + n.ph) * .012) * W + ox, y: (n.by + Math.cos(t * n.sw * .8 + n.ph) * .014) * H + oy}))
-      const baseAlpha = .13 * layer.alpha * live.net * glow
-      // sabit ince bağlantılar (tek yol)
-      ctx.globalAlpha = 1
-      ctx.strokeStyle = rgb(pal.soft, baseAlpha); ctx.lineWidth = (layer.depth < .5 ? .8 : 1)
-      ctx.beginPath()
-      layer.links.forEach(([a, b]) => {
-        const pa = pos[a], pb = pos[b]
-        if (away((pa.x + pb.x) / 2, (pa.y + pb.y) / 2) < .3) return
-        ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y)
-      })
-      ctx.stroke()
-      // yavaşça ışıklanan bağlantılar
+      ctx.globalAlpha = Math.min(1, live.net * glow); ctx.drawImage(buffers.net[li], ox, oy, W, H)
+      if (!pos.length) return
+      ctx.lineWidth = 1
       layer.links.forEach(([a, b], i) => {
         const shimmer = Math.pow(Math.max(0, Math.sin(t * layer.rate[i] * live.rate + layer.phase[i])), 6)
-        if (shimmer < .06) return
+        if (shimmer < .08) return
         const pa = pos[a], pb = pos[b]
         const f = away((pa.x + pb.x) / 2, (pa.y + pb.y) / 2)
-        ctx.strokeStyle = rgb(pal.ice, shimmer * .3 * layer.alpha * live.net * glow * f * boost); ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke()
+        if (f < .3) return
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = `rgba(${pal.ice[0]},${pal.ice[1]},${pal.ice[2]},${Math.min(1, shimmer * .3 * layer.alpha * live.net * glow * f * boost).toFixed(3)})`
+        ctx.beginPath(); ctx.moveTo(pa.x + ox, pa.y + oy); ctx.lineTo(pb.x + ox, pb.y + oy); ctx.stroke()
       })
-      // düğümler
-      layer.nodes.forEach((n, i) => {
-        const f = away(pos[i].x, pos[i].y)
-        const tw = .55 + .45 * Math.sin(t * .5 + n.ph * 3)
-        sprite(sp.soft, pos[i].x, pos[i].y, (layer.depth < .5 ? 7 : 11) * (1 + tw * .3), (.3 + tw * .3) * layer.alpha * live.net * glow * f)
-      })
-      return pos
     }
     const drawParticles = (list: ReturnType<typeof mkParticles>, depth: number, kind: 'far' | 'mid' | 'near' | 'sharp') => {
       const [ox, oy] = par(depth)
@@ -202,14 +258,15 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
       }
     }
     drawParticles(far, .3, 'far')
-    const posFar = drawNetwork(layers[0])
+    drawNetwork(0)
     drawParticles(mid, .65, 'mid')
-    const posMid = drawNetwork(layers[1])
-    const posByLayer = [posFar, posMid]
+    drawNetwork(1)
 
     // 3) Ağ üzerinde gezen enerji parçacıkları
-    walkers.forEach(w => {
-      const layer = layers[w.layer], pos = posByLayer[w.layer]
+    if (quality >= 1) walkers.forEach(w => {
+      const layer = layers[w.layer], pos = layerPos[w.layer]
+      if (!pos.length) return
+      const [wox, woy] = par(layer.depth)
       if (!options.reduced && !still) {
         w.u += dt * w.speed * live.rate * (1 + live.level * .8)
         if (w.u >= 1) {
@@ -226,7 +283,7 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
       }
       const a = pos[w.from], b = pos[w.to]
       if (!a || !b) return
-      const x = a.x + (b.x - a.x) * w.u, y = a.y + (b.y - a.y) * w.u
+      const x = a.x + (b.x - a.x) * w.u + wox, y = a.y + (b.y - a.y) * w.u + woy
       const f = away(x, y)
       const strength = Math.sin(w.u * Math.PI) * live.net * glow * f * boost
       ctx.strokeStyle = rgb(pal.ice, .35 * strength); ctx.lineWidth = 1.4
@@ -234,39 +291,10 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
       sprite(sp.ice, x, y, 16, .85 * strength)
     })
 
-    // 4) Dijital zemin: perspektifli ince ızgara, enerji çekirdeğine doğru uzanır
-    const vpY = cy + R * .9
-    if (vpY < H - 8) {
-      const bottom = H, depthH = bottom - vpY
-      const K = lite ? 8 : 14, scroll = still ? 0 : (t * .035) % 1
-      for (let kx = 0; kx <= K; kx++) {
-        const f = (kx + scroll) / K
-        if (f > 1) continue
-        const y = vpY + depthH * Math.pow(f, 2.2)
-        const a = .3 * Math.pow(f, .75) * glow * (1 + live.level * .4)
-        const g = ctx.createLinearGradient(0, 0, W, 0)
-        g.addColorStop(0, rgb(pal.cyan, 0)); g.addColorStop(.5, rgb(pal.cyan, a)); g.addColorStop(1, rgb(pal.cyan, 0))
-        ctx.globalAlpha = 1; ctx.strokeStyle = g; ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
-      }
-      const N = lite ? 9 : 17
-      for (let i = 0; i < N; i++) {
-        const u = i / (N - 1) - .5
-        const ex = cx + u * W * 2.3, ey = bottom
-        const g = ctx.createLinearGradient(cx, vpY, ex, ey)
-        const a = .24 * (1 - Math.abs(u) * .8) * glow
-        g.addColorStop(0, rgb(pal.cyan, 0)); g.addColorStop(.25, rgb(pal.cyan, a * .5)); g.addColorStop(1, rgb(pal.cyan, a))
-        ctx.strokeStyle = g; ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(cx, vpY); ctx.lineTo(ex, ey); ctx.stroke()
-      }
-      // ufuk çizgisinde yumuşak ışık
-      ctx.save(); ctx.translate(cx, vpY); ctx.scale(1, .08); sprite(sp.cyan, 0, 0, W * .9, .22 * glow); ctx.restore()
-    }
-
     // 5) Veri akışları: aralıklı, doğal; merkeze yaklaşırken parlar, gözden önce söner
     if (!options.reduced && !still) {
       const maxStreams = lite ? 3 : 7
-      if (t > nextStream && streams.length < maxStreams && phase !== 'error') {
+      if (quality >= 1 && t > nextStream && streams.length < maxStreams && phase !== 'error') {
         const theta = rnd() * TAU, dx = Math.cos(theta), dy = Math.sin(theta)
         // merkezden dışarı ışın ile ekran kenarı kesişimi
         const tx = dx > 0 ? (W + 20 - cx) / dx : dx < 0 ? (-20 - cx) / dx : Infinity
@@ -294,7 +322,7 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
       }
       for (let st = 0; st < s.strands; st++) {
         const off = st - (s.strands - 1) / 2
-        const SEG = lite ? 8 : 14
+        const SEG = lite ? 5 : 9
         let [lx, ly] = bez(Math.max(0, head - s.tail), off)
         for (let q = 1; q <= SEG; q++) {
           const v = Math.max(0, head - s.tail) + (Math.min(head, 1) - Math.max(0, head - s.tail)) * (q / SEG)
@@ -310,22 +338,22 @@ export function createUniverse(canvas: HTMLCanvasElement, options: UniverseOptio
     }
 
     // 6) Ön plan: iri yumuşak bokeh parçacıkları + birkaç belirgin parçacık
-    drawParticles(near, 1.5, 'near')
-    drawParticles(sharp, 1.2, 'sharp')
+    if (quality >= 2) { drawParticles(near, 1.5, 'near'); drawParticles(sharp, 1.2, 'sharp') }
 
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'source-over'
   }
 
   let handle = 0, running = false
-  // Arka plan yavaş hareket eder: ~36 kare/sn yeterli; çekirdek ve göz tam hızda çizilmeye devam eder (CPU/GPU payı korunur)
+  // Arka plan yavaş hareket eder: ~25 kare/sn yeterli; çekirdek ve göz tam hızda çizilmeye devam eder (CPU/GPU payı korunur)
   let drawn = 0
-  const loop = (now: number) => { if (!running) return; if (now - drawn >= 27) { drawn = now; frame(now) } handle = requestAnimationFrame(loop) }
+  const loop = (now: number) => { if (!running) return; const gap = [1000, 50, 40][getQuality()]; if (now - drawn >= gap) { drawn = now; frame(now) } handle = requestAnimationFrame(loop) }
+  let releaseQuality: (() => void) | null = null
   return {
     resize,
-    start() { if (running) return; running = true; last = 0; if (options.reduced) { resize(); frame(performance.now(), true); running = false; return } handle = requestAnimationFrame(loop) },
-    stop() { running = false; cancelAnimationFrame(handle) },
+    start() { if (running) return; running = true; last = 0; if (options.reduced) { resize(); frame(performance.now(), true); running = false; return } releaseQuality = acquireQuality(); handle = requestAnimationFrame(loop) },
+    stop() { running = false; cancelAnimationFrame(handle); releaseQuality?.(); releaseQuality = null },
     redraw() { resize(); frame(performance.now(), true) },
-    dispose() { running = false; cancelAnimationFrame(handle); ctx.clearRect(0, 0, canvas.width, canvas.height) },
+    dispose() { running = false; cancelAnimationFrame(handle); releaseQuality?.(); releaseQuality = null; ctx.clearRect(0, 0, canvas.width, canvas.height) },
   }
 }
