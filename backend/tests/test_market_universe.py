@@ -221,3 +221,31 @@ def test_invalid_retry_after_never_creates_permanent_cache_backoff(header, caplo
         assert "Invalid market Retry-After header" in caplog.text
 
     asyncio.run(run())
+
+
+def test_original_live_universe_skips_a_few_contracts_without_market_data():
+    now_ms = 2_000_000_000_000
+    old = now_ms - 46 * 24 * 60 * 60 * 1000
+    contracts = [contract(f"TOKEN{index}USDT", onboardDate=old) for index in range(100)]
+    tickers = [{"symbol": row["symbol"], "quoteVolume": "2000000"} for row in contracts[2:]]
+    books = [{"symbol": row["symbol"], "bidPrice": "100", "askPrice": "100.04"} for row in contracts[2:]]
+    diagnostics = {}
+
+    ranked, eligible_count = ranked_original_live_symbols(
+        {"symbols": contracts}, tickers, books, now_ms=now_ms, diagnostics=diagnostics,
+    )
+
+    assert eligible_count == 98 and len(ranked) == 98
+    assert "TOKEN0USDT" not in ranked and "TOKEN1USDT" not in ranked
+    assert diagnostics["market_data_missing"] == 2
+
+
+def test_original_live_universe_still_stops_when_many_contracts_lack_market_data():
+    now_ms = 2_000_000_000_000
+    old = now_ms - 46 * 24 * 60 * 60 * 1000
+    contracts = [contract(f"TOKEN{index}USDT", onboardDate=old) for index in range(100)]
+    tickers = [{"symbol": row["symbol"], "quoteVolume": "2000000"} for row in contracts[10:]]
+    books = [{"symbol": row["symbol"], "bidPrice": "100", "askPrice": "100.04"} for row in contracts[10:]]
+
+    with pytest.raises(ValueError, match="Incomplete Binance Futures daily market data"):
+        ranked_original_live_symbols({"symbols": contracts}, tickers, books, now_ms=now_ms, diagnostics={})

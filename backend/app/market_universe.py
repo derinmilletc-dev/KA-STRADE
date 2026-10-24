@@ -17,6 +17,9 @@ ORIGINAL_DEFAULT_SYMBOL_COUNT = 40
 ORIGINAL_MIN_SYMBOL_COUNT = 10
 ORIGINAL_MAX_SYMBOL_COUNT = 100
 ORIGINAL_MIN_QUOTE_VOLUME_USDT = 1_000_000.0
+# Up to this share of age-qualified contracts may lack ticker/book rows and be skipped; more stops the universe.
+ORIGINAL_MAX_MISSING_MARKET_DATA_FRACTION = 0.02
+
 ORIGINAL_MIN_SYMBOL_AGE_DAYS = max(
     45,
     math.ceil(original_strategy.CANDLE_FETCH_LIMIT * max(
@@ -103,7 +106,10 @@ def ranked_original_live_symbols(
             counts["invalid_market_data"] += 1
     missing_market_data = age_qualified - ticker_map.keys() | age_qualified - book_map.keys()
     counts["market_data_missing"] = len(missing_market_data)
-    if not age_qualified or missing_market_data:
+    # A few brand-new or winding-down contracts can lack a ticker or book row. They are simply
+    # not tradable today (skipped, never guessed); a large gap still stops the whole universe.
+    allowed_missing = int(len(age_qualified) * ORIGINAL_MAX_MISSING_MARKET_DATA_FRACTION)
+    if not age_qualified or len(missing_market_data) > allowed_missing:
         publish_diagnostics()
         raise ValueError("Incomplete Binance Futures daily market data")
     eligible: list[tuple[str, float]] = []
@@ -125,7 +131,8 @@ def ranked_original_live_symbols(
         ticker = ticker_map.get(symbol)
         book = book_map.get(symbol)
         if ticker is None or book is None:
-            counts["market_data_missing"] += 1
+            if symbol not in missing_market_data:  # already counted above
+                counts["market_data_missing"] += 1
             continue
         try:
             quote_volume = float(ticker["quoteVolume"])
