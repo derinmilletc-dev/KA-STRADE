@@ -180,7 +180,7 @@ export function capacityPreview(wallet: number, caps: RiskCapsLike): {maxNotiona
   return {maxNotional, rows, atMaxStop: row(maxStop)}
 }
 
-export type MarginModeCaps = RiskCapsLike & {system_ceilings?: {max_margin_per_trade_usdt?: number} | null}
+export type MarginModeCaps = (NonNullable<RiskCapsLike> & {system_ceilings?: {max_margin_per_trade_usdt?: number} | null}) | null | undefined
 export type MarginModePreview = {marginUsdt: number; totalPercent: number; atMaxStop: CapacityRow; atThreeStop: CapacityRow | null; capped: boolean}
 /** Bir teminat modunda (işlem başı % × bakiye, sistem tavanıyla sınırlı) boş hesapta bir işlemde ulaşılabilecek en büyük stop kaybı. Salt gösterim. */
 export function marginModePreview(wallet: number, caps: MarginModeCaps, perTradePercent: number): MarginModePreview | null {
