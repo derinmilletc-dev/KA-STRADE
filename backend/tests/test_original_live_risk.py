@@ -318,15 +318,48 @@ def test_effective_trade_risk_reports_existing_limits_without_changing_demo_poli
     before_plans = copy.deepcopy(state["plans"])
     client = EntryClient()
     spec = asyncio.run(original.build_spec(client, result(), state, {"wallet_balance": 1000}))
-    assert spec["margin_usdt"] <= 25
+    # Dinamik mimari: sabit 3/25 USDT yok; tavanlar bakiye yüzdesi (işlem başı teminat %30) ve seçilen risk %10.
+    assert spec["margin_usdt"] <= 1000 * 0.30 + 1e-6
     assert spec["leverage"] == 3
-    assert spec["estimated_stop_loss_usdt"] <= 3
+    assert spec["estimated_stop_loss_usdt"] <= 1000 * 0.10 + 1e-6
     assert spec["risk_adjustment"]["selected_percent"] == 10
-    assert spec["risk_adjustment"]["effective_percent"] <= 0.3
-    assert spec["risk_adjustment"]["reasons"]
+    assert 0 < spec["risk_adjustment"]["effective_percent"] <= 10 + 1e-9
+    # Gösterilen risk ile gerçek stop riski aynı sayı olmalı.
+    assert spec["risk_adjustment"]["effective_loss_usdt"] == spec["estimated_stop_loss_usdt"]
     assert original.strategy.fixed_profile() == fixed
     assert state["plans"] == before_plans
     assert not any(method == "POST" for method, _, _ in client.calls)
+
+
+def _daily_budget_state(realized_loss):
+    request, state, _ = context()
+    save(request, state, high_choice())
+    state["original_v2_live"]["daily"] = {
+        "day": datetime.now(timezone.utc).date().isoformat(),
+        "opening_wallet": 1000.0, "locked": False, "realized_loss": realized_loss, "loss": realized_loss, "limit": 100.0,
+    }
+    return state
+
+
+def test_daily_loss_budget_blocks_a_new_position_when_realized_loss_leaves_no_room():
+    state = _daily_budget_state(realized_loss=99.9)
+    with pytest.raises(live.LiveExchangeError) as error:
+        asyncio.run(original.build_spec(EntryClient(), result(), state, {"wallet_balance": 1000}))
+    assert error.value.check_key == "total_open_risk"
+
+
+def test_daily_loss_budget_counts_open_stop_risk_of_existing_positions():
+    state = _daily_budget_state(realized_loss=0.0)
+    state["plans"]["open-1"] = {"status": "KORUMA AKTİF", "margin_usdt": 10, "initial_risk_usdt": 99.9, "source": "MANUAL"}
+    with pytest.raises(live.LiveExchangeError) as error:
+        asyncio.run(original.build_spec(EntryClient(), result(), state, {"wallet_balance": 1000}))
+    assert error.value.check_key == "total_open_risk"
+
+
+def test_daily_loss_budget_allows_entry_with_room_and_reports_the_same_risk_as_the_stop():
+    state = _daily_budget_state(realized_loss=0.0)
+    spec = asyncio.run(original.build_spec(EntryClient(), result(), state, {"wallet_balance": 1000}))
+    assert spec["risk_adjustment"]["effective_loss_usdt"] == spec["estimated_stop_loss_usdt"] <= 100.0
 
 
 def test_unapproved_stored_high_risk_blocks_new_entry():

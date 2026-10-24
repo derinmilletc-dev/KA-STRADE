@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import original_v2_demo_execution as original
+from .execution_core import system_ceilings
 from .market_universe import (
     ORIGINAL_DEFAULT_SYMBOL_COUNT,
     ORIGINAL_MAX_SYMBOL_COUNT,
@@ -42,6 +43,35 @@ TP1_PRICE_RATIO = Decimal("0.80")
 TP1_FRACTION = Decimal("0.70")
 # 70/30'un tam bölünmesi için miktar sembolün adımının 10 katına yuvarlanır (60/40'ta 5 idi).
 SPLIT_STEPS = 10
+# Strateji kimliği: kaldıraç 3x isolated. Aşağıdaki iki oran bakiyeye göre yüzdedir (sabit USDT değil).
+ORIGINAL_LEVERAGE = 3
+DEFAULT_MAX_MARGIN_PER_TRADE_PCT = 30.0   # tek işlemin teminatı güncel bakiyenin en fazla %30'u
+DEFAULT_MAX_TOTAL_MARGIN_PCT = 80.0       # açık tüm pozisyonların toplam teminatı bakiyenin en fazla %80'i
+MARGIN_PER_TRADE_ENV = "ORIGINAL_V2_MAX_MARGIN_PER_TRADE_PCT"
+TOTAL_MARGIN_ENV = "ORIGINAL_V2_MAX_TOTAL_MARGIN_PCT"
+
+
+def _percent_setting(name: str, default: float) -> float:
+    """Sunucu yapılandırması (ortam değişkeni); yoksa varsayılan. Geçersiz değer güvenli varsayılana döner."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.error("ORIGINAL_MARGIN_PERCENT_INVALID name=%s", name)
+        return default
+    if not math.isfinite(value) or not 0 < value <= 100:
+        logger.error("ORIGINAL_MARGIN_PERCENT_OUT_OF_RANGE name=%s", name)
+        return default
+    return value
+
+
+def margin_percent_limits() -> tuple[float, float]:
+    """(işlem başı %, toplam %). İşlem başı oran toplam orandan büyük olamaz."""
+    total = _percent_setting(TOTAL_MARGIN_ENV, DEFAULT_MAX_TOTAL_MARGIN_PCT)
+    per_trade = min(_percent_setting(MARGIN_PER_TRADE_ENV, DEFAULT_MAX_MARGIN_PER_TRADE_PCT), total)
+    return per_trade, total
 
 
 def percent_text(fraction: Decimal) -> str:
@@ -523,7 +553,8 @@ async def daily_guard(client: Any, state: dict[str, Any], snapshot: dict[str, An
         config["daily"] = day_state
     limit = day_state["opening_wallet"] * config["daily_loss_percent"] / 100
     loss = max(0, -float(pnl) - min(0, unrealized))
-    day_state.update(loss=loss, limit=limit)
+    # Gerçekleşmiş net zarar: gerçekleşen PnL + komisyon + fonlama (transferler hariç, yukarıda). Kapıda ayrıca kullanılır.
+    day_state.update(loss=loss, limit=limit, realized_loss=max(0.0, -float(pnl)))
     if loss >= limit:
         day_state["locked"] = True
     if day_state["locked"]:
@@ -550,9 +581,19 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     current = state["policy"]
     result = {**current, **fixed, "max_stop_distance_pct": 6}
     result["allowed_symbols"] = symbols
-    for key in ("max_margin_per_trade", "max_positions", "max_same_direction_positions",
-                "max_total_exposure_usdt", "max_spread_bps"):
+    for key in ("max_positions", "max_same_direction_positions", "max_spread_bps"):
         result[key] = min(current[key], fixed[key])
+    # Bakiye ve seçilen yüzdelerden dinamik: sabit USDT (3 / 25 / 350 / 10) bu hesabı kısıtlamaz.
+    # Core sert üst sınırları sanitize_execution_policy ile ayrıca uygulanmaya devam eder.
+    wallet = float(snapshot["wallet_balance"])
+    if not math.isfinite(wallet) or wallet <= 0:
+        raise HTTPException(423, "Güncel Binance bakiyesi doğrulanamadı; yeni giriş kapalı.")
+    per_trade_pct, total_pct = margin_percent_limits()
+    ceilings = system_ceilings()
+    # Dinamik değerler sistem tavanlarıyla sınırlanır; kırpma olursa sebebi plan/ekran bilgisinde görünür (bkz. risk_adjustment).
+    result["max_margin_per_trade"] = min(wallet * per_trade_pct / 100, ceilings["max_margin_per_trade_usdt"])
+    result["max_total_exposure_usdt"] = min(wallet * total_pct / 100 * ORIGINAL_LEVERAGE, ceilings["max_total_exposure_usdt"])
+    result["max_total_margin_usdt"] = result["max_total_exposure_usdt"] / ORIGINAL_LEVERAGE
     # Sahip kararı: canlı Original V2'de günlük işlem sayısı ve ardışık kayıp sınırı yok (0 = sınırsız).
     # Pozisyon, yön, maruziyet, günlük kayıp ve açık zarar kilitleri ile her işlemin stop-loss'u aynen çalışır.
     result["daily_trade_limit"] = 0
@@ -561,11 +602,15 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     for key in ("allow_long", "allow_short"):
         result[key] = current[key] and fixed[key]
     result["max_trap_score"] = min(current["max_trap_score"], fixed["max_trap_score"])
-    result["daily_loss_limit"] = min(current["daily_loss_limit"], fixed["daily_loss_limit"])
+    day = config.get("daily") if isinstance(config.get("daily"), dict) else {}
+    opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
+    reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else wallet
+    result["daily_loss_limit"] = min(reference * float(config.get("daily_loss_percent", 5)) / 100,
+                                     system_ceilings()["max_daily_loss_usdt"])
     for key in ("min_confidence", "fee_bps_per_side", "slippage_bps_per_side", "minimum_net_reward_usdt"):
         result[key] = max(current[key], fixed[key])
-    result["max_loss_per_trade"] = min(float(snapshot["wallet_balance"]) * settings(state)["risk_percent"] / 100,
-                                      current["max_loss_per_trade"], fixed["max_loss_per_trade"])
+    result["max_loss_per_trade"] = min(wallet * float(config["risk_percent"]) / 100,
+                                      system_ceilings()["max_loss_per_trade_usdt"])
     return result
 
 
@@ -600,10 +645,10 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     spec["tp1_fraction"] = str(TP1_FRACTION)
     # The percentage budget includes estimated commission and slippage, not only stop distance.
     cost_per_unit = entry * Decimal(str(policy["fee_bps_per_side"] + policy["slippage_bps_per_side"])) * 2 / 10000
-    native_quantity = Decimal(spec["quantity"])
+    # Tamamen dinamik: miktar yalnız seçilen risk bütçesi (bakiye x risk %) ve bakiye yüzdesi teminat tavanından gelir.
     risk_quantity = budget / (abs(entry - stop) + cost_per_unit)
-    margin_quantity = Decimal(str(policy["max_margin_per_trade"])) * 3 / entry
-    unrounded_quantity = min(native_quantity, risk_quantity, margin_quantity)
+    margin_quantity = Decimal(str(policy["max_margin_per_trade"])) * ORIGINAL_LEVERAGE / entry
+    unrounded_quantity = min(risk_quantity, margin_quantity)
     quantity = live.floor_step(unrounded_quantity, rules["step"] * SPLIT_STEPS)
     size_metrics = original.minimum_order_parts(
         quantity, entry, rules["step"], rules["min_qty"], rules["min_notional"], TP1_FRACTION,
@@ -625,7 +670,7 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         f"Toplam miktar, TP1 {percent_text(TP1_FRACTION)} ve kalan miktar Binance minimum miktar/notional şartını karşılıyor.",
         symbol=spec["symbol"],
     )
-    margin = float(quantity * entry / 3)
+    margin = float(quantity * entry / ORIGINAL_LEVERAGE)
     if margin < 5:
         live.record_live_entry_check(
             check_results, "available_collateral", False,
@@ -675,13 +720,11 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     requested_loss = wallet * selected_percent / 100
     effective_loss = float(spec["estimated_stop_loss_usdt"])
     reasons = []
-    if float(budget) < requested_loss - 1e-8:
-        reasons.append("Sabit Original V2 / V25 işlem kaybı tavanı")
     requested_quantity = Decimal(str(requested_loss)) / (abs(entry - stop) + cost_per_unit)
-    if native_quantity == unrounded_quantity and native_quantity < requested_quantity:
-        reasons.append("Original V2 sabit miktar profili (mevcut teminat/kaldıraç sınırları dahil)")
     if margin_quantity == unrounded_quantity and margin_quantity < requested_quantity:
-        reasons.append("Mevcut işlem başı teminat tavanı")
+        reasons.append(f"İşlem başı teminat tavanı ({policy['max_margin_per_trade']:.2f} USDT)")
+    if float(budget) < requested_loss - 1e-8:
+        reasons.append(f"Sistem güvenlik tavanı: işlem başı en fazla {system_ceilings()['max_loss_per_trade_usdt']:g} USDT zarar")
     if quantity < unrounded_quantity:
         reasons.append("Binance miktar adımı ve TP miktar bölüşümü için aşağı yuvarlama")
     adjustment = {
@@ -700,7 +743,7 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     )
     if not loss_budget_passed:
         raise live.LiveExchangeError("Original V2 stop kaybı işlem başı risk bütçesini aşıyor.", http_status=423, check_key="risk_budget")
-    if notional > policy["max_margin_per_trade"] * 3 + 1e-8:
+    if notional > policy["max_margin_per_trade"] * ORIGINAL_LEVERAGE + 1e-8:
         live.record_live_entry_check(
             check_results, "risk_budget", False,
             "Original V2 pozisyon büyüklüğü işlem başı marjin sınırını aşıyor.",
@@ -712,7 +755,135 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         "Original V2 pozisyon büyüklüğü işlem başı marjin sınırında.",
         symbol=spec["symbol"],
     )
+    open_margin, open_risk = open_position_totals(state)
+    total_margin_limit = float(policy["max_total_margin_usdt"])
+    if open_margin + margin > total_margin_limit + 1e-8:
+        live.record_live_entry_check(
+            check_results, "total_margin", False,
+            f"Açık pozisyonların toplam teminatı izin verilen sınırı aşardı "
+            f"({open_margin + margin:.2f} / {total_margin_limit:.2f} USDT).",
+            symbol=spec["symbol"],
+        )
+        raise live.LiveExchangeError("Toplam teminat kullanımı sınırı aşılırdı.", http_status=423, check_key="total_margin")
+    live.record_live_entry_check(check_results, "total_margin", True,
+                                 "Toplam teminat kullanımı bakiye yüzdesi sınırında.", symbol=spec["symbol"])
+    # Günlük zarar bütçesi: bugün gerçekleşen net zarar (komisyon ve fonlama dahil) + açık pozisyonların
+    # başlangıç stop riski (komisyon ve kayma tahmini dahil) + bu girişin riski, günlük sınırı aşamaz.
+    daily_limit = float(policy["daily_loss_limit"])
+    day = settings(state).get("daily") if isinstance(settings(state).get("daily"), dict) else {}
+    today = datetime.now(timezone.utc).date().isoformat()
+    realized_loss = float(day.get("realized_loss") or 0) if day.get("day") == today else 0.0
+    if not math.isfinite(realized_loss) or realized_loss < 0:
+        raise live.LiveExchangeError("Günlük gerçekleşen zarar doğrulanamadı; yeni giriş kapalı.", http_status=423, check_key="daily_loss")
+    committed = realized_loss + open_risk + effective_loss
+    if committed > daily_limit + 1e-8:
+        live.record_live_entry_check(
+            check_results, "total_open_risk", False,
+            f"Günlük zarar bütçesi aşılırdı: gerçekleşen {realized_loss:.2f} + açık stop riski {open_risk:.2f} "
+            f"+ bu işlem {effective_loss:.2f} = {committed:.2f} / {daily_limit:.2f} USDT.",
+            symbol=spec["symbol"],
+        )
+        raise live.LiveExchangeError("Günlük zarar bütçesi bu girişle aşılırdı; yeni pozisyon açılmadı.", http_status=423, check_key="total_open_risk")
+    live.record_live_entry_check(check_results, "total_open_risk", True,
+                                 f"Günlük zarar bütçesi içinde ({committed:.2f} / {daily_limit:.2f} USDT).", symbol=spec["symbol"])
     return spec
+
+
+_TERMINAL_PLAN_STATUSES = {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED"}
+
+
+def _plan_number(plan: dict[str, Any], key: str) -> float:
+    try:
+        value = float(plan.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) and value > 0 else 0.0
+
+
+def _live_position_quantity(state: dict[str, Any], plan: dict[str, Any]) -> float | None:
+    rows = (state.get("snapshot") or {}).get("positions")
+    if not isinstance(rows, list):
+        return None
+    total = 0.0
+    for row in rows:
+        if not isinstance(row, dict) or str(row.get("symbol") or "").upper() != str(plan.get("symbol") or "").upper():
+            continue
+        try:
+            quantity = abs(float(row.get("quantity", row.get("positionAmt")) or 0))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(quantity):
+            return None
+        total += quantity
+    return total
+
+
+def plan_open_exposure(state: dict[str, Any], plan: dict[str, Any]) -> tuple[float, float]:
+    """Bir planın şu an gerçekten açıkta olan (teminat, stop riski) değeri.
+
+    TP1 doğrulanmadıysa ya da veri eksikse planın tam başlangıç değeri korunur: risk asla olduğundan
+    düşük hesaplanmaz. TP1 doğrulandıysa kalan miktar, güncel stop ve maliyet üzerinden yeniden hesaplanır.
+    Her çağrıda yeniden hesaplandığı için stop değişikliği ve kısmi kapanış hemen yansır.
+    """
+    full_margin = _plan_number(plan, "margin_usdt")
+    full_risk = _plan_number(plan, "initial_risk_usdt")
+    if not (plan.get("original_tp1_complete") or plan.get("breakeven_done")):
+        return full_margin, full_risk
+    try:
+        initial_quantity = Decimal(str(plan.get("initial_quantity") or plan.get("quantity")))
+        entry = Decimal(str(plan["entry_price"]))
+        step = Decimal(str(plan["step"]))
+        fraction = live_plan_fraction(plan)
+        if not all(v.is_finite() for v in (initial_quantity, entry, step)) or min(initial_quantity, entry, step) <= 0:
+            raise ValueError
+        closed = (initial_quantity * fraction // step) * step
+        remaining = initial_quantity - closed
+        live_quantity = _live_position_quantity(state, plan)
+        if live_quantity is not None:
+            remaining = max(remaining, min(Decimal(str(live_quantity)), initial_quantity))
+        # Güncel stop; stop durumu doğrulanamıyorsa ilk (daha uzak) stop kullanılır.
+        stop_value = plan.get("stop_loss")
+        if str(plan.get("protection_state") or "").upper() in {"UNKNOWN", "BROKEN"} or stop_value in (None, ""):
+            stop_value = plan.get("initial_stop_loss")
+        stop = Decimal(str(stop_value))
+        cost_bps = Decimal(str(plan["original_cost_bps"])) if plan.get("original_cost_bps") is not None else Decimal("0")
+        if not stop.is_finite() or stop <= 0 or not cost_bps.is_finite() or cost_bps < 0 or remaining < 0:
+            raise ValueError
+        direction = str(plan.get("direction") or "").upper()
+        if direction == "LONG":
+            adverse = max(Decimal("0"), entry - stop)
+        elif direction == "SHORT":
+            adverse = max(Decimal("0"), stop - entry)
+        else:
+            raise ValueError
+        risk = float(remaining * (adverse + entry * cost_bps / 10000))
+        leverage = _plan_number(plan, "leverage") or float(ORIGINAL_LEVERAGE)
+        margin = float(remaining * entry) / leverage
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return full_margin, full_risk
+    # Kalan değer hiçbir zaman ilk değeri aşmaz ama eksik hesaplanmasın diye ilk değer üst sınırdır.
+    if full_risk > 0:
+        risk = min(risk, full_risk)
+    if full_margin > 0:
+        margin = min(margin, full_margin)
+    return margin, risk
+
+
+def live_plan_fraction(plan: dict[str, Any]) -> Decimal:
+    from . import v25_execution as live
+    return live.plan_tp1_fraction(plan)
+
+
+def open_position_totals(state: dict[str, Any]) -> tuple[float, float]:
+    """Açık/bekleyen tüm planların (kaynağı fark etmez) şu an açıkta olan teminat ve stop riski toplamı."""
+    margin = risk = 0.0
+    for plan in (state.get("plans") or {}).values():
+        if not isinstance(plan, dict) or str(plan.get("status") or "").upper() in _TERMINAL_PLAN_STATUSES:
+            continue
+        plan_margin, plan_risk = plan_open_exposure(state, plan)
+        margin += plan_margin
+        risk += plan_risk
+    return margin, risk
 
 
 async def check_entry(application: Any, client: Any, state: dict[str, Any],

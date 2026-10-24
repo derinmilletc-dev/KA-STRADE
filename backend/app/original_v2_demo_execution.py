@@ -141,7 +141,7 @@ async def build_live_spec(
     allowed_symbols: list[str],
 ) -> dict[str, Any]:
     validate_live_result(result, allowed_symbols)
-    return await _build_spec(client, result, enforce_minimum=False)
+    return await _build_spec(client, result, enforce_minimum=False, profile_sized=False)
 
 
 async def _build_spec(
@@ -149,13 +149,21 @@ async def _build_spec(
     result: StrategyResult,
     *,
     enforce_minimum: bool = True,
+    profile_sized: bool = True,
 ) -> dict[str, Any]:
+    """`profile_sized=False` (canlı Original V2): fiyat seviyelerini doğrular, miktarı/riski/marjini HESAPLAMAZ.
+    Canlı katman bunları güncel bakiye ve seçilen risk yüzdesinden dinamik hesaplar; sabit profil USDT sınırları uygulanmaz."""
     if not result.signal.strategy_eligible:
         fail("CANONICAL_ENTRY_NOT_ELIGIBLE")
     signal = result.legacy["analysis"]
-    risk = strategy.risk_preview(signal["entry"], signal["stop_loss"], enabled=True)
-    if risk["margin_usdt"] < 5:
-        fail("minimum_margin")
+    if profile_sized:
+        risk = strategy.risk_preview(signal["entry"], signal["stop_loss"], enabled=True)
+        if risk["margin_usdt"] < 5:
+            fail("minimum_margin")
+    else:
+        from .strategies.original_gap_risk import PROFILE as _profile
+        if not _profile.accepts(float(signal["entry"]), float(signal["stop_loss"])):
+            fail("profile_cap")
     symbol = result.signal.symbol
     price = await demo.ticker_price(client, symbol)
     rules = await demo.symbol_rules(client, symbol)
@@ -163,6 +171,19 @@ async def _build_spec(
     stop = demo.round_tick(Decimal(str(signal["stop_loss"])), rules["tick"])
     targets = [demo.round_tick(Decimal(str(signal[key])), rules["tick"]) for key in ("tp1", "tp2", "tp3")]
     demo.validate_levels(signal["direction"], entry, stop, targets)
+    if not profile_sized:
+        return {
+            "symbol": symbol, "direction": signal["direction"],
+            "side": "BUY" if signal["direction"] == "LONG" else "SELL",
+            "close_side": "SELL" if signal["direction"] == "LONG" else "BUY",
+            "order_type": "MARKET", "margin_usdt": 0.0, "leverage": 3,
+            "notional_usdt": 0.0, "quantity": "0",
+            "current_price": float(price),
+            "entry_price": demo.decimal_text(entry), "stop_loss": demo.decimal_text(stop),
+            "targets": [demo.decimal_text(value) for value in targets],
+            "step": rules["step"], "min_qty": rules["min_qty"], "min_notional": rules["min_notional"],
+            "risk_per_trade": 0.0, "risk_adjusted": False,
+        }
     from .strategies.original_gap_risk import PROFILE
     from .strategies.original_offline_risk import OfflineRiskError
 
@@ -266,15 +287,9 @@ def live_minimum_order_assessment(
     except (KeyError, TypeError, ValueError, InvalidOperation):
         fail("INVALID_ORIGINAL_SYMBOL_RULES")
 
-    risk = strategy.risk_preview(float(signal["entry"]), float(signal["stop_loss"]), enabled=True)
     from .strategies.original_gap_risk import PROFILE
-    from .strategies.original_offline_risk import OfflineRiskError
-
-    try:
-        profile_size = PROFILE.size(float(entry), float(stop), margin_limit=risk["margin_usdt"])
-    except OfflineRiskError as exc:
-        fail(exc.reason)
-    base_quantity = demo.floor_step(Decimal(str(profile_size["notional_usdt"])) / entry, base_step)
+    if not PROFILE.accepts(float(entry), float(stop)):
+        fail("profile_cap")
     cost_per_unit = entry * (fee_bps + slippage_bps) * 2 / 10000
     try:
         # Canlı Original V2 70/30 böler; bu yüzden TP1 oranını ve miktar adım katını bağlamdan okur (varsayılan 60/40).
@@ -285,7 +300,7 @@ def live_minimum_order_assessment(
     except (TypeError, ValueError, InvalidOperation):
         fail("INVALID_ORIGINAL_SYMBOL_RULES")
     quantity = demo.floor_step(
-        min(base_quantity, budget / (abs(entry - stop) + cost_per_unit), max_margin * 3 / entry),
+        min(budget / (abs(entry - stop) + cost_per_unit), max_margin * 3 / entry),
         step * split_steps,
     )
     parts = minimum_order_parts(quantity, entry, step, min_qty, min_notional, tp1_fraction)

@@ -350,3 +350,23 @@ the full ordered permission/audit migration extensions and the current Vercel
 API rewrite before the SPA fallback. No production migration, permission
 allowlist, subscription guard or deployment setting was changed for these
 baseline repairs.
+
+## Dynamic risk and system ceilings
+
+Live Original V2 uses no fixed per-trade USDT parameters. From the verified wallet balance:
+
+- Maximum trade loss = balance x selected risk %. Quantity = that budget / (stop distance + estimated fee and slippage).
+- Margin per trade is capped at a percentage of balance (default 30%), total open margin at a percentage
+  (default 80%). Both are configurable per server with `ORIGINAL_V2_MAX_MARGIN_PER_TRADE_PCT` and
+  `ORIGINAL_V2_MAX_TOTAL_MARGIN_PCT` (0-100; invalid values fall back to the defaults; per-trade never exceeds total).
+  Leverage stays 3x isolated.
+- The daily loss limit is the day's opening balance x the selected daily loss %. An entry is refused when
+  today's realized net loss (including commission and funding) + the initial stop risk of all open or pending plans
+  (including estimated fee and slippage) + the new trade's risk would exceed it.
+- The displayed risk is the same number as the estimated stop loss used for sizing.
+
+System-wide ceilings (`execution_core.system_ceilings()`) apply to every strategy (manual, V25, Original V2) and
+are the only fixed USDT values left: 25 USDT loss per trade, 100 USDT margin per trade, 350 USDT total position
+size, 100 USDT daily loss. They exist so a mistaken setting or a very large balance cannot create an outsized
+position. When a ceiling clips a dynamic value, the screen shows the clipped value and the entry adjustment lists the
+reason; nothing is clipped silently. Demo, backtests and other strategy layers are unchanged.
