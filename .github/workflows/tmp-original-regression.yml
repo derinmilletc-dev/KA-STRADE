@@ -42,6 +42,6 @@ jobs:
           for f in main pr; do echo "::notice::$f by file: $(sed 's/::.*//' $f.f | sort | uniq -c | sort -rn | head -8 | tr '\n' ';')"; done
           grep -E "^FAILED tests/test_original_v2_live.py" main.txt | sed 's/.* - //' | cut -c1-150 | sort | uniq -c | sort -rn | head -6 | while read l; do echo "::notice::REASON $l"; done
           first=$(grep -E "^FAILED tests/test_original_v2_live.py" main.txt | head -1 | sed 's/^FAILED //; s/ - .*//')
-          (cd main/backend && python -m pytest "$first" -q --tb=long -p no:cacheprovider 2>&1) | grep -E "^(app|tests)/.*:[0-9]+:|^>|v22_commercial" | head -9 | while read l; do echo "::notice::TB $l"; done
+          (cd main/backend && python -m pytest "$first" -q --tb=long -p no:cacheprovider 2>&1) | grep -E "\.py:[0-9]+|Error" | grep -v "^tests/test_original_v2_live.py:25" | tail -9 | while read l; do echo "::notice::TB $l"; done
           comm -13 main.f pr.f | head -9 | while read l; do echo "::error::NEW FAIL $l"; done
           exit 0
