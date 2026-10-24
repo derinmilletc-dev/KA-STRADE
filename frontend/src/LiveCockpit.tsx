@@ -214,6 +214,7 @@ export default function LiveCockpit(props: Props) {
   const [modeAck, setModeAck] = useState(false)
   const [modePhrase, setModePhrase] = useState('')
   const [modeError, setModeError] = useState('')
+  const [modeHelpOpen, setModeHelpOpen] = useState(false)
   const chosenMode = modePick ?? savedMode
   const modeReady = chosenMode !== savedMode && modeUnderstood && (chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE)
   const pickMode = (mode: string) => { setModePick(mode === savedMode ? null : mode); setModeAck(false); setModePhrase(''); setModeError('') }
@@ -486,7 +487,8 @@ export default function LiveCockpit(props: Props) {
   </>
   const modeRows = original?.margin_modes ?? []
   const modeBlock = verified && original && guideInput.connected && !guideInput.emergency && modeRows.length > 0 ? <div className="lcMode" id="lc-mode">
-    <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin.</p>
+    <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin. <button type="button" className="lcLink lcWhatIs" aria-expanded={modeHelpOpen} onClick={() => setModeHelpOpen(value => !value)}>Bu ne?</button></p>
+    {modeHelpOpen && <p className="lcWhy">Teminat, her işleme bakiyenden ayırdığın paradır. Modu yükseltirsen işlem büyür: kazanç da kayıp da büyür. Stop-loss her zaman çalışır ve zarar o seviyede durur. Toplam teminat sınırı her modda aynıdır.</p>}
     <div className="lcModes" role="radiogroup" aria-label="Teminat modu">
       {modeRows.map(row => {
         const view = wallet !== null ? marginModePreview(wallet, caps, row.per_trade_percent) : null
@@ -598,6 +600,15 @@ export default function LiveCockpit(props: Props) {
     </> : <div className="lcSheetActions"><button type="button" className="lcBtn lcPrimary" onClick={closeSheet}>Tamam</button></div>}
   </> : sheet === 'start' ? <>
     <h2 id="lc-sheet-title">Başlatmadan önce son kontrol</h2>
+    <ul className="lcChecklist" aria-label="Hazırlık kontrol listesi">
+      {([
+        [guideInput.connected, 'Binance bağlantısı', guideInput.connected ? 'Bağlı, emir göndermeye hazır' : 'Bağlantı doğrulanamadı'],
+        [wallet !== null, 'Bakiye', wallet !== null ? `${usdt(wallet)} doğrulandı` : 'Okunamadı'],
+        [riskSaved, 'Risk ayarı', riskSaved ? `Seçildi · hedef ${pct(savedRisk)} · yalnız yeni işlemlere` : 'Henüz seçilmedi'],
+        [true, 'Teminat modu', `${original?.margin_modes?.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} · işlem başı en çok %${original?.margin_modes?.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}`],
+        [guideInput.authorizationValid && guideInput.policyAcknowledged, 'Güvenlik onayları', guideInput.authorizationValid && guideInput.policyAcknowledged ? 'Tamam' : 'Başlatınca eksik olanlar verilir'],
+      ] as [boolean, string, string][]).map(([ok, title, note]) => <li key={title} data-ok={ok || undefined}><i aria-hidden="true">{ok ? <Check/> : null}</i><span><b>{title}</b><small>{note}</small></span></li>)}
+    </ul>
     {summary ? <div className="lcRiskGrid">
       <div><small>Bir işlemde en fazla kayıp</small><b>{usdt(summary.perTrade)}</b>{summary.perTradeCapped && <em>sunucu tavanı uygulandı</em>}</div>
       <div><small>Kötü bir günde en fazla</small><b>{usdt(summary.perDay)}</b>{summary.perDayCapped && <em>sunucu tavanı uygulandı</em>}</div>
@@ -704,11 +715,13 @@ export default function LiveCockpit(props: Props) {
         <div><dt>Bugün</dt><dd data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</dd></div>
       </dl>
       <div className="lcStatusLinks">
+        {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %{original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}</b></span>}
         <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
         <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı →</a>
         {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
       </div>
     </header>
+    <p className="lcLegend" aria-label="Renklerin anlamı"><b data-tone="ok">Yeşil</b> sağlıklı · <b data-tone="warn">turuncu</b> dikkat · <b data-tone="stop">kırmızı</b> sorun</p>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
     <div className="lcGrid">
