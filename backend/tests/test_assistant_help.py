@@ -25,6 +25,8 @@ class AssistantHelpTests(unittest.TestCase):
             "invalidation", "risk-reward", "directions", "levels", "locked", "arm", "consent",
             "dry-run", "scanner-candidate", "exposure", "protection", "reconciliation",
             "account-mode", "fingerprint", "risk-warning", "support", "site-map",
+            "live-guide", "live-screen", "live-status", "live-scan", "margin-mode", "risk-target",
+            "live-session", "live-positions", "live-notify", "connection-tab", "how-bot-works", "kais-ai",
         }
         self.assertEqual({row.id for row in tr}, expected)
         root = Path(__file__).resolve().parents[2]

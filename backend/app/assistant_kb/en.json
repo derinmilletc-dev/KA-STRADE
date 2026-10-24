@@ -654,5 +654,238 @@
       "MasterTradeReference.tsx",
       "AuthGate.tsx"
     ]
+  },
+  {
+    "id": "live-guide",
+    "title": "Live Trading guide (Kais Guide / Kais Coach)",
+    "keywords": [
+      "guide",
+      "coach",
+      "step",
+      "start",
+      "final check",
+      "setup",
+      "live trading",
+      "how do I start",
+      "approval"
+    ],
+    "content": "The Kais Guide at the top of the Live Trading tab walks you through setup in order: Account (Binance connection), Risk setting, Approvals and Start. Each step tells you what to do and takes you to the right place. When everything is ready, press 'Final check and start' and tick the confirmation box; the bot runs only after that and never starts by itself when the page opens. While the bot runs, the guide turns into the Kais Coach and shows status, the next scan and the session time.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-screen",
+    "title": "What does each part of the Live Trading screen do?",
+    "keywords": [
+      "screen",
+      "section",
+      "what is this",
+      "live trading",
+      "summary",
+      "card",
+      "open positions",
+      "daily summary",
+      "recent events",
+      "settings and advanced",
+      "status bar"
+    ],
+    "content": "The status bar at the top shows the bot state (Running, Stopped, Needs attention). The summary cards show total balance, today's profit/loss, available balance and the number of open positions. The Kais Guide / Coach box manages setup and running status. The Live scan box explains the last and next scan and why no trade was opened. Open positions lists open trades with their stop and targets. The Strategy section holds risk and margin settings. Daily summary and Recent events give a short day overview and event log. 'Settings and advanced' gathers risk setting, manual order, recovery and emergency stop in one place.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-status",
+    "title": "What do the status labels and colors mean?",
+    "keywords": [
+      "status",
+      "running",
+      "stopped",
+      "attention",
+      "color",
+      "green",
+      "orange",
+      "red",
+      "healthy"
+    ],
+    "content": "Green: everything is fine. Orange: attention needed but the bot is safe (for example entries on hold or reconnecting). Red: there is a problem; the text on screen says what to do. Running means the bot is scanning; Stopped means it is not looking for new trades. If the connection drops, the screen shows the last verified information with a 'verified earlier' note; do not treat it as current.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-scan",
+    "title": "Live scan: why was no trade opened?",
+    "keywords": [
+      "scan",
+      "why no trade",
+      "candidate",
+      "signal",
+      "confidence",
+      "filtered out",
+      "next scan",
+      "not opening trades",
+      "trend"
+    ],
+    "content": "The bot scans coins at regular intervals and opens a trade only when every rule is met. No trade usually does not mean something is broken; it means the market had no setup that fit the rules. The 'Why was no trade opened?' box shows the most common reason, and 'Closest to a signal' shows how close the confidence score was to the threshold. 'Last twenty-four hours · where were coins filtered out?' breaks the reasons down by share. This is explanatory only and never changes the rules. The next scan time is shown in the box; if Binance applies a temporary block the bot resumes when it ends.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "margin-mode",
+    "title": "Margin mode: Safe, Medium, Aggressive",
+    "keywords": [
+      "margin",
+      "mode",
+      "safe",
+      "medium",
+      "aggressive",
+      "per trade",
+      "position size"
+    ],
+    "content": "Margin mode sets the largest share of your balance that can be used as margin on each trade: Safe {MARGIN_SAFE_PERCENT}%, Medium {MARGIN_MID_PERCENT}%, Aggressive {MARGIN_AGGRESSIVE_PERCENT}%. Higher modes mean larger trades, so gains and losses both grow. For each mode the screen shows the margin per trade and an estimate of the largest possible loss at a given stop distance. The total margin cap ({MARGIN_TOTAL_PERCENT}%), every trade's stop-loss, the daily loss limit and the other protections apply in every mode. The mode applies to your account only and can be changed anytime; Medium and Aggressive ask for extra confirmation and changes apply to new entries only.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts",
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
+    "id": "risk-target",
+    "title": "Target risk, daily loss limit and real risk",
+    "keywords": [
+      "risk",
+      "target risk",
+      "daily loss",
+      "loss limit",
+      "stop",
+      "real risk",
+      "percent",
+      "can I lose"
+    ],
+    "content": "The per-trade risk you pick is a target, not a guaranteed real loss. The real loss is calculated per trade from the stop distance and margin limits; the 'If the stop is this far, at most ≈' lines are estimates. If the target cannot be reached with this balance and leverage, the screen says so and a trade can still open with lower risk. When the daily loss limit is reached the bot opens no new trades that day. Losses are possible; this is not investment advice.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-session",
+    "title": "Session length and Extend session",
+    "keywords": [
+      "session",
+      "duration",
+      "extend",
+      "extend session",
+      "ended",
+      "remaining",
+      "hours",
+      "arm",
+      "stopped",
+      "restart"
+    ],
+    "content": "The live bot works inside a session of the length you chose. Before it ends you get a notification and an on-screen warning; use 'Extend session' to add time. When the session ends the bot stops looking for new trades and open positions stay protected by their stop and targets; to continue, restart with 'Final check and start'. A system maintenance restart can also stop the session; the screen then shows 'Stopped'.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts",
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
+    "id": "live-positions",
+    "title": "Open positions and Close position",
+    "keywords": [
+      "position",
+      "open position",
+      "close",
+      "close position",
+      "stop",
+      "target",
+      "tp",
+      "sl",
+      "profit",
+      "loss"
+    ],
+    "content": "Open positions shows each trade's direction (LONG/SHORT), entry price, current profit/loss, stop and target levels. The position card says whether the stop and targets are registered on the exchange; if that cannot be verified, the card says so. 'Close position' closes at market price and asks for confirmation. With no positions the section says 'No open positions'. If freshness cannot be verified, do not treat the data as current.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "live-notify",
+    "title": "Turning on notifications and their types",
+    "keywords": [
+      "notification",
+      "push",
+      "enable notifications",
+      "alert",
+      "phone",
+      "browser notification"
+    ],
+    "content": "Use 'Turn on notifications' in the Live Trading top bar or Profile → Notification settings to get entry, exit, session-end and warning notifications. Your browser or phone asks for permission and you must allow it. Notifications are informational; the bot runs independently of them.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "connection-tab",
+    "title": "Connection tab: Binance connection",
+    "keywords": [
+      "connection",
+      "binance",
+      "api",
+      "read only",
+      "key",
+      "connect",
+      "connection tab"
+    ],
+    "content": "Master Trade → Connection shows your Binance API connection and its status. For live trading the key needs read and Futures trading permission only; withdrawal permission must never be enabled. The connection is verified read-only when you save it. Never paste your API Secret into chat or send it to anyone.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "how-bot-works",
+    "title": "How does Kais Original work?",
+    "keywords": [
+      "kais original",
+      "strategy",
+      "bot",
+      "how it works",
+      "automatic",
+      "when does it trade",
+      "rules"
+    ],
+    "content": "Kais Original scans the number of coins you chose at regular intervals; it opens a trade only when a setup meets the trend, signal and confidence rules together, and otherwise prefers to wait. Every trade gets a stop-loss and profit targets. Risk, margin and daily loss limits follow the settings you chose. No result is guaranteed and losses are possible. This is not investment advice.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "frontend/src/live-guide.ts"
+    ]
+  },
+  {
+    "id": "kais-ai",
+    "title": "What can Kais AI do?",
+    "keywords": [
+      "kais ai",
+      "assistant",
+      "ai",
+      "what can you do",
+      "help",
+      "question"
+    ],
+    "content": "Kais AI explains the site's sections, on-screen terms and settings, points you to the right menu, and answers using the information in your account. It knows which screen you are on; ask 'what is this?' and it explains the section you are in. It does not give buy/sell advice and never asks for money or passwords. For work only the support team can do, it points you to the support form.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx",
+      "AssistantChat.tsx"
+    ]
   }
 ]
