@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent, type ReactNode} from 'react'
+import type {RiskBreakdown} from './live-guide'
 import './copy-phrase.css'
 import KaisOriginalInfo from '../../KaisOriginalInfo'
 import {Database} from 'lucide-react'
@@ -103,8 +104,8 @@ export type OriginalV2LiveStatus = {
   risk_percent: number
   daily_loss_percent: number
   risk_revision?: number
-  risk_limits?: {max_loss_per_trade_usdt: number; daily_loss_limit_usdt: number; max_margin_usdt: number; min_margin_usdt: number; leverage: number}
-  last_risk_adjustment?: {symbol: string; selected_percent: number; effective_percent: number; requested_loss_usdt: number; effective_loss_usdt: number; reasons: string[]} | null
+  risk_limits?: {max_loss_per_trade_usdt: number; daily_loss_limit_usdt: number; max_margin_usdt: number; min_margin_usdt: number; leverage: number; estimated_cost_pct?: number; max_stop_distance_pct?: number}
+  last_risk_adjustment?: {symbol: string; selected_percent: number; effective_percent: number; requested_loss_usdt: number; effective_loss_usdt: number; reasons: string[]; breakdown?: RiskBreakdown | null} | null
   session?: {hours: number; started_at?: string | null; expires_at?: string | null; remaining_seconds: number; authority_limited: boolean; warning_sent: boolean} | null
   daily?: {day: string; opening_wallet?: number; loss?: number; limit?: number; locked: boolean} | null
   symbols: string[]
@@ -488,7 +489,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
         {selectedRisk > 2 && selectedRisk <= 5 && <label><input type="checkbox" checked={riskAcknowledged && understood} onChange={event => {setRiskAcknowledged(event.target.checked); setUnderstood(event.target.checked)}} disabled={busy}/> Bu riski anladım</label>}
         {selectedRisk > 5 && <><label><b className="selectablePhrase">{highRiskPhrase}</b> yazın<input value={highRiskConfirmation} onChange={event => setHighRiskConfirmation(event.target.value)} disabled={busy} autoComplete="off"/></label></>}
       </div>}
-      {status.last_risk_adjustment && <p data-testid="original-applied-risk">Son aday {status.last_risk_adjustment.symbol}: seçilen %{status.last_risk_adjustment.selected_percent}, hesaplanan risk %{status.last_risk_adjustment.effective_percent.toLocaleString('tr-TR', {maximumFractionDigits: 4})} ({usdt(status.last_risk_adjustment.effective_loss_usdt)}). {status.last_risk_adjustment.reasons.length > 0 && `Seçtiğin risk şu sebeple düşürüldü: ${status.last_risk_adjustment.reasons.join(' · ')}.`}</p>}
+      {status.last_risk_adjustment && <p data-testid="original-applied-risk">Son aday {status.last_risk_adjustment.symbol}: <b>hedef</b> %{status.last_risk_adjustment.selected_percent} ({usdt(status.last_risk_adjustment.requested_loss_usdt)}){status.last_risk_adjustment.breakdown?.status && status.last_risk_adjustment.breakdown.status !== 'unavailable' && typeof status.last_risk_adjustment.breakdown.max_applicable_loss_usdt === 'number' ? <>, <b>uygulanabilir en fazla</b> {usdt(status.last_risk_adjustment.breakdown.max_applicable_loss_usdt)}</> : ', uygulanabilir en fazla hesaplanamadı'}, <b>gerçekleşecek (tahmini)</b> %{status.last_risk_adjustment.effective_percent.toLocaleString('tr-TR', {maximumFractionDigits: 4})} ({usdt(status.last_risk_adjustment.effective_loss_usdt)}). {status.last_risk_adjustment.breakdown?.reachable === false && `Hedefe ulaşılamadı${status.last_risk_adjustment.breakdown.unreached_reason ? `: ${status.last_risk_adjustment.breakdown.unreached_reason}` : ''}. `}{status.last_risk_adjustment.reasons.length > 0 && `Seçtiğin risk şu sebeple düşürüldü: ${status.last_risk_adjustment.reasons.join(' · ')}.`}</p>}
       {!(selectedRisk > 2 && selectedRisk <= 5) && <label className="originalUnderstanding"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} disabled={busy}/> Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım</label>}
       <button type="button" className="masterTradeLivePrimary" onClick={() => void saveRisk()} disabled={busy || !status.available || !validRisk || wallet === null || !consentReady || !understood || blocked}>Onayla ve devam et · Risk ayarını kaydet</button>
       </fieldset>

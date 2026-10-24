@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
+import {capacityPreview, liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
 
 const ready = {
   statusLoaded: true, statusVerified: true, statusError: null, loading: false, freeTrial: false,
@@ -214,4 +214,28 @@ test('24h rejection breakdown never invents data when nothing was recorded', () 
   const recent = rejectionBreakdown({scans: 4, since_epoch: Date.now() / 1000 - 600, reasons: {stop_too_wide: 3}}, Date.now())
   assert.match(recent.headline, /^Son bir saatte/)
   assert.equal(recent.reasons[0].label, "Stop %6 sınırından geniş")
+})
+
+test('capacity preview shows the real ceiling of a selected risk and never fakes one', () => {
+  const caps = {max_margin_usdt: 43.434, leverage: 3, estimated_cost_pct: 0.16, max_stop_distance_pct: 6}
+  const preview = capacityPreview(144.78, caps)
+  assert.ok(Math.abs(preview.maxNotional - 130.302) < 1e-9)
+  assert.deepEqual(preview.rows.map(row => row.stopPct), [1, 2, 3, 6])
+  // %6 stop uzaktaysa en fazla 130.302 x 6.16% = 8.027 USDT = bakiyenin ~%5,5'i: %6 hedef tam uygulanamaz.
+  assert.ok(Math.abs(preview.atMaxStop.loss - 130.302 * 6.16 / 100) < 1e-9)
+  assert.ok(preview.atMaxStop.percent < 6 && preview.atMaxStop.percent > 5)
+  // Stop yakınsa uygulanabilir risk çok daha küçüktür.
+  assert.ok(preview.rows[1].percent < 2)
+})
+
+test('capacity preview is null when the wallet or limits cannot be verified', () => {
+  const caps = {max_margin_usdt: 43, leverage: 3, estimated_cost_pct: 0.16}
+  assert.equal(capacityPreview(0, caps), null)
+  assert.equal(capacityPreview(144.78, null), null)
+  assert.equal(capacityPreview(144.78, undefined), null)
+  assert.equal(capacityPreview(144.78, {leverage: 3, estimated_cost_pct: 0.16}), null)
+  assert.equal(capacityPreview(144.78, {...caps, max_margin_usdt: NaN}), null)
+  assert.equal(capacityPreview(144.78, {...caps, leverage: 0}), null)
+  // Üst stop mesafesi gönderilmezse güvenli varsayılan %6 kullanılır.
+  assert.equal(capacityPreview(144.78, caps).atMaxStop.stopPct, 6)
 })

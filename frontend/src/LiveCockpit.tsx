@@ -4,7 +4,7 @@ import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, 
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
-  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, type GuideInput, type GuideNotice,
+  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -432,15 +432,45 @@ export default function LiveCockpit(props: Props) {
     </button>
   </div>
   const tier = riskTier(draft.risk)
+  // Dürüst risk: seçilen yüzde HEDEFTİR; gerçek risk stop mesafesi ve teminat sınırlarıyla her işlemde ayrı hesaplanır.
+  const preview = wallet !== null ? capacityPreview(wallet, original?.risk_limits) : null
+  const worstRisk = preview ? Math.min(draft.risk, preview.atMaxStop.percent) : draft.risk
   const editorOpen = settingsOpen && verified && Boolean(original) && guideInput.connected && !guideInput.emergency
+  const honestTarget = editorOpen && draftValid ? draft.risk : riskSaved ? savedRisk : null
+  const unreachableAtMax = preview !== null && honestTarget !== null && honestTarget > preview.atMaxStop.percent + 1e-9
+  const lastAdj = original?.last_risk_adjustment ?? null
+  const lastBreakdown = lastAdj?.breakdown ?? null
+  const honestBlock = <>
+    {honestTarget !== null && <div className="lcHonest" data-warn={unreachableAtMax || preview === null || undefined}>
+      <p className="lcHonestHead"><b>Seçtiğin {pct(honestTarget)} bir hedeftir, gerçek risk değil.</b> Bot her işlemde riski stop mesafesine ve teminat sınırlarına göre ayrı hesaplar.</p>
+      {preview ? <>
+        <ul className="lcHonestRows">{preview.rows.map(row => <li key={row.stopPct}><span>Stop %{row.stopPct} uzaktaysa</span><b>en fazla ≈ {usdt(row.loss)} ({pct(row.percent)})</b></li>)}</ul>
+        {unreachableAtMax && <p className="lcHint warn" role="alert">Seçtiğin {pct(honestTarget)} bu bakiye ve {original?.risk_limits?.leverage}x kaldıraçla hiçbir işlemde tam uygulanamaz. En iyi durumda (stop %{preview.atMaxStop.stopPct} uzakta) bile en fazla {pct(preview.atMaxStop.percent)} olur. Bunun sebebi işlem başı teminat sınırıdır.</p>}
+      </> : <p className="lcHint warn" role="alert">Bakiye veya sınırlar doğrulanamadı; gerçekte ulaşılabilecek risk hesaplanamıyor. Seçtiğin değer yalnızca bir hedeftir.</p>}
+      <small>Tahmindir: ücret ve kayma tahmini dahil; stop'un boşlukla aşılması ve fonlama hariç. Açık pozisyonlar ve anlık kullanılabilir bakiye işlem anında bu sınırı daha da düşürebilir. Likidasyon payı ayrıca kontrol edilir.</small>
+    </div>}
+    {lastAdj && <div className="lcHonest" data-last>
+      <p className="lcHonestHead"><b>Son işlem adayı · {lastAdj.symbol}</b></p>
+      <ul className="lcHonestRows">
+        <li><span>Hedef risk</span><b>{usdt(lastAdj.requested_loss_usdt)} ({pct(lastAdj.selected_percent)})</b></li>
+        <li><span>Uygulanabilir en fazla</span><b>{lastBreakdown && lastBreakdown.status !== 'unavailable' && typeof lastBreakdown.max_applicable_loss_usdt === 'number' ? `${usdt(lastBreakdown.max_applicable_loss_usdt)} (${pct(lastBreakdown.max_applicable_percent ?? 0)})` : 'hesaplanamadı'}</b></li>
+        <li><span>Gerçekleşecek (tahmini)</span><b>{usdt(lastAdj.effective_loss_usdt)} ({pct(lastAdj.effective_percent)})</b></li>
+      </ul>
+      {lastBreakdown?.reachable === false && <p className="lcHint warn">Hedefe ulaşılamadı{lastBreakdown.unreached_reason ? `: ${lastBreakdown.unreached_reason}` : ''}.</p>}
+      {lastBreakdown?.status === 'partial' && <p className="lcHint">Doğrulanamayan: {(lastBreakdown.unverified ?? []).join(', ')}; bu yüzden uygulanabilir en fazla değer eksik olabilir.</p>}
+      {(!lastBreakdown || lastBreakdown.status === 'unavailable') && <p className="lcHint warn">Hedef ile uygulanabilir risk karşılaştırması hesaplanamadı. Gerçekleşecek değer yine botun hesapladığı stop kaybıdır.</p>}
+      {lastAdj.reasons.length > 0 && <small>Düşürme sebepleri: {lastAdj.reasons.join(' · ')}.</small>}
+    </div>}
+  </>
   const strategyCard = <section className="lcCard lcStrategy" id="lc-strategy" aria-label="Strateji ve risk">
     <header className="lcCardHead"><div><small>STRATEJİ</small><h3>Kais Original V2 · risk ayarı</h3></div>
       {verified && guideInput.connected && !guideInput.emergency && <button type="button" className="lcLink" aria-expanded={editorOpen} onClick={() => setSettingsOpen(value => !value)}>{editorOpen ? 'Kapat' : riskSaved ? 'Değiştir' : 'Seç'}<ChevronDown aria-hidden="true" data-open={editorOpen || undefined}/></button>}</header>
     <div className="lcStrategyNow">
-      <span><small>İşlem başı risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
+      <span><small>İşlem başı hedef risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
       <span><small>Günlük kayıp sınırı</small><b>{riskSaved ? pct(savedDaily) : '—'}</b>{riskSaved && wallet !== null && <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perDay)}</em>}</span>
       <span><small>Tarama</small><b>{draft.coins} coin</b><em>{draft.hours} saatlik oturum</em></span>
     </div>
+    {honestBlock}
     {editorOpen && <div className="lcStrategyEdit">
       {wallet === null && <p className="lcHint warn">Bakiye doğrulanınca her seçeneğin USDT karşılığı burada görünür.</p>}
       {presetCards}
@@ -453,7 +483,7 @@ export default function LiveCockpit(props: Props) {
       </div>}
       {!draftValid && <p className="lcHint stop" role="alert">İşlem riski %0,5–10, günlük sınır %1–25 ve işlem riskinden küçük olmamalı; coin sayısı 10–100.</p>}
       {draftValid && tier !== 'normal' && <p className="lcTier" data-tier={tier}>{tier === 'yellow' ? 'Ortalamanın üstünde risk.' : tier === 'orange' ? 'Yüksek risk: üst üste birkaç kayıp bakiyeni belirgin düşürür.' : 'Çok yüksek risk: ani hareketlerde kayıp daha büyük olabilir.'}
-        {wallet !== null && <> 10 kayıp üst üste gelirse bakiye ≈ <b>{usdt(wallet * (1 - draft.risk / 100) ** 10)}</b> (−%{Math.round((1 - (1 - draft.risk / 100) ** 10) * 100)}) olur.</>}</p>}
+        {wallet !== null && <> {worstRisk < draft.risk ? 'Gerçekte uygulanabilen riskle, en kötü durumda' : ''} 10 kayıp üst üste gelirse bakiye ≈ <b>{usdt(wallet * (1 - worstRisk / 100) ** 10)}</b> (−%{Math.round((1 - (1 - worstRisk / 100) ** 10) * 100)}) olur.</>}</p>}
       {running && <p className="lcHint">Çalışırken yalnız risk yüzdeleri değişir ve yeni işlemlere uygulanır; coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
       {riskDirty && draftValid && <div className="lcConfirmBox">
         {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}

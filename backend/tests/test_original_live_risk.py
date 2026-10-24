@@ -331,6 +331,77 @@ def test_effective_trade_risk_reports_existing_limits_without_changing_demo_poli
     assert not any(method == "POST" for method, _, _ in client.calls)
 
 
+def _build(snapshot):
+    request, state, _ = context()
+    save(request, state, high_choice())
+    return asyncio.run(original.build_spec(EntryClient(), result(), state, snapshot)), state
+
+
+def test_honest_breakdown_separates_target_applicable_max_and_effective_risk():
+    spec, _ = _build({"wallet_balance": 1000})
+    adjustment = spec["risk_adjustment"]
+    breakdown = adjustment["breakdown"]
+    assert breakdown["target_loss_usdt"] == 1000 * 0.10
+    assert breakdown["target_percent"] == 10
+    # Gerçekleşecek risk, botun gerçekten hesapladığı stop kaybıdır; hedef gibi gösterilmez.
+    assert breakdown["effective_loss_usdt"] == spec["estimated_stop_loss_usdt"]
+    assert breakdown["effective_loss_usdt"] <= breakdown["max_applicable_loss_usdt"] + 1e-9
+    assert breakdown["max_applicable_loss_usdt"] > 0
+    assert breakdown["limiting_factor"]
+    # available_balance snapshot'ta yok: "bilinmiyor" diye işaretlenir, varsayılmaz.
+    assert breakdown["status"] == "partial" and breakdown["unverified"] == ["kullanılabilir bakiye"]
+    assert breakdown["liquidation_checked_separately"] is True
+
+
+def test_breakdown_is_information_only_and_never_changes_the_sized_trade():
+    baseline, _ = _build({"wallet_balance": 1000})
+    for extra in ({"available_balance": 0.5}, {"available_balance": "bozuk"}, {"available_balance": 10_000}):
+        spec, _ = _build({"wallet_balance": 1000, **extra})
+        for key in ("quantity", "margin_usdt", "notional_usdt", "stop_loss", "targets", "estimated_stop_loss_usdt", "original_risk_budget"):
+            assert spec[key] == baseline[key], key
+        assert spec["risk_adjustment"]["effective_loss_usdt"] == baseline["risk_adjustment"]["effective_loss_usdt"]
+
+
+def test_breakdown_failure_never_blocks_or_changes_an_entry(monkeypatch):
+    baseline, _ = _build({"wallet_balance": 1000})
+    monkeypatch.setattr(original.risk_capacity, "trade_risk_breakdown", Mock(side_effect=RuntimeError("boom")))
+    spec, _ = _build({"wallet_balance": 1000})
+    assert spec["risk_adjustment"]["breakdown"]["status"] == "unavailable"
+    for key in ("quantity", "margin_usdt", "notional_usdt", "stop_loss", "targets", "estimated_stop_loss_usdt"):
+        assert spec[key] == baseline[key], key
+
+
+def test_unreachable_selection_is_stated_explicitly_in_the_breakdown():
+    request, state, _ = context()
+    save(request, state, high_choice())
+    # Açık pozisyonlar toplam teminatın neredeyse tamamını kullanıyor: yeni giriş reddedilir ama ayrıntı yine de kaydedilir.
+    state["plans"]["open-1"] = {"status": "KORUMA AKTİF", "margin_usdt": 790, "initial_risk_usdt": 1, "source": "MANUAL"}
+    with pytest.raises(live.LiveExchangeError) as error:
+        asyncio.run(original.build_spec(EntryClient(), result(), state, {"wallet_balance": 1000, "available_balance": 1000}))
+    assert error.value.check_key == "total_margin"
+    breakdown = state["original_v2_live"]["last_risk_adjustment"]["breakdown"]
+    assert breakdown["reachable"] is False
+    assert breakdown["unreached_reason"] == breakdown["limiting_factor"] == "toplam teminatın kalan payı"
+    assert breakdown["max_applicable_loss_usdt"] < breakdown["target_loss_usdt"]
+
+
+def test_risk_limits_expose_cost_assumption_for_the_honest_preview():
+    request, state, _ = context()
+    save(request, state, high_choice())
+    state["snapshot"] = {"wallet_balance": 1000}
+    limits = risk.limits(state)
+    assert limits["estimated_cost_pct"] == pytest.approx(0.16)
+    assert limits["max_stop_distance_pct"] == 6
+    assert limits["leverage"] == 3
+
+
+def test_demo_and_backtest_layers_do_not_use_the_live_breakdown():
+    import pathlib
+    app_dir = pathlib.Path(original.__file__).parent
+    users = [path.name for path in app_dir.rglob("*.py") if "original_risk_capacity" in path.read_text(encoding="utf-8")]
+    assert sorted(users) == ["original_v2_live.py"]
+
+
 def _daily_budget_state(realized_loss):
     request, state, _ = context()
     save(request, state, high_choice())
