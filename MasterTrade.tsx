@@ -847,7 +847,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
           {masterTradeOffline && <p className="masterTradeFocusNotice">Market bağlantısı bekleniyor. İşlem kararı ve canlı metrikler veri gelene kadar pasif tutuluyor.</p>}
         </section>
 
-        <nav className="masterTradeTabs" aria-label="Master Trade" role="tablist">{MASTER_TRADE_TABS.map(({id,label,icon:Icon}) => <button key={id} type="button" id={`master-tab-${id}`} role="tab" aria-selected={layoutTab === id} aria-controls={`master-panel-${id}`} onClick={() => navigateTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}</nav>
+        <nav className="masterTradeTabs" aria-label="Master Trade" role="tablist"><img className="masterTradeBrandLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>{MASTER_TRADE_TABS.map(({id,label,icon:Icon}) => <button key={id} type="button" id={`master-tab-${id}`} role="tab" aria-selected={layoutTab === id} aria-controls={`master-panel-${id}`} onClick={() => navigateTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}</nav>
         </div>
 
         <div className="masterTradeWorkspace" id="master-panel-analiz" role="tabpanel" aria-labelledby="master-tab-analiz" hidden={layoutTab !== 'analiz'}>
