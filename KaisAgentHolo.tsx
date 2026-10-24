@@ -5,7 +5,7 @@ import KaisEye from './frontend/src/KaisEye'
 import KaisVoicePicker from './KaisVoicePicker'
 import KaisHoloBackdrop from './KaisHoloBackdrop'
 import {KaisHoloSphere, KaisHoloPlatform} from './KaisHoloCore'
-import KaisHoloPanels from './KaisHoloPanels'
+import KaisHoloPanels, {type HoloIO, type HoloRecent} from './KaisHoloPanels'
 import {VOICE_ACTIVITY_EVENT, type VoiceActivitySource} from './kais-voice-activity'
 import {PAGE_GLYPH} from './kais-portal-glyphs'
 import './kais-agent-holo.css'
@@ -18,7 +18,7 @@ import './kais-holo-v2.css'
 export type HoloPhase = 'listening' | 'thinking' | 'speaking' | 'error'
 export type HoloConfirm = {title: string; detail: string; confirmLabel: string; cancelLabel: string; busy: boolean; onConfirm: () => void; onCancel: () => void}
 export type HoloPortal = {view: string; label: string; commit: () => void; done: () => void}
-type Props = {timing?: string; alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; interruptLabel?: string; onInterrupt?: () => void; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
+type Props = {recent?: HoloRecent[]; io?: HoloIO; timing?: string; alarm?: string | null; portal?: HoloPortal | null; confirm?: HoloConfirm; phase: HoloPhase; status: string; interruptLabel?: string; onInterrupt?: () => void; replyText?: string; actions: string[]; chatLabel: string; closeLabel: string; retryLabel: string; slowText: string; language: 'tr' | 'en'; onOpenChat: () => void; onMinimize: () => void; onRetry: () => void}
 
 // derece/sn: birincil halka, ters yönde ikincil hassas halka, çok yavaş üçüncü halka. Durum geçişleri hızı yumuşakça (≈0.6 sn) değiştirir.
 const SPEEDS: Record<HoloPhase, [number, number, number]> = {
@@ -123,7 +123,7 @@ function useParallax(root: React.RefObject<HTMLDivElement | null>, paused: boole
 
 /** Hologram ekran. Ana göz (KaisEye) kaynak dosyalarına dokunulmaz ve ekranda hareketsiz kalır (CSS ile yerleşik kırpma/bakış hareketi kapatılır);
  *  tüm hareket gözün DIŞINDaki bağımsız katmanlardır. */
-export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, status, interruptLabel, onInterrupt, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
+export default function KaisAgentHolo({recent, io, timing, alarm, portal, confirm, phase, status, interruptLabel, onInterrupt, replyText, actions, chatLabel, closeLabel, retryLabel, onOpenChat, onMinimize, onRetry, slowText, language}: Props) {
   const [hidden, setHidden] = useState(() => document.hidden)
   const [beam, setBeam] = useState(phase === 'thinking')
   const [slow, setSlow] = useState(false)
@@ -207,7 +207,7 @@ export default function KaisAgentHolo({timing, alarm, portal, confirm, phase, st
   }, [phase])
   return createPortal(<div ref={root} className="kaisHolo" data-phase={phase} data-scene={scene || undefined} data-alarm={alarm ? true : undefined} data-paused={hidden} role="dialog" aria-label="Kais" aria-live="polite">
     <KaisHoloBackdrop/>
-    <KaisHoloPanels phase={phase} actions={actions} language={language}/>
+    <KaisHoloPanels phase={phase} actions={actions} language={language} recent={recent} io={io}/>
     <KaisVoicePicker language={language}/>
     <button type="button" className="kaisHoloClose" onClick={onMinimize} aria-label={closeLabel}><X aria-hidden="true"/></button>
     <div className="kaisHoloStage" ref={stage}>

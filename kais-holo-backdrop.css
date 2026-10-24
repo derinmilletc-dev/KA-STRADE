@@ -1,11 +1,11 @@
-/* KAIS — sinematik AI odası (yalnız dekoratif). Palet: #050B14 · #08131F · zümrüt #00C98D · yumuşak yeşil #65F5BE · buz mavisi #8ADFFF.
+/* KAIS — sinematik AI odası (yalnız dekoratif). Palet: #06121D · #0A1C2A · zümrüt #35DDE2 · yumuşak yeşil #65F0DE · buz mavisi #B5FFFF.
    Derinlik düzlemleri: uzak (atmosfer, perspektif ızgara, vinyet) · orta (yan enerji yolları ve bağlantı noktaları, radyal tarama yapıları, gözün arkasındaki eksik çerçeveler)
    · ön (göz halkaları, ışık yayı, alt platform). Büyük öğeler orta görünürlükte, küçük ayrıntılar hafif. Göz ve kontroller etkilenmez;
    tüm katmanlar pointer-events:none. .kaisHoloBackdrop ve sahneye bağlı platform/çerçeve katmanları z-index:-1 (içeriğin altında). */
-.kaisHolo{--kh-emerald:0,201,141;--kh-soft:101,245,190;--kh-ice:138,223,255;--kh-ambient:.9;--kh-sweep:.55;--kh-base:.75;--kh-env:1}
+.kaisHolo{--kh-emerald:53,221,226;--kh-soft:101,240,222;--kh-ice:181,255,255;--kh-ambient:.9;--kh-sweep:.55;--kh-base:.75;--kh-env:1}
 .kaisHolo[data-phase=thinking]{--kh-ambient:1;--kh-sweep:1;--kh-base:.9}
 .kaisHolo[data-phase=speaking]{--kh-ambient:.95;--kh-sweep:.75;--kh-base:1}
-.kaisHolo[data-phase=error]{--kh-emerald:232,168,94;--kh-soft:240,197,141;--kh-ambient:.55;--kh-sweep:0;--kh-base:.5;--kh-env:.55}
+.kaisHolo[data-phase=error]{--kh-emerald:240,107,117;--kh-soft:240,140,148;--kh-ambient:.55;--kh-sweep:0;--kh-base:.5;--kh-env:.55}
 
 .kaisHoloBackdrop{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}
 .kaisHoloBackdrop *{pointer-events:none}
@@ -15,7 +15,7 @@
 .kaisHoloBackdrop .base{inset:0;background:
   radial-gradient(90% 60% at 50% 38%,#0b1d2e 0%,rgba(11,29,46,0) 70%),
   radial-gradient(120% 70% at 50% 100%,#071a26 0%,rgba(7,26,38,0) 75%),
-  linear-gradient(180deg,#050B14 0%,#08131F 50%,#06101b 100%)}
+  linear-gradient(180deg,#06121D 0%,#0A1C2A 50%,#06101b 100%)}
 .kaisHoloBackdrop .ambient{inset:0;opacity:var(--kh-ambient);transition:opacity .8s ease;background:
   radial-gradient(circle at 50% 40%,rgba(var(--kh-emerald),.2) 0%,rgba(var(--kh-emerald),.07) 20%,rgba(var(--kh-emerald),0) 42%),
   radial-gradient(70% 28% at 50% 78%,rgba(var(--kh-emerald),.1),rgba(var(--kh-emerald),0) 70%)}

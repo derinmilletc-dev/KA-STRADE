@@ -6,9 +6,15 @@ import type {HoloPhase} from './KaisAgentHolo'
 
 const COPY = {
   tr: {status: 'Durum', voice: 'Ses etkinliği', actions: 'Eylemler', none: 'Henüz eylem yok',
+    recent: 'Son konuşma', noRecent: 'Henüz konuşma yok', youLabel: 'Sen', kaisLabel: 'Kais', io: 'Mikrofon ve ses', micLabel: 'Mikrofon', outLabel: 'Sesli cevap',
+    mic: {unsupported: 'Bu tarayıcıda desteklenmiyor', starting: 'Hazırlanıyor', failed: 'Sorun var', listening: 'Açık · dinliyor', on: 'Açık'},
+    out: {unsupported: 'Bu tarayıcıda desteklenmiyor', on: 'Açık', off: 'Kapalı'}, turnOn: 'Aç', turnOff: 'Kapat',
     you: 'Sen konuşuyorsun', kais: 'Kais konuşuyor', quiet: 'Sessiz',
     phases: {listening: 'Dinliyor', thinking: 'Düşünüyor', speaking: 'Konuşuyor', error: 'Sorun var'}},
   en: {status: 'Status', voice: 'Voice activity', actions: 'Actions', none: 'No actions yet',
+    recent: 'Recent conversation', noRecent: 'No conversation yet', youLabel: 'You', kaisLabel: 'Kais', io: 'Microphone and audio', micLabel: 'Microphone', outLabel: 'Spoken replies',
+    mic: {unsupported: 'Not supported in this browser', starting: 'Preparing', failed: 'Problem', listening: 'On · listening', on: 'On'},
+    out: {unsupported: 'Not supported in this browser', on: 'On', off: 'Off'}, turnOn: 'Turn on', turnOff: 'Turn off',
     you: 'You are speaking', kais: 'Kais is speaking', quiet: 'Quiet',
     phases: {listening: 'Listening', thinking: 'Thinking', speaking: 'Speaking', error: 'Problem'}},
 }
@@ -25,7 +31,9 @@ function Panel({className, title, children, hidden}: {className: string; title?:
   </section>
 }
 
-export default function KaisHoloPanels({phase, actions, language}: {phase: HoloPhase; actions: string[]; language: 'tr' | 'en'}) {
+export type HoloRecent = {role: 'user' | 'assistant'; text: string}
+export type HoloIO = {micState: 'unsupported' | 'starting' | 'failed' | 'listening' | 'on'; outputSupported: boolean; repliesOn: boolean; onToggleReplies: () => void}
+export default function KaisHoloPanels({phase, actions, language, recent = [], io}: {phase: HoloPhase; actions: string[]; language: 'tr' | 'en'; recent?: HoloRecent[]; io?: HoloIO}) {
   const copy = COPY[language]
   const speaker = phase === 'listening' ? copy.you : phase === 'speaking' ? copy.kais : copy.quiet
   return <div className="khPanels" data-phase={phase}>
@@ -39,9 +47,8 @@ export default function KaisHoloPanels({phase, actions, language}: {phase: HoloP
         <div className="khVoiceBars">{BARS.map((k, index) => <i key={index} style={{'--k': k} as React.CSSProperties}/>)}</div>
         <small>{speaker}</small>
       </Panel>
-      <Panel className="khRadar" hidden>
-        <svg viewBox="-60 -60 120 120"><circle r="54"/><circle r="36"/><circle r="18"/><path d="M-56 0H56M0 -56V56"/>
-          <g className="sweep"><path d="M0 0L0 -54A54 54 0 0 1 38.2 -38.2Z"/></g><circle className="blip" cx="22" cy="-30" r="2"/><circle className="blip b2" cx="-30" cy="14" r="2"/></svg>
+      <Panel className="khRecent" title={copy.recent}>
+        {recent.length ? <ul>{recent.slice(-3).map((row, index) => <li key={index} data-role={row.role}><b>{row.role === 'user' ? copy.youLabel : copy.kaisLabel}</b> {row.text.length > 90 ? `${row.text.slice(0, 90)}…` : row.text}</li>)}</ul> : <p>{copy.noRecent}</p>}
       </Panel>
     </div>
     <div className="khColumn r">
@@ -51,10 +58,13 @@ export default function KaisHoloPanels({phase, actions, language}: {phase: HoloP
       <Panel className="khActions" title={copy.actions}>
         {actions.length ? <ul>{actions.slice(-4).map((action, index) => <li key={`${action}-${index}`}>▸ {action}</li>)}</ul> : <p>{copy.none}</p>}
       </Panel>
-      <Panel className="khGlobe" hidden>
-        <svg viewBox="-60 -60 120 120"><circle r="44"/><ellipse rx="44" ry="15"/><ellipse rx="44" ry="15" cy="-24" className="f"/><ellipse rx="44" ry="15" cy="24" className="f"/>
-          <g className="spin"><ellipse rx="30" ry="44"/><ellipse rx="12" ry="44"/></g><ellipse className="orbit" rx="58" ry="12" transform="rotate(-18)"/><circle className="sat" r="2.4" cx="0" cy="-12"/></svg>
-      </Panel>
+      {io && <Panel className="khIO" title={copy.io}>
+        <ul>
+          <li><span>{copy.micLabel}</span><b data-state={io.micState}>{copy.mic[io.micState]}</b></li>
+          <li><span>{copy.outLabel}</span><b data-state={io.outputSupported ? io.repliesOn ? 'on' : 'off' : 'unsupported'}>{io.outputSupported ? io.repliesOn ? copy.out.on : copy.out.off : copy.out.unsupported}</b></li>
+        </ul>
+        {io.outputSupported && <button type="button" className="khIOToggle" onClick={io.onToggleReplies}>{copy.outLabel}: {io.repliesOn ? copy.turnOff : copy.turnOn}</button>}
+      </Panel>}
     </div>
   </div>
 }
