@@ -1741,6 +1741,57 @@ def test_original_live_open_position_totals_include_every_source_but_not_closed_
     assert margin == pytest.approx(19.5) and risk == pytest.approx(3.5)
 
 
+def _tp1_plan(**over):
+    plan = {"status": "KORUMA AKTİF", "symbol": "ABCUSDT", "direction": "LONG", "source": "ORIGINAL_V2_LIVE",
+            "entry_price": "100", "stop_loss": "95", "initial_stop_loss": "95", "initial_quantity": "10",
+            "quantity": "10", "step": "0.1", "leverage": 3, "margin_usdt": "333.33", "initial_risk_usdt": "50.4",
+            "original_cost_bps": "8", "original_tp1_complete": True, "tp1_fraction": "0.70"}
+    plan.update(over)
+    return plan
+
+
+def test_original_live_open_risk_after_tp1_uses_remaining_quantity_and_current_stop(state):
+    state["plans"] = {"a": _tp1_plan()}
+    margin, risk = original.open_position_totals(state)
+    # kalan 3 adet: 3 x (5 + 100*8/10000) = 15.24
+    assert risk == pytest.approx(3 * (5 + 0.08)) and margin == pytest.approx(3 * 100 / 3)
+
+
+def test_original_live_open_risk_after_tp1_keeps_legacy_sixty_forty_split(state):
+    state["plans"] = {"a": _tp1_plan(tp1_fraction=None)}
+    state["plans"]["a"].pop("tp1_fraction")
+    _, risk = original.open_position_totals(state)
+    assert risk == pytest.approx(4 * 5.08)
+
+
+def test_original_live_open_risk_is_full_until_tp1_is_verified(state):
+    state["plans"] = {"a": _tp1_plan(original_tp1_complete=False)}
+    margin, risk = original.open_position_totals(state)
+    assert risk == pytest.approx(50.4) and margin == pytest.approx(333.33)
+
+
+def test_original_live_open_risk_follows_stop_changes_and_never_goes_negative(state):
+    state["plans"] = {"a": _tp1_plan(stop_loss="100", breakeven_done=True)}
+    _, risk = original.open_position_totals(state)
+    assert risk == pytest.approx(3 * 0.08)  # yalnız çıkış maliyeti
+    state["plans"]["a"]["stop_loss"] = "110"
+    _, risk = original.open_position_totals(state)
+    assert risk == pytest.approx(3 * 0.08) and risk >= 0
+    state["plans"]["a"]["stop_loss"] = "97"
+    _, risk = original.open_position_totals(state)
+    assert risk == pytest.approx(3 * 3.08)
+
+
+def test_original_live_open_risk_never_underestimates_with_bad_data_or_larger_live_position(state):
+    state["plans"] = {"a": _tp1_plan(step=None)}
+    assert original.open_position_totals(state)[1] == pytest.approx(50.4)
+    state["plans"] = {"a": _tp1_plan(protection_state="UNKNOWN", stop_loss="100")}
+    assert original.open_position_totals(state)[1] == pytest.approx(3 * 5.08)
+    state["plans"] = {"a": _tp1_plan()}
+    state["snapshot"] = {"positions": [{"symbol": "ABCUSDT", "quantity": "5"}]}
+    assert original.open_position_totals(state)[1] == pytest.approx(5 * 5.08)
+
+
 def test_original_live_risk_limits_for_the_screen_are_dynamic_and_hidden_without_balance(state):
     from app import original_live_risk
     _dynamic_state(state, risk_percent=5, daily_loss_percent=10)

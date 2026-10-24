@@ -789,23 +789,100 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     return spec
 
 
+_TERMINAL_PLAN_STATUSES = {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED"}
+
+
+def _plan_number(plan: dict[str, Any], key: str) -> float:
+    try:
+        value = float(plan.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) and value > 0 else 0.0
+
+
+def _live_position_quantity(state: dict[str, Any], plan: dict[str, Any]) -> float | None:
+    rows = (state.get("snapshot") or {}).get("positions")
+    if not isinstance(rows, list):
+        return None
+    total = 0.0
+    for row in rows:
+        if not isinstance(row, dict) or str(row.get("symbol") or "").upper() != str(plan.get("symbol") or "").upper():
+            continue
+        try:
+            quantity = abs(float(row.get("quantity", row.get("positionAmt")) or 0))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(quantity):
+            return None
+        total += quantity
+    return total
+
+
+def plan_open_exposure(state: dict[str, Any], plan: dict[str, Any]) -> tuple[float, float]:
+    """Bir planın şu an gerçekten açıkta olan (teminat, stop riski) değeri.
+
+    TP1 doğrulanmadıysa ya da veri eksikse planın tam başlangıç değeri korunur: risk asla olduğundan
+    düşük hesaplanmaz. TP1 doğrulandıysa kalan miktar, güncel stop ve maliyet üzerinden yeniden hesaplanır.
+    Her çağrıda yeniden hesaplandığı için stop değişikliği ve kısmi kapanış hemen yansır.
+    """
+    full_margin = _plan_number(plan, "margin_usdt")
+    full_risk = _plan_number(plan, "initial_risk_usdt")
+    if not (plan.get("original_tp1_complete") or plan.get("breakeven_done")):
+        return full_margin, full_risk
+    try:
+        initial_quantity = Decimal(str(plan.get("initial_quantity") or plan.get("quantity")))
+        entry = Decimal(str(plan["entry_price"]))
+        step = Decimal(str(plan["step"]))
+        fraction = live_plan_fraction(plan)
+        if not all(v.is_finite() for v in (initial_quantity, entry, step)) or min(initial_quantity, entry, step) <= 0:
+            raise ValueError
+        closed = (initial_quantity * fraction // step) * step
+        remaining = initial_quantity - closed
+        live_quantity = _live_position_quantity(state, plan)
+        if live_quantity is not None:
+            remaining = max(remaining, min(Decimal(str(live_quantity)), initial_quantity))
+        # Güncel stop; stop durumu doğrulanamıyorsa ilk (daha uzak) stop kullanılır.
+        stop_value = plan.get("stop_loss")
+        if str(plan.get("protection_state") or "").upper() in {"UNKNOWN", "BROKEN"} or stop_value in (None, ""):
+            stop_value = plan.get("initial_stop_loss")
+        stop = Decimal(str(stop_value))
+        cost_bps = Decimal(str(plan["original_cost_bps"])) if plan.get("original_cost_bps") is not None else Decimal("0")
+        if not stop.is_finite() or stop <= 0 or not cost_bps.is_finite() or cost_bps < 0 or remaining < 0:
+            raise ValueError
+        direction = str(plan.get("direction") or "").upper()
+        if direction == "LONG":
+            adverse = max(Decimal("0"), entry - stop)
+        elif direction == "SHORT":
+            adverse = max(Decimal("0"), stop - entry)
+        else:
+            raise ValueError
+        risk = float(remaining * (adverse + entry * cost_bps / 10000))
+        leverage = _plan_number(plan, "leverage") or float(ORIGINAL_LEVERAGE)
+        margin = float(remaining * entry) / leverage
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return full_margin, full_risk
+    # Kalan değer hiçbir zaman ilk değeri aşmaz ama eksik hesaplanmasın diye ilk değer üst sınırdır.
+    if full_risk > 0:
+        risk = min(risk, full_risk)
+    if full_margin > 0:
+        margin = min(margin, full_margin)
+    return margin, risk
+
+
+def live_plan_fraction(plan: dict[str, Any]) -> Decimal:
+    from . import v25_execution as live
+    return live.plan_tp1_fraction(plan)
+
+
 def open_position_totals(state: dict[str, Any]) -> tuple[float, float]:
-    """Açık/bekleyen tüm planların (kaynağı fark etmez) teminat ve başlangıç stop riski toplamı."""
+    """Açık/bekleyen tüm planların (kaynağı fark etmez) şu an açıkta olan teminat ve stop riski toplamı."""
     margin = risk = 0.0
     for plan in (state.get("plans") or {}).values():
-        if not isinstance(plan, dict) or str(plan.get("status") or "").upper() in {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED"}:
+        if not isinstance(plan, dict) or str(plan.get("status") or "").upper() in _TERMINAL_PLAN_STATUSES:
             continue
-        for key in ("margin_usdt", "initial_risk_usdt"):
-            try:
-                value = float(plan.get(key) or 0)
-            except (TypeError, ValueError):
-                value = 0.0
-            if not math.isfinite(value) or value < 0:
-                value = 0.0
-            if key == "margin_usdt":
-                margin += value
-            else:
-                risk += value
+        plan_margin, plan_risk = plan_open_exposure(state, plan)
+        margin += plan_margin
+        risk += plan_risk
     return margin, risk
 
 
