@@ -72,7 +72,7 @@ async function fixture(page: Page, {owner = true, available = true, armed = true
       }
       if (path.endsWith('/fill-lock/approve')) {
         if (rejectApproval) {
-          await route.fulfill({status: 401, json: {detail: '2FA kodu geçersiz.'}})
+          await route.fulfill({status: 401, json: {detail: 'Oturum geçersiz.'}})
           return
         }
         locked = false
@@ -342,28 +342,27 @@ test('fill latch survives reload; OWNER approval only unlocks latch and never st
     const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
     await expect(card.getByText(/Dolum güvenlik kilidi · BTCUSDT/)).toBeVisible()
     const start = card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true})
-    await card.getByLabel('Kurtarma için 2FA kodu').fill('123456')
+    await expect(card.getByLabel('Kurtarma için 2FA kodu')).toHaveCount(0)
     await expect(start).toBeDisabled()
     const approve = card.getByRole('button', {name: 'Dolum kilidini onayımla kaldır'})
     await expect(approve).toBeDisabled()
-    await card.getByLabel('DOLUM RİSKİNİ İNCELEDİM yazın').fill('DOLUM RİSKİNİ İNCELEDİM')
+    await card.getByLabel('Dolum riskini inceledim ve onaylıyorum').check()
     await approve.click()
     await expect(card.getByText(/Dolum kilidi onayınla kaldırıldı; otomasyon başlamadı/)).toBeVisible()
     await expect(card.getByText(/Dolum güvenlik kilidi · BTCUSDT/)).toHaveCount(0)
     await expect(card.getByLabel('Kurtarma için 2FA kodu')).toHaveCount(0)
     await expect(start).toBeDisabled()
     expect(writes).toEqual([{path: '/api/v25/original-v2/fill-lock/approve', body: {
-      lock_id: 'fill-lock-1', confirmation: 'DOLUM RİSKİNİ İNCELEDİM', totp_code: '123456',
+      lock_id: 'fill-lock-1', confirmation: 'DOLUM RİSKİNİ İNCELEDİM',
     }}])
   })
 
 test('invalid fill approval shows Turkish error and keeps new entries disabled', async ({page}) => {
     const writes = await fixture(page, {locked: true, rejectApproval: true})
     const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
-    await card.getByLabel('DOLUM RİSKİNİ İNCELEDİM yazın').fill('DOLUM RİSKİNİ İNCELEDİM')
-    await card.getByLabel('Kurtarma için 2FA kodu').fill('wrongcode')
+    await card.getByLabel('Dolum riskini inceledim ve onaylıyorum').check()
     await card.getByRole('button', {name: 'Dolum kilidini onayımla kaldır'}).click()
-    await expect(card.getByRole('status')).toHaveText('LIVE HTTP 401: 2FA kodu geçersiz.')
+    await expect(card.getByRole('status')).toHaveText('LIVE HTTP 401: Oturum geçersiz.')
     await expect(card.getByText(/Dolum güvenlik kilidi · BTCUSDT/)).toBeVisible()
     await expect(card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true})).toBeDisabled()
     expect(writes.map(write => write.path)).toEqual(['/api/v25/original-v2/fill-lock/approve'])

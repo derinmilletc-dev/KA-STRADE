@@ -320,7 +320,7 @@ audit; durable TP-attempt recording remains mandatory before TP submission.
 Only the supervising canonical OWNER can clear the latch:
 
 1. Inspect the fill metrics, open position and protection directly.
-2. Enter `DOLUM RİSKİNİ İNCELEDİM` and a fresh 2FA code in the Original card.
+2. Tick "Dolum riskini inceledim ve onaylıyorum" in the Original card (no 2FA needed; the OWNER session is still required).
 3. Select the explicit fill-lock approval button.
 4. Re-authorize LIVE and ARM separately before starting with fresh 2FA; existing
    tracked-position and all other safety gates still apply.

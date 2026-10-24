@@ -1,0 +1,2 @@
+/* Onay ifadeleri elle seçilip kopyalanabilsin (uygulama genelinde user-select: none var). */
+.selectablePhrase { user-select: text; -webkit-user-select: text; cursor: text; }

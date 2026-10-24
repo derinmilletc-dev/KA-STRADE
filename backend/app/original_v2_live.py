@@ -133,7 +133,7 @@ class FillLockApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
     lock_id: str = Field(min_length=1, max_length=64)
     confirmation: str
-    totp_code: str = Field(min_length=6, max_length=32, repr=False)
+    totp_code: str | None = Field(default=None, max_length=32, repr=False)  # artık gerekmiyor; eski istemciler için kabul edilir
 
 
 def fill_locked(state: dict[str, Any]) -> bool:
@@ -1574,7 +1574,7 @@ async def update_risk(request: Request, body: risk_settings.RiskUpdate) -> dict[
 
 @router.post("/fill-lock/approve")
 async def approve_fill_lock(request: Request, body: FillLockApproval) -> dict[str, Any]:
-    from . import account_settings, v25_execution as live
+    from . import v25_execution as live
     user = live_access.require_live_member(request)
     live.guard_execution_ownership(request, claim=False)
     state = request.app.state.v25_execution
@@ -1587,9 +1587,6 @@ async def approve_fill_lock(request: Request, body: FillLockApproval) -> dict[st
             raise HTTPException(403, "Dolum kilidi yalnız ilgili OWNER tarafından kaldırılabilir.")
         if not fill_locked(state) or lock.get("id") != body.lock_id:
             raise HTTPException(409, "Dolum kilidi değişti; güncel durumu inceleyin.")
-        await account_settings.require_totp(request, user, body.totp_code, required=True)
-        if not fill_locked(state) or config.get("fill_lock", {}).get("id") != body.lock_id:
-            raise HTTPException(409, "Dolum kilidi doğrulama sırasında değişti.")
         config["fill_lock"] = {**lock, "active": False, "approved_by": user["id"], "approved_at": live.now_iso()}
         persisted = False
         try:

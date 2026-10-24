@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import './copy-phrase.css'
 import {Bell, Check, ChevronDown, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TriangleAlert, X} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
@@ -33,6 +34,8 @@ type Props = {
   extras?: ReactNode
 }
 
+// Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
+const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
 type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'why'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
@@ -303,16 +306,15 @@ export default function LiveCockpit(props: Props) {
   // ---- 2FA isteyen işlemler.
   const [code, setCode] = useState('')
   const [secureAccepted, setSecureAccepted] = useState(false)
-  const [fillPhrase, setFillPhrase] = useState('')
-  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase(''); setClosePhrase(''); setCloseTarget(null) } }
+  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setClosePhrase(''); setCloseTarget(null) } }
   const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => perform(key, async () => {
     if (key === 'emergency-clear') await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code})
     else if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
     else {
-      const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: fillPhrase, totp_code: code}) as {fill_lock?: {active?: unknown}} | null
+      const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: FILL_LOCK_PHRASE}) as {fill_lock?: {active?: unknown}} | null
       if (payload?.fill_lock?.active !== false) throw new Error('Dolum kilidi onayı doğrulanamadı; güncel durumu kontrol et.')
     }
-    setSheet(null); setCode(''); setSecureAccepted(false); setFillPhrase('')
+    setSheet(null); setCode(''); setSecureAccepted(false)
   }, key === 'emergency-clear' ? 'Acil durdurma kaldırıldı. Yeniden başlatmak için rehberdeki adımı izle.'
     : key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.', setSheetError)
 
@@ -449,7 +451,7 @@ export default function LiveCockpit(props: Props) {
       {running && <p className="lcHint">Çalışırken yalnız risk yüzdeleri değişir ve yeni işlemlere uygulanır; coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
       {riskDirty && draftValid && <div className="lcConfirmBox">
         {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-        {draft.risk > 5 && <label className="lcField">Onay için <b>{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
+        {draft.risk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label></>}
         <label className="lcCheck"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
         <button type="button" className="lcBtn lcPrimary" disabled={busy || wallet === null || !understood || !tierReady(draft.risk, riskAck, phrase)} onClick={() => void saveRisk()}>{working === 'risk' ? 'Kaydediliyor…' : 'Bu ayarı kaydet'}</button>
         {riskError && <p className="lcHint stop" role="alert" data-testid="live-risk-error">Kaydedilemedi: {riskError}</p>}
@@ -523,7 +525,7 @@ export default function LiveCockpit(props: Props) {
     {(!guideInput.authorizationValid || !guideInput.policyAcknowledged || !guideInput.armed) && <p className="lcHint">Başlatınca eksik onay{[!guideInput.authorizationValid, !guideInput.policyAcknowledged, !guideInput.armed].filter(Boolean).length > 1 ? 'lar' : ''} ({[!guideInput.authorizationValid && '24 saatlik risk izni', !guideInput.policyAcknowledged && 'risk sınırları', !guideInput.armed && 'canlı emir izni (ARM)'].filter(Boolean).join(', ')}) önce verilir.</p>}
     {riskDirty && <p className="lcHint warn">Kaydedilmemiş risk değişikliğin var; başlatma kayıtlı ayarla (%{savedRisk} / %{savedDaily}) yapılır.</p>}
     {savedRisk > 2 && savedRisk <= 5 && <label className="lcCheck"><input type="checkbox" checked={startAck} onChange={event => setStartAck(event.target.checked)}/><span>%{savedRisk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-    {savedRisk > 5 && <label className="lcField">Onay için <b>{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label>}
+    {savedRisk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label></>}
     <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
@@ -540,8 +542,8 @@ export default function LiveCockpit(props: Props) {
   </> : sheet === 'close-all' ? <>
     <h2 id="lc-sheet-title">Acil durdurma · pozisyonları kapat</h2>
     <p className="lcSheetLead">Bota ait giriş ve koruma emirleri iptal edilir, doğrulanmış bot pozisyonları <b>piyasa fiyatından reduce-only</b> emirle kapatılır. Kayıp kesinleşebilir. Sonrasında yeniden başlatmak 2FA ister.</p>
-    <label className="lcField">Onay için <b>{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
-    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
+    <label className="lcField">Onay için <b className="selectablePhrase">{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
+        <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
       <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
   </> : sheet === 'close-position' && closeTarget ? <>
     <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
@@ -560,10 +562,9 @@ export default function LiveCockpit(props: Props) {
       <li>Stop mesafesi: <b>{original?.fill_lock?.evidence?.stop_percent ?? '—'}%</b> · Risk: <b>{original?.fill_lock?.evidence?.risk_usdt ?? '—'} / {original?.fill_lock?.evidence?.risk_budget_usdt ?? '—'} USDT</b> · Teminat: <b>{original?.fill_lock?.evidence?.margin_usdt ?? '—'} USDT</b></li>
     </ul>
     <p className="lcHint warn">Kilidi kaldırmak pozisyonun riskini düzeltmez ve stratejiyi başlatmaz. Gerekirse pozisyonu Binance’ten kontrol et.</p>
-    <label className="lcField">Onay için <b>DOLUM RİSKİNİ İNCELEDİM</b> yaz<input value={fillPhrase} autoComplete="off" onChange={event => setFillPhrase(event.target.value)}/></label>
-    <label className="lcField">2FA kodu<input type="password" inputMode="numeric" autoComplete="one-time-code" data-private="true" maxLength={32} value={code} onChange={event => setCode(event.target.value.trim())}/></label>
+    <label className="lcCheck"><input type="checkbox" checked={secureAccepted} onChange={event => setSecureAccepted(event.target.checked)}/><span>Dolum riskini inceledim ve onaylıyorum.</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
-      <button type="button" className="lcBtn lcPrimary" disabled={fillPhrase !== 'DOLUM RİSKİNİ İNCELEDİM' || code.length < 6 || Boolean(working)} onClick={() => void secure('fill-lock')}>{working === 'fill-lock' ? 'Kaldırılıyor…' : 'Kilidi kaldır'}</button></div>
+      <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || Boolean(working)} onClick={() => void secure('fill-lock')}>{working === 'fill-lock' ? 'Kaldırılıyor…' : 'Kilidi kaldır'}</button></div>
   </> : sheet === 'emergency-clear' || sheet === 'recovery' ? <>
     <h2 id="lc-sheet-title">{sheet === 'recovery' ? 'Kurtarma kontrolü' : 'Acil durdurmayı kaldır'}</h2>
     <p className="lcSheetLead">{sheet === 'recovery'

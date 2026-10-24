@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent, type ReactNode} from 'react'
+import './copy-phrase.css'
 import KaisOriginalInfo from '../../KaisOriginalInfo'
 import {Database} from 'lucide-react'
 
@@ -257,7 +258,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
   const renewing = !status.enabled && sessionExpired
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const [approval, setApproval] = useState('')
+  const [approval, setApproval] = useState(false)
   const [diagnostics, setDiagnostics] = useState<OriginalPersistenceDiagnostics | null>(null)
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnosticError, setDiagnosticError] = useState('')
@@ -282,21 +283,20 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
   }
   const fillLocked = status.fill_lock?.active === true
   const approve = async () => {
-    if (inFlight.current || !fillLocked || approval !== 'DOLUM RİSKİNİ İNCELEDİM') return
+    if (inFlight.current || !fillLocked || !approval) return
     inFlight.current = true
     setBusy(true)
     onNotice('')
     try {
       const payload = await request('/original-v2/fill-lock/approve', {
-        lock_id:status.fill_lock?.id, confirmation:approval, totp_code:code,
+        lock_id:status.fill_lock?.id, confirmation:'DOLUM RİSKİNİ İNCELEDİM',
       })
       if (!payload || typeof payload !== 'object' || !('fill_lock' in payload)
           || !payload.fill_lock || typeof payload.fill_lock !== 'object' || !('active' in payload.fill_lock)
           || payload.fill_lock.active !== false || !('enabled' in payload) || payload.enabled !== false) {
         throw new Error('Dolum kilidi onayı doğrulanamadı; güncel LIVE durumunu kontrol edin.')
       }
-      setCode('')
-      setApproval('')
+      setApproval(false)
       onNotice('Dolum kilidi onayınla kaldırıldı; otomasyon başlamadı. Yeniden başlatma için risk onayı ve ARM gerekir.')
       await refresh()
     } catch (error: unknown) {
@@ -440,9 +440,8 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
       <p>{status.fill_lock?.violations.join(' · ')}</p>
       <p>Stop mesafesi: {status.fill_lock?.evidence?.stop_percent ?? '—'}% · Risk: {status.fill_lock?.evidence?.risk_usdt ?? '—'} / {status.fill_lock?.evidence?.risk_budget_usdt ?? '—'} USDT · Teminat: {status.fill_lock?.evidence?.margin_usdt ?? '—'} USDT</p>
       <p>Açık pozisyon değiştirilmedi. Kilidi kaldırmak pozisyon riskini düzeltmez ve otomasyonu başlatmaz.</p>
-      <label>Kurtarma için 2FA kodu<input type="password" data-private="true" autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} disabled={busy}/></label>
-      <label>DOLUM RİSKİNİ İNCELEDİM yazın<input value={approval} onChange={event => setApproval(event.target.value)} disabled={busy}/></label>
-      <button type="button" onClick={() => void approve()} disabled={busy || approval !== 'DOLUM RİSKİNİ İNCELEDİM' || code.length < 6}>Dolum kilidini onayımla kaldır</button>
+      <label><input type="checkbox" checked={approval} onChange={event => setApproval(event.target.checked)} disabled={busy}/> Dolum riskini inceledim ve onaylıyorum</label>
+      <button type="button" onClick={() => void approve()} disabled={busy || !approval}>Dolum kilidini onayımla kaldır</button>
     </div>}
     {status.daily?.locked && <p>Bugün günlük kayıp kilidi nedeniyle yeni giriş kapalı.</p>}
     <details className="originalSettings" open={!status.enabled}><summary>{status.enabled ? 'Risk ayarlarını değiştir' : 'İlk kurulum · 3 adım'}</summary>
@@ -487,7 +486,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
           <p>Teminat {status.risk_limits.min_margin_usdt}–{status.risk_limits.max_margin_usdt} USDT, kaldıraç {status.risk_limits.leverage}x ve Binance minimumları korunur. Adaya göre risk daha da düşebilir; minimumlar karşılanmazsa işlem açılmaz.</p>
         </>}
         {selectedRisk > 2 && selectedRisk <= 5 && <label><input type="checkbox" checked={riskAcknowledged && understood} onChange={event => {setRiskAcknowledged(event.target.checked); setUnderstood(event.target.checked)}} disabled={busy}/> Bu riski anladım</label>}
-        {selectedRisk > 5 && <label>{highRiskPhrase} yazın<input value={highRiskConfirmation} onChange={event => setHighRiskConfirmation(event.target.value)} disabled={busy} autoComplete="off"/></label>}
+        {selectedRisk > 5 && <><label><b className="selectablePhrase">{highRiskPhrase}</b> yazın<input value={highRiskConfirmation} onChange={event => setHighRiskConfirmation(event.target.value)} disabled={busy} autoComplete="off"/></label></>}
       </div>}
       {status.last_risk_adjustment && <p data-testid="original-applied-risk">Son aday {status.last_risk_adjustment.symbol}: seçilen %{status.last_risk_adjustment.selected_percent}, hesaplanan risk %{status.last_risk_adjustment.effective_percent.toLocaleString('tr-TR', {maximumFractionDigits: 4})} ({usdt(status.last_risk_adjustment.effective_loss_usdt)}). {status.last_risk_adjustment.reasons.length > 0 && `Seçtiğin risk şu sebeple düşürüldü: ${status.last_risk_adjustment.reasons.join(' · ')}.`}</p>}
       {!(selectedRisk > 2 && selectedRisk <= 5) && <label className="originalUnderstanding"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} disabled={busy}/> Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım</label>}
