@@ -60,15 +60,23 @@ def verified_wallet(snapshot: dict[str, Any]) -> float:
     return float(value)
 
 
-def limits(state: dict[str, Any]) -> dict[str, float]:
-    fixed = strategy.fixed_profile()["execution_policy"]
-    current = state["policy"]
+def limits(state: dict[str, Any]) -> dict[str, float] | None:
+    """Ekranda gösterilen sınırlar güncel bakiyeden ve seçilen yüzdelerden dinamik gelir (sabit USDT yok).
+    Bakiye doğrulanmamışsa None döner; ekran bu bölümü göstermez."""
+    from . import original_v2_live as original
+    wallet = (state.get("snapshot") or {}).get("wallet_balance")
+    if isinstance(wallet, bool) or not isinstance(wallet, (int, float)) or not math.isfinite(wallet) or wallet <= 0:
+        return None
+    config = state.get("original_v2_live") or {}
+    day = config.get("daily") if isinstance(config.get("daily"), dict) else {}
+    opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
+    reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else float(wallet)
     return {
-        "max_loss_per_trade_usdt": min(current["max_loss_per_trade"], fixed["max_loss_per_trade"]),
-        "daily_loss_limit_usdt": min(current["daily_loss_limit"], fixed["daily_loss_limit"]),
-        "max_margin_usdt": min(current["max_margin_per_trade"], fixed["max_margin_per_trade"]),
+        "max_loss_per_trade_usdt": float(wallet) * float(config.get("risk_percent", 0.5)) / 100,
+        "daily_loss_limit_usdt": reference * float(config.get("daily_loss_percent", 5)) / 100,
+        "max_margin_usdt": float(wallet) * original.MAX_MARGIN_PER_TRADE_PCT / 100,
         "min_margin_usdt": 5,
-        "leverage": 3,
+        "leverage": original.ORIGINAL_LEVERAGE,
     }
 
 

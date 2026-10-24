@@ -1637,3 +1637,65 @@ def test_live_sizing_context_checks_seventy_thirty_minimums():
     assert total % Decimal("0.10") == 0                                   # 10 adım × 0,01
     assert Decimal(new_style["tp1_quantity"]) == (total * Decimal("0.70")).quantize(Decimal("0.01"), rounding="ROUND_DOWN")
     assert Decimal(new_style["tp1_quantity"]) + Decimal(new_style["remaining_quantity"]) == total
+
+
+def _dynamic_state(state, **config):
+    symbols = [f"TOKEN{index}USDT" for index in range(10)]
+    state["original_v2_live"].update(
+        symbol_count=10,
+        universe={
+            "updated_day": datetime.now(timezone.utc).date().isoformat(),
+            "minimum_age_days": original.ORIGINAL_MIN_SYMBOL_AGE_DAYS,
+            "ranked_symbols": symbols,
+            "eligible_count": 10,
+        },
+        **config,
+    )
+    return state
+
+
+@pytest.mark.parametrize("wallet,risk,expected", [(143, 5, 7.15), (200, 5, 10.0), (143, 0.5, 0.715), (1000, 1, 10.0)])
+def test_original_live_trade_loss_budget_is_wallet_times_selected_percent(state, wallet, risk, expected):
+    _dynamic_state(state, risk_percent=risk, daily_loss_percent=max(5, risk), risk_acknowledged=risk > 2)
+    policy = original.execution_policy(state, {"wallet_balance": wallet})
+    assert policy["max_loss_per_trade"] == pytest.approx(expected)
+
+
+def test_original_live_caps_follow_the_balance_not_fixed_usdt_values(state):
+    _dynamic_state(state, risk_percent=1, daily_loss_percent=6)
+    small = original.execution_policy(state, {"wallet_balance": 100})
+    large = original.execution_policy(state, {"wallet_balance": 400})
+    assert small["max_margin_per_trade"] == pytest.approx(30)
+    assert large["max_margin_per_trade"] == pytest.approx(120)
+    assert large["max_total_exposure_usdt"] == pytest.approx(400 * 0.8 * 3)
+    assert large["max_total_margin_usdt"] == pytest.approx(320)
+    assert large["daily_loss_limit"] == pytest.approx(24) and large["max_open_risk_usdt"] == pytest.approx(24)
+    assert small["daily_loss_limit"] == pytest.approx(6)
+
+
+def test_original_live_daily_limit_uses_the_day_opening_balance(state):
+    _dynamic_state(state, risk_percent=1, daily_loss_percent=5,
+                   daily={"day": datetime.now(timezone.utc).date().isoformat(), "opening_wallet": 200.0, "locked": False})
+    policy = original.execution_policy(state, {"wallet_balance": 150})
+    assert policy["daily_loss_limit"] == pytest.approx(10)
+
+
+def test_original_live_open_position_totals_include_every_source_but_not_closed_plans(state):
+    state["plans"] = {
+        "a": {"status": "KORUMA AKTİF", "margin_usdt": "12.5", "initial_risk_usdt": "2.0", "source": "ORIGINAL_V2_LIVE"},
+        "b": {"status": "KORUMA AKTİF", "margin_usdt": 7, "initial_risk_usdt": 1.5, "source": "MANUAL"},
+        "c": {"status": "KAPANDI", "margin_usdt": 99, "initial_risk_usdt": 99},
+        "d": {"status": "DOLUM BEKLİYOR", "margin_usdt": None, "initial_risk_usdt": "bad"},
+    }
+    margin, risk = original.open_position_totals(state)
+    assert margin == pytest.approx(19.5) and risk == pytest.approx(3.5)
+
+
+def test_original_live_risk_limits_for_the_screen_are_dynamic_and_hidden_without_balance(state):
+    from app import original_live_risk
+    _dynamic_state(state, risk_percent=5, daily_loss_percent=10)
+    state["snapshot"] = {"wallet_balance": 200}
+    limits = original_live_risk.limits(state)
+    assert limits["max_loss_per_trade_usdt"] == pytest.approx(10) and limits["daily_loss_limit_usdt"] == pytest.approx(20)
+    state["snapshot"] = {}
+    assert original_live_risk.limits(state) is None

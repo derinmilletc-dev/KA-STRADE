@@ -42,6 +42,10 @@ TP1_PRICE_RATIO = Decimal("0.80")
 TP1_FRACTION = Decimal("0.70")
 # 70/30'un tam bölünmesi için miktar sembolün adımının 10 katına yuvarlanır (60/40'ta 5 idi).
 SPLIT_STEPS = 10
+# Strateji kimliği: kaldıraç 3x isolated. Aşağıdaki iki oran bakiyeye göre yüzdedir (sabit USDT değil).
+ORIGINAL_LEVERAGE = 3
+MAX_MARGIN_PER_TRADE_PCT = 30.0   # tek işlemin teminatı güncel bakiyenin en fazla %30'u
+MAX_TOTAL_MARGIN_PCT = 80.0       # açık tüm pozisyonların toplam teminatı bakiyenin en fazla %80'i
 
 
 def percent_text(fraction: Decimal) -> str:
@@ -550,9 +554,16 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     current = state["policy"]
     result = {**current, **fixed, "max_stop_distance_pct": 6}
     result["allowed_symbols"] = symbols
-    for key in ("max_margin_per_trade", "max_positions", "max_same_direction_positions",
-                "max_total_exposure_usdt", "max_spread_bps"):
+    for key in ("max_positions", "max_same_direction_positions", "max_spread_bps"):
         result[key] = min(current[key], fixed[key])
+    # Bakiye ve seçilen yüzdelerden dinamik: sabit USDT (3 / 25 / 350 / 10) bu hesabı kısıtlamaz.
+    # Core sert üst sınırları sanitize_execution_policy ile ayrıca uygulanmaya devam eder.
+    wallet = float(snapshot["wallet_balance"])
+    if not math.isfinite(wallet) or wallet <= 0:
+        raise HTTPException(423, "Güncel Binance bakiyesi doğrulanamadı; yeni giriş kapalı.")
+    result["max_margin_per_trade"] = wallet * MAX_MARGIN_PER_TRADE_PCT / 100
+    result["max_total_exposure_usdt"] = wallet * MAX_TOTAL_MARGIN_PCT / 100 * ORIGINAL_LEVERAGE
+    result["max_total_margin_usdt"] = wallet * MAX_TOTAL_MARGIN_PCT / 100
     # Sahip kararı: canlı Original V2'de günlük işlem sayısı ve ardışık kayıp sınırı yok (0 = sınırsız).
     # Pozisyon, yön, maruziyet, günlük kayıp ve açık zarar kilitleri ile her işlemin stop-loss'u aynen çalışır.
     result["daily_trade_limit"] = 0
@@ -561,11 +572,14 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     for key in ("allow_long", "allow_short"):
         result[key] = current[key] and fixed[key]
     result["max_trap_score"] = min(current["max_trap_score"], fixed["max_trap_score"])
-    result["daily_loss_limit"] = min(current["daily_loss_limit"], fixed["daily_loss_limit"])
+    day = config.get("daily") if isinstance(config.get("daily"), dict) else {}
+    opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
+    reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else wallet
+    result["daily_loss_limit"] = reference * float(config.get("daily_loss_percent", 5)) / 100
+    result["max_open_risk_usdt"] = result["daily_loss_limit"]
     for key in ("min_confidence", "fee_bps_per_side", "slippage_bps_per_side", "minimum_net_reward_usdt"):
         result[key] = max(current[key], fixed[key])
-    result["max_loss_per_trade"] = min(float(snapshot["wallet_balance"]) * settings(state)["risk_percent"] / 100,
-                                      current["max_loss_per_trade"], fixed["max_loss_per_trade"])
+    result["max_loss_per_trade"] = wallet * float(config["risk_percent"]) / 100
     return result
 
 
@@ -600,10 +614,10 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     spec["tp1_fraction"] = str(TP1_FRACTION)
     # The percentage budget includes estimated commission and slippage, not only stop distance.
     cost_per_unit = entry * Decimal(str(policy["fee_bps_per_side"] + policy["slippage_bps_per_side"])) * 2 / 10000
-    native_quantity = Decimal(spec["quantity"])
+    # Tamamen dinamik: miktar yalnız seçilen risk bütçesi (bakiye x risk %) ve bakiye yüzdesi teminat tavanından gelir.
     risk_quantity = budget / (abs(entry - stop) + cost_per_unit)
-    margin_quantity = Decimal(str(policy["max_margin_per_trade"])) * 3 / entry
-    unrounded_quantity = min(native_quantity, risk_quantity, margin_quantity)
+    margin_quantity = Decimal(str(policy["max_margin_per_trade"])) * ORIGINAL_LEVERAGE / entry
+    unrounded_quantity = min(risk_quantity, margin_quantity)
     quantity = live.floor_step(unrounded_quantity, rules["step"] * SPLIT_STEPS)
     size_metrics = original.minimum_order_parts(
         quantity, entry, rules["step"], rules["min_qty"], rules["min_notional"], TP1_FRACTION,
@@ -625,7 +639,7 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         f"Toplam miktar, TP1 {percent_text(TP1_FRACTION)} ve kalan miktar Binance minimum miktar/notional şartını karşılıyor.",
         symbol=spec["symbol"],
     )
-    margin = float(quantity * entry / 3)
+    margin = float(quantity * entry / ORIGINAL_LEVERAGE)
     if margin < 5:
         live.record_live_entry_check(
             check_results, "available_collateral", False,
@@ -675,13 +689,9 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     requested_loss = wallet * selected_percent / 100
     effective_loss = float(spec["estimated_stop_loss_usdt"])
     reasons = []
-    if float(budget) < requested_loss - 1e-8:
-        reasons.append("Sabit Original V2 / V25 işlem kaybı tavanı")
     requested_quantity = Decimal(str(requested_loss)) / (abs(entry - stop) + cost_per_unit)
-    if native_quantity == unrounded_quantity and native_quantity < requested_quantity:
-        reasons.append("Original V2 sabit miktar profili (mevcut teminat/kaldıraç sınırları dahil)")
     if margin_quantity == unrounded_quantity and margin_quantity < requested_quantity:
-        reasons.append("Mevcut işlem başı teminat tavanı")
+        reasons.append(f"İşlem başı teminat tavanı (bakiyenin %{MAX_MARGIN_PER_TRADE_PCT:g}'u)")
     if quantity < unrounded_quantity:
         reasons.append("Binance miktar adımı ve TP miktar bölüşümü için aşağı yuvarlama")
     adjustment = {
@@ -700,7 +710,7 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
     )
     if not loss_budget_passed:
         raise live.LiveExchangeError("Original V2 stop kaybı işlem başı risk bütçesini aşıyor.", http_status=423, check_key="risk_budget")
-    if notional > policy["max_margin_per_trade"] * 3 + 1e-8:
+    if notional > policy["max_margin_per_trade"] * ORIGINAL_LEVERAGE + 1e-8:
         live.record_live_entry_check(
             check_results, "risk_budget", False,
             "Original V2 pozisyon büyüklüğü işlem başı marjin sınırını aşıyor.",
@@ -712,7 +722,50 @@ async def build_spec(client: Any, result: StrategyResult, state: dict[str, Any],
         "Original V2 pozisyon büyüklüğü işlem başı marjin sınırında.",
         symbol=spec["symbol"],
     )
+    open_margin, open_risk = open_position_totals(state)
+    total_margin_limit = float(policy["max_total_margin_usdt"])
+    if open_margin + margin > total_margin_limit + 1e-8:
+        live.record_live_entry_check(
+            check_results, "total_margin", False,
+            f"Açık pozisyonların toplam teminatı bakiyenin %{MAX_TOTAL_MARGIN_PCT:g}'ini aşardı "
+            f"({open_margin + margin:.2f} / {total_margin_limit:.2f} USDT).",
+            symbol=spec["symbol"],
+        )
+        raise live.LiveExchangeError("Toplam teminat kullanımı sınırı aşılırdı.", http_status=423, check_key="total_margin")
+    live.record_live_entry_check(check_results, "total_margin", True,
+                                 "Toplam teminat kullanımı bakiye yüzdesi sınırında.", symbol=spec["symbol"])
+    open_risk_limit = float(policy["max_open_risk_usdt"])
+    if open_risk + effective_loss > open_risk_limit + 1e-8:
+        live.record_live_entry_check(
+            check_results, "total_open_risk", False,
+            f"Açık pozisyonların toplam stop riski günlük zarar sınırını aşardı "
+            f"({open_risk + effective_loss:.2f} / {open_risk_limit:.2f} USDT).",
+            symbol=spec["symbol"],
+        )
+        raise live.LiveExchangeError("Toplam açık pozisyon riski sınırı aşılırdı.", http_status=423, check_key="total_open_risk")
+    live.record_live_entry_check(check_results, "total_open_risk", True,
+                                 "Toplam açık pozisyon riski günlük zarar sınırı içinde.", symbol=spec["symbol"])
     return spec
+
+
+def open_position_totals(state: dict[str, Any]) -> tuple[float, float]:
+    """Açık/bekleyen tüm planların (kaynağı fark etmez) teminat ve başlangıç stop riski toplamı."""
+    margin = risk = 0.0
+    for plan in (state.get("plans") or {}).values():
+        if not isinstance(plan, dict) or str(plan.get("status") or "").upper() in {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED"}:
+            continue
+        for key in ("margin_usdt", "initial_risk_usdt"):
+            try:
+                value = float(plan.get(key) or 0)
+            except (TypeError, ValueError):
+                value = 0.0
+            if not math.isfinite(value) or value < 0:
+                value = 0.0
+            if key == "margin_usdt":
+                margin += value
+            else:
+                risk += value
+    return margin, risk
 
 
 async def check_entry(application: Any, client: Any, state: dict[str, Any],
