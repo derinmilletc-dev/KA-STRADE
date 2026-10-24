@@ -240,11 +240,16 @@ export default function LiveCockpit(props: Props) {
   const [startPhrase, setStartPhrase] = useState('')
   const summary = wallet !== null ? riskSummary(wallet, savedRisk, savedDaily, caps) : null
   const startReady = wallet !== null && startUnderstood && tierReady(savedRisk, startAck, startPhrase) && validCoins(draft.coins) && validHours(draft.hours)
+  const consentExpiresMs = status?.authorization?.expires_at ? Date.parse(status.authorization.expires_at) : NaN
+  const consentLeftMs = Number.isFinite(consentExpiresMs) ? consentExpiresMs - Date.now() : 0
+  const consentShorterThanSession = guideInput.authorizationValid && consentLeftMs < draft.hours * 3600 * 1000
   const start = () => perform('start', async () => {
     if (wallet === null) throw new Error('Güncel Binance bakiyesi doğrulanamadı; strateji başlatılmadı.')
-    if (!guideInput.authorizationValid) await request('/consent', {understood: true})
+    // Oturum, 24 saatlik risk izninin kalan süresiyle sınırlanır; seçilen süre izinden uzunsa izni yenile (yenileme ARM'ı sıfırlar).
+    const renewConsent = !guideInput.authorizationValid || consentLeftMs < draft.hours * 3600 * 1000
+    if (renewConsent) await request('/consent', {understood: true})
     if (!guideInput.policyAcknowledged) await request('/policy/acknowledge', {understood: true})
-    if (!guideInput.armed) await request('/arm', {understood: true})
+    if (renewConsent || !guideInput.armed) await request('/arm', {understood: true})
     let payload: {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
     try { payload = await request('/original-v2/start', {
       risk_percent: savedRisk, daily_loss_percent: savedDaily, risk_acknowledged: savedRisk > 2 && startAck,
@@ -522,6 +527,7 @@ export default function LiveCockpit(props: Props) {
       <div><small>Oturum</small><b>{draft.hours} saat</b><em>{draft.coins} coin taranır</em></div>
     </div> : <p className="lcHint stop" role="alert">Güncel bakiye doğrulanamadı; kayıp tutarları hesaplanamıyor, başlatma kapalı.</p>}
     <div className="lcSheetNote"><ShieldCheck aria-hidden="true"/><p>Her işlem stop-loss ve hedefleriyle birlikte Binance’e yerleştirilir; korumasız pozisyon bırakılmaz. Sınıra ulaşılırsa o gün yeni işlem açılmaz.</p></div>
+    {consentShorterThanSession && <p className="lcHint">Risk iznin {draft.hours} saatten önce bitiyor; başlatınca izin kendiliğinden yenilenir, oturum tam {draft.hours} saat sürer.</p>}
     {(!guideInput.authorizationValid || !guideInput.policyAcknowledged || !guideInput.armed) && <p className="lcHint">Başlatınca eksik onay{[!guideInput.authorizationValid, !guideInput.policyAcknowledged, !guideInput.armed].filter(Boolean).length > 1 ? 'lar' : ''} ({[!guideInput.authorizationValid && '24 saatlik risk izni', !guideInput.policyAcknowledged && 'risk sınırları', !guideInput.armed && 'canlı emir izni (ARM)'].filter(Boolean).join(', ')}) önce verilir.</p>}
     {riskDirty && <p className="lcHint warn">Kaydedilmemiş risk değişikliğin var; başlatma kayıtlı ayarla (%{savedRisk} / %{savedDaily}) yapılır.</p>}
     {savedRisk > 2 && savedRisk <= 5 && <label className="lcCheck"><input type="checkbox" checked={startAck} onChange={event => setStartAck(event.target.checked)}/><span>%{savedRisk} işlem riskinin yüksek olduğunu anladım.</span></label>}
