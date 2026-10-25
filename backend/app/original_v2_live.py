@@ -186,6 +186,18 @@ class MarginModeUpdate(BaseModel):
     understood: bool = Field(default=False, strict=True)
 
 
+class SmartProfitUpdate(BaseModel):
+    """Akıllı Kâr Koruma ayarları; yalnız gönderilen alanlar değişir. Orijinal Stop/TP hiçbir ayarla kapanmaz."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = Field(default=None, strict=True)
+    threshold: int | None = Field(default=None, strict=True, ge=50, le=95)
+    wait_minutes: int | None = Field(default=None, strict=True, ge=1, le=120)
+    check_interval_seconds: int | None = Field(default=None, strict=True, ge=30, le=300)
+    protect_stop_enabled: bool | None = Field(default=None, strict=True)
+    smart_exit_enabled: bool | None = Field(default=None, strict=True)
+    emergency_off: bool | None = Field(default=None, strict=True)
+
+
 class FillLockApproval(BaseModel):
     model_config = ConfigDict(extra="forbid")
     lock_id: str = Field(min_length=1, max_length=64)
@@ -412,6 +424,7 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
             "risk_limits": risk_settings.limits(state),
             "margin_mode": settings(state).get("margin_mode", "guvenli"),
             "margin_modes": margin_mode_status(),
+            "smart_profit": smart_profit_public(state),
             "risk_projection": copy.deepcopy(config.get("risk_projection")),
             "last_risk_adjustment": copy.deepcopy(config.get("last_risk_adjustment")),
             "daily": copy.deepcopy(config.get("daily")),
@@ -425,6 +438,47 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
                         "authority_limited": config.get("session_authority_limited", False),
                         "warning_sent": bool(config.get("session_warning_sent"))},
             "symbols": symbols}
+
+
+def smart_profit_public(state: dict[str, Any]) -> dict[str, Any]:
+    """Ayarlar + açık pozisyonların koruma durumu (yalnız okuma)."""
+    from . import original_profit_guard as guard_module
+    config = settings(state)
+    positions = []
+    for plan in (state.get("plans") or {}).values():
+        if not isinstance(plan, dict) or not plan_is_original(plan):
+            continue
+        guard = plan.get(guard_module.GUARD_KEY)
+        if not isinstance(guard, dict) or str(plan.get("status") or "").upper() in _TERMINAL_PLAN_STATUSES:
+            continue
+        stop = guard.get("temp_stop") if isinstance(guard.get("temp_stop"), dict) else None
+        positions.append({
+            "plan_id": plan.get("id"), "symbol": plan.get("symbol"), "direction": plan.get("direction"),
+            "mode": guard.get("mode"), "last_score": guard.get("last_score"),
+            "last_score_candle": guard.get("last_score_candle"), "first_low_at": guard.get("first_low_at"),
+            "timer_end": guard.get("timer_end"), "exit_ready": bool(guard.get("exit_ready")),
+            "waiting_profit": bool(guard.get("waiting_profit")),
+            "temp_stop_price": stop.get("price") if stop else None,
+            "last_net_pnl": guard.get("last_net_pnl"), "last_check_at": guard.get("last_check_at"),
+            "last_error": guard.get("last_error"), "basis": "15m_candle_close",
+        })
+    return {"settings": guard_module.get_settings(config), "defaults": dict(guard_module.DEFAULT_SETTINGS),
+            "basis": "15m_candle_close", "positions": positions}
+
+
+def guard_kline_fetch(application: Any, client: Any) -> Any:
+    """Akıllı Kâr Koruma için mum kaynağı: varsa akış, yoksa/abone değilse REST. Strateji verisi aynı."""
+    stream = getattr(getattr(application, "state", None), "original_kline_stream", None)
+    if stream is None:
+        return None
+
+    async def fetch(symbol: str, interval: str, limit: int) -> Any:
+        async def rest(params: dict[str, Any]) -> Any:
+            return await client.public_get("/fapi/v1/klines", params)
+        if not stream.is_subscribed(symbol, interval):
+            return await rest({"symbol": symbol, "interval": interval, "limit": limit})
+        return await stream.get_candles(symbol, interval, limit, rest)
+    return fetch
 
 
 TRANSIENT_PAUSE_REASON_PREFIX = "Canlı salt-okunur veri geçici olarak alınamadı"
@@ -1775,6 +1829,51 @@ async def update_margin_mode(request: Request, body: MarginModeUpdate) -> dict[s
         )
         live.persist_state(state)
     return await status(request)
+
+
+@router.get("/smart-profit")
+async def smart_profit_status(request: Request) -> dict[str, Any]:
+    live_access.require_live_member(request)
+    from . import v25_execution as live
+    live.guard_execution_ownership(request, claim=False)
+    return smart_profit_public(request.app.state.v25_execution)
+
+
+@router.post("/smart-profit")
+async def update_smart_profit(request: Request, body: SmartProfitUpdate) -> dict[str, Any]:
+    """Akıllı Kâr Koruma ayarı. Kapatmak/ACİL DURDUR orijinal Stop/TP'yi silmez; yalnız geçici stop temizlenir."""
+    from . import v25_execution as live
+    from . import original_profit_guard as guard_module
+    user = live_access.require_live_member(request)
+    if not available():
+        raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
+    live.execution_owner(request)
+    changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(422, "Değiştirilecek bir ayar gönderilmedi.")
+    state = request.app.state.v25_execution
+    async with state["lock"]:
+        config = settings(state)
+        if config.get("owner_id") not in {None, user["id"]}:
+            raise HTTPException(403, "Bu ayar yalnız hesabın sahibi tarafından değiştirilebilir.")
+        previous = copy.deepcopy(config.get(guard_module.SETTINGS_KEY))
+        updated = guard_module.get_settings(config)
+        updated.update(changes)
+        config[guard_module.SETTINGS_KEY] = guard_module.clean_settings(updated)
+        try:
+            await persist_required(state)
+        except live.LiveExchangeError:
+            if previous is None:
+                config.pop(guard_module.SETTINGS_KEY, None)
+            else:
+                config[guard_module.SETTINGS_KEY] = previous
+            live.persist_state(state)
+            raise HTTPException(503, "Akıllı Kâr Koruma ayarı kalıcı kaydedilemedi; eski ayar korundu.") from None
+        live.add_event(state, "ORIGINAL_SMART_PROFIT_SETTINGS",
+                       "Akıllı Kâr Koruma ayarı güncellendi: " + ", ".join(sorted(changes)) + ". Orijinal Stop/TP değişmedi.",
+                       actor=user["id"], changes=changes)
+        live.persist_state(state)
+    return smart_profit_public(state)
 
 
 @router.post("/fill-lock/approve")

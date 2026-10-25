@@ -68,6 +68,8 @@ type TradeHistorySyncState = 'READY' | 'EMPTY' | 'STALE' | 'DISCONNECTED' | 'UNA
 type CloseLifecycleState = 'IDLE' | 'CLOSING' | 'CLOSED' | 'CLOSE_FAILED' | 'HISTORY_SYNC_FAILED' | 'ACCOUNT_SYNC_FAILED' | 'SYNC_FAILED'
 
 // Emir etiketleri: yalnız gösterim (telefonda kullanıcı dostu metin, masaüstünde ham değer). Emir mantığına dokunmaz.
+const CLOSE_REASON_LABELS: Record<string, string> = {SMART_EXIT: 'Akıllı Güven Puanı Çıkışı', SMART_STOP: 'Akıllı Kâr Koruma Stopu'}
+const closeReasonLabel = (reason: string | null | undefined) => (reason && CLOSE_REASON_LABELS[reason]) || reason || '--'
 const orderSideLabel = (side: unknown) => side === 'BUY' || side === 'LONG' ? 'Alış' : side === 'SELL' || side === 'SHORT' ? 'Satış' : String(side || '--')
 const ORDER_TYPE_LABELS: Record<string, string> = {TAKE_PROFIT_MARKET: 'Kâr al', TAKE_PROFIT: 'Kâr al', STOP_MARKET: 'Zarar durdur', STOP: 'Zarar durdur', MARKET: 'Piyasa', LIMIT: 'Limit'}
 const orderTypeLabel = (type: unknown) => ORDER_TYPE_LABELS[String(type || '').toUpperCase()] ?? String(type || '--')
@@ -1306,7 +1308,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
               <div><small>R / R</small><b>--</b></div>
               <div><small>Opportunity</small><b>{selectedTrade.opportunityScore}</b></div>
               <div><small>Source</small><b>{selectedTrade.source}</b></div>
-              <div><small>Close reason</small><b>{selectedTrade.closeReason}</b></div>
+              <div><small>Close reason</small><b>{closeReasonLabel(selectedTrade.closeReason)}</b></div>
             </div>
 
             <div className="drawerSection">
@@ -1319,7 +1321,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
                   ['TP1', fmtNum(selectedTrade.tp1)],
                   ['TP2', fmtNum(selectedTrade.tp2)],
                   ['TP3', fmtNum(selectedTrade.tp3)],
-                  ['Closed', selectedTrade.closeReason || '--'],
+                  ['Closed', closeReasonLabel(selectedTrade.closeReason)],
                 ].map(([event, detail], index) => (
                   <div key={`${event}-${index}`} className="timelineItem">
                     <span className="timelineDot" />

@@ -670,3 +670,24 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizActions .lcBtn{min-height:48px;flex:1}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizOpen{white-space:normal}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizOption[data-selected],#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizChip[data-selected]{border-color:var(--lc-go)!important;background:rgba(61,220,151,.09)!important;box-shadow:0 0 0 1px var(--lc-go) inset!important}
+
+/* Akıllı Kâr Koruma */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmart{display:grid!important;gap:10px;padding:16px 18px!important;border-radius:16px!important;background:#1a2636!important;grid-template-columns:minmax(0,1fr)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmart>*{min-width:0;max-width:100%}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmart h3{margin:0;font-size:17px;color:#eaf1ff}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitches{display:grid;gap:8px;grid-template-columns:minmax(0,1fr)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 14px;border-radius:12px;border:1px solid #2c3d55;background:#16202e;color:#eaf1ff;text-align:left;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch span{display:grid;gap:2px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch small{font-size:12.5px;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch i{flex:none;white-space:nowrap;font-style:normal;font-weight:800;font-size:12px;letter-spacing:.04em;color:#9aa8bf}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch[data-on] {border-color:#2f8f6b}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch[data-on] i{color:#5eead4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartSwitch:disabled{opacity:.55;cursor:not-allowed}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartPick{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartPick label{display:grid;gap:4px;font-size:13px;font-weight:700;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartPick select{min-height:44px;border-radius:10px;border:1px solid #2c3d55;background:#101926;color:#eaf1ff;padding:0 10px;font-size:15px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartList{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartList li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:10px 12px;border-radius:12px;background:#16202e;color:#eaf1ff}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartList li small{grid-column:1/-1;font-size:12.5px;color:#c4d0e4}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartList li[data-mode="KAR_KORUMA"] span{color:#fbbf24}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartList li[data-mode="CIKISA_HAZIR"] span{color:#fb923c}
