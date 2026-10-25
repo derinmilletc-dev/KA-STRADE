@@ -933,3 +933,20 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
   #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mwzSteps li[data-state=current] button span{display:inline!important;position:static}
 }
 @media (max-width:760px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mwzSteps button span,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mwzSteps li[data-state=current] button span{display:none!important}}
+
+/* Grid önizleme (Aşama 1: sadece hesap, emir yok) */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpSwitch{margin:0 0 14px;max-width:340px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpSwitch em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;margin-left:6px;padding:2px 6px;border-radius:99px;background:rgba(255,196,87,.16);color:#ffc457}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpErr{margin:10px 0 0;padding:10px 14px 10px 28px;border-radius:12px;background:rgba(255,107,107,.1);color:#ff9b9b;font-size:13px;line-height:1.5}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpSum{margin-top:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks li i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px;background:rgba(61,220,151,.18);color:#3ddc97}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks li[data-ok="0"] i{background:rgba(255,107,107,.2);color:#ff7b7b}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks li b{display:block;font-size:13px;color:#e6edf5}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpChecks li small{display:block;font-size:12px;line-height:1.45;color:#9fb0c2}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable{margin-top:14px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);font-size:12.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable>div{display:grid;grid-template-columns:34px repeat(4,1fr);gap:6px;padding:7px 12px;border-top:1px solid rgba(255,255,255,.05)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable .mgpHead{border-top:0;font-weight:800;color:#8fa2b6;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable .down{color:#ff8a8a}
+@media (max-width:640px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable{overflow-x:auto}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable>div{grid-template-columns:24px 92px 92px 54px 54px;gap:8px;min-width:340px;font-size:11.5px;padding:7px 10px}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable span{white-space:nowrap;font-size:11.5px}}
