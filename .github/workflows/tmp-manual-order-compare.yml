@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" \
+          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
             --ignore=tests/real_acceptance_validation.py 2>&1 | tail -n 400 > /tmp/branch.txt
           grep -E "^(FAILED|ERROR) " /tmp/branch.txt | sed -E 's/ - .*//' | sort -u > /tmp/branch_fail.txt
           tail -n 1 /tmp/branch.txt > /tmp/branch_summary.txt
@@ -52,9 +52,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          mkdir -p /tmp/main && git --work-tree=/tmp/main checkout origin/main -- backend
-          cd /tmp/main/backend
-          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" \
+          git worktree add -q /tmp/mainwt origin/main
+          cd /tmp/mainwt/backend
+          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
             --ignore=tests/real_acceptance_validation.py 2>&1 | tail -n 400 > /tmp/main.txt
           grep -E "^(FAILED|ERROR) " /tmp/main.txt | sed -E 's/ - .*//' | sort -u > /tmp/main_fail.txt
           tail -n 1 /tmp/main.txt > /tmp/main_summary.txt
@@ -70,3 +70,59 @@ jobs:
           while read -r line; do echo "::error title=NEW FAILURE::$line"; done < /tmp/new_fail.txt
           while read -r line; do echo "::notice title=only on main::$line"; done < <(head -n 20 /tmp/fixed.txt)
           test ! -s /tmp/new_fail.txt
+
+  e2e-compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Branch e2e
+        shell: bash
+        run: |
+          set +e
+          npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null && npx playwright install --with-deps chromium >/dev/null)
+          npm run build >/dev/null 2>&1; echo "build exit $?"
+          (cd frontend && npx playwright test --reporter=json > /tmp/branch-e2e.json 2>/dev/null); true
+      - name: Main e2e
+        shell: bash
+        run: |
+          set +e
+          git checkout -q origin/main -- .
+          npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null)
+          npm run build >/dev/null 2>&1; echo "build exit $?"
+          (cd frontend && npx playwright test --reporter=json > /tmp/main-e2e.json 2>/dev/null); true
+      - name: Compare e2e
+        shell: bash
+        run: |
+          cat > /tmp/fails.js <<'JS'
+          const fs = require('fs')
+          const out = new Set()
+          let data
+          try { data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')) } catch { console.log('__REPORT_MISSING__'); process.exit(0) }
+          const walk = (suite, trail) => {
+            for (const spec of suite.specs || []) for (const test of spec.tests || []) {
+              const status = test.status || (test.results || []).map(r => r.status).pop()
+              if (status === 'unexpected' || status === 'flaky') out.add(`${spec.file} > ${[...trail, spec.title].join(' > ')}`)
+            }
+            for (const child of suite.suites || []) walk(child, [...trail, child.title].filter(Boolean))
+          }
+          for (const suite of data.suites || []) walk(suite, [])
+          console.log([...out].sort().join('\n'))
+          console.error(`total=${(data.stats && (data.stats.expected + data.stats.unexpected + data.stats.flaky + data.stats.skipped)) || 0} unexpected=${data.stats ? data.stats.unexpected : '?'}`)
+          JS
+          node /tmp/fails.js /tmp/branch-e2e.json > /tmp/b.txt 2>/tmp/b.stats
+          node /tmp/fails.js /tmp/main-e2e.json > /tmp/m.txt 2>/tmp/m.stats
+          echo "::notice title=e2e main::$(cat /tmp/m.stats)"
+          echo "::notice title=e2e branch::$(cat /tmp/b.stats)"
+          sort -u /tmp/b.txt -o /tmp/b.txt; sort -u /tmp/m.txt -o /tmp/m.txt
+          comm -13 /tmp/m.txt /tmp/b.txt | grep -v '^$' > /tmp/new.txt
+          while read -r line; do echo "::error title=NEW E2E FAILURE::$line"; done < /tmp/new.txt
+          while read -r line; do echo "::notice title=e2e fails on main too::$line"; done < <(head -n 30 /tmp/m.txt)
+          test ! -s /tmp/new.txt

@@ -164,7 +164,7 @@ def fill_event(client_id, status="FILLED", execution_type="TRADE", symbol="BTCUS
 
 class EarlyProtectionTests(unittest.TestCase):
     def state_with_limit(self, **overrides):
-        plan = manual_plan(order_type="LIMIT", status="DOLUM BEKLİYOR", **overrides)
+        plan = manual_plan(**{"order_type": "LIMIT", "status": "DOLUM BEKLİYOR", **overrides})
         state = execution.initial_state()
         state["plans"] = {plan["id"]: plan}
         return state, plan
