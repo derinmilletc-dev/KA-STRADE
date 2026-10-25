@@ -968,7 +968,7 @@ export default function LiveCockpit(props: Props) {
     </div>
     <ol className="lcLaunch" aria-label="Hazırlık adımları">
       {launchRows.map(row => {
-        const run: LaunchState | undefined = launchSteps[row.step]
+        const run = launchSteps[row.step] as LaunchState | undefined
         const state: LaunchState['state'] | 'pending' | 'ready' | 'todo' = run?.state ?? (row.ok ? (row.hollow ? 'pending' : 'ready') : 'todo')
         const open = launchOpen === row.key
         const body = open && row.edit ? <div className="lcLaunchBody">
