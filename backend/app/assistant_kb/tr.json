@@ -775,6 +775,26 @@
     ]
   },
   {
+    "id": "margin-who",
+    "title": "İşlem teminatını kim alıyor? Binance mi, Kais mi?",
+    "keywords": [
+      "teminat",
+      "kim alıyor",
+      "binance",
+      "kais",
+      "para",
+      "bakiye",
+      "paran nerede",
+      "margin",
+      "işlem teminatı",
+      "para çekiyor mu"
+    ],
+    "content": "İşlem teminatını Binance ayırır; KaisTrade almaz. Bir işlem açıldığında teminat senin kendi Binance Futures hesabındaki bakiyenden Binance tarafından ayrılır ve işlem kapanınca yine Binance hesabında serbest kalır. Paran her zaman Binance hesabında durur; KaisTrade'e aktarılmaz ve KaisTrade senin adına para çekemez. Teminat modu sadece her işleme en çok ne kadar teminat ayrılabileceğini seçmeni sağlar. Gerçek teminat ve emir kuralları Binance'e aittir.",
+    "code_sources": [
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
     "id": "risk-target",
     "title": "Hedef risk, günlük kayıp sınırı ve gerçek risk",
     "keywords": [

@@ -757,6 +757,25 @@
     ]
   },
   {
+    "id": "margin-who",
+    "title": "Who takes the trade margin? Binance or Kais?",
+    "keywords": [
+      "margin",
+      "who takes",
+      "binance",
+      "kais",
+      "money",
+      "balance",
+      "where is my money",
+      "collateral",
+      "withdraw"
+    ],
+    "content": "Binance sets aside the trade margin; KaisTrade does not take it. When a trade opens, Binance reserves the margin from your own Binance Futures balance and releases it in your Binance account when the trade closes. Your money always stays in your Binance account; it is not transferred to KaisTrade and KaisTrade cannot withdraw on your behalf. The margin mode only lets you choose the most margin that can be set aside per trade. The actual margin and order rules belong to Binance.",
+    "code_sources": [
+      "backend/app/original_v2_live.py"
+    ]
+  },
+  {
     "id": "risk-target",
     "title": "Target risk, daily loss limit and real risk",
     "keywords": [
