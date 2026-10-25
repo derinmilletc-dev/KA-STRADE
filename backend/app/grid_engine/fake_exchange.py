@@ -17,6 +17,7 @@ class FakeExchange:
         self.connected = True
         self.lose_response_for: set[str] = set()      # emir işlenir, yanıt kaybolur (Timeout)
         self.lose_response_always = False
+        self.percent_down = 0.0                        # >0: limit alış fiyatı mark*percent_down'dan düşük olamaz (PERCENT_PRICE)
         self.dup_never_rejected = False                # kimlik tekrarını HİÇ reddetmeyen (kötü senaryo) borsa
         self.reuse_final_ids = False                   # biten (dolu/iptal) emrin kimliği yeniden kullanılabilir
         self.reject_next: list[tuple[int, str]] = []
@@ -59,6 +60,8 @@ class FakeExchange:
             raise ExchangeRejected(-4164, "emir değeri en düşük sınırın altında")
         if type == STOP_MARKET and mark and ((side == SELL and mark <= stop_price) or (side == BUY and mark >= stop_price)):
             raise ExchangeRejected(WOULD_TRIGGER_IMMEDIATELY, "Order would immediately trigger")
+        if type == LIMIT and self.percent_down > 0 and mark and price < mark * self.percent_down - 1e-9:
+            raise ExchangeRejected(-4024, "Limit price can't be lower than")
         pos = self.positions.get(symbol, 0.0)
         if reduce_only:
             closes = (side == SELL and pos > EPS) or (side == BUY and pos < -EPS)

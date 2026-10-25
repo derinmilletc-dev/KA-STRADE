@@ -192,5 +192,6 @@ class BinanceTestnetAdapter:
             if item.get("symbol") == symbol:
                 f = {x["filterType"]: x for x in item.get("filters", [])}
                 return {"tickSize": float(f["PRICE_FILTER"]["tickSize"]), "stepSize": float(f["LOT_SIZE"]["stepSize"]),
-                        "minNotional": float(f.get("MIN_NOTIONAL", {}).get("notional", 0))}
+                        "minNotional": float(f.get("MIN_NOTIONAL", {}).get("notional", 0)),
+                        "percentDown": float(f.get("PERCENT_PRICE", {}).get("multiplierDown", 0) or 0)}   # 0 = filtre yok/okunamadı
         raise ValueError(f"{symbol} Testnet'te bulunamadı")

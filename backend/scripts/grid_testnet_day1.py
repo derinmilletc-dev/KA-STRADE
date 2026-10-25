@@ -64,6 +64,13 @@ class Report:
         lines = [f"# Grid Gün 1 Testnet raporu ({self.started})", "", "Adres: Testnet (kodda sabit). Gerçek para/canlı bağlantı yok.", "",
                  "| Test | Sonuç | Ayrıntı |", "|---|---|---|"]
         lines += [f"| {r.name} | {r.status} | {r.detail.replace('|', '/')} |" for r in self.results]
+        def st(prefix: str) -> str:
+            found = [r.status for r in self.results if r.name.startswith(prefix)]
+            return (FAIL if FAIL in found else PASS if found and all(x == PASS for x in found) else SKIP if not found or SKIP in found else INFO)
+        accept = [("Tek yönlü mod", st("Tek yönlü")), ("BTC/ETH filtreleri", st("Testnet kuralları")), ("Fiyat ve pozisyon okuma", FAIL if any(r.status == FAIL and r.name.startswith(("Fiyat", "Pozisyon okuma")) for r in self.results) else st("Pozisyon okuma")),
+                  ("Emir oluşturma", st("Emir oluşturma")), ("Aynı kimlikle tekrar (açıkken)", st("Kimlik tekrarı (emir açıkken)")),
+                  ("İptal", st("Emir iptali")), ("Yanıt kaybı", st("Yanıt kaybı")), ("Son pozisyon/emir kontrolü", FAIL if FAIL in (st("Pozisyon değişmedi"), st("Temizlik")) else st("Pozisyon değişmedi"))]
+        lines += ["", "## Kabul kriterleri", "", "| Kontrol | Sonuç |", "|---|---|"] + [f"| {n} | {v} |" for n, v in accept]
         skipped = [r.name for r in self.results if r.status == SKIP]
         lines += ["", f"**Genel: {'BAŞARISIZ' if self.failed else 'GEÇTİ (atlananlar hariç)'}**"]
         if skipped:
@@ -110,7 +117,9 @@ def order_and_id_tests(adapter: BinanceTestnetAdapter, report: Report, symbol: s
     prefix = "kg-d1"
     f = adapter.symbol_filters(symbol)
     mark = adapter.mark_price(symbol)
-    price = round(mark * 0.5 / f["tickSize"]) * f["tickSize"]            # piyasanın çok altı: dolmaz
+    # Fiyat filtresinin (PERCENT_PRICE) izin verdiği EN UZAK noktaya yakın: dolma ihtimali en düşük, ama borsa 'fiyat çok uzak' diye reddetmez.
+    factor = min(0.95, f["percentDown"] + 0.01) if f.get("percentDown", 0) > 0 else 0.9
+    price = round(mark * factor / f["tickSize"]) * f["tickSize"]
     steps = max(1, int(-(-(f["minNotional"] * 1.2 / price) // f["stepSize"])))
     qty = round(steps * f["stepSize"], 8)
     price = round(price, 8)
@@ -129,6 +138,8 @@ def order_and_id_tests(adapter: BinanceTestnetAdapter, report: Report, symbol: s
             report.add("Emir oluşturma (yanıt kaybı)", INFO, f"{exc}; kimlikle sorgu: {'emir borsada' if found else 'emir yok'}; yeniden gönderilmedi")
         # 2) oku
         got = adapter.get_order(symbol, cid)
+        if got is not None and got.filled > 0:
+            report.add("Emir DOLDU (beklenmiyordu)", FAIL, f"{cid} miktar {got.filled} doldu. Testnet'te pozisyon açıldı; elle kapat. Son pozisyon kontrolü de bunu gösterecek.")
         listed = cid in _order_kinds(adapter, symbol, prefix)
         report.add("Emir durumunu okuma", PASS if got and got.status == "NEW" and listed else FAIL,
                    f"get_order={'yok' if got is None else got.status}; açık emirler listesinde={listed}")
@@ -165,8 +176,9 @@ def order_and_id_tests(adapter: BinanceTestnetAdapter, report: Report, symbol: s
                 except ExchangeError:
                     pass
             remaining = _order_kinds(adapter, symbol, prefix)
-            report.add("Temizlik (test emri kalmadı)", PASS if not remaining else FAIL, "açık test emri yok" if not remaining else f"KALAN: {remaining}")
-            report.add("Pozisyon değişmedi", PASS if adapter.position(symbol) == before else FAIL, f"önce {before}, sonra {adapter.position(symbol)}")
+            report.add("Temizlik (borsada test emri kalmadı)", PASS if not remaining else FAIL, "açık test emri yok" if not remaining else f"KALAN: {remaining}")
+            after_position = adapter.position(symbol)
+            report.add("Pozisyon değişmedi (borsadan)", PASS if after_position == before else FAIL, f"önce {before}, sonra {after_position}")
         except ExchangeError as exc:
             report.add("Temizlik", FAIL, f"doğrulanamadı: {type(exc).__name__}: {exc} — Testnet'te '{prefix}' önekli emirleri elle kontrol et")
 
@@ -176,6 +188,8 @@ def run(adapter: BinanceTestnetAdapter, report: Report) -> Report:
                "Bu betik sunucu oturumuna erişmez. Elle doğrula: Master Trade'de açık pozisyon varken Grid önizlemede 'Açık pozisyonların stopa kadar zararı' sayı mı yoksa 'bilinmiyor' mu gösteriyor?")
     report.add("/api/v25/grid/filters (sunucu yolu)", SKIP,
                "Sunucu yolu oturum ister; betik çağırmaz. Elle doğrula: Grid önizlemede BTC ve ETH seçince 'Borsa kuralları: ...' satırı çıkıyor mu? Not: bu yol canlı piyasanın herkese açık kurallarını okur (Testnet değil).")
+    report.add("Yanıt kaybı (çift emir yok)", SKIP,
+               "Gerçek Testnet'te yapay yanıt kaybı üretilemez; bu davranış sahte sunucuda kanıtlandı. Bu betikte bir zaman aşımı gerçekten olursa emir TEKRAR GÖNDERİLMEZ, kimlikle sorgulanır ve rapora yazılır.")
     if not check_rules_and_connection(adapter, report):
         report.add("Emir testleri", SKIP, "İlk API kontrolü başarısız; kurallara göre emir testlerine GEÇİLMEDİ. Önce bağlantı/veri sorununu çöz.")
         return report

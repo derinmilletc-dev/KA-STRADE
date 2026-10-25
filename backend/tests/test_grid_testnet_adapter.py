@@ -159,7 +159,7 @@ class TestSigningAndMapping(unittest.TestCase):
         a = self.adapter(lambda *x: (200, {"symbols": [{"symbol": SYM, "filters": [
             {"filterType": "PRICE_FILTER", "tickSize": "0.10"}, {"filterType": "LOT_SIZE", "stepSize": "0.001"},
             {"filterType": "MIN_NOTIONAL", "notional": "100"}]}]}))
-        self.assertEqual(a.symbol_filters(SYM), {"tickSize": 0.1, "stepSize": 0.001, "minNotional": 100.0})
+        self.assertEqual(a.symbol_filters(SYM), {"tickSize": 0.1, "stepSize": 0.001, "minNotional": 100.0, "percentDown": 0.0})
         a = self.adapter(lambda *x: (200, {"dualSidePosition": True}))
         with self.assertRaises(RuntimeError):
             a.assert_one_way_mode()
