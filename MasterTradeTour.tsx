@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties} from 'react'
+import {createPortal} from 'react-dom'
 import {X} from 'lucide-react'
 import './master-trade-tour.css'
 
@@ -109,7 +110,7 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
   }, [open, index, box, panelHeight])
 
   if (!userId) return null
-  if (!open) return <button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtım turunu başlat" title="Tanıtım turu">?</button>
+  if (!open) return createPortal(<button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtım turunu başlat" title="Tanıtım turu"><b aria-hidden="true">?</b><span>Tanıtım turu</span></button>, document.body)
 
   const wrongTab = Boolean(step.need && tab !== step.need)
   const pressWaiting = Boolean(step.press && tab !== step.press)
@@ -137,7 +138,7 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
     }
   }
   const goHere = step.press ?? step.need
-  return <div className="mtTour" data-step={step.id}>
+  return createPortal(<div className="mtTour" data-step={step.id}>
     {box ? <div className="mtTourSpot" data-press={step.press ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="mtTourDim" aria-hidden="true"/>}
     <div ref={panel} className="mtTourPanel" data-mobile={mobile || undefined} style={style} role="dialog" aria-modal="false" aria-labelledby="mt-tour-title" data-testid="master-tour">
       <button type="button" className="mtTourClose" aria-label="Turu kapat" onClick={finish}><X aria-hidden="true"/></button>
@@ -155,5 +156,5 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
         </span>
       </div>
     </div>
-  </div>
+  </div>, document.body)
 }
