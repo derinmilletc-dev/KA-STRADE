@@ -3594,6 +3594,7 @@ async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> 
             client_id_for("TP1", str(plan.get("intent_id") or "")),
             client_id_for("TP2", str(plan.get("intent_id") or "")),
             client_id_for("TP3", str(plan.get("intent_id") or "")),
+            *smart_guard_client_ids(plan),
         ] if value
     }
     known_algo_ids = {int(value) for value in plan.get("protection_ids", []) if str(value).isdigit()}
@@ -3659,10 +3660,19 @@ async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> 
     }
 
 
+def smart_guard_client_ids(plan: dict[str, Any]) -> set[str]:
+    """Akıllı Kâr Koruma geçici stop kimlikleri (her kuşak ayrı kimlik; kayıtta tutulur)."""
+    guard = plan.get("smart_guard") if isinstance(plan, dict) else None
+    ids = guard.get("client_ids") if isinstance(guard, dict) else None
+    return {str(value) for value in ids or [] if value}
+
+
 def close_reason_for_intent(intent: str) -> str:
     value = str(intent or "").lower()
     if value.startswith("manual-close-"):
         return "MANUAL"
+    if value.startswith("smartexit-"):
+        return "SMART_EXIT"
     if value.startswith("protection-"):
         return "STOP"
     if value.startswith("emergency-close-"):
@@ -3674,6 +3684,8 @@ def close_reason_for_client_id(plan: dict[str, Any], client_id: str) -> str:
     value = str(client_id or "")
     if value == str(plan.get("stop_client_id") or ""):
         return "STOP"
+    if value and value in smart_guard_client_ids(plan):
+        return "SMART_STOP"
     for index in range(1, 4):
         if value == client_id_for(f"TP{index}", str(plan.get("intent_id") or "")):
             return f"TP{index}"
@@ -4154,6 +4166,7 @@ def owned_protection_rows(plan: dict[str, Any], rows: list[dict[str, Any]]) -> l
             client_id_for("TP2", str(plan.get("intent_id") or "")),
             client_id_for("TP12", str(plan.get("intent_id") or "")),
             client_id_for("TP3", str(plan.get("intent_id") or "")),
+            *smart_guard_client_ids(plan),
         ) if value
     }
     return [
@@ -4189,6 +4202,8 @@ def classify_plan_protection(
             or (expected_algo_id and str(row.get("algo_id") or "") == expected_algo_id)
         ):
             exact.append(row)
+        if str(row.get("client_algo_id") or "") in smart_guard_client_ids(plan):
+            continue  # Akıllı Kâr Koruma geçici stopu orijinal Stop sayılmaz ve onu belirsizleştirmez
         if row_symbol == symbol and row_side == expected_side and row_type == "STOP_MARKET" and row_status in active_statuses:
             same_shape.append(row)
     if len(exact) == 1:
@@ -6174,6 +6189,13 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                 await manual_breakeven_after_tp1(client, state, plan, position, open_algos)
             except LiveExchangeError as exc:
                 logger.warning("MANUAL_BREAKEVEN_DEFERRED symbol=%s reason=%s", symbol, sanitized_exception_message(exc))
+    try:
+        # Akıllı Kâr Koruma: yalnız Original V2 Live planları; hata ana korumayı asla durdurmaz.
+        from . import original_profit_guard, original_v2_live as _original_live
+        await original_profit_guard.tick(application, client, state, snapshot,
+                                         _original_live.guard_kline_fetch(application, client))
+    except Exception as exc:
+        logger.warning("SMART_GUARD_HOOK_FAILED error=%s", type(exc).__name__)
     clear_clean_reconciliation_state(state, snapshot)
     from . import original_v2_live
     original_v2_live.resume_after_transient_pause(state, snapshot)

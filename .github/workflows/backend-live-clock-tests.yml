@@ -68,6 +68,9 @@ jobs:
           # Dürüst risk ayrımı: hedef / uygulanabilir maksimum / gerçekleşecek (yalnız bilgi; boyutlandırma değişmez).
           python -m pytest tests/test_original_risk_capacity.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Akıllı Kâr Koruma (sahte borsa; gerçek emir yok): sayaç, net kâr, geçici stop, kapatma ve güvenlik senaryoları.
+          python -m pytest tests/test_original_profit_guard.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           python -m pytest tests/test_original_live_risk.py -q -rfE --tb=line -p no:cacheprovider \
             -k "honest_breakdown or breakdown_is_information_only or breakdown_failure_never or unreachable_selection or expose_cost_assumption or do_not_use_the_live_breakdown or effective_trade_risk_reports" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
