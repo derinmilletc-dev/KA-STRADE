@@ -11,7 +11,9 @@ import '../../manual-order.css'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
-import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT} from './gridMath'
+import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters} from './gridMath'
+import {buildGridAlerts, type FiltersState} from './gridAlerts'
+import {openPositionsRiskToStop} from './gridPortfolio'
 import {PremiumWorkspace, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
@@ -222,6 +224,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [coinOpen, setCoinOpen] = useState(false)
   const [manualStep, setManualStep] = useState(0)
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
+  const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
   const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
   const [reviewedKey, setReviewedKey] = useState('')
@@ -255,6 +258,19 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }, 500)
     return () => { window.clearTimeout(timer); controller.abort() }
   }, [active, masterTrade, openStep, order.symbol, order.order_type, order.limit_price, order.stop_loss, order.margin_usdt, order.leverage, analysis?.entry, symbol, universe])
+  useEffect(() => {
+    if (!active || manualMode !== 'grid' || !order.symbol) { setGridFilters({state: 'idle', data: null, error: ''}); return }
+    const controller = new AbortController()
+    setGridFilters({state: 'loading', data: null, error: ''})
+    void fetchWithTimeout(`${V25}/grid/filters?symbol=${encodeURIComponent(order.symbol)}`, {signal: controller.signal}).then(async response => {
+      const payload: any = await response.json().catch(() => null)
+      if (!response.ok) { setGridFilters({state: 'error', data: null, error: errorMessage(payload, 'Borsa kuralları okunamadı.')}); return }
+      const tick = Number(payload?.tickSize), step = Number(payload?.stepSize), min = Number(payload?.minNotional)
+      if (!(tick > 0) || !(step > 0) || !(min >= 0)) { setGridFilters({state: 'error', data: null, error: 'Yanıt geçersiz'}); return }
+      setGridFilters({state: 'ok', data: {tickSize: tick, stepSize: step, minNotional: min}, error: ''})
+    }).catch(error => { if (error?.name !== 'AbortError') setGridFilters({state: 'error', data: null, error: 'Bağlantı kurulamadı'}) })
+    return () => controller.abort()
+  }, [active, manualMode, order.symbol])
   const [strategyInfo, setStrategyInfo] = useState(false)
   const [externalHistory, setExternalHistory] = useState<ExternalHistory | null>(null)
   const [reviewResult, setReviewResult] = useState<{message: string; notional?: number; estimated_stop_loss_usdt?: number} | null>(null)
@@ -1166,12 +1182,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const near = gridPrice * (1 + sgn * 0.005), far = gridPrice * (1 + sgn * pct / 100), stopAt = gridPrice * (1 + sgn * (pct + 1.5) / 100)
       setGrid(current => ({...current, lower: presetPrice(Math.min(near, far)), upper: presetPrice(Math.max(near, far)), stop: presetPrice(stopAt)}))
     }
-    const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: undefined}, {
+    const gridOpenRisk = openPositionsRiskToStop(status?.account?.positions || [], [...(status?.account?.open_orders || []), ...(((status?.account as any)?.open_algo_orders as Array<Record<string, unknown>>) || [])])
+    const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: gridFilters.data ?? undefined}, {
       maxPositions: numericPolicy('max_positions', 2), maxLossPerTrade: numericPolicy('max_loss_per_trade', 1), maxTotalExposure: numericPolicy('max_total_exposure_usdt', 350),
       maxMarginPerTrade: Number.isFinite(Number(status?.policy?.max_margin_per_trade)) ? Number(status?.policy?.max_margin_per_trade) : undefined,
       currentExposure: liveExposure, openPositions: (status?.account?.positions || []).length,
       dailyLossBudgetLeft: typeof status?.daily?.remaining_loss_budget === 'number' ? status.daily.remaining_loss_budget : null,
+      openPositionRisk: gridOpenRisk.total,
     })
+    const gridAlerts = buildGridAlerts({result: gridResult, filters: gridFilters.state, filtersError: gridFilters.error, openRisk: gridOpenRisk.total, hasOpenPositions: (status?.account?.positions || []).length > 0})
     const gridBody = <div className="mwz mgp">
       <div className="mwzCard">
         <small className="mwzKicker">GRID · ÖNİZLEME</small>
@@ -1187,7 +1206,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={grid.leverage} onChange={event => setGridField('leverage', event.target.value)}/></label>
           <label className="liveWsField">Ortak stop<input type="number" value={grid.stop} onChange={event => setGridField('stop', event.target.value)}/></label>
         </div>
-        {gridResult.errors.length > 0 && <ul className="mgpErr" role="status">{gridResult.errors.map(item => <li key={item}>{item}</li>)}</ul>}
+        <p className="liveWsHint mgpRules">{gridFilters.state === 'ok' && gridFilters.data ? `Borsa kuralları: fiyat adımı ${gridFilters.data.tickSize} · miktar adımı ${gridFilters.data.stepSize} · en düşük emir ${gridFilters.data.minNotional} USDT` : gridFilters.state === 'loading' ? 'Borsa kuralları okunuyor…' : gridFilters.state === 'error' ? 'Borsa kuralları okunamadı.' : 'Coin seçince borsa kuralları okunur.'}{gridOpenRisk.items.length > 0 && ` · Açık pozisyonların stopa kadar zararı: ${gridOpenRisk.total === null ? 'bilinmiyor' : money(gridOpenRisk.total)}`}</p>
+        {gridAlerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Grid uyarıları">{gridAlerts.map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b><span>{item.text}</span></li>)}</ul>}
         {gridResult.levels.length > 0 && <>
           <div className="liveWsSumGrid mgpSum">
             <span><small>Kademe aralığı</small><b>%{gridResult.spacingPct.toFixed(2)}</b></span>

@@ -2,7 +2,9 @@
 
 **Canlıya, API rotalarına, bota ya da gerçek borsaya BAĞLI DEĞİL.** Canlı adaptör yok. Gerçek para/anahtar yok.
 
-Testler (ağ yok): `cd backend && python -B -m unittest tests.test_grid_engine_fake tests.test_grid_testnet_adapter -v`
+Testler (ağ yok):
+- `cd backend && python -B -m unittest tests.test_grid_engine_fake tests.test_grid_testnet_adapter tests.test_grid_filters -v`
+- `node frontend/src/grid.test.mts` (hesap, risk, uyarılar; Node 22.18+)
 
 ## Kurallar
 - Kademe sınırı 5 (önizleme, `manual_grid.py` ve motorla aynı).
@@ -20,6 +22,21 @@ Testler (ağ yok): `cd backend && python -B -m unittest tests.test_grid_engine_f
 - Testnet adresi koda sabit (`https://testnet.binancefuture.com`); kurucuda adres parametresi yok, ortam değişkeni okunmaz,
   her istekte adres yeniden doğrulanır, yönlendirme izlenmez. Anahtar yalnızca BINANCE_TESTNET_API_KEY/SECRET.
 
+## Ekran tarafı (önizleme)
+- Borsa kuralları: `GET /api/v25/grid/filters?symbol=` (yalnız herkese açık exchangeInfo, mevcut önbellekli kanal; imzalı istek/anahtar/emir yok).
+  Okunamazsa ekran "Bağlantı sorunu" der ve plan ONAYLANMAZ; varsayılan değer uydurulmaz.
+- Toplam portföy riski = açık pozisyonların STOPA KADAR zararı + grid'in en kötü zararı ≤ bugün kalan zarar hakkı.
+  Herhangi bir açık pozisyonun stopu okunamazsa toplam "bilinmiyor" olur ve plan onaylanmaz.
+- Uyarılar (`gridAlerts.ts`): Bağlantı sorunu, Risk aşımı, Doğrulanamadı, MÜDAHALE GEREKLİ (motor durumu → kullanıcı dili).
+- Bakım teminatı imzalı veri olduğu için ekrana getirilmedi: likidasyon tahmini hâlâ %0,5 VARSAYIMIDIR. Testnet/canlı öncesi gerçek veriyle değiştirilmeden güvenilir sayılmaz.
+
+## Test planı (zorunlu; biri kırılırsa ilerleme yok)
+Altı senaryo: (1) yanıt kaybı (2) yeniden başlatma (3) kısmi dolum (4) stop tetiklenmesi (5) bağlantı kopması (6) acil durdurma.
+Dört güvenlik düzeltmesi: (a) acil durdurma başarı kriteri = borsadan doğrulama, yoksa INTERVENTION_REQUIRED + stoplar kalır
+(b) emir kimliği çok katmanlı (kimlik tekrarını reddetmeyen / biten kimliği yeniden kullanan borsa varyantları dahil)
+(c) kısmi dolumda %30/%70/%100 hiçbir an korumasız yok, stop+hedef = gerçek dolum (d) Testnet adresi kilidi.
+Ek: aynı coinde pozisyon/bekleyen emir → başlamaz; stop kesin ret ≠ yanıt kaybı; çift kapanış yok.
+
 ## Testnet'te DOĞRULANACAK varsayımlar (henüz doğrulanmadı)
 1. Açık emrin kimliği tekrar kullanılınca -4116 dönüyor mu; BİTEN (dolu/iptal) emrin kimliği yeniden kullanılabiliyor mu?
 2. Stop (STOP_MARKET, reduceOnly) fiyat geçilmişse -2021 mi veriyor?
@@ -33,5 +50,5 @@ Gün 1 küçük denemeler → Gün 2 altı zorunlu senaryo (yanıt kaybı, yenid
 Gün 3 kesintisiz çalışma (defter↔borsa karşılaştırması). Başarısız test / emir uyuşmazlığı / açıklanamayan pozisyon farkı varsa ilerleme yok.
 
 ## Henüz yok
-Kullanıcıya uyarı gösterimi, borsa filtrelerinin/teminat tablosunun ekrana taşınması, açık pozisyonların stopa kadar zararının
-portföy riskine eklenmesi, kademe dolunca yeniden kurma, canlı adaptör (yazılmayacak).
+Gerçek bakım teminatı tablosu, motor durumunun ekrana canlı akışı (motor henüz hiçbir yere bağlı değil),
+kademe dolunca yeniden kurma, canlı adaptör (yazılmayacak).

@@ -950,3 +950,12 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable .mgpHead{border-top:0;font-weight:800;color:#8fa2b6;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable .down{color:#ff8a8a}
 @media (max-width:640px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable{overflow-x:auto}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable>div{grid-template-columns:24px 92px 92px 54px 54px;gap:8px;min-width:340px;font-size:11.5px;padding:7px 10px}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpTable span{white-space:nowrap;font-size:11.5px}}
+
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpRules{margin:10px 0 0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;font-size:12.5px;line-height:1.45;background:rgba(255,196,87,.1);color:#f3d9a0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li b{flex:none;font-size:10px;letter-spacing:.08em;padding:2px 7px;border-radius:99px;background:rgba(255,196,87,.2);color:#ffc457;margin-top:1px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="kritik"]{background:rgba(255,107,107,.12);color:#ffb0b0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="kritik"] b{background:rgba(255,107,107,.25);color:#ff8a8a}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="bilgi"]{background:rgba(120,170,255,.1);color:#bcd2ff}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="bilgi"] b{background:rgba(120,170,255,.2);color:#8fb4ff}

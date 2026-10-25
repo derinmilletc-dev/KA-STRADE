@@ -36,6 +36,7 @@ export type GridLimits = {
   currentExposure: number
   openPositions: number
   dailyLossBudgetLeft: number | null
+  openPositionRisk: number | null // açık pozisyonların stopa kadar olası zararı toplamı; bilinmiyorsa null (onaylanmaz)
 }
 
 export type GridFilters = {tickSize: number; stepSize: number; minNotional: number}
@@ -111,15 +112,24 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   const filtersOk = !!f && f.tickSize > 0 && f.stepSize > 0 && f.minNotional >= 0
   let dupes = 0, tooSmall = 0
   if (filtersOk && f) {
+    // Yuvarlanmış kademeleri önce ayrı hesapla; sorun varsa (çakışma/çok küçük emir) ideal değerleri göster, uyarı ver.
     const seen = new Set<number>()
-    for (const l of levels) {
-      l.entry = roundTo(l.entry, f.tickSize); l.target = roundTo(l.target, f.tickSize)
-      l.qty = Math.floor(l.notional / l.entry / f.stepSize) * f.stepSize
-      l.notional = l.qty * l.entry
-      l.lossAtStop = l.qty * Math.abs(l.entry - stop); l.gainAtTarget = l.qty * Math.abs(l.target - l.entry)
-      if (seen.has(l.entry)) dupes++
-      seen.add(l.entry)
-      if (l.qty <= 0 || l.notional < f.minNotional) tooSmall++
+    const rounded = levels.map(l => {
+      const entry = roundTo(l.entry, f.tickSize), target = roundTo(l.target, f.tickSize)
+      const qty = Math.floor(l.notional / entry / f.stepSize + 1e-9) * f.stepSize
+      return {entry, target, qty, notional: qty * entry}
+    })
+    for (const r of rounded) {
+      if (seen.has(r.entry)) dupes++
+      seen.add(r.entry)
+      if (r.qty <= 0 || r.notional < f.minNotional) tooSmall++
+    }
+    if (dupes === 0 && tooSmall === 0) {
+      levels.forEach((l, i) => {
+        const r = rounded[i]
+        l.entry = r.entry; l.target = r.target; l.qty = r.qty; l.notional = r.notional
+        l.lossAtStop = l.qty * Math.abs(l.entry - stop); l.gainAtTarget = l.qty * Math.abs(l.target - l.entry)
+      })
     }
   }
   const wrongSide = levels.filter(l => (side === 'LONG' ? l.entry >= price : l.entry <= price))
@@ -175,6 +185,11 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   if (limits.dailyLossBudgetLeft === null) add('daily_loss', false, 'Günlük zarar hakkı', 'Bugünkü kalan zarar hakkı okunamadı; güvenli tarafta kalmak için onaylanmaz.')
   else add('daily_loss', worstLoss <= limits.dailyLossBudgetLeft + 1e-9, 'Günlük zarar hakkı',
     `En kötü zarar ${worstLoss.toFixed(2)} USDT; bugün kalan hak ${limits.dailyLossBudgetLeft.toFixed(2)} USDT.`)
+  const portfolioLoss = limits.openPositionRisk === null ? null : limits.openPositionRisk + worstLoss
+  if (portfolioLoss === null) add('portfolio_risk', false, 'Toplam portföy riski', 'Açık pozisyonların stopa kadar zararı bilinmiyor; toplam risk hesaplanamadı, onaylanmaz.')
+  else if (limits.dailyLossBudgetLeft === null) add('portfolio_risk', false, 'Toplam portföy riski', 'Günlük zarar hakkı okunamadı; toplam risk karşılaştırılamadı, onaylanmaz.')
+  else add('portfolio_risk', portfolioLoss <= limits.dailyLossBudgetLeft + 1e-9, 'Toplam portföy riski',
+    `Açık pozisyonlar (stopa kadar) ${(limits.openPositionRisk ?? 0).toFixed(2)} + grid en kötü ${worstLoss.toFixed(2)} = ${portfolioLoss.toFixed(2)} USDT; bugün kalan hak ${limits.dailyLossBudgetLeft.toFixed(2)} USDT.`)
   if (typeof limits.maxMarginPerTrade === 'number' && limits.maxMarginPerTrade > 0) add('margin', totalMargin <= limits.maxMarginPerTrade + 1e-9, 'Toplam marjin sınırı', `Grid ${totalMargin.toFixed(2)} USDT; sınır ${limits.maxMarginPerTrade} USDT.`)
   add('side', wrongSide.length === 0, 'Kademe yerleşimi', wrongSide.length ? sideDetail : 'Tüm kademeler güncel fiyatın doğru tarafında.')
 
