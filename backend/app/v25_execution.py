@@ -3170,7 +3170,7 @@ async def install_protection(
         original_v2_live.pause(state, f"{plan['symbol']} ilk stop değişti")
         raise LiveExchangeError("Original V2 ilk stop değiştirilemez.", unknown_execution=True)
     if original_plan and original_v2_live.stop_repair_wait(plan):
-        return  # önceki başarısız stop turundan beri 90 sn dolmadı; sıradaki tur zamanı gelince denenecek
+        return  # önceki başarısız stop turundan beri 30 sn dolmadı; sıradaki tur zamanı gelince denenecek
     symbol = plan["symbol"]
     plan.setdefault("protection_state", "UNKNOWN")
     if plan.get("provenance_state") not in {"PROVISIONAL", "CONFIRMED"}:
@@ -3229,7 +3229,7 @@ async def install_protection(
             original_v2_live.clear_stop_failures(plan)
     except LiveExchangeError as exc:
         if original_plan and not original_v2_live.record_stop_failure(state, plan, symbol, sanitized_exception_message(exc)):
-            raise  # yeni tur 90 sn sonra; pozisyon açık kalır, yeni girişler kilitli
+            raise  # yeni tur 30 sn sonra; pozisyon açık kalır, yeni girişler kilitli
         await log_event(getattr(client.application.state, "db_pool", None) if client.application is not None else None, build_error_event(
             source="backend", service="trading_engine", kind="ProtectionError", code="STOP_LOSS_FAILED", message=str(exc), severity="CRITICAL",
             user_id=((state.get("live_session_authorization") or {}).get("user_id")), context={"exchange":"BINANCE","symbol":symbol,"direction":direction,"order_type":"STOP_MARKET","quantity":decimal_text(abs(amount)),"price":plan.get("stop_loss"),"bot":"V25"},

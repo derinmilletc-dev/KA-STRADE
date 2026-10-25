@@ -50,9 +50,9 @@ DEFAULT_MAX_MARGIN_PER_TRADE_PCT = 30.0   # tek işlemin teminatı güncel bakiy
 DEFAULT_MAX_TOTAL_MARGIN_PCT = 80.0       # açık tüm pozisyonların toplam teminatı bakiyenin en fazla %80'i
 MARGIN_PER_TRADE_ENV = "ORIGINAL_V2_MAX_MARGIN_PER_TRADE_PCT"
 TOTAL_MARGIN_ENV = "ORIGINAL_V2_MAX_TOTAL_MARGIN_PCT"
-# Stop kurulamazsa: ilk turdan sonra 90 sn arayla en fazla 3 yeniden deneme turu; hepsi başarısızsa pozisyon
+# Stop kurulamazsa: ilk turdan sonra 30 sn arayla en fazla 3 yeniden deneme turu; hepsi başarısızsa pozisyon
 # reduce-only kapatılır. Her tur kendi içinde install_verified_stop'un kısa (1-2 sn) denemelerini içerir.
-STOP_REPAIR_RETRY_SECONDS = 90
+STOP_REPAIR_RETRY_SECONDS = 30
 STOP_REPAIR_MAX_RETRIES = 3
 
 
@@ -516,7 +516,7 @@ def pause(state: dict[str, Any], reason: str, *, note: str | None = None) -> Non
 
 
 def stop_repair_wait(plan: dict[str, Any]) -> bool:
-    """Önceki başarısız stop turundan beri 90 sn dolmadıysa True: bu turda stop yeniden denenmez.
+    """Önceki başarısız stop turundan beri 30 sn dolmadıysa True: bu turda stop yeniden denenmez.
 
     Alan bozuk ya da sayı değilse bekleme yok sayılır (koruma kurmayı geciktirmek yerine denemeye devam)."""
     retry_at = plan.get("original_stop_retry_at")
@@ -534,7 +534,7 @@ def clear_stop_failures(plan: dict[str, Any]) -> None:
 def record_stop_failure(state: dict[str, Any], plan: dict[str, Any], symbol: str, message: str) -> bool:
     """Original planın stop turu başarısız oldu.
 
-    False: 90 sn sonra yeni tur denenecek (yeni girişler kilitli, pozisyon açık kalır).
+    False: 30 sn sonra yeni tur denenecek (yeni girişler kilitli, pozisyon açık kalır).
     True: ilk tur + 3 yeniden deneme tükendi; çağıran pozisyonu reduce-only kapatmalıdır.
     """
     previous = plan.get("original_stop_failures")
