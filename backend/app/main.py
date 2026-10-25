@@ -328,12 +328,18 @@ def shared_mtf_decision(
 SHORT_FILTER_V2_VERSION = "short-exhaustion-v1"
 
 
+SHORT_FILTER_EPSILON = 1e-9  # ATR oranlarındaki kayan nokta gürültüsü sınırdaki kararı çevirmesin (sınırda ENGELLE yönünde)
+
+
 def evaluate_short_entry_filter(analysis: Mapping[str, Any], mtf: Mapping[str, Any], rules: Mapping[str, Any]) -> dict[str, Any]:
     """Yeni SHORT giriş filtresi (yalnız `short_filter_rules` verilen çağrılarda; saf hesap).
 
     Güçlü düşüş trendi SHORT'u engellemez; yalnız aşırı uzamış, aşırı satımda ya da desteğe çok yakın girişler reddedilir.
-    Eşikler: fiyat EMA20'nin >= extension_atr_min ATR altındaysa, RSI < rsi_min ise, destek mesafesi <= support_atr_max ATR ise ret.
-    Gerekli veri yoksa/sonlu değilse varsayılan değer ÜRETİLMEZ; giriş reddedilir (SHORT_FILTER_DATA_UNAVAILABLE).
+    * uzama:  extension_atr = (EMA20 - fiyat) / ATR  >= extension_atr_min  -> SHORT_EXTENDED_BELOW_EMA20
+    * RSI:    RSI < rsi_min                           -> SHORT_RSI_OVERSOLD
+    * destek: (fiyat - destek) / ATR <= support_atr_max -> SHORT_SUPPORT_TOO_CLOSE
+    Veri yoksa/sonlu değilse varsayılan değer ÜRETİLMEZ ve giriş reddedilir. Destek eksikliği, desteğe yakınlıktan AYRI bir
+    nedenle raporlanır (SHORT_SUPPORT_UNAVAILABLE); diğer eksik veriler SHORT_FILTER_DATA_UNAVAILABLE'dır. `missing_fields` eksikleri listeler.
     """
     timeframes = mtf.get("timeframes") if isinstance(mtf.get("timeframes"), Mapping) else {}
     thresholds = {key: float(rules[key]) for key in ("extension_atr_min", "rsi_min", "support_atr_max")}
@@ -349,24 +355,31 @@ def evaluate_short_entry_filter(analysis: Mapping[str, Any], mtf: Mapping[str, A
 
     price, atr, rsi = number(analysis.get("entry")), number(analysis.get("atr")), number(analysis.get("rsi"))
     ema20, support = number((analysis.get("ema") or {}).get("ema20")), number(analysis.get("support"))
+    missing = [name for name, value in (("price", price if price is not None and price > 0 else None),
+                                        ("atr", atr if atr is not None and atr > 0 else None),
+                                        ("ema20", ema20), ("rsi", rsi), ("support", support)) if value is None]
     metrics: dict[str, Any] = {
         "version": SHORT_FILTER_V2_VERSION,
         "alignment": mtf.get("alignment"),
         "directions": {interval: (timeframes.get(interval) or {}).get("direction") for interval in ("15m", "1h", "4h")},
         "rsi": rsi, "extension_atr": None, "support_distance_atr": None,
-        "thresholds": thresholds, "legacy_alignment_filter_applied": False,
+        "thresholds": thresholds, "missing_fields": missing, "legacy_alignment_filter_applied": False,
     }
     reasons: list[str] = []
-    if None in (price, atr, rsi, ema20, support) or price <= 0 or atr <= 0:
+    core_missing = [name for name in missing if name != "support"]
+    if core_missing:
         reasons.append("SHORT_FILTER_DATA_UNAVAILABLE")
     else:
         metrics["extension_atr"] = (ema20 - price) / atr  # pozitif: fiyat EMA20'nin altında
-        metrics["support_distance_atr"] = (price - support) / atr
-        if metrics["extension_atr"] >= thresholds["extension_atr_min"]:
+        if metrics["extension_atr"] >= thresholds["extension_atr_min"] - SHORT_FILTER_EPSILON:
             reasons.append("SHORT_EXTENDED_BELOW_EMA20")
         if rsi < thresholds["rsi_min"]:
             reasons.append("SHORT_RSI_OVERSOLD")
-        if metrics["support_distance_atr"] <= thresholds["support_atr_max"]:
+    if "support" in missing:
+        reasons.append("SHORT_SUPPORT_UNAVAILABLE")
+    elif not core_missing:
+        metrics["support_distance_atr"] = (price - support) / atr
+        if metrics["support_distance_atr"] <= thresholds["support_atr_max"] + SHORT_FILTER_EPSILON:
             reasons.append("SHORT_SUPPORT_TOO_CLOSE")
     metrics.update(accepted=not reasons, reason=reasons[0] if reasons else None, reasons=reasons,
                    decision="ACCEPT" if not reasons else "REJECT")

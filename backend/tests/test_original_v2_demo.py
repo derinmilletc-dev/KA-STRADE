@@ -215,7 +215,7 @@ def child_code():
     return """
 import json,sys
 sys.path.insert(0,'backend')
-sys.path.insert(0,'backend\\\\tests')
+sys.path.insert(0,'backend/tests')
 def guard(event,args):
     if event in {'socket.connect','socket.getaddrinfo'}:
         raise RuntimeError('NETWORK_FORBIDDEN')

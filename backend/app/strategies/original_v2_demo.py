@@ -105,8 +105,8 @@ def evaluate_live_universe(
     return _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES)
 
 
-def _log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
-    """Her SHORT değerlendirmesi için kabul/ret ve ölçümleri açıkça loglar (yalnız yeni filtre çalıştığında)."""
+def log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
+    """Giriş taramasında her SHORT kararı için açık log (yalnız yeni filtre karar verdiğinde). Açık pozisyon izleme çağırmaz."""
     mtf = legacy.get("mtf") or {}
     v2 = mtf.get("short_filter_v2")
     if not isinstance(v2, dict) or not v2.get("gates_before_passed"):
@@ -119,6 +119,33 @@ def _log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
         v2.get("rsi"), v2.get("extension_atr"), v2.get("support_distance_atr"),
         mtf.get("legacy_short_alignment_would_block"), v2.get("version"),
     )
+    if v2.get("missing_fields"):  # eksik veri, desteğe yakınlıktan ayrı ve daha görünür loglanır
+        logger.warning(
+            "ORIGINAL_V2_SHORT_FILTER_DATA_MISSING symbol=%s missing=%s reasons=%s",
+            symbol, ",".join(v2["missing_fields"]), ",".join(v2.get("reasons") or ()),
+        )
+
+
+def short_filter_scan_counts(results: dict[str, StrategyResult]) -> dict[str, Any]:
+    """Tarama başına: filtrenin karar verdiği SHORT sayısı, kabul/ret ve ret nedenleri (eksik veri ayrı)."""
+    counts: dict[str, Any] = {"evaluated": 0, "accepted": 0, "rejected": 0, "by_reason": {},
+                              "support_unavailable": 0, "support_too_close": 0, "data_unavailable": 0}
+    for result in results.values():
+        v2 = ((result.legacy or {}).get("mtf") or {}).get("short_filter_v2")
+        if not isinstance(v2, dict) or not v2.get("gates_before_passed"):
+            continue
+        counts["evaluated"] += 1
+        if v2.get("accepted"):
+            counts["accepted"] += 1
+            continue
+        counts["rejected"] += 1
+        for reason in v2.get("reasons") or ():
+            counts["by_reason"][reason] = counts["by_reason"].get(reason, 0) + 1
+        reasons = set(v2.get("reasons") or ())
+        counts["support_unavailable"] += "SHORT_SUPPORT_UNAVAILABLE" in reasons
+        counts["support_too_close"] += "SHORT_SUPPORT_TOO_CLOSE" in reasons
+        counts["data_unavailable"] += "SHORT_FILTER_DATA_UNAVAILABLE" in reasons
+    return counts
 
 
 def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any], *,
@@ -139,8 +166,6 @@ def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any], *,
         exit_policy_id=profile["model"]["exit_policy_id"],
         short_filter_rules=deepcopy(short_filter_rules),
     ))
-    if short_filter_rules is not None:
-        _log_short_filter(request.symbol, native.legacy)
     return StrategyResult(
         signal=replace(native.signal, provenance=StrategyProvenance(
             strategy_id=STRATEGY_ID,

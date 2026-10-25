@@ -80,14 +80,49 @@ class ThresholdTests(unittest.TestCase):
         self.assertEqual(result["reason"], "SHORT_EXTENDED_BELOW_EMA20")
         self.assertEqual(result["decision"], "REJECT")
 
-    def test_missing_or_invalid_data_is_rejected_without_inventing_values(self):
-        for bad in ({"support": None}, {"support": float("nan")}, {"atr": 0.0}, {"atr": None}, {"rsi": None}, {"ema20": None}):
+    def test_extension_formula_is_exactly_ema20_minus_price_over_atr(self):
+        result = self.verdict(price=97.5, ema20=101.0, atr=1.75)
+        self.assertEqual(result["extension_atr"], (101.0 - 97.5) / 1.75)  # == 2.0
+        self.assertIn("SHORT_EXTENDED_BELOW_EMA20", result["reasons"])
+        self.assertEqual(self.verdict(price=105.0, ema20=101.0)["extension_atr"], -4.0)  # EMA20 üstünde negatif
+        self.assertEqual(self.verdict(price=100.0, ema20=101.0, atr=0.5)["extension_atr"], 2.0)
+
+    def test_boundaries_hold_with_float_noise(self):
+        # (EMA20 - fiyat) / ATR matematiksel olarak tam 2,0 ama kayan noktada 1,9999999999999 olabilen girişler yine engellenir
+        for ema20, price, atr in ((100.2, 100.0, 0.1), (0.3, 0.1, 0.1), (1.1, 0.7, 0.2), (123.456, 123.256, 0.1)):
+            result = self.verdict(price=price, ema20=ema20, atr=atr, support=price - 50 * atr)
+            self.assertIn("SHORT_EXTENDED_BELOW_EMA20", result["reasons"], (ema20, price, atr, result["extension_atr"]))
+        for price, support, atr in ((100.3, 100.0, 0.6), (10.05, 10.0, 0.1), (0.35, 0.3, 0.1)):  # mesafe tam 0,5 ATR
+            result = self.verdict(price=price, support=support, atr=atr, ema20=price + 0.5 * atr)
+            self.assertIn("SHORT_SUPPORT_TOO_CLOSE", result["reasons"], (price, support, atr))
+        # sınırın gerçekten altı/üstü etkilenmez
+        self.assertTrue(self.verdict(price=99.0 + 1e-6, ema20=101.0, support=90.0)["accepted"])
+        self.assertTrue(self.verdict(price=100.0, support=99.5 - 1e-6)["accepted"])
+
+    def test_missing_support_is_reported_separately_from_support_too_close(self):
+        for support in (None, float("nan"), float("inf")):
+            result = self.verdict(support=support)
+            self.assertFalse(result["accepted"])
+            self.assertEqual(result["reasons"], ["SHORT_SUPPORT_UNAVAILABLE"])
+            self.assertEqual(result["missing_fields"], ["support"])
+            self.assertIsNone(result["support_distance_atr"])  # destek uydurulmaz
+            self.assertIsNotNone(result["extension_atr"])  # diğer kurallar yine hesaplanır
+        close = self.verdict(price=100.0, support=99.8)
+        self.assertEqual(close["reasons"], ["SHORT_SUPPORT_TOO_CLOSE"])
+        self.assertEqual(close["missing_fields"], [])
+        absent = main.evaluate_short_entry_filter({"entry": 100.0, "atr": 1.0, "rsi": 40.0, "ema": {"ema20": 101.0}}, MTF, RULES)
+        self.assertEqual(absent["reasons"], ["SHORT_SUPPORT_UNAVAILABLE"])  # destek anahtarı hiç yok
+
+    def test_other_missing_data_is_rejected_with_its_own_reason(self):
+        for bad, field in (({"atr": 0.0}, "atr"), ({"atr": None}, "atr"), ({"rsi": None}, "rsi"),
+                           ({"ema20": None}, "ema20"), ({"price": 0.0}, "price"), ({"price": float("nan")}, "price")):
             result = self.verdict(**bad)
             self.assertFalse(result["accepted"], bad)
-            self.assertEqual(result["reason"], "SHORT_FILTER_DATA_UNAVAILABLE")
-            self.assertIsNone(result["support_distance_atr"])
-        missing = main.evaluate_short_entry_filter({"entry": 100.0, "atr": 1.0, "rsi": 40.0, "ema": {"ema20": 101.0}}, MTF, RULES)
-        self.assertEqual(missing["reason"], "SHORT_FILTER_DATA_UNAVAILABLE")  # destek anahtarı hiç yok
+            self.assertEqual(result["reason"], "SHORT_FILTER_DATA_UNAVAILABLE", bad)
+            self.assertIn(field, result["missing_fields"])
+            self.assertNotIn("SHORT_SUPPORT_TOO_CLOSE", result["reasons"])
+        both = self.verdict(atr=None, support=None)
+        self.assertEqual(both["reasons"], ["SHORT_FILTER_DATA_UNAVAILABLE", "SHORT_SUPPORT_UNAVAILABLE"])
 
 
 class CanonicalIntegrationTests(unittest.TestCase):
@@ -142,7 +177,7 @@ class CanonicalIntegrationTests(unittest.TestCase):
         reasons = {new["reason"] for _s, _l, new in self.cases if new["mtf"].get("short_filter_v2") and not new["entry_eligible"]
                    and new["mtf"]["short_filter_v2"]["gates_before_passed"]}
         self.assertTrue(reasons <= {"SHORT_EXTENDED_BELOW_EMA20", "SHORT_RSI_OVERSOLD", "SHORT_SUPPORT_TOO_CLOSE",
-                                    "SHORT_FILTER_DATA_UNAVAILABLE"}, reasons)
+                                    "SHORT_SUPPORT_UNAVAILABLE", "SHORT_FILTER_DATA_UNAVAILABLE"}, reasons)
 
 
 class LiveLayerTests(unittest.TestCase):
@@ -184,17 +219,38 @@ class LiveLayerTests(unittest.TestCase):
             strategy.evaluate(replace(self.request(), short_filter_rules=dict(RULES)), enabled=True)
 
     def test_filter_decision_is_logged_with_all_required_fields(self):
+        live = strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)
         with self.assertLogs("app.strategies.original_v2_demo", level="INFO") as logs:
-            strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)
-        line = next(row for row in logs.output if "ORIGINAL_V2_SHORT_FILTER" in row)
+            strategy.log_short_filter(SYMBOL, live.legacy)
+        line = next(row for row in logs.output if "ORIGINAL_V2_SHORT_FILTER " in row)
         for field in ("decision=ACCEPT", "alignment=", "dir15m=SHORT", "dir1h=SHORT", "dir4h=SHORT", "rsi=",
                       "extension_atr=", "support_distance_atr=", "legacy_alignment_would_block=True", "reason="):
             self.assertIn(field, line)
 
-    def test_no_log_for_demo_path(self):
+    def test_evaluating_a_symbol_never_logs_so_position_monitoring_stays_silent(self):
         logger = logging.getLogger("app.strategies.original_v2_demo")
         with self.assertNoLogs(logger, level="INFO"):
+            strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)  # Akıllı Kâr Koruma yolu
             strategy.evaluate(self.request(), enabled=True)
+
+    def test_missing_support_gets_its_own_warning_and_counter(self):
+        live = strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)
+        legacy = deepcopy(live.legacy)
+        v2 = main.evaluate_short_entry_filter({**legacy["analysis"], "support": None}, legacy["mtf"], RULES)
+        v2["gates_before_passed"] = True
+        legacy["mtf"]["short_filter_v2"] = v2
+        with self.assertLogs("app.strategies.original_v2_demo", level="INFO") as logs:
+            strategy.log_short_filter(SYMBOL, legacy)
+        self.assertTrue(any("ORIGINAL_V2_SHORT_FILTER_DATA_MISSING" in row and "missing=support" in row for row in logs.output))
+        self.assertTrue(any("reason=SHORT_SUPPORT_UNAVAILABLE" in row for row in logs.output))
+        close = deepcopy(legacy)
+        close["mtf"]["short_filter_v2"] = {**v2, "reasons": ["SHORT_SUPPORT_TOO_CLOSE"], "reason": "SHORT_SUPPORT_TOO_CLOSE",
+                                           "missing_fields": [], "accepted": False, "decision": "REJECT"}
+        stub = type("R", (), {"legacy": legacy})(), type("R", (), {"legacy": close})()
+        counts = strategy.short_filter_scan_counts({"A": stub[0], "B": stub[1]})
+        self.assertEqual((counts["evaluated"], counts["rejected"], counts["support_unavailable"], counts["support_too_close"]),
+                         (2, 2, 1, 1))
+        self.assertEqual(counts["by_reason"], {"SHORT_SUPPORT_UNAVAILABLE": 1, "SHORT_SUPPORT_TOO_CLOSE": 1})
 
     def test_only_the_live_entry_point_passes_rules(self):
         import inspect
@@ -207,6 +263,107 @@ class LiveLayerTests(unittest.TestCase):
         result = evaluate_original(StrategyInput(SYMBOL, AT, deepcopy(self.frames), required_intervals=INTERVALS,
                                                  historical_policy_override=dict(POLICY)))
         self.assertEqual([check.key for check in result.signal.quality_checks], ["direction", "confidence", "trap", "breakout", "mtf"])
+
+
+class FakeKlineClient:
+    """Deterministik sahte borsa: ağ yok. 15m/1s/4s mumları, oluşmakta olan mum dahil 260 satır."""
+
+    def __init__(self, seed, drift, symbols):
+        self.seed, self.drift, self.symbols = seed, drift, symbols
+
+    async def public_get(self, path, params=None):
+        if path == "/fapi/v1/exchangeInfo":
+            filters = [{"filterType": "PRICE_FILTER", "tickSize": "0.01"}, {"filterType": "LOT_SIZE", "stepSize": "0.001", "minQty": "0.001"},
+                       {"filterType": "MARKET_LOT_SIZE", "stepSize": "0.001", "minQty": "0.001"},
+                       {"filterType": "MIN_NOTIONAL", "notional": "5"}]
+            return {"symbols": [{"symbol": s, "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
+                                 "filters": filters} for s in self.symbols]}
+        symbol, interval, limit = params["symbol"], params["interval"], params["limit"]
+        step = {"15m": 900, "1h": 3600, "4h": 14400}[interval]
+        rng = random.Random(f"{self.seed}|{symbol}|{interval}")
+        drift = self.drift * (0.5 + rng.random())
+        last, price, rows = AT // step * step, 100.0, []
+        for i in range(limit):
+            opened, o = last - (limit - 1 - i) * step, price
+            c = o + drift * rng.random() + rng.gauss(0, 0.5)
+            rows.append([opened * 1000, str(o), str(max(o, c) + abs(rng.gauss(0, 0.3))), str(min(o, c) - abs(rng.gauss(0, 0.3))),
+                         str(c), str(rng.uniform(1e3, 2e3)), (opened + step) * 1000 - 1, str(rng.uniform(1e6, 2e6)), 10, "0", "0", "0"])
+            price = c
+        return rows
+
+
+class ScanAndSideEffectTests(unittest.TestCase):
+    SYMBOLS = sorted(strategy.fixed_profile()["execution_policy"]["allowed_symbols"])[:8]
+
+    def scan(self, seed, drift=-0.3, **kw):
+        import asyncio
+
+        from app import original_v2_demo_execution as ex
+
+        diagnostics = {}
+        eligible, results = asyncio.run(ex.live_candidates(
+            FakeKlineClient(seed, drift, self.SYMBOLS), AT, set(), self.SYMBOLS, require_complete=True,
+            diagnostics=diagnostics, **kw))
+        return eligible, results, diagnostics
+
+    def test_scan_reports_short_filter_counts_and_logs_the_summary(self):
+        for seed in range(12):
+            with self.assertLogs("app.original_v2_demo_execution", level="INFO") as logs:
+                logging.getLogger("app.original_v2_demo_execution").info("probe")
+                _eligible, _results, diagnostics = self.scan(seed)
+            counts = diagnostics["short_filter_counts"]
+            if counts["evaluated"]:
+                self.assertEqual(counts["accepted"] + counts["rejected"], counts["evaluated"])
+                self.assertTrue(any("ORIGINAL_V2_SHORT_FILTER_SCAN" in row for row in logs.output))
+                self.assertEqual(sum(counts["by_reason"].values()) >= counts["rejected"], True)
+                return
+        self.fail("hiçbir senaryoda filtrenin karar verdiği SHORT bulunamadı")
+
+    def test_demo_scan_path_has_no_short_filter_reporting_and_keeps_old_filter(self):
+        import asyncio
+
+        from app import original_v2_demo_execution as ex
+
+        diagnostics = {}
+        _eligible, results = asyncio.run(ex._candidates(
+            FakeKlineClient(0, -0.3, self.SYMBOLS), AT, set(), self.SYMBOLS, require_complete=True, diagnostics=diagnostics))
+        self.assertNotIn("short_filter_counts", diagnostics)
+        for result in results.values():
+            self.assertNotIn("short_filter_v2", (result.legacy.get("mtf") or {}))
+
+    def test_open_position_exclusion_still_works(self):
+        import asyncio
+
+        from app import original_v2_demo_execution as ex
+
+        eligible, _results, _diagnostics = self.scan(0)
+        occupied = {candidate["symbol"] for candidate, _ in eligible}
+        after, _ = asyncio.run(ex.live_candidates(FakeKlineClient(0, -0.3, self.SYMBOLS), AT, occupied, self.SYMBOLS,
+                                                  require_complete=True))
+        self.assertTrue(occupied.isdisjoint({candidate["symbol"] for candidate, _ in after}))  # dolu sembol hâlâ dışarıda
+
+    def test_profit_guard_score_is_identical_and_silent(self):
+        import asyncio
+
+        from app import original_profit_guard as guard
+
+        for seed in range(4):
+            client = FakeKlineClient(seed, -0.3, self.SYMBOLS)
+            symbol = self.SYMBOLS[0]
+            with self.assertNoLogs("app.strategies.original_v2_demo", level="INFO"):
+                analysis, status = asyncio.run(guard.fetch_analysis(client, symbol, AT, None))
+            self.assertEqual(status, "ok")
+            frames = {}
+            from app.backtest_data import normalize_candles
+
+            for interval in strategy.INTERVALS:
+                raw = asyncio.run(client.public_get("/fapi/v1/klines", {"symbol": symbol, "interval": interval,
+                                                                       "limit": strategy.CANDLE_FETCH_LIMIT}))
+                rows = [{"open_time": r[0], "open": r[1], "high": r[2], "low": r[3], "close": r[4], "volume": r[5],
+                         "close_time": r[6], "quote_volume": r[7]} for r in raw]
+                frames[interval] = normalize_candles(rows, interval)[0].closed(AT)
+            demo = strategy.evaluate(StrategyInput(symbol, AT, frames), enabled=True)
+            self.assertEqual(analysis, demo.legacy["analysis"])  # Akıllı Kâr Koruma puanı eski kurala göre değişmez
 
 
 if __name__ == "__main__":
