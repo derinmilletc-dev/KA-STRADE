@@ -195,7 +195,7 @@ export default function LiveCockpit(props: Props) {
   }
 
   const openWizard = () => {
-    setWizStep(0); setSheetError(''); setRiskError(''); setModeError(''); setCustom(false); setCustomOn(false)
+    setWizStep(0); setSmartPick('keep'); setSmartWizAck(false); setSheetError(''); setRiskError(''); setModeError(''); setCustom(false); setCustomOn(false)
     setUnderstood(false); setRiskAck(false); setPhrase(''); setModePick(null); setModeUnderstood(false); setModeAck(false); setModePhrase('')
     setSheet('wizard')
   }
@@ -225,6 +225,10 @@ export default function LiveCockpit(props: Props) {
   const [modeHelpOpen, setModeHelpOpen] = useState(false)
   const [customOn, setCustomOn] = useState(false)
   const [wizStep, setWizStep] = useState(0)
+  const [smartPick, setSmartPick] = useState<'keep' | 'on' | 'off'>('keep')
+  const [smartWizThreshold, setSmartWizThreshold] = useState(70)
+  const [smartWizWait, setSmartWizWait] = useState(10)
+  const [smartWizAck, setSmartWizAck] = useState(false)
   const [customRaw, setCustomRaw] = useState('40')
   const [extendHours, setExtendHours] = useState(12)
   const [extendUnderstood, setExtendUnderstood] = useState(false)
@@ -541,7 +545,7 @@ export default function LiveCockpit(props: Props) {
     {!smartSettings.enabled && !smartSettings.emergency_off && <p className="lcHint" role="status"><b>Kapalı — sen açana kadar hiçbir emir gönderilmez.</b> Tercihler hazır; açmadan önce istersen değiştir.</p>}
     {smartArming && !smartSettings.enabled && <div className="lcHint warn" role="group" aria-label="Açma onayı">
       <label><input type="checkbox" checked={smartUnderstood} onChange={event => setSmartUnderstood(event.target.checked)} /> Bu sistem açıkken gerçek Binance emri (geçici stop ve kapatma) gönderebileceğini anlıyorum.</label>
-      <button type="button" className="lcBtn" disabled={busy || !smartUnderstood} onClick={() => void saveSmart({enabled: true, understood: true}, 'Akıllı Kâr Koruma açıldı. Orijinal Stop ve TP aynen duruyor.').then(() => { setSmartArming(false); setSmartUnderstood(false) })}>Aç</button>
+      <button type="button" className="lcBtn" disabled={busy || !smartUnderstood} onClick={() => void saveSmart({enabled: true, understood: true}, 'Akıllı Kâr Koruma açıldı. Orijinal Stop ve TP aynen duruyor.').then(ok => { if (ok) { setSmartArming(false); setSmartUnderstood(false) } })}>Aç</button>
       <button type="button" className="lcBtn" disabled={busy} onClick={() => { setSmartArming(false); setSmartUnderstood(false) }}>Vazgeç</button>
     </div>}
     <div className="lcSmartSwitches">
@@ -696,19 +700,22 @@ export default function LiveCockpit(props: Props) {
   const stateLabel: Record<ItemState, string> = {done: 'Tamam', todo: 'Bekliyor', working: 'Veriliyor…', error: 'Verilemedi'}
 
   // ---- Kais Koç kurulum sihirbazı: mevcut kaydetme akışlarını (risk, günlük sınır, teminat modu) sırayla kullanır; yeni kural eklemez.
-  const WIZ_STEPS = ['Risk', 'Günlük sınır', 'Teminat', 'Onay']
+  const WIZ_STEPS = ['Risk', 'Günlük sınır', 'Teminat', 'Akıllı koruma', 'Onay']
   const WIZ_COACH = [
     'Önce her işlemde ne kadar riske girmek istediğini seç. Emin değilsen Dengeli iyi bir başlangıçtır.',
     'Şimdi günlük sınırı seç: o gün toplam kaybın bu rakama ulaşırsa bot yeni işlem açmaz.',
     'Son olarak her işleme ne kadar teminat ayrılabileceğini seç. Teminatı Binance ayırır; paran Binance hesabında kalır.',
+    'İstersen akıllı koruma ekle: puan düşünce kârdaki pozisyonu korur. Varsayılan KAPALI; açmak tamamen senin kararın.',
     'Hepsi hazır. Gözden geçir, onayla ve kaydet.',
   ]
   const DAILY_CHOICES = [2, 3, 5, 6, 10]
   const wizModeChanged = chosenMode !== savedMode
   const wizRiskNums = wallet !== null ? riskSummary(wallet, draft.risk, draft.daily, caps) : null
   const wizDailyOk = Number.isFinite(draft.daily) && draft.daily >= 1 && draft.daily <= 25 && draft.daily >= draft.risk
-  const wizAnythingChanged = riskDirty || wizModeChanged
-  const wizReady = wizAnythingChanged && draftValid && wizDailyOk && wallet !== null
+  const smartCurrentlyOn = smartSettings?.enabled === true
+  const smartChangeWanted = smartSettings !== undefined && ((smartPick === 'on' && !smartCurrentlyOn) || (smartPick === 'off' && smartCurrentlyOn))
+  const wizAnythingChanged = riskDirty || wizModeChanged || smartChangeWanted
+  const wizReady = wizAnythingChanged && (!(riskDirty || wizModeChanged) || (draftValid && wizDailyOk && wallet !== null)) && (!smartChangeWanted || smartPick === 'off' || smartWizAck)
     && (!riskDirty || (understood && tierReady(draft.risk, riskAck, phrase)))
     && (!wizModeChanged || (modeUnderstood && (chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE)))
   const wizUnderstood = riskDirty ? understood : modeUnderstood
@@ -716,6 +723,12 @@ export default function LiveCockpit(props: Props) {
   const saveWizard = async () => {
     if (riskDirty && !(await saveRisk())) return
     if (wizModeChanged && !(await saveMode())) return
+    if (smartChangeWanted) {
+      const smartOk = await saveSmart(smartPick === 'on'
+        ? {threshold: smartWizThreshold, wait_minutes: smartWizWait, enabled: true, understood: true}
+        : {enabled: false}, smartPick === 'on' ? 'Akıllı Kâr Koruma açıldı. Orijinal Stop ve TP aynen duruyor.' : 'Akıllı Kâr Koruma kapatıldı.')
+      if (!smartOk) return
+    }
     setSheet(null)
   }
   const wizardView = <>
@@ -763,10 +776,28 @@ export default function LiveCockpit(props: Props) {
       <p className="lcHint">Teminatı Binance senin Binance hesabından ayırır; KaisTrade almaz. Bu seçim sadece her işleme en çok ne kadar ayrılabileceğini belirler.</p>
     </div>}
     {wizStep === 3 && <div className="lcWizList">
+      {smartSettings === undefined ? <p className="lcHint">Akıllı koruma bilgisi şu an alınamadı; bu adımı atlayabilirsin, Ayarlar’dan sonra da açabilirsin.</p> : <>
+        <p className="lcHint">Güven puanı eşiğin altına düşünce pozisyonu hemen satmaz: bekler, sonraki kapanmış 15 dakikalık mumda da puan düşükse ve ücretler düşüldükten sonra kârdaysa kapatır. <b>Zarardaysa asla kapatmaz.</b> Orijinal Stop ve TP aynen çalışır.</p>
+        <div className="lcWizList" role="radiogroup" aria-label="Akıllı koruma">
+          {([['keep', smartCurrentlyOn ? 'Şu an AÇIK, böyle kalsın' : 'Şu an KAPALI, böyle kalsın', smartCurrentlyOn ? 'Mevcut ayarlar korunur.' : 'Hiçbir akıllı emir gönderilmez.'],
+             ...(smartCurrentlyOn ? [['off', 'Kapat', 'Geçici stoplar kaldırılır; orijinal Stop/TP durur.']] : [['on', 'Aç', 'Açıkken gerçek Binance emri (geçici stop ve kapatma) gönderebilir.']])] as string[][]).map(([id, title, note]) =>
+            <button type="button" role="radio" aria-checked={smartPick === id} key={id} className="lcWizOption" data-selected={smartPick === id || undefined} disabled={busy} onClick={() => setSmartPick(id as 'keep' | 'on' | 'off')}>
+              <span className="lcWizHead"><b>{title}</b>{id === 'keep' && !smartCurrentlyOn && <em>Önerilen şimdilik</em>}</span><small>{note}</small>
+            </button>)}
+        </div>
+        {smartPick === 'on' && <div className="lcSmartPick">
+          <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
+          <label className="lcCheck"><input type="checkbox" checked={smartWizAck} onChange={event => setSmartWizAck(event.target.checked)}/><span>Akıllı koruma açıkken gerçek Binance emri gönderebileceğini anlıyorum.</span></label>
+        </div>}
+      </>}
+    </div>}
+    {wizStep === 4 && <div className="lcWizList">
       <dl className="lcWizSummary">
         <div><dt>İşlem başı risk</dt><dd>{wizRiskNums ? usdt(wizRiskNums.perTrade) : pct(draft.risk)} <small>(%{draft.risk}){riskDirty && draft.risk !== savedRisk ? ` · şimdi %${savedRisk}` : ''}</small></dd></div>
         <div><dt>Günlük kayıp sınırı</dt><dd>{wizRiskNums ? usdt(wizRiskNums.perDay) : pct(draft.daily)} <small>(%{draft.daily}){draft.daily !== savedDaily ? ` · şimdi %${savedDaily}` : ''}</small></dd></div>
         <div><dt>Teminat modu</dt><dd>{chosenRow?.label ?? '—'} <small>(%{chosenRow?.per_trade_percent ?? '—'}){wizModeChanged ? ` · şimdi ${savedRow?.label ?? '—'}` : ''}</small></dd></div>
+        <div><dt>Akıllı koruma</dt><dd>{smartPick === 'on' ? `AÇILACAK (eşik ${smartWizThreshold}, ${smartWizWait} dk)` : smartPick === 'off' ? 'KAPATILACAK' : smartCurrentlyOn ? 'Açık (değişmiyor)' : 'Kapalı (değişmiyor)'}</dd></div>
       </dl>
       {!wizAnythingChanged && <p className="lcHint">Seçtiklerin zaten kayıtlı ayarların. Değiştirmek için geri dönüp başka bir seçenek seç.</p>}
       {wizAnythingChanged && <div className="lcConfirmBox">
@@ -782,8 +813,8 @@ export default function LiveCockpit(props: Props) {
     </div>}
     <div className="lcSheetActions lcWizActions">
       <button type="button" className="lcBtn" disabled={busy || wizStep === 0} onClick={() => setWizStep(step => Math.max(0, step - 1))}>Geri</button>
-      {wizStep < 3
-        ? <button type="button" className="lcBtn lcPrimary" disabled={busy || (wizStep === 1 && !wizDailyOk)} onClick={() => setWizStep(step => Math.min(3, step + 1))}>Devam</button>
+      {wizStep < 4
+        ? <button type="button" className="lcBtn lcPrimary" disabled={busy || (wizStep === 1 && !wizDailyOk)} onClick={() => setWizStep(step => Math.min(4, step + 1))}>Devam</button>
         : <button type="button" className="lcBtn lcPrimary" data-testid="koc-wizard-save" disabled={busy || !wizReady} onClick={() => void saveWizard()}>{working === 'risk' || working === 'mode' ? 'Kaydediliyor…' : 'Hepsini kaydet'}</button>}
     </div>
   </>
