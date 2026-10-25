@@ -219,6 +219,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [universeError, setUniverseError] = useState(false)
   const [coinQuery, setCoinQuery] = useState('')
   const [coinOpen, setCoinOpen] = useState(false)
+  const [manualStep, setManualStep] = useState(0)
   const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
   const [reviewedKey, setReviewedKey] = useState('')
   useEffect(() => {
@@ -1022,7 +1023,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     ['Execution', status?.execution_state === 'UNKNOWN' || status?.reconciliation_required ? 'BLOCKED' : readinessReady ? 'PASS' : 'WARNING', status?.reconciliation_required ? 'Reconciliation required' : blocker],
   ] as const
 
-  const renderManualOrderCard = () => {
+  const renderManualOrderCard = (wizard = false) => {
     const q = coinQuery.trim().toUpperCase().replace('/', '')
     const rows = universe ?? []
     const selectedRow = rows.find(row => row.symbol === order.symbol)
@@ -1052,7 +1053,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
-        setReviewedKey(''); setReviewResult(null)
+        setReviewedKey(''); setReviewResult(null); setManualStep(0)
       }})
       setConfirmText('')
     }
@@ -1066,11 +1067,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const sign = order.direction === 'LONG' ? 1 : -1
       setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
     }
-    return <div className="liveWsOrder liveUxOrderGrid">
-      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
-      <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
-        <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
-
+    const coinBlock = (
         <div className="liveWsBlock liveWsCoin">
           <span className="liveWsLabel">1 · Coin</span>
           <button type="button" className="liveWsCoinBtn" aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
@@ -1088,12 +1085,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </div>}
           {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri {symbol} içindir; "Analizden doldur" coini de {symbol} yapar.</small>}
         </div>
-
+    )
+    const dirBlock = (
         <div className="liveWsBlock">
           <span className="liveWsLabel">2 · Yön</span>
           <div className="liveChoice liveWsDir"><button type="button" aria-pressed={order.direction === 'LONG'} className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => set('direction', 'LONG')}>LONG</button><button type="button" aria-pressed={order.direction === 'SHORT'} className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => set('direction', 'SHORT')}>SHORT</button></div>
         </div>
-
+    )
+    const amountBlock = (
         <div className="liveWsBlock">
           <span className="liveWsLabel">3 · Giriş ve miktar</span>
           <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
@@ -1103,7 +1102,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </div>
           {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
         </div>
-
+    )
+    const stopBlock = (
         <div className="liveWsBlock">
           <span className="liveWsLabel">4 · Stop ve hedefler</span>
           <div className="liveWsChips manualPresets" role="group" aria-label="Hazır stop ve hedef"><small className="liveWsHint">Hazır:</small>{[1, 2, 3].map(pct => <button type="button" key={pct} disabled={!(entryRef > 0)} onClick={() => applyPreset(pct)}>Stop %{pct} · hedef 1R/2R/3R</button>)}</div>
@@ -1121,9 +1121,53 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           }}>Tercih edilen riskle marjı hesapla</button></div>}
           {(sizingNotice || tradingDefaults.error) && <p className="liveWsHint" role="status">{sizingNotice || `İşlem tercihleri alınamadı: ${tradingDefaults.error}`}</p>}
         </div>
+    )
+    const stepNames = ['Coin', 'Yön', 'Tutar', 'Stop ve hedef', 'Kontrol']
+    const stepOk = [Boolean(order.symbol), true,
+      marginValue >= 5 && leverageValue >= 1 && (order.order_type !== 'LIMIT' || Number(order.limit_price) > 0),
+      stopValue > 0 && tp1Value > 0, true]
+    const wzStep = Math.min(manualStep, stepNames.length - 1)
+    const wzHint = [!stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
+    const sign = order.direction === 'LONG' ? 1 : -1
+    const suggest = [1, 2, 3].map(pct => ({pct, stop: entryRef > 0 ? presetPrice(entryRef * (1 - sign * pct / 100)) : null, tp1: entryRef > 0 ? presetPrice(entryRef * (1 + sign * pct / 100)) : null}))
+    const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
+    const wizardBody = <div className="mwz" data-step={wzStep}>
+      <ol className="mwzSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
+        <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => setManualStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
+      <div className="mwzCard" key={wzStep}>
+        <small className="mwzKicker">ADIM {wzStep + 1} / {stepNames.length}</small>
+        {wzStep === 0 && <><h4>Hangi coin?</h4><p>Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinBlock}</>}
+        {wzStep === 1 && <><h4>Hangi yön?</h4><p>LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>{dirBlock}</>}
+        {wzStep === 2 && <><h4>Ne kadar ve nasıl girelim?</h4><p>Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>{amountBlock}</>}
+        {wzStep === 3 && <><h4>Stop ve hedefleri belirle</h4><p>Stop, zararı sınırlar; hedefler kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
+          <div className="mwzSuggest" role="group" aria-label="Hazır stop ve hedef önerileri">
+            {hasAnalysis && <button type="button" className="mwzPick" data-rec="1" onClick={fillAnalysis}><b>Kais analizi <em>ÖNERİLEN</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
+            {suggest.map(item => <button type="button" key={item.pct} className="mwzPick" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
+              <b>Stop %{item.pct}{!hasAnalysis && item.pct === 1 && <em>ÖNERİLEN</em>}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
+          </div>{stopBlock}</>}
+        {wzStep === 4 && <><h4>Son kontrol</h4><p>Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p></>}
+        {wzStep < 4 && <div className="mwzMini" aria-label="Seçimlerin"><span>{selectedRow?.display || order.symbol || '—'}</span><span className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</span><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{text(order.margin_usdt)} USDT · {Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span>{realLoss !== null && realLoss !== undefined && <span className="down">Stopta ≈ {money(realLoss)}</span>}</div>}
+        {wzHint && <p className="liveWsWarn" role="status">{wzHint}</p>}
+        <div className="mwzNav">
+          <button type="button" className="liveWsGhost" disabled={wzStep === 0} onClick={() => setManualStep(Math.max(0, wzStep - 1))}>← Geri</button>
+          {wzStep < stepNames.length - 1 && <button type="button" className="liveWsPrimary" disabled={!stepOk[wzStep]} onClick={() => setManualStep(wzStep + 1)}>Devam →</button>}
+        </div>
+      </div>
+    </div>
+    return <div className="liveWsOrder liveUxOrderGrid">
+      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
+        <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
+
+        {wizard ? wizardBody : <>
+          {coinBlock}
+          {dirBlock}
+          {amountBlock}
+          {stopBlock}
+        </>}
       </section>
 
-      <aside className="liveWsOrderSummary liveUxSummary" aria-label="Emir özeti">
+      {(!wizard || wzStep === stepNames.length - 1) && <aside className="liveWsOrderSummary liveUxSummary" aria-label="Emir özeti">
         <div className="liveWsOrderHead"><ShieldCheck/><div><b>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</b><small>Emir özeti</small></div></div>
         <div className="liveUxSummaryLead"><strong className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</strong><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span></div>
         <div className="liveWsSumGrid">
@@ -1143,7 +1187,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <button type="button" className="liveWsPrimary danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Emri gönder</button>
         </div>
         {sendBlock && sendBlock !== riskError && <small className="liveWsHint">{sendBlock}</small>}
-      </aside>
+      </aside>}
     </div>
   }
 
@@ -1204,7 +1248,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="advChip warn">GERÇEK PARA</span>
           <ChevronDown className="advChevron" aria-hidden="true"/>
         </summary>
-          <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard()}</div>
+          <div id="master-trade-live-terminal" className="liveWs">{renderManualOrderCard(true)}</div>
         </details>}
         {status && (() => {
           const failedChecks = originalEntryChecks.filter(check => !check.passed)
