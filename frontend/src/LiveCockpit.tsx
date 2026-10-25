@@ -1121,9 +1121,9 @@ export default function LiveCockpit(props: Props) {
       const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
       return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => { setDailyText(null); setDraft(current => ({...current, daily: value})) }}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
     })}</div>
-      <label className="lcField lcDailyOwn">Ya da kendin yaz (%1 – %25)
-        <input type="text" inputMode="decimal" autoComplete="off" data-testid="launch-daily-own" placeholder={String(draft.daily)} value={dailyText ?? ''} disabled={busy}
-          onChange={event => { const text = event.target.value; setDailyText(text); const value = Number(text.replace(',', '.')); if (text.trim() !== '' && Number.isFinite(value)) setDraft(current => ({...current, daily: value})) }}/>
+      <label className="lcField lcDailyOwn"><span>Ya da kendin yaz <em>%1 – %25</em></span>
+        <span className="lcDailyBox"><b aria-hidden="true">%</b><input type="text" inputMode="decimal" autoComplete="off" data-testid="launch-daily-own" placeholder={String(draft.daily)} value={dailyText ?? ''} disabled={busy}
+          onChange={event => { const text = event.target.value; setDailyText(text); const value = Number(text.replace(',', '.')); if (text.trim() !== '' && Number.isFinite(value)) setDraft(current => ({...current, daily: value})) }}/></span>
       </label>
       {dailyText !== null && dailyText.trim() !== '' && !wizDailyOk && <p className="lcHint stop">Sınır %1 ile %25 arasında olmalı ve işlem riskinden (%{draft.risk}) küçük olmamalı.</p>}
     </>}
