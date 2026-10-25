@@ -615,7 +615,7 @@ async def _candidates(
         counts[category] = counts.get(category, 0) + 1
         for check_key in failed_checks or []:
             # Hangi sinyal kapısının kaç coini elediği (yalnızca kayıt; karara etkisi yok).
-            if check_key in ("direction", "confidence", "trap", "breakout", "mtf"):
+            if check_key in ("direction", "confidence", "trap", "breakout", "mtf", "short_filter"):
                 check_counts = diagnostics.setdefault("check_failure_counts", {})
                 check_counts[check_key] = check_counts.get(check_key, 0) + 1
         assessments.append({

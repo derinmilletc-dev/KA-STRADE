@@ -325,6 +325,54 @@ def shared_mtf_decision(
     }
 
 
+SHORT_FILTER_V2_VERSION = "short-exhaustion-v1"
+
+
+def evaluate_short_entry_filter(analysis: Mapping[str, Any], mtf: Mapping[str, Any], rules: Mapping[str, Any]) -> dict[str, Any]:
+    """Yeni SHORT giriş filtresi (yalnız `short_filter_rules` verilen çağrılarda; saf hesap).
+
+    Güçlü düşüş trendi SHORT'u engellemez; yalnız aşırı uzamış, aşırı satımda ya da desteğe çok yakın girişler reddedilir.
+    Eşikler: fiyat EMA20'nin >= extension_atr_min ATR altındaysa, RSI < rsi_min ise, destek mesafesi <= support_atr_max ATR ise ret.
+    Gerekli veri yoksa/sonlu değilse varsayılan değer ÜRETİLMEZ; giriş reddedilir (SHORT_FILTER_DATA_UNAVAILABLE).
+    """
+    timeframes = mtf.get("timeframes") if isinstance(mtf.get("timeframes"), Mapping) else {}
+    thresholds = {key: float(rules[key]) for key in ("extension_atr_min", "rsi_min", "support_atr_max")}
+
+    def number(value: Any) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+        return result if math.isfinite(result) else None
+
+    price, atr, rsi = number(analysis.get("entry")), number(analysis.get("atr")), number(analysis.get("rsi"))
+    ema20, support = number((analysis.get("ema") or {}).get("ema20")), number(analysis.get("support"))
+    metrics: dict[str, Any] = {
+        "version": SHORT_FILTER_V2_VERSION,
+        "alignment": mtf.get("alignment"),
+        "directions": {interval: (timeframes.get(interval) or {}).get("direction") for interval in ("15m", "1h", "4h")},
+        "rsi": rsi, "extension_atr": None, "support_distance_atr": None,
+        "thresholds": thresholds, "legacy_alignment_filter_applied": False,
+    }
+    reasons: list[str] = []
+    if None in (price, atr, rsi, ema20, support) or price <= 0 or atr <= 0:
+        reasons.append("SHORT_FILTER_DATA_UNAVAILABLE")
+    else:
+        metrics["extension_atr"] = (ema20 - price) / atr  # pozitif: fiyat EMA20'nin altında
+        metrics["support_distance_atr"] = (price - support) / atr
+        if metrics["extension_atr"] >= thresholds["extension_atr_min"]:
+            reasons.append("SHORT_EXTENDED_BELOW_EMA20")
+        if rsi < thresholds["rsi_min"]:
+            reasons.append("SHORT_RSI_OVERSOLD")
+        if metrics["support_distance_atr"] <= thresholds["support_atr_max"]:
+            reasons.append("SHORT_SUPPORT_TOO_CLOSE")
+    metrics.update(accepted=not reasons, reason=reasons[0] if reasons else None, reasons=reasons,
+                   decision="ACCEPT" if not reasons else "REJECT")
+    return metrics
+
+
 HISTORICAL_POLICY_DEFAULT = {
     "confidence_threshold": configured_min_confidence(),
     "breakout_quality_threshold": 50,
@@ -359,8 +407,13 @@ def canonical_historical_decision(
     policy: dict[str, Any] | None = None,
     account_context: dict[str, Any] | None = None,
     historical_policy_override: Mapping[str, Any] | None = None,
+    short_filter_rules: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate one deterministic decision from candles strictly before decision_time."""
+    """Evaluate one deterministic decision from candles strictly before decision_time.
+
+    `short_filter_rules=None` (varsayılan): davranış değişmez, eski SHORT alignment >= 80 filtresi geçerli.
+    Kural verilirse (yalnız canlı Original V2): bu eski otomatik ret kapatılır, yerine evaluate_short_entry_filter uygulanır.
+    """
     try:
         decision_timestamp = int(decision_time)
         if not math.isfinite(decision_timestamp):
@@ -424,11 +477,21 @@ def canonical_historical_decision(
                 for interval in ("1h", "4h")
             },
             allow_either_timeframe=bool(effective_policy["mtf_allow_either_timeframe"]),
+            short_filter=short_filter_rules is None,
         )
         entry_eligible = quality_ok and mtf["entry_permission"]
     else:
         mtf = {"direction": analysis["direction"], "entry_permission": quality_ok, "alignment": analysis["confidence"], "verdict": "SINGLE_TIMEFRAME"}
         entry_eligible = quality_ok
+    short_filter_v2 = None
+    if short_filter_rules is not None and analysis["direction"] == "SHORT":
+        short_filter_v2 = evaluate_short_entry_filter(analysis, mtf, short_filter_rules)
+        short_filter_v2["gates_before_passed"] = bool(quality_ok and mtf.get("entry_permission", False))
+        mtf["short_filter_v2"] = short_filter_v2
+        # Bilgi amaçlı: eski kural olsaydı ne olurdu (karara etkisi yok).
+        mtf["legacy_short_alignment_would_block"] = bool(float(mtf.get("alignment") or 0) >= SHORT_MTF_ALIGNMENT_MAX)
+        if not short_filter_v2["accepted"]:
+            entry_eligible = False
     risk = None
     risk_reasons: list[str] = []
     if policy is not None and analysis["direction"] in {"LONG", "SHORT"}:
@@ -458,8 +521,11 @@ def canonical_historical_decision(
             entry_eligible = False
             gate_reasons.append(gate.get("reason", "ACCOUNT_GATE_FAILED"))
     reasons: list[str] = []
+    short_filter_rejected = bool(short_filter_v2 and not short_filter_v2["accepted"])
     if not quality_ok or not mtf.get("entry_permission", False):
         reasons.append("QUALITY_OR_MTF_GATE")
+    elif short_filter_rejected:
+        reasons.extend(short_filter_v2["reasons"])
     if risk_reasons:
         reasons.extend(risk_reasons)
     if gate_reasons:
@@ -472,6 +538,8 @@ def canonical_historical_decision(
         reason = "RISK_GATE_REJECTED"
     elif gate_reasons and (quality_ok and mtf.get("entry_permission", False)):
         reason = "ACCOUNT_GATE_FAILED"
+    elif short_filter_rejected and quality_ok and mtf.get("entry_permission", False):
+        reason = short_filter_v2["reason"]
     else:
         reason = "QUALITY_OR_MTF_GATE"
     return {
