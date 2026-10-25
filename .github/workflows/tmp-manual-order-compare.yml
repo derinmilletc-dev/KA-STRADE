@@ -17,7 +17,7 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 110
     steps:
       - name: Checkout (submodules skipped)
         env:
@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
+          timeout 2700 python -m pytest $(ls tests/test_v25*.py tests/test_manual*.py tests/test_original*.py tests/test_trade*.py tests/test_live*.py tests/test_subscription.py tests/test_security*.py tests/test_master*.py tests/test_directional*.py tests/test_maintenance_mode.py 2>/dev/null) -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
             --ignore=tests/real_acceptance_validation.py 2>&1 | tail -n 400 > /tmp/branch.txt
           grep -E "^(FAILED|ERROR) " /tmp/branch.txt | sed -E 's/ - .*//' | sort -u > /tmp/branch_fail.txt
           tail -n 1 /tmp/branch.txt > /tmp/branch_summary.txt
@@ -57,7 +57,7 @@ jobs:
           set +e
           git worktree add -q /tmp/mainwt origin/main
           cd /tmp/mainwt/backend
-          timeout 1200 python -m pytest tests -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
+          timeout 2700 python -m pytest $(ls tests/test_v25*.py tests/test_manual*.py tests/test_original*.py tests/test_trade*.py tests/test_live*.py tests/test_subscription.py tests/test_security*.py tests/test_master*.py tests/test_directional*.py tests/test_maintenance_mode.py 2>/dev/null) -q -p no:cacheprovider -rfE --tb=no -o addopts="" --continue-on-collection-errors \
             --ignore=tests/real_acceptance_validation.py 2>&1 | tail -n 400 > /tmp/main.txt
           grep -E "^(FAILED|ERROR) " /tmp/main.txt | sed -E 's/ - .*//' | sort -u > /tmp/main_fail.txt
           tail -n 1 /tmp/main.txt > /tmp/main_summary.txt
