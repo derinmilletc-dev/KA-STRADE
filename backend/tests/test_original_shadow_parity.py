@@ -112,8 +112,15 @@ class LiveDecisionParityTests(unittest.TestCase):
         for row in rows:
             if row["group"] == sh.GROUP_BLOCKED:
                 self.assertEqual(row["direction"], "SHORT")
-                self.assertTrue(row["htf"]["blocked_by_short_filter"])
-                self.assertGreaterEqual(row["htf"]["alignment"], 80)
+                info = row.get("short_filter") or {}
+                if info.get("regime") == sh.REGIME_V2:  # canlıda yeni filtre (#238) varsa
+                    self.assertTrue(info["rejected"])
+                    self.assertTrue(info["reason"], "yeni filtrede ret nedeni kaydedilmeli")
+                    self.assertIn(info["legacy_would_block"], (True, False))
+                else:
+                    self.assertTrue(row["htf"]["blocked_by_short_filter"])
+                    self.assertGreaterEqual(row["htf"]["alignment"], 80)
+                    self.assertTrue(info["rejected"])
 
 
     def test_observer_receives_tick_scan_price_and_live_size_check(self):

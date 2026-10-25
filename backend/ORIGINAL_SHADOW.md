@@ -25,3 +25,13 @@ Sanal işlemler portföy/teminat/günlük limit kapılarına tabi değildir (min
 * **Miktar:** canlı miktarı 10 adım katına yuvarlar; TP1 miktarı tam %70'tir (test: her adım için). R miktardan bağımsızdır.
 * **Gerçek dolum:** canlı gerçek borsa dolumunu kullanır; sanal sabit 5+3 bps modelidir. Çıkış emirleri canlıda STOP_MARKET/TAKE_PROFIT_MARKET (mark fiyatı tetikli) olduğundan her çıkışa kayma uygulamak tutarlıdır; tetikleme sanalda kontrat mumu high/low ile yapılır.
 * **Giriş duyarlılığı:** %2 stop'ta ±5 bps giriş farkı ≈ ±0,055R (testte ölçülür).
+
+
+## Yeni SHORT filtresiyle uyum (PR #238)
+
+`FILTER_BLOCKED_SHORT` grubu iki rejimde de çalışır: eski kuralda `mtf.blocked_by_short_filter`, yeni canlı filtrede
+`mtf.short_filter_v2.accepted == False` ve `gates_before_passed == True` (diğer kapılar geçmişse). Her SHORT kaydında
+`short_filter` alanı vardır: `regime` (`LEGACY_ALIGNMENT` / `EXHAUSTION_V2`), `reason(s)`, ölçümler (`extension_atr`,
+`support_distance_atr`, `rsi`) ve `legacy_would_block` (eski %80 kuralı bunu engellerdi mi). Özette ret nedeni dağılımı ve
+"eski kural engellerdi" alt grubu ayrıca görünür. `SHORT_SUPPORT_UNAVAILABLE` (veri yok) ile `SHORT_SUPPORT_TOO_CLOSE`
+(gerçekten yakın) ayrı nedenlerdir.
