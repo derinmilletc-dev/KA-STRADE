@@ -1,7 +1,7 @@
 """SHORT-filtre karşılaştırma çalışması: yalnız saf hesap yardımcıları.
 
 Canlı strateji bu modülü İÇE AKTARMAZ; hiçbir canlı parametreyi değiştirmez. Aday kurallar yalnız çevrimdışı
-araştırmada, mevcut Stage 5 önbelleğindeki "filtre KAPALI" kararlarının üstüne uygulanır:
+araştırmada, "filtre KAPALI" kararların üstüne uygulanır:
 
 * OFF kararı, SHORT alignment filtresi kapatılmış hâliyle bütün giriş adaylarını içerir (ON kümesinin üst kümesi).
 * Her aday kural, bu kümeden bazı SHORT (veya LONG) girişlerini ELER; hiçbir giriş EKLEMEZ.
@@ -93,9 +93,10 @@ def blocks(name: str, decision: dict[str, Any]) -> bool:
 
 
 def blocked_decision(decision: dict[str, Any]) -> dict[str, Any]:
-    """Reddedilen girişin, motorun beklediği 'giriş yok' biçimi (compact_decision ile aynı alanlar)."""
+    """Reddedilen girişin biçimi: canlı filtrenin reddettiği kararın sıkıştırılmış hâliyle (Dataset.canonical) birebir aynı
+    alanlar ve değerler. Böylece CUR_80 kontrolü, kayıtlı sayımlardaki ret nedenlerini de aynen üretir."""
     return {"decision": "WAIT", "signal_timestamp": decision.get("signal_timestamp"), "entry_eligible": False,
-            "reason": "QUALITY_OR_MTF_GATE", "reasons": ["CANDIDATE_FILTER"]}
+            "reason": "QUALITY_OR_MTF_GATE", "reasons": ["QUALITY_OR_MTF_GATE"]}
 
 
 def apply_candidate(name: str, off_decision: dict[str, Any]) -> dict[str, Any]:
@@ -163,78 +164,104 @@ def signal_changes(variant_rows: list[dict[str, Any]], base_rows: list[dict[str,
     return sorted(output, key=lambda item: (str(item["opened_at"]), item["signal_id"]))
 
 
-def build_union(base_rows: list[dict[str, Any]], variants: dict[str, list[dict[str, Any]]],
-                complete: Callable[[dict[str, Any]], bool]) -> tuple[list[dict[str, Any]], list[bool], dict[str, list[bool]], dict[str, list[float | None]]]:
-    """Bootstrap için ortak gözlem listesi: her sinyal bir kez; kontrol ve her aday için üyelik ve R değeri."""
-    base = {row["signal_id"]: row for row in base_rows}
-    maps = {name: {row["signal_id"]: row for row in rows} for name, rows in variants.items()}
-    identifiers = list(dict.fromkeys([*base, *(i for rows in maps.values() for i in rows)]))
-    union = []
-    for identifier in identifiers:
-        row = base.get(identifier)
-        if row is None or not complete(row):
-            row = next((maps[name][identifier] for name in maps if identifier in maps[name]), row)
-        union.append(row)
-    base_mask = [i in base and complete(base[i]) for i in identifiers]
-    masks = {name: [i in maps[name] and complete(maps[name][i]) for i in identifiers] for name in maps}
-    values = {name: [maps[name][i]["net_r"] if keep else None for i, keep in zip(identifiers, masks[name])]
-              for name in maps}
-    return union, base_mask, masks, values
+def compact_off(result: dict[str, Any]) -> dict[str, Any]:
+    """Filtre-KAPALI karar sonucunu önbellek için küçültür (Dataset.canonical ile aynı kurallar)."""
+    if not result.get("entry_eligible"):
+        return {key: result.get(key) for key in ("decision", "signal_timestamp", "entry_eligible", "reason", "reasons")}
+    analysis = {key: value for key, value in (result.get("analysis") or {}).items() if key != "series"}
+    return {**result, "analysis": analysis}
+
+
+class VariantGate:
+    """`main_module.canonical_historical_decision` fonksiyonunu sarar.
+
+    'Filtre KAPALI' karar (gate_disabled bağlamı içinde) her anahtar için bir kez hesaplanır ve önbelleğe alınır;
+    seçili aday kural, her çağrıda bu önbellekteki karara uygulanır. Önbellek yalnız hesap bağlamı olmayan (policy ve
+    account_context verilmeyen) saf tarihsel kararlar içindir; bağlamlı çağrılar sarmalayıcıdan geçmeden doğrudan
+    gerçek fonksiyona gider. `variant` None iken de doğrudan gerçek fonksiyon çalışır."""
+
+    def __init__(self, main_module: Any, gate_disabled: Callable[[], Any]) -> None:
+        self.main = main_module
+        self.gate_disabled = gate_disabled
+        self.variant: str | None = None
+        self.memo: dict[tuple, dict[str, Any]] = {}
+        self.calls_to_real = 0
+        self.original: Callable[..., dict[str, Any]] | None = None
+
+    def __enter__(self) -> "VariantGate":
+        self.original = self.main.canonical_historical_decision
+        gate = self
+
+        def wrapper(symbol, candles_by_timeframe, decision_time, **kwargs):
+            if gate.variant is None or kwargs.get("policy") is not None or kwargs.get("account_context") is not None:
+                return gate.original(symbol, candles_by_timeframe, decision_time, **kwargs)
+            override = kwargs.get("historical_policy_override") or {}
+            key = (symbol, int(decision_time), tuple(sorted(override.items())), tuple(kwargs.get("required_intervals") or ()))
+            off = gate.memo.get(key)
+            if off is None:
+                with gate.gate_disabled():
+                    gate.calls_to_real += 1
+                    off = compact_off(gate.original(symbol, candles_by_timeframe, decision_time, **kwargs))
+                gate.memo[key] = off
+            return apply_candidate(gate.variant, off)
+
+        self.main.canonical_historical_decision = wrapper
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.main.canonical_historical_decision = self.original
 
 
 def _fmt(value: Any, digits: int = 3) -> str:
     return "—" if value is None else f"{value:.{digits}f}" if isinstance(value, (int, float)) else str(value)
 
 
+def _sample(n: Any) -> str:
+    return "—" if not isinstance(n, int) else "YETERSIZ_ORNEKLEM" if n < 60 else "yeterli"
+
+
 def render_report(results: dict[str, Any]) -> str:
     """Düz Türkçe özet; ayrıntı results.json içinde. Hiçbir yerde 'kazanan' ilan edilmez."""
-    lines = ["# SHORT filtresi karşılaştırması", "",
-             "**Bu rapor bir karar değil, bir ölçümdür. Hiçbir aday 'kazanan' ilan edilmez; canlı parametre değişmez.**", ""]
-    parity = results.get("reference_parity", {})
-    lines += ["## Önce güvenilirlik kontrolleri", "",
-              f"- Aday kuralların mevcut canlı filtreyi yeniden üretmesi (CUR_80 = ON): **{results.get('decision_parity', 'ATLANDI')}**",
-              f"- Eski deney sonuçlarıyla uyum (CUR_80 ve OFF): **{parity.get('status', 'ATLANDI')}**"]
-    for note in parity.get("notes", []):
+    anchors = results.get("anchors", {})
+    lines = ["# SHORT filtresi karşılaştırması (Kais Original V2 hattı)", "",
+             "**Bu rapor bir karar değil, bir ölçümdür. Hiçbir aday 'kazanan' ilan edilmez; canlı parametre değişmez.**", "",
+             "## Önce güvenilirlik kontrolleri", "",
+             f"- Kontrol kuralı (CUR_80) eski kayıtlı sayımlarla (run3) birebir aynı mı: **{anchors.get('count_parity', 'ATLANDI')}**",
+             f"- Kontrol sonucu eski ön tarama sonucuyla (işlem sayısı, ortalama R) aynı mı: **{anchors.get('prescreen_parity', 'ATLANDI')}**"]
+    for note in anchors.get("notes", []):
         lines.append(f"  - {note}")
-    lines.append("- `ATLANDI` başarılı sayılmaz. `BAŞARISIZ` ise aşağıdaki sayılara güvenilmez.")
-    lines.append("")
-    for ordering, block in results.get("orderings", {}).items():
-        lines += [f"## Sıralama: {ordering}", "",
-                  "| Aday | İşlem | Ort. R | Kâr faktörü | Kazanma | Maks. düşüş $ | SHORT işlem | SHORT ort. R | LONG işlem | LONG ort. R | Örneklem |",
-                  "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
-        for name, item in block["variants"].items():
-            s, ls = item["summary"], item["summary"].get("long_short", {})
-            sh, lo = ls.get("SHORT", {}), ls.get("LONG", {})
-            lines.append(f"| {name} | {s.get('trade_count')} | {_fmt(s.get('net_expectancy_r'))} | {_fmt(s.get('profit_factor'), 2)} | "
-                         f"{_fmt(s.get('win_rate'), 2)} | {_fmt(s.get('max_drawdown_usdt'), 2)} | {sh.get('trade_count', '—')} | "
-                         f"{_fmt(sh.get('net_expectancy_r'))} | {lo.get('trade_count', '—')} | {_fmt(lo.get('net_expectancy_r'))} | "
-                         f"{s.get('sample_status')} |")
+    lines += ["- `ATLANDI` başarılı sayılmaz. `BAŞARISIZ` ise aşağıdaki sayılara güvenilmez.", ""]
+    for phase, variants in results.get("phases", {}).items():
+        lines += [f"## Dönem: {phase}", "",
+                  "| Aday | İşlem | Ort. R | Kâr faktörü | Kazanma | Maks. düşüş $ | Net $ | Ort. R %95 aralık | Örneklem |",
+                  "|---|---:|---:|---:|---:|---:|---:|---|---|"]
+        for name, item in variants.items():
+            m = item["metrics"]
+            interval = item.get("mean_r_95")
+            text = "—" if not interval else f"[{_fmt(interval[0])}; {_fmt(interval[1])}]"
+            lines.append(f"| {name} | {m.get('N')} | {_fmt(m.get('mean_net_r'))} | {_fmt(m.get('usdt_pf'), 2)} | "
+                         f"{_fmt(m.get('win_rate'), 2)} | {_fmt(m.get('max_drawdown_usdt'), 2)} | "
+                         f"{_fmt(m.get('total_net_pnl_usdt'), 2)} | {text} | {_sample(m.get('N'))} |")
+        lines += ["", "### Yöne göre (LONG / SHORT ayrı)", "",
+                  "| Aday | Yön | İşlem | Ort. R | Kâr faktörü | Örneklem |", "|---|---|---:|---:|---:|---|"]
+        for name, item in variants.items():
+            for direction in ("SHORT", "LONG"):
+                d = (item.get("by_direction") or {}).get(direction, {})
+                lines.append(f"| {name} | {direction} | {d.get('N', '—')} | {_fmt(d.get('mean_net_r'))} | "
+                             f"{_fmt(d.get('usdt_pf'), 2)} | {_sample(d.get('N'))} |")
         lines += ["", "### Kontrole (CUR_80) göre eklenen / elenen işlemler", "",
-                  "| Aday | Eklenen | Elenen | Eklenenlerin ort. R | Elenenlerin ort. R | Ort. R farkı (aday − kontrol) |",
-                  "|---|---:|---:|---:|---:|---:|"]
-        for name, item in block["variants"].items():
+                  "| Aday | Eklenen | Eklenenlerin ort. R | Elenen | Elenenlerin ort. R |", "|---|---:|---:|---:|---:|"]
+        for name, item in variants.items():
             change = item.get("changes_vs_control")
-            if change is None:
-                continue
-            contrast = item.get("contrast") or {}
-            lines.append(f"| {name} | {change['added'].get('trade_count')} | {change['removed'].get('trade_count')} | "
-                         f"{_fmt(change['added'].get('net_expectancy_r'))} | {_fmt(change['removed'].get('net_expectancy_r'))} | "
-                         f"{_fmt(contrast.get('mean_r_difference'))} |")
-        lines += ["", "### Dönemlere göre (TRAIN / VALIDATION) ve yöne göre ortalama R", "",
-                  "| Aday | Dönem | Yön | İşlem | Ort. R | Örneklem |", "|---|---|---|---:|---:|---|"]
-        for name, item in block["variants"].items():
-            for period in ("TRAIN", "VALIDATION"):
-                summary = (item.get("periods") or {}).get(period) or {}
-                for direction in ("SHORT", "LONG"):
-                    m = (summary.get("long_short") or {}).get(direction, {})
-                    lines.append(f"| {name} | {period} | {direction} | {m.get('trade_count', '—')} | "
-                                 f"{_fmt(m.get('net_expectancy_r'))} | {summary.get('sample_status', '—')} |")
-        lines += ["", "### Piyasa dönemine göre (BTC aylık getirisi: YUKARI ≥ +5 %, ASAGI ≤ −5 %, aksi YATAY)", "",
+            if change:
+                lines.append(f"| {name} | {change['added']['N']} | {_fmt(change['added']['mean_net_r'])} | "
+                             f"{change['removed']['N']} | {_fmt(change['removed']['mean_net_r'])} |")
+        lines += ["", f"### Piyasa dönemine göre (BTC aylık getirisi: YUKARI ≥ +{MARKET_LABEL_PCT:g} %, ASAGI ≤ −{MARKET_LABEL_PCT:g} %, aksi YATAY)", "",
                   "| Aday | Piyasa | Yön | İşlem | Ort. R |", "|---|---|---|---:|---:|"]
-        for name, item in block["variants"].items():
+        for name, item in variants.items():
             for label, directions in (item.get("market_regime") or {}).items():
                 for direction, m in directions.items():
-                    lines.append(f"| {name} | {label} | {direction} | {m.get('trade_count')} | {_fmt(m.get('net_expectancy_r'))} |")
+                    lines.append(f"| {name} | {label} | {direction} | {m.get('N')} | {_fmt(m.get('mean_net_r'))} |")
         lines.append("")
     lines += ["## Sınırlamalar", ""] + [f"- {text}" for text in results.get("limitations", [])]
     return "\n".join(lines) + "\n"

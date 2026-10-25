@@ -76,7 +76,8 @@ class CandidateRules(unittest.TestCase):
         blocked = study.apply_candidate("CUR_80", decision("SELL", 90))
         self.assertFalse(blocked["entry_eligible"])
         self.assertEqual(blocked["decision"], "WAIT")
-        self.assertEqual(set(blocked), {"decision", "signal_timestamp", "entry_eligible", "reason", "reasons"})
+        self.assertEqual(blocked, {"decision": "WAIT", "signal_timestamp": 1000, "entry_eligible": False,
+                                   "reason": "QUALITY_OR_MTF_GATE", "reasons": ["QUALITY_OR_MTF_GATE"]})
 
     def test_protocol_hash_is_stable_and_detects_edits(self):
         first = study.protocol_sha256()
@@ -140,22 +141,100 @@ class Statistics(unittest.TestCase):
         changes = study.signal_changes(variant, base)
         self.assertEqual([(c["degisim"], c["signal_id"]) for c in changes], [("ELENDI", "a"), ("EKLENDI", "c")])
 
-    def test_build_union_counts_each_signal_once(self):
-        def row(identifier, value):
-            return {"signal_id": identifier, "net_r": value, "status": "CLOSED", "net_pnl": value}
-        complete = lambda r: r["net_r"] is not None  # noqa: E731
-        union, base_mask, masks, values = study.build_union(
-            [row("a", 1.0), row("b", -1.0)], {"V": [row("b", -1.0), row("c", 2.0)]}, complete)
-        self.assertEqual([r["signal_id"] for r in union], ["a", "b", "c"])
-        self.assertEqual(base_mask, [True, True, False])
-        self.assertEqual(masks["V"], [False, True, True])
-        self.assertEqual(values["V"], [None, -1.0, 2.0])
+    def test_compact_off_matches_dataset_compaction_rules(self):
+        waiting = {"decision": "WAIT", "signal_timestamp": 5, "entry_eligible": False, "reason": "R",
+                   "reasons": ["x"], "analysis": {"big": 1}, "mtf": {"a": 1}}
+        self.assertEqual(study.compact_off(waiting),
+                         {"decision": "WAIT", "signal_timestamp": 5, "entry_eligible": False, "reason": "R", "reasons": ["x"]})
+        eligible = {"decision": "SELL", "entry_eligible": True, "analysis": {"series": [1, 2], "rsi": 40}}
+        kept = study.compact_off(eligible)
+        self.assertEqual(kept["analysis"], {"rsi": 40})
+        self.assertIn("series", eligible["analysis"])  # girdi bozulmaz
 
     def test_report_never_declares_a_winner_and_marks_skipped_checks(self):
-        text = study.render_report({"decision_parity": "BAŞARILI", "orderings": {}, "limitations": ["x"]})
+        text = study.render_report({"anchors": {}, "phases": {}, "limitations": ["x"]})
         self.assertIn("ATLANDI", text)
         self.assertIn("kazanan", text)
         self.assertIn("`ATLANDI` başarılı sayılmaz", text)
+
+    def test_report_renders_phase_tables_with_all_sections(self):
+        metrics = {"N": 70, "mean_net_r": -0.05, "usdt_pf": 0.9, "win_rate": 0.4, "max_drawdown_usdt": 20.0,
+                   "total_net_pnl_usdt": -5.0}
+        item = {"metrics": metrics, "by_direction": {"SHORT": {"N": 10, "mean_net_r": -0.1, "usdt_pf": 0.8}},
+                "market_regime": {"ASAGI": {"SHORT": {"N": 10, "mean_net_r": -0.1}}}, "mean_r_95": [-0.2, 0.1]}
+        changed = {**item, "changes_vs_control": {"added": {"N": 3, "mean_net_r": 0.1}, "removed": {"N": 1, "mean_net_r": None}}}
+        text = study.render_report({"anchors": {"count_parity": "BAŞARILI", "prescreen_parity": "BAŞARISIZ", "notes": ["n"]},
+                                    "phases": {"TRAIN": {"CUR_80": item, "THR_85": changed}}, "limitations": []})
+        for expected in ("Dönem: TRAIN", "| THR_85 |", "Piyasa dönemine göre", "BAŞARISIZ", "[-0.200; 0.100]", "ASAGI"):
+            self.assertIn(expected, text)
+
+
+class FakeMain:
+    def __init__(self):
+        self.calls = []
+        self.gate_open = False
+        self.canonical_historical_decision = self.real
+
+    def real(self, symbol, candles, decision_time, **kwargs):
+        self.calls.append((symbol, decision_time, self.gate_open, kwargs.get("policy")))
+        return {"decision": "SELL", "signal_timestamp": decision_time, "entry_eligible": True,
+                "mtf": {"alignment": 85.0}, "analysis": {"rsi": 45.0, "series": [1], "radar": {"fomo_risk": "DÜŞÜK"}}}
+
+
+class VariantGateBehavior(unittest.TestCase):
+    def setUp(self):
+        self.main = FakeMain()
+        main = self.main
+
+        class Gate:
+            def __enter__(self_inner):
+                main.gate_open = True
+
+            def __exit__(self_inner, *_):
+                main.gate_open = False
+
+        self.make = lambda: study.VariantGate(main, Gate)
+        self.real = main.canonical_historical_decision
+
+    def test_off_decision_is_computed_once_and_each_variant_filters_it(self):
+        with self.make() as gate:
+            gate.variant = "CUR_80"
+            blocked = self.main.canonical_historical_decision("X", {}, 100, historical_policy_override={"a": 1})
+            gate.variant = "THR_90"
+            kept = self.main.canonical_historical_decision("X", {}, 100, historical_policy_override={"a": 1})
+            gate.variant = "OFF"
+            off = self.main.canonical_historical_decision("X", {}, 100, historical_policy_override={"a": 1})
+        self.assertFalse(blocked["entry_eligible"])      # alignment 85 >= 80
+        self.assertTrue(kept["entry_eligible"])          # 85 < 90
+        self.assertNotIn("series", kept["analysis"])     # önbellek küçültülmüş
+        self.assertTrue(off["entry_eligible"])
+        self.assertEqual(len(self.main.calls), 1)        # gerçek fonksiyon yalnız bir kez çalıştı
+        self.assertTrue(self.main.calls[0][2])           # ve filtre-kapalı bağlamı içinde
+
+    def test_different_time_or_policy_override_is_a_different_cache_entry(self):
+        with self.make() as gate:
+            gate.variant = "OFF"
+            self.main.canonical_historical_decision("X", {}, 100, historical_policy_override={"a": 1})
+            self.main.canonical_historical_decision("X", {}, 101, historical_policy_override={"a": 1})
+            self.main.canonical_historical_decision("X", {}, 100, historical_policy_override={"a": 2})
+        self.assertEqual(len(self.main.calls), 3)
+
+    def test_without_variant_or_with_account_context_the_real_function_runs_directly(self):
+        with self.make() as gate:
+            direct = self.main.canonical_historical_decision("X", {}, 100)            # variant None
+            gate.variant = "CUR_80"
+            with_policy = self.main.canonical_historical_decision("X", {}, 100, policy={"p": 1})
+        self.assertIn("series", direct["analysis"])      # dokunulmadı
+        self.assertIn("series", with_policy["analysis"])
+        self.assertEqual([call[2] for call in self.main.calls], [False, False])  # filtre-kapalı bağlamı yok
+        self.assertEqual(gate.memo, {})
+
+    def test_original_function_is_restored_on_exit_even_after_error(self):
+        with self.assertRaises(RuntimeError):
+            with self.make():
+                self.assertIsNot(self.main.canonical_historical_decision, self.real)
+                raise RuntimeError("boom")
+        self.assertEqual(self.main.canonical_historical_decision, self.real)
 
 
 if __name__ == "__main__":
