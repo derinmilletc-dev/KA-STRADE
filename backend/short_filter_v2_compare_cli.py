@@ -20,6 +20,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -36,7 +37,8 @@ from measure_donchian_counts import (
 )
 from measure_original_counts import METADATA, VIEW_SHA
 
-OUTPUT = DATA_HOME / "short-filter-v2-compare"
+DEFAULT_OUTPUT_NAME = "short-filter-v2-compare"
+OUTPUT = DATA_HOME / DEFAULT_OUTPUT_NAME
 PRESCREEN_REFERENCE = DATA_HOME / "original-v2-prescreen" / "prescreen.json"
 SCHEMA = "short-filter-v2-compare-v1"
 LIMITATIONS = [
@@ -51,6 +53,10 @@ LIMITATIONS = [
     "Canlı V2'nin günlük hacim sıralamasıyla coin seçimi ve TP1=%80 / %70 kapama kuralı bu çevrimdışı motorda bire bir "
     "aynı değildir (motor, ön tarama profilini kullanır). Sonuçlar canlı sonucu garanti etmez.",
     "Piyasa dönemi etiketi BTC'nin aylık getirisine göredir; kaba bir sınıflandırmadır.",
+    "EXHAUST_80 ve EXHAUST_ANY, ilk 7 adayın sonuçları GÖRÜLDÜKTEN sonra tasarlandı. Eşikleri yoktur (trap_score'un kendi "
+    "sabitleri), yalnız iki adaydır ve sonuca göre ayar yapılmamıştır; yine de bu veri bu aday ailesi için 'kör' değildir. "
+    "Toplam aday sayısı 9'dur ve çoklu karşılaştırma düzeltmesi yoktur.",
+    "Hiçbir kural 17 canlı işlemden hareketle seçilmedi ya da ayarlanmadı.",
 ]
 
 
@@ -119,6 +125,7 @@ async def run(args: argparse.Namespace, out: Path, stream) -> dict[str, Any]:
         "Eski kaynak-dosya kilidi uygulanmadı; run3'ten beri değişen dosyalar: "
         + (", ".join(changed_sources) if changed_sources else "yok"))
     held: dict[str, dict[str, list[Any]]] = {}
+    features: dict[tuple[str, int], dict[str, Any]] = {}
     from app import main as native_main
     from app.regime_study import short_gate_disabled
 
@@ -127,6 +134,7 @@ async def run(args: argparse.Namespace, out: Path, stream) -> dict[str, Any]:
             gate.variant = name
             held[name] = {}
             for phase in PHASES:
+                gate.phase = phase.name
                 engine = OriginalGapRiskEngine(data, primary_config(phase, plan))
                 counts = await gap.replay_counts(engine, phase, lambda value: emit(stream, value))
                 if name == study.CONTROL:
@@ -134,6 +142,7 @@ async def run(args: argparse.Namespace, out: Path, stream) -> dict[str, Any]:
                 observations = pre.verified_observations(engine.trades)
                 held[name][phase.name] = observations
                 emit(stream, {"status": "variant_done", "variant": name, "phase": phase.name, "N": len(observations)})
+        features = dict(gate.features)
     results["anchors"]["count_parity"] = "BAŞARILI"  # assert_count_parity başarısız olsaydı yukarıda hata verirdi
 
     prescreen_ok = None
@@ -186,6 +195,19 @@ async def run(args: argparse.Namespace, out: Path, stream) -> dict[str, Any]:
         for name in names:
             observations = held[name][phase.name] if phase else [o for p in PHASES for o in held[name][p.name]]
             write_table(out / f"islemler-{name}-{label.replace('+', '_')}.csv", [observation_row(o) for o in observations])
+
+    # Yeni (tükenme) adaylar için önceden sabit kanıt ölçütü: tabana göre iki dönemde de anlamlı iyileşme var mı?
+    evidence = study.build_evidence(
+        names, {name: {phase.name: [float(o.net_r) for o in held[name][phase.name]] for phase in PHASES} for name in names},
+        [phase.name for phase in PHASES])
+    if evidence:
+        results["evidence"] = evidence
+
+    # Çakışma analizi: filtre-KAPALI (OFF) işlemleri ve sinyalleri üstünden (OFF çalıştırılmadıysa atlanır).
+    if "OFF" in names:
+        results["overlap"] = study.build_overlap(features, {
+            phase.name: [{**observation_row(o), "opened_at_epoch": int(o.opened_at)} for o in held["OFF"][phase.name]]
+            for phase in PHASES})
     return results
 
 
@@ -193,22 +215,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--metadata", required=True, type=Path, help="donchian-holdout-evidence\\current-metadata.json")
     parser.add_argument("--variants", nargs="+", default=None, help=f"Seçenekler: {', '.join(study.CANDIDATES)}")
+    parser.add_argument("--output-name", default=DEFAULT_OUTPUT_NAME,
+                        help="kaistrade-data altında oluşturulacak YENİ klasör adı (var olan klasörün üstüne yazmaz)")
     args = parser.parse_args(argv)
     loop, stream = None, sys.stdout
     try:
-        pre.require(not OUTPUT.exists(), f"RESULTS_ALREADY_EXIST:{OUTPUT} (yeniden çalıştırmak için klasörü taşıyın)")
+        pre.require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}", args.output_name) is not None, "BAD_OUTPUT_NAME")
+        output = DATA_HOME / args.output_name
+        pre.require(not output.exists(), f"RESULTS_ALREADY_EXIST:{output} (yeniden çalıştırmak için klasörü taşıyın)")
         pre.require(args.metadata.resolve() == METADATA.resolve(), "METADATA_COPY_REQUIRED")
-        OUTPUT.mkdir(parents=True, exist_ok=False)
-        os.environ.update({"DATA_DIR": str(OUTPUT / "runtime"), "PROTREBOT_DATA_DIR": str(OUTPUT / "runtime"),
+        output.mkdir(parents=True, exist_ok=False)
+        os.environ.update({"DATA_DIR": str(output / "runtime"), "PROTREBOT_DATA_DIR": str(output / "runtime"),
                            "DATABASE_URL": "", "PROTREBOT_DURABLE_AUTH_REQUIRED": "0", "ASSISTANT_LIVE_TESTS": "0"})
         loop = asyncio.new_event_loop()
         started = time.monotonic()
         with quiet_native(), deny_network():
-            results = loop.run_until_complete(run(args, OUTPUT, stream))
+            results = loop.run_until_complete(run(args, output, stream))
         results["elapsed_seconds"] = time.monotonic() - started
-        (OUTPUT / "results.json").write_text(json.dumps(results, indent=2, allow_nan=False), encoding="utf-8")
-        (OUTPUT / "REPORT.md").write_text(study.render_report(results), encoding="utf-8")
-        emit(stream, {"status": "completed", "report": str(OUTPUT / "REPORT.md"),
+        (output / "results.json").write_text(json.dumps(results, indent=2, allow_nan=False), encoding="utf-8")
+        (output / "REPORT.md").write_text(study.render_report(results), encoding="utf-8")
+        emit(stream, {"status": "completed", "report": str(output / "REPORT.md"),
                       "prescreen_parity": results["anchors"]["prescreen_parity"]})
         return 1 if results["anchors"]["prescreen_parity"] == "BAŞARISIZ" else 0
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, ArithmeticError) as exc:
