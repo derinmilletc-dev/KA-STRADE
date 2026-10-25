@@ -47,11 +47,21 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
   const [tab, setTab] = useState<Tab>(() => readTab())
   const [box, setBox] = useState<Box | null>(null)
   const [panelHeight, setPanelHeight] = useState(240)
+  const [dock, setDock] = useState<HTMLElement | null>(null)
   const panel = useRef<HTMLDivElement | null>(null)
   const next = useRef<HTMLButtonElement | null>(null)
   const step = STEPS[index]
   const last = index === STEPS.length - 1
 
+  // "?" butonu ekrana yapışmaz: sayfanın en altındaki kendi satırında durur, kaydırınca gider ve hiçbir şeyin üstüne binmez.
+  useEffect(() => {
+    const host = document.querySelector('main.v26App') ?? document.body
+    const element = document.createElement('div')
+    element.className = 'mtTourDock'
+    host.appendChild(element)
+    setDock(element)
+    return () => { element.remove(); setDock(null) }
+  }, [])
   const finish = useCallback(() => {
     setOpen(false)
     try { if (userId) localStorage.setItem(KEY(userId), 'done') } catch { /* kayıt kapalıysa tur yine kapanır */ }
@@ -110,7 +120,7 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
   }, [open, index, box, panelHeight])
 
   if (!userId) return null
-  if (!open) return createPortal(<button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtım turunu başlat" title="Tanıtım turu"><b aria-hidden="true">?</b><span>Tanıtım turu</span></button>, document.body)
+  if (!open) return dock ? createPortal(<button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtım turunu başlat" title="Tanıtım turu"><b aria-hidden="true">?</b><span>Tanıtım turu</span></button>, dock) : null
 
   const wrongTab = Boolean(step.need && tab !== step.need)
   const pressWaiting = Boolean(step.press && tab !== step.press)

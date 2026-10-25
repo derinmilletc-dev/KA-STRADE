@@ -56,3 +56,11 @@
 .mtTourReplay{justify-content:flex-start!important}
 .mtTourReplay span{opacity:0;transition:opacity .2s}
 .mtTourReplay:hover span,.mtTourReplay:focus-visible span{opacity:1}
+
+/* Sayfanın altında kendi satırı: yapışık değil, kaydırınca gider */
+.mtTourDock{display:flex;justify-content:flex-start;padding:18px 16px 24px}
+.mtTourDock .mtTourReplay{position:relative!important;left:auto!important;bottom:auto!important}
+@media (max-width:640px){.mtTourDock{padding:14px 12px 96px}.mtTourDock .mtTourReplay{bottom:auto!important;left:auto!important}}
+.mtTourDock .mtTourReplay{max-width:40px!important;width:auto!important}
+.mtTourDock .mtTourReplay:hover,.mtTourDock .mtTourReplay:focus-visible{max-width:180px!important}
+.mtTourDock .mtTourReplay b{background:linear-gradient(135deg,#2fd1a0,#55b9ff)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent}
