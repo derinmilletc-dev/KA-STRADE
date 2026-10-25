@@ -15,6 +15,7 @@ import './master-trade-analysis-v2.css'
 import './live-modern.css'
 import './live-terminal.css'
 import './live-mobile.css'
+import './positions-mobile.css'
 import MasterTradeReference from './MasterTradeReference'
 import {useMasterMarketQuotes} from './useMasterMarketQuotes'
 import {useTradingPreferences} from './useTradingPreferences'
@@ -65,6 +66,11 @@ type MasterTradeSnapshot = { symbol: string; timeframe: string; candles: Candle[
 type AccountSyncState = 'READY' | 'EMPTY' | 'STALE' | 'DISCONNECTED' | 'DATA_UNAVAILABLE'
 type TradeHistorySyncState = 'READY' | 'EMPTY' | 'STALE' | 'DISCONNECTED' | 'UNAVAILABLE'
 type CloseLifecycleState = 'IDLE' | 'CLOSING' | 'CLOSED' | 'CLOSE_FAILED' | 'HISTORY_SYNC_FAILED' | 'ACCOUNT_SYNC_FAILED' | 'SYNC_FAILED'
+
+// Emir etiketleri: yalnız gösterim (telefonda kullanıcı dostu metin, masaüstünde ham değer). Emir mantığına dokunmaz.
+const orderSideLabel = (side: unknown) => side === 'BUY' || side === 'LONG' ? 'Alış' : side === 'SELL' || side === 'SHORT' ? 'Satış' : String(side || '--')
+const ORDER_TYPE_LABELS: Record<string, string> = {TAKE_PROFIT_MARKET: 'Kâr al', TAKE_PROFIT: 'Kâr al', STOP_MARKET: 'Zarar durdur', STOP: 'Zarar durdur', MARKET: 'Piyasa', LIMIT: 'Limit'}
+const orderTypeLabel = (type: unknown) => ORDER_TYPE_LABELS[String(type || '').toUpperCase()] ?? String(type || '--')
 
 const fmtNum = (value: number | null | undefined, decimals = 2) =>
   value === undefined || value === null ? '—' : value.toLocaleString('tr-TR', { maximumFractionDigits: decimals, minimumFractionDigits: decimals })
@@ -160,6 +166,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   const reactionArea = useRef<HTMLElement>(null)
   useKaisWorkspaceReaction(layoutTab, reactionArea)
   const [history, setHistory] = useState<TradeHistoryRow[]>([])
+  const [perfAdvOpen, setPerfAdvOpen] = useState(false)
   const [historySyncState, setHistorySyncState] = useState<TradeHistorySyncState>('READY')
   const [accountSyncState, setAccountSyncState] = useState<AccountSyncState>('READY')
   const [performanceSnapshot, setPerformanceSnapshot] = useState<PerformanceSnapshot | null>(null)
@@ -1099,20 +1106,20 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
                     const stopLoss = position.stop_loss ?? (plan?.stop_loss ? Number(plan.stop_loss) : undefined) ?? liveLevels.stopLoss
                     const target = plan?.targets?.[0] ? Number(plan.targets[0]) : position.tp1 ?? liveLevels.targets[0]
                     return (
-                    <tr key={position.symbol}>
-                      <td><strong>{position.symbol}</strong><span className="positionAge">{position.age || '--'}</span></td>
-                      <td><span className={position.direction === 'LONG' ? 'positive' : 'negative'}>{position.direction || '--'}</span></td>
-                      <td>{fmtNum(position.quantity, 2)}</td>
-                      <td>${fmtMarketPrice(position.entry_price)}</td>
-                      <td>${fmtMarketPrice(position.mark_price)}</td>
-                      <td>{position.leverage ? `${position.leverage}x` : '--'}</td>
-                      <td>{plan?.margin_usdt === undefined ? '--' : `$${fmtCompact(plan.margin_usdt)}`}</td>
-                      <td className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : `${position.unrealized_pnl >= 0 ? '+' : ''}$${fmtPnl(position.unrealized_pnl)}`}</td>
-                      <td>--</td>
-                      <td>${fmtMarketPrice(stopLoss)}</td>
-                      <td>${fmtMarketPrice(target)}</td>
-                      <td><span className="statusBadge open">OPEN</span></td>
-                      <td><div className="positionActions"><button type="button" onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'DETAILS', position: positionWithProtection(position) }) }}>DETAILS</button><button type="button" className="dangerAction positionCloseButton" aria-label={`Close ${position.symbol} position`} onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'CLOSE', position }) }}><XCircle size={14} aria-hidden="true" /> CLOSE POSITION</button></div></td>
+                    <tr key={position.symbol} className="posRow">
+                      <td data-cell="symbol"><strong>{position.symbol}</strong><span className="positionAge">{position.age || '--'}</span></td>
+                      <td data-cell="side"><span className={position.direction === 'LONG' ? 'positive' : 'negative'}>{position.direction || '--'}</span></td>
+                      <td data-cell="size" data-label="Miktar">{fmtNum(position.quantity, 2)}</td>
+                      <td data-cell="entry" data-label="Giriş fiyatı">${fmtMarketPrice(position.entry_price)}</td>
+                      <td data-cell="mark" data-label="Anlık fiyat">${fmtMarketPrice(position.mark_price)}</td>
+                      <td data-cell="lev">{position.leverage ? `${position.leverage}x` : '--'}</td>
+                      <td data-cell="margin" data-label="Teminat">{plan?.margin_usdt === undefined ? '--' : `$${fmtCompact(plan.margin_usdt)}`}</td>
+                      <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : `${position.unrealized_pnl >= 0 ? '+' : ''}$${fmtPnl(position.unrealized_pnl)}`}</td>
+                      <td data-cell="pct">--</td>
+                      <td data-cell="sl" data-label="Stop Loss">${fmtMarketPrice(stopLoss)}</td>
+                      <td data-cell="tp" data-label="Take Profit">${fmtMarketPrice(target)}</td>
+                      <td data-cell="status"><span className="statusBadge open">OPEN</span></td>
+                      <td data-cell="actions"><div className="positionActions"><button type="button" onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'DETAILS', position: positionWithProtection(position) }) }}>DETAILS</button><button type="button" className="dangerAction positionCloseButton" aria-label={`Close ${position.symbol} position`} onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'CLOSE', position }) }}><XCircle size={14} aria-hidden="true" /> CLOSE POSITION</button></div></td>
                     </tr>
                     )
                   }) : <tr><td colSpan={13} className="emptyState">{snapshot?.accountError || 'NO OPEN POSITIONS'}</td></tr>}
@@ -1146,13 +1153,13 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
                   <tbody>
                     {[...(account?.open_orders || []), ...(account?.open_algo_orders || [])].map((order, index) => (
                         <tr key={`${order.symbol || 'ORDER'}-${index}`}>
-                          <td>{order.symbol || '--'}</td>
-                          <td className={order.side === 'BUY' || order.side === 'LONG' ? 'positive' : 'negative'}>{order.side || '--'}</td>
-                          <td>{order.type || '--'}</td>
-                          <td>${fmtMarketPrice(order.price || order.trigger_price)}</td>
-                          <td>{fmtNum(order.quantity)}</td>
-                          <td><span className="statusBadge open">{order.status || '--'}</span></td>
-                          <td>{order.reduce_only === undefined ? '--' : order.reduce_only ? 'REDUCE ONLY' : 'NO'}</td>
+                          <td data-cell="symbol">{order.symbol || '--'}</td>
+                          <td data-cell="side" className={order.side === 'BUY' || order.side === 'LONG' ? 'positive' : 'negative'}><span className="friendlyText">{orderSideLabel(order.side)}</span><span className="rawText">{order.side || '--'}</span></td>
+                          <td data-cell="type"><span className="friendlyText">{orderTypeLabel(order.type)}</span><span className="rawText">{order.type || '--'}</span></td>
+                          <td data-cell="price" data-label="Tetikleme fiyatı">${fmtMarketPrice(order.price || order.trigger_price)}</td>
+                          <td data-cell="qty" data-label="Miktar">{fmtNum(order.quantity)}</td>
+                          <td data-cell="status"><span className="statusBadge open">{order.status || '--'}</span></td>
+                          <td data-cell="reduce" data-label="Sadece azaltma">{order.reduce_only === undefined ? '--' : order.reduce_only ? 'REDUCE ONLY' : 'NO'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1195,16 +1202,16 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
                 <tbody>
                   {historySyncState === 'UNAVAILABLE' ? <tr><td colSpan={10} className="emptyState">TRADE HISTORY UNAVAILABLE</td></tr> : historySyncState === 'DISCONNECTED' ? <tr><td colSpan={10} className="emptyState">ACCOUNT DISCONNECTED</td></tr> : history.length ? history.map((trade) => (
                     <tr key={trade.id} onClick={() => setSelectedTrade(trade)} className="historyRow">
-                      <td>{new Date(trade.closeTime).toLocaleDateString('en-GB')}</td>
-                      <td><strong>{trade.symbol}</strong></td>
-                      <td className={trade.side === 'LONG' ? 'positive' : 'negative'}>{trade.side}</td>
-                      <td>${fmtNum(trade.entryPrice)}</td>
-                      <td>${fmtNum(trade.exitPrice)}</td>
-                      <td className={trade.realizedPnl > 0 ? 'positive' : trade.realizedPnl < 0 ? 'negative' : 'muted'}>{trade.realizedPnl > 0 ? '+' : ''}${fmtCompact(trade.realizedPnl)}</td>
-                      <td className={trade.pnlPercent === null ? 'muted' : trade.pnlPercent >= 0 ? 'positive' : 'negative'}>{trade.pnlPercent === null ? '--' : `${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent.toFixed(2)}%`}</td>
-                      <td>{trade.duration || '--'}</td>
-                      <td>{trade.source}</td>
-                      <td><span className={`statusBadge ${trade.realizedPnl > 0 ? 'win' : trade.realizedPnl < 0 ? 'loss' : 'open'}`}>{trade.realizedPnl > 0 ? 'WIN' : trade.realizedPnl < 0 ? 'LOSS' : '--'}</span></td>
+                      <td data-cell="date">{new Date(trade.closeTime).toLocaleDateString('en-GB')}</td>
+                      <td data-cell="symbol"><strong>{trade.symbol}</strong></td>
+                      <td data-cell="side" className={trade.side === 'LONG' ? 'positive' : 'negative'}>{trade.side}</td>
+                      <td data-cell="entry" data-label="Giriş">${fmtNum(trade.entryPrice)}</td>
+                      <td data-cell="exit" data-label="Çıkış">${fmtNum(trade.exitPrice)}</td>
+                      <td data-cell="pnl" className={trade.realizedPnl > 0 ? 'positive' : trade.realizedPnl < 0 ? 'negative' : 'muted'}>{trade.realizedPnl > 0 ? '+' : ''}${fmtCompact(trade.realizedPnl)}</td>
+                      <td data-cell="pct" data-empty={trade.pnlPercent === null || undefined} className={trade.pnlPercent === null ? 'muted' : trade.pnlPercent >= 0 ? 'positive' : 'negative'}>{trade.pnlPercent === null ? '--' : `${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent.toFixed(2)}%`}</td>
+                      <td data-cell="duration">{trade.duration || '--'}</td>
+                      <td data-cell="source">{trade.source}</td>
+                      <td data-cell="result"><span className={`statusBadge ${trade.realizedPnl > 0 ? 'win' : trade.realizedPnl < 0 ? 'loss' : 'open'}`}>{trade.realizedPnl > 0 ? 'WIN' : trade.realizedPnl < 0 ? 'LOSS' : '--'}</span></td>
                     </tr>
                   )) : <tr><td colSpan={10} className="emptyState">NO TRADE HISTORY</td></tr>}
                 </tbody>
@@ -1220,18 +1227,20 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
               </div>
             </div>
 
-            <div className="performanceMetrics">
-              <div><small>Total trades</small><strong>{performanceSnapshot?.total_trades ?? '--'}</strong></div>
-              <div><small>Wins</small><strong>{performanceSnapshot?.wins ?? '--'}</strong></div>
-              <div><small>Losses</small><strong>{performanceSnapshot?.losses ?? '--'}</strong></div>
-              <div><small>Win rate</small><strong>{performanceSnapshot ? `${performanceSnapshot.win_rate.toFixed(1)}%` : '--'}</strong></div>
-              <div><small>Total PnL</small><strong className={(performanceSnapshot?.net_profit ?? 0) >= 0 ? 'positive' : 'negative'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.net_profit)}` : '--'}</strong></div>
-              <div><small>Avg win</small><strong>{performanceSnapshot?.average_win === null || performanceSnapshot?.average_win === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_win)}`}</strong></div>
-              <div><small>Avg loss</small><strong>{performanceSnapshot?.average_loss === null || performanceSnapshot?.average_loss === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_loss)}`}</strong></div>
-              <div><small>Profit factor</small><strong>{performanceSnapshot?.profit_factor === null || performanceSnapshot?.profit_factor === undefined ? '--' : performanceSnapshot.profit_factor.toFixed(2)}</strong></div>
-              <div><small>Best trade</small><strong className="positive">{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.best_trade)}` : '--'}</strong></div>
-              <div><small>Worst trade</small><strong className={(performanceSnapshot?.worst_trade ?? 0) < 0 ? 'negative' : 'muted'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.worst_trade)}` : '--'}</strong></div>
-              <div><small>Max drawdown</small><strong>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.max_drawdown)}` : '--'}</strong></div>
+            <div className="performanceMetrics" data-adv={perfAdvOpen || undefined}>
+              <div className="perfMain"><small>Total trades</small><strong>{performanceSnapshot?.total_trades ?? '--'}</strong></div>
+              <div className="perfMain"><small>Wins</small><strong>{performanceSnapshot?.wins ?? '--'}</strong></div>
+              <div className="perfMain"><small>Losses</small><strong>{performanceSnapshot?.losses ?? '--'}</strong></div>
+              <div className="perfHero"><small>Win rate</small><strong>{performanceSnapshot ? `${performanceSnapshot.win_rate.toFixed(1)}%` : '--'}</strong></div>
+              <div className="perfHero"><small>Total PnL</small><strong className={(performanceSnapshot?.net_profit ?? 0) >= 0 ? 'positive' : 'negative'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.net_profit)}` : '--'}</strong></div>
+              <div className="perfMain"><small>Avg win</small><strong>{performanceSnapshot?.average_win === null || performanceSnapshot?.average_win === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_win)}`}</strong></div>
+              <div className="perfMain"><small>Avg loss</small><strong>{performanceSnapshot?.average_loss === null || performanceSnapshot?.average_loss === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_loss)}`}</strong></div>
+              <div className="perfHero"><small>Profit factor</small><strong>{performanceSnapshot?.profit_factor === null || performanceSnapshot?.profit_factor === undefined ? '--' : performanceSnapshot.profit_factor.toFixed(2)}</strong></div>
+              <div className="perfAdv"><small>Best trade</small><strong className="positive">{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.best_trade)}` : '--'}</strong></div>
+              <div className="perfAdv"><small>Worst trade</small><strong className={(performanceSnapshot?.worst_trade ?? 0) < 0 ? 'negative' : 'muted'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.worst_trade)}` : '--'}</strong></div>
+              <div className="perfAdv"><small>Max drawdown</small><strong>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.max_drawdown)}` : '--'}</strong></div>
+            
+              <button type="button" className="perfAdvToggle" aria-expanded={perfAdvOpen} onClick={() => setPerfAdvOpen(value => !value)}>{perfAdvOpen ? 'Gelişmiş istatistikleri gizle' : 'Gelişmiş istatistikleri göster'}</button>
             </div>
 
             <div className="miniSparkline" aria-label="Performance trend">
