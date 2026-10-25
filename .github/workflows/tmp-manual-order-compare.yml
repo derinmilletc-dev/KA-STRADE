@@ -99,6 +99,8 @@ jobs:
         run: |
           set +e
           git checkout -q origin/main -- .
+          # Ana sürümde de aynı tırnak düzeltmesi (yoksa paket hiç açılmaz ve karşılaştırma anlamsız olur).
+          sed -i "s/'Kais AI'a Sor'/\"Kais AI'a Sor\"/g" frontend/tests/chart-ai.spec.ts
           npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null)
           npm run build >/dev/null 2>&1; echo "build exit $?"
           (cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/main-e2e.json npx playwright test --reporter=json,line > /tmp/main-e2e.log 2>&1); echo "exit $?"
