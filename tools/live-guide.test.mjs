@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {marginModePreview, capacityPreview, liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
+import {clampCustomPercent, openMarginTotal, marginSimulation, CUSTOM_MARGIN_MIN_PERCENT, marginModePreview, capacityPreview, liveGuide, matchPreset, RISK_PRESETS, riskSummary, whyNoTrade, duration, retryDelay, positionNote, smartAlerts, dailySummary, statusHelp, nextScan, reconnectingGuide, rejectionBreakdown} from '../frontend/src/live-guide.ts'
 
 const ready = {
   statusLoaded: true, statusVerified: true, statusError: null, loading: false, freeTrial: false,
@@ -251,4 +251,50 @@ test('margin mode preview scales with the mode percent and respects the system c
   assert.equal(rich.marginUsdt, 100); assert.equal(rich.capped, true)
   assert.equal(marginModePreview(0, caps, 30), null)
   assert.equal(marginModePreview(100, null, 30), null)
+})
+
+// ---- Teminat Kontrol Merkezi (yalnız gösterim)
+const marginCaps = {max_margin_usdt: 43, leverage: 3, estimated_cost_pct: 0.2, max_stop_distance_pct: 6, max_total_margin_usdt: 115, system_ceilings: {max_margin_per_trade_usdt: 1000}}
+
+test('özel yüzde: geçersiz değerler reddedilir, sınırlar korunur', () => {
+  assert.equal(CUSTOM_MARGIN_MIN_PERCENT, 5)
+  assert.equal(clampCustomPercent(40, 65), 40)
+  assert.equal(clampCustomPercent('42.46', 65), 42.5)
+  for (const bad of [4.9, 65.1, 0, -10, NaN, Infinity, '', 'abc', null, undefined, {}]) assert.equal(clampCustomPercent(bad, 65), null, String(bad))
+  assert.equal(clampCustomPercent(5, 65), 5)
+  assert.equal(clampCustomPercent(65, 65), 65)
+  assert.equal(clampCustomPercent(30, 4), null)
+})
+
+test('açık teminat toplamı: kayıtlı marjin, tahmin ve eksik veri', () => {
+  assert.deepEqual(openMarginTotal([]), {total: 0, estimated: false})
+  assert.deepEqual(openMarginTotal([{margin: 10}, {margin: 5.5}]), {total: 15.5, estimated: false})
+  const est = openMarginTotal([{quantity: 1.2, entry_price: 100, leverage: 3}])
+  assert.equal(est.estimated, true); assert.ok(Math.abs(est.total - 40) < 1e-9)
+  assert.equal(openMarginTotal([{quantity: 1, entry_price: 100}]), null)
+})
+
+test('teminat simülasyonu: hazır modlar sunucu formülüyle aynı, teorik değerler', () => {
+  const wallet = 144
+  const safe = marginSimulation(wallet, marginCaps, 30, {openMargin: {total: 40, estimated: true}, dailyLimit: 7.2, dailyLoss: 2.22})
+  assert.ok(Math.abs(safe.marginUsdt - 43.2) < 1e-9)
+  assert.ok(Math.abs(safe.notional - 129.6) < 1e-9)
+  assert.ok(Math.abs(safe.lossAtThree.loss - 129.6 * 3.2 / 100) < 1e-9)
+  assert.ok(Math.abs(safe.lossAtMax.loss - 129.6 * 6.2 / 100) < 1e-9)
+  assert.ok(Math.abs(safe.walletShare - 30) < 1e-9)
+  assert.ok(Math.abs(safe.room - 75) < 1e-9); assert.equal(safe.tradesFit, 1)
+  assert.ok(Math.abs(safe.dailyLeft - 4.98) < 1e-9)
+  const aggressive = marginSimulation(wallet, marginCaps, 65)
+  assert.ok(aggressive.marginUsdt > safe.marginUsdt && aggressive.lossAtMax.loss > safe.lossAtMax.loss)
+  assert.equal(aggressive.room, null); assert.equal(aggressive.dailyLeft, null)
+})
+
+test('simülasyon: sistem tavanı kırpar, eksik veri null döner, sınırı aşmaz', () => {
+  const capped = marginSimulation(1000, {...marginCaps, system_ceilings: {max_margin_per_trade_usdt: 50}}, 65)
+  assert.equal(capped.marginUsdt, 50); assert.equal(capped.capped, true)
+  assert.equal(marginSimulation(0, marginCaps, 30), null)
+  assert.equal(marginSimulation(144, null, 30), null)
+  assert.equal(marginSimulation(144, marginCaps, 0), null)
+  const full = marginSimulation(144, marginCaps, 30, {openMargin: {total: 200, estimated: false}})
+  assert.equal(full.room, 0); assert.equal(full.tradesFit, 0)
 })

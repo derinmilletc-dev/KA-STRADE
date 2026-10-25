@@ -193,6 +193,56 @@ export function marginModePreview(wallet: number, caps: MarginModeCaps, perTrade
   return {marginUsdt: margin, totalPercent: perTradePercent, atMaxStop: preview.atMaxStop, atThreeStop: preview.rows.find(row => row.stopPct === 3) ?? null, capped: margin < raw}
 }
 
+/** Teminat Kontrol Merkezi: yalnız gösterim. Sunucu kurallarını (hazır modlar, sistem tavanları) değiştirmez ve emir açmaz. */
+export const CUSTOM_MARGIN_MIN_PERCENT = 5
+/** Özel (deneme) yüzde: sayı, en az 5, en çok sunucunun sunduğu en yüksek hazır mod. Geçersizse null. */
+export function clampCustomPercent(value: unknown, maxPercent: number): number | null {
+  const number = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof number !== 'number' || !Number.isFinite(number)) return null
+  if (!(maxPercent >= CUSTOM_MARGIN_MIN_PERCENT)) return null
+  if (number < CUSTOM_MARGIN_MIN_PERCENT || number > maxPercent) return null
+  return Math.round(number * 10) / 10
+}
+/** Açık pozisyonların toplam teminatı: kayıtta `margin` varsa o, yoksa miktar × giriş ÷ kaldıraç (tahmini). Hesaplanamazsa null. */
+export function openMarginTotal(positions: ReadonlyArray<Record<string, unknown>>): {total: number; estimated: boolean} | null {
+  if (positions.length === 0) return {total: 0, estimated: false}
+  let total = 0, estimated = false
+  for (const position of positions) {
+    const margin = position.margin ?? position.isolated_margin
+    if (typeof margin === 'number' && Number.isFinite(margin) && margin >= 0) { total += margin; continue }
+    const quantity = Math.abs(Number(position.quantity ?? position.size)), entry = Number(position.entry_price), leverage = Number(position.leverage)
+    if (![quantity, entry, leverage].every(Number.isFinite) || quantity <= 0 || entry <= 0 || leverage < 1) return null
+    total += quantity * entry / leverage; estimated = true
+  }
+  return {total, estimated}
+}
+export type MarginSimulation = {
+  percent: number; marginUsdt: number; capped: boolean; walletShare: number; notional: number | null
+  lossAtThree: CapacityRow | null; lossAtMax: CapacityRow | null
+  totalLimit: number | null; openMargin: number | null; openEstimated: boolean; room: number | null; tradesFit: number | null
+  dailyLimit: number | null; dailyLoss: number | null; dailyLeft: number | null
+}
+export type MarginSimulationContext = {openMargin?: {total: number; estimated: boolean} | null; dailyLimit?: number | null; dailyLoss?: number | null}
+/** Bir teminat yüzdesi için tahmini değerler (en fazla; Binance minimum/adım ve anlık bakiye işlem anında düşürebilir). Hesaplanamazsa null. */
+export function marginSimulation(wallet: number, caps: MarginModeCaps & {max_total_margin_usdt?: number}, percent: number, context: MarginSimulationContext = {}): MarginSimulation | null {
+  const view = marginModePreview(wallet, caps, percent)
+  if (!view || !caps) return null
+  const leverage = caps.leverage
+  const notional = typeof leverage === 'number' && Number.isFinite(leverage) && leverage >= 1 ? view.marginUsdt * leverage : null
+  const finiteOr = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null
+  const totalLimit = finiteOr(caps.max_total_margin_usdt)
+  const open = context.openMargin ?? null
+  const room = totalLimit !== null && open ? Math.max(0, totalLimit - open.total) : null
+  const dailyLimit = finiteOr(context.dailyLimit), dailyLoss = finiteOr(context.dailyLoss)
+  return {
+    percent, marginUsdt: view.marginUsdt, capped: view.capped, walletShare: view.marginUsdt / wallet * 100, notional,
+    lossAtThree: view.atThreeStop, lossAtMax: view.atMaxStop,
+    totalLimit, openMargin: open ? open.total : null, openEstimated: Boolean(open?.estimated), room,
+    tradesFit: room !== null && view.marginUsdt > 0 ? Math.floor(room / view.marginUsdt) : null,
+    dailyLimit, dailyLoss, dailyLeft: dailyLimit !== null && dailyLoss !== null ? Math.max(0, dailyLimit - Math.abs(dailyLoss)) : null,
+  }
+}
+
 export type RiskBreakdown = {
   status: 'verified' | 'partial' | 'unavailable'; unverified?: string[]; reason?: string
   target_loss_usdt?: number; target_percent?: number; budget_loss_usdt?: number

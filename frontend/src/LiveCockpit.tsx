@@ -4,7 +4,7 @@ import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
-  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, type GuideInput, type GuideNotice,
+  smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -216,6 +216,8 @@ export default function LiveCockpit(props: Props) {
   const [modePhrase, setModePhrase] = useState('')
   const [modeError, setModeError] = useState('')
   const [modeHelpOpen, setModeHelpOpen] = useState(false)
+  const [customOn, setCustomOn] = useState(false)
+  const [customRaw, setCustomRaw] = useState('40')
   const [extendHours, setExtendHours] = useState(12)
   const [extendUnderstood, setExtendUnderstood] = useState(false)
   const extendSession = () => perform('extend', async () => {
@@ -496,23 +498,74 @@ export default function LiveCockpit(props: Props) {
     </div>}
   </>
   const modeRows = original?.margin_modes ?? []
+  const customMax = modeRows.reduce((max, row) => Math.max(max, row.per_trade_percent), 0)
+  const customValue = customOn ? clampCustomPercent(customRaw, customMax) : null
+  const savedRow = modeRows.find(row => row.mode === savedMode), chosenRow = modeRows.find(row => row.mode === chosenMode)
+  const simPercent = customOn ? customValue : chosenRow?.per_trade_percent ?? null
+  const simContext = {openMargin: openMarginTotal(positions as Array<Record<string, unknown>>), dailyLimit: original?.daily?.limit ?? null, dailyLoss: original?.daily?.loss ?? null}
+  const sim = wallet !== null && simPercent !== null ? marginSimulation(wallet, caps, simPercent, simContext) : null
+  const oldSim = wallet !== null && savedRow ? marginSimulation(wallet, caps, savedRow.per_trade_percent, simContext) : null
+  const simChanged = simPercent !== null && savedRow ? simPercent !== savedRow.per_trade_percent : false
+  const num = (value: number | null | undefined) => usdt(value).replace(' USDT', '')
+  const riskyPick = simPercent !== null && simPercent >= 50
+  const nearestMode = customValue === null ? null : modeRows.reduce<typeof modeRows[number] | null>((best, row) => !best || Math.abs(row.per_trade_percent - customValue) < Math.abs(best.per_trade_percent - customValue) ? row : best, null)
   const modeBlock = verified && original && guideInput.connected && !guideInput.emergency && modeRows.length > 0 ? <div className="lcMode" id="lc-mode">
     <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin. <button type="button" className="lcLink lcWhatIs" aria-expanded={modeHelpOpen} onClick={() => setModeHelpOpen(value => !value)}>Bu ne?</button></p>
     {modeHelpOpen && <p className="lcWhy">Teminat, her işleme bakiyenden ayırdığın paradır. Modu yükseltirsen işlem büyür: kazanç da kayıp da büyür. Stop-loss her zaman çalışır ve zarar o seviyede durur. Toplam teminat sınırı her modda aynıdır.</p>}
     <div className="lcModes" role="radiogroup" aria-label="Teminat modu">
       {modeRows.map(row => {
         const view = wallet !== null ? marginModePreview(wallet, caps, row.per_trade_percent) : null
-        const selected = chosenMode === row.mode
-        return <button type="button" role="radio" aria-checked={selected} key={row.mode} className="lcPreset lcModeCard" data-id={row.mode} data-selected={selected || undefined} disabled={busy} onClick={() => pickMode(row.mode)}>
-          <span className="lcPresetHead"><b>{row.label}</b><i>%{row.per_trade_percent}</i>{savedMode === row.mode && <em>AKTİF</em>}</span>
-          <small>{MODE_TEXT[row.mode]}</small>
-          <small>İşlem başı teminat ≈ {view ? usdt(view.marginUsdt) : '—'}</small>
-          <small>{view ? `En iyi durumda (stop %${view.atThreeStop?.stopPct ?? 3} uzakta) en fazla ≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} (${pct((view.atThreeStop ?? view.atMaxStop).percent)}) kayıp` : 'Bakiye doğrulanınca görünür'}</small>
+        const rowSim = wallet !== null ? marginSimulation(wallet, caps, row.per_trade_percent, simContext) : null
+        const selected = !customOn && chosenMode === row.mode
+        return <button type="button" role="radio" aria-checked={selected} key={row.mode} className="lcPreset lcModeCard" data-id={row.mode} data-selected={selected || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(row.mode) }}>
+          <span className="lcPresetHead"><b>{row.label}</b>{savedMode === row.mode && <em>AKTİF</em>}</span>
+          <span className="lcModePct"><strong>%{row.per_trade_percent}</strong><small>bakiye / işlem</small></span>
+          <span className="lcMeter" aria-hidden="true"><i style={{width: `${Math.min(100, row.per_trade_percent)}%`}}/></span>
+          <small className="lcModeNote">{MODE_TEXT[row.mode]}</small>
+          <span className="lcKV"><em>Teminat</em><b>{view ? usdt(view.marginUsdt) : '—'}</b></span>
+          <span className="lcKV"><em>Pozisyon (en fazla)</em><b>{rowSim?.notional != null ? usdt(rowSim.notional) : '—'}</b></span>
+          <span className="lcKV"><em>{view ? `Stop %${view.atThreeStop?.stopPct ?? 3} kaybı` : 'Stop kaybı'}</em><b className="lcLoss">{view ? `≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} · ${pct((view.atThreeStop ?? view.atMaxStop).percent)}` : '—'}</b></span>
         </button>
       })}
     </div>
+    {customMax >= CUSTOM_MARGIN_MIN_PERCENT && <div className="lcCustomMargin">
+      <button type="button" className="lcLink" aria-expanded={customOn} disabled={busy} onClick={() => { setCustomOn(value => !value); setModePick(null); setModeAck(false); setModePhrase('') }}>{customOn ? 'Özel yüzde denemesini kapat' : 'Özel yüzde dene (kaydedilmez)'}</button>
+      {customOn && <div className="lcCustomBox">
+        <label>İşlem başı teminat (%{CUSTOM_MARGIN_MIN_PERCENT}–%{customMax})
+          <input type="range" min={CUSTOM_MARGIN_MIN_PERCENT} max={customMax} step="1" value={customValue ?? CUSTOM_MARGIN_MIN_PERCENT} onChange={event => setCustomRaw(event.target.value)}/>
+        </label>
+        <label>Yüzde
+          <input type="number" inputMode="decimal" min={CUSTOM_MARGIN_MIN_PERCENT} max={customMax} step="1" value={customRaw} onChange={event => setCustomRaw(event.target.value)}/>
+        </label>
+        {customValue === null
+          ? <p className="lcHint warn" role="alert">Geçersiz değer. %{CUSTOM_MARGIN_MIN_PERCENT} ile %{customMax} arasında bir sayı yaz.</p>
+          : <p className="lcHint">Bu sadece bir deneme: kaydedilmez ve emir açmaz. Sunucu şu an yalnız Güvenli, Orta ve Agresif modları kabul eder{nearestMode ? `; senin denemene en yakını ${nearestMode.label} (%${nearestMode.per_trade_percent})` : ''}.</p>}
+      </div>}
+    </div>}
+    {sim && <div className="lcSim" aria-label="Tahmini değerler">
+      <p className="lcSimHead"><b>{customOn ? `Özel deneme · %${sim.percent}` : `${chosenRow?.label ?? ''} · %${sim.percent}`}</b> <small>Tahminidir; gerçekleşen değer Binance minimum/adım kuralları, bakiye ve açık pozisyonlara göre daha düşük olabilir.</small></p>
+      <dl className="lcSimGrid">
+        <div><dt>İşlem başı teminat (en fazla)</dt><dd>{usdt(sim.marginUsdt)}{sim.capped ? ' · sistem tavanıyla kırpıldı' : ''}</dd></div>
+        <div><dt>Tahmini pozisyon büyüklüğü</dt><dd>{sim.notional !== null ? usdt(sim.notional) : '—'}</dd></div>
+        <div><dt>Stop seviyesinde tahmini kayıp</dt><dd>{sim.lossAtThree ? `≈ ${usdt(sim.lossAtThree.loss)} (${pct(sim.lossAtThree.percent)})` : '—'}</dd></div>
+        <div><dt>Bakiyeye oran</dt><dd>%{sim.walletShare.toFixed(1)}</dd></div>
+        <div><dt>Toplam teminat sınırı</dt><dd>{sim.totalLimit !== null ? usdt(sim.totalLimit) : '—'}</dd></div>
+        <div><dt>Açık teminat{sim.openEstimated ? ' (tahmini)' : ''}</dt><dd>{sim.openMargin !== null ? usdt(sim.openMargin) : 'doğrulanamadı'}</dd></div>
+        <div><dt>Kalan teminat kapasitesi</dt><dd>{sim.room !== null ? `${usdt(sim.room)}${sim.tradesFit !== null ? ` · ≈ ${sim.tradesFit} yeni işlem` : ''}` : '—'}</dd></div>
+        <div><dt>Günlük zarar limiti</dt><dd>{sim.dailyLimit !== null ? `${usdt(sim.dailyLimit)}${sim.dailyLeft !== null ? ` · kalan ${usdt(sim.dailyLeft)}` : ''}` : '—'}</dd></div>
+        <div><dt>Açık pozisyon</dt><dd>{positions.length}{finite(status?.policy?.max_positions) ? ` / ${status?.policy?.max_positions}` : ''}</dd></div>
+      </dl>
+      {riskyPick && <p className="lcHint warn" role="note">Dikkat: işlem başına bakiyenin yarısından fazlası teminat olarak ayrılabilir. Kazanç da, kayıp da büyür; stop-loss yine çalışır ama zarar büyük olabilir.</p>}
+      {simChanged && oldSim && <table className="lcCompare"><caption>Şimdiki mod ({savedRow?.label}) ile karşılaştırma (USDT)</caption>
+        <thead><tr><th/><th>Şimdi</th><th>Yeni</th></tr></thead>
+        <tbody>
+          <tr><th>Teminat / işlem</th><td>{num(oldSim.marginUsdt)}</td><td>{num(sim.marginUsdt)}</td></tr>
+          <tr><th>Pozisyon</th><td>{oldSim.notional !== null ? num(oldSim.notional) : '—'}</td><td>{sim.notional !== null ? num(sim.notional) : '—'}</td></tr>
+          <tr><th>Stop kaybı (en fazla)</th><td>{oldSim.lossAtThree ? num(oldSim.lossAtThree.loss) : '—'}</td><td>{sim.lossAtThree ? num(sim.lossAtThree.loss) : '—'}</td></tr>
+        </tbody></table>}
+    </div>}
     <details className="lcFine"><summary>Her modda değişmeyenler</summary><small>Toplam teminat sınırı (%{modeRows[0].total_percent}), her işlemin stop-loss'u, günlük kayıp sınırı ve diğer korumalar her modda aynen çalışır. Seçtiğin risk bir hedeftir: sistem karşılayamazsa işlem yine açılabilir ama gerçek risk daha düşük olur. Bunu "Son işlem adayı" kutusunda ve olay kaydında açıkça görürsün; sessizce düşürülmez.</small></details>
-    {chosenMode !== savedMode && <div className="lcModeConfirm">
+    {!customOn && chosenMode !== savedMode && <div className="lcModeConfirm">
       <label className="lcCheck"><input type="checkbox" checked={modeUnderstood} onChange={event => setModeUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
       {chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini kabul ediyorum.</span></label>}
       {chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
