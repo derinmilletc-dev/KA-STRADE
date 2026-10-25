@@ -211,8 +211,9 @@ export default function LiveCockpit(props: Props) {
   const [launchApprovals, setLaunchApprovals] = useState<Record<string, string>>({})
   const [launchOps, setLaunchOps] = useState<Record<string, LaunchOp>>({})
   const [launchPhrase, setLaunchPhrase] = useState('')
+  const [dailyText, setDailyText] = useState<string | null>(null)
   const openLaunch = () => {
-    setLaunchApprovals({}); setLaunchOps({}); setLaunchPhrase(''); setSheetError(''); setRiskError(''); setModeError('')
+    setLaunchApprovals({}); setLaunchOps({}); setLaunchPhrase(''); setDailyText(null); setSheetError(''); setRiskError(''); setModeError('')
     setCustom(false); setCustomOn(false); setUnderstood(false); setRiskAck(false); setPhrase(''); setModePick(null)
     setModeUnderstood(false); setModeAck(false); setModePhrase(''); setSmartPick('keep'); setSmartWizAck(false)
     setSheet('launch')
@@ -1067,6 +1068,7 @@ export default function LiveCockpit(props: Props) {
     }
     if (id === 'daily') {
       if (wizTrades !== null && wizTrades < 2) out.push({tone: 'warn', text: `Günlük sınır yalnız ~${wizTrades} işlem zararına yetiyor; tek kötü işlemden sonra gün biter.`})
+      if (draft.daily > 10) out.push({tone: 'warn', text: `%${draft.daily} günlük sınır yüksek: kötü bir günde bakiyenin bu kadarı gidebilir.`})
       if (wizRiskNums?.perDayCapped) out.push({tone: 'info', text: `Sistem tavanı nedeniyle günlük kayıp en çok ${usdt(wizRiskNums.perDay)} olur.`})
       if (dayData?.locked) out.push({tone: 'bad', text: 'Bugün günlük kayıp kilidi AÇIK: yeni giriş kapalı. Gün sayacı UTC 00:00\'da sıfırlanır.'})
       else if (dayUsedPct !== null && dayUsedPct >= 100) out.push({tone: 'bad', text: 'Bugünkü zarar bu limiti zaten aştı; yeni giriş açılmaz.'})
@@ -1115,10 +1117,16 @@ export default function LiveCockpit(props: Props) {
       {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
       {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
     </>}
-    {id === 'daily' && <div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
+    {id === 'daily' && <><div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
       const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
-      return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => setDraft(current => ({...current, daily: value}))}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
-    })}</div>}
+      return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => { setDailyText(null); setDraft(current => ({...current, daily: value})) }}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
+    })}</div>
+      <label className="lcField lcDailyOwn"><span>Ya da kendin yaz <em>%1 – %25</em></span>
+        <span className="lcDailyBox"><b aria-hidden="true">%</b><input type="text" inputMode="decimal" autoComplete="off" data-testid="launch-daily-own" placeholder={String(draft.daily)} value={dailyText ?? ''} disabled={busy}
+          onChange={event => { const text = event.target.value; setDailyText(text); const value = Number(text.replace(',', '.')); if (text.trim() !== '' && Number.isFinite(value)) setDraft(current => ({...current, daily: value})) }}/></span>
+      </label>
+      {dailyText !== null && dailyText.trim() !== '' && !wizDailyOk && <p className="lcHint stop">Sınır %1 ile %25 arasında olmalı ve işlem riskinden (%{draft.risk}) küçük olmamalı.</p>}
+    </>}
     {id === 'mode' && <>
       <div className="lcWizChips" role="radiogroup" aria-label="Teminat modu">{modeRows.map(item => <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip" data-selected={chosenMode === item.mode || undefined} data-rec={item.mode === 'guvenli' || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}><b>{item.label}{item.mode === 'guvenli' && <em>ÖNERİLEN</em>}</b><small>%{item.per_trade_percent} / işlem</small></button>)}</div>
       {chosenMode !== savedMode && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini anladım.</span></label>}
