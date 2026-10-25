@@ -43,3 +43,5 @@
 .mtTourReplay{width:30px!important;height:30px!important;min-height:0!important;padding:0!important;justify-content:center;font-size:14px!important;font-weight:800!important;opacity:.6;transition:opacity .2s;box-shadow:none!important;left:12px!important;bottom:14px!important}
 .mtTourReplay:hover,.mtTourReplay:focus-visible{opacity:1}
 @media (max-width:640px){.mtTourReplay{bottom:84px!important;left:10px!important}}
+.mtTour .mtTourPanel :is(.mtTourGhost,.mtTourGo){white-space:nowrap}
+.mtTour .mtTourPanel[data-mobile] .mtTourActions{gap:6px}

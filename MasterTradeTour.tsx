@@ -119,6 +119,15 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
   const vw = window.innerWidth, vh = window.innerHeight
   const width = Math.min(400, vw - 24)
   let style: CSSProperties | undefined
+  if (mobile) {
+    // Telefon: panel alt gezinme çubuğunun üstünde durur; vurgulanan yer alt yarıdaysa panel üste geçer, önemli butonları kapatmaz.
+    const nav = document.querySelector<HTMLElement>('.v26MobileBottomNav')
+    const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh
+    const targetLow = Boolean(box && box.top + box.height / 2 > vh * 0.45)
+    style = targetLow
+      ? {left: 12, right: 12, bottom: 'auto', top: 'max(12px, env(safe-area-inset-top))', maxHeight: Math.max(160, navTop - 24), overflowY: 'auto'}
+      : {left: 12, right: 12, bottom: Math.max(12, vh - navTop + 10), maxHeight: Math.max(160, navTop - 24), overflowY: 'auto'}
+  }
   if (!mobile) {
     if (!box || box.height > vh * 0.55) style = box ? {right: 24, bottom: 24, width} : {left: Math.max(12, (vw - width) / 2), top: Math.max(12, (vh - panelHeight) / 2), width}
     else {
