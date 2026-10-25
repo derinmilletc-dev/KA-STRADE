@@ -1093,7 +1093,7 @@ export default function LiveCockpit(props: Props) {
     policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
     arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
   }
-  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? 'Güvenli' : id === 'smart' ? 'Böyle kalsın' : null
+  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? 'Güvenli' : null
   const chipOf = (label: string, state: 'ok' | 'idle' | 'working' | 'error', title?: string) =>
     <span className="lcWzChip" data-state={state} title={title}><i aria-hidden="true">{state === 'ok' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>{label}</span>
   const stateChips = (id: LaunchStepId) => {
@@ -1126,7 +1126,7 @@ export default function LiveCockpit(props: Props) {
     </>}
     {id === 'smart' && smartSettings !== undefined && <>
       <div className="lcWizChips" role="radiogroup" aria-label="Akıllı koruma">
-        <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} data-rec="1" disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın<em>ÖNERİLEN</em></b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
+        <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın</b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
         {smartCurrentlyOn
           ? <button type="button" role="radio" aria-checked={smartPick === 'off'} className="lcWizChip" data-selected={smartPick === 'off' || undefined} disabled={busy} onClick={() => setSmartPick('off')}><b>Kapat</b><small>Stoplar kalkar</small></button>
           : <button type="button" role="radio" aria-checked={smartPick === 'on'} className="lcWizChip" data-selected={smartPick === 'on' || undefined} disabled={busy} onClick={() => setSmartPick('on')}><b>Aç</b><small>Gerçek emir gönderebilir</small></button>}
