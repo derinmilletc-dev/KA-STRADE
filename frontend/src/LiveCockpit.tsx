@@ -447,6 +447,20 @@ export default function LiveCockpit(props: Props) {
     setSheet(null); setLaunchPhrase('')
   }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
 
+  // Manuel işlem: yeni bir emir yolu açmaz; mevcut "Manuel emir · gerçek para" bölümünü açıp oraya götürür.
+  // Dry-run kontrolü, ARM ve son onay kuralları o bölümde aynen geçerlidir.
+  const openManual = () => {
+    const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
+    if (drawer && !drawer.open) drawer.open = true
+    window.setTimeout(() => {
+      const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
+      if (!manual) { setFlash({tone: 'warn', text: 'Manuel emir bölümü şu an açılamadı. Bağlantı doğrulanınca tekrar dene.'}); return }
+      manual.open = true
+      manual.scrollIntoView({behavior: 'smooth', block: 'start'})
+      manual.querySelector('summary')?.focus({preventScroll: true})
+    }, 150)
+  }
+
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
   const runningRef = useRef(running)
@@ -1448,7 +1462,10 @@ export default function LiveCockpit(props: Props) {
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
-            <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+            <span className="lcHeadBtns">
+              <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+              <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
+            </span>
           </header>
           {!coach && <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
             const state = index < progressDone ? 'done' : index === currentIndex && guide.phase !== 'loading' ? guide.phase === 'problem' ? 'problem' : 'current' : 'todo'
