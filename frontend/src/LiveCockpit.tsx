@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
 import './copy-phrase.css'
 import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
@@ -447,19 +447,37 @@ export default function LiveCockpit(props: Props) {
     setSheet(null); setLaunchPhrase('')
   }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
 
-  // Manuel işlem: yeni bir emir yolu açmaz; mevcut "Manuel emir · gerçek para" bölümünü açıp oraya götürür.
-  // Dry-run kontrolü, ARM ve son onay kuralları o bölümde aynen geçerlidir.
+  // Manuel işlem: yeni bir emir yolu açmaz. Mevcut "Manuel emir · gerçek para" formunu (tek örnek, aynı durum) yarı saydam bir panel olarak gösterir.
+  // Dry-run kontrolü, ARM, kilitler ve son onay o formda aynen geçerlidir; kapatınca bölümler önceki hâline döner.
+  const [manualModal, setManualModal] = useState(false)
+  const manualPrev = useRef<{drawer: boolean; manual: boolean} | null>(null)
   const openManual = () => {
     const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
-    if (drawer && !drawer.open) drawer.open = true
-    window.setTimeout(() => {
-      const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
-      if (!manual) { setFlash({tone: 'warn', text: 'Manuel emir bölümü şu an açılamadı. Bağlantı doğrulanınca tekrar dene.'}); return }
-      manual.open = true
-      manual.scrollIntoView({behavior: 'smooth', block: 'start'})
-      manual.querySelector('summary')?.focus({preventScroll: true})
-    }, 150)
+    const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
+    if (!manual) { setFlash({tone: 'warn', text: 'Manuel emir bölümü şu an açılamadı. Bağlantı doğrulanınca tekrar dene.'}); return }
+    manualPrev.current = {drawer: drawer?.open ?? false, manual: manual.open}
+    if (drawer) drawer.open = true
+    manual.open = true
+    setManualModal(true)
   }
+  const closeManual = useCallback(() => {
+    setManualModal(false)
+    const prev = manualPrev.current
+    manualPrev.current = null
+    if (!prev) return
+    const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
+    const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
+    if (manual) manual.open = prev.manual
+    if (drawer) drawer.open = prev.drawer
+  }, [])
+  useEffect(() => {
+    if (!manualModal) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeManual() }
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
+  }, [manualModal, closeManual])
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
@@ -1429,7 +1447,8 @@ export default function LiveCockpit(props: Props) {
   ] : []
   const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
-  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined}>
+  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
+    {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone}>
       <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div></div>
       <dl className="lcStatusStats">

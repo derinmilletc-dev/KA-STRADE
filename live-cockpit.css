@@ -864,3 +864,25 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualBtn{white-space:nowrap}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHeadBtns{flex:none}
 @media (max-width:640px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcHeadBtns{flex:0 0 100%;display:flex;justify-content:flex-start}}
+
+/* ---- Manuel işlem paneli: yarı saydam, ekranın yaklaşık yarısı ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualBackdrop{position:fixed;inset:0;z-index:1190;background:rgba(4,9,15,.58);backdrop-filter:blur(7px);animation:lcIn .25s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{position:fixed!important;z-index:1200;top:8vh;left:50%;transform:translateX(-50%);width:clamp(600px,54vw,900px)!important;max-width:94vw;max-height:84vh;overflow:auto!important;border-radius:26px!important;border:1px solid rgba(242,196,109,.38)!important;background:linear-gradient(160deg,rgba(21,30,42,.9),rgba(9,15,23,.94))!important;backdrop-filter:blur(22px);box-shadow:0 30px 90px rgba(0,0,0,.65),0 0 60px rgba(242,196,109,.1),inset 0 1px 0 rgba(255,255,255,.07)!important;animation:lcManualIn .3s ease both}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder::before{content:"";position:sticky;top:0;display:block;height:3px;background:linear-gradient(90deg,#f2c46d,#ff9f6b,#f2c46d);z-index:2}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary{pointer-events:none;cursor:default;position:sticky;top:3px;z-index:2;background:linear-gradient(rgba(21,30,42,.96),rgba(21,30,42,.88))!important;padding:18px 64px 14px 22px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary .advChevron{display:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>#master-trade-live-terminal{padding:4px 22px 22px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder :is(.liveWsTwo,.liveWsGrid,.liveWsOrderForm,.liveUxManual){min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose{position:fixed;z-index:1210;top:calc(8vh + 14px);left:calc(50% + min(27vw,450px) - 52px);width:36px;height:36px;display:grid;place-items:center;padding:0!important;border-radius:50%!important;border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.07)!important;color:#eaf1f7!important;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose:hover{background:rgba(255,255,255,.14)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose svg{width:17px;height:17px}
+@keyframes lcManualIn{from{opacity:0;transform:translateX(-50%) translateY(14px) scale(.98)}to{opacity:1;transform:translateX(-50%)}}
+@media (max-width:760px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{top:4vh;width:96vw!important;max-height:92vh;border-radius:20px!important}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose{top:calc(4vh + 12px);left:auto;right:calc(2vw + 12px)}
+}
+@media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualBackdrop,#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{animation:none!important}}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;flex-wrap:nowrap!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary .advHeadText{display:grid;gap:2px;flex:1;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary .advHeadIcon{flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary .advChip{flex:none;white-space:nowrap}
