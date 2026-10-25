@@ -2457,6 +2457,7 @@ async def build_live_spec(
     *,
     allowed_symbols: list[str] | None = None,
     check_results: list[dict[str, Any]] | None = None,
+    manual_targets: bool = False,
 ) -> dict[str, Any]:
     settings = sanitize_execution_policy(policy)
     symbol = normalize_symbol(order.symbol)
@@ -2506,6 +2507,20 @@ async def build_live_spec(
         record_live_entry_check(check_results, "risk_reward", False, "TP1, ücret ve kayma sonrası minimum net getiri eşiğini karşılamıyor.", symbol=symbol)
         raise LiveExchangeError("TP1, ücret ve kayma sonrası minimum net getiri eşiğini karşılamıyor.", http_status=422, check_key="risk_reward")
     record_live_entry_check(check_results, "risk_reward", True, "TP1 maliyetlerden sonra minimum net getiri eşiğini karşılıyor.", symbol=symbol)
+    tp2_on_exchange: bool | None = None
+    if manual_targets:
+        # Manuel emir: hedef emirleri borsaya konamayacak kadar küçük pozisyon AÇILMAZ (eskiden açılıp
+        # "TP korumasız" kalıyordu). Kurulumdaki kuralın aynısı: miktar >= min_qty ve tutar >= min_notional.
+        targets_ok, tp2_on_exchange = manual_target_sizes_ok(quantity, entry, rules)
+        if not targets_ok:
+            record_live_entry_check(check_results, "target_size", False, "TP1 emri Binance alt sınırının altında kalıyor.", symbol=symbol)
+            raise LiveExchangeError(
+                f"Pozisyon çok küçük: TP1 emri (pozisyonun %{int(DEFAULT_TP1_FRACTION * 100)}'ı) Binance'in en düşük emir "
+                f"tutarının ({decimal_text(rules['min_notional'])} USDT) altında kalıyor, hedef borsaya konamaz. "
+                "Marjini veya kaldıracı artır.",
+                http_status=422, check_key="target_size",
+            )
+        record_live_entry_check(check_results, "target_size", True, "Hedef emirleri Binance alt sınırlarını karşılıyor.", symbol=symbol)
     return {
         "symbol": symbol,
         "direction": order.direction,
@@ -2523,7 +2538,23 @@ async def build_live_spec(
         "min_qty": rules["min_qty"],
         "min_notional": rules["min_notional"],
         "estimated_stop_loss_usdt": risk["estimated_stop_loss_usdt"],
+        **({"tp2_on_exchange": tp2_on_exchange} if tp2_on_exchange is not None else {}),
     }
+
+
+# Manuel işlem hedef dağılımı: TP1 pozisyonun %60'ı (değişmedi), TP2 %20'si, TP3 kalan tamamı.
+MANUAL_TP2_FRACTION = Decimal("0.20")
+
+
+def manual_target_quantity_ok(quantity: Decimal, price: Decimal, rules: dict[str, Any]) -> bool:
+    return quantity > 0 and quantity >= rules["min_qty"] and quantity * price >= rules["min_notional"]
+
+
+def manual_target_sizes_ok(quantity: Decimal, price: Decimal, rules: dict[str, Any]) -> tuple[bool, bool]:
+    """(TP1 borsaya konabilir mi, TP2 ayrı emir olarak konabilir mi). TP3 tüm kalanı kapattığı için miktar şartı yok."""
+    tp1 = floor_step(quantity * DEFAULT_TP1_FRACTION, rules["step"])
+    tp2 = floor_step(quantity * MANUAL_TP2_FRACTION, rules["step"])
+    return manual_target_quantity_ok(tp1, price, rules), manual_target_quantity_ok(tp2, price, rules)
 
 
 def client_id_for(kind: str, intent_id: str) -> str:
@@ -3157,6 +3188,53 @@ async def safety_close_after_stop_failure(
     persist_state(state)
 
 
+async def install_manual_tp2(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    common: dict[str, Any],
+    position_quantity: Decimal,
+    step: Decimal,
+    min_qty: Decimal,
+    min_notional: Decimal,
+    mark_price: Decimal,
+    existing_algos: list[dict[str, Any]] | None,
+) -> int | None:
+    """Yalnız MANUAL planlar: TP2 fiyatında pozisyonun %20'sini kapatan reduce-only hedef.
+
+    Stop ve TP1 kurulduktan sonra çağrılır. Konamazsa hiçbir şey kilitlenmez: o pay TP3 (kalanın
+    tamamını kapatan emir) veya Stop ile kapanır. reduce-only olduğu için pozisyonu asla büyütemez.
+    """
+    if plan.get("tp2_algo_id"):
+        return int(plan["tp2_algo_id"])
+    targets = plan.get("targets")
+    if not isinstance(targets, list) or len(targets) < 3:
+        return None
+    quantity = floor_step(position_quantity * MANUAL_TP2_FRACTION, step)
+    if not manual_target_quantity_ok(quantity, mark_price, {"min_qty": min_qty, "min_notional": min_notional}):
+        plan["tp2_status"] = "MERGED_INTO_TP3"
+        add_event(state, "MANUAL_TP2_MERGED", f"{plan['symbol']} TP2 payı Binance alt sınırının altında; bu pay TP3 ile kapanacak.",
+                  symbol=plan["symbol"], plan_id=plan.get("id"))
+        return None
+    key = client_id_for("TP2", plan["intent_id"])
+    try:
+        result = await post_entry_protection_algo(client, {
+            **common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": targets[1],
+            "quantity": decimal_text(quantity), "reduceOnly": "true", "clientAlgoId": key,
+        }, existing_algos)
+    except LiveExchangeError as exc:
+        plan["tp2_status"] = "NOT_PLACED"
+        add_event(state, "MANUAL_TP2_NOT_PLACED", f"{plan['symbol']} TP2 emri konamadı; bu pay TP3 veya Stop ile kapanacak.",
+                  symbol=plan["symbol"], plan_id=plan.get("id"), reason=sanitized_exception_message(exc))
+        return None
+    algo_id = int(result.get("algoId") or 0) if isinstance(result, dict) else 0
+    if algo_id <= 0:
+        plan["tp2_status"] = "NOT_PLACED"
+        return None
+    plan.update({"tp2_algo_id": algo_id, "tp2_client_id": key, "tp2_status": "PLACED"})
+    return algo_id
+
+
 async def install_protection(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -3293,6 +3371,10 @@ async def install_protection(
             monitoring.extend(["TP1", "TP2"])
     else:
         monitoring.extend(["TP1", "TP2"])
+    if plan.get("source") == "MANUAL" and plan.get("tp12_algo_id") and "TP1" not in monitoring:
+        tp2_id = await install_manual_tp2(client, state, plan, common, abs(amount), step, min_qty, min_notional, mark_price, existing_algos)
+        if tp2_id:
+            ids.append(tp2_id)
     try:
         result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": plan["targets"][2], "closePosition": "true", "clientAlgoId": client_id_for("TP3", plan["intent_id"])}, existing_algos)
         if result.get("algoId"):
@@ -3460,6 +3542,66 @@ def process_live_stream_event(state: dict[str, Any], payload: dict[str, Any]) ->
     return False
 
 
+def manual_limit_entry_filled(state: dict[str, Any], payload: dict[str, Any]) -> str | None:
+    """Kullanıcı akışında MANUEL LIMIT giriş emrimiz TAMAMEN dolduysa sembolü döner (yoksa None).
+
+    Kısmi dolumda tetiklemez: kısmi dolum davranışı (kalanın iptali vb.) eskisi gibi normal döngüde kalır.
+    """
+    if not isinstance(payload, dict) or payload.get("e") != "ORDER_TRADE_UPDATE":
+        return None
+    order = payload.get("o") if isinstance(payload.get("o"), dict) else {}
+    if str(order.get("x") or "") != "TRADE" or str(order.get("X") or "") != "FILLED":
+        return None
+    client_id = str(order.get("c") or "")
+    symbol = str(order.get("s") or "").upper()
+    if not client_id.startswith(LIVE_CLIENT_PREFIX) or not symbol:
+        return None
+    for plan in state.get("plans", {}).values():
+        if (
+            isinstance(plan, dict)
+            and plan.get("source") == "MANUAL"
+            and str(plan.get("order_type") or "").upper() == "LIMIT"
+            and plan.get("status") == "DOLUM BEKLİYOR"
+            and str(plan.get("symbol") or "").upper() == symbol
+            and str(plan.get("entry_client_order_id") or "") == client_id
+        ):
+            return symbol
+    return None
+
+
+EARLY_PROTECTION_POSITION_CHECKS = 4
+_EARLY_PROTECTION_TASKS: set[asyncio.Task[Any]] = set()
+EARLY_PROTECTION_CHECK_DELAY_SECONDS = 1.0
+
+
+async def early_protection_reconcile(application: Any, credentials: tuple[str, str], symbol: str) -> bool:
+    """LIMIT dolumundan hemen sonra korumayı kurmak için normal uzlaştırmayı BİR KEZ erken çalıştırır.
+
+    Yeni emir yolu yok: aynı reconcile() (Stop + hedefler) kilit altında çalışır. Pozisyon borsada
+    görünmeden çalışmaz (dolum ile pozisyon kaydı arasındaki gecikmede planı yanlışlıkla "kapandı"
+    saymamak için). Her hata yutulur; 10 saniyelik normal döngü yedek olarak aynen devam eder.
+    """
+    try:
+        client = client_for_with_credentials(application, credentials)
+        for _ in range(EARLY_PROTECTION_POSITION_CHECKS):
+            await asyncio.sleep(EARLY_PROTECTION_CHECK_DELAY_SECONDS)
+            if await live_plan_position(client, symbol) is not None:
+                break
+        else:
+            return False
+        state = application.state.v25_execution
+        async with state["lock"]:
+            await reconcile(application, credentials=credentials)
+        add_event(state, "EARLY_PROTECTION_RECONCILE", f"{symbol} LIMIT giriş doldu; koruma beklemeden kuruldu.", symbol=symbol)
+        persist_state(state)
+        return True
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("EARLY_PROTECTION_RECONCILE_FAILED symbol=%s error=%s", symbol, type(exc).__name__)
+        return False
+
+
 async def live_user_stream_loop(application: Any) -> None:
     """Prefer Binance's ordered private stream and retain REST reconciliation as backup."""
     state = application.state.v25_execution
@@ -3494,9 +3636,15 @@ async def live_user_stream_loop(application: Any) -> None:
                             if not await background_authorization_active(application, state):
                                 break
                             async with state["lock"]:
+                                filled_symbol = manual_limit_entry_filled(state, payload)
                                 changed = process_live_stream_event(state, payload)
                                 if changed:
                                     persist_state(state)
+                            if filled_symbol:
+                                # Manuel LIMIT doldu: korumayı 10 sn beklemeden kur (ayrı görev; akışı bekletmez).
+                                early = asyncio.create_task(early_protection_reconcile(application, credentials, filled_symbol))
+                                _EARLY_PROTECTION_TASKS.add(early)
+                                early.add_done_callback(_EARLY_PROTECTION_TASKS.discard)
                             if payload.get("e") == "listenKeyExpired":
                                 break
                     except asyncio.TimeoutError:
@@ -4260,6 +4408,16 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
             result[label] = existing_entry_protection_algo({**common, **params}, rows) is not None
         except (LiveExchangeError, KeyError, TypeError, ValueError, ArithmeticError):
             logger.warning("LIVE_PROTECTION_DISPLAY_UNVERIFIED target=%s", label)
+    if plan.get("source") == "MANUAL" and plan.get("tp2_client_id"):
+        # Yalnız gösterim: manuel TP2 emri borsada açık mı (kimlik + yön + tür + fiyat).
+        result["tp2"] = any(
+            isinstance(row, dict)
+            and str(row.get("client_algo_id") or "") == str(plan["tp2_client_id"])
+            and str(row.get("side") or "").upper() == common["side"]
+            and str(row.get("type") or "").upper() == "TAKE_PROFIT_MARKET"
+            and str(row.get("status") or "").upper() in {"NEW", "WORKING", "PENDING_NEW"}
+            for row in rows if isinstance(rows, list)
+        )
     return result
 
 
@@ -5088,7 +5246,8 @@ async def execute_live_order(
             observation_stage = "SIZING"
             spec = (
                 await original_v2_live.build_spec(client, strategy_result, state, snapshot, check_results=entry_checks) if original_entry
-                else await build_live_spec(client, body, entry_policy, allowed_symbols=manual_symbol_scope, check_results=entry_checks)
+                else await build_live_spec(client, body, entry_policy, allowed_symbols=manual_symbol_scope, check_results=entry_checks,
+                                           manual_targets=source == "MANUAL")
             )
             if original_entry:
                 guard = evaluate_entry_gates(
@@ -7069,11 +7228,16 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
     state = request.app.state.v25_execution
     try:
         client = client_for(request.app, request)
-        spec = await build_live_spec(client, body, state["policy"])
+        spec = await build_live_spec(client, body, state["policy"], manual_targets=True)
         result = await submit_entry(client, spec, client_id_for("TEST", body.intent_id or uuid.uuid4().hex), test_only=True)
         add_event(state, "LIVE_ORDER_TEST", f"{spec['symbol']} imzalı /order/test doğrulandı; gerçek emir oluşmadı.", actor=user["id"], symbol=spec["symbol"])
         persist_state(state)
-        return {"ok": True, "exchange_response": result, "created_order": False, "message": "Binance canlı imza ve emir şeması doğrulandı; gerçek emir oluşturulmadı."}
+        message = "Binance canlı imza ve emir şeması doğrulandı; gerçek emir oluşturulmadı."
+        if spec.get("tp2_on_exchange") is False:
+            message += " Not: pozisyon küçük olduğu için TP2 ayrı emir olarak konamaz; TP2 payı TP3 ile birlikte kapanır."
+        return {"ok": True, "exchange_response": result, "created_order": False, "message": message,
+                "notional_usdt": spec["notional_usdt"], "estimated_stop_loss_usdt": spec["estimated_stop_loss_usdt"],
+                "tp2_on_exchange": spec.get("tp2_on_exchange")}
     except (LiveExchangeError, BinanceDemoError) as exc:
         raise safe_exchange_error(exc) from exc
 

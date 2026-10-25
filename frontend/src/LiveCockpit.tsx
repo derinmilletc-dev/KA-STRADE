@@ -1589,6 +1589,7 @@ export default function LiveCockpit(props: Props) {
                   <span><small>Fiyat</small><b>{String(position.mark_price ?? '—')}</b></span>
                   <span><small>Stop</small><b>{String(plan?.stop_loss ?? '—')}</b>{!external && flag(protection?.stop)}</span>
                   <span><small>TP1 (%{tp1Percent(plan)})</small><b>{String(plan?.targets?.[0] ?? '—')}</b>{!external && flag(protection?.tp1)}</span>
+                  {plan?.source === 'MANUAL' && <span><small>TP2 (%20)</small><b>{String(plan?.targets?.[1] ?? '—')}</b>{!external && flag(protection?.tp2)}</span>}
                   <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
                 </div>
                 {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}

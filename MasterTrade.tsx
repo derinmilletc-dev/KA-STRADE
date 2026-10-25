@@ -237,11 +237,10 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   const [draft, setDraft] = useState({ market: 'BTCUSDT', leverage: 2, margin: 10, quantity: 0.08, entry: 61350, stopLoss: 60800, tp1: 61850, tp2: 62400, tp3: 63150 })
   const [backendRiskPreview, setBackendRiskPreview] = useState<BackendRiskPreview | null>(null)
   const [backendRiskPreviewError, setBackendRiskPreviewError] = useState('')
-  const [positionAction, setPositionAction] = useState<{ mode: 'DETAILS' | 'REDUCE' | 'CLOSE'; position: AccountPosition } | null>(null)
+  const [positionAction, setPositionAction] = useState<{ mode: 'DETAILS' | 'CLOSE'; position: AccountPosition } | null>(null)
   const [positionActionBusy, setPositionActionBusy] = useState(false)
   const [positionActionError, setPositionActionError] = useState('')
   const [closeLifecycle, setCloseLifecycle] = useState<{ state: CloseLifecycleState; message: string; detail?: string }>({ state: 'IDLE', message: 'READY' })
-  const [reduceQuantity, setReduceQuantity] = useState('')
   const [lastAccountSyncAt, setLastAccountSyncAt] = useState<string | null>(null)
   const [lastHistorySyncAt, setLastHistorySyncAt] = useState<string | null>(null)
   const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState<string | null>(null)
@@ -586,27 +585,25 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
   const submitPositionAction = async () => {
     if (!positionAction || positionAction.mode === 'DETAILS' || positionActionInFlight.current) return
-    const quantity = positionAction.position.quantity || 0
-    const requestedQuantity = positionAction.mode === 'CLOSE' ? quantity : Number(reduceQuantity)
-    if (!(requestedQuantity > 0) || requestedQuantity > quantity) {
-      setPositionActionError('Miktar 0’dan büyük ve mevcut pozisyon miktarını aşmamalı.')
+    // Yalnız tam kapatma: sunucuda kısmi kapatma yok. Eski gizli "azalt" ekranı tüm pozisyonu kapatırdı, kaldırıldı.
+    if (!((positionAction.position.quantity || 0) > 0)) {
+      setPositionActionError('Pozisyon miktarı okunamadı; kapatma gönderilmedi.')
       return
     }
 
-    const isClose = positionAction.mode === 'CLOSE'
     const targetSymbol = positionAction.position.symbol
     const closeStartedAt = new Date().toISOString()
     positionActionInFlight.current = true
     setPositionActionBusy(true)
     setPositionActionError('')
-    setCloseLifecycle({ state: 'CLOSING', message: isClose ? 'CLOSING POSITION...' : 'REDUCING POSITION...' })
+    setCloseLifecycle({ state: 'CLOSING', message: 'CLOSING POSITION...' })
 
     try {
       const token = userSessionToken()
       const headers = new Headers({ 'Content-Type': 'application/json' })
       if (token) headers.set('Authorization', `Bearer ${token}`)
       const livePlan = accountRef.current?.plans?.find(plan => plan.symbol === targetSymbol) as (AccountPlan & { id?: string }) | undefined
-      if (isClose && !livePlan?.id) throw new Error('LIVE tracked plan is unavailable for this position.')
+      if (!livePlan?.id) throw new Error('LIVE tracked plan is unavailable for this position.')
       const response = await fetchWithTimeout(`${API_BASE}/v25/position/close`, {
         method: 'POST',
         headers,
@@ -630,7 +627,6 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         setCloseLifecycle({ state: 'SYNC_FAILED', message: 'POSITION CLOSED · HISTORY SYNC FAILED', detail: 'Backend acknowledged the close request, but position and history verification did not complete.' })
         setPositionActionError('POSITION CLOSED · HISTORY SYNC FAILED')
         setPositionAction(null)
-        setReduceQuantity('')
         setAccountRefreshNonce(value => value + 1)
         return
       }
@@ -639,7 +635,6 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         setCloseLifecycle({ state: 'CLOSE_FAILED', message: 'POSITION STILL OPEN', detail: 'Backend did not remove the active position after the close request.' })
         setPositionActionError('POSITION STILL OPEN - close request did not remove the position from backend state.')
         setPositionAction(null)
-        setReduceQuantity('')
         setAccountRefreshNonce(value => value + 1)
         return
       }
@@ -648,7 +643,6 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         setCloseLifecycle({ state: 'HISTORY_SYNC_FAILED', message: 'POSITION CLOSED · HISTORY SYNC FAILED', detail: 'Close was accepted by the backend, but trade history refresh did not confirm the closed record.' })
         setPositionActionError('POSITION CLOSED · HISTORY SYNC FAILED')
         setPositionAction(null)
-        setReduceQuantity('')
         setAccountRefreshNonce(value => value + 1)
         return
       }
@@ -656,7 +650,6 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       const acknowledgedPnl = pnlValue === null ? 'PnL unavailable' : `${pnlValue >= 0 ? '+' : ''}$${pnlValue.toFixed(2)}`
       setCloseLifecycle({ state: 'CLOSED', message: `POSITION CLOSED · ${pnlValue === null ? 'PNL UNAVAILABLE' : `PNL ${acknowledgedPnl}`}`, detail: 'Backend close accepted and state checks passed.' })
       setPositionAction(null)
-      setReduceQuantity('')
       setAccountRefreshNonce(value => value + 1)
     } catch (error) {
       setCloseLifecycle({ state: 'CLOSE_FAILED', message: 'CLOSE FAILED', detail: error instanceof Error ? error.message : 'Position close failed.' })
@@ -1304,7 +1297,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       {positionAction && (
         <div className="positionActionBackdrop" role="presentation" onClick={() => { if (!positionActionBusy) { setPositionAction(null); setPositionActionError('') } }}>
           <section className="positionActionModal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-            <header><div><span>LIVE POSITION</span><h2>{positionAction.mode === 'DETAILS' ? 'POSITION DETAILS' : positionAction.mode === 'REDUCE' ? 'REDUCE ONLY' : 'CLOSE LIVE POSITION'}</h2></div><button type="button" onClick={() => setPositionAction(null)} disabled={positionActionBusy}>CLOSE</button></header>
+            <header><div><span>LIVE POSITION</span><h2>{positionAction.mode === 'DETAILS' ? 'POSITION DETAILS' : 'CLOSE LIVE POSITION'}</h2></div><button type="button" onClick={() => setPositionAction(null)} disabled={positionActionBusy}>CLOSE</button></header>
             <div className="positionActionGrid">
               <div><small>Symbol</small><b>{positionAction.position.symbol}</b></div>
               <div><small>Direction</small><b>{positionAction.position.direction || '--'}</b></div>
@@ -1322,10 +1315,9 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
               <div><small>TP2</small><b>--</b></div>
               <div><small>TP3</small><b>--</b></div>
             </div>
-            {positionAction.mode === 'REDUCE' && <div className="reduceControls"><label>Quantity<input type="number" min="0" max={positionAction.position.quantity || undefined} step="any" value={reduceQuantity} onChange={event => setReduceQuantity(event.target.value)} /></label><div><button type="button" onClick={() => setReduceQuantity(String((positionAction.position.quantity || 0) * 0.25))}>25%</button><button type="button" onClick={() => setReduceQuantity(String((positionAction.position.quantity || 0) * 0.5))}>50%</button><button type="button" onClick={() => setReduceQuantity(String((positionAction.position.quantity || 0) * 0.75))}>75%</button><button type="button" onClick={() => setReduceQuantity(String(positionAction.position.quantity || 0))}>100%</button></div></div>}
             {positionAction.mode !== 'DETAILS' && <p className="positionActionWarning">This action uses the existing V25 live ownership and confirmation checks.</p>}
             {positionActionError && <div className="positionActionError" role="alert">{positionActionError}</div>}
-            {positionAction.mode !== 'DETAILS' && <footer><button type="button" onClick={() => { setPositionAction(null); setPositionActionError('') }} disabled={positionActionBusy}>CANCEL</button><button type="button" className="dangerAction" onClick={() => void submitPositionAction()} disabled={positionActionBusy}>{positionActionBusy ? positionAction.mode === 'CLOSE' ? 'CLOSING POSITION...' : 'REDUCING POSITION...' : positionAction.mode === 'CLOSE' ? 'CLOSE POSITION' : 'REDUCE ONLY'}</button></footer>}
+            {positionAction.mode !== 'DETAILS' && <footer><button type="button" onClick={() => { setPositionAction(null); setPositionActionError('') }} disabled={positionActionBusy}>CANCEL</button><button type="button" className="dangerAction" onClick={() => void submitPositionAction()} disabled={positionActionBusy}>{positionActionBusy ? 'CLOSING POSITION...' : 'CLOSE POSITION'}</button></footer>}
           </section>
         </div>
       )}

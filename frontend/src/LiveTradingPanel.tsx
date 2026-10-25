@@ -43,7 +43,7 @@ type LiveStatus = {
   readiness?: {ready?: boolean; gates?: Array<{key?: string; label?: string; passed?: boolean; detail?: string}>}
   account?: {wallet_balance?: number | null; available_balance?: number | null; margin_balance?: number | null; unrealized_pnl?: number | null; positions?: Array<Record<string, unknown>>; open_orders?: Array<Record<string, unknown>>}
   daily?: {realized_pnl?: number; remaining_loss_budget?: number; entries?: number; consecutive_losses?: number; unverified_closures?: number}
-  plans?: Array<Record<string, unknown> & {targets?: unknown[]; stop_loss?: unknown; protection_state?: string; protection_status?: string; exchange_protection?: {stop: boolean; tp1: boolean; tp3: boolean}}>
+  plans?: Array<Record<string, unknown> & {targets?: unknown[]; stop_loss?: unknown; protection_state?: string; protection_status?: string; exchange_protection?: {stop: boolean; tp1: boolean; tp2?: boolean; tp3: boolean}}>
   events?: Array<{kind?: string; message?: string; created_at?: string; symbol?: string; failures?: string[]}>
   emergency?: {active?: boolean; reason?: string | null; triggered_at?: string | null}
   recovery_ready?: boolean
@@ -87,6 +87,8 @@ const normalizeCredentialFingerprint = (value: string | null | undefined) => (va
 
 type Props = {active: boolean; symbol: string; analysis?: {direction?: string | null; confidence?: number; entry?: number; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number} | null; masterTrade?: boolean; masterTradeTab?: 'analiz' | 'canli' | 'pozisyonlar' | 'baglanti'; sharedStatus?: LiveStatus | null; sharedStatusVerified?: boolean; sharedStatusError?: string; sharedStatusLoading?: boolean; sharedConnections?: ConnectionStatus | null; onRefreshStatus?: (force?: boolean) => Promise<void>}
 
+// Manuel hedef dağılımı (sunucuyla aynı): TP1 pozisyonun %60'ı, TP2 %20'si, TP3 kalanı.
+const TP1_SHARE = 0.6
 const V25 = `${API_BASE}/v25`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
 const initialOrder = (symbol: string): OrderDraft => ({symbol, direction: 'LONG', order_type: 'MARKET', margin_usdt: '10', leverage: '1', limit_price: '', stop_loss: '', tp1: '', tp2: '', tp3: ''})
@@ -1062,9 +1064,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const risk = riskPrev && !('error' in riskPrev) ? riskPrev : null
     const riskError = riskPrev && 'error' in riskPrev ? `Bu stop kabul edilmez: ${riskPrev.error.replace(/^Risk preview reddedildi:\s*/i, '')}` : ''
     const realNotional = riskError ? NaN : risk ? risk.notional : notional
-    const realLoss = riskError ? null : risk ? risk.loss : lossAtStop
-    const realGain = riskError ? null : risk && Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 ? risk.notional * Math.abs(tp1Value - entryRef) / entryRef : gainAtTp1
-    const realRR = realLoss && realGain ? realGain / realLoss : null
+    // Komisyon dahil tahmin (yalnız gösterim): giriş + çıkış, taraf başı politika ücreti (varsayılan %0,05).
+    // TP1 pozisyonun %60'ını kapatır; kâr o paya göre. Kayma ve fonlama dahil değil.
+    const policyFeeBps = numericPolicy('fee_bps_per_side', 5)
+    const feeRate = (Number.isFinite(policyFeeBps) && policyFeeBps >= 0 ? policyFeeBps : 5) / 10000
+    const feeNotional = Number.isFinite(realNotional) && realNotional > 0 ? realNotional : null
+    const roundTripFee = feeNotional === null ? null : feeNotional * feeRate * 2
+    const priceLoss = riskError ? null : risk ? risk.loss : lossAtStop
+    const priceGainFull = riskError ? null : risk && Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 ? risk.notional * Math.abs(tp1Value - entryRef) / entryRef : gainAtTp1
+    const realLoss = priceLoss === null || priceLoss === undefined || roundTripFee === null ? priceLoss : priceLoss + roundTripFee
+    const realGain = priceGainFull === null || priceGainFull === undefined || roundTripFee === null ? null : (priceGainFull - roundTripFee) * TP1_SHARE
+    const realRR = realLoss && priceGainFull && roundTripFee !== null && realLoss > 0 ? (priceGainFull - roundTripFee) / realLoss : null
     const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
     const sendBlock = riskError ? riskError : !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
@@ -1248,12 +1258,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span><small>Pozisyon büyüklüğü</small><b>{Number.isFinite(realNotional) ? money(realNotional) : '—'}</b></span>
           <span><small>Stop Loss</small><b>{text(order.stop_loss)}</b></span>
           <span><small>TP1 / TP2 / TP3</small><b>{text(order.tp1)} / {text(order.tp2)} / {text(order.tp3)}</b></span>
-          <span><small>Tahmini zarar (stopta)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
-          <span><small>Tahmini kâr (TP1)</small><b className="up">{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
+          <span><small>Tahmini zarar (stopta, komisyon dahil)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
+          <span><small>TP1'de kâr (%60 kapanır, komisyon dahil)</small><b className={realGain !== null && realGain < 0 ? 'down' : 'up'}>{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
         </div>
         {risk && <small className="liveWsHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</small>}
         {riskError && <p className="liveWsWarn" role="alert">{riskError}</p>}
-        <small className="liveWsHint">Tahminler giriş fiyatı ve kaldıraçla hesaplanır; komisyon ve kayma dahil değildir.</small>
+        <small className="liveWsHint">Tahminlere giriş ve çıkış komisyonu (taraf başı %{(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir. Hedefler: TP1 %60, TP2 %20, TP3 kalanı kapatır.</small>
         {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
         <div className="liveWsSendRow">
           <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
