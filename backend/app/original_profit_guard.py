@@ -334,6 +334,8 @@ RULES_TTL_SECONDS = 3600
 ORDER_RETRY_SECONDS = 60
 PENDING_VISIBILITY_SECONDS = 45
 SCORE_RETRY_SECONDS = 30
+FIRST_USE_KEY = "smart_profit_first_use_notified"
+FIRST_USE_KINDS = {"SMART_GUARD_LOW_SCORE", "SMART_GUARD_TEMP_STOP_CREATED", "SMART_GUARD_CLOSED"}
 _ACTIVE_BLOCKED_STATUSES = ("KAPAT", "GÜVENLİK", "ACİL", "STOP BAŞARISIZ", "DOLUM BEKLİYOR")
 
 
@@ -424,6 +426,15 @@ def _alert(state: dict[str, Any], config: dict[str, Any], plan: dict[str, Any], 
            title: str, message: str) -> None:
     from . import v25_execution as live
     from .original_v2_live import SOURCE
+    if kind in FIRST_USE_KINDS and not config.get(FIRST_USE_KEY):
+        config[FIRST_USE_KEY] = True  # yalnız bir kez: korumanın ilk gerçek devreye girişi
+        first = live.add_event(state, "SMART_GUARD_FIRST_USE",
+                               f"Akıllı Kâr Koruma ilk kez devreye girdi ({plan.get('symbol')}). Aşağıdaki bildirimde ne yaptığını görebilirsin; "
+                               "orijinal Stop ve TP aynen duruyor. İstersen Ayarlarım'dan kapatabilirsin.",
+                               symbol=plan.get("symbol"), plan_id=plan.get("id"), recipient_user_id=config.get("owner_id"), source=SOURCE)
+        config.setdefault("alerts", []).insert(0, {
+            "id": "original-live:" + first["id"], "type": "SMART_GUARD_FIRST_USE", "severity": "INFO", "title": "Akıllı Kâr Koruma ilk kez devrede",
+            "message": first["message"], "timestamp": first["created_at"], "target": "master-trade", "read": False})
     event = live.add_event(state, kind, message, symbol=plan.get("symbol"), plan_id=plan.get("id"),
                            recipient_user_id=config.get("owner_id"), source=SOURCE)
     config.setdefault("alerts", []).insert(0, {
