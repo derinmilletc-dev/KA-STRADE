@@ -412,7 +412,7 @@ def _alerts(state):
     return [item["message"] for item in state["original_v2_live"]["alerts"]]
 
 
-def test_original_stop_repair_retries_three_times_ninety_seconds_apart_then_closes(state, monkeypatch):
+def test_original_stop_repair_retries_three_times_thirty_seconds_apart_then_closes(state, monkeypatch):
     plan = native_plan()
     client = PartialFillClient(plan, quantity="0.010")
     stop = _failing_stop(monkeypatch)
@@ -420,16 +420,16 @@ def test_original_stop_repair_retries_three_times_ninety_seconds_apart_then_clos
     monkeypatch.setattr(live, "close_tracked_symbol", close)
     monkeypatch.setattr(live, "log_event", AsyncMock())
 
-    # 1. tur (dolum anı): başarısız, pozisyon açık, 90 sn bekleme kurulur.
+    # 1. tur (dolum anı): başarısız, pozisyon açık, 30 sn bekleme kurulur.
     with pytest.raises(live.LiveExchangeError):
         run(live.install_protection(client, state, plan))
     assert plan["original_stop_failures"] == 1
-    assert 85 <= plan["original_stop_retry_at"] - time.time() <= 95
-    assert original.STOP_REPAIR_RETRY_SECONDS == 90 and original.STOP_REPAIR_MAX_RETRIES == 3
+    assert 25 <= plan["original_stop_retry_at"] - time.time() <= 35
+    assert original.STOP_REPAIR_RETRY_SECONDS == 30 and original.STOP_REPAIR_MAX_RETRIES == 3
     assert not original.running(state)
     assert "yeniden denenecek" in _alerts(state)[0] and "kapatılmadı" in _alerts(state)[0]
 
-    # 90 sn dolmadan gelen tur (10 sn'lik uzlaştırma) hiçbir şey denemez ve hata da vermez.
+    # 30 sn dolmadan gelen tur (10 sn'lik uzlaştırma) hiçbir şey denemez ve hata da vermez.
     run(live.install_protection(client, state, plan))
     assert stop.await_count == 1 and plan["original_stop_failures"] == 1
 
@@ -1923,3 +1923,19 @@ def test_original_live_risk_limits_for_the_screen_are_dynamic_and_hidden_without
     assert limits["max_loss_per_trade_usdt"] == pytest.approx(10) and limits["daily_loss_limit_usdt"] == pytest.approx(20)
     state["snapshot"] = {}
     assert original_live_risk.limits(state) is None
+
+
+def test_original_stop_repair_wait_boundary_is_thirty_seconds(state, monkeypatch):
+    plan = native_plan()
+    now = time.time()
+    plan["original_stop_retry_at"] = now + 29
+    assert original.stop_repair_wait(plan) is True
+    plan["original_stop_retry_at"] = now - 1
+    assert original.stop_repair_wait(plan) is False
+    # Bozuk alan beklemeyi yok sayar (korumayı geciktirmez).
+    plan["original_stop_retry_at"] = "x"
+    assert original.stop_repair_wait(plan) is False
+    # 3 yeniden deneme + ilk tur korunur: 4. başarısızlıkta kapatma istenir.
+    for expected in (False, False, False, True):
+        assert original.record_stop_failure(state, plan, "BTCUSDT", "hata") is expected
+    assert plan["original_stop_close_requested"] is True

@@ -186,7 +186,7 @@ and create an OWNER bell notification plus LIVE event. Existing positions
 are not automatically closed, with one exception: the initial stop. If the
 stop cannot be installed and verified after a fill, entries pause at once and
 the position stays open while the stop is retried in up to 3 further rounds,
-90 seconds apart (each round itself makes the short 1-2 second attempts of
+30 seconds apart (each round itself makes the short 1-2 second attempts of
 `install_verified_stop`). If the stop is still not verified after the third
 retry round, the position is closed with a reduce-only market order and a second
 CRITICAL OWNER notification states that. If that close is rejected it is
