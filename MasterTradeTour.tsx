@@ -7,16 +7,16 @@ type Step = {id: string; title: string; body: string; targets?: string[]; need?:
 
 const tabTargets = (id: Tab) => [`#master-tab-${id}`, `#masterTradeTab-${id}`]
 const STEPS: Step[] = [
-  {id: 'welcome', title: 'Master Trade’e hoş geldin', body: 'Burası KaisTrade’in ana ekranı. 4 bölümü birlikte gezelim, 1 dakika sürer. Tur sırasında hiçbir şey kaydedilmez ve hiçbir işlem açılmaz.'},
-  {id: 'analiz', title: '1 · Analiz', body: 'Burada coini seçersin, Kais yönü ve güven puanını gösterir. Önce buraya bakıp fikir edinirsin.', targets: tabTargets('analiz')},
-  {id: 'press-canli', title: 'Şimdi sen bas', body: 'Parlayan “Canlı İşlem” sekmesine bas. Sen basmadan ilerlemem.', targets: tabTargets('canli'), press: 'canli'},
-  {id: 'canli-guide', title: '2 · Canlı İşlem · Kais Rehber', body: 'Bu kart sıradaki işi sana söyler. Her aşamada önünde tek bir büyük buton olur; ne yapacağını düşünmene gerek kalmaz.', targets: ['[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
-  {id: 'canli-launch', title: 'Hepsini hazırla ve başlat', body: 'Bu buton risk, günlük sınır, teminat ve izinleri adım adım ayarlar. Her adımı sen onaylarsın; en sonda ONAYLIYORUM yazmadan hiçbir şey çalışmaz.', targets: ['[data-testid="launch-open"]', '[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
-  {id: 'press-poz', title: 'Şimdi sen bas', body: 'Parlayan “Pozisyonlar” sekmesine bas.', targets: tabTargets('pozisyonlar'), press: 'pozisyonlar'},
-  {id: 'poz', title: '3 · Pozisyonlar', body: 'Açık işlemlerin burada görünür. Kâr ve zararını buradan izlersin.', targets: ['#master-panel-pozisyonlar'], need: 'pozisyonlar'},
-  {id: 'press-bag', title: 'Şimdi sen bas', body: 'Parlayan “Bağlantı” sekmesine bas.', targets: tabTargets('baglanti'), press: 'baglanti'},
-  {id: 'bag', title: '4 · Bağlantı', body: 'Binance anahtarını burada kaydedersin; kasada şifreli tutulur. Para çekme iznini asla açma. Turda anahtar yazmana gerek yok.', targets: ['#master-panel-baglanti'], need: 'baglanti'},
-  {id: 'end', title: 'Hazırsın', body: 'Sıradaki adım: Canlı İşlem’de “Hepsini hazırla ve başlat”. Turu istediğin zaman sol alttaki “Tanıtım” butonundan yeniden başlatabilirsin.'},
+  {id: 'welcome', title: 'Master Trade’e hoş geldiniz ✨', body: 'Sizi 1 dakikalık kısa bir tura çıkaralım. Dört bölümü birlikte keşfedeceğiz. Tur boyunca hiçbir ayar kaydedilmez ve hiçbir işlem açılmaz; gönül rahatlığıyla ilerleyebilirsiniz.'},
+  {id: 'analiz', title: 'Analiz', body: 'İşe buradan başlıyoruz. Bir coin seçtiğinizde Kais; yönü, güven puanını ve olası hedefleri sizin için sade bir dille gösterir.', targets: tabTargets('analiz')},
+  {id: 'press-canli', title: 'Sıra sizde', body: 'Parlayan “Canlı İşlem” sekmesine dokunarak devam edelim. Siz dokunana kadar sizi bekliyorum.', targets: tabTargets('canli'), press: 'canli'},
+  {id: 'canli-guide', title: 'Kais Rehber sizinle', body: 'Bu kart, sıradaki adımı size nazikçe hatırlatır. Her aşamada karşınıza tek bir büyük buton çıkar; ne yapacağınızı düşünmeniz gerekmez.', targets: ['[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
+  {id: 'canli-launch', title: 'Hepsini hazırla ve başlat', body: 'Bu buton; risk, günlük sınır, teminat ve izinleri sizinle birlikte adım adım hazırlar. Her adımı siz onaylarsınız ve en sonda ONAYLIYORUM yazmadan hiçbir şey çalışmaz. Kontrol her zaman sizde.', targets: ['[data-testid="launch-open"]', '[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
+  {id: 'press-poz', title: 'Bir sonraki durak', body: 'Şimdi parlayan “Pozisyonlar” sekmesine dokunabilirsiniz.', targets: tabTargets('pozisyonlar'), press: 'pozisyonlar'},
+  {id: 'poz', title: 'Pozisyonlarınız', body: 'Açık işlemleriniz burada görünür. Kâr ve zararınızı buradan rahatça takip edebilirsiniz.', targets: ['#master-panel-pozisyonlar'], need: 'pozisyonlar'},
+  {id: 'press-bag', title: 'Son durak', body: 'Son olarak parlayan “Bağlantı” sekmesine dokunalım.', targets: tabTargets('baglanti'), press: 'baglanti'},
+  {id: 'bag', title: 'Binance bağlantınız', body: 'Binance anahtarınızı burada kaydedersiniz; anahtar sunucuda şifreli olarak saklanır. Güvenliğiniz için para çekme iznini açmamanızı öneririz. Bu turda anahtar girmenize gerek yok.', targets: ['#master-panel-baglanti'], need: 'baglanti'},
+  {id: 'end', title: 'Hazırsınız 🎉', body: 'Harika, turu tamamladınız. Sıradaki adım: Canlı İşlem’de “Hepsini hazırla ve başlat”. Bu turu dilediğiniz zaman sol alttaki “Tanıtım” butonundan yeniden izleyebilirsiniz.'},
 ]
 const KEY = (userId: string) => `kais-master-tour:v1:${userId}`
 const readTab = (): Tab => {
@@ -135,14 +135,14 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
       <small className="mtTourKicker">MASTER TRADE · {index + 1}/{STEPS.length}</small>
       <h3 id="mt-tour-title">{step.title}</h3>
       <p>{step.body}</p>
-      {wrongTab && <p className="mtTourHint">Bu adım için önce doğru sekmede olmalısın.</p>}
-      {(wrongTab || (pressWaiting && targetMissing)) && goHere && <button type="button" className="mtTourLink" onClick={() => goTab(goHere)}>Beni oraya götür</button>}
+      {wrongTab && <p className="mtTourHint">Bu adım için önce ilgili sekmeye geçmeniz gerekiyor.</p>}
+      {(wrongTab || (pressWaiting && targetMissing)) && goHere && <button type="button" className="mtTourLink" onClick={() => goTab(goHere)}>Sizi oraya götüreyim</button>}
       <div className="mtTourDots" aria-hidden="true">{STEPS.map((item, position) => <i key={item.id} data-on={position <= index || undefined}/>)}</div>
       <div className="mtTourActions">
-        <button type="button" className="mtTourGhost" onClick={finish}>{last ? 'Kapat' : 'Atla'}</button>
+        <button type="button" className="mtTourGhost" onClick={finish}>{last ? 'Kapat' : 'Şimdilik geç'}</button>
         <span>
           {index > 0 && <button type="button" className="mtTourGhost" onClick={() => setIndex(current => Math.max(0, current - 1))}>← Geri</button>}
-          <button ref={next} type="button" className="mtTourGo" disabled={blocked} data-testid="master-tour-next" onClick={() => last ? finish() : setIndex(current => current + 1)}>{last ? 'Bitir ✓' : pressWaiting ? 'Sekmeye bas…' : 'İleri →'}</button>
+          <button ref={next} type="button" className="mtTourGo" disabled={blocked} data-testid="master-tour-next" onClick={() => last ? finish() : setIndex(current => current + 1)}>{last ? 'Tamamla ✓' : pressWaiting ? 'Sekmeye dokunun…' : 'Devam →'}</button>
         </span>
       </div>
     </div>
