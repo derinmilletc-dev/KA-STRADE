@@ -27,7 +27,10 @@ def _quality_checks(
         QualityCheck("breakout", radar["breakout_quality"] >= effective_policy["breakout_quality_threshold"],
                      radar["breakout_quality"], effective_policy["breakout_quality_threshold"]),
         QualityCheck("mtf", bool(mtf["entry_permission"]), deepcopy(mtf), True),
-    )
+    ) + ((
+        QualityCheck("short_filter", bool(mtf["short_filter_v2"]["accepted"]),
+                     deepcopy(mtf["short_filter_v2"]), deepcopy(mtf["short_filter_v2"]["thresholds"])),
+    ) if isinstance(mtf.get("short_filter_v2"), Mapping) else ())
 
 
 def evaluate(request: StrategyInput) -> StrategyResult:
@@ -50,6 +53,7 @@ def evaluate(request: StrategyInput) -> StrategyResult:
         required_intervals=request.required_intervals,
         policy=None, account_context=None,
         historical_policy_override=override,
+        short_filter_rules=deepcopy(request.short_filter_rules),
     )
     legacy = deepcopy(native)
     analysis = legacy.get("analysis") or {}

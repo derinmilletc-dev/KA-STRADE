@@ -29,6 +29,8 @@ class StrategyInput:
     latest_closed_timestamps: Mapping[str, int] | None = None
     data_health: Mapping[str, Any] | None = None
     warmup: Mapping[str, Any] | None = None
+    # Yalnız canlı Original V2 katmanı doldurur; None = eski davranış (bkz. main.evaluate_short_entry_filter).
+    short_filter_rules: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -615,7 +615,7 @@ async def _candidates(
         counts[category] = counts.get(category, 0) + 1
         for check_key in failed_checks or []:
             # Hangi sinyal kapısının kaç coini elediği (yalnızca kayıt; karara etkisi yok).
-            if check_key in ("direction", "confidence", "trap", "breakout", "mtf"):
+            if check_key in ("direction", "confidence", "trap", "breakout", "mtf", "short_filter"):
                 check_counts = diagnostics.setdefault("check_failure_counts", {})
                 check_counts[check_key] = check_counts.get(check_key, 0) + 1
         assessments.append({
@@ -730,6 +730,23 @@ async def _candidates(
         ticker = series_by_interval["15m"].ticker(at, symbol)
         if ticker is not None:
             tickers.append(ticker)
+    if live_universe:
+        try:  # yalnız raporlama: SHORT filtre kararları ve sayaçları; karara etkisi yok
+            for symbol, result in results.items():
+                strategy.log_short_filter(symbol, result.legacy)
+            short_counts = strategy.short_filter_scan_counts(results)
+            if diagnostics is not None:
+                diagnostics["short_filter_counts"] = short_counts
+            if short_counts["evaluated"]:
+                logger.info(
+                    "ORIGINAL_V2_SHORT_FILTER_SCAN evaluated=%d accepted=%d rejected=%d support_unavailable=%d "
+                    "support_too_close=%d data_unavailable=%d by_reason=%s",
+                    short_counts["evaluated"], short_counts["accepted"], short_counts["rejected"],
+                    short_counts["support_unavailable"], short_counts["support_too_close"],
+                    short_counts["data_unavailable"], short_counts["by_reason"],
+                )
+        except Exception:  # noqa: BLE001
+            pass
     if diagnostics is not None:
         diagnostics["data_complete_count"] = len(complete)
     market_diagnostics: dict[str, Any] = {}

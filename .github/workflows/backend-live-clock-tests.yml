@@ -80,6 +80,9 @@ jobs:
           # Oturumu uzat: yalnız bitiş ileri alınır; izin sınırı, geri alma ve sahiplik.
           python -m pytest tests/test_original_session_extend.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Yeni SHORT giriş filtresi (yalnız canlı) + Demo/adapter/offline yollarının değişmediğini gösteren regresyon testleri.
+          python -m pytest tests/test_original_short_filter_v2.py tests/test_strategy_original_adapter.py tests/test_original_v2_demo.py tests/test_original_v2_demo_controls.py tests/test_offline_strategy_facade.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
           exit $status

@@ -30,6 +30,8 @@ DOCUMENT_SHA256 = "be0178adeccb6e8bbe0974cae511a6809b80d8de1f7822ed60ab4cba973a1
 EXECUTION_POLICY_SHA256 = "8196421755c55ec40b1f180eda31813f9a6d19f539b9058a46456c69b2a7bc48"
 INTERVALS = ("15m", "1h", "4h")
 CANDLE_FETCH_LIMIT = 260
+# Yeni SHORT giriş filtresi: YALNIZ canlı girişte (evaluate_live_universe). Demo, backtest ve araştırma yolları eski davranışta kalır.
+LIVE_SHORT_FILTER_RULES = {"extension_atr_min": 2.0, "rsi_min": 25.0, "support_atr_max": 0.5}
 logger = logging.getLogger(__name__)
 
 
@@ -100,12 +102,58 @@ def evaluate_live_universe(
         _fail("INVALID_LIVE_SYMBOL_UNIVERSE")
     if request.symbol not in allowed_symbols:
         _fail("SYMBOL_OUTSIDE_LIVE_UNIVERSE")
-    return _evaluate_profiled(request, profile)
+    return _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES)
 
 
-def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any]) -> StrategyResult:
+def log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
+    """Giriş taramasında her SHORT kararı için açık log (yalnız yeni filtre karar verdiğinde). Açık pozisyon izleme çağırmaz."""
+    mtf = legacy.get("mtf") or {}
+    v2 = mtf.get("short_filter_v2")
+    if not isinstance(v2, dict) or not v2.get("gates_before_passed"):
+        return  # yalnız filtrenin gerçekten karar verdiği (diğer kapıları geçmiş) SHORT adayları
+    logger.info(
+        "ORIGINAL_V2_SHORT_FILTER symbol=%s decision=%s reason=%s alignment=%s dir15m=%s dir1h=%s dir4h=%s rsi=%s "
+        "extension_atr=%s support_distance_atr=%s legacy_alignment_would_block=%s version=%s",
+        symbol, v2.get("decision"), v2.get("reason") or "-", v2.get("alignment"),
+        *(v2["directions"].get(interval) for interval in ("15m", "1h", "4h")),
+        v2.get("rsi"), v2.get("extension_atr"), v2.get("support_distance_atr"),
+        mtf.get("legacy_short_alignment_would_block"), v2.get("version"),
+    )
+    if v2.get("missing_fields"):  # eksik veri, desteğe yakınlıktan ayrı ve daha görünür loglanır
+        logger.warning(
+            "ORIGINAL_V2_SHORT_FILTER_DATA_MISSING symbol=%s missing=%s reasons=%s",
+            symbol, ",".join(v2["missing_fields"]), ",".join(v2.get("reasons") or ()),
+        )
+
+
+def short_filter_scan_counts(results: dict[str, StrategyResult]) -> dict[str, Any]:
+    """Tarama başına: filtrenin karar verdiği SHORT sayısı, kabul/ret ve ret nedenleri (eksik veri ayrı)."""
+    counts: dict[str, Any] = {"evaluated": 0, "accepted": 0, "rejected": 0, "by_reason": {},
+                              "support_unavailable": 0, "support_too_close": 0, "data_unavailable": 0}
+    for result in results.values():
+        v2 = ((result.legacy or {}).get("mtf") or {}).get("short_filter_v2")
+        if not isinstance(v2, dict) or not v2.get("gates_before_passed"):
+            continue
+        counts["evaluated"] += 1
+        if v2.get("accepted"):
+            counts["accepted"] += 1
+            continue
+        counts["rejected"] += 1
+        for reason in v2.get("reasons") or ():
+            counts["by_reason"][reason] = counts["by_reason"].get(reason, 0) + 1
+        reasons = set(v2.get("reasons") or ())
+        counts["support_unavailable"] += "SHORT_SUPPORT_UNAVAILABLE" in reasons
+        counts["support_too_close"] += "SHORT_SUPPORT_TOO_CLOSE" in reasons
+        counts["data_unavailable"] += "SHORT_FILTER_DATA_UNAVAILABLE" in reasons
+    return counts
+
+
+def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any], *,
+                       short_filter_rules: dict[str, Any] | None = None) -> StrategyResult:
     if request.historical_policy_override is not None:
         _fail("CALLER_POLICY_OVERRIDE_DENIED")
+    if request.short_filter_rules is not None:
+        _fail("CALLER_SHORT_FILTER_OVERRIDE_DENIED")
     for interval in INTERVALS:
         rows = request.candles_by_timeframe.get(interval, [])
         if isinstance(rows, list) and len(rows) > profile["closed_window"]:
@@ -116,6 +164,7 @@ def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any]) -> Strat
         historical_policy_override=deepcopy(profile["canonical_policy"]),
         market_type="BINANCE_DEMO_MODEL_ONLY",
         exit_policy_id=profile["model"]["exit_policy_id"],
+        short_filter_rules=deepcopy(short_filter_rules),
     ))
     return StrategyResult(
         signal=replace(native.signal, provenance=StrategyProvenance(
