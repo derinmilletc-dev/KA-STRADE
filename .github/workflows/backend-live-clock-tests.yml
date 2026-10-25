@@ -80,6 +80,9 @@ jobs:
           # Oturumu uzat: yalnız bitiş ileri alınır; izin sınırı, geri alma ve sahiplik.
           python -m pytest tests/test_original_session_extend.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Gölge kayıt: yalnız gözlem; canlı emir mantığına dokunmaz, hata canlı akışı etkilemez.
+          python -m pytest tests/test_original_shadow.py tests/test_original_shadow_parity.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
           exit $status

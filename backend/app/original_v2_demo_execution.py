@@ -547,6 +547,7 @@ async def live_candidates(
     diagnostics: dict[str, Any] | None = None,
     sizing_context: dict[str, Any] | None = None,
     kline_fetch: Callable[[str, str, int], Awaitable[Any]] | None = None,
+    observer: Callable[..., None] | None = None,
 ) -> tuple[list[tuple[dict[str, Any], StrategyResult]], dict[str, StrategyResult]]:
     if (
         not 1 <= len(allowed_symbols) <= 100
@@ -558,8 +559,34 @@ async def live_candidates(
     return await _candidates(
         client, at, occupied, allowed_symbols, require_complete=require_complete,
         live_universe=True, diagnostics=diagnostics, sizing_context=sizing_context,
-        kline_fetch=kline_fetch,
+        kline_fetch=kline_fetch, observer=observer,
     )
+
+
+def _observer_extras(observed: dict[str, Any], symbol_info_by_symbol: dict[str, Any],
+                     sizing_context: dict[str, Any] | None) -> None:
+    """Yalnız gölge kayıt: tick ve 'canlıda minimum miktara takılır mıydı' bilgisi. Saf hesap; karara etkisi yok."""
+    for symbol, data in observed.items():
+        data["tick"], data["size"] = None, None
+        info = symbol_info_by_symbol.get(symbol)
+        if not isinstance(info, dict):
+            continue
+        price_filter = next((f for f in info.get("filters", []) if isinstance(f, dict) and f.get("filterType") == "PRICE_FILTER"), None)
+        if price_filter is not None:
+            data["tick"] = str(price_filter.get("tickSize"))
+        analysis = (getattr(data.get("result"), "legacy", None) or {}).get("analysis")
+        scan_row = data.get("scan_row")
+        if sizing_context is None or not isinstance(analysis, dict) or analysis.get("direction") not in {"LONG", "SHORT"} or not scan_row:
+            continue
+        try:
+            signal = {key: value for key, value in analysis.items() if key != "series"}
+            signal["entry"] = scan_row["close"]  # canlı emir anına en yakın bilinen fiyat
+            assessment = live_minimum_order_assessment(signal, info, sizing_context)
+            data["size"] = {"passes": bool(assessment["passes"]), **{key: assessment[key] for key in (
+                "total_quantity", "tp1_quantity", "remaining_quantity", "total_notional_usdt", "min_qty", "min_notional_usdt")}}
+        except Exception as exc:  # noqa: BLE001 - geçersiz kural: bilinmiyor; stop tavanı: canlı girmezdi
+            code = str(getattr(exc, "detail", None) or exc or type(exc).__name__)[:120]
+            data["size"] = {"passes": False if code == "profile_cap" else None, "error": code}
 
 
 async def _candidates(
@@ -573,6 +600,7 @@ async def _candidates(
     diagnostics: dict[str, Any] | None = None,
     sizing_context: dict[str, Any] | None = None,
     kline_fetch: Callable[[str, str, int], Awaitable[Any]] | None = None,
+    observer: Callable[..., None] | None = None,
 ) -> tuple[list[tuple[dict[str, Any], StrategyResult]], dict[str, StrategyResult]]:
     from .backtest_data import normalize_candles
     from .v25_execution import rank_market_tickers
@@ -650,6 +678,7 @@ async def _candidates(
         if isinstance(row, dict) and isinstance(row.get("symbol"), str)
     }
     results, tickers, complete = {}, [], set()
+    observed: dict[str, Any] = {}  # yalnız gölge kayıt için salt-okunur kopya; karara etkisi yok
     for symbol in symbols:
         frames, series_by_interval = {}, {}
         incomplete_history = False
@@ -725,6 +754,13 @@ async def _candidates(
                     "symbol": symbol,
                 }
             raise
+        if observer is not None:
+            try:
+                forming = series_by_interval["15m"].at(at)  # kline getirildiği andaki oluşmakta olan mum
+                observed[symbol] = {"candles": [dict(row) for row in series_by_interval["15m"].closed(at, 200)],
+                                    "result": results[symbol], "scan_row": dict(forming) if forming else None}
+            except Exception:  # noqa: BLE001 - gözlem hatası canlı taramayı etkilemez
+                pass
         if all(series.history_complete(at) for series in series_by_interval.values()):
             complete.add(symbol)
         ticker = series_by_interval["15m"].ticker(at, symbol)
@@ -877,6 +913,12 @@ async def _candidates(
             ),
             reverse=True,
         )[:3]
+    if observer is not None:
+        try:
+            _observer_extras(observed, symbol_info_by_symbol, sizing_context)
+            observer(at, observed, {c["symbol"] for c in ranked}, {c["symbol"] for c, _ in eligible})
+        except Exception:  # noqa: BLE001 - gölge kayıt hatası canlı akışı etkilemez
+            pass
     return eligible, results
 
 

@@ -1,0 +1,645 @@
+"""Original V2 canlı akışı için GÖLGE KAYIT: yalnız gözlem, hiçbir emir göndermez, hiçbir kararı değiştirmez.
+
+Ne kaydeder
+* FILTER_BLOCKED_SHORT: yalnız SHORT alignment filtresinin (alignment >= 80) reddettiği, diğer bütün sinyal kapılarını
+  (yön, güven, trap, breakout) geçmiş SHORT sinyalleri.
+* LIVE_ELIGIBLE: canlı taramanın girişe uygun bulduğu adaylar. Karşılaştırma aynı sanal modelle yapılsın diye (gerçek işlem
+  başka kurallar/sınırlar yüzünden farklı olabilir) bunlar da sanal olarak izlenir.
+
+Her sinyal için puanlar, göstergeler, fiyat konumu, HTF uyumu, trap/breakout değerleri saklanır. Her sinyal için SANAL işlem,
+canlı V2'nin çıkış kurallarıyla izlenir: TP1 sinyal TP1 mesafesinin %80'inde ve %70 kapanır, kalan %30 ilk stop ve TP3 ile
+devam eder; aynı komisyon ve kayma (execution_policy). Aynı mumda hem stop hem hedef değerse STOP ÖNCE (çevrimdışı modelle aynı).
+
+Güvenlik
+* Bu modül borsa istemcisi, emir, anahtar, hesap bilgisi İÇE AKTARMAZ ve kullanmaz.
+* Canlı akıştan yalnız bounded, bloklamayan bir kuyruğa düz veri bırakılır; işlem ayrı bir iş parçacığında yapılır.
+* Her hata yakalanır ve sayılır; hiçbir hata canlı akışa yayılmaz. VARSAYILAN KAPALI; `ORIGINAL_V2_SHADOW_ENABLED=1` ile açılır.
+
+Bilinen sınırlamalar (kayıtlarda da yazılıdır)
+* Sanal işlemler portföy/teminat/günlük limit/minimum miktar kapılarına tabi DEĞİLDİR; yalnız (grup, sembol) başına en fazla
+  bir açık sanal işlem vardır (canlıdaki "sembol doluysa girme" kuralına karşılık).
+* Giriş referansı sinyal mumunun kapanışıdır (canlı piyasa emri yeni mumun başında dolar); tick yuvarlaması ve fonlama yoktur.
+* Tetikleme son fiyat mumlarının high/low değerleriyle yapılır (çevrimdışı model mark fiyatı kullanır).
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import logging
+import math
+import os
+import queue
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+SCHEMA = 1
+ENV_ENABLED = "ORIGINAL_V2_SHADOW_ENABLED"
+ENV_DIR = "ORIGINAL_V2_SHADOW_DIR"
+# Canlı V2 sabitleriyle AYNI olmak zorunda (testle canlı kaynak dosyasından doğrulanır).
+TP1_PRICE_RATIO = 0.80
+TP1_FRACTION = 0.70
+INTRABAR = "STOP_FIRST"
+GROUP_BLOCKED = "FILTER_BLOCKED_SHORT"
+GROUP_LIVE = "LIVE_ELIGIBLE"
+GROUPS = (GROUP_BLOCKED, GROUP_LIVE)
+QUALITY_KEYS = ("direction", "confidence", "trap", "breakout")
+CANDLE_SECONDS = 900
+MAX_OPEN_SECONDS = 45 * 86400
+MAX_FILE_BYTES = 256 * 1024 * 1024
+SEEN_LIMIT = 20000
+ENTRY_SCAN = "SCAN_LAST_PRICE"
+ENTRY_SIGNAL_CLOSE = "SIGNAL_CLOSE"
+MAX_SCAN_PRICE_GAP = 0.02  # tarama fiyatı sinyal kapanışından %2'den fazla uzaksa güvenilmez sayılır
+MODEL_NOTES = [
+    "sanal işlem: portföy/teminat/günlük limit/minimum miktar kapıları yok; (grup, sembol) başına tek açık işlem",
+    "giriş referansı: tarama anındaki son fiyat (canlı emir anına en yakın bilinen); alınamazsa sinyal kapanışı ve APPROXIMATE_ENTRY",
+    "fiyat seviyeleri canlıdaki gibi tick'e yuvarlanır (ROUND_HALF_UP); fonlama yok",
+    "tetikleme son fiyat mumu high/low; aynı mumda stop ve hedef birlikte değerse STOP ÖNCE",
+]
+
+
+def enabled() -> bool:
+    """VARSAYILAN KAPALI: yalnız ORIGINAL_V2_SHADOW_ENABLED=1 (true/on/yes) ile açılır."""
+    return str(os.getenv(ENV_ENABLED, "")).strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def directory() -> Path:
+    configured = os.getenv(ENV_DIR)
+    if configured:
+        return Path(configured)
+    from .local_storage import DATA_DIR
+    return Path(DATA_DIR) / "original-v2-shadow"
+
+
+def _num(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def round_tick(value: float, tick: float | None) -> float:
+    """Canlıdaki demo.round_tick ile aynı (ROUND_HALF_UP, Decimal); tick yoksa değer aynen döner."""
+    if not tick or tick <= 0:
+        return value
+    from decimal import ROUND_HALF_UP, Decimal
+    step = Decimal(str(tick))
+    return float((Decimal(str(value)) / step).to_integral_value(rounding=ROUND_HALF_UP) * step)
+
+
+def bps(a: float | None, b: float | None) -> float | None:
+    """(a - b) / b, baz puan."""
+    if a is None or b in (None, 0):
+        return None
+    return (a - b) / b * 10_000
+
+
+def sanitize(value: Any) -> Any:
+    """JSON'a güvenli: sonlu olmayan sayılar None olur; iç içe yapılar gezilir."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {str(key): sanitize(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize(item) for item in value]
+    return value
+
+
+# ---------------------------------------------------------------- saf hesaplar (birim testli)
+
+REGIME_LEGACY = "LEGACY_ALIGNMENT"  # eski kural: alignment >= 80 SHORT'u reddeder (mtf.blocked_by_short_filter)
+REGIME_V2 = "EXHAUSTION_V2"  # yeni canlı filtre: mtf.short_filter_v2 (aşırı uzama / RSI / destek)
+
+
+def short_filter_regime(mtf: dict[str, Any]) -> str:
+    return REGIME_V2 if isinstance(mtf.get("short_filter_v2"), dict) else REGIME_LEGACY
+
+
+def short_rejected_by_filter(mtf: dict[str, Any]) -> bool:
+    """SHORT'u, diğer kapıları geçtikten sonra SHORT filtresi mi reddetti? İki rejimde de çalışır."""
+    v2 = mtf.get("short_filter_v2")
+    if isinstance(v2, dict):
+        return v2.get("accepted") is False and v2.get("gates_before_passed") is True
+    return mtf.get("blocked_by_short_filter") is True
+
+
+def classify(item: dict[str, Any]) -> str | None:
+    """LIVE_ELIGIBLE, FILTER_BLOCKED_SHORT ya da None (kaydedilmez). Eski ve yeni SHORT filtresiyle çalışır."""
+    if item.get("eligible") is True:
+        return GROUP_LIVE
+    analysis, mtf, checks = item.get("analysis") or {}, item.get("mtf") or {}, item.get("checks") or {}
+    if (item.get("ranked") is True and analysis.get("direction") == "SHORT"
+            and short_rejected_by_filter(mtf)
+            and all(checks.get(key) is True for key in QUALITY_KEYS)):
+        return GROUP_BLOCKED
+    return None
+
+
+def short_filter_record(mtf: dict[str, Any], direction: str) -> dict[str, Any] | None:
+    """Sinyale eklenen SHORT filtre bilgisi: rejim, ret nedenleri, ölçümler ve 'eski kural engellerdi mi'."""
+    if direction != "SHORT":
+        return None
+    regime = short_filter_regime(mtf)
+    v2 = mtf.get("short_filter_v2") if regime == REGIME_V2 else None
+    return {
+        "regime": regime, "rejected": short_rejected_by_filter(mtf),
+        "reason": (v2 or {}).get("reason"), "reasons": (v2 or {}).get("reasons"),
+        "missing_fields": (v2 or {}).get("missing_fields"),
+        "extension_atr": (v2 or {}).get("extension_atr"), "support_distance_atr": (v2 or {}).get("support_distance_atr"),
+        "rsi": (v2 or {}).get("rsi"), "thresholds": (v2 or {}).get("thresholds"),
+        "legacy_would_block": (mtf.get("legacy_short_alignment_would_block") if regime == REGIME_V2
+                               else mtf.get("blocked_by_short_filter")),
+    }
+
+
+def reconstruct_scores(analysis: dict[str, Any]) -> dict[str, Any]:
+    """analysis.analyze içindeki 8 puan bileşenini çıktı alanlarından yeniden kurar (analyze ile birebir)."""
+    price = analysis["entry"]
+    e20, e50, e200 = (analysis["ema"][key] for key in ("ema20", "ema50", "ema200"))
+    macd, rsi, adx, volume = analysis["macd"], analysis["rsi"], analysis["adx"], analysis["volume_ratio"]
+    middle = analysis["bollinger"]["middle"]
+    long_parts = {
+        "price_above_ema20": (price > e20, 10), "ema20_above_ema50": (e20 > e50, 12),
+        "ema50_above_ema200": (e50 > e200, 14), "macd_positive": (macd > 0, 10),
+        "rsi_52_72": (52 <= rsi <= 72, 9), "price_above_bb_mid": (price > middle, 6),
+        "adx20_with_ema_up": (adx >= 20 and e20 > e50, 8), "volume_ratio_1_05": (volume >= 1.05, 6),
+    }
+    short_parts = {
+        "price_below_ema20": (price < e20, 10), "ema20_below_ema50": (e20 < e50, 12),
+        "ema50_below_ema200": (e50 < e200, 14), "macd_negative": (macd < 0, 10),
+        "rsi_28_48": (28 <= rsi <= 48, 9), "price_below_bb_mid": (price < middle, 6),
+        "adx20_with_ema_down": (adx >= 20 and e20 < e50, 8), "volume_ratio_1_05": (volume >= 1.05, 6),
+    }
+    return {
+        "long_score": 25 + sum(points for on, points in long_parts.values() if on),
+        "short_score": 25 + sum(points for on, points in short_parts.values() if on),
+        "long_parts": {name: bool(on) for name, (on, _) in long_parts.items()},
+        "short_parts": {name: bool(on) for name, (on, _) in short_parts.items()},
+    }
+
+
+def wick_ratios(recent: list[dict[str, Any]], atr: float) -> dict[str, float | None]:
+    """Son 8 mum: üst/alt fitil toplamı / gövde toplamı (analysis.analyze ile aynı formül)."""
+    rows = recent[-8:]
+    if not rows:
+        return {"upper_ratio": None, "lower_ratio": None}
+    body_total = max(sum(abs(c["close"] - c["open"]) for c in rows), atr * 0.05, 0.00000001)
+    return {"upper_ratio": sum(c["high"] - max(c["open"], c["close"]) for c in rows) / body_total,
+            "lower_ratio": sum(min(c["open"], c["close"]) - c["low"] for c in rows) / body_total}
+
+
+def signal_record(item: dict[str, Any], group: str, recorded_at: float, costs: dict[str, Any] | None) -> dict[str, Any]:
+    analysis, mtf = item["analysis"], item.get("mtf") or {}
+    price = float(analysis["entry"])
+    atr = max(float(analysis["atr"]), 0.00000001)
+    ema, boll, radar = analysis["ema"], analysis["bollinger"], analysis.get("radar") or {}
+    scores = reconstruct_scores(analysis)
+    record = {
+        "schema": SCHEMA, "id": f"{group}|{item['symbol']}|{item['signal_time']}", "group": group,
+        "symbol": item["symbol"], "direction": analysis["direction"], "signal_time": item["signal_time"],
+        "decision_time": item["decision_time"], "recorded_at": recorded_at, "price": price,
+        "confidence": analysis.get("confidence"),
+        "scores": {**scores, "reconstruction_matches_confidence": min(95, max(scores["long_score"], scores["short_score"])) == analysis.get("confidence")},
+        "indicators": {
+            "rsi": analysis["rsi"], "macd_hist": analysis["macd"], "adx": analysis["adx"], "atr": analysis["atr"],
+            "atr_pct": float(analysis["atr"]) / price * 100, "volume_ratio": analysis["volume_ratio"],
+            "ema20": ema["ema20"], "ema50": ema["ema50"], "ema200": ema["ema200"],
+            "bb_upper": boll["upper"], "bb_middle": boll["middle"], "bb_lower": boll["lower"],
+            "support": analysis["support"], "resistance": analysis["resistance"], "trend": analysis.get("trend"),
+            "momentum": analysis.get("momentum"),
+        },
+        "price_position": {
+            "vs_ema20_atr": (price - ema["ema20"]) / atr, "vs_ema50_atr": (price - ema["ema50"]) / atr,
+            "vs_ema200_atr": (price - ema["ema200"]) / atr, "vs_bb_middle_atr": (price - boll["middle"]) / atr,
+            "support_distance_atr": (price - analysis["support"]) / atr,
+            "resistance_distance_atr": (analysis["resistance"] - price) / atr,
+            "extension_atr": abs(price - ema["ema20"]) / atr,
+        },
+        "wicks": wick_ratios(item.get("recent") or [], float(analysis["atr"])),
+        "htf": {"alignment": mtf.get("alignment"), "verdict": mtf.get("verdict"),
+                "entry_permission": mtf.get("entry_permission"),
+                "blocked_by_short_filter": mtf.get("blocked_by_short_filter"),
+                "higher_timeframe_confirmation": mtf.get("higher_timeframe_confirmation"),
+                "timeframes": mtf.get("timeframes")},
+        "radar": {key: radar.get(key) for key in ("trap_score", "trap_level", "breakout_quality", "entry_timing",
+                                                  "squeeze", "fomo_risk", "wick_signal")},
+        "quality_checks": item.get("checks"),
+        "levels": {"stop": analysis["stop_loss"], "tp1_signal": analysis["tp1"], "tp2": analysis["tp2"],
+                   "tp3": analysis["tp3"], "stop_pct": abs(price - analysis["stop_loss"]) / price * 100},
+        "market_ranked": item.get("ranked"), "profile_cap_pass": item.get("profile_cap_pass"),
+        "model_costs": costs, "model_notes": MODEL_NOTES,
+    }
+    record["short_filter"] = short_filter_record(mtf, analysis["direction"])
+    record["entry_model"] = entry_model(record, item)
+    return sanitize(record)
+
+
+def entry_model(record: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+    """Sanal girişin referans fiyatı ve canlıdan sapma ölçüleri. Güvenilir tarama fiyatı yoksa APPROXIMATE_ENTRY."""
+    close = float(record["price"])
+    scan = _num(item.get("scan_price"))
+    tick = _num(item.get("tick"))
+    trusted = (scan is not None and scan > 0 and item.get("scan_time") == item.get("decision_time")
+               and abs(scan / close - 1) <= MAX_SCAN_PRICE_GAP)
+    source = ENTRY_SCAN if trusted else ENTRY_SIGNAL_CLOSE
+    reference = scan if trusted else close
+    entry = round_tick(reference, tick)
+    return {
+        "source": source, "approximate_entry": not trusted, "signal_close": close, "scan_price": scan,
+        "reference": reference, "entry": entry, "tick": tick, "tick_known": tick is not None and tick > 0,
+        "scan_vs_signal_close_bps": bps(scan, close),
+        "entry_tick_rounding_bps": bps(entry, reference),
+        # Toplanmayanlar (yeni ağ çağrısı gerektirir; bu PR'da yok): işaretlenir, tahmin edilmez.
+        "mark_price": None, "mark_vs_candle_bps": None, "realized_fill": None, "realized_vs_estimated_bps": None,
+        "not_collected": ["mark_price", "realized_fill"],
+        "live_size": item.get("size"),
+        "live_openable": (item.get("size") or {}).get("passes"),
+    }
+
+
+def open_virtual(record: dict[str, Any], costs: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    """Sanal işlemi canlı V2'nin seviyeleriyle kurar. (işlem, None) ya da (None, red nedeni)."""
+    direction = record["direction"]
+    sign = 1 if direction == "LONG" else -1 if direction == "SHORT" else 0
+    levels, model = record["levels"], record["entry_model"]
+    tick = model.get("tick") if model.get("tick_known") else None
+    entry = _num(model.get("entry"))
+    stop, signal_tp1, tp2, tp3 = (_num(round_tick(v, tick)) if _num(v) is not None else None
+                                  for v in (levels["stop"], levels["tp1_signal"], levels["tp2"], levels["tp3"]))
+    if not sign or None in (entry, stop, signal_tp1, tp2, tp3) or entry <= 0:
+        return None, "invalid_levels"
+    fee_bps, slip_bps = _num(costs.get("fee_bps")), _num(costs.get("slip_bps"))
+    if fee_bps is None or slip_bps is None or fee_bps < 0 or slip_bps < 0:
+        return None, "costs_unavailable"
+    if sign == 1:
+        valid = stop < entry < signal_tp1 < tp2 < tp3  # canlı validate_levels: tick yuvarlama sonrası kesin sıralama
+    else:
+        valid = tp3 < tp2 < signal_tp1 < entry < stop
+    if not valid:
+        return None, "invalid_levels"
+    unrounded_tp1 = entry + (signal_tp1 - entry) * TP1_PRICE_RATIO
+    tp1 = round_tick(unrounded_tp1, tick)  # canlı: round_tick(entry + (tp1 - entry) * 0.80, tick)
+    if not (entry < tp1 <= tp3 if sign == 1 else tp3 <= tp1 < entry):
+        return None, "invalid_levels"
+    fee, slip = fee_bps / 10_000, slip_bps / 10_000
+    actual_entry = entry * (1 + sign * slip)
+    risk_unit = abs(entry - stop) + entry * (fee_bps + slip_bps) * 2 / 10_000  # canlı estimated_stop_loss ile aynı biçim
+    return {
+        "schema": SCHEMA, "id": record["id"], "group": record["group"], "symbol": record["symbol"],
+        "direction": direction, "sign": sign, "signal_time": record["signal_time"],
+        "entry_time": record["decision_time"], "last_time": record["decision_time"] - CANDLE_SECONDS,
+        "entry_source": model["source"], "approximate_entry": model["approximate_entry"],
+        "entry_diff_bps": model["scan_vs_signal_close_bps"], "entry_tick_rounding_bps": model["entry_tick_rounding_bps"],
+        "tp1_tick_rounding_bps": bps(tp1, unrounded_tp1), "live_openable": model["live_openable"],
+        "short_filter_regime": (record.get("short_filter") or {}).get("regime"),
+        "short_filter_reason": (record.get("short_filter") or {}).get("reason"),
+        "legacy_would_block": (record.get("short_filter") or {}).get("legacy_would_block"),
+        "entry_reference": entry, "entry_actual": actual_entry, "stop": stop, "tp1": tp1, "tp3": tp3,
+        "tp1_signal": signal_tp1, "tp1_fraction": TP1_FRACTION, "fee_rate": fee, "slip_rate": slip,
+        "fee_bps": fee_bps, "slip_bps": slip_bps, "risk_unit": risk_unit,
+        "remaining": 1.0, "tp1_done": False, "gross": 0.0, "fees": actual_entry * fee,
+        "exits": [], "ambiguous_bars": 0, "status": "OPEN", "resolved": True, "close_reason": None,
+        "closed_at": None,
+    }, None
+
+
+def _fill(trade: dict[str, Any], expected: float, fraction: float, at: int, reason: str) -> None:
+    sign = trade["sign"]
+    actual = expected * (1 - sign * trade["slip_rate"])
+    fee = fraction * actual * trade["fee_rate"]
+    trade["gross"] += fraction * sign * (actual - trade["entry_actual"])
+    trade["fees"] += fee
+    trade["remaining"] = max(0.0, trade["remaining"] - fraction)
+    trade["exits"].append({"time": at, "reason": reason, "fraction": fraction, "expected_price": expected,
+                           "actual_price": actual, "fee_per_unit": fee})
+    if trade["remaining"] <= 1e-12:
+        trade["remaining"] = 0.0
+
+
+def _finish(trade: dict[str, Any], at: int, reason: str, resolved: bool = True) -> None:
+    trade["status"], trade["closed_at"], trade["resolved"] = "CLOSED", at, resolved
+    reasons = [exit_["reason"] for exit_ in trade["exits"]]
+    trade["close_reason"] = reason if not resolved else "+".join(reasons)
+    net = trade["gross"] - trade["fees"]
+    trade["net_per_unit"] = net
+    trade["net_r"] = net / trade["risk_unit"] if trade["risk_unit"] > 0 else None
+    trade["gross_r"] = trade["gross"] / trade["risk_unit"] if trade["risk_unit"] > 0 else None
+    trade["fee_r"] = trade["fees"] / trade["risk_unit"] if trade["risk_unit"] > 0 else None
+    trade["duration_seconds"] = at - trade["entry_time"]
+
+
+def advance(trade: dict[str, Any], candles: list[dict[str, Any]]) -> dict[str, Any]:
+    """Yeni KAPANMIŞ 15m mumlarını sırayla işler (çevrimdışı Position.advance, STOP_FIRST ile aynı mantık)."""
+    sign = trade["sign"]
+    for candle in sorted(candles, key=lambda c: c["time"]):
+        if trade["status"] != "OPEN":
+            break
+        opened = int(candle["time"])
+        if opened <= trade["last_time"] or opened < trade["entry_time"]:
+            continue
+        if opened > trade["last_time"] + CANDLE_SECONDS:  # eksik mum: sonuç doğrulanamaz
+            _finish(trade, trade["last_time"] + CANDLE_SECONDS, "DATA_GAP", resolved=False)
+            break
+        trade["last_time"] = opened
+        closed_at = opened + CANDLE_SECONDS
+        adverse = candle["low"] if sign == 1 else candle["high"]
+        favorable = candle["high"] if sign == 1 else candle["low"]
+        stop_hit = sign * (adverse - trade["stop"]) <= 0
+        tp1_hit = not trade["tp1_done"] and sign * (favorable - trade["tp1"]) >= 0
+        tp3_hit = sign * (favorable - trade["tp3"]) >= 0
+        if stop_hit and (tp1_hit or tp3_hit):
+            trade["ambiguous_bars"] += 1
+        if stop_hit:  # STOP_FIRST: belirsiz mumda da stop önce; yalnız hedef değdiyse aşağıdaki kollar çalışır
+            _fill(trade, trade["stop"], trade["remaining"], closed_at, "STOP")
+            _finish(trade, closed_at, "STOP")
+            break
+        if tp1_hit:
+            _fill(trade, trade["tp1"], min(trade["tp1_fraction"], trade["remaining"]), closed_at, "TP1")
+            trade["tp1_done"] = True
+        if tp3_hit and trade["remaining"] > 0:
+            _fill(trade, trade["tp3"], trade["remaining"], closed_at, "TP3")
+        if trade["remaining"] <= 0:
+            _finish(trade, closed_at, "TP")
+            break
+        if closed_at - trade["entry_time"] > MAX_OPEN_SECONDS:
+            _fill(trade, candle["close"], trade["remaining"], closed_at, "EXPIRED")
+            _finish(trade, closed_at, "EXPIRED", resolved=False)
+            break
+    return trade
+
+
+def summarize(trades: list[dict[str, Any]]) -> dict[str, Any]:
+    """Grup başına kapanmış ve çözülmüş sanal işlemlerin özeti (rapor aracı için)."""
+    result: dict[str, Any] = {}
+    for group in GROUPS:
+        rows = [t for t in trades if t.get("group") == group and t.get("resolved") and _num(t.get("net_r")) is not None]
+        unresolved = sum(1 for t in trades if t.get("group") == group and not t.get("resolved"))
+        r = [float(t["net_r"]) for t in rows]
+        gains = sum(x for x in r if x > 0)
+        losses = -sum(x for x in r if x < 0)
+        openable = [float(t["net_r"]) for t in rows if t.get("live_openable") is not False]
+        legacy_block = [float(t["net_r"]) for t in rows if t.get("legacy_would_block") is True]
+        reasons: dict[str, int] = {}
+        for t in rows:
+            if t.get("short_filter_reason"):
+                reasons[t["short_filter_reason"]] = reasons.get(t["short_filter_reason"], 0) + 1
+        diffs = [abs(d) for d in (_num(t.get("entry_diff_bps")) for t in rows) if d is not None]
+        tick_entry = [abs(d) for d in (_num(t.get("entry_tick_rounding_bps")) for t in rows) if d is not None]
+        tick_tp1 = [abs(d) for d in (_num(t.get("tp1_tick_rounding_bps")) for t in rows) if d is not None]
+        result[group] = {"N": len(r), "unresolved": unresolved, "mean_net_r": sum(r) / len(r) if r else None,
+                         "win_rate": sum(1 for x in r if x > 0) / len(r) if r else None,
+                         "profit_factor_r": gains / losses if losses > 0 else None,
+                         "ambiguous_bars": sum(int(t.get("ambiguous_bars") or 0) for t in rows),
+                         "approximate_entry": sum(1 for t in rows if t.get("approximate_entry")),
+                         "live_unopenable": sum(1 for t in rows if t.get("live_openable") is False),
+                         "live_openable_unknown": sum(1 for t in rows if t.get("live_openable") is None),
+                         "N_live_openable": len(openable),
+                         "N_legacy_would_block": len(legacy_block),
+                         "mean_net_r_legacy_would_block": sum(legacy_block) / len(legacy_block) if legacy_block else None,
+                         "short_filter_reasons": reasons,
+                         "mean_net_r_live_openable": sum(openable) / len(openable) if openable else None,
+                         "scan_vs_close_abs_bps_mean": sum(diffs) / len(diffs) if diffs else None,
+                         "scan_vs_close_abs_bps_max": max(diffs) if diffs else None,
+                         "entry_tick_abs_bps_mean": sum(tick_entry) / len(tick_entry) if tick_entry else None,
+                         "tp1_tick_abs_bps_mean": sum(tick_tp1) / len(tick_tp1) if tick_tp1 else None}
+    return result
+
+
+# ---------------------------------------------------------------- kayıt (çalışan iş parçacığına ait)
+
+class Recorder:
+    """Durumu ve dosyaları yalnız tek bir iş parçacığı kullanır (ShadowWorker)."""
+
+    def __init__(self, folder: Path) -> None:
+        self.folder = Path(folder)
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.state = self._load()
+        self.cap_reached = False
+
+    # -- dosyalar
+    def _load(self) -> dict[str, Any]:
+        path = self.folder / "state.json"
+        fresh = {"schema": SCHEMA, "seen": {}, "open": {}, "counters": {
+            "scans": 0, "signals": {group: 0 for group in GROUPS}, "virtual_opened": 0, "virtual_closed": 0,
+            "virtual_skipped": {}}}
+        if not path.exists():
+            return fresh
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if loaded.get("schema") != SCHEMA or not isinstance(loaded.get("seen"), dict) or not isinstance(loaded.get("open"), dict):
+                raise ValueError("bad state")
+            loaded.setdefault("counters", fresh["counters"])
+            return loaded
+        except (OSError, ValueError, TypeError):
+            try:
+                path.rename(path.with_name(f"state.corrupt-{int(time.time())}.json"))
+            except OSError:
+                pass
+            logger.error("ORIGINAL_SHADOW_STATE_CORRUPT")
+            return fresh
+
+    def _append(self, name: str, row: dict[str, Any]) -> bool:
+        path = self.folder / name
+        if path.exists() and path.stat().st_size > MAX_FILE_BYTES:
+            self.cap_reached = True
+            return False
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(sanitize(row), allow_nan=False, sort_keys=True) + "\n")
+        return True
+
+    def _write_json(self, name: str, payload: dict[str, Any]) -> None:
+        path = self.folder / name
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(json.dumps(sanitize(payload), allow_nan=False, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, path)
+
+    # -- ana akış
+    def process(self, scan: dict[str, Any]) -> None:
+        at, symbols, costs = int(scan["at"]), scan["symbols"], scan.get("costs")
+        counters = self.state["counters"]
+        open_trades: dict[str, dict[str, Any]] = self.state["open"]
+        for key, trade in list(open_trades.items()):
+            data = symbols.get(trade["symbol"])
+            if data is None:
+                continue
+            advance(trade, data.get("candles") or [])
+            if trade["status"] == "CLOSED":
+                self._append("trades.jsonl", {**trade, "model_notes": MODEL_NOTES})
+                del open_trades[key]
+                counters["virtual_closed"] += 1
+        seen: dict[str, int] = self.state["seen"]
+        for symbol, data in symbols.items():
+            item = data.get("item")
+            if not item:
+                continue
+            group = classify(item)
+            if group is None:
+                continue
+            identifier = f"{group}|{symbol}|{item['signal_time']}"
+            if identifier in seen:  # aynı mum tekrar tekrar yeni sinyal sayılmaz
+                continue
+            record = signal_record(item, group, time.time(), costs)
+            key = f"{group}|{symbol}"
+            trade, reason = None, None
+            if costs is None:
+                reason = "costs_unavailable"
+            elif group == GROUP_BLOCKED and item.get("profile_cap_pass") is False:
+                reason = "profile_cap"
+            elif key in open_trades:
+                reason = "virtual_position_open"
+            else:
+                trade, reason = open_virtual(record, costs)
+            record["virtual"] = {"opened": trade is not None, "skip_reason": reason}
+            self._append("signals.jsonl", record)
+            seen[identifier] = at
+            counters["signals"][group] = counters["signals"].get(group, 0) + 1
+            if trade is not None:
+                open_trades[key] = trade
+                counters["virtual_opened"] += 1
+            else:
+                counters["virtual_skipped"][reason] = counters["virtual_skipped"].get(reason, 0) + 1
+        if len(seen) > SEEN_LIMIT:
+            for identifier, _ in sorted(seen.items(), key=lambda pair: pair[1])[: len(seen) - SEEN_LIMIT]:
+                del seen[identifier]
+        counters["scans"] += 1
+        self._write_json("state.json", self.state)
+        self._write_json("status.json", {"schema": SCHEMA, "updated_at": time.time(), "last_scan_decision_time": at,
+                                         "open_virtual": len(open_trades), "counters": counters,
+                                         "file_cap_reached": self.cap_reached, "model_notes": MODEL_NOTES})
+
+
+class ShadowWorker:
+    """Bounded, bloklamayan kuyruk + tek arka plan iş parçacığı. Hiçbir hata dışarı çıkmaz."""
+
+    def __init__(self, folder: Path | None = None, capacity: int = 8) -> None:
+        self.folder = folder
+        self.queue: queue.Queue[dict[str, Any]] = queue.Queue(capacity)
+        self.thread: threading.Thread | None = None
+        self.lock = threading.Lock()
+        self.dropped = 0
+        self.failures = 0
+        self.last_error: str | None = None
+        self.recorder: Recorder | None = None
+
+    def publish(self, scan: dict[str, Any]) -> bool:
+        try:
+            if self.thread is None or not self.thread.is_alive():
+                if not self.lock.acquire(blocking=False):
+                    self.dropped += 1
+                    return False
+                try:
+                    if self.thread is None or not self.thread.is_alive():
+                        self.thread = threading.Thread(target=self.run, name="original-v2-shadow", daemon=True)
+                        self.thread.start()
+                finally:
+                    self.lock.release()
+            self.queue.put_nowait(scan)
+            return True
+        except Exception as exc:  # kuyruk dolu dahil: say, devam et
+            self.dropped += 1
+            self.last_error = type(exc).__name__
+            return False
+
+    def run(self) -> None:
+        while True:
+            scan = self.queue.get()
+            try:
+                if self.recorder is None:
+                    self.recorder = Recorder(self.folder or directory())
+                self.recorder.process(scan)
+            except Exception as exc:  # noqa: BLE001 - hiçbir hata canlı akışa yayılmaz
+                self.failures += 1
+                self.last_error = type(exc).__name__
+                try:
+                    logger.error("ORIGINAL_SHADOW_FAILED error_type=%s", type(exc).__name__)
+                except Exception:
+                    pass
+                self.recorder = None  # sonraki turda temiz yeniden aç
+            finally:
+                self.queue.task_done()
+
+
+_worker: ShadowWorker | None = None
+_costs_cache: dict[str, Any] | None = None
+
+
+def _get_worker() -> ShadowWorker:
+    global _worker
+    if _worker is None:
+        _worker = ShadowWorker()
+    return _worker
+
+
+def _costs() -> dict[str, Any] | None:
+    """Komisyon/kayma: canlı V2'nin sabit execution_policy değerleri (canlı bunların yalnız 'en az' olanını kullanır)."""
+    global _costs_cache
+    if _costs_cache is None:
+        try:
+            from .strategies.original_v2_demo import fixed_profile
+            policy = fixed_profile()["execution_policy"]
+            _costs_cache = {"fee_bps": float(policy["fee_bps_per_side"]), "slip_bps": float(policy["slippage_bps_per_side"]),
+                            "source": "fixed_profile.execution_policy"}
+        except Exception:  # noqa: BLE001
+            return None
+    return _costs_cache
+
+
+def _profile_cap_pass(entry: Any, stop: Any) -> bool | None:
+    try:
+        from .strategies.original_gap_risk import PROFILE
+        return bool(PROFILE.accepts(float(entry), float(stop)))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def build_scan(at: int, observed: dict[str, Any], ranked: set[str], eligible_symbols: set[str],
+               costs: dict[str, Any] | None, cap_check: Any = None) -> dict[str, Any]:
+    """Canlı tarama sonuçlarını düz veriye çevirir (StrategyResult benzeri nesneleri okur, değiştirmez)."""
+    symbols: dict[str, Any] = {}
+    for symbol, data in observed.items():
+        candles = data["candles"]
+        result = data.get("result")
+        entry: dict[str, Any] = {"candles": candles, "item": None}
+        legacy = getattr(result, "legacy", None) or {}
+        analysis = legacy.get("analysis")
+        if isinstance(analysis, dict) and analysis.get("direction") in {"LONG", "SHORT"} and legacy.get("signal_timestamp") is not None:
+            checks = {check.key: bool(check.passed) for check in getattr(getattr(result, "signal", None), "quality_checks", ()) or ()}
+            item = {
+                "symbol": symbol, "signal_time": int(legacy["signal_timestamp"]), "decision_time": int(at),
+                "analysis": {key: copy.deepcopy(value) for key, value in analysis.items() if key != "series"},
+                "mtf": copy.deepcopy(legacy.get("mtf") or {}), "checks": checks,
+                "ranked": symbol in ranked, "eligible": symbol in eligible_symbols,
+                "recent": [dict(row) for row in candles[-8:]],
+                "scan_price": (data.get("scan_row") or {}).get("close"), "scan_time": (data.get("scan_row") or {}).get("time"),
+                "tick": data.get("tick"), "size": copy.deepcopy(data.get("size")),
+            }
+            if analysis.get("direction") == "SHORT" and (cap_check is not None):
+                item["profile_cap_pass"] = cap_check(analysis.get("entry"), analysis.get("stop_loss"))
+            entry["item"] = item
+        symbols[symbol] = entry
+    return {"at": int(at), "symbols": symbols, "costs": costs}
+
+
+def observe_scan(at: int, observed: dict[str, Any], ranked: set[str], eligible_symbols: set[str]) -> None:
+    """Canlı tarama sonunda çağrılır. Hiçbir koşulda istisna fırlatmaz."""
+    try:
+        if not enabled():
+            return
+        scan = build_scan(at, observed, ranked, eligible_symbols, _costs(), _profile_cap_pass)
+        _get_worker().publish(scan)
+    except Exception as exc:  # noqa: BLE001
+        try:
+            if _worker is not None:
+                _worker.failures += 1
+                _worker.last_error = type(exc).__name__
+            logger.error("ORIGINAL_SHADOW_OBSERVE_FAILED error_type=%s", type(exc).__name__)
+        except Exception:
+            pass
