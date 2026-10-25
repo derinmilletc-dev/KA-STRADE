@@ -226,14 +226,25 @@ class Env:
         return [e["kind"] for e in self.state["events"]]
 
 
+_MISSING = object()
+
+
 @contextmanager
 def env(**kwargs):
+    """Sahte altyapıyı hem sys.modules hem `app` paket nitelikleri üzerinden geçici yerleştirir.
+
+    `from . import x` önce paket niteliğine baktığı için (gerçek modül daha önce içe aktarılmışsa)
+    yalnız sys.modules değiştirmek yetmez; ikisi birlikte yapılır ve geri alınır."""
+    import app as package
     e = Env(**kwargs)
-    saved = {name: sys.modules.get(name) for name in ("app.v25_execution", "app.original_v2_live")}
+    fakes = {"v25_execution": make_live(e.fx), "original_v2_live": make_original()}
+    saved_modules = {name: sys.modules.get(f"app.{name}") for name in fakes}
+    saved_attrs = {name: getattr(package, name, _MISSING) for name in fakes}
     saved_fetch = g.fetch_analysis
     saved_cache = dict(g._RULES_CACHE)
-    sys.modules["app.v25_execution"] = make_live(e.fx)
-    sys.modules["app.original_v2_live"] = make_original()
+    for name, module in fakes.items():
+        sys.modules[f"app.{name}"] = module
+        setattr(package, name, module)
     g.fetch_analysis = e.fake_fetch
     g._RULES_CACHE.clear()
     try:
@@ -242,11 +253,21 @@ def env(**kwargs):
         g.fetch_analysis = saved_fetch
         g._RULES_CACHE.clear()
         g._RULES_CACHE.update(saved_cache)
-        for name, module in saved.items():
-            if module is None:
-                sys.modules.pop(name, None)
+        for name in fakes:
+            if saved_modules[name] is None:
+                sys.modules.pop(f"app.{name}", None)
             else:
-                sys.modules[name] = module
+                sys.modules[f"app.{name}"] = saved_modules[name]
+            if saved_attrs[name] is _MISSING:
+                if hasattr(package, name):
+                    delattr(package, name)
+            else:
+                setattr(package, name, saved_attrs[name])
+
+
+def fake_live():
+    import app as package
+    return package.v25_execution
 
 
 def original_untouched(e: Env) -> bool:
@@ -604,9 +625,8 @@ def test_s16_duplicate_close_order_is_impossible():
         e.tick(at(1, 260))
         assert len(e.fx.orders) == 1
         # aynı kimlikle ikinci çağrı da yeni emir yaratmaz
-        sys.modules["app.v25_execution"] = make_live(e.fx)
         e.fx.pos = {"symbol": "ABCUSDT", "direction": "SHORT", "quantity": Decimal(10), "entry": Decimal(100), "mark": Decimal(98)}
-        asyncio.run(sys.modules["app.v25_execution"].close_tracked_symbol(e.fx, "ABCUSDT", "smartexit-plan1"))
+        asyncio.run(fake_live().close_tracked_symbol(e.fx, "ABCUSDT", "smartexit-plan1"))
         assert len(e.fx.orders) == 1
 
 
@@ -753,13 +773,13 @@ def test_s29_uncertain_order_result_is_not_resent_until_visibility_window_passes
     with env() as e:
         e.script(("SHORT", 62))
         e.fx.fail_post = True
-        orig_post = sys.modules["app.v25_execution"].post_entry_protection_algo
+        orig_post = fake_live().post_entry_protection_algo
 
         async def unknown(client, params, rows):
             e.fx.log.append(("POST", "/fapi/v1/algoOrder", dict(params)))
             raise FakeExc("timeout", unknown_execution=True)
 
-        sys.modules["app.v25_execution"].post_entry_protection_algo = unknown
+        fake_live().post_entry_protection_algo = unknown
         e.tick(at(0))
         posts = lambda: len([c for c in e.fx.log if c[:2] == ("POST", "/fapi/v1/algoOrder")])
         assert posts() == 1 and e.guard["temp_stop"]["pending"] is True
@@ -767,7 +787,7 @@ def test_s29_uncertain_order_result_is_not_resent_until_visibility_window_passes
         e.tick(at(0, 260))
         assert posts() == 1          # sonuç belirsiz: tekrar gönderilmez
         e.guard["temp_stop"]["requested_at"] -= 1000
-        sys.modules["app.v25_execution"].post_entry_protection_algo = orig_post
+        fake_live().post_entry_protection_algo = orig_post
         e.fx.fail_post = False
         e.tick(at(0, 390))
         assert len(e.temp_stops()) == 1 and "pending" not in e.guard["temp_stop"]
