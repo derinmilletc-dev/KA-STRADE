@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import original_v2_demo_execution as original
+from . import original_shadow
 from .execution_core import system_ceilings
 from .market_universe import (
     ORIGINAL_DEFAULT_SYMBOL_COUNT,
@@ -1455,6 +1456,7 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
             client, at, occupied, symbols, require_complete=True, diagnostics=scan_diagnostics,
             sizing_context=sizing_context,
             kline_fetch=fetch_streamed_klines if stream is not None else None,
+            observer=original_shadow.observe_scan,
         )
         config["last_decision_time"] = at
         history_item = _record_scanner_scan(
