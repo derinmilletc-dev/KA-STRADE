@@ -732,3 +732,35 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 @keyframes lcFlowPulse{0%,70%,100%{box-shadow:0 0 0 0 rgba(124,184,255,0)}35%{box-shadow:0 0 0 7px rgba(124,184,255,.22)}}
 @media (max-width:520px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcFlow{grid-template-columns:1fr 1fr}#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcFlow li:not(:last-child)::after{display:none}}
 @media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(.lcWizList,.lcFlow li i,.lcWizBar i,.lcWizOption){animation:none!important;transition:none!important}}
+
+/* ---- Hepsini hazırla ve başlat: tek sayfa tik listesi ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchBtn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#2fd1a0,#55b9ff)!important;color:#04141c!important;font-weight:800;box-shadow:0 0 24px rgba(61,220,151,.35)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchBtn svg{width:18px;height:18px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch{list-style:none;padding:0;display:grid;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li{display:grid;gap:8px;padding:0;border-radius:16px;background:linear-gradient(180deg,rgba(124,184,255,.06),rgba(124,184,255,.02))!important;border:1px solid rgba(124,184,255,.16)!important;transition:border-color .25s,box-shadow .25s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=ready],#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=done]{border-color:rgba(61,220,151,.4)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=done]{box-shadow:0 0 22px rgba(61,220,151,.16)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=working]{border-color:rgba(124,184,255,.7)!important;box-shadow:0 0 22px rgba(124,184,255,.25)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=error]{border-color:rgba(255,132,121,.75)!important;background:rgba(255,132,121,.08)!important;box-shadow:0 0 22px rgba(255,132,121,.2)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;text-align:left;background:none!important;border:0!important;color:var(--lc-ink);min-height:56px;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead:disabled{cursor:default;opacity:1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead>span:nth-of-type(1){display:grid;gap:2px;min-width:0;flex:1}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead b{font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead b em{font-style:normal;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(124,184,255,.14);color:var(--lc-info)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchHead small{font-size:12.5px;color:var(--lc-mute);line-height:1.4;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=error] .lcLaunchHead small{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchChev{color:var(--lc-mute);font-size:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTick{flex:none;display:grid!important;place-items:center;width:28px!important;height:28px!important;border-radius:50%!important;border:2px solid rgba(147,163,181,.45);font-style:normal;font-weight:800;font-size:14px;color:transparent;transition:all .3s cubic-bezier(.2,.8,.2,1)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcTick svg{width:16px;height:16px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=ready] .lcTick{border-color:var(--lc-go);color:var(--lc-go);background:rgba(61,220,151,.08)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=done] .lcTick{border-color:var(--lc-go);background:var(--lc-go);color:#04281a;box-shadow:0 0 16px rgba(61,220,151,.6);animation:lcTickPop .45s cubic-bezier(.2,1.4,.3,1)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=working] .lcTick{border-color:var(--lc-info);color:var(--lc-info)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li[data-state=error] .lcTick{border-color:var(--lc-bad);background:var(--lc-bad);color:#2a0a07}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchBody{display:grid;gap:10px;padding:0 14px 14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunch>li>.lcBtn{margin:0 14px 12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchConfirm input{letter-spacing:.12em;font-weight:800;text-transform:uppercase}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchConfirm input[data-ok]{border-color:var(--lc-go)!important;box-shadow:0 0 0 1px var(--lc-go) inset,0 0 18px rgba(61,220,151,.25)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchActions .lcPrimary{background:linear-gradient(90deg,#2fd1a0,#55b9ff)!important;color:#04141c!important;font-weight:800}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLaunchActions .lcPrimary:disabled{opacity:.45;filter:grayscale(.4)}
+@keyframes lcTickPop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot :is(.lcTick,.lcLaunch>li){animation:none!important;transition:none!important}}
