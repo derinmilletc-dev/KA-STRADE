@@ -4680,8 +4680,45 @@ def verified_live_journal(state: dict[str, Any]) -> list[dict[str, Any]]:
             "realized_pnl": pnl,
             "initial_risk_usdt": plan.get("initial_risk_usdt"),
             "r_multiple": calculate_r_multiple(pnl, plan.get("initial_risk_usdt")),
+            # Yalnız gösterim: kayıtta zaten olan alanlar. Yeni hesap, ağ çağrısı ya da emir etkisi yok.
+            **_journal_display_fields(plan),
         })
     return rows
+
+
+def _journal_number(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _journal_display_fields(plan: dict[str, Any]) -> dict[str, Any]:
+    """Master Trade işlem detayı için plan kaydındaki ham alanları güvenle aktarır.
+
+    Kayıtta olmayan bilgi None döner; ekran bunu "Kaydedilmedi" olarak gösterir. Uydurma değer yok.
+    """
+    raw_targets = plan.get("targets") if isinstance(plan.get("targets"), list) else []
+    targets = [_journal_number(item.get("price") if isinstance(item, dict) else item) for item in raw_targets[:3]]
+    leverage = _journal_number(plan.get("applied_leverage")) or _journal_number(plan.get("leverage"))
+    tp1_done = plan.get("original_tp1_complete") is True or plan.get("tp1_fill_confirmed") is True
+    return {
+        "planned_entry_price": _journal_number(plan.get("entry_price")),
+        "stop_loss": _journal_number(plan.get("initial_stop_loss")) or _journal_number(plan.get("stop_loss")),
+        "targets": targets,
+        "leverage": leverage,
+        "margin_usdt": _journal_number(plan.get("margin_usdt")),
+        "notional_usdt": _journal_number(plan.get("notional_usdt")),
+        "order_submitted_at": plan.get("created_at") if isinstance(plan.get("created_at"), str) else None,
+        "breakeven_at": plan.get("breakeven_at") if isinstance(plan.get("breakeven_at"), str) else None,
+        "tp1_done": tp1_done,
+        "commission_usdt": _journal_number(plan.get("commission_usdt")),
+        "gross_realized_pnl": _journal_number(plan.get("gross_realized_pnl")),
+        "funding_included": plan.get("funding_included") is True,
+    }
 
 
 def public_status(application: Any, request: Request | None = None) -> dict[str, Any]:

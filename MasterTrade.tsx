@@ -51,6 +51,14 @@ type TradeHistoryRow = {
   analysisScore: number | null
   opportunityScore: number | null
   scanCycle: string | null
+  // Yalnız gösterim: sunucudaki işlem kaydından gelir; yoksa null kalır ve ekranda "Kaydedilmedi" yazar.
+  orderSubmittedTime?: string | null
+  breakevenTime?: string | null
+  tp1Done?: boolean
+  notional?: number | null
+  initialRisk?: number | null
+  rMultiple?: number | null
+  fundingIncluded?: boolean
 }
 
 type MarketRow = { symbol: string; display: string; price: number; change: number; volume: number; status?: string; contractType?: string; quoteAsset?: string; filters?: unknown[] }
@@ -69,8 +77,33 @@ type TradeHistorySyncState = 'READY' | 'EMPTY' | 'STALE' | 'DISCONNECTED' | 'UNA
 type CloseLifecycleState = 'IDLE' | 'CLOSING' | 'CLOSED' | 'CLOSE_FAILED' | 'HISTORY_SYNC_FAILED' | 'ACCOUNT_SYNC_FAILED' | 'SYNC_FAILED'
 
 // Emir etiketleri: yalnız gösterim (telefonda kullanıcı dostu metin, masaüstünde ham değer). Emir mantığına dokunmaz.
-const CLOSE_REASON_LABELS: Record<string, string> = {SMART_EXIT: 'Akıllı Güven Puanı Çıkışı', SMART_STOP: 'Akıllı Kâr Koruma Stopu'}
-const closeReasonLabel = (reason: string | null | undefined) => (reason && CLOSE_REASON_LABELS[reason]) || reason || '--'
+// İşlem detayı yardımcıları (yalnız gösterim). Kayıtta olmayan bilgi uydurulmaz, "Kaydedilmedi" yazılır.
+const NOT_RECORDED = 'Kaydedilmedi'
+const TRADE_CLOSE_REASON_TEXT: Record<string, string> = {
+  MANUAL: 'Manuel kapatıldı', STOP: 'Stop çalıştı', TP1: 'TP1 hedefi', TP2: 'TP2 hedefi', TP3: 'TP3 hedefi',
+  EMERGENCY: 'Acil kapatma', SMART_EXIT: 'Akıllı Güven Puanı Çıkışı', SMART_STOP: 'Akıllı Kâr Koruma Stopu', UNKNOWN: 'Bilinmiyor',
+}
+const tradeCloseReasonText = (reason: string | null | undefined) => (reason && TRADE_CLOSE_REASON_TEXT[reason]) || reason || NOT_RECORDED
+const journalNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string' && value.trim() !== '') { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null }
+  return null
+}
+const journalText = (value: unknown): string | null => typeof value === 'string' && value.trim() !== '' ? value : null
+const validTime = (value: string | null | undefined) => { if (!value) return null; const time = new Date(value).getTime(); return Number.isFinite(time) ? time : null }
+const fmtTradeTime = (value: string | null | undefined) => {
+  const time = validTime(value)
+  return time === null ? NOT_RECORDED : new Date(time).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+const tradeDuration = (openTime: string | null | undefined, closeTime: string | null | undefined): string | null => {
+  const start = validTime(openTime), end = validTime(closeTime)
+  if (start === null || end === null || end < start) return null
+  const minutes = Math.floor((end - start) / 60000)
+  if (minutes < 1) return '1 dk altı'
+  const days = Math.floor(minutes / 1440), hours = Math.floor((minutes % 1440) / 60), rest = minutes % 60
+  return [days ? `${days} g` : '', hours ? `${hours} sa` : '', rest ? `${rest} dk` : ''].filter(Boolean).join(' ')
+}
+const orRecorded = (value: number | null | undefined, format: (value: number) => string) => value === null || value === undefined || !Number.isFinite(value) ? NOT_RECORDED : format(value)
 const orderSideLabel = (side: unknown) => side === 'BUY' || side === 'LONG' ? 'Alış' : side === 'SELL' || side === 'SHORT' ? 'Satış' : String(side || '--')
 const ORDER_TYPE_LABELS: Record<string, string> = {TAKE_PROFIT_MARKET: 'Kâr al', TAKE_PROFIT: 'Kâr al', STOP_MARKET: 'Zarar durdur', STOP: 'Zarar durdur', MARKET: 'Piyasa', LIMIT: 'Limit'}
 const orderTypeLabel = (type: unknown) => ORDER_TYPE_LABELS[String(type || '').toUpperCase()] ?? String(type || '--')
@@ -417,13 +450,24 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
         if (Array.isArray(accountPayload.journal)) {
           const rows = accountPayload.journal.filter(item => item.verified_realized === true && typeof item.realized_pnl === 'number' && Number.isFinite(item.realized_pnl)).map((item, index) => {
-            const direction = String(item.side || item.direction || '').toUpperCase()
+            const direction = String(item.direction || item.side || '').toUpperCase()
+            const targets = Array.isArray(item.targets) ? item.targets.map(journalNumber) : []
+            const realizedPnl = Number(item.realized_pnl)
+            const margin = journalNumber(item.margin_usdt)
+            const openTime = journalText(item.opened_at)
+            const closeTime = String(item.created_at || '')
             return {
               id: String(item.id || `journal-${index}`), symbol: String(item.symbol || '--'), side: direction === 'BUY' || direction === 'LONG' ? 'LONG' : 'SHORT',
-              entryPrice: null, exitPrice: typeof item.price === 'number' ? item.price : null, quantity: typeof item.quantity === 'number' ? item.quantity : null,
-              leverage: null, margin: null, stopLoss: null, tp1: null, tp2: null, tp3: null, realizedPnl: Number(item.realized_pnl), pnlPercent: null,
-              fees: null, funding: null, openTime: String(item.created_at || ''), closeTime: String(item.created_at || ''), duration: null,
+              entryPrice: journalNumber(item.planned_entry_price), exitPrice: journalNumber(item.price), quantity: journalNumber(item.quantity),
+              leverage: journalNumber(item.leverage), margin, stopLoss: journalNumber(item.stop_loss),
+              tp1: targets[0] ?? null, tp2: targets[1] ?? null, tp3: targets[2] ?? null, realizedPnl,
+              // ROI: net kâr/zarar ÷ marjin. Marjin kaydı yoksa hesaplanmaz.
+              pnlPercent: margin !== null && margin > 0 ? (realizedPnl / margin) * 100 : null,
+              fees: journalNumber(item.commission_usdt), funding: null, openTime: openTime ?? '', closeTime, duration: tradeDuration(openTime, closeTime),
               closeReason: typeof item.reason === 'string' ? item.reason : null, source: String(item.source || 'BINANCE LIVE'), analysisScore: null, opportunityScore: null, scanCycle: null,
+              orderSubmittedTime: journalText(item.order_submitted_at), breakevenTime: journalText(item.breakeven_at), tp1Done: item.tp1_done === true,
+              notional: journalNumber(item.notional_usdt), initialRisk: journalNumber(item.initial_risk_usdt), rMultiple: journalNumber(item.r_multiple),
+              fundingIncluded: item.funding_included === true,
             } satisfies TradeHistoryRow
           })
           historyRef.current = rows
@@ -1296,33 +1340,39 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
               </div>
               <button type="button" onClick={() => setSelectedTrade(null)}>Close</button>
             </header>
+            {/* İşlem detayı: yalnız sunucu kaydındaki bilgiler. Olmayan bilgi "Kaydedilmedi" yazar; tahmin yok. */}
             <div className="drawerMeta">
-              <div><small>Direction</small><b>{selectedTrade.side}</b></div>
-              <div><small>Result</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>{selectedTrade.realizedPnl >= 0 ? 'WIN' : 'LOSS'}</b></div>
-              <div><small>Entry</small><b>${fmtNum(selectedTrade.entryPrice)}</b></div>
-              <div><small>Exit</small><b>${fmtNum(selectedTrade.exitPrice)}</b></div>
-              <div><small>PnL</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>${fmtCompact(selectedTrade.realizedPnl)}</b></div>
-              <div><small>ROI</small><b>{selectedTrade.pnlPercent === null ? '--' : `${selectedTrade.pnlPercent.toFixed(2)}%`}</b></div>
-              <div><small>Leverage</small><b>{selectedTrade.leverage === null ? '--' : `${selectedTrade.leverage}x`}</b></div>
-              <div><small>Margin</small><b>${fmtCompact(selectedTrade.margin)}</b></div>
-              <div><small>Risk %</small><b>--</b></div>
-              <div><small>R / R</small><b>--</b></div>
-              <div><small>Opportunity</small><b>{selectedTrade.opportunityScore}</b></div>
-              <div><small>Source</small><b>{selectedTrade.source}</b></div>
-              <div><small>Close reason</small><b>{closeReasonLabel(selectedTrade.closeReason)}</b></div>
+              <div><small>Yön</small><b className={selectedTrade.side === 'LONG' ? 'positive' : 'negative'}>{selectedTrade.side}</b></div>
+              <div><small>Sonuç</small><b className={selectedTrade.realizedPnl > 0 ? 'positive' : selectedTrade.realizedPnl < 0 ? 'negative' : 'muted'}>{selectedTrade.realizedPnl > 0 ? 'KÂR' : selectedTrade.realizedPnl < 0 ? 'ZARAR' : 'BAŞA BAŞ'}</b></div>
+              <div><small>Net kâr / zarar</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>{selectedTrade.realizedPnl > 0 ? '+' : ''}${fmtPnl(selectedTrade.realizedPnl)}</b></div>
+              <div><small>ROI (marjine göre)</small><b>{orRecorded(selectedTrade.pnlPercent, value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`)}</b></div>
+              <div><small>Planlanan giriş</small><b>{orRecorded(selectedTrade.entryPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>Çıkış fiyatı</small><b>{orRecorded(selectedTrade.exitPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>İlk stop</small><b>{orRecorded(selectedTrade.stopLoss, value => `$${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>Miktar</small><b>{orRecorded(selectedTrade.quantity, value => fmtNum(value, 4))}</b></div>
+              <div><small>Kaldıraç</small><b>{orRecorded(selectedTrade.leverage, value => `${value}x`)}</b></div>
+              <div><small>Marjin</small><b>{orRecorded(selectedTrade.margin, value => `$${fmtCompact(value)}`)}</b></div>
+              <div><small>Pozisyon büyüklüğü</small><b>{orRecorded(selectedTrade.notional, value => `$${fmtCompact(value)}`)}</b></div>
+              <div><small>Başlangıç riski</small><b>{orRecorded(selectedTrade.initialRisk, value => `$${fmtCompact(value)}`)}</b></div>
+              <div><small>Sonuç (R)</small><b>{orRecorded(selectedTrade.rMultiple, value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}R`)}</b></div>
+              <div><small>Komisyon</small><b>{orRecorded(selectedTrade.fees, value => `$${fmtPnl(value)}`)}</b></div>
+              <div><small>Süre</small><b>{selectedTrade.duration ?? NOT_RECORDED}</b></div>
+              <div><small>Kaynak</small><b>{selectedTrade.source}</b></div>
+              <div><small>Kapanış nedeni</small><b>{tradeCloseReasonText(selectedTrade.closeReason)}</b></div>
+              <div><small>Fonlama ücreti</small><b>{selectedTrade.fundingIncluded ? 'Net K/Z içinde' : 'Net K/Z içinde değil'}</b></div>
             </div>
 
             <div className="drawerSection">
               <h4>TRADE LIFECYCLE</h4>
               <div className="timelineList">
                 {[
-                  ['Signal Generated', selectedTrade.scanCycle],
-                  ['Order Submitted', selectedTrade.openTime],
-                  ['Entry Filled', selectedTrade.openTime],
-                  ['TP1', fmtNum(selectedTrade.tp1)],
-                  ['TP2', fmtNum(selectedTrade.tp2)],
-                  ['TP3', fmtNum(selectedTrade.tp3)],
-                  ['Closed', closeReasonLabel(selectedTrade.closeReason)],
+                  ['Emir gönderildi', fmtTradeTime(selectedTrade.orderSubmittedTime)],
+                  ['Giriş gerçekleşti', fmtTradeTime(selectedTrade.openTime)],
+                  ['TP1', `${orRecorded(selectedTrade.tp1, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.tp1Done || selectedTrade.closeReason === 'TP1' ? ' · Ulaşıldı' : ''}`],
+                  ...(selectedTrade.breakevenTime ? [['Stop girişe çekildi', fmtTradeTime(selectedTrade.breakevenTime)]] : []),
+                  ['TP2', `${orRecorded(selectedTrade.tp2, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP2' ? ' · Ulaşıldı' : ''}`],
+                  ['TP3', `${orRecorded(selectedTrade.tp3, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP3' ? ' · Ulaşıldı' : ''}`],
+                  ['Kapandı', `${fmtTradeTime(selectedTrade.closeTime)} · ${tradeCloseReasonText(selectedTrade.closeReason)}`],
                 ].map(([event, detail], index) => (
                   <div key={`${event}-${index}`} className="timelineItem">
                     <span className="timelineDot" />
