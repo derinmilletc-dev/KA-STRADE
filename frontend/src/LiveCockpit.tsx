@@ -518,11 +518,13 @@ export default function LiveCockpit(props: Props) {
         const rowSim = wallet !== null ? marginSimulation(wallet, caps, row.per_trade_percent, simContext) : null
         const selected = !customOn && chosenMode === row.mode
         return <button type="button" role="radio" aria-checked={selected} key={row.mode} className="lcPreset lcModeCard" data-id={row.mode} data-selected={selected || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(row.mode) }}>
-          <span className="lcPresetHead"><b>{row.label}</b><i>%{row.per_trade_percent}</i>{savedMode === row.mode && <em>AKTİF</em>}</span>
-          <small>{MODE_TEXT[row.mode]}</small>
-          <small>İşlem başı teminat ≈ {view ? usdt(view.marginUsdt) : '—'}{rowSim ? ` · bakiyenin %${rowSim.walletShare.toFixed(0)}’i` : ''}</small>
-          <small>Tahmini en büyük pozisyon ≈ {rowSim?.notional != null ? usdt(rowSim.notional) : '—'}</small>
-          <small>{view ? `Stop %${view.atThreeStop?.stopPct ?? 3} uzakta en fazla ≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} (${pct((view.atThreeStop ?? view.atMaxStop).percent)}) kayıp` : 'Bakiye doğrulanınca görünür'}</small>
+          <span className="lcPresetHead"><b>{row.label}</b>{savedMode === row.mode && <em>AKTİF</em>}</span>
+          <span className="lcModePct"><strong>%{row.per_trade_percent}</strong><small>bakiye / işlem</small></span>
+          <span className="lcMeter" aria-hidden="true"><i style={{width: `${Math.min(100, row.per_trade_percent)}%`}}/></span>
+          <small className="lcModeNote">{MODE_TEXT[row.mode]}</small>
+          <span className="lcKV"><em>Teminat</em><b>{view ? usdt(view.marginUsdt) : '—'}</b></span>
+          <span className="lcKV"><em>Pozisyon (en fazla)</em><b>{rowSim?.notional != null ? usdt(rowSim.notional) : '—'}</b></span>
+          <span className="lcKV"><em>{view ? `Stop %${view.atThreeStop?.stopPct ?? 3} kaybı` : 'Stop kaybı'}</em><b className="lcLoss">{view ? `≈ ${usdt((view.atThreeStop ?? view.atMaxStop).loss)} · ${pct((view.atThreeStop ?? view.atMaxStop).percent)}` : '—'}</b></span>
         </button>
       })}
     </div>

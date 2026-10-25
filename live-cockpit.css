@@ -600,3 +600,38 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCompare th:first-child{width:40%!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCompare td{overflow-wrap:normal!important;word-break:keep-all}
 @media (min-width:641px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCompare{max-width:560px!important}}
+
+/* ---- Teminat Kontrol Merkezi: modern görünüm (sade, animasyonsuz) ---- */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard{display:grid!important;gap:10px!important;align-content:start;text-align:left;padding:16px!important;border-radius:18px!important;background:var(--lc-card)!important;border:1px solid var(--lc-line)!important;transition:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard[data-selected]{border-color:var(--lc-go)!important;background:rgba(61,220,151,.07)!important;box-shadow:0 0 0 1px var(--lc-go) inset}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard .lcPresetHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard .lcPresetHead b{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard .lcPresetHead em{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 9px;border-radius:999px;background:rgba(61,220,151,.16);color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModePct{display:flex;align-items:baseline;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModePct strong{font-size:30px;line-height:1;font-weight:700;color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard[data-id=agresif] .lcModePct strong{color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModePct small{font-size:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMeter{display:block;height:6px;border-radius:99px;background:var(--lc-soft);overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcMeter i{display:block;height:100%;border-radius:99px;background:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard[data-id=agresif] .lcMeter i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeNote{font-size:12.5px!important;line-height:1.45}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcKV{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding-top:8px;border-top:1px solid var(--lc-line);font-size:13px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcKV em{font-style:normal;color:var(--lc-mute);font-size:12.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcKV b{color:var(--lc-ink);font-weight:700;text-align:right;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcKV b.lcLoss{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustomMargin>.lcLink{justify-self:start;min-height:40px;padding:0 16px;border-radius:999px;border:1px dashed var(--lc-line);background:transparent}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcCustomBox{background:var(--lc-card)!important;border-radius:16px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSim{border-radius:18px!important;background:var(--lc-card)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimHead b{font-size:15px;letter-spacing:.02em}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid>div{background:var(--lc-raised)!important;border:1px solid var(--lc-line)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid dt{text-transform:none;letter-spacing:.02em}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid dd{font-size:16px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid>div:nth-child(3) dd{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid>div:nth-child(7) dd,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSimGrid>div:nth-child(8) dd{color:var(--lc-go)}
+@media (max-width:640px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard{padding:14px!important}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModePct strong{font-size:26px}
+}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard .lcModePct strong{font-size:30px!important;line-height:1!important;font-weight:700!important;letter-spacing:-.01em}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard[data-id=agresif] .lcModePct strong{color:var(--lc-warn)!important}
+@media (max-width:640px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcModeCard .lcModePct strong{font-size:26px!important}}
