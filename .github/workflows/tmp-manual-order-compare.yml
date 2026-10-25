@@ -76,7 +76,11 @@ jobs:
 
   e2e-compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [branch, main]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -86,51 +90,49 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - name: Branch e2e
-        shell: bash
+      - name: Select variant
+        if: matrix.variant == 'main'
         run: |
-          set +e
-          npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null && npx playwright install --with-deps chromium >/dev/null)
-          npm run build >/dev/null 2>&1; echo "build exit $?"
-          (cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/branch-e2e.json npx playwright test --reporter=json,line > /tmp/branch-e2e.log 2>&1); echo "exit $?"
-          tail -n 5 /tmp/branch-e2e.log | while read -r l; do echo "::notice title=branch e2e tail::$l"; done; true
-      - name: Main e2e
-        shell: bash
-        run: |
-          set +e
           git checkout -q origin/main -- .
-          # Ana sürümde de aynı tırnak düzeltmesi (yoksa paket hiç açılmaz ve karşılaştırma anlamsız olur).
+          # Ana sürümde de aynı tırnak düzeltmesi (yoksa paket hiç açılmaz).
           sed -i "s/'Kais AI'a Sor'/\"Kais AI'a Sor\"/g" frontend/tests/chart-ai.spec.ts
-          npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null)
-          npm run build >/dev/null 2>&1; echo "build exit $?"
-          (cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/main-e2e.json npx playwright test --reporter=json,line > /tmp/main-e2e.log 2>&1); echo "exit $?"
-          tail -n 5 /tmp/main-e2e.log | while read -r l; do echo "::notice title=main e2e tail::$l"; done; true
-      - name: Compare e2e
+      - name: Install and build
+        run: |
+          npm ci --no-audit --no-fund
+          (cd frontend && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
+          npm run build
+      - name: Live trading e2e
+        shell: bash
+        run: |
+          set +e
+          cd frontend
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/e2e.json timeout 7800 npx playwright test \
+            tests/live-trading-panel.spec.ts tests/master-trade-live-ui.spec.ts tests/master-trade-regressions.spec.ts \
+            tests/master-trade-readonly.spec.ts tests/original-v2-live.spec.ts tests/master-trade-analysis-v2.spec.ts \
+            tests/mobile-layout.spec.ts --reporter=json,line > /tmp/e2e.log 2>&1
+          echo "exit $?"
+          true
+      - name: Report
         shell: bash
         run: |
           cat > /tmp/fails.js <<'JS'
           const fs = require('fs')
-          const out = new Set()
           let data
-          try { data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')) } catch { console.log('__REPORT_MISSING__'); process.exit(0) }
+          try { data = JSON.parse(fs.readFileSync('/tmp/e2e.json', 'utf8')) } catch { console.log('STATS report missing'); process.exit(0) }
+          const out = []
           const walk = (suite, trail) => {
             for (const spec of suite.specs || []) for (const test of spec.tests || []) {
               const status = test.status || (test.results || []).map(r => r.status).pop()
-              if (status === 'unexpected' || status === 'flaky') out.add(`${spec.file} > ${[...trail, spec.title].join(' > ')}`)
+              if (status === 'unexpected' || status === 'flaky') out.push(`${spec.file} > ${[...trail, spec.title].join(' > ')}`)
             }
             for (const child of suite.suites || []) walk(child, [...trail, child.title].filter(Boolean))
           }
           for (const suite of data.suites || []) walk(suite, [])
-          for (const error of data.errors || []) console.error(`REPORT_ERROR ${String(error.message || '').split('\n')[0].slice(0, 200)}`)
-          console.log([...out].sort().join('\n'))
-          console.error(`expected=${data.stats?.expected} unexpected=${data.stats?.unexpected} flaky=${data.stats?.flaky} skipped=${data.stats?.skipped}`)
+          console.log(`STATS expected=${data.stats?.expected} unexpected=${data.stats?.unexpected} flaky=${data.stats?.flaky} skipped=${data.stats?.skipped}`)
+          for (const error of data.errors || []) console.log(`ERR ${String(error.message || '').split('\n')[0].slice(0, 180)}`)
+          for (const line of [...new Set(out)].sort()) console.log(`FAIL ${line.slice(0, 230)}`)
           JS
-          node /tmp/fails.js /tmp/branch-e2e.json > /tmp/b.txt 2>/tmp/b.stats
-          node /tmp/fails.js /tmp/main-e2e.json > /tmp/m.txt 2>/tmp/m.stats
-          while read -r l; do echo "::notice title=e2e main::$l"; done < /tmp/m.stats
-          while read -r l; do echo "::notice title=e2e branch::$l"; done < /tmp/b.stats
-          sort -u /tmp/b.txt -o /tmp/b.txt; sort -u /tmp/m.txt -o /tmp/m.txt
-          comm -13 /tmp/m.txt /tmp/b.txt | { grep -v '^$' || true; } > /tmp/new.txt
-          while read -r line; do echo "::error title=NEW E2E FAILURE::$line"; done < /tmp/new.txt
-          while read -r line; do echo "::notice title=e2e fails on main too::$line"; done < <(head -n 30 /tmp/m.txt)
-          test ! -s /tmp/new.txt
+          node /tmp/fails.js > /tmp/report.txt
+          # Ek açıklama sınırı (adım başına 10) yüzünden satırlar 25'erli tek mesajlarda birleştirilir.
+          split -l 25 /tmp/report.txt /tmp/chunk_
+          for f in /tmp/chunk_*; do echo "::warning title=${{ matrix.variant }}::$(sed ':a;N;$!ba;s/\n/%0A/g' "$f")"; done
