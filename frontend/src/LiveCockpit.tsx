@@ -944,7 +944,7 @@ export default function LiveCockpit(props: Props) {
   const launchConnected = guideInput.connected && guideInput.credentialsConfigured
   const launchCanRun = launchConnected && wallet !== null && launchRiskValid && wizDailyOk && tierReady(draft.risk, riskAck, phrase)
     && launchModeOk && (smartPick !== 'on' || smartWizAck) && launchPhraseOk && !running
-  const launchFailed = Object.values(launchSteps).some(item => item.state === 'error')
+  const launchFailed = (Object.values(launchSteps) as LaunchState[]).some(item => item.state === 'error')
   type LaunchRow = {key: string; step: string; title: string; note: string; ok: boolean; hollow?: boolean; optional?: boolean; edit?: boolean}
   const launchRows: LaunchRow[] = [
     {key: 'conn', step: 'conn', title: 'Binance bağlantısı', note: launchConnected ? 'Bağlı, bakiye doğrulandı' : 'Bağlantı yok; önce Bağlantı sekmesinden anahtarı kaydet', ok: launchConnected},
@@ -968,8 +968,8 @@ export default function LiveCockpit(props: Props) {
     </div>
     <ol className="lcLaunch" aria-label="Hazırlık adımları">
       {launchRows.map(row => {
-        const run = launchSteps[row.step]
-        const state = run?.state ?? (row.ok ? (row.hollow ? 'pending' : 'ready') : 'todo')
+        const run: LaunchState | undefined = launchSteps[row.step]
+        const state: LaunchState['state'] | 'pending' | 'ready' | 'todo' = run?.state ?? (row.ok ? (row.hollow ? 'pending' : 'ready') : 'todo')
         const open = launchOpen === row.key
         const body = open && row.edit ? <div className="lcLaunchBody">
           {row.key === 'risk' && <>
