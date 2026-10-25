@@ -36,7 +36,7 @@ type Props = {
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
 const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
-type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard'
+type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard' | 'summary'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
@@ -195,8 +195,21 @@ export default function LiveCockpit(props: Props) {
   }
 
   const openWizard = () => {
-    setWizStep(0); setSmartPick('keep'); setSmartWizAck(false); setSheetError(''); setRiskError(''); setModeError(''); setCustom(false); setCustomOn(false)
+    setWizStep(0); setSmartPick('keep'); setSmartWizAck(false); setWizResumed(false); setSheetError(''); setRiskError(''); setModeError(''); setCustom(false); setCustomOn(false)
     setUnderstood(false); setRiskAck(false); setPhrase(''); setModePick(null); setModeUnderstood(false); setModeAck(false); setModePhrase('')
+    try {
+      const saved = wizKey ? JSON.parse(localStorage.getItem(wizKey) ?? 'null') : null
+      if (saved && typeof saved === 'object' && Date.now() - Number(saved.at) < 7 * 86400000 && Number.isFinite(saved.risk) && Number.isFinite(saved.daily)
+        && saved.risk >= 0.5 && saved.risk <= 10 && saved.daily >= 1 && saved.daily <= 25 && saved.daily >= saved.risk && Number.isInteger(saved.step) && saved.step >= 0 && saved.step <= 4
+        && (saved.risk !== savedRisk || saved.daily !== savedDaily || saved.step > 0 || saved.smartPick === 'on')) {
+        setDraft(current => ({...current, risk: saved.risk, daily: saved.daily, coins: validCoins(saved.coins) ? saved.coins : current.coins, hours: validHours(saved.hours) ? saved.hours : current.hours}))
+        setWizStep(saved.step)
+        setSmartPick(saved.smartPick === 'on' || saved.smartPick === 'off' ? saved.smartPick : 'keep')
+        if ([60, 65, 70, 75, 80].includes(saved.thr)) setSmartWizThreshold(saved.thr)
+        if ([5, 10, 15, 20, 30].includes(saved.wait)) setSmartWizWait(saved.wait)
+        setWizResumed(true)
+      }
+    } catch { /* bozuk kayıt: baştan başla */ }
     setSheet('wizard')
   }
   const saveRisk = () => perform('risk', async () => {
@@ -229,6 +242,13 @@ export default function LiveCockpit(props: Props) {
   const [smartWizThreshold, setSmartWizThreshold] = useState(70)
   const [smartWizWait, setSmartWizWait] = useState(10)
   const [smartWizAck, setSmartWizAck] = useState(false)
+  const [wizResumed, setWizResumed] = useState(false)
+  const wizKey = userId ? `protrebot-wizard-draft:${userId}` : null
+  useEffect(() => {  // yarım kalan rehber seçimleri bu tarayıcıda saklanır (onay kutuları ASLA saklanmaz)
+    if (sheet !== 'wizard' || !wizKey) return
+    try { localStorage.setItem(wizKey, JSON.stringify({step: wizStep, risk: draft.risk, daily: draft.daily, coins: draft.coins, hours: draft.hours, smartPick, thr: smartWizThreshold, wait: smartWizWait, at: Date.now()})) } catch { /* saklama yoksa sorun değil */ }
+  }, [sheet, wizKey, wizStep, draft.risk, draft.daily, draft.coins, draft.hours, smartPick, smartWizThreshold, smartWizWait])
+  const clearWizDraft = () => { try { if (wizKey) localStorage.removeItem(wizKey) } catch { /* yok say */ } }
   const [customRaw, setCustomRaw] = useState('40')
   const [extendHours, setExtendHours] = useState(12)
   const [extendUnderstood, setExtendUnderstood] = useState(false)
@@ -729,12 +749,31 @@ export default function LiveCockpit(props: Props) {
         : {enabled: false}, smartPick === 'on' ? 'Akıllı Kâr Koruma açıldı. Orijinal Stop ve TP aynen duruyor.' : 'Akıllı Kâr Koruma kapatıldı.')
       if (!smartOk) return
     }
+    clearWizDraft()
     setSheet(null)
   }
+  const wizTrades = wizRiskNums && wizRiskNums.perTrade > 0 ? Math.max(1, Math.floor(wizRiskNums.perDay / wizRiskNums.perTrade)) : null
+  const wizMargin = wallet !== null && chosenRow ? marginModePreview(wallet, caps, chosenRow.per_trade_percent)?.marginUsdt ?? null : null
+  const WIZ_WHY = [
+    `Bir işlemde en fazla ne kadar kaybetmeyi göze aldığını belirler. ${wizRiskNums ? `Şu seçimle bir işlemde hedef kayıp yaklaşık ${usdt(wizRiskNums.perTrade)}.` : ''} Stop-loss bu seviyede çalışır.`,
+    `Bir günde toplam kaybın bu sınıra gelirse bot o gün yeni işlem açmaz. ${wizRiskNums && wizTrades ? `Örnek: sınır ${usdt(wizRiskNums.perDay)}, işlem başı ${usdt(wizRiskNums.perTrade)}; yaklaşık ${wizTrades} zararlı işlemden sonra durur.` : ''}`,
+    'Teminat, her işlem için bakiyenden ayrılan paradır. Yükselttikçe işlem büyür; kazanç da kayıp da büyür. Stop-loss her zaman çalışır.',
+    'Puan düşünce pozisyon hemen satılmaz; 15 dakikalık mum kapanışları beklenir. Zarardaysa asla kapatılmaz. Orijinal Stop ve TP hiçbir zaman silinmez.',
+    'Burada hiçbir şey emir açmaz. Kaydedince yalnız yeni işlemler etkilenir; açık pozisyonlar değişmez.',
+  ]
   const wizardView = <>
     <h2 id="lc-sheet-title">Kais Koç ile ayarla</h2>
     <ol className="lcWizDots" aria-label="Adımlar">{WIZ_STEPS.map((label, index) => <li key={label} data-state={index < wizStep ? 'done' : index === wizStep ? 'now' : 'next'} aria-current={index === wizStep ? 'step' : undefined}><i aria-hidden="true">{index < wizStep ? '✓' : index + 1}</i><span>{label}</span></li>)}</ol>
+    <div className="lcWizBar" role="progressbar" aria-valuemin={1} aria-valuemax={WIZ_STEPS.length} aria-valuenow={wizStep + 1} aria-label={`Adım ${wizStep + 1} / ${WIZ_STEPS.length}`}><i style={{width: `${((wizStep + 1) / WIZ_STEPS.length) * 100}%`}}/></div>
+    {wizResumed && <p className="lcWizResume" role="status">Kaldığın yerden devam ediyorsun. <button type="button" className="lcLink" onClick={() => { clearWizDraft(); openWizard() }}>Baştan başla</button></p>}
     <p className="lcWizCoach"><b>KAİS KOÇ</b>{WIZ_COACH[wizStep]}</p>
+    <div className="lcWizLive" aria-label="Seçimine göre tahmini rakamlar">
+      <div><small>İşlem başı risk</small><b>{wizRiskNums ? usdt(wizRiskNums.perTrade) : '—'}</b></div>
+      <div><small>Günlük en çok kayıp</small><b>{wizRiskNums ? usdt(wizRiskNums.perDay) : '—'}</b></div>
+      <div><small>İşlem başı teminat</small><b>{wizMargin !== null ? `≈ ${usdt(wizMargin)}` : '—'}</b></div>
+      <p>Bunlar hedef ve tavan rakamlarıdır: tahmin, geçmiş sonuç ya da kazanç/kayıp garantisi değildir.{wizTrades ? ` Günlük sınır ≈ ${wizTrades} zararlı işleme denk gelir.` : ''}</p>
+    </div>
+    <details className="lcWizWhy"><summary>Bu ne işe yarar?</summary><p>{WIZ_WHY[wizStep]}</p></details>
     {wizStep === 0 && <div className="lcWizList" role="radiogroup" aria-label="İşlem başı risk">
       {RISK_PRESETS.map(preset => {
         const numbers = wallet !== null ? riskSummary(wallet, preset.risk_percent, preset.daily_loss_percent, caps) : null
@@ -746,6 +785,8 @@ export default function LiveCockpit(props: Props) {
         </button>
       })}
       <p className="lcHint">Seçtiğin rakam bir hedeftir, garanti edilen gerçek kayıp değildir. Farklı bir yüzde için Ayarlar’daki “Kendim ayarlayayım” bölümünü kullanabilirsin.</p>
+      <button type="button" className="lcBtn lcWizQuick" disabled={busy || !draftValid || !wizDailyOk} onClick={() => setWizStep(4)}>Hızlı: bu paketle özete geç →</button>
+      <p className="lcHint">Paket yalnız işlem riskini ve günlük sınırı seçer. Teminat modu ve Akıllı koruma olduğu gibi kalır; hiçbiri kendiliğinden açılmaz.</p>
     </div>}
     {wizStep === 1 && <div className="lcWizList">
       <div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">
@@ -777,6 +818,12 @@ export default function LiveCockpit(props: Props) {
     </div>}
     {wizStep === 3 && <div className="lcWizList">
       {smartSettings === undefined ? <p className="lcHint">Akıllı koruma bilgisi şu an alınamadı; bu adımı atlayabilirsin, Ayarlar’dan sonra da açabilirsin.</p> : <>
+        <ol className="lcFlow" aria-label="Akıllı koruma nasıl çalışır">
+          <li><i>1</i><b>Puan düşer</b><small>Eşiğin altına iner</small></li>
+          <li><i>2</i><b>Sayaç</b><small>{smartWizWait} dk bekler</small></li>
+          <li><i>3</i><b>Yeni mum</b><small>Hâlâ düşükse devam</small></li>
+          <li><i>4</i><b>Kârdaysa çık</b><small>Zarardaysa bekler</small></li>
+        </ol>
         <p className="lcHint">Güven puanı eşiğin altına düşünce pozisyonu hemen satmaz: bekler, sonraki kapanmış 15 dakikalık mumda da puan düşükse ve ücretler düşüldükten sonra kârdaysa kapatır. <b>Zarardaysa asla kapatmaz.</b> Orijinal Stop ve TP aynen çalışır.</p>
         <div className="lcWizList" role="radiogroup" aria-label="Akıllı koruma">
           {([['keep', smartCurrentlyOn ? 'Şu an AÇIK, böyle kalsın' : 'Şu an KAPALI, böyle kalsın', smartCurrentlyOn ? 'Mevcut ayarlar korunur.' : 'Hiçbir akıllı emir gönderilmez.'],
@@ -818,7 +865,22 @@ export default function LiveCockpit(props: Props) {
         : <button type="button" className="lcBtn lcPrimary" data-testid="koc-wizard-save" disabled={busy || !wizReady} onClick={() => void saveWizard()}>{working === 'risk' || working === 'mode' ? 'Kaydediliyor…' : 'Hepsini kaydet'}</button>}
     </div>
   </>
-  const sheetView = sheet === 'wizard' ? wizardView : sheet === 'approvals' ? <>
+  const summaryRisk = wallet !== null ? riskSummary(wallet, savedRisk, savedDaily, caps) : null
+  const summaryView = <>
+    <h2 id="lc-sheet-title">Ayarlarım</h2>
+    <p className="lcSheetLead">Şu an kayıtlı olan tüm ayarlar tek yerde. Değiştirmek için rehberi aç.</p>
+    <dl className="lcWizSummary lcSumGrid">
+      <div><dt>İşlem başı risk</dt><dd>{summaryRisk ? usdt(summaryRisk.perTrade) : '—'} <small>(%{savedRisk})</small></dd></div>
+      <div><dt>Günlük kayıp sınırı</dt><dd>{summaryRisk ? usdt(summaryRisk.perDay) : '—'} <small>(%{savedDaily})</small></dd></div>
+      <div><dt>Teminat modu</dt><dd>{savedRow?.label ?? '—'} <small>(%{savedRow?.per_trade_percent ?? '—'})</small></dd></div>
+      <div><dt>Akıllı koruma</dt><dd>{smartSettings ? (smartSettings.emergency_off ? 'ACİL DURDURULDU' : smartSettings.enabled ? 'AÇIK' : 'KAPALI') : '—'}</dd></div>
+      {smartSettings && <div><dt>Puan eşiği · bekleme</dt><dd>{smartSettings.threshold} · {smartSettings.wait_minutes} dk</dd></div>}
+      {smartSettings && <div><dt>Kâr koruma stopu · akıllı çıkış</dt><dd>{smartSettings.protect_stop_enabled ? 'açık' : 'kapalı'} · {smartSettings.smart_exit_enabled ? 'açık' : 'kapalı'}</dd></div>}
+      {smartSettings && <div><dt>Ters yön sinyali</dt><dd>{smartSettings.direction_mismatch_action === 'count_as_low' ? 'Düşük puan gibi say' : 'Sadece kaydet'}</dd></div>}
+    </dl>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet}>Kapat</button><button type="button" className="lcBtn lcPrimary" onClick={openWizard}>Rehberle değiştir</button></div>
+  </>
+  const sheetView = sheet === 'summary' ? summaryView : sheet === 'wizard' ? wizardView : sheet === 'approvals' ? <>
     <h2 id="lc-sheet-title">Neye onay veriyorsun?</h2>
     <p className="lcSheetLead">Üç ayrı güvenlik onayı. Hiçbiri tek başına emir açmaz; ayrıntısına basıp neye izin verdiğini görebilirsin.</p>
     <ol className="lcApprovals">{approvalItems.map((item, index) => {
@@ -1029,6 +1091,22 @@ export default function LiveCockpit(props: Props) {
               {coachNote && <p className="lcCoachNote"><small>KOÇ YORUMU</small>{coachNote}</p>}
             </div>
           </div>}
+          {verified && original && guideInput.connected && !guideInput.emergency && (() => {
+            const approvalsOk = (['consent', 'policy', 'arm'] as const).every(key => itemState(key) === 'done')
+            const todo = [!riskSaved, !approvalsOk].filter(Boolean).length
+            const done = 2 - todo
+            return <div className="lcSetup" data-complete={todo === 0 || undefined} aria-label="Kurulum durumu">
+              <i className="lcSetupRing" style={{'--p': `${done * 50}%`} as CSSProperties} aria-hidden="true"><b>{done}/2</b></i>
+              <div className="lcSetupBody">
+                <b>{todo === 0 ? 'Kurulum tamam' : `${todo} adım kaldı`}</b>
+                <ul>
+                  <li data-ok={riskSaved || undefined}>{riskSaved ? '✓' : '○'} Risk ve günlük sınır{!riskSaved && <button type="button" className="lcLink" disabled={busy} onClick={openWizard}>ayarla</button>}</li>
+                  <li data-ok={approvalsOk || undefined}>{approvalsOk ? '✓' : '○'} Güvenlik onayları{!approvalsOk && <button type="button" className="lcLink" disabled={busy} onClick={() => setSheet('approvals')}>onayla</button>}</li>
+                  <li data-ok={smartSettings?.enabled || undefined} data-optional>{smartSettings?.enabled ? '✓' : '·'} Akıllı koruma <small>{smartSettings?.enabled ? 'açık' : 'isteğe bağlı, kapalı'}</small></li>
+                </ul>
+              </div>
+            </div>
+          })()}
           <div className="lcGuideActions">
             {guide.action && guide.actionLabel && guide.action !== 'stop' && (guide.action === 'open-connection'
               ? <a className="lcBtn lcPrimary" href="/master-trade?tab=baglanti" data-testid="live-guide-action" onClick={event => { event.preventDefault(); goTab('baglanti') }}>{guide.actionLabel}</a>
@@ -1036,6 +1114,7 @@ export default function LiveCockpit(props: Props) {
             {guide.why && <button type="button" className="lcBtn lcGhost" aria-expanded={whyOpen} onClick={() => setWhyOpen(value => !value)}>Neden gerekli?</button>}
             {coach && running && !stale && <button type="button" className="lcBtn lcPrimary lcExtend" data-urgent={(sessionLeft > 0 && sessionLeft <= 3600) || undefined} disabled={busy} onClick={() => { setExtendUnderstood(false); setSheetError(''); setSheet('extend') }}>Oturumu uzat</button>}
             {verified && original && guideInput.connected && !guideInput.emergency && <button type="button" className="lcBtn lcGhost lcWizOpen" data-testid="koc-wizard-open" disabled={busy} onClick={openWizard}>Kais Koç ile adım adım ayarla</button>}
+            {verified && original && guideInput.connected && <button type="button" className="lcBtn lcGhost" disabled={busy} onClick={() => setSheet('summary')}>Ayarlarım</button>}
             {coach && <button type="button" className="lcBtn lcGhost" onClick={() => { setSettingsOpen(true); window.setTimeout(() => document.getElementById('lc-drawer')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 30) }}>Risk ayarını gör</button>}
           </div>
           {whyOpen && guide.why && <p className="lcWhy">{guide.why}</p>}

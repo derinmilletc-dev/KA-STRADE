@@ -933,6 +933,20 @@ def test_n07_temp_stop_triggers_real_helpers_clean_other_orders_and_label_reason
     assert real.close_reason_for_client_id(plan, "XSGP1") == "SMART_STOP"
 
 
+def test_n08_first_use_notice_is_sent_once():
+    with env() as e:
+        e.script(("SHORT", 62))
+        e.tick(at(0))
+        kinds = [a["type"] for a in e.state["original_v2_live"]["alerts"]]
+        assert kinds.count("SMART_GUARD_FIRST_USE") == 1
+        e.script(("SHORT", 80))
+        e.tick(at(1))
+        e.script(("SHORT", 61))
+        e.tick(at(2))
+        kinds = [a["type"] for a in e.state["original_v2_live"]["alerts"]]
+        assert kinds.count("SMART_GUARD_FIRST_USE") == 1 and "SMART_GUARD_LOW_SCORE" in kinds
+
+
 if __name__ == "__main__":  # pytest olmadan çalıştırma
     failures = 0
     names = sorted(n for n in dir() if n.startswith("test_"))
