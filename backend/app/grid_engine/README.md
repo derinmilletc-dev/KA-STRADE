@@ -30,6 +30,17 @@ Testler (ağ yok):
 - Uyarılar (`gridAlerts.ts`): Bağlantı sorunu, Risk aşımı, Doğrulanamadı, MÜDAHALE GEREKLİ (motor durumu → kullanıcı dili).
 - Bakım teminatı imzalı veri olduğu için ekrana getirilmedi: likidasyon tahmini hâlâ %0,5 VARSAYIMIDIR. Testnet/canlı öncesi gerçek veriyle değiştirilmeden güvenilir sayılmaz.
 
+## Gün 1 (Testnet) nasıl çalıştırılır
+Sunucuda, kendi ekranında (anahtarı kimseye yazma, dosyaya koyma):
+```
+export BINANCE_TESTNET_API_KEY=...   # Testnet anahtarı, para çekme izni yok
+export BINANCE_TESTNET_API_SECRET=...
+cd backend && python -B scripts/grid_testnet_day1.py --report-dir ./grid_reports
+```
+Betik: tek yönlü mod, BTC/ETH kuralları (Testnet), fiyat/pozisyon okuma → (hepsi geçerse) uzak fiyatlı tek emir oluştur, oku, kimlik tekrarı (açıkken),
+iptal, kimlik tekrarı (iptal sonrası), temizlik. İlk kontrol başarısızsa emir GÖNDERİLMEZ. Belirsiz yanıtta emir tekrar gönderilmez, kimlikle sorgulanır.
+Rapor `grid_reports/` içine .md ve .json yazılır (anahtar içermez). Atlanan maddeler (sunucu yolu, açık pozisyon stopu) ELLE doğrulanır.
+
 ## Test planı (zorunlu; biri kırılırsa ilerleme yok)
 Altı senaryo: (1) yanıt kaybı (2) yeniden başlatma (3) kısmi dolum (4) stop tetiklenmesi (5) bağlantı kopması (6) acil durdurma.
 Dört güvenlik düzeltmesi: (a) acil durdurma başarı kriteri = borsadan doğrulama, yoksa INTERVENTION_REQUIRED + stoplar kalır

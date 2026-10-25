@@ -143,6 +143,15 @@ class TestSigningAndMapping(unittest.TestCase):
             a.cancel_order(SYM, "x")
         self.assertEqual(ctx.exception.code, -2011)
 
+    def test_mark_price(self):
+        a = self.adapter(lambda *x: (200, {"symbol": SYM, "price": "87000.10"}))
+        self.assertEqual(a.mark_price(SYM), 87000.1)
+        self.assertEqual(self.rec.calls[0][1], "https://testnet.binancefuture.com/fapi/v1/ticker/price")
+        self.assertNotIn("signature", self.rec.calls[0][2])
+        a = self.adapter(lambda *x: (200, {"symbol": SYM, "price": "0"}))
+        with self.assertRaises(ValueError):
+            a.mark_price(SYM)
+
     def test_position_one_way_only_and_filters(self):
         a = self.adapter(lambda *x: (200, [{"symbol": SYM, "positionAmt": "0.300", "positionSide": "BOTH"},
                                          {"symbol": "ETHUSDT", "positionAmt": "5", "positionSide": "BOTH"}]))

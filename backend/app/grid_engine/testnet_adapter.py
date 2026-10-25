@@ -173,6 +173,13 @@ class BinanceTestnetAdapter:
         rows = self._request("GET", "/fapi/v2/positionRisk", {"symbol": symbol})
         return round(sum(float(r["positionAmt"]) for r in rows if r.get("symbol") == symbol and r.get("positionSide", "BOTH") == "BOTH"), 8)
 
+    def mark_price(self, symbol: str) -> float:
+        body = self._request("GET", "/fapi/v1/ticker/price", {"symbol": symbol}, signed=False)
+        price = float(body["price"]) if isinstance(body, dict) else float("nan")
+        if not price > 0:
+            raise ValueError(f"{symbol} fiyatı okunamadı")
+        return price
+
     # ---------- başlangıç doğrulamaları ----------
     def assert_one_way_mode(self) -> None:
         body = self._request("GET", "/fapi/v1/positionSide/dual")
