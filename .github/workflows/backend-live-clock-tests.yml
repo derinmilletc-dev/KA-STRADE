@@ -61,7 +61,7 @@ jobs:
           python -m pytest tests/test_original_v2_demo_execution.py -q -rfE --tb=line -p no:cacheprovider \
             -k "protection_60 or entry_requires_total or live_minimum_sizing" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
-          # Original V2 stop kurulamazsa: 90 sn arayla 3 yeniden deneme, sonra reduce-only kapatma (yeni testler).
+          # Original V2 stop kurulamazsa: 30 sn arayla 3 yeniden deneme, sonra reduce-only kapatma (yeni testler).
           python -m pytest tests/test_original_v2_live.py -q -rfE --tb=line -p no:cacheprovider \
             -k "original_stop_repair" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
