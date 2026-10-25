@@ -13,6 +13,8 @@ export type GridInput = {
   totalMargin: number
   leverage: number
   stop: number
+  filters?: GridFilters   // borsanın fiyat/miktar adımı ve en düşük emir değeri; yoksa plan onaylanmaz
+  maintenanceRate?: number // bakım teminatı oranı tahmini (varsayılan %0.5)
 }
 
 export type GridLevel = {
@@ -36,6 +38,8 @@ export type GridLimits = {
   dailyLossBudgetLeft: number | null
 }
 
+export type GridFilters = {tickSize: number; stepSize: number; minNotional: number}
+
 export type GridCheck = {id: string; ok: boolean; label: string; detail: string}
 
 export type GridResult = {
@@ -49,6 +53,9 @@ export type GridResult = {
   worstLoss: number
   bestGain: number
   fees: number
+  entryFees: number
+  exitFees: number
+  liquidation: number | null
   checks: GridCheck[]
   allOk: boolean
 }
@@ -63,10 +70,12 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : N
 
 // Aynı grid + aynı kademe her zaman AYNI emir kimliğini üretir (kopma/yeniden başlatma sonrası çift emir gitmesin).
 // Binance newClientOrderId: en fazla 36 karakter, [A-Za-z0-9-_].
-export function gridClientOrderId(gridId: string, index: number, role: 'E' | 'T' | 'S'): string {
-  const safe = gridId.replace(/[^A-Za-z0-9]/g, '').slice(0, 20)
-  return `kg-${safe}-${String(index).padStart(2, '0')}${role}`.slice(0, 36)
+export function gridClientOrderId(gridId: string, side: GridSide, index: number, role: 'E' | 'T' | 'S'): string {
+  const safe = gridId.replace(/[^A-Za-z0-9]/g, '').slice(0, 16)
+  return `kg-${safe}-${side === 'LONG' ? 'L' : 'S'}${String(index).padStart(2, '0')}${role}`.slice(0, 36)
 }
+
+const roundTo = (value: number, step: number) => Math.round(value / step) * step
 
 export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   const errors: string[] = []
@@ -85,7 +94,7 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   else if (side === 'LONG' && stop >= lower) errors.push('LONG grid için stop, alt sınırın ALTINDA olmalı.')
   else if (side === 'SHORT' && stop <= upper) errors.push('SHORT grid için stop, üst sınırın ÜSTÜNDE olmalı.')
 
-  if (errors.length) return {valid: false, errors, levels: [], spacing: 0, spacingPct: 0, totalMargin: 0, totalNotional: 0, worstLoss: 0, bestGain: 0, fees: 0, checks: [], allOk: false}
+  if (errors.length) return {valid: false, errors, levels: [], spacing: 0, spacingPct: 0, totalMargin: 0, totalNotional: 0, worstLoss: 0, bestGain: 0, fees: 0, entryFees: 0, exitFees: 0, liquidation: null, checks: [], allOk: false}
 
   const spacing = (upper - lower) / (count - 1)
   const perMargin = totalMargin / count
@@ -98,6 +107,21 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
     levels.push({index: i + 1, entry, target, margin: perMargin, notional, qty, lossAtStop: qty * Math.abs(entry - stop), gainAtTarget: qty * Math.abs(target - entry)})
   }
 
+  const f = input.filters
+  const filtersOk = !!f && f.tickSize > 0 && f.stepSize > 0 && f.minNotional >= 0
+  let dupes = 0, tooSmall = 0
+  if (filtersOk && f) {
+    const seen = new Set<number>()
+    for (const l of levels) {
+      l.entry = roundTo(l.entry, f.tickSize); l.target = roundTo(l.target, f.tickSize)
+      l.qty = Math.floor(l.notional / l.entry / f.stepSize) * f.stepSize
+      l.notional = l.qty * l.entry
+      l.lossAtStop = l.qty * Math.abs(l.entry - stop); l.gainAtTarget = l.qty * Math.abs(l.target - l.entry)
+      if (seen.has(l.entry)) dupes++
+      seen.add(l.entry)
+      if (l.qty <= 0 || l.notional < f.minNotional) tooSmall++
+    }
+  }
   const wrongSide = levels.filter(l => (side === 'LONG' ? l.entry >= price : l.entry <= price))
   const sideDetail = side === 'LONG'
     ? `${wrongSide.length} kademe güncel fiyatın üstünde; limit alış hemen dolar. Üst sınırı fiyatın altına çek.`
@@ -113,6 +137,13 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   const targetFees = levels.reduce((s, l) => s + l.qty * l.target, 0) * GRID_MAKER_FEE
   const fees = entryFees + targetFees
   const bestGain = rawGain - fees
+  const makerFees = fees       // giriş + hedef (limit, maker)
+  const takerFees = stopFees   // stop vurursa (piyasa, taker)
+  const mmr = typeof input.maintenanceRate === 'number' && input.maintenanceRate > 0 ? input.maintenanceRate : 0.005
+  const totalQty = levels.reduce((s, l) => s + l.qty, 0)
+  const avgEntry = totalQty > 0 ? levels.reduce((s, l) => s + l.qty * l.entry, 0) / totalQty : NaN
+  // İzole marjin yaklaşık likidasyon (tüm kademeler dolmuş, ortalama giriş): gerçek değer borsanın kademeli teminat tablosuna göre değişir.
+  const liquidation = Number.isFinite(avgEntry) ? (side === 'LONG' ? avgEntry * (1 - 1 / leverage + mmr) : avgEntry * (1 + 1 / leverage - mmr)) : null
 
   const checks: GridCheck[] = []
   const add = (id: string, ok: boolean, label: string, detail: string) => checks.push({id, ok, label, detail})
@@ -121,6 +152,16 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
     lvl >= GRID_MIN_NOTIONAL_PER_LEVEL
       ? `Her kademe yaklaşık ${lvl.toFixed(2)} USDT; borsa alt sınırının üstünde.`
       : `Her kademe ${lvl.toFixed(2)} USDT; borsa en az ${GRID_MIN_NOTIONAL_PER_LEVEL} USDT ister. Kademeyi azalt ya da marjini artır.`)
+  const liqOk = liquidation !== null && (side === 'LONG' ? stop > liquidation * 1.005 : stop < liquidation * 0.995)
+  add('liquidation', liqOk, 'Likidasyon (hepsi dolarsa)',
+    liquidation === null ? 'Hesaplanamadı.' : liqOk
+      ? `Tahmini likidasyon ${liquidation.toFixed(4)}; ortak stop ondan önce çalışır. (Tahmin: bakım teminatı %${(mmr * 100).toFixed(1)} varsayıldı.)`
+      : `Tahmini likidasyon ${liquidation.toFixed(4)}; ortak stop ona çok yakın ya da ötesinde. Kaldıracı düşür ya da stopu yakınlaştır.`)
+  add('exchange_filters', filtersOk && dupes === 0 && tooSmall === 0, 'Borsa fiyat/miktar kuralları',
+    !filtersOk ? 'Borsanın fiyat adımı, miktar adımı ve en düşük emir değeri okunamadı; güvenli tarafta kalmak için onaylanmaz.'
+      : dupes ? `Yuvarlamadan sonra ${dupes} kademe aynı fiyata düşüyor. Kademeyi azalt ya da aralığı aç.`
+      : tooSmall ? `${tooSmall} kademe borsanın en düşük emir değerinin altında kalıyor.`
+      : 'Kademeler borsanın fiyat/miktar adımlarına yuvarlandı; çakışma ve küçük emir yok.')
   const slots = limits.maxPositions - limits.openPositions
   add('positions', slots >= 1, 'Pozisyon sınırı',
     slots >= 1
@@ -138,5 +179,5 @@ export function computeGrid(input: GridInput, limits: GridLimits): GridResult {
   add('side', wrongSide.length === 0, 'Kademe yerleşimi', wrongSide.length ? sideDetail : 'Tüm kademeler güncel fiyatın doğru tarafında.')
 
   const allOk = errors.length === 0 && checks.every(c => c.ok)
-  return {valid: errors.length === 0, errors, levels, spacing, spacingPct: (spacing / price) * 100, totalMargin, totalNotional, worstLoss, bestGain, fees, checks, allOk}
+  return {valid: errors.length === 0, errors, levels, spacing, spacingPct: (spacing / price) * 100, totalMargin, totalNotional, worstLoss, bestGain, fees, entryFees: makerFees, exitFees: takerFees, liquidation, checks, allOk}
 }

@@ -1166,7 +1166,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const near = gridPrice * (1 + sgn * 0.005), far = gridPrice * (1 + sgn * pct / 100), stopAt = gridPrice * (1 + sgn * (pct + 1.5) / 100)
       setGrid(current => ({...current, lower: presetPrice(Math.min(near, far)), upper: presetPrice(Math.max(near, far)), stop: presetPrice(stopAt)}))
     }
-    const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop)}, {
+    const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: undefined}, {
       maxPositions: numericPolicy('max_positions', 2), maxLossPerTrade: numericPolicy('max_loss_per_trade', 1), maxTotalExposure: numericPolicy('max_total_exposure_usdt', 350),
       maxMarginPerTrade: Number.isFinite(Number(status?.policy?.max_margin_per_trade)) ? Number(status?.policy?.max_margin_per_trade) : undefined,
       currentExposure: liveExposure, openPositions: (status?.account?.positions || []).length,
@@ -1194,14 +1194,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <span><small>Tüm kademeler dolarsa büyüklük</small><b>{money(gridResult.totalNotional)}</b></span>
             <span><small>En kötü zarar (hepsi dolar, stop)</small><b className="down">{money(gridResult.worstLoss)}</b></span>
             <span><small>Tahmini kâr (hepsi hedefe)</small><b className="up">{money(gridResult.bestGain)}</b></span>
-            <span><small>Tahmini ücret</small><b>{money(gridResult.fees)}</b></span>
+            <span><small>Maker ücreti (giriş+hedef, %0.02)</small><b>{money(gridResult.entryFees)}</b></span>
+            <span><small>Taker ücreti (stop vurursa, %0.05)</small><b>{money(gridResult.exitFees)}</b></span>
+            <span><small>Tahmini likidasyon (hepsi dolarsa)</small><b>{gridResult.liquidation ? presetPrice(gridResult.liquidation) : '—'}</b></span>
           </div>
           <ul className="mgpChecks" aria-label="Limit kontrolleri">{gridResult.checks.map(check => <li key={check.id} data-ok={check.ok ? '1' : '0'}><i aria-hidden="true">{check.ok ? '✓' : '!'}</i><span><b>{check.label}</b><small>{check.detail}</small></span></li>)}</ul>
           <div className="mgpTable" role="table" aria-label="Kademeler (USDT)"><div role="row" className="mgpHead"><span>#</span><span>Giriş</span><span>Hedef</span><span>Boyut</span><span>Zarar</span></div>
             {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{presetPrice(level.entry)}</span><span>{presetPrice(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
           <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? 'Hesap mevcut limitlerin içinde. Yine de emir gönderilmez: gerçek grid henüz kapalı.' : 'Bir ya da daha fazla limit aşılıyor; bu plan gerçek grid için uygun olmazdı.'}</p>
         </>}
-        <p className="liveWsHint">Tahmindir: funding ücreti ve kayma dahil değil. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
+        <p className="liveWsHint">Hepsi tahmindir: funding ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil; gerçek sonuç farklı olabilir. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
       </div>
     </div>
     return <div className="liveWsOrder liveUxOrderGrid">
