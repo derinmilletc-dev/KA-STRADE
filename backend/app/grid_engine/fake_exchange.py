@@ -17,6 +17,8 @@ class FakeExchange:
         self.connected = True
         self.lose_response_for: set[str] = set()      # emir işlenir, yanıt kaybolur (Timeout)
         self.lose_response_always = False
+        self.dup_never_rejected = False                # kimlik tekrarını HİÇ reddetmeyen (kötü senaryo) borsa
+        self.reuse_final_ids = False                   # biten (dolu/iptal) emrin kimliği yeniden kullanılabilir
         self.reject_next: list[tuple[int, str]] = []
         self.hooks: list[Callable[[str, dict], None]] = []  # her çağrının başında çalışır
         self.cancel_race: dict[str, float] = {}       # client_id -> iptalden hemen önce dolacak miktar
@@ -47,8 +49,10 @@ class FakeExchange:
         if self.reject_next:
             code, msg = self.reject_next.pop(0)
             raise ExchangeRejected(code, msg)
-        if client_id in self.orders:
-            raise ExchangeRejected(DUPLICATE_CLIENT_ID, "ClientOrderId is duplicated")
+        existing = self.orders.get(client_id)
+        if existing is not None and not self.dup_never_rejected:
+            if existing.status in (NEW, PARTIAL) or not self.reuse_final_ids:
+                raise ExchangeRejected(DUPLICATE_CLIENT_ID, "ClientOrderId is duplicated")
         self._check_filters(qty, price, type)
         mark = self.prices.get(symbol, 0.0)
         if type != STOP_MARKET and not reduce_only and qty * (price or mark) < self.min_notional - 1e-9:

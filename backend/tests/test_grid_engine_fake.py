@@ -7,7 +7,7 @@ import os
 import tempfile
 import unittest
 
-from app.grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, NEEDS_MANUAL, PAUSED, RUNNING, STOPPED,
+from app.grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED,
                                     GridEngine, GridLevelSpec, GridSpec, client_order_id)
 from app.grid_engine.fake_exchange import FakeExchange
 from app.grid_engine.ports import (EPS, LONG, NEW, PARTIAL, SHORT, ExchangeRejected)
@@ -196,7 +196,7 @@ class TestScenario5Disconnect(Base):
         eng = self.engine(); eng.start()
         self.ex.set_price(SYM, 96.0); eng.tick()
         self.ex.connected = False
-        self.assertEqual(eng.emergency_stop(), NEEDS_MANUAL)
+        self.assertEqual(eng.emergency_stop(), INTERVENTION_REQUIRED)
         self.ex.connected = True
         self.assertGreater(self.ex.positions[SYM], 0)             # gerçekten kapanmadı
         self.assertEqual(len(self.stops()), 1)                    # stop korundu
@@ -246,7 +246,7 @@ class TestScenario6Emergency(Base):
         eng = self.engine(max_close_attempts=3); eng.start()
         self.ex.set_price(SYM, 98.0); eng.tick()
         self.ex.reject_next = [(-2022, "ReduceOnly Order is rejected")] * 20
-        self.assertEqual(eng.emergency_stop(), NEEDS_MANUAL)
+        self.assertEqual(eng.emergency_stop(), INTERVENTION_REQUIRED)
         self.ex.reject_next = []
         self.assertGreater(self.ex.positions[SYM], 0)
         self.assertEqual(len(self.stops()), 1)
@@ -348,6 +348,107 @@ class TestStopRejectVsLostReply(Base):
         self.assertEqual(self.ex.placed_count[self.cid(0, "C")], 1)
         self.assertFalse([k for k in self.ex.orders if k.endswith("C1")])
         self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
+
+
+class TestOrderIdDefenseInDepth(Base):
+    """clientOrderId tekrar reddine GÜVENMEDEN: defter + gönderim öncesi kayıt + sorgu + belirsizken yeniden gönderme yok."""
+
+    def test_lost_reply_exchange_never_rejects_duplicates(self):
+        self.ex.dup_never_rejected = True
+        self.ex.lose_response_for.add(self.cid(1, "E"))
+        eng = self.engine(); eng.start()
+        for _ in range(6):
+            eng.tick()
+        self.assertTrue(all(v == 1 for v in self.ex.placed_count.values()), self.ex.placed_count)
+
+    def test_status_unreadable_means_wait_not_resend(self):
+        self.ex.dup_never_rejected = True
+        self.ex.lose_response_for.add(self.cid(1, "E"))
+        eng = self.engine(); eng.start()
+        self.ex.hooks.append(lambda m, i: setattr(self.ex, "connected", False) if m == "get_order" else None)
+        for _ in range(5):
+            self.ex.connected = True
+            eng.tick()
+        self.ex.hooks.clear(); self.ex.connected = True
+        self.assertEqual(self.ex.placed_count[self.cid(1, "E")], 1)
+        eng.tick(); eng.tick()
+        self.assertEqual(self.ex.placed_count[self.cid(1, "E")], 1)
+
+    def test_filled_order_id_never_reused_even_if_exchange_allows_reuse(self):
+        self.ex.reuse_final_ids = True
+        eng = self.engine(); eng.start()
+        self.ex.set_price(SYM, 98.0)
+        for _ in range(4):
+            eng.tick()
+        path = os.path.join(tempfile.mkdtemp(), "g.db")
+        self.assertEqual(self.ex.placed_count[self.cid(1, "E")], 1)
+        eng.pause(); eng.tick()
+        self.assertEqual(self.ex.placed_count[self.cid(1, "E")], 1)
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.5)
+
+    def test_never_reached_resent_only_after_confirmed_absence_once(self):
+        eng = self.engine()
+        eng.store.set_grid("g1", status=RUNNING)
+        self.ex.hooks.append(lambda m, i: setattr(self.ex, "connected", False) if m == "place_order" and i["client_id"] == self.cid(1, "E") else None)
+        eng.tick()                                   # emir hiç ulaşmadı: UNKNOWN
+        self.ex.hooks.clear(); self.ex.connected = True
+        self.assertNotIn(self.cid(1, "E"), self.ex.placed_count)
+        eng.tick()                                   # 1. kez 'yok' → henüz gönderme
+        self.assertNotIn(self.cid(1, "E"), self.ex.placed_count)
+        eng.tick(); eng.tick()                       # 2. kez 'yok' → şimdi tek sefer gönder
+        self.assertEqual(self.ex.placed_count[self.cid(1, "E")], 1)
+
+    def test_unique_ids_enforced_in_database(self):
+        eng = self.engine()
+        before = len(self.store.orders("g1"))
+        self.assertFalse(self.store.add_order({"client_id": self.cid(1, "E"), "grid_id": "g1", "role": "E", "level": 1, "rev": 0, "side": "BUY", "type": "LIMIT", "price": 1.0, "stop_price": 0.0, "qty": 1.0, "status": "PENDING_SEND", "reduce_only": 0}))
+        self.assertEqual(len(self.store.orders("g1")), before)
+
+
+class TestPartialFillNeverUnprotected(Base):
+    def test_30_70_100_percent_always_covered_and_remainder_stays_open(self):
+        eng = self.engine(); eng.start()
+        filled = 0.0
+        for add in (0.15, 0.20, 0.15):                       # %30, %70, %100 (0.5 kademe)
+            self.ex.partial_fill(self.cid(1, "E"), add)
+            filled += add
+            eng.tick()
+            self.assertAlmostEqual(self.ex.positions[SYM], filled)
+            self.assertAlmostEqual(sum(o.qty for o in self.stops()), filled)        # stop = gerçek dolum
+            self.assertEqual(len(self.stops()), 1)                                  # aşırı koruma da yok
+            tps = [o for o in self.active() if o.reduce_only and o.type == "LIMIT"]
+            self.assertAlmostEqual(sum(o.qty for o in tps), filled)                 # hedef = gerçek dolum
+            if filled < 0.5 - 1e-9:
+                self.assertIn(self.cid(1, "E"), [o.client_id for o in self.active()])   # kalan %70/%30 hâlâ açık
+
+    def test_stop_placed_before_new_orders_in_same_tick(self):
+        eng = self.engine(); eng.start()
+        self.ex.partial_fill(self.cid(1, "E"), 0.2)
+        self.ex.calls.clear()
+        eng.tick()
+        placed = [c for m, c in self.ex.calls if m == "place_order"]
+        self.assertTrue(placed[0].endswith("L00S1") or "S" in placed[0][-3:], placed)
+
+    def test_overlapping_stop_replace_never_leaves_gap(self):
+        eng = self.engine(); eng.start()
+        self.ex.partial_fill(self.cid(1, "E"), 0.2); eng.tick()
+        log = []
+        self.ex.hooks.append(lambda m, i: log.append((m, i.get("client_id"), round(sum(o.qty for o in self.stops()), 3))))
+        self.ex.partial_fill(self.cid(1, "E"), 0.1); eng.tick()
+        cancels = [e for e in log if e[0] == "cancel_order" and str(e[1]).endswith("S0")]
+        self.assertTrue(cancels)
+        self.assertGreaterEqual(cancels[0][2], 0.3 - 1e-9)       # eski stop iptal edilirken yeni stop (0.3) zaten borsada
+
+    def test_stop_definitively_rejected_means_intervention_and_old_stop_kept(self):
+        eng = self.engine(); eng.start()
+        self.ex.partial_fill(self.cid(1, "E"), 0.2); eng.tick()
+        self.ex.partial_fill(self.cid(1, "E"), 0.1)
+        self.ex.reject_next = [(-4000, "stop reddedildi")]
+        eng.tick()
+        self.assertEqual(eng.status, INTERVENTION_REQUIRED)
+        self.assertEqual(len(self.stops()), 1)                   # eski stop yerinde
+        self.assertFalse([o for o in self.active() if o.side == "BUY"])   # yeni giriş emri kalmadı
+        self.assertTrue(any("MÜDAHALE" in t for _, t in self.store.alerts("g1")))
 
 
 class TestPause(Base):

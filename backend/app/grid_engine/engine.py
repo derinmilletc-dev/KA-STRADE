@@ -19,9 +19,9 @@ from .store import PENDING_SEND, TERMINAL, UNKNOWN, GridStore
 
 # Durumlar
 CREATED, RUNNING, PAUSED, STOPPED, COMPLETED = "CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED"
-EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL, BLOCKED = "EMERGENCY", "EMERGENCY_CLOSED", "NEEDS_MANUAL", "BLOCKED"
+EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, BLOCKED = "EMERGENCY", "EMERGENCY_CLOSED", "INTERVENTION_REQUIRED", "BLOCKED"
 MAX_LEVELS = 5  # manual_grid.py ve önizleme ile aynı; ayrı bir geliştirme olmadan artırılmaz
-NO_NEW_ORDERS = {PAUSED, STOPPED, COMPLETED, EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL, BLOCKED}
+NO_NEW_ORDERS = {PAUSED, STOPPED, COMPLETED, EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, BLOCKED}
 
 
 def client_order_id(grid_id: str, side: str, level: int, role: str, rev: int = 0) -> str:
@@ -51,7 +51,7 @@ class GridSpec:
 
 class GridEngine:
     def __init__(self, exchange: ExchangePort, store: GridStore, spec: GridSpec, *,
-                 risk_gate: Callable[[], tuple[bool, str]] | None = None, max_close_attempts: int = 5,
+                 risk_gate: Callable[[], tuple[bool, str]] | None = None, max_close_attempts: int = 5, absence_confirmations: int = 2,
                  sleep: Callable[[float], None] = lambda s: None) -> None:
         if spec.side not in (LONG, SHORT):
             raise ValueError("yön LONG/SHORT olmalı")
@@ -60,6 +60,7 @@ class GridEngine:
         self.ex, self.store, self.spec = exchange, store, spec
         self.gid, self.sym, self.risk_gate = spec.grid_id, spec.symbol, risk_gate
         self.max_close_attempts, self.sleep = max_close_attempts, sleep
+        self.absence_confirmations = absence_confirmations
         self.entry_side, self.exit_side = (BUY, SELL) if spec.side == LONG else (SELL, BUY)
         self.sign = 1 if spec.side == LONG else -1
         self._last_reject = 0
@@ -80,7 +81,7 @@ class GridEngine:
         self.store.alert(self.gid, level, text)
 
     def _halt(self, reason: str) -> None:
-        if self.status not in (EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL, STOPPED):
+        if self.status not in (EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, STOPPED):
             self._set(BLOCKED, reason)
         self._alert("kritik", reason)
 
@@ -131,10 +132,29 @@ class GridEngine:
 
     def _send_pending(self) -> None:
         for row in self.store.orders(self.gid):
-            if row["status"] in (PENDING_SEND, UNKNOWN):
-                if row["role"] == "E" and self.status in NO_NEW_ORDERS:
-                    continue
+            if row["role"] == "E" and self.status in NO_NEW_ORDERS:
+                continue
+            if row["status"] == PENDING_SEND:
                 self._send(row)
+            elif row["status"] == UNKNOWN:
+                self._resolve_unknown(row)
+
+    def _resolve_unknown(self, row) -> None:
+        """Durumu belirsiz emir: ÖNCE borsadan sor. Varsa benimse, yeniden GÖNDERME. Yalnızca art arda
+        `absence_confirmations` kez başarılı sorguda 'yok' çıkarsa aynı kimlikle tekrar gönder. Sorgu başarısızsa bekle."""
+        cid = row["client_id"]
+        try:
+            info = self.ex.get_order(self.sym, cid)
+        except ExchangeError:
+            return
+        if info is not None:
+            self._apply(cid, info)
+            self.store.set_order(cid, misses=0)
+            return
+        misses = row["misses"] + 1
+        self.store.set_order(cid, misses=misses)
+        if misses >= self.absence_confirmations:
+            self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
 
     # ---------- başlatma ----------
     def start(self) -> str:
@@ -170,6 +190,7 @@ class GridEngine:
             return
         if not self.sync():
             return
+        self._ensure_protection()          # önce dolu miktarı koru, sonra yeni emir
         self._send_pending()
         if not self.sync():
             return
@@ -211,7 +232,7 @@ class GridEngine:
         return True
 
     def _detect_end(self) -> None:
-        if self.status in (EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL):
+        if self.status in (EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED):
             return
         stops = self.store.orders(self.gid, "S")
         if abs(self.grid_net()) <= EPS and any(s["filled"] > EPS for s in stops):
@@ -226,18 +247,9 @@ class GridEngine:
 
     # ---------- koruma (TP + stop) ----------
     def _ensure_protection(self) -> None:
-        if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, BLOCKED, NEEDS_MANUAL):
+        if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, BLOCKED, INTERVENTION_REQUIRED):
             return
-        # 1) Her dolum artışı için sadece o artışın hedefi (reduceOnly limit)
-        for e in self.store.orders(self.gid, "E"):
-            covered = sum(t["qty"] for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
-            delta = round(e["filled"] - covered, 8)
-            if delta > EPS:
-                rev = sum(1 for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
-                lv = self.spec.levels[e["level"] - 1]
-                cid = self._intent(role="T", level=e["level"], rev=rev, side=self.exit_side, type=LIMIT, price=lv.target, stop_price=0.0, qty=delta, reduce_only=1)
-                self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
-        # 2) Stop: dolu miktarın tamamını kapsamalı; önce yeni stop, doğrulanınca eskiler iptal
+        # 1) Stop (ÖNCE): dolu miktarın tamamını kapsamalı; önce yeni stop, doğrulanınca eskiler iptal
         net = self.grid_net()
         active = [s for s in self.store.orders(self.gid, "S") if s["status"] in (NEW, PARTIAL, PENDING_SEND, UNKNOWN)]
         covered = round(sum(s["qty"] - s["filled"] for s in active), 8)
@@ -261,8 +273,22 @@ class GridEngine:
                 self._close(net)
                 self._sync_for_emergency()
                 self._detect_end()
+            elif status == REJECTED:
+                # Kesin ret ve fiyat geçilmiş değil: dolu miktar korunamıyor → yeni giriş durdurulur, müdahale istenir.
+                self._cancel_all(roles=("E",))
+                self._set(INTERVENTION_REQUIRED, "Koruyucu stop kurulamadı")
+                self._alert("kritik", "MÜDAHALE GEREKLİ: koruyucu stop kurulamadı (borsa reddetti). Yeni giriş emirleri iptal edildi; eski stoplar iptal EDİLMEDİ.")
             else:
-                self._alert("kritik", "Yeni koruyucu stop doğrulanamadı; eski stoplar korunuyor.")
+                self._alert("kritik", "Yeni koruyucu stop henüz doğrulanamadı; eski stoplar korunuyor, tekrar denenecek.")
+        # 2) Her dolum artışı için sadece o artışın hedefi (reduceOnly limit)
+        for e in self.store.orders(self.gid, "E"):
+            covered = sum(t["qty"] for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
+            delta = round(e["filled"] - covered, 8)
+            if delta > EPS:
+                rev = sum(1 for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
+                lv = self.spec.levels[e["level"] - 1]
+                cid = self._intent(role="T", level=e["level"], rev=rev, side=self.exit_side, type=LIMIT, price=lv.target, stop_price=0.0, qty=delta, reduce_only=1)
+                self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
 
     # ---------- iptal ----------
     def _cancel(self, cid: str) -> bool:
@@ -293,7 +319,7 @@ class GridEngine:
     # ---------- durdurma ----------
     def pause(self) -> str:
         """GRID'İ DURDUR: yeni emir yok, bekleyen girişler iptal; açık pozisyon stop ve hedefleriyle kalır."""
-        if self.status in (STOPPED, COMPLETED, EMERGENCY_CLOSED, NEEDS_MANUAL):
+        if self.status in (STOPPED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED):
             return self.status
         self._set(PAUSED)
         for _ in range(3):
@@ -316,7 +342,7 @@ class GridEngine:
 
     def emergency_stop(self) -> str:
         """ACİL DURDUR: yeni emir yok → bekleyen girişleri iptal → hedefleri iptal → reduceOnly piyasa ile kapat →
-        borsadan doğrula → ANCAK ONDAN SONRA koruyucu stopları iptal et. Doğrulanamazsa NEEDS_MANUAL, stoplar kalır."""
+        borsadan doğrula → ANCAK ONDAN SONRA koruyucu stopları iptal et. Doğrulanamazsa INTERVENTION_REQUIRED, stoplar kalır."""
         if self.status in (EMERGENCY_CLOSED, STOPPED, COMPLETED):
             return self.status
         self._set(EMERGENCY)
@@ -350,7 +376,7 @@ class GridEngine:
                 self._alert("uyarı", "Pozisyon kapandı ama bazı koruyucu stoplar iptal edilemedi; borsada elle kontrol edin.")
             self._alert("bilgi", "Acil durdurma tamamlandı: grid pozisyonu kapandı ve borsadan doğrulandı.")
         else:
-            self._set(NEEDS_MANUAL, "Acil durdurma doğrulanamadı")
+            self._set(INTERVENTION_REQUIRED, "Acil durdurma doğrulanamadı")
             self._alert("kritik", "MÜDAHALE GEREKLİ: grid pozisyonunun kapandığı doğrulanamadı. Koruyucu stoplar iptal EDİLMEDİ. Borsayı elle kontrol edin.")
         return self.status
 
