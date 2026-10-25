@@ -39,3 +39,7 @@
 .mtTour .mtTourPanel .mtTourDots i[data-on]{background:linear-gradient(90deg,#2fd1a0,#55b9ff)!important}
 .mtTourReplay{background:linear-gradient(135deg,rgba(18,26,36,.95),rgba(12,20,29,.95))!important;color:#eaf1f7!important;border:1px solid rgba(61,220,151,.4)!important;border-radius:99px!important;min-height:36px;padding:0 14px 0 12px!important}
 .mtTourReplay i{display:block!important;width:8px!important;height:8px!important;border-radius:50%!important;background:#3ddc97!important}
+
+.mtTourReplay{width:30px!important;height:30px!important;min-height:0!important;padding:0!important;justify-content:center;font-size:14px!important;font-weight:800!important;opacity:.6;transition:opacity .2s;box-shadow:none!important;left:12px!important;bottom:14px!important}
+.mtTourReplay:hover,.mtTourReplay:focus-visible{opacity:1}
+@media (max-width:640px){.mtTourReplay{bottom:84px!important;left:10px!important}}

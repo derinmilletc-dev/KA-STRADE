@@ -3,7 +3,7 @@ import {X} from 'lucide-react'
 import './master-trade-tour.css'
 
 type Tab = 'analiz' | 'canli' | 'pozisyonlar' | 'baglanti'
-type Step = {id: string; title: string; body: string; targets?: string[]; need?: Tab; press?: Tab}
+type Step = {id: string; title: string; body: string; targets?: string[]; need?: Tab; press?: Tab; cta?: {label: string; tab: Tab}}
 
 const tabTargets = (id: Tab) => [`#master-tab-${id}`, `#masterTradeTab-${id}`]
 const STEPS: Step[] = [
@@ -11,12 +11,12 @@ const STEPS: Step[] = [
   {id: 'analiz', title: 'Analiz', body: 'İşe buradan başlıyoruz. Bir coin seçtiğinizde Kais; yönü, güven puanını ve olası hedefleri sizin için sade bir dille gösterir.', targets: tabTargets('analiz')},
   {id: 'press-canli', title: 'Sıra sizde', body: 'Parlayan “Canlı İşlem” sekmesine dokunarak devam edelim. Siz dokunana kadar sizi bekliyorum.', targets: tabTargets('canli'), press: 'canli'},
   {id: 'canli-guide', title: 'Kais Rehber sizinle', body: 'Bu kart, sıradaki adımı size nazikçe hatırlatır. Her aşamada karşınıza tek bir büyük buton çıkar; ne yapacağınızı düşünmeniz gerekmez.', targets: ['[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
-  {id: 'canli-launch', title: 'Hepsini hazırla ve başlat', body: 'Bu buton; risk, günlük sınır, teminat ve izinleri sizinle birlikte adım adım hazırlar. Her adımı siz onaylarsınız ve en sonda ONAYLIYORUM yazmadan hiçbir şey çalışmaz. Kontrol her zaman sizde.', targets: ['[data-testid="launch-open"]', '[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
+  {id: 'canli-launch', title: 'Gerçek hazırlık burada yapılır', body: 'Bu buton sizi adım adım hazırlar: risk, günlük sınır, teminat ve izinler. Her adımı siz onaylarsınız. Tur yalnızca tanıtır; asıl hazırlığı Kais Rehber sizinle birlikte yapar.', targets: ['[data-testid="launch-open"]', '[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
   {id: 'press-poz', title: 'Bir sonraki durak', body: 'Şimdi parlayan “Pozisyonlar” sekmesine dokunabilirsiniz.', targets: tabTargets('pozisyonlar'), press: 'pozisyonlar'},
   {id: 'poz', title: 'Pozisyonlarınız', body: 'Açık işlemleriniz burada görünür. Kâr ve zararınızı buradan rahatça takip edebilirsiniz.', targets: ['#master-panel-pozisyonlar'], need: 'pozisyonlar'},
   {id: 'press-bag', title: 'Son durak', body: 'Son olarak parlayan “Bağlantı” sekmesine dokunalım.', targets: tabTargets('baglanti'), press: 'baglanti'},
   {id: 'bag', title: 'Binance bağlantınız', body: 'Binance anahtarınızı burada kaydedersiniz; anahtar sunucuda şifreli olarak saklanır. Güvenliğiniz için para çekme iznini açmamanızı öneririz. Bu turda anahtar girmenize gerek yok.', targets: ['#master-panel-baglanti'], need: 'baglanti'},
-  {id: 'end', title: 'Hazırsınız 🎉', body: 'Harika, turu tamamladınız. Sıradaki adım: Canlı İşlem’de “Hepsini hazırla ve başlat”. Bu turu dilediğiniz zaman sol alttaki “Tanıtım” butonundan yeniden izleyebilirsiniz.'},
+  {id: 'end', title: 'Hazırsınız 🎉', body: 'Kais Rehber ile işlem hazırlığını tamamlayın. İlk işleminizi başlatmadan önce risk ayarlarınızı mutlaka kontrol edin. Bu turu dilediğiniz zaman sol alttaki “?” butonundan yeniden izleyebilirsiniz.', cta: {label: 'Kais Rehber’e geç →', tab: 'canli'}},
 ]
 const KEY = (userId: string) => `kais-master-tour:v1:${userId}`
 const readTab = (): Tab => {
@@ -109,7 +109,7 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
   }, [open, index, box, panelHeight])
 
   if (!userId) return null
-  if (!open) return <button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtımını başlat"><i aria-hidden="true"/>Tanıtım</button>
+  if (!open) return <button type="button" className="mtTourReplay" onClick={start} aria-label="Master Trade tanıtım turunu başlat" title="Tanıtım turu">?</button>
 
   const wrongTab = Boolean(step.need && tab !== step.need)
   const pressWaiting = Boolean(step.press && tab !== step.press)
@@ -142,7 +142,7 @@ export default function MasterTradeTour({userId}: {userId: string | null | undef
         <button type="button" className="mtTourGhost" onClick={finish}>{last ? 'Kapat' : 'Şimdilik geç'}</button>
         <span>
           {index > 0 && <button type="button" className="mtTourGhost" onClick={() => setIndex(current => Math.max(0, current - 1))}>← Geri</button>}
-          <button ref={next} type="button" className="mtTourGo" disabled={blocked} data-testid="master-tour-next" onClick={() => last ? finish() : setIndex(current => current + 1)}>{last ? 'Tamamla ✓' : pressWaiting ? 'Sekmeye dokunun…' : 'Devam →'}</button>
+          <button ref={next} type="button" className="mtTourGo" disabled={blocked} data-testid="master-tour-next" onClick={() => { if (step.cta) { goTab(step.cta.tab); finish() } else if (last) finish(); else setIndex(current => current + 1) }}>{step.cta ? step.cta.label : last ? 'Tamamla ✓' : pressWaiting ? 'Sekmeye dokunun…' : 'Devam →'}</button>
         </span>
       </div>
     </div>
