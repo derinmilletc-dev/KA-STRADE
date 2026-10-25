@@ -224,7 +224,7 @@ export type MarginSimulation = {
 }
 export type MarginSimulationContext = {openMargin?: {total: number; estimated: boolean} | null; dailyLimit?: number | null; dailyLoss?: number | null}
 /** Bir teminat yüzdesi için tahmini değerler (en fazla; Binance minimum/adım ve anlık bakiye işlem anında düşürebilir). Hesaplanamazsa null. */
-export function marginSimulation(wallet: number, caps: MarginModeCaps & {max_total_margin_usdt?: number}, percent: number, context: MarginSimulationContext = {}): MarginSimulation | null {
+export function marginSimulation(wallet: number, caps: (NonNullable<MarginModeCaps> & {max_total_margin_usdt?: number}) | null | undefined, percent: number, context: MarginSimulationContext = {}): MarginSimulation | null {
   const view = marginModePreview(wallet, caps, percent)
   if (!view || !caps) return null
   const leverage = caps.leverage
