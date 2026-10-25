@@ -22,6 +22,7 @@ import {useTradingPreferences} from './useTradingPreferences'
 import {MarketDataFailure, isNetworkFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
+import MasterTradeTour from './MasterTradeTour'
 import {chartSnapshot} from './chart-ai-client'
 
 type TradeSide = 'LONG' | 'SHORT'
@@ -1340,6 +1341,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
     </section>
     </section>
+    <MasterTradeTour userId={userId}/>
     </PremiumWorkspace>
     </MasterTradePresentation>
   )
