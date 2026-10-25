@@ -85,6 +85,17 @@ const writeStored = (key: string | null, value: number) => {
   if (!key) return
   try { localStorage.setItem(key, String(value)) } catch { /* tarayıcı kaydı kapalı olabilir; seçim bu sayfada kalır */ }
 }
+const LAUNCH_STEPS = [
+  {id: 'conn', title: 'Binance bağlantısı', op: ''},
+  {id: 'risk', title: 'Risk paketi', op: 'risk'},
+  {id: 'daily', title: 'Günlük sınır', op: 'risk'},
+  {id: 'mode', title: 'Teminat modu', op: 'mode'},
+  {id: 'smart', title: 'Akıllı koruma', op: 'smart'},
+  {id: 'consent', title: '24 saatlik risk izni', op: 'consent'},
+  {id: 'policy', title: 'Risk limitleri onayı', op: 'policy'},
+  {id: 'arm', title: 'Canlı emir izni (ARM)', op: 'arm'},
+] as const
+type LaunchStepId = typeof LAUNCH_STEPS[number]['id']
 const validCoins = (value: number) => Number.isInteger(value) && value >= 10 && value <= 100
 const validHours = (value: number) => [1, 4, 12, 24].includes(value)
 const NEAR_TEXT: Record<string, string> = {
@@ -196,12 +207,12 @@ export default function LiveCockpit(props: Props) {
   }
 
   // ---- Tek sayfa "Hepsini hazırla ve başlat": her adım tek tek tik alır; onay yazısıyla çalışır; hata olursa o satırda durur.
-  type LaunchState = {state: 'working' | 'done' | 'error'; error?: string}
-  const [launchSteps, setLaunchSteps] = useState<Record<string, LaunchState>>({})
+  type LaunchOp = {state: 'working' | 'done' | 'error'; error?: string; sig?: string; verified?: boolean}
+  const [launchApprovals, setLaunchApprovals] = useState<Record<string, string>>({})
+  const [launchOps, setLaunchOps] = useState<Record<string, LaunchOp>>({})
   const [launchPhrase, setLaunchPhrase] = useState('')
-  const [launchOpen, setLaunchOpen] = useState<string | null>(null)
   const openLaunch = () => {
-    setLaunchSteps({}); setLaunchPhrase(''); setLaunchOpen(null); setSheetError(''); setRiskError(''); setModeError('')
+    setLaunchApprovals({}); setLaunchOps({}); setLaunchPhrase(''); setSheetError(''); setRiskError(''); setModeError('')
     setCustom(false); setCustomOn(false); setUnderstood(false); setRiskAck(false); setPhrase(''); setModePick(null)
     setModeUnderstood(false); setModeAck(false); setModePhrase(''); setSmartPick('keep'); setSmartWizAck(false)
     setSheet('launch')
@@ -341,53 +352,85 @@ export default function LiveCockpit(props: Props) {
     setSheet(null); setStartUnderstood(false); setStartAck(false); setStartPhrase('')
   }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
 
-  const launchSet = (key: string, state: LaunchState['state'], error?: string) => setLaunchSteps(current => ({...current, [key]: {state, error}}))
-  const launchStep = async <T,>(key: string, action: () => Promise<T>): Promise<T> => {
-    launchSet(key, 'working')
-    try { const result = await action(); launchSet(key, 'done'); return result } catch (error) {
-      const message = errorText(error, 'İşlem tamamlanamadı.')
-      launchSet(key, 'error', message)
-      throw new Error(`${message}`)
-    }
-  }
+  // Her adımın üç ayrı durumu vardır: Onay (senin kararın), Doğrulama (sistem kontrolü), İşlem (sistemin yaptığı).
+  // İşlem kaydı girdi imzasıyla tutulur: aynı girdiyle başarıyla bitmiş işlem tekrar çalıştırılmaz.
+  const launchSetOp = (key: string, op: LaunchOp) => setLaunchOps(current => ({...current, [key]: op}))
   const launchNeedsRisk = riskDirty || !riskSaved
   const runLaunch = () => perform('launch', async () => {
     if (wallet === null) throw new Error('Güncel Binance bakiyesi doğrulanamadı; hiçbir adım çalıştırılmadı.')
-    setLaunchSteps({}); setSheetError('')
+    setSheetError('')
     let revision = original?.risk_revision ?? 0
-    await launchStep('risk', async () => {
-      if (!launchNeedsRisk) return
+    let renewed = false
+    let armedNow = guideInput.armed
+    const op = async (key: string, sig: string, work: () => Promise<boolean>) => {
+      const prior = launchOps[key]
+      if (prior?.state === 'done' && prior.sig === sig) return
+      launchSetOp(key, {state: 'working', sig})
+      try {
+        const verified = await work()
+        launchSetOp(key, {state: 'done', sig, verified})
+      } catch (error) {
+        const message = errorText(error, 'İşlem tamamlanamadı.')
+        launchSetOp(key, {state: 'error', sig, error: message})
+        throw new Error(message)
+      }
+    }
+    await op('risk', launchOpSig.risk, async () => {
+      if (!launchNeedsRisk) return true
       const payload = await request('/original-v2/risk-settings', {
         risk_percent: draft.risk, daily_loss_percent: draft.daily, risk_acknowledged: draft.risk > 2 && riskAck,
         high_risk_confirmation: draft.risk > 5 ? phrase : '', warning_balance_usdt: wallet,
         expected_risk_revision: revision, understood: true,
       }) as {risk_percent?: unknown; daily_loss_percent?: unknown; risk_revision?: unknown} | null
       if (!payload || payload.risk_percent !== draft.risk || payload.daily_loss_percent !== draft.daily || !Number.isSafeInteger(payload.risk_revision))
-        throw new Error('Risk ayarının kaydı doğrulanamadı.')
+        throw new Error('Risk ayarının kaydı sunucuda doğrulanamadı.')
       revision = payload.risk_revision as number
       const signature = `${draft.risk}|${draft.daily}`
       setRiskConfirmed(signature)
       try { if (confirmKey) localStorage.setItem(confirmKey, signature) } catch { /* kayıt kapalıysa sorun değil */ }
+      return true
     })
-    await launchStep('mode', async () => {
-      if (chosenMode === savedMode) return
+    await op('mode', launchOpSig.mode, async () => {
+      if (chosenMode === savedMode) return true
       const payload = await request('/original-v2/margin-mode', {
         mode: chosenMode, acknowledged: chosenMode !== 'guvenli' && modeAck,
         confirmation: chosenMode === 'agresif' ? modePhrase.trim() : '', understood: true,
       }) as {margin_mode?: unknown} | null
-      if (!payload || payload.margin_mode !== chosenMode) throw new Error('Teminat modunun kaydı doğrulanamadı.')
+      if (!payload || payload.margin_mode !== chosenMode) throw new Error('Teminat modunun kaydı sunucuda doğrulanamadı.')
+      return true
     })
-    await launchStep('smart', async () => {
-      if (!smartChangeWanted) return
+    await op('smart', launchOpSig.smart, async () => {
+      if (!smartChangeWanted) return true
       const payload = await request('/original-v2/smart-profit', smartPick === 'on'
         ? {threshold: smartWizThreshold, wait_minutes: smartWizWait, enabled: true, understood: true} : {enabled: false}) as {settings?: {enabled?: unknown}} | null
-      if (payload?.settings?.enabled !== (smartPick === 'on')) throw new Error('Akıllı koruma ayarının kaydı doğrulanamadı.')
+      if (payload?.settings?.enabled !== (smartPick === 'on')) throw new Error('Akıllı koruma ayarının kaydı sunucuda doğrulanamadı.')
+      return true
     })
     const renewConsent = !guideInput.authorizationValid || consentLeftMs < draft.hours * 3600 * 1000
-    await launchStep('consent', async () => { if (renewConsent) await request('/consent', {understood: true}) })
-    await launchStep('policy', async () => { if (!guideInput.policyAcknowledged) await request('/policy/acknowledge', {understood: true}) })
-    await launchStep('arm', async () => { if (renewConsent || !guideInput.armed) await request('/arm', {understood: true}) })
-    await launchStep('start', async () => {
+    await op('consent', launchOpSig.consent, async () => {
+      if (!renewConsent) return true
+      const payload = await request('/consent', {understood: true}) as {authorization?: {valid?: unknown}} | null
+      if (payload?.authorization?.valid !== true) throw new Error('24 saatlik risk izni sunucuda doğrulanamadı.')
+      renewed = true
+      return true
+    })
+    await op('policy', launchOpSig.policy, async () => {
+      if (guideInput.policyAcknowledged) return true
+      const payload = await request('/policy/acknowledge', {understood: true}) as {policy_acknowledged?: unknown} | null
+      if (payload?.policy_acknowledged !== true) throw new Error('Risk limitleri onayı sunucuda doğrulanamadı.')
+      return true
+    })
+    armedNow = armedNow && !renewed
+    await op('arm', launchOpSig.arm, async () => {
+      if (armedNow) return true
+      const payload = await request('/arm', {understood: true}) as {armed?: unknown} | null
+      if (payload?.armed !== true) throw new Error('Canlı emir izni (ARM) sunucuda doğrulanamadı.')
+      armedNow = true
+      return true
+    })
+    // ARM ve başlatma ayrı işlemlerdir: başlatma ARM'ı kendiliğinden vermez.
+    await op('start', launchOpSig.start, async () => {
+      if (!armedNow) throw new Error('Canlı emir izni (ARM) açık değil; bot başlatılmadı. ARM adımı yeniden denenecek.')
       let payload: {original_v2_live?: {enabled?: unknown}; enabled?: unknown} | null
       try { payload = await request('/original-v2/start', {
         risk_percent: draft.risk, daily_loss_percent: draft.daily, risk_acknowledged: draft.risk > 2 && riskAck,
@@ -396,9 +439,10 @@ export default function LiveCockpit(props: Props) {
       }) as typeof payload } catch (error) { await settleAfterTimeout(error, true); payload = {enabled: true} }
       const enabled = payload && typeof payload === 'object' ? (payload.original_v2_live?.enabled ?? payload.enabled) : undefined
       if (enabled !== true) throw new Error('Başlatma sonucu doğrulanamadı; güncel durumu kontrol et.')
+      return true
     })
     clearWizDraft()
-    await new Promise(resolve => window.setTimeout(resolve, 1400))  // son tikler görünsün
+    await new Promise(resolve => window.setTimeout(resolve, 1600))  // son durumlar görünsün
     setSheet(null); setLaunchPhrase('')
   }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
 
@@ -941,83 +985,262 @@ export default function LiveCockpit(props: Props) {
   const launchPhraseOk = launchPhrase.trim().toLocaleLowerCase('tr-TR').replace(/ı/g, 'i') === 'onayliyorum'
   const launchRiskValid = Number.isFinite(draft.risk) && draft.risk >= 0.5 && draft.risk <= 10 && validCoins(draft.coins) && validHours(draft.hours)
   const launchModeOk = chosenMode === savedMode || ((chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE))
-  const launchConnected = guideInput.connected && guideInput.credentialsConfigured
-  const launchCanRun = launchConnected && wallet !== null && launchRiskValid && wizDailyOk && tierReady(draft.risk, riskAck, phrase)
-    && launchModeOk && (smartPick !== 'on' || smartWizAck) && launchPhraseOk && !running
-  const launchFailed = (Object.values(launchSteps) as LaunchState[]).some(item => item.state === 'error')
-  type LaunchRow = {key: string; step: string; title: string; note: string; ok: boolean; hollow?: boolean; optional?: boolean; edit?: boolean}
-  const launchRows: LaunchRow[] = [
-    {key: 'conn', step: 'conn', title: 'Binance bağlantısı', note: launchConnected ? 'Bağlı, bakiye doğrulandı' : 'Bağlantı yok; önce Bağlantı sekmesinden anahtarı kaydet', ok: launchConnected},
-    {key: 'risk', step: 'risk', title: 'Risk paketi', note: wizRiskNums ? `${usdt(wizRiskNums.perTrade)} / işlem (%${draft.risk})` : `%${draft.risk}`, ok: launchRiskValid, edit: true},
-    {key: 'daily', step: 'risk', title: 'Günlük sınır', note: wizDailyOk ? `${wizRiskNums ? usdt(wizRiskNums.perDay) : ''} (%${draft.daily})` : 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı', ok: wizDailyOk, edit: true},
-    {key: 'mode', step: 'mode', title: 'Teminat modu', note: `${chosenRow?.label ?? '—'} · işlem başı %${chosenRow?.per_trade_percent ?? '—'}${chosenMode !== savedMode ? ` (şimdi ${savedRow?.label ?? '—'})` : ''}`, ok: launchModeOk, edit: true},
-    {key: 'smart', step: 'smart', title: 'Akıllı koruma', note: smartSettings === undefined ? 'Bilgi alınamadı, atlanır' : smartPick === 'on' ? `AÇILACAK · eşik ${smartWizThreshold}, ${smartWizWait} dk` : smartPick === 'off' ? 'KAPATILACAK' : smartCurrentlyOn ? 'Açık, böyle kalır' : 'Kapalı, böyle kalır (isteğe bağlı)', ok: smartSettings === undefined || smartPick !== 'on' || smartWizAck, optional: true, edit: smartSettings !== undefined},
-    {key: 'consent', step: 'consent', title: '24 saatlik risk izni', note: guideInput.authorizationValid ? 'Geçerli' : 'Onaydan sonra verilir', ok: guideInput.authorizationValid, hollow: !guideInput.authorizationValid},
-    {key: 'policy', step: 'policy', title: 'Risk limitleri onayı', note: guideInput.policyAcknowledged ? 'Tamam' : 'Onaydan sonra verilir', ok: guideInput.policyAcknowledged, hollow: !guideInput.policyAcknowledged},
-    {key: 'arm', step: 'arm', title: 'Canlı emir izni (ARM)', note: guideInput.armed ? 'Açık' : 'Onaydan sonra 24 saatliğine açılır', ok: guideInput.armed, hollow: !guideInput.armed},
-    {key: 'start', step: 'start', title: 'Botu başlat', note: `${draft.hours} saat · ${draft.coins} coin taranır`, ok: false, hollow: true},
-  ]
-  const launchView = <>
-    <h2 id="lc-sheet-title">Hepsini hazırla ve başlat</h2>
-    <p className="lcSheetLead">Her satır tek tek kontrol edilir. Düzenlemek için satıra bas. En altta onay yazısını yazınca hepsi sırayla çalışır ve tikler yanar.</p>
-    <div className="lcWizLive" aria-label="Seçimine göre tahmini rakamlar">
-      <div><small>İşlem başı risk</small><b>{wizRiskNums ? usdt(wizRiskNums.perTrade) : '—'}</b></div>
-      <div><small>Günlük en çok kayıp</small><b>{wizRiskNums ? usdt(wizRiskNums.perDay) : '—'}</b></div>
-      <div><small>İşlem başı teminat</small><b>{wizMargin !== null ? `≈ ${usdt(wizMargin)}` : '—'}</b></div>
-      <p>Hedef ve tavan rakamlarıdır: tahmin, kazanç/kayıp garantisi değildir. Gerçek parayla işlem açılacaktır.</p>
-    </div>
-    <ol className="lcLaunch" aria-label="Hazırlık adımları">
-      {launchRows.map(row => {
-        const run = launchSteps[row.step] as LaunchState | undefined
-        const state: LaunchState['state'] | 'pending' | 'ready' | 'todo' = run?.state ?? (row.ok ? (row.hollow ? 'pending' : 'ready') : 'todo')
-        const open = launchOpen === row.key
-        const body = open && row.edit ? <div className="lcLaunchBody">
-          {row.key === 'risk' && <>
-            <div className="lcWizList" role="radiogroup" aria-label="Risk paketi">{RISK_PRESETS.map(preset => <button type="button" role="radio" aria-checked={draft.risk === preset.risk_percent} key={preset.id} className="lcWizChip" data-selected={draft.risk === preset.risk_percent || undefined} disabled={busy} onClick={() => choosePreset(preset.id)}><b>{preset.label}</b><small>%{preset.risk_percent} · günlük %{preset.daily_loss_percent}</small></button>)}</div>
-            {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-            {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
-          </>}
-          {row.key === 'daily' && <div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} disabled={busy} onClick={() => setDraft(current => ({...current, daily: value}))}><b>%{value}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>)}</div>}
-          {row.key === 'mode' && <>
-            <div className="lcWizChips" role="radiogroup" aria-label="Teminat modu">{modeRows.map(item => <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip" data-selected={chosenMode === item.mode || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}><b>{item.label}</b><small>%{item.per_trade_percent} / işlem</small></button>)}</div>
-            {chosenMode !== savedMode && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini anladım.</span></label>}
-            {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
-          </>}
-          {row.key === 'smart' && <>
-            <div className="lcWizChips" role="radiogroup" aria-label="Akıllı koruma">
-              <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın</b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
-              {smartCurrentlyOn
-                ? <button type="button" role="radio" aria-checked={smartPick === 'off'} className="lcWizChip" data-selected={smartPick === 'off' || undefined} disabled={busy} onClick={() => setSmartPick('off')}><b>Kapat</b><small>Stoplar kalkar</small></button>
-                : <button type="button" role="radio" aria-checked={smartPick === 'on'} className="lcWizChip" data-selected={smartPick === 'on' || undefined} disabled={busy} onClick={() => setSmartPick('on')}><b>Aç</b><small>Gerçek emir gönderebilir</small></button>}
-            </div>
-            {smartPick === 'on' && <div className="lcSmartPick">
-              <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-              <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
-              <label className="lcCheck"><input type="checkbox" checked={smartWizAck} onChange={event => setSmartWizAck(event.target.checked)}/><span>Akıllı koruma açıkken gerçek Binance emri gönderebileceğini anlıyorum.</span></label>
-            </div>}
-          </>}
-        </div> : null
-        return <li key={row.key} data-state={state} data-open={open || undefined}>
-          <button type="button" className="lcLaunchHead" disabled={!row.edit || busy} aria-expanded={row.edit ? open : undefined} onClick={() => setLaunchOpen(open ? null : row.key)}>
-            <i className="lcTick" aria-hidden="true">{state === 'done' || state === 'ready' ? <Check/> : state === 'error' ? '!' : state === 'working' ? <RefreshCw className="lcSpin"/> : null}</i>
-            <span><b>{row.title}{row.optional && <em>isteğe bağlı</em>}</b><small>{run?.state === 'error' ? run.error : row.note}</small></span>
-            {row.edit && <span className="lcLaunchChev" aria-hidden="true">{open ? '▴' : '▾'}</span>}
-          </button>
-          {row.key === 'conn' && !launchConnected && <button type="button" className="lcBtn" onClick={() => { closeSheet(); goTab('baglanti') }}>Bağlantı'ya git</button>}
-          {body}
-        </li>
-      })}
-    </ol>
-    {sheetError && <p className="lcHint stop" role="alert">{sheetError}</p>}
-    <label className="lcField lcLaunchConfirm">Onay için <b className="selectablePhrase">ONAYLIYORUM</b> yaz
-      <input value={launchPhrase} autoComplete="off" autoCapitalize="characters" spellCheck={false} disabled={busy} data-ok={launchPhraseOk || undefined} onChange={event => setLaunchPhrase(event.target.value)} placeholder="ONAYLIYORUM"/>
-    </label>
-    <p className="lcHint">Yazınca hiçbir adım atlanmadan sırayla çalışır. Bir adım başarısız olursa orada durur, bot başlamaz; düzeltip tekrar basabilirsin. Açık pozisyonlar ve orijinal Stop/TP değişmez.</p>
-    <div className="lcSheetActions lcLaunchActions">
-      <button type="button" className="lcBtn" disabled={busy} onClick={openWizard}>Adım adım ayarla</button>
-      <button type="button" className="lcBtn lcPrimary" data-testid="launch-run" disabled={!launchCanRun || busy} onClick={() => void runLaunch()}>{working === 'launch' ? 'Çalışıyor…' : launchFailed ? 'Tekrar dene' : 'Hazırla ve başlat'}</button>
-    </div>
+  const launchConnected = guideInput.connected && guideInput.credentialsConfigured && wallet !== null
+  // İşlem imzaları: aynı girdiyle bitmiş işlem tekrar çalışmaz (runLaunch da bunları kullanır).
+  const launchCore = `${draft.risk}|${draft.daily}|${chosenMode}|${smartPick}|${smartWizThreshold}|${smartWizWait}|${draft.coins}|${draft.hours}`
+  const launchOpSig = {
+    risk: `risk|${draft.risk}|${draft.daily}`, mode: `mode|${chosenMode}`, smart: `smart|${smartPick}|${smartWizThreshold}|${smartWizWait}`,
+    consent: `consent|${draft.hours}`, policy: 'policy', arm: `arm|${draft.hours}`, start: `start|${launchCore}`,
+  }
+  // Onay imzaları: önceki bir seçim değişirse ona bağlı onaylar kendiliğinden geçersiz olur.
+  const launchSig: Record<LaunchStepId, string> = {
+    conn: 'conn',
+    risk: `${draft.risk}|${draft.coins}|${draft.hours}|${riskAck}|${draft.risk > 5 ? phrase === HIGH_RISK_PHRASE : ''}`,
+    daily: `${draft.risk}|${draft.daily}`,
+    mode: `${chosenMode}|${modeAck}|${modePhrase.trim() === AGGRESSIVE_PHRASE}`,
+    smart: `${smartPick}|${smartWizThreshold}|${smartWizWait}|${smartWizAck}`,
+    consent: `${draft.risk}|${draft.daily}|${draft.hours}`,
+    policy: `${draft.risk}|${draft.daily}`,
+    arm: launchCore,
+  }
+  const launchValid: Record<LaunchStepId, boolean> = {
+    conn: launchConnected,
+    risk: launchRiskValid && tierReady(draft.risk, riskAck, phrase),
+    daily: wizDailyOk,
+    mode: launchModeOk,
+    smart: smartSettings === undefined || smartPick !== 'on' || smartWizAck,
+    consent: true, policy: true, arm: true,
+  }
+  const launchApproved = (id: LaunchStepId) => id === 'conn' ? launchConnected : launchValid[id] && launchApprovals[id] === launchSig[id]
+  const launchActive: LaunchStepId | 'final' = LAUNCH_STEPS.find(item => !launchApproved(item.id))?.id ?? 'final'
+  const launchApprove = (id: LaunchStepId) => { if (launchValid[id]) setLaunchApprovals(current => ({...current, [id]: launchSig[id]})) }
+  // Geri al: bu adımın ve ondan sonraki tüm adımların onayı kalkar; sunucuya yazılmış bir şey geri alınmaz (yazma yalnız en sonda olur).
+  const launchUndo = (id: LaunchStepId) => setLaunchApprovals(current => {
+    const from = LAUNCH_STEPS.findIndex(item => item.id === id)
+    const next = {...current}
+    LAUNCH_STEPS.slice(from).forEach(item => { delete next[item.id] })
+    return next
+  })
+  const launchOpOf = (key: string): LaunchOp | undefined => {
+    const op = launchOps[key] as LaunchOp | undefined
+    if (!op) return undefined
+    if (op.state === 'done') return op.sig === launchOpSig[key as keyof typeof launchOpSig] ? op : undefined
+    return op
+  }
+  const launchVerified: Record<LaunchStepId, boolean> = {
+    conn: launchConnected,
+    risk: !launchNeedsRisk, daily: !launchNeedsRisk,
+    mode: chosenMode === savedMode, smart: !smartChangeWanted,
+    consent: guideInput.authorizationValid && consentLeftMs >= draft.hours * 3600 * 1000,
+    policy: guideInput.policyAcknowledged,
+    arm: guideInput.armed && guideInput.authorizationValid,
+  }
+  const launchCanRun = launchActive === 'final' && launchPhraseOk && !running && !busy
+  const launchFailed = (Object.values(launchOps) as LaunchOp[]).some(item => item.state === 'error')
+  const launchRunning = (Object.values(launchOps) as LaunchOp[]).some(item => item.state === 'working') || working === 'launch'
+  const launchDoneCount = LAUNCH_STEPS.filter(item => launchApproved(item.id)).length + (launchOpOf('start')?.state === 'done' ? 1 : 0)
+  const launchTotal = LAUNCH_STEPS.length + 1
+  const launchNote = (id: LaunchStepId) => ({
+    conn: launchConnected ? 'Bağlı, bakiye doğrulandı' : 'Bağlantı yok; önce Bağlantı sekmesinden anahtarı kaydet',
+    risk: wizRiskNums ? `${usdt(wizRiskNums.perTrade)} / işlem (%${draft.risk})` : `%${draft.risk}`,
+    daily: wizRiskNums ? `${usdt(wizRiskNums.perDay)} / gün (%${draft.daily})` : `%${draft.daily}`,
+    mode: `${chosenRow?.label ?? '—'} · işlem başı %${chosenRow?.per_trade_percent ?? '—'}`,
+    smart: smartSettings === undefined ? 'Bilgi alınamadı, atlanır' : smartPick === 'on' ? `AÇILACAK · eşik ${smartWizThreshold}, ${smartWizWait} dk` : smartPick === 'off' ? 'KAPATILACAK' : smartCurrentlyOn ? 'Açık, böyle kalır' : 'Kapalı, böyle kalır',
+    consent: `${draft.hours} saatlik izin`, policy: 'Risk limitlerini kabul', arm: 'Canlı emir izni (botu başlatmaz)',
+  })[id]
+  // ---- Gerçek verilerle akıllı uyarılar (kural tabanlı; piyasa tahmini değildir). Uyarı bilgilendirir, engellemez.
+  type Advice = {tone: 'ok' | 'warn' | 'bad' | 'info'; text: string}
+  const todayUtc = new Date().toISOString().slice(0, 10)
+  const dayData = original?.daily && original.daily.day === todayUtc ? original.daily : null
+  const dayBase = dayData && finite(dayData.opening_wallet) && (dayData.opening_wallet ?? 0) > 0 ? (dayData.opening_wallet as number) : wallet
+  const dayCapUsdt = caps?.daily_loss_limit_usdt
+  const dayLimitNew = dayBase !== null && dayBase > 0 ? Math.min(dayBase * draft.daily / 100, typeof dayCapUsdt === 'number' && dayCapUsdt > 0 ? dayCapUsdt : Infinity) : null
+  const dayLossTotal = dayData ? finite(dayData.loss) : null            // açık zarar dahil: günlük kilidi bunu sayar
+  const dayLossRealized = dayData ? finite(dayData.realized_loss) : null // gerçekleşen: yeni işlem bütçesine bunu sayar
+  const dayUsedPct = dayLossTotal !== null && dayLimitNew ? dayLossTotal / dayLimitNew * 100 : null
+  const launchAdvice = (id: LaunchStepId | 'final'): Advice[] => {
+    const out: Advice[] = []
+    const openCount = positions.length
+    if (id === 'risk') {
+      if (draft.risk > 2) out.push({tone: 'warn', text: `%${draft.risk} işlem riski yüksek: kötü bir seride bakiye hızlı erir.`})
+      if (openCount > 0) out.push({tone: 'info', text: `${openCount} açık pozisyon var. Onların Stop/TP'sine dokunulmaz.`})
+    }
+    if (id === 'daily') {
+      if (wizTrades !== null && wizTrades < 2) out.push({tone: 'warn', text: `Günlük sınır yalnız ~${wizTrades} işlem zararına yetiyor; tek kötü işlemden sonra gün biter.`})
+      if (wizRiskNums?.perDayCapped) out.push({tone: 'info', text: `Sistem tavanı nedeniyle günlük kayıp en çok ${usdt(wizRiskNums.perDay)} olur.`})
+      if (dayData?.locked) out.push({tone: 'bad', text: 'Bugün günlük kayıp kilidi AÇIK: yeni giriş kapalı. Gün sayacı UTC 00:00\'da sıfırlanır.'})
+      else if (dayUsedPct !== null && dayUsedPct >= 100) out.push({tone: 'bad', text: 'Bugünkü zarar bu limiti zaten aştı; yeni giriş açılmaz.'})
+      else if (dayUsedPct !== null && dayUsedPct >= 50) out.push({tone: 'warn', text: 'Günlük limitin büyük kısmı kullanılmış. Yeni işlem başlatmadan önce yarına kadar beklemeyi değerlendirebilirsin.'})
+      if (!dayData) out.push({tone: 'info', text: 'Bugüne ait zarar verisi yok; limit güncel bakiyeden hesaplanır.'})
+    }
+    if (id === 'mode' && chosenMode !== 'guvenli') out.push({tone: 'warn', text: `${chosenRow?.label ?? 'Bu'} modda her işleme daha çok teminat ayrılır; zarar büyüyebilir.`})
+    if (id === 'smart' && smartPick === 'on') out.push({tone: 'warn', text: 'Açıkken Binance\'e gerçek koruma/kapatma emri gönderebilir. Kural tabanlıdır; piyasayı tahmin etmez.'})
+    if (id === 'consent') {
+      if (guideInput.authorizationValid && consentLeftMs < draft.hours * 3600 * 1000) out.push({tone: 'warn', text: `Mevcut izin ${duration(Math.max(0, consentLeftMs / 1000))} sonra bitiyor; seçtiğin ${draft.hours} saatten kısa olduğu için yenilenecek. Yenilenince ARM sıfırlanır ve ayrıca yeniden verilir.`})
+      else if (guideInput.authorizationValid) out.push({tone: 'ok', text: 'Mevcut izin yeterli; yenilenmeyecek.'})
+    }
+    if (id === 'arm') out.push({tone: 'info', text: 'ARM yalnız canlı emir iznidir; botu BAŞLATMAZ. Başlatma ayrı ve son adımdır.'})
+    if (id === 'final' && openCount > 0) out.push({tone: 'info', text: `${openCount} açık pozisyon var; botu başlatmak onları kapatmaz.`})
+    return out
+  }
+  const launchWhy: Record<LaunchStepId, string> = {
+    conn: 'Gerçek bakiye olmadan risk rakamları hesaplanamaz.',
+    risk: 'Dengeli: işlem başı %1 risk, bakiyeni hızlı eritmeden yeterli fırsat verir. İlk kez başlıyorsan en makul seçim.',
+    daily: 'Önerilen sınır, seçtiğin risk paketinin günlük payıdır: kötü bir günde kayıp burada durur.',
+    mode: 'Güvenli: her işleme en az teminat ayrılır. Önce bununla başla, alışınca değiştir.',
+    smart: 'Kapalı kalsın: bu özellik gerçek emir gönderebilir. İlk günler yalnız izleyip sonra açman daha güvenli.',
+    consent: 'Botun işlem açabilmesi için belirli süreli açık iznin gerekir. Süre bitince bot yeni işlem açmaz.',
+    policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
+    arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
+  }
+  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? 'Güvenli' : id === 'smart' ? 'Böyle kalsın' : null
+  const chipOf = (label: string, state: 'ok' | 'idle' | 'working' | 'error', title?: string) =>
+    <span className="lcWzChip" data-state={state} title={title}><i aria-hidden="true">{state === 'ok' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>{label}</span>
+  const stateChips = (id: LaunchStepId) => {
+    const meta = LAUNCH_STEPS.find(item => item.id === id)!
+    const op = meta.op ? launchOpOf(meta.op) : undefined
+    const approved = launchApproved(id)
+    return <span className="lcWzChips" aria-label="Onay, doğrulama ve işlem durumu">
+      {id === 'conn' ? null : chipOf('Onay', approved ? 'ok' : 'idle')}
+      {chipOf('Doğrulama', launchVerified[id] || (op?.state === 'done' && op.verified) ? 'ok' : 'idle')}
+      {id === 'conn' ? null : chipOf('İşlem', op?.state === 'done' ? 'ok' : op?.state === 'working' ? 'working' : op?.state === 'error' ? 'error' : 'idle')}
+    </span>
+  }
+  const ringR = 26, ringC = 2 * Math.PI * ringR
+  const activeMeta = launchActive === 'final' ? null : LAUNCH_STEPS.find(item => item.id === launchActive)!
+  const activeIndex = launchActive === 'final' ? launchTotal : LAUNCH_STEPS.findIndex(item => item.id === launchActive) + 1
+  const editorOf = (id: LaunchStepId) => <>
+    {id === 'risk' && <>
+      <div className="lcWizList" role="radiogroup" aria-label="Risk paketi">{RISK_PRESETS.map(preset => <button type="button" role="radio" aria-checked={draft.risk === preset.risk_percent} key={preset.id} className="lcWizChip" data-selected={draft.risk === preset.risk_percent || undefined} data-rec={preset.id === 'dengeli' || undefined} disabled={busy} onClick={() => choosePreset(preset.id)}><b>{preset.label}{preset.id === 'dengeli' && <em>ÖNERİLEN</em>}</b><small>%{preset.risk_percent} · günlük %{preset.daily_loss_percent} · {preset.symbol_count} coin · {preset.session_hours} saat</small></button>)}</div>
+      {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
+      {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
+    </>}
+    {id === 'daily' && <div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
+      const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
+      return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => setDraft(current => ({...current, daily: value}))}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
+    })}</div>}
+    {id === 'mode' && <>
+      <div className="lcWizChips" role="radiogroup" aria-label="Teminat modu">{modeRows.map(item => <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip" data-selected={chosenMode === item.mode || undefined} data-rec={item.mode === 'guvenli' || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}><b>{item.label}{item.mode === 'guvenli' && <em>ÖNERİLEN</em>}</b><small>%{item.per_trade_percent} / işlem</small></button>)}</div>
+      {chosenMode !== savedMode && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini anladım.</span></label>}
+      {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
+    </>}
+    {id === 'smart' && smartSettings !== undefined && <>
+      <div className="lcWizChips" role="radiogroup" aria-label="Akıllı koruma">
+        <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} data-rec="1" disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın<em>ÖNERİLEN</em></b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
+        {smartCurrentlyOn
+          ? <button type="button" role="radio" aria-checked={smartPick === 'off'} className="lcWizChip" data-selected={smartPick === 'off' || undefined} disabled={busy} onClick={() => setSmartPick('off')}><b>Kapat</b><small>Stoplar kalkar</small></button>
+          : <button type="button" role="radio" aria-checked={smartPick === 'on'} className="lcWizChip" data-selected={smartPick === 'on' || undefined} disabled={busy} onClick={() => setSmartPick('on')}><b>Aç</b><small>Gerçek emir gönderebilir</small></button>}
+      </div>
+      {smartPick === 'on' && <div className="lcSmartPick">
+        <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
+        <label className="lcCheck"><input type="checkbox" checked={smartWizAck} onChange={event => setSmartWizAck(event.target.checked)}/><span>Akıllı koruma açıkken gerçek Binance emri gönderebileceğini anlıyorum.</span></label>
+      </div>}
+    </>}
   </>
+  const adviceView = (id: LaunchStepId | 'final') => {
+    const items = launchAdvice(id)
+    const dayCard = id === 'daily' && dayData && dayUsedPct !== null && dayLimitNew !== null
+    return <>
+      {dayCard && <div className="lcWzGauge" data-tone={dayData?.locked || dayUsedPct >= 100 ? 'bad' : dayUsedPct >= 50 ? 'warn' : 'ok'} data-testid="launch-day-gauge">
+        <b>%{dayUsedPct.toLocaleString('tr-TR', {maximumFractionDigits: 1})}</b>
+        <span>Günlük kayıp limitinin kullanılan kısmı</span>
+        <i style={{'--p': `${Math.min(100, dayUsedPct)}%`} as CSSProperties}/>
+        <dl>
+          <div><dt>Gerçekleşen zarar</dt><dd>{dayLossRealized !== null ? usdt(-dayLossRealized) : '—'}</dd></div>
+          <div><dt>Açık pozisyon dahil toplam</dt><dd>{usdt(dayLossTotal !== null ? -dayLossTotal : null)}</dd></div>
+          <div><dt>Yeni günlük limit</dt><dd>{usdt(dayLimitNew)}</dd></div>
+        </dl>
+        <small>Yeni işlem bütçesi gerçekleşen zarara, günlük kilit ise açık pozisyonun anlık zararı dahil toplama bakar.</small>
+      </div>}
+      {items.length > 0 && <ul className="lcWzAdvice">{items.map((item, index) => <li key={index} data-tone={item.tone}><i aria-hidden="true">{item.tone === 'ok' ? <Check/> : item.tone === 'info' ? 'i' : '!'}</i><span>{item.text}</span></li>)}</ul>}
+    </>
+  }
+  const finalRows: Array<[string, string]> = [
+    ['İşlem başı risk', wizRiskNums ? `${usdt(wizRiskNums.perTrade)} (%${draft.risk})` : `%${draft.risk}`],
+    ['Günlük en çok kayıp', wizRiskNums ? `${usdt(wizRiskNums.perDay)} (%${draft.daily})` : `%${draft.daily}`],
+    ['Teminat modu', `${chosenRow?.label ?? '—'} (%${chosenRow?.per_trade_percent ?? '—'})`],
+    ['Akıllı koruma', smartPick === 'on' ? 'AÇILACAK' : smartPick === 'off' ? 'KAPATILACAK' : smartCurrentlyOn ? 'Açık' : 'Kapalı'],
+    ['Süre · coin', `${draft.hours} saat · ${draft.coins} coin`],
+  ]
+  const opRows: Array<{key: string; title: string; note: string}> = [
+    {key: 'risk', title: 'Ayarları kaydet', note: 'Risk + günlük sınır, sunucudan geri okunur'},
+    {key: 'mode', title: 'Teminat modunu kaydet', note: 'Sunucudan geri okunur'},
+    {key: 'smart', title: 'Akıllı koruma ayarı', note: 'Sunucudan geri okunur'},
+    {key: 'consent', title: 'Risk iznini ver', note: `${draft.hours} saat`},
+    {key: 'policy', title: 'Risk limitleri onayı', note: 'Sunucudan geri okunur'},
+    {key: 'arm', title: 'ARM: canlı emir izni', note: 'Botu başlatmaz'},
+    {key: 'start', title: 'Botu başlat', note: 'ARM yoksa başlamaz'},
+  ]
+  const launchView = <div className="lcWz" data-testid="launch-wizard">
+    <header className="lcWzHead">
+      <div className="lcWzRing" role="img" aria-label={`İlerleme: ${launchDoneCount} / ${launchTotal}`}>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r={ringR} className="lcWzRingBg"/><circle cx="32" cy="32" r={ringR} className="lcWzRingFg" style={{strokeDasharray: ringC, strokeDashoffset: ringC * (1 - launchDoneCount / launchTotal)}}/></svg>
+        <b>{launchDoneCount}/{launchTotal}</b>
+      </div>
+      <div>
+        <h2 id="lc-sheet-title">Canlıya hazırlık</h2>
+        <p className="lcSheetLead">{launchActive === 'final' ? 'Son adım: güvenlik onayı' : `Adım ${activeIndex} / ${launchTotal} · ${activeMeta?.title}`}</p>
+      </div>
+    </header>
+    <div className="lcWzBody">
+      <ol className="lcWzRail" aria-label="Adımlar">
+        {LAUNCH_STEPS.map((item, index) => {
+          const approved = launchApproved(item.id), active = launchActive === item.id
+          const op = item.op ? launchOpOf(item.op) : undefined
+          const state = op?.state === 'error' ? 'error' : approved ? 'done' : active ? 'active' : 'locked'
+          return <li key={item.id} data-state={state}>
+            <i className="lcWzDot" aria-hidden="true">{state === 'done' ? <Check/> : state === 'error' ? '!' : index + 1}</i>
+            <span><b>{item.title}</b>{approved && <small>{launchNote(item.id)}</small>}</span>
+            {approved && item.id !== 'conn' && !launchRunning && <button type="button" className="lcLink" onClick={() => launchUndo(item.id)} aria-label={`${item.title} onayını geri al`}>Geri al</button>}
+          </li>
+        })}
+        <li data-state={launchActive === 'final' ? 'active' : 'locked'}><i className="lcWzDot" aria-hidden="true">{LAUNCH_STEPS.length + 1}</i><span><b>Güvenlik onayı</b></span></li>
+      </ol>
+      <div className="lcWzMain">
+        {activeMeta ? <section className="lcWzCard" key={activeMeta.id} data-testid={`launch-step-${activeMeta.id}`}>
+          <small className="lcWzKicker">ADIM {activeIndex}</small>
+          <h3>{activeMeta.title}</h3>
+          {activeMeta.id === 'conn'
+            ? <p className="lcWzWhy">{launchWhy.conn} Bağlantı yok; önce Bağlantı sekmesinden Binance anahtarını kaydet.</p>
+            : <>
+              <p className="lcWzWhy"><b>Neden bu öneri?</b> {launchWhy[activeMeta.id]}</p>
+              {editorOf(activeMeta.id)}
+              {launchRec(activeMeta.id) && <p className="lcWzRec">Önerilen: <b>{launchRec(activeMeta.id)}</b></p>}
+              {adviceView(activeMeta.id)}
+              {stateChips(activeMeta.id)}
+            </>}
+          {activeMeta.id === 'conn'
+            ? <button type="button" className="lcBtn lcPrimary lcWzGo" onClick={() => { closeSheet(); goTab('baglanti') }}>Bağlantı'ya git</button>
+            : <>
+              {!launchValid[activeMeta.id] && <p className="lcHint stop">{activeMeta.id === 'smart' ? 'Açmak için onay kutusunu işaretle.' : activeMeta.id === 'daily' ? 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı.' : 'Önce gerekli onay kutusunu / yazıyı tamamla.'}</p>}
+              <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>Onaylıyorum ✓</button>
+            </>}
+        </section> : <section className="lcWzCard lcWzFinal" data-testid="launch-final">
+          <small className="lcWzKicker">SON ADIM · GÜVENLİK PANELİ</small>
+          <h3>Her şey senin onayınla hazır</h3>
+          <dl className="lcWzSum">{finalRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+          {adviceView('final')}
+          <ol className="lcWzOps" aria-label="İşlem sonuçları">
+            {opRows.map(row => {
+              const op = launchOpOf(row.key)
+              const state = op?.state ?? 'idle'
+              return <li key={row.key} data-state={state}>
+                <i className="lcWzDot" aria-hidden="true">{state === 'done' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>
+                <span><b>{row.title}</b><small>{op?.state === 'error' ? op.error : state === 'done' ? 'Tamamlandı ve doğrulandı' : state === 'working' ? 'Çalışıyor…' : row.note}</small></span>
+              </li>
+            })}
+          </ol>
+          <label className="lcField lcLaunchConfirm">Onay için <b className="selectablePhrase">ONAYLIYORUM</b> yaz
+            <input value={launchPhrase} autoComplete="off" autoCapitalize="characters" spellCheck={false} disabled={busy} data-ok={launchPhraseOk || undefined} onChange={event => setLaunchPhrase(event.target.value)} placeholder="ONAYLIYORUM"/>
+          </label>
+          <p className="lcHint">Yazınca işlemler sırayla çalışır. Biri başarısız olursa orada durur, bot başlamaz; tamamlananlar tekrar edilmez. Açık pozisyonlar ve orijinal Stop/TP değişmez. Gerçek parayla işlem açılabilir.</p>
+          <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid="launch-run" disabled={!launchCanRun} onClick={() => void runLaunch()}>{launchRunning ? 'Çalışıyor…' : launchFailed ? 'Tekrar dene' : 'Onayla ve başlat'}</button>
+          {!launchRunning && <button type="button" className="lcLink" onClick={() => launchUndo('arm')}>Son onayı geri al</button>}
+        </section>}
+      </div>
+    </div>
+  </div>
   const summaryRisk = wallet !== null ? riskSummary(wallet, savedRisk, savedDaily, caps) : null
   const summaryView = <>
     <h2 id="lc-sheet-title">Ayarlarım</h2>
