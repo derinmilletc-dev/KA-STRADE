@@ -110,7 +110,7 @@ export type OriginalV2LiveStatus = {
   smart_profit?: {settings: {enabled: boolean; threshold: number; wait_minutes: number; check_interval_seconds: number; protect_stop_enabled: boolean; smart_exit_enabled: boolean; emergency_off: boolean; direction_mismatch_action?: 'record_only' | 'count_as_low'}; basis?: string; positions: {plan_id?: string | null; symbol?: string | null; mode?: string | null; last_score?: number | null; direction_state?: string | null; opposite_confidence?: number | null; timer_end?: number | null; exit_ready?: boolean; waiting_profit?: boolean; temp_stop_price?: string | null; last_net_pnl?: string | null}[]} | null
   last_risk_adjustment?: {symbol: string; selected_percent: number; effective_percent: number; requested_loss_usdt: number; effective_loss_usdt: number; reasons: string[]; breakdown?: RiskBreakdown | null} | null
   session?: {hours: number; started_at?: string | null; expires_at?: string | null; remaining_seconds: number; authority_limited: boolean; warning_sent: boolean} | null
-  daily?: {day: string; opening_wallet?: number; loss?: number; limit?: number; locked: boolean} | null
+  daily?: {day: string; opening_wallet?: number; loss?: number; limit?: number; realized_loss?: number; locked: boolean} | null
   symbols: string[]
   universe?: {requested_count: number; selected_count: number; eligible_count: number; minimum_age_days?: number; updated_at?: string | null; filter_counts?: Record<string, number>} | null
   scanner?: {
