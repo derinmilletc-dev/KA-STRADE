@@ -29,8 +29,12 @@ class FakeClient:
 
     async def public_get(self, path, params=None):
         if path == "/fapi/v1/exchangeInfo":
-            return {"symbols": [{"symbol": s, "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"}
-                                for s in SYMBOLS]}
+            filters = [{"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+                       {"filterType": "LOT_SIZE", "stepSize": "0.001", "minQty": "0.001"},
+                       {"filterType": "MARKET_LOT_SIZE", "stepSize": "0.001", "minQty": "0.001"},
+                       {"filterType": "MIN_NOTIONAL", "notional": "5"}]
+            return {"symbols": [{"symbol": s, "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
+                                 "filters": filters} for s in SYMBOLS]}
         symbol, interval, limit = params["symbol"], params["interval"], params["limit"]
         step = {"15m": 900, "1h": 3600, "4h": 14400}[interval]
         rng = random.Random(f"{self.seed}|{symbol}|{interval}")
@@ -47,10 +51,15 @@ class FakeClient:
         return rows
 
 
+SIZING = {"max_loss_per_trade": 3, "max_margin_per_trade": 25, "fee_bps_per_side": 5.0, "slippage_bps_per_side": 3.0,
+          "tp1_fraction": "0.70", "split_steps": 10}
+
+
 def scan(seed, drift, observer):
     diagnostics = {}
     eligible, results = asyncio.run(ex.live_candidates(
-        FakeClient(seed, drift), AT, set(), SYMBOLS, require_complete=True, diagnostics=diagnostics, observer=observer))
+        FakeClient(seed, drift), AT, set(), SYMBOLS, require_complete=True, diagnostics=diagnostics,
+        sizing_context=dict(SIZING), observer=observer))
     return {"eligible": [(candidate, repr(result)) for candidate, result in eligible],
             "results": {symbol: repr(result) for symbol, result in results.items()},
             "diagnostics": json.dumps(diagnostics, sort_keys=True, default=repr)}
@@ -60,7 +69,7 @@ class LiveDecisionParityTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.env = mock.patch.dict(os.environ, {sh.ENV_DIR: self.tmp.name})
+        self.env = mock.patch.dict(os.environ, {sh.ENV_DIR: self.tmp.name, sh.ENV_ENABLED: "1"})
         self.env.start()
         self.addCleanup(self.env.stop)
         sh._worker = None
@@ -107,11 +116,45 @@ class LiveDecisionParityTests(unittest.TestCase):
                 self.assertGreaterEqual(row["htf"]["alignment"], 80)
 
 
+    def test_observer_receives_tick_scan_price_and_live_size_check(self):
+        captured = []
+        baseline = scan(0, -0.3, None)
+        self.assertEqual(scan(0, -0.3, lambda at, observed, ranked, eligible: captured.append(observed)), baseline)
+        observed = captured[0]
+        self.assertTrue(observed)
+        for symbol, data in observed.items():
+            self.assertEqual(data["tick"], "0.01")
+            self.assertEqual(data["scan_row"]["time"], AT)  # oluşmakta olan mum: kline getirildiği an
+            analysis = data["result"].legacy.get("analysis") or {}
+            if analysis.get("direction") in {"LONG", "SHORT"}:
+                self.assertIn(data["size"]["passes"], (True, False), data["size"])  # geçerli kurallarda bilinmeyen olmamalı
+            else:
+                self.assertIsNone(data["size"])
+
+    def test_size_check_uses_the_live_function_and_scan_price(self):
+        captured = []
+        scan(0, -0.3, lambda at, observed, ranked, eligible: captured.append(observed))
+        info = asyncio.run(FakeClient(0, 0).public_get("/fapi/v1/exchangeInfo"))["symbols"][0]
+        checked = 0
+        for symbol, data in captured[0].items():
+            analysis = (data["result"].legacy.get("analysis") or {})
+            if analysis.get("direction") not in {"LONG", "SHORT"}:
+                continue
+            signal = {k: v for k, v in analysis.items() if k != "series"} | {"entry": data["scan_row"]["close"]}
+            try:
+                expected = ex.live_minimum_order_assessment(signal, info, dict(SIZING))["passes"]
+            except Exception as exc:  # stop tavanı: canlı girmezdi (False); başka hata: bilinmiyor
+                expected = False if str(exc) == "profile_cap" else None
+            self.assertEqual(data["size"]["passes"], expected)
+            checked += 1
+        self.assertGreater(checked, 0)
+
+
 class FailureIsolationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.env = mock.patch.dict(os.environ, {sh.ENV_DIR: self.tmp.name})
+        self.env = mock.patch.dict(os.environ, {sh.ENV_DIR: self.tmp.name, sh.ENV_ENABLED: "1"})
         self.env.start()
         self.addCleanup(self.env.stop)
         sh._worker = None
@@ -156,6 +199,48 @@ class FailureIsolationTests(unittest.TestCase):
             self.assertTrue(recorder.cap_reached)
 
 
+class LiveLevelParityTests(unittest.TestCase):
+    def test_virtual_levels_equal_live_levels_exactly_for_random_prices_and_ticks(self):
+        from app import original_v2_live as live_module
+        from tests.test_original_shadow import COSTS, item
+
+        rng = random.Random(11)
+        checked = 0
+        for _ in range(300):
+            tick = rng.choice(["0.0001", "0.001", "0.01", "0.1", "0.5"])
+            close = round(rng.uniform(20, 400), 6)
+            scan_price = close * (1 + rng.uniform(-0.002, 0.002))
+            direction = rng.choice(["LONG", "SHORT"])
+            sign = 1 if direction == "LONG" else -1
+            stop = close - sign * close * rng.uniform(0.008, 0.03)
+            tps = [close + sign * close * rng.uniform(0.005, 0.01) * k for k in (1, 2, 3)]
+            it = item(direction=direction, price=close, stop=stop, tp1=tps[0], tp3=tps[2])
+            it["analysis"]["tp2"] = tps[1]
+            it.update(scan_price=scan_price, scan_time=it["decision_time"], tick=tick)
+            record = sh.signal_record(it, sh.GROUP_LIVE, 1.0, COSTS)
+            trade, reason = sh.open_virtual(record, COSTS)
+            # canlı: build_spec -> _build_spec ve scaled_targets
+            t = Decimal(tick)
+            entry = ex.demo.round_tick(Decimal(str(scan_price)), t)
+            spec = {"entry_price": ex.demo.decimal_text(entry), "direction": direction,
+                    "targets": [ex.demo.decimal_text(ex.demo.round_tick(Decimal(str(v)), t)) for v in tps]}
+            stop_live = ex.demo.round_tick(Decimal(str(stop)), t)
+            try:
+                ex.demo.validate_levels(direction, entry, stop_live, [Decimal(v) for v in spec["targets"]])
+                live_tp1 = Decimal(live_module.scaled_targets(spec, t)[0])
+                live_ok = True
+            except Exception:
+                live_ok = False
+            self.assertEqual(trade is not None, live_ok, (tick, close, scan_price, direction, reason))
+            if live_ok:
+                self.assertEqual(Decimal(str(trade["entry_reference"])), entry)
+                self.assertEqual(Decimal(str(trade["stop"])), stop_live)
+                self.assertEqual(Decimal(str(trade["tp3"])), Decimal(spec["targets"][2]))
+                self.assertEqual(Decimal(str(trade["tp1"])), live_tp1)
+                checked += 1
+        self.assertGreater(checked, 150)
+
+
 class PersistenceTests(unittest.TestCase):
     def test_open_virtual_trades_survive_restart_and_close_later(self):
         from tests.test_original_shadow import COSTS, T0, candle, item  # aynı yardımcılar
@@ -189,7 +274,7 @@ class PerformanceTests(unittest.TestCase):
         checks = [NS(key=k, passed=True) for k in ("direction", "confidence", "trap", "breakout")] + [NS(key="mtf", passed=False)]
         observed = {f"S{i}USDT": {"candles": candles, "result": NS(legacy=legacy, signal=NS(quality_checks=checks))} for i in range(100)}
         gate = threading.Event()
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {sh.ENV_DIR: tmp}):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {sh.ENV_DIR: tmp, sh.ENV_ENABLED: "1"}):
             sh._worker = sh.ShadowWorker(Path(tmp), capacity=2)
             with mock.patch.object(sh.Recorder, "process", lambda self, scan_: gate.wait(5)):
                 durations = []

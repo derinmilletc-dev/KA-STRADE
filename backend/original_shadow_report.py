@@ -24,11 +24,19 @@ def main(argv: list[str]) -> int:
     signals, trades = read(folder / "signals.jsonl"), read(folder / "trades.jsonl")
     print(f"Klasör: {folder}")
     print("Kaydedilen sinyal:", {g: sum(1 for s in signals if s["group"] == g) for g in GROUPS})
+    def fmt(value, pattern):
+        return "-" if value is None else pattern.format(value)
+
     for group, row in summarize(trades).items():
-        mean = "-" if row["mean_net_r"] is None else f"{row['mean_net_r']:+.3f}R"
-        win = "-" if row["win_rate"] is None else f"%{row['win_rate'] * 100:.0f}"
-        pf = "-" if row["profit_factor_r"] is None else f"{row['profit_factor_r']:.2f}"
-        print(f"{group}: N={row['N']} çözülemeyen={row['unresolved']} ort={mean} kazanma={win} PF={pf} belirsiz_mum={row['ambiguous_bars']}")
+        print(f"{group}: N={row['N']} çözülemeyen={row['unresolved']} ort={fmt(row['mean_net_r'], '{:+.3f}R')} "
+              f"kazanma={fmt(row['win_rate'] and row['win_rate'] * 100, '%{:.0f}')} PF={fmt(row['profit_factor_r'], '{:.2f}')} "
+              f"belirsiz_mum={row['ambiguous_bars']}")
+        print(f"   giriş: APPROXIMATE_ENTRY={row['approximate_entry']} | tarama-kapanış farkı ort={fmt(row['scan_vs_close_abs_bps_mean'], '{:.1f}bps')} "
+              f"maks={fmt(row['scan_vs_close_abs_bps_max'], '{:.1f}bps')} | tick farkı giriş={fmt(row['entry_tick_abs_bps_mean'], '{:.2f}bps')} "
+              f"TP1={fmt(row['tp1_tick_abs_bps_mean'], '{:.2f}bps')}")
+        print(f"   canlıda açılabilirlik: açılamaz={row['live_unopenable']} bilinmiyor={row['live_openable_unknown']} | "
+              f"yalnız açılabilenler N={row['N_live_openable']} ort={fmt(row['mean_net_r_live_openable'], '{:+.3f}R')}")
+    print("Toplanmayan (yeni ağ çağrısı gerektirir): mark fiyatı farkı, gerçekleşen dolum farkı.")
     print("Not: küçük N kanıt değildir; karşılaştırma önceden yazılmış kanıt kuralıyla yapılmalıdır.")
     return 0
 

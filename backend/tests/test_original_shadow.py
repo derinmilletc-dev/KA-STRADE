@@ -17,7 +17,7 @@ T0 = T0 // 900 * 900
 
 def analysis(direction="SHORT", price=100.0, stop=102.0, tp1=97.0, tp3=94.0):
     return {
-        "direction": direction, "confidence": 85, "entry": price, "stop_loss": stop, "tp1": tp1, "tp2": 95.5, "tp3": tp3,
+        "direction": direction, "confidence": 85, "entry": price, "stop_loss": stop, "tp1": tp1, "tp2": (tp1 + tp3) / 2, "tp3": tp3,
         "rsi": 40.0, "macd": -0.5, "adx": 25.0, "atr": 1.0, "volume_ratio": 1.2, "support": 98.0, "resistance": 103.0,
         "bollinger": {"upper": 103.0, "middle": 101.0, "lower": 99.0},
         "ema": {"ema20": 101.0, "ema50": 102.0, "ema200": 104.0},
@@ -46,6 +46,68 @@ def short_trade():
     trade, reason = sh.open_virtual(rec, COSTS)
     assert trade is not None, reason
     return trade
+
+
+class EntryModelTests(unittest.TestCase):
+    def with_scan(self, scan_price, tick=None, size=None, scan_time=None, **kw):
+        it = item(**kw)
+        it.update(scan_price=scan_price, scan_time=it["decision_time"] if scan_time is None else scan_time, tick=tick, size=size)
+        return it
+
+    def test_scan_price_is_the_entry_and_tp1_follows_it(self):
+        rec = sh.signal_record(self.with_scan(100.04), sh.GROUP_BLOCKED, 1.0, COSTS)
+        self.assertEqual(rec["entry_model"]["source"], sh.ENTRY_SCAN)
+        self.assertFalse(rec["entry_model"]["approximate_entry"])
+        trade, _ = sh.open_virtual(rec, COSTS)
+        self.assertAlmostEqual(trade["entry_reference"], 100.04)
+        self.assertAlmostEqual(trade["tp1"], 100.04 + (97.0 - 100.04) * 0.8)  # canlı: entry + (tp1 - entry) * 0.80
+        self.assertEqual(trade["stop"], 102.0)  # stop ve TP3 mutlak kalır
+        self.assertEqual(trade["tp3"], 94.0)
+        self.assertFalse(trade["approximate_entry"])
+
+    def test_missing_or_implausible_scan_price_marks_approximate_entry(self):
+        for scan_price, scan_time in ((None, None), (110.0, None), (100.0, 123)):
+            it = self.with_scan(scan_price, scan_time=scan_time)
+            rec = sh.signal_record(it, sh.GROUP_BLOCKED, 1.0, COSTS)
+            self.assertEqual(rec["entry_model"]["source"], sh.ENTRY_SIGNAL_CLOSE, (scan_price, scan_time))
+            self.assertTrue(rec["entry_model"]["approximate_entry"])
+            trade, _ = sh.open_virtual(rec, COSTS)
+            self.assertTrue(trade["approximate_entry"])
+            self.assertEqual(trade["entry_reference"], 100.0)
+
+    def test_tick_rounding_matches_live_round_half_up(self):
+        self.assertEqual(sh.round_tick(100.005, 0.01), 100.01)  # ROUND_HALF_UP
+        self.assertEqual(sh.round_tick(100.004, 0.01), 100.0)
+        self.assertEqual(sh.round_tick(7.0, None), 7.0)
+        rec = sh.signal_record(self.with_scan(100.0449, tick=0.01), sh.GROUP_BLOCKED, 1.0, COSTS)
+        trade, _ = sh.open_virtual(rec, COSTS)
+        self.assertEqual(trade["entry_reference"], 100.04)
+        self.assertIsNotNone(trade["entry_tick_rounding_bps"])
+        self.assertIsNotNone(trade["tp1_tick_rounding_bps"])
+
+    def test_levels_live_would_reject_are_not_opened(self):
+        rec = sh.signal_record(self.with_scan(98.9, tp1=99.0, tp3=96.0), sh.GROUP_BLOCKED, 1.0, COSTS)  # fiyat TP1'i geçmiş
+        self.assertEqual(sh.open_virtual(rec, COSTS), (None, "invalid_levels"))
+
+    def test_collected_and_uncollected_differences_are_explicit(self):
+        size = {"passes": False, "total_quantity": "1"}
+        rec = sh.signal_record(self.with_scan(100.1, size=size), sh.GROUP_BLOCKED, 1.0, COSTS)
+        model = rec["entry_model"]
+        self.assertAlmostEqual(model["scan_vs_signal_close_bps"], 10.0)
+        self.assertIsNone(model["mark_vs_candle_bps"])
+        self.assertIn("realized_fill", model["not_collected"])
+        self.assertIs(model["live_openable"], False)
+
+    def test_unopenable_trades_are_flagged_and_reported_separately(self):
+        rows = []
+        for passes, r in ((True, 1.0), (False, -1.0), (None, 0.5)):
+            rec = sh.signal_record(self.with_scan(100.0, size=None if passes is None else {"passes": passes}), sh.GROUP_BLOCKED, 1.0, COSTS)
+            trade, _ = sh.open_virtual(rec, COSTS)
+            trade.update(status="CLOSED", resolved=True, net_r=r)
+            rows.append(trade)
+        summary = sh.summarize(rows)[sh.GROUP_BLOCKED]
+        self.assertEqual((summary["N"], summary["live_unopenable"], summary["live_openable_unknown"], summary["N_live_openable"]), (3, 1, 1, 2))
+        self.assertAlmostEqual(summary["mean_net_r_live_openable"], 0.75)
 
 
 class ClassifyTests(unittest.TestCase):
@@ -328,14 +390,28 @@ class IsolationTests(unittest.TestCase):
         self.assertLess(time.time() - started, 0.5)
         self.assertEqual(worker.dropped, 1)
 
-    def test_disabled_by_env(self):
+    def test_default_off_and_explicit_on(self):
         import os
-        os.environ[sh.ENV_ENABLED] = "0"
+        saved = os.environ.pop(sh.ENV_ENABLED, None)
         try:
-            self.assertFalse(sh.enabled())
+            self.assertFalse(sh.enabled())  # varsayılan kapalı
+            for value in ("0", "false", "off", "", "garbage"):
+                os.environ[sh.ENV_ENABLED] = value
+                self.assertFalse(sh.enabled(), value)
+            for value in ("1", "true", "ON"):
+                os.environ[sh.ENV_ENABLED] = value
+                self.assertTrue(sh.enabled(), value)
         finally:
-            del os.environ[sh.ENV_ENABLED]
-        self.assertTrue(sh.enabled())
+            os.environ.pop(sh.ENV_ENABLED, None)
+            if saved is not None:
+                os.environ[sh.ENV_ENABLED] = saved
+
+    def test_observe_scan_writes_nothing_when_off(self):
+        import os
+        os.environ.pop(sh.ENV_ENABLED, None)
+        before = sh._worker
+        sh.observe_scan(T0, {}, set(), set())
+        self.assertIs(sh._worker, before)
 
     def test_module_has_no_exchange_or_secret_access(self):
         source = (Path(__file__).resolve().parents[1] / "app" / "original_shadow.py").read_text(encoding="utf-8")

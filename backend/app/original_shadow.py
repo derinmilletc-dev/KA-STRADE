@@ -13,7 +13,7 @@ devam eder; aynı komisyon ve kayma (execution_policy). Aynı mumda hem stop hem
 Güvenlik
 * Bu modül borsa istemcisi, emir, anahtar, hesap bilgisi İÇE AKTARMAZ ve kullanmaz.
 * Canlı akıştan yalnız bounded, bloklamayan bir kuyruğa düz veri bırakılır; işlem ayrı bir iş parçacığında yapılır.
-* Her hata yakalanır ve sayılır; hiçbir hata canlı akışa yayılmaz. `ORIGINAL_V2_SHADOW_ENABLED=0` ile kapatılır.
+* Her hata yakalanır ve sayılır; hiçbir hata canlı akışa yayılmaz. VARSAYILAN KAPALI; `ORIGINAL_V2_SHADOW_ENABLED=1` ile açılır.
 
 Bilinen sınırlamalar (kayıtlarda da yazılıdır)
 * Sanal işlemler portföy/teminat/günlük limit/minimum miktar kapılarına tabi DEĞİLDİR; yalnız (grup, sembol) başına en fazla
@@ -52,16 +52,20 @@ CANDLE_SECONDS = 900
 MAX_OPEN_SECONDS = 45 * 86400
 MAX_FILE_BYTES = 256 * 1024 * 1024
 SEEN_LIMIT = 20000
+ENTRY_SCAN = "SCAN_LAST_PRICE"
+ENTRY_SIGNAL_CLOSE = "SIGNAL_CLOSE"
+MAX_SCAN_PRICE_GAP = 0.02  # tarama fiyatı sinyal kapanışından %2'den fazla uzaksa güvenilmez sayılır
 MODEL_NOTES = [
     "sanal işlem: portföy/teminat/günlük limit/minimum miktar kapıları yok; (grup, sembol) başına tek açık işlem",
-    "giriş referansı sinyal mumunun kapanışı; tick yuvarlaması ve fonlama yok",
+    "giriş referansı: tarama anındaki son fiyat (canlı emir anına en yakın bilinen); alınamazsa sinyal kapanışı ve APPROXIMATE_ENTRY",
+    "fiyat seviyeleri canlıdaki gibi tick'e yuvarlanır (ROUND_HALF_UP); fonlama yok",
     "tetikleme son fiyat mumu high/low; aynı mumda stop ve hedef birlikte değerse STOP ÖNCE",
 ]
 
 
 def enabled() -> bool:
-    value = str(os.getenv(ENV_ENABLED, "")).strip().lower()
-    return value not in {"0", "false", "no", "off", "disabled"}
+    """VARSAYILAN KAPALI: yalnız ORIGINAL_V2_SHADOW_ENABLED=1 (true/on/yes) ile açılır."""
+    return str(os.getenv(ENV_ENABLED, "")).strip().lower() in {"1", "true", "yes", "on", "enabled"}
 
 
 def directory() -> Path:
@@ -80,6 +84,22 @@ def _num(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return result if math.isfinite(result) else None
+
+
+def round_tick(value: float, tick: float | None) -> float:
+    """Canlıdaki demo.round_tick ile aynı (ROUND_HALF_UP, Decimal); tick yoksa değer aynen döner."""
+    if not tick or tick <= 0:
+        return value
+    from decimal import ROUND_HALF_UP, Decimal
+    step = Decimal(str(tick))
+    return float((Decimal(str(value)) / step).to_integral_value(rounding=ROUND_HALF_UP) * step)
+
+
+def bps(a: float | None, b: float | None) -> float | None:
+    """(a - b) / b, baz puan."""
+    if a is None or b in (None, 0):
+        return None
+    return (a - b) / b * 10_000
 
 
 def sanitize(value: Any) -> Any:
@@ -184,27 +204,55 @@ def signal_record(item: dict[str, Any], group: str, recorded_at: float, costs: d
         "market_ranked": item.get("ranked"), "profile_cap_pass": item.get("profile_cap_pass"),
         "model_costs": costs, "model_notes": MODEL_NOTES,
     }
+    record["entry_model"] = entry_model(record, item)
     return sanitize(record)
+
+
+def entry_model(record: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+    """Sanal girişin referans fiyatı ve canlıdan sapma ölçüleri. Güvenilir tarama fiyatı yoksa APPROXIMATE_ENTRY."""
+    close = float(record["price"])
+    scan = _num(item.get("scan_price"))
+    tick = _num(item.get("tick"))
+    trusted = (scan is not None and scan > 0 and item.get("scan_time") == item.get("decision_time")
+               and abs(scan / close - 1) <= MAX_SCAN_PRICE_GAP)
+    source = ENTRY_SCAN if trusted else ENTRY_SIGNAL_CLOSE
+    reference = scan if trusted else close
+    entry = round_tick(reference, tick)
+    return {
+        "source": source, "approximate_entry": not trusted, "signal_close": close, "scan_price": scan,
+        "reference": reference, "entry": entry, "tick": tick, "tick_known": tick is not None and tick > 0,
+        "scan_vs_signal_close_bps": bps(scan, close),
+        "entry_tick_rounding_bps": bps(entry, reference),
+        # Toplanmayanlar (yeni ağ çağrısı gerektirir; bu PR'da yok): işaretlenir, tahmin edilmez.
+        "mark_price": None, "mark_vs_candle_bps": None, "realized_fill": None, "realized_vs_estimated_bps": None,
+        "not_collected": ["mark_price", "realized_fill"],
+        "live_size": item.get("size"),
+        "live_openable": (item.get("size") or {}).get("passes"),
+    }
 
 
 def open_virtual(record: dict[str, Any], costs: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     """Sanal işlemi canlı V2'nin seviyeleriyle kurar. (işlem, None) ya da (None, red nedeni)."""
     direction = record["direction"]
     sign = 1 if direction == "LONG" else -1 if direction == "SHORT" else 0
-    levels = record["levels"]
-    entry, stop, signal_tp1, tp3 = (_num(v) for v in (record["price"], levels["stop"], levels["tp1_signal"], levels["tp3"]))
-    if not sign or None in (entry, stop, signal_tp1, tp3) or entry <= 0:
+    levels, model = record["levels"], record["entry_model"]
+    tick = model.get("tick") if model.get("tick_known") else None
+    entry = _num(model.get("entry"))
+    stop, signal_tp1, tp2, tp3 = (_num(round_tick(v, tick)) if _num(v) is not None else None
+                                  for v in (levels["stop"], levels["tp1_signal"], levels["tp2"], levels["tp3"]))
+    if not sign or None in (entry, stop, signal_tp1, tp2, tp3) or entry <= 0:
         return None, "invalid_levels"
     fee_bps, slip_bps = _num(costs.get("fee_bps")), _num(costs.get("slip_bps"))
     if fee_bps is None or slip_bps is None or fee_bps < 0 or slip_bps < 0:
         return None, "costs_unavailable"
     if sign == 1:
-        valid = stop < entry < signal_tp1 <= tp3
+        valid = stop < entry < signal_tp1 < tp2 < tp3  # canlı validate_levels: tick yuvarlama sonrası kesin sıralama
     else:
-        valid = tp3 <= signal_tp1 < entry < stop
+        valid = tp3 < tp2 < signal_tp1 < entry < stop
     if not valid:
         return None, "invalid_levels"
-    tp1 = entry + (signal_tp1 - entry) * TP1_PRICE_RATIO
+    unrounded_tp1 = entry + (signal_tp1 - entry) * TP1_PRICE_RATIO
+    tp1 = round_tick(unrounded_tp1, tick)  # canlı: round_tick(entry + (tp1 - entry) * 0.80, tick)
     if not (entry < tp1 <= tp3 if sign == 1 else tp3 <= tp1 < entry):
         return None, "invalid_levels"
     fee, slip = fee_bps / 10_000, slip_bps / 10_000
@@ -214,6 +262,9 @@ def open_virtual(record: dict[str, Any], costs: dict[str, Any]) -> tuple[dict[st
         "schema": SCHEMA, "id": record["id"], "group": record["group"], "symbol": record["symbol"],
         "direction": direction, "sign": sign, "signal_time": record["signal_time"],
         "entry_time": record["decision_time"], "last_time": record["decision_time"] - CANDLE_SECONDS,
+        "entry_source": model["source"], "approximate_entry": model["approximate_entry"],
+        "entry_diff_bps": model["scan_vs_signal_close_bps"], "entry_tick_rounding_bps": model["entry_tick_rounding_bps"],
+        "tp1_tick_rounding_bps": bps(tp1, unrounded_tp1), "live_openable": model["live_openable"],
         "entry_reference": entry, "entry_actual": actual_entry, "stop": stop, "tp1": tp1, "tp3": tp3,
         "tp1_signal": signal_tp1, "tp1_fraction": TP1_FRACTION, "fee_rate": fee, "slip_rate": slip,
         "fee_bps": fee_bps, "slip_bps": slip_bps, "risk_unit": risk_unit,
@@ -297,10 +348,23 @@ def summarize(trades: list[dict[str, Any]]) -> dict[str, Any]:
         r = [float(t["net_r"]) for t in rows]
         gains = sum(x for x in r if x > 0)
         losses = -sum(x for x in r if x < 0)
+        openable = [float(t["net_r"]) for t in rows if t.get("live_openable") is not False]
+        diffs = [abs(d) for d in (_num(t.get("entry_diff_bps")) for t in rows) if d is not None]
+        tick_entry = [abs(d) for d in (_num(t.get("entry_tick_rounding_bps")) for t in rows) if d is not None]
+        tick_tp1 = [abs(d) for d in (_num(t.get("tp1_tick_rounding_bps")) for t in rows) if d is not None]
         result[group] = {"N": len(r), "unresolved": unresolved, "mean_net_r": sum(r) / len(r) if r else None,
                          "win_rate": sum(1 for x in r if x > 0) / len(r) if r else None,
                          "profit_factor_r": gains / losses if losses > 0 else None,
-                         "ambiguous_bars": sum(int(t.get("ambiguous_bars") or 0) for t in rows)}
+                         "ambiguous_bars": sum(int(t.get("ambiguous_bars") or 0) for t in rows),
+                         "approximate_entry": sum(1 for t in rows if t.get("approximate_entry")),
+                         "live_unopenable": sum(1 for t in rows if t.get("live_openable") is False),
+                         "live_openable_unknown": sum(1 for t in rows if t.get("live_openable") is None),
+                         "N_live_openable": len(openable),
+                         "mean_net_r_live_openable": sum(openable) / len(openable) if openable else None,
+                         "scan_vs_close_abs_bps_mean": sum(diffs) / len(diffs) if diffs else None,
+                         "scan_vs_close_abs_bps_max": max(diffs) if diffs else None,
+                         "entry_tick_abs_bps_mean": sum(tick_entry) / len(tick_entry) if tick_entry else None,
+                         "tp1_tick_abs_bps_mean": sum(tick_tp1) / len(tick_tp1) if tick_tp1 else None}
     return result
 
 
@@ -509,6 +573,8 @@ def build_scan(at: int, observed: dict[str, Any], ranked: set[str], eligible_sym
                 "mtf": copy.deepcopy(legacy.get("mtf") or {}), "checks": checks,
                 "ranked": symbol in ranked, "eligible": symbol in eligible_symbols,
                 "recent": [dict(row) for row in candles[-8:]],
+                "scan_price": (data.get("scan_row") or {}).get("close"), "scan_time": (data.get("scan_row") or {}).get("time"),
+                "tick": data.get("tick"), "size": copy.deepcopy(data.get("size")),
             }
             if analysis.get("direction") == "SHORT" and (cap_check is not None):
                 item["profile_cap_pass"] = cap_check(analysis.get("entry"), analysis.get("stop_loss"))

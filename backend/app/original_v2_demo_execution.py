@@ -563,6 +563,32 @@ async def live_candidates(
     )
 
 
+def _observer_extras(observed: dict[str, Any], symbol_info_by_symbol: dict[str, Any],
+                     sizing_context: dict[str, Any] | None) -> None:
+    """Yalnız gölge kayıt: tick ve 'canlıda minimum miktara takılır mıydı' bilgisi. Saf hesap; karara etkisi yok."""
+    for symbol, data in observed.items():
+        data["tick"], data["size"] = None, None
+        info = symbol_info_by_symbol.get(symbol)
+        if not isinstance(info, dict):
+            continue
+        price_filter = next((f for f in info.get("filters", []) if isinstance(f, dict) and f.get("filterType") == "PRICE_FILTER"), None)
+        if price_filter is not None:
+            data["tick"] = str(price_filter.get("tickSize"))
+        analysis = (getattr(data.get("result"), "legacy", None) or {}).get("analysis")
+        scan_row = data.get("scan_row")
+        if sizing_context is None or not isinstance(analysis, dict) or analysis.get("direction") not in {"LONG", "SHORT"} or not scan_row:
+            continue
+        try:
+            signal = {key: value for key, value in analysis.items() if key != "series"}
+            signal["entry"] = scan_row["close"]  # canlı emir anına en yakın bilinen fiyat
+            assessment = live_minimum_order_assessment(signal, info, sizing_context)
+            data["size"] = {"passes": bool(assessment["passes"]), **{key: assessment[key] for key in (
+                "total_quantity", "tp1_quantity", "remaining_quantity", "total_notional_usdt", "min_qty", "min_notional_usdt")}}
+        except Exception as exc:  # noqa: BLE001 - geçersiz kural: bilinmiyor; stop tavanı: canlı girmezdi
+            code = str(getattr(exc, "detail", None) or exc or type(exc).__name__)[:120]
+            data["size"] = {"passes": False if code == "profile_cap" else None, "error": code}
+
+
 async def _candidates(
     client: OriginalMarketClient,
     at: int,
@@ -730,8 +756,9 @@ async def _candidates(
             raise
         if observer is not None:
             try:
+                forming = series_by_interval["15m"].at(at)  # kline getirildiği andaki oluşmakta olan mum
                 observed[symbol] = {"candles": [dict(row) for row in series_by_interval["15m"].closed(at, 200)],
-                                    "result": results[symbol]}
+                                    "result": results[symbol], "scan_row": dict(forming) if forming else None}
             except Exception:  # noqa: BLE001 - gözlem hatası canlı taramayı etkilemez
                 pass
         if all(series.history_complete(at) for series in series_by_interval.values()):
@@ -888,6 +915,7 @@ async def _candidates(
         )[:3]
     if observer is not None:
         try:
+            _observer_extras(observed, symbol_info_by_symbol, sizing_context)
             observer(at, observed, {c["symbol"] for c in ranked}, {c["symbol"] for c, _ in eligible})
         except Exception:  # noqa: BLE001 - gölge kayıt hatası canlı akışı etkilemez
             pass
