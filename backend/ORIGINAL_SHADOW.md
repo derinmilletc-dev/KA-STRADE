@@ -13,3 +13,9 @@ Amaç: canlı stratejiyi değiştirmeden SHORT filtresinin (alignment ≥ 80) re
 
 ## Sınırlamalar
 Sanal işlemler portföy/teminat/günlük limit/minimum miktar kapılarına tabi değildir; (grup, sembol) başına tek açık işlem; giriş sinyal mumu kapanışı; tetikleme fiyat mumu high/low (çevrimdışı model mark fiyatı kullanır); eksik mum varsa işlem `DATA_GAP` olarak çözülmemiş sayılır. Az veri kanıt değildir.
+
+## Canlı ile sanal hesap farkları (ölçüldü)
+* **Giriş fiyatı:** canlı, emir anındaki anlık fiyatı kullanır ve TP1'i buna göre kurar; sanal, sinyal mumu kapanışını kullanır. Stop ve TP3 iki tarafta da sinyalin mutlak seviyesidir. %2 stop'ta ±5 bps giriş farkı ≈ ±0,055R (testte ölçülür). Yönsüz gürültüdür, iki gruba aynı uygulanır.
+* **Miktar:** canlı miktarı 10 adım katına yuvarlar; TP1 miktarı tam %70'tir (test: her adım için). R miktardan bağımsızdır, bu yüzden yuvarlama R'yi değiştirmez; yalnız canlıda minimum notional'a takılma farkı vardır (sanalda yok).
+* **Tick:** canlı TP1/stop/TP3'ü tick'e yuvarlar; sanal yuvarlamaz (fark ≤ 1 tick).
+* **Gerçek dolum:** canlı gerçek borsa dolumunu kullanır; sanal sabit 5+3 bps modelidir. Çıkış emirleri canlıda STOP_MARKET/TAKE_PROFIT_MARKET (mark fiyatı tetikli) olduğundan her çıkışa kayma uygulanması tutarlıdır; tetikleme sanalda kontrat mumu high/low ile yapılır.
