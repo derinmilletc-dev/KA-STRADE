@@ -20,6 +20,7 @@ from .store import PENDING_SEND, TERMINAL, UNKNOWN, GridStore
 # Durumlar
 CREATED, RUNNING, PAUSED, STOPPED, COMPLETED = "CREATED", "RUNNING", "PAUSED", "STOPPED", "COMPLETED"
 EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL, BLOCKED = "EMERGENCY", "EMERGENCY_CLOSED", "NEEDS_MANUAL", "BLOCKED"
+MAX_LEVELS = 5  # manual_grid.py ve önizleme ile aynı; ayrı bir geliştirme olmadan artırılmaz
 NO_NEW_ORDERS = {PAUSED, STOPPED, COMPLETED, EMERGENCY, EMERGENCY_CLOSED, NEEDS_MANUAL, BLOCKED}
 
 
@@ -54,6 +55,8 @@ class GridEngine:
                  sleep: Callable[[float], None] = lambda s: None) -> None:
         if spec.side not in (LONG, SHORT):
             raise ValueError("yön LONG/SHORT olmalı")
+        if not 2 <= len(spec.levels) <= MAX_LEVELS:
+            raise ValueError(f"kademe sayısı 2-{MAX_LEVELS} arasında olmalı")
         self.ex, self.store, self.spec = exchange, store, spec
         self.gid, self.sym, self.risk_gate = spec.grid_id, spec.symbol, risk_gate
         self.max_close_attempts, self.sleep = max_close_attempts, sleep
@@ -151,6 +154,9 @@ class GridEngine:
                 return BLOCKED
             if abs(base) > EPS:
                 self._set(BLOCKED, f"{self.sym} üzerinde başka pozisyon var ({base}); aynı coinde grid açılmaz")
+                return BLOCKED
+            if foreign:
+                self._set(BLOCKED, f"{self.sym} üzerinde başka bekleyen emir var ({len(foreign)} adet); aynı coinde grid açılmaz")
                 return BLOCKED
             self.store.set_grid(self.gid, baseline=base)
             self._set(RUNNING)

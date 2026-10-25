@@ -282,6 +282,74 @@ class TestDuplicatesAndGates(Base):
             self.ex.place_order(client_id="a", symbol=SYM, side="BUY", type="LIMIT", qty=0.5, price=98.05)
 
 
+class TestSameCoinAndLimits(Base):
+    def test_pending_manual_order_same_coin_blocks(self):
+        self.ex.place_order(client_id="manual-1", symbol=SYM, side="BUY", type="LIMIT", qty=0.2, price=80.0)
+        self.assertEqual(self.engine().start(), BLOCKED)
+        self.assertEqual([k for k in self.ex.placed_count if k.startswith("kg-")], [])
+
+    def test_other_coin_position_and_orders_do_not_block(self):
+        self.ex.set_position("ETHUSDT", 3.0)
+        self.ex.prices["ETHUSDT"] = 50.0
+        self.ex.place_order(client_id="manual-2", symbol="ETHUSDT", side="BUY", type="LIMIT", qty=1.0, price=40.0)
+        self.assertEqual(self.engine().start(), RUNNING)
+        self.assertEqual(len(self.ex.open_orders(SYM)), 3)
+
+    def test_more_than_five_levels_refused(self):
+        levels = [GridLevelSpec(98.0 - i, 99.0 - i, 0.5) for i in range(6)]
+        with self.assertRaises(ValueError):
+            GridEngine(self.ex, self.store, GridSpec("g1", SYM, LONG, levels, 80.0))
+
+
+class TestStopRejectVsLostReply(Base):
+    def _gap_to_stop(self, eng):
+        """L01 doldu ve korunuyor; sonra fiyat stopun ALTINA düşerken L02 doluyor (stop L01'i kapatır, L02 açıkta kalır)."""
+        self.ex.set_price(SYM, 98.0); eng.tick()
+        self.assertEqual(len(self.stops()), 1)
+        self.ex.set_price(SYM, 89.0)          # L02, L03 dolar; ilk stop yalnız 0.5'i kapatır
+
+    def test_clear_rejection_closes_once_at_market(self):
+        eng = self.engine(); eng.start()
+        self._gap_to_stop(eng)
+        eng.tick()
+        closes = [k for k in self.ex.placed_count if k.endswith("C0")]
+        self.assertEqual(len(closes), 1)
+        self.assertEqual(self.ex.placed_count[closes[0]], 1)
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
+        self.assertEqual(eng.status, STOPPED)
+
+    def test_lost_reply_on_stop_does_not_trigger_market_close(self):
+        eng = self.engine(); eng.start()
+        self.ex.set_price(SYM, 98.0)
+        self.ex.lose_response_for.add(self.cid(0, "S"))     # stop kabul edilir ama yanıt kaybolur
+        eng.tick(); eng.tick()
+        self.assertFalse([k for k in self.ex.orders if k.endswith("C0")])   # piyasa kapatma yok
+        self.assertEqual(len(self.stops()), 1)                               # stop borsada, tek adet
+        self.assertEqual(self.ex.placed_count[self.cid(0, "S")], 1)
+
+    def test_lost_reply_and_status_unreadable_still_no_market_close(self):
+        eng = self.engine(); eng.start()
+        self.ex.set_price(SYM, 98.0)
+        self.ex.lose_response_for.add(self.cid(0, "S"))
+        self.ex.hooks.append(lambda m, i: setattr(self.ex, "connected", False) if m == "get_order" and str(i.get("client_id")).endswith("S0") else None)
+        eng.tick()
+        self.ex.hooks.clear(); self.ex.connected = True
+        self.assertFalse([k for k in self.ex.orders if k.endswith("C0")])   # belirsiz: kapatma yok
+        eng.tick(); eng.tick()
+        self.assertFalse([k for k in self.ex.orders if k.endswith("C0")])
+        self.assertEqual(self.ex.placed_count[self.cid(0, "S")], 1)          # stop tek kez, sonra kimlikle bulundu
+        self.assertEqual(len(self.stops()), 1)
+
+    def test_lost_reply_on_market_close_no_second_close(self):
+        eng = self.engine(); eng.start()
+        self._gap_to_stop(eng)
+        self.ex.lose_response_for.add(self.cid(0, "C"))
+        eng.tick(); eng.tick(); eng.tick()
+        self.assertEqual(self.ex.placed_count[self.cid(0, "C")], 1)
+        self.assertFalse([k for k in self.ex.orders if k.endswith("C1")])
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
+
+
 class TestPause(Base):
     def test_pause_cancels_entries_keeps_position_protected(self):
         eng = self.engine(); eng.start()
