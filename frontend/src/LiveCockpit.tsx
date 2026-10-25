@@ -1426,7 +1426,7 @@ export default function LiveCockpit(props: Props) {
         <div><dt>Bugün</dt><dd data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</dd></div>
       </dl>
       <div className="lcStatusLinks">
-        <span className="lcUpdated"><small>Son güncelleme</small><b>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '—'}</b></span>
+        <span className="lcUpdated"><i className="lcLiveDot" aria-hidden="true"/><span><small>Son güncelleme</small><b>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '—'}</b></span></span>
         <button type="button" className="lcRefresh" aria-label="Yenile" title="Yenile" onClick={() => { void Promise.resolve(refresh()).catch(() => undefined) }}><RefreshCw aria-hidden="true"/></button>
         {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %{original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}</b></span>}
         <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
