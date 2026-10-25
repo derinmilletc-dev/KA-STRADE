@@ -36,8 +36,10 @@ type Props = {
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
 const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
-type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard' | 'summary' | 'launch'
+type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'edit-protection' | 'reduce-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard' | 'summary' | 'launch'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
+// Manuel pozisyon: stop/hedef değiştirme ve kısmi kapatma hedefi (yalnız MANUEL planlar).
+type ManualTarget = CloseTarget & {stop: string; targets: [string, string, string]; mark: string}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
@@ -49,8 +51,15 @@ const tp1Percent = (plan: Record<string, unknown> | undefined) => {
   const value = Number(plan?.tp1_fraction)
   return Number.isFinite(value) && value > 0 && value < 1 ? Math.round(value * 100) : 60
 }
+// Manuel TP2 payı (yoksa %20).
+const tp2Percent = (plan: Record<string, unknown> | undefined) => {
+  const value = Number(plan?.tp2_fraction)
+  return Number.isFinite(value) && value > 0 && value < 1 ? Math.round(value * 100) : 20
+}
 // Sunucu bu cümleyi ister; tek pozisyonu kapatırken kullanıcıya yazdırmayız, onay penceresindeki "Evet, kapat" gönderir.
 const CLOSE_POSITION_PHRASE = 'CANLI POZİSYONU KAPAT'
+const PROTECTION_PHRASE = 'KORUMAYI GÜNCELLE'
+const REDUCE_PHRASE = 'KISMİ KAPAT'
 const usdt = (value: number | null | undefined, signed = false) => typeof value === 'number' && Number.isFinite(value)
   ? `${signed && value > 0 ? '+' : ''}${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT` : '—'
 const pct = (value: number) => `%${value.toLocaleString('tr-TR', {maximumFractionDigits: 2})}`
@@ -519,6 +528,44 @@ export default function LiveCockpit(props: Props) {
       await request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE})
       setSheet(null); setCloseTarget(null)
     }, `${target.symbol.replace('USDT', '')} kapanış emri gönderildi. Pozisyon kapanınca Stop/TP emirleri otomatik temizlenir.`, setSheetError)
+  }
+  // ---- Manuel pozisyon: stop/hedef değiştir ve kısmi kapat. Sunucu her şeyi yeniden doğrular (yön, risk sınırı,
+  // açık hedef); stop doğrulanmadan pozisyon korumasız sayılmaz. Yalnız değiştirilen alanlar gönderilir.
+  const [manualTarget, setManualTarget] = useState<ManualTarget | null>(null)
+  const [editLevels, setEditLevels] = useState({stop: '', tp1: '', tp2: '', tp3: ''})
+  const [reducePct, setReducePct] = useState<25 | 50 | 75>(50)
+  const askEditProtection = (target: ManualTarget) => {
+    setSheetError(''); setManualTarget(target)
+    setEditLevels({stop: target.stop, tp1: target.targets[0], tp2: target.targets[1], tp3: target.targets[2]})
+    setSheet('edit-protection')
+  }
+  const askReduce = (target: ManualTarget) => { setSheetError(''); setManualTarget(target); setReducePct(50); setSheet('reduce-position') }
+  const changedLevel = (value: string, original: string) => {
+    const next = Number(value), before = Number(original)
+    return Number.isFinite(next) && next > 0 && next !== before ? next : undefined
+  }
+  const saveProtection = () => {
+    const target = manualTarget
+    if (!target) return Promise.resolve(false)
+    const body = {
+      plan_id: target.planId, confirmation: PROTECTION_PHRASE,
+      stop_loss: changedLevel(editLevels.stop, target.stop), tp1: changedLevel(editLevels.tp1, target.targets[0]),
+      tp2: changedLevel(editLevels.tp2, target.targets[1]), tp3: changedLevel(editLevels.tp3, target.targets[2]),
+    }
+    if ([body.stop_loss, body.tp1, body.tp2, body.tp3].every(value => value === undefined)) { setSheetError('Değişen bir seviye yok.'); return Promise.resolve(false) }
+    return perform('edit-protection', async () => {
+      await request('/position/protection', body)
+      setSheet(null); setManualTarget(null)
+    }, `${target.symbol.replace('USDT', '')} stop/hedefler güncellendi; yeni stop Binance'te doğrulandı.`, setSheetError)
+  }
+  const reducePosition = () => {
+    const target = manualTarget
+    if (!target) return Promise.resolve(false)
+    const percent = reducePct
+    return perform('reduce-position', async () => {
+      await request('/position/reduce', {plan_id: target.planId, percent, confirmation: REDUCE_PHRASE})
+      setSheet(null); setManualTarget(null)
+    }, `${target.symbol.replace('USDT', '')} pozisyonun %${percent}'i kapatıldı; kalan kısım stopla korunuyor.`, setSheetError)
   }
   const closeAll = () => perform('close-all', async () => {
     await request('/emergency', {confirmation: CLOSE_ALL_PHRASE, close_tracked_positions: true})
@@ -1378,6 +1425,31 @@ export default function LiveCockpit(props: Props) {
     </ul>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
       <button type="button" className="lcBtn lcDanger" disabled={Boolean(working)} onClick={() => void closePosition()}>{working === 'close-position' ? 'Gönderiliyor…' : 'Evet, kapat'}</button></div>
+  </> : sheet === 'edit-protection' && manualTarget ? <>
+    <h2 id="lc-sheet-title">{manualTarget.symbol.replace('USDT', '')} · stop ve hedefler</h2>
+    <p className="lcSheetLead">{manualTarget.direction} · giriş {manualTarget.entry} · şu anki fiyat {manualTarget.mark}. Yalnız değiştirdiğin alanlar gönderilir.</p>
+    <div className="lcPosEdit">
+      <label className="lcField">Stop<input type="number" inputMode="decimal" value={editLevels.stop} onChange={event => setEditLevels(current => ({...current, stop: event.target.value}))}/></label>
+      <label className="lcField">TP1<input type="number" inputMode="decimal" value={editLevels.tp1} onChange={event => setEditLevels(current => ({...current, tp1: event.target.value}))}/></label>
+      <label className="lcField">TP2<input type="number" inputMode="decimal" value={editLevels.tp2} onChange={event => setEditLevels(current => ({...current, tp2: event.target.value}))}/></label>
+      <label className="lcField">TP3<input type="number" inputMode="decimal" value={editLevels.tp3} onChange={event => setEditLevels(current => ({...current, tp3: event.target.value}))}/></label>
+    </div>
+    <ul className="lcStopList">
+      <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Yeni stop Binance'te doğrulanır. Kurulamazsa eski stop geri konur; o da olmazsa pozisyon güvenlik için kapatılır. Pozisyon stopsuz bırakılmaz.</span></li>
+      <li data-tone="mute"><Check aria-hidden="true"/><span>Stopu uzaklaştırıp zararı işlem başı risk sınırının üstüne çıkaramazsın. Gerçekleşmiş hedef değiştirilemez.</span></li>
+    </ul>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+      <button type="button" className="lcBtn lcPrimary" disabled={Boolean(working)} onClick={() => void saveProtection()}>{working === 'edit-protection' ? 'Gönderiliyor…' : 'Kaydet'}</button></div>
+  </> : sheet === 'reduce-position' && manualTarget ? <>
+    <h2 id="lc-sheet-title">{manualTarget.symbol.replace('USDT', '')} · kısmi kapat</h2>
+    <p className="lcSheetLead">{manualTarget.direction} · giriş {manualTarget.entry}. Seçtiğin pay <b>piyasa fiyatından, reduce-only</b> emirle kapanır; kalan kısım stopla korunmaya devam eder.</p>
+    <div className="lcSegWrap" role="group" aria-label="Kapatılacak pay"><span>Kapatılacak pay</span>
+      <div className="lcSeg lcSeg3">{([25, 50, 75] as const).map(value => <button type="button" key={value} aria-pressed={reducePct === value} disabled={Boolean(working)} onClick={() => setReducePct(value)}>%{value}</button>)}</div></div>
+    <ul className="lcStopList">
+      <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Açık TP1/TP2 emirleri kalan pozisyona göre küçültülür. Kalan kısım Binance alt sınırının altında kalacaksa işlem reddedilir; o durumda tamamını kapat.</span></li>
+    </ul>
+    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+      <button type="button" className="lcBtn lcDanger" disabled={Boolean(working)} onClick={() => void reducePosition()}>{working === 'reduce-position' ? 'Gönderiliyor…' : `Evet, %${reducePct} kapat`}</button></div>
   </> : sheet === 'fill-lock' ? <>
     <h2 id="lc-sheet-title">Dolum güvenlik kilidi{original?.fill_lock?.symbol ? ` · ${original.fill_lock.symbol}` : ''}</h2>
     <p className="lcSheetLead">Bir emir beklenenden farklı doldu, bu yüzden yeni işlemler durduruldu. Açık pozisyon değiştirilmedi.</p>
@@ -1589,10 +1661,19 @@ export default function LiveCockpit(props: Props) {
                   <span><small>Fiyat</small><b>{String(position.mark_price ?? '—')}</b></span>
                   <span><small>Stop</small><b>{String(plan?.stop_loss ?? '—')}</b>{!external && flag(protection?.stop)}</span>
                   <span><small>TP1 (%{tp1Percent(plan)})</small><b>{String(plan?.targets?.[0] ?? '—')}</b>{!external && flag(protection?.tp1)}</span>
-                  {plan?.source === 'MANUAL' && <span><small>TP2 (%20)</small><b>{String(plan?.targets?.[1] ?? '—')}</b>{!external && flag(protection?.tp2)}</span>}
+                  {plan?.source === 'MANUAL' && <span><small>TP2 (%{tp2Percent(plan)})</small><b>{String(plan?.targets?.[1] ?? '—')}</b>{!external && flag(protection?.tp2)}</span>}
                   <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
                 </div>
                 {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}
+                {closable && plan?.source === 'MANUAL' && (() => {
+                  const levels = Array.isArray(plan?.targets) ? plan.targets.map(value => String(value ?? '')) : []
+                  const manual: ManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
+                    stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: String(position.mark_price ?? '—')}
+                  return <div className="lcPosManual">
+                    <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => askEditProtection(manual)}>Stop / hedef değiştir</button>
+                    <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => askReduce(manual)}>Kısmi kapat</button>
+                  </div>
+                })()}
                 {closable && <button type="button" className="lcPosClose" disabled={busy}
                   onClick={() => askClosePosition({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl})}>
                   <X aria-hidden="true"/>Pozisyonu kapat</button>}

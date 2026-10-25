@@ -959,3 +959,10 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="kritik"] b{background:rgba(255,107,107,.25);color:#ff8a8a}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="bilgi"]{background:rgba(120,170,255,.1);color:#bcd2ff}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .originalManualOrder .mgpAlerts li[data-level="bilgi"] b{background:rgba(120,170,255,.2);color:#8fb4ff}
+
+/* Manuel pozisyon: stop/hedef değiştir ve kısmi kapat */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosManual{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosManual .lcBtn{min-height:44px;width:100%}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosEdit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg.lcSeg3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:420px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosEdit{grid-template-columns:1fr}}

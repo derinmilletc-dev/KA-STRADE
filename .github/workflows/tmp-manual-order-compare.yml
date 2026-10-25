@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/tmp-manual-order-compare.yml'
       - 'backend/**'
+      - 'frontend/**'
+      - '*.tsx'
+      - '*.css'
 
 permissions:
   contents: read
@@ -89,7 +92,8 @@ jobs:
           set +e
           npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null && npx playwright install --with-deps chromium >/dev/null)
           npm run build >/dev/null 2>&1; echo "build exit $?"
-          (cd frontend && npx playwright test --reporter=json > /tmp/branch-e2e.json 2>/dev/null); true
+          (cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/branch-e2e.json npx playwright test --reporter=json,line > /tmp/branch-e2e.log 2>&1); echo "exit $?"
+          tail -n 5 /tmp/branch-e2e.log | while read -r l; do echo "::notice title=branch e2e tail::$l"; done; true
       - name: Main e2e
         shell: bash
         run: |
@@ -97,7 +101,8 @@ jobs:
           git checkout -q origin/main -- .
           npm ci --no-audit --no-fund >/dev/null && (cd frontend && npm ci --no-audit --no-fund >/dev/null)
           npm run build >/dev/null 2>&1; echo "build exit $?"
-          (cd frontend && npx playwright test --reporter=json > /tmp/main-e2e.json 2>/dev/null); true
+          (cd frontend && PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/main-e2e.json npx playwright test --reporter=json,line > /tmp/main-e2e.log 2>&1); echo "exit $?"
+          tail -n 5 /tmp/main-e2e.log | while read -r l; do echo "::notice title=main e2e tail::$l"; done; true
       - name: Compare e2e
         shell: bash
         run: |
@@ -114,15 +119,16 @@ jobs:
             for (const child of suite.suites || []) walk(child, [...trail, child.title].filter(Boolean))
           }
           for (const suite of data.suites || []) walk(suite, [])
+          for (const error of data.errors || []) console.error(`REPORT_ERROR ${String(error.message || '').split('\n')[0].slice(0, 200)}`)
           console.log([...out].sort().join('\n'))
-          console.error(`total=${(data.stats && (data.stats.expected + data.stats.unexpected + data.stats.flaky + data.stats.skipped)) || 0} unexpected=${data.stats ? data.stats.unexpected : '?'}`)
+          console.error(`expected=${data.stats?.expected} unexpected=${data.stats?.unexpected} flaky=${data.stats?.flaky} skipped=${data.stats?.skipped}`)
           JS
           node /tmp/fails.js /tmp/branch-e2e.json > /tmp/b.txt 2>/tmp/b.stats
           node /tmp/fails.js /tmp/main-e2e.json > /tmp/m.txt 2>/tmp/m.stats
-          echo "::notice title=e2e main::$(cat /tmp/m.stats)"
-          echo "::notice title=e2e branch::$(cat /tmp/b.stats)"
+          while read -r l; do echo "::notice title=e2e main::$l"; done < /tmp/m.stats
+          while read -r l; do echo "::notice title=e2e branch::$l"; done < /tmp/b.stats
           sort -u /tmp/b.txt -o /tmp/b.txt; sort -u /tmp/m.txt -o /tmp/m.txt
-          comm -13 /tmp/m.txt /tmp/b.txt | grep -v '^$' > /tmp/new.txt
+          comm -13 /tmp/m.txt /tmp/b.txt | { grep -v '^$' || true; } > /tmp/new.txt
           while read -r line; do echo "::error title=NEW E2E FAILURE::$line"; done < /tmp/new.txt
           while read -r line; do echo "::notice title=e2e fails on main too::$line"; done < <(head -n 30 /tmp/m.txt)
           test ! -s /tmp/new.txt

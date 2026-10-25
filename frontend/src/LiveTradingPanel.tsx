@@ -78,7 +78,13 @@ type ConnectionSaveResult = ConnectionStatus & {
 }
 type ExternalHistory = {read_only?: boolean; label?: string; external_trades?: Array<Record<string, unknown>>; external_income?: Array<Record<string, unknown>>; errors?: Array<Record<string, unknown>>}
 
-type OrderDraft = {symbol: string; direction: 'LONG' | 'SHORT'; order_type: 'MARKET' | 'LIMIT'; margin_usdt: string; leverage: string; limit_price: string; stop_loss: string; tp1: string; tp2: string; tp3: string}
+type OrderDraft = {symbol: string; direction: 'LONG' | 'SHORT'; order_type: 'MARKET' | 'LIMIT'; margin_usdt: string; leverage: string; limit_price: string; stop_loss: string; tp1: string; tp2: string; tp3: string; tp_split: TpSplit; limit_expiry_minutes: '' | '60' | '240' | '1440'}
+// Manuel hedef payları (TP1-TP2-TP3, %); sunucu aynı listeyi doğrular.
+type TpSplit = '60-20-20' | '50-30-20' | '40-30-30' | '34-33-33'
+const TP_SPLITS: TpSplit[] = ['60-20-20', '50-30-20', '40-30-30', '34-33-33']
+const LIMIT_EXPIRY_OPTIONS: Array<{value: OrderDraft['limit_expiry_minutes']; label: string}> = [{value: '', label: 'Süresiz'}, {value: '60', label: '1 saat'}, {value: '240', label: '4 saat'}, {value: '1440', label: '1 gün'}]
+const tp1ShareOf = (split: TpSplit) => Number(split.split('-')[0]) / 100
+const orderExtras = (o: OrderDraft) => ({tp_split: o.tp_split, limit_expiry_minutes: o.order_type === 'LIMIT' && o.limit_expiry_minutes ? Number(o.limit_expiry_minutes) : null})
 
 export type SharedLiveStatus = LiveStatus
 export type SharedConnectionStatus = ConnectionStatus
@@ -87,17 +93,15 @@ const normalizeCredentialFingerprint = (value: string | null | undefined) => (va
 
 type Props = {active: boolean; symbol: string; analysis?: {direction?: string | null; confidence?: number; entry?: number; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number} | null; masterTrade?: boolean; masterTradeTab?: 'analiz' | 'canli' | 'pozisyonlar' | 'baglanti'; sharedStatus?: LiveStatus | null; sharedStatusVerified?: boolean; sharedStatusError?: string; sharedStatusLoading?: boolean; sharedConnections?: ConnectionStatus | null; onRefreshStatus?: (force?: boolean) => Promise<void>}
 
-// Manuel hedef dağılımı (sunucuyla aynı): TP1 pozisyonun %60'ı, TP2 %20'si, TP3 kalanı.
-const TP1_SHARE = 0.6
 const V25 = `${API_BASE}/v25`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
-const initialOrder = (symbol: string): OrderDraft => ({symbol, direction: 'LONG', order_type: 'MARKET', margin_usdt: '10', leverage: '1', limit_price: '', stop_loss: '', tp1: '', tp2: '', tp3: ''})
+const initialOrder = (symbol: string): OrderDraft => ({symbol, direction: 'LONG', order_type: 'MARKET', margin_usdt: '10', leverage: '1', limit_price: '', stop_loss: '', tp1: '', tp2: '', tp3: '', tp_split: '60-20-20', limit_expiry_minutes: ''})
 type CoinRow = {symbol: string; display: string; price: number; change: number; volume: number}
 const RECENT_COINS_KEY = 'kaistrade-recent-coins'
 const readRecentCoins = (): string[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_COINS_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 6) : [] } catch { return [] } }
 const saveRecentCoin = (symbol: string) => { try { localStorage.setItem(RECENT_COINS_KEY, JSON.stringify([symbol, ...readRecentCoins().filter(item => item !== symbol)].slice(0, 6))) } catch { /* kayıt kapalı olabilir */ } }
 const coinPrice = (value: number) => Number.isFinite(value) ? value.toLocaleString('tr-TR', {maximumFractionDigits: value < 1 ? 6 : value < 100 ? 4 : 2}) : '—'
-const orderKey = (o: OrderDraft) => JSON.stringify([o.symbol, o.direction, o.order_type, o.margin_usdt, o.leverage, o.limit_price, o.stop_loss, o.tp1, o.tp2, o.tp3])
+const orderKey = (o: OrderDraft) => JSON.stringify([o.symbol, o.direction, o.order_type, o.margin_usdt, o.leverage, o.limit_price, o.stop_loss, o.tp1, o.tp2, o.tp3, o.tp_split, o.limit_expiry_minutes])
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '—' : String(value)
 const signalPrice = (value: number | null | undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
 const money = (value: unknown) => {
@@ -225,13 +229,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [coinQuery, setCoinQuery] = useState('')
   const [coinOpen, setCoinOpen] = useState(false)
   const [manualStep, setManualStep] = useState(0)
+  // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
+  const [manualPanelOpen, setManualPanelOpen] = useState(false)
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
   const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
   const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
   const [reviewedKey, setReviewedKey] = useState('')
   useEffect(() => {
-    if (!active || universe !== null || !(openStep === 3 || !masterTrade)) return
+    if (!active || universe !== null || !(openStep === 3 || manualPanelOpen || !masterTrade)) return
     const controller = new AbortController()
     void fetchWithTimeout(`${API_BASE}/markets?all=true`, {signal: controller.signal}).then(async response => {
       if (!response.ok) throw new Error('markets')
@@ -240,10 +246,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setUniverseError(false)
     }).catch(error => { if (error?.name !== 'AbortError') setUniverseError(true) })
     return () => controller.abort()
-  }, [active, masterTrade, openStep, universe])
+  }, [active, masterTrade, openStep, manualPanelOpen, universe])
   const [riskPrev, setRiskPrev] = useState<{notional: number; margin: number; loss: number; stopPct: number; maxStopPct: number; capped: boolean} | {error: string} | null>(null)
   useEffect(() => {
-    if (!active || !masterTrade || openStep !== 3) { setRiskPrev(null); return }
+    if (!active || !masterTrade || (openStep !== 3 && !manualPanelOpen)) { setRiskPrev(null); return }
     const row = (universe ?? []).find(item => item.symbol === order.symbol)
     const entry = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(row?.price)
     const stop = Number(order.stop_loss)
@@ -259,7 +265,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }).catch(error => { if (error?.name !== 'AbortError') setRiskPrev(null) })
     }, 500)
     return () => { window.clearTimeout(timer); controller.abort() }
-  }, [active, masterTrade, openStep, order.symbol, order.order_type, order.limit_price, order.stop_loss, order.margin_usdt, order.leverage, analysis?.entry, symbol, universe])
+  }, [active, masterTrade, openStep, manualPanelOpen, order.symbol, order.order_type, order.limit_price, order.stop_loss, order.margin_usdt, order.leverage, analysis?.entry, symbol, universe])
   useEffect(() => {
     if (!active || manualMode !== 'grid' || !order.symbol) { setGridFilters({state: 'idle', data: null, error: ''}); return }
     const controller = new AbortController()
@@ -883,11 +889,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (nextOrder.order_type === 'LIMIT' && (!Number.isFinite(Number(nextOrder.limit_price)) || Number(nextOrder.limit_price) <= 0)) {
       setNotice({kind: 'error', text: 'Limit emir için pozitif bir limit fiyatı girin.'}); return
     }
-    const referencePrice = nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price) : Number(analysis?.entry)
+    // Piyasa emrinde referans, SEÇİLİ coinin fiyatı: grafikteki coin aynıysa analiz girişi, değilse coin listesindeki son fiyat.
+    // (Eskiden her zaman grafikteki coinin analizi kullanılıyordu; başka coin seçilince yersiz "Stop yanlış tarafta" hatası çıkıyordu.)
+    const listedPrice = Number((universe ?? []).find(row => row.symbol === nextOrder.symbol)?.price)
+    const referencePrice = nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price)
+      : nextOrder.symbol === symbol && Number.isFinite(Number(analysis?.entry)) && Number(analysis?.entry) > 0 ? Number(analysis?.entry)
+      : listedPrice
     const stop = Number(nextOrder.stop_loss)
     const targets = [Number(nextOrder.tp1), Number(nextOrder.tp2), Number(nextOrder.tp3)]
     if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
-      setNotice({kind: 'error', text: 'Stop Loss yönünü doğrulamak için giriş fiyatını analizden doldurun veya Limit seçin.'}); return
+      setNotice({kind: 'error', text: `${nextOrder.symbol} için güncel fiyat okunamadı; Stop yönü doğrulanamadı. Coin listesini yenileyin veya Limit seçin.`}); return
     }
     const validDirection = nextOrder.direction === 'LONG' ? stop < referencePrice && targets[0] > referencePrice : stop > referencePrice && targets[0] < referencePrice
     const orderedTargets = nextOrder.direction === 'LONG' ? targets[0] < targets[1] && targets[1] < targets[2] : targets[0] > targets[1] && targets[1] > targets[2]
@@ -901,7 +912,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (Number.isFinite(availableBalance) && availableBalance > 0 && Number(nextOrder.margin_usdt) > availableBalance) {
       setNotice({kind: 'error', text: `Seçilen marjin ${Number(nextOrder.margin_usdt).toFixed(2)} USDT; kullanılabilir bakiye yalnızca ${availableBalance.toFixed(2)} USDT.`}); return
     }
-    const payload = {...nextOrder, margin_usdt: Number(nextOrder.margin_usdt), leverage, limit_price: nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price) : null, stop_loss: Number(nextOrder.stop_loss), tp1: Number(nextOrder.tp1), tp2: Number(nextOrder.tp2), tp3: Number(nextOrder.tp3), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+    const payload = {...nextOrder, margin_usdt: Number(nextOrder.margin_usdt), leverage, limit_price: nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price) : null, stop_loss: Number(nextOrder.stop_loss), tp1: Number(nextOrder.tp1), tp2: Number(nextOrder.tp2), tp3: Number(nextOrder.tp3), ...orderExtras(nextOrder), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
     void run('review', async () => {
       const result = await call<{message?: string; notional_usdt?: number; estimated_stop_loss_usdt?: number}>(V25, '/order/test', {method: 'POST', body: JSON.stringify(payload)})
       setReviewResult({message: result.message || 'Dry-run tamamlandı; gerçek emir gönderilmedi.', notional: result.notional_usdt, estimated_stop_loss_usdt: result.estimated_stop_loss_usdt})
@@ -1054,6 +1065,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const chooseCoin = (value: string) => { setOrder(current => ({...current, symbol: value})); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
     const marginValue = Number(order.margin_usdt)
     const leverageValue = Number(order.leverage)
+    // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 100 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
+    const policyMarginMax = Number(status?.policy?.max_margin_per_trade)
+    const marginMax = Number.isFinite(policyMarginMax) && policyMarginMax >= 5 ? Math.min(100, Math.floor(policyMarginMax)) : 100
     const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price)
     const notional = marginValue * leverageValue
     const stopValue = Number(order.stop_loss)
@@ -1073,13 +1087,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const priceLoss = riskError ? null : risk ? risk.loss : lossAtStop
     const priceGainFull = riskError ? null : risk && Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 ? risk.notional * Math.abs(tp1Value - entryRef) / entryRef : gainAtTp1
     const realLoss = priceLoss === null || priceLoss === undefined || roundTripFee === null ? priceLoss : priceLoss + roundTripFee
-    const realGain = priceGainFull === null || priceGainFull === undefined || roundTripFee === null ? null : (priceGainFull - roundTripFee) * TP1_SHARE
+    const realGain = priceGainFull === null || priceGainFull === undefined || roundTripFee === null ? null : (priceGainFull - roundTripFee) * tp1ShareOf(order.tp_split)
     const realRR = realLoss && priceGainFull && roundTripFee !== null && realLoss > 0 ? (priceGainFull - roundTripFee) / realLoss : null
     const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
     const sendBlock = riskError ? riskError : !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
-      const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+      const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
         setReviewedKey(''); setReviewResult(null); setManualStep(0)
@@ -1126,10 +1140,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="liveWsLabel">3 · Giriş ve miktar</span>
           <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
           <div className="liveWsTwo manualAmount">
-            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max="100" value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max="100" step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? marginValue : 10} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır` : 'Marjin 5 ile 100 USDT arası'}</small></label>
+            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max={marginMax} value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].filter(v => v <= marginMax).map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır · ` : ''}Risk ayarına göre en çok {marginMax} USDT</small></label>
             <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span><input type="range" className="manualRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/><small className="liveWsHint">Düşük kaldıraç daha güvenlidir</small></label>
           </div>
           {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
+          {order.order_type === 'LIMIT' && <div className="liveWsField">Dolmazsa iptal et<div className="liveWsSeg" role="group" aria-label="Limit emir süresi">{LIMIT_EXPIRY_OPTIONS.map(item => <button type="button" key={item.label} aria-pressed={order.limit_expiry_minutes === item.value} className={order.limit_expiry_minutes === item.value ? 'on' : ''} onClick={() => setOrder(current => ({...current, limit_expiry_minutes: item.value}))}>{item.label}</button>)}</div><small className="liveWsHint">Süre dolunca dolmamış emri Binance kendisi iptal eder.</small></div>}
         </div>
     )
     const stopBlock = (
@@ -1142,6 +1157,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <label className="liveWsField">Hedef 2 (TP2)<input type="number" value={order.tp2} onChange={event => set('tp2', event.target.value)}/></label>
             <label className="liveWsField">Hedef 3 (TP3)<input type="number" value={order.tp3} onChange={event => set('tp3', event.target.value)}/></label>
           </div>
+          <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>%{split.replace(/-/g, ' / ')}</button>)}</div><small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small></div>
           <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
           {tradingDefaults.preferences?.risk_per_trade && <div className="liveWsRow"><span className="liveWsHint">Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" className="liveWsGhost" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
             const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
@@ -1259,11 +1275,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span><small>Stop Loss</small><b>{text(order.stop_loss)}</b></span>
           <span><small>TP1 / TP2 / TP3</small><b>{text(order.tp1)} / {text(order.tp2)} / {text(order.tp3)}</b></span>
           <span><small>Tahmini zarar (stopta, komisyon dahil)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
-          <span><small>TP1'de kâr (%60 kapanır, komisyon dahil)</small><b className={realGain !== null && realGain < 0 ? 'down' : 'up'}>{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
+          <span><small>TP1'de kâr (%{order.tp_split.split('-')[0]} kapanır, komisyon dahil)</small><b className={realGain !== null && realGain < 0 ? 'down' : 'up'}>{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
         </div>
         {risk && <small className="liveWsHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</small>}
         {riskError && <p className="liveWsWarn" role="alert">{riskError}</p>}
-        <small className="liveWsHint">Tahminlere giriş ve çıkış komisyonu (taraf başı %{(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir. Hedefler: TP1 %60, TP2 %20, TP3 kalanı kapatır.</small>
+        <small className="liveWsHint">Tahminlere giriş ve çıkış komisyonu (taraf başı %{(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir. Hedefler: TP1 %{order.tp_split.split('-')[0]}, TP2 %{order.tp_split.split('-')[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</small>
         {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
         <div className="liveWsSendRow">
           <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
@@ -1325,7 +1341,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       refresh={() => refresh(true)} findPlan={findActivePlanForPosition}
       extras={<>
         {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}
-        {status && <details className="originalSurface originalManualOrder advRow"><summary className="advHead">
+        {status && <details className="originalSurface originalManualOrder advRow" onToggle={event => setManualPanelOpen((event.currentTarget as HTMLDetailsElement).open)}><summary className="advHead">
           <span className="advHeadIcon amber"><CircleDollarSign aria-hidden="true"/></span>
           <span className="advHeadText"><small>MANUEL</small><b>Manuel emir · gerçek para</b></span>
           <span className="advChip warn">GERÇEK PARA</span>
