@@ -7065,6 +7065,24 @@ async def v25_grid_plan(request: Request, body: GridPlanRequest) -> dict[str, An
     return {"ok": True, "created_order": False, "live_orders_enabled": False, "plan": result}
 
 
+@router.get("/grid/filters")
+async def v25_grid_filters(request: Request, symbol: str) -> dict[str, Any]:
+    """Grid önizleme için borsanın fiyat/miktar kuralları. Yalnız HERKESE AÇIK piyasa bilgisi (mevcut önbellekli kanal);
+    anahtar, imzalı istek ve emir YOK. Bakım teminatı imzalı veri olduğu için burada verilmez."""
+    execution_owner(request)
+    from . import main as app_main
+    from .grid_engine.filters import GridFilterError, extract_symbol_filters
+    try:
+        response = await app_main.market_data_request(request.app, "/fapi/v1/exchangeInfo")
+        response.raise_for_status()
+        rules = extract_symbol_filters(response.json(), normalize_symbol(symbol))
+    except GridFilterError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:  # ağ/ayrıştırma: ekran "okunamadı" gösterir, plan onaylanmaz
+        raise HTTPException(503, "Borsa kuralları şu an okunamadı.") from exc
+    return {"ok": True, "created_order": False, "source": "exchangeInfo", "maintenance_rate": None, **rules}
+
+
 @router.post("/risk/preview")
 async def v25_risk_preview(request: Request, body: RiskPreviewRequest) -> dict[str, Any]:
     execution_owner(request)

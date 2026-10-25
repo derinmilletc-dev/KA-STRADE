@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
 import './copy-phrase.css'
 import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
@@ -446,6 +446,38 @@ export default function LiveCockpit(props: Props) {
     await new Promise(resolve => window.setTimeout(resolve, 1600))  // son durumlar görünsün
     setSheet(null); setLaunchPhrase('')
   }, `Otomatik işlem başladı · ${draft.hours} saat · ${draft.coins} coin taranıyor.`, setSheetError)
+
+  // Manuel işlem: yeni bir emir yolu açmaz. Mevcut "Manuel emir · gerçek para" formunu (tek örnek, aynı durum) yarı saydam bir panel olarak gösterir.
+  // Dry-run kontrolü, ARM, kilitler ve son onay o formda aynen geçerlidir; kapatınca bölümler önceki hâline döner.
+  const [manualModal, setManualModal] = useState(false)
+  const manualPrev = useRef<{drawer: boolean; manual: boolean} | null>(null)
+  const openManual = () => {
+    const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
+    const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
+    if (!manual) { setFlash({tone: 'warn', text: 'Manuel emir bölümü şu an açılamadı. Bağlantı doğrulanınca tekrar dene.'}); return }
+    manualPrev.current = {drawer: drawer?.open ?? false, manual: manual.open}
+    if (drawer) drawer.open = true
+    manual.open = true
+    setManualModal(true)
+  }
+  const closeManual = useCallback(() => {
+    setManualModal(false)
+    const prev = manualPrev.current
+    manualPrev.current = null
+    if (!prev) return
+    const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
+    const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
+    if (manual) manual.open = prev.manual
+    if (drawer) drawer.open = prev.drawer
+  }, [])
+  useEffect(() => {
+    if (!manualModal) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeManual() }
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
+  }, [manualModal, closeManual])
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
@@ -1415,7 +1447,8 @@ export default function LiveCockpit(props: Props) {
   ] : []
   const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
-  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined}>
+  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
+    {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone}>
       <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div></div>
       <dl className="lcStatusStats">
@@ -1448,7 +1481,10 @@ export default function LiveCockpit(props: Props) {
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
-            <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+            <span className="lcHeadBtns">
+              <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+              <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
+            </span>
           </header>
           {!coach && <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
             const state = index < progressDone ? 'done' : index === currentIndex && guide.phase !== 'loading' ? guide.phase === 'problem' ? 'problem' : 'current' : 'todo'
