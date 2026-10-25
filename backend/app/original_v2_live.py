@@ -10,7 +10,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -196,6 +196,8 @@ class SmartProfitUpdate(BaseModel):
     protect_stop_enabled: bool | None = Field(default=None, strict=True)
     smart_exit_enabled: bool | None = Field(default=None, strict=True)
     emergency_off: bool | None = Field(default=None, strict=True)
+    direction_mismatch_action: Literal["record_only", "count_as_low"] | None = None
+    understood: bool | None = Field(default=None, strict=True)  # AÇMAK için zorunlu: gerçek emir gönderebileceğini anladığını onaylar
 
 
 class FillLockApproval(BaseModel):
@@ -458,6 +460,8 @@ def smart_profit_public(state: dict[str, Any]) -> dict[str, Any]:
             "last_score_candle": guard.get("last_score_candle"), "first_low_at": guard.get("first_low_at"),
             "timer_end": guard.get("timer_end"), "exit_ready": bool(guard.get("exit_ready")),
             "waiting_profit": bool(guard.get("waiting_profit")),
+            "direction_state": guard.get("direction_state"), "opposite_confidence": guard.get("opposite_confidence"),
+            "low_reason": guard.get("low_reason"),
             "temp_stop_price": stop.get("price") if stop else None,
             "last_net_pnl": guard.get("last_net_pnl"), "last_check_at": guard.get("last_check_at"),
             "last_error": guard.get("last_error"), "basis": "15m_candle_close",
@@ -1849,6 +1853,7 @@ async def update_smart_profit(request: Request, body: SmartProfitUpdate) -> dict
         raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
     live.execution_owner(request)
     changes = body.model_dump(exclude_none=True)
+    understood = changes.pop("understood", None) is True
     if not changes:
         raise HTTPException(422, "Değiştirilecek bir ayar gönderilmedi.")
     state = request.app.state.v25_execution
@@ -1858,6 +1863,8 @@ async def update_smart_profit(request: Request, body: SmartProfitUpdate) -> dict
             raise HTTPException(403, "Bu ayar yalnız hesabın sahibi tarafından değiştirilebilir.")
         previous = copy.deepcopy(config.get(guard_module.SETTINGS_KEY))
         updated = guard_module.get_settings(config)
+        if changes.get("enabled") is True and updated.get("enabled") is not True and not understood:
+            raise HTTPException(422, "Akıllı Kâr Koruma gerçek emir gönderebilir; açmak için açık onay (understood) gerekir.")
         updated.update(changes)
         config[guard_module.SETTINGS_KEY] = guard_module.clean_settings(updated)
         try:

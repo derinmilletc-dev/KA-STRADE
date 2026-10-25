@@ -123,6 +123,8 @@ export default function LiveCockpit(props: Props) {
   const guide = staleSnapshot ? reconnectingGuide(effectiveInput, staleAge, props.guideInput.statusError) : liveGuide(effectiveInput)
   const help = guide.phase === 'problem' && guide.action === 'retry' && !staleSnapshot ? statusHelp(props.guideInput.statusError) : null
   const [sheet, setSheet] = useState<Sheet>(null)
+  const [smartArming, setSmartArming] = useState(false)
+  const [smartUnderstood, setSmartUnderstood] = useState(false)
   const [working, setWorking] = useState('')
   const flight = useRef(false)
   const [flash, setFlash] = useState<{tone: 'ok' | 'warn' | 'stop'; text: string} | null>(null)
@@ -518,9 +520,9 @@ export default function LiveCockpit(props: Props) {
   // ---- Akıllı Kâr Koruma: puan düşünce hemen satmaz; kapanmış 15 dk mum + sayaç + net kâr şartı.
   const smart = original?.smart_profit
   const smartSettings = smart?.settings
-  const saveSmart = (changes: Record<string, boolean | number>, success: string) => perform('smart', async () => {
+  const saveSmart = (changes: Record<string, boolean | number | string>, success: string) => perform('smart', async () => {
     const payload = await request('/original-v2/smart-profit', changes) as {settings?: Record<string, unknown>} | null
-    if (!payload?.settings || Object.entries(changes).some(([key, value]) => payload.settings?.[key] !== value))
+    if (!payload?.settings || Object.entries(changes).some(([key, value]) => key !== 'understood' && payload.settings?.[key] !== value))
       throw new Error('Akıllı Kâr Koruma ayarının kaydı doğrulanamadı; güncel ayarı kontrol et.')
   }, success)
   const SMART_MODE: Record<string, string> = {NORMAL: 'Normal', KAR_KORUMA: 'Kâr koruma', CIKISA_HAZIR: 'Çıkışa hazır'}
@@ -529,13 +531,19 @@ export default function LiveCockpit(props: Props) {
     const left = Math.max(0, Math.round(end - Date.now() / 1000))
     return left > 0 ? `${Math.ceil(left / 60)} dk kaldı` : 'doldu'
   }
-  const smartSwitch = (key: 'enabled' | 'protect_stop_enabled' | 'smart_exit_enabled', label: string, hint: string) => smartSettings && <button type="button" role="switch" aria-checked={smartSettings[key]} className="lcSmartSwitch" data-on={smartSettings[key] || undefined} disabled={busy || smartSettings.emergency_off} onClick={() => void saveSmart({[key]: !smartSettings[key]}, `${label} ${smartSettings[key] ? 'kapatıldı' : 'açıldı'}. Orijinal Stop ve TP aynen duruyor.`)}>
+  const smartSwitch = (key: 'enabled' | 'protect_stop_enabled' | 'smart_exit_enabled', label: string, hint: string) => smartSettings && <button type="button" role="switch" aria-checked={smartSettings[key]} className="lcSmartSwitch" data-on={smartSettings[key] || undefined} disabled={busy || smartSettings.emergency_off} onClick={() => key === 'enabled' && !smartSettings.enabled ? setSmartArming(true) : void saveSmart({[key]: !smartSettings[key]}, `${label} ${smartSettings[key] ? 'kapatıldı' : 'açıldı'}. Orijinal Stop ve TP aynen duruyor.`)}>
     <span><b>{label}</b><small>{hint}</small></span><i>{smartSettings[key] ? 'AÇIK' : 'KAPALI'}</i>
   </button>
   const smartBlock = verified && original && guideInput.connected && smart && smartSettings ? <div className="lcSmart" id="lc-smart">
     <h3>Akıllı Kâr Koruma</h3>
     <p className="lcHint">Güven puanı %{smartSettings.threshold}'in altına düşünce pozisyonu hemen satmaz. {smartSettings.wait_minutes} dakika bekler; sonraki kapanmış 15 dakikalık mumda puan hâlâ düşükse ve ücretler düşüldükten sonra kârdaysa kapatır. <b>Zarardaysa asla kapatmaz.</b> Puan yalnızca 15 dakikalık mum kapanışında değişir; karar da buna göre verilir.</p>
     {smartSettings.emergency_off && <p className="lcHint warn" role="alert">Acil durdurma AÇIK: Akıllı Kâr Koruma tamamen devre dışı. Orijinal Stop ve TP çalışıyor.</p>}
+    {!smartSettings.enabled && !smartSettings.emergency_off && <p className="lcHint" role="status"><b>Kapalı — sen açana kadar hiçbir emir gönderilmez.</b> Tercihler hazır; açmadan önce istersen değiştir.</p>}
+    {smartArming && !smartSettings.enabled && <div className="lcHint warn" role="group" aria-label="Açma onayı">
+      <label><input type="checkbox" checked={smartUnderstood} onChange={event => setSmartUnderstood(event.target.checked)} /> Bu sistem açıkken gerçek Binance emri (geçici stop ve kapatma) gönderebileceğini anlıyorum.</label>
+      <button type="button" className="lcBtn" disabled={busy || !smartUnderstood} onClick={() => void saveSmart({enabled: true, understood: true}, 'Akıllı Kâr Koruma açıldı. Orijinal Stop ve TP aynen duruyor.').then(() => { setSmartArming(false); setSmartUnderstood(false) })}>Aç</button>
+      <button type="button" className="lcBtn" disabled={busy} onClick={() => { setSmartArming(false); setSmartUnderstood(false) }}>Vazgeç</button>
+    </div>}
     <div className="lcSmartSwitches">
       {smartSwitch('enabled', 'Sistem', 'Puan takibi ve koruma')}
       {smartSwitch('protect_stop_enabled', 'Kâr koruma stopu', 'Kârdayken geçici koruma emri')}
@@ -545,11 +553,14 @@ export default function LiveCockpit(props: Props) {
       <label>Puan eşiği<select value={smartSettings.threshold} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({threshold: Number(event.target.value)}, 'Puan eşiği kaydedildi.')}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
       <label>Bekleme süresi<select value={smartSettings.wait_minutes} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({wait_minutes: Number(event.target.value)}, 'Bekleme süresi kaydedildi.')}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
     </div>
+    <div className="lcSmartPick">
+      <label>Ters yön sinyali<select value={smartSettings.direction_mismatch_action ?? 'record_only'} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({direction_mismatch_action: event.target.value}, 'Ters yön tercihi kaydedildi.')}><option value="record_only">Sadece kaydet</option><option value="count_as_low">Düşük puan gibi say</option></select></label>
+    </div>
     <button type="button" className="lcBtn lcDanger" disabled={busy} onClick={() => void saveSmart({emergency_off: !smartSettings.emergency_off}, smartSettings.emergency_off ? 'Acil durdurma kaldırıldı.' : 'Akıllı Kâr Koruma acil durduruldu; geçici stoplar kaldırılıyor. Orijinal Stop ve TP duruyor.')}>{smartSettings.emergency_off ? 'Acil durdurmayı kaldır' : 'Akıllı korumayı ACİL DURDUR'}</button>
     {smart.positions.length > 0 && <ul className="lcSmartList" aria-label="Pozisyon koruma durumu">
       {smart.positions.map(item => <li key={item.plan_id ?? item.symbol} data-mode={item.mode}>
         <b>{item.symbol}</b><span>{SMART_MODE[item.mode ?? 'NORMAL'] ?? item.mode}</span>
-        <small>Puan {item.last_score ?? '—'} · Sayaç {item.mode === 'NORMAL' ? '—' : smartTimer(item.timer_end)}{item.temp_stop_price ? ` · Geçici stop ${item.temp_stop_price}` : ''}{item.waiting_profit ? ' · net kâr bekleniyor' : ''}</small>
+        <small>{item.direction_state === 'MISMATCH' ? `Ters yön sinyali (karşı güven ${item.opposite_confidence ?? '—'})` : `Puan ${item.last_score ?? '—'}`} · Sayaç {item.mode === 'NORMAL' ? '—' : smartTimer(item.timer_end)}{item.temp_stop_price ? ` · Geçici stop ${item.temp_stop_price}` : ''}{item.waiting_profit ? ' · net kâr bekleniyor' : ''}</small>
       </li>)}
     </ul>}
   </div> : null

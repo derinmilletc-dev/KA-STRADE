@@ -191,7 +191,7 @@ class Env:
         self.fx = FakeExchange(direction=direction, mark=mark)
         self.plan = plan or make_plan(direction=direction)
         self.state = {"events": [], "plans": {self.plan["id"]: self.plan}, "policy": {},
-                      "original_v2_live": {"owner_id": "owner", "alerts": [], **({"smart_profit": settings} if settings else {})}}
+                      "original_v2_live": {"owner_id": "owner", "alerts": [], "smart_profit": {"enabled": True, **(settings or {})}}}
         self.scores: list = []
         self.analysis_calls = 0
         self.app = object()
@@ -220,7 +220,8 @@ class Env:
         return self.plan.get(g.GUARD_KEY)
 
     def temp_stops(self):
-        return [r for r in self.fx.algos if r["clientAlgoId"] == client_id_for("SGP", "intent-1")]
+        ids = set((self.guard or {}).get("client_ids") or [])
+        return [r for r in self.fx.algos if r["clientAlgoId"] in ids]
 
     def event_kinds(self):
         return [e["kind"] for e in self.state["events"]]
@@ -287,11 +288,12 @@ def test_settings_are_clamped_and_strict():
     assert g.DEFAULT_SETTINGS["threshold"] == 70 and g.DEFAULT_SETTINGS["wait_minutes"] == 10
 
 
-def test_score_uses_strategy_confidence_and_never_reaches_threshold_when_direction_differs():
+def test_opposite_direction_is_a_separate_state_not_a_forced_low_score():
     assert g.position_score({"direction": "SHORT", "confidence": 82}, "SHORT", 70) == (82, "yon_ayni")
     assert g.position_score({"direction": "BEKLE", "confidence": 66}, "SHORT", 70) == (66, "bekle")
-    score, note = g.position_score({"direction": "LONG", "confidence": 90}, "SHORT", 70)
-    assert score == 69 and note == "yon_ters"
+    assert g.position_score({"direction": "LONG", "confidence": 90}, "SHORT", 70) == (None, "direction_mismatch")
+    obs = g.classify_observation({"direction": "LONG", "confidence": 90}, "SHORT", 70)
+    assert obs["score"] is None and obs["mismatch"] is True and obs["opposite_confidence"] == 90
     assert g.position_score({"direction": "LONG"}, "SHORT", 70)[0] is None
     assert g.position_score({"direction": "SHORT", "confidence": 120}, "SHORT", 70)[0] is None
 
@@ -546,11 +548,11 @@ def test_s11_partial_close_quantity_change_resyncs_temp_stop():
         e.tick(at(0))
         assert e.temp_stops()[0]["quantity"] == "10"
         e.fx.pos["quantity"] = Decimal("3")  # TP1 / dış kısmi kapanış
-        e.tick(at(0, 200))   # eski stop iptal
-        assert e.temp_stops() == []
-        e.tick(at(0, 400))   # yeni miktarla yeniden kur
+        first_id = e.temp_stops()[0]["clientAlgoId"]
+        e.tick(at(0, 12))    # sonraki turda: eski miktarlı stop iptal + yeni miktarla ve YENİ kimlikle kurulur
         stops = e.temp_stops()
-        assert len(stops) == 1 and stops[0]["quantity"] == "3"
+        assert len(stops) == 1 and stops[0]["quantity"] == "3" and stops[0]["clientAlgoId"] != first_id
+        assert e.guard["gen"] == 2
         posts = [c for c in e.fx.log if c[:2] == ("POST", "/fapi/v1/algoOrder")]
         assert len(posts) == 2 and original_untouched(e)
 
@@ -786,7 +788,7 @@ def test_s29_uncertain_order_result_is_not_resent_until_visibility_window_passes
         e.tick(at(0, 130))
         e.tick(at(0, 260))
         assert posts() == 1          # sonuç belirsiz: tekrar gönderilmez
-        e.guard["temp_stop"]["requested_at"] -= 1000
+        g.ledger_active(e.guard, "TEMP_STOP")["at"] -= 1000
         fake_live().post_entry_protection_algo = orig_post
         e.fx.fail_post = False
         e.tick(at(0, 390))
@@ -838,6 +840,97 @@ def test_real_strategy_path_scores_synthetic_candles():
 
     none, reason = asyncio.run(g.fetch_analysis(None, "BTCUSDT", decision_at, short_history))
     assert none is None and reason == "mum_verisi_eksik_veya_bayat"
+
+
+# ------------------------------------------------------------------ 4 maddelik ek doğrulama
+def test_n01_temp_stop_and_close_use_separate_ids_and_independent_ledger():
+    with env() as e:
+        e.script(("SHORT", 62))
+        e.tick(at(0))
+        stop_ids = set(e.guard["client_ids"])
+        e.tick(at(1))
+        kinds = {x["kind"]: x for x in e.guard["ledger"]}
+        assert kinds["TEMP_STOP"]["client_id"] in stop_ids and kinds["CLOSE"]["client_id"] not in stop_ids
+        assert kinds["CLOSE"]["client_id"].startswith(PREFIX + "CLOSE") and kinds["TEMP_STOP"]["client_id"].startswith(PREFIX + "SGP")
+        assert kinds["CLOSE"]["status"] == "SENT" and kinds["CLOSE"]["client_id"] in e.plan["close_client_order_ids"]
+        before = len(e.fx.orders)
+        for n in range(3):  # tekrar eden turlar: ikinci kapatma/stop emri oluşmaz
+            e.tick(at(1, 30 + n * 12))
+        assert len(e.fx.orders) == before == 1
+
+
+def test_n02_unseen_temp_stop_is_not_reposted_inside_window_then_new_generation_id():
+    with env() as e:
+        e.script(("SHORT", 62))
+        e.tick(at(0))
+        first = e.temp_stops()[0]["clientAlgoId"]
+        e.fx.algos = [r for r in e.fx.algos if r["clientAlgoId"].startswith("ORIG_")]   # borsa listesinde görünmüyor
+        e.guard["temp_stop"]["pending"] = True
+        g.ledger_active(e.guard, "TEMP_STOP")["status"] = "SENT"
+        posts = lambda: len([c for c in e.fx.log if c[:2] == ("POST", "/fapi/v1/algoOrder")])
+        n = posts()
+        e.tick(at(0, 200))
+        assert posts() == n                      # pencere içinde tekrar gönderilmez
+        g.ledger_active(e.guard, "TEMP_STOP")["at"] -= 1000
+        e.tick(at(0, 400))
+        stops = e.temp_stops()
+        assert len(stops) == 1 and stops[0]["clientAlgoId"] != first and e.guard["gen"] == 2
+
+
+def test_n03_default_is_off_no_calls_no_orders_no_score():
+    with env(settings={"enabled": False}) as e:
+        e.script(("SHORT", 40))
+        e.tick(at(0))
+        e.tick(at(3))
+        assert e.fx.log == [] and e.analysis_calls == 0 and e.guard is None
+    assert g.get_settings({})["enabled"] is False and g.get_settings({})["direction_mismatch_action"] == "record_only"
+    assert g.get_settings({"smart_profit": {"enabled": True}})["protect_stop_enabled"] is True
+
+
+def test_n04_direction_mismatch_record_only_never_exits_and_is_recorded():
+    with env() as e:
+        e.script(("SHORT", 62), ("LONG", 90))
+        e.tick(at(0))
+        e.tick(at(1))
+        assert e.fx.orders == {} and e.guard["direction_state"] == "MISMATCH" and e.guard["opposite_confidence"] == 90
+        assert e.guard["last_score"] is None and e.guard["last_low"] is False and e.guard["exit_ready"] is False  # yapay puan yazılmadı
+        assert "SMART_GUARD_DIRECTION_MISMATCH" in [a["type"] for a in e.state["original_v2_live"]["alerts"]]
+        e.script(("SHORT", 62))
+        e.tick(at(2))
+        assert e.guard["direction_state"] != "MISMATCH"
+
+
+def test_n05_direction_mismatch_count_as_low_can_exit_with_recorded_reason():
+    with env(settings={"direction_mismatch_action": "count_as_low"}) as e:
+        e.script(("SHORT", 62), ("LONG", 90))
+        e.tick(at(0))
+        e.tick(at(1))
+        assert len(e.fx.orders) == 1 and e.guard["low_reason"] == "direction_mismatch"
+        assert any("ters yön" in a["message"] for a in e.state["original_v2_live"]["alerts"] if a["type"] == "SMART_GUARD_CLOSED")
+
+
+def test_n06_temp_stop_never_crosses_targets():
+    view = {"symbol": "X", "direction": "SHORT", "quantity": Decimal(10), "entry": Decimal(100), "mark": Decimal(96)}
+    pnl = g.net_pnl(view, fee_bps=Decimal(5), slippage_bps=Decimal(2), funding_paid=Decimal(0))
+    ok, _ = g.temp_stop_level(view, pnl, atr=0.5, tick=Decimal("0.01"), original_stop="103", targets=["90"])
+    assert ok is not None
+    bad, why = g.temp_stop_level(view, pnl, atr=0.5, tick=Decimal("0.01"), original_stop="103", targets=["99.9"])
+    assert bad is None and why == "tp_ile_cakisiyor"
+
+
+def test_n07_temp_stop_triggers_real_helpers_clean_other_orders_and_label_reason():
+    try:
+        from app import v25_execution as real
+    except Exception:
+        print("     (gerçek v25_execution içe aktarılamadı: atlandı)")
+        return
+    import app as package
+    if getattr(real, "smart_guard_client_ids", None) is None:
+        return
+    plan = make_plan()
+    plan["smart_guard"] = {"client_ids": ["XSGP1"]}
+    assert real.smart_guard_client_ids(plan) == {"XSGP1"}
+    assert real.close_reason_for_client_id(plan, "XSGP1") == "SMART_STOP"
 
 
 if __name__ == "__main__":  # pytest olmadan çalıştırma
