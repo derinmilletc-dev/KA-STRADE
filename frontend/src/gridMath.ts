@@ -63,16 +63,16 @@ export type GridResult = {
 export const GRID_MAKER_FEE = 0.0002
 export const GRID_TAKER_FEE = 0.0005
 export const GRID_MIN_COUNT = 2
-export const GRID_MAX_COUNT = 20
+export const GRID_MAX_COUNT = 5 // sunucudaki grid planlayıcısıyla (manual_grid.py) aynı sınır
 export const GRID_MIN_NOTIONAL_PER_LEVEL = 5
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN)
 
 // Aynı grid + aynı kademe her zaman AYNI emir kimliğini üretir (kopma/yeniden başlatma sonrası çift emir gitmesin).
 // Binance newClientOrderId: en fazla 36 karakter, [A-Za-z0-9-_].
-export function gridClientOrderId(gridId: string, side: GridSide, index: number, role: 'E' | 'T' | 'S'): string {
+export function gridClientOrderId(gridId: string, side: GridSide, level: number, role: 'E' | 'T' | 'S' | 'C', rev = 0): string {
   const safe = gridId.replace(/[^A-Za-z0-9]/g, '').slice(0, 16)
-  return `kg-${safe}-${side === 'LONG' ? 'L' : 'S'}${String(index).padStart(2, '0')}${role}`.slice(0, 36)
+  return `kg-${safe}-${side === 'LONG' ? 'L' : 'S'}${String(level).padStart(2, '0')}${role}${rev}`.slice(0, 36) // sunucudaki grid_engine ile AYNI biçim
 }
 
 const roundTo = (value: number, step: number) => Math.round(value / step) * step
