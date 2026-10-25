@@ -115,16 +115,49 @@ def sanitize(value: Any) -> Any:
 
 # ---------------------------------------------------------------- saf hesaplar (birim testli)
 
+REGIME_LEGACY = "LEGACY_ALIGNMENT"  # eski kural: alignment >= 80 SHORT'u reddeder (mtf.blocked_by_short_filter)
+REGIME_V2 = "EXHAUSTION_V2"  # yeni canlı filtre: mtf.short_filter_v2 (aşırı uzama / RSI / destek)
+
+
+def short_filter_regime(mtf: dict[str, Any]) -> str:
+    return REGIME_V2 if isinstance(mtf.get("short_filter_v2"), dict) else REGIME_LEGACY
+
+
+def short_rejected_by_filter(mtf: dict[str, Any]) -> bool:
+    """SHORT'u, diğer kapıları geçtikten sonra SHORT filtresi mi reddetti? İki rejimde de çalışır."""
+    v2 = mtf.get("short_filter_v2")
+    if isinstance(v2, dict):
+        return v2.get("accepted") is False and v2.get("gates_before_passed") is True
+    return mtf.get("blocked_by_short_filter") is True
+
+
 def classify(item: dict[str, Any]) -> str | None:
-    """LIVE_ELIGIBLE, FILTER_BLOCKED_SHORT ya da None (kaydedilmez)."""
+    """LIVE_ELIGIBLE, FILTER_BLOCKED_SHORT ya da None (kaydedilmez). Eski ve yeni SHORT filtresiyle çalışır."""
     if item.get("eligible") is True:
         return GROUP_LIVE
     analysis, mtf, checks = item.get("analysis") or {}, item.get("mtf") or {}, item.get("checks") or {}
     if (item.get("ranked") is True and analysis.get("direction") == "SHORT"
-            and mtf.get("blocked_by_short_filter") is True
+            and short_rejected_by_filter(mtf)
             and all(checks.get(key) is True for key in QUALITY_KEYS)):
         return GROUP_BLOCKED
     return None
+
+
+def short_filter_record(mtf: dict[str, Any], direction: str) -> dict[str, Any] | None:
+    """Sinyale eklenen SHORT filtre bilgisi: rejim, ret nedenleri, ölçümler ve 'eski kural engellerdi mi'."""
+    if direction != "SHORT":
+        return None
+    regime = short_filter_regime(mtf)
+    v2 = mtf.get("short_filter_v2") if regime == REGIME_V2 else None
+    return {
+        "regime": regime, "rejected": short_rejected_by_filter(mtf),
+        "reason": (v2 or {}).get("reason"), "reasons": (v2 or {}).get("reasons"),
+        "missing_fields": (v2 or {}).get("missing_fields"),
+        "extension_atr": (v2 or {}).get("extension_atr"), "support_distance_atr": (v2 or {}).get("support_distance_atr"),
+        "rsi": (v2 or {}).get("rsi"), "thresholds": (v2 or {}).get("thresholds"),
+        "legacy_would_block": (mtf.get("legacy_short_alignment_would_block") if regime == REGIME_V2
+                               else mtf.get("blocked_by_short_filter")),
+    }
 
 
 def reconstruct_scores(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -204,6 +237,7 @@ def signal_record(item: dict[str, Any], group: str, recorded_at: float, costs: d
         "market_ranked": item.get("ranked"), "profile_cap_pass": item.get("profile_cap_pass"),
         "model_costs": costs, "model_notes": MODEL_NOTES,
     }
+    record["short_filter"] = short_filter_record(mtf, analysis["direction"])
     record["entry_model"] = entry_model(record, item)
     return sanitize(record)
 
@@ -265,6 +299,9 @@ def open_virtual(record: dict[str, Any], costs: dict[str, Any]) -> tuple[dict[st
         "entry_source": model["source"], "approximate_entry": model["approximate_entry"],
         "entry_diff_bps": model["scan_vs_signal_close_bps"], "entry_tick_rounding_bps": model["entry_tick_rounding_bps"],
         "tp1_tick_rounding_bps": bps(tp1, unrounded_tp1), "live_openable": model["live_openable"],
+        "short_filter_regime": (record.get("short_filter") or {}).get("regime"),
+        "short_filter_reason": (record.get("short_filter") or {}).get("reason"),
+        "legacy_would_block": (record.get("short_filter") or {}).get("legacy_would_block"),
         "entry_reference": entry, "entry_actual": actual_entry, "stop": stop, "tp1": tp1, "tp3": tp3,
         "tp1_signal": signal_tp1, "tp1_fraction": TP1_FRACTION, "fee_rate": fee, "slip_rate": slip,
         "fee_bps": fee_bps, "slip_bps": slip_bps, "risk_unit": risk_unit,
@@ -349,6 +386,11 @@ def summarize(trades: list[dict[str, Any]]) -> dict[str, Any]:
         gains = sum(x for x in r if x > 0)
         losses = -sum(x for x in r if x < 0)
         openable = [float(t["net_r"]) for t in rows if t.get("live_openable") is not False]
+        legacy_block = [float(t["net_r"]) for t in rows if t.get("legacy_would_block") is True]
+        reasons: dict[str, int] = {}
+        for t in rows:
+            if t.get("short_filter_reason"):
+                reasons[t["short_filter_reason"]] = reasons.get(t["short_filter_reason"], 0) + 1
         diffs = [abs(d) for d in (_num(t.get("entry_diff_bps")) for t in rows) if d is not None]
         tick_entry = [abs(d) for d in (_num(t.get("entry_tick_rounding_bps")) for t in rows) if d is not None]
         tick_tp1 = [abs(d) for d in (_num(t.get("tp1_tick_rounding_bps")) for t in rows) if d is not None]
@@ -360,6 +402,9 @@ def summarize(trades: list[dict[str, Any]]) -> dict[str, Any]:
                          "live_unopenable": sum(1 for t in rows if t.get("live_openable") is False),
                          "live_openable_unknown": sum(1 for t in rows if t.get("live_openable") is None),
                          "N_live_openable": len(openable),
+                         "N_legacy_would_block": len(legacy_block),
+                         "mean_net_r_legacy_would_block": sum(legacy_block) / len(legacy_block) if legacy_block else None,
+                         "short_filter_reasons": reasons,
                          "mean_net_r_live_openable": sum(openable) / len(openable) if openable else None,
                          "scan_vs_close_abs_bps_mean": sum(diffs) / len(diffs) if diffs else None,
                          "scan_vs_close_abs_bps_max": max(diffs) if diffs else None,

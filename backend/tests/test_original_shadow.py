@@ -128,6 +128,54 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(sh.classify(live), sh.GROUP_LIVE)
 
 
+def v2_item(accepted=False, reasons=("SHORT_EXTENDED_BELOW_EMA20",), gates=True, legacy_block=True, **kw):
+    it = item(group_blocked=False, **kw)
+    it["mtf"] = {"alignment": 85.0, "blocked_by_short_filter": False, "verdict": "x",
+                 "legacy_short_alignment_would_block": legacy_block,
+                 "short_filter_v2": {"version": "short-exhaustion-v1", "accepted": accepted, "gates_before_passed": gates,
+                                     "reason": reasons[0] if reasons else None, "reasons": list(reasons),
+                                     "extension_atr": 2.4, "support_distance_atr": 1.3, "rsi": 40.0,
+                                     "missing_fields": [], "thresholds": {"ema20_atr": 2.0}}}
+    return it
+
+
+class ShortFilterV2CompatTests(unittest.TestCase):
+    def test_v2_rejection_is_blocked_group_for_every_reason(self):
+        for reason in ("SHORT_EXTENDED_BELOW_EMA20", "SHORT_RSI_OVERSOLD", "SHORT_SUPPORT_TOO_CLOSE", "SHORT_SUPPORT_UNAVAILABLE"):
+            self.assertEqual(sh.classify(v2_item(reasons=(reason,))), sh.GROUP_BLOCKED, reason)
+
+    def test_v2_accepted_or_failed_other_gates_not_recorded_as_blocked(self):
+        self.assertIsNone(sh.classify(v2_item(accepted=True, reasons=())))
+        self.assertIsNone(sh.classify(v2_item(gates=False)))
+        broken = v2_item()
+        broken["checks"]["trap"] = False
+        self.assertIsNone(sh.classify(broken))
+
+    def test_v2_never_blocked_when_legacy_flag_false_only(self):
+        # eski bayrak False olsa da v2 reddi sınıflandırmayı belirler
+        it = v2_item()
+        self.assertFalse(it["mtf"]["blocked_by_short_filter"])
+        self.assertEqual(sh.classify(it), sh.GROUP_BLOCKED)
+
+    def test_record_carries_regime_reason_and_legacy_flag(self):
+        rec = sh.signal_record(v2_item(legacy_block=False), sh.GROUP_BLOCKED, 1.0, COSTS)
+        f = rec["short_filter"]
+        self.assertEqual((f["regime"], f["rejected"], f["reason"], f["legacy_would_block"]),
+                         (sh.REGIME_V2, True, "SHORT_EXTENDED_BELOW_EMA20", False))
+        legacy = sh.signal_record(item(), sh.GROUP_BLOCKED, 1.0, COSTS)["short_filter"]
+        self.assertEqual((legacy["regime"], legacy["rejected"], legacy["legacy_would_block"]), (sh.REGIME_LEGACY, True, True))
+
+    def test_long_has_no_short_filter_record(self):
+        long_ = item(direction="LONG", stop=98.0, tp1=103.0, tp3=106.0)
+        self.assertIsNone(sh.signal_record(long_, sh.GROUP_LIVE, 1.0, COSTS)["short_filter"])
+
+    def test_summary_counts_reasons_and_legacy(self):
+        rec = sh.signal_record(v2_item(reasons=("SHORT_SUPPORT_UNAVAILABLE",), legacy_block=False), sh.GROUP_BLOCKED, 1.0, COSTS)
+        trade, _ = sh.open_virtual(rec, COSTS)
+        self.assertEqual(trade["short_filter_reason"], "SHORT_SUPPORT_UNAVAILABLE")
+        self.assertIs(trade["legacy_would_block"], False)
+
+
 class RecordTests(unittest.TestCase):
     def test_record_has_required_fields_and_is_strict_json(self):
         rec = sh.signal_record(item(), sh.GROUP_BLOCKED, 1.0, COSTS)
