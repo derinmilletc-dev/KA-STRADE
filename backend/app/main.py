@@ -4791,6 +4791,7 @@ async def _analysis_universe(interval: str, limit: int):
 
     async def inspect(market: dict) -> dict | None:
         try:
+            side_scores: dict[str, int] = {}  # analyze() doldurur: yön bazlı puanlar (LONG / SHORT, 0-100)
             async with semaphore:
                 candle_started = time.monotonic()
                 candles = await fetch_candles(market["symbol"], interval, 500)
@@ -4804,14 +4805,14 @@ async def _analysis_universe(interval: str, limit: int):
                     mtf_candles.update(dict(zip(mtf_intervals, higher_timeframes)))
                     indicator_started = time.monotonic()
                     result, mtf = await asyncio.gather(
-                        asyncio.to_thread(analyze, candles),
+                        asyncio.to_thread(analyze, candles, observation_scores=side_scores),
                         consensus_from_candles(market["symbol"], mtf_candles),
                     )
                 else:
                     timing["candle_fetch_total"] += time.monotonic() - candle_started
                     indicator_started = time.monotonic()
                     result, mtf = await asyncio.gather(
-                        asyncio.to_thread(analyze, candles),
+                        asyncio.to_thread(analyze, candles, observation_scores=side_scores),
                         multi_timeframe_consensus(market["symbol"]),
                     )
                 timing["indicator_total"] += time.monotonic() - indicator_started
@@ -4857,6 +4858,8 @@ async def _analysis_universe(interval: str, limit: int):
                 "ema20": result["ema"]["ema20"], "ema50": result["ema"]["ema50"],
                 "ema200": result["ema"]["ema200"], "trend": result["trend"],
                 "direction": result["direction"], "confidence": result["confidence"],
+                "long_score": min(100, max(0, int(side_scores.get("long_score", 0)))),
+                "short_score": min(100, max(0, int(side_scores.get("short_score", 0)))),
                 "entry": result["entry"], "stop_loss": result["stop_loss"],
                 "tp1": result["tp1"], "tp2": result["tp2"], "tp3": result["tp3"],
                 "support": result["support"], "resistance": result["resistance"],
