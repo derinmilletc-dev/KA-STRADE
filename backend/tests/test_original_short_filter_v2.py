@@ -187,6 +187,15 @@ class LiveLayerTests(unittest.TestCase):
                         and decide(seed, RULES)["entry_eligible"])
         cls.frames = frames(cls.seed, -0.35 if cls.seed % 2 == 0 else 0.35)
 
+    def setUp(self):
+        # Bu sınıf yalnız SHORT filtresini sınar; canlıdaki 15 dk momentum onayı ayrı test dosyasında
+        # (test_live_momentum_gate) sınanır. Sentetik örnekte momentum "Nötr" olduğu için burada devre dışı.
+        from unittest.mock import patch
+
+        patcher = patch.object(strategy, "apply_live_momentum_gate", lambda result: result)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def request(self):
         return StrategyInput(SYMBOL, AT, deepcopy(self.frames))
 

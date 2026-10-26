@@ -87,7 +87,7 @@ jobs:
           python -m pytest tests/test_original_session_extend.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Yeni SHORT giriş filtresi (yalnız canlı) + Demo/adapter/offline yollarının değişmediğini gösteren regresyon testleri.
-          python -m pytest tests/test_original_short_filter_v2.py tests/test_strategy_original_adapter.py tests/test_original_v2_demo.py tests/test_original_v2_demo_controls.py tests/test_offline_strategy_facade.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          python -m pytest tests/test_original_short_filter_v2.py tests/test_live_momentum_gate.py tests/test_strategy_original_adapter.py tests/test_original_v2_demo.py tests/test_original_v2_demo_controls.py tests/test_offline_strategy_facade.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Canlı güvenlik sertleştirmesi: acil durdurmada önce kapat/doğrula/sonra korumayı iptal et, tekli kapatma kilidi.
           python -m pytest tests/test_emergency_close_verification.py tests/test_manual_close_lock.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
