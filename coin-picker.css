@@ -84,9 +84,9 @@
   color: var(--cpk-ink) !important; background: rgba(8, 14, 22, .55) !important; box-shadow: inset 0 0 0 1px var(--cpk-ring);
   transition: background .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-.cpk .cpkCard::before:not(#cpk) { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cpk-muted); opacity: .5; }
-.cpk .cpkCard[data-lean='LONG']::before:not(#cpk) { background: var(--cpk-long); opacity: 1; }
-.cpk .cpkCard[data-lean='SHORT']::before:not(#cpk) { background: var(--cpk-short); opacity: 1; }
+.cpk .cpkCard:not(#cpk)::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cpk-muted); opacity: .5; }
+.cpk .cpkCard[data-lean='LONG']:not(#cpk)::before { background: var(--cpk-long); opacity: 1; }
+.cpk .cpkCard[data-lean='SHORT']:not(#cpk)::before { background: var(--cpk-short); opacity: 1; }
 .cpk .cpkCard:hover:not(#cpk) { background: rgba(255, 255, 255, .08) !important; transform: translateY(-1px); }
 .cpk .cpkCard:active:not(#cpk) { transform: translateY(0); }
 .cpk .cpkCard.on:not(#cpk) { background: rgba(242, 196, 109, .1) !important; box-shadow: inset 0 0 0 2px var(--cpk-gold); }
@@ -113,9 +113,9 @@
   padding: 10px 14px 10px 16px !important; border-radius: 12px !important; border: 0 !important; text-align: left; color: var(--cpk-ink) !important; background: transparent !important;
   transition: background .12s ease;
 }
-.cpk .cpkRow::before:not(#cpk) { content: ''; position: absolute; left: 4px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: transparent; }
-.cpk .cpkRow[data-lean='LONG']::before:not(#cpk) { background: var(--cpk-long); }
-.cpk .cpkRow[data-lean='SHORT']::before:not(#cpk) { background: var(--cpk-short); }
+.cpk .cpkRow:not(#cpk)::before { content: ''; position: absolute; left: 4px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: transparent; }
+.cpk .cpkRow[data-lean='LONG']:not(#cpk)::before { background: var(--cpk-long); }
+.cpk .cpkRow[data-lean='SHORT']:not(#cpk)::before { background: var(--cpk-short); }
 .cpk .cpkRow:hover:not(#cpk) { background: var(--cpk-surface-hi) !important; }
 .cpk .cpkRow[aria-selected='true']:not(#cpk) { background: rgba(242, 196, 109, .12) !important; box-shadow: inset 0 0 0 1.5px rgba(242, 196, 109, .6); }
 .cpk .cpkRow strong:not(#cpk) { font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
