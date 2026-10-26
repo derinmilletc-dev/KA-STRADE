@@ -16,7 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, NoReturn
 
-from ..execution_core import evaluate_entry_gates
+from ..execution_core import configured_min_confidence, evaluate_entry_gates
 from .contracts import StrategyInput, StrategyProvenance, StrategyResult
 from .kais_original import evaluate as evaluate_original
 from .original_gap_risk import PROFILE
@@ -102,7 +102,9 @@ def evaluate_live_universe(
         _fail("INVALID_LIVE_SYMBOL_UNIVERSE")
     if request.symbol not in allowed_symbols:
         _fail("SYMBOL_OUTSIDE_LIVE_UNIVERSE")
-    return _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES)
+    # Canlıda güven eşiği sunucu ayarına (PROTREBOT_MIN_CONFIDENCE) uyar; yalnız yükseltebilir, sabit %80'in altına inmez.
+    live_threshold = max(int(profile["canonical_policy"]["confidence_threshold"]), configured_min_confidence())
+    return _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES, confidence_threshold=live_threshold)
 
 
 def log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
@@ -149,7 +151,8 @@ def short_filter_scan_counts(results: dict[str, StrategyResult]) -> dict[str, An
 
 
 def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any], *,
-                       short_filter_rules: dict[str, Any] | None = None) -> StrategyResult:
+                       short_filter_rules: dict[str, Any] | None = None,
+                       confidence_threshold: int | None = None) -> StrategyResult:
     if request.historical_policy_override is not None:
         _fail("CALLER_POLICY_OVERRIDE_DENIED")
     if request.short_filter_rules is not None:
@@ -158,10 +161,13 @@ def _evaluate_profiled(request: StrategyInput, profile: dict[str, Any], *,
         rows = request.candles_by_timeframe.get(interval, [])
         if isinstance(rows, list) and len(rows) > profile["closed_window"]:
             _fail("CLOSED_WINDOW_EXCEEDED")
+    canonical = deepcopy(profile["canonical_policy"])
+    if confidence_threshold is not None:
+        canonical["confidence_threshold"] = int(confidence_threshold)
     native = evaluate_original(replace(
         request,
         required_intervals=INTERVALS,
-        historical_policy_override=deepcopy(profile["canonical_policy"]),
+        historical_policy_override=canonical,
         market_type="BINANCE_DEMO_MODEL_ONLY",
         exit_policy_id=profile["model"]["exit_policy_id"],
         short_filter_rules=deepcopy(short_filter_rules),
