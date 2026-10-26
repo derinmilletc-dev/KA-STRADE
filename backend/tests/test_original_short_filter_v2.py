@@ -180,21 +180,28 @@ class CanonicalIntegrationTests(unittest.TestCase):
                                     "SHORT_SUPPORT_UNAVAILABLE", "SHORT_FILTER_DATA_UNAVAILABLE"}, reasons)
 
 
+def live_short_case(want_momentum: str):
+    """Eski %80 kuralının engellediği, yeni SHORT filtresinin kabul ettiği ve 15 dk momentumu istenen değerde olan örnek."""
+    for seed in range(400):
+        for drift in (-0.25, -0.3, -0.35):
+            candles = frames(seed, drift)
+            old = main.canonical_historical_decision("XUSDT", candles, AT, required_intervals=INTERVALS,
+                                                     historical_policy_override=POLICY)
+            if not old["mtf"].get("blocked_by_short_filter"):
+                continue
+            new = main.canonical_historical_decision("XUSDT", candles, AT, required_intervals=INTERVALS,
+                                                     historical_policy_override=POLICY, short_filter_rules=RULES)
+            if new["entry_eligible"] and new["analysis"]["momentum"] == want_momentum:
+                return candles
+    raise AssertionError(f"örnek bulunamadı: {want_momentum}")
+
+
 class LiveLayerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.seed = next(seed for seed in range(80) if decide(seed)["mtf"].get("blocked_by_short_filter")
-                        and decide(seed, RULES)["entry_eligible"])
-        cls.frames = frames(cls.seed, -0.35 if cls.seed % 2 == 0 else 0.35)
-
-    def setUp(self):
-        # Bu sınıf yalnız SHORT filtresini sınar; canlıdaki 15 dk momentum onayı ayrı test dosyasında
-        # (test_live_momentum_gate) sınanır. Sentetik örnekte momentum "Nötr" olduğu için burada devre dışı.
-        from unittest.mock import patch
-
-        patcher = patch.object(strategy, "apply_live_momentum_gate", lambda result: result)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        # Canlı ayrıca 15 dk momentum onayı ister: SHORT için "Negatif" (MACD histogramı < 0 ve RSI < 50).
+        cls.frames = live_short_case("Negatif")
+        cls.neutral_frames = live_short_case("Nötr")
 
     def request(self):
         return StrategyInput(SYMBOL, AT, deepcopy(self.frames))
@@ -208,6 +215,26 @@ class LiveLayerTests(unittest.TestCase):
         self.assertFalse(live.legacy["mtf"]["blocked_by_short_filter"])
         self.assertIn("short_filter", {check.key for check in live.signal.quality_checks})
         self.assertNotIn("short_filter", {check.key for check in demo.signal.quality_checks})
+
+    def test_short_filter_and_momentum_gate_work_together(self):
+        live = strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)
+        checks = {check.key: check for check in live.signal.quality_checks}
+        self.assertTrue(checks["short_filter"].passed)
+        self.assertTrue(checks["momentum_15m"].passed)
+        self.assertEqual(checks["momentum_15m"].value, "Negatif")
+        self.assertTrue(live.signal.strategy_eligible)
+        self.assertEqual(live.signal.decision, "SELL")
+
+    def test_neutral_momentum_blocks_a_short_that_the_short_filter_accepts(self):
+        live = strategy.evaluate_live_universe(StrategyInput(SYMBOL, AT, deepcopy(self.neutral_frames)),
+                                               allowed_symbols=[SYMBOL], enabled=True)
+        self.assertTrue(live.legacy["mtf"]["short_filter_v2"]["accepted"])  # SHORT filtresi kabul etti
+        self.assertFalse(live.signal.strategy_eligible)                     # momentum kararsız: giriş yok
+        self.assertEqual(live.signal.decision, "WAIT")
+        self.assertEqual(live.signal.reason, strategy.MOMENTUM_REJECT_REASON)
+        self.assertFalse(live.legacy["entry_eligible"])
+        demo = strategy.evaluate(StrategyInput(SYMBOL, AT, deepcopy(self.neutral_frames)), enabled=True)
+        self.assertNotIn("momentum_15m", {check.key for check in demo.signal.quality_checks})  # Demo değişmez
 
     def test_analysis_and_confidence_are_identical_live_vs_demo(self):
         live = strategy.evaluate_live_universe(self.request(), allowed_symbols=[SYMBOL], enabled=True)
