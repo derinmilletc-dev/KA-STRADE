@@ -2817,6 +2817,28 @@ async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: s
         raise
 
 
+EMERGENCY_VERIFY_ATTEMPTS = 3
+EMERGENCY_VERIFY_DELAY_SECONDS = 1.0
+
+
+async def verify_symbol_flat(client: BinanceLiveClient, symbol: str) -> bool | None:
+    """Borsadan sembolün pozisyonunu okur: True = kapalı, False = hâlâ açık, None = okunamadı (kapandı sayılmaz)."""
+    outcome: bool | None = None
+    for attempt in range(EMERGENCY_VERIFY_ATTEMPTS):
+        if attempt:
+            await asyncio.sleep(EMERGENCY_VERIFY_DELAY_SECONDS)
+        try:
+            rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
+            amounts = [Decimal(str(item.get("positionAmt", "0"))) for item in rows if isinstance(item, dict)]
+        except (LiveExchangeError, BinanceDemoError, ArithmeticError, ValueError):
+            outcome = None
+            continue
+        if all(amount == 0 for amount in amounts):
+            return True
+        outcome = False
+    return outcome
+
+
 async def cancel_owned_algos_for_symbol(client: BinanceLiveClient, rows: list[dict[str, Any]], plan: dict[str, Any]) -> int:
     """Remove only V25-owned residual Stop/TP algos after a tracked position closes."""
     if not live_plan_can_mutate(plan):
@@ -3103,9 +3125,18 @@ async def manual_breakeven_after_tp1(
         plan["breakeven_at"] = now_iso()
         persist_state(state)
         return False
+    # Miktar çapraz doğrulaması: TP1'in gerçekleşen miktarı borsadan okunur ve kalan pozisyonla uyuşmalıdır.
+    # Kalan, (ilk miktar − TP1 dolumu) değerinden büyükse TP1 dolumu pozisyona yansımamıştır; stop dokunulmadan beklenir.
+    try:
+        executed = Decimal(str(order.get("executedQty")))
+    except (TypeError, ValueError, ArithmeticError):
+        return False
+    if not executed.is_finite() or executed <= 0 or quantity > original_quantity - executed + Decimal(str(rules["step"])):
+        return False
     if (direction == "LONG" and mark <= breakeven) or (direction == "SHORT" and mark >= breakeven):
         return False  # a stop at entry would trigger immediately; try again later
     old_stop = plan["stop_loss"]
+    bridge_id = await _install_stop_bridge(client, state, plan, quantity, old_stop, "BE")  # eski stop silinirken pozisyon açıkta kalmasın
     await client.signed("DELETE", "/fapi/v1/algoOrder", {"symbol": symbol, "algoId": plan["stop_algo_id"]})
     plan.update(stop_loss=decimal_text(breakeven), stop_client_id=client_id_for("SLBE", plan["intent_id"]),
                 stop_algo_id=None, breakeven_started_at=now_iso(), previous_stop_loss=old_stop)
@@ -3116,6 +3147,7 @@ async def manual_breakeven_after_tp1(
     try:
         result = await install_verified_stop(client, state, plan, params, None)
         plan["stop_algo_id"] = int(result["algoId"])
+        await _drop_stop_bridge(client, state, plan, bridge_id)
     except LiveExchangeError as exc:
         add_event(state, "BREAKEVEN_FAIL", f"{symbol} TP1 sonrası stop girişe çekilemedi; kalan pozisyon reduce-only kapatılıyor.", symbol=symbol)
         close_intent = f"breakeven-{plan['id']}"
@@ -3257,7 +3289,7 @@ async def manual_update_protection(
         raise ManualPlanActionError("Stop, hedeflerin öbür tarafında olmalı.", http_status=422)
 
     if new_stop is not None and new_stop != Decimal(str(plan["stop_loss"])):
-        result["stop"] = await _replace_manual_stop(client, state, plan, new_stop)
+        result["stop"] = await _replace_manual_stop(client, state, plan, new_stop, quantity=quantity)
 
     for index, row in target_rows.items():
         key = MANUAL_TARGET_KEYS[index - 1]
@@ -3302,12 +3334,57 @@ async def manual_update_protection(
     return result
 
 
-async def _replace_manual_stop(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], new_stop: Decimal) -> str:
+async def _install_stop_bridge(
+    client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], quantity: Decimal, price: str, sequence: int | str,
+) -> int | None:
+    """Stop değişiminin arasında pozisyonu örtmek için ESKİ stop fiyatında, miktarlı ve yalnız-azaltan geçici stop kurar.
+
+    Kurulamazsa/doğrulanamazsa None döner ve çağıran eski akışla (sil -> kur) devam eder; yani bu adım özelliği
+    kısıtlamaz, yalnız mümkün olduğunda korumasız anı kapatır."""
+    symbol, direction = plan["symbol"], plan["direction"]
+    client_id = client_id_for(f"SLBR{sequence}", plan["intent_id"])
+    bridge_ids = plan.setdefault("stop_bridge_client_ids", [])
+    if client_id not in bridge_ids:
+        bridge_ids.append(client_id)
+    persist_state(state)
+    params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
+              "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "STOP_MARKET", "triggerPrice": price,
+              "quantity": decimal_text(quantity), "reduceOnly": "true", "clientAlgoId": client_id}
+    try:
+        placed = await post_algo(client, params)
+        algo_id = int((placed or {}).get("algoId") or 0)
+        if algo_id <= 0:
+            return None
+        if _row_for_client(await _open_algo_rows(client, symbol), client_id) is None:
+            await _delete_algo_verified(client, symbol, algo_id)
+            return None
+        return algo_id
+    except (LiveExchangeError, ManualPlanActionError, TypeError, ValueError, ArithmeticError):
+        return None
+
+
+async def _drop_stop_bridge(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], algo_id: int | None) -> None:
+    if not algo_id:
+        return
+    try:
+        removed = await _delete_algo_verified(client, plan["symbol"], algo_id)
+    except (LiveExchangeError, ManualPlanActionError):
+        removed = False
+    if not removed:
+        # Yalnız-azaltan olduğu için pozisyonu büyütemez; kimliği kayıtlı kaldığı için sonraki temizlikte silinir.
+        add_event(state, "MANUAL_STOP_BRIDGE_LEFT", f"{plan['symbol']} geçici köprü stopu silinemedi; sonraki temizlikte kaldırılacak.", symbol=plan["symbol"], plan_id=plan.get("id"))
+
+
+async def _replace_manual_stop(
+    client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], new_stop: Decimal, *, quantity: Decimal | None = None,
+) -> str:
     symbol, direction = plan["symbol"], plan["direction"]
     old_stop, old_client, old_algo = plan["stop_loss"], plan.get("stop_client_id"), plan["stop_algo_id"]
-    if not await _delete_algo_verified(client, symbol, old_algo):
-        raise ManualPlanActionError("Eski stop borsadan kaldırılamadı; hiçbir şey değişmedi.", http_status=409)
     sequence = int(plan.get("stop_move_count") or 0) + 1
+    bridge_id = await _install_stop_bridge(client, state, plan, quantity, old_stop, sequence) if quantity else None
+    if not await _delete_algo_verified(client, symbol, old_algo):
+        await _drop_stop_bridge(client, state, plan, bridge_id)
+        raise ManualPlanActionError("Eski stop borsadan kaldırılamadı; hiçbir şey değişmedi.", http_status=409)
     plan["stop_move_count"] = sequence
     params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
               "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "STOP_MARKET", "closePosition": "true"}
@@ -3320,6 +3397,7 @@ async def _replace_manual_stop(client: BinanceLiveClient, state: dict[str, Any],
         plan["protection_state"] = "MATCHED"
         add_event(state, "MANUAL_STOP_MOVED", f"{symbol} stop {old_stop} → {plan['stop_loss']} taşındı.", symbol=symbol, plan_id=plan.get("id"))
         persist_state(state)
+        await _drop_stop_bridge(client, state, plan, bridge_id)
         return "MOVED"
     except LiveExchangeError:
         pass
@@ -3331,6 +3409,7 @@ async def _replace_manual_stop(client: BinanceLiveClient, state: dict[str, Any],
         plan["protection_state"] = "MATCHED"
         add_event(state, "MANUAL_STOP_RESTORED", f"{symbol} yeni stop kurulamadı; eski stop ({old_stop}) geri kuruldu.", symbol=symbol, plan_id=plan.get("id"))
         persist_state(state)
+        await _drop_stop_bridge(client, state, plan, bridge_id)
         raise ManualPlanActionError("Yeni stop kurulamadı; eski stop geri kuruldu, pozisyon korumalı.", http_status=409)
     except LiveExchangeError as exc:
         add_event(state, "MANUAL_STOP_FAILED", f"{symbol} stop taşınamadı ve eskisi geri kurulamadı; pozisyon reduce-only kapatılıyor.", symbol=symbol, plan_id=plan.get("id"))
@@ -4161,7 +4240,12 @@ def smart_guard_client_ids(plan: dict[str, Any]) -> set[str]:
     """Akıllı Kâr Koruma geçici stop kimlikleri (her kuşak ayrı kimlik; kayıtta tutulur)."""
     guard = plan.get("smart_guard") if isinstance(plan, dict) else None
     ids = guard.get("client_ids") if isinstance(guard, dict) else None
-    return {str(value) for value in ids or [] if value}
+    found = {str(value) for value in ids or [] if value}
+    # Stop değiştirirken kısa süre kurulan köprü stopu da aynı şekilde "bize ait geçici koruma" sayılır:
+    # sahiplik temizliğine girer, asıl Stop sınıflandırmasını belirsizleştirmez.
+    bridge = plan.get("stop_bridge_client_ids") if isinstance(plan, dict) else None
+    found.update(str(value) for value in bridge or [] if value)
+    return found
 
 
 def close_reason_for_intent(intent: str) -> str:
@@ -4180,6 +4264,8 @@ def close_reason_for_intent(intent: str) -> str:
 def close_reason_for_client_id(plan: dict[str, Any], client_id: str) -> str:
     value = str(client_id or "")
     if value == str(plan.get("stop_client_id") or ""):
+        return "STOP"
+    if value and value in {str(item) for item in plan.get("stop_bridge_client_ids") or []}:
         return "STOP"
     if value and value in smart_guard_client_ids(plan):
         return "SMART_STOP"
@@ -8267,31 +8353,34 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
     if body.confirmation.strip().upper() != "CANLI POZİSYONU KAPAT":
         raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
     state = request.app.state.v25_execution
-    plan = state.get("plans", {}).get(body.plan_id)
-    if not plan:
-        raise HTTPException(404, "Tracked canlı plan bulunamadı.")
-    if not live_plan_can_mutate(plan):
-        raise HTTPException(423, "Canlı plan provenance doğrulanmadı; pozisyon sahiplenilmedi.")
-    try:
-        close_intent = f"manual-close-{plan['id']}"
-        close_client_id = client_id_for("CLOSE", close_intent)
-        close_ids = plan.setdefault("close_client_order_ids", [])
-        if close_client_id not in close_ids:
-            close_ids.append(close_client_id)
-        persist_state(state)
-        result = await close_tracked_symbol(client_for(request.app, request), plan["symbol"], close_intent)
-        if result and result.get("orderId"):
-            order_id = int(result["orderId"])
-            known = plan.setdefault("exchange_order_ids", [])
-            if order_id not in known:
-                known.append(order_id)
-        plan["close_reason"] = close_reason_for_intent(close_intent)
-        plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
-        add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"])
-        persist_state(state)
-        return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan}
-    except LiveExchangeError as exc:
-        raise safe_exchange_error(exc) from exc
+    # Kapatma, uzlaştırma/koruma döngüsüyle aynı kilit altında çalışır: aynı sembolde kapanış, stop ve
+    # yeniden giriş olayları iç içe geçip çift emir ya da çelişen plan durumu üretemez.
+    async with state["lock"]:
+        plan = state.get("plans", {}).get(body.plan_id)
+        if not plan:
+            raise HTTPException(404, "Tracked canlı plan bulunamadı.")
+        if not live_plan_can_mutate(plan):
+            raise HTTPException(423, "Canlı plan provenance doğrulanmadı; pozisyon sahiplenilmedi.")
+        try:
+            close_intent = f"manual-close-{plan['id']}"
+            close_client_id = client_id_for("CLOSE", close_intent)
+            close_ids = plan.setdefault("close_client_order_ids", [])
+            if close_client_id not in close_ids:
+                close_ids.append(close_client_id)
+            persist_state(state)
+            result = await close_tracked_symbol(client_for(request.app, request), plan["symbol"], close_intent)
+            if result and result.get("orderId"):
+                order_id = int(result["orderId"])
+                known = plan.setdefault("exchange_order_ids", [])
+                if order_id not in known:
+                    known.append(order_id)
+            plan["close_reason"] = close_reason_for_intent(close_intent)
+            plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
+            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"])
+            persist_state(state)
+            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan}
+        except LiveExchangeError as exc:
+            raise safe_exchange_error(exc) from exc
 
 
 class ManualProtectionRequest(BaseModel):
@@ -8402,48 +8491,75 @@ async def _emergency_stop_locked(
                     cancelled_orders += 1
                 except LiveExchangeError:
                     pass
+        unverified: list[str] = []
+        settled_symbols: set[str] = set()
+        if body.close_tracked_positions:
+            # Önce pozisyon kapatılır ve BORSADAN doğrulanır; koruma (stop/hedef) emirleri yalnız kapanışı doğrulanan
+            # sembolde iptal edilir. Kapanış doğrulanamazsa koruma yerinde kalır, pozisyon stopsuz bırakılmaz.
+            groups: dict[str, list[dict[str, Any]]] = {}
+            for plan in state.get("plans", {}).values():
+                if (
+                    live_plan_can_mutate(plan)
+                    and plan.get("symbol")
+                    and plan.get("status") not in {"KAPANDI", "İPTAL", "ACİL DURDURULDU"}
+                ):
+                    groups.setdefault(str(plan["symbol"]), []).append(plan)
+            for symbol, group in groups.items():
+                lead = group[0]
+                close_intent = f"emergency-close-{lead['id']}"
+                close_client_id = client_id_for("CLOSE", close_intent)
+                close_ids = lead.setdefault("close_client_order_ids", [])
+                if close_client_id not in close_ids:
+                    close_ids.append(close_client_id)
+                lead["close_reason"] = close_reason_for_intent(close_intent)
+                persist_state(state)
+                close_result = None
+                try:
+                    close_result = await close_tracked_symbol(client, symbol, close_intent)
+                except (LiveExchangeError, BinanceDemoError) as exc:
+                    logger.warning("EMERGENCY_CLOSE_FAILED symbol=%s error=%s", symbol, type(exc).__name__)
+                flat = await verify_symbol_flat(client, symbol)
+                if flat is not True:
+                    unverified.append(symbol)
+                    for plan in group:
+                        plan["emergency_close_unverified_at"] = now_iso()
+                    continue
+                settled_symbols.add(symbol)
+                if close_result:
+                    closed += 1
+                    if close_result.get("orderId"):
+                        order_id = int(close_result["orderId"])
+                        known = lead.setdefault("exchange_order_ids", [])
+                        if order_id not in known:
+                            known.append(order_id)
+                for plan in group:
+                    plan.pop("emergency_close_unverified_at", None)
+                    cancelled_algos += await cancel_owned_algos_for_symbol(client, snapshot.get("open_algo_orders", []), plan)
         for row in snapshot.get("open_algo_orders", []):
+            symbol = str(row.get("symbol") or "").upper()
+            if symbol in settled_symbols or symbol in {item.upper() for item in unverified}:
+                continue
             if str(row.get("client_algo_id") or "") in owned_algo_ids:
                 try:
                     await client.signed("DELETE", "/fapi/v1/algoOrder", {"symbol": row["symbol"], "algoId": row["algo_id"]})
                     cancelled_algos += 1
                 except LiveExchangeError:
                     pass
-        if body.close_tracked_positions:
-            active_plans = [
-                plan for plan in state.get("plans", {}).values()
-                if live_plan_can_mutate(plan)
-                and plan.get("symbol")
-                and plan.get("status") not in {"KAPANDI", "İPTAL", "ACİL DURDURULDU"}
-            ]
-            handled_symbols: set[str] = set()
-            for plan in active_plans:
-                symbol = str(plan["symbol"])
-                if symbol in handled_symbols:
-                    continue
-                handled_symbols.add(symbol)
-                close_intent = f"emergency-close-{plan['id']}"
-                close_client_id = client_id_for("CLOSE", close_intent)
-                close_ids = plan.setdefault("close_client_order_ids", [])
-                if close_client_id not in close_ids:
-                    close_ids.append(close_client_id)
-                plan["close_reason"] = close_reason_for_intent(close_intent)
-                persist_state(state)
-                close_result = await close_tracked_symbol(client, symbol, close_intent)
-                if close_result:
-                    closed += 1
-                    if close_result.get("orderId"):
-                        order_id = int(close_result["orderId"])
-                        known = plan.setdefault("exchange_order_ids", [])
-                        if order_id not in known:
-                            known.append(order_id)
         for plan in state.get("plans", {}).values():
-            if live_plan_can_mutate(plan) and plan.get("status") not in {"KAPANDI", "İPTAL"}:
+            if (
+                live_plan_can_mutate(plan)
+                and plan.get("status") not in {"KAPANDI", "İPTAL"}
+                and not plan.get("emergency_close_unverified_at")
+            ):
                 plan["status"] = "ACİL DURDURULDU"
         state["emergency"] = {"active": True, "triggered_at": now_iso(), "reason": "Kullanıcı canlı acil durdurma komutu"}
         add_event(state, "LIVE_EMERGENCY", f"{cancelled_orders} giriş, {cancelled_algos} koruma iptal; {closed} tracked pozisyon kapanış emri.", actor=user["id"])
+        if unverified:
+            add_event(state, "LIVE_EMERGENCY_UNVERIFIED", f"Kapanış borsadan doğrulanamadı: {', '.join(unverified)}. Koruma emirleri yerinde bırakıldı.", actor=user["id"])
         persist_state(state)
-        return {"ok": True, "cancelled_bot_orders": cancelled_orders, "cancelled_bot_algos": cancelled_algos, "closed_tracked_positions": closed, "armed": False}
+        if unverified:
+            raise HTTPException(502, f"Acil durdurma: {', '.join(unverified)} pozisyonunun kapandığı borsadan doğrulanamadı. Koruma emirleri yerinde bırakıldı. Borsa ekranından pozisyonu kontrol et.")
+        return {"ok": True, "cancelled_bot_orders": cancelled_orders, "cancelled_bot_algos": cancelled_algos, "closed_tracked_positions": closed, "armed": False, "unverified_symbols": []}
     except (LiveExchangeError, BinanceDemoError) as exc:
         raise safe_exchange_error(exc) from exc
 

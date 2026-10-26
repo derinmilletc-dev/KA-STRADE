@@ -17,16 +17,20 @@ POSITION = {"quantity": "0.4", "entry_price": "100", "mark_price": "110"}
 
 
 class FakeClient:
-    def __init__(self, filled=True):
+    def __init__(self, filled=True, executed="0.6"):
         self.calls = []
         self.filled = filled
+        self.executed = executed
 
     async def signed(self, method, path, params=None):
         self.calls.append((method, path, params))
         if path == "/fapi/v1/algoOrder" and method == "GET":
             return {"algoId": 22, "actualOrderId": 5 if self.filled else 0}
         if path == "/fapi/v1/order":
-            return {"orderId": 5, "symbol": "BTCUSDT", "status": "FILLED", "reduceOnly": True}
+            order = {"orderId": 5, "symbol": "BTCUSDT", "status": "FILLED", "reduceOnly": True}
+            if self.executed is not None:
+                order["executedQty"] = self.executed
+            return order
         return {}
 
 
@@ -75,3 +79,26 @@ def test_closes_remainder_when_new_stop_cannot_be_verified():
     p, c = plan(), FakeClient()
     result, _, close = run(p, c, stop_ok=False)
     assert result and close.await_count == 1 and not p.get("breakeven_done")
+
+
+def test_waits_when_tp1_fill_quantity_does_not_match_remaining_position():
+    # İlk miktar 1, TP1 dolumu 0.6 -> kalan en fazla 0.4 olmalı; borsa 0.9 gösteriyorsa dolum pozisyona yansımamıştır.
+    p, c = plan(), FakeClient()
+    result, stop, _ = run(p, c, position={**POSITION, "quantity": "0.9"})
+    assert not result and stop.await_count == 0 and p["stop_loss"] == "90"
+    assert not any(m == "DELETE" for m, *_ in c.calls)
+
+
+def test_waits_when_tp1_executed_quantity_is_missing_or_zero():
+    for executed in (None, "0", "abc"):
+        p, c = plan(), FakeClient(executed=executed)
+        result, stop, _ = run(p, c)
+        assert not result and stop.await_count == 0 and p["stop_loss"] == "90"
+        assert not any(m == "DELETE" for m, *_ in c.calls)
+
+
+def test_smaller_remaining_after_extra_manual_reduce_is_accepted():
+    # Kullanıcı TP1 sonrası ayrıca küçülttüyse kalan beklenenden azdır; bu güvenlik açığı değildir.
+    p, c = plan(), FakeClient()
+    result, *_ = run(p, c, position={**POSITION, "quantity": "0.2"})
+    assert result and p["breakeven_done"]
