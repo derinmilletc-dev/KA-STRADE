@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
-import { analysisFillBlock, switchSymbol } from './manual-order-state'
-import { AI_DISCLAIMER, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
+import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
+import { CheckList, DirectionCards, PriceMapView, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
+import { AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
@@ -234,6 +235,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
   const [signals, setSignals] = useState<SignalMap | null>(null)
   const [signalsError, setSignalsError] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
   const [coinSort, setCoinSort] = useState<CoinSort>('confidence')
   const [manualStep, setManualStep] = useState(0)
@@ -1214,8 +1216,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="liveWsLabel">3 · Giriş ve miktar</span>
           <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
           <div className="liveWsTwo manualAmount">
-            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max={marginMax} value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].filter(v => v <= marginMax).map(v => <button type="button" key={v} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır · ` : ''}Risk ayarına göre en çok {marginMax} USDT</small></label>
-            <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span><input type="range" className="manualRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/><small className="liveWsHint">Düşük kaldıraç daha güvenlidir</small></label>
+            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max={marginMax} value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].filter(v => v <= marginMax).map(v => <button type="button" key={v} aria-pressed={String(order.margin_usdt) === String(v)} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır · ` : ''}Risk ayarına göre en çok {marginMax} USDT</small></label>
+            <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} aria-pressed={String(order.leverage) === String(v)} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span><input type="range" className="manualRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/><small className="liveWsHint">Düşük kaldıraç daha güvenlidir</small></label>
           </div>
           {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
           {order.order_type === 'LIMIT' && <div className="liveWsField">Dolmazsa iptal et<div className="liveWsSeg" role="group" aria-label="Limit emir süresi">{LIMIT_EXPIRY_OPTIONS.map(item => <button type="button" key={item.label} aria-pressed={order.limit_expiry_minutes === item.value} className={order.limit_expiry_minutes === item.value ? 'on' : ''} onClick={() => setOrder(current => ({...current, limit_expiry_minutes: item.value}))}>{item.label}</button>)}</div><small className="liveWsHint">Süre dolunca dolmamış emri Binance kendisi iptal eder.</small></div>}
@@ -1250,28 +1252,183 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const sign = order.direction === 'LONG' ? 1 : -1
     const suggest = [1, 2, 3].map(pct => ({pct, stop: entryRef > 0 ? presetPrice(entryRef * (1 - sign * pct / 100)) : null, tp1: entryRef > 0 ? presetPrice(entryRef * (1 + sign * pct / 100)) : null}))
     const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
-    const wizardBody = <div className="mwz" data-step={wzStep}>
-      <ol className="mwzSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
-        <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
-      <div className="mwzCard" key={wzStep}>
-        <small className="mwzKicker">ADIM {wzStep + 1} / {stepNames.length}</small>
-        {notice.kind !== 'info' && notice.text && <p className={`mwzNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} data-testid="mwz-notice">{notice.text}</p>}
-        {wzStep === 0 && <><h4>Hangi coin?</h4><p>Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinBlock}</>}
-        {wzStep === 1 && <><h4>Hangi yön?</h4><p>LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>{dirBlock}</>}
-        {wzStep === 2 && <><h4>Ne kadar ve nasıl girelim?</h4><p>Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>{amountBlock}</>}
-        {wzStep === 3 && <><h4>Stop ve hedefleri belirle</h4><p>Stop, zararı sınırlar; hedefler kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
-          <div className="mwzSuggest" role="group" aria-label="Hazır stop ve hedef önerileri">
-            {hasAnalysis && <button type="button" className="mwzPick" data-rec="1" onClick={fillAnalysis}><b>Kais analizi <em>ÖNERİLEN</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
-            {suggest.map(item => <button type="button" key={item.pct} className="mwzPick" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
-              <b>Stop %{item.pct}{!hasAnalysis && item.pct === 1 && <em>ÖNERİLEN</em>}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
-          </div>{stopBlock}</>}
-        {wzStep === 4 && <><h4>Son kontrol</h4><p>Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p></>}
-        {wzStep < 4 && <div className="mwzMini" aria-label="Seçimlerin"><span>{selectedRow?.display || order.symbol || '—'}</span><span className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</span><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{text(order.margin_usdt)} USDT · {Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span>{realLoss !== null && realLoss !== undefined && <span className="down">Stopta ≈ {money(realLoss)}</span>}</div>}
-        {wzHint && <p className="liveWsWarn" role="status">{wzHint}</p>}
-        <div className="mwzNav">
-          <button type="button" className="liveWsGhost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
-          {wzStep < stepNames.length - 1 && <button type="button" className="liveWsPrimary" disabled={!stepOk[wzStep]} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
+    const dirSide: 'LONG' | 'SHORT' = order.direction === 'SHORT' ? 'SHORT' : 'LONG'
+    const tpValues: [number, number, number] = [tp1Value, Number(order.tp2), Number(order.tp3)]
+    const stopDist = stopDistance(dirSide, entryRef, stopValue)
+    const pmap = priceMap(dirSide, entryRef, stopValue, tpValues)
+    const splitParts = order.tp_split.split('-')
+    const availableBalanceNum = Number(status?.account?.available_balance)
+    const policyLevMax = Number(status?.policy?.max_leverage)
+    const leverageCap = Number.isFinite(policyLevMax) && policyLevMax > 0 ? Math.min(50, policyLevMax) : 50
+    const targetsValid: boolean | null = entryRef > 0 && tpValues.every(value => value > 0)
+      ? (dirSide === 'LONG' ? tpValues[0] > entryRef && tpValues[0] < tpValues[1] && tpValues[1] < tpValues[2] : tpValues[0] < entryRef && tpValues[0] > tpValues[1] && tpValues[1] > tpValues[2])
+      : null
+    const dryRunStale = reviewResult !== null && !reviewed
+    // Kontrol listesi yalnız gerçek durumdan beslenir: bilinmeyen madde "bekliyor" kalır, borsa maddeleri dry-run geçmeden onaylanmaz.
+    const checks = checkRows({
+      symbolKnown: universe === null ? null : rows.some(row => row.symbol === order.symbol),
+      balanceOk: availableBalanceNum > 0 && marginValue > 0 ? marginValue <= availableBalanceNum : null,
+      marginOk: marginValue >= 5 && marginValue <= marginMax,
+      leverageOk: Number.isInteger(leverageValue) && leverageValue >= 1 && leverageValue <= leverageCap,
+      quantityOk: riskError ? false : risk ? true : null,
+      stopOk: stopDist ? stopDist.sideOk : null,
+      targetsOk: targetsValid,
+      dryRunPassed: reviewed,
+      dryRunStale,
+    })
+    const sizeValue = Number.isFinite(realNotional) && realNotional > 0 ? `${money(realNotional)}${risk ? '' : ' (tahmini)'}` : null
+    const lossValue = realLoss !== null && realLoss !== undefined && Number.isFinite(Number(realLoss)) ? money(realLoss) : null
+    const priceOrNull = (value: number) => Number.isFinite(value) && value > 0 ? coinPrice(value) : null
+    const summaryRows: SummaryItem[] = [
+      {label: 'Coin', value: order.symbol ? (selectedRow?.display || order.symbol) : null},
+      {label: 'Anlık fiyat', value: selectedRow && Number.isFinite(Number(selectedRow.price)) ? `${coinPrice(selectedRow.price)} USDT` : null},
+      {label: 'Yön', value: order.direction, tone: dirSide === 'LONG' ? 'up' : 'down'},
+      {label: 'Emir tipi', value: order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'},
+      {label: 'Marjin', value: marginValue > 0 ? `${marginValue} USDT` : null},
+      {label: 'Kaldıraç', value: leverageValue > 0 ? `${leverageValue}x` : null},
+      {label: 'Pozisyon büyüklüğü', value: sizeValue},
+      {label: 'Giriş fiyatı', value: priceOrNull(entryRef) === null ? null : `${priceOrNull(entryRef)}${order.order_type === 'LIMIT' ? ' (limit)' : ' (piyasa, yaklaşık)'}`},
+      {label: 'Stop Loss', value: priceOrNull(stopValue), tone: 'down'},
+      {label: 'TP1', value: priceOrNull(tpValues[0]), tone: 'up'},
+      {label: 'TP2', value: priceOrNull(tpValues[1]), tone: 'up'},
+      {label: 'TP3', value: priceOrNull(tpValues[2]), tone: 'up'},
+      {label: 'Tahmini komisyon', value: roundTripFee === null ? null : money(roundTripFee)},
+      {label: 'Tahmini maksimum zarar', value: lossValue, tone: 'down'},
+      {label: 'Risk / ödül', value: realRR ? `1 : ${realRR.toFixed(1)}` : null},
+      {label: 'Emir doğrulama', value: reviewed ? 'Dry-run geçti' : dryRunStale ? 'Dry-run yenilenmeli' : 'Dry-run bekliyor', tone: reviewed ? 'up' : dryRunStale ? 'warn' : undefined},
+    ]
+    const entryFee = feeNotional === null ? null : feeNotional * feeRate
+    const calcRows: SummaryItem[] = [
+      {label: 'Pozisyon büyüklüğü', value: sizeValue, big: true},
+      {label: 'Kullanılan bakiye', value: walletShare !== null ? `%${walletShare.toFixed(1)} · ${money(marginValue)}` : null},
+      {label: 'Tahmini giriş komisyonu', value: entryFee === null ? null : money(entryFee)},
+      {label: 'Tahmini çıkış komisyonu', value: entryFee === null ? null : money(entryFee)},
+      {label: 'Tahmini toplam komisyon', value: roundTripFee === null ? null : money(roundTripFee)},
+      {label: 'Tahmini risk (stopta)', value: lossValue, tone: 'down'},
+    ]
+    const align = alignment(selectedSignal, dirSide)
+    const noticeEl = notice.kind !== 'info' && notice.text
+      ? <p className={`mxtNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} data-testid="mwz-notice">{notice.text}</p>
+      : null
+    const feeNote = `Tahminlere giriş ve çıkış komisyonu (taraf başı %${(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir.`
+    const statusStrip = <div className="mxtStatus" aria-label="Bağlantı ve güvenlik durumu">
+      <span className="mxtBrand">KAISTRADE MANUAL EXECUTION<small>Manuel emir · gerçek para</small></span>
+      <StatusPill tone={connected ? 'ok' : 'bad'}>Binance {connected ? 'bağlı' : 'bağlı değil'}</StatusPill>
+      <StatusPill tone={configured ? 'ok' : 'bad'}>Hesap / API {configured ? 'tanımlı' : 'eksik'}</StatusPill>
+      <StatusPill tone={manualOrderReady ? 'ok' : 'warn'}>Güvenlik: {manualOrderReady ? 'emir kilidi açık' : 'emir kilitli'}</StatusPill>
+      <StatusPill tone="warn">Gerçek para</StatusPill>
+    </div>
+    const dirStep = <>
+      <h4>Hangi yön?</h4>
+      <p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
+      <DirectionCards value={dirSide} onChange={side => set('direction', side)}/>
+      {selectedSignal ? <div className="cpk mxtAi" data-align={align}>
+        <h5>Kais AI analizi · {selectedRow?.display || order.symbol}</h5>
+        {duo(selectedSignal)}
+        <div className="mxtFacts">
+          <div><span>Sinyal yönü</span><b data-tone={selectedSignal.lean === 'LONG' ? 'up' : selectedSignal.lean === 'SHORT' ? 'down' : undefined}>{selectedSignal.lean === 'NEUTRAL' ? 'Net yön yok' : selectedSignal.lean}</b></div>
+          <div><span>Sinyal gücü</span><b>{strengthLabel(selectedSignal.confidence)} · %{selectedSignal.confidence}</b></div>
+          <div><span>Seçtiğinle uyum</span><b data-tone={align === 'aligned' ? 'up' : align === 'opposed' ? 'warn' : undefined}>{align === 'aligned' ? 'Uyumlu' : align === 'opposed' ? 'Ters yönde' : 'Karşılaştırılamaz'}</b></div>
         </div>
+        {align === 'opposed' && <p className="mxtWarn">Seçtiğin yön ({dirSide}), analizin ağır bastığı yönün tersi. Bu yalnızca bilgidir; kararı sen verirsin.</p>}
+        <p className="mxtHint">{AI_DISCLAIMER}</p>
+      </div> : <p className="mxtHint">{signals === null && !signalsError ? 'Kais AI analizi yükleniyor…' : 'Bu coin için Kais AI analizi yok. Yön seçimi tamamen sana ait.'}</p>}
+    </>
+    const amountStep = <>
+      <h4>Ne kadar ve nasıl girelim?</h4>
+      <p className="mxtLead">Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>
+      <div className="mxtTwoCol">
+        <div className="mxtCol">{amountBlock}<small className="liveWsHint">Kullanılabilir bakiye: {Number.isFinite(availableBalanceNum) ? money(availableBalanceNum) : 'okunamadı'}</small></div>
+        <div className="mxtCol mxtCalc">
+          <h5>Hesaplamalar</h5>
+          <SummaryList rows={calcRows}/>
+          {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
+          <p className="mxtHint">{feeNote} Tahmini risk, stop girilince hesaplanır.</p>
+        </div>
+      </div>
+    </>
+    const stopStep = <>
+      <h4>Stop ve hedefleri belirle</h4>
+      <p className="mxtLead">Stop, zararı sınırlar; hedefler kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
+      <div className="mxtSuggest" role="group" aria-label="Hazır stop ve hedef önerileri">
+        {hasAnalysis && <button type="button" className="mxtPick" data-rec="1" onClick={fillAnalysis}><b>Kais analizi <em>Önerilen</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
+          <b>Stop %{item.pct}{!hasAnalysis && item.pct === 1 && <em>Önerilen</em>}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
+      </div>
+      <section className="mxtSec" aria-label="Stop Loss">
+        <h5>Stop Loss</h5>
+        <label className="liveWsField">Stop fiyatı<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
+        <SummaryList rows={[
+          {label: 'Girişe uzaklık', value: stopDist ? `${coinPrice(Math.abs(entryRef - stopValue))} · %${stopDist.pct.toFixed(2)}` : null},
+          {label: 'Tahmini zarar (komisyon dahil)', value: lossValue, tone: 'down'},
+          {label: 'Risk kontrolü', value: riskError ? 'Sunucu reddetti' : risk ? `Uygun · en çok ${money(risk.loss)}` : null, tone: riskError ? 'down' : risk ? 'up' : undefined},
+        ]}/>
+        {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
+        {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
+      </section>
+      <section className="mxtSec" aria-label="Take Profit">
+        <h5>Take Profit</h5>
+        {([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
+          const dist = targetDistancePct(entryRef, tpValues[index])
+          return <div className="mxtTpRow" key={key}><b>{label}</b><input type="number" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><span>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</span></div>
+        })}
+        <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>%{split.replace(/-/g, ' / ')}</button>)}</div></div>
+        <small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small>
+      </section>
+      <section className="mxtSec" aria-label="Fiyat haritası">
+        <h5>Fiyat haritası</h5>
+        <PriceMapView map={pmap} format={coinPrice}/>
+        <SummaryList rows={[{label: 'Risk / ödül (TP1, komisyon dahil)', value: realRR ? `1 : ${realRR.toFixed(1)}` : null}]}/>
+      </section>
+      <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
+      {tradingDefaults.preferences?.risk_per_trade && <div className="liveWsRow"><span className="liveWsHint">Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" className="liveWsGhost" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
+        const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
+        setSizingNotice(result.reason)
+        if (result.margin !== null) setOrder(current => ({...current, margin_usdt: String(result.margin)}))
+      }}>Tercih edilen riskle marjı hesapla</button></div>}
+      {(sizingNotice || tradingDefaults.error) && <p className="mxtHint" role="status">{sizingNotice || `İşlem tercihleri alınamadı: ${tradingDefaults.error}`}</p>}
+    </>
+    const reviewStep = <>
+      <h4>Son kontrol</h4>
+      <p className="mxtLead">Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
+      {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
+      <CheckList rows={checks}/>
+      {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
+      {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
+      {reviewResult && reviewed && <p className="mxtOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
+      <div className="mxtActions">
+        <button type="button" className="mxtBtn ghost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
+        <button type="button" className="mxtBtn danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Gerçek emri gönder</button>
+      </div>
+      {noticeEl}
+      {sendBlock && sendBlock !== riskError && <p className="mxtHint">{sendBlock}</p>}
+      <p className="mxtHint">{feeNote} Hedefler: TP1 %{splitParts[0]}, TP2 %{splitParts[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</p>
+    </>
+    const summaryAside = <aside className="mxtSummary" data-open={summaryOpen} aria-label="Emir özeti">
+      <button type="button" className="mxtSumToggle" aria-expanded={summaryOpen} onClick={() => setSummaryOpen(open => !open)}><span>Emir özeti · {selectedRow?.display || order.symbol || 'coin seçilmedi'}</span><ChevronDown aria-hidden="true"/></button>
+      <div className="mxtSumBody"><SummaryList rows={summaryRows}/></div>
+    </aside>
+    const wizardBody = <div className="mxt" data-step={wzStep}>
+      {statusStrip}
+      <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
+        <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
+      <div className="mxtLayout">
+        <div className="mxtCard" key={wzStep}>
+          <span className="mxtKicker">Adım {wzStep + 1} / {stepNames.length}</span>
+          {wzStep !== 4 && noticeEl}
+          {wzStep === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinBlock}</>}
+          {wzStep === 1 && dirStep}
+          {wzStep === 2 && amountStep}
+          {wzStep === 3 && stopStep}
+          {wzStep === 4 && reviewStep}
+          {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
+          <div className="mxtNav">
+            <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
+            {wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep]} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
+          </div>
+        </div>
+        {summaryAside}
       </div>
     </div>
     const gridPrice = Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN
@@ -1341,7 +1498,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         </>}
       </section>
 
-      {(!wizard || (manualMode === 'single' && wzStep === stepNames.length - 1)) && <aside className="liveWsOrderSummary liveUxSummary" aria-label="Emir özeti">
+      {!wizard && <aside className="liveWsOrderSummary liveUxSummary" aria-label="Emir özeti">
         <div className="liveWsOrderHead"><ShieldCheck/><div><b>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</b><small>Emir özeti</small></div></div>
         <div className="liveUxSummaryLead"><strong className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</strong><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span></div>
         <div className="liveWsSumGrid">
