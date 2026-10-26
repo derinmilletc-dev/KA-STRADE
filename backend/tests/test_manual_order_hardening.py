@@ -369,7 +369,7 @@ def open_manual_plan(exchange: FakeExchange, direction="LONG", **extra):
 MANUAL_RULES = {"tick": Decimal("0.1"), "step": Decimal("0.001"), "min_qty": Decimal("0.001"), "min_notional": Decimal("5"), "max_qty": Decimal("1000")}
 
 
-class ManualPositionActionTests(unittest.TestCase):
+class ManualActionBase(unittest.TestCase):
     def setUp(self):
         for target, value in (("persist_state", None), ("STOP_RETRY_BASE_SECONDS", 0),
                               ("live_symbol_rules", AsyncMock(return_value=dict(MANUAL_RULES))),
@@ -385,6 +385,9 @@ class ManualPositionActionTests(unittest.TestCase):
         return asyncio.run(execution.manual_update_protection(exchange, state, plan,
                                                               stop_loss=kwargs.get("stop"), targets=kwargs.get("targets", {})))
 
+
+
+class ManualPositionActionTests(ManualActionBase):
     def test_move_stop_closer_is_verified_and_replaces_old(self):
         exchange = FakeExchange()
         state, plan = open_manual_plan(exchange)
@@ -525,3 +528,79 @@ class ManualPositionActionTests(unittest.TestCase):
         self.assertTrue(plan["breakeven_done"])
         self.assertEqual(plan["stop_loss"], "101")
         self.assertFalse(any(call[0] == "DELETE" for call in exchange.calls))
+
+
+class StopBridgeTests(ManualActionBase):
+    """Stop değişiminde eski stop silinirken pozisyonu örten geçici 'köprü' stop (miktarlı, yalnız-azaltan)."""
+
+    def bridge_calls(self, exchange, plan):
+        prefix_ids = {execution.client_id_for(f"SLBR{tag}", plan["intent_id"]) for tag in (1, 2, "BE")}
+        return [call for call in exchange.calls if call[0] == "POST" and call[1] == "/fapi/v1/algoOrder"
+                and call[2].get("clientAlgoId") in prefix_ids]
+
+    def test_bridge_is_placed_before_the_old_stop_is_deleted_and_removed_after(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        old_algo = plan["stop_algo_id"]
+        result = self.update(exchange, state, plan, stop=98)
+        self.assertEqual(result["stop"], "MOVED")
+        bridge = self.bridge_calls(exchange, plan)
+        self.assertEqual(len(bridge), 1)
+        params = bridge[0][2]
+        self.assertEqual((params["type"], params["reduceOnly"], params["quantity"]), ("STOP_MARKET", "true", "1"))
+        self.assertNotIn("closePosition", params)
+        self.assertEqual(Decimal(params["triggerPrice"]), Decimal("95"))        # eski stop fiyatı
+        order = [(call[0], call[1], call[2].get("algoId")) for call in exchange.calls]
+        bridge_index = exchange.calls.index(bridge[0])
+        delete_old = next(i for i, call in enumerate(exchange.calls)
+                          if call[0] == "DELETE" and call[2].get("algoId") == old_algo)
+        self.assertLess(bridge_index, delete_old)                                  # önce köprü, sonra eski stop silinir
+        self.assertEqual(len(self.stops(exchange)), 1)                             # iş bitince köprü kalmaz
+        self.assertEqual(Decimal(self.stops(exchange)[0]["triggerPrice"]), Decimal("98"))
+        self.assertTrue(order)
+
+    def test_rejected_bridge_never_blocks_the_move(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        exchange.fail_post_prefixes.add(execution.client_id_for("SLBR1", plan["intent_id"]))
+        result = self.update(exchange, state, plan, stop=98)
+        self.assertEqual(result["stop"], "MOVED")
+        self.assertEqual(len(self.stops(exchange)), 1)
+        self.assertEqual(Decimal(plan["stop_loss"]), Decimal("98"))
+
+    def test_bridge_removed_when_old_stop_is_restored(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        exchange.fail_post_prefixes.add(execution.client_id_for("SLMV1", plan["intent_id"]))
+        with self.assertRaises(execution.ManualPlanActionError):
+            self.update(exchange, state, plan, stop=98)
+        stops = self.stops(exchange)
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(Decimal(stops[0]["triggerPrice"]), Decimal("95"))
+        self.assertEqual(plan["protection_state"], "MATCHED")
+
+    def test_bridge_covers_the_position_while_new_stop_is_failing(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        exchange.fail_post_prefixes.update({execution.client_id_for("SLMV1", plan["intent_id"]),
+                                            execution.client_id_for("SLRB1", plan["intent_id"])})
+        with patch.object(execution, "close_tracked_symbol", AsyncMock(return_value={"orderId": 9})):
+            with self.assertRaises(execution.ManualPlanActionError):
+                self.update(exchange, state, plan, stop=98)
+        # Yeni ve geri-kurulan stop kurulamadı: köprü hâlâ borsada (kapanış doğrulanana kadar örter).
+        self.assertEqual(len(self.stops(exchange)), 1)
+        self.assertIn(execution.client_id_for("SLBR1", plan["intent_id"]), plan["stop_bridge_client_ids"])
+
+    def test_bridge_ids_count_as_owned_protection_and_never_confuse_the_main_stop(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        bridge_client = execution.client_id_for("SLBR1", plan["intent_id"])
+        plan["stop_bridge_client_ids"] = [bridge_client]
+        rows = execution.normalize_open_algo_rows([dict(row) for row in exchange.algos.values()] + [
+            {"algoId": 999, "algoStatus": "NEW", "symbol": "BTCUSDT", "side": "SELL", "orderType": "STOP_MARKET",
+             "triggerPrice": "95", "quantity": "1", "reduceOnly": "true", "workingType": "MARK_PRICE", "clientAlgoId": bridge_client}])
+        state_name, _, _ = execution.classify_plan_protection(plan, rows)
+        self.assertEqual(state_name, "MATCHED")
+        owned = {row["client_algo_id"] for row in execution.owned_protection_rows(plan, rows)}
+        self.assertIn(bridge_client, owned)
+        self.assertEqual(execution.close_reason_for_client_id(plan, bridge_client), "STOP")
