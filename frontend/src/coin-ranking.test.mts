@@ -1,7 +1,7 @@
 // Çalıştırma: node --test frontend/src/coin-ranking.test.mts   (Node 22.18+; ek paket gerekmez)
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {AI_DISCLAIMER, buildSignalMap, confidenceTone, filterBySignal, leanOf, leanText, sortByConfidence, sortCoins} from './coin-ranking.ts'
+import {AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, confidenceTone, filterBySignal, leanOf, leanText, sortByConfidence, sortCoins} from './coin-ranking.ts'
 
 test('yön LONG / SHORT / NEUTRAL olur, bilinmeyen değer NEUTRAL', () => {
   assert.equal(leanOf('LONG'), 'LONG')
@@ -91,4 +91,20 @@ test('sıralama kipleri: güven, hacim (mevcut sıra), değişim büyüklüğü;
 
 test('uyarı metni sabit ve yatırım tavsiyesi olmadığını söyler', () => {
   assert.equal(AI_DISCLAIMER, 'Yatırım tavsiyesi değildir. Kais AI analiz raporudur.')
+})
+
+test('yön uyumu: seçilen yön analizle aynıysa uyumlu, tersiyse ters, net yön yoksa yok', () => {
+  const map = buildSignalMap([{symbol: 'A', direction: 'LONG', confidence: 90}, {symbol: 'B', direction: 'SHORT', confidence: 70}, {symbol: 'C', direction: 'BEKLE', confidence: 50}])
+  assert.equal(alignment(map.A, 'LONG'), 'aligned')
+  assert.equal(alignment(map.A, 'SHORT'), 'opposed')
+  assert.equal(alignment(map.B, 'SHORT'), 'aligned')
+  assert.equal(alignment(map.C, 'LONG'), 'none')
+  assert.equal(alignment(undefined, 'LONG'), 'none')
+})
+
+test('sinyal gücü etiketi', () => {
+  assert.equal(strengthLabel(95), 'Güçlü')
+  assert.equal(strengthLabel(80), 'Güçlü')
+  assert.equal(strengthLabel(70), 'Orta')
+  assert.equal(strengthLabel(64), 'Zayıf')
 })

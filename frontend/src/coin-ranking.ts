@@ -91,3 +91,15 @@ export function sortCoins<T extends {symbol: string; change?: number}>(coins: T[
   if (sort === 'change') return [...coins].sort((left, right) => Math.abs(Number(right.change) || 0) - Math.abs(Number(left.change) || 0))
   return coins
 }
+
+export type Alignment = 'aligned' | 'opposed' | 'none'
+
+// Seçilen yön ile Kais AI'ın ağır bastığı yön uyuyor mu? Yalnız bilgi: emri engellemez.
+export function alignment(signal: CoinSignal | undefined, direction: 'LONG' | 'SHORT'): Alignment {
+  if (!signal || signal.lean === 'NEUTRAL') return 'none'
+  return signal.lean === direction ? 'aligned' : 'opposed'
+}
+
+export function strengthLabel(confidence: number): 'Güçlü' | 'Orta' | 'Zayıf' {
+  return confidence >= STRONG_CONFIDENCE ? 'Güçlü' : confidence >= 65 ? 'Orta' : 'Zayıf'
+}
