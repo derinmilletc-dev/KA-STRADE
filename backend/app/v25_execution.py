@@ -4224,6 +4224,14 @@ async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> 
                      entries=entry_rows, close_rows=close_rows, commission_rows=selected,
                      gross_pnl=float(gross), commission_usdt=float(commission_usdt),
                      commission_complete=not non_usdt_commission)
+    try:
+        # Yalnız kayıt (Original V2): zaten çekilmiş dolum ve emir geçmişini işlem kimliğiyle günlüğe yazar.
+        from . import original_v2_live as _original_live
+        if _original_live.plan_is_original(plan):
+            from . import original_v2_record
+            original_v2_record.publish_close(plan, entry_rows, close_rows, selected, algo_history, client_id_for)
+    except Exception:  # noqa: BLE001 - kayıt PnL doğrulamasını asla bozmaz
+        pass
     return {
         "gross_realized_pnl": round(float(gross), 8),
         "commission_usdt": round(float(commission_usdt), 8),
@@ -5989,6 +5997,15 @@ async def execute_live_order(
                 )})
                 if "tp1_fraction" in serializable_spec:
                     plan["tp1_fraction"] = serializable_spec["tp1_fraction"]
+                try:
+                    # Yalnız kayıt: bellekteki sinyal verisinin küçük kopyası; hata olursa sessizce atlanır, emir akışı etkilenmez.
+                    from . import original_v2_record
+                    original_v2_record.attach_entry(
+                        plan, strategy_result, spec, spread_bp=current_spread, snapshot=snapshot, policy=entry_policy,
+                        config=state.get("original_v2_live"), recorded_at=plan["created_at"],
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             state["plans"] = {plan_id: plan, **state.get("plans", {})}
             add_event(state, "LIVE_ENTRY_RECOVERED" if result.get("recovered") else "LIVE_ENTRY", f"{spec['symbol']} {spec['direction']} {spec['order_type']} canlı emir gönderildi ({source}).", symbol=spec["symbol"], direction=spec["direction"], client_order_id=client_id)
             # Persist exchange acceptance before any later API call. If the process

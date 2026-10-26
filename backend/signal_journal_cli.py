@@ -55,6 +55,7 @@ def main() -> None:
     parser.add_argument("--db", type=Path, default=Path(os.environ.get("PROTREBOT_SIGNAL_JOURNAL_PATH") or DATA_DIR / "live-signal-journal.sqlite3"))
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("summary")
+    subparsers.add_parser("original-trades")
     exporting = subparsers.add_parser("export")
     exporting.add_argument("--format", choices=("csv", "parquet"), default="csv")
     exporting.add_argument("--output", type=Path, required=True)
@@ -69,6 +70,8 @@ def main() -> None:
         result = summary(journal)
     elif args.command == "export":
         result = {"exported": export(journal, args.output, args.format)}
+    elif args.command == "original-trades":
+        result = {"trades": journal.original_v2_trades()}
     else:
         instant = datetime.fromisoformat(args.as_of)
         if instant.tzinfo is None:

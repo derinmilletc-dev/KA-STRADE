@@ -1279,6 +1279,12 @@ async def verify_targets(client: Any, state: dict[str, Any], plan: dict[str, Any
         pause(state, f"{plan['symbol']} TP1 {percent_text(live.plan_tp1_fraction(plan))} dolumu doğrulanamadı")
         return
     plan["original_tp1_complete"] = True
+    try:
+        # Yalnız kayıt: doğrulamada zaten okunan borsa emri; hata olursa sessizce atlanır.
+        from . import original_v2_record
+        original_v2_record.attach_tp1(plan, order, native, str(allocation), live.now_iso())
+    except Exception:  # noqa: BLE001
+        pass
     live.persist_state(state)
 
 

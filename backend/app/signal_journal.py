@@ -198,6 +198,43 @@ class Journal:
                 signal_id=COALESCE(trades.signal_id,excluded.signal_id),payload=excluded.payload
             """, (intent_id, linked[0] if linked else None, json.dumps(payload, allow_nan=False)))
 
+    def original_v2(self, intent_id: str, section: str, data: dict[str, Any]) -> None:
+        """Original V2 işlem kaydı: aynı işlem kimliği altında, tekrar çalıştırılınca mükerrer üretmeyen yazım.
+
+        entry/tp1: ilk yazım kalır. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
+        özet her seferinde aynı doğrulanmış verilerden yeniden yazılır. Yeni tablo yok: trades.payload içinde."""
+        if section not in {"entry", "tp1", "legs"} or not isinstance(data, dict):
+            raise ValueError("Invalid Original V2 observation section")
+        with self.connect() as db:
+            previous = db.execute("SELECT signal_id,payload FROM trades WHERE intent_id=?", (intent_id,)).fetchone()
+            payload = json.loads(previous[1]) if previous else {}
+            record = payload.get("original_v2") if isinstance(payload.get("original_v2"), dict) else {"schema": 1}
+            if section == "legs":
+                legs = record.setdefault("legs", {})
+                for key, leg in (data.get("legs") or {}).items():
+                    legs.setdefault(key, leg)
+                if isinstance(data.get("summary"), dict):
+                    record["close_summary"] = data["summary"]
+            else:
+                record.setdefault(section, data)
+            payload["original_v2"] = record
+            linked = db.execute("SELECT signal_id FROM signals WHERE intent_id=? AND decision='ACCEPTED'", (intent_id,)).fetchone()
+            db.execute("""
+                INSERT INTO trades VALUES(?,?,?) ON CONFLICT(intent_id) DO UPDATE SET
+                signal_id=COALESCE(trades.signal_id,excluded.signal_id),payload=excluded.payload
+            """, (intent_id, previous[0] if previous and previous[0] else (linked[0] if linked else None),
+                  json.dumps(payload, allow_nan=False)))
+
+    def original_v2_trades(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT intent_id,payload FROM trades ORDER BY intent_id").fetchall()
+        result = []
+        for intent_id, raw in rows:
+            payload = json.loads(raw)
+            if isinstance(payload.get("original_v2"), dict):
+                result.append({"intent_id": intent_id, **payload})
+        return result
+
     def rows(self) -> list[dict[str, Any]]:
         with self.connect() as db:
             rows = db.execute("""
@@ -291,6 +328,9 @@ class Observer:
             return
         if kind == "trade":
             self.journal.trade(**data)
+            return
+        if kind == "original_v2":
+            self.journal.original_v2(**data)
             return
         if kind == "fills":
             entries = data.pop("entries")
