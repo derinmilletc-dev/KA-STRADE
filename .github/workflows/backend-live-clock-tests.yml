@@ -77,6 +77,9 @@ jobs:
           # Master Trade işlem detayı + manuel emir (TP2, küçük pozisyon kontrolü, LIMIT erken koruma, dolum/başa çekme, kısmi dolum).
           python -m pytest tests/test_live_journal_display_fields.py tests/test_trade_r_metrics.py tests/test_manual_order_hardening.py tests/test_manual_breakeven.py tests/test_manual_fill_audit.py tests/test_v25_partial_fills.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          # Rejim (trend gücü) teşhis aracı: yalnız ölçüm, sahte veri; canlı/Demo davranışı değişmez.
+          python -m pytest tests/test_diagnose_original_v2_regime.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Teminat modları (Güvenli %30 / Orta %50 / Agresif %65): hesap bazlı, onaylı; Güvenli = bugünkü davranış.
           python -m pytest tests/test_original_margin_modes.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
