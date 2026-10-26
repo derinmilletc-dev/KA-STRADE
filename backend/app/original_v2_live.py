@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import original_v2_demo_execution as original
-from .execution_core import system_ceilings
+from .execution_core import configured_min_confidence, system_ceilings
 from .market_universe import (
     ORIGINAL_DEFAULT_SYMBOL_COUNT,
     ORIGINAL_MAX_SYMBOL_COUNT,
@@ -773,6 +773,8 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
                                      system_ceilings()["max_daily_loss_usdt"])
     for key in ("min_confidence", "fee_bps_per_side", "slippage_bps_per_side", "minimum_net_reward_usdt"):
         result[key] = max(current[key], fixed[key])
+    # Sunucu ayarı (PROTREBOT_MIN_CONFIDENCE) canlı girişte de alt sınırdır; yalnız yükseltebilir, %80'in altına indiremez.
+    result["min_confidence"] = max(int(result["min_confidence"]), configured_min_confidence())
     result["max_loss_per_trade"] = min(wallet * float(config["risk_percent"]) / 100,
                                       system_ceilings()["max_loss_per_trade_usdt"])
     return result
