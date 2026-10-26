@@ -7673,7 +7673,8 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
     state = request.app.state.v25_execution
     try:
         client = client_for(request.app, request)
-        spec = await build_live_spec(client, body, state["policy"], manual_targets=True)
+        # Manuel emirde izin listesi yok (gerçek gönderim de [] ile çalışır); dry-run aynı kuralı kullanmalı.
+        spec = await build_live_spec(client, body, state["policy"], allowed_symbols=[], manual_targets=True)
         result = await submit_entry(client, spec, client_id_for("TEST", body.intent_id or uuid.uuid4().hex), test_only=True)
         add_event(state, "LIVE_ORDER_TEST", f"{spec['symbol']} imzalı /order/test doğrulandı; gerçek emir oluşmadı.", actor=user["id"], symbol=spec["symbol"])
         persist_state(state)
