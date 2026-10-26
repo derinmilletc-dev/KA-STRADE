@@ -62,4 +62,15 @@ Gün 3 kesintisiz çalışma (defter↔borsa karşılaştırması). Başarısız
 
 ## Henüz yok
 Gerçek bakım teminatı tablosu, motor durumunun ekrana canlı akışı (motor henüz hiçbir yere bağlı değil),
-kademe dolunca yeniden kurma, canlı adaptör (yazılmayacak).
+kademe dolunca yeniden kurma.
+
+## Canlı adaptör (ilk gerçek para testi)
+`live_adapter.py` + `app/grid_live.py`. Kullanıcının MEVCUT canlı bağlantısını (BinanceLiveClient) kullanır; anahtar istemez, adres taşımaz
+(bu klasörde canlı adres izi olmadığını `test_grid_day1_script.py` denetler). Stop emirleri algo ucundan (`algoOrder`, reduceOnly) gider.
+- Varsayılan KAPALI. Sunucuda `KAISTRADE_GRID_LIVE=1` ile açılır (stop / acil durdur bu bayrak kapalıyken de çalışır).
+- Sert sınırlar kodda: en fazla 2 kademe, toplam marjin en fazla 10 USDT, kaldıraç en fazla 10x.
+- Başlatmadan önce: ARM + izin + kilit kontrolleri, one-way, isolated, sembolde pozisyon/emir yok, önizlemeyle aynı risk hesabı
+  (en kötü zarar ≤ tek işlem sınırı ve günlük hak), borsa adımlarına yuvarlama, kaldıraç ve marjin türü doğrulaması.
+- Uçlar: `GET /api/v25/grid/live/status`, `POST .../start`, `.../stop`, `.../emergency`, `.../resume`.
+- Henüz GERÇEK borsada denenmedi: algo uçlarının alan adları (`actualOrderId`, `clientAlgoId` ile iptal) mevcut koddaki kullanıma göre yazıldı;
+  ilk denemede 10 USDT / 2 kademe ile doğrulanacak.

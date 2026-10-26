@@ -20,8 +20,9 @@ TERMINAL = {"FILLED", "CANCELED", "REJECTED"}
 
 
 class GridStore:
-    def __init__(self, path: str = ":memory:") -> None:
-        self.db = sqlite3.connect(path)
+    def __init__(self, path: str = ":memory:", *, check_same_thread: bool = True) -> None:
+        # Canlı grid motoru ayrı iş parçacığında koşar; orada çağrılar tek tek (sıralı) yapılır, eşzamanlı değil.
+        self.db = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
         self.db.commit()
