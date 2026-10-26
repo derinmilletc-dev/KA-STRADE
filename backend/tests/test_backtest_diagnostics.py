@@ -53,8 +53,8 @@ class ExposureDiagnosisTests(unittest.TestCase):
                     self.assertEqual({k: v for k, v in actual.items() if k != "max_total_exposure_usdt"},
                                      {k: v for k, v in baseline.items() if k != "max_total_exposure_usdt"})
                 self.assertIs(core.sanitize_execution_policy, original)
-                self.assertEqual(original({"max_total_exposure_usdt": 1050})["max_total_exposure_usdt"], 350)
-        self.assertEqual(core.HARD_MAX_TOTAL_EXPOSURE_USDT, 350)
+                self.assertEqual(original({"max_total_exposure_usdt": 1050})["max_total_exposure_usdt"], 1000)
+        self.assertEqual(core.HARD_MAX_TOTAL_EXPOSURE_USDT, 1000)
 
     def test_exception_and_invalid_cap_cannot_leave_live_adapter_installed(self):
         original = core.sanitize_execution_policy
@@ -327,7 +327,7 @@ class DiagnosticCliTests(unittest.TestCase):
                 args.reference_baseline.write_text(json.dumps(baseline), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "differs.*summary"):
                     execute(args)
-        self.assertEqual(core.sanitize_execution_policy({"max_total_exposure_usdt": 700})["max_total_exposure_usdt"], 350)
+        self.assertEqual(core.sanitize_execution_policy({"max_total_exposure_usdt": 1050})["max_total_exposure_usdt"], 1000)
 
     def test_repository_output_is_rejected_before_data_loading(self):
         args = SimpleNamespace(output=Path(__file__).parents[2] / "diagnostic-output")

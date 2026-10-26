@@ -65,7 +65,7 @@ def test_higher_modes_only_change_size_never_stop_or_targets():
         assert spec["stop_loss"] == base["stop_loss"] and spec["targets"] == base["targets"]
         assert spec["margin_usdt"] >= base["margin_usdt"]
         assert spec["margin_usdt"] <= 150 * cap / 100 + 1e-9
-        assert spec["margin_usdt"] <= min(150 * 0.80, 350 / 3) + 1e-9
+        assert spec["margin_usdt"] <= min(150 * 0.80, 1000 / 3) + 1e-9
         assert spec["estimated_stop_loss_usdt"] <= spec["original_risk_budget"] + 1e-8
 
 
@@ -102,8 +102,8 @@ def test_policy_uses_this_accounts_mode_only():
     state["original_v2_live"].update(margin_mode="orta", margin_mode_acknowledged=True)
     orta = original.execution_policy(state, {"wallet_balance": 150})
     assert guvenli["max_margin_per_trade"] == pytest.approx(45) and orta["max_margin_per_trade"] == pytest.approx(75)
-    # Toplam sınır her modda aynı: bakiyenin %80'i ve sert tavan (350 USDT maruziyet / 3x) arasında küçük olan.
-    assert guvenli["max_total_margin_usdt"] == orta["max_total_margin_usdt"] == pytest.approx(min(120, 350 / 3))
+    # Toplam sınır her modda aynı: bakiyenin %80'i ve sert tavan (1000 USDT maruziyet / 3x) arasında küçük olan.
+    assert guvenli["max_total_margin_usdt"] == orta["max_total_margin_usdt"] == pytest.approx(min(120, 1000 / 3))
 
 
 def test_screen_limits_follow_the_selected_mode():
@@ -115,7 +115,7 @@ def test_screen_limits_follow_the_selected_mode():
     state["original_v2_live"].update(margin_mode="agresif", margin_mode_acknowledged=True, margin_mode_confirmed=True)
     limits = risk.limits(state)
     assert limits["max_margin_usdt"] == pytest.approx(97.5) and limits["margin_mode"] == "agresif"
-    assert limits["max_total_margin_usdt"] == pytest.approx(min(120, 350 / 3))
+    assert limits["max_total_margin_usdt"] == pytest.approx(min(120, 1000 / 3))
 
 
 def _endpoint(monkeypatch, *, persist=None):

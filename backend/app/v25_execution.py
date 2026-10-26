@@ -706,12 +706,12 @@ class PolicyUpdate(BaseModel):
     interval: Literal["1m", "5m", "15m", "1h", "4h"] | None = None
     allow_long: bool | None = None
     allow_short: bool | None = None
-    max_margin_per_trade: float | None = Field(default=None, ge=5, le=100)
+    max_margin_per_trade: float | None = Field(default=None, ge=5, le=HARD_MAX_MARGIN_USDT)
     max_loss_per_trade: float | None = Field(default=None, ge=0.5, le=25)
     max_leverage: int | None = Field(default=None, ge=1, le=50)
     max_positions: int | None = Field(default=None, ge=1, le=5)
     max_same_direction_positions: int | None = Field(default=None, ge=1, le=5)
-    max_direction_exposure_usdt: float | None = Field(default=None, gt=0, le=350, allow_inf_nan=False)
+    max_direction_exposure_usdt: float | None = Field(default=None, gt=0, le=HARD_MAX_TOTAL_EXPOSURE_USDT, allow_inf_nan=False)
     max_total_exposure_usdt: float | None = Field(default=None, ge=25, le=HARD_MAX_TOTAL_EXPOSURE_USDT)
     daily_loss_limit: float | None = Field(default=None, ge=5, le=100)
     daily_trade_limit: int | None = Field(default=None, ge=1, le=12)
@@ -742,7 +742,7 @@ class LiveOrderRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     direction: Literal["LONG", "SHORT"]
     order_type: Literal["MARKET", "LIMIT"] = "MARKET"
-    margin_usdt: float = Field(ge=5, le=100)
+    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
     leverage: int = Field(ge=1, le=50)
     limit_price: float | None = Field(default=None, gt=0)
     stop_loss: float = Field(gt=0)
@@ -759,7 +759,7 @@ class LiveOrderRequest(BaseModel):
 class RiskPreviewRequest(BaseModel):
     entry: float = Field(gt=0)
     stop_loss: float = Field(gt=0)
-    margin_usdt: float = Field(ge=5, le=100)
+    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
     leverage: int = Field(ge=1, le=50)
     atr: float | None = Field(default=None, gt=0)
 
