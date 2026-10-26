@@ -541,7 +541,7 @@ export default function LiveCockpit(props: Props) {
   }
   const askReduce = (target: ManualTarget) => { setSheetError(''); setManualTarget(target); setReducePct(50); setSheet('reduce-position') }
   const changedLevel = (value: string, original: string) => {
-    const next = Number(value), before = Number(original)
+    const next = Number(value.replace(',', '.')), before = Number(original)
     return Number.isFinite(next) && next > 0 && next !== before ? next : undefined
   }
   const saveProtection = () => {
@@ -1429,10 +1429,10 @@ export default function LiveCockpit(props: Props) {
     <h2 id="lc-sheet-title">{manualTarget.symbol.replace('USDT', '')} · stop ve hedefler</h2>
     <p className="lcSheetLead">{manualTarget.direction} · giriş {manualTarget.entry} · şu anki fiyat {manualTarget.mark}. Yalnız değiştirdiğin alanlar gönderilir.</p>
     <div className="lcPosEdit">
-      <label className="lcField">Stop<input type="number" inputMode="decimal" value={editLevels.stop} onChange={event => setEditLevels(current => ({...current, stop: event.target.value}))}/></label>
-      <label className="lcField">TP1<input type="number" inputMode="decimal" value={editLevels.tp1} onChange={event => setEditLevels(current => ({...current, tp1: event.target.value}))}/></label>
-      <label className="lcField">TP2<input type="number" inputMode="decimal" value={editLevels.tp2} onChange={event => setEditLevels(current => ({...current, tp2: event.target.value}))}/></label>
-      <label className="lcField">TP3<input type="number" inputMode="decimal" value={editLevels.tp3} onChange={event => setEditLevels(current => ({...current, tp3: event.target.value}))}/></label>
+      <label className="lcField">Stop<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.stop} onChange={event => setEditLevels(current => ({...current, stop: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
+      <label className="lcField">TP1<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp1} onChange={event => setEditLevels(current => ({...current, tp1: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
+      <label className="lcField">TP2<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp2} onChange={event => setEditLevels(current => ({...current, tp2: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
+      <label className="lcField">TP3<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp3} onChange={event => setEditLevels(current => ({...current, tp3: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
     </div>
     <ul className="lcStopList">
       <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Yeni stop Binance'te doğrulanır. Kurulamazsa eski stop geri konur; o da olmazsa pozisyon güvenlik için kapatılır. Pozisyon stopsuz bırakılmaz.</span></li>
