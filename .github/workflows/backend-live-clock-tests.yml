@@ -74,8 +74,8 @@ jobs:
           python -m pytest tests/test_original_live_risk.py -q -rfE --tb=line -p no:cacheprovider \
             -k "honest_breakdown or breakdown_is_information_only or breakdown_failure_never or unreachable_selection or expose_cost_assumption or do_not_use_the_live_breakdown or effective_trade_risk_reports" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
-          # Master Trade işlem detayı: kapanmış işlem listesine kayıttaki alanlar (yalnız gösterim) + R kayıtları.
-          python -m pytest tests/test_live_journal_display_fields.py tests/test_trade_r_metrics.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          # Master Trade işlem detayı + manuel emir (TP2, küçük pozisyon kontrolü, LIMIT erken koruma, dolum/başa çekme, kısmi dolum).
+          python -m pytest tests/test_live_journal_display_fields.py tests/test_trade_r_metrics.py tests/test_manual_order_hardening.py tests/test_manual_breakeven.py tests/test_manual_fill_audit.py tests/test_v25_partial_fills.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Teminat modları (Güvenli %30 / Orta %50 / Agresif %65): hesap bazlı, onaylı; Güvenli = bugünkü davranış.
           python -m pytest tests/test_original_margin_modes.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt

@@ -236,6 +236,7 @@ class SubscriptionCoreTests(unittest.TestCase):
             "/policy", "/policy/acknowledge", "/consent", "/consent/revoke", "/order/test",
             "/risk/preview", "/adopt-external-position/preview", "/adopt-external-position", "/arm",
             "/disarm", "/recovery/check", "/order", "/auto/start", "/auto/stop", "/position/close", "/emergency",
+            "/position/protection", "/position/reduce",
         )
         for route in routes:
             match = re.search(r'@router\.(?:get|post|put|patch|delete)\("' + re.escape(route) + r'"\)', source)
