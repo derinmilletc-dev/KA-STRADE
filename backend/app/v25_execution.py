@@ -5186,9 +5186,31 @@ async def fresh_auto_submission_credentials(
     return credentials
 
 
+def original_start_plan_blocker(plan: dict[str, Any]) -> str | None:
+    """Original V2 başlatılırken açık plan YALNIZ sağlıksızsa engeller; sağlıklı ve korumalı plan engel değildir.
+
+    Dolum bekleyen plan henüz pozisyon değildir; dolmuş plan için Stop korumasının borsada doğrulanmış olması şarttır."""
+    symbol = str(plan.get("symbol") or "bilinmeyen")
+    if plan.get("mutation_policy") == "READ_ONLY_EXTERNAL":
+        return f"{symbol} dışarıdan gelen, yönetilemeyen bir plan"
+    if plan.get("provenance_state") in {"BROKEN", "NO_PROVENANCE"}:
+        return f"{symbol} planının borsadaki pozisyonla bağı doğrulanamadı"
+    if str(plan.get("status") or "").upper() == "PNL DOĞRULANIYOR" or plan.get("pnl_verified") is False:
+        return f"{symbol} kapanışının kâr/zarar doğrulaması bitmedi"
+    if str(plan.get("status") or "").upper() != "DOLUM BEKLİYOR" and plan.get("protection_state") != "MATCHED":
+        return f"{symbol} için Stop koruması borsada doğrulanmadı"
+    if plan.get("tp_protection_state") == "UNPROTECTED":
+        return f"{symbol} için hedef (TP) koruması eksik"
+    return None
+
+
 def live_auto_start_gate(application: Any, state: dict[str, Any], request: Request | None = None,
-                         *, unlimited_daily_trades: bool = False) -> tuple[bool, str]:
-    """Require every entry authority to be valid before opening automation."""
+                         *, unlimited_daily_trades: bool = False, tolerate_healthy_plans: bool = False) -> tuple[bool, str]:
+    """Require every entry authority to be valid before opening automation.
+
+    tolerate_healthy_plans (yalnız Original V2): açık canlı plan varken de başlatmaya izin verir, ama yalnız
+    plan sağlıklıysa (bkz. original_start_plan_blocker). Diğer tüm kapılar (acil durdurma, uzlaştırma, ARM,
+    risk, korumasız/izlenmeyen pozisyon) aynen çalışır."""
     from . import original_v2_live
     if original_v2_live.fill_locked(state):
         return False, "Original V2 dolum güvenlik kilidi için OWNER onayı gerekli."
@@ -5209,7 +5231,12 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
         return False, str(exc)
     active_plans = [plan for plan in state.get("plans", {}).values() if isinstance(plan, dict) and live_plan_is_active(plan)]
     if active_plans:
-        return False, "Aktif LIVE plan varken otomasyon açılamaz."
+        if not tolerate_healthy_plans:
+            return False, "Aktif LIVE plan varken otomasyon açılamaz."
+        for plan in active_plans:
+            blocker = original_start_plan_blocker(plan)
+            if blocker:
+                return False, f"Açık işlem varken bot başlatılamaz: {blocker}."
     tracked_symbols = {str(plan.get("symbol") or "").upper() for plan in active_plans}
     unmanaged_positions = [
         position for position in snapshot.get("positions", [])
@@ -5235,8 +5262,17 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
     direction = "LONG" if state["policy"].get("allow_long") else "SHORT" if state["policy"].get("allow_short") else None
     if direction is None:
         return False, "Politika LONG veya SHORT yönüne izin vermeli."
+    gate_symbol = str(allowed_symbols[0])
+    if tolerate_healthy_plans:
+        # Kapı denemesi dolu bir pariteye denk gelmesin ("yinelenen parite" yanlış engeli): boş ilk pariteyi seç.
+        occupied = {
+            str(item.get("symbol") or "").upper()
+            for key in ("positions", "open_orders", "open_algo_orders") for item in snapshot.get(key, []) or []
+            if isinstance(item, dict)
+        }
+        gate_symbol = next((str(item) for item in allowed_symbols if str(item).upper() not in occupied), gate_symbol)
     risk = evaluate_entry_gates(
-        symbol=str(allowed_symbols[0]),
+        symbol=gate_symbol,
         signal={"direction": direction, "confidence": 100, "radar": {"trap_score": 0}},
         snapshot=snapshot,
         # Original V2 LIVE'da günlük işlem sayısı sınırı yoktur (0 = sınırsız); diğer kilitler aynen kalır.
@@ -8429,7 +8465,8 @@ async def _start_live_auto_session(
             "message": "LIVE Auto Trade yalnızca 15m zaman diliminde çalışır. Başlatmak için timeframe'i 15m seçip politikayı kaydedin.",
             "required_interval": "15m",
         })
-    allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades)
+    allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades,
+                                          tolerate_healthy_plans=unlimited_daily_trades)
     if not allowed:
         raise HTTPException(423, reason)
     lock_context = nullcontext() if state_lock_held else state["lock"]
@@ -8438,7 +8475,8 @@ async def _start_live_auto_session(
             raise HTTPException(409, "Canlı otomasyon zaten aktif; mevcut oturum uzatılmadı.")
         if state["policy"].get("interval") != "15m":
             raise HTTPException(423, "Onay sırasında politika değişti; LIVE Auto Trade yalnız 15m ile başlar.")
-        allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades)
+        allowed, reason = live_auto_start_gate(request.app, state, request, unlimited_daily_trades=unlimited_daily_trades,
+                                          tolerate_healthy_plans=unlimited_daily_trades)
         if not allowed:
             raise HTTPException(423, reason)
         state["auto"].update({"enabled": True, "session_until": time.time() + LIVE_AUTO_SESSION_SECONDS, "last_error": None, "last_decision": "Bir saatlik gözetimli canlı tarama başlatıldı."})
