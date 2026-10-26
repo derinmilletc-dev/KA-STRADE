@@ -89,6 +89,12 @@ function notices(input: GuideInput): GuideNotice[] {
   return list
 }
 
+/** Sunucu uyanırken/ağ koparken gelen teknik hata metni müşteriye gösterilmez; kalıcı bir hata ise olduğu gibi gösterilir. */
+function customerSafeStatusError(error: string | null | undefined): string {
+  const text = String(error || '').trim()
+  return /[İi]stek zaman aşımına|timed out|failed to fetch|yanıt vermiyor|\b50[234]\b/i.test(text) ? '' : text
+}
+
 export function liveGuide(input: GuideInput): Guide {
   const base = {notices: notices(input)}
   const problem = (title: string, message: string, action: GuideAction, actionLabel?: string, tone: GuideTone = 'stop', step = 1): Guide =>
@@ -96,7 +102,7 @@ export function liveGuide(input: GuideInput): Guide {
 
   if (!input.statusLoaded && input.loading) return {...base, phase: 'loading', tone: 'wait', step: 1, title: 'Hesap durumu alınıyor', message: 'Binance hesabın ve stratejinin güncel durumu okunuyor.', action: null}
   if (!input.statusVerified) {
-    const reason = input.statusError?.trim()
+    const reason = customerSafeStatusError(input.statusError)
     return problem('Hesap durumu doğrulanamadı', `${reason ? `${reason} ` : ''}Güncel durum okunana kadar yeni işlem açılmaz; açık pozisyonların Binance'teki stop ve hedefleri yerinde kalır.`, 'retry', 'Tekrar dene', 'warn')
   }
   if (input.freeTrial) return problem('Canlı işlem Master Mode ile açılır', 'Deneme üyeliğinde canlı işlem kapalı. Master Mode üyeliğe geçince bu ekrandan devam edebilirsin.', 'upgrade', 'Paketleri gör', 'warn')
@@ -109,7 +115,7 @@ export function liveGuide(input: GuideInput): Guide {
 
   if (input.running && (input.lastCycleAgeSeconds ?? 0) > STALL_SECONDS) {
     return {...base, phase: 'running', tone: 'stop', step: GUIDE_TOTAL, title: 'Strateji bir süredir çalışmıyor',
-      message: `Sunucudaki tarama döngüsü ${duration(input.lastCycleAgeSeconds ?? 0)} önce son kez çalıştı. Sunucu uyumuş, yeniden başlıyor ya da takılmış olabilir. Birkaç dakika içinde düzelmezse Render panelinde servisin çalıştığını kontrol et. Açık pozisyonların stop ve hedefleri Binance'te durur.`,
+      message: `Sunucudaki tarama döngüsü ${duration(input.lastCycleAgeSeconds ?? 0)} önce son kez çalıştı. Sistem kısa süreliğine yanıt vermemiş olabilir; kendiliğinden toparlanması beklenir. Birkaç dakika içinde düzelmezse destek ekibine yaz. Açık pozisyonların stop ve hedefleri Binance'te durur.`,
       action: 'retry', actionLabel: 'Durumu yenile'}
   }
   if (input.running) {
@@ -383,7 +389,7 @@ export function statusHelp(error: string | null | undefined): {text: string; hre
   if (/başka bir kullanıcı veya oturuma/i.test(message)) return {text: 'Canlı kontrol başka bir oturuma bağlı. Aşağıdaki “Oturumu geri bağla” ile 2FA kodunla devam edebilirsin.'}
   if (/(401|oturum(un)? (süresi|sona))/i.test(message)) return {text: 'Oturumun sona ermiş olabilir. Sayfayı yenileyip tekrar giriş yap.'}
   if (/anahtar|fingerprint|uyuşmuyor/i.test(message)) return {text: 'Kayıtlı Binance anahtarı ile canlı durum eşleşmiyor. Bağlantı sekmesinden anahtarı kontrol et.', href: '/master-trade?tab=baglanti', linkLabel: 'Bağlantı'}
-  return {text: 'Sunucu şu an yanıt vermiyor; yeniden başlıyor ya da uykudan uyanıyor olabilir (ücretsiz planda yaklaşık 1 dakika). Kendiliğinden tekrar deneniyor; 2 dakikadan uzun sürerse Render panelinde servisin çalıştığını kontrol et.'}
+  return {text: 'Bağlantı geçici olarak kurulamadı. Kendiliğinden tekrar deneniyor; birkaç dakika içinde düzelmezse destek ekibine yaz.'}
 }
 
 /** Sıradaki tarama: strateji her 15 dakikalık mum kapanışında (UTC hizalı) tarar. Engel bekleniyorsa engelin bitişi. */

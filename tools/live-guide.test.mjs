@@ -168,7 +168,10 @@ test('a stalled strategy loop is reported while running', () => {
 })
 
 test('status help gives a concrete next step', () => {
-  assert.match(statusHelp('İstek zaman aşımına uğradı.').text, /Render panelinde/)
+  assert.match(statusHelp('İstek zaman aşımına uğradı.').text, /tekrar deneniyor/)
+  for (const text of [statusHelp('İstek zaman aşımına uğradı.').text, guide({running: true, lastCycleAgeSeconds: 1500}).message]) assert.doesNotMatch(text, /Render|ücretsiz plan|uykudan/i)
+  const timedOut = guide({statusLoaded: true, statusVerified: false, statusError: 'İstek zaman aşımına uğradı. İşlemi tekrar göndermeden önce güncel durumu kontrol edin.'})
+  assert.doesNotMatch(timedOut.message, /zaman aşımı|İstek/i)
   assert.equal(statusHelp('LIVE için site girişinde 2FA korumasını etkinleştirin.').href, '/profile')
   assert.match(statusHelp('LIVE kontrolü başka bir kullanıcı veya oturuma ait.').text, /Oturumu geri bağla/)
 })
