@@ -871,8 +871,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (!nextOrder.symbol.endsWith('USDT') || values.some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
       setNotice({kind: 'error', text: 'Sembol, miktar, kaldıraç, Stop Loss ve tüm TP seviyeleri pozitif olmalıdır.'}); return
     }
-    if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 100) {
-      setNotice({kind: 'error', text: 'Marjin 5 ile 100 USDT arasında olmalıdır.'}); return
+    if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 300) {
+      setNotice({kind: 'error', text: 'Marjin 5 ile 300 USDT arasında olmalıdır.'}); return
     }
     const policyMargin = Number(status?.policy?.max_margin_per_trade)
     if (Number.isFinite(policyMargin) && policyMargin > 0 && Number(nextOrder.margin_usdt) > policyMargin) {
@@ -1065,9 +1065,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const chooseCoin = (value: string) => { setOrder(current => ({...current, symbol: value})); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
     const marginValue = Number(order.margin_usdt)
     const leverageValue = Number(order.leverage)
-    // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 100 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
+    // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 300 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
     const policyMarginMax = Number(status?.policy?.max_margin_per_trade)
-    const marginMax = Number.isFinite(policyMarginMax) && policyMarginMax >= 5 ? Math.min(100, Math.floor(policyMarginMax)) : 100
+    const marginMax = Number.isFinite(policyMarginMax) && policyMarginMax >= 5 ? Math.min(300, Math.floor(policyMarginMax)) : 300
     const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price)
     const notional = marginValue * leverageValue
     const stopValue = Number(order.stop_loss)
@@ -1546,7 +1546,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                   <label>Zaman dilimi<select value={selectedAutoTimeframe} onChange={event => setPolicy('interval', event.target.value)}><option>1m</option><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select></label>
                   <label>İşlem başı risk<div className="masterTradeLiveUnitField"><input type="number" min="0.5" max="25" step="0.1" value={numericPolicy('max_loss_per_trade', 1)} onChange={event => setPolicy('max_loss_per_trade', Number(event.target.value))}/><span>USDT</span></div></label>
                   <label>En fazla pozisyon<input type="number" min="1" max="5" value={numericPolicy('max_positions', 2)} onChange={event => setPolicy('max_positions', Number(event.target.value))}/></label>
-                  <label>En fazla maruziyet<div className="masterTradeLiveUnitField"><input type="number" min="25" max="350" value={numericPolicy('max_total_exposure_usdt', 350)} onChange={event => setPolicy('max_total_exposure_usdt', Number(event.target.value))}/><span>USDT</span></div></label>
+                  <label>En fazla maruziyet<div className="masterTradeLiveUnitField"><input type="number" min="25" max="1000" value={numericPolicy('max_total_exposure_usdt', 350)} onChange={event => setPolicy('max_total_exposure_usdt', Number(event.target.value))}/><span>USDT</span></div></label>
                 </div>
                 <div className="masterTradeLiveMarkets"><span>COİNLER</span><div className="masterTradeLiveMarketsScroll">{approvedSymbols.map(item => <button type="button" key={item} aria-pressed={configuredSymbols.includes(item)} className={configuredSymbols.includes(item) ? 'selected' : ''} onClick={() => toggleSymbol(item)}>{item.replace('USDT', '')}</button>)}</div><small>{configuredSymbols.length ? `${configuredSymbols.length} coin seçili` : 'Varsayılan liste'}</small></div>
                 <button type="button" className="liveWsLink" onClick={() => setAdvancedOpen(value => !value)}>{advancedOpen ? 'Gelişmiş ayarları gizle' : 'Gelişmiş ayarlar'}</button>

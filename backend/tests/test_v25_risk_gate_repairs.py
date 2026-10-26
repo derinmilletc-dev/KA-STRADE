@@ -171,7 +171,7 @@ class RiskGateRepairTests(unittest.TestCase):
 
     def test_policy_api_accepts_the_shared_exposure_ceiling(self):
         parsed = live.PolicyUpdate(max_total_exposure_usdt=core.HARD_MAX_TOTAL_EXPOSURE_USDT)
-        self.assertEqual(parsed.max_total_exposure_usdt, 350)
+        self.assertEqual(parsed.max_total_exposure_usdt, 1000)
         self.assertEqual(live.initial_state()["policy"]["max_total_exposure_usdt"], 350)
 
     def test_demo_certificate_requirement_is_configurable_with_legacy_default(self):

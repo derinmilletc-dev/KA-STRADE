@@ -1812,13 +1812,13 @@ def test_original_live_caps_follow_the_balance_not_fixed_usdt_values(state):
 def test_original_live_system_ceilings_are_named_and_clip_visibly_not_silently(state):
     from app.execution_core import system_ceilings
     ceilings = system_ceilings()
-    assert ceilings == {"max_loss_per_trade_usdt": 25.0, "max_margin_per_trade_usdt": 100.0,
-                        "max_total_exposure_usdt": 350.0, "max_daily_loss_usdt": 100.0}
+    assert ceilings == {"max_loss_per_trade_usdt": 25.0, "max_margin_per_trade_usdt": 300.0,
+                        "max_total_exposure_usdt": 1000.0, "max_daily_loss_usdt": 100.0}
     _dynamic_state(state, risk_percent=5, daily_loss_percent=25, risk_acknowledged=True)
     big = original.execution_policy(state, {"wallet_balance": 2000})
     assert big["max_loss_per_trade"] == 25.0           # 2000 x %5 = 100 -> tavan
-    assert big["max_margin_per_trade"] == 100.0        # 2000 x %30 = 600 -> tavan
-    assert big["max_total_exposure_usdt"] == 350.0     # 2000 x %80 x 3 -> tavan
+    assert big["max_margin_per_trade"] == 300.0        # 2000 x %30 = 600 -> tavan
+    assert big["max_total_exposure_usdt"] == 1000.0    # 2000 x %80 x 3 -> tavan
     assert big["daily_loss_limit"] == 100.0            # 2000 x %25 = 500 -> tavan
 
 
@@ -1828,7 +1828,7 @@ def test_original_live_screen_limits_show_the_clipped_values_so_the_ceiling_is_v
     state["snapshot"] = {"wallet_balance": 2000}
     limits = original_live_risk.limits(state)
     assert limits["max_loss_per_trade_usdt"] == 25.0 and limits["daily_loss_limit_usdt"] == 100.0
-    assert limits["max_margin_usdt"] == 100.0 and limits["system_ceilings"]["max_total_exposure_usdt"] == 350.0
+    assert limits["max_margin_usdt"] == 300.0 and limits["system_ceilings"]["max_total_exposure_usdt"] == 1000.0
 
 
 def test_original_live_margin_percentages_are_configurable_with_unchanged_defaults(state, monkeypatch):
