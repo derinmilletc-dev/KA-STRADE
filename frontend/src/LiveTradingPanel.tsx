@@ -170,6 +170,18 @@ export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean
   return liveArmed ? 'Engel yok.' : 'Canlı işlem onayı bekleniyor.'
 }
 
+type LiveGridOrder = {client_id: string; role: string; level: number; side: string; type: string; price: number; stop_price: number; qty: number; filled: number; status: string}
+type LiveGridStatus = {
+  enabled?: boolean; max_levels?: number; max_margin_usdt?: number; loop_running?: boolean
+  grid: null | {grid_id: string; symbol: string; side: string; status: string; reason: string; position_qty: number; needs_user: boolean; orders: LiveGridOrder[]; alerts: Array<{level: string; text: string}>}
+}
+const LIVE_GRID_FINAL = ['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED']
+const LIVE_GRID_STATUS_TEXT: Record<string, string> = {
+  RUNNING: 'Çalışıyor', PAUSED: 'Durduruldu (açık pozisyon varsa stop/hedefle duruyor)', STOPPED: 'Bitti (stop çalıştı ya da kullanıcı durdurdu)', COMPLETED: 'Tamamlandı',
+  EMERGENCY_CLOSED: 'Acil durduruldu, pozisyon kapandı (borsadan doğrulandı)', BLOCKED: 'DURDU: tutarsızlık bulundu, müdahale gerekiyor', INTERVENTION_REQUIRED: 'MÜDAHALE GEREKLİ: kapanış doğrulanamadı, borsayı elle kontrol et',
+  CREATED: 'Hazırlanıyor', EMERGENCY: 'Acil durdurma sürüyor',
+}
+
 function errorMessage(payload: unknown, fallback: string): string {
   if (typeof payload === 'string' && payload.trim()) return payload
   if (payload && typeof payload === 'object') {
@@ -244,6 +256,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
   const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
+  const [liveGrid, setLiveGrid] = useState<LiveGridStatus | null>(null)
   const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
   const [reviewedKey, setReviewedKey] = useState('')
   useEffect(() => {
@@ -518,6 +531,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
   const connectionReady = status !== null && connections !== null && connected
   const connectionState = status === null || connections === null ? 'UNKNOWN' : connected ? 'CONNECTED' : 'NOT CONNECTED'
+  useEffect(() => {
+    if (!active || manualMode !== 'grid') return
+    let cancelled = false
+    const load = () => { void call<LiveGridStatus>(V25, '/grid/live/status').then(result => { if (!cancelled) setLiveGrid(result) }).catch(() => { if (!cancelled) setLiveGrid(null) }) }
+    load()
+    const timer = window.setInterval(load, 5000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, manualMode])
   const liveArmed = Boolean(status?.armed && status.real_trading_locked === false)
   const armState = !statusVerified || status === null ? 'UNKNOWN' : liveArmed ? 'READY' : 'LOCKED'
   const riskState = riskGate ? riskGate.passed ? 'READY' : 'BLOCKED' : gateState([/risk/i, /policy/i, /limit/i, /safety/i, /guven/i])
@@ -1449,11 +1471,61 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       openPositionRisk: gridOpenRisk.total,
     })
     const gridAlerts = buildGridAlerts({result: gridResult, filters: gridFilters.state, filtersError: gridFilters.error, openRisk: gridOpenRisk.total, hasOpenPositions: (status?.account?.positions || []).length > 0})
+    const liveGridRow = liveGrid?.grid && !LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
+    const liveGridLast = liveGrid?.grid && LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
+    const liveGridMargin = Number(grid.margin), liveGridCount = Number(grid.count)
+    const liveGridWhy = !liveArmed ? 'Canlı emir kilidi (ARM) kapalı.' : !gridResult.allOk ? 'Önce yukarıdaki tüm kontroller geçmeli.'
+      : liveGridCount !== (liveGrid?.max_levels ?? 2) ? `İlk testte kademe sayısı ${liveGrid?.max_levels ?? 2} olmalı.`
+      : !(liveGridMargin > 0 && liveGridMargin <= (liveGrid?.max_margin_usdt ?? 10)) ? `İlk testte toplam marjin en fazla ${liveGrid?.max_margin_usdt ?? 10} USDT.` : ''
+    const startLiveGrid = () => setConfirm({
+      title: 'CANLI GRID BAŞLAT',
+      message: `GERÇEK PARA. ${order.symbol} ${gridSide}, ${liveGridCount} kademe, toplam marjin ${grid.margin} USDT, kaldıraç ${grid.leverage}x, ortak stop ${grid.stop}. Tüm kademeler dolup stop çalışırsa tahmini zarar ${money(gridResult.worstLoss)}. Limit emirler hemen borsaya konur; dolan her kademe için stop kurulur.`,
+      expected: 'CANLI GRID BAŞLAT',
+      action: async () => {
+        const result = await call<LiveGridStatus>(V25, '/grid/live/start', {method: 'POST', timeoutMs: 60000, body: JSON.stringify({
+          symbol: order.symbol, direction: gridSide, lower: Number(grid.lower), upper: Number(grid.upper), count: liveGridCount,
+          margin_usdt: liveGridMargin, leverage: Number(grid.leverage), stop: Number(grid.stop), confirmation: 'CANLI GRID BAŞLAT'})})
+        setLiveGrid(result)
+      },
+    })
+    const stopLiveGrid = () => setConfirm({
+      title: 'GRID\'İ DURDUR',
+      message: 'Bekleyen giriş emirleri iptal edilir. Açık pozisyon varsa stop ve hedefleriyle yerinde kalır.',
+      simple: true,
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, '/grid/live/stop', {method: 'POST', timeoutMs: 60000})) },
+    })
+    const emergencyLiveGrid = () => setConfirm({
+      title: 'GRID ACİL DURDUR',
+      message: 'Bekleyen girişler iptal edilir, grid pozisyonu piyasadan kapatılır ve kapandığı borsadan doğrulanır. Doğrulanamazsa koruyucu stoplara dokunulmaz.',
+      expected: 'ACİL DURDUR',
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, '/grid/live/emergency', {method: 'POST', timeoutMs: 90000})) },
+    })
+    const gridLiveBlock = liveGrid?.enabled || liveGridRow || liveGridLast ? <div className="mgpLive" role="group" aria-label="Canlı grid">
+      {liveGridRow && <>
+        <h4>Canlı grid · {liveGridRow.symbol} {liveGridRow.side}</h4>
+        <p className={liveGridRow.needs_user ? 'liveWsWarn' : 'liveWsHint'} role="status"><b>{LIVE_GRID_STATUS_TEXT[liveGridRow.status] || liveGridRow.status}</b>{liveGridRow.reason ? ` — ${liveGridRow.reason}` : ''}</p>
+        <p className="liveWsHint">Grid pozisyonu: {liveGridRow.position_qty} · döngü {liveGrid?.loop_running ? 'çalışıyor' : 'DURMUŞ (sunucu yeniden başlamış olabilir)'}</p>
+        <div className="mgpTable" role="table" aria-label="Grid emirleri">
+          {liveGridRow.orders.filter(o => o.status !== 'CANCELED' && o.status !== 'REJECTED' || o.filled > 0).map(o => <div role="row" key={o.client_id}><span>{o.role === 'E' ? 'Giriş' : o.role === 'T' ? 'Hedef' : o.role === 'S' ? 'Stop' : 'Kapat'} {o.level || ''}</span><span>{presetPrice(o.price || o.stop_price)}</span><span>{o.filled}/{o.qty}</span><span>{o.status}</span></div>)}
+        </div>
+        {liveGridRow.alerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Canlı grid uyarıları">{liveGridRow.alerts.slice(-5).map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b><span>{item.text}</span></li>)}</ul>}
+        <div className="mxtNav">
+          <button type="button" className="mxtBtn ghost" disabled={busy !== ''} onClick={stopLiveGrid}>Grid'i durdur</button>
+          <button type="button" className="mxtBtn primary" disabled={busy !== ''} onClick={emergencyLiveGrid}>ACİL DURDUR</button>
+        </div>
+      </>}
+      {!liveGridRow && liveGrid?.enabled && <>
+        <h4>Canlı grid başlat</h4>
+        {liveGridLast && <p className="liveWsHint">Son grid: {liveGridLast.symbol} — {LIVE_GRID_STATUS_TEXT[liveGridLast.status] || liveGridLast.status}</p>}
+        {liveGridWhy && <p className="liveWsWarn" role="status">{liveGridWhy}</p>}
+        <div className="mxtNav"><button type="button" className="mxtBtn primary" disabled={busy !== '' || liveGridWhy !== ''} onClick={startLiveGrid}>CANLI GRID BAŞLAT</button></div>
+      </>}
+    </div> : null
     const gridBody = <div className="mwz mgp">
       <div className="mwzCard">
         <small className="mwzKicker">GRID · ÖNİZLEME</small>
         <h4>Kademeli alım planı</h4>
-        <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid emirleri, testler bitmeden açılmayacak.</p>
+        {liveGrid?.enabled ? <p><b>Canlı grid AÇIK (ilk test).</b> En fazla {liveGrid.max_levels ?? 2} kademe ve {liveGrid.max_margin_usdt ?? 10} USDT marjin. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid emirleri, testler bitmeden açılmayacak.</p>}
         <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
         <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Otomatik aralık:</small>{[3, 5, 8].map(pct => <button type="button" key={pct} disabled={!(gridPrice > 0)} onClick={() => gridAuto(pct)}>%{pct}</button>)}</div>
         <div className="liveWsTwo">
@@ -1481,6 +1553,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{presetPrice(level.entry)}</span><span>{presetPrice(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
           <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? 'Hesap mevcut limitlerin içinde. Yine de emir gönderilmez: gerçek grid henüz kapalı.' : 'Bir ya da daha fazla limit aşılıyor; bu plan gerçek grid için uygun olmazdı.'}</p>
         </>}
+        {gridLiveBlock}
         <p className="liveWsHint">Hepsi tahmindir: funding ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil; gerçek sonuç farklı olabilir. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
       </div>
     </div>
