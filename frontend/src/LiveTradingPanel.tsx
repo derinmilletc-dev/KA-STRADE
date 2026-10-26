@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
-import { AI_DISCLAIMER, buildSignalMap, confidenceTone, sortByConfidence, type CoinSignal, type SignalMap } from './coin-ranking'
+import { AI_DISCLAIMER, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
 import '../../manual-order.css'
+import '../../coin-picker.css'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
@@ -229,9 +230,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [universeError, setUniverseError] = useState(false)
   const [coinQuery, setCoinQuery] = useState('')
   const [coinOpen, setCoinOpen] = useState(false)
-  // Kais AI analiz sıralaması (yalnız gösterim): coin -> {AL/BEKLE/SAT, güven %}. Alınamazsa liste hacme göre kalır.
+  // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
   const [signals, setSignals] = useState<SignalMap | null>(null)
   const [signalsError, setSignalsError] = useState(false)
+  const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
+  const [coinSort, setCoinSort] = useState<CoinSort>('confidence')
   const [manualStep, setManualStep] = useState(0)
   // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
@@ -1082,7 +1085,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const q = coinQuery.trim().toUpperCase().replace('/', '')
     const rows = universe ?? []
     const selectedRow = rows.find(row => row.symbol === order.symbol)
-    const rankedRows = sortByConfidence(rows, signals)
+    const filteredRows = filterBySignal(rows, signals, coinFilter)
+    const rankedRows = sortCoins(filteredRows, signals, coinSort)
     const matches = (q ? rankedRows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rankedRows)
     const listed = matches.slice(0, 80)
     const recentRows = !q ? recentCoins.map(item => rows.find(row => row.symbol === item)).filter((row): row is CoinRow => Boolean(row)) : []
@@ -1134,38 +1138,56 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const sign = order.direction === 'LONG' ? 1 : -1
       setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
     }
-    const aiPill = (signal: CoinSignal | undefined) => signal
-      ? <i className={`aiPill ${signal.label === 'AL' ? 'buy' : signal.label === 'SAT' ? 'sell' : 'wait'}`} aria-label={`${signal.label}, güven yüzde ${signal.confidence}`}>{signal.label}<u>%{signal.confidence}</u></i>
-      : <i className="aiPill none" aria-hidden="true"/>
-    const pickRows = signals ? rankedRows.filter(row => signals[row.symbol]).slice(0, 6) : []
-    const picksBlock = !coinOpen && <div className="aiPicks" aria-label="Kais AI güven sıralaması">
-      <div className="aiPicksHead"><b>Kais AI güven sıralaması</b>{signals === null && !signalsError && <small>Analiz yükleniyor…</small>}{signalsError && <small>Analiz şu an alınamadı; liste hacme göre.</small>}</div>
-      {pickRows.length > 0 && <ul className="aiPickList">{pickRows.map(row => {
+    const signedChange = (row: CoinRow) => `${Number(row.change) >= 0 ? '+' : ''}${Number(row.change).toFixed(2)}%`
+    const duo = (signal: CoinSignal | undefined) => signal
+      ? <span className="cpkDuo" data-lean={signal.lean} role="img" aria-label={`LONG yüzde ${signal.long ?? 'bilinmiyor'}, SHORT yüzde ${signal.short ?? 'bilinmiyor'}`}>
+        <span className="cpkSide cpkLong" data-lead={signal.lean === 'LONG'}><span className="cpkSideHead"><em>LONG</em><strong>{signal.long === null ? '–' : `%${signal.long}`}</strong></span><span className="cpkMeter"><i style={{width: `${signal.long ?? 0}%`}}/></span></span>
+        <span className="cpkSide cpkShort" data-lead={signal.lean === 'SHORT'}><span className="cpkSideHead"><em>SHORT</em><strong>{signal.short === null ? '–' : `%${signal.short}`}</strong></span><span className="cpkMeter"><i style={{width: `${signal.short ?? 0}%`}}/></span></span>
+      </span>
+      : <span className="cpkDuo cpkNone" aria-hidden="true"/>
+    const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
+    const filterChips: [CoinFilter, string][] = [['all', 'Tümü'], ['long', 'LONG ağır'], ['short', 'SHORT ağır'], ['strong', 'Güçlü sinyal']]
+    const sortChips: [CoinSort, string][] = [['confidence', 'Güvene göre'], ['volume', 'Hacme göre'], ['change', 'Değişime göre']]
+    const toolbar = signals !== null && <div className="cpkTools">
+      <div className="cpkChips" role="group" aria-label="Filtre">{filterChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} className={coinFilter === key ? 'on' : ''} onClick={() => setCoinFilter(key)}>{label}<span>{key === 'all' ? rows.length : signalCount(key)}</span></button>)}</div>
+      <div className="cpkChips cpkSorts" role="group" aria-label="Sıralama">{sortChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinSort === key} className={coinSort === key ? 'on' : ''} onClick={() => setCoinSort(key)}>{label}</button>)}</div>
+    </div>
+    const pickRows = signals ? sortByConfidence(filteredRows, signals).filter(row => signals[row.symbol]).slice(0, 6) : []
+    const picksBlock = !coinOpen && <section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
+      <header className="cpkPicksHead"><h5>Kais AI güçlü sinyaller</h5>{signals === null && !signalsError && <span className="cpkStatus">Analiz yükleniyor…</span>}{signalsError && <span className="cpkStatus warn">Analiz şu an alınamadı; liste hacme göre.</span>}</header>
+      {toolbar}
+      {signals === null && !signalsError && <ul className="cpkPickList" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map(index => <li key={index} className="cpkSkeleton"/>)}</ul>}
+      {signals !== null && pickRows.length === 0 && <p className="cpkEmpty">Bu filtrede coin yok. Başka bir filtre seç.</p>}
+      {pickRows.length > 0 && <ul className="cpkPickList">{pickRows.map(row => {
         const signal = signals![row.symbol]
-        return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === order.symbol} className={`aiPick ${row.symbol === order.symbol ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
-          <span className="aiPickTop"><b>{row.display || row.symbol}</b>{aiPill(signal)}</span>
-          <span className="aiBar" data-tone={confidenceTone(signal.confidence)} aria-hidden="true"><i style={{width: `${signal.confidence}%`}}/></span>
-          <small>{coinPrice(row.price)} · <em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></small>
+        return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === order.symbol} data-lean={signal.lean} className={`cpkCard ${row.symbol === order.symbol ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
+          <span className="cpkCardTop"><strong>{row.display || row.symbol}</strong><span className="cpkTick"><span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{signedChange(row)}</em></span></span>
+          {duo(signal)}
+          <span className="cpkLeanLine">{leanText(signal)}</span>
         </button></li>
       })}</ul>}
-      <small className="aiDisclaimer">{AI_DISCLAIMER}</small>
-    </div>
+      <p className="cpkNote">{AI_DISCLAIMER}</p>
+    </section>
+    const selectedSignal = signals?.[order.symbol]
     const coinBlock = (
-        <div className="liveWsBlock liveWsCoin">
+        <div className="liveWsBlock liveWsCoin cpk">
           <span className="liveWsLabel">1 · Coin</span>
-          <button type="button" className="liveWsCoinBtn" aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
-            <b>{selectedRow?.display || order.symbol || 'Coin seç'}</b>
-            <small>{selectedRow ? `${coinPrice(selectedRow.price)} USDT · ${Number(selectedRow.change) >= 0 ? '+' : ''}${Number(selectedRow.change).toFixed(2)}%` : universeError ? 'Liste alınamadı' : 'Listeden seç'}{signals?.[order.symbol] && aiPill(signals[order.symbol])}</small>
+          <button type="button" className="liveWsCoinBtn cpkHero" data-lean={selectedSignal?.lean ?? 'NONE'} aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
+            <span className="cpkHeroMain"><b>{selectedRow?.display || order.symbol || 'Coin seç'}</b>
+              <span className="cpkTick">{selectedRow ? <><span>{coinPrice(selectedRow.price)} USDT</span><em className={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : <span>{universeError ? 'Liste alınamadı' : 'Listeden seç'}</span>}</span>
+              {selectedSignal && <span className="cpkLeanLine">{leanText(selectedSignal)}</span>}</span>
+            {duo(selectedSignal)}
             <ChevronDown/>
           </button>
-          {coinOpen && <div className="liveWsCoinPop">
-            <label className="liveWsSearch"><Search/><input autoFocus value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setCoinOpen(false); if (event.key === 'Enter' && listed[0]) chooseCoin(listed[0].symbol); if (event.key === 'Enter' && !listed[0] && /^[A-Z0-9]{5,20}$/.test(q)) chooseCoin(q) }}/></label>
-            {recentRows.length > 0 && <div className="liveWsRecent"><small>Son kullanılanlar</small><div>{recentRows.map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}</button>)}</div></div>}
-            {universe === null && !universeError && <p className="liveWsHint">Coin listesi yükleniyor…</p>}
-            {universeError && <p className="liveWsWarn">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
-            {universe !== null && <ul role="listbox" aria-label="Coin listesi" className="liveWsCoinList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} onClick={() => chooseCoin(row.symbol)}><b>{row.display || row.symbol}</b>{aiPill(signals?.[row.symbol])}<span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></button></li>)}{listed.length === 0 && <li className="liveWsHint">Sonuç yok.</li>}</ul>}
-            {signals !== null && <small className="aiDisclaimer">Güvene göre sıralı. {AI_DISCLAIMER}</small>}
-            {universe !== null && matches.length > listed.length && <small className="liveWsHint">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</small>}
+          {coinOpen && <div className="cpkPop">
+            <label className="cpkSearch"><Search/><input autoFocus value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setCoinOpen(false); if (event.key === 'Enter' && listed[0]) chooseCoin(listed[0].symbol); if (event.key === 'Enter' && !listed[0] && /^[A-Z0-9]{5,20}$/.test(q)) chooseCoin(q) }}/></label>
+            {toolbar}
+            {recentRows.length > 0 && <div className="cpkRecent"><span>Son kullanılanlar</span><div>{recentRows.map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}</button>)}</div></div>}
+            {universe === null && !universeError && <p className="cpkEmpty">Coin listesi yükleniyor…</p>}
+            {universeError && <p className="cpkEmpty warn">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
+            {universe !== null && <ul role="listbox" aria-label="Coin listesi" className="cpkList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} data-lean={signals?.[row.symbol]?.lean ?? 'NONE'} className="cpkRow" onClick={() => chooseCoin(row.symbol)}><strong>{row.display || row.symbol}</strong>{duo(signals?.[row.symbol])}<span className="cpkRowPrice">{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{signedChange(row)}</em></button></li>)}{listed.length === 0 && <li className="cpkEmpty">Sonuç yok.</li>}</ul>}
+            {signals !== null && <p className="cpkNote">{AI_DISCLAIMER}</p>}
+            {universe !== null && matches.length > listed.length && <p className="cpkNote">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</p>}
           </div>}
           {picksBlock}
           {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri {symbol} içindir; "Analizden doldur" coini de {symbol} yapar.</small>}
@@ -1175,6 +1197,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="liveWsBlock">
           <span className="liveWsLabel">2 · Yön</span>
           <div className="liveChoice liveWsDir"><button type="button" aria-pressed={order.direction === 'LONG'} className={order.direction === 'LONG' ? 'selectedLong' : ''} onClick={() => set('direction', 'LONG')}>LONG</button><button type="button" aria-pressed={order.direction === 'SHORT'} className={order.direction === 'SHORT' ? 'selectedShort' : ''} onClick={() => set('direction', 'SHORT')}>SHORT</button></div>
+          {selectedSignal && <div className="cpk cpkDirHint" data-lean={selectedSignal.lean} data-clash={selectedSignal.lean !== 'NEUTRAL' && selectedSignal.lean !== order.direction ? '1' : undefined}>
+            <span className="cpkDirTitle">Kais AI · {selectedRow?.display || order.symbol}</span>{duo(selectedSignal)}
+            <span className="cpkLeanLine">{selectedSignal.lean !== 'NEUTRAL' && selectedSignal.lean !== order.direction ? `Seçtiğin yön (${order.direction}), analizin ağır bastığı yönün tersi.` : leanText(selectedSignal)}</span>
+            <p className="cpkNote">{AI_DISCLAIMER}</p></div>}
         </div>
     )
     const amountBlock = (
