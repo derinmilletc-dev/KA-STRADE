@@ -286,7 +286,7 @@ export type RejectionBreakdown = {scans: number; hours: number | null; reasons: 
 
 const GATE_TEXT: Record<string, string> = {
   direction: 'Net trend yok (yön belirsiz)', confidence: 'Güven eşiğin altında', trap: 'Tuzak skoru yüksek',
-  breakout: 'Kırılım kalitesi düşük', mtf: '1h/4h yönü uyuşmuyor',
+  breakout: 'Kırılım kalitesi düşük', mtf: '1h/4h yönü uyuşmuyor', momentum_15m: '15 dk momentum yönü onaylamıyor',
 }
 const cap = (text: string) => text.charAt(0).toLocaleUpperCase('tr-TR') + text.slice(1)
 

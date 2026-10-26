@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from ..execution_core import configured_min_confidence, evaluate_entry_gates
-from .contracts import StrategyInput, StrategyProvenance, StrategyResult
+from .contracts import QualityCheck, StrategyInput, StrategyProvenance, StrategyResult
 from .kais_original import evaluate as evaluate_original
 from .original_gap_risk import PROFILE
 from .original_offline_risk import OfflineRiskError
@@ -104,7 +104,38 @@ def evaluate_live_universe(
         _fail("SYMBOL_OUTSIDE_LIVE_UNIVERSE")
     # Canlıda güven eşiği sunucu ayarına (PROTREBOT_MIN_CONFIDENCE) uyar; yalnız yükseltebilir, sabit %80'in altına inmez.
     live_threshold = max(int(profile["canonical_policy"]["confidence_threshold"]), configured_min_confidence())
-    return _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES, confidence_threshold=live_threshold)
+    result = _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES, confidence_threshold=live_threshold)
+    return apply_live_momentum_gate(result)
+
+
+# Canlı giriş kuralı: 15 dakikalık momentum, sinyal yönünü onaylamalı (yalnız canlı; Demo/backtest değişmez).
+# Momentum, analizdeki mevcut tanımdır: MACD histogramı > 0 ve RSI > 50 -> "Pozitif";
+# MACD histogramı < 0 ve RSI < 50 -> "Negatif"; diğer her durum "Nötr" (kararsız).
+# LONG için "Pozitif", SHORT için "Negatif" şarttır; "Nötr" veya ters momentumda giriş açılmaz.
+LIVE_MOMENTUM_REQUIRED = {"LONG": "Pozitif", "SHORT": "Negatif"}
+MOMENTUM_REJECT_REASON = "MOMENTUM_15M_NOT_CONFIRMED"
+
+
+def apply_live_momentum_gate(result: StrategyResult) -> StrategyResult:
+    """Saf ve yalnız daraltıcı: girişe izin vermiş bir sonucu reddedebilir, reddedilmiş bir sonucu asla açmaz."""
+    analysis = (result.legacy or {}).get("analysis")
+    if not isinstance(analysis, dict):
+        return result
+    direction = analysis.get("direction")
+    required = LIVE_MOMENTUM_REQUIRED.get(direction)
+    if required is None:
+        return result
+    momentum = analysis.get("momentum")
+    passed = momentum == required
+    check = QualityCheck("momentum_15m", passed, momentum, required)
+    signal = replace(result.signal, quality_checks=tuple(result.signal.quality_checks) + (check,))
+    legacy = result.legacy
+    if not passed and signal.strategy_eligible:
+        legacy = {**legacy, "entry_eligible": False, "decision": "WAIT", "reason": MOMENTUM_REJECT_REASON,
+                  "reasons": [*legacy.get("reasons", []), MOMENTUM_REJECT_REASON]}
+        signal = replace(signal, decision="WAIT", strategy_eligible=False, reason=MOMENTUM_REJECT_REASON,
+                         reasons=tuple(signal.reasons) + (MOMENTUM_REJECT_REASON,))
+    return StrategyResult(signal=signal, legacy=legacy)
 
 
 def log_short_filter(symbol: str, legacy: dict[str, Any]) -> None:
