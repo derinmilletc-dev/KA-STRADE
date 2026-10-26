@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
+import { analysisFillBlock, switchSymbol } from './manual-order-state'
 import { AI_DISCLAIMER, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
@@ -888,9 +889,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setNotice({kind: 'error', text: liveCopy.noSelectedCoin})
       return
     }
-    setOrder(current => ({...current, symbol, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
+    // Analiz yalnız sayfada açık coin içindir; seçili coin farklıysa sessizce coin değiştirmez, başka coinin fiyatlarını da yazmaz.
+    const fillBlock = analysisFillBlock(order.symbol, symbol)
+    if (fillBlock) { setNotice({kind: 'error', text: fillBlock}); return }
+    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
     setNotice({kind: 'ok', text: 'Seçili analiz yönü ve seviyeleri forma dolduruldu.'})
   }
+  // Adım değişince eski uyarı kalmasın (pencere içi uyarı yalnız o anki işlemin sonucunu göstersin).
+  const goStep = (index: number) => { setNotice(current => current.kind === 'info' ? current : {kind: 'info', text: ''}); setManualStep(index) }
   const reviewOrder = (nextOrder = order) => {
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
     const values = [nextOrder.margin_usdt, nextOrder.leverage, nextOrder.stop_loss, nextOrder.tp1, nextOrder.tp2, nextOrder.tp3]
@@ -1090,7 +1096,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const matches = (q ? rankedRows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rankedRows)
     const listed = matches.slice(0, 80)
     const recentRows = !q ? recentCoins.map(item => rows.find(row => row.symbol === item)).filter((row): row is CoinRow => Boolean(row)) : []
-    const chooseCoin = (value: string) => { setOrder(current => ({...current, symbol: value})); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
+    const chooseCoin = (value: string) => { setOrder(current => switchSymbol(current, value)); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
     const marginValue = Number(order.margin_usdt)
     const leverageValue = Number(order.leverage)
     // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 300 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
@@ -1190,7 +1196,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             {universe !== null && matches.length > listed.length && <p className="cpkNote">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</p>}
           </div>}
           {picksBlock}
-          {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri {symbol} içindir; "Analizden doldur" coini de {symbol} yapar.</small>}
+          {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri yalnız {symbol} içindir; "Analizden doldur" ancak bu coin seçiliyken çalışır.</small>}
         </div>
     )
     const dirBlock = (
@@ -1246,9 +1252,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
     const wizardBody = <div className="mwz" data-step={wzStep}>
       <ol className="mwzSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
-        <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => setManualStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
+        <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
       <div className="mwzCard" key={wzStep}>
         <small className="mwzKicker">ADIM {wzStep + 1} / {stepNames.length}</small>
+        {notice.kind !== 'info' && notice.text && <p className={`mwzNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} data-testid="mwz-notice">{notice.text}</p>}
         {wzStep === 0 && <><h4>Hangi coin?</h4><p>Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinBlock}</>}
         {wzStep === 1 && <><h4>Hangi yön?</h4><p>LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>{dirBlock}</>}
         {wzStep === 2 && <><h4>Ne kadar ve nasıl girelim?</h4><p>Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>{amountBlock}</>}
@@ -1262,8 +1269,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {wzStep < 4 && <div className="mwzMini" aria-label="Seçimlerin"><span>{selectedRow?.display || order.symbol || '—'}</span><span className={order.direction === 'LONG' ? 'up' : 'down'}>{order.direction}</span><span>{order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'}</span><span>{text(order.margin_usdt)} USDT · {Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</span>{realLoss !== null && realLoss !== undefined && <span className="down">Stopta ≈ {money(realLoss)}</span>}</div>}
         {wzHint && <p className="liveWsWarn" role="status">{wzHint}</p>}
         <div className="mwzNav">
-          <button type="button" className="liveWsGhost" disabled={wzStep === 0} onClick={() => setManualStep(Math.max(0, wzStep - 1))}>← Geri</button>
-          {wzStep < stepNames.length - 1 && <button type="button" className="liveWsPrimary" disabled={!stepOk[wzStep]} onClick={() => setManualStep(wzStep + 1)}>Devam →</button>}
+          <button type="button" className="liveWsGhost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
+          {wzStep < stepNames.length - 1 && <button type="button" className="liveWsPrimary" disabled={!stepOk[wzStep]} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
         </div>
       </div>
     </div>

@@ -149,3 +149,8 @@
   .cpk .cpkSkeleton:not(#cpk), .cpk .cpkPop:not(#cpk) { animation: none; }
   .cpk .cpkMeter i:not(#cpk), .cpk .cpkCard:not(#cpk) { transition: none; }
 }
+
+/* Emir penceresi içindeki uyarı: dry-run ve doldurma sonuçları pencerenin arkasında kalmasın */
+.mwzCard .mwzNotice:not(#cpk) { margin: 0; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; font-weight: 600; color: #eaf1f7 !important; background: rgba(255, 255, 255, .06) !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.mwzCard .mwzNotice.error:not(#cpk) { color: #ffd3cd !important; background: rgba(255, 132, 121, .13) !important; box-shadow: inset 0 0 0 1.5px rgba(255, 132, 121, .55); }
+.mwzCard .mwzNotice.ok:not(#cpk) { color: #c9f5de !important; background: rgba(61, 220, 151, .12) !important; box-shadow: inset 0 0 0 1.5px rgba(61, 220, 151, .45); }
