@@ -6,12 +6,16 @@ on:
     paths:
       - 'frontend/src/live-guide.ts'
       - 'tools/live-guide.test.mjs'
+      - 'frontend/src/coin-ranking.ts'
+      - 'frontend/src/coin-ranking.test.mts'
       - '.github/workflows/frontend-unit-tests.yml'
   push:
     branches: [main]
     paths:
       - 'frontend/src/live-guide.ts'
       - 'tools/live-guide.test.mjs'
+      - 'frontend/src/coin-ranking.ts'
+      - 'frontend/src/coin-ranking.test.mts'
       - '.github/workflows/frontend-unit-tests.yml'
   workflow_dispatch:
 
@@ -43,5 +47,7 @@ jobs:
           set +e
           node --test tools/live-guide.test.mjs 2>&1 | tee node-test-out.txt
           status=${PIPESTATUS[0]}
+          node --test frontend/src/coin-ranking.test.mts 2>&1 | tee -a node-test-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           grep -E "^not ok|AssertionError|Error:" node-test-out.txt | head -40 | sed 's/^/::error::/'
           exit $status

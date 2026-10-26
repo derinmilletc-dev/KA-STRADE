@@ -275,7 +275,7 @@
 #master-trade-live-terminal.liveWs .liveWsRecent { display: grid; gap: 6px; }
 #master-trade-live-terminal.liveWs .liveWsRecent > div { display: flex; flex-wrap: wrap; gap: 6px; }
 #master-trade-live-terminal.liveWs .liveWsCoinList { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto !important; display: grid; gap: 2px; overscroll-behavior: contain; }
-#master-trade-live-terminal.liveWs .liveWsCoinList button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto 76px; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: transparent !important; text-align: left; }
+#master-trade-live-terminal.liveWs .liveWsCoinList button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto 76px; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: transparent !important; text-align: left; }
 #master-trade-live-terminal.liveWs .liveWsCoinList button:hover, #master-trade-live-terminal.liveWs .liveWsCoinList button[aria-selected='true'] { background: #1b2736 !important; }
 #master-trade-live-terminal.liveWs .liveWsCoinList span { font-variant-numeric: tabular-nums; color: var(--ws-muted); font-size: 13px; }
 #master-trade-live-terminal.liveWs .liveWsCoinList em { font-style: normal; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -513,4 +513,35 @@ html body #root > main.v26App.masterTradeRoute section.masterTradePage.masterTra
   .advChecks{margin:14px}
   .advPanel>.advHead{flex-wrap:wrap;padding:14px}
   .advChip{order:3;white-space:normal}
+}
+
+/* Kais AI güven sıralaması: AL / BEKLE / SAT etiketi, güven çubuğu ve küçük uyarı. Yalnız gösterim. */
+#master-trade-live-terminal.liveWs .aiPill { display: inline-flex; align-items: center; gap: 6px; min-width: 76px; justify-content: center; margin-left: 8px; padding: 3px 9px; border-radius: 999px; font-style: normal; font-size: 12px; font-weight: 800; letter-spacing: .04em; background: var(--ws-raised); color: var(--ws-muted); vertical-align: middle; }
+#master-trade-live-terminal.liveWs .aiPill u { text-decoration: none; font-weight: 700; opacity: .9; font-variant-numeric: tabular-nums; }
+#master-trade-live-terminal.liveWs .aiPill.buy { background: rgba(52, 211, 153, .16); color: var(--ws-green); }
+#master-trade-live-terminal.liveWs .aiPill.sell { background: rgba(248, 113, 113, .16); color: var(--ws-red); }
+#master-trade-live-terminal.liveWs .aiPill.wait { background: rgba(245, 185, 66, .16); color: var(--ws-amber); }
+#master-trade-live-terminal.liveWs .aiPill.none { background: transparent; min-width: 0; padding: 0; margin: 0; }
+#master-trade-live-terminal.liveWs .liveWsCoinList .aiPill { margin-left: 0; }
+#master-trade-live-terminal.liveWs .aiPicks { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border-radius: 18px; background: linear-gradient(160deg, #18283a, #121b26); }
+#master-trade-live-terminal.liveWs .aiPicksHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+#master-trade-live-terminal.liveWs .aiPicksHead b { font-size: 15px; }
+#master-trade-live-terminal.liveWs .aiPickList { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+#master-trade-live-terminal.liveWs .aiPick { width: 100%; display: grid; gap: 7px; padding: 12px; border-radius: 14px; background: #0f1823 !important; text-align: left; transition: background .15s ease, transform .15s ease; }
+#master-trade-live-terminal.liveWs .aiPick:hover { background: #1b2736 !important; transform: translateY(-1px); }
+#master-trade-live-terminal.liveWs .aiPick.on { background: #1b2736 !important; box-shadow: inset 0 0 0 2px var(--ws-blue); }
+#master-trade-live-terminal.liveWs .aiPickTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#master-trade-live-terminal.liveWs .aiPickTop b { font-size: 15px; }
+#master-trade-live-terminal.liveWs .aiPickTop .aiPill { margin-left: 0; min-width: 0; }
+#master-trade-live-terminal.liveWs .aiBar { display: block; height: 6px; border-radius: 999px; background: #243246; overflow: hidden; }
+#master-trade-live-terminal.liveWs .aiBar i { display: block; height: 100%; border-radius: 999px; background: var(--ws-amber); }
+#master-trade-live-terminal.liveWs .aiBar[data-tone='high'] i { background: var(--ws-green); }
+#master-trade-live-terminal.liveWs .aiBar[data-tone='low'] i { background: var(--ws-red); }
+#master-trade-live-terminal.liveWs .aiPick small { font-variant-numeric: tabular-nums; }
+#master-trade-live-terminal.liveWs .aiPick em { font-style: normal; font-weight: 700; }
+#master-trade-live-terminal.liveWs .aiDisclaimer { font-size: 11px; opacity: .8; }
+@media (max-width: 520px) {
+  #master-trade-live-terminal.liveWs .aiPickList { grid-template-columns: 1fr 1fr; }
+  #master-trade-live-terminal.liveWs .liveWsCoinList button { grid-template-columns: minmax(0, 1fr) auto auto; }
+  #master-trade-live-terminal.liveWs .liveWsCoinList button > span { display: none; }
 }

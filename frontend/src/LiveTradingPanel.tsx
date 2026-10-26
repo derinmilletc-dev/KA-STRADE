@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
+import { AI_DISCLAIMER, buildSignalMap, confidenceTone, sortByConfidence, type CoinSignal, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
@@ -228,6 +229,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [universeError, setUniverseError] = useState(false)
   const [coinQuery, setCoinQuery] = useState('')
   const [coinOpen, setCoinOpen] = useState(false)
+  // Kais AI analiz sıralaması (yalnız gösterim): coin -> {AL/BEKLE/SAT, güven %}. Alınamazsa liste hacme göre kalır.
+  const [signals, setSignals] = useState<SignalMap | null>(null)
+  const [signalsError, setSignalsError] = useState(false)
   const [manualStep, setManualStep] = useState(0)
   // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
@@ -247,6 +251,25 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }).catch(error => { if (error?.name !== 'AbortError') setUniverseError(true) })
     return () => controller.abort()
   }, [active, masterTrade, openStep, manualPanelOpen, universe])
+  useEffect(() => {
+    if (!active || !(openStep === 3 || manualPanelOpen || !masterTrade)) return
+    let cancelled = false
+    let controller: AbortController | null = null
+    const load = () => {
+      controller?.abort()
+      controller = new AbortController()
+      void fetchWithTimeout(`${API_BASE}/analysis-universe?interval=15m&limit=100`, {signal: controller.signal}, 60000).then(async response => {
+        if (!response.ok) throw new Error('analysis-universe')
+        const map = buildSignalMap(await response.json())
+        if (cancelled) return
+        if (Object.keys(map).length === 0) throw new Error('empty')
+        setSignals(map); setSignalsError(false)
+      }).catch(error => { if (!cancelled && error?.name !== 'AbortError') setSignalsError(true) })
+    }
+    load()
+    const timer = window.setInterval(load, 90000)
+    return () => { cancelled = true; controller?.abort(); window.clearInterval(timer) }
+  }, [active, masterTrade, openStep, manualPanelOpen])
   const [riskPrev, setRiskPrev] = useState<{notional: number; margin: number; loss: number; stopPct: number; maxStopPct: number; capped: boolean} | {error: string} | null>(null)
   useEffect(() => {
     if (!active || !masterTrade || (openStep !== 3 && !manualPanelOpen)) { setRiskPrev(null); return }
@@ -255,7 +278,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const stop = Number(order.stop_loss)
     const margin = Number(order.margin_usdt)
     const leverage = Number(order.leverage)
-    if (![entry, stop, margin, leverage].every(value => Number.isFinite(value) && value > 0) || entry === stop || margin < 5 || margin > 100 || !Number.isInteger(leverage) || leverage < 1 || leverage > 50) { setRiskPrev(null); return }
+    if (![entry, stop, margin, leverage].every(value => Number.isFinite(value) && value > 0) || entry === stop || margin < 5 || margin > 300 || !Number.isInteger(leverage) || leverage < 1 || leverage > 50) { setRiskPrev(null); return }
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       void fetchWithTimeout(`${V25}/risk/preview`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({entry, stop_loss: stop, margin_usdt: margin, leverage}), signal: controller.signal}).then(async response => {
@@ -1059,7 +1082,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const q = coinQuery.trim().toUpperCase().replace('/', '')
     const rows = universe ?? []
     const selectedRow = rows.find(row => row.symbol === order.symbol)
-    const matches = (q ? rows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rows)
+    const rankedRows = sortByConfidence(rows, signals)
+    const matches = (q ? rankedRows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rankedRows)
     const listed = matches.slice(0, 80)
     const recentRows = !q ? recentCoins.map(item => rows.find(row => row.symbol === item)).filter((row): row is CoinRow => Boolean(row)) : []
     const chooseCoin = (value: string) => { setOrder(current => ({...current, symbol: value})); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
@@ -1110,12 +1134,28 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const sign = order.direction === 'LONG' ? 1 : -1
       setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
     }
+    const aiPill = (signal: CoinSignal | undefined) => signal
+      ? <i className={`aiPill ${signal.label === 'AL' ? 'buy' : signal.label === 'SAT' ? 'sell' : 'wait'}`} aria-label={`${signal.label}, güven yüzde ${signal.confidence}`}>{signal.label}<u>%{signal.confidence}</u></i>
+      : <i className="aiPill none" aria-hidden="true"/>
+    const pickRows = signals ? rankedRows.filter(row => signals[row.symbol]).slice(0, 6) : []
+    const picksBlock = !coinOpen && <div className="aiPicks" aria-label="Kais AI güven sıralaması">
+      <div className="aiPicksHead"><b>Kais AI güven sıralaması</b>{signals === null && !signalsError && <small>Analiz yükleniyor…</small>}{signalsError && <small>Analiz şu an alınamadı; liste hacme göre.</small>}</div>
+      {pickRows.length > 0 && <ul className="aiPickList">{pickRows.map(row => {
+        const signal = signals![row.symbol]
+        return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === order.symbol} className={`aiPick ${row.symbol === order.symbol ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
+          <span className="aiPickTop"><b>{row.display || row.symbol}</b>{aiPill(signal)}</span>
+          <span className="aiBar" data-tone={confidenceTone(signal.confidence)} aria-hidden="true"><i style={{width: `${signal.confidence}%`}}/></span>
+          <small>{coinPrice(row.price)} · <em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></small>
+        </button></li>
+      })}</ul>}
+      <small className="aiDisclaimer">{AI_DISCLAIMER}</small>
+    </div>
     const coinBlock = (
         <div className="liveWsBlock liveWsCoin">
           <span className="liveWsLabel">1 · Coin</span>
           <button type="button" className="liveWsCoinBtn" aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
             <b>{selectedRow?.display || order.symbol || 'Coin seç'}</b>
-            <small>{selectedRow ? `${coinPrice(selectedRow.price)} USDT · ${Number(selectedRow.change) >= 0 ? '+' : ''}${Number(selectedRow.change).toFixed(2)}%` : universeError ? 'Liste alınamadı' : 'Listeden seç'}</small>
+            <small>{selectedRow ? `${coinPrice(selectedRow.price)} USDT · ${Number(selectedRow.change) >= 0 ? '+' : ''}${Number(selectedRow.change).toFixed(2)}%` : universeError ? 'Liste alınamadı' : 'Listeden seç'}{signals?.[order.symbol] && aiPill(signals[order.symbol])}</small>
             <ChevronDown/>
           </button>
           {coinOpen && <div className="liveWsCoinPop">
@@ -1123,9 +1163,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             {recentRows.length > 0 && <div className="liveWsRecent"><small>Son kullanılanlar</small><div>{recentRows.map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}</button>)}</div></div>}
             {universe === null && !universeError && <p className="liveWsHint">Coin listesi yükleniyor…</p>}
             {universeError && <p className="liveWsWarn">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
-            {universe !== null && <ul role="listbox" aria-label="Coin listesi" className="liveWsCoinList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} onClick={() => chooseCoin(row.symbol)}><b>{row.display || row.symbol}</b><span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></button></li>)}{listed.length === 0 && <li className="liveWsHint">Sonuç yok.</li>}</ul>}
+            {universe !== null && <ul role="listbox" aria-label="Coin listesi" className="liveWsCoinList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} onClick={() => chooseCoin(row.symbol)}><b>{row.display || row.symbol}</b>{aiPill(signals?.[row.symbol])}<span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{Number(row.change) >= 0 ? '+' : ''}{Number(row.change).toFixed(2)}%</em></button></li>)}{listed.length === 0 && <li className="liveWsHint">Sonuç yok.</li>}</ul>}
+            {signals !== null && <small className="aiDisclaimer">Güvene göre sıralı. {AI_DISCLAIMER}</small>}
             {universe !== null && matches.length > listed.length && <small className="liveWsHint">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</small>}
           </div>}
+          {picksBlock}
           {order.symbol !== symbol && <small className="liveWsHint">Analiz seviyeleri {symbol} içindir; "Analizden doldur" coini de {symbol} yapar.</small>}
         </div>
     )
