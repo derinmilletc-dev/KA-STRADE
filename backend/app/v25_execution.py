@@ -69,6 +69,7 @@ from .maintenance import (
 )
 from .execution_core import (
     DEFAULT_EXECUTION_POLICY,
+    HARD_MAX_MARGIN_USDT,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
     configured_min_confidence,
     configured_mtf_allow_either_timeframe,
