@@ -89,12 +89,14 @@ test('a stopped session reason is carried into the next step', () => {
 
 test('presets stay inside server limits and can be recognised', () => {
   for (const preset of RISK_PRESETS) {
-    assert.ok(preset.risk_percent >= 0.5 && preset.risk_percent <= 2, preset.id)
+    assert.ok(preset.risk_percent >= 0.5 && preset.risk_percent <= 15, preset.id)
     assert.ok(preset.daily_loss_percent >= Math.max(1, preset.risk_percent) && preset.daily_loss_percent <= 25, preset.id)
     assert.ok(preset.symbol_count >= 10 && preset.symbol_count <= 100, preset.id)
     assert.ok([1, 4, 12, 24].includes(preset.session_hours), preset.id)
   }
   assert.equal(matchPreset({risk_percent: 1, daily_loss_percent: 3, symbol_count: 40, session_hours: 12})?.id, 'dengeli')
+  assert.deepEqual(RISK_PRESETS.map(preset => preset.risk_percent), [0.5, 1, 10, 15])
+  assert.ok(RISK_PRESETS.every(preset => ['Güvenli', 'Orta', 'Agresif'].includes(preset.margin_mode)))
   assert.equal(matchPreset({risk_percent: 1.5, daily_loss_percent: 3, symbol_count: 40, session_hours: 12}), null)
 })
 
