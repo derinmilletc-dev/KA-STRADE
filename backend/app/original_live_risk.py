@@ -29,7 +29,7 @@ def daily_warning(percent: float) -> str:
 
 class RiskChoice(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    risk_percent: float = Field(default=0.5, ge=0.5, le=10, allow_inf_nan=False, strict=True)
+    risk_percent: float = Field(default=0.5, ge=0.5, le=15, allow_inf_nan=False, strict=True)
     daily_loss_percent: float = Field(default=5, ge=1, le=25, allow_inf_nan=False, strict=True)
     risk_acknowledged: bool = Field(default=False, strict=True)
     understood: bool = Field(default=False, strict=True)

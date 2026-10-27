@@ -145,12 +145,14 @@ export function liveGuide(input: GuideInput): Guide {
     why: WHY[4], action: 'start', actionLabel: 'Son kontrol ve başlat'}
 }
 
-/** Hazır risk seçenekleri (Original V2 sınırları: işlem riski %0,5–10, günlük %1–25, 10–100 coin, 1/4/12/24 saat).
- *  Hiçbiri %2'yi aşmaz: daha yüksek risk ayrıca açık onay ister ve yalnız "Kendim ayarlayayım" ile seçilir. */
+/** Hazır risk seçenekleri (Original V2 sınırları: işlem riski %0,5–15, günlük %1–25, 10–100 coin, 1/4/12/24 saat).
+ *  %2'nin üstü onay kutusu, %5'in üstü ayrı yüksek risk cümlesi ister (sunucu da ayrıca doğrular).
+ *  `margin_mode`: yalnız ÖNERİDİR; teminat modu ayrı adımda ve kendi onayıyla seçilir, paket onu kendiliğinden değiştirmez. */
 export const RISK_PRESETS = [
-  {id: 'temkinli', label: 'Temkinli', risk_percent: 0.5, daily_loss_percent: 2, symbol_count: 20, session_hours: 4, note: 'Az risk, az coin, kısa oturum'},
-  {id: 'dengeli', label: 'Dengeli', risk_percent: 1, daily_loss_percent: 3, symbol_count: 40, session_hours: 12, note: 'Önerilen başlangıç'},
-  {id: 'agresif', label: 'Agresif', risk_percent: 2, daily_loss_percent: 6, symbol_count: 60, session_hours: 24, note: 'Daha çok fırsat, daha çok risk'},
+  {id: 'temkinli', label: 'Temkinli', risk_percent: 0.5, daily_loss_percent: 2, symbol_count: 20, session_hours: 4, margin_mode: 'Güvenli', note: 'Az risk, az coin, kısa oturum'},
+  {id: 'dengeli', label: 'Dengeli', risk_percent: 1, daily_loss_percent: 3, symbol_count: 40, session_hours: 12, margin_mode: 'Güvenli', note: 'Önerilen başlangıç'},
+  {id: 'agresif', label: 'Agresif', risk_percent: 10, daily_loss_percent: 12, symbol_count: 100, session_hours: 24, margin_mode: 'Agresif', note: 'Yüksek risk; büyük kayıp ve büyük kazanç'},
+  {id: 'maksimum', label: 'Maksimum', risk_percent: 15, daily_loss_percent: 20, symbol_count: 100, session_hours: 24, margin_mode: 'Agresif', note: 'En yüksek risk; tek kayıp bakiyeyi ciddi eritir'},
 ] as const
 export type RiskPreset = typeof RISK_PRESETS[number]
 

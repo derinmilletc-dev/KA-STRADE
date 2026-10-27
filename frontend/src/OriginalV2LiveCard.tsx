@@ -226,7 +226,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
   }
   const selectedRisk = Number(risk)
   const selectedDaily = Number(dailyLoss)
-  const validRisk = Number.isFinite(selectedRisk) && selectedRisk >= 0.5 && selectedRisk <= 10
+  const validRisk = Number.isFinite(selectedRisk) && selectedRisk >= 0.5 && selectedRisk <= 15
     && Number.isFinite(selectedDaily) && selectedDaily >= 1 && selectedDaily <= 25 && selectedDaily >= selectedRisk
   const wallet = typeof walletBalance === 'number' && Number.isFinite(walletBalance) && walletBalance > 0 ? walletBalance : null
   const openingWallet = status.daily?.day === new Date().toISOString().slice(0, 10)

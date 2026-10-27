@@ -180,7 +180,7 @@ export default function LiveCockpit(props: Props) {
     writeStored(key === 'coins' ? coinsKey : hoursKey, value)
   }
   const riskDirty = draft.risk !== savedRisk || draft.daily !== savedDaily
-  const draftValid = Number.isFinite(draft.risk) && draft.risk >= 0.5 && draft.risk <= 10 && Number.isFinite(draft.daily)
+  const draftValid = Number.isFinite(draft.risk) && draft.risk >= 0.5 && draft.risk <= 15 && Number.isFinite(draft.daily)
     && draft.daily >= 1 && draft.daily <= 25 && draft.daily >= draft.risk && validCoins(draft.coins) && validHours(draft.hours)
   const tierReady = (risk: number, ack: boolean, typed: string) => risk > 5 ? typed === HIGH_RISK_PHRASE : risk > 2 ? ack : true
   const activePreset = matchPreset({risk_percent: draft.risk, daily_loss_percent: draft.daily, symbol_count: draft.coins, session_hours: draft.hours})
@@ -233,7 +233,7 @@ export default function LiveCockpit(props: Props) {
     try {
       const saved = wizKey ? JSON.parse(localStorage.getItem(wizKey) ?? 'null') : null
       if (saved && typeof saved === 'object' && Date.now() - Number(saved.at) < 7 * 86400000 && Number.isFinite(saved.risk) && Number.isFinite(saved.daily)
-        && saved.risk >= 0.5 && saved.risk <= 10 && saved.daily >= 1 && saved.daily <= 25 && saved.daily >= saved.risk && Number.isInteger(saved.step) && saved.step >= 0 && saved.step <= 4
+        && saved.risk >= 0.5 && saved.risk <= 15 && saved.daily >= 1 && saved.daily <= 25 && saved.daily >= saved.risk && Number.isInteger(saved.step) && saved.step >= 0 && saved.step <= 4
         && (saved.risk !== savedRisk || saved.daily !== savedDaily || saved.step > 0 || saved.smartPick === 'on')) {
         setDraft(current => ({...current, risk: saved.risk, daily: saved.daily, coins: validCoins(saved.coins) ? saved.coins : current.coins, hours: validHours(saved.hours) ? saved.hours : current.hours}))
         setWizStep(saved.step)
@@ -870,7 +870,7 @@ export default function LiveCockpit(props: Props) {
         <div className="lcSegWrap" role="group" aria-label="Oturum süresi"><span>Oturum süresi</span>
           <div className="lcSeg">{[1, 4, 12, 24].map(value => <button type="button" key={value} aria-pressed={draft.hours === value} disabled={busy || running} onClick={() => setStartParam('hours', value)}>{value} saat</button>)}</div></div>
       </div>}
-      {!draftValid && <p className="lcHint stop" role="alert">İşlem riski %0,5–10, günlük sınır %1–25 ve işlem riskinden küçük olmamalı; coin sayısı 10–100.</p>}
+      {!draftValid && <p className="lcHint stop" role="alert">İşlem riski %0,5–15, günlük sınır %1–25 ve işlem riskinden küçük olmamalı; coin sayısı 10–100.</p>}
       {draftValid && tier !== 'normal' && <p className="lcTier" data-tier={tier}>{tier === 'yellow' ? 'Ortalamanın üstünde risk.' : tier === 'orange' ? 'Yüksek risk: üst üste birkaç kayıp bakiyeni belirgin düşürür.' : 'Çok yüksek risk: ani hareketlerde kayıp daha büyük olabilir.'}
         {wallet !== null && <> {worstRisk < draft.risk ? 'Gerçekte uygulanabilen riskle, en kötü durumda' : ''} 10 kayıp üst üste gelirse bakiye ≈ <b>{usdt(wallet * (1 - worstRisk / 100) ** 10)}</b> (−%{Math.round((1 - (1 - worstRisk / 100) ** 10) * 100)}) olur.</>}</p>}
       {running && <p className="lcHint">Çalışırken yalnız risk yüzdeleri değişir ve yeni işlemlere uygulanır; coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
@@ -1063,7 +1063,7 @@ export default function LiveCockpit(props: Props) {
     </div>
   </>
   const launchPhraseOk = launchPhrase.trim().toLocaleLowerCase('tr-TR').replace(/ı/g, 'i') === 'onayliyorum'
-  const launchRiskValid = Number.isFinite(draft.risk) && draft.risk >= 0.5 && draft.risk <= 10 && validCoins(draft.coins) && validHours(draft.hours)
+  const launchRiskValid = Number.isFinite(draft.risk) && draft.risk >= 0.5 && draft.risk <= 15 && validCoins(draft.coins) && validHours(draft.hours)
   const launchModeOk = chosenMode === savedMode || ((chosenMode === 'guvenli' || modeAck) && (chosenMode !== 'agresif' || modePhrase.trim() === AGGRESSIVE_PHRASE))
   const launchConnected = guideInput.connected && guideInput.credentialsConfigured && wallet !== null
   // İşlem imzaları: aynı girdiyle bitmiş işlem tekrar çalışmaz (runLaunch da bunları kullanır).
@@ -1174,7 +1174,7 @@ export default function LiveCockpit(props: Props) {
     policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
     arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
   }
-  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? 'Güvenli' : null
+  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.margin_mode ?? 'Güvenli') : null
   const chipOf = (label: string, state: 'ok' | 'idle' | 'working' | 'error', title?: string) =>
     <span className="lcWzChip" data-state={state} title={title}><i aria-hidden="true">{state === 'ok' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>{label}</span>
   const stateChips = (id: LaunchStepId) => {
