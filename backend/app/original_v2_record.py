@@ -148,6 +148,8 @@ def build_entry(strategy_result: Any, spec: dict[str, Any], plan: dict[str, Any]
             "short_filter_v2": mtf.get("short_filter_v2"),
         },
         "quality_checks": checks,
+        "entry_model": analysis.get("entry_model") or "legacy",
+        "pullback": analysis.get("pullback"),
         "planned": {
             "entry_price": spec.get("entry_price"), "initial_stop": plan.get("initial_stop_loss") or spec.get("stop_loss"),
             "targets": spec.get("targets"), "tp1_fraction": plan.get("tp1_fraction") or spec.get("tp1_fraction"),

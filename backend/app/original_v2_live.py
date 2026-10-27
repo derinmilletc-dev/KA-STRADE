@@ -26,6 +26,7 @@ from .market_universe import (
 )
 from .strategies import original_v2_demo as strategy
 from .strategies.contracts import StrategyResult
+from .strategies import original_v2_pullback
 from . import original_live_risk as risk_settings
 from . import original_risk_capacity as risk_capacity
 from . import scan_rejections
@@ -1483,6 +1484,15 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
             signal = result.legacy["analysis"]
             try:
                 preview = await build_spec(client, result, state, snapshot)
+                if original_v2_pullback.is_pullback_result(result):
+                    # Karar katmanı: canlı fiyat sinyal kapanışından işlem aleyhine çok uzaklaştıysa bu aday atlanır (emir kodu değişmez).
+                    deviation_ok, deviation = original_v2_pullback.fill_deviation_check(result, preview.get("current_price"))
+                    if not deviation_ok:
+                        _record_order_rejection(scanner, result, "price_moved", f"PRICE_MOVED_FROM_SIGNAL {deviation}")
+                        logger.warning("ORIGINAL_V2_PULLBACK_PRICE_MOVED symbol=%s detail=%s", candidate["symbol"], deviation)
+                        scanner["candidate_count"] = max(0, int(scanner.get("candidate_count") or 0) - 1)
+                        history_item["candidates"] = scanner["candidate_count"]
+                        continue
                 body = live.LiveOrderRequest(
                     symbol=candidate["symbol"], direction=signal["direction"], margin_usdt=preview["margin_usdt"],
                     leverage=3, stop_loss=signal["stop_loss"], tp1=signal["tp1"], tp2=signal["tp2"], tp3=signal["tp3"],

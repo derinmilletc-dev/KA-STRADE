@@ -19,6 +19,7 @@ from fastapi import HTTPException
 from . import binance_demo as demo
 from .maintenance import is_maintenance_rejection
 from .strategies import original_v2_demo as strategy
+from .strategies import original_v2_pullback as pullback
 from .strategies.contracts import StrategyInput, StrategyResult
 
 SEND_FLAG = "PROTREBOT_BINANCE_DEMO_KAIS_ORIGINAL_V2_SEND_ORDERS"
@@ -615,7 +616,7 @@ async def _candidates(
         counts[category] = counts.get(category, 0) + 1
         for check_key in failed_checks or []:
             # Hangi sinyal kapısının kaç coini elediği (yalnızca kayıt; karara etkisi yok).
-            if check_key in ("direction", "confidence", "trap", "breakout", "mtf", "short_filter"):
+            if check_key in ("direction", "confidence", "trap", "breakout", "mtf", "short_filter", *pullback.CHECK_KEYS):
                 check_counts = diagnostics.setdefault("check_failure_counts", {})
                 check_counts[check_key] = check_counts.get(check_key, 0) + 1
         assessments.append({
@@ -644,6 +645,7 @@ async def _candidates(
             "interval": interval,
         }
 
+    pullback_model = live_universe and pullback.pullback_enabled()  # varsayılan kapalı; geçersiz değer girişi reddeder
     info = await client.public_get("/fapi/v1/exchangeInfo")
     symbol_info_by_symbol = {
         row["symbol"]: row for row in info.get("symbols", [])
@@ -717,7 +719,8 @@ async def _candidates(
         try:
             decision = StrategyInput(symbol, at, frames)
             results[symbol] = (
-                strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True)
+                pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
+                else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True)
                 if live_universe else strategy.evaluate(decision, enabled=True)
             )
         except Exception:
@@ -889,9 +892,12 @@ async def _candidates(
                 "stop_percent": stop_percent,
                 "progress": 4,
             })
-    eligible.sort(key=lambda pair: (
-        pair[0]["opportunity_score"], pair[1].legacy["analysis"]["confidence"],
-    ), reverse=True)
+    if pullback_model:
+        eligible.sort(key=lambda pair: pullback.rank_key(pair[1], pair[0]["opportunity_score"]), reverse=True)
+    else:
+        eligible.sort(key=lambda pair: (
+            pair[0]["opportunity_score"], pair[1].legacy["analysis"]["confidence"],
+        ), reverse=True)
     if diagnostics is not None:
         diagnostics["candidate_count"] = len(eligible)
         diagnostics["near_misses"] = sorted(

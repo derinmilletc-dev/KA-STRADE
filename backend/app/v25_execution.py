@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from .analysis import analyze
 from .strategies.contracts import StrategyResult
+from .strategies import original_v2_pullback
 from .binance_rate_limit import (
     BINANCE_GLOBAL_BAN,
     BINANCE_RATE_LIMITER,
@@ -5735,7 +5736,7 @@ async def execute_live_order(
             )
             if original_entry:
                 guard = evaluate_entry_gates(
-                    symbol=symbol, signal=strategy_result.legacy["analysis"], snapshot=snapshot,
+                    symbol=symbol, signal=original_v2_pullback.gate_signal(strategy_result), snapshot=snapshot,
                     policy=entry_policy, daily=daily, spread_bps=current_spread, armed=True,
                     allowed_symbols=manual_symbol_scope, active_plans=list(state.get("plans", {}).values()),
                     candidate_notional_usdt=spec["notional_usdt"], cycle_candidates=cycle_candidates,
