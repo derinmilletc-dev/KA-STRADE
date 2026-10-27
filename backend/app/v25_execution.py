@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from .analysis import analyze
 from .strategies.contracts import StrategyResult
+from .strategies import original_v2_pullback
 from .binance_rate_limit import (
     BINANCE_GLOBAL_BAN,
     BINANCE_RATE_LIMITER,
@@ -2289,7 +2290,10 @@ def rank_market_tickers(
     excluded_symbols: set[str] | None = None,
     allowed_symbols: set[str] | None = None,
     diagnostics: dict[str, Any] | None = None,
+    min_move_pct: float | None = None,
 ) -> list[dict[str, Any]]:
+    # min_move_pct=None: eski davranış (MIN_24H_MOVE_PCT). Yalnız Original V2 yeni giriş modeli 0 verir (hareket süzgeci yok).
+    minimum_move = MIN_24H_MOVE_PCT if min_move_pct is None else float(min_move_pct)
     rejected_counts: dict[str, int] = {}
     rejected_by_symbol: dict[str, str] = {}
     if diagnostics is not None:
@@ -2335,7 +2339,7 @@ def rank_market_tickers(
         if volume < MIN_24H_QUOTE_VOLUME:
             reject("market_volume", symbol)
             continue
-        if move < MIN_24H_MOVE_PCT:
+        if move < minimum_move:
             reject("market_move", symbol)
             continue
         if price <= 0:
@@ -5735,7 +5739,7 @@ async def execute_live_order(
             )
             if original_entry:
                 guard = evaluate_entry_gates(
-                    symbol=symbol, signal=strategy_result.legacy["analysis"], snapshot=snapshot,
+                    symbol=symbol, signal=original_v2_pullback.gate_signal(strategy_result), snapshot=snapshot,
                     policy=entry_policy, daily=daily, spread_bps=current_spread, armed=True,
                     allowed_symbols=manual_symbol_scope, active_plans=list(state.get("plans", {}).values()),
                     candidate_notional_usdt=spec["notional_usdt"], cycle_candidates=cycle_candidates,

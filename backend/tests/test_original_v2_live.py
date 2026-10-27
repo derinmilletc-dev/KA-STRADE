@@ -17,6 +17,7 @@ from app import original_v2_demo_execution as demo_execution
 from app.public_market_data import PublicMarketData
 import test_original_v2_demo as decisions
 from app.strategies import original_v2_demo as strategy
+from app.strategies import original_v2_pullback as pullback
 from test_original_v2_demo_execution import EntryClient, result
 from test_v25_partial_fills import PartialFillClient, make_plan
 
@@ -1923,3 +1924,42 @@ def test_original_live_risk_limits_for_the_screen_are_dynamic_and_hidden_without
     assert limits["max_loss_per_trade_usdt"] == pytest.approx(10) and limits["daily_loss_limit_usdt"] == pytest.approx(20)
     state["snapshot"] = {}
     assert original_live_risk.limits(state) is None
+
+
+@pytest.mark.parametrize("marked, adverse_atr, orders", [
+    (True, 0.1, 1),    # yeni model, fiyat sinyale yakın: emir gider
+    (True, 1.0, 0),    # yeni model, fiyat işlem aleyhine 1 ATR kaçtı: aday atlanır, emir kodu çağrılmaz
+    (False, 1.0, 1),   # eski model: bu kontrol hiç çalışmaz, davranış değişmez
+])
+def test_pullback_fill_deviation_guard_runs_only_for_the_new_model(state, monkeypatch, marked, adverse_atr, orders):
+    req = request_for(state)
+    monkeypatch.setattr(live, "readiness_for", Mock(return_value={"ready": True}))
+    monkeypatch.setattr(live, "client_for_with_credentials", Mock(return_value=object()))
+    monkeypatch.setattr(live, "account_snapshot", AsyncMock(return_value={
+        "wallet_balance": 1000, "positions": [], "open_orders": [],
+    }))
+    monkeypatch.setattr(original, "check_entry", AsyncMock())
+    monkeypatch.setattr(original, "resolve_live_universe", AsyncMock(return_value=["BTCUSDT"]))
+    decision = result()
+    if marked:
+        decision.legacy["entry_model"] = {"name": pullback.MODEL_PULLBACK, "token": pullback._TOKEN}
+    analysis = decision.legacy["analysis"]
+    sign = 1 if analysis["direction"] == "LONG" else -1
+    live_price = analysis["entry"] + sign * adverse_atr * analysis["atr"]
+    monkeypatch.setattr(original.original, "live_candidates", AsyncMock(return_value=(
+        [({"symbol": "BTCUSDT", "opportunity_score": 1.0}, decision)], {"BTCUSDT": decision},
+    )))
+    monkeypatch.setattr(original, "build_spec", AsyncMock(return_value={"margin_usdt": 10.0, "current_price": live_price}))
+    execute = AsyncMock(return_value={"ok": True})
+    monkeypatch.setattr(live, "execute_live_order", execute)
+
+    run(original.cycle(req.app, ("offline-key", "offline-secret")))
+
+    scanner = original.public_config(state)["scanner"]
+    assert execute.await_count == orders
+    if orders:
+        assert scanner["last_24h"] == {"scans": 1, "candidates": 1, "trades": 1}
+    else:
+        assert scanner["rejection_counts"]["price_moved"] == 1
+        assert scanner["candidate_count"] == 0
+        assert scanner["last_24h"] == {"scans": 1, "candidates": 0, "trades": 0}

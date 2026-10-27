@@ -12,7 +12,8 @@ from typing import Any
 WINDOW_SECONDS = 24 * 60 * 60
 MAX_KEYS = 24
 # Güven/tuzak/kırılım/MTF gibi sinyal kapıları; 15m/1h/4h gibi başka "failed_checks" değerleri sayılmaz.
-SIGNAL_CHECKS = ("direction", "confidence", "trap", "breakout", "mtf")
+SIGNAL_CHECKS = ("direction", "confidence", "trap", "breakout", "mtf",
+                 "pb_trend", "pb_structure", "pb_pullback", "pb_trigger", "pb_extension", "pb_room")
 
 
 def clean_counts(value: Any, allowed: tuple[str, ...] | None = None) -> dict[str, int]:

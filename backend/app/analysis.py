@@ -65,6 +65,22 @@ def adx(highs: list[float], lows: list[float], closes: list[float], period: int 
     return fmean(dx_values[-period:]) if dx_values else 0.0
 
 
+def entry_levels(direction: str, price: float, atr_value: float, support: float, resistance: float) -> tuple[float, float, list[float]]:
+    """Stop, risk ve 1R/2R/3R hedefleri. Tek kaynak: hem `analyze` hem yeni giriş modeli bunu kullanır (davranış değişmez)."""
+    if direction == "LONG":
+        stop = min(price - 1.5 * atr_value, support - 0.15 * atr_value)
+        risk = max(price - stop, atr_value)
+        targets = [price + risk * ratio for ratio in (1, 2, 3)]
+    elif direction == "SHORT":
+        stop = max(price + 1.5 * atr_value, resistance + 0.15 * atr_value)
+        risk = max(stop - price, atr_value)
+        targets = [price - risk * ratio for ratio in (1, 2, 3)]
+    else:
+        stop, risk = price - atr_value, atr_value
+        targets = [price + atr_value * ratio for ratio in (1, 2, 3)]
+    return stop, risk, targets
+
+
 def analyze(candles: list[dict], *, observation_scores: dict[str, int] | None = None) -> dict:
     closes = [c["close"] for c in candles]
     highs = [c["high"] for c in candles]
@@ -111,17 +127,7 @@ def analyze(candles: list[dict], *, observation_scores: dict[str, int] | None = 
         observation_scores.update(long_score=long_score, short_score=short_score)
     direction = "LONG" if difference >= 10 else "SHORT" if difference <= -10 else "BEKLE"
     confidence = min(95, max(long_score, short_score)) if direction != "BEKLE" else min(69, 50 + abs(difference))
-    if direction == "LONG":
-        stop = min(price - 1.5 * atr_value, support - 0.15 * atr_value)
-        risk = max(price - stop, atr_value)
-        targets = [price + risk * ratio for ratio in (1, 2, 3)]
-    elif direction == "SHORT":
-        stop = max(price + 1.5 * atr_value, resistance + 0.15 * atr_value)
-        risk = max(stop - price, atr_value)
-        targets = [price - risk * ratio for ratio in (1, 2, 3)]
-    else:
-        stop, risk = price - atr_value, atr_value
-        targets = [price + atr_value * ratio for ratio in (1, 2, 3)]
+    stop, risk, targets = entry_levels(direction, price, atr_value, support, resistance)
 
     trend = "Güçlü yükseliş" if e20[-1] > e50[-1] > e200[-1] else "Güçlü düşüş" if e20[-1] < e50[-1] < e200[-1] else "Karışık"
     momentum = "Pozitif" if macd_hist > 0 and rsi_value > 50 else "Negatif" if macd_hist < 0 and rsi_value < 50 else "Nötr"
