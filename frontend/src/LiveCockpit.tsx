@@ -1164,17 +1164,34 @@ export default function LiveCockpit(props: Props) {
     if (id === 'final' && openCount > 0) out.push({tone: 'info', text: `${openCount} açık pozisyon var; botu başlatmak onları kapatmaz.`})
     return out
   }
+  // Teminat önerisi seçilen risk paketinden gelir; yalnız ÖNERİDİR, mod kendi onayıyla ayrı seçilir.
+  const recPreset = RISK_PRESETS.find(item => item.risk_percent === draft.risk)
+  const recModeLabel: string = recPreset?.margin_mode ?? 'Güvenli'
+  const recModeId = recModeLabel === 'Agresif' ? 'agresif' : recModeLabel === 'Orta' ? 'orta' : 'guvenli'
+  const modeLeverage = Number(original?.risk_limits?.leverage) > 0 ? Number(original?.risk_limits?.leverage) : 3
+  const modeBudget = wallet !== null ? riskSummary(wallet, draft.risk, draft.daily, caps)?.perTrade ?? null : null
+  /** Bu teminat modunda pozisyon üst sınırı ve stop %1 uzaktayken gerçekleşecek risk (bilgi amaçlı tahmin). */
+  const modeNumbers = (perTradePercent: number) => {
+    if (wallet === null || !(wallet > 0)) return null
+    const marginCeiling = Number(original?.risk_limits?.system_ceilings?.max_margin_per_trade_usdt) > 0 ? Number(original?.risk_limits?.system_ceilings?.max_margin_per_trade_usdt) : 300
+    const position = Math.min(wallet * perTradePercent / 100, marginCeiling) * modeLeverage
+    const loss = modeBudget !== null ? Math.min(modeBudget, position * 0.01) : position * 0.01
+    return {position, riskPercent: loss / wallet * 100}
+  }
+  const modeWhy = recModeId === 'guvenli'
+    ? 'Güvenli: her işleme en az teminat ayrılır. Önce bununla başla, alışınca değiştir.'
+    : `${recPreset?.label ?? 'Bu'} paketinde (işlem başı %${draft.risk}) Güvenli modda pozisyon teminat tavanına takılır ve seçtiğin risk gerçekleşmez. Bu yüzden ${recModeLabel} önerilir; kazanç da kayıp da büyür.`
   const launchWhy: Record<LaunchStepId, string> = {
     conn: 'Gerçek bakiye olmadan risk rakamları hesaplanamaz.',
     risk: 'Dengeli: işlem başı %1 risk, bakiyeni hızlı eritmeden yeterli fırsat verir. İlk kez başlıyorsan en makul seçim.',
     daily: 'Önerilen sınır, seçtiğin risk paketinin günlük payıdır: kötü bir günde kayıp burada durur.',
-    mode: 'Güvenli: her işleme en az teminat ayrılır. Önce bununla başla, alışınca değiştir.',
-    smart: 'Kapalı kalsın: bu özellik gerçek emir gönderebilir. İlk günler yalnız izleyip sonra açman daha güvenli.',
+    mode: modeWhy,
+    smart: smartCurrentlyOn ? 'Şu an açık: puan düşünce kârdaki pozisyonu erken kapatabilir. Erken kapanmadan memnun değilsen kapat; orijinal Stop ve TP her durumda çalışır.' : 'Kapalı kalsın: bu özellik gerçek emir gönderebilir. İlk günler yalnız izleyip sonra açman daha güvenli.',
     consent: 'Botun işlem açabilmesi için belirli süreli açık iznin gerekir. Süre bitince bot yeni işlem açmaz.',
     policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
     arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
   }
-  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.margin_mode ?? 'Güvenli') : null
+  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? recModeLabel : null
   const chipOf = (label: string, state: 'ok' | 'idle' | 'working' | 'error', title?: string) =>
     <span className="lcWzChip" data-state={state} title={title}><i aria-hidden="true">{state === 'ok' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>{label}</span>
   const stateChips = (id: LaunchStepId) => {
@@ -1207,16 +1224,36 @@ export default function LiveCockpit(props: Props) {
       {dailyText !== null && dailyText.trim() !== '' && !wizDailyOk && <p className="lcHint stop">Sınır %1 ile %25 arasında olmalı ve işlem riskinden (%{draft.risk}) küçük olmamalı.</p>}
     </>}
     {id === 'mode' && <>
-      <div className="lcWizChips" role="radiogroup" aria-label="Teminat modu">{modeRows.map(item => <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip" data-selected={chosenMode === item.mode || undefined} data-rec={item.mode === 'guvenli' || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}><b>{item.label}{item.mode === 'guvenli' && <em>ÖNERİLEN</em>}</b><small>%{item.per_trade_percent} / işlem</small></button>)}</div>
+      <div className="lcWizChips lcWizModes" role="radiogroup" aria-label="Teminat modu">{modeRows.map(item => {
+        const numbers = modeNumbers(item.per_trade_percent)
+        return <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip lcWizMode" data-mode={item.mode} data-selected={chosenMode === item.mode || undefined} data-rec={item.mode === recModeId || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}>
+          <b>{item.label}{item.mode === recModeId && <em>ÖNERİLEN</em>}</b>
+          <small>%{item.per_trade_percent} teminat / işlem</small>
+          <span className="lcMeter" aria-hidden="true"><i style={{width: `${Math.min(100, item.per_trade_percent)}%`}}/></span>
+          {numbers && <span className="lcWizModeFacts"><span>Pozisyon en çok <b>{usdt(numbers.position)}</b></span><span>Stop %1'de risk ≈ <b>{pct(numbers.riskPercent)}</b></span></span>}
+        </button>
+      })}</div>
+      {wallet !== null && <p className="lcHint">Rakamlar tahmindir: {modeLeverage}x kaldıraç ve stop fiyattan %1 uzakta varsayılır. Stop uzaklaştıkça risk seçtiğin %{draft.risk}'e yaklaşır, asla geçmez.</p>}
       {chosenMode !== savedMode && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini anladım.</span></label>}
       {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
     </>}
     {id === 'smart' && smartSettings !== undefined && <>
-      <div className="lcWizChips" role="radiogroup" aria-label="Akıllı koruma">
-        <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın</b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
-        {smartCurrentlyOn
-          ? <button type="button" role="radio" aria-checked={smartPick === 'off'} className="lcWizChip" data-selected={smartPick === 'off' || undefined} disabled={busy} onClick={() => setSmartPick('off')}><b>Kapat</b><small>Stoplar kalkar</small></button>
-          : <button type="button" role="radio" aria-checked={smartPick === 'on'} className="lcWizChip" data-selected={smartPick === 'on' || undefined} disabled={busy} onClick={() => setSmartPick('on')}><b>Aç</b><small>Gerçek emir gönderebilir</small></button>}
+      <div className="lcSmartState" data-on={smartCurrentlyOn || undefined}>
+        <i aria-hidden="true"/>
+        <span><b>Şu an {smartCurrentlyOn ? 'AÇIK' : 'KAPALI'}</b><small>{smartCurrentlyOn ? `Puan eşiği ${smartSettings?.threshold ?? '—'} · bekleme ${smartSettings?.wait_minutes ?? '—'} dk` : 'Hiçbir akıllı emir gönderilmiyor'}</small></span>
+      </div>
+      <ol className="lcFlow" aria-label="Akıllı koruma nasıl çalışır">
+        <li><i>1</i><b>Puan düşer</b><small>Eşiğin altına iner</small></li>
+        <li><i>2</i><b>Bekler</b><small>{smartCurrentlyOn && smartPick !== 'on' ? smartSettings?.wait_minutes ?? smartWizWait : smartWizWait} dk</small></li>
+        <li><i>3</i><b>Yeni mum</b><small>Hâlâ düşük mü?</small></li>
+        <li><i>4</i><b>Kârdaysa çıkar</b><small>Zarardaysa kapatmaz</small></li>
+      </ol>
+      <div className="lcWizList" role="radiogroup" aria-label="Akıllı koruma">
+        {([['keep', smartCurrentlyOn ? 'Açık kalsın' : 'Kapalı kalsın', smartCurrentlyOn ? 'Mevcut eşik ve bekleme süresi korunur.' : 'Pozisyonları yalnız orijinal Stop ve TP yönetir.'],
+           ...(smartCurrentlyOn ? [['off', 'Kapat', 'Geçici stoplar kaldırılır; orijinal Stop ve TP aynen durur.']] : [['on', 'Aç', 'Kârdaki pozisyonu erken kapatabilir; gerçek Binance emri gönderir.']])] as string[][]).map(([optionId, title, note]) =>
+          <button type="button" role="radio" aria-checked={smartPick === optionId} key={optionId} className="lcWizOption lcSmartOption" data-kind={optionId} data-selected={smartPick === optionId || undefined} disabled={busy} onClick={() => setSmartPick(optionId as 'keep' | 'on' | 'off')}>
+            <span className="lcWizHead"><b>{title}</b>{optionId === 'keep' && <em>Değişiklik yok</em>}</span><small>{note}</small>
+          </button>)}
       </div>
       {smartPick === 'on' && <div className="lcSmartPick">
         <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>

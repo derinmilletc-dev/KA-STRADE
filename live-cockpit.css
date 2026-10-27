@@ -966,3 +966,24 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosEdit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 10px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSeg.lcSeg3{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:420px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcPosEdit{grid-template-columns:1fr}}
+
+/* Teminat modu adımı: öneri pakete göre, her modda pozisyon ve tahmini risk */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizModes{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizMode{justify-items:stretch;text-align:left;gap:8px;padding:14px;transition:transform .15s ease,border-color .15s ease,background .15s ease}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizMode b{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWzCard .lcWizMode b em{margin:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizMode small{color:var(--lc-mute);font-size:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizMode[data-mode=orta] .lcMeter i{background:#f5c451}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizMode[data-mode=agresif] .lcMeter i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizModeFacts{display:grid;gap:2px;font-size:12px;color:var(--lc-mute);border-top:1px solid var(--lc-line);padding-top:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizModeFacts b{display:inline;font-size:12px;color:var(--lc-ink)}
+@media (max-width:520px){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizModes{grid-template-columns:1fr}}
+
+/* Akıllı koruma adımı: durum rozeti, akış ve seçenek kartları */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartState{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--lc-card);border:1px solid var(--lc-line)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartState>i{width:10px;height:10px;border-radius:50%;background:var(--lc-mute);flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartState[data-on]>i{background:var(--lc-go);box-shadow:0 0 0 4px rgba(61,220,151,.18)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartState span{display:grid;gap:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartState small{color:var(--lc-mute);font-size:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartOption[data-kind=off] .lcWizHead b,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartOption[data-kind=on] .lcWizHead b{color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcSmartOption .lcWizHead em{font-style:normal;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;background:var(--lc-soft);color:var(--lc-mute);letter-spacing:.04em}
