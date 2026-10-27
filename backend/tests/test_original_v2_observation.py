@@ -145,16 +145,41 @@ class PathTests(unittest.TestCase):
         path = self.run_samples(make_plan(), [(1300, 100.0)])
         self.assertTrue(path["partial"])
 
-    def test_position_gone_ends_after_two_empty_snapshots(self):
+    def test_missing_position_does_not_end_the_path_and_sampling_resumes(self):
         plan = make_plan()
         state = {"plans": {"p1": plan}}
         rec.observe_positions(state, snap(mark=101.0), now=1010)
-        rec.observe_positions(state, {"positions": []}, now=1020)
+        for now in (1020, 1030, 1040, 1050):  # pozisyon görünmüyor ama plan kapanmadı: iz AÇIK kalır
+            rec.observe_positions(state, {"positions": []}, now=now)
+        path = plan["original_record"]["path"]
+        self.assertIsNone(path["ended_reason"])
+        self.assertEqual(path["missing_snapshots"], 4)
+        self.assertEqual(path["samples"], 1)
+        rec.observe_positions(state, snap(mark=102.0), now=1060)  # pozisyon geri geldi
+        self.assertEqual(path["samples"], 2)
+        self.assertEqual(path["missing_snapshots"], 0)
+        self.assertIsNone(path["ended_reason"])
+
+    def test_invalid_snapshots_are_ignored_not_counted_as_missing(self):
+        plan = make_plan()
+        state = {"plans": {"p1": plan}}
+        rec.observe_positions(state, snap(mark=101.0), now=1010)
+        for bad in (None, {}, {"positions": None}, {"positions": "x"}, "x"):
+            rec.observe_positions(state, bad, now=1020)
+        self.assertEqual(plan["original_record"]["path"]["missing_snapshots"], 0)
+        self.assertIsNone(plan["original_record"]["path"]["ended_reason"])
+
+    def test_emergency_stopped_plan_ends_only_after_position_is_also_gone(self):
+        plan = make_plan()
+        state = {"plans": {"p1": plan}}
+        rec.observe_positions(state, snap(mark=101.0), now=1010)
+        plan["status"] = "ACİL DURDURULDU"
+        rec.observe_positions(state, snap(mark=101.0), now=1020)  # pozisyon hâlâ açık: bitmez
         self.assertIsNone(plan["original_record"]["path"]["ended_reason"])
         rec.observe_positions(state, {"positions": []}, now=1030)
-        self.assertEqual(plan["original_record"]["path"]["ended_reason"], "position_gone")
-        rec.observe_positions(state, snap(mark=150.0), now=1040)  # bitmiş iz değişmez
-        self.assertEqual(plan["original_record"]["path"]["samples"], 1)
+        self.assertIsNone(plan["original_record"]["path"]["ended_reason"])
+        rec.observe_positions(state, {"positions": []}, now=1040)
+        self.assertEqual(plan["original_record"]["path"]["ended_reason"], "plan_closed")
 
     def test_plan_closed_ends_the_path(self):
         plan = make_plan()
@@ -241,7 +266,13 @@ class FlowSafetyTests(unittest.TestCase):
             plan = make_plan()
             before = copy.deepcopy(plan)
             rec.observe_positions({"plans": {"p1": plan, "bad": "x", "n": None}}, bad, now=1010)
-            self.assertEqual(plan, before)
+            if isinstance(bad, dict) and isinstance(bad.get("positions"), list) and bad["positions"] and isinstance(bad["positions"][0], dict):
+                # geçerli yapıdaki ama NaN işaret fiyatlı satır: yalnız gözlem kaydı (original_record) değişebilir
+                self.assertEqual({k: v for k, v in plan.items() if k != "original_record"},
+                                 {k: v for k, v in before.items() if k != "original_record"})
+                self.assertNotIn("path", plan["original_record"])
+            else:
+                self.assertEqual(plan, before)
         for order in (None, "x", [], {"avgPrice": object()}, {"avgPrice": "nan", "updateTime": "abc"}):
             rec.reset_breaker()
             rec.note_candidate("ABCUSDT", result, candles())
@@ -308,6 +339,167 @@ class FlowSafetyTests(unittest.TestCase):
         self.assertLess(hook, clear)
 
 
+class FillCompletionTests(unittest.TestCase):
+    def setUp(self):
+        rec.reset_breaker()
+
+    def plan_with_empty_fill(self):
+        plan = make_plan()
+        plan["original_record"]["context"] = {"direction": "LONG", "decision_time": 900,
+                                              "risk_basis": {"signal_entry": 100.0, "r": 2.0}}
+        plan["original_record"]["fill"] = {"avg_price": None, "time_s": None, "decision_time": 900,
+                                           "slippage_vs_signal": {"bp": None, "r": None},
+                                           "slippage_vs_planned": {"bp": None, "r": None}, "latency_s": None}
+        return plan
+
+    def test_missing_fill_fields_are_completed_from_the_real_position(self):
+        plan = self.plan_with_empty_fill()
+        rec.observe_positions({"plans": {"p1": plan}}, snap(mark=101.0, entry=100.4), now=1000)
+        fill = plan["original_record"]["fill"]
+        self.assertEqual(fill["avg_price"], 100.4)
+        self.assertEqual(fill["price_source"], "snapshot")
+        self.assertEqual(fill["time_source"], "first_snapshot")
+        self.assertAlmostEqual(fill["slippage_vs_signal"]["bp"], 40.0)
+        self.assertAlmostEqual(fill["slippage_vs_signal"]["r"], 0.2)
+        self.assertAlmostEqual(fill["latency_s"], 100.0)
+
+    def test_real_fill_is_never_overwritten_by_snapshot_or_plan_values(self):
+        plan = make_plan()
+        plan["original_record"]["fill"] = {"avg_price": 100.7, "price_source": "order_result", "time_s": 990.0,
+                                           "time_source": "order_result",
+                                           "slippage_vs_signal": {"bp": 70.0, "r": 0.35}, "latency_s": 90.0}
+        before = copy.deepcopy(plan["original_record"]["fill"])
+        rec.observe_positions({"plans": {"p1": plan}}, snap(mark=101.0, entry=100.0), now=1010)
+        fill = plan["original_record"]["fill"]
+        for key, value in before.items():
+            self.assertEqual(fill[key], value, key)
+
+    def test_completed_fill_is_republished_to_the_journal(self):
+        calls = []
+        plan = self.plan_with_empty_fill()
+        plan["original_record"]["journal_sent"] = {"context": True, "fill": True}
+        with patch.object(journal_module, "emit", lambda *a, **k: calls.append(k) or True):
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=101.0, entry=100.4), now=1000)
+        fills = [c for c in calls if c.get("section") == "fill"]
+        self.assertTrue(fills)
+        self.assertEqual(fills[0]["data"]["avg_price"], 100.4)
+
+
+class JournalReliabilityTests(unittest.TestCase):
+    def setUp(self):
+        rec.reset_breaker()
+        rec._CONTEXTS.clear()
+
+    def test_dropped_context_and_fill_are_retried_until_accepted(self):
+        calls, accept = [], {"ok": False}
+        def emit(*a, **k):
+            calls.append(k["section"])
+            return accept["ok"]
+        plan = make_plan()
+        plan["original_record"]["journal_sent"] = {}
+        with patch.object(journal_module, "emit", emit):
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1010)
+            first = list(calls)
+            self.assertIn("context", first)
+            self.assertFalse(plan["original_record"]["journal_sent"]["context"])
+            accept["ok"] = True
+            calls.clear()
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1020)
+        self.assertIn("context", calls)
+        self.assertIn("fill", calls)
+        self.assertTrue(plan["original_record"]["journal_sent"]["context"])
+        self.assertTrue(plan["original_record"]["journal_sent"]["fill"])
+        calls.clear()
+        with patch.object(journal_module, "emit", emit):
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1030)
+        self.assertEqual(calls, [])  # kabul edildi: gereksiz tekrar yok
+
+    def test_dropped_path_is_retried_next_tick(self):
+        calls, accept = [], {"ok": False}
+        def emit(*a, **k):
+            calls.append(k["section"])
+            return accept["ok"]
+        plan = make_plan()
+        with patch.object(journal_module, "emit", emit):
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1010)
+            self.assertTrue(plan["original_record"]["path"]["publish_pending"])
+            accept["ok"] = True
+            calls.clear()
+            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1020)
+        self.assertIn("path", calls)
+        self.assertFalse(plan["original_record"]["path"]["publish_pending"])
+
+    def test_dropped_final_path_is_retried_after_the_path_has_ended(self):
+        accept = {"ok": False}
+        calls = []
+        def emit(*a, **k):
+            calls.append(k["section"])
+            return accept["ok"]
+        plan = make_plan()
+        state = {"plans": {"p1": plan}}
+        with patch.object(journal_module, "emit", emit):
+            rec.observe_positions(state, snap(mark=100.0), now=1010)
+            accept["ok"] = True
+            rec.observe_positions(state, snap(mark=100.0), now=1015)
+            plan["status"] = "KAPANDI"
+            accept["ok"] = False
+            rec.observe_positions(state, {"positions": []}, now=1020)
+            self.assertEqual(plan["original_record"]["path"]["ended_reason"], "plan_closed")
+            self.assertTrue(plan["original_record"]["path"]["publish_pending"])
+            accept["ok"] = True
+            calls.clear()
+            rec.observe_positions(state, {"positions": []}, now=1030)
+        self.assertIn("path", calls)
+        self.assertFalse(plan["original_record"]["path"]["publish_pending"])
+
+    def test_periodic_path_publish_also_resends_context_and_fill(self):
+        calls = []
+        plan = make_plan()
+        with patch.object(journal_module, "emit", lambda *a, **k: calls.append(k["section"]) or True):
+            state = {"plans": {"p1": plan}}
+            rec.observe_positions(state, snap(mark=100.0), now=1010)
+            calls.clear()
+            rec.observe_positions(state, snap(mark=100.0), now=1400)
+        self.assertEqual(sorted(calls), ["context", "fill", "path"])
+
+    def test_close_republishes_context_fill_exact_and_path(self):
+        calls = []
+        plan = make_plan()
+        state = {"plans": {"p1": plan}}
+        rec.observe_positions(state, snap(mark=101.0), now=1010)
+        with patch.object(journal_module, "emit", lambda *a, **k: calls.append(k) or True):
+            rec.publish_close(plan, [{"qty": "1", "price": "100", "time": 2000}], [], [], [], lambda kind, intent: f"{kind}{intent}")
+        sections = [c["section"] for c in calls]
+        for needed in ("context", "fill", "path", "legs"):
+            self.assertIn(needed, sections)
+        fill = next(c for c in calls if c["section"] == "fill")["data"]
+        self.assertAlmostEqual(fill["exact"]["vwap"], 100.0)
+
+    def test_republishing_the_same_records_creates_no_duplicates_in_the_journal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            journal = journal_module.Journal(Path(folder) / "j.sqlite3")
+            plan = make_plan()
+            plan["original_record"]["context"] = {"direction": "LONG", "x": 1}
+            for _ in range(3):
+                for section in ("context", "fill", "path"):
+                    journal.original_v2("i1", section, copy.deepcopy(plan["original_record"].get(section) or {"samples": 1}))
+            record = journal.original_v2_trades()[0]["original_v2"]
+            self.assertEqual(record["context"], {"direction": "LONG", "x": 1})
+            self.assertEqual(len(journal.original_v2_trades()), 1)
+
+    def test_plan_context_is_an_independent_copy(self):
+        result = FlowSafetyTests.strategy(None)
+        rec.note_candidate("ABCUSDT", result, candles())
+        stored = rec.recall_context("ABCUSDT", 1800)
+        plan = make_plan(with_context=False)
+        rec.attach_entry(plan, result, {"symbol": "ABCUSDT"}, spread_bp=1, snapshot=snap(), policy={}, config={},
+                         recorded_at="x", order_result={"avgPrice": "100", "updateTime": 1_800_500})
+        plan["original_record"]["context"]["alignment_age"]["all_aligned"]["candles"] = -999
+        self.assertNotEqual(stored["alignment_age"]["all_aligned"]["candles"], -999)
+        self.assertIsNot(plan["original_record"]["context"], stored)
+
+
 class JournalTests(unittest.TestCase):
     def test_new_sections_merge_correctly(self):
         import tempfile
@@ -325,6 +517,18 @@ class JournalTests(unittest.TestCase):
             self.assertEqual(record["fill"], {"avg_price": 1.0, "exact": {"vwap": 1.1}})
             with self.assertRaises(ValueError):
                 journal.original_v2("i1", "bogus", {})
+
+    def test_empty_fill_fields_are_completed_later_but_real_values_are_kept(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            journal = journal_module.Journal(Path(folder) / "j.sqlite3")
+            journal.original_v2("i2", "fill", {"avg_price": None, "time_s": 5.0, "slippage_vs_signal": {"bp": None, "r": None}})
+            journal.original_v2("i2", "fill", {"avg_price": 100.4, "time_s": 9.0, "slippage_vs_signal": {"bp": 40.0, "r": 0.2}})
+            journal.original_v2("i2", "fill", {"avg_price": 1.0, "slippage_vs_signal": {"bp": 1.0, "r": 1.0}})
+            fill = journal.original_v2_trades()[0]["original_v2"]["fill"]
+            self.assertEqual(fill["avg_price"], 100.4)
+            self.assertEqual(fill["time_s"], 5.0)
+            self.assertEqual(fill["slippage_vs_signal"], {"bp": 40.0, "r": 0.2})
 
 
 if __name__ == "__main__":

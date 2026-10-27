@@ -58,6 +58,16 @@ def signal_id(symbol: str, direction: str, close_time: int) -> str:
     return hashlib.sha256(f"{symbol.upper()}|{direction.upper()}|{close_time}".encode()).hexdigest()
 
 
+def fill_missing(target: dict[str, Any], source: dict[str, Any]) -> None:
+    """target'taki dolu değerler korunur; yalnız eksik (None/yok) alanlar source'tan tamamlanır (iç içe sözlüklerde de)."""
+    for key, value in source.items():
+        current = target.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            fill_missing(current, value)
+        elif current is None:
+            target[key] = value
+
+
 class Journal:
     def __init__(self, path: Path):
         self.path = path
@@ -201,7 +211,7 @@ class Journal:
     def original_v2(self, intent_id: str, section: str, data: dict[str, Any]) -> None:
         """Original V2 işlem kaydı: aynı işlem kimliği altında, tekrar çalıştırılınca mükerrer üretmeyen yazım.
 
-        entry/tp1/context: ilk yazım kalır; path: son yazan; fill: alan alan ilk yazan. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
+        entry/tp1/context: ilk yazım kalır; path: son yazan; fill: dolu alan korunur, boş (None) alan sonradan tamamlanır. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
         özet her seferinde aynı doğrulanmış verilerden yeniden yazılır. Yeni tablo yok: trades.payload içinde."""
         if section not in {"entry", "tp1", "legs", "context", "fill", "path"} or not isinstance(data, dict):
             raise ValueError("Invalid Original V2 observation section")
@@ -218,9 +228,7 @@ class Journal:
             elif section == "path":
                 record[section] = data  # fiyat izi: son yazan kazanır
             elif section == "fill":
-                fill = record.setdefault("fill", {})
-                for key, value in data.items():
-                    fill.setdefault(key, value)  # dolum alanları ilk yazan kazanır; "exact" sonradan eklenir
+                fill_missing(record.setdefault("fill", {}), data)  # dolu alan korunur; boş alan sonradan tamamlanır
             else:
                 record.setdefault(section, data)
             payload["original_v2"] = record
@@ -286,13 +294,14 @@ class Observer:
         self.failures = 0
         self.rounds: dict[str, dict[str, Any]] = {}
 
-    def publish(self, kind: str, round_id: str | None, data: dict[str, Any]) -> None:
+    def publish(self, kind: str, round_id: str | None, data: dict[str, Any]) -> bool:
+        """True: kuyruğa alındı. False: atıldı (çağıran isterse sonra yeniden dener)."""
         try:
             if self.thread is None:
                 # No database operation is performed on the caller's thread.
                 if not self.start_lock.acquire(blocking=False):
                     self.dropped += 1
-                    return
+                    return False
                 try:
                     if self.thread is None:
                         self.thread = threading.Thread(target=self.run, name="live-signal-observer", daemon=True)
@@ -300,10 +309,12 @@ class Observer:
                 finally:
                     self.start_lock.release()
             self.queue.put_nowait((kind, round_id, data))
+            return True
         except Exception as exc:
             self.thread = None if self.thread is not None and not self.thread.is_alive() else self.thread
             self.dropped += 1
             PRODUCER_ERRORS.append(type(exc).__name__)
+            return False
 
     def run(self) -> None:
         reported_drops = 0
@@ -499,17 +510,20 @@ def _observer_for(member: str) -> Observer:
     return observer
 
 
-def emit(kind: str, **data: Any) -> None:
-    """Only bounded, nonblocking enqueue; failures never escape to trading."""
+def emit(kind: str, **data: Any) -> bool | None:
+    """Only bounded, nonblocking enqueue; failures never escape to trading.
+
+    Dönüş (yalnız bilgi): True kuyruğa alındı, False atıldı, None günlük kapalı."""
     global _observer
     try:
         if not env_flag("PROTREBOT_SIGNAL_JOURNAL_ENABLED", default=True):
-            return
-        _observer_for(_member_to_journal()).publish(kind, ROUND.get(), data)
+            return None
+        return _observer_for(_member_to_journal()).publish(kind, ROUND.get(), data)
     except Exception as exc:
         if _observer is not None:
             _observer.dropped += 1
         PRODUCER_ERRORS.append(type(exc).__name__)
+        return False
 
 
 def start_round(policy: dict[str, Any], snapshot: dict[str, Any], daily: dict[str, Any], plans: dict[str, Any]) -> Token | None:
