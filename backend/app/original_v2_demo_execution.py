@@ -758,6 +758,7 @@ async def _candidates(
     market_diagnostics: dict[str, Any] = {}
     ranked = rank_market_tickers(
         info, tickers, excluded_symbols=occupied, allowed_symbols=set(symbols),
+        min_move_pct=0.0 if pullback_model else None,  # yeni giriş modeli: 24s hareket süzgeci yok; hacim ve spread süzgeçleri aynen
         diagnostics=market_diagnostics if diagnostics is not None else None,
     )
     ranked_by_symbol = {candidate["symbol"]: candidate for candidate in ranked}

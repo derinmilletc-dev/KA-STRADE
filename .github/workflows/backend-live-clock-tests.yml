@@ -98,3 +98,16 @@ jobs:
           # Hatalar iş özetinde görünsün diye bildirime de yazılır.
           grep -E "^(FAILED|ERROR) |^E  |^/.*:[0-9]+: " pytest-out.txt | head -40 | sed 's/^/::error::/'
           exit $status
+      - name: Original V2 yeni giriş modeli testleri (sonuç özeti bildirime yazılır)
+        working-directory: backend
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_original_v2_pullback.py tests/test_original_v2_live.py -k "pullback" -q -rA --tb=short -p no:cacheprovider 2>&1 | tee pullback-out.txt || {
+            grep -E "^(FAILED|ERROR) |^E  " pullback-out.txt | head -40 | sed 's/^/::error::/'
+            exit 1
+          }
+          passed_lines=$(grep -c '^PASSED' pullback-out.txt)
+          guard=$(grep '^PASSED' pullback-out.txt | grep -c 'pullback_fill_deviation')
+          model=$(grep '^PASSED' pullback-out.txt | grep -c 'test_original_v2_pullback.py')
+          echo "::notice title=pullback_v1 testleri::$(tail -n 1 pullback-out.txt) | PASSED satiri=${passed_lines} | yeni_model_dosyasi=${model} | canli_katman_kontrolu=${guard}"

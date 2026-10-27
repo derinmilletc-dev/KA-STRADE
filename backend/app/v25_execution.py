@@ -2290,7 +2290,10 @@ def rank_market_tickers(
     excluded_symbols: set[str] | None = None,
     allowed_symbols: set[str] | None = None,
     diagnostics: dict[str, Any] | None = None,
+    min_move_pct: float | None = None,
 ) -> list[dict[str, Any]]:
+    # min_move_pct=None: eski davranış (MIN_24H_MOVE_PCT). Yalnız Original V2 yeni giriş modeli 0 verir (hareket süzgeci yok).
+    minimum_move = MIN_24H_MOVE_PCT if min_move_pct is None else float(min_move_pct)
     rejected_counts: dict[str, int] = {}
     rejected_by_symbol: dict[str, str] = {}
     if diagnostics is not None:
@@ -2336,7 +2339,7 @@ def rank_market_tickers(
         if volume < MIN_24H_QUOTE_VOLUME:
             reject("market_volume", symbol)
             continue
-        if move < MIN_24H_MOVE_PCT:
+        if move < minimum_move:
             reject("market_move", symbol)
             continue
         if price <= 0:

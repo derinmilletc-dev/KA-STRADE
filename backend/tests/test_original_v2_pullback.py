@@ -415,6 +415,56 @@ class FillDeviationAndRankTests(unittest.TestCase):
         self.assertGreater(self.rank(0.4, 1.0, 9.0), self.rank(0.9, 1.0, 1.0))
 
 
+class MoveFilterTests(unittest.TestCase):
+    """24 saatlik minimum hareket süzgeci yalnız yeni modelde kalkar; hacim süzgeci ve eski davranış korunur."""
+
+    INFO = {"symbols": [{"symbol": name, "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT"}
+                        for name in ("FLATUSDT", "MOVEDUSDT", "THINUSDT")]}
+
+    @staticmethod
+    def tickers():
+        return [
+            {"symbol": "FLATUSDT", "quoteVolume": "5000000", "priceChangePercent": "0.05", "lastPrice": "10"},
+            {"symbol": "MOVEDUSDT", "quoteVolume": "5000000", "priceChangePercent": "3.0", "lastPrice": "10"},
+            {"symbol": "THINUSDT", "quoteVolume": "10000", "priceChangePercent": "5.0", "lastPrice": "10"},
+        ]
+
+    def rank(self, **kwargs):
+        from app.v25_execution import rank_market_tickers
+
+        diagnostics = {}
+        ranked = rank_market_tickers(self.INFO, self.tickers(), diagnostics=diagnostics, **kwargs)
+        return sorted(item["symbol"] for item in ranked), diagnostics["rejection_by_symbol"]
+
+    def test_default_keeps_the_old_move_and_volume_filters(self):
+        symbols, rejected = self.rank()
+        self.assertEqual(symbols, ["MOVEDUSDT"])
+        self.assertEqual(rejected, {"FLATUSDT": "market_move", "THINUSDT": "market_volume"})
+
+    def test_zero_minimum_move_admits_quiet_coins_but_not_illiquid_ones(self):
+        symbols, rejected = self.rank(min_move_pct=0.0)
+        self.assertEqual(symbols, ["FLATUSDT", "MOVEDUSDT"])
+        self.assertEqual(rejected, {"THINUSDT": "market_volume"})
+
+    def test_scan_passes_zero_only_for_the_new_model(self):
+        from app import original_v2_demo_execution as ex
+        from app import v25_execution
+
+        seen = []
+        real = v25_execution.rank_market_tickers
+
+        def spy(*args, **kwargs):
+            seen.append(kwargs.get("min_move_pct", "absent"))
+            return real(*args, **kwargs)
+
+        for value, expected in ((pb.MODEL_PULLBACK, 0.0), (pb.MODEL_LEGACY, None)):
+            seen.clear()
+            with patch.object(v25_execution, "rank_market_tickers", spy), patch.dict(os.environ, {pb.MODEL_ENV: value}):
+                asyncio.run(ex.live_candidates(ScanIntegrationTests.Client(0, 0.3, ScanIntegrationTests.SYMBOLS), AT, set(),
+                                               ScanIntegrationTests.SYMBOLS, require_complete=True, diagnostics={}))
+            self.assertEqual(seen, [expected], value)
+
+
 class ScanIntegrationTests(unittest.TestCase):
     SYMBOLS = sorted(demo.fixed_profile()["execution_policy"]["allowed_symbols"])[:6]
 
