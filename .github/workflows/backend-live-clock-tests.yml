@@ -56,7 +56,7 @@ jobs:
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Original V2 canlı çıkış politikası (TP1 %80 seviyesi, %70 kapanış, eski planlar %60): yeni ve ilgili mevcut testler.
           python -m pytest tests/test_original_v2_live.py -q -rfE --tb=line -p no:cacheprovider \
-            -k "scaled_tp1 or tp1_is_scaled or build_spec_uses_scaled or new_original_plan_installs or old_original_plan_without or invalid_plan_fraction or seventy_percent or live_sizing_context or exact_tp60 or native_sizing_with_costs or changed_original_targets or protection_identity_survives or partial_entry_tp60 or tp1_not_reallocated or cannot_split" 2>&1 | tee -a pytest-out.txt
+            -k "scaled_tp1 or tp1_is_scaled or build_spec_uses_scaled or new_original_plan_installs or old_original_plan_without or invalid_plan_fraction or seventy_percent or live_sizing_context or exact_tp60 or native_sizing_with_costs or changed_original_targets or protection_identity_survives or partial_entry_tp60 or tp1_not_reallocated or cannot_split or pullback_fill_deviation" 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           python -m pytest tests/test_original_v2_demo_execution.py -q -rfE --tb=line -p no:cacheprovider \
             -k "protection_60 or entry_requires_total or live_minimum_sizing" 2>&1 | tee -a pytest-out.txt
@@ -87,7 +87,7 @@ jobs:
           python -m pytest tests/test_original_session_extend.py -q -rfE --tb=line -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Yeni SHORT giriş filtresi (yalnız canlı) + Demo/adapter/offline yollarının değişmediğini gösteren regresyon testleri.
-          python -m pytest tests/test_original_short_filter_v2.py tests/test_live_momentum_gate.py tests/test_grid_live.py tests/test_grid_engine_fake.py tests/test_grid_testnet_adapter.py tests/test_grid_filters.py tests/test_grid_day1_script.py tests/test_strategy_original_adapter.py tests/test_original_v2_demo.py tests/test_original_v2_demo_controls.py tests/test_offline_strategy_facade.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
+          python -m pytest tests/test_original_v2_pullback.py tests/test_original_short_filter_v2.py tests/test_live_momentum_gate.py tests/test_grid_live.py tests/test_grid_engine_fake.py tests/test_grid_testnet_adapter.py tests/test_grid_filters.py tests/test_grid_day1_script.py tests/test_strategy_original_adapter.py tests/test_original_v2_demo.py tests/test_original_v2_demo_controls.py tests/test_offline_strategy_facade.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           # Canlı güvenlik sertleştirmesi: acil durdurmada önce kapat/doğrula/sonra korumayı iptal et, tekli kapatma kilidi.
           python -m pytest tests/test_emergency_close_verification.py tests/test_manual_close_lock.py -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee -a pytest-out.txt
