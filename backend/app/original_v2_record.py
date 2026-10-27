@@ -16,6 +16,7 @@ import logging
 import math
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -33,6 +34,10 @@ R_THRESHOLDS = (("first_profit_s", 0.0), ("first_r025_s", 0.25), ("first_r05_s",
 TERMINAL_STATUSES = {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED"}
 SOFT_TERMINAL_STATUSES = {"ACİL DURDURULDU"}
 SOFT_MISSING_SNAPSHOTS = 2
+BOOT_ID = uuid.uuid4().hex[:12]  # süreç kimliği: önceki süreçte "kuyruğa alındı" denen kayıt bu süreçte doğrulanmış sayılmaz
+STALE_QUEUED_SECONDS = 60.0
+TIME_FIELDS = ("fill_time_s", "first_profit_s", "first_r025_s", "first_r05_s", "first_r10_s", "tp1_touch_s",
+               "mfe.t_s", "mae.t_s", "checkpoints.*.sample_age_s")
 NOT_RECORDED = ["quote_volume_24h", "price_change_pct_24h", "funding_rate", "btc_market_trend"]
 
 
@@ -291,18 +296,76 @@ def publish_close(plan: dict[str, Any], entry_rows: list[dict[str, Any]], close_
     _guarded("publish_close_exact", _publish_exact, plan, entry_rows)
 
 
+def _apply_exact_timing(record: dict[str, Any], exact: dict[str, Any]) -> None:
+    """Kapanışta gerçek dolum zamanı gelince: tahmini zamana dayanan süre ölçümlerini mümkün olanlar için yeniden hesaplar.
+    Olay zamanları (ilk kâr, 0,25R/0,5R/1R, TP1, MFE/MAE) mutlak anlardır, bu yüzden kesin kaydırılabilir. Kontrol noktaları
+    'dolumdan N dk sonraki ilk örnek' olarak TAHMİNİ zamana göre seçilmişti; yaşları kaydırılır ama seçim yaklaşık kalır.
+    Tahmini değerler `timing_estimated` altında korunur (kesin ve tahmini veri ayrılabilsin)."""
+    exact_time = num(exact.get("first_time_s"))
+    fill = record.get("fill") if isinstance(record.get("fill"), dict) else None
+    if exact_time is None or fill is None:
+        return
+    fill.setdefault("time_exact_s", exact_time)
+    context = record.get("context") if isinstance(record.get("context"), dict) else {}
+    decision = num(fill.get("decision_time") if fill.get("decision_time") is not None else context.get("decision_time"))
+    if decision is not None:
+        fill.setdefault("latency_exact_s", exact_time - decision)
+    path = record.get("path")
+    if not isinstance(path, dict) or not isinstance(path.get("time_basis"), dict) or num(path.get("fill_time_s")) is None:
+        return
+    basis = path["time_basis"]
+    if basis.get("recomputed_from_exact") or basis.get("source") in ("order_result", "exact_legs"):
+        if basis.get("source") == "order_result":
+            basis.setdefault("exact_check_s", num(path["fill_time_s"]) - exact_time)  # çapraz kontrol: fark (sn)
+        return
+    delta = num(path["fill_time_s"]) - exact_time  # + : gerçek dolum tahminden önceydi
+    if delta < -1.0:
+        basis["exact_rejected"] = "exact_after_estimate"  # tutarsız veri: tahmin açıkça tahmin olarak kalır
+        return
+    delta = max(delta, 0.0)
+    path["timing_estimated"] = {
+        "fill_time_s": path["fill_time_s"], "partial": path.get("partial"), "partial_known": path.get("partial_known"),
+        **{key: path.get(key) for key in ("first_profit_s", "first_r025_s", "first_r05_s", "first_r10_s", "tp1_touch_s")},
+        "mfe_t_s": (path.get("mfe") or {}).get("t_s"), "mae_t_s": (path.get("mae") or {}).get("t_s"),
+        "checkpoint_ages_s": {key: (value or {}).get("sample_age_s") for key, value in (path.get("checkpoints") or {}).items()},
+    }
+    for key in ("first_profit_s", "first_r025_s", "first_r05_s", "first_r10_s", "tp1_touch_s"):
+        if num(path.get(key)) is not None:
+            path[key] = path[key] + delta
+    for key in ("mfe", "mae"):
+        if isinstance(path.get(key), dict) and num(path[key].get("t_s")) is not None:
+            path[key]["t_s"] += delta
+    for value in (path.get("checkpoints") or {}).values():
+        if isinstance(value, dict) and num(value.get("sample_age_s")) is not None:
+            value["sample_age_s"] += delta
+    path["fill_time_s"] = exact_time
+    first = num(path.get("first_sample_s"))
+    if first is not None:
+        path["partial"], path["partial_known"] = (first - exact_time) > 60, True
+    basis.update(source="exact_legs", estimated=False, recomputed_from_exact=True, delta_s=delta,
+                 note="Olay zamanları gerçek dolum zamanına göre yeniden hesaplandı; kontrol noktaları yaklaşık "
+                      "(seçim tahmini dolum zamanına göre yapılmıştı).")
+    path["time_sources"] = {key: "exact_legs" for key in TIME_FIELDS}
+
+
 def _publish_exact(plan: dict[str, Any], entry_rows: list[dict[str, Any]]) -> None:
-    """Kapanışta: kesin dolumu ekler ve context + fill + (varsa) son fiyat izini güvenle yeniden yayımlar.
+    """Kapanışta: kesin dolumu ekler, süre ölçümlerini yeniden hesaplar ve context + fill + son fiyat izini makbuzla yayımlar.
     Günlük tarafı idempotent olduğu için tekrar yayım mükerrer kayıt üretmez."""
     record = plan.get("original_record") if isinstance(plan.get("original_record"), dict) else {}
     if not isinstance(record.get("context"), dict):
         return
+    now = time.time()
     exact = exact_fill_from_rows(entry_rows)
     if exact is not None:
         record.setdefault("fill", {}).setdefault("exact", clean(exact))
-    _sync_journal(plan, force=True)
+        _apply_exact_timing(record, exact)
+        record.setdefault("journal_sent", {})["fill"] = {"state": "dirty"}
+    _sync_journal(plan, now=now)
     if isinstance(record.get("path"), dict):
-        publish(plan.get("intent_id"), "path", clean(record["path"]))
+        if exact is not None:
+            record["path"]["journal"] = {"state": "dirty"}
+        if record["path"].get("ended_reason") or exact is not None:
+            _publish_path(plan, record["path"], None)
 
 
 
@@ -314,9 +377,9 @@ _CONTEXTS: dict[tuple[str, int], dict[str, Any]] = {}
 _BREAKER: dict[str, Any] = {"errors": 0, "open": False}
 OBSERVATION_FUNCTIONS = (
     "observation_enabled", "_guarded", "_ema_series", "_run_age", "compute_context", "note_candidate",
-    "recall_context", "_slip", "build_fill", "_sync_journal", "attach_observation", "_new_path", "update_path",
-    "_publish_path", "_end_path", "_complete_fill", "_retry_pending", "observe_positions", "exact_fill_from_rows",
-    "_publish_exact",
+    "recall_context", "_slip", "build_fill", "publish_tracked", "_needs_publish", "_sync_journal", "attach_observation",
+    "_new_path", "update_path", "_publish_path", "_end_path", "_time_basis", "_complete_fill", "_retry_pending",
+    "observe_positions", "exact_fill_from_rows", "_apply_exact_timing", "_publish_exact",
 )
 
 
@@ -472,9 +535,12 @@ def build_fill(plan: dict[str, Any], order: Any, context: dict[str, Any], signal
         "avg_price": average, "price_source": "order_result" if average else None,
         "executed_qty": num(order.get("executedQty")), "planned_qty": num(plan.get("quantity")),
         "status": order.get("status"), "time_s": fill_time, "time_source": "order_result" if fill_time else None,
+        "time_estimated": False if fill_time is not None else None,
         "slippage_vs_signal": _slip(sign, average, signal_entry, risk),
         "slippage_vs_planned": _slip(sign, average, plan.get("entry_price"), risk),
         "latency_s": fill_time - decision if fill_time is not None and decision is not None else None,
+        "latency_source": "order_result" if fill_time is not None else None,
+        "latency_estimated": False if fill_time is not None else None,
         "decision_time": decision,
     }
 
@@ -494,29 +560,92 @@ def attach_observation(plan: dict[str, Any], strategy_result: Any, order_result:
     _guarded("attach_observation", work)
 
 
-def _sync_journal(plan: dict[str, Any], force: bool = False) -> None:
-    """context ve fill'i günlüğe yayımlar. Kuyruk atarsa (False) bayrak açık kalır ve sonraki turda yeniden denenir.
+def publish_tracked(intent_id: Any, section: str, data: dict[str, Any], now: float | None = None) -> dict[str, Any]:
+    """Makbuzlu yayım. Dönen durum YALNIZ kuyruğa kabulü gösterir ('queued'); 'persisted' ancak yazıcı iş parçacığı
+    SQLite'a yazıp geri okuyarak doğruladığında (signal_journal.receipt_state) verilir."""
+    moment = time.time() if now is None else now
+    state = {"state": "dropped", "token": None, "boot": BOOT_ID, "at": moment}
+    try:
+        identifier = str(intent_id or "")
+        if not identifier:
+            state["state"] = "disabled"
+            return state
+        from . import signal_journal
+        token = signal_journal.new_receipt()
+        state["token"] = token
+        accepted = signal_journal.emit("original_v2", intent_id=identifier, section=section, data=clean(data), receipt=token)
+        if accepted is True:
+            state["state"] = "queued"
+        elif accepted is None:
+            state["state"] = "disabled"  # günlük kapalı: yeniden denenmez
+        else:
+            signal_journal.set_receipt(token, "dropped")
+    except Exception:  # noqa: BLE001
+        state["state"] = "dropped"
+    return state
+
+
+def _needs_publish(state: Any, now: float) -> bool:
+    """Önceki yayımın durumuna bakar: doğrulanmışsa/devre dışıysa False; kayıp, başarısız, bayat ya da başka süreçten kalmışsa True."""
+    if not isinstance(state, dict):
+        return True
+    current = state.get("state")
+    if current in ("persisted", "disabled"):
+        return False
+    if current in ("queued", "retrying"):
+        if state.get("boot") != BOOT_ID:
+            return True
+        try:
+            from . import signal_journal
+            actual = signal_journal.receipt_state(state.get("token"))
+        except Exception:  # noqa: BLE001
+            return True
+        if actual == "persisted":
+            state["state"] = "persisted"
+            return False
+        if actual in ("queued", "retrying"):
+            state["state"] = actual
+            return now - (num(state.get("at")) or 0.0) > STALE_QUEUED_SECONDS
+        return True  # failed / abandoned / dropped / unknown
+    return True  # dirty, dropped, failed
+
+
+def _sync_journal(plan: dict[str, Any], force: bool = False, now: float | None = None) -> None:
+    """context ve fill'i günlüğe yayımlar; her biri için durum plana yazılır. Kayıp/başarısız/bayat olanlar yeniden yayımlanır.
     Günlük tarafı idempotent: context ilk yazan kalır, fill yalnız boş alanları tamamlar -> tekrar yayım mükerrer üretmez."""
     record = plan.get("original_record")
     if not isinstance(record, dict):
         return
+    moment = time.time() if now is None else now
     sent = record.get("journal_sent")
     if not isinstance(sent, dict):
         sent = record["journal_sent"] = {}
     for section in ("context", "fill"):
         data = record.get(section)
-        if isinstance(data, dict) and (force or sent.get(section) is not True):
-            sent[section] = publish(plan.get("intent_id"), section, data) is not False
+        if isinstance(data, dict) and (force or _needs_publish(sent.get(section), moment)):
+            sent[section] = publish_tracked(plan.get("intent_id"), section, data, moment)
 
 
-def _new_path(plan: dict[str, Any], fill_price: float, risk: float, fill_time: float, now: float) -> dict[str, Any]:
+def _time_basis(source: Any, price_source: Any = None) -> dict[str, Any]:
+    """Süre ölçümlerinin dayandığı dolum zamanı kaynağı. 'order_result' = borsa emir cevabı; 'exact_legs' = kapanışta gerçek
+    dolum kayıtları; diğer her kaynak (ör. 'first_snapshot') TAHMİNİDİR."""
+    estimated = source not in ("order_result", "exact_legs")
+    return {"source": source or "unknown", "estimated": estimated, "price_source": price_source,
+            "recomputed_from_exact": False, "applies_to": list(TIME_FIELDS),
+            "note": "Tahmini: gerçek dolum zamanı bilinmiyor." if estimated else None}
+
+
+def _new_path(plan: dict[str, Any], fill_price: float, risk: float, fill_time: float, now: float,
+              time_source: Any = None, price_source: Any = None) -> dict[str, Any]:
     return {
         "version": OBSERVATION_VERSION, "fill_price": fill_price, "r": risk,
-        "fill_time_s": fill_time, "samples": 0, "first_sample_s": None, "last_sample_s": None,
+        "fill_time_s": fill_time, "time_basis": _time_basis(time_source, price_source),
+        "samples": 0, "first_sample_s": None, "last_sample_s": None,
         "max_gap_s": 0.0, "mfe": None, "mae": None, "checkpoints": {}, "tp1_touch_s": None,
         "first_profit_s": None, "first_r025_s": None, "first_r05_s": None, "first_r10_s": None,
-        "missing_snapshots": 0, "ended_reason": None, "partial": False, "last_published_s": None,
-        "publish_pending": False,
+        "missing_snapshots": 0, "ended_reason": None, "partial": None, "partial_known": False,
+        "last_published_s": None, "journal": None,
+        "time_sources": {key: (time_source or "unknown") for key in TIME_FIELDS},
     }
 
 
@@ -528,7 +657,10 @@ def update_path(path: dict[str, Any], sign: int, mark: float, tp1: float | None,
     urgent = False
     if path["samples"] == 0:
         path["first_sample_s"] = now
-        path["partial"] = elapsed > 60
+        if path.get("time_basis", {}).get("estimated", True):
+            path["partial"], path["partial_known"] = None, False  # gerçek dolum zamanı bilinmiyor: kesin sonuç verilmez
+        else:
+            path["partial"], path["partial_known"] = elapsed > 60, True
     else:
         path["max_gap_s"] = max(path["max_gap_s"], now - path["last_sample_s"])
     path["samples"] += 1
@@ -554,23 +686,24 @@ def update_path(path: dict[str, Any], sign: int, mark: float, tp1: float | None,
 
 
 def _publish_path(plan: dict[str, Any], path: dict[str, Any], moment: float | None = None) -> None:
-    """Fiyat izini yayımlar; context/fill de eşlik eder (kayıp bir yayımı kendiliğinden onarır)."""
-    path["publish_pending"] = False
-    if publish(plan.get("intent_id"), "path", clean(path)) is False:
-        path["publish_pending"] = True
-    elif moment is not None:
+    """Fiyat izini makbuzla yayımlar; context/fill durumu da denetlenir (kayıp bir yayım kendiliğinden onarılır)."""
+    now = time.time() if moment is None else moment
+    body = {key: value for key, value in path.items() if key != "journal"}
+    path["journal"] = publish_tracked(plan.get("intent_id"), "path", body, now)
+    if moment is not None and path["journal"]["state"] in ("queued", "disabled"):
         path["last_published_s"] = moment
-    _sync_journal(plan, force=True)
+    _sync_journal(plan, now=now)
 
 
-def _end_path(plan: dict[str, Any], path: dict[str, Any], reason: str) -> None:
+def _end_path(plan: dict[str, Any], path: dict[str, Any], reason: str, moment: float | None = None) -> None:
     if path.get("ended_reason") is None:
         path["ended_reason"] = reason
-        _publish_path(plan, path)
+        _publish_path(plan, path, moment)
 
 
 def _complete_fill(plan: dict[str, Any], record: dict[str, Any], position: dict[str, Any], moment: float) -> bool:
-    """Eksik dolum alanlarını snapshot'taki GERÇEK pozisyon verisiyle tamamlar; dolu alan asla ezilmez. Değişti mi?"""
+    """Eksik dolum alanlarını snapshot'taki GERÇEK pozisyon verisiyle tamamlar; dolu alan asla ezilmez. Değişti mi?
+    Zaman snapshot'tan geliyorsa TAHMİNİDİR ve öyle işaretlenir (time/latency *_source ve *_estimated)."""
     fill = record.setdefault("fill", {})
     changed = False
     price = num(fill.get("avg_price"))
@@ -580,7 +713,7 @@ def _complete_fill(plan: dict[str, Any], record: dict[str, Any], position: dict[
             fill["avg_price"], fill["price_source"] = actual, "snapshot"
             changed = True
     if num(fill.get("time_s")) is None:
-        fill["time_s"], fill["time_source"] = moment, "first_snapshot"
+        fill["time_s"], fill["time_source"], fill["time_estimated"] = moment, "first_snapshot", True
         changed = True
     context = record.get("context") if isinstance(record.get("context"), dict) else {}
     basis = context.get("risk_basis") or {}
@@ -596,19 +729,19 @@ def _complete_fill(plan: dict[str, Any], record: dict[str, Any], position: dict[
     decision = num(fill.get("decision_time") if fill.get("decision_time") is not None else context.get("decision_time"))
     if fill.get("latency_s") is None and decision is not None and num(fill.get("time_s")) is not None:
         fill["latency_s"] = num(fill["time_s"]) - decision
+        fill["latency_source"] = fill.get("time_source") or "unknown"
+        fill["latency_estimated"] = fill.get("time_source") not in ("order_result", "exact_legs")
         changed = True
     if changed:
-        record.setdefault("journal_sent", {})["fill"] = False
+        record.setdefault("journal_sent", {})["fill"] = {"state": "dirty"}
     return changed
 
 
-def _retry_pending(plan: dict[str, Any], record: dict[str, Any], path: Any) -> None:
-    if isinstance(path, dict) and path.get("publish_pending"):
-        _publish_path(plan, path)
+def _retry_pending(plan: dict[str, Any], record: dict[str, Any], path: Any, now: float) -> None:
+    if isinstance(path, dict) and isinstance(path.get("journal"), dict) and _needs_publish(path["journal"], now):
+        _publish_path(plan, path, now)
     else:
-        sent = record.get("journal_sent") if isinstance(record.get("journal_sent"), dict) else {}
-        if sent.get("context") is False or sent.get("fill") is False:
-            _sync_journal(plan)
+        _sync_journal(plan, now=now)
 
 
 def observe_positions(state: dict[str, Any], snapshot: dict[str, Any] | None, now: float | None = None) -> None:
@@ -632,7 +765,7 @@ def observe_positions(state: dict[str, Any], snapshot: dict[str, Any] | None, no
                 continue  # bağlamsız (eski) planlar atlanır: yanıltıcı kısmi iz yazılmaz
             path = record.get("path")
             if isinstance(path, dict) and path.get("ended_reason"):
-                _retry_pending(plan, record, path)
+                _retry_pending(plan, record, path, moment)
                 continue
             status = str(plan.get("status") or "").upper()
             symbol, direction = str(plan.get("symbol") or ""), str(plan.get("direction") or "").upper()
@@ -640,35 +773,39 @@ def observe_positions(state: dict[str, Any], snapshot: dict[str, Any] | None, no
                              and str(row.get("direction") or "").upper() == direction), None)
             if status in TERMINAL_STATUSES:
                 if not isinstance(path, dict):
-                    path = record["path"] = {"version": OBSERVATION_VERSION, "samples": 0, "publish_pending": False}
-                _end_path(plan, path, "plan_closed" if path.get("samples") else "plan_closed_no_samples")
+                    path = record["path"] = {"version": OBSERVATION_VERSION, "samples": 0, "journal": None,
+                                             "time_basis": _time_basis(None), "partial": None, "partial_known": False}
+                _end_path(plan, path, "plan_closed" if path.get("samples") else "plan_closed_no_samples", moment)
                 continue
             if position is None:
                 if isinstance(path, dict):
                     path["missing_snapshots"] = int(path.get("missing_snapshots") or 0) + 1
                     if status in SOFT_TERMINAL_STATUSES and path["missing_snapshots"] >= SOFT_MISSING_SNAPSHOTS:
-                        _end_path(plan, path, "plan_closed")
-                _retry_pending(plan, record, path)
+                        _end_path(plan, path, "plan_closed", moment)
+                _retry_pending(plan, record, path, moment)
                 continue
             _complete_fill(plan, record, position, moment)
+            fill = record["fill"]
             mark = num(position.get("mark_price"))
-            price = num(record["fill"].get("avg_price"))
+            price = num(fill.get("avg_price"))
             stop = num(plan.get("initial_stop_loss") or plan.get("stop_loss"))
             if not mark or mark <= 0 or not price or price <= 0 or stop is None or abs(price - stop) <= 0:
-                _retry_pending(plan, record, path)
+                _retry_pending(plan, record, path, moment)
                 continue
             if not isinstance(path, dict):
-                path = record["path"] = _new_path(plan, price, abs(price - stop), float(record["fill"]["time_s"]), moment)
+                path = record["path"] = _new_path(plan, price, abs(price - stop), float(fill["time_s"]), moment,
+                                                  fill.get("time_source"), fill.get("price_source"))
             path["missing_snapshots"] = 0
             targets = plan.get("targets")
             tp1 = num(targets[0]) if isinstance(targets, list) and targets else None
             sign = 1 if direction == "LONG" else -1
             urgent = update_path(path, sign, mark, tp1, moment)
             last = path.get("last_published_s")
-            if urgent or last is None or path.get("publish_pending") or moment - last >= PUBLISH_EVERY_SECONDS:
+            retry = isinstance(path.get("journal"), dict) and _needs_publish(path["journal"], moment)
+            if urgent or last is None or retry or moment - last >= PUBLISH_EVERY_SECONDS:
                 _publish_path(plan, path, moment)
             else:
-                _retry_pending(plan, record, path)
+                _sync_journal(plan, now=moment)
     _guarded("observe_positions", work)
 
 

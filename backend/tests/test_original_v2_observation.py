@@ -43,7 +43,8 @@ def make_plan(direction="LONG", fill=100.0, stop=98.0, tp1=102.0, with_context=T
             "status": "KORUMA AKTİF", "created_at": "2026-01-01T00:00:00+00:00", "tp1_fraction": 0.7}
     if with_context:
         plan["original_record"] = {"schema": 1, "context": {"direction": direction},
-                                   "fill": {"avg_price": fill, "time_s": 1000.0}}
+                                   "fill": {"avg_price": fill, "time_s": 1000.0,
+                                           "time_source": "order_result", "price_source": "order_result"}}
     return plan
 
 
@@ -141,9 +142,10 @@ class PathTests(unittest.TestCase):
         self.assertEqual(sorted(path["checkpoints"]), ["15", "30"])
         self.assertAlmostEqual(path["checkpoints"]["15"]["sample_age_s"], 905)
 
-    def test_late_start_is_marked_partial(self):
-        path = self.run_samples(make_plan(), [(1300, 100.0)])
+    def test_late_start_is_marked_partial_only_when_fill_time_is_real(self):
+        path = self.run_samples(make_plan(), [(1300, 100.0)])  # dolum zamanı borsa cevabından (gerçek)
         self.assertTrue(path["partial"])
+        self.assertTrue(path["partial_known"])
 
     def test_missing_position_does_not_end_the_path_and_sampling_resumes(self):
         plan = make_plan()
@@ -266,13 +268,13 @@ class FlowSafetyTests(unittest.TestCase):
             plan = make_plan()
             before = copy.deepcopy(plan)
             rec.observe_positions({"plans": {"p1": plan, "bad": "x", "n": None}}, bad, now=1010)
-            if isinstance(bad, dict) and isinstance(bad.get("positions"), list) and bad["positions"] and isinstance(bad["positions"][0], dict):
-                # geçerli yapıdaki ama NaN işaret fiyatlı satır: yalnız gözlem kaydı (original_record) değişebilir
+            if isinstance(bad, dict) and isinstance(bad.get("positions"), list):
+                # yapısı geçerli snapshot: yalnız gözlem kaydı (original_record) değişebilir, işlem alanları asla
                 self.assertEqual({k: v for k, v in plan.items() if k != "original_record"},
                                  {k: v for k, v in before.items() if k != "original_record"})
                 self.assertNotIn("path", plan["original_record"])
             else:
-                self.assertEqual(plan, before)
+                self.assertEqual(plan, before)  # geçersiz snapshot: hiçbir şey değişmez
         for order in (None, "x", [], {"avgPrice": object()}, {"avgPrice": "nan", "updateTime": "abc"}):
             rec.reset_breaker()
             rec.note_candidate("ABCUSDT", result, candles())
@@ -385,119 +387,351 @@ class FillCompletionTests(unittest.TestCase):
         self.assertEqual(fills[0]["data"]["avg_price"], 100.4)
 
 
-class JournalReliabilityTests(unittest.TestCase):
+class RealStack:
+    """Gerçek Observer + gerçek SQLite (geçici klasör). Üretim yolu: record -> signal_journal.emit -> Observer -> Journal."""
+    def __init__(self, capacity=256):
+        import tempfile
+        self.folder = tempfile.TemporaryDirectory()
+        self.journal = journal_module.Journal(Path(self.folder.name) / "j.sqlite3")
+        self.observer = journal_module.Observer(self.journal, capacity=capacity)
+        self.patch = patch.object(journal_module, "emit", lambda kind, **d: self.observer.publish(kind, None, d))
+
+    def __enter__(self):
+        self.patch.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.patch.stop()
+        self.observer.stopping.set()
+        if self.observer.thread:
+            self.observer.thread.join(3)
+        self.folder.cleanup()
+
+    def disk(self, intent="i1"):
+        import sqlite3
+        db = sqlite3.connect(self.journal.path)
+        try:
+            row = db.execute("SELECT payload FROM trades WHERE intent_id=?", (intent,)).fetchone()
+        except sqlite3.OperationalError:  # henüz hiçbir şey yazılmadı: tablo da yok
+            row = None
+        finally:
+            db.close()
+        return json.loads(row[0]).get("original_v2", {}) if row else {}
+
+
+def wait_for(predicate, timeout=6.0):
+    import time
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return predicate()
+
+
+class JournalAckTests(unittest.TestCase):
     def setUp(self):
         rec.reset_breaker()
-        rec._CONTEXTS.clear()
 
-    def test_dropped_context_and_fill_are_retried_until_accepted(self):
-        calls, accept = [], {"ok": False}
-        def emit(*a, **k):
-            calls.append(k["section"])
-            return accept["ok"]
-        plan = make_plan()
-        plan["original_record"]["journal_sent"] = {}
-        with patch.object(journal_module, "emit", emit):
-            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1010)
-            first = list(calls)
-            self.assertIn("context", first)
-            self.assertFalse(plan["original_record"]["journal_sent"]["context"])
-            accept["ok"] = True
-            calls.clear()
-            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1020)
-        self.assertIn("context", calls)
-        self.assertIn("fill", calls)
-        self.assertTrue(plan["original_record"]["journal_sent"]["context"])
-        self.assertTrue(plan["original_record"]["journal_sent"]["fill"])
-        calls.clear()
-        with patch.object(journal_module, "emit", emit):
-            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1030)
-        self.assertEqual(calls, [])  # kabul edildi: gereksiz tekrar yok
+    def observe(self, stack, plan, now, mark=100.0):
+        rec.observe_positions({"plans": {"p1": plan}}, snap(mark=mark), now=now)
 
-    def test_dropped_path_is_retried_next_tick(self):
-        calls, accept = [], {"ok": False}
-        def emit(*a, **k):
-            calls.append(k["section"])
-            return accept["ok"]
-        plan = make_plan()
-        with patch.object(journal_module, "emit", emit):
-            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1010)
-            self.assertTrue(plan["original_record"]["path"]["publish_pending"])
-            accept["ok"] = True
-            calls.clear()
-            rec.observe_positions({"plans": {"p1": plan}}, snap(mark=100.0), now=1020)
-        self.assertIn("path", calls)
-        self.assertFalse(plan["original_record"]["path"]["publish_pending"])
+    def test_normal_write_is_persisted_only_after_the_sqlite_readback(self):
+        import threading
+        with RealStack() as stack:
+            gate, real = threading.Event(), stack.journal.original_v2
+            stack.journal.original_v2 = lambda *a, **k: (gate.wait(5), real(*a, **k))[1]
+            plan = make_plan()
+            self.observe(stack, plan, 1010)
+            token = plan["original_record"]["path"]["journal"]["token"]
+            self.assertEqual(plan["original_record"]["path"]["journal"]["state"], "queued")  # kuyruğa alındı
+            self.assertEqual(journal_module.receipt_state(token), "queued")                    # henüz diskte değil
+            self.assertEqual(stack.disk(), {})
+            gate.set()
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(token) == "persisted"))
+            self.assertEqual(sorted(stack.disk()), ["context", "fill", "path", "schema"])
+            self.observe(stack, plan, 1020)  # sonraki turda durum 'persisted' olarak plana işlenir
+            self.assertEqual(plan["original_record"]["journal_sent"]["context"]["state"], "persisted")
 
-    def test_dropped_final_path_is_retried_after_the_path_has_ended(self):
-        accept = {"ok": False}
+    def test_persisted_records_are_not_republished_needlessly(self):
         calls = []
-        def emit(*a, **k):
-            calls.append(k["section"])
-            return accept["ok"]
-        plan = make_plan()
-        state = {"plans": {"p1": plan}}
-        with patch.object(journal_module, "emit", emit):
-            rec.observe_positions(state, snap(mark=100.0), now=1010)
-            accept["ok"] = True
-            rec.observe_positions(state, snap(mark=100.0), now=1015)
-            plan["status"] = "KAPANDI"
-            accept["ok"] = False
-            rec.observe_positions(state, {"positions": []}, now=1020)
-            self.assertEqual(plan["original_record"]["path"]["ended_reason"], "plan_closed")
-            self.assertTrue(plan["original_record"]["path"]["publish_pending"])
-            accept["ok"] = True
-            calls.clear()
-            rec.observe_positions(state, {"positions": []}, now=1030)
-        self.assertIn("path", calls)
-        self.assertFalse(plan["original_record"]["path"]["publish_pending"])
+        with RealStack() as stack:
+            plan = make_plan()
+            self.observe(stack, plan, 1010)
+            self.assertTrue(wait_for(lambda: stack.disk().get("path")))
+            self.observe(stack, plan, 1011)
+            with patch.object(journal_module, "emit", lambda kind, **d: calls.append(d["section"]) or True):
+                self.observe(stack, plan, 1020)
+                self.observe(stack, plan, 1030)
+        self.assertEqual(calls, [])
 
-    def test_periodic_path_publish_also_resends_context_and_fill(self):
-        calls = []
-        plan = make_plan()
-        with patch.object(journal_module, "emit", lambda *a, **k: calls.append(k["section"]) or True):
-            state = {"plans": {"p1": plan}}
-            rec.observe_positions(state, snap(mark=100.0), now=1010)
-            calls.clear()
-            rec.observe_positions(state, snap(mark=100.0), now=1400)
-        self.assertEqual(sorted(calls), ["context", "fill", "path"])
+    def test_sqlite_error_is_retried_and_the_record_is_not_lost(self):
+        import sqlite3
+        with RealStack() as stack:
+            real, state = stack.journal.original_v2, {"n": 0}
+            def flaky(intent_id, section, data):
+                if section == "path" and state["n"] < 2:
+                    state["n"] += 1
+                    raise sqlite3.OperationalError("database is locked")
+                return real(intent_id, section, data)
+            stack.journal.original_v2 = flaky
+            plan = make_plan()
+            self.observe(stack, plan, 1010)
+            token = plan["original_record"]["path"]["journal"]["token"]
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(token) == "retrying", 3))
+            self.assertNotIn("path", stack.disk())
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(token) == "persisted", 8))
+            self.assertEqual(stack.disk()["path"]["samples"], 1)
+            self.assertGreaterEqual(stack.observer.failures, 2)
 
-    def test_close_republishes_context_fill_exact_and_path(self):
-        calls = []
-        plan = make_plan()
-        state = {"plans": {"p1": plan}}
-        rec.observe_positions(state, snap(mark=101.0), now=1010)
-        with patch.object(journal_module, "emit", lambda *a, **k: calls.append(k) or True):
-            rec.publish_close(plan, [{"qty": "1", "price": "100", "time": 2000}], [], [], [], lambda kind, intent: f"{kind}{intent}")
-        sections = [c["section"] for c in calls]
-        for needed in ("context", "fill", "path", "legs"):
-            self.assertIn(needed, sections)
-        fill = next(c for c in calls if c["section"] == "fill")["data"]
-        self.assertAlmostEqual(fill["exact"]["vwap"], 100.0)
+    def test_exhausted_retries_become_failed_and_the_observation_layer_republishes(self):
+        import sqlite3
+        with patch.object(journal_module, "MAX_WRITE_ATTEMPTS", 2), RealStack() as stack:
+            real, broken = stack.journal.original_v2, {"on": True}
+            def maybe(intent_id, section, data):
+                if broken["on"] and section == "context":
+                    raise sqlite3.OperationalError("disk I/O error")
+                return real(intent_id, section, data)
+            stack.journal.original_v2 = maybe
+            plan = make_plan()
+            self.observe(stack, plan, 1010)
+            token = plan["original_record"]["journal_sent"]["context"]["token"]
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(token) == "failed", 6))
+            self.assertNotIn("context", stack.disk())
+            broken["on"] = False
+            self.observe(stack, plan, 1020)  # 'failed' görüldü -> yeniden yayım
+            new_token = plan["original_record"]["journal_sent"]["context"]["token"]
+            self.assertNotEqual(new_token, token)
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(new_token) == "persisted"))
+            self.assertIn("context", stack.disk())
 
-    def test_republishing_the_same_records_creates_no_duplicates_in_the_journal(self):
+    def test_dead_writer_thread_never_looks_like_a_successful_write(self):
+        with RealStack() as stack:
+            plan = make_plan()
+            self.observe(stack, plan, 1005)
+            self.assertTrue(wait_for(lambda: "path" in stack.disk()))
+            real = stack.journal.original_v2
+            def die(*a, **k):
+                raise SystemExit("writer crashed")
+            stack.journal.original_v2 = die
+            self.observe(stack, plan, 1010, mark=103.0)  # eşik geçişi -> yayım -> iş parçacığı ölür
+            self.assertTrue(wait_for(lambda: not stack.observer.thread.is_alive(), 3))
+            token = plan["original_record"]["path"]["journal"]["token"]
+            self.assertNotEqual(journal_module.receipt_state(token), "persisted")
+            self.assertNotEqual(plan["original_record"]["path"]["journal"]["state"], "persisted")
+            stack.journal.original_v2 = real
+            self.observe(stack, plan, 1020, mark=103.0)          # henüz bayat değil: bekler
+            self.assertEqual(plan["original_record"]["path"]["journal"]["token"], token)
+            self.observe(stack, plan, 1010 + rec.STALE_QUEUED_SECONDS + 5, mark=103.0)   # bayat -> yeniden yayım, iş parçacığı yenilenir
+            new_token = plan["original_record"]["path"]["journal"]["token"]
+            self.assertNotEqual(new_token, token)
+            self.assertTrue(stack.observer.thread.is_alive())
+            self.assertTrue(wait_for(lambda: journal_module.receipt_state(new_token) == "persisted"))
+            self.assertEqual(stack.disk()["path"]["samples"], plan["original_record"]["path"]["samples"])
+
+    def test_full_queue_is_reported_as_dropped_and_retried_later(self):
+        import threading
+        with RealStack(capacity=1) as stack:
+            gate, real = threading.Event(), stack.journal.original_v2
+            stack.journal.original_v2 = lambda *a, **k: (gate.wait(5), real(*a, **k))[1]
+            states = [rec.publish_tracked("i1", "context", {"a": i}) for i in range(4)]
+            self.assertIn("dropped", [s["state"] for s in states])
+            dropped = next(s for s in states if s["state"] == "dropped")
+            self.assertEqual(journal_module.receipt_state(dropped["token"]), "dropped")
+            gate.set()
+            stack.observer.queue.join()
+            plan = make_plan()
+            plan["original_record"]["journal_sent"] = {"context": dropped}
+            for tick in range(12):  # kuyruk 1 kayıtlık: bazı yayımlar yine atılabilir; her tur eksik olanı yeniden dener
+                self.observe(stack, plan, 1010 + tick)
+                stack.observer.queue.join()
+                if plan["original_record"]["journal_sent"]["context"].get("state") == "persisted":
+                    break
+            self.assertNotEqual(plan["original_record"]["journal_sent"]["context"]["token"], dropped["token"])
+            self.assertEqual(plan["original_record"]["journal_sent"]["context"]["state"], "persisted")
+            self.assertIn("context", stack.disk())
+
+    def test_shutdown_is_bounded_and_unwritten_records_are_marked_abandoned(self):
+        import time
+        with RealStack() as stack:
+            real = stack.journal.original_v2
+            stack.journal.original_v2 = lambda *a, **k: (time.sleep(0.4), real(*a, **k))[1]
+            tokens = [rec.publish_tracked("i1", "context", {"a": 1})["token"] for _ in range(6)]
+            started = time.monotonic()
+            stack.observer.close(timeout=0.3)
+            self.assertLess(time.monotonic() - started, 3.0)  # sınırsız bekleme yok
+            states = [journal_module.receipt_state(t) for t in tokens]
+            self.assertIn("abandoned", states)
+            for state in states:
+                self.assertIn(state, ("persisted", "abandoned"))  # 'queued' takılı kalmaz, yalan 'persisted' yok
+            # yeniden başlatma: eski süreçten kalan 'queued' kayıt bu süreçte doğrulanmış sayılmaz
+            old = {"state": "queued", "token": tokens[0], "boot": "eski-surec", "at": 0.0}
+            self.assertTrue(rec._needs_publish(old, 1.0))
+
+    def test_shutdown_drains_everything_when_the_writer_is_fast(self):
+        with RealStack() as stack:
+            tokens = [rec.publish_tracked("i1", "context", {"a": 1})["token"] for _ in range(20)]
+            stack.observer.close(timeout=3)
+            self.assertEqual({journal_module.receipt_state(t) for t in tokens}, {"persisted"})
+
+    def test_253_sections_keep_their_old_behaviour(self):
+        with RealStack() as stack:
+            real, seen = stack.journal.original_v2, []
+            def failing(intent_id, section, data):
+                seen.append(section)
+                raise RuntimeError("write failed")
+            stack.journal.original_v2 = failing
+            for section in ("entry", "tp1", "legs"):
+                rec.publish("i1", section, {"x": 1} if section != "legs" else {"legs": {}, "summary": {}})
+            self.assertTrue(wait_for(lambda: len(seen) == 3))
+            self.assertTrue(wait_for(lambda: stack.observer.failures == 3))
+            self.assertEqual(stack.observer.retry, [])          # eski davranış: yeniden deneme/makbuz yok
+            stack.journal.original_v2 = real
+            rec.publish("i1", "entry", {"x": 1})
+            self.assertTrue(wait_for(lambda: stack.disk().get("entry") == {"x": 1}))
+
+    def test_stale_retry_never_overwrites_a_newer_or_ended_path(self):
         import tempfile
         with tempfile.TemporaryDirectory() as folder:
             journal = journal_module.Journal(Path(folder) / "j.sqlite3")
-            plan = make_plan()
-            plan["original_record"]["context"] = {"direction": "LONG", "x": 1}
-            for _ in range(3):
-                for section in ("context", "fill", "path"):
-                    journal.original_v2("i1", section, copy.deepcopy(plan["original_record"].get(section) or {"samples": 1}))
-            record = journal.original_v2_trades()[0]["original_v2"]
-            self.assertEqual(record["context"], {"direction": "LONG", "x": 1})
-            self.assertEqual(len(journal.original_v2_trades()), 1)
+            journal.original_v2("i1", "path", {"samples": 5, "ended_reason": None})
+            journal.original_v2("i1", "path", {"samples": 3, "ended_reason": None})
+            journal.original_v2("i1", "path", {"samples": 6, "ended_reason": "plan_closed"})
+            journal.original_v2("i1", "path", {"samples": 7, "ended_reason": None})
+            self.assertEqual(journal.original_v2_trades()[0]["original_v2"]["path"], {"samples": 6, "ended_reason": "plan_closed"})
 
-    def test_plan_context_is_an_independent_copy(self):
-        result = FlowSafetyTests.strategy(None)
-        rec.note_candidate("ABCUSDT", result, candles())
-        stored = rec.recall_context("ABCUSDT", 1800)
-        plan = make_plan(with_context=False)
-        rec.attach_entry(plan, result, {"symbol": "ABCUSDT"}, spread_bp=1, snapshot=snap(), policy={}, config={},
-                         recorded_at="x", order_result={"avgPrice": "100", "updateTime": 1_800_500})
-        plan["original_record"]["context"]["alignment_age"]["all_aligned"]["candles"] = -999
-        self.assertNotEqual(stored["alignment_age"]["all_aligned"]["candles"], -999)
-        self.assertIsNot(plan["original_record"]["context"], stored)
+    def test_tracked_publishing_adds_no_meaningful_cost_to_reconcile(self):
+        import time
+        with RealStack() as stack:
+            plans = {f"p{i}": dict(make_plan(), id=f"p{i}", intent_id=f"i{i}", symbol=f"S{i}USDT") for i in range(5)}
+            for i in range(245):
+                plans[f"old{i}"] = {"id": f"old{i}", "status": "KAPANDI", "symbol": "X"}  # eski, bağlamsız planlar
+            state = {"plans": plans}
+            snapshot = {"positions": [{"symbol": f"S{i}USDT", "direction": "LONG", "entry_price": 100.0, "mark_price": 100.5}
+                                      for i in range(5)]}
+            started = time.perf_counter()
+            for tick in range(300):
+                rec.observe_positions(state, snapshot, now=1000 + tick * 10)
+            per_tick_ms = (time.perf_counter() - started) / 300 * 1000
+        self.assertLess(per_tick_ms, 10.0, f"{per_tick_ms:.3f} ms/tur")
+
+
+class TimeAccuracyTests(unittest.TestCase):
+    def setUp(self):
+        rec.reset_breaker()
+
+    def snapshot_fill_plan(self):
+        plan = make_plan()
+        plan["original_record"]["context"] = {"direction": "LONG", "decision_time": 900,
+                                              "risk_basis": {"signal_entry": 100.0, "r": 2.0}}
+        plan["original_record"]["fill"] = {"avg_price": 100.0, "price_source": "order_result", "time_s": None,
+                                           "decision_time": 900, "latency_s": None}
+        return plan
+
+    def run_estimated(self):
+        plan = self.snapshot_fill_plan()
+        state = {"plans": {"p1": plan}}
+        rec.observe_positions(state, snap(mark=100.0), now=1000)   # ilk snapshot: zaman TAHMİNİ
+        rec.observe_positions(state, snap(mark=101.0), now=1010)   # r=0.5
+        rec.observe_positions(state, snap(mark=102.0), now=1100)   # r=1.0, TP1
+        return plan
+
+    def test_snapshot_time_is_marked_estimated_everywhere(self):
+        record = self.run_estimated()["original_record"]
+        fill, path = record["fill"], record["path"]
+        self.assertEqual(fill["time_source"], "first_snapshot")
+        self.assertTrue(fill["time_estimated"])
+        self.assertEqual(fill["latency_source"], "first_snapshot")
+        self.assertTrue(fill["latency_estimated"])
+        self.assertTrue(path["time_basis"]["estimated"])
+        self.assertEqual(path["time_basis"]["source"], "first_snapshot")
+        self.assertEqual(path["time_basis"]["price_source"], "order_result")
+        for field in rec.TIME_FIELDS:
+            self.assertEqual(path["time_sources"][field], "first_snapshot", field)
+            self.assertIn(field, path["time_basis"]["applies_to"])
+
+    def test_estimated_times_never_claim_partial_false(self):
+        path = self.run_estimated()["original_record"]["path"]
+        self.assertIsNone(path["partial"])
+        self.assertFalse(path["partial_known"])
+
+    def test_exact_fill_never_arriving_leaves_everything_estimated(self):
+        plan = self.run_estimated()
+        rec.publish_close(plan, [], [], [], [], lambda kind, intent: f"{kind}{intent}")  # giriş bacağı yok
+        record = plan["original_record"]
+        self.assertTrue(record["path"]["time_basis"]["estimated"])
+        self.assertIsNone(record["path"]["partial"])
+        self.assertNotIn("time_exact_s", record["fill"])
+        self.assertNotIn("timing_estimated", record["path"])
+
+    def test_exact_fill_recomputes_event_times_and_keeps_both_versions(self):
+        plan = self.run_estimated()
+        rows = [{"qty": "1", "price": "100", "time": 930_000}]   # gerçek dolum 930 sn; tahmin 1000 sn
+        rec.publish_close(plan, rows, [], [], [], lambda kind, intent: f"{kind}{intent}")
+        record = plan["original_record"]
+        path, fill = record["path"], record["fill"]
+        self.assertFalse(path["time_basis"]["estimated"])
+        self.assertEqual(path["time_basis"]["source"], "exact_legs")
+        self.assertTrue(path["time_basis"]["recomputed_from_exact"])
+        self.assertEqual(path["fill_time_s"], 930.0)
+        self.assertEqual(path["first_r05_s"], 10 + 70)       # önceki 10 sn + 70 sn
+        self.assertEqual(path["first_r10_s"], 100 + 70)
+        self.assertEqual(path["tp1_touch_s"], 100 + 70)
+        self.assertEqual(path["mfe"]["t_s"], 100 + 70)
+        self.assertTrue(path["partial_known"])
+        self.assertTrue(path["partial"])                    # ilk örnek gerçek dolumdan 70 sn sonra
+        for field in rec.TIME_FIELDS:
+            self.assertEqual(path["time_sources"][field], "exact_legs")
+        old = path["timing_estimated"]                      # tahmini sürümler ayrı korunur
+        self.assertEqual(old["fill_time_s"], 1000)
+        self.assertEqual(old["first_r05_s"], 10)
+        self.assertIsNone(old["partial"])
+        self.assertFalse(old["partial_known"])
+        self.assertEqual(fill["time_source"], "first_snapshot")   # ilk tahmin ezilmez
+        self.assertTrue(fill["time_estimated"])
+        self.assertEqual(fill["time_exact_s"], 930.0)
+        self.assertEqual(fill["latency_exact_s"], 30.0)
+        self.assertEqual(fill["latency_s"], 100.0)
+        self.assertTrue(fill["latency_estimated"])
+
+    def test_exact_time_later_than_estimate_is_rejected_and_estimate_stays_estimate(self):
+        plan = self.run_estimated()
+        rec.publish_close(plan, [{"qty": "1", "price": "100", "time": 1_500_000}], [], [], [], lambda k, i: f"{k}{i}")
+        path = plan["original_record"]["path"]
+        self.assertEqual(path["time_basis"]["exact_rejected"], "exact_after_estimate")
+        self.assertTrue(path["time_basis"]["estimated"])
+        self.assertEqual(path["fill_time_s"], 1000)
+
+    def test_exchange_time_is_not_labeled_estimated_and_exact_is_only_a_cross_check(self):
+        plan = make_plan()
+        state = {"plans": {"p1": plan}}
+        rec.observe_positions(state, snap(mark=101.0), now=1010)
+        path = plan["original_record"]["path"]
+        self.assertFalse(path["time_basis"]["estimated"])
+        self.assertEqual(path["time_basis"]["source"], "order_result")
+        rec.publish_close(plan, [{"qty": "1", "price": "100", "time": 998_000}], [], [], [], lambda k, i: f"{k}{i}")
+        self.assertEqual(plan["original_record"]["path"]["time_basis"]["exact_check_s"], 2.0)
+        self.assertEqual(plan["original_record"]["path"]["fill_time_s"], 1000.0)
+
+    def test_missing_time_is_never_presented_as_a_real_fill_time(self):
+        fill = rec.build_fill({"quantity": 1.0}, {"avgPrice": "100"}, {"direction": "LONG", "risk_basis": {"r": 2.0}}, 100.0, 900)
+        self.assertIsNone(fill["time_s"])
+        self.assertIsNone(fill["time_source"])
+        self.assertIsNone(fill["latency_s"])
+        self.assertIsNone(fill["latency_estimated"])
+        basis = rec._time_basis(None)
+        self.assertTrue(basis["estimated"])
+        self.assertEqual(basis["source"], "unknown")
+
+    def test_journal_keeps_estimated_time_and_adds_exact_fields_later(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            journal = journal_module.Journal(Path(folder) / "j.sqlite3")
+            journal.original_v2("i1", "fill", {"time_s": 1000.0, "time_source": "first_snapshot", "time_estimated": True})
+            journal.original_v2("i1", "fill", {"time_s": 5.0, "time_source": "x", "time_exact_s": 930.0, "latency_exact_s": 30.0})
+            fill = journal.original_v2_trades()[0]["original_v2"]["fill"]
+            self.assertEqual((fill["time_s"], fill["time_source"], fill["time_estimated"]), (1000.0, "first_snapshot", True))
+            self.assertEqual((fill["time_exact_s"], fill["latency_exact_s"]), (930.0, 30.0))
 
 
 class JournalTests(unittest.TestCase):
