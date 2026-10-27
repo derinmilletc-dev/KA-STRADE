@@ -6895,6 +6895,12 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
     except Exception as exc:
         logger.warning("SMART_GUARD_HOOK_FAILED error=%s", type(exc).__name__)
     try:
+        # Akıllı çıkış GÖLGE MODU: yalnız kayıt; emir göndermez, bayrak kapalıyken hiçbir şey yapmaz.
+        from . import original_exit_shadow
+        await original_exit_shadow.tick(state, snapshot, client)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("EXIT_SHADOW_HOOK_FAILED error=%s", type(exc).__name__)
+    try:
         # Giriş kalitesi gözlemi: yalnız ölçüm; ayrı try/except, Smart Guard'dan sonra, hata akışı etkilemez.
         from . import original_v2_record as _observation
         _observation.observe_positions(state, snapshot)

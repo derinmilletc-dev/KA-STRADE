@@ -3,7 +3,7 @@ import './copy-phrase.css'
 import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
-  GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
+  GUIDE_STEPS, RISK_PRESETS, shadowNote, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
@@ -1702,6 +1702,7 @@ export default function LiveCockpit(props: Props) {
                   <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
                 </div>
                 {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}
+                {!external && (() => { const text = shadowNote((plan as {exit_shadow?: unknown} | undefined)?.exit_shadow); return text && <p className="lcNote lcShadowNote" data-tone="wait">{text}</p> })()}
                 {closable && plan?.source === 'MANUAL' && (() => {
                   const levels = Array.isArray(plan?.targets) ? plan.targets.map(value => String(value ?? '')) : []
                   const manual: ManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,

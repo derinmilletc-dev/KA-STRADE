@@ -303,3 +303,11 @@ test('simülasyon: sistem tavanı kırpar, eksik veri null döner, sınırı aş
   const full = marginSimulation(144, marginCaps, 30, {openMargin: {total: 200, estimated: false}})
   assert.equal(full.room, 0); assert.equal(full.tradesFit, 0)
 })
+
+test('exit shadow note describes phase or virtual exit, never claims an order', async () => {
+  const {shadowNote} = await import('../frontend/src/live-guide.ts')
+  assert.equal(shadowNote(null), null)
+  assert.equal(shadowNote({phase: 'NOPE'}), null)
+  assert.match(shadowNote({phase: 'BREAKEVEN', proposed_stop: 100.16}), /sıfır risk · önerilen stop 100,16\. Emir gönderilmez\./)
+  assert.match(shadowNote({phase: 'TRAIL', virtual_exit: {reason: 'STRUCTURE', r: 0.6, price: 101.2}}), /giriş yapısı bozuldu, \+0,6R ile çıkardı .*Emir gönderilmedi\./)
+})

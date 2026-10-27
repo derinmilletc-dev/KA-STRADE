@@ -332,6 +332,23 @@ const pct = (value: number) => `%${value.toLocaleString('tr-TR', {maximumFractio
 
 export type PositionNote = {text: string; tone: GuideTone; toTarget: number | null; toStop: number | null; openFor: string | null}
 /** Pozisyon yorumu: TP1'e ve stopa kalan mesafe (fiyata göre %) ve açık kalma süresi. Seviye ya da fiyat yoksa uydurmaz. */
+const SHADOW_PHASE: Record<string, string> = {START: 'başlangıç', WATCH: 'izleniyor', BREAKEVEN: 'sıfır risk', TRAIL: 'iz süren stop'}
+const SHADOW_EXIT: Record<string, string> = {SHADOW_STOP: 'önerilen stopa değdi', STRUCTURE: 'giriş yapısı bozuldu', TIME: 'süre doldu'}
+/** Akıllı çıkış gölge modu (emir göndermez): yeni kurallar olsaydı ne yapılırdı? Kayıt yoksa null. */
+export function shadowNote(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const shadow = raw as {phase?: unknown; proposed_stop?: unknown; virtual_exit?: {reason?: unknown; r?: unknown; price?: unknown} | null}
+  const r = (value: unknown) => { const n = num(value); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toLocaleString('tr-TR', {maximumFractionDigits: 2})}R` }
+  const exit = shadow.virtual_exit
+  if (exit && typeof exit === 'object') {
+    return `Gölge çıkış: ${SHADOW_EXIT[String(exit.reason)] ?? 'çıkış'}, ${r(exit.r)} ile çıkardı (fiyat ${String(exit.price ?? '—')}). Emir gönderilmedi.`
+  }
+  const phase = SHADOW_PHASE[String(shadow.phase)] ?? null
+  if (!phase) return null
+  const stop = num(shadow.proposed_stop)
+  return `Gölge çıkış: ${phase}${stop !== null ? ` · önerilen stop ${stop.toLocaleString('tr-TR', {maximumFractionDigits: 8})}` : ''}. Emir gönderilmez.`
+}
+
 export function positionNote(position: {direction?: unknown; mark_price?: unknown; entry_price?: unknown}, plan: {stop_loss?: unknown; targets?: unknown[]; opened_at?: unknown; created_at?: unknown} | undefined, nowMs: number): PositionNote | null {
   const mark = num(position.mark_price), stop = num(plan?.stop_loss), target = num(plan?.targets?.[0])
   const long = String(position.direction || '').toUpperCase() !== 'SHORT'
