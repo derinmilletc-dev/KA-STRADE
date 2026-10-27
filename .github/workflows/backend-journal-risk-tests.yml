@@ -49,7 +49,13 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Real dependency versions (evidence)
         run: |
-          pip list 2>/dev/null | grep -iE '^(httpx|fastapi|pytest|starlette|pydantic|pydantic-settings|asyncpg|stripe|websockets|google-api-python-client|google-auth|cryptography) ' | sort
+          VERSIONS="$(pip list 2>/dev/null | grep -iE '^(httpx|fastapi|pytest|starlette|pydantic|pydantic-settings|asyncpg|stripe|websockets|google-api-python-client|google-auth|cryptography) ' | sort)"
+          echo "$VERSIONS"
+          # Günlüklere erişim kısıtlı olabilir: kanıt bildirim olarak da yazılır.
+          echo "::notice title=real dependency versions::$(printf '%s' "$VERSIONS" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          MAIN_HEAD="$(git -C "$RUNNER_TEMP/main" rev-parse HEAD)"; PR_HEAD="$(git -C "$RUNNER_TEMP/pr256" rev-parse HEAD)"
+          CHANGED="$(git diff --name-only "$MAIN_HEAD" "$PR_HEAD" | wc -l)"
+          echo "::notice title=checked-out trees::main=$MAIN_HEAD pr256=$PR_HEAD files-differing=$CHANGED python=$(python --version 2>&1) baseline-object=$(git cat-file -t "$BASELINE_SHA")"
       - name: pytest on main, then on PR #256 (results are collected, not hidden)
         shell: bash
         run: |
