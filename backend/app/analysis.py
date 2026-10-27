@@ -65,14 +65,18 @@ def adx(highs: list[float], lows: list[float], closes: list[float], period: int 
     return fmean(dx_values[-period:]) if dx_values else 0.0
 
 
-def entry_levels(direction: str, price: float, atr_value: float, support: float, resistance: float) -> tuple[float, float, list[float]]:
-    """Stop, risk ve 1R/2R/3R hedefleri. Tek kaynak: hem `analyze` hem yeni giriş modeli bunu kullanır (davranış değişmez)."""
+def entry_levels(direction: str, price: float, atr_value: float, support: float, resistance: float,
+                 *, atr_multiple: float = 1.5) -> tuple[float, float, list[float]]:
+    """Stop, risk ve 1R/2R/3R hedefleri. Tek kaynak: hem `analyze` hem yeni giriş modeli bunu kullanır.
+
+    `atr_multiple` varsayılanı 1,5: `analyze` (eski sistem) davranışı değişmez. Yeni giriş modeli `support`/`resistance`
+    yerine geri çekilmenin ucunu ve daha küçük bir ATR alt sınırı verir."""
     if direction == "LONG":
-        stop = min(price - 1.5 * atr_value, support - 0.15 * atr_value)
+        stop = min(price - atr_multiple * atr_value, support - 0.15 * atr_value)
         risk = max(price - stop, atr_value)
         targets = [price + risk * ratio for ratio in (1, 2, 3)]
     elif direction == "SHORT":
-        stop = max(price + 1.5 * atr_value, resistance + 0.15 * atr_value)
+        stop = max(price + atr_multiple * atr_value, resistance + 0.15 * atr_value)
         risk = max(stop - price, atr_value)
         targets = [price - risk * ratio for ratio in (1, 2, 3)]
     else:

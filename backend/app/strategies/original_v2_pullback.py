@@ -1,7 +1,9 @@
 """Original V2 canlı giriş modeli: trend + EMA20 geri çekilmesi + yeniden güçlenme ("pullback_v1").
 
-Yalnız GİRİŞ KARARI. Stop, TP, risk, pozisyon büyüklüğü, kaldıraç ve emir yürütme bu modülde YOKTUR:
-* Stop/hedefler `analysis.entry_levels` ile hesaplanır; eski `analyze` da aynı fonksiyonu kullanır (birebir aynı sayılar).
+Giriş kararı ve bu modele özgü STOP SEVİYESİ. Risk, pozisyon büyüklüğü, kaldıraç, TP oranları ve emir yürütme bu modülde YOKTUR:
+* Stop geri çekilmenin ucuna bağlanır: LONG son 6 mumun en düşüğünün, SHORT en yükseğinin 0,15 ATR ötesi; fiyata en az 1 ATR uzak.
+  Hedefler aynı R oranlarıyla (1R/2R/3R) `analysis.entry_levels` ile hesaplanır; eski `analyze` aynı fonksiyonu varsayılan
+  1,5 ATR alt sınırıyla kullanır (eski sistemin sayıları değişmez).
 * Karar mevcut `StrategyResult` biçiminde döner; sonrasındaki tüm canlı kapılar (stop %6, minimum tutar, marjin,
   pozisyon/yön sınırları, spread, günlük kilitler, sahiplik/arm) aynen çalışır.
 * Model ortam değişkeniyle seçilir; varsayılan "legacy" (eski sistem). Geçersiz değer girişi reddeder (fail-closed).
@@ -47,6 +49,8 @@ PARAMETERS = {
     "preferred_extension_min_atr": 0.25,
     "preferred_extension_max_atr": 1.0,
     "fill_deviation_max_atr": 0.4,
+    "stop_min_atr": 1.0,  # stop fiyata en az bu kadar ATR uzak (eski sistemde 1,5)
+    "live_stop_min_atr": 0.75,  # emir anında canlı fiyat–stop mesafesi bunun altına inerse aday atlanır (pozisyon şişmesin)
 }
 CHECK_KEYS = ("pb_trend", "pb_structure", "pb_pullback", "pb_trigger", "pb_extension", "pb_room")
 INTERVAL_SECONDS = {"15m": 900, "1h": 3600, "4h": 14400}
@@ -115,9 +119,18 @@ def fill_deviation_check(result: Any, live_price: Any) -> tuple[bool, dict[str, 
         return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
     adverse_atr = direction * (price - signal_price) / atr
     limit = PARAMETERS["fill_deviation_max_atr"]
-    passed = adverse_atr <= limit
-    return passed, {"adverse_atr": adverse_atr, "limit_atr": limit, "signal_close": signal_price, "live_price": price,
-                    "reason": None if passed else "PRICE_MOVED_FROM_SIGNAL"}
+    # Fiyat stopa doğru kaydıysa canlı stop mesafesi daralır ve pozisyon miktarı şişer; alt sınır bunu önler.
+    try:
+        stop = float(analysis["stop_loss"])
+    except (KeyError, TypeError, ValueError):
+        return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
+    if not math.isfinite(stop):
+        return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
+    live_stop_atr = direction * (price - stop) / atr
+    stop_limit = PARAMETERS["live_stop_min_atr"]
+    reason = "PRICE_MOVED_FROM_SIGNAL" if adverse_atr > limit else "STOP_TOO_CLOSE_AT_LIVE_PRICE" if live_stop_atr < stop_limit else None
+    return reason is None, {"adverse_atr": adverse_atr, "limit_atr": limit, "live_stop_atr": live_stop_atr,
+                            "live_stop_min_atr": stop_limit, "signal_close": signal_price, "live_price": price, "reason": reason}
 
 
 def _closed_windows(request: StrategyInput) -> tuple[dict[str, list[dict[str, float]]] | None, dict[str, int], str | None, list[str]]:
@@ -278,8 +291,14 @@ def evaluate_live_pullback(request: StrategyInput, *, allowed_symbols: list[str]
     eligible = bool(decision["eligible"])
     legacy_direction = analysis["direction"]
     if direction in {"LONG", "SHORT"}:
-        stop, _risk, targets = entry_levels(direction, analysis["entry"], analysis["atr"], analysis["support"], analysis["resistance"])
+        # Stop: geri çekilmenin ucu (son `pullback_window` mum, sinyal mumu dahil) ± 0,15 ATR, en az `stop_min_atr` ATR uzak.
+        recent = candles[-PARAMETERS["pullback_window"]:]
+        pullback_low, pullback_high = min(c["low"] for c in recent), max(c["high"] for c in recent)
+        stop, _risk, targets = entry_levels(direction, analysis["entry"], analysis["atr"], pullback_low, pullback_high,
+                                            atr_multiple=PARAMETERS["stop_min_atr"])
         analysis.update(direction=direction, stop_loss=stop, tp1=targets[0], tp2=targets[1], tp3=targets[2])
+        decision["metrics"]["stop_model"] = "pullback_extreme"
+        decision["metrics"]["pullback_extreme"] = pullback_low if direction == "LONG" else pullback_high
     analysis["entry_model"] = MODEL_VERSION
     analysis["legacy_direction"] = legacy_direction
     analysis["pullback"] = {**decision["metrics"], "checks": dict(decision["checks"]), "parameters": dict(PARAMETERS)}
