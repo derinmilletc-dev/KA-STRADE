@@ -1186,7 +1186,7 @@ export default function LiveCockpit(props: Props) {
     risk: 'Dengeli: işlem başı %1 risk, bakiyeni hızlı eritmeden yeterli fırsat verir. İlk kez başlıyorsan en makul seçim.',
     daily: 'Önerilen sınır, seçtiğin risk paketinin günlük payıdır: kötü bir günde kayıp burada durur.',
     mode: modeWhy,
-    smart: 'Kapalı kalsın: bu özellik gerçek emir gönderebilir. İlk günler yalnız izleyip sonra açman daha güvenli.',
+    smart: smartCurrentlyOn ? 'Şu an açık: puan düşünce kârdaki pozisyonu erken kapatabilir. Erken kapanmadan memnun değilsen kapat; orijinal Stop ve TP her durumda çalışır.' : 'Kapalı kalsın: bu özellik gerçek emir gönderebilir. İlk günler yalnız izleyip sonra açman daha güvenli.',
     consent: 'Botun işlem açabilmesi için belirli süreli açık iznin gerekir. Süre bitince bot yeni işlem açmaz.',
     policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
     arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
@@ -1238,11 +1238,22 @@ export default function LiveCockpit(props: Props) {
       {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
     </>}
     {id === 'smart' && smartSettings !== undefined && <>
-      <div className="lcWizChips" role="radiogroup" aria-label="Akıllı koruma">
-        <button type="button" role="radio" aria-checked={smartPick === 'keep'} className="lcWizChip" data-selected={smartPick === 'keep' || undefined} disabled={busy} onClick={() => setSmartPick('keep')}><b>Böyle kalsın</b><small>{smartCurrentlyOn ? 'Açık' : 'Kapalı'}</small></button>
-        {smartCurrentlyOn
-          ? <button type="button" role="radio" aria-checked={smartPick === 'off'} className="lcWizChip" data-selected={smartPick === 'off' || undefined} disabled={busy} onClick={() => setSmartPick('off')}><b>Kapat</b><small>Stoplar kalkar</small></button>
-          : <button type="button" role="radio" aria-checked={smartPick === 'on'} className="lcWizChip" data-selected={smartPick === 'on' || undefined} disabled={busy} onClick={() => setSmartPick('on')}><b>Aç</b><small>Gerçek emir gönderebilir</small></button>}
+      <div className="lcSmartState" data-on={smartCurrentlyOn || undefined}>
+        <i aria-hidden="true"/>
+        <span><b>Şu an {smartCurrentlyOn ? 'AÇIK' : 'KAPALI'}</b><small>{smartCurrentlyOn ? `Puan eşiği ${smartSettings?.threshold ?? '—'} · bekleme ${smartSettings?.wait_minutes ?? '—'} dk` : 'Hiçbir akıllı emir gönderilmiyor'}</small></span>
+      </div>
+      <ol className="lcFlow" aria-label="Akıllı koruma nasıl çalışır">
+        <li><i>1</i><b>Puan düşer</b><small>Eşiğin altına iner</small></li>
+        <li><i>2</i><b>Bekler</b><small>{smartCurrentlyOn && smartPick !== 'on' ? smartSettings?.wait_minutes ?? smartWizWait : smartWizWait} dk</small></li>
+        <li><i>3</i><b>Yeni mum</b><small>Hâlâ düşük mü?</small></li>
+        <li><i>4</i><b>Kârdaysa çıkar</b><small>Zarardaysa kapatmaz</small></li>
+      </ol>
+      <div className="lcWizList" role="radiogroup" aria-label="Akıllı koruma">
+        {([['keep', smartCurrentlyOn ? 'Açık kalsın' : 'Kapalı kalsın', smartCurrentlyOn ? 'Mevcut eşik ve bekleme süresi korunur.' : 'Pozisyonları yalnız orijinal Stop ve TP yönetir.'],
+           ...(smartCurrentlyOn ? [['off', 'Kapat', 'Geçici stoplar kaldırılır; orijinal Stop ve TP aynen durur.']] : [['on', 'Aç', 'Kârdaki pozisyonu erken kapatabilir; gerçek Binance emri gönderir.']])] as string[][]).map(([optionId, title, note]) =>
+          <button type="button" role="radio" aria-checked={smartPick === optionId} key={optionId} className="lcWizOption lcSmartOption" data-kind={optionId} data-selected={smartPick === optionId || undefined} disabled={busy} onClick={() => setSmartPick(optionId as 'keep' | 'on' | 'off')}>
+            <span className="lcWizHead"><b>{title}</b>{optionId === 'keep' && <em>Değişiklik yok</em>}</span><small>{note}</small>
+          </button>)}
       </div>
       {smartPick === 'on' && <div className="lcSmartPick">
         <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
