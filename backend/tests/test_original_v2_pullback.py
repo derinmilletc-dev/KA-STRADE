@@ -406,8 +406,22 @@ class FlagTests(unittest.TestCase):
 
 class FillDeviationAndRankTests(unittest.TestCase):
     def marked(self, direction="LONG", entry=100.0, atr=2.0):
-        analysis = {"direction": direction, "entry": entry, "atr": atr}
+        stop = entry - 1.5 * atr if direction == "LONG" else entry + 1.5 * atr
+        analysis = {"direction": direction, "entry": entry, "atr": atr, "stop_loss": stop}
         return SimpleNamespace(legacy={"analysis": analysis})
+
+    def test_live_stop_distance_floor_is_symmetric(self):
+        # entry 100, atr 2, stop 1,5 ATR uzakta (97 / 103); alt sınır 0,75 ATR = 1,5 fiyat birimi
+        self.assertTrue(pb.fill_deviation_check(self.marked("LONG"), 98.6)[0])
+        self.assertFalse(pb.fill_deviation_check(self.marked("LONG"), 98.4)[0])
+        self.assertTrue(pb.fill_deviation_check(self.marked("SHORT"), 101.4)[0])
+        self.assertFalse(pb.fill_deviation_check(self.marked("SHORT"), 101.6)[0])
+        self.assertEqual(pb.fill_deviation_check(self.marked("LONG"), 98.4)[1]["reason"], "STOP_TOO_CLOSE_AT_LIVE_PRICE")
+
+    def test_missing_stop_blocks(self):
+        result = self.marked("LONG")
+        del result.legacy["analysis"]["stop_loss"]
+        self.assertFalse(pb.fill_deviation_check(result, 100.0)[0])
 
     def test_adverse_move_limit_is_0_4_atr_for_both_directions(self):
         long_result, short_result = self.marked("LONG"), self.marked("SHORT")
@@ -417,8 +431,8 @@ class FillDeviationAndRankTests(unittest.TestCase):
         self.assertFalse(pb.fill_deviation_check(short_result, 100.0 - 0.41 * 2)[0])
 
     def test_favourable_move_is_not_blocked(self):
-        self.assertTrue(pb.fill_deviation_check(self.marked("LONG"), 90.0)[0])
-        self.assertTrue(pb.fill_deviation_check(self.marked("SHORT"), 110.0)[0])
+        self.assertTrue(pb.fill_deviation_check(self.marked("LONG"), 99.0)[0])
+        self.assertTrue(pb.fill_deviation_check(self.marked("SHORT"), 101.0)[0])
 
     def test_missing_or_bad_price_blocks(self):
         for bad in (None, "x", float("nan"), 0, -1):

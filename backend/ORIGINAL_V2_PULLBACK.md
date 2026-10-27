@@ -25,7 +25,7 @@ Yalnız canlı Original V2 taraması okur. Demo, backtest ve araştırma yollar�
 | `pb_extension` (K6) | `d·(kapanış − EMA20) ≤ 1,25·ATR` |
 | `pb_room` (K7) | Önceki 80 mumun (t **hariç**) karşı ucuna ≥ 0,5·ATR. Kapanış bu uçu geçmişse (mesafe negatif) reddedilir |
 
-Emir öncesi (karar katmanı, emir koduna dokunmaz): canlı fiyat sinyal kapanışından işlem aleyhine 0,4·ATR'den fazla uzaksa aday atlanır (`price_moved`).
+Emir öncesi (karar katmanı, emir koduna dokunmaz): canlı fiyat sinyal kapanışından işlem aleyhine 0,4·ATR'den fazla uzaksa aday atlanır (`price_moved`). Ayrıca fiyat stopa doğru kaydıysa ve canlı fiyat–stop mesafesi 0,75·ATR'nin altına indiyse aday yine atlanır (pozisyon miktarı şişmesin).
 
 Sıralama: önce 0,25–1,0 ATR uzaklıkta yeniden güçlenenler; aynı grupta hacim oranı, sonra mevcut fırsat puanı. EMA20'ye sıfıra yakın olmak tek başına kalite sayılmaz.
 

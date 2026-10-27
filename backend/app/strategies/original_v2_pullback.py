@@ -50,6 +50,7 @@ PARAMETERS = {
     "preferred_extension_max_atr": 1.0,
     "fill_deviation_max_atr": 0.4,
     "stop_min_atr": 1.0,  # stop fiyata en az bu kadar ATR uzak (eski sistemde 1,5)
+    "live_stop_min_atr": 0.75,  # emir anında canlı fiyat–stop mesafesi bunun altına inerse aday atlanır (pozisyon şişmesin)
 }
 CHECK_KEYS = ("pb_trend", "pb_structure", "pb_pullback", "pb_trigger", "pb_extension", "pb_room")
 INTERVAL_SECONDS = {"15m": 900, "1h": 3600, "4h": 14400}
@@ -118,9 +119,18 @@ def fill_deviation_check(result: Any, live_price: Any) -> tuple[bool, dict[str, 
         return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
     adverse_atr = direction * (price - signal_price) / atr
     limit = PARAMETERS["fill_deviation_max_atr"]
-    passed = adverse_atr <= limit
-    return passed, {"adverse_atr": adverse_atr, "limit_atr": limit, "signal_close": signal_price, "live_price": price,
-                    "reason": None if passed else "PRICE_MOVED_FROM_SIGNAL"}
+    # Fiyat stopa doğru kaydıysa canlı stop mesafesi daralır ve pozisyon miktarı şişer; alt sınır bunu önler.
+    try:
+        stop = float(analysis["stop_loss"])
+    except (KeyError, TypeError, ValueError):
+        return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
+    if not math.isfinite(stop):
+        return False, {"reason": "FILL_DEVIATION_DATA_UNAVAILABLE"}
+    live_stop_atr = direction * (price - stop) / atr
+    stop_limit = PARAMETERS["live_stop_min_atr"]
+    reason = "PRICE_MOVED_FROM_SIGNAL" if adverse_atr > limit else "STOP_TOO_CLOSE_AT_LIVE_PRICE" if live_stop_atr < stop_limit else None
+    return reason is None, {"adverse_atr": adverse_atr, "limit_atr": limit, "live_stop_atr": live_stop_atr,
+                            "live_stop_min_atr": stop_limit, "signal_close": signal_price, "live_price": price, "reason": reason}
 
 
 def _closed_windows(request: StrategyInput) -> tuple[dict[str, list[dict[str, float]]] | None, dict[str, int], str | None, list[str]]:
