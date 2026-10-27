@@ -275,24 +275,46 @@ class UnchangedExitTests(unittest.TestCase):
             self.assertEqual((result["stop_loss"], result["tp1"], result["tp2"], result["tp3"]), (stop, *targets), (seed, drift))
             self.assertEqual(entry_levels(result["direction"], price, atr, support, resistance), (stop, risk, targets))
 
-    def test_new_model_stop_and_targets_are_identical_to_analyze(self):
-        rows = pullback_series()
-        reference = analyze(rows)
-        result = decide(rows)
-        self.assertEqual(reference["direction"], "LONG")  # eski puan sistemi de aynı yönde: sayılar doğrudan karşılaştırılabilir
-        analysis = result.legacy["analysis"]
-        self.assertEqual((analysis["stop_loss"], analysis["tp1"], analysis["tp2"], analysis["tp3"]),
-                         (reference["stop_loss"], reference["tp1"], reference["tp2"], reference["tp3"]))
-        self.assertEqual((result.signal.stop, result.signal.tp1, result.signal.tp2, result.signal.tp3),
-                         (reference["stop_loss"], reference["tp1"], reference["tp2"], reference["tp3"]))
-        self.assertEqual(result.signal.entry, reference["entry"])
+    def test_default_atr_multiple_keeps_the_legacy_stop(self):
+        for direction in ("LONG", "SHORT", "BEKLE"):
+            self.assertEqual(entry_levels(direction, 100.0, 2.0, 95.0, 105.0),
+                             entry_levels(direction, 100.0, 2.0, 95.0, 105.0, atr_multiple=1.5))
 
-    def test_short_levels_use_the_same_formula(self):
+    def test_new_model_stop_is_the_pullback_extreme_with_the_same_r_targets(self):
+        rows = pullback_series()
+        result = decide(rows)
+        analysis, atr = result.legacy["analysis"], result.legacy["analysis"]["atr"]
+        extreme = min(r["low"] for r in rows[-pb.PARAMETERS["pullback_window"]:])
+        price = rows[-1]["close"]
+        expected_stop = min(price - pb.PARAMETERS["stop_min_atr"] * atr, extreme - 0.15 * atr)
+        risk = max(price - expected_stop, atr)
+        self.assertEqual(result.signal.entry, price)
+        self.assertEqual(result.signal.stop, expected_stop)
+        self.assertEqual((result.signal.tp1, result.signal.tp2, result.signal.tp3), tuple(price + risk * r for r in (1, 2, 3)))
+        self.assertEqual(analysis["pullback"]["stop_model"], "pullback_extreme")
+        self.assertGreaterEqual(price - result.signal.stop, pb.PARAMETERS["stop_min_atr"] * atr - 1e-12)
+        # Eski stop (80 mumun ucu / 1,5 ATR) daha uzak: yeni stop yakındır, hedefler buna göre yakınlaşır.
+        legacy = analyze(rows)
+        self.assertGreater(result.signal.stop, legacy["stop_loss"])
+        self.assertLess(result.signal.tp1 - price, legacy["tp1"] - price)
+
+    def test_short_stop_uses_the_pullback_high(self):
         rows = mirror(pullback_series())
-        reference = analyze(rows)
         result = decide(rows, mirror(higher(3600, 0.15)), mirror(higher(14400, 0.3)))
-        stop, _risk, targets = entry_levels("SHORT", reference["entry"], reference["atr"], reference["support"], reference["resistance"])
-        self.assertEqual((result.signal.stop, result.signal.tp1, result.signal.tp2, result.signal.tp3), (stop, *targets))
+        atr = result.legacy["analysis"]["atr"]
+        extreme = max(r["high"] for r in rows[-pb.PARAMETERS["pullback_window"]:])
+        price = rows[-1]["close"]
+        expected_stop = max(price + pb.PARAMETERS["stop_min_atr"] * atr, extreme + 0.15 * atr)
+        risk = max(expected_stop - price, atr)
+        self.assertEqual(result.signal.stop, expected_stop)
+        self.assertEqual((result.signal.tp1, result.signal.tp2, result.signal.tp3), tuple(price - risk * r for r in (1, 2, 3)))
+
+    def test_stop_is_never_closer_than_the_minimum_atr(self):
+        for pull_n, pull, trigger in ((5, -0.12, 0.4), (6, -0.12, 0.5), (6, -0.15, 0.6), (7, -0.12, 0.6)):
+            result = decide(pullback_series(pull_n=pull_n, pull=pull, trigger=trigger))
+            if not result.signal.strategy_eligible:
+                continue
+            self.assertGreaterEqual(result.signal.entry - result.signal.stop, pb.PARAMETERS["stop_min_atr"] * result.signal.atr - 1e-12)
 
 
 class MarkerAndGateTests(unittest.TestCase):

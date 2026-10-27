@@ -1,6 +1,6 @@
 # Original V2 yeni giriş modeli: `pullback_v1`
 
-Yalnız **giriş kararı**. Stop, TP1/TP2/TP3, risk, pozisyon büyüklüğü, kaldıraç ve emir yürütme değişmez.
+**Giriş kararı** ve bu modele özgü **stop seviyesi**. TP oranları (R katları), risk, pozisyon büyüklüğü, kaldıraç ve emir yürütme değişmez.
 
 ## Açma / kapama
 `PROTREBOT_ORIGINAL_V2_ENTRY_MODEL`
@@ -29,8 +29,11 @@ Emir öncesi (karar katmanı, emir koduna dokunmaz): canlı fiyat sinyal kapanı
 
 Sıralama: önce 0,25–1,0 ATR uzaklıkta yeniden güçlenenler; aynı grupta hacim oranı, sonra mevcut fırsat puanı. EMA20'ye sıfıra yakın olmak tek başına kalite sayılmaz.
 
+## Stop (yalnız yeni modelde; sahibin onayıyla)
+Stop geri çekilmenin ucuna bağlanır: LONG için son 6 mumun (sinyal mumu dahil) en düşüğünün, SHORT için en yükseğinin 0,15 ATR ötesi; fiyata en az 1 ATR uzak. Eski sistemde stop son 80 mumun ucu ve en az 1,5 ATR idi; o yol değişmez (`entry_levels` varsayılanı 1,5). Hedefler aynı formülle (1R/2R/3R) yeni risk üzerinden hesaplanır; canlı katmandaki TP1 (%80 mesafe, %70 miktar) ve TP3 mantığı değişmez. Risk bütçesi aynı kalır: stop yakınlaşınca pozisyon büyür, dolar kayıp bütçesi aynı kalır. Dolar kazanç artmaz; işlem daha kısa sürede sonuçlanır.
+
 ## Değişmeyenler
-* Stop ve hedefler `analysis.entry_levels` ile hesaplanır; eski `analyze` da aynı fonksiyonu kullanır (testle birebir doğrulanır).
+* Risk bütçesi, pozisyon boyutlandırma formülü, kaldıraç, emir yürütme.
 * Güvenlik kapıları aynen çalışır: stop ≤ %6, minimum işlem tutarı, marjin, spread, pozisyon ve aynı yön sınırları, günlük kilitler, arm/sahiplik, yinelenen parite.
 * Yalnız bu modülün ürettiği, süreç içi işaretli sonuçlar için `evaluate_entry_gates` içindeki **güven** ve **tuzak** karşılaştırmaları nötrleşir (bu model o puanları üretmez). Diğer tüm kapılar testle "hâlâ reddediyor" olarak doğrulanır.
 
