@@ -26,7 +26,7 @@ def test_daily_warning_boundaries(value, level):
 
 
 @pytest.mark.parametrize("fields", [
-    {"risk_percent": 0.49}, {"risk_percent": 10.01}, {"risk_percent": float("nan")},
+    {"risk_percent": 0.49}, {"risk_percent": 15.01}, {"risk_percent": float("nan")},
     {"risk_percent": True}, {"risk_percent": "1"}, {"daily_loss_percent": 0.99},
     {"daily_loss_percent": 25.01}, {"daily_loss_percent": float("inf")},
     {"risk_percent": 2, "daily_loss_percent": 1},

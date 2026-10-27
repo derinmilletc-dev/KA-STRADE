@@ -141,7 +141,7 @@ def allowed_snapshot(action: AuditAction, value: Mapping[str, Any]) -> dict[str,
     elif action == "original_live.risk_changed":
         import math
         from .original_live_risk import WARNING_VERSION, daily_warning, trade_warning
-        for key, maximum in (("risk_percent", 10), ("daily_loss_percent", 25)):
+        for key, maximum in (("risk_percent", 15), ("daily_loss_percent", 25)):
             value = result[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value <= maximum:
                 raise ValueError("Invalid risk audit percentage")
