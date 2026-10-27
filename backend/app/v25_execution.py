@@ -6038,7 +6038,7 @@ async def execute_live_order(
                     from . import original_v2_record
                     original_v2_record.attach_entry(
                         plan, strategy_result, spec, spread_bp=current_spread, snapshot=snapshot, policy=entry_policy,
-                        config=state.get("original_v2_live"), recorded_at=plan["created_at"],
+                        config=state.get("original_v2_live"), recorded_at=plan["created_at"], order_result=result,
                     )
                 except Exception:  # noqa: BLE001
                     pass
@@ -6890,6 +6890,12 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                                          _original_live.guard_kline_fetch(application, client))
     except Exception as exc:
         logger.warning("SMART_GUARD_HOOK_FAILED error=%s", type(exc).__name__)
+    try:
+        # Giriş kalitesi gözlemi: yalnız ölçüm; ayrı try/except, Smart Guard'dan sonra, hata akışı etkilemez.
+        from . import original_v2_record as _observation
+        _observation.observe_positions(state, snapshot)
+    except Exception:  # noqa: BLE001
+        pass
     clear_clean_reconciliation_state(state, snapshot)
     from . import original_v2_live
     original_v2_live.resume_after_transient_pause(state, snapshot)

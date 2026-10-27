@@ -201,9 +201,9 @@ class Journal:
     def original_v2(self, intent_id: str, section: str, data: dict[str, Any]) -> None:
         """Original V2 işlem kaydı: aynı işlem kimliği altında, tekrar çalıştırılınca mükerrer üretmeyen yazım.
 
-        entry/tp1: ilk yazım kalır. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
+        entry/tp1/context: ilk yazım kalır; path: son yazan; fill: alan alan ilk yazan. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
         özet her seferinde aynı doğrulanmış verilerden yeniden yazılır. Yeni tablo yok: trades.payload içinde."""
-        if section not in {"entry", "tp1", "legs"} or not isinstance(data, dict):
+        if section not in {"entry", "tp1", "legs", "context", "fill", "path"} or not isinstance(data, dict):
             raise ValueError("Invalid Original V2 observation section")
         with self.connect() as db:
             previous = db.execute("SELECT signal_id,payload FROM trades WHERE intent_id=?", (intent_id,)).fetchone()
@@ -215,6 +215,12 @@ class Journal:
                     legs.setdefault(key, leg)
                 if isinstance(data.get("summary"), dict):
                     record["close_summary"] = data["summary"]
+            elif section == "path":
+                record[section] = data  # fiyat izi: son yazan kazanır
+            elif section == "fill":
+                fill = record.setdefault("fill", {})
+                for key, value in data.items():
+                    fill.setdefault(key, value)  # dolum alanları ilk yazan kazanır; "exact" sonradan eklenir
             else:
                 record.setdefault(section, data)
             payload["original_v2"] = record
