@@ -13,7 +13,7 @@ import threading
 import time
 from contextlib import contextmanager
 from collections.abc import Generator
-from collections import deque
+from collections import OrderedDict, deque
 from contextvars import ContextVar, Token
 from itertools import count
 from pathlib import Path
@@ -27,6 +27,63 @@ INTERVALS = {"15m": 900, "1h": 3600, "4h": 14400}
 ROUND: ContextVar[str | None] = ContextVar("signal_observation_round", default=None)
 SEQUENCE = count()
 PRODUCER_ERRORS: deque[str] = deque(maxlen=16)
+
+# Yazım makbuzları: "kuyruğa alındı" ile "SQLite'a yazıldı ve geri okunarak doğrulandı" ayrı durumlardır.
+# Yalnız gözlem katmanının yeni bölümleri (context/fill/path) makbuz taşır; #253 bölümleri (entry/tp1/legs) eskisi gibi çalışır.
+TRACKED_SECTIONS = {"context", "fill", "path"}
+RECEIPT_LIMIT = 2048
+RETRY_LIMIT = 128
+MAX_WRITE_ATTEMPTS = 4
+DEFAULT_DRAIN_SECONDS = 5.0
+_RECEIPTS: "OrderedDict[int, str]" = OrderedDict()
+_RECEIPT_LOCK = threading.Lock()
+_RECEIPT_SEQUENCE = count(1)
+
+
+def new_receipt() -> int:
+    token = next(_RECEIPT_SEQUENCE)
+    set_receipt(token, "queued")
+    return token
+
+
+def set_receipt(token: Any, state: str) -> None:
+    if not isinstance(token, int):
+        return
+    with _RECEIPT_LOCK:
+        _RECEIPTS[token] = state
+        _RECEIPTS.move_to_end(token)
+        while len(_RECEIPTS) > RECEIPT_LIMIT:
+            _RECEIPTS.popitem(last=False)
+
+
+def receipt_state(token: Any) -> str:
+    """queued | retrying | persisted | failed | abandoned | dropped | unknown (süreç yeniden başladı / makbuz silindi)."""
+    with _RECEIPT_LOCK:
+        return _RECEIPTS.get(token, "unknown") if isinstance(token, int) else "unknown"
+
+
+def drain_seconds() -> float:
+    try:
+        value = float(os.environ.get("PROTREBOT_JOURNAL_DRAIN_SECONDS", DEFAULT_DRAIN_SECONDS))
+    except (TypeError, ValueError):
+        value = DEFAULT_DRAIN_SECONDS
+    return min(15.0, max(0.5, value)) if math.isfinite(value) else DEFAULT_DRAIN_SECONDS
+
+
+def stored_matches(section: str, stored: Any, sent: dict[str, Any]) -> bool:
+    """Yazımdan sonra geri okunan kayıt, gönderilenle uyumlu mu? (yalnız SQLite'tan okunan veriyle karar verilir)"""
+    if not isinstance(stored, dict) or not stored:
+        return False
+    if section == "context":
+        return True  # ilk yazan kalır: kayıt var olması yeterli
+    if section == "fill":
+        return all(stored.get(key) is not None for key, value in sent.items() if value is not None and not isinstance(value, dict))
+    if section == "path":
+        sent_samples, stored_samples = sent.get("samples") or 0, stored.get("samples") or 0
+        if sent.get("ended_reason") and not stored.get("ended_reason"):
+            return False
+        return stored_samples >= sent_samples
+    return True
 NULL_FIELDS = (
     "return_1h", "return_2h", "return_4h", "mae_r_gross", "mfe_r_gross",
     "mae_r_costs", "mfe_r_costs", "hypothetical_result", "hypothetical_r_gross",
@@ -56,6 +113,16 @@ def number(value: Any) -> float | None:
 
 def signal_id(symbol: str, direction: str, close_time: int) -> str:
     return hashlib.sha256(f"{symbol.upper()}|{direction.upper()}|{close_time}".encode()).hexdigest()
+
+
+def fill_missing(target: dict[str, Any], source: dict[str, Any]) -> None:
+    """target'taki dolu değerler korunur; yalnız eksik (None/yok) alanlar source'tan tamamlanır (iç içe sözlüklerde de)."""
+    for key, value in source.items():
+        current = target.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            fill_missing(current, value)
+        elif current is None:
+            target[key] = value
 
 
 class Journal:
@@ -201,9 +268,9 @@ class Journal:
     def original_v2(self, intent_id: str, section: str, data: dict[str, Any]) -> None:
         """Original V2 işlem kaydı: aynı işlem kimliği altında, tekrar çalıştırılınca mükerrer üretmeyen yazım.
 
-        entry/tp1: ilk yazım kalır. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
+        entry/tp1/context: ilk yazım kalır; path: son yazan; fill: dolu alan korunur, boş (None) alan sonradan tamamlanır. legs: dolum kimliğine göre birleşir (aynı dolum ikinci kez eklenmez);
         özet her seferinde aynı doğrulanmış verilerden yeniden yazılır. Yeni tablo yok: trades.payload içinde."""
-        if section not in {"entry", "tp1", "legs"} or not isinstance(data, dict):
+        if section not in {"entry", "tp1", "legs", "context", "fill", "path"} or not isinstance(data, dict):
             raise ValueError("Invalid Original V2 observation section")
         with self.connect() as db:
             previous = db.execute("SELECT signal_id,payload FROM trades WHERE intent_id=?", (intent_id,)).fetchone()
@@ -215,6 +282,15 @@ class Journal:
                     legs.setdefault(key, leg)
                 if isinstance(data.get("summary"), dict):
                     record["close_summary"] = data["summary"]
+            elif section == "path":
+                # fiyat izi: son yazan kazanır; ama yeniden denenen eski bir kopya yenisini ASLA ezmez
+                old = record.get("path") if isinstance(record.get("path"), dict) else None
+                older = old is not None and ((old.get("ended_reason") and not data.get("ended_reason"))
+                                             or (old.get("samples") or 0) > (data.get("samples") or 0))
+                if not older:
+                    record[section] = data
+            elif section == "fill":
+                fill_missing(record.setdefault("fill", {}), data)  # dolu alan korunur; boş alan sonradan tamamlanır
             else:
                 record.setdefault(section, data)
             payload["original_v2"] = record
@@ -224,6 +300,13 @@ class Journal:
                 signal_id=COALESCE(trades.signal_id,excluded.signal_id),payload=excluded.payload
             """, (intent_id, previous[0] if previous and previous[0] else (linked[0] if linked else None),
                   json.dumps(payload, allow_nan=False)))
+
+    def original_v2_section(self, intent_id: str, section: str) -> Any:
+        """Geri okuma (ayrı bağlantı, yazım commit edildikten sonra): bölümün SQLite'taki gerçek hali."""
+        with self.connect() as db:
+            row = db.execute("SELECT payload FROM trades WHERE intent_id=?", (intent_id,)).fetchone()
+        record = json.loads(row[0]).get("original_v2") if row else None
+        return record.get(section) if isinstance(record, dict) else None
 
     def original_v2_trades(self) -> list[dict[str, Any]]:
         with self.connect() as db:
@@ -279,14 +362,19 @@ class Observer:
         self.dropped = 0
         self.failures = 0
         self.rounds: dict[str, dict[str, Any]] = {}
+        self.retry: list[dict[str, Any]] = []
+        self.drain_deadline = float("inf")
 
-    def publish(self, kind: str, round_id: str | None, data: dict[str, Any]) -> None:
+    def publish(self, kind: str, round_id: str | None, data: dict[str, Any]) -> bool:
+        """True: kuyruğa alındı. False: atıldı (çağıran isterse sonra yeniden dener)."""
         try:
+            if self.thread is not None and not self.thread.is_alive() and not self.stopping.is_set():
+                self.thread = None  # yazıcı iş parçacığı ölmüş: yenisi başlatılır, kuyruktaki kayıtlar işlenir
             if self.thread is None:
                 # No database operation is performed on the caller's thread.
                 if not self.start_lock.acquire(blocking=False):
                     self.dropped += 1
-                    return
+                    return False
                 try:
                     if self.thread is None:
                         self.thread = threading.Thread(target=self.run, name="live-signal-observer", daemon=True)
@@ -294,14 +382,22 @@ class Observer:
                 finally:
                     self.start_lock.release()
             self.queue.put_nowait((kind, round_id, data))
+            return True
         except Exception as exc:
             self.thread = None if self.thread is not None and not self.thread.is_alive() else self.thread
             self.dropped += 1
             PRODUCER_ERRORS.append(type(exc).__name__)
+            return False
 
     def run(self) -> None:
         reported_drops = 0
-        while not self.stopping.is_set() or not self.queue.empty():
+        while True:
+            if self.stopping.is_set():
+                if self.queue.empty() and not self.retry:
+                    break
+                if time.monotonic() >= self.drain_deadline:
+                    self.abandon()
+                    break
             while PRODUCER_ERRORS:
                 report_error("SIGNAL_OBSERVATION_ENQUEUE_FAILED error_type=%s", PRODUCER_ERRORS.popleft())
             try:
@@ -311,16 +407,68 @@ class Observer:
             if self.dropped != reported_drops:
                 report_error("SIGNAL_OBSERVATION_DROPPED total=%s", self.dropped)
                 reported_drops = self.dropped
-            if item is None:
-                continue
-            kind, round_id, data = item
+            if item is not None:
+                kind, round_id, data = item
+                try:
+                    self.handle(kind, round_id, data)
+                except Exception as exc:
+                    self.failures += 1
+                    report_error("SIGNAL_OBSERVATION_FAILED operation=%s error_type=%s", kind, type(exc).__name__)
+                finally:
+                    self.queue.task_done()
+            self.run_retries()
+
+    def schedule_retry(self, entry: dict[str, Any]) -> None:
+        """Yazımı başarısız olan izlenen kayıt: sınırlı sayıda, artan beklemeyle yeniden denenir; kaybolmaz."""
+        entry["attempt"] = entry.get("attempt", 0) + 1
+        if entry["attempt"] >= MAX_WRITE_ATTEMPTS or len(self.retry) >= RETRY_LIMIT:
+            set_receipt(entry["receipt"], "failed")  # gözlem katmanı kendi tarafında yeniden yayımlar
+            return
+        entry["due"] = time.monotonic() + min(5.0, 0.5 * 2 ** entry["attempt"])
+        set_receipt(entry["receipt"], "retrying")
+        self.retry.append(entry)
+
+    def run_retries(self) -> None:
+        if not self.retry:
+            return
+        now = time.monotonic()
+        due = [entry for entry in self.retry if entry["due"] <= now or self.stopping.is_set()]
+        self.retry = [entry for entry in self.retry if entry not in due]
+        for entry in due:
+            self.write_tracked(entry)
+
+    def write_tracked(self, entry: dict[str, Any]) -> None:
+        payload = entry["payload"]
+        try:
+            self.journal.original_v2(**payload)
+            stored = self.journal.original_v2_section(payload["intent_id"], payload["section"])
+            if not stored_matches(payload["section"], stored, payload["data"]):
+                raise RuntimeError("READBACK_MISMATCH")
+        except Exception as exc:
+            self.failures += 1
+            report_error("SIGNAL_OBSERVATION_FAILED operation=original_v2_%s error_type=%s", payload["section"], type(exc).__name__)
+            self.schedule_retry(entry)
+            return
+        set_receipt(entry["receipt"], "persisted")
+
+    def abandon(self) -> None:
+        """Kapanış süresi doldu: kalanlar 'abandoned' işaretlenir (gözlem katmanı sonraki açılışta yeniden yayımlar)."""
+        pending = 0
+        while True:
             try:
-                self.handle(kind, round_id, data)
-            except Exception as exc:
-                self.failures += 1
-                report_error("SIGNAL_OBSERVATION_FAILED operation=%s error_type=%s", kind, type(exc).__name__)
-            finally:
-                self.queue.task_done()
+                kind, _round, data = self.queue.get_nowait()
+            except queue.Empty:
+                break
+            pending += 1
+            if kind == "original_v2":
+                set_receipt(data.get("receipt"), "abandoned")
+            self.queue.task_done()
+        for entry in self.retry:
+            pending += 1
+            set_receipt(entry["receipt"], "abandoned")
+        self.retry = []
+        if pending:
+            report_error("SIGNAL_OBSERVATION_SHUTDOWN_INCOMPLETE pending=%s", pending)
 
     def handle(self, kind: str, round_id: str | None, data: dict[str, Any]) -> None:
         if kind == "candles":
@@ -330,7 +478,11 @@ class Observer:
             self.journal.trade(**data)
             return
         if kind == "original_v2":
-            self.journal.original_v2(**data)
+            receipt = data.pop("receipt", None)
+            if receipt is None or data.get("section") not in TRACKED_SECTIONS:
+                self.journal.original_v2(**data)  # #253 bölümleri (entry/tp1/legs): davranış aynen eskisi gibi
+                return
+            self.write_tracked({"receipt": receipt, "payload": data, "attempt": 0})
             return
         if kind == "fills":
             entries = data.pop("entries")
@@ -443,12 +595,19 @@ class Observer:
                 self.failures += 1
                 report_error("SIGNAL_OBSERVATION_FAILED operation=record symbol=%s error_type=%s", candidate["symbol"], type(exc).__name__)
 
-    def close(self, timeout: float = 2) -> None:
+    def close(self, timeout: float | None = None) -> None:
+        """Sınırlı bekleme: kuyruk/yeniden denemeler en fazla `timeout` sn boşaltılır; kalanlar 'abandoned' işaretlenir."""
+        seconds = drain_seconds() if timeout is None else max(0.0, float(timeout))
+        self.drain_deadline = time.monotonic() + seconds
         self.stopping.set()
         if self.thread:
-            self.thread.join(timeout)
+            self.thread.join(seconds + 1.0)
             if self.thread.is_alive():
                 report_error("SIGNAL_OBSERVATION_SHUTDOWN_INCOMPLETE pending=%s", self.queue.qsize())
+            else:
+                self.abandon()  # iş parçacığı çoktan ölmüş olabilir: kalanlar sessizce 'yazıldı' sanılmasın
+        else:
+            self.abandon()
 
 
 _observer: Observer | None = None
@@ -493,17 +652,20 @@ def _observer_for(member: str) -> Observer:
     return observer
 
 
-def emit(kind: str, **data: Any) -> None:
-    """Only bounded, nonblocking enqueue; failures never escape to trading."""
+def emit(kind: str, **data: Any) -> bool | None:
+    """Only bounded, nonblocking enqueue; failures never escape to trading.
+
+    Dönüş (yalnız bilgi): True kuyruğa alındı, False atıldı, None günlük kapalı."""
     global _observer
     try:
         if not env_flag("PROTREBOT_SIGNAL_JOURNAL_ENABLED", default=True):
-            return
-        _observer_for(_member_to_journal()).publish(kind, ROUND.get(), data)
+            return None
+        return _observer_for(_member_to_journal()).publish(kind, ROUND.get(), data)
     except Exception as exc:
         if _observer is not None:
             _observer.dropped += 1
         PRODUCER_ERRORS.append(type(exc).__name__)
+        return False
 
 
 def start_round(policy: dict[str, Any], snapshot: dict[str, Any], daily: dict[str, Any], plans: dict[str, Any]) -> Token | None:
