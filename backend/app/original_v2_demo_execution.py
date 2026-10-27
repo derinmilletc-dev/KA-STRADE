@@ -650,6 +650,7 @@ async def _candidates(
         if isinstance(row, dict) and isinstance(row.get("symbol"), str)
     }
     results, tickers, complete = {}, [], set()
+    candles_15m: dict[str, Any] = {}
     for symbol in symbols:
         frames, series_by_interval = {}, {}
         incomplete_history = False
@@ -686,6 +687,8 @@ async def _candidates(
                 fail_scan("invalid_or_misaligned_candles", symbol=symbol, interval=interval, category="invalid_market_data")
                 fail("INVALID_ORIGINAL_KLINES")
             frames[interval] = series.closed(at)
+            if live_universe and interval == "15m":
+                candles_15m[symbol] = frames[interval]  # yalnız referans (gözlem katmanı için)
             series_by_interval[interval] = series
             if require_complete and (
                 _duplicates or len(frames[interval]) != strategy.CANDLE_FETCH_LIMIT - 1 or not series.history_complete(at)
@@ -866,6 +869,13 @@ async def _candidates(
                 )
                 continue
         eligible.append((candidate, result))
+        if live_universe:
+            try:
+                # Yalnız gözlem: karar anındaki kapanmış 15 dk mumlardan giriş bağlamı (karar/sıralamayı etkilemez).
+                from . import original_v2_record
+                original_v2_record.note_candidate(candidate["symbol"], result, candles_15m.get(candidate["symbol"]))
+            except Exception:  # noqa: BLE001
+                pass
         if diagnostics is not None:
             assessments.append({
                 "symbol": candidate["symbol"],
