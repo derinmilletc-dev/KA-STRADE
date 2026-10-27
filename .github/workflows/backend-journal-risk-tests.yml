@@ -1,0 +1,152 @@
+name: Backend Journal + Risk Gate Tests (main vs PR #256)
+
+# DENEME iş akışı (kalıcı değil): iki testi (test_signal_journal, test_v25_risk_gate_repairs) GERÇEK bağımlılıklarla
+# pytest altında, aynı ortamda iki kod sürümü üzerinde çalıştırır ve sonuçları test bazında karşılaştırır.
+# Salt okunur: sır yok, deploy yok. Mevcut iş akışlarına dokunmaz; yalnız bu dosyanın PR'ında çalışır.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/backend-journal-risk-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAIN_SHA: fa731c0d99f0209b73c6fcf9e92c58d479a6227e
+  PR_SHA: 6063c7130f22188fcef58e1dc09954675478d197
+  # test_signal_journal bir temel commit'in analysis.py dosyasını `git show` ile okur; sığ checkout'ta yoktur.
+  BASELINE_SHA: 9dd89b4919b48e31109b2a46a590849e946806b2
+
+jobs:
+  journal-risk-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # actions/checkout depodaki bozuk alt modül girdisi yüzünden kullanılmaz (diğer iş akışlarıyla aynı yöntem).
+      - name: Fetch main, PR #256 and baseline commits (no submodules)
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          git init -q .
+          HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          for sha in "$MAIN_SHA" "$PR_SHA" "$BASELINE_SHA"; do
+            git -c http.extraheader="$HEADER" fetch -q --depth=1 "https://github.com/$REPO" "$sha"
+          done
+          git worktree add -q --detach "$RUNNER_TEMP/main" "$MAIN_SHA"
+          git worktree add -q --detach "$RUNNER_TEMP/pr256" "$PR_SHA"
+          git cat-file -e "$BASELINE_SHA^{commit}"
+          git -C "$RUNNER_TEMP/main" log --oneline -1
+          git -C "$RUNNER_TEMP/pr256" log --oneline -1
+          git -C "$RUNNER_TEMP/pr256" show "${BASELINE_SHA:0:7}:backend/app/analysis.py" | head -n 1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Install (requirements-dev, same for both versions)
+        working-directory: ${{ runner.temp }}/main/backend
+        run: pip install -r requirements-dev.txt
+      - name: Real dependency versions (evidence)
+        run: |
+          pip list 2>/dev/null | grep -iE '^(httpx|fastapi|pytest|starlette|pydantic|pydantic-settings|asyncpg|stripe|websockets|google-api-python-client|google-auth|cryptography) ' | sort
+      - name: pytest on main, then on PR #256 (results are collected, not hidden)
+        shell: bash
+        run: |
+          set +e
+          for target in main pr256; do
+            cd "$RUNNER_TEMP/$target/backend" || exit 1
+            python -m pytest tests/test_signal_journal.py tests/test_v25_risk_gate_repairs.py \
+              -q -rfE --tb=short -p no:cacheprovider -o junit_family=xunit2 \
+              --junitxml="$RUNNER_TEMP/$target.xml" > "$RUNNER_TEMP/$target.txt" 2>&1
+            echo "$?" > "$RUNNER_TEMP/$target.rc"
+            echo "== $target: pytest exit code $(cat "$RUNNER_TEMP/$target.rc")"
+            tail -n 12 "$RUNNER_TEMP/$target.txt"
+          done
+          exit 0
+      - name: Compare per test and classify failures
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, xml.etree.ElementTree as ET
+          tmp = os.environ["RUNNER_TEMP"]
+          ENV = re.compile(r"ModuleNotFoundError|No module named|ImportError|ConnectionError|name resolution|"
+                           r"returned non-zero exit status 128|fatal: (invalid object|bad object|not a git)|could not read")
+
+          def load(name):
+              path = f"{tmp}/{name}.xml"
+              if not os.path.exists(path):
+                  return None
+              rows, totals = {}, {"tests": 0, "pass": 0, "fail": 0, "skip": 0}
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  key = f"{case.get('classname')}::{case.get('name')}"
+                  bad = case.find("failure") if case.find("failure") is not None else case.find("error")
+                  if bad is not None:
+                      state, text = "fail", (bad.get("message") or "") + " " + (bad.text or "")
+                  elif case.find("skipped") is not None:
+                      state, text = "skip", case.find("skipped").get("message") or ""
+                  else:
+                      state, text = "pass", ""
+                  rows[key] = (state, " ".join(text.split()))
+                  totals["tests"] += 1
+                  totals[state] += 1
+              return rows, totals
+
+          main, pr = load("main"), load("pr256")
+          out, buckets = [], {"ortam/kurulum": [], "PR kaynaklı": [], "mevcut hata (main'de de var)": [],
+                              "main'de hata, PR'da yok": [], "yalnız bir sürümde var": []}
+          for label, data in (("main", main), ("PR #256", pr)):
+              if data is None:
+                  out.append(f"{label}: pytest sonuç dosyası YOK (ortam/kurulum hatası)")
+                  buckets["ortam/kurulum"].append((label, "pytest sonuç üretmedi", ""))
+              else:
+                  t = data[1]
+                  out.append(f"{label}: {t['tests']} test | geçti {t['pass']} | başarısız/hata {t['fail']} | atlandı {t['skip']}")
+          if main and pr:
+              for key in sorted(set(main[0]) | set(pr[0])):
+                  m, p = main[0].get(key), pr[0].get(key)
+                  if m is None or p is None:
+                      buckets["yalnız bir sürümde var"].append((key, "main" if m else "PR #256", ""))
+                      continue
+                  texts = " ".join(x[1] for x in (m, p) if x[0] == "fail")
+                  if ENV.search(texts):
+                      buckets["ortam/kurulum"].append((key, texts[:160], ""))
+                  elif m[0] == "fail" and p[0] == "fail":
+                      buckets["mevcut hata (main'de de var)"].append((key, p[1][:160], ""))
+                  elif p[0] == "fail":
+                      buckets["PR kaynaklı"].append((key, p[1][:160], ""))
+                  elif m[0] == "fail":
+                      buckets["main'de hata, PR'da yok"].append((key, m[1][:160], ""))
+          for name, items in buckets.items():
+              out.append(f"## {name}: {len(items)}")
+              out.extend(f"  - {a} :: {b}" for a, b, _ in items[:25])
+          # Atlanan testler dürüstçe belirtilir (geçti sayılmaz).
+          for label, data in (("main", main), ("PR #256", pr)):
+              if data:
+                  for key, (state, text) in sorted(data[0].items()):
+                      if state == "skip":
+                          out.append(f"ATLANDI ({label}): {key} :: {text[:100]}")
+          text = "\n".join(out)
+          print(text)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("### main vs PR #256 (gerçek bağımlılıklar, pytest)\n```\n" + text + "\n```\n")
+          # Günlük erişimi kısıtlı olabilir: sonuç bildirim olarak da yazılır (<=3500 karakterlik parçalar).
+          chunk, parts = "", []
+          for line in out:
+              if len(chunk) + len(line) + 1 > 3300:
+                  parts.append(chunk); chunk = ""
+              chunk += line + "\n"
+          parts.append(chunk)
+          for number, part in enumerate(parts[:8], 1):
+              print("::notice title=main vs PR256 part %d::%s" % (number, part.replace("%", "%25").replace("\r", "").replace("\n", "%0A")))
+          for target in ("main", "pr256"):
+              try:
+                  tail = open(f"{tmp}/{target}.txt", encoding="utf-8", errors="replace").read().splitlines()[-12:]
+                  print("::notice title=pytest tail %s::%s" % (target, "\n".join(tail).replace("%", "%25").replace("\n", "%0A")[:3500]))
+              except OSError:
+                  pass
+          blocking = buckets["ortam/kurulum"] or buckets["PR kaynaklı"]
+          if buckets["mevcut hata (main'de de var)"]:
+              print("::warning::main'de de bulunan mevcut hatalar var (PR kaynaklı değil); ayrıntı özette.")
+          sys.exit(1 if blocking else 0)
+          PY
