@@ -323,3 +323,16 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChartEmpty .refChartRecover {
   margin: 12px auto 0; min-height: 40px; padding: 0 14px; border: 1px solid rgba(169, 212, 255, .28); border-radius: 10px; background: rgba(169, 212, 255, .08); color: #eaf4ff; font-size: 13px; font-weight: 600; cursor: pointer;
 }
+
+/* "İşlem aç" tam ekranda da durur (emir göndermez, Manuel işlem panelini açar); dar ekranda yalnız simge kalır. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar > .refTradeBtn { min-height: 34px !important; padding: 0 10px !important; font-size: 12.5px !important; flex: 0 1 auto !important; min-width: 34px !important; overflow: hidden !important; box-shadow: none !important; }
+@media (max-width: 760px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar > .refTradeBtn > span { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refTradeCta { display: none !important; }
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refTradeCta { display: none !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar > .refTradeBtn { display: inline-flex !important; }
+@media (max-height: 520px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refPosCard { width: 220px !important; padding: 10px 12px !important; gap: 6px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refPosCard :is(dl, > p) { display: none !important; }
+}

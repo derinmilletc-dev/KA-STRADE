@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
+import {Activity, Zap, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -10,6 +10,7 @@ import {CoinIcon} from './src/components/CoinIcon'
 import {MasterTradeAccordions} from './MasterTradeAccordions'
 import {MasterTradeMarketWatch} from './MasterTradeMarketWatch'
 import {MasterTradeCoinPicker} from './MasterTradeCoinPicker'
+import {requestManualTrade} from './trade-intent'
 import type {MarketScore} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
@@ -37,6 +38,39 @@ type Props = {
   levelsVisible: boolean; volumeVisible: boolean; onLevels: () => void; onVolume: () => void;
   timeline: Array<{time: string; message: string}>; error: string; dataIssue: string;
   analysisUpdatedAt?: string | null;
+  positions?: readonly LivePosition[]; accountCheckedAt?: string | null;
+}
+type LivePosition = {symbol: string; position_side?: string; direction?: string; quantity?: number; entry_price?: number; mark_price?: number; unrealized_pnl?: number; leverage?: number | null; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number}
+const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+const positionSide = (position: LivePosition): 'LONG' | 'SHORT' => position.direction === 'SHORT' || position.position_side === 'SHORT' || Number(position.quantity) < 0 ? 'SHORT' : 'LONG'
+const fmtSigned = (value: number, digits = 2) => `${value >= 0 ? '+' : '-'}${Math.abs(value).toLocaleString('tr-TR', {minimumFractionDigits: digits, maximumFractionDigits: digits})}`
+// Açık pozisyon kartı: yalnız gösterir. Kâr/zarar canlı mum fiyatıyla hesaplanır; hesap verisi ~15 sn'de bir doğrulanır.
+function PositionLiveCard({position, price}: {position: LivePosition; price: number | null}) {
+  const side = positionSide(position)
+  const sign = side === 'LONG' ? 1 : -1
+  const qty = Math.abs(Number(position.quantity) || 0)
+  const entry = finite(position.entry_price)
+  const now = finite(price) ?? finite(position.mark_price)
+  const pnl = entry && now && qty > 0 ? (now - entry) * qty * sign : typeof position.unrealized_pnl === 'number' && Number.isFinite(position.unrealized_pnl) ? position.unrealized_pnl : null
+  const lev = finite(position.leverage ?? undefined)
+  const margin = entry && qty > 0 && lev ? entry * qty / lev : null
+  const pct = pnl !== null && margin ? pnl / margin * 100 : null
+  const stop = finite(position.stop_loss), tp1 = finite(position.tp1)
+  const away = (target: number | null) => target && now ? Math.abs(target - now) / now * 100 : null
+  const lo = side === 'LONG' ? stop : tp1, hi = side === 'LONG' ? tp1 : stop
+  const bar = lo && hi && now && hi > lo ? Math.min(100, Math.max(0, (now - lo) / (hi - lo) * 100)) : null
+  return <aside className="refPosCard" data-tone={pnl === null ? undefined : pnl >= 0 ? 'up' : 'down'} aria-label="Açık pozisyon">
+    <header><i aria-hidden="true"/><b>AÇIK POZİSYON · CANLI</b><span data-side={side}>{side}{lev ? ` ${lev}x` : ''}</span></header>
+    <strong>{pnl === null ? '—' : `${fmtSigned(pnl, Math.abs(pnl) < 1 ? 4 : 2)} USDT`}{pct !== null && <small>{fmtSigned(pct)}%</small>}</strong>
+    {bar !== null && <><div className="refPosBar" data-side={side}><i style={{left: `${bar}%`}}/></div><div className="refPosEnds"><span>{side === 'LONG' ? 'Stop' : 'TP1'} {analysisPrice(lo)}</span><span>{side === 'LONG' ? 'TP1' : 'Stop'} {analysisPrice(hi)}</span></div></>}
+    <dl>
+      {entry && <div><dt>Giriş</dt><dd>{analysisPrice(entry)}</dd></div>}
+      {now && <div><dt>Anlık</dt><dd>{analysisPrice(now)}</dd></div>}
+      {away(stop) !== null && <div><dt>Stopa</dt><dd>%{away(stop)!.toFixed(2)}</dd></div>}
+      {away(tp1) !== null && <div><dt>TP1'e</dt><dd>%{away(tp1)!.toFixed(2)}</dd></div>}
+    </dl>
+    <p>Sadece gösterir · kapatma ve değiştirme Pozisyonlar sekmesinden</p>
+  </aside>
 }
 
 const numeric = (value: number | null | undefined, suffix = '', decimals = 0) => typeof value === 'number' && Number.isFinite(value)
@@ -106,7 +140,7 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null}) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchor, setAnchor] = useState<ChartPoint | null>(null)
@@ -163,15 +197,19 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const zoomed = zoom !== null || shift > 0
   const resetView = () => { setZoom(null); setOffset(0) }
   zoomState.current = {count, maxCount, shift, length: candles.length, plotWidth}
-  const levels = [
+  // Açık pozisyon varsa grafikte analizin değil, gerçek pozisyonun giriş/stop/hedef çizgileri gösterilir.
+  const levels = ((position ? [
+    {label: 'TP3', value: position.tp3, tone: 'tp'}, {label: 'TP2', value: position.tp2, tone: 'tp'}, {label: 'TP1', value: position.tp1, tone: 'tp'},
+    {label: 'ENTRY', value: position.entry_price, tone: 'entry'}, {label: 'SL', value: position.stop_loss, tone: 'stop'},
+  ] : [
     {label: 'TP3', value: analysis?.tp3, tone: 'tp'}, {label: 'TP2', value: analysis?.tp2, tone: 'tp'},
     {label: 'TP1', value: analysis?.tp1, tone: 'tp'}, {label: 'RESISTANCE', value: analysis?.resistance, tone: 'resistance'},
     {label: 'TRIGGER', value: trigger.triggerPrice, tone: 'trigger'}, {label: 'ENTRY', value: analysis?.entry, tone: 'entry'},
     {label: 'SUPPORT', value: analysis?.support, tone: 'support'}, {label: 'SL', value: analysis?.stop_loss, tone: 'stop'},
-  ].filter((line): line is {label: string; value: number; tone: string} => typeof line.value === 'number' && Number.isFinite(line.value))
+  ]) as Array<{label: string; value: unknown; tone: string}>).filter((line): line is {label: string; value: number; tone: string} => typeof line.value === 'number' && Number.isFinite(line.value))
   const range = analysisChartRange(visible)
   const labels = range ? analysisChartLabels([
-    ...(premium && levelsVisible ? levels : []),
+    ...(premium && (levelsVisible || position) ? levels : []),
     ...(typeof price === 'number' && Number.isFinite(price) ? [{label: '', value: price, tone: 'current'}] : []),
   ], range, plotHeight, priceHeight) : []
   const y = (value: number) => range ? (range.high - value) / (range.high - range.low) * priceHeight : 0
@@ -504,6 +542,9 @@ export default function MasterTradeReference(props: Props) {
   const explainLock = () => {if (!premium) openUpgrade('Auto Trade'); else setNotice(blocker === 'Engel yok.' ? 'Mevcut Canlı İşlem güvenlik ve onay akışını tamamlayın.' : blocker)}
   // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
   const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
+  // "İşlem aç": emir göndermez; Canlı İşlem'deki aynı Manuel işlem panelini bu coinle açar.
+  const openTrade = () => {if (!premium) { openUpgrade('Manuel emir'); return } requestManualTrade(props.symbol, decision.direction); props.onNavigate('canli')}
+  const livePosition = (props.positions ?? []).find(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0) ?? null
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
   const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? 'AL' : decision.direction === 'SHORT' ? 'SAT' : 'BEKLE'
   const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
@@ -532,6 +573,7 @@ export default function MasterTradeReference(props: Props) {
             <span className="refChartType" title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
             <details className="refIndicators" onToggle={event => placeIndicatorMenu(event.currentTarget)}><summary><SlidersHorizontal/> Göstergeler <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button></div></details>
             {props.chartAiControl}
+            <button type="button" className="refTradeBtn" aria-label={`${props.symbol} ile işlem aç`} title="Manuel işlem ekranını bu coinle açar" onClick={openTrade}><Zap aria-hidden="true"/><span>İşlem aç</span></button>
             <div className="refDrawingTools">
               <button type="button" className="refDrawTool" aria-label="Artı imleci" title="Artı imleci: fiyat ve saati göster" aria-pressed={prefs.crosshair} onClick={() => updatePrefs({crosshair: !prefs.crosshair})}><Crosshair/></button>
               <span className="refToolDivider" aria-hidden="true"/>
@@ -563,7 +605,7 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
-            <ReferenceChart {...props} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+            <ReferenceChart {...props} position={livePosition} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
               drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
@@ -572,6 +614,8 @@ export default function MasterTradeReference(props: Props) {
               <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
             </AnalysisDrawer>}
           </div>
+          {livePosition && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
+          <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'alarm' ? 'Alarm kurmak istediğin fiyata tıkla.' : drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>

@@ -7,6 +7,7 @@ import {
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
+import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
@@ -493,6 +494,22 @@ export default function LiveCockpit(props: Props) {
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
   }, [manualModal, closeManual])
+  // Analiz stüdyosundaki "İşlem aç": aynı Manuel işlem panelini açar (form hazır olunca, en çok ~10 sn bekler).
+  const openManualRef = useRef(openManual)
+  openManualRef.current = openManual
+  useEffect(() => {
+    let timer = 0
+    const tryOpen = (attempt = 0) => {
+      if (document.querySelector('.originalManualOrder')) { if (takeIntentForOpen()) openManualRef.current(); return }
+      if (attempt < 50) timer = window.setTimeout(() => tryOpen(attempt + 1), 200)
+    }
+    const onIntent = () => { window.clearTimeout(timer); tryOpen() }
+    const onClose = () => closeManual()
+    tryOpen()
+    window.addEventListener(MANUAL_INTENT_EVENT, onIntent)
+    window.addEventListener(MANUAL_CLOSE_EVENT, onClose)
+    return () => { window.clearTimeout(timer); window.removeEventListener(MANUAL_INTENT_EVENT, onIntent); window.removeEventListener(MANUAL_CLOSE_EVENT, onClose) }
+  }, [closeManual])
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running

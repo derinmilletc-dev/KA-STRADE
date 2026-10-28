@@ -263,3 +263,29 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtMTp em{grid-column:2!important;font-style:normal!important;font-size:11.5px!important;color:#7f93a8!important;margin-bottom:4px!important}
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtMSeg button[aria-pressed]{font-size:12px!important;padding:0 2px!important}
 }
+
+/* ---- Emir sonrası ekranı ve stüdyodan gelen coin notu (masaüstü + telefon) ---- */
+.mxt[data-done] > :not(.mxtDone){display:none!important}
+.mxtDone{display:grid;gap:12px;padding:24px 16px;text-align:center}
+.mxtDone h4{margin:0;font-size:22px}
+.mxtDone p{margin:0;color:#8ea0b4;font-size:13.5px}
+.mxtDoneIco{width:72px;height:72px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:34px;font-weight:900;background:rgba(61,220,151,.16);color:#3ddc97;box-shadow:0 0 0 10px rgba(61,220,151,.07)}
+.mxtDoneGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left}
+.mxtDoneGrid div{padding:10px 12px;border-radius:12px;background:#0f1927;border:1px solid #1b2a3f}
+.mxtDoneGrid small{display:block;font-size:11px;color:#7f93a8}
+.mxtDoneGrid b{font-size:14px}
+.mxtDoneGrid [data-k=stop] b{color:#ffb1a8}
+.mxtDoneNew{border:0;background:transparent;color:#8ea0b4;font-size:13.5px;padding:8px;cursor:pointer;text-decoration:underline}
+.mxtFrom{margin:0 0 10px;padding:10px 12px;border-radius:14px;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.35);color:#7ef0bd;font-size:12.5px}
+@media (max-width:760px){
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxt[data-done] > :not(.mxtDone){display:none!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDone{display:grid!important;gap:12px!important;padding:28px 16px!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDone .mxtBtn{width:100%!important;min-height:52px!important;border-radius:16px!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtFrom{display:block!important;margin:0 0 10px!important}
+}
+@media (max-width:760px){
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDoneIco{display:grid!important;width:72px!important;height:72px!important;margin:0 auto!important;font-size:34px!important;color:#3ddc97!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDoneNew{background:transparent!important;border:0!important;min-height:40px!important;color:#8ea0b4!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDoneGrid{display:grid!important;grid-template-columns:1fr 1fr!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .mxtDoneGrid div{padding:10px 12px!important;border-radius:12px!important;background:#0f1927!important;border:1px solid #1b2a3f!important}
+}
