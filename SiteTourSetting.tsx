@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react'
 import {Play} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import {useMemberAccess} from './premium-access'
-import {TOUR_START_EVENT, parseTourMemory, tourMemoryKey} from './site-tour'
+import {TOUR_PENDING_KEY, TOUR_START_EVENT, parseTourMemory, tourMemoryKey} from './site-tour'
 import './site-tour.css'
 
 // Profil · Site Turu: kapatılmış olsa bile turu her zaman yeniden açar.
@@ -19,6 +19,11 @@ export default function SiteTourSetting() {
       <KaisEye size={52} state="idle"/>
       <span><b>Kais seni siteyle tanıştırsın</b><small>{closed ? 'Tur şu an kapalı; istediğin zaman buradan tekrar açabilirsin.' : 'Hangi sayfada ne olduğunu, Ücretsiz ve Premium farkını ve Hey Kais’i kısaca anlatır.'}</small></span>
     </div>
-    <button type="button" className="stGo" data-testid="site-tour-replay" onClick={() => window.dispatchEvent(new Event(TOUR_START_EVENT))}><Play aria-hidden="true"/>Turu tekrar başlat</button>
+    <button type="button" className="stGo" data-testid="site-tour-replay" onClick={() => {
+      // Profil ayrı bir sayfadır ve tur orada yüklü değildir: işareti bırakıp ana sayfaya geçeriz, tur orada açılır.
+      try { sessionStorage.setItem(TOUR_PENDING_KEY, '1') } catch { /* depolama kapalıysa yalnız olay gider */ }
+      window.dispatchEvent(new Event(TOUR_START_EVENT))
+      window.location.assign('/')
+    }}><Play aria-hidden="true"/>Turu tekrar başlat</button>
   </section>
 }
