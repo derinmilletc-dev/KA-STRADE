@@ -11,6 +11,7 @@ import {applyPageMetadataForPath} from './public-page-metadata'
 import CopyProtection from './CopyProtection'
 import BackToTop from './BackToTop'
 import InstallPrompt from './InstallPrompt'
+import UpdateBanner from './UpdateBanner'
 import LanguageToggle from './LanguageToggle'
 import { initI18n } from './i18n'
 import { MemberAccessProvider } from './premium-access'
@@ -44,7 +45,7 @@ if (adminHost) {
   const publicPolicy = publicPolicyForPath(window.location.pathname)
   const application = publicPolicy
     ? <><PublicPolicyPage policy={publicPolicy}/><LanguageToggle/></>
-    : <><CopyProtection/><BackToTop/><WebAccessGate><AuthGate><MemberAccessProvider><TestnetFirstApp/></MemberAccessProvider></AuthGate></WebAccessGate><InstallPrompt/></>
+    : <><CopyProtection/><BackToTop/><WebAccessGate><AuthGate><MemberAccessProvider><TestnetFirstApp/></MemberAccessProvider></AuthGate></WebAccessGate><InstallPrompt/><UpdateBanner/></>
   void initI18n().then(() => {
     ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><AppErrorBoundary><EmailVerificationRoute>{application}</EmailVerificationRoute></AppErrorBoundary></React.StrictMode>)
   })
