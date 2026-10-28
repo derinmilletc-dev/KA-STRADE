@@ -224,4 +224,5 @@ def test_demo_and_backtest_do_not_know_margin_modes():
     app_dir = pathlib.Path(original.__file__).parent
     users = sorted(path.name for path in app_dir.rglob("*.py")
                    if "margin_mode" in path.read_text(encoding="utf-8") or "MARGIN_MODES" in path.read_text(encoding="utf-8"))
-    assert users == ["original_live_risk.py", "original_v2_live.py"]
+    # assistant_tools.py yalnız OKUR: Kais üyenin kayıtlı teminat modunu söyleyebilsin diye (emir/hesap etkisi yok).
+    assert users == ["assistant_tools.py", "original_live_risk.py", "original_v2_live.py"]

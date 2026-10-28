@@ -156,7 +156,9 @@ class AssistantToolsTests(AssistantToolsTestCase):
                 self.assertIn("fetched_at", result)
                 self.assertIsInstance(result["stale"], bool)
                 self.assertEqual(result["sources"], [name])
-                for private in ("987654.321", "123456.789", "private strategy", "private long case"):
+                # Premium üye KENDİ açık pozisyonunun/işleminin seviyelerini görebilir (profil izniyle); ücretsiz üye göremez.
+                own_levels = user == "premium" and name in ("get_my_position_details", "get_my_trades")
+                for private in (("private strategy", "private long case") if own_levels else ("987654.321", "123456.789", "private strategy", "private long case")):
                     self.assertNotIn(private, response.text)
 
     async def test_every_tool_rejects_external_identity_not_authenticated_member(self):
