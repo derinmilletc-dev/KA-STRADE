@@ -1583,7 +1583,7 @@ export default function LiveCockpit(props: Props) {
   return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone}>
-      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div>
+      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd">Son güncelleme {lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
@@ -1629,6 +1629,7 @@ export default function LiveCockpit(props: Props) {
       {dailyLoss !== null && dailyLimit !== null && <div className="lcMLimit"><div><small>Günlük zarar limiti</small><small>kalan <b>{usdt(Math.max(0, dailyLimit - dailyLoss))}</b> / {usdt(dailyLimit)}</small></div>
         <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={Math.min(dailyLimit, Math.max(0, dailyLoss))} data-high={dailyLoss / dailyLimit >= 0.8 || undefined}><i style={{width: `${Math.min(100, Math.max(0, dailyLoss / dailyLimit * 100))}%`}}/></div></div>}
       <div className="lcMChips">
+        <span><small>Kullanılabilir</small><b>{verified && availableBalance !== null ? usdt(availableBalance) : '—'}</b></span>
         <span><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></span>
         {live && modeLabelNow && <span><small>Teminat modu</small><b>{modeLabelNow.label} %{modeLabelNow.per_trade_percent}</b></span>}
       </div>
