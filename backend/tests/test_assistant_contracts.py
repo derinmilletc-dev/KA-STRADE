@@ -220,7 +220,9 @@ class AssistantContractsTests(AssistantToolsTestCase):
                     # İncelenmiş salt-okunur eklemeler: yalnızca readonly_demo_service üzerinden okur (aşağıdaki sınır testi).
                     "get_demo_positions", "get_market_overview",
                     # Kais Original V2 canlı strateji özeti: yalnız public_config okur, canlı oturum sahibine.
-                    "get_live_strategy"}
+                    "get_live_strategy",
+                    # Üyenin kendi hesabı (salt okunur, profil izni + canlı oturum sahibi): bakiye, ayarlar, işlemler, olaylar, pozisyon ayrıntısı.
+                    "get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details"}
         self.assertEqual(set(ARGUMENT_MODELS), expected)
         self.assertEqual({tool["name"] for tool in TOOL_DEFINITIONS}, expected)
         for tool in TOOL_DEFINITIONS:
@@ -229,7 +231,7 @@ class AssistantContractsTests(AssistantToolsTestCase):
 
     def test_assistant_imports_cannot_bind_domain_mutators_or_access_them_through_modules(self):
         read_functions = {
-            "v25_execution": {"read_owned_account_state", "classify_plan_protection"},
+            "v25_execution": {"read_owned_account_state", "classify_plan_protection", "verified_live_journal"},
             "subscription_core": {"parse_datetime"},
             "v22_commercial": {"authenticated_user", "access_snapshot", "subscription_for_user"},
             "binance_demo": set(),

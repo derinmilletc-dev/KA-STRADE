@@ -35,7 +35,7 @@ from .assistant_models import (
     ToolCall,
 )
 from .assistant_prompt import RISK_NOTES, system_prompt
-from .assistant_response import LEVEL_REDIRECTS, safe_response
+from .assistant_response import LEVEL_REDIRECTS, own_levels, safe_response
 from . import assistant_timing
 from .assistant_tools import ARGUMENT_MODELS, TOOL_DEFINITIONS, AssistantTools
 
@@ -344,7 +344,7 @@ async def run_conversation(
                              else ("Analizi şu an doğrulayamadım." if language == "tr" else "I could not verify the analysis right now."))
                 elif re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):
                     reply = "Analizi şu an doğrulayamadım; karar sana aittir." if language == "tr" else "I could not verify the analysis right now; the decision is yours."
-                reply = safe_response(reply, language, free=tools is None or not tools.premium(user_id))
+                reply = safe_response(reply, language, free=tools is None or not tools.premium(user_id), allowed_levels=own_levels(results))
                 if has_old_data(results):
                     reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
                 if re.search(r"(?i)should i (buy|sell)|almalı|satmalı", payload.message):

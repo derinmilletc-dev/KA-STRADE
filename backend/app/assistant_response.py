@@ -72,7 +72,58 @@ def contains_private_fields(value: Any, *, free: bool) -> bool:
     return False
 
 
-def safe_response(reply: str, language: Language, *, free: bool) -> str:
+_OWN_LEVEL_KEYS = frozenset({"entry_price", "mark_price", "stop_loss", "targets", "temp_stop_price", "exit_price"})
+OWN_LEVEL_TOOLS = ("get_my_position_details", "get_my_trades")
+
+
+def own_levels(results: dict[str, Any]) -> frozenset[float]:
+    """Üyenin KENDİ pozisyon/işlem araçlarından gelen fiyatlar. Yalnız bu sayılar cevapta seviye olarak geçebilir."""
+    found: set[float] = set()
+
+    def walk(value: Any, key: str | None = None) -> None:
+        if isinstance(value, dict):
+            for name, item in value.items():
+                walk(item, name)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item, key)
+        elif key in _OWN_LEVEL_KEYS and not isinstance(value, bool) and isinstance(value, (int, float, str)):
+            try:
+                number = float(value)
+            except ValueError:
+                return
+            if number > 0:
+                found.add(number)
+
+    for name in OWN_LEVEL_TOOLS:
+        result = results.get(name)
+        if isinstance(result, dict) and not result.get("stale"):
+            walk(result.get("data"))
+    return frozenset(found)
+
+
+def _candidates(text: str) -> set[float]:
+    raw = text.strip()
+    values = set()
+    for form in (raw, raw.replace(",", "."), raw.replace(",", ""), raw.replace(".", "").replace(",", ".")):
+        try:
+            values.add(abs(float(form.replace("\u2212", "-"))))
+        except ValueError:
+            continue
+    return values
+
+
+def _own_level_only(reply: str, allowed: frozenset[float]) -> bool:
+    if not allowed:
+        return False
+    for match in _LEVEL_VALUE.finditer(reply):
+        number = re.search(r"[-+\u2212]?\d+(?:[.,]\d+)*$", match.group(0))
+        if not number or not any(abs(value - level) <= max(1e-9, level * 1e-6) for value in _candidates(number.group(0)) for level in allowed):
+            return False
+    return True
+
+
+def safe_response(reply: str, language: Language, *, free: bool, allowed_levels: frozenset[float] = frozenset()) -> str:
     candidate = normalized(reply)
     if any(signature in candidate for signature in _POLICY_SIGNATURES):
         return "Bu isteğe yardımcı olamam. Platformun kullanıcı ekranları hakkında yardımcı olabilirim." if language == "tr" else (
@@ -83,7 +134,8 @@ def safe_response(reply: str, language: Language, *, free: bool) -> str:
         private = contains_private_fields(json.loads(structured), free=free)
     except json.JSONDecodeError:
         private = False
-    if private or _LEVEL_VALUE.search(reply) or free and (_REASON_LABEL.search(reply) or _ANALYSIS_CAUSE.search(reply)):
+    levels = bool(_LEVEL_VALUE.search(reply)) and not (not free and _own_level_only(reply, allowed_levels))
+    if private or levels or free and (_REASON_LABEL.search(reply) or _ANALYSIS_CAUSE.search(reply)):
         prefix = "Bu analiz detaylarını şu an doğrulayamadım." if language == "tr" else "I could not verify these analysis details right now."
         return prefix + " " + LEVEL_REDIRECTS[language]
     return reply

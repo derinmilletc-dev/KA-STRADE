@@ -6,6 +6,7 @@ import {accountDate, accountInitials, accountRequest, TRADING_TIMEFRAMES, type A
 import './profile-settings.css'
 import {accountRoleLabel} from './account-role'
 import NotificationSettings from './NotificationSettings'
+import KaisAccessSetting from './KaisAccessSetting'
 import LiveConnectionCard from './LiveConnectionCard'
 import {PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordPolicyError, passwordRules} from './password-policy'
 import {MARKETING_CONSENT_TEXT} from './compliance-content'
@@ -219,6 +220,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           {data.marketing_consent && <section className="accountCard"><h2>Ticari ileti tercihi</h2><label className="accountMarketingConsent"><input type="checkbox" checked={marketingChoice} disabled={busy} onChange={event => changeMarketingChoice(event.target.checked)}/>{MARKETING_CONSENT_TEXT}</label><p className="accountMuted">Bu tercih üyeliğinizi, güvenlik iletilerini ve işlem izinlerini etkilemez. Son onay: {accountDate(data.marketing_consent.accepted_at)} · Geri çekilme: {accountDate(data.marketing_consent.withdrawn_at)}</p></section>}
           <LiveConnectionCard/>
           <NotificationSettings/>
+          <KaisAccessSetting/>
           <section className="accountCard"><h2>Son aktiviteler<button onClick={() => openDialog('activity')}>Tümünü görüntüle<ArrowRight/></button></h2>{data.activity.length ? activity() : <p className="accountMuted">Kayıtlı hesap aktivitesi yok.</p>}</section>
           <section className="accountCard accountDanger"><h2>Tehlikeli işlemler</h2><div><Trash2/><span><b>Hesabı kapat</b><p>Giriş ve erişim hakkınız sonlandırılır. Kayıtlarınız yetkili yönetici panelinde saklanmaya devam eder; borsadaki emirler otomatik kapatılmaz.</p></span><button disabled={busy || !data.security.can_close_account} onClick={() => openDialog('close')}>Hesabı kapat</button></div>{data.security.close_blocker && data.user.role !== 'OWNER' && <p className="accountMuted">{data.security.close_blocker}</p>}<div><Trash2/><span><b>Hesabımı kalıcı olarak sil</b><p>Kişisel verileriniz kalıcı olarak silinir ve bu işlem geri alınamaz. Açık borsa pozisyonu veya emri varsa silme yapılmaz.</p></span><button disabled={busy} onClick={() => openDialog('delete')}>Hesabımı sil</button></div></section>
         </div>

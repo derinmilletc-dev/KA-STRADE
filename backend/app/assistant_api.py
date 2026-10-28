@@ -473,3 +473,37 @@ async def assistant_proactive_save_preferences(request: Request) -> JSONResponse
 @router.post("/proactive/check-in")
 async def assistant_proactive_check_in(request: Request) -> JSONResponse:
     return await proactive_request(request, "check")
+
+
+@router.get("/account-access")
+async def assistant_account_access(request: Request) -> JSONResponse:
+    return await account_access_request(request, None)
+
+
+@router.post("/account-access")
+async def assistant_account_access_save(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        body = None
+    if not isinstance(body, dict) or not isinstance(body.get("enabled"), bool):
+        return JSONResponse({"detail": "enabled must be true or false"}, status_code=422)
+    return await account_access_request(request, body["enabled"])
+
+
+async def account_access_request(request: Request, enabled: bool | None) -> JSONResponse:
+    """Profildeki "Kais hesabımı görebilir" izni. Yalnız oturumdaki üyenin kendi kaydı okunur/yazılır."""
+    user_id = str(authenticated_user(request)["id"])
+    try:
+        config = load_assistant_config()
+    except ValidationError:
+        return JSONResponse({"detail": "Assistant configuration is unavailable"}, status_code=503)
+    try:
+        async with service(request).store.proactive_transaction(user_id, config.request_timeout_seconds) as transaction:
+            if enabled is not None:
+                await transaction.execute("UPDATE assistant_proactive_state SET account_access=$1 WHERE user_id=$2", enabled, user_id)
+            row = await transaction.row("SELECT account_access FROM assistant_proactive_state WHERE user_id=$1", user_id)
+    except (AssistantStorageError, asyncpg.PostgresError, asyncpg.InterfaceError, sqlite3.Error, OSError, TimeoutError):
+        audit(user_id, time.time(), None, None, warning=True)
+        return JSONResponse({"detail": "Assistant account access preference is unavailable"}, status_code=503)
+    return JSONResponse({"enabled": True if row is None or row["account_access"] is None else bool(row["account_access"])})

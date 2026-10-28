@@ -140,6 +140,7 @@ class AssistantToolsTests(AssistantToolsTestCase):
             # #63/#64 ile eklenen, readonly_demo_service üzerinden okuyan salt-okunur araçlar (sözleşme testiyle aynı liste).
             "get_demo_positions", "get_market_overview",
             "get_live_strategy",  # canlı strateji özeti (salt okunur, yalnız oturum sahibine)
+            "get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details",
         })
 
     async def test_all_tools_free_and_premium_have_metadata_and_safe_output(self):
@@ -155,7 +156,9 @@ class AssistantToolsTests(AssistantToolsTestCase):
                 self.assertIn("fetched_at", result)
                 self.assertIsInstance(result["stale"], bool)
                 self.assertEqual(result["sources"], [name])
-                for private in ("987654.321", "123456.789", "private strategy", "private long case"):
+                # Premium üye KENDİ açık pozisyonunun/işleminin seviyelerini görebilir (profil izniyle); ücretsiz üye göremez.
+                own_levels = user == "premium" and name in ("get_my_position_details", "get_my_trades")
+                for private in (("private strategy", "private long case") if own_levels else ("987654.321", "123456.789", "private strategy", "private long case")):
                     self.assertNotIn(private, response.text)
 
     async def test_every_tool_rejects_external_identity_not_authenticated_member(self):
