@@ -116,7 +116,8 @@ def plan_files(archive: hd.Archive, symbols: list[str], progress: Callable[[str]
                 continue
             found = hd.MONTH_RE.search(item["key"])
             if found and allowed_month(found.group(1)):
-                plan.append({"symbol": symbol, "month": found.group(1), "key": item["key"], "size": item["size"]})
+                plan.append({"symbol": symbol, "month": found.group(1), "key": item["key"], "size": item["size"],
+                             "label": f"{KIND}_{INTERVAL}"})
     return plan
 
 
@@ -128,7 +129,7 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
     month = item["month"]
     if not allowed_month(month):
         raise ValueError(f"İzinsiz ay: {month}")  # kilitli dönem indirilemez
-    target = root / "raw" / f"{KIND}_{INTERVAL}" / item["symbol"] / Path(item["key"]).name
+    target = root / "raw" / item.get("label", f"{KIND}_{INTERVAL}") / item["symbol"] / Path(item["key"]).name
     log = {"symbol": item["symbol"], "month": month, "bytes": 0, "sha256": "", "status": ""}
     sidecar = target.with_name(target.name + ".sha256")
     if target.is_file() and sidecar.is_file():
@@ -202,7 +203,7 @@ def load_stats(root: Path, plan: list[dict[str, Any]]) -> tuple[dict[str, dict[s
     stats: dict[str, dict[str, dict[str, Any]]] = {}
     problems: list[dict[str, str]] = []
     for item in plan:
-        path = root / "raw" / f"{KIND}_{INTERVAL}" / item["symbol"] / Path(item["key"]).name
+        path = root / "raw" / item.get("label", f"{KIND}_{INTERVAL}") / item["symbol"] / Path(item["key"]).name
         if not path.is_file():
             problems.append({"symbol": item["symbol"], "month": item["month"], "problem": "dosya yok (indirme başarısız)"})
             continue
@@ -366,9 +367,21 @@ def summary_markdown(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def new_report_folder(root: Path, prefix: str) -> Path:
+    """Yeni (hiç var olmayan) rapor klasörü; aynı saniyede tekrar çalışsa da mevcut klasör ezilmez."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    for number in range(100):
+        folder = root / (f"{prefix}-{stamp}" + (f"-{number}" if number else ""))
+        try:
+            folder.mkdir(parents=True)
+            return folder
+        except FileExistsError:
+            continue
+    raise FileExistsError("Rapor klasörü oluşturulamadı")
+
+
 def write_reports(root: Path, result: dict[str, Any]) -> list[Path]:
-    folder = root / ("reports-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S"))
-    folder.mkdir(parents=True)
+    folder = new_report_folder(root, "reports")
     write_csv(folder / "universe-by-month.csv", result["detail"],
               ["month", "rank", "symbol", "avg_daily_usdt_prev_month", "testable", "reason", "delisted"])
     write_csv(folder / "universe-impact.csv", result["impact"])
