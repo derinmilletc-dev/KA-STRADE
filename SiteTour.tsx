@@ -5,7 +5,7 @@ import KaisEye from './frontend/src/KaisEye'
 import {startKaisVoice} from './kais-ask'
 import {useMemberAccess} from './premium-access'
 import {
-  PHONE_QUERY, TOUR_OPEN_ATTRIBUTE, TOUR_START_EVENT, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey,
+  PHONE_QUERY, TOUR_OPEN_ATTRIBUTE, TOUR_PENDING_KEY, TOUR_START_EVENT, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey,
   type TourMemory, type TourStep, type TourView,
 } from './site-tour'
 import './site-tour.css'
@@ -101,6 +101,8 @@ export default function SiteTour() {
   // İlk girişte kendiliğinden açılır (hafızaya göre).
   useEffect(() => {
     if (!ready || !userId) return
+    // Profil'den "Turu tekrar başlat": hafızaya bakmadan karşılama kartı hemen açılır.
+    try { if (sessionStorage.getItem(TOUR_PENDING_KEY)) { sessionStorage.removeItem(TOUR_PENDING_KEY); setIndex(0); setMode('welcome'); return } } catch { /* depolama kapalı */ }
     if (!shouldOfferTour(load(userId), Date.now())) return
     const timer = window.setTimeout(() => setMode(current => current === 'closed' ? 'welcome' : current), 1500)
     return () => window.clearTimeout(timer)

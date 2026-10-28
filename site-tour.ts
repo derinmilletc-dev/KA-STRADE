@@ -1,6 +1,8 @@
 // Site turu: saf yardımcılar (React/DOM yok, birim testli). Tur içeriği burada; görünüm SiteTour.tsx'te.
 
 export const TOUR_START_EVENT = 'kais-site-tour:start'
+/** Profil gibi tur bileşeninin olmadığı sayfalardan "Turu tekrar başlat": ana sayfaya geçilir, tur orada açılır. */
+export const TOUR_PENDING_KEY = 'kais-site-tour:pending'
 export const TOUR_WAIT_DAYS = 2
 export const TOUR_OPEN_ATTRIBUTE = 'data-kt-tour'
 
