@@ -45,8 +45,12 @@ def read_scanner_candidates(request: Request) -> dict[str, Any]:
          "confidence_value": row.get("confidence_value"), "confidence_label": row.get("confidence")}
         for row in candidates if v21_demo.candidate_is_tradeable(row, settings, None)
     ]
+    # scored: taramadaki TÜM adayların yalnız skorları (kurala uymayanlar dahil; coin karşılaştırması için). Seviye alanı yok.
+    scored = [{"symbol": row.get("symbol"), "direction": str(row.get("direction") or "").upper(),
+               "opportunity_score": row.get("opportunity_score"), "analysis_score": row.get("analysis_score"),
+               "confidence_value": row.get("confidence_value"), "confidence_label": row.get("confidence")} for row in candidates]
     return {"last_scan_at": scanner.get("last_scan_at"), "timeframe": scanner.get("last_scan_timeframe"),
-            "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(candidates), "eligible": eligible}
+            "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(candidates), "eligible": eligible, "scored": scored}
 
 
 async def read_market_movers(request: Request, timeout: float) -> list[dict[str, Any]]:

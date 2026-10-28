@@ -366,24 +366,20 @@ class AssistantTools:
         free_limit = int(getattr(self.config, "free_market_daily_limit", 0) or 0)
         if not premium and free_limit <= 0:
             return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
-        from .readonly_demo_service import MAX_SIGNAL_AGE_SECONDS, read_scanner_candidates
-        from . import v21_demo
+        from .readonly_demo_service import MAX_SIGNAL_AGE_SECONDS, MIN_MOVER_VOLUME_USDT, read_market_movers, read_scanner_candidates
         stale = False
         live: dict[str, dict[str, Any]] = {}
         try:
-            rows = await asyncio.wait_for(v21_demo.auto_trade_market_universe(self.request.app), timeout=self.config.request_timeout_seconds)
-            live = {row["symbol"]: row for row in rows if isinstance(row, dict) and row.get("symbol")}
+            rows = await read_market_movers(self.request, self.config.request_timeout_seconds)
+            live = {row["symbol"]: row for row in rows}
         except Exception:
             stale = True
         scan_rows: dict[str, dict[str, Any]] = {}
         scan_status = "unavailable"
         scan_at = None
         try:
-            member = getattr(getattr(self.request, "state", None), "member", None) or {}
-            if not str(member.get("id") or "").strip():
-                raise PermissionError("member session required")
-            scanner = v21_demo.state_for(self.request).get("scanner") or {}
-            scan_at = scanner.get("last_scan_at")
+            raw = read_scanner_candidates(self.request)
+            scan_at = raw.get("last_scan_at")
             scanned = parse_datetime(scan_at) if scan_at else None
             age = self.clock() - scanned.timestamp() if scanned else None
             if age is None or age < 0:
@@ -392,7 +388,7 @@ class AssistantTools:
                 scan_status = "stale"
             else:
                 scan_status = "fresh"
-                scan_rows = {str(r.get("symbol")): r for r in scanner.get("all_candidates") or [] if isinstance(r, dict) and r.get("symbol")}
+                scan_rows = {str(r.get("symbol")): r for r in raw.get("scored") or []}
         except Exception:
             scan_status = "unavailable"
         if scan_status != "fresh":
@@ -401,18 +397,17 @@ class AssistantTools:
         for symbol in symbols:
             tick = live.get(symbol)
             item: dict[str, Any] = {"symbol": symbol}
-            if tick and all(isinstance(tick.get(k), (int, float)) and math.isfinite(tick[k]) for k in ("price", "change", "volume")):
-                item.update({"price": tick["price"], "change_24h_percent": round(tick["change"], 2), "volume_24h_usdt": round(tick["volume"])})
+            if tick:
+                item.update({"price": tick["price"], "change_24h_percent": round(tick["change"], 2)})
             else:
                 item["live"] = "unavailable"
             row = scan_rows.get(symbol)
             if row:
-                item["analyst"] = {key: row.get(key) for key in ("direction", "opportunity_score", "analysis_score", "confidence_value")}
-                item["analyst"]["confidence_label"] = row.get("confidence")
+                item["analyst"] = {key: row.get(key) for key in ("direction", "opportunity_score", "analysis_score", "confidence_value", "confidence_label")}
             elif scan_status == "fresh":
                 item["analyst"] = "not_in_latest_scan"
             coins.append(item)
-        data: dict[str, Any] = {"coins": coins, "scan": {"status": scan_status, "last_scan_at": scan_at}}
+        data: dict[str, Any] = {"coins": coins, "scan": {"status": scan_status, "last_scan_at": scan_at}, "live_min_volume_usdt": MIN_MOVER_VOLUME_USDT}
         if all(c.get("live") == "unavailable" for c in coins) and scan_status != "fresh":
             return self.result(data, stale=True)
         if not premium:

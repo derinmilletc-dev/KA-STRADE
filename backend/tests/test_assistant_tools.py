@@ -138,7 +138,7 @@ class AssistantToolsTests(AssistantToolsTestCase):
             "get_plans", "get_my_access", "get_my_credits", "search_help",
             "get_analysis", "get_my_positions", "get_protection_status",
             # #63/#64 ile eklenen, readonly_demo_service üzerinden okuyan salt-okunur araçlar (sözleşme testiyle aynı liste).
-            "get_demo_positions", "get_market_overview",
+            "get_demo_positions", "get_market_overview", "compare_coins",
             "get_live_strategy",  # canlı strateji özeti (salt okunur, yalnız oturum sahibine)
             "get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details",
         })
@@ -146,7 +146,8 @@ class AssistantToolsTests(AssistantToolsTestCase):
     async def test_all_tools_free_and_premium_have_metadata_and_safe_output(self):
         arguments = {"search_help": {"query": "premium", "language": "en"},
                      "get_analysis": {"symbol": "BTCUSDT", "timeframe": "15m"},
-                     "get_protection_status": {"symbol": "BTCUSDT"}}
+                     "get_protection_status": {"symbol": "BTCUSDT"},
+                     "compare_coins": {"symbols": ["BTC", "ETH"]}}
         for user in ("a", "premium"):
             self.account(user)
             for name in ARGUMENT_MODELS:

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import ValidationError
 
-from app import v21_demo
+from app import readonly_demo_service as service
 from app.assistant_tools import ARGUMENT_MODELS, AssistantTools, CompareArguments
 from tests.test_assistant_free_market import NOW, Clock, credits_service, tool_self
 
@@ -18,14 +18,15 @@ UNIVERSE = [
 
 
 def request_with(scan_age_minutes, rows):
-    scanner = {"last_scan_at": (NOW - timedelta(minutes=scan_age_minutes)).isoformat(), "all_candidates": rows}
+    scanner = {"last_scan_at": (NOW - timedelta(minutes=scan_age_minutes)).isoformat(), "scored": rows}
     return SimpleNamespace(app=SimpleNamespace(), state=SimpleNamespace(member={"id": "u"})), scanner
 
 
 class CompareTests(unittest.IsolatedAsyncioTestCase):
     async def run_compare(self, fake, scanner, universe=UNIVERSE, symbols=("BTC", "ETH")):
-        with patch.object(v21_demo, "auto_trade_market_universe", AsyncMock(return_value=universe)), \
-             patch.object(v21_demo, "state_for", lambda request: {"scanner": scanner}):
+        rows = [{"symbol": r["symbol"], "price": r["price"], "change": r["change"], "volume": r["volume"]} for r in universe]
+        with patch.object(service, "read_market_movers", AsyncMock(return_value=rows)), \
+             patch.object(service, "read_scanner_candidates", lambda request: scanner):
             return await AssistantTools.compare_coins(fake, "u", list(CompareArguments(symbols=list(symbols)).symbols))
 
     def test_symbols_are_normalized_and_validated(self):
@@ -37,7 +38,7 @@ class CompareTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("compare_coins", ARGUMENT_MODELS)
 
     async def test_premium_gets_live_and_analyst_scores_side_by_side(self):
-        request, scanner = request_with(5, [{"symbol": "BTCUSDT", "direction": "LONG", "opportunity_score": 80, "analysis_score": 78, "confidence_value": 70, "confidence": "Yüksek"}])
+        request, scanner = request_with(5, [{"symbol": "BTCUSDT", "direction": "LONG", "opportunity_score": 80, "analysis_score": 78, "confidence_value": 70, "confidence_label": "Yüksek"}])
         fake = tool_self(premium=True); fake.request = request
         data = (await self.run_compare(fake, scanner))["data"]
         btc, eth = data["coins"]
