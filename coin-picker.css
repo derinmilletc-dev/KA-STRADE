@@ -317,3 +317,11 @@
 @media (prefers-reduced-motion: reduce) {
   .cpk:not(#mx1):not(#mx2) * { animation: none !important; transition: none !important; }
 }
+
+/* Sinyal listesi: filtre/sıralama değişince yenilenir, uzun liste kendi içinde kaydırılır. */
+.cpk:not(#mx1):not(#mx2) .cpkPickCount{margin:0;font-size:13px;color:var(--mx-mute)}
+.cpk:not(#mx1):not(#mx2) .cpkPickCount b,.mxt:not(#mx1):not(#mx2) .cpkPickCount b{color:var(--mx-ink)}
+.mxt:not(#mx1):not(#mx2) .cpkPickCount{margin:0;font-size:13px;color:var(--mx-mute)}
+.mxt:not(#mx1):not(#mx2) .cpkPickScroll,.cpk:not(#mx1):not(#mx2) .cpkPickScroll{max-height:520px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;animation:cpkListIn .22s ease-out}
+@keyframes cpkListIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.mxt:not(#mx1):not(#mx2) .cpkPickScroll,.cpk:not(#mx1):not(#mx2) .cpkPickScroll{animation:none}}
