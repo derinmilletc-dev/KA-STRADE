@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
@@ -1499,16 +1499,44 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         </div>
       </div>
     </>
+    // Telefon: stop ve hedef adımı (aynı alanlar ve durum; yalnız yerleşim/görünüm). Masaüstünde gizli.
+    const stopMobile = <div className="mxtM mxtMStop">
+      <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
+        {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" onClick={fillAnalysis}><b>Kais analizi</b><small>Önerilen</small></button>}
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}><b>Stop %{item.pct}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
+      </div>
+      {stopVisual}
+      <div className="mxtMCard" data-tone="stop">
+        <div className="mxtMLbl"><span>STOP</span><span>{stopDist ? `Girişe %${stopDist.pct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
+        <div className="mxtMBig"><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></div>
+        <div className="mxtMTiles three">
+          <div><small>Uzaklık</small><b data-muted={!stopDist || undefined}>{stopDist ? `${coinPrice(Math.abs(entryRef - stopValue))} · %${stopDist.pct.toFixed(2)}` : '—'}</b></div>
+          <div><small>Tahmini zarar</small><b data-muted={!lossValue || undefined}>{lossValue || '—'}</b></div>
+          <div><small>Risk kontrolü</small><b data-tone={riskError ? 'down' : risk ? 'up' : undefined} data-muted={(!riskError && !risk) || undefined}>{riskError ? 'Reddedildi' : risk ? 'Uygun' : '—'}</b></div>
+        </div>
+        {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
+        {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
+      </div>
+      <div className="mxtMCard" data-tone="tp">
+        <div className="mxtMLbl"><span>HEDEFLER</span><span>TP1 dolunca stop girişe çekilir</span></div>
+        <div className="mxtMTp">{([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
+          const dist = targetDistancePct(entryRef, tpValues[index])
+          return <Fragment key={key}><i>{label}</i><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><em>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</em></Fragment>
+        })}</div>
+        <div className="mxtMLbl"><span>HEDEF PAYLARI</span></div>
+        <div className="mxtMSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} data-on={order.tp_split === split || undefined} onClick={() => setOrder(current => ({...current, tp_split: split}))}>{split.replace(/-/g, '/')}</button>)}</div>
+      </div>
+    </div>
     const stopStep = <>
       <h4>Stop ve hedefleri belirle</h4>
       <p className="mxtLead">Stop, zararı sınırlar; hedefler kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
-      {stopVisual}
-      <div className="mxtSuggest" role="group" aria-label="Hazır stop ve hedef önerileri">
+      {stopMobile}
+      <div className="mxtSuggest mxtDesk" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtPick" data-rec="1" onClick={fillAnalysis}><b>Kais analizi <em>Önerilen</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
         {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
           <b>Stop %{item.pct}{!hasAnalysis && item.pct === 1 && <em>Önerilen</em>}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
       </div>
-      <section className="mxtSec" aria-label="Stop Loss">
+      <section className="mxtSec mxtDesk" aria-label="Stop Loss">
         <h5>Stop Loss</h5>
         <label className="liveWsField">Stop fiyatı<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
         <SummaryList rows={[
@@ -1519,7 +1547,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
         {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       </section>
-      <section className="mxtSec" aria-label="Take Profit">
+      <section className="mxtSec mxtDesk" aria-label="Take Profit">
         <h5>Take Profit</h5>
         {([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
           const dist = targetDistancePct(entryRef, tpValues[index])
@@ -1528,13 +1556,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>%{split.replace(/-/g, ' / ')}</button>)}</div></div>
         <small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small>
       </section>
-      <section className="mxtSec" aria-label="Fiyat haritası">
+      <section className="mxtSec mxtDesk" aria-label="Fiyat haritası">
         <h5>Fiyat haritası</h5>
         <PriceMapView map={pmap} format={coinPrice}/>
         <SummaryList rows={[{label: 'Risk / ödül (TP1, komisyon dahil)', value: realRR ? `1 : ${realRR.toFixed(1)}` : null}]}/>
       </section>
       {riskCalc}
-      <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
+      <div className="liveWsRow mxtDesk"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
       {tradingDefaults.preferences?.risk_per_trade && <div className="liveWsRow"><span className="liveWsHint">Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" className="liveWsGhost" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
         const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
         setSizingNotice(result.reason)
