@@ -290,6 +290,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [fromStudio, setFromStudio] = useState('')
   // Stüdyodan gelince analiz seviyeleri (giriş, stop, hedefler) hazır doldurulur; emir yine kullanıcı onayıyla gider.
   const [autoFill, setAutoFill] = useState(false)
+  const [gridAutoPct, setGridAutoPct] = useState<number | null>(null)
   const [levelsFromAnalysis, setLevelsFromAnalysis] = useState(false)
   useEffect(() => {
     const apply = () => {
@@ -297,7 +298,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (!intent) return
       setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
       setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
-      setAutoFill(true); setLevelsFromAnalysis(false)
+      setAutoFill(!intent.mode); setLevelsFromAnalysis(false)
+      if (intent.mode === 'grid') { setManualMode('grid'); setGridAutoPct(intent.pct ?? 5) } else setManualMode('single')
     }
     apply()
     window.addEventListener(MANUAL_INTENT_EVENT, apply)
@@ -311,6 +313,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (direction !== 'LONG' && direction !== 'SHORT') return
     fillAnalysis(); setLevelsFromAnalysis(true)
   }, [autoFill, analysis, order.symbol, symbol]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stüdyodan "Grid ile aç": analizdeki fiyata göre aralık ve stop otomatik doldurulur (önizleme; emir göndermez).
+  useEffect(() => {
+    if (gridAutoPct === null) return
+    const price = Number(analysis?.entry)
+    if (!(price > 0) || analysisFillBlock(order.symbol, symbol)) return
+    const side = order.direction === 'SHORT' ? 'SHORT' : 'LONG'
+    const sgn = side === 'LONG' ? -1 : 1
+    const near = price * (1 + sgn * 0.005), far = price * (1 + sgn * gridAutoPct / 100), stopAt = price * (1 + sgn * (gridAutoPct + 1.5) / 100)
+    const fmt = (value: number) => String(Number(value.toPrecision(6)))
+    setGrid(current => ({...current, lower: fmt(Math.min(near, far)), upper: fmt(Math.max(near, far)), stop: fmt(stopAt)}))
+    setGridAutoPct(null)
+  }, [gridAutoPct, analysis, order.symbol, order.direction, symbol])
   useEffect(() => {
     if (!autoFill) return
     const timer = window.setTimeout(() => setAutoFill(false), 12000)

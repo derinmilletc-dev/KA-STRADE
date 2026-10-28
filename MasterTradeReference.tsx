@@ -543,12 +543,18 @@ export default function MasterTradeReference(props: Props) {
   // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
   const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
   // "İşlem aç": emir göndermez; Canlı İşlem'deki aynı Manuel işlem panelini bu coinle açar.
-  const openTrade = () => {if (!premium) { openUpgrade('Manuel emir'); return }
-    const symbolNow = props.symbol, direction = decision.direction
-    const go = () => { requestManualTrade(symbolNow, direction); props.onNavigate('canli'); window.scrollTo(0, 0) }
+  const launchManual = (options?: {mode?: 'grid'; pct?: number}) => {
+    if (!premium) { openUpgrade('Manuel emir'); return }
+    const symbolNow = props.symbol
+    const direction = options?.mode === 'grid' ? (decision.direction === 'SHORT' ? 'SHORT' : 'LONG') : decision.direction
+    const go = () => { requestManualTrade(symbolNow, direction, options); props.onNavigate('canli'); window.scrollTo(0, 0) }
     // Tam ekrandan çıkış geçmişte bir adım geri gider; sekme geçişi bunu bekler, yoksa geri adım sekmeyi eski haline döndürür.
     if (terminal) { fullscreen.close(); window.setTimeout(go, 350) } else go()
   }
+  const openTrade = () => launchManual()
+  const gridSide: 'LONG' | 'SHORT' = decision.direction === 'SHORT' ? 'SHORT' : 'LONG'
+  const gridPrice = Number(liveChart.price ?? props.price)
+  const gridSpan = gridPrice > 0 ? (() => { const sgn = gridSide === 'LONG' ? -1 : 1; const a = gridPrice * (1 + sgn * 0.005), b = gridPrice * (1 + sgn * 0.05); const f = (v: number) => String(Number(v.toPrecision(6))); return `${f(Math.min(a, b))} – ${f(Math.max(a, b))}` })() : null
   const livePosition = (props.positions ?? []).find(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0) ?? null
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
   const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? 'AL' : decision.direction === 'SHORT' ? 'SAT' : 'BEKLE'
@@ -621,6 +627,7 @@ export default function MasterTradeReference(props: Props) {
           </div>
           {livePosition && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
           <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>
+          {available && <div className="refGridCard"><span><b>Grid planı önerisi</b><small>{gridSide} · aralık %5 · 5 kademe{gridSpan ? ` · ${gridSpan}` : ''}</small></span><button type="button" className="refGridBtn" onClick={() => launchManual({mode: 'grid', pct: 5})}>Grid ile aç →</button></div>}
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'alarm' ? 'Alarm kurmak istediğin fiyata tıkla.' : drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
