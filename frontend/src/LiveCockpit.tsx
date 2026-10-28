@@ -502,6 +502,7 @@ export default function LiveCockpit(props: Props) {
     const tryOpen = (attempt = 0) => {
       if (document.querySelector('.originalManualOrder')) { if (takeIntentForOpen()) openManualRef.current(); return }
       if (attempt < 50) timer = window.setTimeout(() => tryOpen(attempt + 1), 200)
+      else if (takeIntentForOpen()) setFlash({tone: 'warn', text: 'Manuel işlem ekranı açılamadı: canlı bağlantı doğrulanmamış görünüyor. Bağlantı sekmesini kontrol edip tekrar dene.'})
     }
     const onIntent = () => { window.clearTimeout(timer); tryOpen() }
     const onClose = () => closeManual()
