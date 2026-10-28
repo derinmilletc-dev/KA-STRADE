@@ -218,6 +218,8 @@ export default function SiteTour() {
     {box && step.press && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
     <div ref={panel} className="ktTourCard" data-mobile={mobile || undefined} style={style} role="dialog" aria-modal="false" aria-labelledby="kt-tour-title" data-testid="site-tour">
       <button type="button" className="ktTourX" aria-label="Turu kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button>
+      {step.hero === 'studio' && <div className="ktTourHero" data-hero="studio" aria-hidden="true"><span className="ktTourRail"><i>✎</i><i>╱</i><i>⏰</i></span><span className="ktTourCandles">{[40,52,34,58,46,62,50,66,44,56,38,60,48].map((h, i) => <i key={i} data-dn={i % 3 === 1 || undefined} style={{height: h}}/>)}</span><b data-k="tp">TP1 79 229</b><b data-k="entry">GİRİŞ 80 526</b><b data-k="sl">SL 81 823</b></div>}
+      {step.hero === 'trade' && <div className="ktTourHero" data-hero="trade" aria-hidden="true"><span>⚡ İşlem aç</span><em>→</em><span>Manuel işlem<small>BTCUSDT hazır</small></span><em>→</em><span data-on>Canlı takip<small>+0,84 USDT</small></span></div>}
       <div className="ktTourDots" aria-hidden="true">{steps.map((item, position) => <i key={item.id} data-on={position <= index || undefined}/>)}</div>
       {step.extra === 'voice' && <div className="ktTourWave" aria-hidden="true"><i/><i/><i/><KaisEye size={96} state="idle"/></div>}
       <small className="ktTourKicker">{index + 1} / {steps.length} · {step.kicker}</small>
@@ -225,6 +227,8 @@ export default function SiteTour() {
       <p>{step.body}</p>
       {step.extra === 'plans' && <Plans premium={premium}/>}
       {step.extra === 'voice' && <div className="ktTourSay">{['Hey Kais, bugün nasıl gitti?', 'Hey Kais, BTC mi ETH mi?', 'Hey Kais, neden işlem açmadın?'].map(text => <span key={text}>🎙️ “{text}”</span>)}</div>}
+      {step.feats && <div className="ktTourFeats">{step.feats.map(item => <div key={item.text} data-wide={item.wide || undefined}><span aria-hidden="true">{item.icon}</span>{item.text}</div>)}</div>}
+      {step.note && <p className="ktTourNote">{step.note}</p>}
       {step.bullets && <ul className="ktTourList">{step.bullets.map(text => <li key={text}>{text}</li>)}</ul>}
       {pressWaiting && <p className="ktTourNudge">👆 Parlayan sekmeye dokun.</p>}
       {wrongTab && <button type="button" className="ktTourLink" onClick={() => step.need && goTab(step.need)}>Sizi oraya götüreyim</button>}
