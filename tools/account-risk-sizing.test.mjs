@@ -21,3 +21,14 @@ test('Risk calculation rounds down rather than overshooting chosen loss budget',
   const result = preferredRiskMargin(input)
   assert.equal(result.margin, 37)
 })
+
+import {marginForLoss} from '../account-risk-sizing.ts'
+test('Risk-amount sizing derives margin from the loss the user accepts and fails closed', () => {
+  const ok = marginForLoss({lossUsdt: 1, available: 800, entry: 100, stop: 98, leverage: 10})
+  assert.equal(ok.margin, 5)
+  assert.equal(ok.margin * 10 * 0.02, 1)
+  assert.equal(marginForLoss({lossUsdt: 0, available: 800, entry: 100, stop: 98, leverage: 10}).margin, null)
+  assert.equal(marginForLoss({lossUsdt: 1, available: 800, entry: 100, stop: 100, leverage: 10}).margin, null)
+  assert.equal(marginForLoss({lossUsdt: 100, available: 50, entry: 100, stop: 98, leverage: 1}).margin, null)
+  assert.equal(marginForLoss({lossUsdt: 0.1, available: 800, entry: 100, stop: 98, leverage: 10}).margin, null)
+})
