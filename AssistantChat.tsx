@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import {KAIS_ASK_EVENT, kaisAskMessage} from './kais-ask'
+import {KAIS_ASK_EVENT, KAIS_VOICE_EVENT, kaisAskMessage} from './kais-ask'
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice, type VoiceAnswer } from './assistant-voice'
@@ -617,6 +617,12 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     }
     window.addEventListener(KAIS_ASK_EVENT, asked)
     return () => window.removeEventListener(KAIS_ASK_EVENT, asked)
+  }, [expired])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Site turu "Hey Kais'i dene": sesli göz ekranını açıp dinlemeye başlar (soru yok).
+  useEffect(() => {
+    const voice = () => { if (!expired && !working.current) void launchRef.current('') }
+    window.addEventListener(KAIS_VOICE_EVENT, voice)
+    return () => window.removeEventListener(KAIS_VOICE_EVENT, voice)
   }, [expired])  // eslint-disable-line react-hooks/exhaustive-deps
   // Sesli başlatma ("Hey Kais", ikon kısayolu, Siri): göz ekranını açar, dinlemeye başlar; cümlede soru varsa hemen sorar ve cevabı okur.
   // Soru varsa önce soru gönderilir (mikrofon hazırlığı beklenmez), cevap okunur, sonra devam sorusu için dinlemeye geçilir.

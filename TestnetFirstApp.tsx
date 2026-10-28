@@ -11,6 +11,7 @@ import MobileHome from './MobileHome'
 import ScannerCenter from './ScannerCenter'
 import AssistantChat from './AssistantChat'
 import AppReadyPrompt from './AppReadyPrompt'
+import SiteTour from './SiteTour'
 import ComplianceContent from './ComplianceContent'
 import {useKaisErrorReaction, useKaisWorkspaceReaction} from './useKaisPageReactions'
 import {useTradingPreferences} from './useTradingPreferences'
@@ -942,6 +943,7 @@ export default function TestnetFirstApp() {
 
   return <main ref={reactionArea} className={`v26App ${view === 'dashboard' ? 'homeRoute' : 'workspaceRoute'} ${view === 'master-trade' ? 'masterTradeRoute' : ''}${connectionState === 'offline' ? ' backendOffline' : ''}${view === 'dashboard' && phoneLayout ? ' mobileHomeRoute' : ''}`}>
     <AppReadyPrompt/>
+    <SiteTour/>
     {tradingDefaults.error && <p className="v26MarketError" role="alert">İşlem tercihleri uygulanamadı: {tradingDefaults.error}</p>}
     {showConnectionNotice && <section className={`v26OfflineNotice ${connectionState}`} role="status" aria-live="polite"><span><i/><b>{connectionState === 'offline' ? 'Sunucu bağlantısı bekleniyor' : connectionState === 'checking' ? 'Sunucu bağlantısı kontrol ediliyor' : 'Sunucu bağlantısı kuruldu'}</b><small>{connectionState === 'offline' ? 'Veriler güncellenemiyor. Bağlantı kurulduğunda otomatik olarak yeniden denenecek.' : connectionState === 'checking' ? 'Sunucu ve piyasa verileri kontrol ediliyor…' : 'Veriler güncellenmeye devam ediyor.'}</small></span>{connectionState !== 'online' && <button type="button" onClick={() => void refresh()} disabled={loading}>{loading ? 'KONTROL EDİLİYOR…' : 'YENİDEN DENE'}</button>}</section>}
     <header className={`v26Header v26HomeHeader${headerHidden ? ' v26HeaderHidden' : ''}`} data-build-commit={BUILD_COMMIT}>
