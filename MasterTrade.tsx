@@ -22,6 +22,7 @@ import {useTradingPreferences} from './useTradingPreferences'
 import {MarketDataFailure, isNetworkFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
+import {FOLLOW_SYMBOL_EVENT} from './trade-intent'
 import {chartSnapshot} from './chart-ai-client'
 
 type TradeSide = 'LONG' | 'SHORT'
@@ -731,6 +732,19 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
   const performanceTrend: number[] = []
   const openPositions = account?.positions ?? []
+  // Emir sonrası "Grafikte canlı takip et" / "Pozisyonlarıma git" (Manuel işlem panelinden).
+  const selectMarketRef = useRef(selectMarket)
+  selectMarketRef.current = selectMarket
+  useEffect(() => {
+    const onFollow = (event: Event) => {
+      const detail = (event as CustomEvent<{symbol?: string | null; tab?: MasterTradeTab}>).detail || {}
+      if (detail.symbol) selectMarketRef.current(detail.symbol)
+      navigateTab(detail.tab === 'pozisyonlar' ? 'pozisyonlar' : 'analiz')
+      window.scrollTo({top: 0})
+    }
+    window.addEventListener(FOLLOW_SYMBOL_EVENT, onFollow)
+    return () => window.removeEventListener(FOLLOW_SYMBOL_EVENT, onFollow)
+  }, [])
   const protectionOrders = [...(account?.open_orders ?? []), ...(account?.open_algo_orders ?? [])]
   const protectionLevel = (order: AccountOrder) => {
     const value = order.trigger_price ?? order.price
@@ -831,7 +845,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       onRefresh={() => setMarketRefreshNonce(value => value + 1)} refreshing={dataLoading}
       candles={candles} analysis={analysis} decision={tradeDecision} trigger={triggerMonitor} live={liveStatus}
       price={currentPrice} change={selectedChange} volume={selectedMarket?.volume} analysisUpdatedAt={activeSnapshot?.marketUpdatedAt ?? null}
-      levelsVisible={showChartLevels} volumeVisible={showChartVolume}
+      levelsVisible={showChartLevels} volumeVisible={showChartVolume} positions={openPositions} accountCheckedAt={account?.last_checked ?? null}
       onLevels={() => setShowChartLevels(value => !value)} onVolume={() => setShowChartVolume(value => !value)}
       timeline={decisionTimeline} dataIssue={dataError} error={dataError || activeSnapshot?.mtfError || marketError}/> : null
 

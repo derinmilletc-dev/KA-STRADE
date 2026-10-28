@@ -24,6 +24,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {PremiumWorkspace, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
+import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
 
@@ -283,6 +284,20 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [liveGrid, setLiveGrid] = useState<LiveGridStatus | null>(null)
   const [recentCoins, setRecentCoins] = useState<string[]>(() => readRecentCoins())
   const [reviewedKey, setReviewedKey] = useState('')
+  // Emir sonrası özet ekranı ve analiz stüdyosundan gelen coin (yalnız görünüm; emir akışı aynı).
+  const [orderDone, setOrderDone] = useState<{symbol: string; direction: string; type: string; margin: number; leverage: number; entry: number; stop: number} | null>(null)
+  const [fromStudio, setFromStudio] = useState('')
+  useEffect(() => {
+    const apply = () => {
+      const intent = takeIntentForOrder()
+      if (!intent) return
+      setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
+      setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
+    }
+    apply()
+    window.addEventListener(MANUAL_INTENT_EVENT, apply)
+    return () => window.removeEventListener(MANUAL_INTENT_EVENT, apply)
+  }, [])
   useEffect(() => {
     if (!active || universe !== null || !(openStep === 3 || manualPanelOpen || !masterTrade)) return
     const controller = new AbortController()
@@ -1176,9 +1191,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const sendOrder = () => {
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+      const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
         setReviewedKey(''); setReviewResult(null); setManualStep(0); writeDraft(null)
+        setOrderDone(done)
       }})
       setConfirmText('')
     }
@@ -1593,8 +1610,23 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="mxtSumBody"><SummaryList rows={summaryRows}/></div>
     </aside>
     const askText = `Manuel emirde "${stepNames[wzStep]}" adımındayım${order.symbol ? `, coin ${order.symbol}, yön ${dirSide}` : ''}. Bu ayarlar mantıklı mı? Ne dikkat etmeliyim?`
-    const wizardBody = <div className="mxt" data-step={wzStep}>
+    const doneView = orderDone ? <div className="mxtDone" role="status">
+      <span className="mxtDoneIco" aria-hidden="true">✓</span>
+      <h4>{orderDone.type === 'LIMIT' ? 'Limit emir gönderildi' : 'Emir gönderildi'}</h4>
+      <p>{orderDone.symbol} · {orderDone.direction} {Number.isFinite(orderDone.leverage) ? `${orderDone.leverage}x` : ''} · {money(orderDone.margin)} teminat</p>
+      <div className="mxtDoneGrid">
+        {orderDone.entry > 0 && <div><small>{orderDone.type === 'LIMIT' ? 'Limit fiyatı' : 'Giriş (yaklaşık)'}</small><b>{coinPrice(orderDone.entry)}</b></div>}
+        {orderDone.stop > 0 && <div data-k="stop"><small>Stop</small><b>{coinPrice(orderDone.stop)}</b></div>}
+      </div>
+      {orderDone.type === 'LIMIT' && <p className="mxtHint">Emir bekliyor; dolunca pozisyon grafikte görünür.</p>}
+      <button type="button" className="mxtBtn primary" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); followSymbol(symbol) }}>Grafikte canlı takip et</button>
+      <button type="button" className="mxtBtn ghost" onClick={() => { setOrderDone(null); goPositions() }}>Pozisyonlarıma git</button>
+      <button type="button" className="mxtDoneNew" onClick={() => setOrderDone(null)}>Yeni emir</button>
+    </div> : null
+    const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
+      {doneView}
       {statusStrip}
+      {fromStudio && fromStudio === order.symbol && !orderDone && <p className="mxtFrom" role="status">✓ <b>{fromStudio}</b> analiz stüdyosundan seçildi{hasAnalysis ? ' · Kais analizi hazır' : ''}</p>}
       <div className="mxtM mxtMHead">
         <div className="mxtMLabel"><span>ADIM {wzStep + 1} / {stepNames.length} · <em>{stepNames[wzStep]}</em></span><button type="button" className="mxtMAsk" onClick={() => askKais(askText)}>✦ Kais’e sor</button></div>
         {selectedRow && Number.isFinite(Number(selectedRow.price)) && <div className="mxtMPrice"><i aria-hidden="true"/><b>{selectedRow.display || order.symbol}</b><span>{coinPrice(Number(selectedRow.price))}</span>{Number.isFinite(Number(selectedRow.change)) && <span className="mxtMChg" data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</span>}</div>}
