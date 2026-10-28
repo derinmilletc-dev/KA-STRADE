@@ -1859,7 +1859,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
     </div>
     return <div className="liveWsOrder liveUxOrderGrid">
-      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{!authorizationValid && !freeTrial ? <button type="button" className="liveWsPrimary manualRenewBtn" onClick={grantConsent} disabled={Boolean(busy)}><RefreshCw aria-hidden="true"/>{authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver'}</button> : armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
