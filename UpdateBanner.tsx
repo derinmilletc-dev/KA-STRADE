@@ -1,8 +1,10 @@
 import {useEffect, useState} from 'react'
 import {entryScript, isNewVersion} from './update-check'
+import {isStandaloneApp} from './useKaisWake'
 import './install-prompt.css'
 
 // "Yeni sürüm var · Güncelle": uygulama arka planda açık kaldıysa eski sürümle çalışır; yayına yeni sürüm çıkınca bu şerit görünür.
+// Yalnız ana ekrana eklenmiş uygulamada görünür: tarayıcıdan girenlerde sayfa zaten her açılışta yeni sürümü alır.
 // Ana ekrana eklenmiş uygulamayı silip yeniden yüklemeye gerek yoktur; Güncelle sayfayı yeniler.
 const CHECK_MS = 5 * 60 * 1000
 
@@ -15,7 +17,7 @@ export default function UpdateBanner() {
   const [available, setAvailable] = useState(false)
   useEffect(() => {
     const current = currentScript()
-    if (!current) return  // geliştirme ortamı: denetim yok
+    if (!current || !isStandaloneApp()) return  // geliştirme ortamı ya da tarayıcı: denetim yok
     let alive = true
     let busy = false
     const check = async () => {
