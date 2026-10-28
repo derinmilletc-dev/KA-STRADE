@@ -1205,13 +1205,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="cpkChips" role="group" aria-label="Filtre">{filterChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} className={coinFilter === key ? 'on' : ''} onClick={() => setCoinFilter(key)}>{label}<span>{key === 'all' ? rows.length : signalCount(key)}</span></button>)}</div>
       <div className="cpkChips cpkSorts" role="group" aria-label="Sıralama">{sortChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinSort === key} className={coinSort === key ? 'on' : ''} onClick={() => setCoinSort(key)}>{label}</button>)}</div>
     </div>
-    const pickRows = signals ? sortByConfidence(filteredRows, signals).filter(row => signals[row.symbol]).slice(0, 6) : []
+    // Filtre ve sıralama listeye gerçekten uygulanır (eskiden hep güvene göre ilk 6 gösteriliyordu, filtre değişse de aynı coinler kalıyordu).
+    const pickAll = signals ? sortCoins(filteredRows, signals, coinSort).filter(row => signals[row.symbol]) : []
+    const PICK_LIMIT = 120
+    const pickRows = pickAll.slice(0, PICK_LIMIT)
+    const sortLabel = (sortChips.find(([key]) => key === coinSort) || [null, ''])[1]
     const picksBlock = !coinOpen && <section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
       <header className="cpkPicksHead"><h5>Kais AI güçlü sinyaller</h5>{signals === null && !signalsError && <span className="cpkStatus">Analiz yükleniyor…</span>}{signalsError && <span className="cpkStatus warn">Analiz şu an alınamadı; liste hacme göre.</span>}</header>
       {toolbar}
       {signals === null && !signalsError && <ul className="cpkPickList" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map(index => <li key={index} className="cpkSkeleton"/>)}</ul>}
       {signals !== null && pickRows.length === 0 && <p className="cpkEmpty">Bu filtrede coin yok. Başka bir filtre seç.</p>}
-      {pickRows.length > 0 && <ul className="cpkPickList">{pickRows.map(row => {
+      {pickRows.length > 0 && <p className="cpkPickCount" role="status"><b>{pickAll.length} coin</b> · {sortLabel}{pickAll.length > 4 ? ' · kaydırarak hepsini gör' : ''}</p>}
+      {pickRows.length > 0 && <ul className="cpkPickList cpkPickScroll" key={`${coinFilter}-${coinSort}`}>{pickRows.map(row => {
         const signal = signals![row.symbol]
         return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === order.symbol} data-lean={signal.lean} className={`cpkCard ${row.symbol === order.symbol ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
           <span className="cpkCardTop"><strong>{row.display || row.symbol}</strong><span className="cpkTick"><span>{coinPrice(row.price)}</span><em className={Number(row.change) >= 0 ? 'up' : 'down'}>{signedChange(row)}</em></span></span>
@@ -1219,6 +1224,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="cpkLeanLine">{leanText(signal)}</span>
         </button></li>
       })}</ul>}
+      {pickAll.length > PICK_LIMIT && <p className="cpkNote">{pickAll.length} coinden ilk {PICK_LIMIT} gösteriliyor; yukarıdaki aramayla daralt.</p>}
       <p className="cpkNote">{AI_DISCLAIMER}</p>
     </section>
     const selectedSignal = signals?.[order.symbol]
