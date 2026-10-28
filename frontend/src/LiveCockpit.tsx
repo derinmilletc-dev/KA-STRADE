@@ -9,6 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
+import '../../live-cockpit-mobile.css'
 
 /** Canlı İşlem kokpiti (Master Trade › Canlı).
  *  Kural 1: ekrandaki her rakam sunucudan gelen doğrulanmış durumdan gelir; yoksa "—" ya da "doğrulanamadı" yazar.
@@ -271,6 +272,8 @@ export default function LiveCockpit(props: Props) {
   const [modeHelpOpen, setModeHelpOpen] = useState(false)
   const [customOn, setCustomOn] = useState(false)
   const [wizStep, setWizStep] = useState(0)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [eventsOpen, setEventsOpen] = useState(false)
   const [smartPick, setSmartPick] = useState<'keep' | 'on' | 'off'>('keep')
   const [smartWizThreshold, setSmartWizThreshold] = useState(70)
   const [smartWizWait, setSmartWizWait] = useState(10)
@@ -1029,6 +1032,20 @@ export default function LiveCockpit(props: Props) {
               <span className="lcWizHead"><b>{title}</b>{id === 'keep' && !smartCurrentlyOn && <em>Önerilen şimdilik</em>}</span><small>{note}</small>
             </button>)}
         </div>
+        <details className="lcWizAdv"><summary>Gelişmiş</summary>
+          <div className="lcWizAdvBody">
+            {smartSwitch('protect_stop_enabled', 'Kâr koruma stopu', 'Kârdayken geçici koruma emri')}
+            {smartSwitch('smart_exit_enabled', 'Akıllı çıkış', 'Gerçek kapatma emri')}
+            <div className="lcSmartPick">
+              <label>Puan eşiği<select value={smartSettings.threshold} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({threshold: Number(event.target.value)}, 'Puan eşiği kaydedildi.')}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label>Bekleme süresi<select value={smartSettings.wait_minutes} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({wait_minutes: Number(event.target.value)}, 'Bekleme süresi kaydedildi.')}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
+            </div>
+            <div className="lcSmartPick">
+              <label>Ters yön sinyali<select value={smartSettings.direction_mismatch_action ?? 'record_only'} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({direction_mismatch_action: event.target.value}, 'Ters yön tercihi kaydedildi.')}><option value="record_only">Sadece kaydet</option><option value="count_as_low">Düşük puan gibi say</option></select></label>
+            </div>
+            <p className="lcHint">Bu ayarlar seçer seçmez kaydedilir.</p>
+          </div>
+        </details>
         {smartPick === 'on' && <div className="lcSmartPick">
           <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
@@ -1534,6 +1551,9 @@ export default function LiveCockpit(props: Props) {
   const breakdown = rejectionBreakdown(scanner?.rejections_24h, Date.now())
   // Çalışırken bağlantı koparsa da koç görünümü kalır (adım çubuğuna geri dönülmez).
   const coach = guide.phase === 'running' || (stale && guideInput.running)
+  // Mobil: kurulum bitti, başlatmaya hazır → büyük rehber kartı yerine durum kartında tek düğme.
+  const readyToStart = setupPhase && guide.action === 'start'
+  const modeLabelNow = original?.margin_modes?.find(row => row.mode === savedMode)
   const timeline = coach ? [
     {label: 'Başladı', value: Number.isFinite(sessionStartedAt) ? clock(original?.session?.started_at) : '—', state: 'done'},
     {label: 'Son tarama', value: Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : 'bekleniyor', state: 'done'},
@@ -1559,7 +1579,22 @@ export default function LiveCockpit(props: Props) {
   return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone}>
-      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div></div>
+      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b></div>
+        <div className="lcMobileOnly lcMore">
+          <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
+          {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
+            <div className="lcMoreMenu" role="menu">
+              {live && <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setMoreOpen(false); setSheet('close-all') }}>Acil durdur</button>}
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); goTab('baglanti') }}>Bağlantı ayrıntısı</button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); askKais(kaisQuestion) }}>Kais’e sor</button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); void Promise.resolve(refresh()).catch(() => undefined) }}>Yenile</button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); window.location.href = '/profile#notify-settings' }}>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</button>
+            </div></>}
+        </div></div>
+      {readyToStart && <div className="lcMobileOnly lcMStart">
+        <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><Zap aria-hidden="true"/>Hepsini hazırla ve başlat</button>
+        <p><Check aria-hidden="true"/>Hazır: risk, onaylar tamam</p>
+      </div>}
       <dl className="lcStatusStats">
         {running && <div><dt>Oturum</dt><dd data-testid="original-session-remaining">{sessionLeft > 0 ? `${duration(sessionLeft)} kaldı` : '—'}</dd></div>}
         {running && <div><dt>Son tarama</dt><dd>{Number.isFinite(lastScanMs) ? `${clock(scanner?.last_scan_at)} · ${scanner?.scanned_symbol_count ?? 0} coin` : 'bekleniyor'}</dd></div>}
@@ -1582,11 +1617,23 @@ export default function LiveCockpit(props: Props) {
       <article><i aria-hidden="true"><Coins/></i><span><small>Kullanılabilir bakiye</small><b>{verified && availableBalance !== null ? usdt(availableBalance) : '—'}</b></span></article>
       <article><i aria-hidden="true"><Layers/></i><span><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></span></article>
     </div>
+    <section className="lcMobileOnly lcMSum" aria-label="Hesap özeti (telefon)">
+      <div className="lcMSumTop">
+        <span><small>Bakiye</small><b>{verified && wallet !== null ? usdt(wallet) : '—'}</b></span>
+        <span><small>Bugün</small><b data-sign={pnlToday === null || pnlToday === 0 ? undefined : pnlToday < 0 ? 'down' : 'up'}>{pnlToday !== null ? usdt(pnlToday, true) : '—'}</b></span>
+      </div>
+      {dailyLoss !== null && dailyLimit !== null && <div className="lcMLimit"><div><small>Günlük zarar limiti</small><small>kalan <b>{usdt(Math.max(0, dailyLimit - dailyLoss))}</b> / {usdt(dailyLimit)}</small></div>
+        <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={Math.min(dailyLimit, Math.max(0, dailyLoss))} data-high={dailyLoss / dailyLimit >= 0.8 || undefined}><i style={{width: `${Math.min(100, Math.max(0, dailyLoss / dailyLimit * 100))}%`}}/></div></div>}
+      <div className="lcMChips">
+        <span><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></span>
+        {live && modeLabelNow && <span><small>Teminat modu</small><b>{modeLabelNow.label} %{modeLabelNow.per_trade_percent}</b></span>}
+      </div>
+    </section>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
 
     <div className="lcGrid" data-coach={coach || undefined} data-noscan={!(running || scanner?.last_scan_at) || undefined}>
       <div className="lcMain">
-        <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" aria-live="polite" key={advanced}>
+        <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
@@ -1662,6 +1709,7 @@ export default function LiveCockpit(props: Props) {
             <span><small>Taranan</small><b>{scanner?.scanned_symbol_count ?? 0} coin</b><em>{scanner?.candidate_count ? `${scanner.candidate_count} aday` : 'aday yok'}</em></span>
             <span><small>Son 24 saat</small><b>{scanner?.last_24h?.scans ?? 0} tarama</b><em>{scanner?.last_24h?.candidates ?? 0} aday · {scanner?.last_24h?.trades ?? 0} işlem</em></span>
           </div>
+          <p className="lcMobileOnly lcMScanLine">{upcoming ? `Sonraki tarama ${new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}` : 'Strateji çalışmıyor'} · son 24 saatte {scanner?.last_24h?.scans ?? 0} tarama, {scanner?.last_24h?.candidates ?? 0} aday, {scanner?.last_24h?.trades ?? 0} işlem</p>
           {why && <div className="lcWhyNo"><small>NEDEN İŞLEM AÇILMADI?</small><p>{why}</p></div>}
           {nearMisses.length > 0 && <ul className="lcNear" aria-label="Sinyale en yakın coinler">{nearMisses.map(item => {
             const conf = finite(item.confidence), need = finite(item.confidence_threshold)
@@ -1730,8 +1778,8 @@ export default function LiveCockpit(props: Props) {
           <div className="lcDayLimit"><span><small>Günlük kayıp sınırı</small><b>{dailyLoss !== null && dailyLimit !== null ? `${usdt(dailyLoss)} / ${usdt(dailyLimit)}` : '—'}</b></span>
             {dailyLoss !== null && dailyLimit !== null && <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={Math.min(dailyLimit, Math.max(0, dailyLoss))} data-high={dailyLoss / dailyLimit >= 0.8 || undefined}><i style={{width: `${Math.min(100, Math.max(0, dailyLoss / dailyLimit * 100))}%`}}/></div>}</div>
         </section>
-        <section className="lcCard lcEvents" aria-label="Son olaylar">
-          <header className="lcCardHead"><div><small>AKIŞ</small><h3>Son olaylar</h3></div></header>
+        <section className="lcCard lcEvents" data-mfold-open={eventsOpen || undefined} aria-label="Son olaylar">
+          <header className="lcCardHead"><div><small>AKIŞ</small><h3>Son olaylar</h3></div><button type="button" className="lcMobileOnly lcLink" aria-expanded={eventsOpen} onClick={() => setEventsOpen(value => !value)}>{eventsOpen ? 'Gizle' : `Göster (${allEvents.length})`}</button></header>
           <div className="lcChips" role="tablist" aria-label="Olay filtresi">{([['all', 'Tümü'], ['trade', 'İşlemler'], ['warn', 'Uyarılar'], ['system', 'Sistem']] as const).map(([id, label]) =>
             <button type="button" role="tab" key={id} aria-selected={eventFilter === id} data-on={eventFilter === id || undefined} onClick={() => setEventFilter(id)}>{label}</button>)}</div>
           {!verified && allEvents.length > 0 && <p className="lcHint">Son görülen kayıtlar; güncel durum doğrulanamadı.</p>}
@@ -1740,6 +1788,11 @@ export default function LiveCockpit(props: Props) {
         </section>
       </aside>
     </div>
+
+    {verified && original && guideInput.connected && !guideInput.emergency && <section className="lcMobileOnly lcMSet" aria-label="Ayarların">
+      <span><small>Ayarların</small><b>{riskSaved ? `Risk ${pct(savedRisk)}` : 'Risk seçilmedi'}{modeLabelNow ? ` · ${modeLabelNow.label} %${modeLabelNow.per_trade_percent}` : ''}{smartSettings ? ` · Akıllı koruma ${smartSettings.emergency_off ? 'durduruldu' : smartSettings.enabled ? 'açık' : 'kapalı'}` : ''}</b></span>
+      <button type="button" className="lcBtn" data-testid="mobile-settings-edit" disabled={busy} onClick={openWizard}>Düzenle</button>
+    </section>}
 
     <details className="lcDrawer" id="lc-drawer" open={settingsDrawerOpen || undefined} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (coach) setSettingsOpen(open) }}>
       <summary><span className="lcDrawerIcon"><SlidersHorizontal aria-hidden="true"/></span><span className="lcDrawerTitle"><b>Ayarlar ve gelişmiş</b><small>Risk ayarı, manuel emir, kurtarma ve acil durdurma tek yerde.</small></span><span className="lcDrawerChip" data-tone={guideInput.emergency ? 'stop' : 'ok'}><i aria-hidden="true"/>{guideInput.emergency ? 'Acil durdurma kilidi var' : 'Her şey yolunda'}</span><ChevronDown aria-hidden="true"/></summary>
