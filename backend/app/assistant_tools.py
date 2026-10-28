@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -48,6 +49,14 @@ class ProtectionArguments(NoArguments):
     language: Language = "tr"
 
 
+class TradesArguments(NoArguments):
+    days: int = Field(default=7, ge=1, le=30)
+
+
+class EventsArguments(NoArguments):
+    limit: int = Field(default=15, ge=1, le=30)
+
+
 class ConfirmAnalysis(AnalysisArguments):
     confirm: StrictBool
     confirmation_token: str = Field(min_length=1)
@@ -64,7 +73,16 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "get_market_overview": NoArguments,
     "get_protection_status": ProtectionArguments,
     "get_live_strategy": NoArguments,
+    "get_my_account_summary": NoArguments,
+    "get_my_settings": NoArguments,
+    "get_my_trades": TradesArguments,
+    "get_my_events": EventsArguments,
+    "get_my_position_details": NoArguments,
 }
+# Üyenin kendi hesabını okuyan araçlar: profildeki "Kais hesabımı görebilir" izni kapalıysa hiçbiri veri döndürmez.
+ACCOUNT_TOOLS = frozenset({"get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details"})
+ACCOUNT_ACCESS_OFF = "ACCOUNT_ACCESS_OFF"
+MAX_TRADE_ROWS = 50
 TOOL_DEFINITIONS = [
     {"name": name, "input_schema": model.model_json_schema()}
     for name, model in ARGUMENT_MODELS.items()
@@ -454,6 +472,167 @@ class AssistantTools:
         if not self.premium(user_id):
             data = public_projection(data)
         return self.result(data, stale=stale)
+
+    # ---- Kendi hesabını okuma (salt okunur, yalnız canlı oturum sahibine; anahtar ve başka üye verisi asla dönmez) ----
+    async def account_access(self, user_id: str) -> bool:
+        """Profil izni. Kayıt yoksa varsayılan AÇIK; izin okunamazsa güvenli tarafta kalınır (kapalı sayılır)."""
+        self.user(user_id)
+        from .assistant_storage import AssistantStore
+        service = getattr(self.request.app.state, "assistant_service", None)
+        store = getattr(service, "store", None) or AssistantStore(self.request.app)
+        try:
+            async with store.connection(self.config.request_timeout_seconds) as transaction:
+                row = await transaction.row("SELECT account_access FROM assistant_proactive_state WHERE user_id=$1", user_id)
+        except Exception:  # noqa: BLE001 - izin doğrulanamazsa hesap verisi verilmez
+            return False
+        return True if row is None or row["account_access"] is None else bool(row["account_access"])
+
+    async def live_read(self, user_id: str, reader: Callable[[dict[str, Any]], Any]) -> tuple[Any, str | None]:
+        member_id = str(self.user(user_id)["id"])
+        state = getattr(self.request.app.state, "v25_execution", None)
+        if not isinstance(state, dict) or not isinstance(state.get("lock"), asyncio.Lock):
+            return None, "LIVE_NOT_VERIFIED"
+        lock = state["lock"]
+        await asyncio.wait_for(lock.acquire(), timeout=self.config.request_timeout_seconds)
+        try:
+            if (state.get("live_session_authorization") or {}).get("user_id") != member_id:
+                return None, "LIVE_NOT_OWNER"
+            return copy.deepcopy(reader(state)), None
+        finally:
+            lock.release()
+
+    def own(self, user_id: str, data: dict[str, Any], *, stale: bool = False) -> dict[str, Any]:
+        return self.result(data if self.premium(user_id) else public_projection(data), stale=stale)
+
+    @staticmethod
+    def number(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
+
+    async def get_my_account_summary(self, user_id: str) -> dict[str, Any]:
+        """Bakiye, kullanılabilir bakiye, açık kâr/zarar ve günlük kayıp sınırı kullanımı."""
+        if not await self.account_access(user_id):
+            return self.result({"reason": ACCOUNT_ACCESS_OFF}, stale=True)
+        state = await self.account_state(user_id)
+        if state is None:
+            return self.result({"reason": "ACCOUNT_NOT_VERIFIED"}, stale=True)
+        age, stale = self.account_age(state)
+        snapshot = state["snapshot"]
+        from . import original_v2_live
+        config, _ = await self.live_read(user_id, original_v2_live.public_config)
+        daily = (config or {}).get("daily") if isinstance((config or {}).get("daily"), dict) else {}
+        loss, limit = self.number(daily.get("loss")), self.number(daily.get("limit"))
+        return self.own(user_id, {
+            "wallet_balance": self.number(snapshot.get("wallet_balance")),
+            "available_balance": self.number(snapshot.get("available_balance")),
+            "unrealized_pnl": self.number(snapshot.get("unrealized_pnl")),
+            "open_positions": sum(1 for row in snapshot.get("positions", []) if self.number(row.get("quantity"))),
+            "daily_loss": {"loss": loss, "limit": limit, "locked": bool(daily.get("locked")),
+                           "remaining": round(max(0.0, limit - loss), 4) if loss is not None and limit is not None else None},
+            "data_age_seconds": age,
+        }, stale=stale)
+
+    async def get_my_settings(self, user_id: str) -> dict[str, Any]:
+        """Kayıtlı risk, günlük sınır, teminat modu, akıllı koruma ayarları ve oturum."""
+        if not await self.account_access(user_id):
+            return self.result({"reason": ACCOUNT_ACCESS_OFF}, stale=True)
+        from . import original_v2_live
+        config, reason = await self.live_read(user_id, original_v2_live.public_config)
+        if reason:
+            return self.result({"reason": reason}, stale=True)
+        mode = config.get("margin_mode")
+        row = next((item for item in config.get("margin_modes") or [] if isinstance(item, dict) and item.get("mode") == mode), {})
+        smart = (config.get("smart_profit") or {}).get("settings") or {}
+        session = config.get("session") or {}
+        return self.result({
+            "running": bool(config.get("enabled")), "paused": bool(config.get("paused")),
+            "risk_percent": config.get("risk_percent"), "daily_loss_percent": config.get("daily_loss_percent"),
+            "margin_mode": {"mode": mode, "label": row.get("label"), "per_trade_percent": row.get("per_trade_percent")},
+            "smart_protection": {key: smart.get(key) for key in (
+                "enabled", "emergency_off", "threshold", "wait_minutes", "protect_stop_enabled", "smart_exit_enabled", "direction_mismatch_action")},
+            "session": {"hours": session.get("hours"), "remaining_seconds": session.get("remaining_seconds")},
+            "coins": len(config.get("symbols") or []),
+        })
+
+    async def get_my_trades(self, user_id: str, days: int = 7) -> dict[str, Any]:
+        """Son N günde kapanan ve kâr/zararı Binance'te doğrulanmış işlemler ve özet."""
+        if not await self.account_access(user_id):
+            return self.result({"reason": ACCOUNT_ACCESS_OFF}, stale=True)
+        state = await self.account_state(user_id)
+        if state is None:
+            return self.result({"reason": "ACCOUNT_NOT_VERIFIED"}, stale=True)
+        since = self.clock() - days * 86400
+        rows = []
+        for row in v25_execution.verified_live_journal({"plans": state.get("plans") or {}}):
+            closed = parse_datetime(row.get("created_at")) if row.get("created_at") else None
+            if closed is None or closed.timestamp() < since:
+                continue
+            rows.append({"symbol": row.get("symbol"), "direction": row.get("direction"),
+                         "opened_at": row.get("opened_at"), "closed_at": row.get("created_at"),
+                         "close_reason": row.get("reason"), "realized_pnl": self.number(row.get("realized_pnl")),
+                         "r_multiple": self.number(row.get("r_multiple")),
+                         "entry_price": row.get("planned_entry_price"), "exit_price": self.number(row.get("price"))})
+        rows.sort(key=lambda item: str(item["closed_at"]), reverse=True)
+        pnls = [item["realized_pnl"] for item in rows if item["realized_pnl"] is not None]
+        wins = sum(1 for value in pnls if value > 0)
+        return self.own(user_id, {
+            "days": days, "count": len(rows), "wins": wins, "losses": sum(1 for value in pnls if value < 0),
+            "win_rate_percent": round(wins / len(pnls) * 100, 1) if pnls else None,
+            "total_realized_pnl": round(sum(pnls), 4) if pnls else 0.0,
+            "trades": rows[:MAX_TRADE_ROWS], "note": "Yalnız kâr/zararı doğrulanmış kapanışlar; funding hariç.",
+        })
+
+    async def get_my_events(self, user_id: str, limit: int = 15) -> dict[str, Any]:
+        """Canlı işlem olay kaydının son satırları (emir, stop, kapanış, uyarı)."""
+        if not await self.account_access(user_id):
+            return self.result({"reason": ACCOUNT_ACCESS_OFF}, stale=True)
+        member_id = str(self.user(user_id)["id"])
+        events, reason = await self.live_read(user_id, lambda state: [row for row in (state.get("events") or [])[:200] if isinstance(row, dict)])
+        if reason:
+            return self.result({"reason": reason}, stale=True)
+        rows = [{"created_at": row.get("created_at"), "kind": row.get("kind"), "symbol": row.get("symbol"),
+                 "message": str(row.get("message") or "")[:200]}
+                for row in events if row.get("recipient_user_id") in (None, member_id)][:limit]
+        return self.result({"events": rows})
+
+    async def get_my_position_details(self, user_id: str) -> dict[str, Any]:
+        """Açık pozisyonların giriş, anlık fiyat, stop, TP seviyeleri ve akıllı koruma durumu (kendi hesabı)."""
+        if not await self.account_access(user_id):
+            return self.result({"reason": ACCOUNT_ACCESS_OFF}, stale=True)
+        state = await self.account_state(user_id)
+        if state is None:
+            return self.result({"positions": [], "reason": "ACCOUNT_NOT_VERIFIED"}, stale=True)
+        age, stale = self.account_age(state)
+        stale = stale or not state.get("connected") or bool(state["connection"].get("last_error")) or not state.get("recovery_ready")
+        from . import original_v2_live
+        smart, _ = await self.live_read(user_id, original_v2_live.smart_profit_public)
+        guards = {row.get("plan_id"): row for row in (smart or {}).get("positions") or [] if isinstance(row, dict)}
+        open_plans = [plan for plan in (state.get("plans") or {}).values()
+                      if str(plan.get("status") or "").upper() not in {"KAPANDI", "İPTAL", "IPTAL"}]
+        positions = []
+        for row in state["snapshot"].get("positions", []):
+            if not self.number(row.get("quantity")):
+                continue
+            matches = [plan for plan in open_plans if plan.get("symbol") == row.get("symbol") and plan.get("direction") == row.get("direction")]
+            plan = matches[0] if len(matches) == 1 else None
+            targets = [self.number(item.get("price") if isinstance(item, dict) else item) for item in (plan or {}).get("targets") or []][:3]
+            guard = guards.get((plan or {}).get("id")) or {}
+            positions.append({
+                "symbol": row.get("symbol"), "direction": row.get("direction"), "quantity": self.number(row.get("quantity")),
+                "entry_price": self.number(row.get("entry_price")), "mark_price": self.number(row.get("mark_price")),
+                "unrealized_pnl": self.number(row.get("unrealized_pnl")),
+                "managed_by_bot": plan is not None,
+                "stop_loss": self.number((plan or {}).get("stop_loss")), "targets": targets,
+                "tp1_done": bool((plan or {}).get("original_tp1_complete") or (plan or {}).get("tp1_fill_confirmed")),
+                "breakeven_at": (plan or {}).get("breakeven_at"), "opened_at": (plan or {}).get("opened_at"),
+                "smart_protection": {key: guard.get(key) for key in ("mode", "last_score", "timer_end", "temp_stop_price")} if guard else None,
+            })
+        return self.own(user_id, {"positions": positions, "data_age_seconds": age}, stale=stale)
 
     async def dispatch(self, user_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         self.user(user_id)

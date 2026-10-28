@@ -30,7 +30,8 @@ SCHEMA = (
         cache_read_input_tokens INTEGER NOT NULL DEFAULT 0)""",
     """CREATE TABLE IF NOT EXISTS assistant_proactive_state (
         user_id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        last_seen_at DOUBLE PRECISION, last_checkin_at DOUBLE PRECISION)""",
+        last_seen_at DOUBLE PRECISION, last_checkin_at DOUBLE PRECISION,
+        account_access BOOLEAN NOT NULL DEFAULT TRUE)""",
 )
 TOKEN_COLUMNS = ("cache_creation_input_tokens", "cache_read_input_tokens")
 
@@ -85,6 +86,7 @@ class AssistantStore:
                         await pool.execute(statement, timeout=timeout)
                     for column in TOKEN_COLUMNS:
                         await pool.execute(f"ALTER TABLE assistant_calls ADD COLUMN IF NOT EXISTS {column} INTEGER NOT NULL DEFAULT 0", timeout=timeout)
+                    await pool.execute("ALTER TABLE assistant_proactive_state ADD COLUMN IF NOT EXISTS account_access BOOLEAN NOT NULL DEFAULT TRUE", timeout=timeout)
                     self.initialized_pool = pool
             async with pool.acquire(timeout=timeout) as connection:
                 yield CreditTransaction(connection, True)
@@ -106,6 +108,9 @@ class AssistantStore:
                         for column in TOKEN_COLUMNS:
                             if column not in columns:
                                 await asyncio.to_thread(connection.execute, f"ALTER TABLE assistant_calls ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+                        cursor = await asyncio.to_thread(connection.execute, "PRAGMA table_info(assistant_proactive_state)")
+                        if "account_access" not in {row["name"] for row in await asyncio.to_thread(cursor.fetchall)}:
+                            await asyncio.to_thread(connection.execute, "ALTER TABLE assistant_proactive_state ADD COLUMN account_access BOOLEAN NOT NULL DEFAULT 1")
                         await asyncio.to_thread(connection.commit)
                     except BaseException:
                         await asyncio.to_thread(connection.rollback)
