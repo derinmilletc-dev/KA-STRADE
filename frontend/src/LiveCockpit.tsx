@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
 import './copy-phrase.css'
-import {Bell, Check, ChevronDown, Coins, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
+import {Bell, Check, ChevronDown, ChevronRight, Clock, Coins, FileCheck, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, shadowNote, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
@@ -1586,8 +1586,9 @@ export default function LiveCockpit(props: Props) {
   return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
-    <header className="lcStatusBar" data-tone={barState.tone}>
-      <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd">Son güncelleme {lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</small></div>
+    <header className="lcStatusBar" data-tone={barState.tone} data-ready={readyToStart || undefined}>
+      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>CANLI İŞLEM</span><span className="lcMPill">KAIS ORIGINAL V2</span></div>
+        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
@@ -1600,8 +1601,12 @@ export default function LiveCockpit(props: Props) {
             </div></>}
         </div></div>
       {readyToStart && <div className="lcMobileOnly lcMStart">
-        <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><Zap aria-hidden="true"/>Hepsini hazırla ve başlat</button>
-        <p><Check aria-hidden="true"/>Hazır: risk, onaylar tamam</p>
+        <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><span className="lcMIco"><Zap aria-hidden="true"/></span><span className="lcMLbl">Hepsini hazırla ve başlat</span><span className="lcMGo"><ChevronRight aria-hidden="true"/></span></button>
+        <ul className="lcMReady" aria-label="Hazırlık durumu"><li><ShieldCheck aria-hidden="true"/>Risk<b><Check aria-hidden="true"/></b></li><li><FileCheck aria-hidden="true"/>Onaylar<b><Check aria-hidden="true"/></b></li></ul>
+        <div className="lcMStartRow">
+          <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={openManual}><Zap aria-hidden="true"/><span>Manuel işlem aç</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>
+          <button type="button" className="lcMAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/><span>Kais’e sor</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>
+        </div>
       </div>}
       <dl className="lcStatusStats">
         {running && <div><dt>Oturum</dt><dd data-testid="original-session-remaining">{sessionLeft > 0 ? `${duration(sessionLeft)} kaldı` : '—'}</dd></div>}
