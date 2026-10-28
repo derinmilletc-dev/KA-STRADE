@@ -31,6 +31,7 @@ const findTarget = (selectors?: string[]): HTMLElement | null => {
   }
   return null
 }
+const RESUME_KEY = 'kais-site-tour:resume'
 function load(userId: string): string | null { try { return localStorage.getItem(tourMemoryKey(userId)) } catch { return null } }
 function save(userId: string, kind: TourMemory) { try { localStorage.setItem(tourMemoryKey(userId), `${kind}|${Date.now()}`) } catch { /* saklama kapalıysa tur yine kapanır */ } }
 
@@ -79,6 +80,7 @@ export default function SiteTour() {
   const [box, setBox] = useState<Box | null>(null)
   const [panelHeight, setPanelHeight] = useState(260)
   const [more, setMore] = useState(false)
+  const [resume] = useState<string | null>(() => { try { return sessionStorage.getItem(RESUME_KEY) } catch { return null } })
   const dockTop = useRef(0)
   const panel = useRef<HTMLDivElement | null>(null)
   const primary = useRef<HTMLButtonElement | null>(null)
@@ -93,6 +95,13 @@ export default function SiteTour() {
     return () => document.body.removeAttribute(TOUR_OPEN_ATTRIBUTE)
   }, [mode])
 
+  // Sayfa yeni sürüm için kendiliğinden yenilenirse tur kaldığı adımdan devam eder.
+  useEffect(() => {
+    try {
+      if (mode === 'tour') sessionStorage.setItem(RESUME_KEY, String(index))
+      else sessionStorage.removeItem(RESUME_KEY)
+    } catch { /* depolama kapalı */ }
+  }, [mode, index])
   const close = useCallback((kind: TourMemory | null) => {
     setMode('closed')
     setIndex(0)
@@ -103,6 +112,9 @@ export default function SiteTour() {
   // İlk girişte kendiliğinden açılır (hafızaya göre).
   useEffect(() => {
     if (!ready || !userId) return
+    try {
+      if (resume !== null && !sessionStorage.getItem(TOUR_PENDING_KEY)) { setIndex(Math.max(0, Number(resume) || 0)); setMode('tour'); return }
+    } catch { /* depolama kapalı */ }
     // Profil'den "Turu tekrar başlat": hafızaya bakmadan karşılama kartı hemen açılır.
     try { if (sessionStorage.getItem(TOUR_PENDING_KEY)) { sessionStorage.removeItem(TOUR_PENDING_KEY); setIndex(0); setMode('welcome'); return } } catch { /* depolama kapalı */ }
     if (!shouldOfferTour(load(userId), Date.now())) return
