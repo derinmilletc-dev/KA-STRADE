@@ -33,7 +33,7 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
     {id: 'home', kicker: 'ANA SAYFA', title: 'Her şey buradan başlar',
       body: phone
         ? 'Ana sayfada bakiyeni, günün özetini ve piyasanın durumunu görürsün. Diğer sayfalara alttaki menüden geçersin; sağdaki Menü tuşunda Tarama, Performans, Destek gibi sayfalar var.'
-        : 'Ana sayfada çalışma alanlarını kartlar halinde görürsün: İşlem, Master Trade, Analist, Tarama, Performans, Destek ve diğerleri. Bir karta tıklayınca o sayfa açılır; geri dönmek için sayfadaki Geri tuşunu kullanırsın.',
+        : 'Ana sayfada çalışma alanlarını kartlar halinde görürsün: İşlem, Master Trade, Analist, Tarama, Performans, Destek ve diğerleri. Bir karta tıklayınca o sayfa açılır; geri dönmek için sayfadaki Geri tuşunu kullanırsın. En altta Piyasa Nabzı canlı fiyatları gösterir.',
       view: 'dashboard', targets: phone ? [`${NAV} button:first-child`] : [CARDS]},
     {id: 'analysis', kicker: 'ANALİST VE TARAMA', title: 'Coini sen seç, Kais sadeleştirsin',
       body: `Analist, seçtiğin coin için yönü, güven puanını ve olası hedefleri sade bir dille gösterir. Tarama, piyasadaki fırsatları senin yerine süzer. ${phone ? 'İkisini de alttaki Menü tuşundan açarsın.' : 'İkisi de ana sayfadaki kartlarda.'}`,
