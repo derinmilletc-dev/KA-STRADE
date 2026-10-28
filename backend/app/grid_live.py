@@ -1,7 +1,8 @@
-"""Manuel GRID — canlı çalıştırma katmanı (ilk canlı test: sıkı sınırlar, varsayılan KAPALI).
+"""Manuel GRID — canlı çalıştırma katmanı (sunucuda varsayılan KAPALI).
 
 - Açılması için sunucuda KAISTRADE_GRID_LIVE=1 olmalı (kullanıcı kendisi açar). Kapalıyken başlatma reddedilir.
-- Sert sınırlar kodda sabittir: en fazla 2 kademe, toplam marjin en fazla 10 USDT, kaldıraç en fazla 10x.
+- Tavanlar: en fazla 20 kademe, toplam marjin en fazla 300 USDT (sistem tavanı), kaldıraç en fazla 20x. Asıl koruma hesabın
+  kendi risk ayarlarıdır: en kötü zarar, tek işlem ve günlük zarar sınırını, toplam büyüklük de maruziyet sınırını aşarsa grid HİÇ başlamaz.
 - Plan, ekrandaki önizlemeyle AYNI hesaptan geçer (gridMath.ts): kademe/miktar borsa adımlarına yuvarlanır, en kötü zarar
   tek işlem sınırını ve günlük zarar hakkını aşarsa grid HİÇ başlamaz.
 - Emirler mevcut canlı bağlantıdan (BinanceLiveClient) gider; bu dosya anahtar istemez/okumaz.
@@ -20,6 +21,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from .execution_core import HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
@@ -30,9 +32,9 @@ from .web_security import env_flag
 logger = logging.getLogger(__name__)
 
 ENV_FLAG = "KAISTRADE_GRID_LIVE"
-LIVE_MAX_LEVELS = 2
-LIVE_MAX_MARGIN_USDT = 10.0
-LIVE_MAX_LEVERAGE = 10
+LIVE_MAX_LEVELS = 20
+LIVE_MAX_MARGIN_USDT = HARD_MAX_MARGIN_USDT   # sistem genel tavanı (300)
+LIVE_MAX_LEVERAGE = 20
 CONFIRM_START = "CANLI GRID BAŞLAT"
 CONFIRM_EMERGENCY = "GRID ACİL DURDUR"
 MAKER_FEE, TAKER_FEE = 0.0002, 0.0005          # gridMath.ts ile aynı
@@ -78,9 +80,9 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
     count = int(count)
     problems: list[str] = []
     if not 2 <= count <= LIVE_MAX_LEVELS:
-        raise LiveGridError(f"İlk canlı testte kademe sayısı 2 ile {LIVE_MAX_LEVELS} arasında olmalı.")
+        raise LiveGridError(f"Kademe sayısı 2 ile {LIVE_MAX_LEVELS} arasında olmalı.")
     if margin_usdt > LIVE_MAX_MARGIN_USDT + 1e-9:
-        raise LiveGridError(f"İlk canlı testte toplam marjin en fazla {LIVE_MAX_MARGIN_USDT:g} USDT olabilir.")
+        raise LiveGridError(f"Toplam marjin en fazla {LIVE_MAX_MARGIN_USDT:g} USDT olabilir.")
     max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_MAX_LEVERAGE))))
     if leverage > max_lev:
         raise LiveGridError(f"Kaldıraç en fazla {max_lev}x olabilir.")

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-MAX_LEVELS = 5
+MAX_LEVELS = 20
 MIN_LEVELS = 2
 DEFAULT_COST_BPS = 8.0  # round-trip fee/slippage allowance per level
 

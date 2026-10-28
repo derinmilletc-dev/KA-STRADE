@@ -64,7 +64,7 @@ export type GridResult = {
 export const GRID_MAKER_FEE = 0.0002
 export const GRID_TAKER_FEE = 0.0005
 export const GRID_MIN_COUNT = 2
-export const GRID_MAX_COUNT = 5 // sunucudaki grid planlayıcısıyla (manual_grid.py) aynı sınır
+export const GRID_MAX_COUNT = 20 // sunucudaki grid planlayıcısı ve canlı motorla (manual_grid.py, grid_live.py) aynı tavan
 export const GRID_MIN_NOTIONAL_PER_LEVEL = 5
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN)

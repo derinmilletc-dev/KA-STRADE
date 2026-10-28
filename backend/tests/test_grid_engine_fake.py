@@ -295,10 +295,28 @@ class TestSameCoinAndLimits(Base):
         self.assertEqual(self.engine().start(), RUNNING)
         self.assertEqual(len(self.ex.open_orders(SYM)), 3)
 
-    def test_more_than_five_levels_refused(self):
-        levels = [GridLevelSpec(98.0 - i, 99.0 - i, 0.5) for i in range(6)]
+    def test_more_than_twenty_levels_refused(self):
+        levels = [GridLevelSpec(98.0 - i, 99.0 - i, 0.5) for i in range(21)]
         with self.assertRaises(ValueError):
             GridEngine(self.ex, self.store, GridSpec("g1", SYM, LONG, levels, 80.0))
+
+
+class TestTwentyLevels(Base):
+    def test_twenty_levels_place_protect_and_stay_in_sync(self):
+        levels = [GridLevelSpec(99.0 - i * 0.5, 99.5 - i * 0.5, 0.1) for i in range(20)]
+        self.spec = GridSpec("g1", SYM, LONG, levels, 80.0)
+        eng = self.engine()
+        eng.start()
+        eng.tick()
+        self.assertEqual(len(self.active("E")), 20)
+        self.ex.set_price(SYM, 94.0)              # üst kademelerin çoğu dolar
+        for _ in range(3):
+            eng.tick()
+        filled = sum(1 for r in self.store.orders("g1", "E") if r["filled"] > 0)
+        self.assertGreater(filled, 5)
+        self.assertEqual(len(self.stops()), 1)    # tek koruyucu stop tüm dolu miktarı kapsar
+        self.assertAlmostEqual(self.stops()[0].qty, eng.grid_net(), places=6)
+        self.assertNotIn(eng.status, (BLOCKED, INTERVENTION_REQUIRED))
 
 
 class TestStopRejectVsLostReply(Base):
