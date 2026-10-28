@@ -621,18 +621,23 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   // Sesli başlatma ("Hey Kais", ikon kısayolu, Siri): göz ekranını açar, dinlemeye başlar; cümlede soru varsa hemen sorar ve cevabı okur.
   // Soru varsa önce soru gönderilir (mikrofon hazırlığı beklenmez), cevap okunur, sonra devam sorusu için dinlemeye geçilir.
   const [waking, setWaking] = useState(false)
+  // "Hey Kais" denince kullanıcıya adıyla seslenir (profildeki ad soyadın ilk kelimesi).
+  const {displayName} = useMemberAccess()
+  const firstName = String(displayName || '').trim().split(/\s+/)[0] || ''
+  const hello = language === 'en' ? `Hi${firstName ? ` ${firstName}` : ''}` : `Merhaba${firstName ? ` ${firstName}` : ''}`
   const launchVoice = async (question: string) => {
     if (expired) { setWaking(false); return }
     setOpen(false); setHoloOpen(true); setWaking(true)
     if (!question || working.current || voice.active) {
-      if (!voice.active) await voice.start()
-      setWaking(false)
+      if (voice.active) { setWaking(false); return }
+      // Yalnız "Hey Kais": önce selam, sonra dinlemeye geç.
+      voice.speak(`${hello}, ${language === 'en' ? "I'm listening." : 'dinliyorum.'}`, () => { void voice.start().finally(() => setWaking(false)) })
       return
     }
     const answer = await sendRef.current(question, true)
     const text = typeof answer === 'string' ? answer : answer?.text
     if (!text) { setWaking(false); setHoloOpen(false); return }
-    voice.speak(text, () => { void voice.start().finally(() => setWaking(false)) }, null, typeof answer === 'object' && answer ? answer.language : undefined)
+    voice.speak(`${hello}. ${text}`, () => { void voice.start().finally(() => setWaking(false)) }, null, typeof answer === 'object' && answer ? answer.language : undefined)
   }
   const launchRef = useRef(launchVoice)
   launchRef.current = launchVoice
