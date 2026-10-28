@@ -11,13 +11,19 @@ export type TourStep = {
   title: string
   body: string
   bullets?: string[]
+  /** Kartın üstünde küçük canlı önizleme. */
+  hero?: 'studio' | 'trade'
+  /** Madde listesi yerine ikonlu küçük kutular. */
+  feats?: Array<{icon: string; text: string; wide?: boolean}>
+  /** Sarı uyarı şeridi. */
+  note?: string
   view?: TourView
   /** Vurgulanacak öğe: ilk görünür eşleşme alınır; bulunamazsa vurgu olmadan, ortada gösterilir. */
   targets?: string[]
   /** Kullanıcı bu Master Trade sekmesine dokunana kadar "İleri" kapalı kalır. */
   press?: 'canli'
   /** Adımın gösterilmesi için Master Trade'de bu sekmede olunmalı. */
-  need?: 'canli'
+  need?: 'canli' | 'analiz'
   extra?: 'plans' | 'voice'
 }
 
@@ -41,6 +47,19 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   ]
   if (premium) {
     steps.push(
+      {id: 'studio', kicker: 'ANALİZ STÜDYOSU', title: 'Grafik tam ekranda',
+        body: phone
+          ? '“Analysis Studio” düğmesi grafiği yatay tam ekranda açar. Düğmeye bas, telefonu yan çevir; kapatınca kaldığın yere dönersin.'
+          : '“Analysis Studio” düğmesi grafiği tek tıkla tam ekranda açar. Kapatınca kaldığın yere dönersin.',
+        hero: 'studio',
+        feats: [{icon: '✎', text: 'Çizim araçları: çizgi, trend, alarm'}, {icon: '🔎', text: 'Coin seçici, zaman dilimi, göstergeler'}, {icon: '✦', text: '“Kais AI’a Sor” grafiği yorumlar'}, {icon: '▤', text: 'Analiz paneli: giriş, stop, hedefler'}],
+        note: 'Seviyeler analiz çıktısıdır; kazanç garantisi değildir.',
+        view: 'master-trade', targets: ['.kfsStudioBtn'], need: 'analiz'},
+      {id: 'studio-trade', kicker: 'ANALİZ STÜDYOSU', title: 'İşlem aç ve canlı takip',
+        body: '“İşlem aç” Manuel işlem panelini o coinle açar. Emir yine aynı güvenlik adımlarından geçer; Kais senin yerine emir göndermez.',
+        hero: 'trade',
+        feats: [{icon: '🛡', text: 'Dry-run, ARM kilidi ve yazı onayı aynı'}, {icon: '📈', text: 'Emir sonrası grafikte canlı takip'}, {icon: '💹', text: 'Açık pozisyonda giriş, stop ve hedef çizgileri ile anlık kâr/zarar kartı görünür. Kart yalnız gösterir; pozisyonu kapatmaz.', wide: true}],
+        view: 'master-trade', targets: phone ? ['.refTradeCta'] : ['.refTradeBtn'], need: 'analiz'},
       {id: 'master-press', kicker: 'MASTER TRADE', title: 'Canlı İşlem sekmesine dokun',
         body: 'Master Trade, canlı işlem alanındır. Parlayan “Canlı İşlem” sekmesine dokunarak devam edelim; sen dokunana kadar bekliyorum.',
         view: 'master-trade', targets: TAB_CANLI, press: 'canli'},

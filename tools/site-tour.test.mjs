@@ -32,7 +32,8 @@ test('memory parsing ignores unknown values', () => {
 test('free and premium members get different Master Trade steps but the same ending', () => {
   const free = buildTourSteps(false)
   const premium = buildTourSteps(true)
-  assert.equal(premium.length, free.length + 1)
+  assert.equal(premium.length, free.length + 3)
+  assert.ok(premium.some(step => step.id === 'studio') && premium.some(step => step.id === 'studio-trade'))
   assert.ok(premium.some(step => step.press === 'canli'))
   assert.ok(!free.some(step => step.press || step.need), 'free members are never sent to Master Trade')
   assert.ok(!free.some(step => step.view === 'master-trade'))

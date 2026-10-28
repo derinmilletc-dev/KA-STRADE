@@ -71,6 +71,8 @@ export const ORIENTATION_POLL_MS = 250
  * mobil tarayıcılarda fiziksel yön ile CSS görünür alanı her zaman aynı anda güncellenmez. Tam ekran durumu yön kanıtı sayılmaz.
  */
 export function readLandscape(env: LandscapeEnv): boolean {
+  // Masaüstü (geniş ekran + fare): pencere dik olsa bile "ekranı döndür" uyarısı çıkmaz; terminal doğrudan tam ekran açılır.
+  if (env.window.matchMedia?.('(min-width: 1024px) and (pointer: fine)')?.matches === true) return true
   if (!isLandscape(env.window.innerWidth, env.window.innerHeight)) return false
   const query = env.window.matchMedia?.('(orientation: landscape)')
   if (query && !query.matches) return false
