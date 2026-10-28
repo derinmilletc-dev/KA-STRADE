@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+from http.client import HTTPException
 import io
 import json
 import sys
@@ -69,7 +70,18 @@ class PoliteHttp(hd.Http):
             self.count += 1
         if slot > now:
             time.sleep(slot - now)
-        return super().get(url)
+        # Bağlantının karşı taraftan kesilmesi (ConnectionResetError vb.) geçicidir: bekleyip tekrar dene.
+        # HTTP hata kodları (404 gibi) ve ağ hatalarının üst sınıftaki tekrar denemesi aynen kalır.
+        for attempt in range(6):
+            try:
+                return super().get(url)
+            except urllib.error.URLError:
+                raise  # HTTPError dahil: üst sınıf zaten kendi tekrarını yaptı
+            except (OSError, HTTPException) as exc:
+                if attempt == 5:
+                    raise urllib.error.URLError(f"bağlantı tekrar tekrar kesildi: {exc}") from exc
+                time.sleep(min(2 ** attempt, 20))
+        raise RuntimeError("unreachable")
 
 
 # --------------------------------------------------------------------------- girdi
@@ -116,7 +128,8 @@ def plan_files(archive: hd.Archive, symbols: list[str], progress: Callable[[str]
                 continue
             found = hd.MONTH_RE.search(item["key"])
             if found and allowed_month(found.group(1)):
-                plan.append({"symbol": symbol, "month": found.group(1), "key": item["key"], "size": item["size"]})
+                plan.append({"symbol": symbol, "month": found.group(1), "key": item["key"], "size": item["size"],
+                             "label": f"{KIND}_{INTERVAL}"})
     return plan
 
 
@@ -128,7 +141,7 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
     month = item["month"]
     if not allowed_month(month):
         raise ValueError(f"İzinsiz ay: {month}")  # kilitli dönem indirilemez
-    target = root / "raw" / f"{KIND}_{INTERVAL}" / item["symbol"] / Path(item["key"]).name
+    target = root / "raw" / item.get("label", f"{KIND}_{INTERVAL}") / item["symbol"] / Path(item["key"]).name
     log = {"symbol": item["symbol"], "month": month, "bytes": 0, "sha256": "", "status": ""}
     sidecar = target.with_name(target.name + ".sha256")
     if target.is_file() and sidecar.is_file():
@@ -142,7 +155,7 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
     try:
         data = http.get(url)
         expected = http.get(url + ".CHECKSUM").decode("utf-8", "replace").split()[0].lower()
-    except (urllib.error.URLError, TimeoutError, ValueError, IndexError) as exc:
+    except (OSError, HTTPException, ValueError, IndexError) as exc:  # URLError ve ConnectionError OSError'dır
         log["status"] = f"indirilemedi: {exc}"
         return log
     digest = sha256_of(data)
@@ -150,8 +163,13 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
         log.update(bytes=len(data), sha256=digest, status="SHA-256 UYUŞMADI; dosya kaydedilmedi")
         return log
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("xb") as handle:
-        handle.write(data)
+    if target.is_file():  # önceki çalışma zip'i yazıp sidecar'dan önce kesildiyse: aynıysa yalnız sidecar tamamlanır
+        if sha256_of(target.read_bytes()) != digest:
+            log.update(bytes=len(data), sha256=digest, status="yerel dosya farklı; elle silip --resume ile tekrar çalıştırın")
+            return log
+    else:
+        with target.open("xb") as handle:
+            handle.write(data)
     with sidecar.open("x", encoding="utf-8") as handle:
         handle.write(digest + "\n")
     log.update(bytes=len(data), sha256=digest, status="indirildi (doğrulandı)")
@@ -202,7 +220,7 @@ def load_stats(root: Path, plan: list[dict[str, Any]]) -> tuple[dict[str, dict[s
     stats: dict[str, dict[str, dict[str, Any]]] = {}
     problems: list[dict[str, str]] = []
     for item in plan:
-        path = root / "raw" / f"{KIND}_{INTERVAL}" / item["symbol"] / Path(item["key"]).name
+        path = root / "raw" / item.get("label", f"{KIND}_{INTERVAL}") / item["symbol"] / Path(item["key"]).name
         if not path.is_file():
             problems.append({"symbol": item["symbol"], "month": item["month"], "problem": "dosya yok (indirme başarısız)"})
             continue
@@ -366,9 +384,21 @@ def summary_markdown(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def new_report_folder(root: Path, prefix: str) -> Path:
+    """Yeni (hiç var olmayan) rapor klasörü; aynı saniyede tekrar çalışsa da mevcut klasör ezilmez."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    for number in range(100):
+        folder = root / (f"{prefix}-{stamp}" + (f"-{number}" if number else ""))
+        try:
+            folder.mkdir(parents=True)
+            return folder
+        except FileExistsError:
+            continue
+    raise FileExistsError("Rapor klasörü oluşturulamadı")
+
+
 def write_reports(root: Path, result: dict[str, Any]) -> list[Path]:
-    folder = root / ("reports-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S"))
-    folder.mkdir(parents=True)
+    folder = new_report_folder(root, "reports")
     write_csv(folder / "universe-by-month.csv", result["detail"],
               ["month", "rank", "symbol", "avg_daily_usdt_prev_month", "testable", "reason", "delisted"])
     write_csv(folder / "universe-impact.csv", result["impact"])

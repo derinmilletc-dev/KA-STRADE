@@ -232,3 +232,38 @@ def test_standalone_and_no_credentials():
     assert "from app" not in source and "import app" not in source
     assert "X-MBX-APIKEY" not in source and "signature" not in source.lower()
     assert "DATABASE_URL" not in source and "/etc/kaistrade.env" not in source
+
+
+def test_connection_reset_is_retried_then_reported_not_crashing(tmp_path):
+    """WinError 10054 gibi bağlantı kopmaları: bekleyip tekrar dener; hâlâ olmazsa çökmez, indirilemedi olarak kaydeder."""
+    calls = {"n": 0}
+    original_get, original_sleep = hd.Http.get, probe.time.sleep
+
+    def flaky(self, url):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise ConnectionResetError(10054, "Varolan bir bağlantı zorla kapatıldı")
+        return b"ok"
+
+    hd.Http.get, probe.time.sleep = flaky, lambda s: None
+    try:
+        assert probe.PoliteHttp(rate=1000.0).get("https://data.binance.vision/x") == b"ok" and calls["n"] == 3
+        calls["n"] = -1000  # hep hata ver
+        http = probe.PoliteHttp(rate=1000.0)
+        item = {"symbol": "BIGUSDT", "month": "2024-07", "size": 1,
+                "key": f"{hd.MONTHLY}klines/BIGUSDT/1d/BIGUSDT-1d-2024-07.zip"}
+        log = probe.fetch_one(http, hd.LISTING_BASES[0], item, tmp_path)   # istisna fırlatmamalı
+        assert log["status"].startswith("indirilemedi") and not list(tmp_path.rglob("*.zip"))
+    finally:
+        hd.Http.get, probe.time.sleep = original_get, original_sleep
+
+
+def test_zip_written_but_sidecar_missing_is_completed_on_resume(tmp_path):
+    store = standard_store()
+    http = FakeHttp(store)
+    item = {"symbol": "BIGUSDT", "month": "2024-07", "size": 1,
+            "key": f"{hd.MONTHLY}klines/BIGUSDT/1d/BIGUSDT-1d-2024-07.zip"}
+    assert probe.fetch_one(http, hd.LISTING_BASES[0], item, tmp_path)["status"].startswith("indirildi")
+    next(tmp_path.rglob("*.sha256")).unlink()          # kesinti: sidecar yazılamadan durdu
+    log = probe.fetch_one(http, hd.LISTING_BASES[0], item, tmp_path)
+    assert log["status"].startswith("indirildi") and next(tmp_path.rglob("*.sha256")).exists()
