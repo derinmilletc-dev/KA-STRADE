@@ -17,7 +17,7 @@ export type TourStep = {
   /** Kullanıcı bu Master Trade sekmesine dokunana kadar "İleri" kapalı kalır. */
   press?: 'canli'
   /** Adımın gösterilmesi için Master Trade'de bu sekmede olunmalı. */
-  need?: 'canli'
+  need?: 'canli' | 'analiz'
   extra?: 'plans' | 'voice'
 }
 
@@ -41,6 +41,16 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   ]
   if (premium) {
     steps.push(
+      {id: 'studio', kicker: 'ANALİZ STÜDYOSU', title: 'Grafik tam ekranda: Analiz Stüdyosu',
+        body: phone
+          ? 'Analiz sekmesindeki “Analysis Studio” düğmesi grafiği yatay tam ekranda açar. Düğmeye bas, telefonu yan çevir; kapatınca kaldığın yere dönersin.'
+          : 'Analiz sekmesindeki “Analysis Studio” düğmesi grafiği tek tıkla tam ekranda açar. Kapatınca kaldığın yere dönersin.',
+        bullets: ['Solda çizim araçları: yatay çizgi, trend çizgisi, fiyat alarmı ve silgi.', 'Üstte coin seçici, zaman dilimi ve göstergeler var; “Kais AI’a Sor” grafiği senin için yorumlar.', 'Analiz paneli giriş, stop ve hedefleri tek yerde toplar. Bunlar analiz çıktısıdır; kazanç garantisi değildir.'],
+        view: 'master-trade', targets: ['.kfsStudioBtn'], need: 'analiz'},
+      {id: 'studio-trade', kicker: 'ANALİZ STÜDYOSU', title: 'İşlem aç ve canlı takip',
+        body: 'Grafikteki “İşlem aç” tuşu Manuel işlem panelini o coinle açar. Emir yine aynı güvenlik adımlarından geçer: dry-run, ARM kilidi ve yazı onayı. Kais senin yerine emir göndermez.',
+        bullets: ['Emir gidince “Grafikte canlı takip et” seni stüdyoya geri getirir.', 'O coinde açık pozisyonun varsa grafikte giriş, stop ve hedef çizgileri ile anlık kâr/zarar kartı görünür. Kart yalnız gösterir; pozisyonu kapatmaz.'],
+        view: 'master-trade', targets: phone ? ['.refTradeCta'] : ['.refTradeBtn'], need: 'analiz'},
       {id: 'master-press', kicker: 'MASTER TRADE', title: 'Canlı İşlem sekmesine dokun',
         body: 'Master Trade, canlı işlem alanındır. Parlayan “Canlı İşlem” sekmesine dokunarak devam edelim; sen dokunana kadar bekliyorum.',
         view: 'master-trade', targets: TAB_CANLI, press: 'canli'},

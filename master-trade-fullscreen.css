@@ -84,9 +84,12 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 /* Yatay terminal açıkken gizli (odak dönüşü için DOM'da kalır). */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] > .kfsStudioBtn { display: none !important; }
 @media (prefers-reduced-motion: reduce) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn { transition: none !important; } html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn:active { transform: none !important; } }
-/* Yatay terminal yalnız dokunmatik/dar ekranlar içindir; masaüstü fare düzeninde giriş düğmeleri gizli kalır. */
+/* Masaüstü (fare): Analysis Studio düğmesi küçük ve solda durur; tıklayınca terminal doğrudan tam ekran açılır (döndürme uyarısı yok). */
 @media (min-width: 1024px) and (pointer: fine) {
-  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn {
+    width: auto !important; align-self: flex-start !important; min-height: 46px !important; margin: 12px 12px 0 !important; padding: 0 24px 0 60px !important; border-radius: 23px !important; font-size: 15px !important;
+  }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .kfsStudioBtn > .kfsStudioLogo { left: 12px !important; width: 32px !important; height: 32px !important; }
 }
 
 /* ---------- Yatay terminal ---------- */
