@@ -788,6 +788,20 @@ export default function LiveCockpit(props: Props) {
       </li>)}
     </ul>}
   </div> : null
+  const smartAdvanced = smartSettings ? <details className="lcWizAdv"><summary>Gelişmiş</summary>
+    <div className="lcWizAdvBody">
+      {smartSwitch('protect_stop_enabled', 'Kâr koruma stopu', 'Kârdayken geçici koruma emri')}
+      {smartSwitch('smart_exit_enabled', 'Akıllı çıkış', 'Gerçek kapatma emri')}
+      <div className="lcSmartPick">
+        <label>Puan eşiği<select value={smartSettings.threshold} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({threshold: Number(event.target.value)}, 'Puan eşiği kaydedildi.')}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label>Bekleme süresi<select value={smartSettings.wait_minutes} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({wait_minutes: Number(event.target.value)}, 'Bekleme süresi kaydedildi.')}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
+      </div>
+      <div className="lcSmartPick">
+        <label>Ters yön sinyali<select value={smartSettings.direction_mismatch_action ?? 'record_only'} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({direction_mismatch_action: event.target.value}, 'Ters yön tercihi kaydedildi.')}><option value="record_only">Sadece kaydet</option><option value="count_as_low">Düşük puan gibi say</option></select></label>
+      </div>
+      <p className="lcHint">Bu ayarlar seçer seçmez kaydedilir.</p>
+    </div>
+  </details> : null
   const modeBlock = verified && original && guideInput.connected && !guideInput.emergency && modeRows.length > 0 ? <div className="lcMode" id="lc-mode">
     <p className="lcHonestHead"><b>Teminat modu</b> · Her işleme ne kadar teminat ayrılabileceğini sen seçersin. Sadece senin hesabında geçerli; istediğin zaman değiştirebilirsin. <button type="button" className="lcLink lcWhatIs" aria-expanded={modeHelpOpen} onClick={() => setModeHelpOpen(value => !value)}>Bu ne?</button></p>
     {modeHelpOpen && <p className="lcWhy">Teminat, her işleme bakiyenden ayırdığın paradır. Modu yükseltirsen işlem büyür: kazanç da kayıp da büyür. Stop-loss her zaman çalışır ve zarar o seviyede durur. Toplam teminat sınırı her modda aynıdır.</p>}
@@ -1032,20 +1046,7 @@ export default function LiveCockpit(props: Props) {
               <span className="lcWizHead"><b>{title}</b>{id === 'keep' && !smartCurrentlyOn && <em>Önerilen şimdilik</em>}</span><small>{note}</small>
             </button>)}
         </div>
-        <details className="lcWizAdv"><summary>Gelişmiş</summary>
-          <div className="lcWizAdvBody">
-            {smartSwitch('protect_stop_enabled', 'Kâr koruma stopu', 'Kârdayken geçici koruma emri')}
-            {smartSwitch('smart_exit_enabled', 'Akıllı çıkış', 'Gerçek kapatma emri')}
-            <div className="lcSmartPick">
-              <label>Puan eşiği<select value={smartSettings.threshold} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({threshold: Number(event.target.value)}, 'Puan eşiği kaydedildi.')}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-              <label>Bekleme süresi<select value={smartSettings.wait_minutes} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({wait_minutes: Number(event.target.value)}, 'Bekleme süresi kaydedildi.')}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
-            </div>
-            <div className="lcSmartPick">
-              <label>Ters yön sinyali<select value={smartSettings.direction_mismatch_action ?? 'record_only'} disabled={busy || smartSettings.emergency_off} onChange={event => void saveSmart({direction_mismatch_action: event.target.value}, 'Ters yön tercihi kaydedildi.')}><option value="record_only">Sadece kaydet</option><option value="count_as_low">Düşük puan gibi say</option></select></label>
-            </div>
-            <p className="lcHint">Bu ayarlar seçer seçmez kaydedilir.</p>
-          </div>
-        </details>
+        {smartAdvanced}
         {smartPick === 'on' && <div className="lcSmartPick">
           <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
@@ -1272,6 +1273,7 @@ export default function LiveCockpit(props: Props) {
             <span className="lcWizHead"><b>{title}</b>{optionId === 'keep' && <em>Değişiklik yok</em>}</span><small>{note}</small>
           </button>)}
       </div>
+      {smartAdvanced}
       {smartPick === 'on' && <div className="lcSmartPick">
         <label>Puan eşiği<select value={smartWizThreshold} disabled={busy} onChange={event => setSmartWizThreshold(Number(event.target.value))}>{[60, 65, 70, 75, 80].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
         <label>Bekleme süresi<select value={smartWizWait} disabled={busy} onChange={event => setSmartWizWait(Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} dk</option>)}</select></label>
@@ -1324,6 +1326,7 @@ export default function LiveCockpit(props: Props) {
         <p className="lcSheetLead">{launchActive === 'final' ? 'Son adım: güvenlik onayı' : `Adım ${activeIndex} / ${launchTotal} · ${activeMeta?.title}`}</p>
       </div>
     </header>
+    <div className="lcMobileOnly lcWzSeg" aria-hidden="true">{Array.from({length: launchTotal}, (_, index) => <i key={index} data-on={index < launchDoneCount || undefined} data-now={index === launchDoneCount || undefined}/>)}</div>
     <div className="lcWzBody">
       <ol className="lcWzRail" aria-label="Adımlar">
         {LAUNCH_STEPS.map((item, index) => {
@@ -1345,7 +1348,7 @@ export default function LiveCockpit(props: Props) {
           {activeMeta.id === 'conn'
             ? <p className="lcWzWhy">{launchWhy.conn} Bağlantı yok; önce Bağlantı sekmesinden Binance anahtarını kaydet.</p>
             : <>
-              <p className="lcWzWhy"><b>Neden bu öneri?</b> {launchWhy[activeMeta.id]}</p>
+              <details className="lcWzWhyD"><summary>Neden bu öneri?</summary><p className="lcWzWhy">{launchWhy[activeMeta.id]}</p></details>
               {editorOf(activeMeta.id)}
               {launchRec(activeMeta.id) && <p className="lcWzRec">Önerilen: <b>{launchRec(activeMeta.id)}</b></p>}
               {adviceView(activeMeta.id)}
@@ -1354,6 +1357,7 @@ export default function LiveCockpit(props: Props) {
           {activeMeta.id === 'conn'
             ? <button type="button" className="lcBtn lcPrimary lcWzGo" onClick={() => { closeSheet(); goTab('baglanti') }}>Bağlantı'ya git</button>
             : <>
+              {activeIndex > 2 && !launchRunning && <button type="button" className="lcMobileOnly lcWzBack" onClick={() => launchUndo(LAUNCH_STEPS[activeIndex - 2].id)}>← Geri</button>}
               {!launchValid[activeMeta.id] && <p className="lcHint stop">{activeMeta.id === 'smart' ? 'Açmak için onay kutusunu işaretle.' : activeMeta.id === 'daily' ? 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı.' : 'Önce gerekli onay kutusunu / yazıyı tamamla.'}</p>}
               <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>Onaylıyorum ✓</button>
             </>}

@@ -69,3 +69,50 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcMSet
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcMSet b{font-size:14px;font-weight:500;line-height:1.4}
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcMSet .lcBtn{min-height:44px;padding:0 16px;flex:none}
 }
+
+/* ---- Canlıya hazırlık penceresi: sade ve küçük (telefon) ---- */
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzWhyD>summary{cursor:pointer;list-style:none;color:var(--lc-go);font-size:13px;font-weight:600;min-height:32px;display:flex;align-items:center}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzWhyD>summary::-webkit-details-marker{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzWhyD[open]>summary{margin-bottom:4px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzBack{background:none;border:0;color:var(--lc-mute);font-size:14px;min-height:40px;text-align:left;cursor:pointer;padding:0}
+@media (max-width:640px){
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcSheet:has(.lcWz){width:100%!important;max-height:94vh;border-radius:22px 22px 0 0!important;padding:16px 14px 18px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWz{gap:12px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzHead{gap:12px;padding-right:34px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzRing{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzHead h2{font-size:18px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzHead .lcSheetLead{font-size:13px;margin:2px 0 0}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSeg{display:flex!important;gap:4px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSeg i{flex:1;height:4px;border-radius:99px;background:var(--lc-soft)}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSeg i[data-on]{background:var(--lc-go)}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSeg i[data-now]{background:rgba(61,220,151,.4)}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzRail{display:none!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzBody{display:block}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard{padding:14px!important;gap:10px!important;border-radius:18px!important;box-shadow:none!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard h3{font-size:18px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzKicker{font-size:11px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzChips[aria-label="Onay, doğrulama ve işlem durumu"]{display:none!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzRec{font-size:12px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzGo{min-height:48px!important;font-size:15px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWizList{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWizChip{padding:10px 8px!important;min-height:0!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWizChip b{font-size:14px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWizChip small{font-size:11.5px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWzChips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWzModes{grid-template-columns:1fr!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWzModes .lcWzMode{text-align:left;padding:10px 12px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWzModeFacts{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcFlow{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcWizOption{padding:10px 12px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzCard .lcSmartState{padding:8px 12px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzAdvice li{font-size:12.5px;padding:8px 10px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzGauge{padding:10px 12px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzGauge>b{font-size:26px!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzGauge dl{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSum{grid-template-columns:1fr 1fr!important;gap:8px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSum>div{padding:8px 10px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzSum dd{font-size:14px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzOps>li{padding:6px 8px}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzOps small{display:none}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzOps>li[data-state=error] small,html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot .lcWzOps>li[data-state=working] small{display:block}
+}
