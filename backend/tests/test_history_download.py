@@ -8,6 +8,7 @@ import json
 import shutil
 import sys
 import urllib.parse
+from collections import namedtuple
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -110,14 +111,20 @@ def report_file(tmp_path: Path) -> Path:
     return path
 
 
-def run_with(store: dict[str, bytes], argv: list[str]) -> tuple[int, FakeHttp]:
+Usage = namedtuple("Usage", "total used free")
+
+
+def run_with(store: dict[str, bytes], argv: list[str], free: int = 10 ** 12) -> tuple[int, FakeHttp]:
+    """Testler çalıştıran makinenin boş diskine bağlı olmasın: boş alan sabitlenir."""
     fake = FakeHttp(store)
-    original = probe.PoliteHttp
+    original, original_disk = probe.PoliteHttp, shutil.disk_usage
     probe.PoliteHttp = lambda rate=0: fake  # type: ignore[assignment]
+    shutil.disk_usage = lambda path: Usage(free * 2, free, free)  # type: ignore[assignment]
     try:
         return dl.main(argv), fake
     finally:
         probe.PoliteHttp = original  # type: ignore[assignment]
+        shutil.disk_usage = original_disk  # type: ignore[assignment]
 
 
 def stage1(tmp_path: Path, store: dict[str, bytes]) -> Path:
@@ -188,12 +195,8 @@ def test_universe_file_with_locked_month_is_rejected(tmp_path):
 def test_disk_guard_blocks_download(tmp_path):
     store = build_store()
     out = stage1(tmp_path, store)
-    original = shutil.disk_usage
-    shutil.disk_usage = lambda p: shutil._ntuple_diskusage(10, 9, 1)  # type: ignore[attr-defined]
-    try:
-        code, http = run_with(store, ["stage2", "--report", str(report_file(tmp_path)), "--output", str(out), "--confirm"])
-    finally:
-        shutil.disk_usage = original
+    code, http = run_with(store, ["stage2", "--report", str(report_file(tmp_path)), "--output", str(out), "--confirm"],
+                          free=5 * 10 ** 9)  # 10 GB eşiğinin altı
     assert code == 2
     assert not any(url.endswith(".zip") for url in http.urls)
 
