@@ -14,6 +14,7 @@ import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
 import {askKais} from '../../kais-ask'
+import {CoinIcon} from '../../src/components/CoinIcon'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
@@ -1434,6 +1435,27 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div> : <p className="mxtHint">{signals === null && !signalsError ? 'Kais AI analizi yükleniyor…' : 'Bu coin için Kais AI analizi yok. Yön seçimi tamamen sana ait.'}</p>}
       {posStat}
     </>
+    // Telefon: coin seçimi tek ekranda (arama açık, sekmeli filtre, tek seçici sıralama, kaydırılan liste). Masaüstünde gizli.
+    const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
+    const coinMark = (row: CoinRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={row?.symbol || fallback} size={40}/></span>
+    const mobileList = matches.slice(0, 120)
+    const coinMobile = <div className="mxtM mxtMCoin">
+      {order.symbol && <div className="mxtMSel">{coinMark(selectedRow, order.symbol)}<span className="mxtMSelN"><b>{selectedRow?.display || order.symbol}</b><small>{selectedRow ? <>{coinPrice(Number(selectedRow.price))} · <em data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+      <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && q && !rows.some(row => row.symbol === q) && /^[A-Z0-9]{2,20}$/.test(q)) chooseCoin(q.endsWith('USDT') ? q : `${q}USDT`) }}/></label>
+      {recentRows.length > 0 && <div className="mxtMRecent"><span>Son:</span>{recentRows.slice(0, 5).map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{String(row.display || row.symbol).replace('/USDT', '')}</button>)}</div>}
+      {signals !== null && <div className="mxtMTabs" role="group" aria-label="Filtre">{filterChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signalCount(key)}</em></button>)}</div>}
+      <div className="mxtMMeta"><span><b>{matches.length} coin</b>{matches.length > 5 ? ' · kaydır' : ''}</span>{signals !== null && <label className="mxtMSort">Sırala:<select value={coinSort} aria-label="Sıralama" onChange={event => setCoinSort(event.target.value as CoinSort)}>{sortChips.map(([key, label]) => <option key={key} value={key}>{label.replace(' göre', '').replace('Güvene', 'Güven').replace('Hacme', 'Hacim').replace('Değişime', 'Değişim')}</option>)}</select></label>}</div>
+      {universe === null && !universeError && <p className="mxtMEmpty">Coin listesi yükleniyor…</p>}
+      {universeError && <p className="mxtMEmpty">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
+      {universe !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede coin yok.</p>}
+      {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${q}`} role="listbox" aria-label="Coin listesi">{mobileList.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} data-on={row.symbol === order.symbol || undefined} onClick={() => chooseCoin(row.symbol)}>
+        {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display || row.symbol}</b><small>{coinPrice(Number(row.price))}</small></span>
+        <span className="mxtMRowR">{Number.isFinite(Number(row.change)) && <em data-tone={Number(row.change) >= 0 ? 'up' : 'down'}>{signedChange(row)}</em>}{leanBadge(signals?.[row.symbol])}</span>
+        {row.symbol === order.symbol && <i className="mxtMTick" aria-hidden="true">✓</i>}
+      </button></li>)}</ul>}
+      {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} coinden ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
+      {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
+    </div>
     const amountStep = <>
       <h4>Ne kadar ve nasıl girelim?</h4>
       <p className="mxtLead">Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>
@@ -1525,7 +1547,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="mxtCard" key={wzStep}>
           <span className="mxtKicker">Adım {wzStep + 1} / {stepNames.length}</span>
           {wzStep !== 4 && noticeEl}
-          {wzStep === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinShortcuts}{coinBlock}</>}
+          {wzStep === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da kodunu yaz (ör. BTCUSDT).</p>{coinShortcuts}{coinMobile}{coinBlock}</>}
           {wzStep === 1 && dirStep}
           {wzStep === 2 && amountStep}
           {wzStep === 3 && stopStep}
