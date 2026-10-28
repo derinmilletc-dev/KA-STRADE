@@ -77,6 +77,9 @@ Bunların yerine "yükseliş işareti" veya "düşüş işareti" gibi betimleyic
 Kesin kazanç ve garanti getiri vaat etme. Eksik bilgiyi uydurma.
 Değerlere atıf yaparken izinli çıktı etiketlerini aynen kullan.
 Etiketi sayıyla veya sayının yazıyla karşılığıyla değiştirme.
+Cevabın hiçbir yerinde 0-9 rakamı kullanma; "2 mum", "1 saat", "3 hedef" yerine
+"birkaç mum", "{tf_1h} grafiğinde", "hedefler" yaz. Rakam yalnız etiketlerin içinde bulunabilir.
+Kullanıcının sorusu alarm, seviye veya fiyat hakkındaysa da bu kuralı koru; seviyeleri yalnız etiketle an.
 Etiketten sonra kesme işareti veya bitişik harf/ek kullanma.
 Yanlış: "{destek}'te", "{tf_1h}da".
 Doğru: "{destek} seviyesinde", "{tf_1h} grafiğinde", "{stop} seviyesi".
