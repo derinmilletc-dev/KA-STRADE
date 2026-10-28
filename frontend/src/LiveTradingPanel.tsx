@@ -25,6 +25,7 @@ import {PremiumWorkspace, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
 import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
+import {checkProtection} from './order-protection'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
 
@@ -287,17 +288,40 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Emir sonrası özet ekranı ve analiz stüdyosundan gelen coin (yalnız görünüm; emir akışı aynı).
   const [orderDone, setOrderDone] = useState<{symbol: string; direction: string; type: string; margin: number; leverage: number; entry: number; stop: number} | null>(null)
   const [fromStudio, setFromStudio] = useState('')
+  // Stüdyodan gelince analiz seviyeleri (giriş, stop, hedefler) hazır doldurulur; emir yine kullanıcı onayıyla gider.
+  const [autoFill, setAutoFill] = useState(false)
+  const [levelsFromAnalysis, setLevelsFromAnalysis] = useState(false)
   useEffect(() => {
     const apply = () => {
       const intent = takeIntentForOrder()
       if (!intent) return
       setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
       setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
+      setAutoFill(true); setLevelsFromAnalysis(false)
     }
     apply()
     window.addEventListener(MANUAL_INTENT_EVENT, apply)
     return () => window.removeEventListener(MANUAL_INTENT_EVENT, apply)
   }, [])
+  useEffect(() => {
+    if (!autoFill) return
+    const direction = analysis?.direction
+    if (!analysis || !Number.isFinite(Number(analysis.entry)) || analysisFillBlock(order.symbol, symbol)) return
+    setAutoFill(false)
+    if (direction !== 'LONG' && direction !== 'SHORT') return
+    fillAnalysis(); setLevelsFromAnalysis(true)
+  }, [autoFill, analysis, order.symbol, symbol]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!autoFill) return
+    const timer = window.setTimeout(() => setAutoFill(false), 12000)
+    return () => window.clearTimeout(timer)
+  }, [autoFill])
+  // Emir sonrası: Binance'ten güncel durum birkaç kez okunur (yalnız okuma), koruma kontrolü buna göre görünür.
+  useEffect(() => {
+    if (!orderDone || orderDone.type === 'LIMIT') return
+    const timers = [2500, 6000, 12000].map(delay => window.setTimeout(() => { void refresh(true) }, delay))
+    return () => timers.forEach(timer => window.clearTimeout(timer))
+  }, [orderDone]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!active || universe !== null || !(openStep === 3 || manualPanelOpen || !masterTrade)) return
     const controller = new AbortController()
@@ -1199,7 +1223,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }})
       setConfirmText('')
     }
-    const set = (key: keyof OrderDraft, value: string) => setOrder(current => ({...current, [key]: value}))
+    const set = (key: keyof OrderDraft, value: string) => { if (key === 'stop_loss' || key === 'tp1' || key === 'tp2' || key === 'tp3') setLevelsFromAnalysis(false); setOrder(current => ({...current, [key]: value})) }
     const armable = authorizationValid && readinessReady && !liveArmed && !freeTrial
     const wallet = Number(status?.account?.wallet_balance)
     const walletShare = wallet > 0 && marginValue > 0 ? marginValue / wallet * 100 : null
@@ -1313,6 +1337,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         </div>
     )
     const stepNames = ['Coin', 'Yön', 'Tutar', 'Stop ve hedef', 'Kontrol']
+    const limitMax = numericPolicy('max_positions', NaN)
+    const limitFull = Number.isFinite(limitMax) && limitMax > 0 && positions.length >= limitMax
+    const limitCoins = Array.from(new Set(positions.map(item => String(item.symbol || '').replace(/USDT$/, '')).filter(Boolean))).join(', ')
     const stepOk = [Boolean(order.symbol), true,
       marginValue >= 5 && leverageValue >= 1 && (order.order_type !== 'LIMIT' || Number(order.limit_price) > 0),
       stopValue > 0 && tp1Value > 0, true]
@@ -1619,6 +1646,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {orderDone.stop > 0 && <div data-k="stop"><small>Stop</small><b>{coinPrice(orderDone.stop)}</b></div>}
       </div>
       {orderDone.type === 'LIMIT' && <p className="mxtHint">Emir bekliyor; dolunca pozisyon grafikte görünür.</p>}
+      {orderDone.type !== 'LIMIT' && (() => {
+        const check = checkProtection(orderDone.symbol, orderDone.direction, positions, [...openOrders, ...(((status?.account as any)?.open_algo_orders as Array<Record<string, unknown>>) || [])])
+        return <div className="mxtProt" aria-label="Koruma kontrolü">
+          <div data-ok={check.position || undefined}><span>Pozisyon</span><b>{check.position ? 'Açık ✓' : 'Bekleniyor…'}</b></div>
+          <div data-ok={check.stop || undefined} data-bad={check.position && !check.stop ? '' : undefined}><span>Stop</span><b>{check.stop ? 'Binance’te duruyor ✓' : check.position ? 'Bulunamadı ✕' : 'Bekleniyor…'}</b></div>
+          <div data-ok={check.targets > 0 || undefined} data-bad={check.position && check.targets === 0 ? '' : undefined}><span>Hedef emirleri</span><b>{check.targets > 0 ? `${check.targets} adet duruyor ✓` : check.position ? 'Bulunamadı ✕' : 'Bekleniyor…'}</b></div>
+          {check.position && (!check.stop || check.targets === 0) && <p className="mxtProtWarn">⚠ Binance’te {!check.stop ? 'stop' : 'hedef'} emri görünmüyor. Pozisyonlarım ekranından kontrol et.</p>}
+        </div>
+      })()}
       <button type="button" className="mxtBtn primary" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); followSymbol(symbol) }}>Grafikte canlı takip et</button>
       <button type="button" className="mxtBtn ghost" onClick={() => { setOrderDone(null); goPositions() }}>Pozisyonlarıma git</button>
       <button type="button" className="mxtDoneNew" onClick={() => setOrderDone(null)}>Yeni emir</button>
@@ -1626,6 +1662,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
+      {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
+      {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false) }}>Kendim gireceğim</button></p>}
       {fromStudio && fromStudio === order.symbol && !orderDone && <p className="mxtFrom" role="status">✓ <b>{fromStudio}</b> analiz stüdyosundan seçildi{hasAnalysis ? ' · Kais analizi hazır' : ''}</p>}
       <div className="mxtM mxtMHead">
         <div className="mxtMLabel"><span>ADIM {wzStep + 1} / {stepNames.length} · <em>{stepNames[wzStep]}</em></span><button type="button" className="mxtMAsk" onClick={() => askKais(askText)}>✦ Kais’e sor</button></div>
@@ -1645,7 +1683,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
-            {wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep]} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
+            {wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep] || limitFull} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
           {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}
         </div>
