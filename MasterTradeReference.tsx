@@ -543,7 +543,12 @@ export default function MasterTradeReference(props: Props) {
   // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
   const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
   // "İşlem aç": emir göndermez; Canlı İşlem'deki aynı Manuel işlem panelini bu coinle açar.
-  const openTrade = () => {if (!premium) { openUpgrade('Manuel emir'); return } requestManualTrade(props.symbol, decision.direction); if (terminal) fullscreen.close(); props.onNavigate('canli'); window.scrollTo(0, 0)}
+  const openTrade = () => {if (!premium) { openUpgrade('Manuel emir'); return }
+    const symbolNow = props.symbol, direction = decision.direction
+    const go = () => { requestManualTrade(symbolNow, direction); props.onNavigate('canli'); window.scrollTo(0, 0) }
+    // Tam ekrandan çıkış geçmişte bir adım geri gider; sekme geçişi bunu bekler, yoksa geri adım sekmeyi eski haline döndürür.
+    if (terminal) { fullscreen.close(); window.setTimeout(go, 350) } else go()
+  }
   const livePosition = (props.positions ?? []).find(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0) ?? null
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
   const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? 'AL' : decision.direction === 'SHORT' ? 'SAT' : 'BEKLE'
