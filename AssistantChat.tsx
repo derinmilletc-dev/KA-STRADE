@@ -208,6 +208,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [greetingVisible, setGreetingVisible] = useState(false)
   const [draft, setDraft] = useState('')
   const [usage, setUsage] = useState<Usage | null>(null)
+  const usageRef = useRef<Usage | null>(null)
   const [issue, setIssue] = useState<Issue | null>(null)
   const [usageIssue, setUsageIssue] = useState<Issue | null>(null)
   const [proactivePreferences, setProactivePreferences] = useState<ProactivePreferences | null>(null)
@@ -228,9 +229,10 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const previousLastMessage = useRef(messages.at(-1)?.id)
   const input = useRef<HTMLTextAreaElement>(null)
   const working = useRef(false)
+  const usageReadyRef = useRef<() => Promise<boolean>>(async () => false)
   const sendRef = useRef<(value: string, viaVoice?: boolean) => Promise<VoiceAnswer>>(async () => null)
   const speechMark = useRef<KaisTiming | null>(null)
-  const voice = useVoice(language, transcript => sendRef.current(transcript, true), () => { const mark = speechMark.current; speechMark.current = null; return mark })
+  const voice = useVoice(language, async transcript => { await usageReadyRef.current(); return sendRef.current(transcript, true) }, () => { const mark = speechMark.current; speechMark.current = null; return mark })
   const activeRequest = useRef<AbortController | null>(null)
   const usageRequest = useRef<AbortController | null>(null)
   const preferenceRequest = useRef<AbortController | null>(null)
@@ -429,7 +431,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     try {
       const value = parseUsage(await request('usage', controller.signal))
       if (controller.signal.aborted) return
-      setUsage(value); setUsageIssue(null)
+      usageRef.current = value; setUsage(value); setUsageIssue(null)
     } catch (error) {
       if (controller.signal.aborted) return
       const next = issueFor(error)
@@ -437,7 +439,17 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (next.kind === 'session') expire()
     }
   }
+  // Sesle açılışta hak bilgisi gelene kadar (en çok ~6 sn) bekler; ekran yenilenip sendRef güncellensin diye kısa aralıkla bakar.
+  const usageReady = async () => {
+    if (!usageRef.current) await refreshUsage()
+    for (let i = 0; i < 20 && !usageRef.current; i += 1) await new Promise(resolve => window.setTimeout(resolve, 300))
+    await new Promise(resolve => window.setTimeout(resolve, 50))
+    return Boolean(usageRef.current)
+  }
   const openChat = () => { setSettingsOpen(false); setOpen(true); void refreshUsage() }
+  // Mesaj hakkı bilgisi yalnız panel açılınca yükleniyordu: sesle (Hey Kais, mikrofon) açılınca bilgi yoktu ve soru hiç gönderilmiyordu.
+  // Bu yüzden uygulama açılır açılmaz bir kez yüklenir.
+  useEffect(() => { void refreshUsage() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   const savePreference = async (enabled: boolean) => {
     if (preferenceWorking.current || expired) return
     preferenceReadRequest.current?.abort()
@@ -640,11 +652,14 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       voice.speak(`${hello}, ${language === 'en' ? "I'm listening." : 'dinliyorum.'}`, () => { void voice.start().finally(() => setWaking(false)) })
       return
     }
+    // Hak bilgisi henüz gelmediyse (uygulama yeni açıldı) soru göndermeden önce yüklenir.
+    await usageReady()
     const answer = await sendRef.current(question, true)
     const text = typeof answer === 'string' ? answer : answer?.text
     if (!text) { setWaking(false); setHoloOpen(false); return }
     voice.speak(`${hello}. ${text}`, () => { void voice.start().finally(() => setWaking(false)) }, null, typeof answer === 'object' && answer ? answer.language : undefined)
   }
+  usageReadyRef.current = usageReady
   const launchRef = useRef(launchVoice)
   launchRef.current = launchVoice
   useEffect(() => {
