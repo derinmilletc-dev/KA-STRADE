@@ -290,6 +290,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [fromStudio, setFromStudio] = useState('')
   // Stüdyodan gelince analiz seviyeleri (giriş, stop, hedefler) hazır doldurulur; emir yine kullanıcı onayıyla gider.
   const [autoFill, setAutoFill] = useState(false)
+  const [gridAutoPct, setGridAutoPct] = useState<number | null>(null)
   const [levelsFromAnalysis, setLevelsFromAnalysis] = useState(false)
   useEffect(() => {
     const apply = () => {
@@ -297,7 +298,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (!intent) return
       setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
       setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
-      setAutoFill(true); setLevelsFromAnalysis(false)
+      setAutoFill(!intent.mode); setLevelsFromAnalysis(false)
+      if (intent.mode === 'grid') { setManualMode('grid'); setGridAutoPct(intent.pct ?? 5) } else setManualMode('single')
     }
     apply()
     window.addEventListener(MANUAL_INTENT_EVENT, apply)
@@ -311,6 +313,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (direction !== 'LONG' && direction !== 'SHORT') return
     fillAnalysis(); setLevelsFromAnalysis(true)
   }, [autoFill, analysis, order.symbol, symbol]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stüdyodan "Grid ile aç": analizdeki fiyata göre aralık ve stop otomatik doldurulur (önizleme; emir göndermez).
+  useEffect(() => {
+    if (gridAutoPct === null) return
+    const price = Number(analysis?.entry)
+    if (!(price > 0) || analysisFillBlock(order.symbol, symbol)) return
+    const side = order.direction === 'SHORT' ? 'SHORT' : 'LONG'
+    const sgn = side === 'LONG' ? -1 : 1
+    const near = price * (1 + sgn * 0.005), far = price * (1 + sgn * gridAutoPct / 100), stopAt = price * (1 + sgn * (gridAutoPct + 1.5) / 100)
+    const fmt = (value: number) => String(Number(value.toPrecision(6)))
+    setGrid(current => ({...current, lower: fmt(Math.min(near, far)), upper: fmt(Math.max(near, far)), stop: fmt(stopAt)}))
+    setGridAutoPct(null)
+  }, [gridAutoPct, analysis, order.symbol, order.direction, symbol])
   useEffect(() => {
     if (!autoFill) return
     const timer = window.setTimeout(() => setAutoFill(false), 12000)
@@ -1758,13 +1772,40 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="mxtNav"><button type="button" className="mxtBtn primary" disabled={busy !== '' || liveGridWhy !== ''} onClick={startLiveGrid}>CANLI GRID BAŞLAT</button></div>
       </>}
     </div> : null
+    // Akıllı özet: yalnız hesaplanmış verilerden (kademeler, limit kontrolleri) türetilir; emir göndermez.
+    const gridLevelsSorted = [...gridResult.levels].sort((a, b) => Math.abs(a.entry - gridPrice) - Math.abs(b.entry - gridPrice))
+    const gridChecksOk = gridResult.checks.filter(check => check.ok).length
+    const gridTooTight = gridResult.levels.length > 1 && gridResult.spacingPct > 0 && gridResult.spacingPct < 0.4
+    const gridScore = gridResult.levels.length === 0 ? 0 : Math.max(0, Math.round(100 * gridChecksOk / Math.max(1, gridResult.checks.length)) - (gridTooTight ? 12 : 0) - (gridAlerts.some(item => item.level === 'kritik') ? 25 : 0))
+    const gridScoreName = gridScore >= 80 ? 'İyi' : gridScore >= 55 ? 'Orta' : 'Zayıf'
+    const gridRangePct = gridResult.spacingPct * Math.max(1, gridResult.levels.length - 1)
+    const gridFitCount = Math.max(GRID_MIN_COUNT, Math.min(GRID_MAX_COUNT, Math.floor(gridRangePct / 0.5) + 1))
+    const gridMapPrices = gridResult.levels.length ? [gridPrice, Number(grid.stop), ...gridResult.levels.map(level => level.entry)].filter(value => value > 0) : []
+    const gridMapHi = gridMapPrices.length ? Math.max(...gridMapPrices) : 0, gridMapLo = gridMapPrices.length ? Math.min(...gridMapPrices) : 0
+    const gridMapY = (value: number) => gridMapHi > gridMapLo ? ((gridMapHi - value) / (gridMapHi - gridMapLo)) * 100 : 50
+    const gridMap = gridResult.levels.length > 0 && gridMapHi > gridMapLo ? <div className="mgpMap" role="img" aria-label="Kademe haritası">
+      <div className="mgpMapZone" style={{top: `${gridMapY(Math.max(...gridResult.levels.map(level => level.entry)))}%`, bottom: `${100 - gridMapY(Math.min(...gridResult.levels.map(level => level.entry)))}%`}}/>
+      {gridResult.levels.map(level => <div className="mgpMapLv" key={level.index} style={{top: `${gridMapY(level.entry)}%`}}><i>{level.index}</i><span>{presetPrice(level.entry)}</span><em>{level.notional.toFixed(0)} USDT</em></div>)}
+      {gridPrice > 0 && <div className="mgpMapPx" style={{top: `${gridMapY(gridPrice)}%`}}><span>Fiyat {presetPrice(gridPrice)}</span></div>}
+      {Number(grid.stop) > 0 && <div className="mgpMapStop" style={{top: `${gridMapY(Number(grid.stop))}%`}}><span>STOP {presetPrice(Number(grid.stop))}</span></div>}
+    </div> : null
+    const gridWhatIf = gridLevelsSorted.length > 0 ? <ul className="mgpWhat" aria-label="Ne olur?">
+      {gridLevelsSorted.slice(0, 3).map((level, index) => <li key={level.index}>Fiyat <b>{presetPrice(level.entry)}</b> seviyesine gelirse <b>{index + 1}</b> kademe dolar, toplam büyüklük <b>{money(gridLevelsSorted.slice(0, index + 1).reduce((sum, item) => sum + item.notional, 0))}</b>.</li>)}
+      <li>Stop <b>{grid.stop || '—'}</b> olursa toplam zarar <b className="down">{money(gridResult.worstLoss)}</b> (hepsi dolmuşsa).</li>
+      <li>Fiyat ilk kademeye hiç gelmezse emir dolmaz, kâr da zarar da olmaz.</li>
+    </ul> : null
+    const gridSmart = gridResult.levels.length > 0 ? <div className="mgpSmart">
+      <div className="mgpScore" data-level={gridScoreName}><span className="mgpRing" style={{background: `conic-gradient(var(--mgp-c) 0 ${gridScore}%, #1a283a 0)`}}><b>{gridScore}</b></span><span><b>Plan puanı: {gridScoreName}</b><small>{gridChecksOk}/{gridResult.checks.length} limit kontrolü geçti{gridTooTight ? ' · kademeler çok sık' : ''}</small></span></div>
+      {gridTooTight && <div className="mgpFix"><span><b>Kademeler çok sık</b><small>Aralık %{gridResult.spacingPct.toFixed(2)}; ücretler kârı yer.</small></span>{gridFitCount < Number(grid.count) && <button type="button" onClick={() => setGridField('count', String(gridFitCount))}>{gridFitCount} kademeye düşür</button>}</div>}
+    </div> : null
     const gridBody = <div className="mwz mgp">
       <div className="mwzCard">
         <small className="mwzKicker">GRID · ÖNİZLEME</small>
         <h4>Kademeli alım planı</h4>
         {liveGrid?.enabled ? <p><b>Canlı grid AÇIK.</b> En fazla {liveGrid.max_levels ?? 20} kademe. Planın en kötü zararı tek işlem ve günlük zarar sınırını, toplam büyüklüğü de maruziyet sınırını aşıyorsa grid başlamaz. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid sunucuda kapalı; açıldığında bu plan, aynı kontrollerden geçerek canlı başlatılabilir.</p>}
         <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
-        <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Otomatik aralık:</small>{[3, 5, 8].map(pct => <button type="button" key={pct} disabled={!(gridPrice > 0)} onClick={() => gridAuto(pct)}>%{pct}</button>)}</div>
+        <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Hazır plan:</small>{[[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]].map(([pct, name, cnt]) => <button type="button" key={pct as number} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct as number); setGridField('count', String(Math.min(cnt as number, GRID_MAX_COUNT))) }}><b>{name}</b><small>%{pct} · {Math.min(cnt as number, GRID_MAX_COUNT)} kademe</small></button>)}</div>
+        {gridSmart}{gridMap}
         <div className="liveWsTwo">
           <label className="liveWsField">Alt sınır<input type="number" value={grid.lower} onChange={event => setGridField('lower', event.target.value)}/></label>
           <label className="liveWsField">Üst sınır<input type="number" value={grid.upper} onChange={event => setGridField('upper', event.target.value)}/></label>
@@ -1786,6 +1827,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <span><small>Tahmini likidasyon (hepsi dolarsa)</small><b>{gridResult.liquidation ? presetPrice(gridResult.liquidation) : '—'}</b></span>
           </div>
           <ul className="mgpChecks" aria-label="Limit kontrolleri">{gridResult.checks.map(check => <li key={check.id} data-ok={check.ok ? '1' : '0'}><i aria-hidden="true">{check.ok ? '✓' : '!'}</i><span><b>{check.label}</b><small>{check.detail}</small></span></li>)}</ul>
+          {gridWhatIf}
           <div className="mgpTable" role="table" aria-label="Kademeler (USDT)"><div role="row" className="mgpHead"><span>#</span><span>Giriş</span><span>Hedef</span><span>Boyut</span><span>Zarar</span></div>
             {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{presetPrice(level.entry)}</span><span>{presetPrice(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
           <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? 'Hesap mevcut limitlerin içinde. Yine de emir gönderilmez: gerçek grid henüz kapalı.' : 'Bir ya da daha fazla limit aşılıyor; bu plan gerçek grid için uygun olmazdı.'}</p>
