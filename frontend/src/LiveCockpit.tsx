@@ -1601,7 +1601,11 @@ export default function LiveCockpit(props: Props) {
         </div></div>
       {readyToStart && <div className="lcMobileOnly lcMStart">
         <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><Zap aria-hidden="true"/>Hepsini hazırla ve başlat</button>
-        <p><Check aria-hidden="true"/>Hazır: risk, onaylar tamam</p>
+        <ul className="lcMReady" aria-label="Hazırlık durumu"><li><Check aria-hidden="true"/>Risk</li><li><Check aria-hidden="true"/>Onaylar</li></ul>
+        <div className="lcMStartRow">
+          <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
+          <button type="button" className="lcMAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+        </div>
       </div>}
       <dl className="lcStatusStats">
         {running && <div><dt>Oturum</dt><dd data-testid="original-session-remaining">{sessionLeft > 0 ? `${duration(sessionLeft)} kaldı` : '—'}</dd></div>}
