@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+from http.client import HTTPException
 import io
 import json
 import sys
@@ -69,7 +70,18 @@ class PoliteHttp(hd.Http):
             self.count += 1
         if slot > now:
             time.sleep(slot - now)
-        return super().get(url)
+        # Bağlantının karşı taraftan kesilmesi (ConnectionResetError vb.) geçicidir: bekleyip tekrar dene.
+        # HTTP hata kodları (404 gibi) ve ağ hatalarının üst sınıftaki tekrar denemesi aynen kalır.
+        for attempt in range(6):
+            try:
+                return super().get(url)
+            except urllib.error.URLError:
+                raise  # HTTPError dahil: üst sınıf zaten kendi tekrarını yaptı
+            except (OSError, HTTPException) as exc:
+                if attempt == 5:
+                    raise urllib.error.URLError(f"bağlantı tekrar tekrar kesildi: {exc}") from exc
+                time.sleep(min(2 ** attempt, 20))
+        raise RuntimeError("unreachable")
 
 
 # --------------------------------------------------------------------------- girdi
@@ -143,7 +155,7 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
     try:
         data = http.get(url)
         expected = http.get(url + ".CHECKSUM").decode("utf-8", "replace").split()[0].lower()
-    except (urllib.error.URLError, TimeoutError, ValueError, IndexError) as exc:
+    except (OSError, HTTPException, ValueError, IndexError) as exc:  # URLError ve ConnectionError OSError'dır
         log["status"] = f"indirilemedi: {exc}"
         return log
     digest = sha256_of(data)
@@ -151,8 +163,13 @@ def fetch_one(http: Any, base: str, item: dict[str, Any], root: Path) -> dict[st
         log.update(bytes=len(data), sha256=digest, status="SHA-256 UYUŞMADI; dosya kaydedilmedi")
         return log
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("xb") as handle:
-        handle.write(data)
+    if target.is_file():  # önceki çalışma zip'i yazıp sidecar'dan önce kesildiyse: aynıysa yalnız sidecar tamamlanır
+        if sha256_of(target.read_bytes()) != digest:
+            log.update(bytes=len(data), sha256=digest, status="yerel dosya farklı; elle silip --resume ile tekrar çalıştırın")
+            return log
+    else:
+        with target.open("xb") as handle:
+            handle.write(data)
     with sidecar.open("x", encoding="utf-8") as handle:
         handle.write(digest + "\n")
     log.update(bytes=len(data), sha256=digest, status="indirildi (doğrulandı)")
