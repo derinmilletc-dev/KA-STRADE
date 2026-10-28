@@ -34,14 +34,28 @@ const findTarget = (selectors?: string[]): HTMLElement | null => {
 function load(userId: string): string | null { try { return localStorage.getItem(tourMemoryKey(userId)) } catch { return null } }
 function save(userId: string, kind: TourMemory) { try { localStorage.setItem(tourMemoryKey(userId), `${kind}|${Date.now()}`) } catch { /* saklama kapalıysa tur yine kapanır */ } }
 
+const FREE_ITEMS = [
+  'Kais’le sohbet ve sorular (günlük sınırlı)',
+  'Analist ve Tarama: her analiz günlük krediden düşer',
+  'Piyasa özeti ve coin karşılaştırma: günde birkaç kez, kredili',
+  'Master Trade canlı işlem alanı yok',
+]
+const PREMIUM_ITEMS = [
+  'Sınırsız analiz: kredi hesabı yapmazsın',
+  'Sınırsız piyasa özeti ve coin karşılaştırma',
+  'Master Trade: canlı işlem alanı ve Kais Rehber',
+  'Kendi açık pozisyonlarının giriş, stop ve hedef seviyelerini Kais’ten sorabilirsin',
+  'Canlı işlemde Acil durdur ve akıllı koruma',
+]
 function Plans({premium}: {premium: boolean}) {
-  if (premium) return <ul className="ktTourList"><li>Sınırsız analiz ve piyasa özeti</li><li>Master Trade canlı işlem alanı</li><li>Kendi pozisyon seviyelerini Kais’ten görme</li></ul>
+  if (premium) return <>
+    <div className="ktTourPlan" data-premium=""><em>AKTİF · MASTER MODE</em><ul>{PREMIUM_ITEMS.map(text => <li key={text}>{text}</li>)}</ul></div>
+    <p className="ktTourFine">Planını, yenileme tarihini ve faturalarını Paketler ve Fatura sayfalarından yönetirsin. İstediğin zaman iptal edebilirsin.</p>
+  </>
   return <>
-    <div className="ktTourPlans">
-      <div><b>Ücretsiz</b><span>Analiz krediyle çalışır</span><span>Piyasa özeti günlük sınırlı ve krediden düşer</span><span>Kais sorularına cevap</span></div>
-      <div data-premium=""><em>PREMİUM</em><b>Master Mode</b><span>Sınırsız analiz</span><span>Sınırsız piyasa özeti</span><span>Master Trade canlı işlem</span><span>Kendi pozisyon seviyelerini Kais’ten görme</span></div>
-    </div>
-    <p className="ktTourFine">Hiçbir paket kazanç garantisi vermez. Risk kontrolü her zaman sende.</p>
+    <div className="ktTourPlan"><b>Ücretsiz</b><ul>{FREE_ITEMS.map(text => <li key={text} data-no={text.endsWith(' yok') || undefined}>{text}</li>)}</ul></div>
+    <div className="ktTourPlan" data-premium=""><em>PREMIUM</em><b>Master Mode · 119,90 USD / ay</b><ul>{PREMIUM_ITEMS.map(text => <li key={text}>{text}</li>)}</ul></div>
+    <p className="ktTourFine">İstediğin zaman iptal edebilirsin. Deneme ve ödeme seçeneklerini Paketler sayfasında görürsün. Hiçbir paket kazanç garantisi vermez; risk kontrolü her zaman sende.</p>
   </>
 }
 
