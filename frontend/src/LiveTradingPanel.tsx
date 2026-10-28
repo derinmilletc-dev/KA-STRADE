@@ -1456,9 +1456,39 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} coinden ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
       {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
     </div>
+    // Telefon: tutar adımı (aynı alanlar, aynı durum; yalnız yerleşim ve görünüm). Masaüstünde gizli.
+    const maxPick = Math.max(5, Math.min(marginMax, Number.isFinite(availableBalanceNum) && availableBalanceNum >= 5 ? Math.floor(availableBalanceNum) : marginMax))
+    const marginChips = Array.from(new Set([10, 25, 50, 100].filter(v => v < maxPick).concat(maxPick)))
+    const levBand = !(leverageValue >= 1) ? null : leverageValue <= 3 ? ['Düşük risk', 'low'] : leverageValue <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
+    const amountMobile = <div className="mxtM mxtMAmt">
+      <div className="mxtMSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} data-on={order.order_type === 'MARKET' || undefined} onClick={() => set('order_type', 'MARKET')}>Piyasa fiyatından</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} data-on={order.order_type === 'LIMIT' || undefined} onClick={() => set('order_type', 'LIMIT')}>Limit fiyatla</button></div>
+      {order.order_type === 'LIMIT' && <div className="mxtMCard"><label className="mxtMField">Limit fiyatı<input type="number" inputMode="decimal" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>
+        <div className="mxtMField">Dolmazsa iptal et<div className="mxtMSeg" role="group" aria-label="Limit emir süresi">{LIMIT_EXPIRY_OPTIONS.map(item => <button type="button" key={item.label} aria-pressed={order.limit_expiry_minutes === item.value} data-on={order.limit_expiry_minutes === item.value || undefined} onClick={() => setOrder(current => ({...current, limit_expiry_minutes: item.value}))}>{item.label}</button>)}</div><small>Süre dolunca dolmamış emri Binance kendisi iptal eder.</small></div></div>}
+      <div className="mxtMCard">
+        <div className="mxtMLbl"><span>TEMİNAT</span>{walletShare !== null && <span>Hesabının <b>%{walletShare.toFixed(1)}</b>’ü</span>}</div>
+        <div className="mxtMBig"><input type="number" inputMode="decimal" min="5" max={marginMax} style={{width: `${Math.max(2, String(order.margin_usdt).length + 0.6)}ch`}} value={order.margin_usdt} aria-label="Marjin (USDT)" onChange={event => set('margin_usdt', event.target.value)}/><span>USDT</span></div>
+        <p className="mxtMUnder">Kullanılabilir <b>{Number.isFinite(availableBalanceNum) ? money(availableBalanceNum) : 'okunamadı'}</b> · risk ayarınla en çok <b>{marginMax}</b></p>
+        <div className="mxtMChips">{marginChips.map(v => <button type="button" key={v} aria-pressed={String(order.margin_usdt) === String(v)} data-on={String(order.margin_usdt) === String(v) || undefined} onClick={() => set('margin_usdt', String(v))}>{v === maxPick && marginChips.length > 1 ? `Maks ${v}` : v}</button>)}</div>
+        <input type="range" className="mxtMRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/>
+      </div>
+      <div className="mxtMCard">
+        <div className="mxtMLbl"><span>KALDIRAÇ</span><span>Pozisyon = teminat × kaldıraç</span></div>
+        <div className="mxtMLev"><input type="number" inputMode="numeric" min="1" max="50" style={{width: `${Math.max(1.6, String(order.leverage).length + 0.6)}ch`}} value={order.leverage} aria-label="Kaldıraç (x)" onChange={event => set('leverage', event.target.value)}/><i>x</i>{levBand && <span className="mxtMBand" data-band={levBand[1]}>{levBand[0]}</span>}</div>
+        <div className="mxtMChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} aria-pressed={String(order.leverage) === String(v)} data-on={String(order.leverage) === String(v) || undefined} onClick={() => set('leverage', String(v))}>{v}x</button>)}</div>
+        <input type="range" className="mxtMRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/>
+      </div>
+      <div className="mxtMTiles">
+        <div className="mxtMTileW"><span><small>Pozisyon büyüklüğü</small><b>{sizeValue || '—'}</b></span></div>
+        <div><small>Toplam komisyon</small><b>{roundTripFee === null ? '—' : money(roundTripFee)}</b></div>
+        <div><small>Stopta risk</small><b data-muted={!lossValue || undefined}>{lossValue || 'Stop girilince'}</b></div>
+      </div>
+      {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
+      <p className="mxtMNote">Giriş ve çıkış komisyonu dahil (taraf başı %{(feeRate * 100).toFixed(2)}). Kayma ve fonlama dahil değil.</p>
+    </div>
     const amountStep = <>
       <h4>Ne kadar ve nasıl girelim?</h4>
       <p className="mxtLead">Marjin, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>
+      {amountMobile}
       <div className="mxtTwoCol">
         <div className="mxtCol">{amountBlock}<small className="liveWsHint">Kullanılabilir bakiye: {Number.isFinite(availableBalanceNum) ? money(availableBalanceNum) : 'okunamadı'}</small></div>
         <div className="mxtCol mxtCalc">
