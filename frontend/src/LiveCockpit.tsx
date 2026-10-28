@@ -7,9 +7,12 @@ import {
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
+import SpotHint from '../../SpotHint'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
+
+const LAUNCH_TARGETS = ['[data-testid="launch-open-mobile"]', '[data-testid="launch-open"]']
 
 /** Canlı İşlem kokpiti (Master Trade › Canlı).
  *  Kural 1: ekrandaki her rakam sunucudan gelen doğrulanmış durumdan gelir; yoksa "—" ya da "doğrulanamadı" yazar.
@@ -1581,6 +1584,7 @@ export default function LiveCockpit(props: Props) {
   const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
   return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
+    <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone}>
       <div className="lcStatusMain"><span className="lcStatusDot" aria-hidden="true"/><div><small>CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd">Son güncelleme {lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</small></div>

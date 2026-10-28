@@ -16,3 +16,9 @@ export function kaisAskMessage(event: Event): string | null {
   const text = String((detail as {message?: unknown}).message ?? '').trim().slice(0, KAIS_ASK_MAX)
   return text || null
 }
+
+// "Hey Kais'i dene": sohbeti sesli (göz ekranı, dinleyen) modda açar; asistan bileşenine doğrudan bağlanmaz.
+export const KAIS_VOICE_EVENT = 'kais:voice'
+export function startKaisVoice(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(KAIS_VOICE_EVENT))
+}
