@@ -12,6 +12,8 @@ import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
 import '../../manual-order.css'
 import '../../coin-picker.css'
+import '../../manual-mobile.css'
+import {askKais} from '../../kais-ask'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {preferredRiskMargin} from '../../account-risk-sizing'
@@ -99,6 +101,18 @@ type Props = {active: boolean; symbol: string; analysis?: {direction?: string | 
 
 const V25 = `${API_BASE}/v25`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
+// Taslak: yalnız coin, yön, marjin ve kaldıraç kaydedilir (30 dk). Fiyata bağlı stop/hedef kaydedilmez; eski fiyatla emir hazırlanmasın.
+const DRAFT_KEY = 'kt-manual-draft-v1'
+const DRAFT_TTL_MS = 30 * 60 * 1000
+type ManualDraft = {t: number; symbol: string; direction: 'LONG' | 'SHORT'; margin_usdt: string; leverage: string; step: number}
+const readDraft = (): ManualDraft | null => {
+  try {
+    const raw = JSON.parse(window.sessionStorage.getItem(DRAFT_KEY) || 'null')
+    if (!raw || typeof raw !== 'object' || Date.now() - Number(raw.t) > DRAFT_TTL_MS || typeof raw.symbol !== 'string' || !/^[A-Z0-9]{2,20}$/.test(raw.symbol)) return null
+    return {t: raw.t, symbol: raw.symbol, direction: raw.direction === 'SHORT' ? 'SHORT' : 'LONG', margin_usdt: String(raw.margin_usdt ?? '10').slice(0, 12), leverage: String(raw.leverage ?? '1').slice(0, 4), step: Math.max(0, Math.min(3, Number(raw.step) || 0))}
+  } catch { return null }
+}
+const writeDraft = (draft: ManualDraft | null) => { try { if (draft) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); else window.sessionStorage.removeItem(DRAFT_KEY) } catch { /* depolama kapalı */ } }
 const initialOrder = (symbol: string): OrderDraft => ({symbol, direction: 'LONG', order_type: 'MARKET', margin_usdt: '10', leverage: '1', limit_price: '', stop_loss: '', tp1: '', tp2: '', tp3: '', tp_split: '60-20-20', limit_expiry_minutes: ''})
 type CoinRow = {symbol: string; display: string; price: number; change: number; volume: number}
 const RECENT_COINS_KEY = 'kaistrade-recent-coins'
@@ -228,7 +242,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [keyCode, setKeyCode] = useState('')
   const [showSecret, setShowSecret] = useState(false)
   const [ipCopied, setIpCopied] = useState(false)
-  const [order, setOrder] = useState<OrderDraft>(initialOrder(symbol))
+  const [order, setOrder] = useState<OrderDraft>(() => {
+    const base = initialOrder(symbol)
+    const draft = readDraft()
+    return draft ? {...base, symbol: draft.symbol, direction: draft.direction, margin_usdt: draft.margin_usdt, leverage: draft.leverage} : base
+  })
   const [policyDraft, setPolicyDraft] = useState<LivePolicy | null>(null)
   const [confirm, setConfirm] = useState<{title: string;message: string;expected?: string;simple?: boolean;understanding?: boolean;mfa?: boolean;action: (code?: string) => Promise<void>} | null>(null)
   const [confirmUnderstood, setConfirmUnderstood] = useState(false)
@@ -250,7 +268,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
   const [coinSort, setCoinSort] = useState<CoinSort>('confidence')
-  const [manualStep, setManualStep] = useState(0)
+  const [manualStep, setManualStep] = useState(() => { const draft = readDraft(); return draft ? draft.step : 0 })
+  useEffect(() => {
+    if (!order.symbol) return
+    writeDraft({t: Date.now(), symbol: order.symbol, direction: order.direction, margin_usdt: order.margin_usdt, leverage: order.leverage, step: manualStep})
+  }, [order.symbol, order.direction, order.margin_usdt, order.leverage, manualStep])
   // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
@@ -1154,7 +1176,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
-        setReviewedKey(''); setReviewResult(null); setManualStep(0)
+        setReviewedKey(''); setReviewResult(null); setManualStep(0); writeDraft(null)
       }})
       setConfirmText('')
     }
@@ -1431,8 +1453,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <button type="button" className="mxtSumToggle" aria-expanded={summaryOpen} onClick={() => setSummaryOpen(open => !open)}><span>Emir özeti · {selectedRow?.display || order.symbol || 'coin seçilmedi'}</span><ChevronDown aria-hidden="true"/></button>
       <div className="mxtSumBody"><SummaryList rows={summaryRows}/></div>
     </aside>
+    const askText = `Manuel emirde "${stepNames[wzStep]}" adımındayım${order.symbol ? `, coin ${order.symbol}, yön ${dirSide}` : ''}. Bu ayarlar mantıklı mı? Ne dikkat etmeliyim?`
     const wizardBody = <div className="mxt" data-step={wzStep}>
       {statusStrip}
+      <div className="mxtM mxtMHead">
+        <div className="mxtMLabel"><span>ADIM {wzStep + 1} / {stepNames.length} · <em>{stepNames[wzStep]}</em></span><button type="button" className="mxtMAsk" onClick={() => askKais(askText)}>✦ Kais’e sor</button></div>
+        {selectedRow && Number.isFinite(Number(selectedRow.price)) && <div className="mxtMPrice"><i aria-hidden="true"/><b>{selectedRow.display || order.symbol}</b><span>{coinPrice(Number(selectedRow.price))}</span>{Number.isFinite(Number(selectedRow.change)) && <span className="mxtMChg" data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</span>}</div>}
+      </div>
       <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
         <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
       <div className="mxtLayout">
@@ -1449,6 +1476,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep]} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
+          {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}
         </div>
         {summaryAside}
       </div>
