@@ -19,8 +19,38 @@ const recognitionClass = (): (new () => Recognition) | null => {
 }
 
 export const wakeSupported = () => recognitionClass() !== null
-export function readWake(): boolean { try { return localStorage.getItem(WAKE_KEY) === '1' } catch { return false } }
-export function writeWake(value: boolean) { try { if (value) localStorage.setItem(WAKE_KEY, '1'); else localStorage.removeItem(WAKE_KEY) } catch { /* saklanamazsa oturum boyunca geçerli */ } }
+export const WAKE_CHANGED_EVENT = 'kais:wake-changed'
+/** 'on'/'off' = kullanıcının seçimi; 'default' = hiç seçmedi (ana ekrandan açılan uygulamada açık sayılır). */
+export function readWakeSetting(): 'on' | 'off' | 'default' {
+  try { const value = localStorage.getItem(WAKE_KEY); return value === '1' ? 'on' : value === '0' ? 'off' : 'default' } catch { return 'default' }
+}
+export function writeWake(value: boolean) {
+  try { localStorage.setItem(WAKE_KEY, value ? '1' : '0') } catch { /* saklanamazsa oturum boyunca geçerli */ }
+  window.dispatchEvent(new Event(WAKE_CHANGED_EVENT))
+}
+export const isStandaloneApp = () => typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as {standalone?: boolean}).standalone === true)
+
+/** "Hey Kais" açık mı: kullanıcı seçtiyse o; seçmediyse ana ekrandan açılan uygulamada ve mikrofon izni zaten verilmişse açık.
+ * (İzin yokken kendiliğinden mikrofon penceresi açılmasın diye izin şartı var; izin "Hepsini aç" kartından istenir.) */
+export function useWakeEnabled(): [boolean, (value: boolean) => void] {
+  const [setting, setSetting] = useState(readWakeSetting)
+  const [micGranted, setMicGranted] = useState(false)
+  useEffect(() => {
+    let status: PermissionStatus | null = null
+    const check = () => {
+      navigator.permissions?.query({name: 'microphone' as PermissionName}).then(result => {
+        status = result; setMicGranted(result.state === 'granted')
+        result.onchange = () => setMicGranted(result.state === 'granted')
+      }).catch(() => setMicGranted(false))
+    }
+    const changed = () => { setSetting(readWakeSetting()); check() }
+    check()
+    window.addEventListener(WAKE_CHANGED_EVENT, changed)
+    return () => { window.removeEventListener(WAKE_CHANGED_EVENT, changed); if (status) status.onchange = null }
+  }, [])
+  const enabled = setting === 'on' || (setting === 'default' && isStandaloneApp() && micGranted)
+  return [enabled, writeWake]
+}
 
 /** active false iken hiç dinlemez. Sürekli hata alırsa (izin yok vb.) durur ve blocked döner. */
 export function useKaisWake(active: boolean, language: string, onWake: (question: string) => void): {listening: boolean; blocked: string | null} {
