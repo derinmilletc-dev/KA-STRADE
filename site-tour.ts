@@ -24,13 +24,19 @@ export type TourStep = {
 const TAB_CANLI = ['#master-tab-canli', '#masterTradeTab-canli']
 const NAV = '.v26MobileBottomNav'
 
-export function buildTourSteps(premium: boolean): TourStep[] {
+/** Telefon düzeni (alt menü, Menü tuşu) ile bilgisayar düzeni (ana sayfada kartlar, üstte Kais gözü) farklıdır; tur ikisine de doğru anlatır. */
+export const PHONE_QUERY = '(max-width: 700px)'
+const CARDS = '.v26DashboardChoices'
+
+export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   const steps: TourStep[] = [
     {id: 'home', kicker: 'ANA SAYFA', title: 'Her şey buradan başlar',
-      body: 'Ana sayfada bakiyeni, günün özetini ve piyasanın durumunu görürsün. Diğer sayfalara alttaki menüden ya da üstteki gezinmeden geçersin.',
-      view: 'dashboard', targets: [`${NAV} button:first-child`]},
+      body: phone
+        ? 'Ana sayfada bakiyeni, günün özetini ve piyasanın durumunu görürsün. Diğer sayfalara alttaki menüden geçersin; sağdaki Menü tuşunda Tarama, Performans, Destek gibi sayfalar var.'
+        : 'Ana sayfada çalışma alanlarını kartlar halinde görürsün: İşlem, Master Trade, Analist, Tarama, Performans, Destek ve diğerleri. Bir karta tıklayınca o sayfa açılır; geri dönmek için sayfadaki Geri tuşunu kullanırsın.',
+      view: 'dashboard', targets: phone ? [`${NAV} button:first-child`] : [CARDS]},
     {id: 'analysis', kicker: 'ANALİST VE TARAMA', title: 'Coini sen seç, Kais sadeleştirsin',
-      body: 'Analist, seçtiğin coin için yönü, güven puanını ve olası hedefleri sade bir dille gösterir. Tarama, piyasadaki fırsatları senin yerine süzer.',
+      body: `Analist, seçtiğin coin için yönü, güven puanını ve olası hedefleri sade bir dille gösterir. Tarama, piyasadaki fırsatları senin yerine süzer. ${phone ? 'İkisini de alttaki Menü tuşundan açarsın.' : 'İkisi de ana sayfadaki kartlarda.'}`,
       bullets: ['Kais’e “BTC mi ETH mi?” diye sorup iki coini karşılaştırabilirsin.', 'Skorlar analiz çıktısıdır; kazanç garantisi değildir.'], view: 'analyst'},
   ]
   if (premium) {
@@ -46,21 +52,24 @@ export function buildTourSteps(premium: boolean): TourStep[] {
   } else {
     steps.push({id: 'master-locked', kicker: 'MASTER TRADE', title: 'Canlı işlem alanı Premium’da',
       body: 'Master Trade canlı işlem alanıdır ve Master Mode (Premium) üyelere açıktır. İçindeki Kais Rehber; risk, günlük sınır ve izinleri adım adım hazırlar, her adımı sen onaylarsın.',
-      view: 'dashboard', targets: [`${NAV} button:nth-child(4)`]})
+      view: 'dashboard', targets: phone ? [`${NAV} button:nth-child(4)`] : [`${CARDS} button:nth-child(2)`]})
   }
   steps.push(
     {id: 'risk', kicker: 'RİSK VE PERFORMANS', title: 'Sınırlarını ve geçmişini izle',
-      body: 'Risk sayfası pozisyon kontrollerini ve sınırlarını, Performans geçmiş sonuçlarını gösterir. Geçmiş sonuç, gelecek için garanti değildir.',
+      body: `Risk sayfası pozisyon kontrollerini ve sınırlarını, Performans geçmiş sonuçlarını gösterir. ${phone ? 'İkisi de Menü tuşunun içinde.' : 'İkisi de ana sayfadaki kartlarda.'} Geçmiş sonuç, gelecek için garanti değildir.`,
       view: 'performance'},
     {id: 'plans', kicker: 'PAKETLER', title: premium ? 'Master Mode açık' : 'Ücretsiz mi, Premium mu?',
       body: premium ? 'Premium üyeliğin aktif. Paketler sayfasından planını ve faturalarını yönetebilirsin.' : 'İkisiyle de Kais’i kullanırsın. Fark, ne kadar ve ne derinlikte baktığında:',
       view: 'billing', extra: 'plans'},
     {id: 'kais', kicker: 'KAİS AI', title: 'Sorularını Kais’e sor',
-      body: 'Kais; analizleri, piyasayı ve (izin verdiysen) kendi hesabını okuyup sade bir dille anlatır. Yalnız okur: emir açamaz, kapatamaz, ayar değiştiremez.',
+      body: `Kais; analizleri, piyasayı ve (izin verdiysen) kendi hesabını okuyup sade bir dille anlatır. ${phone ? 'Gözü alttaki menünün ortasında bulursun.' : 'Gözü sayfanın sağ üstünde bulursun.'} Yalnız okur: emir açamaz, kapatamaz, ayar değiştiremez.`,
       bullets: ['“Bu hafta nasıl gitti?”', '“Neden işlem açmadın?”', '“BTC mi ETH mi?”'], view: 'dashboard',
-      targets: ['.v26NavAssistantHost button', '.v26NavAssistantHost', '.assistantLauncher']},
+      targets: phone ? ['.v26NavAssistantHost button', '.v26NavAssistantHost'] : ['.v26HeaderActions .assistantLauncher', '.assistantLauncher']},
     {id: 'voice', kicker: 'SON ADIM', title: 'Takılırsan Hey Kais de',
-      body: 'Bir sorun olursa ya da merak edersen her zaman sorabilirsin. Uygulama açıkken “Hey Kais” demen yeter.', extra: 'voice'},
+      body: phone
+        ? 'Bir sorun olursa ya da merak edersen her zaman sorabilirsin. Uygulama açıkken “Hey Kais” demen yeter. Ana ekrana eklediysen ikona basılı tutup “Kais’e sor”u da seçebilirsin.'
+        : 'Bir sorun olursa ya da merak edersen her zaman sorabilirsin. Sayfa açıkken “Hey Kais” demen yeter; tarayıcı mikrofon izni sorarsa izin ver.',
+      extra: 'voice'},
   )
   return steps
 }

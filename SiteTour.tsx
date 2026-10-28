@@ -5,7 +5,7 @@ import KaisEye from './frontend/src/KaisEye'
 import {startKaisVoice} from './kais-ask'
 import {useMemberAccess} from './premium-access'
 import {
-  TOUR_OPEN_ATTRIBUTE, TOUR_START_EVENT, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey,
+  PHONE_QUERY, TOUR_OPEN_ATTRIBUTE, TOUR_START_EVENT, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey,
   type TourMemory, type TourStep, type TourView,
 } from './site-tour'
 import './site-tour.css'
@@ -59,6 +59,18 @@ function Plans({premium}: {premium: boolean}) {
   </>
 }
 
+function usePhone() {
+  const [phone, setPhone] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(PHONE_QUERY)
+    const update = () => setPhone(query.matches)
+    update(); query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return phone
+}
+
 export default function SiteTour() {
   const {userId, premium, displayName, ready} = useMemberAccess()
   const [mode, setMode] = useState<'closed' | 'welcome' | 'tour'>('closed')
@@ -68,7 +80,8 @@ export default function SiteTour() {
   const [panelHeight, setPanelHeight] = useState(260)
   const panel = useRef<HTMLDivElement | null>(null)
   const primary = useRef<HTMLButtonElement | null>(null)
-  const steps = buildTourSteps(premium)
+  const phone = usePhone()
+  const steps = buildTourSteps(premium, phone)
   const step: TourStep | undefined = steps[index]
 
   // Başka kartların (ana ekrana ekle, bildirim) tur sürerken çıkmaması için gövdeye işaret konur.
