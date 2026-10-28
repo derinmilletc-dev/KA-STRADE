@@ -5,9 +5,9 @@ import {isStandaloneApp, readWakeSetting, wakeSupported, writeWake} from './useK
 import './install-prompt.css'
 
 // Ana ekrandan açılan uygulamada ilk açılışta: tek dokunuşla telefona işlem bildirimleri + "Hey Kais".
-// İzinler telefonun kendi penceresiyle istenir (web uygulaması izinleri kendiliğinden açamaz). "Sonra" 3 gün sorulmaz.
+// İzinler telefonun kendi penceresiyle istenir (web uygulaması izinleri kendiliğinden açamaz). "Sonra" 2 gün sorulmaz.
 const KEY = 'kt-app-ready'
-const WAIT_DAYS = 3
+const WAIT_DAYS = 2
 function snoozed() {
   try {
     const [value, at] = (localStorage.getItem(KEY) || '').split('|')

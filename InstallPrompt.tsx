@@ -3,7 +3,7 @@ import './install-prompt.css'
 
 // "Ana ekrana ekle" kartı. Android/Chrome: tarayıcının kendi yükleme penceresini tek dokunuşla açar.
 // iPhone/iPad: tarayıcı buna izin vermediği için iki adımlı kısa yol gösterir. Uygulama zaten
-// ana ekrandan açıldıysa hiç görünmez. "Sonra" denirse 7 gün boyunca tekrar sorulmaz.
+// ana ekrandan açıldıysa hiç görünmez. "Sonra" denirse 2 gün boyunca tekrar sorulmaz.
 
 type InstallEvent = Event & {prompt: () => Promise<void>; userChoice: Promise<{outcome: 'accepted' | 'dismissed'}>}
 
@@ -19,9 +19,9 @@ if (typeof window !== 'undefined') {
 }
 
 const KEY = 'kt-install-prompt'
-const WAIT_DAYS = 7
+const WAIT_DAYS = 2
 function remember(value: string) { try { localStorage.setItem(KEY, `${value}|${Date.now()}`) } catch { /* saklama kapalı olabilir */ } }
-/** "Sonra" 7 gün sorulmaz. "Yüklendi" notu yalnız tarayıcı yükleme sinyali VERMEDİĞİNDE (elle adım kartı) dikkate alınır:
+/** "Sonra" 2 gün sorulmaz. "Yüklendi" notu yalnız tarayıcı yükleme sinyali VERMEDİĞİNDE (elle adım kartı) dikkate alınır:
  * uygulama kaldırılınca Chrome yeniden sinyal verir ve kart tekrar çıkar. */
 function snoozed(hasPrompt: boolean) {
   try {
