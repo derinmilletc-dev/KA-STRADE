@@ -1558,6 +1558,25 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
     </>
     // Telefon: stop ve hedef adımı (aynı alanlar ve durum; yalnız yerleşim/görünüm). Masaüstünde gizli.
+    // Stop/hedef elle ayar: −/+ adımı, girişe göre yüzde ve risk katı (R). Yalnız form alanlarını doldurur; emir göndermez.
+    const levelFmt = (value: number) => String(Number(value.toPrecision(6)))
+    const levelSgn = dirSide === 'SHORT' ? -1 : 1
+    const nudgeLevel = (key: 'stop_loss' | 'tp1' | 'tp2' | 'tp3', direction: 1 | -1) => {
+      if (!(entryRef > 0)) return
+      const step = Math.max(entryRef * 0.001, entryRef * 1e-6)
+      const current = Number(order[key])
+      const base = current > 0 ? current : entryRef
+      const next = base + direction * step
+      if (next > 0) set(key, levelFmt(next))
+    }
+    const setStopPct = (pct: number) => { if (entryRef > 0) set('stop_loss', levelFmt(entryRef * (1 - levelSgn * pct / 100))) }
+    const setTargetsByR = (multiple: number) => {
+      if (!(entryRef > 0) || !(stopValue > 0)) return
+      const risk = Math.abs(entryRef - stopValue)
+      if (!(risk > 0)) return
+      setLevelsFromAnalysis(false)
+      setOrder(current => ({...current, tp1: levelFmt(entryRef + levelSgn * risk * multiple), tp2: levelFmt(entryRef + levelSgn * risk * multiple * 2), tp3: levelFmt(entryRef + levelSgn * risk * multiple * 3)}))
+    }
     const stopMobile = <div className="mxtM mxtMStop">
       <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" onClick={fillAnalysis}><b>Kais analizi</b><small>Önerilen</small></button>}
@@ -1566,7 +1585,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {stopVisual}
       <div className="mxtMCard" data-tone="stop">
         <div className="mxtMLbl"><span>STOP</span><span>{stopDist ? `Girişe %${stopDist.pct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
-        <div className="mxtMBig"><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></div>
+        <div className="mxtMBig mxtMStep"><button type="button" aria-label="Stopu düşür" disabled={!(entryRef > 0)} onClick={() => nudgeLevel('stop_loss', -1)}>−</button><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/><button type="button" aria-label="Stopu yükselt" disabled={!(entryRef > 0)} onClick={() => nudgeLevel('stop_loss', 1)}>+</button></div>
+        <div className="mxtMChips" role="group" aria-label="Stop uzaklığı (girişe göre yüzde)">{[0.5, 1, 2, 3, 5].map(pct => <button type="button" key={pct} disabled={!(entryRef > 0)} data-on={stopDist && Math.abs(stopDist.pct - pct) < 0.005 || undefined} onClick={() => setStopPct(pct)}>%{String(pct).replace('.', ',')}</button>)}</div>
         <div className="mxtMTiles three">
           <div><small>Uzaklık</small><b data-muted={!stopDist || undefined}>{stopDist ? `${coinPrice(Math.abs(entryRef - stopValue))} · %${stopDist.pct.toFixed(2)}` : '—'}</b></div>
           <div><small>Tahmini zarar</small><b data-muted={!lossValue || undefined}>{lossValue || '—'}</b></div>
@@ -1579,8 +1599,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="mxtMLbl"><span>HEDEFLER</span><span>TP1 dolunca stop girişe çekilir</span></div>
         <div className="mxtMTp">{([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
           const dist = targetDistancePct(entryRef, tpValues[index])
-          return <Fragment key={key}><i>{label}</i><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><em>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</em></Fragment>
+          return <Fragment key={key}><i>{label}</i><span className="mxtMStep"><button type="button" aria-label={`${label} düşür`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, -1)}>−</button><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><button type="button" aria-label={`${label} yükselt`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, 1)}>+</button></span><em>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</em></Fragment>
         })}</div>
+        <div className="mxtMLbl"><span>HEDEFİ RİSKE GÖRE AYARLA</span><span>TP1 = R×, TP2 = 2R×, TP3 = 3R×</span></div>
+        <div className="mxtMChips" role="group" aria-label="Hedefi risk katına göre ayarla">{[1, 1.5, 2, 3].map(multiple => <button type="button" key={multiple} disabled={!(entryRef > 0) || !(stopValue > 0)} onClick={() => setTargetsByR(multiple)}>R {String(multiple).replace('.', ',')}</button>)}</div>
         <div className="mxtMLbl"><span>HEDEF PAYLARI</span></div>
         <div className="mxtMSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} data-on={order.tp_split === split || undefined} onClick={() => setOrder(current => ({...current, tp_split: split}))}>{split.replace(/-/g, '/')}</button>)}</div>
       </div>
