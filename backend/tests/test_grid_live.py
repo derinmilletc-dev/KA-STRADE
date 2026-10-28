@@ -281,7 +281,7 @@ def prepare(**over):
 
 class TestHardLimits(unittest.TestCase):
     def test_limits_are_the_agreed_ones(self):
-        self.assertEqual((grid_live.LIVE_MAX_LEVELS, grid_live.LIVE_MAX_MARGIN_USDT), (2, 10.0))
+        self.assertEqual((grid_live.LIVE_MAX_LEVELS, grid_live.LIVE_MAX_MARGIN_USDT), (20, 300.0))
 
     def test_default_is_disabled(self):
         import os
@@ -307,13 +307,13 @@ class TestHardLimits(unittest.TestCase):
             self.assertAlmostEqual(r["qty"] / 0.001, round(r["qty"] / 0.001), places=6)
         self.assertEqual(plan["stop_price"], 97.0)
 
-    def test_three_levels_are_refused(self):
+    def test_above_twenty_levels_are_refused(self):
         with self.assertRaises(grid_live.LiveGridError):
-            prepare(count=3, lower=97.0, upper=99.0)
+            prepare(count=21, lower=70.0, upper=99.0)
 
-    def test_margin_above_ten_is_refused(self):
+    def test_margin_above_ceiling_is_refused(self):
         with self.assertRaises(grid_live.LiveGridError):
-            prepare(margin_usdt=10.01)
+            prepare(margin_usdt=300.01)
 
     def test_loss_above_trade_limit_is_refused(self):
         with self.assertRaises(grid_live.LiveGridError) as ctx:
@@ -366,7 +366,7 @@ class TestRunnerStatus(unittest.TestCase):
         runner = grid_live.LiveGridRunner(GridStore(":memory:"))
         payload = runner.status_payload()
         self.assertIsNone(payload["grid"])
-        self.assertEqual((payload["max_levels"], payload["max_margin_usdt"]), (2, 10.0))
+        self.assertEqual((payload["max_levels"], payload["max_margin_usdt"]), (20, 300.0))
 
     def test_final_grid_does_not_occupy_the_slot_but_blocked_one_does(self):
         store = GridStore(":memory:")

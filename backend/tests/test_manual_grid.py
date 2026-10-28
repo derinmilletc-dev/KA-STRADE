@@ -30,7 +30,7 @@ def test_wrong_stop_side_or_level_count_rejected():
     with pytest.raises(GridError):
         base(stop_loss=97)
     with pytest.raises(GridError):
-        base(levels=6)
+        base(levels=21)
     with pytest.raises(GridError):
         base(total_risk_usdt=2000)
 

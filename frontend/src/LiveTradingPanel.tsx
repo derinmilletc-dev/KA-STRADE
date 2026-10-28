@@ -1712,8 +1712,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const liveGridLast = liveGrid?.grid && LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
     const liveGridMargin = Number(grid.margin), liveGridCount = Number(grid.count)
     const liveGridWhy = !liveArmed ? 'Canlı emir kilidi (ARM) kapalı.' : !gridResult.allOk ? 'Önce yukarıdaki tüm kontroller geçmeli.'
-      : liveGridCount !== (liveGrid?.max_levels ?? 2) ? `İlk testte kademe sayısı ${liveGrid?.max_levels ?? 2} olmalı.`
-      : !(liveGridMargin > 0 && liveGridMargin <= (liveGrid?.max_margin_usdt ?? 10)) ? `İlk testte toplam marjin en fazla ${liveGrid?.max_margin_usdt ?? 10} USDT.` : ''
+      : !(liveGridCount >= 2 && liveGridCount <= (liveGrid?.max_levels ?? 20)) ? `Kademe sayısı 2 ile ${liveGrid?.max_levels ?? 20} arasında olmalı.`
+      : !(liveGridMargin > 0 && liveGridMargin <= (liveGrid?.max_margin_usdt ?? 300)) ? `Toplam marjin en fazla ${liveGrid?.max_margin_usdt ?? 300} USDT.` : ''
     const startLiveGrid = () => setConfirm({
       title: 'CANLI GRID BAŞLAT',
       message: `GERÇEK PARA. ${order.symbol} ${gridSide}, ${liveGridCount} kademe, toplam marjin ${grid.margin} USDT, kaldıraç ${grid.leverage}x, ortak stop ${grid.stop}. Tüm kademeler dolup stop çalışırsa tahmini zarar ${money(gridResult.worstLoss)}. Limit emirler hemen borsaya konur; dolan her kademe için stop kurulur.`,
@@ -1762,7 +1762,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="mwzCard">
         <small className="mwzKicker">GRID · ÖNİZLEME</small>
         <h4>Kademeli alım planı</h4>
-        {liveGrid?.enabled ? <p><b>Canlı grid AÇIK (ilk test).</b> En fazla {liveGrid.max_levels ?? 2} kademe ve {liveGrid.max_margin_usdt ?? 10} USDT marjin. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid emirleri, testler bitmeden açılmayacak.</p>}
+        {liveGrid?.enabled ? <p><b>Canlı grid AÇIK.</b> En fazla {liveGrid.max_levels ?? 20} kademe. Planın en kötü zararı tek işlem ve günlük zarar sınırını, toplam büyüklüğü de maruziyet sınırını aşıyorsa grid başlamaz. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid sunucuda kapalı; açıldığında bu plan, aynı kontrollerden geçerek canlı başlatılabilir.</p>}
         <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
         <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Otomatik aralık:</small>{[3, 5, 8].map(pct => <button type="button" key={pct} disabled={!(gridPrice > 0)} onClick={() => gridAuto(pct)}>%{pct}</button>)}</div>
         <div className="liveWsTwo">
