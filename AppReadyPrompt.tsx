@@ -65,9 +65,9 @@ export default function AppReadyPrompt() {
       <img src="/icon-192.png" alt="" width={52} height={52}/>
       <div>
         <b id="kt-ready-title">Uygulama hazır</b>
-        <p id="kt-ready-text">{need.push && need.mic ? 'İşlem açılınca, kapanınca ve stop değişince telefonuna bildirim gelsin; "Hey Kais" deyince Kais açılsın.'
-          : need.push ? 'İşlem açılınca, kapanınca ve stop değişince telefonuna bildirim gelsin.'
-          : '"Hey Kais" deyince Kais açılsın (uygulama açıkken).'}</p>
+        <p id="kt-ready-text">{need.push && need.mic ? 'İşlem açılışları, kapanışları ve stop-loss değişiklikleri hakkında anlık bildirimler alın. Ayrıca sesli komutla (Hey Kais) Kais AI kolayca başlatın.'
+          : need.push ? 'İşlem açılışları, kapanışları ve stop-loss değişiklikleri hakkında anlık bildirimler alın.'
+          : 'Sesli komutla (Hey Kais) Kais AI kolayca başlatın.'}</p>
       </div>
     </div>
     {note ? <p className="ktReadyNote" role="alert">{note}</p> : <div className="ktInstallActions">
