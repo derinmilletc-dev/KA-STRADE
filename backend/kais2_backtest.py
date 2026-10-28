@@ -237,6 +237,7 @@ def run_symbol(args: tuple[str, str, list[str], dict]) -> dict[str, Any]:
 
     decisions, busy_until = 0, -1
     limit = settings.get("limit_decisions")
+    only_side = settings.get("only_side") or ""
     for index in range(MIN_15M - 1, len(candles) - 1):
         signal = candles[index]
         decision_time = signal["time"] + 900
@@ -252,6 +253,9 @@ def run_symbol(args: tuple[str, str, list[str], dict]) -> dict[str, Any]:
         analysis = analyze(candles[max(0, index - WINDOW + 1):index + 1])
         direction = analysis["direction"]
         if direction not in {"LONG", "SHORT"}:
+            continue
+        if only_side and direction != only_side:
+            skipped["yon_disi"] += 1
             continue
         if not (analysis["confidence"] >= min_confidence and analysis["radar"]["trap_score"] <= 35
                 and analysis["radar"]["breakout_quality"] >= 50):
@@ -457,6 +461,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit-coins", type=int, default=0, help="hızlı deneme: yalnız ilk N coin")
     parser.add_argument("--limit-decisions", type=int, default=0, help="hızlı deneme: coin başına en çok N karar anı")
+    parser.add_argument("--only-side", choices=["LONG", "SHORT"], default="", help="yalnız bu yöndeki girişleri test et (diğer yön hiç açılmaz)")
     args = parser.parse_args(argv)
     if args.out.exists() and any(args.out.iterdir()):
         print(json.dumps({"error": "Çıktı klasörü boş değil; yeni bir klasör verin."}, ensure_ascii=False), file=sys.stderr)
@@ -466,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
     symbols = sorted(months)
     if args.limit_coins:
         symbols = symbols[:args.limit_coins]
-    settings = {"limit_decisions": args.limit_decisions}
+    settings = {"limit_decisions": args.limit_decisions, "only_side": args.only_side}
     jobs = [(str(args.data), symbol, months[symbol], settings) for symbol in symbols]
     trades: list[dict] = []
     skipped: Counter = Counter()

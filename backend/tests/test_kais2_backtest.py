@@ -148,3 +148,20 @@ def test_end_to_end_with_trades(tmp_path):
     rows = list(csv.DictReader((out / "trades.csv").open(encoding="utf-8")))
     assert rows and all(row["exit_time"] >= row["entry_time"] for row in rows)
     assert "Maliyet duyarlılığı" in (out / "summary.md").read_text(encoding="utf-8")
+
+
+def test_only_side_filters_other_direction(tmp_path):
+    root = tmp_path / "data"
+    make_data(root, "TESTUSDT", ["2024-07", "2024-08"])
+    original = (bt.core.configured_min_confidence, bt.core.risk_sized_order)
+    bt.core.configured_min_confidence = lambda: 0
+    bt.core.risk_sized_order = lambda entry, stop, policy, atr=None: {"notional_usdt": 300.0, "estimated_stop_loss_usdt": 3.0}
+    try:
+        for side, other in (("LONG", "SHORT"), ("SHORT", "LONG")):
+            out = tmp_path / f"out-{side}"
+            assert bt.main(["--data", str(root), "--out", str(out), "--workers", "1", "--only-side", side]) == 0
+            rows = list(csv.DictReader((out / "trades.csv").open(encoding="utf-8")))
+            assert all(row["direction"] == side for row in rows)
+            assert all(row["direction"] != other for row in rows)
+    finally:
+        bt.core.configured_min_confidence, bt.core.risk_sized_order = original
