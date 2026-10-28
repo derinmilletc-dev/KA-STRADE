@@ -619,14 +619,20 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     return () => window.removeEventListener(KAIS_ASK_EVENT, asked)
   }, [expired])  // eslint-disable-line react-hooks/exhaustive-deps
   // Sesli başlatma ("Hey Kais", ikon kısayolu, Siri): göz ekranını açar, dinlemeye başlar; cümlede soru varsa hemen sorar ve cevabı okur.
+  // Soru varsa önce soru gönderilir (mikrofon hazırlığı beklenmez), cevap okunur, sonra devam sorusu için dinlemeye geçilir.
+  const [waking, setWaking] = useState(false)
   const launchVoice = async (question: string) => {
-    if (expired) return
-    setOpen(false); setHoloOpen(true)
-    if (!voice.active) await voice.start()
-    if (!question || working.current) return
+    if (expired) { setWaking(false); return }
+    setOpen(false); setHoloOpen(true); setWaking(true)
+    if (!question || working.current || voice.active) {
+      if (!voice.active) await voice.start()
+      setWaking(false)
+      return
+    }
     const answer = await sendRef.current(question, true)
     const text = typeof answer === 'string' ? answer : answer?.text
-    if (text) voice.speak(text, undefined, null, typeof answer === 'object' && answer ? answer.language : undefined)
+    if (!text) { setWaking(false); setHoloOpen(false); return }
+    voice.speak(text, () => { void voice.start().finally(() => setWaking(false)) }, null, typeof answer === 'object' && answer ? answer.language : undefined)
   }
   const launchRef = useRef(launchVoice)
   launchRef.current = launchVoice
@@ -636,7 +642,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     return () => window.clearTimeout(timer)
   }, [])
   const [wakeOn, setWakeOn] = useWakeEnabled()
-  const wake = useKaisWake(wakeOn && !expired && !open && !holoOpen && !voice.active && !voice.starting, language, question => void launchRef.current(question))
+  const wake = useKaisWake(wakeOn && !expired && !open && (!holoOpen || waking) && !voice.active && !voice.starting, language,
+    question => void launchRef.current(question),
+    () => { setOpen(false); setWaking(true); setHoloOpen(true) })  // ad duyulduğu an ekran açılır
   const toggleWake = async (value: boolean) => {
     if (value && navigator.mediaDevices?.getUserMedia) {
       try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(track => track.stop()) }
@@ -697,7 +705,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     '--assistant-origin-y': placement.above ? '100%' : '0%'} as CSSProperties
 
   const phaseLabel = voice.phase === 'thinking' ? voice.copy.thinking : voice.phase === 'speaking' ? voice.copy.speaking : voice.starting && !voice.active ? voice.copy.starting : voice.copy.listening
-  const holoVisible = holoOpen && !open && (voice.active || voice.starting || voice.failed)
+  const holoVisible = holoOpen && !open && (voice.active || voice.starting || voice.failed || waking)
   const voicePill = voice.active && !open && !holoOpen && createPortal(<div className="assistantVoicePill" data-phase={voice.phase} role="status" aria-live="polite">
       <button type="button" className="assistantVoicePillMain" onClick={() => setHoloOpen(true)} title={voice.copy.open}><span className="assistantVoiceDot" aria-hidden="true"/>Kais · {voice.message || phaseLabel}</button>
       <button type="button" className="assistantVoicePillEnd" onClick={voice.stop} aria-label={voice.copy.endConversation}><X aria-hidden="true"/>{voice.copy.end}</button>
@@ -712,19 +720,19 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     {voicePill}
     {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
     {dive && <KaisPupilDive dive={dive}/>}
-    {holoVisible && <KaisAgentHolo onSendText={text => { void sendMessage(text) }} onStopListening={voice.stop} busy={busy} recent={messages.filter(row => !row.proactive && typeof row.content === 'string' && row.content.trim()).slice(-3).map(row => ({role: row.role === 'user' ? 'user' as const : 'assistant' as const, text: String(row.content)}))}
+    {holoVisible && <KaisAgentHolo onSendText={text => { void sendMessage(text) }} onStopListening={() => { setWaking(false); if (voice.active) voice.stop(); else setHoloOpen(false) }} busy={busy} recent={messages.filter(row => !row.proactive && typeof row.content === 'string' && row.content.trim()).slice(-3).map(row => ({role: row.role === 'user' ? 'user' as const : 'assistant' as const, text: String(row.content)}))}
       io={{micState: !voice.inputSupported ? 'unsupported' : voice.starting ? 'starting' : voice.failed ? 'failed' : voice.listening ? 'listening' : 'on', outputSupported: voice.outputSupported, repliesOn: voice.replies, onToggleReplies: voice.toggleReplies}} timing={timingLine} alarm={alarm} confirm={(() => {
       const pending = [...messages].reverse().find(row => row.decision === 'pending' && row.confirmation)
       if (!pending?.confirmation) return undefined
       return {title: copy.cost(pending.confirmation.cost), detail: `${pending.confirmation.symbol} / ${pending.confirmation.timeframe}`, confirmLabel: copy.confirm, cancelLabel: copy.cancel, busy: busy || expired,
         onConfirm: () => void confirm(pending), onCancel: () => { decide(pending.id, 'cancelled'); setIssue(null) }}
-    })()} phase={voice.message ? 'error' : voice.phase === 'thinking' ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
+    })()} phase={voice.message ? 'error' : voice.phase === 'thinking' || (waking && busy) ? 'thinking' : voice.phase === 'speaking' ? 'speaking' : 'listening'}
       status={voice.message ? `${voice.message}${issue ? ` (${copy[issue.kind as keyof typeof copy] as string}${issue.status ? ` · ${issue.status}` : ''})` : ''}` : phaseLabel} 
       interruptLabel={voice.copy.interrupt} onInterrupt={voice.interrupt}
       replyText={[...messages].reverse().find(row => row.role === 'assistant' && !row.proactive)?.content} actions={agentActions}
       chatLabel={language === 'en' ? 'Open chat' : 'Sohbeti aç'} closeLabel={language === 'en' ? 'Minimize' : 'Küçült'}
       onOpenChat={() => { setHoloOpen(false); openChat() }}
-      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} language={language} slowText={language === 'en' ? 'The server is taking longer than usual…' : 'Sunucu her zamankinden uzun sürüyor, bekliyorum…'} onRetry={() => voice.active ? voice.retry() : void voice.start()} onMinimize={() => setHoloOpen(false)}/>}
+      retryLabel={language === 'en' ? 'Try again' : 'Tekrar dene'} language={language} slowText={language === 'en' ? 'The server is taking longer than usual…' : 'Sunucu her zamankinden uzun sürüyor, bekliyorum…'} onRetry={() => voice.active ? voice.retry() : void voice.start()} onMinimize={() => { setWaking(false); setHoloOpen(false) }}/>}
     <KaisGreeting enabled={!expired && eyeState !== 'off' && eyeState !== 'error'}
       chatOpen={open} anchorRef={launcherRef} anchorHost={launcherTarget} motionPaused={motionPaused}
       openRequest={greetingOpenRequest} onVisibilityChange={setGreetingVisible} onOpen={openChat}/>

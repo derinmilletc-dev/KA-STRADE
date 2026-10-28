@@ -53,11 +53,14 @@ export function useWakeEnabled(): [boolean, (value: boolean) => void] {
 }
 
 /** active false iken hiç dinlemez. Sürekli hata alırsa (izin yok vb.) durur ve blocked döner. */
-export function useKaisWake(active: boolean, language: string, onWake: (question: string) => void): {listening: boolean; blocked: string | null} {
+/** onHeard: ad duyulduğu AN (ara sonuç) — ekran hemen açılsın. onWake: cümle bitince (ya da en geç ~1,8 sn sonra) soruyla. */
+export function useKaisWake(active: boolean, language: string, onWake: (question: string) => void, onHeard?: () => void): {listening: boolean; blocked: string | null} {
   const [listening, setListening] = useState(false)
   const [blocked, setBlocked] = useState<string | null>(null)
   const wakeRef = useRef(onWake)
   wakeRef.current = onWake
+  const heardRef = useRef(onHeard)
+  heardRef.current = onHeard
   useEffect(() => {
     const Recognizer = recognitionClass()
     if (!active || !Recognizer) { setListening(false); return }
@@ -65,6 +68,9 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
     let current: Recognition | null = null
     let timer = 0
     let failures = 0
+    let heard = false
+    let question = ''
+    let deadline = 0
     const begin = () => {
       if (stopped || document.visibilityState !== 'visible') return
       const instance = new Recognizer()
@@ -73,20 +79,26 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
       instance.continuous = true
       instance.interimResults = true
       instance.maxAlternatives = 1
+      const fire = () => {
+        if (stopped) return
+        stopped = true
+        window.clearTimeout(deadline)
+        instance.onend = null
+        try { instance.abort() } catch { /* zaten durmuş */ }
+        setListening(false)
+        wakeRef.current(question)
+      }
       instance.onresult = event => {
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
           const result = event.results[index]
-          const heard = result[0]?.transcript ?? ''
-          const wake = detectWake(heard)
-          // Ara sonuçta ad duyulunca bekle; cümle bitince (isFinal) soruyla birlikte uyan. Yalnız "Hey Kais" ise hemen uyan.
-          if (wake && (result.isFinal || !wake.question)) {
-            stopped = true
-            instance.onend = null
-            try { instance.abort() } catch { /* zaten durmuş */ }
-            setListening(false)
-            wakeRef.current(wake.question)
-            return
-          }
+          const wake = detectWake(result[0]?.transcript ?? '')
+          if (!wake) continue
+          question = wake.question
+          // Ad duyulur duyulmaz ekranı aç; soru için aynı dinlemeyi sürdür (mikrofon kapatılıp açılmaz, kelime kaybolmaz).
+          if (!heard) { heard = true; heardRef.current?.(); deadline = window.setTimeout(fire, 1800) }
+          if (result.isFinal) { fire(); return }
+          // Soru gelmeye devam ettikçe bekleme süresini uzat (konuşma sürerken kesilmesin).
+          if (wake.question) { window.clearTimeout(deadline); deadline = window.setTimeout(fire, 1200) }
         }
       }
       instance.onerror = event => {
@@ -101,7 +113,8 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
         setListening(false)
         if (stopped) return
         if (failures >= 5) { setBlocked('Dinleme tekrar tekrar kesildi; "Hey Kais" durduruldu.'); return }
-        timer = window.setTimeout(begin, 400)  // telefon tarayıcıları sessizlikte dinlemeyi bitirir; yeniden başlat
+        if (heard) { fire(); return }  // ad duyulmuştu ama tanıma kapandı: eldeki soruyla uyan
+        timer = window.setTimeout(begin, 120)  // telefon tarayıcıları sessizlikte dinlemeyi bitirir; hemen yeniden başlat
       }
       try { instance.start(); setListening(true); setBlocked(null) } catch { timer = window.setTimeout(begin, 1500) }
     }
@@ -115,6 +128,7 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
       stopped = true
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', visibility)
+      window.clearTimeout(deadline)
       if (current) { current.onend = null; try { current.abort() } catch { /* yok */ } }
       setListening(false)
     }
