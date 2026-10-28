@@ -27,6 +27,8 @@ export type TourStep = {
   /** Adımın gösterilmesi için Master Trade'de bu sekmede olunmalı. */
   need?: 'canli' | 'analiz'
   extra?: 'plans' | 'voice'
+  /** Telefonda vurgulanan yerin altında çıkan kısa etiket: "Burası: …". */
+  pin?: string
 }
 
 const TAB_CANLI = ['#master-tab-canli', '#masterTradeTab-canli']
@@ -38,7 +40,7 @@ const CARDS = '.v26DashboardChoices'
 
 export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   const steps: TourStep[] = [
-    {id: 'home', kicker: 'ANA SAYFA', title: 'Her şey buradan başlar',
+    {id: 'home', pin: 'ana sayfa', kicker: 'ANA SAYFA', title: 'Her şey buradan başlar',
       body: phone
         ? 'Ana sayfada bakiyeni, günün özetini ve piyasanın durumunu görürsün. Diğer sayfalara alttaki menüden geçersin; sağdaki Menü tuşunda Tarama, Performans, Destek gibi sayfalar var.'
         : 'Ana sayfada çalışma alanlarını kartlar halinde görürsün: İşlem, Master Trade, Analist, Tarama, Performans, Destek ve diğerleri. Bir karta tıklayınca o sayfa açılır; geri dönmek için sayfadaki Geri tuşunu kullanırsın. En altta Piyasa Nabzı canlı fiyatları gösterir.',
@@ -49,7 +51,7 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   ]
   if (premium) {
     steps.push(
-      {id: 'studio', kicker: 'ANALİZ STÜDYOSU', title: 'Grafik tam ekranda',
+      {id: 'studio', pin: 'tam ekran grafik', kicker: 'ANALİZ STÜDYOSU', title: 'Grafik tam ekranda',
         body: phone
           ? '“Analysis Studio” düğmesi grafiği yatay tam ekranda açar. Düğmeye bas, telefonu yan çevir; kapatınca kaldığın yere dönersin.'
           : '“Analysis Studio” düğmesi grafiği tek tıkla tam ekranda açar. Kapatınca kaldığın yere dönersin.',
@@ -57,21 +59,21 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
         feats: [{icon: '✎', text: 'Çizim araçları: çizgi, trend, alarm'}, {icon: '🔎', text: 'Coin seçici, zaman dilimi, göstergeler'}, {icon: '✦', text: '“Kais AI’a Sor” grafiği yorumlar'}, {icon: '▤', text: 'Analiz paneli: giriş, stop, hedefler'}],
         note: 'Seviyeler analiz çıktısıdır; kazanç garantisi değildir.',
         view: 'master-trade', targets: ['.kfsStudioBtn'], need: 'analiz'},
-      {id: 'studio-trade', kicker: 'ANALİZ STÜDYOSU', title: 'İşlem aç ve canlı takip',
+      {id: 'studio-trade', pin: 'işlem aç', kicker: 'ANALİZ STÜDYOSU', title: 'İşlem aç ve canlı takip',
         body: '“İşlem aç” Manuel işlem panelini o coinle açar. Emir yine aynı güvenlik adımlarından geçer; Kais senin yerine emir göndermez.',
         hero: 'trade',
         feats: [{icon: '🛡', text: 'Dry-run, ARM kilidi ve yazı onayı aynı'}, {icon: '📈', text: 'Emir sonrası grafikte canlı takip'}, {icon: '💹', text: 'Açık pozisyonda giriş, stop ve hedef çizgileri ile anlık kâr/zarar kartı görünür. Kart yalnız gösterir; pozisyonu kapatmaz.', wide: true}],
         view: 'master-trade', targets: phone ? ['.refTradeCta'] : ['.refTradeBtn'], need: 'analiz'},
-      {id: 'master-press', kicker: 'MASTER TRADE', title: 'Canlı İşlem sekmesine dokun',
+      {id: 'master-press', pin: 'Canlı İşlem', kicker: 'MASTER TRADE', title: 'Canlı İşlem sekmesine dokun',
         body: 'Master Trade, canlı işlem alanındır. Parlayan “Canlı İşlem” sekmesine dokunarak devam edelim; sen dokunana kadar bekliyorum.',
         view: 'master-trade', targets: TAB_CANLI, press: 'canli'},
-      {id: 'master-guide', kicker: 'MASTER TRADE', title: 'Kais Rehber seninle',
+      {id: 'master-guide', pin: 'Kais Rehber', kicker: 'MASTER TRADE', title: 'Kais Rehber seninle',
         body: 'Rehber; risk, günlük sınır, teminat ve izinleri adım adım hazırlar. Her adımı sen onaylarsın, Kais senin yerine işlem açmaz.',
         bullets: ['Pozisyonlar sekmesinde açık işlemlerini ve kâr/zararını görürsün.', 'Bağlantı sekmesinde Binance anahtarını kaydedersin; para çekme iznini açma.'],
         targets: ['[data-testid="live-guide"]', '#master-panel-canli'], need: 'canli'},
     )
   } else {
-    steps.push({id: 'master-locked', kicker: 'MASTER TRADE', title: 'Canlı işlem alanı Premium’da',
+    steps.push({id: 'master-locked', pin: 'Master Trade', kicker: 'MASTER TRADE', title: 'Canlı işlem alanı Premium’da',
       body: 'Master Trade canlı işlem alanıdır ve Master Mode (Premium) üyelere açıktır. İçindeki Kais Rehber; risk, günlük sınır ve izinleri adım adım hazırlar, her adımı sen onaylarsın.',
       view: 'dashboard', targets: phone ? [`${NAV} button:nth-child(4)`] : [`${CARDS} button:nth-child(2)`]})
   }
@@ -82,7 +84,7 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
     {id: 'plans', kicker: 'PAKETLER', title: premium ? 'Master Mode açık' : 'Ücretsiz mi, Premium mu?',
       body: premium ? 'Premium üyeliğin aktif. Paketler sayfasından planını ve faturalarını yönetebilirsin.' : 'İkisiyle de Kais’i kullanırsın. Fark, ne kadar ve ne derinlikte baktığında:',
       view: 'billing', extra: 'plans'},
-    {id: 'kais', kicker: 'KAİS AI', title: 'Sorularını Kais’e sor',
+    {id: 'kais', pin: 'Kais AI', kicker: 'KAİS AI', title: 'Sorularını Kais’e sor',
       body: `Kais; analizleri, piyasayı ve (izin verdiysen) kendi hesabını okuyup sade bir dille anlatır. ${phone ? 'Gözü alttaki menünün ortasında bulursun.' : 'Gözü sayfanın sağ üstünde bulursun.'} Yalnız okur: emir açamaz, kapatamaz, ayar değiştiremez.`,
       bullets: ['“Bu hafta nasıl gitti?”', '“Neden işlem açmadın?”', '“BTC mi ETH mi?”'], view: 'dashboard',
       targets: phone ? ['.v26NavAssistantHost button', '.v26NavAssistantHost'] : ['.v26HeaderActions .assistantLauncher', '.assistantLauncher']},

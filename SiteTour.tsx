@@ -78,6 +78,8 @@ export default function SiteTour() {
   const [tab, setTab] = useState<string | null>(() => readTab())
   const [box, setBox] = useState<Box | null>(null)
   const [panelHeight, setPanelHeight] = useState(260)
+  const [more, setMore] = useState(false)
+  const dockTop = useRef(0)
   const panel = useRef<HTMLDivElement | null>(null)
   const primary = useRef<HTMLButtonElement | null>(null)
   const phone = usePhone()
@@ -131,6 +133,7 @@ export default function SiteTour() {
     if (mode !== 'tour' || !step) { entered.current = ''; return }
     if (entered.current === step.id) return
     entered.current = step.id
+    setMore(false)
     if (step.view) goView(step.view)
     if (step.need && readTab() !== step.need) goTab(step.need)
   }, [mode, step])
@@ -147,7 +150,22 @@ export default function SiteTour() {
       setBox(current => current && current.top === value.top && current.left === value.left && current.width === value.width && current.height === value.height ? current : value)
     }
     const element = findTarget(step.targets)
-    if (element) { try { element.scrollIntoView({block: 'center', behavior: 'smooth'}) } catch { /* eski tarayıcı */ } }
+    if (element) {
+      try {
+        if (window.innerWidth <= 640) {
+          // Telefon: vurgulanan yer alttaki panelin üstündeki boş alanın üst yarısına getirilir; alt menüdeki öğelere dokunulmaz.
+          const rect = element.getBoundingClientRect()
+          const free = dockTop.current > 0 ? dockTop.current : window.innerHeight - 260
+          if (rect.top < free - 8) {
+            const margin = Math.max(14, Math.min(free * 0.3, (free - rect.height) * 0.35))
+            const previous = element.style.scrollMarginTop
+            element.style.scrollMarginTop = `${Math.round(margin)}px`
+            element.scrollIntoView({block: 'start', behavior: 'smooth'})
+            window.setTimeout(() => { element.style.scrollMarginTop = previous }, 900)
+          }
+        } else element.scrollIntoView({block: 'center', behavior: 'smooth'})
+      } catch { /* eski tarayıcı */ }
+    }
     measure()
     const timer = window.setInterval(measure, 250)
     window.addEventListener('resize', measure); window.addEventListener('scroll', measure, true)
@@ -199,13 +217,11 @@ export default function SiteTour() {
   const width = Math.min(420, vw - 24)
   let style: CSSProperties | undefined
   if (mobile) {
-    // Telefon: kart alt menünün üstünde durur; vurgulanan yer alt yarıdaysa kart üste geçer, vurguyu kapatmaz.
+    // Telefon: ince panel hep alt menünün hemen üstünde durur, yeri değişmez; vurgulanan yer panelin üstündeki alana kaydırılır.
     const nav = document.querySelector<HTMLElement>('.v26MobileBottomNav')
-    const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh
-    const targetLow = Boolean(box && box.top + box.height / 2 > vh * 0.45)
-    style = targetLow
-      ? {left: 12, right: 12, bottom: 'auto', top: 'max(12px, env(safe-area-inset-top))', maxHeight: Math.max(160, navTop - 24), overflowY: 'auto'}
-      : {left: 12, right: 12, bottom: Math.max(12, vh - navTop + 10), maxHeight: Math.max(160, navTop - 24), overflowY: 'auto'}
+    const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh - 6
+    style = {left: 8, right: 8, bottom: Math.max(8, vh - navTop + 8), maxHeight: Math.max(160, Math.min(navTop - 24, vh * 0.62))}
+    dockTop.current = Math.max(0, vh - (typeof style.bottom === 'number' ? style.bottom : 8) - panelHeight)
   } else if (!box || box.height > vh * 0.55) {
     style = box ? {right: 24, bottom: 24, width} : {left: Math.max(12, (vw - width) / 2), top: Math.max(12, (vh - panelHeight) / 2), width}
   } else {
@@ -214,6 +230,40 @@ export default function SiteTour() {
     style = {top, left: Math.min(Math.max(12, box.left + box.width / 2 - width / 2), vw - width - 12), width}
   }
   const next = () => { if (last) close('never'); else setIndex(current => Math.min(steps.length - 1, current + 1)) }
+
+  if (mobile) {
+    const hasMore = Boolean(step.extra || step.feats || step.note || step.bullets)
+    const pinFits = Boolean(box && step.pin && box.top + box.height + 40 < dockTop.current)
+    return createPortal(<div className="ktTour" data-mode="tour" data-step={step.id} data-dock="">
+      {box ? <div className="ktTourSpot" data-press={step.press ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}
+      {box && step.press && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
+      {box && pinFits && <span className="ktTourPin" aria-hidden="true" style={{top: box.top + box.height + 10, left: Math.min(Math.max(8, box.left + box.width / 2 - 80), vw - 168)}}>Burası: {step.pin}</span>}
+      <div ref={panel} className="ktTourCard ktTourDock" data-mobile="" data-more={more || undefined} style={style} role="dialog" aria-modal="false" aria-labelledby="kt-tour-title" data-testid="site-tour">
+        <i className="ktTourGrip" aria-hidden="true"/>
+        <div className="ktTourTop"><small className="ktTourKicker">{index + 1} / {steps.length} · {step.kicker}</small><button type="button" className="ktTourX" aria-label="Turu kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button></div>
+        <div className="ktTourBar" aria-hidden="true"><i style={{width: `${Math.round(((index + 1) / steps.length) * 100)}%`}}/></div>
+        <h3 id="kt-tour-title">{step.title}</h3>
+        <p>{step.body}</p>
+        {pressWaiting && <p className="ktTourNudge">👆 Parlayan sekmeye dokun.</p>}
+        {wrongTab && <button type="button" className="ktTourLink" onClick={() => step.need && goTab(step.need)}>Sizi oraya götüreyim</button>}
+        {hasMore && <button type="button" className="ktTourMore" aria-expanded={more} onClick={() => setMore(value => !value)}>{more ? 'Daha az ⌃' : 'Daha fazla ⌄'}</button>}
+        {hasMore && more && <div className="ktTourMoreBody">
+          {step.extra === 'plans' && <Plans premium={premium}/>}
+          {step.extra === 'voice' && <div className="ktTourSay">{['Hey Kais, bugün nasıl gitti?', 'Hey Kais, BTC mi ETH mi?', 'Hey Kais, neden işlem açmadın?'].map(text => <span key={text}>🎙️ “{text}”</span>)}</div>}
+          {step.feats && <div className="ktTourFeats">{step.feats.map(item => <div key={item.text} data-wide={item.wide || undefined}><span aria-hidden="true">{item.icon}</span>{item.text}</div>)}</div>}
+          {step.bullets && <ul className="ktTourList">{step.bullets.map(text => <li key={text}>{text}</li>)}</ul>}
+          {step.note && <p className="ktTourNote">{step.note}</p>}
+        </div>}
+        {step.extra === 'voice' ? <div className="ktTourActions" data-voice="">
+          <button type="button" className="ktTourGhost" onClick={next}>Turu bitir 🎉</button>
+          <button ref={primary} type="button" className="ktTourGo" data-testid="site-tour-voice" onClick={() => { close('never'); startKaisVoice() }}>Hey Kais’i dene</button>
+        </div> : <div className="ktTourActions">
+          <button type="button" className="ktTourBack" aria-label="Geri" disabled={index === 0} onClick={() => setIndex(current => Math.max(0, current - 1))}>←</button>
+          <button ref={primary} type="button" className="ktTourGo" disabled={blocked} data-testid="site-tour-next" onClick={next}>{pressWaiting ? 'Sekmeye dokun…' : last ? 'Bitir' : 'İleri →'}</button>
+        </div>}
+      </div>
+    </div>, document.body)
+  }
 
   return createPortal(<div className="ktTour" data-mode="tour" data-step={step.id}>
     {box ? <div className="ktTourSpot" data-press={step.press ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}

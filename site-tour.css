@@ -101,3 +101,31 @@ html body .ktTour .ktTourFeats > div[data-wide] { grid-column: 1 / -1; }
 html body .ktTour .ktTourFeats > div > span { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: rgba(124, 184, 255, .14); font-size: 14px; }
 html body .ktTour .ktTourNote { margin: 0; padding: 9px 12px; border-radius: 12px; background: rgba(242, 196, 109, .08); border: 1px solid rgba(242, 196, 109, .25); color: #e9c67f; font-size: 11.5px; line-height: 1.4; }
 @media (max-width: 640px) { html body .ktTour .ktTourHero { margin: -20px -16px 6px; } html body .ktTour .ktTourFeats { grid-template-columns: 1fr; } html body .ktTour .ktTourHero[data-hero="trade"] > span { font-size: 11px; padding: 7px 8px; } }
+
+/* Telefon: ince, yarı saydam, alt menünün üstüne yerleşen panel. Yeri sabit; vurgulanan yer panelin üstündeki alana kaydırılır. */
+@media (max-width: 640px) {
+  html body .ktTour[data-dock] .ktTourDim { background: rgba(3, 8, 16, .18); backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+  html body .ktTour[data-dock] .ktTourSpot { box-shadow: 0 0 0 9999px rgba(3, 8, 16, .18), 0 0 0 2.5px #3ddc97, 0 0 22px 3px rgba(61, 220, 151, .5); }
+  html body .ktTour .ktTourDock { gap: 6px; padding: 8px 14px 12px; border-radius: 20px; overflow-y: auto; background: rgba(12, 21, 33, .86) !important; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); border: 1px solid rgba(61, 220, 151, .22) !important; box-shadow: 0 -6px 28px rgba(0, 0, 0, .35) !important; animation: none; }
+  html body .ktTour .ktTourGrip { display: block; justify-self: center; width: 34px; height: 4px; border-radius: 2px; background: rgba(159, 178, 200, .35); }
+  html body .ktTour .ktTourTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  html body .ktTour .ktTourTop .ktTourKicker { font-size: 10.5px; }
+  html body .ktTour .ktTourDock .ktTourX { position: static; width: 26px; height: 26px; background: rgba(24, 38, 58, .8) !important; }
+  html body .ktTour .ktTourDock .ktTourX svg { width: 13px; height: 13px; }
+  html body .ktTour .ktTourBar { height: 3px; border-radius: 2px; background: rgba(34, 50, 74, .8); overflow: hidden; }
+  html body .ktTour .ktTourBar i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #3ddc97, #7bf0c3); transition: width .3s ease; }
+  html body .ktTour .ktTourDock h3 { font-size: 15.5px; line-height: 1.25; }
+  html body .ktTour .ktTourDock > p { font-size: 13px; line-height: 1.45; }
+  html body .ktTour .ktTourMore { justify-self: start; min-height: 0; padding: 2px 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; color: #7bf0c3 !important; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  html body .ktTour .ktTourMoreBody { display: grid; gap: 8px; }
+  html body .ktTour .ktTourMoreBody .ktTourFeats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  html body .ktTour .ktTourMoreBody .ktTourFeats > div { padding: 7px 8px; font-size: 12px; border-radius: 10px; }
+  html body .ktTour .ktTourMoreBody p { font-size: 12.5px; line-height: 1.4; }
+  html body .ktTour .ktTourDock .ktTourActions { grid-template-columns: 44px 1fr; gap: 8px; margin-top: 2px; }
+  html body .ktTour .ktTourDock .ktTourActions[data-voice] { grid-template-columns: auto 1fr; }
+  html body .ktTour .ktTourBack { width: 44px; height: 42px; min-height: 0; padding: 0 !important; display: grid; place-items: center; border: 0 !important; border-radius: 12px !important; background: rgba(24, 38, 58, .85) !important; color: #c3d1e2 !important; font: inherit; font-size: 18px; box-shadow: none !important; cursor: pointer; }
+  html body .ktTour .ktTourBack:disabled { opacity: .3; cursor: default; }
+  html body .ktTour .ktTourDock .ktTourGo { min-height: 42px; border-radius: 12px !important; font-size: 15px; }
+  html body .ktTour .ktTourDock .ktTourGhost { min-height: 42px; font-size: 13.5px; }
+  html body .ktTour .ktTourPin { position: fixed; z-index: 2; pointer-events: none; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 750; white-space: nowrap; color: #04130c; background: #3ddc97; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+}
