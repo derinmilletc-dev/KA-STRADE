@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -15,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from . import assistant_help, subscription_core, v25_execution
 from .analyst_credits import ANALYSIS_COST, AnalystCredits, ConsumeAnalysis, CreditConfig, CreditTransaction
@@ -57,6 +58,25 @@ class EventsArguments(NoArguments):
     limit: int = Field(default=15, ge=1, le=30)
 
 
+class CompareArguments(NoArguments):
+    symbols: list[str] = Field(min_length=2, max_length=4)
+
+    @field_validator("symbols")
+    @classmethod
+    def normalize(cls, values: list[str]) -> list[str]:
+        out: list[str] = []
+        for value in values:
+            symbol = re.sub(r"[^A-Z0-9]", "", str(value).upper())
+            symbol = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+            if not re.fullmatch(r"[A-Z0-9]{2,25}USDT", symbol):
+                raise ValueError("invalid symbol")
+            if symbol not in out:
+                out.append(symbol)
+        if len(out) < 2:
+            raise ValueError("at least two different symbols required")
+        return out
+
+
 class ConfirmAnalysis(AnalysisArguments):
     confirm: StrictBool
     confirmation_token: str = Field(min_length=1)
@@ -71,6 +91,7 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "get_my_positions": NoArguments,
     "get_demo_positions": NoArguments,
     "get_market_overview": NoArguments,
+    "compare_coins": CompareArguments,
     "get_protection_status": ProtectionArguments,
     "get_live_strategy": NoArguments,
     "get_my_account_summary": NoArguments,
@@ -334,6 +355,70 @@ class AssistantTools:
             usage = await self.credits().charge_market_overview(user_id, day, free_limit)
             allowed = usage.pop("allowed")
             if not allowed:
+                return self.result({"reason": usage.pop("reason"), "free_usage": usage}, stale=True)
+            data["free_usage"] = usage
+        return self.result(data, stale=stale)
+
+    async def compare_coins(self, user_id: str, symbols: list[str]) -> dict[str, Any]:
+        """Coin karşılaştırma (salt okunur, kredi harcatan analiz üretmez): canlı 24s fiyat/değişim/hacim + son TAZE taramadaki
+        Analist skorları. Taramada olmayan coin için skor uydurulmaz. Piyasa özetiyle aynı hak/kredi kuralı."""
+        premium = self.premium(user_id)
+        free_limit = int(getattr(self.config, "free_market_daily_limit", 0) or 0)
+        if not premium and free_limit <= 0:
+            return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
+        from .readonly_demo_service import MAX_SIGNAL_AGE_SECONDS, read_scanner_candidates
+        from . import v21_demo
+        stale = False
+        live: dict[str, dict[str, Any]] = {}
+        try:
+            rows = await asyncio.wait_for(v21_demo.auto_trade_market_universe(self.request.app), timeout=self.config.request_timeout_seconds)
+            live = {row["symbol"]: row for row in rows if isinstance(row, dict) and row.get("symbol")}
+        except Exception:
+            stale = True
+        scan_rows: dict[str, dict[str, Any]] = {}
+        scan_status = "unavailable"
+        scan_at = None
+        try:
+            member = getattr(getattr(self.request, "state", None), "member", None) or {}
+            if not str(member.get("id") or "").strip():
+                raise PermissionError("member session required")
+            scanner = v21_demo.state_for(self.request).get("scanner") or {}
+            scan_at = scanner.get("last_scan_at")
+            scanned = parse_datetime(scan_at) if scan_at else None
+            age = self.clock() - scanned.timestamp() if scanned else None
+            if age is None or age < 0:
+                scan_status = "no_scan"
+            elif age > MAX_SIGNAL_AGE_SECONDS:
+                scan_status = "stale"
+            else:
+                scan_status = "fresh"
+                scan_rows = {str(r.get("symbol")): r for r in scanner.get("all_candidates") or [] if isinstance(r, dict) and r.get("symbol")}
+        except Exception:
+            scan_status = "unavailable"
+        if scan_status != "fresh":
+            stale = True
+        coins = []
+        for symbol in symbols:
+            tick = live.get(symbol)
+            item: dict[str, Any] = {"symbol": symbol}
+            if tick and all(isinstance(tick.get(k), (int, float)) and math.isfinite(tick[k]) for k in ("price", "change", "volume")):
+                item.update({"price": tick["price"], "change_24h_percent": round(tick["change"], 2), "volume_24h_usdt": round(tick["volume"])})
+            else:
+                item["live"] = "unavailable"
+            row = scan_rows.get(symbol)
+            if row:
+                item["analyst"] = {key: row.get(key) for key in ("direction", "opportunity_score", "analysis_score", "confidence_value")}
+                item["analyst"]["confidence_label"] = row.get("confidence")
+            elif scan_status == "fresh":
+                item["analyst"] = "not_in_latest_scan"
+            coins.append(item)
+        data: dict[str, Any] = {"coins": coins, "scan": {"status": scan_status, "last_scan_at": scan_at}}
+        if all(c.get("live") == "unavailable" for c in coins) and scan_status != "fresh":
+            return self.result(data, stale=True)
+        if not premium:
+            day = datetime.fromtimestamp(self.clock(), timezone.utc).date().isoformat()
+            usage = await self.credits().charge_market_overview(user_id, day, free_limit)
+            if not usage.pop("allowed"):
                 return self.result({"reason": usage.pop("reason"), "free_usage": usage}, stale=True)
             data["free_usage"] = usage
         return self.result(data, stale=stale)
