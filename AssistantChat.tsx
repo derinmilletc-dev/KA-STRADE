@@ -3,7 +3,7 @@ import {KAIS_ASK_EVENT, kaisAskMessage} from './kais-ask'
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice, type VoiceAnswer } from './assistant-voice'
-import { readWake, useKaisWake, wakeSupported, writeWake } from './useKaisWake'
+import { useKaisWake, useWakeEnabled, wakeSupported } from './useKaisWake'
 import { takeVoiceLaunch } from './kais-wake-text'
 import KaisAgentHolo from './KaisAgentHolo'
 import KaisPupilDive, {pupilDiveOrigin, type PupilDive} from './KaisPupilDive'
@@ -635,14 +635,14 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     const timer = window.setTimeout(() => { pendingVoiceLaunch = false; void launchRef.current('') }, 700)
     return () => window.clearTimeout(timer)
   }, [])
-  const [wakeOn, setWakeOn] = useState(readWake)
+  const [wakeOn, setWakeOn] = useWakeEnabled()
   const wake = useKaisWake(wakeOn && !expired && !open && !holoOpen && !voice.active && !voice.starting, language, question => void launchRef.current(question))
   const toggleWake = async (value: boolean) => {
     if (value && navigator.mediaDevices?.getUserMedia) {
       try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(track => track.stop()) }
       catch { return }  // izin verilmedi: anahtar kapalı kalır
     }
-    writeWake(value); setWakeOn(value)
+    setWakeOn(value)
   }
   // Göz ekranı düğmeye basılır basılmaz (mikrofon hazırlanırken de) açılır ve hata olursa nedeniyle açık kalır; yalnızca normal bitişte kapanır.
   useEffect(() => {
