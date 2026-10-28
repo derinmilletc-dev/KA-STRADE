@@ -3,6 +3,8 @@ import {KAIS_ASK_EVENT, kaisAskMessage} from './kais-ask'
 import { createPortal } from 'react-dom'
 import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucide-react'
 import { useVoice, type VoiceAnswer } from './assistant-voice'
+import { readWake, useKaisWake, wakeSupported, writeWake } from './useKaisWake'
+import { takeVoiceLaunch } from './kais-wake-text'
 import KaisAgentHolo from './KaisAgentHolo'
 import KaisPupilDive, {pupilDiveOrigin, type PupilDive} from './KaisPupilDive'
 import KaisOrderCard from './KaisOrderCard'
@@ -71,6 +73,9 @@ class AssistantFailure extends Error {
 }
 
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+// Ana ekran ikonu kısayolu ve Siri ?kais=voice ile açar: modül yüklenirken bir kez okunur ve adresten silinir.
+let pendingVoiceLaunch = typeof window !== 'undefined' && takeVoiceLaunch(window.location, url => window.history.replaceState(window.history.state, '', url))
+
 const languageOfPage = (): Language => document.documentElement.lang.toLowerCase().startsWith('en') ? 'en' : 'tr'
 const truncate = (value: string, max: number) => Array.from(value).slice(0, max).join('')
 const integer = (value: unknown, minimum = 0): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum
@@ -613,6 +618,32 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     window.addEventListener(KAIS_ASK_EVENT, asked)
     return () => window.removeEventListener(KAIS_ASK_EVENT, asked)
   }, [expired])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Sesli başlatma ("Hey Kais", ikon kısayolu, Siri): göz ekranını açar, dinlemeye başlar; cümlede soru varsa hemen sorar ve cevabı okur.
+  const launchVoice = async (question: string) => {
+    if (expired) return
+    setOpen(false); setHoloOpen(true)
+    if (!voice.active) await voice.start()
+    if (!question || working.current) return
+    const answer = await sendRef.current(question, true)
+    const text = typeof answer === 'string' ? answer : answer?.text
+    if (text) voice.speak(text, undefined, null, typeof answer === 'object' && answer ? answer.language : undefined)
+  }
+  const launchRef = useRef(launchVoice)
+  launchRef.current = launchVoice
+  useEffect(() => {
+    if (!pendingVoiceLaunch) return
+    const timer = window.setTimeout(() => { pendingVoiceLaunch = false; void launchRef.current('') }, 700)
+    return () => window.clearTimeout(timer)
+  }, [])
+  const [wakeOn, setWakeOn] = useState(readWake)
+  const wake = useKaisWake(wakeOn && !expired && !open && !holoOpen && !voice.active && !voice.starting, language, question => void launchRef.current(question))
+  const toggleWake = async (value: boolean) => {
+    if (value && navigator.mediaDevices?.getUserMedia) {
+      try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(track => track.stop()) }
+      catch { return }  // izin verilmedi: anahtar kapalı kalır
+    }
+    writeWake(value); setWakeOn(value)
+  }
   // Göz ekranı düğmeye basılır basılmaz (mikrofon hazırlanırken de) açılır ve hata olursa nedeniyle açık kalır; yalnızca normal bitişte kapanır.
   useEffect(() => {
     if (voice.active || voice.starting) { setHoloOpen(true); setOpen(false) }
@@ -710,6 +741,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
                 <span>{copy.proactiveSetting}</span>
               </label>
               <small id="assistant-checkin-hint" role="status">{preferenceBusy ? copy.proactiveSaving : copy.proactiveHint}</small>
+              {wakeSupported() && <><label className="assistantPreference">
+                <input type="checkbox" aria-describedby="assistant-wake-hint" checked={wakeOn} onChange={event => void toggleWake(event.target.checked)}/>
+                <span>{language === 'en' ? '"Hey Kais" (while the app is open)' : '"Hey Kais" ile uyandır (uygulama açıkken)'}</span>
+              </label>
+              <small id="assistant-wake-hint" role="status">{wake.blocked ?? (wakeOn
+                ? (language === 'en' ? 'Listening only while KaisTrade is open on screen. Nothing is recorded.' : 'Yalnız KaisTrade ekranda açıkken dinler. Ses kaydedilmez.')
+                : (language === 'en' ? 'Say "Hey Kais" and ask. Uses a little more battery.' : '"Hey Kais" de ve sor. Pili biraz daha fazla kullanır.'))}</small></>}
             </div>}
           </div>
           <button type="button" aria-label={copy.clear} disabled={busy} onClick={() => {

@@ -19,6 +19,7 @@
     {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
+    {"name": "Kais'e sor", "short_name": "Kais", "description": "Kais AI ile sesli konuş", "url": "/?kais=voice", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
     {"name": "Master Trade", "short_name": "Master", "url": "/master-trade", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]}
   ]
 }

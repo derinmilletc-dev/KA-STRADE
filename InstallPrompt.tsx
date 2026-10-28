@@ -66,7 +66,7 @@ export default function InstallPrompt() {
       <img src="/icon-192.png" alt="" width={52} height={52}/>
       <div>
         <b id="kt-install-title">KaisTrade’i ana ekrana ekle</b>
-        <p id="kt-install-text">Tek dokunuşla aç, tam ekran kullan, bildirimleri kaçırma.</p>
+        <p id="kt-install-text">Tek dokunuşla aç, Kais'e sesle sor, bildirimleri kaçırma.</p>
       </div>
     </div>
     {iosSteps ? <ol className="ktInstallSteps">
