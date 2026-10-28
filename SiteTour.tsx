@@ -142,6 +142,7 @@ export default function SiteTour() {
   useEffect(() => {
     if (mode !== 'tour' || !step) { setBox(null); return }
     const measure = () => {
+      bring()
       const element = findTarget(step.targets)
       if (!element) { setBox(null); return }
       const rect = element.getBoundingClientRect()
@@ -149,28 +150,33 @@ export default function SiteTour() {
       const value = {top: Math.round(rect.top - pad), left: Math.round(rect.left - pad), width: Math.round(rect.width + pad * 2), height: Math.round(rect.height + pad * 2)}
       setBox(current => current && current.top === value.top && current.left === value.left && current.width === value.width && current.height === value.height ? current : value)
     }
-    const element = findTarget(step.targets)
-    if (element) {
+    // Kaydırma adım başına yalnız bir kez, hedef ilk göründüğünde yapılır (sekme açılması gecikse de bulunca gider).
+    let scrolled = false
+    const bring = () => {
+      if (scrolled) return
+      const element = findTarget(step.targets)
+      if (!element) return
+      scrolled = true
       try {
         if (window.innerWidth <= 640) {
-          // Telefon: vurgulanan yer alttaki panelin üstündeki boş alanın üst yarısına getirilir; alt menüdeki öğelere dokunulmaz.
-          const rect = element.getBoundingClientRect()
+          // Telefon: vurgulanan yer panelin üstündeki boş alana getirilir; alt menüdeki öğeler yerinde kalır.
+          if (element.closest('.v26MobileBottomNav, .v26NavAssistantHost')) return
           const free = dockTop.current > 0 ? dockTop.current : window.innerHeight - 260
-          if (rect.top < free - 8) {
-            const margin = Math.max(14, Math.min(free * 0.3, (free - rect.height) * 0.35))
-            const previous = element.style.scrollMarginTop
-            element.style.scrollMarginTop = `${Math.round(margin)}px`
-            element.scrollIntoView({block: 'start', behavior: 'smooth'})
-            window.setTimeout(() => { element.style.scrollMarginTop = previous }, 900)
-          }
+          const rect = element.getBoundingClientRect()
+          const margin = Math.max(14, Math.min(free * 0.3, (free - rect.height) * 0.35))
+          const previous = element.style.scrollMarginTop
+          element.style.scrollMarginTop = `${Math.round(margin)}px`
+          element.scrollIntoView({block: 'start', behavior: 'smooth'})
+          window.setTimeout(() => { element.style.scrollMarginTop = previous }, 1200)
         } else element.scrollIntoView({block: 'center', behavior: 'smooth'})
       } catch { /* eski tarayıcı */ }
     }
+    bring()
     measure()
     const timer = window.setInterval(measure, 250)
     window.addEventListener('resize', measure); window.addEventListener('scroll', measure, true)
     return () => { window.clearInterval(timer); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true) }
-  }, [mode, step, tab])
+  }, [mode, step?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Şimdi sen dokun" adımı: kullanıcı sekmeye basınca kendiliğinden ilerler.
   const pressed = Boolean(step?.press && tab === step.press)
