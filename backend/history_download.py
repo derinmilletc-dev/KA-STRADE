@@ -2,7 +2,8 @@
 """Kais 2 ana tarihsel veri indirme (iki aşamalı). Yalnız geliştirme dönemi (2024-05..2026-05).
 
 Aşama 1  Günlük mumlar (~20 MB) → aylık ilk-100 evren + funding eksiğinin etkisi raporu. Burada DURULUR.
-Aşama 2  Yalnız sen "devam" dedikten sonra, `--confirm` ile: evrene giren coinlerin 15m/1h/4h mumları,
+Aşama 2  Yalnız sen "devam" dedikten sonra, `--confirm` ile: evrene giren coinlerin 15m mumları ve funding'i
+         (1h/4h 15m'den hesaplanır; mark fiyatı indirilmez). Eski açıklama: 15m/1h/4h mumları,
          mark price 15m ve funding verisi. Her dosya SHA-256 ile doğrulanır, indirme sonrası içerik kontrolü yapılır.
 
 Güvenlik kuralları (ikisi için de):
@@ -36,8 +37,8 @@ import history_universe_probe as probe
 
 VERSION = "history-download-v1"
 STAGE2_MARKER = "STAGE2.json"
-KINDS: tuple[tuple[str, str], ...] = (("klines", "15m"), ("klines", "1h"), ("klines", "4h"),
-                                      ("markPriceKlines", "15m"), ("fundingRate", ""))
+# Küçültülmüş indirme: yalnız 15m mum + funding. 1h/4h mumlar 15m'den hesaplanır (indirilmez).
+KINDS: tuple[tuple[str, str], ...] = (("klines", "15m"), ("fundingRate", ""))
 STEP_SECONDS = {"15m": 900, "1h": 3600, "4h": 14400}
 MAX_CSV_BYTES = 40_000_000
 
@@ -214,7 +215,8 @@ def run_stage1(args: argparse.Namespace) -> int:
 
 
 def run_stage2(args: argparse.Namespace) -> int:
-    probe.load_report(args.report)  # biçim denetimi
+    if args.report is not None:
+        probe.load_report(args.report)  # biçim denetimi
     root = probe.check_output(args.output, resume=True)
     if not (root / probe.MARKER).is_file():
         print(json.dumps({"error": "Bu klasör aşama 1'den gelmiyor (PROBE.json yok)."}, ensure_ascii=False), file=sys.stderr)
@@ -260,7 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="stage", required=True)
     for name in ("stage1", "stage2"):
         p = sub.add_parser(name)
-        p.add_argument("--report", required=True, type=Path, help="keşif aracının discovery-report.json dosyası (yalnız okunur)")
+        p.add_argument("--report", required=name == "stage1", type=Path,
+                       help="keşif aracının discovery-report.json dosyası (yalnız okunur; aşama 2'de isteğe bağlı)")
         p.add_argument("--output", required=True, type=Path)
         p.add_argument("--rate", type=float, default=probe.RATE_PER_SECOND)
         p.add_argument("--resume", action="store_true")

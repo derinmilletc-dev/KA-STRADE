@@ -143,6 +143,16 @@ def test_stage2_without_confirm_only_plans(tmp_path):
     assert not any(url.endswith((".zip", ".CHECKSUM")) for url in http.urls)  # plan: yalnız liste istekleri
 
 
+def test_stage2_runs_without_report_and_downloads_only_15m_and_funding(tmp_path):
+    store = build_store()
+    out = stage1(tmp_path, store)
+    code, http = run_with(store, ["stage2", "--output", str(out), "--confirm"])
+    assert code == 0
+    zips = [url for url in http.urls if url.endswith(".zip")]
+    assert zips and all("/klines/" in url and "-15m-" in url or "/fundingRate/" in url for url in zips if "/1d/" not in url)
+    assert not any("markPriceKlines" in url or "-1h-" in url or "-4h-" in url for url in zips)
+
+
 def test_stage2_confirm_downloads_validates_and_never_touches_locked_months(tmp_path):
     store = build_store()
     out = stage1(tmp_path, store)
