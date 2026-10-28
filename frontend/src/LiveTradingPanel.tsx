@@ -14,6 +14,7 @@ import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
 import {askKais} from '../../kais-ask'
+import {CoinIcon} from '../../src/components/CoinIcon'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
@@ -1436,7 +1437,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     </>
     // Telefon: coin seçimi tek ekranda (arama açık, sekmeli filtre, tek seçici sıralama, kaydırılan liste). Masaüstünde gizli.
     const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
-    const coinMark = (row: CoinRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true">{String(row?.display || fallback || '?').replace('/USDT', '').replace('USDT', '').slice(0, 3)}</span>
+    const coinMark = (row: CoinRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={row?.symbol || fallback} size={40}/></span>
     const mobileList = matches.slice(0, 120)
     const coinMobile = <div className="mxtM mxtMCoin">
       {order.symbol && <div className="mxtMSel">{coinMark(selectedRow, order.symbol)}<span className="mxtMSelN"><b>{selectedRow?.display || order.symbol}</b><small>{selectedRow ? <>{coinPrice(Number(selectedRow.price))} · <em data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
