@@ -1570,14 +1570,41 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }}>Tercih edilen riskle marjı hesapla</button></div>}
       {(sizingNotice || tradingDefaults.error) && <p className="mxtHint" role="status">{sizingNotice || `İşlem tercihleri alınamadı: ${tradingDefaults.error}`}</p>}
     </>
+    // Telefon: son kontrol (aynı veriler; yalnız görünüm). Masaüstünde gizli.
+    const sumVal = (label: string) => summaryRows.find(row => row.label === label)?.value ?? null
+    const checksOk = checks.filter(row => row.state === 'ok').length
+    const checksBad = checks.filter(row => row.state === 'bad').length
+    const levelRow = (kind: string, label: string, value: any) => value ? <div data-k={kind}><span>{label}</span><b>{value}</b></div> : null
+    const reviewMobile = <div className="mxtM mxtMRev">
+      <div className="mxtMTicket">
+        <div className="mxtMTH">{coinMark(selectedRow, order.symbol)}<div><b>{selectedRow?.display || order.symbol || 'Coin'}</b><small>{order.order_type === 'LIMIT' ? 'Limit fiyatla' : 'Piyasa fiyatından'} · {Number.isFinite(leverageValue) ? `${leverageValue}x` : '—'}</small></div><span className="mxtMDirTag" data-dir={dirSide}>{dirSide}</span></div>
+        <div className="mxtMPos"><small>Pozisyon büyüklüğü</small><b>{sizeValue || '—'}</b>{Number.isFinite(marginValue) && marginValue > 0 && <small>Teminat {money(marginValue)}</small>}</div>
+        {reviewVisual}
+        <div className="mxtMLv">
+          {levelRow('tp', `TP3 · %${splitParts[2]}`, sumVal('TP3'))}
+          {levelRow('tp', `TP2 · %${splitParts[1]}`, sumVal('TP2'))}
+          {levelRow('tp', `TP1 · %${splitParts[0]}`, sumVal('TP1'))}
+          {levelRow('entry', 'Giriş', sumVal('Giriş fiyatı'))}
+          {levelRow('stop', 'Stop', sumVal('Zarar durdur'))}
+        </div>
+        <div className="mxtMTiles three">
+          <div><small>Komisyon</small><b data-muted={!sumVal('Tahmini komisyon') || undefined}>{sumVal('Tahmini komisyon') || '—'}</b></div>
+          <div><small>Risk / ödül</small><b data-muted={!sumVal('Risk / ödül') || undefined}>{sumVal('Risk / ödül') || '—'}</b></div>
+          <div><small>Doğrulama</small><b data-tone={reviewed ? 'up' : undefined} data-muted={!reviewed || undefined}>{reviewed ? 'Geçti' : 'Bekliyor'}</b></div>
+        </div>
+      </div>
+      <details className="mxtMChk" open={checksBad > 0 || undefined}><summary><span className="mxtMRing" style={{'--p': `${checks.length ? Math.round(checksOk / checks.length * 100) : 0}%`} as any}><i>{checksOk}/{checks.length}</i></span><span><b>{checksBad > 0 ? `${checksBad} kontrol sorunlu` : `${checksOk} kontrol tamam`}</b><small>{checksBad > 0 ? 'Aşağıdan bakıp düzelt' : checksOk < checks.length ? `${checks.length - checksOk} kontrolü dry-run yapacak` : 'Hepsi geçti'}</small></span><em aria-hidden="true">⌄</em></summary><CheckList rows={checks}/></details>
+      {risk && <p className="mxtMAmber">Stop'ta kaybın en çok {money(risk.loss)}.{risk.capped ? ` İşlem başı risk ayarın yüzünden pozisyon küçüldü: ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : ''}</p>}
+      <div className="mxtMFlow"><i data-on={!reviewed || undefined}>1</i><span>Dry-run</span><hr/><i data-on={reviewed || undefined}>2</i><span>Gerçek emir</span></div>
+    </div>
     const reviewStep = <>
       <h4>Son kontrol</h4>
-      <p className="mxtLead">Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
-      {reviewVisual}
+      <p className="mxtLead mxtDesk">Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
+      {reviewMobile}
       {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
-      <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
-      <CheckList rows={checks}/>
-      {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
+      <div className="mxtReviewGrid mxtDesk"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
+      <div className="mxtDesk"><CheckList rows={checks}/></div>
+      {risk && <p className="mxtHint mxtDesk">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
       {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       {reviewResult && reviewed && <p className="mxtOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
       <div className="mxtActions">
