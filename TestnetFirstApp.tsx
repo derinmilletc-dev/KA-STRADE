@@ -990,7 +990,7 @@ export default function TestnetFirstApp() {
       <header className="v26DashboardHero"><div><h1 id="dashboard-title"><span className="dashboardTitlePlain">İşlem</span>{' '}<span className="dashboardTitleGradient">Terminali</span></h1><p>Bir çalışma alanı seçin.</p></div></header>
       <section className="v26DashboardWorkspaces" aria-label="Çalışma alanları">
         <div className="v26DashboardChoices">
-          <button type="button" onClick={() => setView('trading')}><Activity/><span><b>İŞLEM</b><small>İşlem açın ve yönetin</small></span><em>→</em></button>
+          <button type="button" onClick={() => setView('trading')}><Activity/><span><b>DEMO İŞLEM</b><small>Demo işlem açın ve yönetin</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span><b>MASTER TRADE</b><small>Profesyonel işlem alanı</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('analyst')}><AnalystIcon/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
           <button type="button" onClick={() => setView('scanner')}><Radar/><span><b>TARAMA</b><small>Piyasa fırsatlarını tarayın</small></span><em>→</em></button>
@@ -1112,7 +1112,7 @@ export default function TestnetFirstApp() {
 
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">
       <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => navigate('dashboard')}><Home/><span>Ana sayfa</span></button>
-      <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>Demo</span></button>
+      <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>{phoneLayout ? 'Demo' : 'Demo İşlem'}</span></button>
       {phoneLayout ? <div className="v26NavAssistantHost" ref={setNavAssistantHost}/> : <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>}
       <button className={view === 'master-trade' ? 'active' : ''} type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span>Master</span></button>
       <button className={mobileMenuOpen || (phoneLayout && view === 'analyst') ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
