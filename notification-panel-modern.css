@@ -47,7 +47,8 @@
   #root#root main.v26App .v26NotificationPanel .v26NotificationFoot button { width: auto !important; min-width: 0 !important; height: auto !important; min-height: 0 !important; white-space: nowrap !important; padding: 4px 0 !important; border: 0 !important; background: none !important; color: #3ddc97 !important; font-size: 13px !important; font-weight: 600 !important; }
 
   #root#root main.v26App .v26NotificationPanel > header { padding-bottom: 12px !important; }
-  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { margin-top: 0 !important; line-height: 1.4 !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { display: flex !important; flex-wrap: wrap !important; gap: 2px 0 !important; margin-top: 0 !important; line-height: 1.4 !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary > * + *::before { content: "·" !important; margin: 0 6px !important; color: #5f6e7f !important; font-weight: 400 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) { background: linear-gradient(90deg, rgba(232, 184, 79, .09), transparent 70%) !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) > i { background: rgba(232, 184, 79, .14) !important; color: #e8b84f !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) .v26NotificationAct { background: rgba(255, 255, 255, .08) !important; color: #e8eef4 !important; }
