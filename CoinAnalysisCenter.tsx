@@ -25,6 +25,41 @@ const fmt = (value?:number) => value === undefined || !Number.isFinite(value) ? 
 const pct = (value:number) => Number.isFinite(value) ? value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'
 const scoreLabel = (score:number) => score >= 90 ? 'Very Strong' : score >= 75 ? 'Strong' : score >= 60 ? 'Moderate' : score >= 40 ? 'Neutral' : 'Weak'
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
+type SignalFact = {text:string;level:'good'|'warn'|'bad'}
+const signalFacts = (row:Row):SignalFact[] => {
+  const facts:SignalFact[] = []
+  const conf = row.confidence
+  facts.push({text:conf >= 80 ? 'Güven yüksek' : conf >= 60 ? 'Güven orta' : 'Güven düşük',level:conf >= 80 ? 'good' : conf >= 60 ? 'warn' : 'bad'})
+  if (Number.isFinite(row.mtf_alignment)) facts.push({text:`MTF ${fmt(row.mtf_alignment)}`,level:row.mtf_alignment >= 70 ? 'good' : row.mtf_alignment >= 50 ? 'warn' : 'bad'})
+  if (Number.isFinite(row.rsi)) {
+    const stretched = row.direction === 'LONG' ? row.rsi >= 70 : row.direction === 'SHORT' ? row.rsi <= 30 : row.rsi >= 70 || row.rsi <= 30
+    facts.push({text:`RSI ${fmt(row.rsi)}`,level:stretched ? 'warn' : 'good'})
+  }
+  if (Number.isFinite(row.volume_ratio)) {
+    const change = (row.volume_ratio - 1) * 100
+    facts.push({text:`Hacim ${change >= 0 ? '+' : ''}${fmt(change)}%`,level:change >= 0 ? 'good' : change >= -25 ? 'warn' : 'bad'})
+  }
+  return facts
+}
+const signalVerdict = (row:Row):string => {
+  if (row.direction !== 'LONG' && row.direction !== 'SHORT') return 'Net bir yön yok. Beklemek daha güvenli.'
+  const conf = row.confidence
+  const strength = conf >= 80 ? 'Sinyal güçlü' : conf >= 60 ? 'Sinyal orta düzeyde' : 'Sinyal zayıf'
+  const rr = Number.isFinite(row.risk_reward) && (row.risk_reward as number) > 0 ? `, hedefler risk payının ${fmt(row.risk_reward)} katı` : ''
+  const weakVolume = Number.isFinite(row.volume_ratio) && row.volume_ratio < 0.9 ? ' Hacim zayıf, girişte dikkat.' : ''
+  return `${row.trend}. ${strength}${rr}.${weakVolume}`
+}
+const pricePlan = (row:Row) => {
+  const points = [
+    {key:'stop',label:'Stop',value:row.stop_loss},{key:'entry',label:'Giriş',value:row.entry},
+    {key:'tp1',label:'TP1',value:row.tp1},{key:'tp2',label:'TP2',value:row.tp2},{key:'tp3',label:'TP3',value:row.tp3}
+  ]
+  if (points.some(point => point.value === undefined || !Number.isFinite(point.value))) return null
+  const values = points.map(point => point.value as number)
+  const min = Math.min(...values), max = Math.max(...values)
+  if (!(max > min)) return null
+  return points.map(point => ({...point,left:6 + (((point.value as number) - min) / (max - min)) * 88}))
+}
 const filterCount = (filters:FilterState) => Object.entries(filters).filter(([key,value]) => value !== emptyFilters[key as keyof FilterState] && value !== false).length
 function Metric({label,value,tone}:{label:string;value:ReactNode;tone?:string}) { return <span className={tone}><small>{label}</small><b>{value}</b></span> }
 // Premium olmayan üyede sunucu giriş/stop/TP/R/R alanlarını göndermez; boş çizgi yerine kilit gösterilir.
@@ -288,6 +323,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
     {analystLoading ? <div className="analystInlineLoading"><i/><span>{analystCopy.loading}</span></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{error}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : analystError ? <div className="analystSelectionError" role="status"><strong>{analystError}</strong><button type="button" onClick={() => { setSelectorPulse(true); window.setTimeout(() => setSelectorPulse(false),1200) }}>{analystCopy.selector}</button></div> : !analystMode ? <p className="analystEmpty">{analystCopy.resultEmpty}</p> : analystMode === 'market-overview' ? <><div className="analystOverviewLead"><strong>{marketDirection}</strong><span>{summary.long} LONG · {summary.short} SHORT · {summary.watch} BEKLE</span></div>{resultRows([[analystCopy.opportunities, `${summary.long} LONG`],[analystCopy.declining, `${summary.short} SHORT`],[analystCopy.marketTrend, marketDirection]])}<div className="analystMoverGrid"><div><strong>{analystCopy.highest}</strong>{risingRows.map(row => <button type="button" key={row.symbol} onClick={() => selectAnalystCoin(row.symbol)}><span>{row.display}</span><b>+{fmt(row.change)}%</b></button>)}</div><div><strong>{analystCopy.lowest}</strong>{fallingRows.map(row => <button type="button" key={row.symbol} onClick={() => selectAnalystCoin(row.symbol)}><span>{row.display}</span><b>{fmt(row.change)}%</b></button>)}</div></div></> : analystMode === 'best-long' ? resultOpportunityRows(topLong.slice(0,3), analystCopy.noLong) : analystMode === 'best-short' ? resultOpportunityRows(topShort.slice(0,3), analystCopy.noShort) : analystMode === 'technical' ? <>{<div className="analystSelectedHeading"><strong>{active?.display || analystCopy.selectCoin}</strong><span>{analystCopy.technical}</span></div>}{resultRows(technicalRows)}</> : analystMode === 'decision' ? <>{<div className="analystSelectedHeading"><strong>{active?.display || analystCopy.selectCoin}</strong><span>{analystCopy.decision}</span></div>}{resultRows(decisionRows)}</> : <>{active && <div className="analystSelectedHeading"><strong>{active.display}</strong><span>{analystCopy.signalReason}</span></div>}{analystAnswer && <p className="analystResponseText">{analystAnswer}</p>}{active && resultRows([[analystCopy.trend,active.trend],[analystCopy.signalConfidence,`%${fmt(active.confidence)}`],[analystCopy.riskReward,fmt(active.risk_reward)]])}</>}
   </section>
 
+  const stripRows = (() => { const top = [...rows].sort((left,right) => right.confidence - left.confidence).slice(0,8); if (active && !top.some(row => row.symbol === active.symbol)) top.unshift(active); return top })()
   return <section className="coinAnalysisCenter">
     <section className="analystWorkspace" aria-label={analystCopy.ariaLabel}>
       <header className="analystWorkspaceHeader">
@@ -304,6 +340,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         </div>
       </header>
       {credits.error && <div className="analystCreditError" role="alert"><span>{credits.error}</span><button type="button" onClick={() => void credits.refresh()}>Tekrar dene</button></div>}
+      {stripRows.length > 0 && <div className="analystCoinStrip" aria-label="En güçlü sinyaller">{stripRows.map(row => <button type="button" key={row.symbol} data-on={row.symbol === active?.symbol ? '1' : '0'} aria-current={row.symbol === active?.symbol ? 'true' : undefined} onClick={() => selectAnalystCoin(row.symbol)}>{row.display}<em className={tone(row.direction)}>{fmt(row.confidence)}</em></button>)}</div>}
       <div className="analystCommandTabs" role="tablist" aria-label="Analiz araçları">{([['quick',analystCopy.tabs.quick],['technical',analystCopy.tabs.technical],['decision',analystCopy.tabs.decision]] as Array<[CommandTab,string]>).map(([value,label]) => <button type="button" role="tab" key={value} aria-selected={commandTab === value} className={commandTab === value ? 'active' : ''} onClick={() => setCommandTab(value)}>{label}</button>)}</div>
       <div className="analystCommandGrid" data-tab={commandTab}>
         <section className={`analystCommandGroup analystQuickGroup${commandTab === 'quick' ? ' isActiveTab' : ''}`}>
@@ -336,10 +373,15 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         {loading ? <div className="analystSelectorSkeleton" aria-label="Tarama verileri yükleniyor"><i/><i/><i/><i/></div> : error ? <p className="analystSelectorEmpty">{analystCopy.dataUnavailable}</p> : <div className="analystSelectorList">{selectorRows.map(row => <button type="button" key={row.symbol} className={row.symbol === selected ? 'selected' : ''} onClick={() => selectAnalystCoin(row.symbol)} aria-pressed={row.symbol === selected}><span className="analystSelectorIdentity"><b>{row.symbol}</b><small>{row.display}</small></span><span className={`analystSelectorSignal ${tone(row.direction)}`}><strong>{selectorSignal(row.direction)}</strong><small>{fmt(row.confidence)}% {analystCopy.confidence}</small></span><span className="analystSelectorSnapshot"><b>{fmt(row.price)}</b><small>{row.trend}</small></span></button>)}{!selectorRows.length && <p className="analystSelectorEmpty">{analystCopy.noMatch}</p>}</div>}
         </section>
         <div className="analystDetailColumn">
-          <section className="analystLegacyResultWorkspace" aria-live="polite">
+          <section className="analystLegacyResultWorkspace" aria-live="polite" data-tone={active ? tone(active.direction) : 'neutral'}>
             <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(active.direction) : 'neutral'}>{active?.direction || analystCopy.waitingResult}</strong></header>
             {loading ? <div className="analystLoadingState" aria-label={analystCopy.loading}><i/><i/><i/><i/></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{analystCopy.dataUnavailableHint}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : active ? <>
               <div className="analystDetailHero"><strong className={tone(active.direction)}>{active.direction}</strong><span>{fmt(active.confidence)}% {analystCopy.confidence}</span></div>
+              <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,active.confidence))}%`} as CSSProperties} aria-hidden="true"><b>{fmt(active.confidence)}%</b></div>
+              <p className="analystVerdict">{signalVerdict(active)}</p>
+              <div className="analystFacts">{signalFacts(active).map(fact => <i key={fact.text} data-level={fact.level}>{fact.text}</i>)}</div>
+              {(() => { const plan = pricePlan(active); if (!plan) return null; const entryLeft = plan.find(point => point.key === 'entry')?.left ?? 50; const stopLeft = plan.find(point => point.key === 'stop')?.left ?? 0; const line = stopLeft < entryLeft ? `linear-gradient(90deg,#ff7b7b ${entryLeft}%,#3ddc97 ${entryLeft}%)` : `linear-gradient(90deg,#3ddc97 ${entryLeft}%,#ff7b7b ${entryLeft}%)`; return <div className="analystPriceLadder" aria-label="Fiyat planı"><div className="analystLadderLine" style={{background:line}}/>{plan.map(point => <div className={`analystLadderPoint ${point.key}`} key={point.key} style={{left:`${point.left}%`}}>{point.label}<b>{fmt(point.value)}</b></div>)}</div> })()}
+              <div className="analystPlanStats"><div><small>Risk/Ödül</small><b>{lockedOr(active.risk_reward, () => `1 : ${fmt(active.risk_reward)}`)}</b></div><div><small>Stop mesafesi</small><b>{lockedOr(active.risk_pct, () => `-${fmt(active.risk_pct)}%`)}</b></div><div><small>{analystCopy.signalConfidence}</small><b>{fmt(active.confidence)}%</b></div></div>
               <div className="analystMetricCards">
                 <span><small>{analystCopy.regime}</small><b>{active.trend}</b></span>
                 <span><small>{analystCopy.entry}</small><b>{lockedOr(active.entry, () => fmt(active.entry))}</b></span>
@@ -350,7 +392,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
                 <span><small>{analystCopy.momentum}</small><b>RSI {fmt(active.rsi)}</b></span>
                 <span><small>{analystCopy.volume}</small><b>{active.volume_ratio >= 1 ? '+' : ''}{fmt((active.volume_ratio - 1) * 100)}%</b></span>
               </div>
-              <div className="analystWhyResult"><span>{analystCopy.whyResult}</span><p>{analystAnswer || `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${fmt(active.confidence)}%. İşlem öncesi yapı ve risk metriklerini inceleyin.`}</p></div>
+              <div className={`analystWhyResult${analystAnswer ? '' : ' isGeneric'}`}><span>{analystCopy.whyResult}</span><p>{analystAnswer || `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${fmt(active.confidence)}%. İşlem öncesi yapı ve risk metriklerini inceleyin.`}</p></div>
             </> : <p className="analystEmpty">{analystCopy.resultEmpty}</p>}
           </section>
           <section className="analystAskBar">
