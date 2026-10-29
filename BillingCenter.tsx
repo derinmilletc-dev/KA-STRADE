@@ -100,7 +100,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       <div>
         <span className="ktBillEyebrow">ABONELİK</span>
         <h1>Planını seç, Master Trade’i aç.</h1>
-        <p>Ödeme bilgisi vermeden 7 gün dene. Sadece elle işlem için SMART TRADE, Kais otomasyonu dahil her şey için MASTER MODE. Otomatik ücret yok.</p>
+        <p>Ödeme bilgisi vermeden 7 gün dene. Akıllı manuel işlemler için SMART TRADE, Kais otomasyonu dahil her şey için MASTER MODE. Otomatik ücret yok.</p>
       </div>
     </header>
 
@@ -143,7 +143,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       <article className="ktBillPlan isSmart">
         <header>
           <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/></div>
-          <div><span className="ktBillTag">SADECE ELLE İŞLEM</span><h3>SMART TRADE</h3></div>
+          <div><span className="ktBillTag">AKILLI MANUEL İŞLEMLER</span><h3>SMART TRADE</h3></div>
         </header>
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
         <div className="ktBillPrice"><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
