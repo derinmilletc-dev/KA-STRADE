@@ -1634,6 +1634,8 @@ async def owner_preview_gate(request, call_next):
 
 app.include_router(binance_demo_router)
 app.include_router(v21_demo_router)
+from .cockpit_demo_twin import router as cockpit_demo_twin_router
+app.include_router(cockpit_demo_twin_router)
 app.include_router(v22_commercial_router)
 app.include_router(moderator_router)
 app.include_router(audit_router)
