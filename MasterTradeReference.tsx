@@ -1,3 +1,4 @@
+import {currentLang} from './i18n'
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
 import {Activity, Zap, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff, Grid3X3} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
@@ -557,7 +558,7 @@ export default function MasterTradeReference(props: Props) {
   const gridSpan = gridPrice > 0 ? (() => { const sgn = gridSide === 'LONG' ? -1 : 1; const a = gridPrice * (1 + sgn * 0.005), b = gridPrice * (1 + sgn * 0.05); const f = (v: number) => String(Number(v.toPrecision(6))); return `${f(Math.min(a, b))} – ${f(Math.max(a, b))}` })() : null
   const livePosition = (props.positions ?? []).find(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0) ?? null
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
-  const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? 'AL' : decision.direction === 'SHORT' ? 'SAT' : 'BEKLE'
+  const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? (currentLang() === 'en' ? 'BUY' : 'AL') : decision.direction === 'SHORT' ? (currentLang() === 'en' ? 'SELL' : 'SAT') : 'BEKLE'
   const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
   return <section className="masterReferenceAnalysis" data-layout-tab="analiz">
     <header className="refHeader masterTradeTerminalHeader">
