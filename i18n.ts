@@ -38,6 +38,9 @@ export function applyAccountLang(lang: unknown) {
 }
 
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+/** Yazım (’) ve düz (') kesme işareti aynı sayılır: sözlük anahtarları ve aranan metin düz kesmeye çevrilir. */
+const apo = (s: string) => s.replace(/[\u2018\u2019]/g, "'")
+const apoKeys = (o: Record<string, string>) => { const r: Record<string, string> = {}; for (const k of Object.keys(o)) { const n = apo(k); if (!(n in r) || n === k) r[n] = o[k] } return r }
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 let exact: Record<string, string> = {}
@@ -98,7 +101,7 @@ const CACHE_LIMIT = 4000
 
 export function translateText(text: string): string {
   if (!text || !HAS_LETTER.test(text)) return text
-  const key = norm(text)
+  const key = apo(norm(text))
   if (!key) return text
   let out = cache.get(key)
   if (out === undefined) {
@@ -151,10 +154,55 @@ function fixAttrs(el: Element) {
   }
 }
 
+
+// React, "%{x} işlem riski" gibi ifadeleri art arda birkaç metin düğümüne böler ("%", "10", " işlem riski").
+// Tek tek çevrilemeyen bu parçalar bitişik düğümler birleştirilip bir bütün olarak çevrilir; çeviri
+// ilk düğüme yazılır, diğerleri boşaltılır. Özgün değer WeakMap'te tutulur: React bir düğümü
+// güncellediğinde (nodeValue bizim yazdığımızdan farklıysa) yeni değer özgün kabul edilir.
+const written = new WeakMap<Text, {out: string; src: string}>()
+function rawOf(t: Text): string {
+  const w = written.get(t)
+  const v = t.nodeValue ?? ''
+  return w && v === w.out ? w.src : v
+}
+function setTranslated(t: Text, src: string, out: string) {
+  if (t.nodeValue !== out) t.nodeValue = out
+  written.set(t, {out, src})
+}
+const isText = (n: Node | null): n is Text => !!n && n.nodeType === 3
+function textRunHead(t: Text): Text {
+  let head = t
+  while (isText(head.previousSibling)) head = head.previousSibling
+  return head
+}
+function translateRun(head: Text) {
+  const run: Text[] = []
+  for (let n: Node | null = head; isText(n); n = n.nextSibling) run.push(n)
+  if (run.length < 2) { translateSingle(head); return }
+  const raws = run.map(rawOf)
+  const joined = raws.join('')
+  const out = translateText(joined)
+  if (out !== joined) {
+    setTranslated(run[0], raws[0], out)
+    for (let i = 1; i < run.length; i++) setTranslated(run[i], raws[i], '')
+    return
+  }
+  run.forEach(translateSingle)
+}
+function translateSingle(t: Text) {
+  const raw = rawOf(t)
+  const v = brandPiece(t) ? raw : translateText(raw)
+  if (v !== t.nodeValue) t.nodeValue = v
+  if (v !== raw) written.set(t, {out: v, src: raw}); else written.delete(t)
+}
+function handleText(t: Text) {
+  if (skipped(t)) return
+  translateRun(textRunHead(t))
+}
+
 function walk(root: Node) {
   if (root.nodeType === 3) {
-    const t = root as Text
-    if (!skipped(t) && !brandPiece(t)) { const v = translateText(t.nodeValue ?? ''); if (v !== t.nodeValue) t.nodeValue = v }
+    handleText(root as Text)
     return
   }
   if (root.nodeType !== 1) return
@@ -173,8 +221,7 @@ function walk(root: Node) {
       fixAttrs(e)
     } else {
       const t = n as Text
-      const v = brandPiece(t) ? t.nodeValue : translateText(t.nodeValue ?? '')
-      if (v !== t.nodeValue) t.nodeValue = v
+      if (!isText(t.previousSibling)) translateRun(t)
     }
     n = tw.nextNode()
   }
@@ -277,8 +324,8 @@ export async function initI18n(): Promise<void> {
     try {
       const mod = await import('./i18n-tr.json')
       const trDict = (mod.default ?? mod) as unknown as { e: Record<string, string>; p?: [string, string][] }
-      enToTr = trDict.e
-      trPatterns = (trDict.p ?? []).map(([en, tr]) => ({ re: new RegExp('^' + esc(en).replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$', 'i'), tr }))
+      enToTr = apoKeys(trDict.e)
+      trPatterns = (trDict.p ?? []).map(([en, tr]) => ({ re: new RegExp('^' + esc(apo(en)).replace(/\\\{#\\\}/g, '(\\d[\\d.,]*)').replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$', 'i'), tr }))
       trMode = true
     } catch { return }
     const startTr = () => {
@@ -292,11 +339,11 @@ export async function initI18n(): Promise<void> {
   try {
     const mod = await import('./i18n-en.json')
     const dict = (mod.default ?? mod) as unknown as Dict
-    exact = dict.e
+    exact = apoKeys(dict.e)
     lowerMap = {}
     for (const k of Object.keys(exact)) { const l = trLower(k); if (!(l in lowerMap)) lowerMap[l] = exact[k] }
     patterns = dict.p.map(([tr, en]) => ({
-      re: new RegExp('^' + esc(tr).replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$'),
+      re: new RegExp('^' + esc(apo(tr)).replace(/\\\{#\\\}/g, '(\\d[\\d.,]*)').replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$'),
       en,
     }))
   } catch {

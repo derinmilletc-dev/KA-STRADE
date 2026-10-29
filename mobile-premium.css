@@ -8098,3 +8098,13 @@ body:has(#root .liveTradingPanel.liveUx),
     font-size: 10px !important;
   }
 }
+
+/* Dil/uzunluk düzeltmeleri: İngilizce/Türkçe uzun kelimelerde taşma olmasın */
+@media (max-width: 767px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMarketFilters { flex-wrap: wrap !important; overflow: visible !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMarketFilters > button { padding: 0 12px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills { width: 138px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills > span { max-width: 138px !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .refGridCard small { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere !important; }
+  html body #root > main.v26App.workspaceRoute.workspaceRoute .subscriptionPage.subscriptionPage :is(h1,h2,h3,p,small,b,span,button) { overflow-wrap: anywhere; }
+}

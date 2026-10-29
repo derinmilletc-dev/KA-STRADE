@@ -1018,3 +1018,5 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 /* Manuel emir bölümü Ayarlar'da görünmez: işlem Rehber'deki "Manuel işlem aç" (ve Analiz'deki "İşlem aç") ile açılır.
    Bölüm DOM'da kalır; panel açılınca (data-manual-modal) aynı form aynen görünür. Dry-run, ARM ve onay akışı değişmedi. */
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot:not([data-manual-modal]) .originalManualOrder{display:none!important}
+/* Uzun tutarlar (örn. 5,000.00 USDT) özet kartında taşmasın */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcSummary b{font-size:clamp(17px,1.7vw,25px);white-space:normal;overflow-wrap:anywhere}

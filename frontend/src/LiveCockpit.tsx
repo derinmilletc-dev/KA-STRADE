@@ -905,7 +905,7 @@ export default function LiveCockpit(props: Props) {
     {!customOn && chosenMode !== savedMode && <div className="lcModeConfirm">
       <label className="lcCheck"><input type="checkbox" checked={modeUnderstood} onChange={event => setModeUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
       {chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini kabul ediyorum.</span></label>}
-      {chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
+      {chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code translate="no">{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
       {modeError && <p className="lcHint warn" role="alert">{modeError}</p>}
       <button type="button" className="lcBtn lcPrimary" disabled={busy || !modeReady} onClick={() => void saveMode()}>{working === 'mode' ? 'Kaydediliyor…' : `${modeRows.find(row => row.mode === chosenMode)?.label ?? ''} modunu uygula`}</button>
     </div>}
@@ -937,7 +937,7 @@ export default function LiveCockpit(props: Props) {
       {running && <p className="lcHint">Çalışırken yalnız risk yüzdeleri değişir ve yeni işlemlere uygulanır; coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
       {riskDirty && draftValid && <div className="lcConfirmBox">
         {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-        {draft.risk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label></>}
+        {draft.risk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label></>}
         <label className="lcCheck"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
         <button type="button" className="lcBtn lcPrimary" disabled={busy || wallet === null || !understood || !tierReady(draft.risk, riskAck, phrase)} onClick={() => void saveRisk()}>{working === 'risk' ? 'Kaydediliyor…' : 'Bu ayarı kaydet'}</button>
         {riskError && <p className="lcHint stop" role="alert" data-testid="live-risk-error">Kaydedilemedi: {riskError}</p>}
@@ -1108,9 +1108,9 @@ export default function LiveCockpit(props: Props) {
       {!wizAnythingChanged && <p className="lcHint">Seçtiklerin zaten kayıtlı ayarların. Değiştirmek için geri dönüp başka bir seçenek seç.</p>}
       {wizAnythingChanged && <div className="lcConfirmBox">
         {riskDirty && draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-        {riskDirty && draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
+        {riskDirty && draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
         {wizModeChanged && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini kabul ediyorum.</span></label>}
-        {wizModeChanged && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
+        {wizModeChanged && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code translate="no">{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
         <label className="lcCheck"><input type="checkbox" checked={wizUnderstood} onChange={event => setWizUnderstood(event.target.checked)}/><span>Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım.</span></label>
         <p className="lcHint">Kaydedince yalnız yeni işlemlere uygulanır; açık pozisyonlar değişmez. Hiçbir adım tek başına emir açmaz.</p>
       </div>}
@@ -1273,7 +1273,7 @@ export default function LiveCockpit(props: Props) {
     {id === 'risk' && <>
       <div className="lcWizList" role="radiogroup" aria-label="Risk paketi">{RISK_PRESETS.map(preset => <button type="button" role="radio" aria-checked={draft.risk === preset.risk_percent} key={preset.id} className="lcWizChip" data-selected={draft.risk === preset.risk_percent || undefined} data-rec={preset.id === 'dengeli' || undefined} disabled={busy} onClick={() => choosePreset(preset.id)}><b>{preset.label}{preset.id === 'dengeli' && <em>ÖNERİLEN</em>}</b><small>%{preset.risk_percent} · günlük %{preset.daily_loss_percent} · {preset.symbol_count} coin · {preset.session_hours} saat</small></button>)}</div>
       {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-      {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
+      {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
     </>}
     {id === 'daily' && <><div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
       const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
@@ -1297,7 +1297,7 @@ export default function LiveCockpit(props: Props) {
       })}</div>
       {wallet !== null && <p className="lcHint">Rakamlar tahmindir: {modeLeverage}x kaldıraç ve stop fiyattan %1 uzakta varsayılır. Stop uzaklaştıkça risk seçtiğin %{draft.risk}'e yaklaşır, asla geçmez.</p>}
       {chosenMode !== savedMode && chosenMode !== 'guvenli' && <label className="lcCheck"><input type="checkbox" checked={modeAck} onChange={event => setModeAck(event.target.checked)}/><span>Bu modda her işleme daha çok teminat ayrılacağını ve zararın büyüyebileceğini anladım.</span></label>}
-      {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code>{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
+      {chosenMode !== savedMode && chosenMode === 'agresif' && <label className="lcField">Onay için şunu yaz: <code translate="no">{AGGRESSIVE_PHRASE}</code><input type="text" value={modePhrase} autoComplete="off" onChange={event => setModePhrase(event.target.value)}/></label>}
     </>}
     {id === 'smart' && smartSettings !== undefined && <>
       <div className="lcSmartState" data-on={smartCurrentlyOn || undefined}>
@@ -1420,7 +1420,7 @@ export default function LiveCockpit(props: Props) {
               </li>
             })}
           </ol>
-          <label className="lcField lcLaunchConfirm">Onay için <b className="selectablePhrase">ONAYLIYORUM</b> yaz
+          <label className="lcField lcLaunchConfirm">Onay için <b className="selectablePhrase" translate="no">ONAYLIYORUM</b> yaz
             <input value={launchPhrase} autoComplete="off" autoCapitalize="characters" spellCheck={false} disabled={busy} data-ok={launchPhraseOk || undefined} onChange={event => setLaunchPhrase(event.target.value)} placeholder="ONAYLIYORUM"/>
           </label>
           <p className="lcHint">Yazınca işlemler sırayla çalışır. Biri başarısız olursa orada durur, bot başlamaz; tamamlananlar tekrar edilmez. Açık pozisyonlar ve orijinal Stop/TP değişmez. Gerçek parayla işlem açılabilir.</p>
@@ -1489,7 +1489,7 @@ export default function LiveCockpit(props: Props) {
     {(!guideInput.authorizationValid || !guideInput.policyAcknowledged || !guideInput.armed) && <p className="lcHint">Başlatınca eksik onay{[!guideInput.authorizationValid, !guideInput.policyAcknowledged, !guideInput.armed].filter(Boolean).length > 1 ? 'lar' : ''} ({[!guideInput.authorizationValid && '24 saatlik risk izni', !guideInput.policyAcknowledged && 'risk sınırları', !guideInput.armed && 'canlı emir izni (ARM)'].filter(Boolean).join(', ')}) önce verilir.</p>}
     {riskDirty && <p className="lcHint warn">Kaydedilmemiş risk değişikliğin var; başlatma kayıtlı ayarla (%{savedRisk} / %{savedDaily}) yapılır.</p>}
     {savedRisk > 2 && savedRisk <= 5 && <label className="lcCheck"><input type="checkbox" checked={startAck} onChange={event => setStartAck(event.target.checked)}/><span>%{savedRisk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-    {savedRisk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label></>}
+    {savedRisk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label></>}
     <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>{dt('Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.')}</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true); window.setTimeout(() => (document.querySelector('#lc-strategy .lcStrategyEdit') || document.getElementById('lc-strategy') || document.getElementById('lc-drawer'))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 120) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
@@ -1515,7 +1515,7 @@ export default function LiveCockpit(props: Props) {
   </> : sheet === 'close-all' ? <>
     <h2 id="lc-sheet-title">Acil durdurma · pozisyonları kapat</h2>
     <p className="lcSheetLead">Bota ait giriş ve koruma emirleri iptal edilir, doğrulanmış bot pozisyonları <b>piyasa fiyatından reduce-only</b> emirle kapatılır. Kayıp kesinleşebilir. Sonrasında yeniden başlatmak 2FA ister.</p>
-    <label className="lcField">Onay için <b className="selectablePhrase">{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
+    <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
         <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
       <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
   </> : sheet === 'close-position' && closeTarget ? <>
