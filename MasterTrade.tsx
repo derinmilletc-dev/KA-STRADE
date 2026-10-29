@@ -2,6 +2,7 @@ import { useLiveEventNotifications } from './notification-prefs'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import { Activity, BarChart3, Cable, Check, ChevronDown, Clock3, Crosshair, Gauge, History, ListChecks, LockKeyhole, ShieldX, UnlockKeyhole, Wallet, X, XCircle } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
+import {userIsScrolling, watchUserScroll} from './user-scroll'
 import LiveTradingPanel, { liveCredentialStatusMatches, type SharedConnectionStatus, type SharedLiveStatus } from './frontend/src/LiveTradingPanel'
 import {readLiveStatusResponses} from './frontend/src/live-status-read'
 import { buildTradeDecision, buildTriggerMonitor, type MtfAnalysis, type TradeDecision, type TriggerLifecycle, type TriggerMonitor } from './masterTradeDecision'
@@ -187,6 +188,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   // Canlı İşlem / Pozisyonlar / Bağlantı: sekme menüsü yukarıda sabit; aşağı kaydırınca saklanır, yukarı kaydırınca geri gelir.
   useEffect(() => {
     if (layoutTab === 'analiz') return
+    watchUserScroll()
     let last = window.scrollY
     const tabs = () => document.querySelector<HTMLElement>('.masterTradePage .masterTradeTabs')
     const onScroll = (event: Event) => {
@@ -194,6 +196,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
       const y = window.scrollY
       const delta = y - last
       if (Math.abs(delta) < 6) return
+      if (!userIsScrolling()) { last = y; return }  // sayfa kendi kayarsa (içerik güncellenince) menü oynamasın
       tabs()?.classList.toggle('navHidden', delta > 0 && y > 120)
       last = y
     }
