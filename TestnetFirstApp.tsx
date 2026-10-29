@@ -27,6 +27,7 @@ import SupportCenter from './SupportCenter'
 import LivePerformance from './LivePerformance'
 import DemoMasterShell, {type DemoMasterTab} from './DemoMasterShell'
 import './performance-live.css'
+import {userIsScrolling, watchUserScroll} from './user-scroll'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -929,6 +930,7 @@ export default function TestnetFirstApp() {
   // visibility actually differs from the current one, so a held/jittery scroll
   // never triggers redundant renders or re-starts the hide/show transition.
   useEffect(() => {
+    watchUserScroll()
     let ticking = false
     const isInteractionActive = () => {
       if (mobileMenuOpen || notificationsOpen || marketPickerOpen || complianceOpen) return true
@@ -941,7 +943,8 @@ export default function TestnetFirstApp() {
       headerScrollYRef.current = currentY
       ticking = false
       if (currentY <= 0 || isInteractionActive()) { setHeaderHidden(hidden => hidden ? false : hidden); return }
-      if (currentY === previousY) return
+      if (Math.abs(currentY - previousY) < 6) { headerScrollYRef.current = previousY; return }
+      if (!userIsScrolling()) return  // sayfa kendi kayarsa (içerik güncellenince) üst menü oynamasın
       const scrollingDown = currentY > previousY
       setHeaderHidden(hidden => hidden === scrollingDown ? hidden : scrollingDown)
     }
