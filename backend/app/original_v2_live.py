@@ -1295,6 +1295,26 @@ def _record_maintenance_skip(config: dict[str, Any], scanner: dict[str, Any]) ->
     scanner.update(stage="MAINTENANCE", last_skip_reason=MAINTENANCE_SKIP_REASON)
 
 
+# Saf limit reddi: emir gönderilmeden önce "bu giriş limiti aşardı" demektir. Bu bir borsa/uzlaşma hatası değildir;
+# kilit, acil durdurma ve oturum kapatma gerektirmez. Aday atlanır, tur sessizce biter.
+_LIMIT_REJECTION_ACCOUNT_KEYS = frozenset({"total_margin", "total_open_risk"})  # hesap seviyesi: sıradaki adaylar da aşar
+_LIMIT_REJECTION_PER_TRADE_KEYS = frozenset({"risk_budget"})  # işlem seviyesi: başka aday sığabilir
+
+
+def limit_rejection_kind(error: BaseException) -> str | None:
+    """'account' | 'trade' yalnız emirsiz, açık bir limit reddi için; aksi halde None (eski davranış: hata akışı)."""
+    if not isinstance(error, live.LiveExchangeError):
+        return None
+    if getattr(error, "unknown_execution", False) or getattr(error, "timed_out", False):
+        return None
+    key = str(getattr(error, "check_key", "") or "")
+    if key in _LIMIT_REJECTION_ACCOUNT_KEYS:
+        return "account"
+    if key in _LIMIT_REJECTION_PER_TRADE_KEYS:
+        return "trade"
+    return None
+
+
 def _entry_rejection_category(error: Exception) -> str:
     key = str(getattr(error, "check_key", "") or "").lower()
     detail = str(getattr(error, "detail", error)).lower()
@@ -1535,6 +1555,17 @@ async def cycle(application: Any, credentials: tuple[str, str] | None) -> None:
                 if getattr(exc, "check_key", None) == "symbol_occupancy":
                     config["last_skip_reason"] = "symbol_occupied"
                     scanner.update(stage="SYMBOL_OCCUPIED", last_skip_reason="symbol_occupied")
+                    continue
+                limit_kind = limit_rejection_kind(exc)
+                if limit_kind is not None:
+                    # Limit doldu: yeni giriş açılmadı, sistem kilitlenmez. Gerçek hatalar aşağıdaki raise ile eskisi gibi kilitler.
+                    config["last_skip_reason"] = f"limit_{category}"
+                    scanner.update(stage="LIMIT_REACHED", last_skip_reason=f"limit_{category}")
+                    scanner["candidate_count"] = max(0, int(scanner.get("candidate_count") or 0) - 1)
+                    history_item["candidates"] = scanner["candidate_count"]
+                    logger.warning("ORIGINAL_LIVE_LIMIT_REACHED symbol=%s check=%s", candidate["symbol"], getattr(exc, "check_key", ""))
+                    if limit_kind == "account":
+                        break
                     continue
                 raise
         scanner["last_24h"] = _scanner_history_summary(scanner, time.time())
