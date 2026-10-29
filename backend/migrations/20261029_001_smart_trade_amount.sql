@@ -1,4 +1,4 @@
--- Smart Trade (40 USDT, yalnız elle işlem) planı: ödeme talebi tutarı 119.90 (Master Mode) YA DA 40.00 (Smart Trade) olabilir.
+-- Smart Trade (39.90 USDT, yalnız elle işlem) planı: ödeme talebi tutarı 119.90 (Master Mode) YA DA 39.90 (Smart Trade) olabilir.
 -- Plan ayrı bir sütunda tutulmaz; ödenen tutardan çıkar (uygulama: binance_manual_payments.plan_for_amount).
 -- Tek işlem: herhangi bir adım hata verirse hiçbir şey değişmez. Mevcut satırlar (hepsi 119.90) etkilenmez.
 BEGIN;
@@ -25,6 +25,6 @@ BEGIN
         RAISE EXCEPTION 'Eski tutar kuralı bulunamadı veya kaldırılamadı' USING ERRCODE='55000';
     END IF;
     ALTER TABLE binance_manual_payment_requests
-        ADD CONSTRAINT binance_manual_amount_plans CHECK (amount IN (119.90, 40.00));
+        ADD CONSTRAINT binance_manual_amount_plans CHECK (amount IN (119.90, 39.90));
 END $$;
 COMMIT;

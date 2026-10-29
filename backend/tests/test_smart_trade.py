@@ -1,4 +1,4 @@
-"""Smart Trade (40 USDT, yalnız elle işlem): plan tutardan çıkar, otomasyon kapalı, gerçek emir açık."""
+"""Smart Trade (39.90 USDT, yalnız elle işlem): plan tutardan çıkar, otomasyon kapalı, gerçek emir açık."""
 import asyncio
 from decimal import Decimal
 from pathlib import Path
@@ -23,9 +23,9 @@ def configured(monkeypatch):
 def test_plan_comes_only_from_the_exact_known_amounts():
     assert payments.plan_for_amount(Decimal("119.90")) == "MASTER_MODE"
     assert payments.plan_for_amount("119.90") == "MASTER_MODE"
-    assert payments.plan_for_amount(Decimal("40.00")) == "SMART_TRADE"
-    assert payments.plan_for_amount(Decimal("40")) == "SMART_TRADE"
-    for bad in (None, "", "abc", Decimal("0"), Decimal("39.99"), Decimal("40.01"), Decimal("119.91"), Decimal("159.90")):
+    assert payments.plan_for_amount(Decimal("39.90")) == "SMART_TRADE"
+    assert payments.plan_for_amount(Decimal("39.9")) == "SMART_TRADE"
+    for bad in (None, "", "abc", Decimal("0"), Decimal("40.00"), Decimal("39.89"), Decimal("39.91"), Decimal("119.91"), Decimal("159.80")):
         assert payments.plan_for_amount(bad) is None
 
 
@@ -34,7 +34,7 @@ def test_create_request_charges_the_plan_amount_and_rejects_unknown_plans():
         master = await payments.create_request(Connection(), "user-a")
         assert master.amount == Decimal("119.90") and master.plan == "MASTER_MODE"
         smart = await payments.create_request(Connection(), "user-a", "SMART_TRADE")
-        assert smart.amount == Decimal("40.00") and smart.plan == "SMART_TRADE"
+        assert smart.amount == Decimal("39.90") and smart.plan == "SMART_TRADE"
         with pytest.raises(HTTPException) as error:
             await payments.create_request(Connection(), "user-a", "FREE")
         assert error.value.status_code == 422
@@ -107,7 +107,7 @@ def test_automation_start_paths_are_locked_but_stop_and_manual_paths_are_not():
 def test_migration_allows_exactly_the_two_amounts_and_is_atomic():
     sql = MIGRATION.read_text(encoding="utf-8")
     assert sql.lstrip().splitlines()[0].startswith("--") and "BEGIN;" in sql and "COMMIT;" in sql
-    assert "CHECK (amount IN (119.90, 40.00))" in sql and "binance_manual_amount_plans" in sql
+    assert "CHECK (amount IN (119.90, 39.90))" in sql and "binance_manual_amount_plans" in sql
     assert "DELETE" not in sql.upper().replace("DROP CONSTRAINT", "")
     rollback = (MIGRATION.parents[0] / "rollback" / "20261029_smart_trade_amount.sql").read_text(encoding="utf-8")
     assert "CHECK (amount = 119.90)" in rollback

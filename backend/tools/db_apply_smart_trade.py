@@ -1,4 +1,4 @@
-"""Smart Trade (40 USDT) için ödeme tutarı kuralını günceller (tek seferlik).
+"""Smart Trade (39.90 USDT) için ödeme tutarı kuralını günceller (tek seferlik).
 
 Kullanım (PowerShell, backend klasöründe):  python tools/db_apply_smart_trade.py
 - Veritabanı adresi gizli girişle istenir, ekrana/komut satırına yazılmaz.
@@ -45,7 +45,7 @@ async def main() -> None:
         if any("binance_manual_amount_plans" in rule for rule in rules):
             print("\nSmart Trade tutar kuralı zaten kurulu, yapılacak bir şey yok. Hiçbir şey değişmedi.")
             return
-        if input("\nTutar kuralı 119.90 YA DA 40.00 olacak şekilde güncellenecek. Devam için tam olarak 'evet' yaz: ").strip().lower() != "evet":
+        if input("\nTutar kuralı 119.90 YA DA 39.90 olacak şekilde güncellenecek. Devam için tam olarak 'evet' yaz: ").strip().lower() != "evet":
             print("İptal edildi, hiçbir şey değişmedi.")
             return
         try:

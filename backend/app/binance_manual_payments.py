@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 logger = logging.getLogger(__name__)
 AMOUNT = Decimal("119.90")  # Master Mode (geriye uyumlu ad)
 # Plan, ödenen tutardan çıkar: veritabanı yalnız bu iki tutara izin verir (migration 20261029_001).
-PLAN_AMOUNTS: dict[str, Decimal] = {"MASTER_MODE": Decimal("119.90"), "SMART_TRADE": Decimal("40.00")}
+PLAN_AMOUNTS: dict[str, Decimal] = {"MASTER_MODE": Decimal("119.90"), "SMART_TRADE": Decimal("39.90")}
 PLAN_NAMES = {"MASTER_MODE": "MASTER MODE", "SMART_TRADE": "SMART TRADE"}
 REFERENCE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 TRANSACTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}", re.ASCII)

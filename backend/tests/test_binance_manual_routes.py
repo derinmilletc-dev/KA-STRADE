@@ -37,7 +37,7 @@ def test_configuration_comes_from_server_and_disabled_method_has_no_pay_id(api, 
     assert response.status_code == 200
     assert response.json() == {"enabled": True, "amount": "119.90", "currency": "USDT", "pay_id": "987654321", "plans": [
         {"plan": "MASTER_MODE", "name": "MASTER MODE", "amount": "119.90"},
-        {"plan": "SMART_TRADE", "name": "SMART TRADE", "amount": "40.00"}]}
+        {"plan": "SMART_TRADE", "name": "SMART TRADE", "amount": "39.90"}]}
     assert response.headers["cache-control"] == "no-store"
     monkeypatch.delenv("BINANCE_MANUAL_PAY_ID")
     assert client.get(BASE + "/config", headers=H).json() == {"enabled": False}
@@ -113,7 +113,7 @@ def test_smart_trade_request_is_40_usdt_and_unknown_plan_is_rejected(api):
     client, conn = api
     item = client.post(BASE + "/requests", headers=H, json={"plan": "SMART_TRADE"})
     assert item.status_code == 200, item.text
-    assert item.json()["amount"] == "40.00" and item.json()["plan"] == "SMART_TRADE"
+    assert item.json()["amount"] == "39.90" and item.json()["plan"] == "SMART_TRADE"
     assert client.post(BASE + "/requests", headers=headers("moderator", "MODERATOR"), json={"plan": "FREE"}).status_code == 422
     assert client.post(BASE + "/requests", headers=headers("moderator", "MODERATOR"), json={"plan": "SMART_TRADE", "amount": "1"}).status_code == 422
     assert len(conn.rows) == 1
