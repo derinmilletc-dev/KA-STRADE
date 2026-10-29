@@ -67,7 +67,7 @@ async function getJson<T>(path: string, signal: AbortSignal): Promise<T | null> 
 }
 
 export default function MobileHome({markets, onNavigate}: {markets: Market[]; onNavigate: (target: Target) => void}) {
-  const {premium, freeTrial} = useMemberAccess()
+  const {premium, freeTrial, ready} = useMemberAccess()
   const t = COPY[currentLang() === 'en' ? 'en' : 'tr']
   const [name, setName] = useState('')
   const [subscription, setSubscription] = useState<Subscription | null>(null)
@@ -78,7 +78,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   // İlk yanıtlar gelene kadar yanlış durum (ör. bağlı hesap için "Hesabını bağla", premium için "Ücretsiz plan") göstermeyiz.
   const [loaded, setLoaded] = useState({session: false, subscription: false, live: false, demo: false})
   const [timedOut, setTimedOut] = useState(false)
-  const settled = timedOut || (loaded.session && loaded.subscription && loaded.live && loaded.demo)
+  const settled = timedOut || (ready && loaded.session && loaded.subscription && loaded.live && loaded.demo)
   const markLoaded = (key: keyof typeof loaded) => setLoaded(current => current[key] ? current : {...current, [key]: true})
 
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       const days = daysUntil(subscription?.trial_end)
       return {kind: 'trial', title: t.trial, detail: subscription?.trial_end ? t.trialEnds(longDate(subscription.trial_end, t.locale)) : t.trialOn, days, progress: days === null ? 0 : Math.min(1, days / 7)}
     }
-    if ((subscription?.plan === 'MASTER_MODE' && (status === 'ACTIVE' || status === 'PAST_DUE')) || (!subscription && premium)) {
+    if ((subscription?.plan === 'MASTER_MODE' && (status === 'ACTIVE' || status === 'PAST_DUE')) || premium) {
       const days = daysUntil(subscription?.current_period_end)
       const end = longDate(subscription?.current_period_end, t.locale)
       return {kind: 'master', title: t.master, detail: end ? (subscription?.cancel_at_period_end ? t.ends(end) : t.renews(end)) : t.active, days, progress: days === null ? 1 : Math.min(1, days / 30)}
