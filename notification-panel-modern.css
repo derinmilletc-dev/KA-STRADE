@@ -1,5 +1,6 @@
 /* Bildirim paneli: telefonda sade, akıllı görünüm (yalnız <=700px). Veri ve tıklama davranışı aynı. */
 .v26NotificationTools, .v26NotificationGroup, .v26NotificationSkeleton, .v26NotificationFoot, .v26NotificationAct, .v26NotificationAgo { display: none; }
+.v26NotificationCount { margin-left: 6px; font-style: normal; opacity: .7; }
 @media (max-width: 700px) {
   #root#root main.v26App .v26NotificationPanel { display: flex !important; flex-direction: column !important; background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .12) !important; border-radius: 24px !important; box-shadow: 0 24px 48px rgba(0, 0, 0, .5) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   #root#root main.v26App .v26NotificationPanel > header { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; padding: 16px 16px 6px !important; border: 0 !important; background: none !important; }
@@ -14,7 +15,7 @@
   #root#root main.v26App .v26NotificationPanel > header > div:last-child > button:not(:first-of-type) { flex: 0 0 auto !important; width: auto !important; white-space: nowrap !important; color: #3ddc97 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationTools { display: block !important; padding: 0 16px 10px !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { margin: 0 0 10px !important; font-size: 13px !important; color: #8b9aab !important; }
-  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary b { color: #ffb4b4 !important; font-weight: 600 !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary b { color: #e8b84f !important; font-weight: 600 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationFilters { display: flex !important; gap: 6px !important; overflow-x: auto !important; scrollbar-width: none !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationFilters button { flex: none !important; width: auto !important; min-width: 0 !important; height: auto !important; min-height: 0 !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; padding: 7px 12px !important; border: 0 !important; border-radius: 999px !important; background: #0d141c !important; color: #8b9aab !important; font-size: 12.5px !important; font-weight: 600 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationFilters button[aria-pressed="true"] { background: #e8eef4 !important; color: #0a0f16 !important; }
@@ -44,5 +45,12 @@
   #root#root main.v26App .v26NotificationPanel .v26NotificationEmpty p { font-size: 12.5px !important; color: #7c8c9f !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationFoot { display: block !important; padding: 10px 16px 14px !important; border-top: 1px solid rgba(148, 163, 184, .08) !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationFoot button { width: auto !important; min-width: 0 !important; height: auto !important; min-height: 0 !important; white-space: nowrap !important; padding: 4px 0 !important; border: 0 !important; background: none !important; color: #3ddc97 !important; font-size: 13px !important; font-weight: 600 !important; }
+
+  #root#root main.v26App .v26NotificationPanel > header { padding-bottom: 12px !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { margin-top: 0 !important; line-height: 1.4 !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) { background: linear-gradient(90deg, rgba(232, 184, 79, .09), transparent 70%) !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) > i { background: rgba(232, 184, 79, .14) !important; color: #e8b84f !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) .v26NotificationAct { background: rgba(255, 255, 255, .08) !important; color: #e8eef4 !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationCount { display: inline-block !important; margin-left: 8px !important; padding: 2px 8px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .08) !important; color: #8b9aab !important; font-style: normal !important; font-size: 11px !important; font-weight: 700 !important; vertical-align: middle !important; }
 }
 @keyframes v26NotifShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
