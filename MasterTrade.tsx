@@ -2,7 +2,7 @@ import { useLiveEventNotifications } from './notification-prefs'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import { Activity, BarChart3, Cable, Check, ChevronDown, Clock3, Crosshair, Gauge, History, ListChecks, LockKeyhole, ShieldX, UnlockKeyhole, Wallet, X, XCircle } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
-import {userIsScrolling, watchUserScroll} from './user-scroll'
+import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
 import LiveTradingPanel, { liveCredentialStatusMatches, type SharedConnectionStatus, type SharedLiveStatus } from './frontend/src/LiveTradingPanel'
 import {readLiveStatusResponses} from './frontend/src/live-status-read'
 import { buildTradeDecision, buildTriggerMonitor, type MtfAnalysis, type TradeDecision, type TriggerLifecycle, type TriggerMonitor } from './masterTradeDecision'
@@ -197,6 +197,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
       const delta = y - last
       if (Math.abs(delta) < 6) return
       if (!userIsScrolling()) { last = y; return }  // sayfa kendi kayarsa (içerik güncellenince) menü oynamasın
+      if (userScrollDirection() !== (delta > 0 ? 'down' : 'up')) { last = y; return }  // parmak o yönde kaymıyorsa menü oynamasın
       tabs()?.classList.toggle('navHidden', delta > 0 && y > 120)
       last = y
     }
