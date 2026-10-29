@@ -181,7 +181,9 @@ html body #root main.v26App .mhOppEmpty small { color: var(--mh-mut); }
 /* Telefon üst menü: bildirim butonu biraz sağa (profil ikonuna yaklaşır). */
 @media (max-width: 700px) {
   html body #root > main.v26App > .v26Header.v26HomeHeader .v26Notifications {
-    transform: translateX(6px);
+    /* transform kullanma: transform, içindeki fixed bildirim panelini 36px'lik kutuya hapsedip dar şerit yapıyordu. */
+    position: relative;
+    left: 6px;
   }
 }
 
