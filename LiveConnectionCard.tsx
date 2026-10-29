@@ -68,13 +68,13 @@ export default function LiveConnectionCard() {
     {state === 'ready' && pill && <>
       <div className={`nsStatus ${pill.tone}`}><i/><b>{pill.text}</b><small>{hint}</small></div>
       <div className="nsList">
-        <div className="nsRow"><span><b>Binance anahtarı</b><small>{configured ? 'Kayıtlı' : 'Kayıtlı değil'}</small></span></div>
-        <div className="nsRow"><span><b>24 saatlik canlı izin</b><small>{consentValid ? `Geçerli · ${remaining(status?.authorization?.expires_at)} (${accountDate(status?.authorization?.expires_at)})` : 'Geçerli değil'}</small></span></div>
-        <div className="nsRow"><span><b>Canlı emir izni (ARM)</b><small>{status?.armed ? `Açık · ${remaining(status?.armed_until)}` : 'Kapalı'}</small></span></div>
-        <div className="nsRow"><span><b>Otomatik işlem</b><small>{status?.live_auto_trade ? 'Çalışıyor' : 'Kapalı'}</small></span></div>
-        <div className={`nsRow${problem ? "" : " nsQuiet"}`}><span><b>Son bağlantı sorunu</b><small>{problem ? `${String(problem.message || problem.kind).replaceAll('_', ' ')} · ${accountDate(problem.created_at)}` : 'Kayıtlı sorun yok'}</small></span></div>
+        <div className="nsRow" data-tone={configured ? 'ok' : 'warn'}><span><b>Binance anahtarı</b><small className="nsLong">{configured ? 'Kayıtlı' : 'Kayıtlı değil'}</small><small className="nsShort">{configured ? 'Kayıtlı' : 'Yok'}</small></span></div>
+        <div className="nsRow" data-tone={consentValid ? 'ok' : 'bad'}><span><b>24 saatlik canlı izin</b><small className="nsShort">{consentValid ? remaining(status?.authorization?.expires_at).replace(' kaldı','') : 'Geçersiz'}</small><small className="nsLong">{consentValid ? `Geçerli · ${remaining(status?.authorization?.expires_at)} (${accountDate(status?.authorization?.expires_at)})` : 'Geçerli değil'}</small></span></div>
+        <div className="nsRow" data-tone={status?.armed ? 'ok' : 'off'}><span><b>Canlı emir izni (ARM)</b><small className="nsShort">{status?.armed ? `Açık · ${remaining(status?.armed_until).replace(' kaldı','')}` : 'Kapalı'}</small><small className="nsLong">{status?.armed ? `Açık · ${remaining(status?.armed_until)}` : 'Kapalı'}</small></span></div>
+        <div className="nsRow" data-tone={status?.live_auto_trade ? 'ok' : 'off'}><span><b>Otomatik işlem</b><small className="nsShort">{status?.live_auto_trade ? 'Çalışıyor' : 'Kapalı'}</small><small className="nsLong">{status?.live_auto_trade ? 'Çalışıyor' : 'Kapalı'}</small></span></div>
+        <div className={`nsRow${problem ? " nsProblem" : " nsQuiet"}`} data-tone={problem ? 'bad' : 'ok'}><span><b>Son bağlantı sorunu</b><small>{problem ? `${String(problem.message || problem.kind).replaceAll('_', ' ')} · ${accountDate(problem.created_at)}` : 'Kayıtlı sorun yok'}</small></span></div>
       </div>
     </>}
-    <div className="nsFoot"><small>Bu kart yalnızca okur; hiçbir ayarı değiştirmez.</small><button type="button" className="nsTest" onClick={go}>{state === 'locked' ? 'Abonelik sayfası' : 'Master Trade bağlantısı'}<ArrowRight/></button></div>
+    <div className="nsFoot"><small>Bu kart yalnızca okur; hiçbir ayarı değiştirmez.</small>{state === 'ready' && consentValid && <small className="nsShort nsExpiry">İzin bitişi {accountDate(status?.authorization?.expires_at)}</small>}<button type="button" className="nsTest" onClick={go}>{state === 'locked' ? 'Abonelik sayfası' : 'Master Trade bağlantısı'}<ArrowRight/></button></div>
   </section>
 }
