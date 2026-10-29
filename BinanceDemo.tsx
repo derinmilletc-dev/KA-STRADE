@@ -1088,6 +1088,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
             </dl>
             <div className="lcStatusLinks">
               {autoOn ? <button type="button" className="lcBtn lcDanger lcBarStop" disabled={v21Busy} onClick={toggleAuto}><Power aria-hidden="true"/>Durdur</button>
+                : status && !status.configured ? <button type="button" className="lcBtn lcPrimary lcBarStop demoCockpitStart" onClick={() => onMasterTab?.('baglanti')}><ShieldCheck aria-hidden="true"/>Demo hesabı bağla</button>
                 : tab === 'trade' && status?.configured && <button type="button" className="lcBtn lcPrimary lcBarStop demoCockpitStart" onClick={() => setTab('auto')}><Zap aria-hidden="true"/>Otomasyonu ayarla</button>}
             </div>
           </header>
@@ -1103,6 +1104,82 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
               <span><small>Açık pozisyon</small><b>{openCount === null ? '—' : `${openCount}${maxPositions ? ` / ${maxPositions}` : ''}`}</b></span>
             </div>
           </section>
+        </section>
+      </section>
+    })()}
+    {masterTab === 'pozisyonlar' && !isolatedRisk && (() => {
+      // Master'ın Pozisyonlar panelinin aynısı; demo hesabın pozisyon/emirleri, kapatma mevcut demo onayıyla.
+      const price = (value:number|null|undefined) => value === null || value === undefined || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US',{maximumFractionDigits:Math.abs(value) >= 100 ? 2 : Math.abs(value) >= 1 ? 4 : 6,minimumFractionDigits:Math.abs(value) >= 100 ? 2 : Math.abs(value) >= 1 ? 4 : 6})
+      const amount = (value:number|null|undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR',{maximumFractionDigits:2,minimumFractionDigits:2})
+      const open = (account?.positions || []).filter(position => Math.abs(position.quantity) > 0)
+      const orders = [...(account?.open_orders || []).map(order => ({symbol:order.symbol,side:order.side,type:order.type,price:order.price,quantity:order.quantity,status:order.status,reduce:order.reduce_only})),...(account?.open_algo_orders || []).map(order => ({symbol:order.symbol,side:order.side,type:order.type,price:order.trigger_price,quantity:order.quantity,status:order.status,reduce:undefined as boolean|undefined}))]
+      const sideLabel = (side:string) => side === 'BUY' || side === 'LONG' ? 'Alış' : side === 'SELL' || side === 'SHORT' ? 'Satış' : side || '--'
+      return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterPositions" data-layout-tab="pozisyonlar" aria-label="Demo pozisyonlar">
+        <div className="masterTradeDataGrid">
+          <section className="masterTradePanel positionsPanel widePanel">
+            <div className="panelHeader"><div><span className="panelEyebrow">OPEN POSITIONS</span><h3>Portfolio</h3></div></div>
+            <div className="tableWrap portfolioScrollRegion"><table>
+              <thead><tr><th>Symbol</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Leverage</th><th>Margin</th><th>PnL</th><th>PnL%</th><th>SL</th><th>TP</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>{!status?.configured ? <tr><td colSpan={13} className="emptyState">ACCOUNT DISCONNECTED</td></tr> : open.length ? open.map(position => <tr key={`${position.symbol}-${position.direction}`} className="posRow">
+                <td data-cell="symbol"><strong>{position.symbol}</strong><span className="positionAge">DEMO</span></td>
+                <td data-cell="side"><span className={position.direction === 'LONG' ? 'positive' : 'negative'}>{position.direction}</span></td>
+                <td data-cell="size" data-label="Miktar">{amount(Math.abs(position.quantity))}</td>
+                <td data-cell="entry" data-label="Giriş fiyatı">${price(position.entry_price)}</td>
+                <td data-cell="mark" data-label="Anlık fiyat">${price(position.mark_price)}</td>
+                <td data-cell="lev">{position.leverage ? `${position.leverage}x` : '--'}</td>
+                <td data-cell="margin" data-label="Teminat">--</td>
+                <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={position.unrealized_pnl >= 0 ? 'positive' : 'negative'}>{`${position.unrealized_pnl >= 0 ? '+' : ''}$${amount(position.unrealized_pnl)}`}</td>
+                <td data-cell="pct">--</td>
+                <td data-cell="sl" data-label="Stop Loss">--</td>
+                <td data-cell="tp" data-label="Take Profit">--</td>
+                <td data-cell="status"><span className="statusBadge open">OPEN</span></td>
+                <td data-cell="actions"><div className="positionActions"><button type="button" className="dangerAction positionCloseButton" aria-label={`Close ${position.symbol} position`} disabled={busy} onClick={() => closePosition(position)}><X size={14} aria-hidden="true"/> CLOSE POSITION</button></div></td>
+              </tr>) : <tr><td colSpan={13} className="emptyState">NO OPEN POSITIONS</td></tr>}</tbody>
+            </table></div>
+          </section>
+          <section className="masterTradePanel ordersPanel compactPanel">
+            <div className="panelHeader"><div><span className="panelEyebrow">ACTIVE ORDERS</span><h3>Orders</h3></div></div>
+            <div className="tableWrap compactTable">{orders.length ? <table>
+              <thead><tr><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th><th>Reduce Only</th></tr></thead>
+              <tbody>{orders.map((order, index) => <tr key={`${order.symbol}-${index}`}>
+                <td data-cell="symbol">{order.symbol || '--'}</td>
+                <td data-cell="side" className={order.side === 'BUY' || order.side === 'LONG' ? 'positive' : 'negative'}><span className="friendlyText">{sideLabel(order.side)}</span><span className="rawText">{order.side || '--'}</span></td>
+                <td data-cell="type"><span className="rawText">{order.type || '--'}</span></td>
+                <td data-cell="price" data-label="Tetikleme fiyatı">${price(order.price)}</td>
+                <td data-cell="qty" data-label="Miktar">{amount(order.quantity)}</td>
+                <td data-cell="status"><span className="statusBadge open">{order.status || '--'}</span></td>
+                <td data-cell="reduce" data-label="Sadece azaltma">{order.reduce === undefined ? '--' : order.reduce ? 'REDUCE ONLY' : 'NO'}</td>
+              </tr>)}</tbody>
+            </table> : <div className="emptyState">{status?.configured ? 'NO ACTIVE ORDERS' : 'ACCOUNT DISCONNECTED'}</div>}</div>
+          </section>
+        </div>
+      </section>
+    })()}
+    {masterTab === 'baglanti' && !isolatedRisk && (() => {
+      // Master'ın Bağlantı kartının aynısı; alanlar ve düğmeler mevcut demo bağlantı işlevlerini kullanır (emir göndermez).
+      const connected = Boolean(status?.connected)
+      const gates:[string,boolean,string][] = [
+        ['Demo hesap bağlı',connected,connected ? 'Binance Futures Demo yanıt veriyor' : 'Demo anahtarlarını kaydet ve test et'],
+        ['Demo emir kilidi',!status?.armed,status?.armed ? 'Süreli demo emir izni açık' : 'Kapalı · emir için onay gerekir'],
+        ['Gerçek işlem kilitli',v21?.real_trading_locked !== false,'Demo sayfası gerçek hesaba emir göndermez'],
+        ['Otomasyon',!v21?.auto.enabled,v21?.auto.enabled ? 'Demo otomasyonu çalışıyor' : 'Kapalı'],
+      ]
+      return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterConnection" data-layout-tab="baglanti" aria-label="Demo bağlantı" data-i18n-skip="">
+        <section id="master-trade-live-terminal" className="liveWs">
+          <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${connected ? 'done' : 'current'}`}>{connected ? <CheckCircle2/> : '1'}</span><span><b>Binance Demo bağlantısı</b><small>Binance Futures Demo · test ağı</small></span></div>
+            <div className="liveWsBody"><div className="liveWsConnect">
+              <div className="liveWsConnectHead"><span className={`liveWsDot ${connected ? 'on' : ''}`}/><div><b>{connected ? 'Demo hesap bağlı' : 'Demo hesap bağlı değil'}</b><small>Binance · USDT-M Futures Demo{status?.rest_host ? ` · ${status.rest_host.replace(/^https?:\/\//,'')}` : ''}</small></div></div>
+              <div className="liveWsFields">
+                <label>Demo API anahtarı<input data-private="true" type="password" autoComplete="off" value={demoCredentials.apiKey} onChange={event => setDemoCredentials(current => ({...current,apiKey:event.target.value}))} placeholder="Demo API anahtarını yapıştır"/></label>
+                <label>Demo gizli anahtar<input data-private="true" type="password" autoComplete="new-password" value={demoCredentials.secretKey} onChange={event => setDemoCredentials(current => ({...current,secretKey:event.target.value}))} placeholder="Demo gizli anahtarı yapıştır"/></label>
+              </div>
+              <div className="liveWsRow"><button type="button" className="liveWsGhost" disabled={busy || !demoCredentials.apiKey || !demoCredentials.secretKey} onClick={() => void testDemoConnection()}><Radio/> Bağlantıyı test et</button><button type="button" className="liveWsPrimary" disabled={busy || !demoCredentials.apiKey || !demoCredentials.secretKey} onClick={() => void saveDemoConnection()}><Save/> Kaydet</button></div>
+              <div className="liveWsRow"><button type="button" className="liveWsPrimary" disabled={busy || v21Busy} onClick={() => void quickDemo()}><ShieldCheck/> Demo bağlantısını hazırla</button></div>
+              <p className="liveWsHint">Bu düğme yalnız demo anahtarlarını test edip kaydeder, bağlantıyı açar ve süreli demo emir iznini verir. Emir göndermez; gerçek hesaba dokunmaz.</p>
+            </div></div>
+          </section>
+          <section className="liveWsSection liveWsActivity"><h3>Son olaylar</h3>{status?.events?.length ? <ol>{status.events.slice(0,8).map((event, index) => <li key={`${event.created_at}-${event.kind}-${index}`} className={/FAIL|BLOCK|LOCK|STALE|RATE|ERROR|UNKNOWN|EMERGENCY/i.test(String(event.kind)) ? 'warn' : ''}><time>{new Date(event.created_at).toLocaleString('tr-TR')}</time><span>{String(event.message || event.kind).replaceAll('_',' ')}</span></li>)}</ol> : <p className="liveWsHint">Henüz demo olayı yok.</p>}</section>
+          <section className="liveWsSection masterTradeLiveSafety"><h3>Güvenlik özeti</h3><div className="liveWsGates">{gates.map(([label,ok,detail]) => <span key={label} className={ok ? 'ok' : 'bad'} title={detail}>{ok ? <CheckCircle2/> : <TriangleAlert/>}{label}</span>)}</div></section>
         </section>
       </section>
     })()}
