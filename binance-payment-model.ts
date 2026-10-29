@@ -1,6 +1,9 @@
+import {planForAmount, type PaidPlan} from './smart-trade-plans'
+
 export type BinancePayment = {
   id:string; reference_code:string; amount:string; currency:'USDT'; method:'binance_manual';
   status:'created'|'pending'|'approved'|'rejected'|'expired'; transaction_number:string|null; expires_at:string;
+  plan:PaidPlan|null
 }
 export const isRecord = (value:unknown):value is Record<string,unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 export const validAmount = (value:unknown):value is string => typeof value === 'string' && /^\d+\.\d{2}$/.test(value) && Number(value) > 0
@@ -18,6 +21,7 @@ export function parseBinancePayment(value:unknown):BinancePayment {
     return {
       id:value.id,reference_code:value.reference_code,amount:value.amount,currency:value.currency,method:value.method,
       status:value.status,transaction_number:value.transaction_number,expires_at:value.expires_at,
+      plan:planForAmount(value.amount),
     }
   }
   throw new Error('Binance ödeme talebi doğrulanamadı.')

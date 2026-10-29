@@ -3,6 +3,7 @@ import {Copy, RefreshCw, Search} from 'lucide-react'
 import {API_BASE, userSessionToken} from './api'
 import {withRequestDeadline} from './browser-request'
 import {isRecord, parseBinancePayment, type BinancePayment} from './binance-payment-model'
+import {PAID_PLAN_NAME} from './smart-trade-plans'
 import {subscriptionLabels} from './moderator-model'
 import './admin-binance-payments.css'
 
@@ -58,7 +59,7 @@ function parsePage(value:unknown):PaymentPage|DisabledPayments {
       || !(row.email === null || typeof row.email === 'string') || !(row.display_name === null || typeof row.display_name === 'string')
       || typeof row.created_at !== 'string' || !Number.isFinite(Date.parse(row.created_at))
       || !(row.decision_note === null || typeof row.decision_note === 'string')
-      || payment.amount !== '119.90') throw new Error('Binance ödeme kartı doğrulanamadı.')
+      || payment.plan === null) throw new Error('Binance ödeme kartı doğrulanamadı.')
     return {...payment,user_id:row.user_id,email:row.email,display_name:row.display_name,created_at:row.created_at,decision_note:row.decision_note,customer:parseCustomer(row.customer),recommendation:parseRecommendation(row.recommendation)}
   })
   return {items,total:value.total,limit:value.limit,offset:value.offset,
@@ -189,7 +190,7 @@ export default function AdminBinancePayments() {
     {!loading && !error && Boolean(page?.items.length) && visible.length === 0 && <p>Aramanızla eşleşen talep yok.</p>}
     <div className="adminBinanceCards">{visible.map(row => <article id={`binance-payment-${row.id}`} tabIndex={-1} className={row.recommendation && row.status === 'pending' ? 'isRecommended' : undefined} key={row.id} aria-label={`Ödeme ${row.reference_code}`}>
       <header><div className="adminBinanceIdentity"><span className="adminBinanceAvatar" aria-hidden="true">{initialOf(row)}</span>
-        <div><h3>{row.display_name || row.email || row.user_id}</h3><span>{row.email || row.user_id}</span></div></div><strong>{row.amount} {row.currency}</strong></header>
+        <div><h3>{row.display_name || row.email || row.user_id}</h3><span>{row.email || row.user_id}</span></div></div><strong>{row.amount} {row.currency}<small> · {row.plan ? PAID_PLAN_NAME[row.plan] : ''}</small></strong></header>
       {row.recommendation && <p className="adminBinanceRecommended" role="note"><b>Moderatör onaya gönderdi</b> · {row.recommendation.by || 'Moderatör'} · {date(row.recommendation.at)}{row.recommendation.note ? <> — “{row.recommendation.note}”</> : null}<br/>Üyelik, siz <b>Onayla</b>ya basana kadar açılmaz.</p>}
       {row.customer && <ul className="adminBinanceBadges" aria-label="Hesap durumu">
         <li className={row.customer.active ? 'good' : 'warn'}>{row.customer.active ? 'Hesap aktif' : 'Hesap devre dışı'}</li>

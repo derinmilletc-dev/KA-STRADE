@@ -225,7 +225,7 @@ function errorMessage(payload: unknown, fallback: string): string {
 export default function LiveTradingPanel({active, symbol, analysis, masterTrade, masterTradeTab, sharedStatus, sharedStatusVerified = true, sharedStatusError = '', sharedStatusLoading, sharedConnections, onRefreshStatus}: Props) {
   const [originalNotice, setOriginalNotice] = useState('')
   const [connectionNotice, setConnectionNotice] = useState<{kind: 'info' | 'ok' | 'error'; text: string} | null>(null)
-  const {freeTrial, userId} = useMemberAccess()
+  const {freeTrial, userId, automationAllowed} = useMemberAccess()
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
   const [sizingNotice, setSizingNotice] = useState('')
@@ -630,7 +630,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const autoTimeframeSupported = selectedAutoTimeframe === '15m' && savedAutoTimeframe === '15m'
   const autoTimeframeMessage = "LIVE Auto Trade yalnızca 15m zaman diliminde çalışır. Başlatmak için timeframe'i 15m seçip politikayı kaydedin."
   const timeframeWarning = !autoTimeframeSupported ? <div className="liveNotice error" role="alert" data-testid="live-auto-timeframe-warning"><TriangleAlert aria-hidden="true"/><span>{autoTimeframeMessage} Timeframe: {selectedAutoTimeframe !== '15m' ? selectedAutoTimeframe : savedAutoTimeframe}.</span></div> : null
-  const autoReady = Boolean(!freeTrial && autoTimeframeSupported && status && connections && authorizationValid && connectionReady && armState === 'READY' && !executionLocked && readinessReady && riskState === 'READY' && exposureState === 'READY' && activePlanState === 'READY' && protectionState === 'READY' && recoveryState === 'READY' && emergencyState === 'CLEAR')
+  const autoReady = Boolean(!freeTrial && automationAllowed !== false && autoTimeframeSupported && status && connections && authorizationValid && connectionReady && armState === 'READY' && !executionLocked && readinessReady && riskState === 'READY' && exposureState === 'READY' && activePlanState === 'READY' && protectionState === 'READY' && recoveryState === 'READY' && emergencyState === 'CLEAR')
   const originalEntryChecks: OriginalV2EntryCheck[] = []
   const originalRuntime = status?.original_v2_live
   if (status && originalRuntime) {
@@ -910,6 +910,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const autoToggle = () => {
     if (status?.live_auto_trade || status?.auto?.enabled) return stopAutoTrade()
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
+    if (automationAllowed === false) {setNotice({kind:'error',text:'Otomatik stratejiler MASTER MODE ile açılır. Smart Trade yalnız elle işlem içindir.'});return}
     if (!autoTimeframeSupported) {
       setNotice({kind: 'error', text: autoTimeframeMessage})
       return
@@ -2175,7 +2176,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                 <div className="masterTradeLiveAssistantActions" aria-label="Auto Trade controls">
                   <button type="button" className={`liveWsPrimary big ${running ? 'danger' : ''}`} onClick={running ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!running && !autoReady)}>{!running && !autoReady ? <LockKeyhole/> : <Power/>} {running ? 'OTOMATİK İŞLEMİ DURDUR' : 'OTOMATİK İŞLEMİ BAŞLAT'}</button>
                 </div>
-                {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {blocker || 'önceki adımları tamamla'}</p>}
+                {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {automationAllowed === false ? 'Otomatik stratejiler MASTER MODE ile açılır (Smart Trade yalnız elle işlem).' : blocker || 'önceki adımları tamamla'}</p>}
                 <div className="liveWsMeta"><span><small>Tarayıcı</small><b>{scannerStatus}</b></span><span><small>Taranan</small><b>{status?.scanner?.scanned_symbol_count ?? 0}</b></span><span><small>Aday</small><b>{candidateCount}</b></span><span><small>Son tarama</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span></div>
                 {running && <p className="liveWsHint">{automationReason}</p>}
               </div>

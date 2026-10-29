@@ -1,9 +1,10 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, Check, Clock3, CreditCard, Crown, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
+import {ArrowRight, Check, Clock3, CreditCard, Crown, Lock, CircleDollarSign, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
 import {userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
 import {PLAN_BY_CODE} from './subscription'
+import {PAID_PLAN_AMOUNT, PAID_PLAN_NAME, SMART_TRADE_FEATURES, type PaidPlan} from './smart-trade-plans'
 import './billing-center.css'
 
 export type BillingSubscription = {
@@ -40,6 +41,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const [now, setNow] = useState(Date.now)
   const inFlight = useRef(false)
   const paymentRef = useRef<HTMLElement>(null)
+  const [selectedPlan, setSelectedPlan] = useState<PaidPlan>('MASTER_MODE')
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000)
@@ -75,7 +77,8 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const onTrial = subscription?.mode === 'FREE_TRIAL'
   const binancePaid = subscription?.mode === 'BINANCE_MANUAL'
   const expiry = subscription?.current_period_end || subscription?.trial_end
-  const planName = onTrial ? '1 Hafta Ücretsiz Deneme' : subscription?.plan ? 'MASTER MODE' : 'Aktif plan yok'
+  const smartTrade = subscription?.plan === 'SMART_TRADE'
+  const planName = onTrial ? '1 Hafta Ücretsiz Deneme' : smartTrade ? 'SMART TRADE' : subscription?.plan ? 'MASTER MODE' : 'Aktif plan yok'
   const badge = loading ? 'Yükleniyor' : loadError ? 'Bilgi alınamadı' : hasAccess ? (onTrial ? 'Deneme aktif' : 'Aktif') : STATUS_TR[status] || 'Kapalı'
   const badgeTone = loading || loadError ? 'neutral' : hasAccess ? 'positive' : 'warning'
 
@@ -88,14 +91,16 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
 
   const masterLabel = methodsLoading ? 'Yükleniyor…' : methodsError ? 'Ödeme bilgisi alınamadı' : !binanceEnabled ? 'Ödeme yakında açılacak'
     : binancePaid && hasAccess ? 'Erişimin aktif' : 'Ödemeye geç'
-  const goToPayment = () => paymentRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'})
+  const smartLabel = methodsLoading ? 'Yükleniyor…' : methodsError ? 'Ödeme bilgisi alınamadı' : !binanceEnabled ? 'Ödeme yakında açılacak'
+    : binancePaid && hasAccess && smartTrade ? 'Erişimin aktif' : 'Ödemeye geç'
+  const goToPayment = (plan: PaidPlan) => { setSelectedPlan(plan); window.setTimeout(() => paymentRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'}), 0) }
 
   return <main className="subscriptionPage ktBill">
     <header className="ktBillHero">
       <div>
         <span className="ktBillEyebrow">ABONELİK</span>
         <h1>Planını seç, Master Trade’i aç.</h1>
-        <p>Ödeme bilgisi vermeden 7 gün dene ya da MASTER MODE ile tüm özelliklere eriş. Otomatik ücret yok.</p>
+        <p>Ödeme bilgisi vermeden 7 gün dene. Sadece elle işlem için SMART TRADE, Kais otomasyonu dahil her şey için MASTER MODE. Otomatik ücret yok.</p>
       </div>
     </header>
 
@@ -127,12 +132,26 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <p className="ktBillPlanLead">Kart veya ödeme bilgisi gerekmez. 7 gün boyunca çalışma alanını dene.</p>
         <div className="ktBillPrice"><strong>0</strong><span className="ktBillCurrency">USD</span><span className="ktBillPer">/ 7 gün</span></div>
         <ul>{TRIAL_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
-        <p className="ktBillNote"><Lock/>LIVE işlem MASTER MODE ile açılır.</p>
+        <p className="ktBillNote"><Lock/>LIVE işlem ücretli planlarla açılır.</p>
         {trialActive && <p className="ktBillInfo" role="status"><Clock3/>Kalan süre: <b>{trialDays} gün</b></p>}
-        {trialUsed && !trialActive && <p className="ktBillInfo" role="status">Deneme sona erdi. Devam etmek için MASTER MODE’a geç.</p>}
+        {trialUsed && !trialActive && <p className="ktBillInfo" role="status">Deneme sona erdi. Devam etmek için SMART TRADE ya da MASTER MODE’a geç.</p>}
         <button type="button" className="ktBillButton" onClick={() => void startTrial()} disabled={trialDisabled}>{trialLabel}</button>
         {trialError && <p className="ktBillAlert" role="alert">{trialError} <button type="button" onClick={() => setTrialAttempt(value => value + 1)}>Yeniden dene</button></p>}
         <small className="ktBillTerms">Hesap başına bir deneme. E-posta doğrulaması gerekir.</small>
+      </article>
+
+      <article className="ktBillPlan isSmart">
+        <header>
+          <div className="ktBillPlanIcon"><CircleDollarSign/></div>
+          <div><span className="ktBillTag">SADECE ELLE İŞLEM</span><h3>SMART TRADE</h3></div>
+        </header>
+        <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
+        <div className="ktBillPrice"><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
+        <ul>{SMART_TRADE_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
+        <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
+        <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
+        <button type="button" className="ktBillButton" onClick={() => goToPayment('SMART_TRADE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{smartLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
+        <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
 
       <article className="ktBillPlan isFeatured">
@@ -145,7 +164,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <div className="ktBillPrice"><strong>{PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{MASTER_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
         <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
-        <button type="button" className="ktBillButton isPrimary" onClick={goToPayment} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
+        <button type="button" className="ktBillButton isPrimary" onClick={() => goToPayment('MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
     </section>
@@ -153,15 +172,15 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     {binanceEnabled && authenticated && <section className="ktBillPay" ref={paymentRef} aria-label="Binance ile ödeme">
       <div className="ktBillSteps">
         <span className="ktBillEyebrow">NASIL ÖDENİR?</span>
-        <h2>3 adımda MASTER MODE</h2>
+        <h2>3 adımda {PAID_PLAN_NAME[selectedPlan]}</h2>
         <ol>
           <li><b>1</b><div><strong>Ödeme talebi oluştur</strong><span>“Binance ile öde”ye bas; sana özel referans kodu çıkar.</span></div></li>
-          <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>119.90 USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
+          <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>{PAID_PLAN_AMOUNT[selectedPlan]} USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
           <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
         </ol>
         <p className="ktBillStepsTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
       </div>
-      <div className="ktBillPayBox"><BinanceManualPayment/></div>
+      <div className="ktBillPayBox"><BinanceManualPayment plan={selectedPlan}/></div>
     </section>}
     {methodsError && <p className="ktBillAlert" role="alert">{methodsError} <button type="button" onClick={onRetry}><RefreshCw/>Yeniden dene</button></p>}
 
