@@ -517,6 +517,7 @@ export default function TestnetFirstApp() {
   const [marketsAt,setMarketsAt] = useState<number|null>(null)
   const [demoTab,setDemoTab] = useState<DemoMasterTab>('canli')
   const [demoConnected,setDemoConnected] = useState<boolean|null>(null)
+  const [demoPositions,setDemoPositions] = useState<readonly unknown[]>([])
   const [symbol,setSymbol] = useState('BTCUSDT')
   const [marketQuery,setMarketQuery] = useState('')
   const [marketPickerOpen,setMarketPickerOpen] = useState(false)
@@ -1002,6 +1003,7 @@ export default function TestnetFirstApp() {
 
     {view === 'trading' && <>
       <DemoMasterShell tab={demoTab} onTab={setDemoTab} connected={demoConnected} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>
+      {demoTab === 'analiz' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Analiz hazırlanıyor…</div>}><MasterTrade embedDemo demoPositions={demoPositions} onDemoTab={setDemoTab}/></Suspense>}
       <section className="v26MarketBar">
         <div className="v26MarketTitle"><Activity/><span><small>SEÇİLİ TESTNET PAZARI</small><b>{symbol.replace('USDT','/USDT')}</b></span><strong className={analysis?.direction === 'SHORT' ? 'short' : analysis?.direction === 'LONG' ? 'long' : ''}>{analysis?.direction || (analysisProgress < 0 ? 'ANALİZ HATASI' : 'HESAPLANIYOR')} <em>{analysis ? `%${analysis.confidence}` : analysisProgress < 0 ? 'TEKRAR DENEYİN' : analysisProgress > 0 ? `%${analysisProgress}` : 'BAŞLATILIYOR'}</em></strong></div>
         <div className="v26MarketPicker" ref={marketPickerRef}>
@@ -1015,7 +1017,7 @@ export default function TestnetFirstApp() {
         {marketError && <div className="v26MarketError" role="alert"><span>Market verisi yüklenemedi. {marketError}</span><button className="action-button" type="button" aria-label="Market verisini yeniden dene" title="Market verisini yeniden dene" onClick={() => void refresh()} disabled={loading}>{loading ? <RefreshCw className="spin"/> : 'TEKRAR DENE'}</button></div>}
       </section>
       <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Testnet merkezi hazırlanıyor…</div>}>
-        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" masterTab={demoTab} onConnectedChange={setDemoConnected} onMasterTab={setDemoTab} chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
+        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" masterTab={demoTab} onConnectedChange={setDemoConnected} onMasterTab={setDemoTab} onPositionsChange={setDemoPositions} chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
       </Suspense>
     </>}
 
