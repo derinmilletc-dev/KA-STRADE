@@ -12,6 +12,7 @@ import SpotHint from '../../SpotHint'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
+import '../../live-cockpit-coach-mobile.css'
 
 const LAUNCH_TARGETS = ['[data-testid="launch-open-mobile"]', '[data-testid="launch-open"]']
 
@@ -614,6 +615,9 @@ export default function LiveCockpit(props: Props) {
   // ---- Kendiliğinden düzelme: yalnız durum okuması, artan aralıklarla.
   const [retry, setRetry] = useState({attempt: 0, at: 0})
   const [now, setNow] = useState(() => Date.now())
+  // Kais Koç sayacı (telefon): halkaya dokununca 'sonraki tarama' ile 'oturum' arasında geçer.
+  const [koView, setKoView] = useState<'scan' | 'session'>('scan')
+  const sessionTotal = useRef(0)
   const wantsRetry = guide.action === 'retry' && !loading && !working
   useEffect(() => {
     if (!wantsRetry) { setRetry(current => current.attempt === 0 && current.at === 0 ? current : {attempt: 0, at: 0}); return }
@@ -1592,6 +1596,27 @@ export default function LiveCockpit(props: Props) {
     const total = elapsed + Math.max(0, upcoming.inSeconds)
     return total > 0 ? Math.min(100, Math.max(0, Math.round(elapsed / total * 100))) : 0
   })()
+  // ---- Kais Koç sayacı: tamamı gösterim; veriler yukarıdaki sayaçlardan gelir, hiçbir şey göndermez.
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const mmss = (t: number) => `${pad2(Math.floor(t / 60))}:${pad2(t % 60)}`
+  const hms = (t: number) => `${pad2(Math.floor(t / 3600))}:${pad2(Math.floor((t % 3600) / 60))}:${pad2(t % 60)}`
+  if (sessionLeft > sessionTotal.current) sessionTotal.current = sessionLeft
+  const lastScanAgo = Number.isFinite(lastScanMs) ? (now - lastScanMs) / 1000 : Infinity
+  const koScanning = scanner?.stage === 'SCANNING'
+  const koJustDone = !koScanning && lastScanAgo >= 0 && lastScanAgo < 20
+  const koSession = koView === 'session' && !koScanning && !koJustDone
+  const koPhase = koScanning ? 'scan' : koJustDone ? 'done' : 'wait'
+  const koWait = upcoming ? Math.max(0, Math.round(upcoming.inSeconds)) : 0
+  const koCands = Number(scanner?.candidate_count) || 0
+  const koFrac = koScanning || koJustDone ? 1 : koSession ? (sessionTotal.current > 0 ? sessionLeft / sessionTotal.current : 0) : Math.min(1, koWait / 900)
+  const koDeg = Math.round(Math.max(0, Math.min(1, koFrac)) * 360)
+  const koLabel = koScanning ? 'TARANIYOR' : koJustDone ? 'TARAMA BİTTİ' : koSession ? 'OTURUM' : 'SONRAKİ TARAMA'
+  const koBig = koScanning ? 'Taranıyor' : koJustDone ? (koCands > 0 ? `${koCands} aday` : '0 aday') : koSession ? hms(sessionLeft) : upcoming ? mmss(koWait) : '—'
+  const koSize = koScanning ? 'word' : koJustDone ? 'word' : koSession ? 'hms' : 'time'
+  const koSub = koScanning ? 'coinler kontrol ediliyor' : koJustDone ? (koCands > 0 ? 'kurallara uyan fırsat var' : 'şimdilik fırsat yok') : koSession ? 'sayaca dokun: tarama' : Number.isFinite(lastScanMs) ? `son tarama ${clock(scanner?.last_scan_at)}` : 'ilk tarama bekleniyor'
+  const koSmart = koScanning ? 'Kurallara uyan fırsat aranıyor' : koJustDone ? (koCands > 0 ? 'Fırsat bulundu · stop ve hedefle emir açılır' : 'Fırsat yok · sıradaki mumu bekliyor') : koWait > 300 ? 'Sakin bekleme · mum kapanışı bekleniyor' : koWait > 60 ? 'Mum kapanışına az kaldı' : 'Tarama yaklaşıyor'
+  const koUrgent = koPhase === 'wait' && !koSession && upcoming !== null && koWait <= 60
+  const koSessionPct = sessionTotal.current > 0 ? Math.min(100, Math.round(sessionLeft / sessionTotal.current * 100)) : 0
   const minMargin = finite(caps?.min_margin_usdt)
   const coachChecks: {ok: boolean; text: string}[] = coach ? [
     {ok: Boolean(guideInput.connected), text: guideInput.connected ? 'Binance bağlı' : 'Binance bağlantısı yok'},
@@ -1671,6 +1696,7 @@ export default function LiveCockpit(props: Props) {
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
             {!coach && guide.phase !== 'loading' && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`Adım ${guide.step} / ${GUIDE_STEPS.length}`} style={{'--p': `${Math.round(guide.step / GUIDE_STEPS.length * 100)}%`} as CSSProperties}><b aria-hidden="true">{guide.step}/{GUIDE_STEPS.length}</b></span>}
+            {coach && !stale && <span className="lcMobileOnly lcKoPill">ÇALIŞIYOR</span>}
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
               <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
@@ -1700,6 +1726,17 @@ export default function LiveCockpit(props: Props) {
               <ul className="lcCoachChecks">{coachChecks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '!'}</i>{item.text}</li>)}</ul>
               {coachNote && <p className="lcCoachNote"><small>KOÇ YORUMU</small>{coachNote}</p>}
             </div>
+          </div>}
+          {coach && !stale && <div className="lcMobileOnly lcKo" data-phase={koPhase} data-urgent={koUrgent || undefined} data-testid="coach-ring">
+            <button type="button" className="lcKoRing" data-size={koSize} style={{'--deg': `${koDeg}deg`} as CSSProperties} aria-label={koSession ? 'Oturum kalan süresi. Dokununca sonraki taramayı gösterir' : 'Sonraki tarama sayacı. Dokununca oturum süresini gösterir'} onClick={() => setKoView(value => value === 'scan' ? 'session' : 'scan')}>
+              <i className="lcKoTicks" aria-hidden="true"/><i className="lcKoSweep" aria-hidden="true"/><i className="lcKoHead" aria-hidden="true"/>
+              <span className="lcKoTxt"><small>{koLabel}</small><b>{koBig}</b><em>{koSub}</em></span>
+            </button>
+            <p className="lcKoSmart" role="status"><Check aria-hidden="true"/>{koSmart}</p>
+          </div>}
+          {coach && running && !stale && <div className="lcMobileOnly lcKoSession" data-urgent={(sessionLeft > 0 && sessionLeft <= 3600) || undefined}>
+            <div><small>OTURUM</small><b>{sessionLeft > 0 ? `${hms(sessionLeft)} kaldı` : '—'}</b></div>
+            <i aria-hidden="true"><u style={{width: `${koSessionPct}%`}}/></i>
           </div>}
           {verified && original && guideInput.connected && !guideInput.emergency && (() => {
             const approvalsOk = guideInput.authorizationValid && guideInput.policyAcknowledged
