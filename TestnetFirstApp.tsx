@@ -1015,7 +1015,7 @@ export default function TestnetFirstApp() {
         {marketError && <div className="v26MarketError" role="alert"><span>Market verisi yüklenemedi. {marketError}</span><button className="action-button" type="button" aria-label="Market verisini yeniden dene" title="Market verisini yeniden dene" onClick={() => void refresh()} disabled={loading}>{loading ? <RefreshCw className="spin"/> : 'TEKRAR DENE'}</button></div>}
       </section>
       <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Testnet merkezi hazırlanıyor…</div>}>
-        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" masterTab={demoTab} onConnectedChange={setDemoConnected} chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
+        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" masterTab={demoTab} onConnectedChange={setDemoConnected} onMasterTab={setDemoTab} chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
       </Suspense>
     </>}
 

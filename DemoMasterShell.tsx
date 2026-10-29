@@ -6,6 +6,7 @@ import './live-mobile.css'
 import './master-status-strip.css'
 import './live-ws.css'
 import './live-cockpit.css'
+import './live-cockpit-mobile.css'
 import './demo-master.css'
 
 // Demo İşlem Masası, Master Trade sayfasının görünümünü kullanır. Yalnız görünüm: demo motoru ve

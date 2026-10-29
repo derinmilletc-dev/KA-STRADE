@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Award, BarChart3, Bell, Calculator, CheckCircle2, ChevronDown, ClipboardList, Crosshair, FlaskConical, Gauge, History, LayoutDashboard, LineChart, LockKeyhole, Play, Radar, Radio, RefreshCw, Save, ScrollText, Search, Send, Settings2, ShieldAlert, ShieldCheck, Sparkles, Target, TestTube2, TriangleAlert, UnlockKeyhole, Wallet, X, Zap } from 'lucide-react'
+import { Activity, Award, BarChart3, Bell, Calculator, CheckCircle2, ChevronDown, ClipboardList, Crosshair, FlaskConical, Gauge, History, LayoutDashboard, LineChart, LockKeyhole, Play, Radar, Radio, RefreshCw, Save, ScrollText, Search, Send, Settings2, ShieldAlert, ShieldCheck, Sparkles, Target, TestTube2, TriangleAlert, UnlockKeyhole, Wallet, X, Zap, Clock, Power } from 'lucide-react'
 import RiskKasasiInfo from './RiskKasasiInfo'
 import { API_BASE, buildDemoSavePayload, loadDemoCredentials, saveDemoCredentials, userSessionToken } from './api'
 import {useKaisErrorReaction, useKaisWorkspaceReaction} from './useKaisPageReactions'
@@ -315,7 +315,7 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
   </div>
 }
 
-export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo,masterTab,onConnectedChange}:{active:boolean;masterTab?:'analiz'|'canli'|'pozisyonlar'|'baglanti';onConnectedChange?:(connected:boolean|null)=>void;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
+export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo,masterTab,onConnectedChange,onMasterTab}:{active:boolean;masterTab?:'analiz'|'canli'|'pozisyonlar'|'baglanti';onConnectedChange?:(connected:boolean|null)=>void;onMasterTab?:(tab:'analiz'|'canli'|'pozisyonlar'|'baglanti')=>void;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)
   const [account,setAccount] = useState<DemoAccount|null>(null)
   const [form,setForm] = useState<FormState>(initialForm)
@@ -374,6 +374,9 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   useKaisWorkspaceReaction(`${tab}:${bottomTab}`, demoDeckRef, active)
 
   const connectedNow = status ? status.connected : null
+  const [cockpitMenu,setCockpitMenu] = useState(false)
+  const [cockpitAt,setCockpitAt] = useState<number|null>(null)
+  useEffect(() => { if (status) setCockpitAt(Date.now()) }, [status])
   useEffect(() => { onConnectedChange?.(connectedNow) }, [connectedNow, onConnectedChange])
   const refreshStatus = async (signal?:AbortSignal) => {
     try {
@@ -1049,7 +1052,60 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   const previewStopDistance = previewEntry > 0 && previewStop > 0 ? Math.abs(previewEntry - previewStop) : null
   const previewRiskReward = previewEntry > 0 && previewStop > 0 && previewTp1 > 0 ? Math.abs(previewTp1 - previewEntry) / Math.abs(previewEntry - previewStop) : null
 
-  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-master-tab={masterTab} data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
+  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-master-tab={masterTab} data-demo-view={tab} data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
+    {masterTab && (tab === 'trade' || tab === 'auto') && (() => {
+      // Master'ın Canlı İşlem kartıyla aynı görünüm; yalnız mevcut demo verisini gösterir ve mevcut demo işlevlerini çağırır.
+      const autoOn = Boolean(v21?.auto.enabled)
+      const wallet = account?.wallet_balance ?? v21?.account.wallet_balance ?? null
+      const available = account?.available_balance ?? v21?.account.available_balance ?? null
+      const today = v21 ? v21.daily.realized_pnl : null
+      const dailyLimit = v21?.settings.daily_loss_limit ?? null
+      const dailyLeft = v21 ? Math.max(0, v21.daily.remaining_loss_budget) : null
+      const openCount = account ? account.positions.filter(position => Math.abs(position.quantity) > 0).length : v21?.account.positions ?? null
+      const maxPositions = v21?.settings.max_positions ?? status?.limits?.max_open_positions ?? null
+      const bar = !status ? {tone:'wait',label:'Durum okunuyor'} : !status.configured ? {tone:'warn',label:'Demo hesap bağlı değil'} : !status.connected ? {tone:'stop',label:'Bağlantı bekleniyor'} : autoOn ? {tone:'ok',label:'Çalışıyor'} : {tone:'mute',label:'Durdu'}
+      const money = (value:number|null|undefined, signed = false) => typeof value === 'number' && Number.isFinite(value) ? `${signed && value > 0 ? '+' : ''}${value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})} USDT` : '—'
+      const used = dailyLimit !== null && dailyLeft !== null ? Math.max(0, dailyLimit - dailyLeft) : null
+      return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem durumu">
+        <section className="lcRoot originalLiveWorkspace" aria-label="Demo İşlem">
+          <header className="lcStatusBar" data-tone={bar.tone}>
+            <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={autoOn || undefined}><i aria-hidden="true"/>DEMO İŞLEM</span>{demoStrategy === ORIGINAL_DEMO_ID && <span className="lcMPill">KAİS LONG</span>}</div>
+              <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">DEMO İŞLEM{demoStrategy === ORIGINAL_DEMO_ID ? ' · KAİS LONG' : ''}</small><b>{bar.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{cockpitAt ? new Date(cockpitAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'}</em></small></div>
+              <div className="lcMobileOnly lcMore">
+                <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={cockpitMenu} onClick={() => setCockpitMenu(value => !value)}><span aria-hidden="true">⋯</span></button>
+                {cockpitMenu && <><div className="lcMoreShade" role="presentation" onClick={() => setCockpitMenu(false)}/>
+                  <div className="lcMoreMenu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); onMasterTab?.('baglanti') }}><i className="lcMoreIco" data-k="conn" aria-hidden="true"><ShieldCheck/></i><span>Bağlantı ayrıntısı</span></button>
+                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); setTab('auto') }}><i className="lcMoreIco" data-k="ask" aria-hidden="true"><Settings2/></i><span>Demo otomasyon ayarları</span></button>
+                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); void refreshStatus(); void refreshV21(false) }}><i className="lcMoreIco" data-k="refresh" aria-hidden="true"><RefreshCw/></i><span>Yenile</span></button>
+                    {status?.configured && <><div className="lcMoreSep" role="separator"/>
+                    <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setCockpitMenu(false); emergency() }}><i className="lcMoreIco" data-k="stop" aria-hidden="true"><Power/></i><span>Acil demo durdur</span></button></>}
+                  </div></>}
+              </div></div>
+            <dl className="lcStatusStats">
+              <div><dt>Bakiye</dt><dd>{money(wallet)}</dd></div>
+              <div><dt>Bugün</dt><dd data-sign={today === null || today === 0 ? undefined : today < 0 ? 'down' : 'up'}>{money(today, true)}</dd></div>
+            </dl>
+            <div className="lcStatusLinks">
+              {autoOn ? <button type="button" className="lcBtn lcDanger lcBarStop" disabled={v21Busy} onClick={toggleAuto}><Power aria-hidden="true"/>Durdur</button>
+                : tab === 'trade' && status?.configured && <button type="button" className="lcBtn lcPrimary lcBarStop demoCockpitStart" onClick={() => setTab('auto')}><Zap aria-hidden="true"/>Otomasyonu ayarla</button>}
+            </div>
+          </header>
+          <section className="lcMobileOnly lcMSum" aria-label="Demo hesap özeti">
+            <div className="lcMSumTop">
+              <span><small>Bakiye</small><b>{money(wallet)}</b></span>
+              <span><small>Bugün</small><b data-sign={today === null || today === 0 ? undefined : today < 0 ? 'down' : 'up'}>{money(today, true)}</b></span>
+            </div>
+            {dailyLimit !== null && dailyLimit > 0 && dailyLeft !== null && <div className="lcMLimit"><div><small>Günlük zarar limiti</small><small>kalan <b>{money(dailyLeft)}</b> / {money(dailyLimit)}</small></div>
+              <div className="lcBar" role="progressbar" aria-label="Günlük kayıp sınırı kullanımı" aria-valuemin={0} aria-valuemax={dailyLimit} aria-valuenow={used ?? 0} data-high={used !== null && used / dailyLimit >= 0.8 || undefined}><i style={{width:`${Math.min(100, Math.max(0, (used ?? 0) / dailyLimit * 100))}%`}}/></div></div>}
+            <div className="lcMChips">
+              <span><small>Kullanılabilir</small><b>{money(available)}</b></span>
+              <span><small>Açık pozisyon</small><b>{openCount === null ? '—' : `${openCount}${maxPositions ? ` / ${maxPositions}` : ''}`}</b></span>
+            </div>
+          </section>
+        </section>
+      </section>
+    })()}
     {tab === 'trade' && <section className="demoHero">
       <div className="demoHeroCopy"><span>DEMO / TESTNET</span><h2>DEMO TRADING</h2><small className="demoHeroSymbol">{symbol.replace('USDT','/USDT')} · 15m</small><p>Binance Futures Demo hesabında piyasa akışını izle ve emirleri güvenlik kapılarıyla doğrula.</p><div><b><ShieldCheck/> Yalnızca demo</b><span>{status?.rest_host || 'https://demo-fapi.binance.com'}</span></div><button type="button" className="demoHeroConnect" onClick={connect} disabled={busy || !status?.configured}><Radio/> Binance Demo'ya Bağlan</button></div>
       <div className="demoHeroStatus">

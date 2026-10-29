@@ -18,7 +18,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .v26ModeBar { display: none !important; }
 
 /* Sekmeye göre görünen bölümler. */
-html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute:is([data-demo-tab="pozisyonlar"], [data-demo-tab="baglanti"]) > .v26MarketBar { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute:is([data-demo-tab="canli"], [data-demo-tab="pozisyonlar"], [data-demo-tab="baglanti"]) > .v26MarketBar { display: none !important; }
 
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="analiz"] > :not(.demoLiveChart, .v21DashboardInsights) { display: none !important; }
 
@@ -30,3 +30,8 @@ html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demo
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="pozisyonlar"] > .demoMainGrid > .demoBottomTabsNav > button:nth-child(n+3) { display: none !important; }
 
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="baglanti"] > :not(.demoSetupCard, .demoHero) { display: none !important; }
+
+/* Demo İşlem sekmesi: Master'ın Canlı İşlem kartı en üstte; eski demo durum kartı ve özet kartları bunun içinde. Coin seçimi emir kartında (KART A), piyasa çubuğu Analiz'de. */
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > .demoMasterCockpit { order: 0 !important; display: block !important; margin: 0 !important; padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > :is(.demoHero, .demoInfoGrid) { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"]:not([data-demo-view="auto"]) > .originalDemoNavigation { display: none !important; }
