@@ -31,7 +31,7 @@ from .browser_security import (
     set_browser_cookie, validate_browser_request,
 )
 from .google_oauth import CALLBACK_PATH as GOOGLE_CALLBACK_PATH, callback_query as google_callback_query, router as google_oauth_router
-from .premium_access import public_projection, requires_premium
+from .premium_access import AUTOMATION_LOCKED_MESSAGE, automation_locked, public_projection, requires_premium
 from .email_service import validate_app_base_url
 from .binance_rate_limit import BINANCE_GLOBAL_BAN, BINANCE_RATE_LIMITER
 from .binance_kline_stream import BinanceKlineStream
@@ -1538,6 +1538,10 @@ async def owner_preview_gate(request, call_next):
         }
         if proof.error and requires_premium(request.url.path, request.method) and not trial_safety_action:
             return apply_cors_headers(request, JSONResponse({"detail": "Üyelik yetkisi doğrulanamadı."}, status_code=503))
+        if access.get("entitlements", {}).get("canUseAutomation") is False and automation_locked(request.url.path, request.method):
+            return apply_cors_headers(request, JSONResponse(
+                {"detail": AUTOMATION_LOCKED_MESSAGE, "code": "AUTOMATION_MASTER_MODE_REQUIRED"}, status_code=403,
+            ))
         if requires_premium(request.url.path, request.method) and not request.state.premium and not trial_safety_action:
             logger.warning("Premium operation denied user_id=%s path=%s", request.state.member["id"], request.url.path)
             return apply_cors_headers(request, JSONResponse({"detail": "Premium üyelik gerekli.", "code": "PREMIUM_REQUIRED"}, status_code=403))

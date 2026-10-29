@@ -24,7 +24,7 @@ def role_ok(role: Any) -> bool:
 
 def entitled(subscription: dict[str, Any]) -> bool:
     """Paid premium, or (multi-user LIVE) an active free trial."""
-    paid = bool(subscription.get("master_trade_access") and subscription.get("plan") == "MASTER_MODE"
+    paid = bool(subscription.get("master_trade_access") and subscription.get("plan") in {"MASTER_MODE", "SMART_TRADE"}
                 and subscription.get("status") in {"ACTIVE", "PAST_DUE"})
     trial = bool(live_registry.enabled() and subscription.get("mode") == "FREE_TRIAL"
                  and subscription.get("master_trade_access") and subscription.get("status") == "TRIALING")
@@ -43,6 +43,16 @@ def require_live_member(request: Request) -> dict[str, Any]:
     if not entitled(subscription_for_request(request, user)):
         raise HTTPException(403, LIVE_MESSAGE)
     return user
+
+
+def forbid_smart_trade(request: Request, user: dict[str, Any]) -> None:
+    """Smart Trade yalnız elle işlemdir; Kais otomasyonunu başlatamaz (OWNER etkilenmez)."""
+    if user.get("role") == "OWNER":
+        return
+    from .member_entitlements import subscription_for_request
+    if subscription_for_request(request, user).get("plan") == "SMART_TRADE":
+        from .premium_access import AUTOMATION_LOCKED_MESSAGE
+        raise HTTPException(403, AUTOMATION_LOCKED_MESSAGE)
 
 
 async def background_entitled(application: Any, user_id: str) -> bool:

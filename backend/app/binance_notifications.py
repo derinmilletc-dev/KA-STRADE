@@ -130,7 +130,7 @@ async def content(conn, recipient, payload):
         )
         if not owner:
             return None
-    if str(row["amount"]) != "119.90" or row["currency"] != "USDT" or row["method"] != "binance_manual":
+    if payments.plan_for_amount(row["amount"]) is None or row["currency"] != "USDT" or row["method"] != "binance_manual":
         raise ValueError("Invalid payment notification source")
     if event in {"approved", "renewal"}:
         start, end = row["period_start"], row["period_end"]
@@ -150,23 +150,24 @@ async def content(conn, recipient, payload):
 def presentation(row):
     event = row["event"]
     reference = row["reference_code"]
+    plan_name = payments.PLAN_NAMES.get(payments.plan_for_amount(row.get("amount")), "MASTER MODE")
     end = row["period_end"].astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC") if row.get("period_end") else None
     if event == "pending":
         return ("info", "Binance ödeme talebi",
                 (f"{row.get('customer_name') or row.get('customer_email') or row['user_id']} · "
-                 f"119.90 USDT · {reference}. Ödeme incelemenizi bekliyor."),
+                 f"{row['amount']:.2f} USDT · {plan_name} · {reference}. Ödeme incelemenizi bekliyor."),
                 f"/admin?section=binance-payments&payment={row['id']}")
     if event == "approved":
         return ("success", "Binance ödemen onaylandı",
-                f"Ödemen onaylandı, MASTER MODE {end} tarihine kadar aktif. Referans: {reference}.", "/billing")
+                f"Ödemen onaylandı, {plan_name} {end} tarihine kadar aktif. Referans: {reference}.", "/billing")
     if event == "rejected":
         reason = row["decision_note"]
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("Missing rejection reason")
         return ("warning", "Binance ödemen reddedildi", f"Ödemen reddedildi. Gerekçe: {reason} Referans: {reference}.", "/billing")
     if event == "renewal":
-        return ("warning", "MASTER MODE yenileme hatırlatması",
-                f"MASTER MODE erişimin {end} tarihinde sona eriyor. Yenilemek için Binance ile ödeme yapabilirsin. Referans: {reference}.",
+        return ("warning", f"{plan_name} yenileme hatırlatması",
+                f"{plan_name} erişimin {end} tarihinde sona eriyor. Yenilemek için Binance ile ödeme yapabilirsin. Referans: {reference}.",
                 "/billing")
     raise ValueError("Unknown payment event")
 

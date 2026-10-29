@@ -17,7 +17,10 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 logger = logging.getLogger(__name__)
-AMOUNT = Decimal("119.90")
+AMOUNT = Decimal("119.90")  # Master Mode (geriye uyumlu ad)
+# Plan, ödenen tutardan çıkar: veritabanı yalnız bu iki tutara izin verir (migration 20261029_001).
+PLAN_AMOUNTS: dict[str, Decimal] = {"MASTER_MODE": Decimal("119.90"), "SMART_TRADE": Decimal("40.00")}
+PLAN_NAMES = {"MASTER_MODE": "MASTER MODE", "SMART_TRADE": "SMART TRADE"}
 REFERENCE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 TRANSACTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}", re.ASCII)
 Status = Literal["created", "pending", "approved", "rejected", "expired"]
@@ -48,6 +51,22 @@ class PaymentRequest(BaseModel):
     decided_at: datetime | None
     decision_note: str | None
     version: int
+
+    @property
+    def plan(self) -> str | None:
+        return plan_for_amount(self.amount)
+
+
+def plan_for_amount(amount: Any) -> str | None:
+    """Ödenen tutara karşılık gelen plan; tanınmayan tutar için None (fail-closed)."""
+    try:
+        value = Decimal(str(amount))
+    except Exception:
+        return None
+    for plan, expected in PLAN_AMOUNTS.items():
+        if value == expected:
+            return plan
+    return None
 
 
 def new_reference() -> str:
@@ -154,7 +173,10 @@ async def expire_due(conn: PaymentConnection, *, user_id: str | None = None) -> 
         return len(rows)
 
 
-async def create_request(conn: PaymentConnection, user_id: str) -> PaymentRequest:
+async def create_request(conn: PaymentConnection, user_id: str, plan: str = "MASTER_MODE") -> PaymentRequest:
+    amount = PLAN_AMOUNTS.get(plan)
+    if amount is None:
+        raise HTTPException(422, "Bilinmeyen plan.")
     async with storage(conn):
         await lock_user(conn, user_id)
         await ensure_no_paid_stripe(conn, user_id)
@@ -169,8 +191,8 @@ async def create_request(conn: PaymentConnection, user_id: str) -> PaymentReques
             try:
                 async with conn.transaction():
                     row = await conn.fetchrow(
-                        """INSERT INTO binance_manual_payment_requests (id,user_id,reference_code)
-                           VALUES ($1,$2,$3) RETURNING *""", uuid.uuid4().hex, user_id, new_reference(),
+                        """INSERT INTO binance_manual_payment_requests (id,user_id,reference_code,amount)
+                           VALUES ($1,$2,$3,$4) RETURNING *""", uuid.uuid4().hex, user_id, new_reference(), amount,
                     )
                     if row is None:
                         raise RuntimeError("Payment insert did not return a row")

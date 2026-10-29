@@ -22,17 +22,28 @@ class DisabledMethod(BaseModel):
     enabled: Literal[False] = False
 
 
+PlanCode = Literal["MASTER_MODE", "SMART_TRADE"]
+
+
+class PlanOption(BaseModel):
+    plan: PlanCode
+    name: str
+    amount: Decimal
+
+
 class EnabledMethod(BaseModel):
     enabled: Literal[True] = True
     amount: Decimal
     currency: Literal["USDT"] = "USDT"
     pay_id: str
+    plans: list[PlanOption] = []
 
 
 class PublicPayment(BaseModel):
     id: str
     reference_code: str
     amount: Decimal
+    plan: PlanCode | None = None
     currency: Literal["USDT"]
     method: Literal["binance_manual"]
     status: payments.Status
@@ -50,6 +61,11 @@ class CurrentPayment(BaseModel):
     period: PublicPeriod | None = None
 
 
+class CreatePayment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    plan: PlanCode = "MASTER_MODE"
+
+
 class SubmitPayment(BaseModel):
     model_config = ConfigDict(extra="forbid")
     transaction_number: str = Field(min_length=1, max_length=128)
@@ -62,7 +78,9 @@ def method_configuration() -> EnabledMethod | DisabledMethod:
     if len(pay_id) > 128 or not pay_id.isascii() or any(char.isspace() or ord(char) < 32 for char in pay_id):
         logger.warning("Manual Binance Pay ID configuration is invalid")
         raise HTTPException(503, "Binance ödeme yöntemi ayarı geçersiz.")
-    return EnabledMethod(amount=payments.AMOUNT, pay_id=pay_id)
+    plans = [PlanOption(plan=code, name=payments.PLAN_NAMES[code], amount=amount)  # type: ignore[arg-type]
+             for code, amount in payments.PLAN_AMOUNTS.items()]
+    return EnabledMethod(amount=payments.AMOUNT, pay_id=pay_id, plans=plans)
 
 
 def require_enabled() -> None:
@@ -86,7 +104,7 @@ async def connection(request: Request):
 
 
 def public(row: payments.PaymentRequest) -> PublicPayment:
-    return PublicPayment.model_validate(row.model_dump())
+    return PublicPayment.model_validate({**row.model_dump(), "plan": row.plan})
 
 
 @router.get("/config", response_model=EnabledMethod | DisabledMethod)
@@ -121,12 +139,13 @@ async def current(request: Request, response: Response):
 
 
 @router.post("/requests", response_model=PublicPayment)
-async def create(request: Request, response: Response):
+async def create(request: Request, response: Response, body: CreatePayment | None = None):
     user = await authenticated_user_async(request)
     require_enabled()
     response.headers["Cache-Control"] = "no-store"
+    plan = body.plan if body is not None else "MASTER_MODE"
     async with connection(request) as conn:
-        return public(await payments.create_request(conn, user["id"]))
+        return public(await payments.create_request(conn, user["id"], plan))
 
 
 @router.post("/requests/{request_id}/submit", response_model=PublicPayment)

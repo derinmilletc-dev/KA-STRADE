@@ -1639,6 +1639,9 @@ def execution_owner(request: Request) -> dict[str, Any]:
         } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
             raise HTTPException(403, LIVE_MESSAGE)
+        if subscription.get("plan") == "SMART_TRADE" and request.url.path == "/api/v25/auto/start":
+            from .premium_access import AUTOMATION_LOCKED_MESSAGE
+            raise HTTPException(403, AUTOMATION_LOCKED_MESSAGE)
     guard_execution_ownership(request, claim=request.method != "GET", allow_key_rotation=allow_key_rotation)
     return user
 

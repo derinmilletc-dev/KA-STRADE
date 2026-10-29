@@ -1647,6 +1647,7 @@ async def persistence_diagnostics(request: Request, response: Response = None) -
 async def start(request: Request, body: Start) -> dict[str, Any]:
     from . import v25_execution as live
     user = live_access.require_live_member(request)
+    live_access.forbid_smart_trade(request, user)
     if not available():
         raise HTTPException(423, "Original V2 LIVE sunucu ayarı kapalı.")
     await live.require_live_understanding(request, user, body.understood)

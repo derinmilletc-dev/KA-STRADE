@@ -35,7 +35,9 @@ def test_configuration_comes_from_server_and_disabled_method_has_no_pay_id(api, 
     client, _ = api
     response = client.get(BASE + "/config", headers=H)
     assert response.status_code == 200
-    assert response.json() == {"enabled": True, "amount": "119.90", "currency": "USDT", "pay_id": "987654321"}
+    assert response.json() == {"enabled": True, "amount": "119.90", "currency": "USDT", "pay_id": "987654321", "plans": [
+        {"plan": "MASTER_MODE", "name": "MASTER MODE", "amount": "119.90"},
+        {"plan": "SMART_TRADE", "name": "SMART TRADE", "amount": "40.00"}]}
     assert response.headers["cache-control"] == "no-store"
     monkeypatch.delenv("BINANCE_MANUAL_PAY_ID")
     assert client.get(BASE + "/config", headers=H).json() == {"enabled": False}
@@ -60,7 +62,8 @@ def test_create_submit_and_reload_are_user_scoped_and_never_grant_access(api):
     assert item.status_code == 200, item.text
     payload = item.json()
     assert payload["amount"] == "119.90" and payload["status"] == "created"
-    assert set(payload) == {"id", "reference_code", "amount", "currency", "method", "status", "transaction_number", "expires_at"}
+    assert set(payload) == {"id", "reference_code", "amount", "plan", "currency", "method", "status", "transaction_number", "expires_at"}
+    assert payload["plan"] == "MASTER_MODE"
     assert client.get(BASE + "/requests/current", headers=headers("moderator", "MODERATOR")).json() == {"request": None, "period": None}
     path = BASE + "/requests/" + payload["id"] + "/submit"
     assert client.post(path, headers=headers("moderator", "MODERATOR"), json={"transaction_number": "123"}).status_code == 404
@@ -104,3 +107,13 @@ def test_router_has_no_approval_rejection_or_webhook_entry_points():
     assert {route.path for route in routes.router.routes} == {
         BASE + "/config", BASE + "/requests/current", BASE + "/requests", BASE + "/requests/{request_id}/submit",
     }
+
+
+def test_smart_trade_request_is_40_usdt_and_unknown_plan_is_rejected(api):
+    client, conn = api
+    item = client.post(BASE + "/requests", headers=H, json={"plan": "SMART_TRADE"})
+    assert item.status_code == 200, item.text
+    assert item.json()["amount"] == "40.00" and item.json()["plan"] == "SMART_TRADE"
+    assert client.post(BASE + "/requests", headers=headers("moderator", "MODERATOR"), json={"plan": "FREE"}).status_code == 422
+    assert client.post(BASE + "/requests", headers=headers("moderator", "MODERATOR"), json={"plan": "SMART_TRADE", "amount": "1"}).status_code == 422
+    assert len(conn.rows) == 1

@@ -296,8 +296,10 @@ request, creation and submission. Submission alone never grants access.
 Prepare-only migration `backend/migrations/20261011_001_binance_manual_payments.sql`
 must be applied manually after separate approval; no startup migration is wired.
 
-Requests reserve a unique `KT-` reference for exactly 119.90 USDT with method
-`binance_manual`. Only an unexpired ACTIVE MASTER_MODE Stripe subscription blocks
+Requests reserve a unique `KT-` reference for exactly 119.90 USDT (MASTER_MODE) or
+40.00 USDT (SMART_TRADE, manual trading only: Kais automation stays locked; migration
+`20261029_001_smart_trade_amount.sql`, apply with `backend/tools/db_apply_smart_trade.py`)
+with method `binance_manual`. The plan is derived from the paid amount. Only an unexpired ACTIVE MASTER_MODE Stripe subscription blocks
 creation/submission; TRIALING is allowed. One unsubmitted/pending request per user
 is reused. An unsubmitted request expires at 48 hours; pending reviews do not.
 `expire_due` runs on user create/current reads and the bounded payment lifecycle

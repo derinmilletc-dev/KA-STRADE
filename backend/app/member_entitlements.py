@@ -10,7 +10,12 @@ from typing import Any
 from asyncpg import PostgresError, UndefinedTableError
 from fastapi import HTTPException, Request
 
+from .binance_manual_payments import plan_for_amount
 from .subscription_core import entitlement_snapshot, parse_datetime
+
+# Ücretli planlar (gerçek emir hakkı verenler). Binance elle ödemede plan, ödenen tutardan çıkar.
+PAID_PLANS = frozenset({"MASTER_MODE", "SMART_TRADE"})
+SMART_TRADE_FEATURES = ["Manuel işlem", "Analiz Stüdyosu", "Yapay Zeka", "Gelişmiş analizler", "30 günlük erişim", "Elle yenileme"]
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +49,16 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
     owner = user.get("role") == "OWNER"
     premium = owner or bool(subscription.get("master_trade_access"))
     free_trial = subscription.get("mode") == "FREE_TRIAL"
-    paid = owner or bool(subscription.get("master_trade_access") and subscription.get("plan") == "MASTER_MODE"
+    paid = owner or bool(subscription.get("master_trade_access") and subscription.get("plan") in PAID_PLANS
                          and subscription.get("status") in {"ACTIVE", "PAST_DUE"})
+    # Smart Trade yalnız elle işlem planıdır: Kais'in otomatik stratejileri ve otomatik işlem kapalı.
+    smart_trade = subscription.get("plan") == "SMART_TRADE" and not owner
     result = {
         "isAdmin": owner, "canAccessMasterTrade": True, "isPremium": premium,
         "canExecuteMasterTrade": premium,
         "entitlements": {**subscription.get("entitlements", {}), "canExecuteMasterTrade": premium,
-                         "unlimitedAnalyst": owner or (premium and not free_trial)},
+                         "unlimitedAnalyst": owner or (premium and not free_trial),
+                         "canUseAutomation": not smart_trade},
     }
     from .free_trial import enabled as trial_enabled
     if free_trial or trial_enabled():
@@ -111,17 +119,19 @@ async def resolve(conn: Any, state: dict[str, Any], user_id: str) -> dict[str, A
     decided = parse_datetime(row.get("decided_at"))
     now = datetime.now(timezone.utc)
     if (row.get("user_id") != user_id or row.get("payment_user_id") != user_id or row.get("status") != "approved"
-            or str(row.get("amount")) != "119.90" or row.get("currency") != "USDT" or row.get("method") != "binance_manual"
+            or plan_for_amount(row.get("amount")) is None or row.get("currency") != "USDT" or row.get("method") != "binance_manual"
             or not row.get("decided_by") or decided is None or decided > now or start is None or end is None
             or end - start != timedelta(days=30) or not start <= now < end):
         logger.warning("Binance entitlement record failed validation")
         raise HTTPException(503, "Binance üyelik kaydı doğrulanamadı.")
+    plan = plan_for_amount(row.get("amount")) or "MASTER_MODE"
+    smart = plan == "SMART_TRADE"
     return {
-        **original, "status": "ACTIVE", "plan": "MASTER_MODE", "master_trade_access": True,
+        **original, "status": "ACTIVE", "plan": plan, "master_trade_access": True,
         "trial_start": None, "trial_end": None, "current_period_start": start.isoformat(),
         "current_period_end": end.isoformat(), "next_payment_amount": None, "currency": "USDT",
-        "features": ["Master Trade access", "30 günlük erişim", "Elle yenileme"],
-        "entitlements": {"canAccessMasterTrade": True}, "mode": "BINANCE_MANUAL",
+        "features": SMART_TRADE_FEATURES if smart else ["Master Trade access", "30 günlük erişim", "Elle yenileme"],
+        "entitlements": {"canAccessMasterTrade": True, **({"canUseAutomation": False} if smart else {})}, "mode": "BINANCE_MANUAL",
         "cancel_at_period_end": True, "cancelAtPeriodEnd": True, "grace_until": None,
     }
 

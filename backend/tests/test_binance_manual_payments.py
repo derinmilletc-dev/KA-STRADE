@@ -88,13 +88,13 @@ class Connection:
     async def fetchrow(self, sql, *args):
         self.check()
         if "INSERT INTO binance_manual_payment_requests" in sql:
-            rid, uid, reference = args
+            rid, uid, reference, *extra = args
             if any(row["reference_code"] == reference for row in self.rows.values()):
                 raise Duplicate("binance_manual_reference_unique")
             assert not any(row["user_id"] == uid and row["status"] in ("created", "pending")
                            for row in self.rows.values())
             row = {
-                "id": rid, "user_id": uid, "reference_code": reference, "amount": Decimal("119.90"),
+                "id": rid, "user_id": uid, "reference_code": reference, "amount": extra[0] if extra else Decimal("119.90"),
                 "currency": "USDT", "method": "binance_manual", "status": "created",
                 "transaction_number": None, "transaction_fingerprint": None,
                 "created_at": self.now, "expires_at": self.now + timedelta(hours=48),
@@ -364,7 +364,7 @@ def test_period_rejects_naive_dates():
 
 def test_migration_is_additive_unique_immutable_and_unwired():
     sql = MIGRATION.read_text(encoding="utf-8")
-    assert "amount = 119.90" in sql and "currency = 'USDT'" in sql
+    assert "amount = 119.90" in sql and "currency = 'USDT'" in sql  # ilk kurulum dosyası değişmez
     for name in ("binance_manual_reference_unique", "binance_manual_transaction_unique",
                  "binance_manual_fingerprint_unique", "binance_manual_one_open_user"):
         assert name in sql
