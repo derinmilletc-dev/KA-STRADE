@@ -1,5 +1,5 @@
 /* Bildirim paneli: telefonda sade, akıllı görünüm (yalnız <=700px). Veri ve tıklama davranışı aynı. */
-.v26NotificationMenuBtn, .v26NotificationMenuText, .v26NotificationChev, .v26NotificationTools, .v26NotificationGroup, .v26NotificationSkeleton, .v26NotificationFoot, .v26NotificationAct, .v26NotificationAgo { display: none; }
+.v26NotificationChev, .v26NotificationTools, .v26NotificationGroup, .v26NotificationSkeleton, .v26NotificationFoot, .v26NotificationAct, .v26NotificationAgo { display: none; }
 .v26NotificationCount { margin-left: 6px; font-style: normal; opacity: .7; }
 @media (max-width: 700px) {
   #root#root main.v26App .v26NotificationPanel { display: flex !important; flex-direction: column !important; background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .12) !important; border-radius: 24px !important; box-shadow: 0 24px 48px rgba(0, 0, 0, .5) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
@@ -13,8 +13,6 @@
   #root#root main.v26App .v26NotificationPanel > header > div:last-child > button { height: 34px !important; min-width: 34px !important; padding: 0 10px !important; border-radius: 999px !important; border: 0 !important; background: #0d141c !important; color: #8b9aab !important; font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: .02em !important; }
   #root#root main.v26App .v26NotificationPanel > header > div:last-child > button:first-of-type { width: 34px !important; padding: 0 !important; }
   #root#root main.v26App .v26NotificationPanel > header > div:last-child > button:not(:first-of-type) { flex: 0 0 auto !important; width: auto !important; white-space: nowrap !important; color: #3ddc97 !important; }
-  #root#root main.v26App .v26NotificationPanel[data-menu="open"] .v26NotificationMenuText { display: inline !important; }
-  #root#root main.v26App .v26NotificationPanel[data-menu="open"] > header > div:last-child > button svg { width: 16px !important; height: 16px !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationTools { display: block !important; padding: 0 16px 10px !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { margin: 0 0 10px !important; font-size: 13px !important; color: #8b9aab !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationSummary b { color: #e8b84f !important; font-weight: 600 !important; }
@@ -60,12 +58,10 @@
   #root#root main.v26App .v26NotificationPanel > header { align-items: center !important; min-height: 0 !important; padding: 16px 14px 8px 18px !important; }
   #root#root main.v26App .v26NotificationPanel > header h2 { line-height: 40px !important; font-size: 23px !important; font-weight: 800 !important; letter-spacing: -.02em !important; color: #fff !important; }
   #root#root main.v26App .v26NotificationPanel > header > div:last-child { position: relative !important; }
-  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button:not(.v26NotificationMenuBtn) { display: none !important; }
-  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationMenuBtn.v26NotificationMenuBtn { display: grid !important; place-items: center !important; flex: none !important; width: 40px !important; min-width: 40px !important; height: 40px !important; padding: 0 !important; border-radius: 50% !important; border: 1px solid #2a3644 !important; background: #0c131a !important; color: #dbe3ec !important; }
-  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationMenuBtn.v26NotificationMenuBtn svg { width: 18px !important; height: 18px !important; }
-  #root#root main.v26App .v26NotificationPanel[data-menu="open"] > header > div:last-child > button:not(.v26NotificationMenuBtn) { display: flex !important; position: absolute !important; right: 0 !important; z-index: 5 !important; align-items: center !important; justify-content: flex-start !important; gap: 8px !important; width: 190px !important; height: 42px !important; padding: 0 14px !important; border-radius: 12px !important; border: 1px solid #2a3644 !important; background: #121c26 !important; color: #e8eef4 !important; font-size: 13px !important; box-shadow: 0 12px 28px rgba(0, 0, 0, .55) !important; }
-  #root#root main.v26App .v26NotificationPanel[data-menu="open"] > header > div:last-child > button:not(.v26NotificationMenuBtn):nth-of-type(2) { top: 46px !important; }
-  #root#root main.v26App .v26NotificationPanel[data-menu="open"] > header > div:last-child > button:not(.v26NotificationMenuBtn):nth-of-type(3) { top: 92px !important; color: #2ee59d !important; }
+  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button:not(.v26NotificationClear) { display: none !important; }
+  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear.v26NotificationClear { display: inline-flex !important; align-items: center !important; gap: 6px !important; flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; height: 38px !important; padding: 0 14px !important; border-radius: 999px !important; border: 1px solid #2a3644 !important; background: #0c131a !important; color: #c9d3de !important; font-size: 12.5px !important; font-weight: 700 !important; letter-spacing: 0 !important; white-space: nowrap !important; }
+  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear.v26NotificationClear svg { width: 15px !important; height: 15px !important; color: #ff8a8a !important; }
+  #root#root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear.v26NotificationClear.armed { border-color: #ff6b6b !important; background: rgba(255, 107, 107, .14) !important; color: #ffb3b3 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationTools { padding: 0 12px 4px !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationSummary { padding: 0 6px !important; margin: 2px 0 14px !important; font-size: 12.5px !important; color: #93a1b0 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationSummary b { color: #f4b63c !important; font-weight: 700 !important; }
