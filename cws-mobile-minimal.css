@@ -1,3 +1,4 @@
+#live-connection-card .nsShort { display: none; }
 /* Ayarlar ve Bağlantılar: telefon için sade/akıllı görünüm (yalnız <=700px).
    Metin ve davranış değişmez; bölümler tek satırlık listeye girer, durum üstte tek kartta toplanır. */
 @media (max-width: 700px) {
@@ -11,22 +12,31 @@
   #root #connection-ws#connection-ws .cwsLive { display: none !important; }
 
   /* Durum kartı */
-  #root #connection-ws#connection-ws .cwsHeroLive > section { display: grid !important; gap: 12px !important; padding: 18px !important; border-radius: 24px !important; background: radial-gradient(120% 90% at 100% 0%, rgba(61, 220, 151, .18), transparent 60%), #121a23 !important; border: 1px solid rgba(61, 220, 151, .18) !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive h2 { font-size: 11px !important; letter-spacing: .12em !important; text-transform: uppercase !important; color: #6f7f91 !important; font-weight: 600 !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive h2 button { width: 30px !important; height: 30px !important; border-radius: 10px !important; background: rgba(255, 255, 255, .06) !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus { padding: 0 !important; background: none !important; display: grid !important; grid-template-columns: auto 1fr !important; gap: 4px 10px !important; align-items: center !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus b { font-size: 18px !important; font-weight: 700 !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus small { grid-column: 1 / -1 !important; font-size: 13.5px !important; color: #9fb0c3 !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsList { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsRow { padding: 6px 10px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .06) !important; min-height: 0 !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsRow > span { display: flex !important; gap: 6px !important; align-items: baseline !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsRow b { font-size: 12px !important; font-weight: 600 !important; color: #b6c2cf !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsRow b::after { content: ":" !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsRow small { font-size: 12px !important; color: #8b9aab !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive > section { position: relative !important; display: grid !important; gap: 14px !important; padding: 16px !important; border-radius: 22px !important; background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .10) !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive h2 { position: absolute !important; top: 14px !important; right: 14px !important; margin: 0 !important; font-size: 0 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive h2 button { width: 34px !important; height: 34px !important; border-radius: 50% !important; background: #0d141c !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus { padding: 0 44px 0 0 !important; background: none !important; display: grid !important; grid-template-columns: auto 1fr !important; gap: 1px 12px !important; align-items: center !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus > i { grid-row: 1 / 3 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus b { font-size: 19px !important; font-weight: 700 !important; letter-spacing: -.01em !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus small { grid-column: 2 !important; font-size: 12.5px !important; color: #7c8c9f !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsList { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow { padding: 11px 12px !important; border-radius: 14px !important; background: #0d141c !important; min-height: 0 !important; display: block !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow > span { display: grid !important; gap: 3px !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow b { font-size: 11px !important; font-weight: 500 !important; color: #6f7f91 !important; letter-spacing: .03em !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow .nsLong { display: none !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow .nsShort { display: flex !important; align-items: center !important; gap: 7px !important; font-size: 14.5px !important; font-weight: 600 !important; color: #e8eef4 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow .nsShort::before { content: "" !important; width: 7px !important; height: 7px !important; border-radius: 50% !important; background: #3ddc97 !important; flex: none !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow[data-tone="warn"] .nsShort::before { background: #e8b84f !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow[data-tone="bad"] .nsShort::before { background: #ff7b7b !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow[data-tone="off"] .nsShort::before { background: #6f7f91 !important; }
   #root #connection-ws#connection-ws .cwsHeroLive .nsQuiet { display: none !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot { display: block !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot small { display: none !important; }
-  #root #connection-ws#connection-ws .cwsHeroLive .nsTest { display: flex !important; width: 100% !important; justify-content: space-between !important; align-items: center !important; padding: 13px 14px !important; border-radius: 14px !important; background: #0d141c !important; font-size: 14px !important; font-weight: 600 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsProblem { grid-column: 1 / -1 !important; background: rgba(255, 123, 123, .08) !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsProblem small { font-size: 12.5px !important; color: #ffb4b4 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot { display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 10px !important; flex-wrap: wrap !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot > small:not(.nsShort) { display: none !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot .nsExpiry { display: block !important; order: 2 !important; font-size: 12px !important; color: #5f6e7f !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsTest { display: inline-flex !important; width: auto !important; align-items: center !important; gap: 6px !important; padding: 0 !important; background: none !important; color: #3ddc97 !important; font-size: 13px !important; font-weight: 600 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsTest svg { width: 14px !important; height: 14px !important; }
 
   /* Açılır satırlar */
   #root #connection-ws#connection-ws .cwsFold { background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .10) !important; border-radius: 18px !important; overflow: hidden !important; }
