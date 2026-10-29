@@ -312,8 +312,8 @@ test('Original V2 entry status names the fill lock', async ({page}) => {
 test('Original V2 entry status names the daily loss lock', async ({page}) => {
   await fixture(page, {armed: false, enabled: true, dailyLossLocked: true})
   const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
-  await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – Original V2 günlük kayıp kilidi aktif.')
-  await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · Original V2 günlük kayıp sınırı')
+  await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – KAİS LONG günlük kayıp kilidi aktif.')
+  await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · KAİS LONG günlük kayıp sınırı')
 })
 
 test('Original V2 entry status translates failed policy readiness', async ({page}) => {

@@ -687,7 +687,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const knownFillLock = originalRuntime.fill_lock === null || typeof originalRuntime.fill_lock?.active === 'boolean'
     const fillLockReady = knownFillLock && originalRuntime.fill_lock?.active !== true
     addCheck('fill_lock', 'Dolum güvenlik kilidi', fillLockReady, fillLockReady ? 'Dolum güvenlik kilidi aktif değil.' : originalRuntime.fill_lock?.active === true ? 'Dolum güvenlik kilidi aktif; OWNER incelemesi gerekiyor.' : 'Dolum kilidi durumu doğrulanamadı.')
-    addCheck('original_session', 'Original V2 oturumu', originalSessionActive, originalSessionActive ? 'Original V2 oturumu açık ve süresi devam ediyor.' : 'Original V2 oturumu kapalı veya süresi dolmuş.')
+    addCheck('original_session', 'KAİS LONG oturumu', originalSessionActive, originalSessionActive ? 'KAİS LONG oturumu açık ve süresi devam ediyor.' : 'KAİS LONG oturumu kapalı veya süresi dolmuş.')
     addCheck('auto_session', 'Canlı otomasyon oturumu', autoSessionActive, autoSessionActive ? 'Canlı otomasyon oturumu etkin.' : 'Canlı otomasyon oturumu etkin değil veya süresi dolmuş.')
     addCheck('connected', 'Binance hesap bağlantısı', status.connected === true, status.connected === true ? 'Hesap bağlantısı ve snapshot hazır.' : 'Binance hesap bağlantısı veya güncel hesap snapshot’ı hazır değil.')
     addCheck('account_rate_limit', 'Binance hesap hız sınırı', !accountRateLimited, accountRateLimited ? 'Binance hesap doğrulaması / hız sınırı beklemede.' : 'Hesap hız sınırı kilidi yok.')
@@ -707,9 +707,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           : 'Yürütme durumu sunucudan alınamadı.'
     addCheck('execution_state', 'Yürütme / uzlaştırma durumu', executionPassed, executionReason)
     addCheck('recovery', 'LIVE recovery', status.recovery_ready === true && !status.recovery_error, status.recovery_ready === true && !status.recovery_error ? 'LIVE recovery tamamlandı.' : 'LIVE recovery tamamlanmadı veya hata bekliyor.')
-    addCheck('original_daily_loss', 'Original V2 günlük kayıp sınırı', originalDailyLossReady, originalDailyLossReady
+    addCheck('original_daily_loss', 'KAİS LONG günlük kayıp sınırı', originalDailyLossReady, originalDailyLossReady
       ? `Günlük kayıp ${money(originalDaily?.loss)} / limit ${money(originalDaily?.limit)}; kilit yok.`
-      : originalDaily?.locked === true ? 'Original V2 günlük kayıp kilidi aktif.' : 'Original V2 günlük kayıp durumu doğrulanamadı veya limit doldu.')
+      : originalDaily?.locked === true ? 'KAİS LONG günlük kayıp kilidi aktif.' : 'KAİS LONG günlük kayıp durumu doğrulanamadı veya limit doldu.')
     const dailyTradesReady = dailyTradeUnlimited
       || (typeof dailyEntries === 'number' && dailyTradeLimit !== null && dailyEntries < dailyTradeLimit)
     addCheck('daily_trades', 'Günlük işlem adedi', dailyTradesReady, dailyTradeUnlimited
@@ -928,7 +928,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
 
   const emergencyStop = () => {
-    setConfirm({title: 'EMERGENCY STOP', message: 'Yeni LIVE işlemler engellenir ve otomasyon durur. Bota ait giriş ve koruma emirleri iptal edilir; doğrulanmış açık bot pozisyonları reduce-only emirle kapatılır. Yalnız yeni girişleri durdurmak için Auto Trade’i veya Original V2’yi durdurun.', expected: 'CANLI ACİL DURDUR', action: async () => { await call(V25, '/emergency', {method: 'POST', body: JSON.stringify({confirmation: 'CANLI ACİL DURDUR', close_tracked_positions: true})}) }})
+    setConfirm({title: 'EMERGENCY STOP', message: 'Yeni LIVE işlemler engellenir ve otomasyon durur. Bota ait giriş ve koruma emirleri iptal edilir; doğrulanmış açık bot pozisyonları reduce-only emirle kapatılır. Yalnız yeni girişleri durdurmak için Auto Trade’i veya KAİS LONG’u durdurun.', expected: 'CANLI ACİL DURDUR', action: async () => { await call(V25, '/emergency', {method: 'POST', body: JSON.stringify({confirmation: 'CANLI ACİL DURDUR', close_tracked_positions: true})}) }})
     setConfirmText('')
   }
 
@@ -1181,7 +1181,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     ? originalScannerLabels[scannerStage || ''] || scannerStage || 'İlk tarama bekleniyor'
     : scannerStage || (status?.scanner?.last_scan_at ? 'WAITING FOR NEXT SCAN' : 'WAITING')
   const candidateCount = originalActive ? originalScanner?.candidate_count ?? 0 : status?.scanner?.selected_symbols_count ?? status?.scanner?.candidate_count ?? 0
-  const automationReason = originalActive ? status?.original_v2_live?.pause_reason || `Original V2 · ${status?.original_v2_live?.symbols.length} sembol · risk %${status?.original_v2_live?.risk_percent}` : status?.auto?.last_error || status?.auto?.last_skip_reason || status?.scanner?.last_skip_reason || status?.auto?.last_decision || blocker
+  const automationReason = originalActive ? status?.original_v2_live?.pause_reason || `KAİS LONG · ${status?.original_v2_live?.symbols.length} sembol · risk %${status?.original_v2_live?.risk_percent}` : status?.auto?.last_error || status?.auto?.last_skip_reason || status?.scanner?.last_skip_reason || status?.auto?.last_decision || blocker
   const safetyRows = [
     ['Account', configured && connected ? 'PASS' : 'BLOCKED', configured && connected ? 'LIVE account verified' : 'Connect and verify LIVE API'],
     ['Risk', riskState === 'READY' ? 'PASS' : riskState, riskGate?.detail || 'Risk policy is backend-controlled'],
@@ -2140,7 +2140,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(2)} disabled={stepLocked(2)} onClick={() => setOpenStep(stepOpen(2) ? -1 : 2)}><span className={`liveWsBadge ${stepDone[2] ? 'done' : stepLocked(2) ? 'locked' : 'current'}`}>{stepDone[2] ? <CheckCircle2/> : stepLocked(2) ? <LockKeyhole/> : '3'}</span><span><b>Otomatik işlem</b><small>{stepsMeta[2].sub}</small></span><ChevronDown className="liveWsChev"/></button>
             {stepOpen(2) && <div className="liveWsBody">
               <div className="liveWsStrategy">
-                <div className="liveWsStrategyHead"><div className="liveWsStrategyIcon"><Power/></div><div><b>Kais Original · Gözetimli</b><small>15 dakikalık mum · {marketsText}</small></div><span className="liveWsTag">{running ? 'ÇALIŞIYOR' : 'SEÇİLİ'}</span><button type="button" className="liveWsInfo" aria-label="Strateji nasıl çalışır?" aria-expanded={strategyInfo} onClick={() => setStrategyInfo(value => !value)}><Info/></button></div>
+                <div className="liveWsStrategyHead"><div className="liveWsStrategyIcon"><Power/></div><div><b>KAİS LONG · Gözetimli</b><small>15 dakikalık mum · {marketsText}</small></div><span className="liveWsTag">{running ? 'ÇALIŞIYOR' : 'SEÇİLİ'}</span><button type="button" className="liveWsInfo" aria-label="Strateji nasıl çalışır?" aria-expanded={strategyInfo} onClick={() => setStrategyInfo(value => !value)}><Info/></button></div>
                 {strategyInfo && <div className="liveWsInfoBox" role="note">
                   <b>Bu strateji nasıl çalışır?</b>
                   <ul>
