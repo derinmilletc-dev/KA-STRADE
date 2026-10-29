@@ -1,7 +1,7 @@
 import { Fragment, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
-import { Activity, BarChart3, Bell, BrainCircuit, ChevronRight, ListFilter, Settings, Star, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
+import { Activity, BarChart3, Bell, BrainCircuit, ChevronRight, Settings, Star, Trash2, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
 import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
 import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -91,6 +91,17 @@ const groupNotifications = (items:NotificationItem[]):NotificationGroup[] => {
   }
   return [...map.values()]
 }
+const NOTIFICATION_CLEARED_KEY = 'kt_notifications_cleared'
+type NotificationCleared = {at:number;ids:string[]}
+const readNotificationCleared = ():NotificationCleared => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTIFICATION_CLEARED_KEY) || 'null')
+    if (raw && typeof raw.at === 'number' && Array.isArray(raw.ids)) return {at:raw.at,ids:raw.ids.filter((id:unknown) => typeof id === 'string')}
+  } catch {}
+  return {at:0,ids:[]}
+}
+const notificationWasCleared = (item:NotificationItem,cleared:NotificationCleared) => cleared.ids.includes(item.id)
+  || (cleared.at > 0 && item.timestamp !== null && Number.isFinite(Date.parse(item.timestamp)) && Date.parse(item.timestamp) <= cleared.at)
 const notificationLevelLabels = {critical:'KRİTİK',error:'KRİTİK',warning:'UYARI',success:'BAŞARILI',info:'BİLGİ'}
 
 // Sunucu bazı bildirimleri (ör. canlı işlem uyarıları) eksik alanla gönderebilir. Tek bir bozuk kayıt tüm listeyi
@@ -597,8 +608,9 @@ export default function TestnetFirstApp() {
   const [notificationReadBusy,setNotificationReadBusy] = useState(false)
   const [notificationsOpen,setNotificationsOpen] = useState(false)
   const [notificationFilter,setNotificationFilter] = useState<NotificationFilter>('all')
-  const [notificationMenuOpen,setNotificationMenuOpen] = useState(false)
-  useEffect(() => {if (!notificationsOpen) setNotificationMenuOpen(false)},[notificationsOpen])
+  const [notificationClearArmed,setNotificationClearArmed] = useState(false)
+  useEffect(() => {if (!notificationClearArmed) return; const timer = window.setTimeout(() => setNotificationClearArmed(false),4000); return () => window.clearTimeout(timer)},[notificationClearArmed])
+  useEffect(() => {if (!notificationsOpen) setNotificationClearArmed(false)},[notificationsOpen])
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [headerHidden,setHeaderHidden] = useState(false)
   const [complianceOpen,setComplianceOpen] = useState(false)
@@ -779,6 +791,8 @@ export default function TestnetFirstApp() {
       }
       if (!items) { setNotificationErrorCode(failCode); throw new Error('Bildirimler yüklenemedi.') }
       if (controller.signal.aborted) return
+      const cleared = readNotificationCleared()
+      items = items.filter(item => !notificationWasCleared(item,cleared))
       notificationItemsRef.current = items
       setNotifications(items)
       notificationLoaded.current = true
@@ -965,6 +979,18 @@ export default function TestnetFirstApp() {
   const markAllNotificationsRead = async () => {
     await markNotificationsRead('read-all',notificationItemsRef.current.map(item => item.id))
   }
+  // Sunucuda silme yok: temizlenenler okundu yapılır ve bu cihazda gizlenir (yeni gelenler görünmeye devam eder).
+  const clearNotifications = async () => {
+    const current = notificationItemsRef.current
+    if (!current.length) return
+    const latest = Math.max(Date.now(),...current.map(item => Date.parse(item.timestamp ?? '') || 0))
+    try { localStorage.setItem(NOTIFICATION_CLEARED_KEY,JSON.stringify({at:latest,ids:current.map(item => item.id).slice(-500)})) } catch {}
+    if (current.some(item => !item.read)) await markAllNotificationsRead()
+    notificationItemsRef.current = []
+    setNotifications([])
+    setNotificationFilter('all')
+    setNotificationState('empty')
+  }
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -1051,8 +1077,8 @@ export default function TestnetFirstApp() {
         <button className="v26Refresh" aria-label="Piyasa verisini yenile" title="Piyasa verisini yenile" onClick={refresh} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/></button>
         <div className="v26Notifications" ref={notificationRef}>
           <button className={`v26NotificationButton${unreadNotifications ? ' hasUnread' : ''}`} type="button" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(open => !open)}><Bell/>{unreadNotifications > 0 && <span className="v26NotificationBadge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>
-          {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} data-menu={notificationMenuOpen ? 'open' : undefined} aria-busy={notificationState === 'loading' || notificationReadBusy}>
-            <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><button type="button" className="v26NotificationMenuBtn" aria-label="Bildirim menüsü" aria-expanded={notificationMenuOpen} onClick={() => setNotificationMenuOpen(open => !open)}><ListFilter/></button><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => {setNotificationMenuOpen(false);void refreshNotifications()}}><RefreshCw/><span className="v26NotificationMenuText">Yenile</span></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => {setNotificationMenuOpen(false);void markAllNotificationsRead()}}>TÜMÜ OKUNDU</button>}</div></header>
+          {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} aria-busy={notificationState === 'loading' || notificationReadBusy}>
+            <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => void refreshNotifications()}><RefreshCw/></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => void markAllNotificationsRead()}>TÜMÜ OKUNDU</button>}{notifications.length > 0 && <button type="button" className={`v26NotificationClear${notificationClearArmed ? ' armed' : ''}`} aria-label="Bildirimleri temizle" disabled={notificationReadBusy} onClick={() => {if (notificationClearArmed) {setNotificationClearArmed(false);void clearNotifications()} else setNotificationClearArmed(true)}}><Trash2/>{notificationClearArmed ? 'Silinsin mi?' : 'Temizle'}</button>}</div></header>
             {notifications.length > 0 && (() => {
               const groups = groupNotifications(notifications)
               const importantCount = groups.filter(group => group.important).length
