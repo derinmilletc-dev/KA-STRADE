@@ -188,7 +188,7 @@ async function fixture(page: Page, {owner = true, available = true, armed = true
   })
   await page.goto('/master-trade?tab=canli', {waitUntil: 'domcontentloaded'})
   await expect(page.locator('.masterTradePage').first()).toBeVisible()
-  if (owner && available && !statusFingerprintMismatch && !statusUnavailable && !vaultStatusUnavailable) await expect(page.getByRole('region', {name: 'Kais Original V2 LIVE'})).toBeVisible()
+  if (owner && available && !statusFingerprintMismatch && !statusUnavailable && !vaultStatusUnavailable) await expect(page.getByRole('region', {name: 'KAİS LONG LIVE'})).toBeVisible()
   return writes
 }
 
@@ -203,7 +203,7 @@ for (const delayed of ['vault', 'balance'] as const) {
       }).observe(document, {childList: true, subtree: true})
     })
     const writes = await fixture(page, {firstVaultUnavailable: delayed === 'vault', firstBalanceMissing: delayed === 'balance'})
-    const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+    const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
     await expect(card.getByTestId('original-risk-warning')).toBeVisible({timeout: 2500})
     await expect(card.getByLabel('İşlem riski (%)')).toBeEnabled()
     await expect(page.getByTestId('live-status-unverified')).toHaveCount(0)
@@ -251,7 +251,7 @@ test('last selected session duration survives reload and uses saved server hours
 
 test('OWNER sees Original V2 rejection stages, nearest symbols and 24-hour conversions', async ({page}) => {
   await fixture(page)
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-scan-24h')).toContainText('Son 24 saat: 3 tarama · 2 aday · 1 işleme dönüştü')
   await expect(card.getByTestId('original-scan-diagnostics')).toContainText('Trend / sinyal koşulu yok: 20')
   await expect(card.getByTestId('original-scan-diagnostics')).toContainText('Güven skoru düşük: 19')
@@ -270,7 +270,7 @@ test('OWNER sees Original V2 rejection stages, nearest symbols and 24-hour conve
 
 test('paused session with future expiry shows safety stop rather than expired', async ({page}) => {
   const writes = await fixture(page, {pauseReason: 'INCOMPLETE_ORIGINAL_LIVE_HISTORY'})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-session-remaining')).toHaveText('Güvenlik nedeniyle durduruldu / giriş kapalı')
   await expect(card).toContainText('INCOMPLETE_ORIGINAL_LIVE_HISTORY')
   expect(writes).toEqual([])
@@ -278,14 +278,14 @@ test('paused session with future expiry shows safety stop rather than expired', 
 
 test('expired session still reports expiry rather than safety stop', async ({page}) => {
   const writes = await fixture(page, {pauseReason: 'Oturum süresi doldu', expired: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-session-remaining')).toHaveText('Süre doldu / giriş kapalı')
   expect(writes).toEqual([])
 })
 
 test('active Original V2 reports entries open after its startup ARM is consumed', async ({page}) => {
   await fixture(page, {armed: false, enabled: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   const checks = card.getByTestId('original-entry-checks')
   await expect(card.getByTestId('original-entry-status')).toHaveText('Açık – sinyal bekleniyor')
   await expect(checks).toContainText('Giriş kontrolleri')
@@ -297,28 +297,28 @@ test('active Original V2 reports entries open after its startup ARM is consumed'
 
 test('Original V2 entry status names missing automation as the blocker', async ({page}) => {
   await fixture(page, {armed: true, enabled: true, liveAutoTrade: false})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – Canlı otomasyon oturumu etkin değil veya süresi dolmuş.')
   await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · Canlı otomasyon oturumu')
 })
 
 test('Original V2 entry status names the fill lock', async ({page}) => {
   await fixture(page, {armed: false, enabled: true, locked: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – Dolum güvenlik kilidi aktif; OWNER incelemesi gerekiyor.')
   await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · Dolum güvenlik kilidi')
 })
 
 test('Original V2 entry status names the daily loss lock', async ({page}) => {
   await fixture(page, {armed: false, enabled: true, dailyLossLocked: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – Original V2 günlük kayıp kilidi aktif.')
   await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · Original V2 günlük kayıp sınırı')
 })
 
 test('Original V2 entry status translates failed policy readiness', async ({page}) => {
   await fixture(page, {armed: false, enabled: true, readinessFailure: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByTestId('original-entry-status')).toHaveText('Engelli – Güncel risk politikası onayı yok.')
   await expect(card.getByTestId('original-entry-checks')).toContainText('GEÇMEDİ · Risk politikası onayı')
 })
@@ -339,9 +339,9 @@ test('global Binance ban shows countdown and disables test and connect actions',
 test('fill latch survives reload; OWNER approval only unlocks latch and never starts trading', async ({page}) => {
     const writes = await fixture(page, {locked: true})
     await page.reload()
-    const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+    const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
     await expect(card.getByText(/Dolum güvenlik kilidi · BTCUSDT/)).toBeVisible()
-    const start = card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true})
+    const start = card.getByRole('button', {name: 'KAİS LONG’u başlat', exact: true})
     await expect(card.getByLabel('Kurtarma için 2FA kodu')).toHaveCount(0)
     await expect(start).toBeDisabled()
     const approve = card.getByRole('button', {name: 'Dolum kilidini onayımla kaldır'})
@@ -359,22 +359,22 @@ test('fill latch survives reload; OWNER approval only unlocks latch and never st
 
 test('invalid fill approval shows Turkish error and keeps new entries disabled', async ({page}) => {
     const writes = await fixture(page, {locked: true, rejectApproval: true})
-    const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+    const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
     await card.getByLabel('Dolum riskini inceledim ve onaylıyorum').check()
     await card.getByRole('button', {name: 'Dolum kilidini onayımla kaldır'}).click()
     await expect(card.getByRole('status')).toHaveText('LIVE HTTP 401: Oturum geçersiz.')
     await expect(card.getByText(/Dolum güvenlik kilidi · BTCUSDT/)).toBeVisible()
-    await expect(card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true})).toBeDisabled()
+    await expect(card.getByRole('button', {name: 'KAİS LONG’u başlat', exact: true})).toBeDisabled()
     expect(writes.map(write => write.path)).toEqual(['/api/v25/original-v2/fill-lock/approve'])
   })
 
 test('three-step setup requires an audited checkbox, not repeated MFA; emergency only stops entries', async ({page}) => {
   const writes = await fixture(page)
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card).toBeVisible()
   await expect(card.getByLabel('İşlem riski (%)')).toHaveValue('0.5')
   await expect(card.getByLabel('Günlük kayıp sınırı (%)')).toHaveValue('5')
-  const start = card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true})
+  const start = card.getByRole('button', {name: 'KAİS LONG’u başlat', exact: true})
   await expect(start).toBeDisabled()
   await expect(card.getByLabel('ORIGINAL V2 CANLI yazın')).toHaveCount(0)
   await expect(card.getByLabel('2FA kodu', {exact: true})).toHaveCount(0)
@@ -383,7 +383,7 @@ test('three-step setup requires an audited checkbox, not repeated MFA; emergency
   await card.getByRole('button', {name: 'Onayla ve devam et · Risk ayarını kaydet'}).click()
   await expect(start).toBeEnabled()
   await start.click()
-  await expect(card.getByText('Original V2 LIVE gözetimli oturumu açıldı.')).toBeVisible()
+  await expect(card.getByText('KAİS LONG LIVE gözetimli oturumu açıldı.')).toBeVisible()
   expect(writes[1]).toEqual({path: '/api/v25/original-v2/start', body: {
     understood: true, risk_percent: 0.5, daily_loss_percent: 5,
     symbol_count: 40, session_hours: 1, risk_acknowledged: false, high_risk_confirmation: '',
@@ -398,7 +398,7 @@ test('three-step setup requires an audited checkbox, not repeated MFA; emergency
 for (const [percent, level] of [[1, 'NORMAL'], [2, 'YELLOW'], [5, 'ORANGE'], [10, 'RED']] as const) {
   test(`risk ${percent} percent shows ${level} warning and exact approval gate`, async ({page}) => {
     const writes = await fixture(page)
-    const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+    const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
     await card.getByLabel('Günlük kayıp sınırı (%)').fill('25')
     await card.getByLabel('İşlem riski (%)').fill(String(percent))
     if (!(percent > 2 && percent <= 5)) await card.getByLabel('Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım').check()
@@ -428,7 +428,7 @@ for (const [percent, level] of [[1, 'NORMAL'], [2, 'YELLOW'], [5, 'ORANGE'], [10
 
 test('loss bars use compound real-balance amounts and show preserved risk caps', async ({page}) => {
   await fixture(page)
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await card.getByLabel('İşlem riski (%)').fill('5')
   await expect(card.getByTestId('original-risk-warning')).toContainText('50,00 USDT')
   await expect(card.getByTestId('original-risk-warning')).toContainText('773,78 USDT')
@@ -443,7 +443,7 @@ test('loss bars use compound real-balance amounts and show preserved risk caps',
 
 test('changing risk clears acknowledgement and daily limit cannot be below trade risk', async ({page}) => {
   await fixture(page, {enabled: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await card.locator('.originalSettings > summary').click()
   await card.getByLabel('İşlem riski (%)').fill('3')
   await card.getByLabel('Bu riski anladım').check()
@@ -456,7 +456,7 @@ test('changing risk clears acknowledgement and daily limit cannot be below trade
 
 test('unverified balance blocks risk consent without inventing loss estimates', async ({page}) => {
   const writes = await fixture(page, {missingBalance: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card).toContainText('Güncel Binance bakiyesi doğrulanamadı.')
   await expect(card.getByTestId('original-risk-warning')).toHaveCount(0)
   await expect(card.getByRole('button', {name: 'Onayla ve devam et · Risk ayarını kaydet'})).toBeDisabled()
@@ -465,7 +465,7 @@ test('unverified balance blocks risk consent without inventing loss estimates', 
 
 test('audit failure cannot report a successful risk save', async ({page}) => {
   await fixture(page, {rejectRiskSave: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await card.getByLabel('İşlem riski (%)').fill('2')
   await card.getByLabel('Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım').check()
   await card.getByRole('button', {name: 'Onayla ve devam et · Risk ayarını kaydet'}).click()
@@ -475,7 +475,7 @@ test('audit failure cannot report a successful risk save', async ({page}) => {
 
 test('saving risk while running never starts or stops automation', async ({page}) => {
   const writes = await fixture(page, {enabled: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await card.locator('.originalSettings > summary').click()
   await card.getByLabel('İşlem riski (%)').fill('2')
   await card.getByLabel('Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım').check()
@@ -488,11 +488,11 @@ test('saving risk while running never starts or stops automation', async ({page}
 
 test('setup completes consent, policy acknowledgement and ARM before Original start', async ({page}) => {
   const writes = await fixture(page, {armed: false, consentActive: false, policyAcknowledged: false})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await card.getByLabel('Gerçek parayla işlem açılacağını ve kayıp olabileceğini anladım').check()
   await card.getByRole('button', {name: 'Onayla ve devam et · Risk ayarını kaydet'}).click()
-  await card.getByRole('button', {name: 'Kais Original V2’yi başlat', exact: true}).click()
-  await expect(card.getByText('Original V2 LIVE gözetimli oturumu açıldı.')).toBeVisible()
+  await card.getByRole('button', {name: 'KAİS LONG’u başlat', exact: true}).click()
+  await expect(card.getByText('KAİS LONG LIVE gözetimli oturumu açıldı.')).toBeVisible()
   expect(writes.map(write => write.path)).toEqual([
     '/api/v25/original-v2/risk-settings', '/api/v25/consent',
     '/api/v25/policy/acknowledge', '/api/v25/arm', '/api/v25/original-v2/start',
@@ -505,7 +505,7 @@ test('setup completes consent, policy acknowledgement and ARM before Original st
 
 test('running dashboard hides keys and technical controls, and confirms Stop independently of TP', async ({page}) => {
   await fixture(page, {enabled: true, withPosition: true, missingTp: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByRole('heading', {name: 'Çalışıyor – sinyal bekleniyor'})).toBeVisible()
   await expect(page.getByLabel('API KEY', {exact: true})).toHaveCount(0)
   await expect(page.getByLabel('SECRET KEY', {exact: true})).toHaveCount(0)
@@ -522,7 +522,7 @@ test('running dashboard hides keys and technical controls, and confirms Stop ind
 test('mobile dashboard has no horizontal overflow and emergency remains visible after scrolling', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844})
   await fixture(page, {enabled: true, withPosition: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.locator('.originalPosition').getByText('Binance’te ✓', {exact: true})).toHaveCount(3)
   const emergency = card.getByRole('button', {name: 'Acil durdur · Yeni girişleri kapat'})
   const unobscured = () => emergency.evaluate(element => {
@@ -544,7 +544,7 @@ test('mobile dashboard has no horizontal overflow and emergency remains visible 
 
 test('unverified account snapshots never show green protection or invented wallet values', async ({page}) => {
   await fixture(page, {enabled: true, withPosition: true, pendingAccountCheck: true})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.getByText('Binance’te ✓', {exact: true})).toHaveCount(0)
   await expect(card.locator('.originalMetricGrid article').first()).toContainText('—')
   await card.locator('.originalSettings > summary').click()
@@ -562,7 +562,7 @@ test('small mobile stopped-state card wraps the actual long stop reason', async 
 
 test('external positions cannot inherit protection checks and a tighter shared daily cap wins', async ({page}) => {
   await fixture(page, {enabled: true, withPosition: true, externalPosition: true, sharedDailyLimit: 2})
-  const card = page.getByRole('region', {name: 'Kais Original V2 LIVE'})
+  const card = page.getByRole('region', {name: 'KAİS LONG LIVE'})
   await expect(card.locator('.originalPosition')).toContainText('Dış pozisyon · bot tarafından yönetilmiyor.')
   await expect(card.getByText('Binance’te ✓', {exact: true})).toHaveCount(0)
   await expect(card.getByRole('progressbar', {name: 'Günlük kayıp sınırı kullanımı'})).toHaveAttribute('aria-valuemax', '2')
@@ -668,7 +668,7 @@ test('unavailable vault status is not presented as an unsaved key', async ({page
 for (const options of [{owner: false}, {available: false}]) {
   test(`Original V2 is hidden when ${JSON.stringify(options)}`, async ({page}) => {
     const writes = await fixture(page, options)
-    await expect(page.getByRole('region', {name: 'Kais Original V2 LIVE'})).toHaveCount(0)
+    await expect(page.getByRole('region', {name: 'KAİS LONG LIVE'})).toHaveCount(0)
     expect(writes).toEqual([])
   })
 }
