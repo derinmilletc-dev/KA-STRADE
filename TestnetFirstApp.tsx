@@ -1,7 +1,7 @@
 import { Fragment, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
-import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
+import { Activity, BarChart3, Bell, BrainCircuit, ChevronRight, ListFilter, Settings, Star, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
 import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
 import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -69,10 +69,10 @@ const notificationAgo = (timestamp:string|null) => {
   if (!Number.isFinite(time)) return '—'
   const minutes = Math.max(0,Math.floor((Date.now() - time) / 60000))
   if (minutes < 1) return 'şimdi'
-  if (minutes < 60) return `${minutes} dk`
+  if (minutes < 60) return `${minutes} dk önce`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} sa`
-  return `${Math.floor(hours / 24)} gün`
+  if (hours < 24) return `${hours} sa önce`
+  return `${Math.floor(hours / 24)} gün önce`
 }
 type NotificationFilter = 'all'|'important'|'unread'
 // Sunucu önem derecesini çoğu kayıt için 'info' gönderiyor; başlık/mesajdaki anahtar kelimelerle önemli olanı öne alırız.
@@ -597,6 +597,8 @@ export default function TestnetFirstApp() {
   const [notificationReadBusy,setNotificationReadBusy] = useState(false)
   const [notificationsOpen,setNotificationsOpen] = useState(false)
   const [notificationFilter,setNotificationFilter] = useState<NotificationFilter>('all')
+  const [notificationMenuOpen,setNotificationMenuOpen] = useState(false)
+  useEffect(() => {if (!notificationsOpen) setNotificationMenuOpen(false)},[notificationsOpen])
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [headerHidden,setHeaderHidden] = useState(false)
   const [complianceOpen,setComplianceOpen] = useState(false)
@@ -1049,14 +1051,14 @@ export default function TestnetFirstApp() {
         <button className="v26Refresh" aria-label="Piyasa verisini yenile" title="Piyasa verisini yenile" onClick={refresh} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/></button>
         <div className="v26Notifications" ref={notificationRef}>
           <button className={`v26NotificationButton${unreadNotifications ? ' hasUnread' : ''}`} type="button" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(open => !open)}><Bell/>{unreadNotifications > 0 && <span className="v26NotificationBadge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>
-          {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} aria-busy={notificationState === 'loading' || notificationReadBusy}>
-            <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => void refreshNotifications()}><RefreshCw/></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => void markAllNotificationsRead()}>TÜMÜ OKUNDU</button>}</div></header>
+          {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} data-menu={notificationMenuOpen ? 'open' : undefined} aria-busy={notificationState === 'loading' || notificationReadBusy}>
+            <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><button type="button" className="v26NotificationMenuBtn" aria-label="Bildirim menüsü" aria-expanded={notificationMenuOpen} onClick={() => setNotificationMenuOpen(open => !open)}><ListFilter/></button><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => {setNotificationMenuOpen(false);void refreshNotifications()}}><RefreshCw/><span className="v26NotificationMenuText">Yenile</span></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => {setNotificationMenuOpen(false);void markAllNotificationsRead()}}>TÜMÜ OKUNDU</button>}</div></header>
             {notifications.length > 0 && (() => {
               const groups = groupNotifications(notifications)
               const importantCount = groups.filter(group => group.important).length
               const unread = notifications.filter(item => !item.read).length
               const filters:Array<[NotificationFilter,string,number]> = [['all','Hepsi',groups.length],['important','Önemli',importantCount],['unread','Okunmamış',groups.filter(group => group.unread > 0).length]]
-              return <div className="v26NotificationTools"><p className="v26NotificationSummary"><span>{`${notifications.length} bildirim`}</span>{importantCount ? <b>{`${importantCount} önemli`}</b> : <span>önemli olan yok</span>}<span>{`${unread} okunmamış`}</span>{groups.length < notifications.length && <span>{`${groups.length} grupta`}</span>}</p><div className="v26NotificationFilters" role="group" aria-label="Bildirim filtresi">{filters.map(([value,label,count]) => <button type="button" key={value} aria-pressed={notificationFilter === value} onClick={() => setNotificationFilter(value)}>{label}<em>{count}</em></button>)}</div></div>
+              return <div className="v26NotificationTools"><p className="v26NotificationSummary"><span>{`${notifications.length} bildirim`}</span>{importantCount ? <b>{`${importantCount} önemli`}</b> : <span>önemli olan yok</span>}<span>{`${unread} okunmamış`}</span>{groups.length < notifications.length && <span>{`${groups.length} grupta`}</span>}</p><div className="v26NotificationFilters" role="group" aria-label="Bildirim filtresi">{filters.map(([value,label,count]) => <button type="button" key={value} aria-pressed={notificationFilter === value} onClick={() => setNotificationFilter(value)}>{value === 'important' && <Star/>}{label}<em>{count}</em></button>)}</div></div>
             })()}
             {notificationState === 'loading' && <div className="v26NotificationSkeleton" aria-hidden="true"><i/><i/></div>}
             {notificationState === 'loading' && <div className="v26NotificationEmpty" role="status"><RefreshCw className="spin"/><b>{notificationLoaded.current ? 'Bildirimler güncelleniyor…' : 'Bildirimler yükleniyor…'}</b></div>}
@@ -1072,12 +1074,12 @@ export default function TestnetFirstApp() {
                 const count = group.items.length
                 return <Fragment key={group.key}>
                   {mixed && index === 0 && <div className="v26NotificationGroup">ÖNEMLİ</div>}
-                  {mixed && !group.important && ordered[index - 1]?.important === true && <div className="v26NotificationGroup">RUTİN</div>}
-                  <button type="button" disabled={notificationReadBusy} className={`v26NotificationItem ${item.severity}${group.unread === 0 ? ' isRead' : ''}${group.important ? ' important' : ''}`} onClick={() => void openNotificationGroup(group.items)}><i><Bell/></i><span><b>{item.title}{count > 1 && <em className="v26NotificationCount">×{count}</em>}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small>{group.important && <em className="v26NotificationAct">Aç →</em>}</span><time className="v26NotificationAgo">{notificationAgo(item.timestamp)}</time></button>
+                  {mixed && !group.important && ordered[index - 1]?.important === true && <div className="v26NotificationGroup">DİĞER</div>}
+                  <button type="button" disabled={notificationReadBusy} className={`v26NotificationItem ${item.severity}${group.unread === 0 ? ' isRead' : ''}${group.important ? ' important' : ''}`} onClick={() => void openNotificationGroup(group.items)}><i>{item.severity === 'success' ? <BarChart3/> : <Bell/>}</i><span><b>{item.title}{count > 1 && <em className="v26NotificationCount">{`x${count}`}</em>}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small>{group.important && <em className="v26NotificationAct">Aç →</em>}</span><time className="v26NotificationAgo">{notificationAgo(item.timestamp)}</time><ChevronRight className="v26NotificationChev"/></button>
                 </Fragment>
               })
             })()}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Bildirim yok</b><p>Gerçek bir sistem olayı oluştuğunda burada görünecek.</p></div>}
-          <footer className="v26NotificationFoot"><button type="button" onClick={() => {setNotificationsOpen(false);navigate('setup')}}>Bildirim ayarları →</button></footer>
+          <footer className="v26NotificationFoot"><button type="button" onClick={() => {setNotificationsOpen(false);navigate('setup')}}><Settings/>Bildirim ayarları →</button></footer>
           </section>}
         </div>
         <div className="v26HeaderProfileSlot" />
