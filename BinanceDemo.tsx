@@ -315,7 +315,7 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
   </div>
 }
 
-export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo,masterTab,onConnectedChange,onMasterTab}:{active:boolean;masterTab?:'analiz'|'canli'|'pozisyonlar'|'baglanti';onConnectedChange?:(connected:boolean|null)=>void;onMasterTab?:(tab:'analiz'|'canli'|'pozisyonlar'|'baglanti')=>void;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
+export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo,masterTab,onConnectedChange,onMasterTab,onPositionsChange}:{active:boolean;onPositionsChange?:(positions:readonly unknown[])=>void;masterTab?:'analiz'|'canli'|'pozisyonlar'|'baglanti';onConnectedChange?:(connected:boolean|null)=>void;onMasterTab?:(tab:'analiz'|'canli'|'pozisyonlar'|'baglanti')=>void;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)
   const [account,setAccount] = useState<DemoAccount|null>(null)
   const [form,setForm] = useState<FormState>(initialForm)
@@ -375,6 +375,8 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
 
   const connectedNow = status ? status.connected : null
   const [cockpitMenu,setCockpitMenu] = useState(false)
+  // Analiz sekmesindeki Master ekranı pozisyon kartını demo pozisyonlarıyla göstersin (yalnız okuma).
+  useEffect(() => { onPositionsChange?.((account?.positions || []).filter(position => Math.abs(position.quantity) > 0)) }, [account, onPositionsChange])
   const [cockpitAt,setCockpitAt] = useState<number|null>(null)
   useEffect(() => { if (status) setCockpitAt(Date.now()) }, [status])
   useEffect(() => { onConnectedChange?.(connectedNow) }, [connectedNow, onConnectedChange])

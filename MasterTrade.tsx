@@ -175,9 +175,13 @@ const navigateTab = (tab: MasterTradeTab) => {
   window.history.pushState(window.history.state, '', url)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
-export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement> }) {
+// embedDemo: Demo İşlem Masası'nın Analiz sekmesinde aynı Analiz ekranı. Yalnız herkese açık piyasa verisi okunur;
+// canlı hesap/durum sorguları, canlı risk önizlemesi ve canlı işlem paneli hiç çalışmaz. Pozisyonlar demo hesabından gelir.
+export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = false, demoPositions, onDemoTab }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement>; embedDemo?: boolean; demoPositions?: readonly unknown[]; onDemoTab?: (tab: MasterTradeTab) => void }) {
   const {premium, owner, userId} = useMemberAccess()
-  const layoutTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
+  const urlTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
+  const layoutTab: MasterTradeTab = embedDemo ? 'analiz' : urlTab
+  const goTab = (tab: MasterTradeTab) => { if (embedDemo) onDemoTab?.(tab); else navigateTab(tab) }
   const referenceEnabled = useSyncExternalStore(subscribePresentation, readPresentation, () => false)
   const masterLayoutV2 = referenceEnabled && layoutTab === 'analiz'
   // Canlı İşlem / Pozisyonlar / Bağlantı: sekme menüsü yukarıda sabit; aşağı kaydırınca saklanır, yukarı kaydırınca geri gelir.
@@ -263,7 +267,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
     if (preferences.timeframe) setInterval(preferences.timeframe)
     const symbol = preferences.symbols?.[0]
     if (symbol) setDraft(current => ({...current, market: symbol, entry: 0, stopLoss: 0, tp1: 0, tp2: 0, tp3: 0}))
-    if (preferences.trading_mode === 'AUTO' && !new URLSearchParams(location.search).has('tab')) navigateTab('canli')
+    if (!embedDemo && preferences.trading_mode === 'AUTO' && !new URLSearchParams(location.search).has('tab')) navigateTab('canli')
   }, [tradingDefaults.preferences, tradingDefaults.untouched])
 
   useEffect(() => {
@@ -507,6 +511,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   }
 
   useEffect(() => {
+    if (embedDemo) return
     const controller = new AbortController()
     const refreshAccount = async () => {
       try {
@@ -528,7 +533,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   }, [accountRefreshNonce])
 
   useEffect(() => {
-    if (!premium) return
+    if (!premium || embedDemo) return
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       if (!(draft.entry > 0) || !(draft.stopLoss > 0) || !(draft.margin >= 5) || !(draft.leverage >= 1)) {
@@ -733,7 +738,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
   }
 
   const performanceTrend: number[] = []
-  const openPositions = account?.positions ?? []
+  const openPositions = embedDemo ? (demoPositions ?? []) as AccountPosition[] : account?.positions ?? []
   // Emir sonrası "Grafikte canlı takip et" / "Pozisyonlarıma git" (Manuel işlem panelinden).
   const selectMarketRef = useRef(selectMarket)
   selectMarketRef.current = selectMarket
@@ -741,6 +746,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
     const onFollow = (event: Event) => {
       const detail = (event as CustomEvent<{symbol?: string | null; tab?: MasterTradeTab}>).detail || {}
       if (detail.symbol) selectMarketRef.current(detail.symbol)
+      if (embedDemo) return
       navigateTab(detail.tab === 'pozisyonlar' ? 'pozisyonlar' : 'analiz')
       window.scrollTo({top: 0})
     }
@@ -842,8 +848,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       symbol={draft.market} interval={interval} query={marketQuery} onQuery={setMarketQuery}
       scores={scannerCandidates.map(candidate => ({symbol: candidate.symbol, direction: candidate.direction, score: candidate.final_decision_score}))}
       marketFeed={marketFeed}
-      onMarket={selectMarket} onInterval={setInterval} onNavigate={navigateTab}
-      onAutoTrade={() => {shortcutPending.current = true; navigateTab('canli')}}
+      onMarket={selectMarket} onInterval={setInterval} onNavigate={goTab}
+      onAutoTrade={() => {shortcutPending.current = !embedDemo; goTab('canli')}}
       onRefresh={() => setMarketRefreshNonce(value => value + 1)} refreshing={dataLoading}
       candles={candles} analysis={analysis} decision={tradeDecision} trigger={triggerMonitor} live={liveStatus}
       price={currentPrice} change={selectedChange} volume={selectedMarket?.volume} analysisUpdatedAt={activeSnapshot?.marketUpdatedAt ?? null}
@@ -859,22 +865,22 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
     {referenceContent}
     <section hidden={referenceAnalysis} className={`masterTradePage masterTrade${masterTradeOffline ? ' masterTradeOffline' : ''}${masterLayoutV2 ? ' masterLayoutV2' : ''}`} data-layout-tab={layoutTab}>
       <div className="masterTradeShell">
-        <header className="masterTradeTerminalHeader">
+        {!embedDemo && <header className="masterTradeTerminalHeader">
           <div className="masterTradeTerminalIdentity">
             <span>INSTITUTIONAL EXECUTION DESK</span>
             <strong>MASTER TRADE</strong>
           </div>
           <span className="masterTradeTerminalMode">LIVE OPERATIONS · CONTROLLED</span>
           {assistantSlotRef && !referenceAnalysis && <div className="assistantMasterSlot" ref={assistantSlotRef}/>}
-        </header>
-        <div className="terminalStatusStrip" aria-label="Master Trade connection status" hidden={layoutTab !== 'baglanti'}>
+        </header>}
+        {!embedDemo && <div className="terminalStatusStrip" aria-label="Master Trade connection status" hidden={layoutTab !== 'baglanti'}>
           <span className="terminalStatusItem online"><i /> CONNECTED</span>
           <span className="terminalStatusItem"><small>WS</small> --</span>
           <span className="terminalStatusItem"><small>LATENCY</small> --</span>
           <span className="terminalStatusItem"><small>LAST UPDATE</small> {latestUpdate}</span>
           <span className={`terminalStatusItem dataHealth-${dataHealth.toLowerCase().replaceAll(' ', '-')}`}><small>DATA HEALTH</small> {dataHealth}{marketAgeSeconds !== null ? ` · ${Math.floor(marketAgeSeconds)}s ago` : ''}</span>
           <span className="terminalStatusItem online">LIVE ACCOUNT</span>
-        </div>
+        </div>}
 
         <div className="masterTradeSticky">
         <section className={`masterTradeFocusPanel${masterTradeOffline ? ' offline' : ''}`} aria-label="Primary trade decision" hidden={layoutTab !== 'analiz'}>
@@ -911,7 +917,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
           {masterTradeOffline && <p className="masterTradeFocusNotice">Market bağlantısı bekleniyor. İşlem kararı ve canlı metrikler veri gelene kadar pasif tutuluyor.</p>}
         </section>
 
-        <nav className="masterTradeTabs" aria-label="Master Trade" role="tablist"><img className="masterTradeBrandLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>{MASTER_TRADE_TABS.map(({id,label,icon:Icon}) => <button key={id} type="button" id={`master-tab-${id}`} role="tab" aria-selected={layoutTab === id} aria-controls={`master-panel-${id}`} onClick={() => navigateTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}</nav>
+        {!embedDemo && <nav className="masterTradeTabs" aria-label="Master Trade" role="tablist"><img className="masterTradeBrandLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>{MASTER_TRADE_TABS.map(({id,label,icon:Icon}) => <button key={id} type="button" id={`master-tab-${id}`} role="tab" aria-selected={layoutTab === id} aria-controls={`master-panel-${id}`} onClick={() => navigateTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}</nav>}
         </div>
 
         <div className="masterTradeWorkspace" id="master-panel-analiz" role="tabpanel" aria-labelledby="master-tab-analiz" hidden={layoutTab !== 'analiz'}>
@@ -1054,7 +1060,7 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
 
               <div className="decisionAutoTrade"><span>AUTO TRADE</span><strong>SEPARATE SAFETY GATES</strong><small>Final Decision does not send orders or grant Auto Trade eligibility.</small>
                 {masterLayoutV2 && <><span className="analysisAutoStatus" aria-label="Auto Trade state">{autoTrade.label}</span>
-                  <button type="button" className="analysisAutoShortcut" onClick={() => { shortcutPending.current = true; navigateTab('canli') }}>{autoTrade.action}<ChevronDown aria-hidden="true"/></button>
+                  <button type="button" className="analysisAutoShortcut" onClick={() => { shortcutPending.current = !embedDemo; goTab('canli') }}>{autoTrade.action}<ChevronDown aria-hidden="true"/></button>
                 </>}
               </div>
 
@@ -1106,9 +1112,9 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
         </div>
 
         <div className="masterTradeOperationsPanel" id={`master-panel-${layoutTab === 'analiz' ? 'operations' : layoutTab}`} role="tabpanel" aria-labelledby={`master-tab-${layoutTab}`} hidden={layoutTab === 'analiz'}>
-          <LiveTradingPanel active symbol={draft.market} analysis={analysis} masterTrade masterTradeTab={layoutTab} sharedStatus={liveStatus} sharedStatusVerified={liveStatusVerified} sharedStatusError={liveStatusError} sharedStatusLoading={liveStatusLoading} sharedConnections={liveConnections} onRefreshStatus={async (force = false) => {
+          {!embedDemo && <LiveTradingPanel active symbol={draft.market} analysis={analysis} masterTrade masterTradeTab={layoutTab} sharedStatus={liveStatus} sharedStatusVerified={liveStatusVerified} sharedStatusError={liveStatusError} sharedStatusLoading={liveStatusLoading} sharedConnections={liveConnections} onRefreshStatus={async (force = false) => {
             if (!await refreshAccountData(force)) throw new Error('LIVE durum yenilemesi başarısız; işlem durumunu doğrulayın.')
-          }} />
+          }} />}
 
         <div className="masterTradeDataGrid" hidden={layoutTab === 'canli' || layoutTab === 'baglanti'}>
           <section className="masterTradePanel riskMonitorPanel" hidden={layoutTab !== 'baglanti'}>
