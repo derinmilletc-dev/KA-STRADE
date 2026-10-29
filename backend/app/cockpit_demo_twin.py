@@ -54,6 +54,22 @@ def _session_until(auto: dict[str, Any]) -> float:
     return _num(auto.get("twin_session_until"))
 
 
+def server_flags() -> dict[str, bool]:
+    """Kais Original Demo stratejisinin sunucu ayarları (okunur, değiştirilmez)."""
+    from . import original_v2_demo_execution as execution
+    from .strategies import original_v2_demo as strategy
+
+    try:
+        enabled = bool(strategy.feature_enabled())
+    except Exception:  # geçersiz ayar değeri: kapalı say
+        enabled = False
+    try:
+        send = bool(execution.send_orders_enabled())
+    except Exception:
+        send = False
+    return {"enabled": enabled, "send_orders": send}
+
+
 def _original_enabled(auto: dict[str, Any]) -> bool:
     from .strategies.original_v2_demo import STRATEGY_ID
 
@@ -71,7 +87,8 @@ def _original_status(v21: dict[str, Any], wallet: float) -> dict[str, Any]:
     daily = v21.get("daily") or {}
     realized = _num(daily.get("realized_pnl"))
     return {
-        "available": True,
+        "available": all(server_flags().values()),
+        "server_flags": server_flags(),
         "enabled": enabled,
         "paused": False,
         "pause_reason": None,
@@ -124,7 +141,9 @@ async def build_status(request: Request) -> dict[str, Any]:
     v21 = v21_demo.summary_payload(v21_demo.state_for(request))
     auto = v21.get("auto", {})
     armed = bool(demo_public.get("armed"))
-    connected = bool(account) and error is None and bool(demo_public.get("configured", True))
+    # public_status() kullanıcıya özel anahtarı bilmez; bağlı mı sorusu isteğe (oturuma) göre cevaplanır.
+    configured = bool(demo.credentials_configured(request))
+    connected = configured and error is None and bool(account) and account.get("connected") is not False
     wallet = _num(account.get("wallet_balance"))
     until = _session_until(auto)
     farfuture = _iso(max(until, time.time() + 3600)) if connected else None
@@ -136,7 +155,7 @@ async def build_status(request: Request) -> dict[str, Any]:
         "demo": True,
         "host": demo.DEMO_REST_BASE,
         "websocket_host": demo.DEMO_WS_BASE,
-        "credentials": {"configured": connected, "fingerprint": None, "storage": "DEMO"},
+        "credentials": {"configured": configured, "fingerprint": None, "storage": "DEMO"},
         "consent": {"active": connected, "expires_at": farfuture, "reason": "NONE" if connected else "EXPIRED", "scope_match": True},
         "authorization": {"valid": connected, "expires_at": farfuture, "reason": "NONE" if connected else "EXPIRED", "scope_match": True},
         "connected": connected,
@@ -291,6 +310,9 @@ async def start(request: Request, body: Loose) -> dict[str, Any]:
     hours = int(data.get("session_hours") or 1)
     if hours not in SESSION_HOURS:
         raise HTTPException(422, "Oturum 1, 4, 12 veya 24 saat olabilir.")
+    flags = server_flags()
+    if not (flags["enabled"] and flags["send_orders"]):
+        raise HTTPException(423, "Kais Original Demo emirleri sunucu ayarında kapalı; sunucu yöneticisi açmadan otomasyon başlatılmadı.")
     wallet = await _wallet(request)
     if wallet <= 0:
         raise HTTPException(412, "Önce Demo hesabını bağlayın.")
