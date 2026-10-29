@@ -80,7 +80,8 @@ export function fireNotification(title: string, body: string, tone: 'ok' | 'warn
   toast(title, body, tone)
   if (prefs.sound) beep()
   if (prefs.browser && browserNotificationState() === 'granted') {
-    try { new Notification(title, {body, tag}) } catch { /* bazı tarayıcılar engeller */ }
+    // Android Chrome `new Notification`a izin vermez; servis çalışanıyla göster.
+    try { new Notification(title, {body, tag}) } catch { void navigator.serviceWorker?.getRegistration?.().then(registration => registration?.showNotification(title, {body, tag})).catch(() => undefined) }
   }
 }
 

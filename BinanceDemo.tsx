@@ -553,7 +553,10 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
     if (newest.id === lastNotificationId.current) return
     lastNotificationId.current = newest.id
     if (v21?.settings.notifications && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification(`KaisTrade · ${newest.kind}`, {body:newest.message,tag:newest.id})
+      // Android Chrome'da `new Notification` hata fırlatır ve sayfayı çökertir; servis çalışanıyla göster, olmazsa sessiz geç.
+      const options = {body:newest.message,tag:newest.id}
+      try { new Notification(`KaisTrade · ${newest.kind}`, options) }
+      catch { void navigator.serviceWorker?.getRegistration?.().then(registration => registration?.showNotification(`KaisTrade · ${newest.kind}`, options)).catch(() => undefined) }
     }
   },[v21?.journal?.[0]?.id])
 
