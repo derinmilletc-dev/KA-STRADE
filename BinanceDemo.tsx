@@ -8,6 +8,7 @@ import {checkDemoResponse, demoRequest, prepareDemoTrading, startDemoAutomation}
 import './demo-recovery.css'
 import './demo-clean.css'
 import DemoInfoCards from './DemoInfoCards'
+import DemoCockpit from './DemoCockpit'
 import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
 
@@ -1089,6 +1090,10 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       const bar = !status ? {tone:'wait',label:'Durum okunuyor'} : !status.configured ? {tone:'warn',label:'Demo hesap bağlı değil'} : !status.connected ? {tone:'stop',label:'Bağlantı bekleniyor'} : autoOn ? {tone:'ok',label:'Çalışıyor'} : {tone:'mute',label:'Durdu'}
       const money = (value:number|null|undefined, signed = false) => typeof value === 'number' && Number.isFinite(value) ? `${signed && value > 0 ? '+' : ''}${value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})} USDT` : '—'
       const used = dailyLimit !== null && dailyLeft !== null ? Math.max(0, dailyLimit - dailyLeft) : null
+      // Demo İşlem sekmesi: Master Canlı İşlem'in Rehber / Kais Koç kokpiti (demo ikizi). Ayarlar sekmesi eski özeti korur.
+      if (tab === 'trade') return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem kokpiti">
+        <DemoCockpit onNavigate={target => onMasterTab?.(target as 'analiz'|'canli'|'pozisyonlar'|'baglanti')}/>
+      </section>
       return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem durumu">
         <section className="lcRoot originalLiveWorkspace" aria-label="Demo İşlem">
           <header className="lcStatusBar" data-tone={bar.tone}>
