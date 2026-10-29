@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
 import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
@@ -21,6 +21,7 @@ import {parseRequiredMarketQuotes} from './master-market-data'
 import {useMemberAccess} from './premium-access'
 import './cws.css'
 import './cws-mobile-minimal.css'
+import './notification-panel-modern.css'
 import LiveConnectionCard from './LiveConnectionCard'
 import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
@@ -62,6 +63,18 @@ type Health = {status:string;version:string;mode:string;testnet:string;live_guar
 type ConnectionStatus = {connections?:Record<'TESTNET'|'LIVE',{configured:boolean;active:boolean;last_test_ok:boolean;api_key_masked?:string;last_error?:string|null;storage?:string;account?:{active_positions?:number}|null}>;vault?:{ready:boolean;reason?:string|null}}
 type NotificationItem = {id:string;type:string;severity:'success'|'warning'|'error'|'critical'|'info';title:string;message:string;timestamp:string|null;read:boolean;target:string}
 type NotificationPanelState = 'loading'|'empty'|'error'|'data'
+const notificationUrgent = (item:NotificationItem) => item.severity === 'critical' || item.severity === 'error'
+const notificationAgo = (timestamp:string|null) => {
+  const time = timestamp ? Date.parse(timestamp) : NaN
+  if (!Number.isFinite(time)) return '—'
+  const minutes = Math.max(0,Math.floor((Date.now() - time) / 60000))
+  if (minutes < 1) return 'şimdi'
+  if (minutes < 60) return `${minutes} dk`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} sa`
+  return `${Math.floor(hours / 24)} gün`
+}
+type NotificationFilter = 'all'|'urgent'|'warning'|'unread'
 const notificationLevelLabels = {critical:'KRİTİK',error:'KRİTİK',warning:'UYARI',success:'BAŞARILI',info:'BİLGİ'}
 
 function isNotificationItem(value:unknown):value is NotificationItem {
@@ -559,6 +572,7 @@ export default function TestnetFirstApp() {
   const [notificationReadError,setNotificationReadError] = useState('')
   const [notificationReadBusy,setNotificationReadBusy] = useState(false)
   const [notificationsOpen,setNotificationsOpen] = useState(false)
+  const [notificationFilter,setNotificationFilter] = useState<NotificationFilter>('all')
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [headerHidden,setHeaderHidden] = useState(false)
   const [complianceOpen,setComplianceOpen] = useState(false)
@@ -978,10 +992,27 @@ export default function TestnetFirstApp() {
           <button className={`v26NotificationButton${unreadNotifications ? ' hasUnread' : ''}`} type="button" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(open => !open)}><Bell/>{unreadNotifications > 0 && <span className="v26NotificationBadge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>
           {notificationsOpen && <section className="v26NotificationPanel" role="dialog" aria-label="Bildirimler" data-state={notificationState} aria-busy={notificationState === 'loading' || notificationReadBusy}>
             <header><div><small>DURUM MERKEZİ</small><h2>Bildirimler</h2></div><div><span>{unreadNotifications}</span><button type="button" aria-label="Bildirimleri yenile" title="Bildirimleri yenile" disabled={notificationState === 'loading' || notificationReadBusy} onClick={() => void refreshNotifications()}><RefreshCw/></button>{unreadNotifications > 0 && <button type="button" disabled={notificationReadBusy} onClick={() => void markAllNotificationsRead()}>TÜMÜ OKUNDU</button>}</div></header>
+            {notifications.length > 0 && (() => {
+              const urgent = notifications.filter(notificationUrgent).length, warn = notifications.filter(item => item.severity === 'warning').length, unread = notifications.filter(item => !item.read).length
+              const filters:Array<[NotificationFilter,string,number]> = [['all','Hepsi',notifications.length],['urgent','Acil',urgent],['warning','Uyarı',warn],['unread','Okunmamış',unread]]
+              return <div className="v26NotificationTools"><p className="v26NotificationSummary">{urgent ? <b>{urgent} acil</b> : 'Acil durum yok'} · {warn} uyarı · {unread} okunmamış</p><div className="v26NotificationFilters" role="group" aria-label="Bildirim filtresi">{filters.map(([value,label,count]) => <button type="button" key={value} aria-pressed={notificationFilter === value} onClick={() => setNotificationFilter(value)}>{label}<em>{count}</em></button>)}</div></div>
+            })()}
+            {notificationState === 'loading' && <div className="v26NotificationSkeleton" aria-hidden="true"><i/><i/></div>}
             {notificationState === 'loading' && <div className="v26NotificationEmpty" role="status"><RefreshCw className="spin"/><b>{notificationLoaded.current ? 'Bildirimler güncelleniyor…' : 'Bildirimler yükleniyor…'}</b></div>}
             {notificationState === 'error' && <div className="v26NotificationStatus" role="alert"><b>{notificationError}</b><button type="button" onClick={() => void refreshNotifications()}>YENİDEN DENE</button>{notificationErrorCode && <small>Hata kodu: {notificationErrorCode}</small>}</div>}
             {notificationReadError && <div className="v26NotificationStatus" role="alert"><b>{notificationReadError}</b></div>}
-            {notifications.length ? <div className="v26NotificationList">{notifications.map(item => <button type="button" disabled={notificationReadBusy} key={item.id} className={`v26NotificationItem ${item.severity}${item.read ? ' isRead' : ''}`} onClick={() => void openNotification(item)}><i><Bell/></i><span><b>{item.title}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small></span></button>)}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Bildirim yok</b><p>Gerçek bir sistem olayı oluştuğunda burada görünecek.</p></div>}
+            {notifications.length ? <div className="v26NotificationList">{(() => {
+              const shown = notifications.filter(item => notificationFilter === 'urgent' ? notificationUrgent(item) : notificationFilter === 'warning' ? item.severity === 'warning' : notificationFilter === 'unread' ? !item.read : true)
+              const ordered = [...shown.filter(notificationUrgent),...shown.filter(item => !notificationUrgent(item))]
+              const hasUrgent = shown.some(notificationUrgent)
+              if (!ordered.length) return <p className="v26NotificationNone">Bu filtrede bildirim yok.</p>
+              return ordered.map((item,index) => <Fragment key={item.id}>
+                {index === 0 && hasUrgent && <div className="v26NotificationGroup" key={`${item.id}-g`}>ŞİMDİ DİKKAT</div>}
+                {hasUrgent && !notificationUrgent(item) && (index === 0 || notificationUrgent(ordered[index - 1])) && <div className="v26NotificationGroup" key={`${item.id}-g2`}>DİĞER</div>}
+                <button type="button" disabled={notificationReadBusy} key={item.id} className={`v26NotificationItem ${item.severity}${item.read ? ' isRead' : ''}`} onClick={() => void openNotification(item)}><i><Bell/></i><span><b>{item.title}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small>{(notificationUrgent(item) || item.severity === 'warning') && <em className="v26NotificationAct">Aç →</em>}</span><time className="v26NotificationAgo">{notificationAgo(item.timestamp)}</time></button>
+              </Fragment>)
+            })()}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Bildirim yok</b><p>Gerçek bir sistem olayı oluştuğunda burada görünecek.</p></div>}
+          <footer className="v26NotificationFoot"><button type="button" onClick={() => {setNotificationsOpen(false);navigate('setup')}}>Bildirim ayarları →</button></footer>
           </section>}
         </div>
         <div className="v26HeaderProfileSlot" />
