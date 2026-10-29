@@ -6770,6 +6770,8 @@ body:has(#root .liveTradingPanel.liveUx),
 
   /* Kapanan işlemler */
   html body #root main.v26App .lpWrap .lpList { gap: 8px !important; }
+  html body #root main.v26App .lpWrap .lpList .lpScroll { gap: 8px !important; }
+  html body #root main.v26App .lpWrap .lpList h3 .lpCount { padding: 1px 8px !important; font-size: 11px !important; }
   html body #root main.v26App .lpWrap .lpList h3 { margin: 4px 2px 0 !important; font-size: 15px !important; }
   html body #root main.v26App .lpWrap .lpList article { gap: 3px 10px !important; padding: 12px 14px !important; border-radius: 14px !important; }
   html body #root main.v26App .lpWrap .lpList article > div { gap: 8px !important; }
