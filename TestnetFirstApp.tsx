@@ -25,6 +25,7 @@ import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
 import SupportCenter from './SupportCenter'
 import LivePerformance from './LivePerformance'
+import DemoMasterShell, {type DemoMasterTab} from './DemoMasterShell'
 import './performance-live.css'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
@@ -513,6 +514,9 @@ export default function TestnetFirstApp() {
   const [accessAttempt,setAccessAttempt] = useState(0)
   const [accessError,setAccessError] = useState('')
   const [markets,setMarkets] = useState<Market[]>([])
+  const [marketsAt,setMarketsAt] = useState<number|null>(null)
+  const [demoTab,setDemoTab] = useState<DemoMasterTab>('canli')
+  const [demoConnected,setDemoConnected] = useState<boolean|null>(null)
   const [symbol,setSymbol] = useState('BTCUSDT')
   const [marketQuery,setMarketQuery] = useState('')
   const [marketPickerOpen,setMarketPickerOpen] = useState(false)
@@ -669,6 +673,7 @@ export default function TestnetFirstApp() {
         if (marketResult.status === 'rejected') throw marketResult.reason
         if (!marketResult.value.ok) throw await marketDataResponseError(marketResult.value,'markets')
         setMarkets(parseRequiredMarketQuotes(await marketResult.value.json()))
+        setMarketsAt(Date.now())
         setMarketError('')
       } catch (error) {
         if (!controller.signal.aborted) setMarketError(error instanceof Error ? error.message : 'Piyasa veri isteği başarısız.')
@@ -941,7 +946,7 @@ export default function TestnetFirstApp() {
     return () => window.removeEventListener('scroll',onScroll)
   },[mobileMenuOpen,notificationsOpen,marketPickerOpen,complianceOpen])
 
-  return <main ref={reactionArea} className={`v26App ${view === 'dashboard' ? 'homeRoute' : 'workspaceRoute'} ${view === 'master-trade' ? 'masterTradeRoute' : ''}${connectionState === 'offline' ? ' backendOffline' : ''}${view === 'dashboard' && phoneLayout ? ' mobileHomeRoute' : ''}`}>
+  return <main ref={reactionArea} className={`v26App ${view === 'dashboard' ? 'homeRoute' : 'workspaceRoute'} ${view === 'master-trade' ? 'masterTradeRoute' : view === 'trading' ? 'masterTradeRoute demoMasterRoute' : ''}${connectionState === 'offline' ? ' backendOffline' : ''}${view === 'dashboard' && phoneLayout ? ' mobileHomeRoute' : ''}`} data-demo-tab={view === 'trading' ? demoTab : undefined}>
     <AppReadyPrompt/>
     <SiteTour/>
     {tradingDefaults.error && <p className="v26MarketError" role="alert">İşlem tercihleri uygulanamadı: {tradingDefaults.error}</p>}
@@ -967,7 +972,7 @@ export default function TestnetFirstApp() {
     </header>
     {view !== 'dashboard' && <BackButton onClick={() => navigate('dashboard')}/>}
 
-    {view !== 'dashboard' && <section className="v26ModeBar">
+    {view !== 'dashboard' && view !== 'trading' && <section className="v26ModeBar">
       <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'support' ? 'Destek' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Ayarlar ve Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Tarama verisi üzerinden piyasa zekâsı ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'support' ? 'Sıkça sorulan sorular, hazır cevaplar ve destek ekibine mesaj.' : view === 'pricing' || view === 'billing' ? 'Planını seç, ödemeni yap, erişimini takip et.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
     </section>}
 
@@ -996,6 +1001,7 @@ export default function TestnetFirstApp() {
     {view === 'dashboard' && !phoneLayout && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="pending"/>Testnet öncelikli</span></footer>}
 
     {view === 'trading' && <>
+      <DemoMasterShell tab={demoTab} onTab={setDemoTab} connected={demoConnected} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>
       <section className="v26MarketBar">
         <div className="v26MarketTitle"><Activity/><span><small>SEÇİLİ TESTNET PAZARI</small><b>{symbol.replace('USDT','/USDT')}</b></span><strong className={analysis?.direction === 'SHORT' ? 'short' : analysis?.direction === 'LONG' ? 'long' : ''}>{analysis?.direction || (analysisProgress < 0 ? 'ANALİZ HATASI' : 'HESAPLANIYOR')} <em>{analysis ? `%${analysis.confidence}` : analysisProgress < 0 ? 'TEKRAR DENEYİN' : analysisProgress > 0 ? `%${analysisProgress}` : 'BAŞLATILIYOR'}</em></strong></div>
         <div className="v26MarketPicker" ref={marketPickerRef}>
@@ -1009,7 +1015,7 @@ export default function TestnetFirstApp() {
         {marketError && <div className="v26MarketError" role="alert"><span>Market verisi yüklenemedi. {marketError}</span><button className="action-button" type="button" aria-label="Market verisini yeniden dene" title="Market verisini yeniden dene" onClick={() => void refresh()} disabled={loading}>{loading ? <RefreshCw className="spin"/> : 'TEKRAR DENE'}</button></div>}
       </section>
       <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Testnet merkezi hazırlanıyor…</div>}>
-        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
+        <BinanceDemo active symbol={symbol} markets={markets} onSymbolChange={setSymbol} analysis={analysis} workspace="trade" masterTab={demoTab} onConnectedChange={setDemoConnected} onMasterTab={setDemoTab} chart={<TestnetMarketChart symbol={symbol} interval={interval} onAnalysis={setAnalysis} onAnalysisProgress={setAnalysisProgress} demoPresentation/>}/>
       </Suspense>
     </>}
 
