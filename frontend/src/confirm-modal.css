@@ -1,0 +1,29 @@
+/* Onay penceresi: modern görünüm. Mantık ve düğme metinleri değişmez (HAYIR/EVET, CANCEL/CONFIRM). */
+html body .liveConfirmBackdrop{position:fixed!important;inset:0!important;z-index:2147483000!important;display:grid!important;place-items:center!important;padding:20px!important;background:rgba(2,5,9,.66)!important;backdrop-filter:blur(4px)!important}
+html body .liveConfirm{box-sizing:border-box!important;--lc-c:#f5c04a;--lc-bg:rgba(245,192,74,.14);position:relative!important;width:min(460px,100%)!important;padding:22px 20px 20px!important;border:1px solid #243650!important;border-radius:24px!important;background:#0f1824!important;box-shadow:0 30px 80px rgba(0,0,0,.55)!important;color:#e8eef5!important}
+html body .liveConfirm[data-tone="danger"]{--lc-c:#ff8f8f;--lc-bg:rgba(255,107,107,.14)}
+html body .liveConfirm .liveConfirmGrab{display:none}
+html body .liveConfirm .liveConfirmIcon{display:grid;place-items:center;width:50px;height:50px;border-radius:16px;margin-bottom:12px;background:var(--lc-bg);color:var(--lc-c)}
+html body .liveConfirm .liveConfirmIcon svg{width:26px;height:26px}
+html body .liveConfirm h2{margin:0 0 8px!important;font-size:20px!important;line-height:1.25!important;color:#f3f7fb!important}
+html body .liveConfirm p{margin:0 0 16px!important;font-size:14px!important;line-height:1.5!important;color:#9fb2c8!important}
+html body .liveConfirm label{display:block!important;margin:0 0 14px!important;font-size:12px!important;color:#8ea0b4!important}
+html body .liveConfirm label input:not([type="checkbox"]){width:100%!important;box-sizing:border-box!important;margin-top:8px!important;padding:14px!important;border:1px solid #2f5878!important;border-radius:14px!important;background:#0b1522!important;color:#e8eef5!important;font-size:16px!important;font-weight:700!important}
+html body .liveConfirm label input:not([type="checkbox"]):focus{outline:2px solid rgba(61,220,151,.4)!important;border-color:#3ddc97!important}
+html body .liveConfirm .liveConfirmCheck{display:flex!important;align-items:center!important;gap:12px!important;padding:14px!important;border:1px solid #223650!important;border-radius:16px!important;background:#0b1522!important;cursor:pointer!important}
+html body .liveConfirm .liveConfirmCheck input{appearance:none!important;-webkit-appearance:none!important;flex:none!important;width:26px!important;height:26px!important;margin:0!important;border:2px solid #4a5f7a!important;border-radius:8px!important;background:transparent!important;display:grid!important;place-items:center!important}
+html body .liveConfirm .liveConfirmCheck input:checked{background:#3ddc97!important;border-color:#3ddc97!important}
+html body .liveConfirm .liveConfirmCheck input:checked::after{content:"✓";color:#06281a;font-size:16px;font-weight:900;line-height:1}
+html body .liveConfirm .liveConfirmCheck b{display:block;font-size:14.5px;color:#e8eef5}
+html body .liveConfirm .liveConfirmCheck small{display:block;margin-top:2px;font-size:12.5px;color:#7f93a9}
+html body .liveConfirm .liveConfirmBtns{display:grid!important;grid-template-columns:1fr 1.5fr!important;gap:10px!important;margin-top:6px!important}
+html body .liveConfirm .liveConfirmBtns button{min-height:52px!important;border:0!important;border-radius:16px!important;font-size:15px!important;font-weight:800!important;letter-spacing:.02em!important;cursor:pointer!important}
+html body .liveConfirm .liveConfirmNo{background:#162334!important;color:#bfd0e2!important}
+html body .liveConfirm .liveConfirmYes{background:linear-gradient(135deg,#3ddc97,#16c9a8)!important;color:#06281a!important}
+html body .liveConfirm[data-tone="danger"] .liveConfirmYes{background:linear-gradient(135deg,#ff7b7b,#e5484d)!important;color:#fff!important}
+html body .liveConfirm .liveConfirmYes:disabled{opacity:.38!important;cursor:not-allowed!important}
+@media (max-width:760px){
+html body .liveConfirmBackdrop{place-items:end center!important;padding:0!important}
+html body .liveConfirm{width:100%!important;border-radius:26px 26px 0 0!important;padding:10px 20px calc(22px + env(safe-area-inset-bottom))!important;border-width:1px 0 0!important}
+html body .liveConfirm .liveConfirmGrab{display:block;width:42px;height:4px;border-radius:9px;background:#2a3b52;margin:0 auto 16px}
+}

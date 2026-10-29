@@ -1114,13 +1114,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     setCredentials({apiKey: '', secretKey: '', accepted: false})
   }
   const confirmationModal = activeConfirm && typeof document !== 'undefined' ? createPortal(
-    <div className="liveConfirmBackdrop"><section className="liveConfirm" role="dialog" aria-modal="true">
+    <div className="liveConfirmBackdrop"><section className="liveConfirm" role="dialog" aria-modal="true" data-tone={!activeConfirm.simple || activeConfirm.mfa ? 'danger' : 'warn'}>
+      <span className="liveConfirmGrab" aria-hidden="true"/>
+      <span className="liveConfirmIcon" aria-hidden="true"><ShieldAlert/></span>
       <h2>{activeConfirm.title}</h2><p>{activeConfirm.message}</p>
-      {activeConfirm.understanding && <label><input type="checkbox" checked={confirmUnderstood} onChange={event => setConfirmUnderstood(event.target.checked)}/> Gerçek işlem ve kayıp riskini anladım</label>}
+      {activeConfirm.understanding && <label className="liveConfirmCheck"><input type="checkbox" checked={confirmUnderstood} onChange={event => setConfirmUnderstood(event.target.checked)}/><span><b>Riski anladım</b><small>Gerçek işlemde kayıp olabilir.</small></span></label>}
       {!activeConfirm.simple && <label>TYPE TO CONFIRM<input autoFocus value={confirmText} onChange={event => setConfirmText(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') confirmAction()}} placeholder={activeConfirm.expected}/></label>}
       {activeConfirm.mfa && <label>2FA kodu<input data-private="true" type="password" autoComplete="one-time-code" maxLength={32} value={confirmCode} onChange={event => setConfirmCode(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') confirmAction()}}/></label>}
-      <div><button type="button" onClick={() => {setConfirm(null);setConfirmText('');setConfirmCode('')}}>{activeConfirm.simple ? 'HAYIR' : 'CANCEL'}</button>
-        <button type="button" disabled={(activeConfirm.understanding && !confirmUnderstood) || (!activeConfirm.simple && confirmText.trim().toUpperCase() !== activeConfirm.expected) || (activeConfirm.mfa && confirmCode.length < 6)} onClick={confirmAction}>{activeConfirm.simple ? 'EVET' : 'CONFIRM'}</button>
+      <div className="liveConfirmBtns"><button type="button" className="liveConfirmNo" onClick={() => {setConfirm(null);setConfirmText('');setConfirmCode('')}}>{activeConfirm.simple ? 'HAYIR' : 'CANCEL'}</button>
+        <button type="button" className="liveConfirmYes" disabled={(activeConfirm.understanding && !confirmUnderstood) || (!activeConfirm.simple && confirmText.trim().toUpperCase() !== activeConfirm.expected) || (activeConfirm.mfa && confirmCode.length < 6)} onClick={confirmAction}>{activeConfirm.simple ? 'EVET' : 'CONFIRM'}</button>
       </div>
     </section></div>,
     document.body,
