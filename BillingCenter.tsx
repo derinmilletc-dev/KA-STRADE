@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, Check, Clock3, CreditCard, Crown, Lock, CircleDollarSign, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
+import {ArrowRight, Check, Clock3, CreditCard, Crown, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
 import {userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
@@ -142,7 +142,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
 
       <article className="ktBillPlan isSmart">
         <header>
-          <div className="ktBillPlanIcon"><CircleDollarSign/></div>
+          <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/></div>
           <div><span className="ktBillTag">SADECE ELLE İŞLEM</span><h3>SMART TRADE</h3></div>
         </header>
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
