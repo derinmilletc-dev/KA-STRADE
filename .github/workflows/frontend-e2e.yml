@@ -13,9 +13,16 @@ on:
 permissions:
   contents: read
 
+# Aynı dalda yeni commit gelince eski koşu iptal edilir; asılı kalan test sınırsız yer tutmasın
+# (daha önce 20 koşu saatlerce asılı kalıp zorunlu security-tests'i sıraya hapsetti).
+concurrency:
+  group: frontend-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   live-trading-ui:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
