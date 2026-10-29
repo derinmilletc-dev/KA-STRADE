@@ -56,7 +56,7 @@
   #root#root main.v26App .v26NotificationPanel .v26NotificationItem.important:not(.critical):not(.error) .v26NotificationAct { background: rgba(255, 255, 255, .08) !important; color: #e8eef4 !important; }
   #root#root main.v26App .v26NotificationPanel .v26NotificationCount { display: inline-block !important; margin-left: 8px !important; padding: 2px 8px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .08) !important; color: #8b9aab !important; font-style: normal !important; font-size: 11px !important; font-weight: 700 !important; vertical-align: middle !important; }
   /* Premium görünüm (kart listesi, renkli şerit, menü düğmesi) */
-  #root#root main.v26App .v26NotificationPanel { position: relative !important; background: linear-gradient(180deg, #0e151d, #0a1016) !important; border: 1px solid #1a2531 !important; border-radius: 22px !important; box-shadow: 0 22px 54px rgba(0, 0, 0, .6) !important; }
+  #root#root main.v26App .v26NotificationPanel { background: linear-gradient(180deg, #0e151d, #0a1016) !important; border: 1px solid #1a2531 !important; border-radius: 22px !important; box-shadow: 0 22px 54px rgba(0, 0, 0, .6) !important; }
   #root#root main.v26App .v26NotificationPanel > header { align-items: flex-start !important; padding: 18px 16px 2px 18px !important; }
   #root#root main.v26App .v26NotificationPanel > header h2 { font-size: 23px !important; font-weight: 800 !important; letter-spacing: -.02em !important; color: #fff !important; }
   #root#root main.v26App .v26NotificationPanel > header > div:last-child { position: relative !important; }
