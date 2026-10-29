@@ -47,13 +47,26 @@ const trUpper = (s: string) => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpper
 let patterns: { re: RegExp; en: string }[] = []
 let trMode = false
 let enToTr: Record<string, string> = {}
+let trPatterns: { re: RegExp; tr: string }[] = []
 const cache = new Map<string, string>()
 
-function translateToTr(key: string): string | null {
+function translateToTr(key: string, depth = 0): string | null {
   const v = enToTr[key.toLowerCase()]
-  if (v === undefined) return null
-  const upper = key === key.toUpperCase() && /[A-Z]/.test(key) && key.length > 2
-  return upper ? trUpper(v) : v
+  if (v !== undefined) {
+    const upper = key === key.toUpperCase() && /[A-Z]/.test(key) && key.length > 2
+    return upper ? trUpper(v) : v
+  }
+  if (depth > 2) return null
+  for (const { re, tr } of trPatterns) {
+    const m = re.exec(key)
+    if (!m) continue
+    let i = 0
+    return tr.replace(/\{\}/g, () => {
+      const part = m[++i] ?? ''
+      return translateToTr(norm(part), depth + 1) ?? part
+    })
+  }
+  return null
 }
 
 function translateCore(key: string, depth: number): string | null {
@@ -115,6 +128,10 @@ function brandPiece(t: Text): boolean {
 const SKIP_SELECTOR = 'script,style,textarea,noscript,code,pre,[data-i18n-skip],[translate="no"],[contenteditable="true"]'
 
 /** Düğüm veya atalarından biri çeviri dışıysa true. Tarayıcının yerel closest() sorgusu, ataları JS döngüsüyle gezmekten çok daha hızlıdır. */
+const ATTR_SKIP_SELECTOR = 'script,style,noscript,code,pre,[data-i18n-skip],[translate="no"],[contenteditable="true"]'
+/** Metin kutularının (textarea) içeriği çevrilmez ama placeholder/title gibi öznitelikleri çevrilir. */
+function attrsSkipped(el: Element): boolean { return el.closest(ATTR_SKIP_SELECTOR) !== null }
+
 function skipped(node: Node): boolean {
   const el = node.nodeType === 1 ? node as Element : node.parentElement
   return el ? el.closest(SKIP_SELECTOR) !== null : false
@@ -140,7 +157,8 @@ function walk(root: Node) {
     if (!skipped(t) && !brandPiece(t)) { const v = translateText(t.nodeValue ?? ''); if (v !== t.nodeValue) t.nodeValue = v }
     return
   }
-  if (root.nodeType !== 1 || skipped(root)) return
+  if (root.nodeType !== 1) return
+  if (skipped(root)) { if ((root as Element).tagName === 'TEXTAREA' && !attrsSkipped(root as Element)) fixAttrs(root as Element); return }
   fixAttrs(root as Element)
   const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
   let n = tw.nextNode()
@@ -148,6 +166,7 @@ function walk(root: Node) {
     if (n.nodeType === 1) {
       const e = n as Element
       if (SKIP.has(e.tagName) || e.hasAttribute('data-i18n-skip') || e.getAttribute('translate') === 'no') {
+        if (e.tagName === 'TEXTAREA' && !attrsSkipped(e)) fixAttrs(e)
         n = nextAfter(tw, e)
         continue
       }
@@ -187,7 +206,7 @@ function processMutations(records: MutationRecord[]) {
   const inRoots = (n: Node) => roots.some(root => root !== n && root.contains(n))
   for (const n of roots) walk(n)
   for (const t of texts) if (t.isConnected && !inRoots(t)) walk(t)
-  for (const el of attrs) if (el.isConnected && !inRoots(el) && !skipped(el)) fixAttrs(el)
+  for (const el of attrs) if (el.isConnected && !inRoots(el) && (!skipped(el) || (el.tagName === 'TEXTAREA' && !attrsSkipped(el)))) fixAttrs(el)
 }
 
 // Number.prototype.toLocaleString her çağrıda yeni bir biçimlendirici kurar; canlı fiyatlar saniyede
@@ -257,7 +276,9 @@ export async function initI18n(): Promise<void> {
   if (lang === 'tr') {
     try {
       const mod = await import('./i18n-tr.json')
-      enToTr = ((mod.default ?? mod) as unknown as { e: Record<string, string> }).e
+      const trDict = (mod.default ?? mod) as unknown as { e: Record<string, string>; p?: [string, string][] }
+      enToTr = trDict.e
+      trPatterns = (trDict.p ?? []).map(([en, tr]) => ({ re: new RegExp('^' + esc(en).replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$', 'i'), tr }))
       trMode = true
     } catch { return }
     const startTr = () => {
