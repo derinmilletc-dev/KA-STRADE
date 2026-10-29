@@ -77,24 +77,32 @@ const notificationAgo = (timestamp:string|null) => {
 type NotificationFilter = 'all'|'urgent'|'warning'|'unread'
 const notificationLevelLabels = {critical:'KRİTİK',error:'KRİTİK',warning:'UYARI',success:'BAŞARILI',info:'BİLGİ'}
 
-function isNotificationItem(value:unknown):value is NotificationItem {
-  return value !== null && typeof value === 'object'
-    && 'id' in value && typeof value.id === 'string' && value.id.length > 0
-    && 'type' in value && typeof value.type === 'string'
-    && 'severity' in value && typeof value.severity === 'string' && ['success','warning','error','critical','info'].includes(value.severity)
-    && 'title' in value && typeof value.title === 'string'
-    && 'message' in value && typeof value.message === 'string'
-    && 'timestamp' in value && (value.timestamp === null || typeof value.timestamp === 'string')
-    && 'read' in value && typeof value.read === 'boolean'
-    && 'target' in value && typeof value.target === 'string'
+// Sunucu bazı bildirimleri (ör. canlı işlem uyarıları) eksik alanla gönderebilir. Tek bir bozuk kayıt tüm listeyi
+// "yüklenemedi" yapmasın: eksik alanlar güvenli varsayılanla tamamlanır, kimliği olmayan kayıt atlanır.
+function normalizeNotification(value:unknown):NotificationItem|null {
+  if (value === null || typeof value !== 'object') return null
+  const raw = value as Record<string,unknown>
+  if (typeof raw.id !== 'string' || !raw.id) return null
+  const severities:NotificationItem['severity'][] = ['success','warning','error','critical','info']
+  const severity = severities.find(level => level === raw.severity) ?? 'info'
+  const message = typeof raw.message === 'string' ? raw.message : ''
+  return {
+    id:raw.id,
+    type:typeof raw.type === 'string' ? raw.type : 'system',
+    severity,
+    title:typeof raw.title === 'string' && raw.title ? raw.title : (message || 'Bildirim'),
+    message,
+    timestamp:typeof raw.timestamp === 'string' ? raw.timestamp : null,
+    read:raw.read === true,
+    target:typeof raw.target === 'string' ? raw.target : '',
+  }
 }
 
 function notificationItems(payload:unknown):NotificationItem[] {
-  if (!payload || typeof payload !== 'object' || !('items' in payload)
-    || !Array.isArray(payload.items) || !payload.items.every(isNotificationItem)) {
+  if (!payload || typeof payload !== 'object' || !('items' in payload) || !Array.isArray(payload.items)) {
     throw new Error('Bildirim yanıtı geçersiz.')
   }
-  return payload.items
+  return payload.items.map(normalizeNotification).filter((item):item is NotificationItem => item !== null)
 }
 const ANALYSIS_TIMEOUT_MS = 30000
 
@@ -738,7 +746,10 @@ export default function TestnetFirstApp() {
       for (let attempt = 0; attempt < 3 && !items; attempt++) {
         try {
           const response = await fetch(`${API_BASE}/v21/notifications?limit=100`,{headers,signal:controller.signal})
-          if (response.ok) { items = notificationItems(await response.json()); break }
+          if (response.ok) {
+            try { items = notificationItems(await response.json()) } catch (error) { if (controller.signal.aborted) throw error; failCode = 'yanıt' }
+            break
+          }
           failCode = String(response.status)
           if (response.status < 500 && response.status !== 429) break
         } catch (error) {
