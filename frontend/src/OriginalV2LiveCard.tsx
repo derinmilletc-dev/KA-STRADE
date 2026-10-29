@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState, type FormEvent, type ReactNode} from 'react'
 import type {RiskBreakdown} from './live-guide'
 import './copy-phrase.css'
-import KaisOriginalInfo from '../../KaisOriginalInfo'
+import KaisLongInfo from './KaisLongInfo'
 import {Database} from 'lucide-react'
 
 export type OriginalPersistenceDiagnostics = {
@@ -326,13 +326,13 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
         symbol_count: Number(symbolCount), session_hours: Number(hours),
       })
       if (!payload || typeof payload !== 'object' || !('enabled' in payload) || payload.enabled !== !stop) {
-        throw new Error('Original V2 LIVE sonucu doğrulanamadı. LIVE durumunu yenileyin.')
+        throw new Error('KAİS LONG LIVE sonucu doğrulanamadı. LIVE durumunu yenileyin.')
       }
       setCode('')
-      onNotice(stop ? 'Yeni girişler durduruldu; açık pozisyon ve Stop/TP korumaları korundu.' : 'Original V2 LIVE gözetimli oturumu açıldı.')
+      onNotice(stop ? 'Yeni girişler durduruldu; açık pozisyon ve Stop/TP korumaları korundu.' : 'KAİS LONG LIVE gözetimli oturumu açıldı.')
       await refresh()
     } catch (error: unknown) {
-      onNotice(error instanceof Error ? error.message : 'Original V2 LIVE isteği başarısız.')
+      onNotice(error instanceof Error ? error.message : 'KAİS LONG LIVE isteği başarısız.')
     } finally {
       setBusy(false)
       inFlight.current = false
@@ -372,7 +372,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
     : `Engelli – ${entryBlocker?.reason || 'Giriş kontrolleri henüz doğrulanmadı.'}`
   const technicalDetails = <>
     <div className="masterTradeLiveControlMeta" data-testid="original-runtime-status">
-      <span><small>STRATEJİ</small><b>Original V2</b></span>
+      <span><small>STRATEJİ</small><b>KAİS LONG</b></span>
       <span><small>SEÇİLEN EVREN</small><b>{status.symbols.length} / {status.universe?.requested_count ?? 40} sembol</b></span>
       <span><small>ONAYLI RİSK</small><b>%{status.risk_percent}</b></span>
       <span><small>TARAMA</small><b>{!status.enabled ? 'Otomasyon kapalı' : originalScanLabels[status.scanner?.stage || ''] || 'İlk tarama bekleniyor'}</b></span>
@@ -432,8 +432,8 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
       </p>}
     </details>
   </>
-  return <section className={`masterTradeLiveSection originalLiveCard ${className ?? ''}`} aria-label="Kais Original V2 LIVE">
-    <header className="originalStatusHero"><div><span className="masterTradeLiveKicker">KAIS ORIGINAL V2 · CANLI</span><KaisOriginalInfo/>
+  return <section className={`masterTradeLiveSection originalLiveCard ${className ?? ''}`} aria-label="KAİS LONG LIVE">
+    <header className="originalStatusHero"><div><span className="masterTradeLiveKicker">KAİS LONG · CANLI</span><KaisLongInfo variant="link"/>
       <h2>{!statusVerified ? 'Durum doğrulanamadı' : entriesReady ? 'Çalışıyor – sinyal bekleniyor' : status.enabled ? 'Çalışıyor – girişler engelli' : status.paused ? 'Durdu – yeni girişler kapalı' : 'Canlı işlemi 3 adımda başlat'}</h2>
       <p>{status.enabled ? `${status.universe?.requested_count ?? status.symbols.length} coin · Son tarama: ${status.scanner?.last_scan_at ? new Date(status.scanner.last_scan_at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : 'bekleniyor'} · ${remainingText}` : status.pause_reason || 'Sıradaki adımı tamamla; açık pozisyonların korumaları değiştirilmez.'}</p>
       {status.enabled && !entriesReady && <p role="status">{entryBlocker?.reason || 'Giriş kontrolleri doğrulanamadı.'}</p>}
@@ -499,7 +499,7 @@ export default function OriginalV2LiveCard({className, status, entryChecks, arme
       <div className="originalSetupStep" data-active={connected && riskApproved} data-complete={status.enabled}>
         <h3>{status.enabled ? '✓' : '3'} · Stratejiyi başlat</h3>
         <p>Onay ve ARM arka planda tamamlanır. Her adayda sunucu güvenlik kontrolleri yeniden uygulanır.</p>
-        <button type="submit" className="masterTradeLivePrimary" disabled={busy || status.enabled || fillLocked || !status.available || blocked || (!prepareStart && !armed) || automationActive || !riskApproved || !validRisk || wallet === null || !consentReady}>{renewing ? 'Original V2 oturumunu yenile' : 'Kais Original V2’yi başlat'}</button>
+        <button type="submit" className="masterTradeLivePrimary" disabled={busy || status.enabled || fillLocked || !status.available || blocked || (!prepareStart && !armed) || automationActive || !riskApproved || !validRisk || wallet === null || !consentReady}>{renewing ? 'KAİS LONG oturumunu yenile' : 'KAİS LONG’u başlat'}</button>
       </div>
     </form>
     </details>

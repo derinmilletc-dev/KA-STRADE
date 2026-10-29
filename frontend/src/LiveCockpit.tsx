@@ -9,6 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
+import KaisLongInfo from './KaisLongInfo'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
@@ -888,7 +889,7 @@ export default function LiveCockpit(props: Props) {
     </div>}
   </div> : null
   const strategyCard = <section className="lcCard lcStrategy" id="lc-strategy" aria-label="Strateji ve risk">
-    <header className="lcCardHead"><div><small>STRATEJİ</small><h3>Kais Original V2 · risk ayarı</h3></div>
+    <header className="lcCardHead"><div><small>STRATEJİ</small><h3>KAİS LONG · risk ayarı</h3></div>
       {verified && guideInput.connected && !guideInput.emergency && <button type="button" className="lcLink" aria-expanded={editorOpen} onClick={() => setSettingsOpen(value => !value)}>{editorOpen ? 'Kapat' : riskSaved ? 'Değiştir' : 'Seç'}<ChevronDown aria-hidden="true" data-open={editorOpen || undefined}/></button>}</header>
     <div className="lcStrategyNow">
       <span><small>İşlem başı hedef risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
@@ -1605,8 +1606,8 @@ export default function LiveCockpit(props: Props) {
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone} data-ready={readyToStart || undefined}>
-      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>CANLI İŞLEM</span><span className="lcMPill">KAIS ORIGINAL V2</span></div>
-        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">CANLI İŞLEM · KAIS ORIGINAL V2</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
+      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>CANLI İŞLEM</span><span className="lcMPill">KAİS LONG</span></div>
+        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">CANLI İŞLEM · KAİS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
@@ -1671,6 +1672,7 @@ export default function LiveCockpit(props: Props) {
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+              <KaisLongInfo variant="chip"/>
               <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
             </span>
           </header>

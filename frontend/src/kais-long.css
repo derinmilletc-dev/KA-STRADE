@@ -1,0 +1,30 @@
+/* KAİS LONG: Rehber düğmesi + bilgi kartı */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLongBtn{display:inline-flex!important;align-items:center;gap:7px;padding:7px 14px!important;border-radius:999px!important;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;color:#9df5c8!important;background:rgba(61,220,151,.12)!important;border:1px solid rgba(61,220,151,.38)!important;min-height:0;transition:box-shadow .2s,transform .2s,background .2s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLongBtn:hover{background:rgba(61,220,151,.2)!important;box-shadow:0 0 24px rgba(61,220,151,.28);transform:translateY(-1px)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLongBtn svg{width:14px;height:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLongBtn small{font-size:10.5px;font-weight:700;opacity:.85;padding:1px 7px;border-radius:99px;background:rgba(61,220,151,.18)}
+@media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcLongBtn{transition:none}}
+html body #root button.kaisLongLink{display:inline-flex!important;align-items:center;gap:6px;width:auto!important;height:auto!important;min-height:0!important;margin:0 0 0 10px;padding:4px 11px!important;border-radius:999px!important;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:#9df5c8!important;background:rgba(61,220,151,.1)!important;border:1px solid rgba(61,220,151,.3)!important}
+html body #root button.kaisLongLink svg{width:14px;height:14px;flex:none}
+html body #root button.kaisLongLink:hover,html body #root button.kaisLongLink:focus-visible{background:rgba(61,220,151,.2)!important;outline:0}
+.klBackdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.62);backdrop-filter:blur(3px)}
+.kl{position:relative;overflow:hidden;box-sizing:border-box;width:min(520px,100%);max-height:92vh;overflow-y:auto;display:grid;gap:16px;border-radius:22px;padding:20px;color:#eaf1f7;background:linear-gradient(160deg,rgba(18,30,36,.98),rgba(11,16,24,.99));border:1px solid rgba(61,220,151,.22);box-shadow:0 18px 50px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
+.kl>*{margin:0}
+.klGlow{position:absolute;right:-70px;top:-90px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(61,220,151,.22),transparent 65%);pointer-events:none}
+.klHead{position:relative;display:flex;align-items:center;gap:14px}
+.klIcon{display:grid;place-items:center;flex:none;width:46px;height:46px;border-radius:14px;color:#07130d;background:linear-gradient(135deg,#5ff0b0,#2fbf86);box-shadow:0 8px 22px rgba(61,220,151,.35)}
+.klIcon svg{width:24px;height:24px}
+.klHead small{display:block;font-size:10.5px;letter-spacing:.16em;font-weight:800;color:#6fe0b0}
+.klHead h3{margin:2px 0 0;font-size:24px;letter-spacing:.01em;color:#fff}
+.klX{margin-left:auto;display:grid;place-items:center;flex:none;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#d5deee;cursor:pointer}
+.klX:hover,.klX:focus-visible{background:rgba(255,255,255,.14);outline:0}
+.klLead{position:relative;color:#b4c0d8;font-size:14.5px;line-height:1.55}
+.klTiles{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.klTiles div{padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.klTiles small{display:block;font-size:9.5px;letter-spacing:.12em;font-weight:800;color:#8294b4}
+.klTiles b{display:block;margin-top:4px;font-size:15px;color:#eafff4}
+.klList{position:relative;list-style:none;padding:0;display:grid;gap:9px}
+.klList li{display:flex;gap:11px;align-items:flex-start;font-size:13.5px;color:#cbd6ea;line-height:1.45}
+.klList i{display:grid;place-items:center;flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;background:rgba(61,220,151,.16);color:#3ddc97}
+.klList i svg{width:12px;height:12px;stroke-width:3.4}
+@media (max-width:480px){.klTiles{grid-template-columns:1fr 1fr}.klTiles div:last-child{grid-column:1/-1}}
