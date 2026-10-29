@@ -27,7 +27,7 @@ import SupportCenter from './SupportCenter'
 import LivePerformance from './LivePerformance'
 import DemoMasterShell, {type DemoMasterTab} from './DemoMasterShell'
 import './performance-live.css'
-import {userIsScrolling, watchUserScroll} from './user-scroll'
+import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -946,6 +946,7 @@ export default function TestnetFirstApp() {
       if (Math.abs(currentY - previousY) < 6) { headerScrollYRef.current = previousY; return }
       if (!userIsScrolling()) return  // sayfa kendi kayarsa (içerik güncellenince) üst menü oynamasın
       const scrollingDown = currentY > previousY
+      if (userScrollDirection() !== (scrollingDown ? 'down' : 'up')) return  // parmak o yönde kaymıyorsa (dokunma, içerik güncellemesi) menü oynamasın
       setHeaderHidden(hidden => hidden === scrollingDown ? hidden : scrollingDown)
     }
     const onScroll = () => {

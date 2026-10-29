@@ -15,3 +15,11 @@ test('kullanıcı girdi olayları dinlenir ve pencere kısadır', () => {
   for (const name of ['touchmove', 'wheel', 'keydown']) assert.ok(source.includes(`'${name}'`))
   assert.match(source, /USER_SCROLL_WINDOW_MS = 700/)
 })
+
+test('menü yalnız parmağın/tekerleğin yönü sayfa yönüyle uyuşunca oynar', () => {
+  const master = readFileSync(new URL('../MasterTrade.tsx', import.meta.url), 'utf8')
+  const app = readFileSync(new URL('../TestnetFirstApp.tsx', import.meta.url), 'utf8')
+  assert.match(source, /export function userScrollDirection/)
+  assert.match(master, /userScrollDirection\(\) !== \(delta > 0 \? 'down' : 'up'\)/)
+  assert.match(app, /userScrollDirection\(\) !== \(scrollingDown \? 'down' : 'up'\)/)
+})
