@@ -618,7 +618,12 @@ export default function TestnetFirstApp() {
 
   useEffect(() => {
     const onNavigate = (event:Event) => navigate((event as CustomEvent<View>).detail)
-    const onHistory = () => setView(initialView())
+    // Geri tuşu yalnız adresle açılan sayfalar (/pricing, /billing, /master-trade) arasında gezer. Adres '/' iken
+    // ekran içi görünüm (İşlem, Analist…) korunur; yoksa tam ekran grafik kapanırken ana sayfaya atıyordu.
+    const onHistory = () => setView(current => {
+      const next = initialView()
+      return next === 'dashboard' && current !== 'pricing' && current !== 'billing' && current !== 'master-trade' ? current : next
+    })
     window.addEventListener('protrebot-navigate',onNavigate)
     window.addEventListener('popstate',onHistory)
     return () => { window.removeEventListener('protrebot-navigate',onNavigate);window.removeEventListener('popstate',onHistory) }
