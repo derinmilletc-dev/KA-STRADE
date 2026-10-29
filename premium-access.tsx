@@ -7,7 +7,7 @@ import {clearKaisChatHistory, resumeKaisChatHistory} from './frontend/src/kais-c
 import {setStaffView} from './error-visibility'
 import './premium-access.css'
 
-type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; openUpgrade: (label: string) => void}
+type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; automationAllowed?:boolean; openUpgrade: (label: string) => void}
 const missingProvider = () => { throw new Error('MemberAccessProvider is required for premium interactions.') }
 const AccessContext = createContext<MemberAccess>({premium: false, ready: false, userId: null, owner: false, error: '', assistantAllowed:false, freeTrial:false, liveAllowed:false, openUpgrade: missingProvider})
 export const useMemberAccess = () => useContext(AccessContext)
@@ -35,12 +35,13 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
       void fetch(`${API_BASE}/v22/profile`, {signal: requestController.signal})
         .then(async response => {
           if (response.status === 401 && !requestController.signal.aborted && userSessionToken() === sessionToken) clearKaisChatHistory()
-          const payload = await response.json() as {user?: {id?: string; role?: string; display_name?: string}; access?: {isPremium?: boolean;assistantAllowed?:boolean;freeTrial?:boolean;canExecuteLive?:boolean}; detail?: string}
+          const payload = await response.json() as {user?: {id?: string; role?: string; display_name?: string}; access?: {isPremium?: boolean;assistantAllowed?:boolean;freeTrial?:boolean;canExecuteLive?:boolean;entitlements?:{canUseAutomation?:boolean}}; detail?: string}
           if (!response.ok || !payload.user?.id) throw new Error(payload.detail || 'Üyelik yetkisi doğrulanamadı.')
           if (!requestController.signal.aborted) {
             setAccess({premium: payload.access?.isPremium === true || payload.user.role === 'OWNER', ready: true, userId: payload.user.id, displayName: typeof payload.user.display_name === 'string' ? payload.user.display_name : '', owner: payload.user.role === 'OWNER', error: '',
               assistantAllowed:payload.access?.assistantAllowed !== false,freeTrial:payload.access?.freeTrial === true,
-              liveAllowed:payload.access?.canExecuteLive === true || payload.user.role === 'OWNER'})
+              liveAllowed:payload.access?.canExecuteLive === true || payload.user.role === 'OWNER',
+              automationAllowed:payload.access?.entitlements?.canUseAutomation !== false})
             setStaffView(payload.user.role === 'OWNER')
             if (userSessionToken() === sessionToken) resumeKaisChatHistory(payload.user.id)
           }

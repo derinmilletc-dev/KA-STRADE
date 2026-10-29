@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type FormEvent} from 'react'
 import {Copy, RefreshCw} from 'lucide-react'
 import {API_BASE, userSessionToken} from './api'
 import {isRecord as record, parseBinancePayment as payment, validAmount, type BinancePayment as Payment} from './binance-payment-model'
+import {PAID_PLAN_AMOUNT, PAID_PLAN_NAME, type PaidPlan} from './smart-trade-plans'
 
 type Configuration = {enabled:false} | {enabled:true; amount:string; currency:'USDT'; pay_id:string}
 function configuration(value:unknown):Configuration {
@@ -24,7 +25,7 @@ async function request(path:string, options:RequestInit = {}):Promise<unknown> {
   return value
 }
 
-export default function BinanceManualPayment() {
+export default function BinanceManualPayment({plan = 'MASTER_MODE'}: {plan?: PaidPlan} = {}) {
   const [config,setConfig] = useState<Configuration|null>(null)
   const [current,setCurrent] = useState<Payment|null>(null)
   const [period,setPeriod] = useState<{start:string;end:string}|null>(null)
@@ -70,13 +71,19 @@ export default function BinanceManualPayment() {
     return () => {mounted.current = false;controller.abort()}
   },[attempt])
 
-  const update = async (path:string, body?:{transaction_number:string}) => {
+  const update = async (path:string, body?:{transaction_number:string}|{plan:PaidPlan}) => {
     if (inFlight.current) return
     inFlight.current = true
     setBusy(true);setError('');setNotice('')
     try {
       const row = payment(await request(path,{method:'POST',...(body ? {body:JSON.stringify(body)} : {})}))
-      if (mounted.current) {setCurrent(row);setNumber('')}
+      if (mounted.current) {
+        setCurrent(row);setNumber('')
+        // Zaten açık bir talep varsa o döner (tutar talepte sabittir): başka plan istendiyse kullanıcıya açıkça söyle.
+        if (body && 'plan' in body && row.plan !== body.plan && row.plan) {
+          setNotice(`Zaten açık bir ${PAID_PLAN_NAME[row.plan]} talebin var (${row.amount} USDT). Başka plan için bu talebin süresinin dolmasını beklemelisin.`)
+        }
+      }
     } catch (exception) {
       if (mounted.current) setError(exception instanceof Error ? exception.message : 'Binance ödeme işlemi tamamlanamadı.')
     } finally {
@@ -101,15 +108,18 @@ export default function BinanceManualPayment() {
   }
   if (config?.enabled === false || loading && !current && !error) return null
   const status = current?.status
+  // Açık bir talep varsa onun planı gösterilir (tutar talepte sabitlenir); yoksa seçilen plan.
+  const shown: PaidPlan = current && (current.status === 'created' || current.status === 'pending') && current.plan ? current.plan : plan
+  const shownAmount = config?.enabled ? (shown === 'MASTER_MODE' ? config.amount : PAID_PLAN_AMOUNT[shown]) : PAID_PLAN_AMOUNT[shown]
   return <section className="binanceManualPayment" aria-label="Binance ile ödeme">
     <header><div><small>ALTERNATİF ÖDEME</small><h3>Binance ile öde</h3></div><span>Manuel onay</span></header>
-    <p>30 günlük MASTER MODE · Ücretsiz deneme yok. Otomatik yenileme yok.</p>
+    <p>30 günlük {PAID_PLAN_NAME[shown]} · Ücretsiz deneme yok. Otomatik yenileme yok.</p>
     {error && <div className="binanceManualError" role="alert">{error}{' '}
       {!current && <button type="button" onClick={() => setAttempt(value => value + 1)} disabled={loading}>Yeniden dene</button>}
     </div>}
     {config?.enabled && <>
-      {!current && !error && <><p>MASTER MODE için {config.amount} {config.currency} ile ödeme yapın. Erişim yalnız ödeme doğrulanıp onaylandıktan sonra açılır.</p>
-        <button type="button" className="binanceManualPrimary" disabled={busy || loading} onClick={() => void update('/requests')}>
+      {!current && !error && <><p>{PAID_PLAN_NAME[shown]} için {shownAmount} {config.currency} ile ödeme yapın. Erişim yalnız ödeme doğrulanıp onaylandıktan sonra açılır.</p>
+        <button type="button" className="binanceManualPrimary" disabled={busy || loading} onClick={() => void update('/requests',{plan})}>
           {busy ? 'Hazırlanıyor…' : 'Binance ile öde'}
         </button></>}
       {current && <><div className="binanceManualDetails">
@@ -138,7 +148,7 @@ export default function BinanceManualPayment() {
           <small>İşlem numarası: {current.transaction_number}</small></div>}
         {(status === 'expired' || status === 'rejected') && <div role="status"><strong>{status === 'expired' ? 'Süresi doldu' : 'Reddedildi'}</strong>
           <p>{status === 'expired' ? '48 saat içinde işlem numarası girilmedi. Yeni talep oluşturabilirsiniz.' : 'Ödeme talebiniz reddedildi.'}</p>
-          <button type="button" className="binanceManualPrimary" disabled={busy} onClick={() => void update('/requests')}>Yeni ödeme talebi</button></div>}
+          <button type="button" className="binanceManualPrimary" disabled={busy} onClick={() => void update('/requests',{plan})}>Yeni ödeme talebi</button></div>}
         {status === 'approved' && <div role="status"><strong>Onaylandı</strong><p>Ödeme talebiniz onaylandı. Abonelik durumunu faturalama ekranından kontrol edin.</p></div>}
         <button type="button" className="binanceManualRefresh" onClick={() => setAttempt(value => value + 1)} disabled={loading || busy}><RefreshCw size={14}/> Durumu yenile</button>
       </>}
