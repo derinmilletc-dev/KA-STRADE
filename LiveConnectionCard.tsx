@@ -72,7 +72,7 @@ export default function LiveConnectionCard() {
         <div className="nsRow"><span><b>24 saatlik canlı izin</b><small>{consentValid ? `Geçerli · ${remaining(status?.authorization?.expires_at)} (${accountDate(status?.authorization?.expires_at)})` : 'Geçerli değil'}</small></span></div>
         <div className="nsRow"><span><b>Canlı emir izni (ARM)</b><small>{status?.armed ? `Açık · ${remaining(status?.armed_until)}` : 'Kapalı'}</small></span></div>
         <div className="nsRow"><span><b>Otomatik işlem</b><small>{status?.live_auto_trade ? 'Çalışıyor' : 'Kapalı'}</small></span></div>
-        <div className="nsRow"><span><b>Son bağlantı sorunu</b><small>{problem ? `${String(problem.message || problem.kind).replaceAll('_', ' ')} · ${accountDate(problem.created_at)}` : 'Kayıtlı sorun yok'}</small></span></div>
+        <div className={`nsRow${problem ? "" : " nsQuiet"}`}><span><b>Son bağlantı sorunu</b><small>{problem ? `${String(problem.message || problem.kind).replaceAll('_', ' ')} · ${accountDate(problem.created_at)}` : 'Kayıtlı sorun yok'}</small></span></div>
       </div>
     </>}
     <div className="nsFoot"><small>Bu kart yalnızca okur; hiçbir ayarı değiştirmez.</small><button type="button" className="nsTest" onClick={go}>{state === 'locked' ? 'Abonelik sayfası' : 'Master Trade bağlantısı'}<ArrowRight/></button></div>

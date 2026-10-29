@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
 import { Activity, BarChart3, Bell, BrainCircuit, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
@@ -20,6 +20,7 @@ import {marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import {useMemberAccess} from './premium-access'
 import './cws.css'
+import './cws-mobile-minimal.css'
 import LiveConnectionCard from './LiveConnectionCard'
 import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
@@ -483,6 +484,12 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
 
 // Telefon ana sayfası yalnız dar ekranda; CSS :has() yerine JS medya sorgusu (performans).
 const PHONE_QUERY = '(max-width: 700px)'
+// Ayarlar: telefonda bölümler tek satırlık, dokununca açılan listeye girer; büyük ekranda içerik olduğu gibi görünür.
+function SettingsFold({enabled,icon,title,status,tone,children}:{enabled:boolean;icon:ReactNode;title:string;status?:string;tone?:'ok'|'warn';children:ReactNode}) {
+  if (!enabled) return <>{children}</>
+  return <details className="cwsFold"><summary><span className="cwsFoldIcon">{icon}</span><b>{title}</b>{status && <small data-tone={tone}>{status}</small>}</summary><div className="cwsFoldBody">{children}</div></details>
+}
+
 function usePhoneLayout() {
   const [phone, setPhone] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches)
   useEffect(() => {
@@ -1072,6 +1079,7 @@ export default function TestnetFirstApp() {
         <p>Binance API anahtarlarını güvenle bağla. Anahtarların şifreli kasada saklanır ve ekranda hiç gösterilmez.</p>
         <button type="button" className="cwsRefresh" onClick={() => void refreshConnectionStatus()} aria-label="Bağlantı durumunu yenile"><RefreshCw/></button>
       </header>
+      {phoneLayout && <div className="cwsEmbed cwsHeroLive"><LiveConnectionCard/></div>}
       <div className="cwsChips">
         <span><i className={connectionStatus?.connections?.TESTNET?.configured ? 'ok' : 'pending'}/>Demo anahtarı: {connectionStatus?.connections?.TESTNET?.configured ? 'kayıtlı' : 'kayıtlı değil'}</span>
         <span><i className={connectionStatus?.connections?.TESTNET?.active ? 'ok' : 'pending'}/>Demo bağlantısı: {connectionStatus?.connections?.TESTNET?.active ? 'bağlı' : 'bağlı değil'}</span>
@@ -1085,6 +1093,7 @@ export default function TestnetFirstApp() {
           <button type="button" className="cwsPrimary" onClick={connectLiveApi}><KeyRound/>Canlı API anahtarı bağla</button>
           <small>{memberAccess.premium ? 'Seni Master Trade içindeki Bağlantı sekmesine götürür.' : 'Canlı işlem aboneliğe dahildir. Aboneliğin yoksa seni abonelik sayfasına götürür.'}</small>
         </article>
+        <SettingsFold enabled={phoneLayout} icon={<TestTube2/>} title="Demo hesap" status={connectionStatus?.connections?.TESTNET?.active ? 'Bağlı' : connectionStatus?.connections?.TESTNET?.configured ? 'Kayıtlı' : 'Bağlı değil'} tone={connectionStatus?.connections?.TESTNET?.active ? 'ok' : 'warn'}>
         <article className="cwsCard cwsDemo">
           <span className="cwsTag demo">Demo / Testnet</span>
           <h3><TestTube2/>Binance Futures Demo</h3>
@@ -1101,14 +1110,17 @@ export default function TestnetFirstApp() {
           </div>
           {demoVerification.message && <div className={`cwsFeedback ${demoVerification.kind}`}><i/>{demoVerification.message}</div>}
         </article>
+        </SettingsFold>
       </div>
-      <div className="cwsEmbed"><LiveConnectionCard/></div>
-      <div className="cwsEmbed"><NotificationSettings/></div>
-      <div className="cwsEmbed"><ActiveSessionsCard/></div>
+      {!phoneLayout && <div className="cwsEmbed"><LiveConnectionCard/></div>}
+      <SettingsFold enabled={phoneLayout} icon={<Bell/>} title="Bildirimler"><div className="cwsEmbed"><NotificationSettings/></div></SettingsFold>
+      <SettingsFold enabled={phoneLayout} icon={<LockKeyhole/>} title="Açık oturumlar"><div className="cwsEmbed"><ActiveSessionsCard/></div></SettingsFold>
+      <SettingsFold enabled={phoneLayout} icon={<ShieldCheck/>} title="Güvenlik" status="6 / 6" tone="ok">
       <article className="cwsCard cwsSafe">
         <h3><ShieldCheck/>Güvenlik</h3>
         <div>{['Anahtarlar sunucuda şifreli saklanır','Anahtarlar ekranda hiç gösterilmez','Canlı işlem varsayılan olarak kilitlidir','Demo ve canlı anahtarlar ayrı tutulur','Emirler güvenlik kapılarından geçmeden açılmaz','Açılışta otomatik canlı emir verilmez'].map(item => <span key={item}><CheckCircle2/>{item}</span>)}</div>
       </article>
+      </SettingsFold>
     </section>}
 
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">

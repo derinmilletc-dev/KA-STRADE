@@ -1,0 +1,57 @@
+/* Ayarlar ve Bağlantılar: telefon için sade/akıllı görünüm (yalnız <=700px).
+   Metin ve davranış değişmez; bölümler tek satırlık listeye girer, durum üstte tek kartta toplanır. */
+@media (max-width: 700px) {
+  #root main.v26App:has(#connection-ws) > .v26ModeBar small,
+  #root main.v26App:has(#connection-ws) > .v26ModeBar p { display: none !important; }
+  #root main.v26App:has(#connection-ws) > .v26ModeBar h1 { font-size: 24px !important; margin: 2px 0 0 !important; }
+
+  #root #connection-ws#connection-ws.cws { gap: 10px !important; }
+  #root #connection-ws#connection-ws .cwsHead,
+  #root #connection-ws#connection-ws .cwsChips,
+  #root #connection-ws#connection-ws .cwsLive { display: none !important; }
+
+  /* Durum kartı */
+  #root #connection-ws#connection-ws .cwsHeroLive > section { display: grid !important; gap: 12px !important; padding: 18px !important; border-radius: 24px !important; background: radial-gradient(120% 90% at 100% 0%, rgba(61, 220, 151, .18), transparent 60%), #121a23 !important; border: 1px solid rgba(61, 220, 151, .18) !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive h2 { font-size: 11px !important; letter-spacing: .12em !important; text-transform: uppercase !important; color: #6f7f91 !important; font-weight: 600 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive h2 button { width: 30px !important; height: 30px !important; border-radius: 10px !important; background: rgba(255, 255, 255, .06) !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus { padding: 0 !important; background: none !important; display: grid !important; grid-template-columns: auto 1fr !important; gap: 4px 10px !important; align-items: center !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus b { font-size: 18px !important; font-weight: 700 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsStatus small { grid-column: 1 / -1 !important; font-size: 13.5px !important; color: #9fb0c3 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsList { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow { padding: 6px 10px !important; border-radius: 999px !important; background: rgba(255, 255, 255, .06) !important; min-height: 0 !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow > span { display: flex !important; gap: 6px !important; align-items: baseline !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow b { font-size: 12px !important; font-weight: 600 !important; color: #b6c2cf !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow b::after { content: ":" !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsRow small { font-size: 12px !important; color: #8b9aab !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsQuiet { display: none !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot { display: block !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsFoot small { display: none !important; }
+  #root #connection-ws#connection-ws .cwsHeroLive .nsTest { display: flex !important; width: 100% !important; justify-content: space-between !important; align-items: center !important; padding: 13px 14px !important; border-radius: 14px !important; background: #0d141c !important; font-size: 14px !important; font-weight: 600 !important; }
+
+  /* Açılır satırlar */
+  #root #connection-ws#connection-ws .cwsFold { background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .10) !important; border-radius: 18px !important; overflow: hidden !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary { display: flex !important; align-items: center !important; gap: 12px !important; padding: 14px 16px !important; cursor: pointer !important; list-style: none !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary::-webkit-details-marker { display: none !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary::after { content: "›" !important; color: #5f6e7f !important; font-size: 20px !important; transition: transform .15s !important; }
+  #root #connection-ws#connection-ws .cwsFold[open] > summary::after { transform: rotate(90deg) !important; }
+  #root #connection-ws#connection-ws .cwsFoldIcon { display: grid !important; place-items: center !important; width: 34px !important; height: 34px !important; border-radius: 11px !important; background: #0d141c !important; color: #8b9aab !important; }
+  #root #connection-ws#connection-ws .cwsFoldIcon svg { width: 17px !important; height: 17px !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary > b { flex: 1 !important; font-size: 14.5px !important; font-weight: 600 !important; color: #e8eef4 !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary > small { font-size: 12.5px !important; color: #6f7f91 !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary > small[data-tone="ok"] { color: #3ddc97 !important; }
+  #root #connection-ws#connection-ws .cwsFold > summary > small[data-tone="warn"] { color: #e8b84f !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody { padding: 0 12px 14px !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsCard { padding: 0 !important; background: none !important; border-radius: 0 !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsCard > h3,
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsCard > .cwsTag,
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsDemo > p { display: none !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsEmbed > section { padding: 4px !important; background: none !important; border-radius: 0 !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsEmbed h2 { display: none !important; }
+  #root #connection-ws#connection-ws .cwsFoldBody .cwsSafe > div { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* Alt satır */
+  #root main.v26App footer.cwsFoot:not(#_) { justify-content: center !important; margin-bottom: 12px !important; }
+  #root main.v26App footer.cwsFoot:not(#_) > span { display: none !important; }
+  #root main.v26App footer.cwsFoot:not(#_) button { background: none !important; color: #6f7f91 !important; padding: 6px 8px !important; font-size: 12.5px !important; }
+  #root main.v26App footer.cwsFoot:not(#_) > div { flex-wrap: nowrap !important; gap: 0 !important; }
+}
