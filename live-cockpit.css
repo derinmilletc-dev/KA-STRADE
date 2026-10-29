@@ -1014,3 +1014,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 .mgpMapStop span{position:absolute;right:0;top:-18px;color:#ff8f8f;font-size:11px;font-weight:800}
 .mgpWhat{margin:10px 0;padding:10px 12px 10px 28px;border-radius:12px;background:#0b1522;font-size:12.5px;line-height:1.5;color:#9fb2c8}
 .mgpWhat b{color:#e8eef5}.mgpWhat b.down{color:#ff8f8f}
+
+/* Manuel emir bölümü Ayarlar'da görünmez: işlem Rehber'deki "Manuel işlem aç" (ve Analiz'deki "İşlem aç") ile açılır.
+   Bölüm DOM'da kalır; panel açılınca (data-manual-modal) aynı form aynen görünür. Dry-run, ARM ve onay akışı değişmedi. */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot:not([data-manual-modal]) .originalManualOrder{display:none!important}
