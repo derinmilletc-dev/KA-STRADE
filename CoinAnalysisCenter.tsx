@@ -7,6 +7,7 @@ import { useMemberAccess } from './premium-access'
 import './analyst-clean.css'
 import './analyst-desktop.css'
 import './analyst-mobile.css'
+import './analyst-mobile-minimal.css'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
 type Row = {symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
