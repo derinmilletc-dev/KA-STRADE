@@ -720,7 +720,7 @@ async def _candidates(
             decision = StrategyInput(symbol, at, frames)
             results[symbol] = (
                 pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
-                else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True)
+                else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
                 if live_universe else strategy.evaluate(decision, enabled=True)
             )
         except Exception:

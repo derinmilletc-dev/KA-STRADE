@@ -379,3 +379,26 @@ are the only fixed USDT values left: 25 USDT loss per trade, 100 USDT margin per
 size, 100 USDT daily loss. They exist so a mistaken setting or a very large balance cannot create an outsized
 position. When a ceiling clips a dynamic value, the screen shows the clipped value and the entry adjustment lists the
 reason; nothing is clipped silently. Demo, backtests and other strategy layers are unchanged.
+
+## Kais 2 giriş kapısı (yalnız LONG, güven >= 84)
+
+Canlı giriş taramasında (yalnız `live_candidates`, `kais2_gate=True`) iki ek kapı çalışır. Kapılar **yalnız daraltıcıdır**:
+girişe izin vermiş bir sonucu reddedebilir, reddedilmiş bir sonucu asla açmaz. Emir, risk boyutu, stop/hedef, ARM,
+onay ve 2FA kodlarına dokunmaz. Açık pozisyonların yönetimi ve Akıllı Kâr Koruma etkilenmez (yalnız `analysis` okur).
+
+| Kapı | Kural | Ret nedeni |
+|---|---|---|
+| `kais2_long_only` | yön yalnız LONG | `KAIS2_LONG_ONLY` |
+| `kais2_confidence` | 15 dk güven puanı >= 84 (eksik/sayı olmayan puan reddedilir) | `KAIS2_CONFIDENCE_BELOW_84` |
+
+Kapatma: `PROTREBOT_KAIS2_LIVE_GATE=false` (varsayılan `true`; geçersiz değer girişi reddeder). Geri alma tek ayar + servis yeniden başlatma.
+
+### Dayanak ve sınırlar (dürüstlük)
+Backtest 2024-07..2026-05, 376 LONG işlemi. Eşik 84, ilk yarıda (2024-07..2025-09) seçildi, ikinci yarıda (2025-10..2026-05)
+sınandı: ikinci yarıda "yüksek puan" +79.4 USDT, "hepsi" +65.1 USDT. Büyük-5-coin kuralı sınavı geçemedi, eklenmedi.
+Kilitli dönem (2026-06 ve sonrası) okunmadı.
+
+- Backtest çıkışı **1R'de %60 / 3R** idi; canlı çıkış **TP1 = sinyal TP1 mesafesinin %80'i, %70 kapanış, kalan TP3/stop**. Birebir aynı değil.
+- Backtest canlıdaki **15 dk momentum kapısını** ve portföy sınırlarını (en çok 5 pozisyon vb.) uygulamadı.
+- Kâr ince: maliyet x1.5 olursa kabaca +40 USDT'ye, x2 olursa eksiye iner (tahmin). Garanti değildir.
+- Eşik ve kural tek veri setinde seçildi; canlı sonuçlar farklı çıkabilir. Düşük riskle, kısa oturumlarla izle.

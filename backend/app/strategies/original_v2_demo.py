@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from copy import deepcopy
 from dataclasses import replace
@@ -89,6 +90,7 @@ def evaluate_live_universe(
     *,
     allowed_symbols: list[str],
     enabled: bool | None = None,
+    kais2_gate: bool = False,
 ) -> StrategyResult:
     _require_enabled(enabled)
     profile = fixed_profile()
@@ -105,7 +107,8 @@ def evaluate_live_universe(
     # Canlıda güven eşiği sunucu ayarına (PROTREBOT_MIN_CONFIDENCE) uyar; yalnız yükseltebilir, sabit %80'in altına inmez.
     live_threshold = max(int(profile["canonical_policy"]["confidence_threshold"]), configured_min_confidence())
     result = _evaluate_profiled(request, profile, short_filter_rules=LIVE_SHORT_FILTER_RULES, confidence_threshold=live_threshold)
-    return apply_live_momentum_gate(result)
+    result = apply_live_momentum_gate(result)
+    return apply_live_kais2_gate(result) if kais2_gate else result
 
 
 # Canlı giriş kuralı: 15 dakikalık momentum, sinyal yönünü onaylamalı (yalnız canlı; Demo/backtest değişmez).
@@ -135,6 +138,56 @@ def apply_live_momentum_gate(result: StrategyResult) -> StrategyResult:
                   "reasons": [*legacy.get("reasons", []), MOMENTUM_REJECT_REASON]}
         signal = replace(signal, decision="WAIT", strategy_eligible=False, reason=MOMENTUM_REJECT_REASON,
                          reasons=tuple(signal.reasons) + (MOMENTUM_REJECT_REASON,))
+    return StrategyResult(signal=signal, legacy=legacy)
+
+
+# Kais 2 canlı giriş kapısı (yalnız daraltıcı, yalnız canlı giriş taraması): yalnız LONG ve 15 dk güven puanı >= 84.
+# Dayanak: backtest (2024-07..2026-05, 376 işlem). SHORT zararın büyük kısmını yaptı; puan eşiği ilk yarıda seçildi,
+# ikinci yarıda sınandı (esik 84, ikinci yarıda +79.4 USDT, "hepsi" +65.1). Sonuç garanti değildir; bkz. ORIGINAL_V2_LIVE.md.
+# Emir, risk, stop/hedef ve ARM kodlarına dokunmaz; yalnız bir girişe izin vermiş sonucu reddedebilir.
+KAIS2_GATE_FLAG = "PROTREBOT_KAIS2_LIVE_GATE"
+KAIS2_ALLOWED_DIRECTION = "LONG"
+KAIS2_MIN_CONFIDENCE = 84
+KAIS2_DIRECTION_REJECT_REASON = "KAIS2_LONG_ONLY"
+KAIS2_CONFIDENCE_REJECT_REASON = "KAIS2_CONFIDENCE_BELOW_84"
+
+
+def kais2_gate_enabled() -> bool:
+    value = os.getenv(KAIS2_GATE_FLAG, "true").strip().lower()
+    if value in {"true", "1", "yes", "on"}:
+        return True
+    if value in {"false", "0", "no", "off"}:
+        return False
+    _fail("INVALID_KAIS2_GATE_FLAG")
+
+
+def apply_live_kais2_gate(result: StrategyResult) -> StrategyResult:
+    """Saf ve yalnız daraltıcı: girişe izin vermiş bir sonucu reddedebilir, reddedilmiş bir sonucu asla açmaz."""
+    if not kais2_gate_enabled():
+        return result
+    analysis = (result.legacy or {}).get("analysis")
+    if not isinstance(analysis, dict):
+        return result
+    direction = analysis.get("direction")
+    if direction not in {"LONG", "SHORT"}:
+        return result
+    confidence = analysis.get("confidence")
+    # Eksik, sayı olmayan veya sonlu olmayan puan kapalı (reddet) sayılır; varsayılan değer üretilmez.
+    valid = isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and math.isfinite(confidence)
+    checks = [
+        QualityCheck("kais2_long_only", direction == KAIS2_ALLOWED_DIRECTION, direction, KAIS2_ALLOWED_DIRECTION),
+        QualityCheck("kais2_confidence", bool(valid and confidence >= KAIS2_MIN_CONFIDENCE),
+                     confidence if valid else None, KAIS2_MIN_CONFIDENCE),
+    ]
+    reasons = [reason for check, reason in zip(checks, (KAIS2_DIRECTION_REJECT_REASON, KAIS2_CONFIDENCE_REJECT_REASON))
+               if not check.passed]
+    signal = replace(result.signal, quality_checks=tuple(result.signal.quality_checks) + tuple(checks))
+    legacy = result.legacy
+    if reasons and signal.strategy_eligible:
+        legacy = {**legacy, "entry_eligible": False, "decision": "WAIT", "reason": reasons[0],
+                  "reasons": [*legacy.get("reasons", []), *reasons]}
+        signal = replace(signal, decision="WAIT", strategy_eligible=False, reason=reasons[0],
+                         reasons=tuple(signal.reasons) + tuple(reasons))
     return StrategyResult(signal=signal, legacy=legacy)
 
 
