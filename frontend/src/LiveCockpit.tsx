@@ -38,6 +38,10 @@ type Props = {
   refresh: () => Promise<unknown>
   findPlan: (position: Position) => Plan | undefined
   extras?: ReactNode
+  /** Demo ikizi: aynı kokpit, Binance Futures Demo motoruna bağlı; gerçek para yok. */
+  demo?: boolean
+  /** Demo'da sekme değişimi URL yerine üst bileşene bildirilir. */
+  onNavigate?: (tab: string) => void
 }
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
@@ -83,7 +87,7 @@ const errorText = (error: unknown, fallback: string) => {
   // Sunucunun teknik ön ekini ("LIVE KİLİTLİ / GATE BLOCKED: ...") müşteriye göstermeyiz; açıklamanın kendisi kalır.
   return raw.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '') || fallback
 }
-const goTab = (tab: string) => {
+const goTabUrl = (tab: string) => {
   const url = new URL(window.location.href)
   url.searchParams.set('tab', tab)
   window.history.pushState(window.history.state, '', url)
@@ -100,7 +104,7 @@ const writeStored = (key: string | null, value: number) => {
   if (!key) return
   try { localStorage.setItem(key, String(value)) } catch { /* tarayıcı kaydı kapalı olabilir; seçim bu sayfada kalır */ }
 }
-const LAUNCH_STEPS = [
+const ALL_LAUNCH_STEPS = [
   {id: 'conn', title: 'Binance bağlantısı', op: ''},
   {id: 'risk', title: 'Risk paketi', op: 'risk'},
   {id: 'daily', title: 'Günlük sınır', op: 'risk'},
@@ -110,7 +114,15 @@ const LAUNCH_STEPS = [
   {id: 'policy', title: 'Risk limitleri onayı', op: 'policy'},
   {id: 'arm', title: 'Canlı emir izni (ARM)', op: 'arm'},
 ] as const
-type LaunchStepId = typeof LAUNCH_STEPS[number]['id']
+type LaunchStepId = typeof ALL_LAUNCH_STEPS[number]['id']
+// Demo motorunda teminat modu, akıllı koruma, 24 saatlik izin ve risk onayı yok; emir izni (ARM) başlatırken sunucuda açılır.
+const DEMO_STEP_IDS: readonly LaunchStepId[] = ['conn', 'risk', 'daily', 'arm']
+const DEMO_TEXT: ReadonlyArray<readonly [RegExp, string]> = [
+  [/gerçek parayla/g, 'demo parayla'], [/Gerçek parayla/g, 'Demo parayla'], [/Canlı emir izni \(ARM\)/g, 'Demo emir izni'],
+  [/Canlıya hazırlık/g, 'Demo\'ya hazırlık'], [/CANLI İŞLEM/g, 'DEMO İŞLEM'], [/CANLI TARAMA/g, 'DEMO TARAMA'], [/Canlı İşlem/g, 'Demo İşlem'],
+  [/Canlı tarama/g, 'Demo tarama'], [/Canlı stratejim/g, 'Demo stratejim'], [/Canlı işlem/g, 'Demo işlem'],
+]
+const demoText = (text: string, demo: boolean | undefined) => demo ? DEMO_TEXT.reduce((out, [from, to]) => out.replace(from, to), text) : text
 const validCoins = (value: number) => Number.isInteger(value) && value >= 10 && value <= 100
 const validHours = (value: number) => [1, 4, 12, 24].includes(value)
 const NEAR_TEXT: Record<string, string> = {
@@ -123,6 +135,10 @@ const STALE_LIMIT_MS = 30 * 60 * 1000
 
 export default function LiveCockpit(props: Props) {
   const {loading, availableBalance, marketBanSeconds, userId, request, refresh, findPlan, extras} = props
+  const demo = props.demo === true
+  const goTab = (tab: string) => { if (props.onNavigate) props.onNavigate(tab); else goTabUrl(tab) }
+  const LAUNCH_STEPS = demo ? ALL_LAUNCH_STEPS.filter(step => DEMO_STEP_IDS.includes(step.id)) : ALL_LAUNCH_STEPS
+  const dt = (text: string) => demoText(text, demo)
   // Bağlantı geçici koparsa (zaman aşımı, sunucu yeniden başlıyor) son DOĞRULANAN görünüm 30 dk'ya kadar soluk ve
   // "x önce" etiketiyle gösterilir; rehber ilerlemeyi sıfırlamaz. Bu sırada değiştiren istekler kapalıdır (durdurma hariç).
   const lastGood = useRef<{status: SharedLiveStatus; input: GuideInput; wallet: number | null; at: number} | null>(null)
@@ -499,6 +515,7 @@ export default function LiveCockpit(props: Props) {
   const openManualRef = useRef(openManual)
   openManualRef.current = openManual
   useEffect(() => {
+    if (demo) return undefined  // Demo'da "İşlem aç"ı demo emir kartı karşılar; niyeti burada tüketme.
     let timer = 0
     const tryOpen = (attempt = 0) => {
       if (document.querySelector('.originalManualOrder')) { if (takeIntentForOpen()) openManualRef.current(); return }
@@ -511,7 +528,7 @@ export default function LiveCockpit(props: Props) {
     window.addEventListener(MANUAL_INTENT_EVENT, onIntent)
     window.addEventListener(MANUAL_CLOSE_EVENT, onClose)
     return () => { window.clearTimeout(timer); window.removeEventListener(MANUAL_INTENT_EVENT, onIntent); window.removeEventListener(MANUAL_CLOSE_EVENT, onClose) }
-  }, [closeManual])
+  }, [closeManual, demo])
 
   // ---- Durdur: yalnız yeni girişleri kapatır; açık pozisyonların Binance'teki korumaları yerinde kalır.
   const running = guideInput.running
@@ -701,9 +718,9 @@ export default function LiveCockpit(props: Props) {
   const completed = [guideInput.connected && guideInput.balance !== null, effectiveInput.riskApproved, guideInput.authorizationValid && guideInput.policyAcknowledged]
   const progressDone = guide.phase === 'running' ? GUIDE_STEPS.length : guide.phase === 'problem' ? Math.min(completed.indexOf(false) === -1 ? 3 : completed.indexOf(false), guide.step - 1 >= 0 && guide.step > 1 ? guide.step - 1 : 3) : guide.step - 1
   const currentIndex = guide.phase === 'problem' ? progressDone : guide.step - 1
-  const kaisQuestion = running && why ? 'Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.'
-    : running ? 'Canlı stratejim şu an ne yapıyor? Kısaca özetle.'
-    : `Canlı işlem kurulumunda şu adımdayım: "${guide.title}". Ne yapmam gerektiğini kısaca anlatır mısın?`
+  const kaisQuestion = running && why ? dt('Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.')
+    : running ? dt('Canlı stratejim şu an ne yapıyor? Kısaca özetle.')
+    : `${dt('Canlı işlem')} kurulumunda şu adımdayım: "${guide.title}". Ne yapmam gerektiğini kısaca anlatır mısın?`
 
   const actionIcon = guide.action === 'stop' ? <Power aria-hidden="true"/> : guide.action === 'retry' ? <RefreshCw aria-hidden="true" className={working === 'retry' ? 'lcSpin' : ''}/> : null
   const presetCards = <div className="lcPresets" role="radiogroup" aria-label="Risk seçeneği">
@@ -1169,7 +1186,7 @@ export default function LiveCockpit(props: Props) {
     daily: wizRiskNums ? `${usdt(wizRiskNums.perDay)} / gün (%${draft.daily})` : `%${draft.daily}`,
     mode: `${chosenRow?.label ?? '—'} · işlem başı %${chosenRow?.per_trade_percent ?? '—'}`,
     smart: smartSettings === undefined ? 'Bilgi alınamadı, atlanır' : smartPick === 'on' ? `AÇILACAK · eşik ${smartWizThreshold}, ${smartWizWait} dk` : smartPick === 'off' ? 'KAPATILACAK' : smartCurrentlyOn ? 'Açık, böyle kalır' : 'Kapalı, böyle kalır',
-    consent: `${draft.hours} saatlik izin`, policy: 'Risk limitlerini kabul', arm: 'Canlı emir izni (botu başlatmaz)',
+    consent: `${draft.hours} saatlik izin`, policy: 'Risk limitlerini kabul', arm: dt('Canlı emir izni (botu başlatmaz)'),
   })[id]
   // ---- Gerçek verilerle akıllı uyarılar (kural tabanlı; piyasa tahmini değildir). Uyarı bilgilendirir, engellemez.
   type Advice = {tone: 'ok' | 'warn' | 'bad' | 'info'; text: string}
@@ -1347,7 +1364,7 @@ export default function LiveCockpit(props: Props) {
         <b>{launchDoneCount}/{launchTotal}</b>
       </div>
       <div>
-        <h2 id="lc-sheet-title">Canlıya hazırlık</h2>
+        <h2 id="lc-sheet-title">{dt('Canlıya hazırlık')}</h2>
         <p className="lcSheetLead">{launchActive === 'final' ? 'Son adım: güvenlik onayı' : `Adım ${activeIndex} / ${launchTotal} · ${activeMeta?.title}`}</p>
       </div>
     </header>
@@ -1360,7 +1377,7 @@ export default function LiveCockpit(props: Props) {
           const state = op?.state === 'error' ? 'error' : approved ? 'done' : active ? 'active' : 'locked'
           return <li key={item.id} data-state={state}>
             <i className="lcWzDot" aria-hidden="true">{state === 'done' ? <Check/> : state === 'error' ? '!' : index + 1}</i>
-            <span><b>{item.title}</b>{approved && <small>{launchNote(item.id)}</small>}</span>
+            <span><b>{dt(item.title)}</b>{approved && <small>{launchNote(item.id)}</small>}</span>
             {approved && item.id !== 'conn' && !launchRunning && <button type="button" className="lcLink" onClick={() => launchUndo(item.id)} aria-label={`${item.title} onayını geri al`}>Geri al</button>}
           </li>
         })}
@@ -1444,7 +1461,7 @@ export default function LiveCockpit(props: Props) {
       </li>
     })}</ol>
     {approvalsLeft > 0 ? <>
-      <label className="lcCheck"><input type="checkbox" checked={approvalAccepted} onChange={event => setApprovalAccepted(event.target.checked)}/><span>Yukarıdakileri okudum; gerçek parayla işlem riskini kabul ediyorum.</span></label>
+      <label className="lcCheck"><input type="checkbox" checked={approvalAccepted} onChange={event => setApprovalAccepted(event.target.checked)}/><span>{dt('Yukarıdakileri okudum; gerçek parayla işlem riskini kabul ediyorum.')}</span></label>
       <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
         <button type="button" className="lcBtn lcPrimary" disabled={!approvalAccepted || busy} onClick={() => void runApprovals()}>{working === 'approvals' ? 'Onaylar veriliyor…' : `${approvalsLeft} onayı ver ve devam et`}</button></div>
     </> : <div className="lcSheetActions"><button type="button" className="lcBtn lcPrimary" onClick={closeSheet}>Tamam</button></div>}
@@ -1471,7 +1488,7 @@ export default function LiveCockpit(props: Props) {
     {riskDirty && <p className="lcHint warn">Kaydedilmemiş risk değişikliğin var; başlatma kayıtlı ayarla (%{savedRisk} / %{savedDaily}) yapılır.</p>}
     {savedRisk > 2 && savedRisk <= 5 && <label className="lcCheck"><input type="checkbox" checked={startAck} onChange={event => setStartAck(event.target.checked)}/><span>%{savedRisk} işlem riskinin yüksek olduğunu anladım.</span></label>}
     {savedRisk > 5 && <><label className="lcField">Onay için <b className="selectablePhrase">{HIGH_RISK_PHRASE}</b> yaz<input value={startPhrase} autoComplete="off" onChange={event => setStartPhrase(event.target.value)}/></label></>}
-    <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.</span></label>
+    <label className="lcCheck"><input type="checkbox" checked={startUnderstood} onChange={event => setStartUnderstood(event.target.checked)}/><span>{dt('Bu tutarları gördüm; gerçek parayla işlem açılacağını anladım.')}</span></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => { closeSheet(); setSettingsOpen(true); window.setTimeout(() => (document.querySelector('#lc-strategy .lcStrategyEdit') || document.getElementById('lc-strategy') || document.getElementById('lc-drawer'))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 120) }} disabled={Boolean(working)}>Ayarları değiştir</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!startReady || busy} onClick={() => void start()}>{working === 'start' ? 'Başlatılıyor…' : 'Otomatik işlemi başlat'}</button></div>
   </> : sheet === 'extend' ? <>
@@ -1488,7 +1505,7 @@ export default function LiveCockpit(props: Props) {
     <ul className="lcStopList">
       <li data-tone="ok"><Check aria-hidden="true"/><span><b>Yeni işlem açılmaz.</b> Tarama hemen durur.</span></li>
       <li data-tone="ok"><ShieldCheck aria-hidden="true"/><span><b>{positions.length ? `${positions.length} açık pozisyon kapatılmaz.` : 'Açık pozisyon yok.'}</b>{positions.length ? ' Stop ve hedefleri Binance’te kalır; oraya ulaşınca kendiliğinden kapanır.' : ''}</span></li>
-      <li data-tone="mute"><Power aria-hidden="true"/><span>Canlı emir izni (ARM) kapanır. Yeniden başlatmak istediğinde rehber seni tek adımla geri götürür.</span></li>
+      <li data-tone="mute"><Power aria-hidden="true"/><span>{dt('Canlı emir izni (ARM) kapanır. Yeniden başlatmak istediğinde rehber seni tek adımla geri götürür.')}</span></li>
     </ul>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
       <button type="button" className="lcBtn lcDanger" disabled={Boolean(working)} onClick={() => void stop()}>{working === 'stop' ? 'Durduruluyor…' : 'Yeni işlemleri durdur'}</button></div>
@@ -1627,12 +1644,12 @@ export default function LiveCockpit(props: Props) {
   ] : []
   const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
-  return <section className="lcRoot originalLiveWorkspace" aria-label="Canlı İşlem" data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
+  return <section className="lcRoot originalLiveWorkspace" aria-label={dt('Canlı İşlem')} data-demo={demo || undefined} data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone} data-ready={readyToStart || undefined}>
-      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>CANLI İŞLEM</span><span className="lcMPill">KAİS LONG</span></div>
-        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">CANLI İŞLEM · KAİS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
+      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>{dt('CANLI İŞLEM')}</span><span className="lcMPill">KAİS LONG</span></div>
+        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">{dt('CANLI İŞLEM')} · KAİS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
@@ -1649,7 +1666,7 @@ export default function LiveCockpit(props: Props) {
         <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><span className="lcMIco"><Zap aria-hidden="true"/></span><span className="lcMLbl">Hepsini hazırla ve başlat</span><span className="lcMGo"><ChevronRight aria-hidden="true"/></span></button>
         <ul className="lcMReady" aria-label="Hazırlık durumu"><li><ShieldCheck aria-hidden="true"/>Risk<b><Check aria-hidden="true"/></b></li><li><FileCheck aria-hidden="true"/>Onaylar<b><Check aria-hidden="true"/></b></li></ul>
         <div className="lcMStartRow">
-          <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={openManual}><Zap aria-hidden="true"/><span>Manuel işlem aç</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>
+          {!demo && <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={openManual}><Zap aria-hidden="true"/><span>Manuel işlem aç</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>}
           <button type="button" className="lcMAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/><span>Kais’e sor</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>
         </div>
       </div>}
@@ -1700,7 +1717,7 @@ export default function LiveCockpit(props: Props) {
             {coach && !stale && <span className="lcMobileOnly lcKoPill">ÇALIŞIYOR</span>}
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
-              <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
+              {!demo && <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
             </span>
           </header>
           {!coach && <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
@@ -1773,7 +1790,7 @@ export default function LiveCockpit(props: Props) {
         {alerts.length > 0 && <div className="lcAlerts">{alerts.map((item, index) => <p key={index} className="lcAlert" data-tone={item.tone}>{item.tone === 'ok' ? <ShieldCheck aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{item.text}</p>)}</div>}
 
         {(running || scanner?.last_scan_at) && <section className="lcCard lcScan" aria-label="Canlı tarama">
-          <header className="lcCardHead"><div><small>CANLI TARAMA</small><h3>{scanStage[scanner?.stage || ''] || (running ? 'İlk tarama bekleniyor' : 'Strateji durdu')}</h3></div>
+          <header className="lcCardHead"><div><small>{dt('CANLI TARAMA')}</small><h3>{scanStage[scanner?.stage || ''] || (running ? 'İlk tarama bekleniyor' : 'Strateji durdu')}</h3></div>
             <button type="button" className="lcAsk" onClick={() => askKais('Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.')}><MessageCircle aria-hidden="true"/>Kais’e sor</button></header>
           <div className="lcScanStats">
             <span><small>Son tarama</small><b>{Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : '—'}</b><em>{Number.isFinite(lastScanMs) ? ago(lastScanMs) : 'henüz yok'}</em></span>

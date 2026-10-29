@@ -75,9 +75,9 @@ def _original_status(v21: dict[str, Any], wallet: float) -> dict[str, Any]:
         "enabled": enabled,
         "paused": False,
         "pause_reason": None,
-        "risk_percent": round(max_loss / wallet * 100, 2) if wallet > 0 else 0.5,
-        "daily_loss_percent": round(daily_limit / wallet * 100, 2) if wallet > 0 else 5,
-        "risk_revision": 0,
+        "risk_percent": auto.get("twin_risk_percent", round(max_loss / wallet * 100, 2) if wallet > 0 else 0.5),
+        "daily_loss_percent": auto.get("twin_daily_percent", round(daily_limit / wallet * 100, 2) if wallet > 0 else 5),
+        "risk_revision": int(auto.get("twin_risk_revision") or 0),
         "risk_limits": {
             "max_loss_per_trade_usdt": max_loss,
             "daily_loss_limit_usdt": daily_limit,
@@ -85,8 +85,8 @@ def _original_status(v21: dict[str, Any], wallet: float) -> dict[str, Any]:
             "min_margin_usdt": 5,
             "leverage": 1,
         },
-        "margin_mode": None,
-        "margin_modes": [],
+        "margin_mode": "guvenli",
+        "margin_modes": [{"mode": "guvenli", "label": "Güvenli", "per_trade_percent": 100, "total_percent": 100}],
         "smart_profit": None,
         "demo": True,
         "daily": {
@@ -251,6 +251,13 @@ async def _apply_risk(request: Request, body: Loose, wallet: float) -> None:
 
     data = body.model_dump()
     updates: dict[str, Any] = {}
+    auto = v21_demo.state_for(request)["auto"]
+    if data.get("risk_percent") is not None:
+        auto["twin_risk_percent"] = _num(data["risk_percent"])
+    if data.get("daily_loss_percent") is not None:
+        auto["twin_daily_percent"] = _num(data["daily_loss_percent"])
+    if data.get("risk_percent") is not None or data.get("daily_loss_percent") is not None:
+        auto["twin_risk_revision"] = int(auto.get("twin_risk_revision") or 0) + 1
     if data.get("risk_percent") is not None and wallet > 0:
         updates["max_loss_per_trade"] = round(_clamp(wallet * _num(data["risk_percent"]) / 100, 0.5, 25), 2)
     if data.get("daily_loss_percent") is not None and wallet > 0:
