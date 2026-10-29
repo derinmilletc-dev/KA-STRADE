@@ -9,7 +9,6 @@ import {
 import {askKais} from '../../kais-ask'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
-import KaisLongInfo, {type KaisLongAction} from './KaisLongInfo'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
@@ -1579,12 +1578,6 @@ export default function LiveCockpit(props: Props) {
   const coach = guide.phase === 'running' || (stale && guideInput.running)
   // Mobil: kurulum bitti, başlatmaya hazır → büyük rehber kartı yerine durum kartında tek düğme.
   const readyToStart = setupPhase && guide.action === 'start'
-  // KAİS LONG bilgi kartındaki düğme: yalnız mevcut kurulum ekranlarını açar (emir göndermez; başlatma yine onay adımlarından geçer).
-  const longAction: KaisLongAction | null = running ? null
-    : setupPhase ? {label: 'Hepsini hazırla ve başlat', run: openLaunch, disabled: busy}
-    : verified && original && guideInput.connected && !guideInput.emergency ? {label: 'Kais Koç ile ayarla', run: openWizard, disabled: busy}
-    : null
-  const longHint = running ? 'KAİS LONG şu an çalışıyor. Oturumu aşağıdaki panelden yönetebilirsin.' : longAction ? undefined : 'Başlatmak için Rehber’deki adımları tamamla: önce bağlantıyı doğrula.'
   const modeLabelNow = original?.margin_modes?.find(row => row.mode === savedMode)
   const timeline = coach ? [
     {label: 'Başladı', value: Number.isFinite(sessionStartedAt) ? clock(original?.session?.started_at) : '—', state: 'done'},
@@ -1679,7 +1672,6 @@ export default function LiveCockpit(props: Props) {
             {!coach && guide.phase !== 'loading' && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`Adım ${guide.step} / ${GUIDE_STEPS.length}`} style={{'--p': `${Math.round(guide.step / GUIDE_STEPS.length * 100)}%`} as CSSProperties}><b aria-hidden="true">{guide.step}/{GUIDE_STEPS.length}</b></span>}
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
-              <KaisLongInfo variant="chip" action={longAction} hint={longHint}/>
               <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>
             </span>
           </header>
