@@ -1676,6 +1676,7 @@ export default function LiveCockpit(props: Props) {
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
+            {!coach && guide.phase !== 'loading' && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`Adım ${guide.step} / ${GUIDE_STEPS.length}`} style={{'--p': `${Math.round(guide.step / GUIDE_STEPS.length * 100)}%`} as CSSProperties}><b aria-hidden="true">{guide.step}/{GUIDE_STEPS.length}</b></span>}
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
               <KaisLongInfo variant="chip" action={longAction} hint={longHint}/>
