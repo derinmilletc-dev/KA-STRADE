@@ -377,6 +377,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
 
   const connectedNow = status ? status.connected : null
   const [cockpitMenu,setCockpitMenu] = useState(false)
+  const [ticketOpen,setTicketOpen] = useState(false)  // Master'daki gibi: emir kartı "Manuel işlem aç" ile pencere olarak açılır
   // Analiz stüdyosundaki "İşlem aç": emir göndermez; demo emir kartını o coin ve yönle doldurup gösterir.
   useEffect(() => {
     if (!masterTab) return
@@ -386,6 +387,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       takeIntentForOpen()
       if (intent.symbol !== symbol) onSymbolChange?.(intent.symbol)
       setTab('trade')
+      setTicketOpen(true)
       const direction = intent.direction
       if (direction) window.setTimeout(() => setForm(current => ({...current,direction})), 120)
       window.setTimeout(() => document.querySelector('.binanceDemoDeck .demoTicket')?.scrollIntoView({behavior:'smooth',block:'start'}), 250)
@@ -1076,7 +1078,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   const previewStopDistance = previewEntry > 0 && previewStop > 0 ? Math.abs(previewEntry - previewStop) : null
   const previewRiskReward = previewEntry > 0 && previewStop > 0 && previewTp1 > 0 ? Math.abs(previewTp1 - previewEntry) / Math.abs(previewEntry - previewStop) : null
 
-  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-master-tab={masterTab} data-demo-view={tab} data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
+  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-master-tab={masterTab} data-demo-view={tab} data-ticket-open={ticketOpen || undefined} data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
     {masterTab && (tab === 'trade' || tab === 'auto') && (() => {
       // Master'ın Canlı İşlem kartıyla aynı görünüm; yalnız mevcut demo verisini gösterir ve mevcut demo işlevlerini çağırır.
       const autoOn = Boolean(v21?.auto.enabled)
@@ -1092,7 +1094,8 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       const used = dailyLimit !== null && dailyLeft !== null ? Math.max(0, dailyLimit - dailyLeft) : null
       // Demo İşlem sekmesi: Master Canlı İşlem'in Rehber / Kais Koç kokpiti (demo ikizi). Ayarlar sekmesi eski özeti korur.
       if (tab === 'trade') return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem kokpiti">
-        <DemoCockpit onNavigate={target => onMasterTab?.(target as 'analiz'|'canli'|'pozisyonlar'|'baglanti')}/>
+        <DemoCockpit onNavigate={target => onMasterTab?.(target as 'analiz'|'canli'|'pozisyonlar'|'baglanti')} onOpenManual={() => setTicketOpen(true)}/>
+        {ticketOpen && <><div className="demoTicketShade" role="presentation" onClick={() => setTicketOpen(false)}/><button type="button" className="demoTicketClose" aria-label="Manuel işlem panelini kapat" onClick={() => setTicketOpen(false)}><X aria-hidden="true"/></button></>}
       </section>
       return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem durumu">
         <section className="lcRoot originalLiveWorkspace" aria-label="Demo İşlem">

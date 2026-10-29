@@ -42,6 +42,8 @@ type Props = {
   demo?: boolean
   /** Demo'da sekme değişimi URL yerine üst bileşene bildirilir. */
   onNavigate?: (tab: string) => void
+  /** Demo'da "Manuel işlem aç" demo emir kartını açar. */
+  onOpenManual?: () => void
 }
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
@@ -1666,7 +1668,7 @@ export default function LiveCockpit(props: Props) {
         <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><span className="lcMIco"><Zap aria-hidden="true"/></span><span className="lcMLbl">Hepsini hazırla ve başlat</span><span className="lcMGo"><ChevronRight aria-hidden="true"/></span></button>
         <ul className="lcMReady" aria-label="Hazırlık durumu"><li><ShieldCheck aria-hidden="true"/>Risk<b><Check aria-hidden="true"/></b></li><li><FileCheck aria-hidden="true"/>Onaylar<b><Check aria-hidden="true"/></b></li></ul>
         <div className="lcMStartRow">
-          {!demo && <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={openManual}><Zap aria-hidden="true"/><span>Manuel işlem aç</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>}
+          {(!demo || props.onOpenManual) && <button type="button" className="lcMManual" data-testid="open-manual-mobile" onClick={demo ? props.onOpenManual : openManual}><Zap aria-hidden="true"/><span>Manuel işlem aç</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>}
           <button type="button" className="lcMAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/><span>Kais’e sor</span><ChevronRight className="lcMChev" aria-hidden="true"/></button>
         </div>
       </div>}
@@ -1717,7 +1719,7 @@ export default function LiveCockpit(props: Props) {
             {coach && !stale && <span className="lcMobileOnly lcKoPill">ÇALIŞIYOR</span>}
             <span className="lcHeadBtns">
               <button type="button" className="lcAsk" onClick={() => askKais(kaisQuestion)}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
-              {!demo && <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
+              {(!demo || props.onOpenManual) && <button type="button" className="lcManualBtn" data-testid="open-manual" onClick={demo ? props.onOpenManual : openManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
             </span>
           </header>
           {!coach && <ol className="lcSteps" aria-label="Kurulum adımları">{GUIDE_STEPS.map((label, index) => {
