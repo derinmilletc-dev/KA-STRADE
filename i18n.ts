@@ -112,7 +112,7 @@ export function translateText(text: string): string {
   return lead + out + trail
 }
 
-const ATTRS = ['placeholder', 'title', 'aria-label', 'alt']
+const ATTRS = ['placeholder', 'title', 'aria-label', 'alt', 'data-mobile-copy', 'data-label']
 const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'NOSCRIPT', 'CODE', 'PRE'])
 
 /** Site adı (KaisTrade) hiçbir dilde çevrilmez: "kais<b>trade</b>" gibi bölünmüş yazımda da parçalar korunur. */
