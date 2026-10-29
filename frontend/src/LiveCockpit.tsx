@@ -621,7 +621,13 @@ export default function LiveCockpit(props: Props) {
   const [secureAccepted, setSecureAccepted] = useState(false)
   const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setClosePhrase(''); setCloseTarget(null) } }
   const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => perform(key, async () => {
-    if (key === 'emergency-clear') await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code})
+    if (key === 'emergency-clear') {
+      try { await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code}) }
+      catch (error) {
+        // Sunucu kilidi zaten kendiliğinden kaldırmış olabilir (geçici kilitler hesap doğrulanınca düşer); ekran eski kalmış demektir.
+        if (!/Aktif emergency kilidi yok/i.test(errorText(error, ''))) throw error
+      }
+    }
     else if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
     else {
       const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: FILL_LOCK_PHRASE}) as {fill_lock?: {active?: unknown}} | null
