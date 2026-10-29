@@ -1867,7 +1867,7 @@ export default function LiveCockpit(props: Props) {
     </section>}
 
     <details className="lcDrawer" id="lc-drawer" open={settingsDrawerOpen || undefined} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (coach) setSettingsOpen(open) }}>
-      <summary><span className="lcDrawerIcon"><SlidersHorizontal aria-hidden="true"/></span><span className="lcDrawerTitle"><b>Ayarlar ve gelişmiş</b><small>Risk ayarı, manuel emir, kurtarma ve acil durdurma tek yerde.</small></span><span className="lcDrawerChip" data-tone={guideInput.emergency ? 'stop' : 'ok'}><i aria-hidden="true"/>{guideInput.emergency ? 'Acil durdurma kilidi var' : 'Her şey yolunda'}</span><ChevronDown aria-hidden="true"/></summary>
+      <summary><span className="lcDrawerIcon"><SlidersHorizontal aria-hidden="true"/></span><span className="lcDrawerTitle"><b>Ayarlar ve gelişmiş</b><small>Risk ayarı, kurtarma ve acil durdurma tek yerde.</small></span><span className="lcDrawerChip" data-tone={guideInput.emergency ? 'stop' : 'ok'}><i aria-hidden="true"/>{guideInput.emergency ? 'Acil durdurma kilidi var' : 'Her şey yolunda'}</span><ChevronDown aria-hidden="true"/></summary>
       <div className="lcDrawerBody">
         {original && coach && strategyCard}
         {extras}
