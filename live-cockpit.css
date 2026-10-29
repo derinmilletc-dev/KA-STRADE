@@ -1020,3 +1020,6 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot:not([data-manual-modal]) .originalManualOrder{display:none!important}
 /* Uzun tutarlar (örn. 5,000.00 USDT) özet kartında taşmasın */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcSummary b{font-size:clamp(17px,1.7vw,25px);white-space:normal;overflow-wrap:anywhere}
+/* "Değişiklik yok" etiketi dar kartta harf kırılmasın: etiket tek satır, gerekirse başlığın altına iner */
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizHead{flex-wrap:wrap!important;justify-content:flex-start!important}
+html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizHead em{white-space:nowrap!important;flex:0 0 auto!important;word-break:keep-all!important;overflow-wrap:normal!important}
