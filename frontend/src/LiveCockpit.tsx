@@ -1611,11 +1611,12 @@ export default function LiveCockpit(props: Props) {
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
             <div className="lcMoreMenu" role="menu">
-              {live && <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setMoreOpen(false); setSheet('close-all') }}><Power aria-hidden="true"/><span>Acil durdur</span></button>}
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); goTab('baglanti') }}><ShieldCheck aria-hidden="true"/><span>Bağlantı ayrıntısı</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); askKais(kaisQuestion) }}><MessageCircle aria-hidden="true"/><span>Kais’e sor</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); void Promise.resolve(refresh()).catch(() => undefined) }}><RefreshCw aria-hidden="true"/><span>Yenile</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); window.location.href = '/profile#notify-settings' }}><Bell aria-hidden="true"/><span>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</span></button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); goTab('baglanti') }}><i className="lcMoreIco" data-k="conn" aria-hidden="true"><ShieldCheck/></i><span>Bağlantı ayrıntısı</span></button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); askKais(kaisQuestion) }}><i className="lcMoreIco" data-k="ask" aria-hidden="true"><MessageCircle/></i><span>Kais’e sor</span></button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); void Promise.resolve(refresh()).catch(() => undefined) }}><i className="lcMoreIco" data-k="refresh" aria-hidden="true"><RefreshCw/></i><span>Yenile</span></button>
+              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); window.location.href = '/profile#notify-settings' }}><i className="lcMoreIco" data-k="bell" aria-hidden="true"><Bell/></i><span>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</span></button>
+              {live && <><div className="lcMoreSep" role="separator"/>
+              <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setMoreOpen(false); setSheet('close-all') }}><i className="lcMoreIco" data-k="stop" aria-hidden="true"><Power/></i><span>Acil durdur</span></button></>}
             </div></>}
         </div></div>
       {readyToStart && <div className="lcMobileOnly lcMStart">
