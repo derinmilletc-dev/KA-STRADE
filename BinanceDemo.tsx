@@ -1195,7 +1195,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
         ['Gerçek işlem kilitli',v21?.real_trading_locked !== false,'Demo sayfası gerçek hesaba emir göndermez'],
         ['Otomasyon',!v21?.auto.enabled,v21?.auto.enabled ? 'Demo otomasyonu çalışıyor' : 'Kapalı'],
       ]
-      return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterConnection" data-layout-tab="baglanti" aria-label="Demo bağlantı" data-i18n-skip="">
+      return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterConnection" data-layout-tab="baglanti" aria-label="Demo bağlantı">
         <section id="master-trade-live-terminal" className="liveWs">
           <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${connected ? 'done' : 'current'}`}>{connected ? <CheckCircle2/> : '1'}</span><span><b>Binance Demo bağlantısı</b><small>Binance Futures Demo · test ağı</small></span></div>
             <div className="liveWsBody"><div className="liveWsConnect">

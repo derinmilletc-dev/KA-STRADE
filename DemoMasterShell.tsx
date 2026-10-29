@@ -29,7 +29,7 @@ export default function DemoMasterShell({tab, onTab, connected, lastUpdate, data
   dataHealth: string
 }) {
   const connection = connected === null ? 'Okunuyor' : connected ? 'Bağlı' : 'Bağlı değil'
-  return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterPage" data-layout-tab="canli" data-demo-tab={tab} aria-label="Demo İşlem Masası" data-i18n-skip="">
+  return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterPage" data-layout-tab="canli" data-demo-tab={tab} aria-label="Demo İşlem Masası">
     <div className="masterTradeShell">
       <header className="masterTradeTerminalHeader">
         <div className="masterTradeTerminalIdentity"><span>BINANCE FUTURES DEMO</span><strong>DEMO İŞLEM MASASI</strong></div>
