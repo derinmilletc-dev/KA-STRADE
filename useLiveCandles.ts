@@ -39,6 +39,8 @@ export function useLiveCandles(symbol: string, interval: string, candles: Candle
     let source = 0
     let active = true
     let shown: Tick | null = null
+    let lastMsg = Date.now()
+    let fast = false
     const flush = window.setInterval(() => { if (latest.current !== shown) { shown = latest.current; setTick(shown) } }, 500)
     const connect = () => {
       if (!active) return
@@ -53,7 +55,7 @@ export function useLiveCandles(symbol: string, interval: string, candles: Candle
       socket.onopen = () => {
         opened = true; window.clearTimeout(openTimer)
         if (!active) return
-        delay = 3000; setConnected(true)
+        delay = 3000; lastMsg = Date.now(); setConnected(true)
         silentTimer = window.setTimeout(() => { if (!received) { opened = false; socket?.close() } }, 10000)
       }
       socket.onerror = () => socket?.close()
@@ -62,8 +64,9 @@ export function useLiveCandles(symbol: string, interval: string, candles: Candle
         if (!active) return
         setConnected(false)
         if (!opened) { source = (source + 1) % SOURCES.length; if (source !== 0) { retry = window.setTimeout(connect, 500); return } }
-        retry = window.setTimeout(connect, delay)
-        delay = Math.min(delay * 2, 60000)
+        retry = window.setTimeout(connect, fast ? 300 : delay)
+        if (!fast) delay = Math.min(delay * 2, 60000)
+        fast = false
       }
       socket.onmessage = event => {
         if (!active) return
@@ -72,13 +75,31 @@ export function useLiveCandles(symbol: string, interval: string, candles: Candle
           if (!k || String(k.s).toUpperCase() !== upper || k.i !== interval) return
           const candle = {time: Math.floor(Number(k.t) / 1000), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v)}
           if (!Object.values(candle).every(Number.isFinite)) return
-          received = true
+          received = true; lastMsg = Date.now()
           latest.current = {...candle, key: `${upper}|${interval}`, priceOnly}
         } catch { /* bozuk mesajı yok say */ }
       }
     }
     connect()
-    return () => { active = false; window.clearInterval(flush); window.clearTimeout(retry); socket?.close() }
+    // Telefon uykudan dönünce ya da internet gelince beklemeden yeniden bağlan; sessizce ölmüş bağlantıyı da yakala.
+    const resume = () => {
+      if (!active || document.hidden) return
+      const state = socket?.readyState
+      if (state === WebSocket.OPEN) { if (Date.now() - lastMsg > 10000) { fast = true; socket?.close() } return }
+      if (state === WebSocket.CONNECTING || state === WebSocket.CLOSING) return
+      window.clearTimeout(retry); delay = 3000; connect()
+    }
+    const watchdog = window.setInterval(() => {
+      if (!active || document.hidden) return
+      if (socket?.readyState === WebSocket.OPEN && Date.now() - lastMsg > 20000) { fast = true; socket.close() }
+    }, 5000)
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('online', resume)
+    return () => {
+      active = false; window.clearInterval(flush); window.clearInterval(watchdog); window.clearTimeout(retry)
+      document.removeEventListener('visibilitychange', resume); window.removeEventListener('online', resume)
+      socket?.close()
+    }
   }, [symbol, interval])
 
   const current = tick && tick.key === `${symbol.toUpperCase()}|${interval}` ? tick : null
