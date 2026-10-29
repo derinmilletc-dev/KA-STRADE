@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
 import { Activity, ArrowUp, CircleDollarSign, Cloud, KeyRound, LockKeyhole, RadioTower, RefreshCw, ShieldCheck, TestTube2 } from 'lucide-react'
 import { API_BASE } from './api'
@@ -88,8 +89,8 @@ function TestnetMarketChart({symbol,interval,onAnalysis,showLevels=true,showEma=
       }
     }
     void load()
-    const timer = window.setInterval(() => void load(),15000)
-    return () => {active=false;window.clearInterval(timer);chart.remove();onAnalysis(null)}
+    const timer = visibleInterval(() => void load(),15000)
+    return () => {active=false;clearVisibleInterval(timer);chart.remove();onAnalysis(null)}
   },[symbol,interval,onAnalysis,showLevels,showEma,demoPresentation])
 
   return <div className="v26ChartShell">
@@ -129,8 +130,8 @@ export default function TestnetFirstApp() {
 
   useEffect(() => {
     void refresh()
-    const timer = window.setInterval(() => void refresh(),30000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(() => void refresh(),30000)
+    return () => clearVisibleInterval(timer)
   },[])
 
   useEffect(() => {

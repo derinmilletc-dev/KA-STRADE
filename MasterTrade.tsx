@@ -16,6 +16,7 @@ import './live-modern.css'
 import './live-terminal.css'
 import './live-mobile.css'
 import './positions-mobile.css'
+import {visibleInterval, clearVisibleInterval} from './visible-interval'
 import './master-status-strip.css'
 import MasterTradeReference from './MasterTradeReference'
 import {useMasterMarketQuotes} from './useMasterMarketQuotes'
@@ -290,8 +291,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refreshMarkets()
-    const timer = window.setInterval(() => void refreshMarkets(), 15000)
-    return () => { active = false; controller.abort(); window.clearInterval(timer) }
+    const timer = visibleInterval(() => void refreshMarkets(), 15000)
+    return () => { active = false; controller.abort(); clearVisibleInterval(timer) }
   }, [draft.market])
 
   useEffect(() => {
@@ -318,8 +319,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refreshScanner()
-    const timer = window.setInterval(() => void refreshScanner(), 60000)
-    return () => { active = false; controller.abort(); window.clearInterval(timer) }
+    const timer = visibleInterval(() => void refreshScanner(), 60000)
+    return () => { active = false; controller.abort(); clearVisibleInterval(timer) }
   }, [interval, layoutTab])
 
   useEffect(() => {
@@ -375,8 +376,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 30000)
-    return () => { active = false; controller.abort(); window.clearInterval(timer); window.clearTimeout(retryTimer) }
+    const timer = visibleInterval(() => void refresh(), 30000)
+    return () => { active = false; controller.abort(); clearVisibleInterval(timer); window.clearTimeout(retryTimer) }
   }, [draft.market, interval, marketRefreshNonce])
 
   const refreshAccountData = (forceLiveSnapshot = false): Promise<boolean> => {
@@ -522,8 +523,8 @@ export default function MasterTrade({ onBack, assistantSlotRef }: { onBack?: () 
       }
     }
     void refreshAccount()
-    const timer = window.setInterval(() => void refreshAccount(), 15000)
-    return () => { controller.abort(); window.clearInterval(timer) }
+    const timer = visibleInterval(() => void refreshAccount(), 15000)
+    return () => { controller.abort(); clearVisibleInterval(timer) }
   }, [accountRefreshNonce])
 
   useEffect(() => {

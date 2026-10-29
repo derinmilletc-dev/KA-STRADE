@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
+import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
 import { CheckList, DirectionCards, PriceMapView, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
 import { AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
@@ -363,8 +364,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }).catch(error => { if (!cancelled && error?.name !== 'AbortError') setSignalsError(true) })
     }
     load()
-    const timer = window.setInterval(load, 90000)
-    return () => { cancelled = true; controller?.abort(); window.clearInterval(timer) }
+    const timer = visibleInterval(load, 90000)
+    return () => { cancelled = true; controller?.abort(); clearVisibleInterval(timer) }
   }, [active, masterTrade, openStep, manualPanelOpen])
   const [riskPrev, setRiskPrev] = useState<{notional: number; margin: number; loss: number; stopPct: number; maxStopPct: number; capped: boolean} | {error: string} | null>(null)
   useEffect(() => {
@@ -530,8 +531,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     setConfirmText('')
     setConfirmCode('')
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 10000)
-    return () => { if (timer !== undefined) window.clearInterval(timer) }
+    const timer = visibleInterval(() => void refresh(), 10000)
+    return () => { if (timer !== undefined) clearVisibleInterval(timer) }
   }, [active, symbol, Boolean(onRefreshStatus)])
 
   const run = async (key: string, action: () => Promise<void>, success: string) => {
@@ -613,8 +614,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     let cancelled = false
     const load = () => { void call<LiveGridStatus>(V25, '/grid/live/status').then(result => { if (!cancelled) setLiveGrid(result) }).catch(() => { if (!cancelled) setLiveGrid(null) }) }
     load()
-    const timer = window.setInterval(load, 5000)
-    return () => { cancelled = true; window.clearInterval(timer) }
+    const timer = visibleInterval(load, 5000)
+    return () => { cancelled = true; clearVisibleInterval(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, manualMode])
   const liveArmed = Boolean(status?.armed && status.real_trading_locked === false)
