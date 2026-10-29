@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import {fetchWithTimeout} from './master-trade-request'
@@ -13,6 +13,8 @@ const PRESETS: {kind: Range['kind']; label: string}[] = [
 ]
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 const dayKey = (d: Date) => `${monthKey(d)}-${String(d.getDate()).padStart(2, '0')}`
+const VISIBLE_TRADES = 5
+const PEEK_PX = 18 // 6. satırın ucu: aşağıda devamı olduğunu gösterir
 const monthLabel = (key: string) => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(currentLang() === 'en' ? 'en-US' : 'tr-TR', {month: 'long', year: 'numeric'}) }
 const fmt = (n: number | null | undefined, d = 2) => typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}) : '—'
 const sign = (n: number) => `${n >= 0 ? '+' : ''}${fmt(n)}`
@@ -29,6 +31,9 @@ export default function LivePerformance({active, mode = 'live'}: {active: boolea
   const [pop, setPop] = useState<'' | 'month' | 'custom'>('')
   const en = currentLang() === 'en'
   const [updated, setUpdated] = useState<Date | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const [listCap, setListCap] = useState<number | null>(null)
+  const [listEdge, setListEdge] = useState<'start' | 'mid' | 'end'>('start')
 
   const load = useCallback(async () => {
     try {
@@ -91,6 +96,34 @@ export default function LivePerformance({active, mode = 'live'}: {active: boolea
     return {list, total: list.length, wins: wins.length, losses: losses.length, profit, loss, net: profit + loss, winRate: list.length ? wins.length / list.length * 100 : 0,
       pf: loss < 0 ? profit / Math.abs(loss) : null, avg: list.length ? (profit + loss) / list.length : 0, best: pnl.length ? Math.max(...pnl) : 0, worst: pnl.length ? Math.min(...pnl) : 0, dd, curve}
   }, [rows, range, dir, result, symbol])
+  // İlk 5 işlem kadar yükseklik: satır yükseklikleri (satır sarması dahil) ölçülür; 5'ten fazlası içeride kayar.
+  const tradeCount = view.list.length
+  const updateEdge = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    const max = el.scrollHeight - el.clientHeight
+    const next = max <= 1 ? 'start' : el.scrollTop <= 1 ? 'start' : el.scrollTop >= max - 1 ? 'end' : 'mid'
+    setListEdge(prev => prev === next ? prev : next)
+  }, [])
+  useLayoutEffect(() => {
+    const el = listRef.current
+    if (!el || tradeCount <= VISIBLE_TRADES) { setListCap(null); return }
+    const measure = () => {
+      const rowsEl = el.children
+      const first = rowsEl[0] as HTMLElement | undefined
+      const fifth = rowsEl[VISIBLE_TRADES - 1] as HTMLElement | undefined
+      if (!first || !fifth) return
+      const height = Math.ceil(fifth.offsetTop + fifth.offsetHeight - first.offsetTop) + PEEK_PX
+      if (height > 0) setListCap(prev => prev === height ? prev : height)
+      updateEdge()
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [tradeCount, updateEdge])
+
   const filtered = range.kind !== 'all' || dir !== 'all' || result !== 'all' || symbol !== 'all'
   const reset = () => { setRange({kind: 'all'}); setDir('all'); setResult('all'); setSymbol('all'); setPop('') }
   const rangeText = range.kind === 'month' && range.month ? monthLabel(range.month)
@@ -141,14 +174,16 @@ export default function LivePerformance({active, mode = 'live'}: {active: boolea
       </div>
       {view.curve.length >= 2 && <div className="lpCurve" aria-label="İşlem sonuçları">{view.curve.map((v, i) => <i key={i} className={v >= 0 ? 'win' : 'loss'} style={{height: `${Math.max(8, Math.abs(v) / maxAbs * 100)}%`}} title={`${sign(v)} USDT`}/>)}</div>}
       <div className="lpList">
-        <h3>Kapanan işlemler</h3>
+        <h3>Kapanan işlemler{tradeCount > 0 && <span className="lpCount">{tradeCount}</span>}</h3>
         {view.list.length === 0 && filtered && rows.length > 0 && <div className="lpEmpty"><b>Bu filtrede işlem yok</b><p>Filtreleri değiştir veya temizle.</p></div>}
         {view.list.length === 0 && !(filtered && rows.length > 0) && <div className="lpEmpty"><b>{demo ? 'Henüz kapanmış demo işlem yok' : 'Henüz kapanmış canlı işlem yok'}</b><p>{demo ? 'Bir demo işlem kapandığında sonucu burada görünür.' : 'Bir canlı işlem kapandığında sonucu burada görünür.'}</p></div>}
+        <div ref={listRef} className={`lpScroll${tradeCount > VISIBLE_TRADES ? ' scrolls' : ''}`} data-edge={tradeCount > VISIBLE_TRADES ? listEdge : undefined} style={tradeCount > VISIBLE_TRADES && listCap ? {maxHeight: listCap} : undefined} onScroll={updateEdge} tabIndex={tradeCount > VISIBLE_TRADES ? 0 : undefined} role={tradeCount > VISIBLE_TRADES ? 'region' : undefined} aria-label={tradeCount > VISIBLE_TRADES ? 'Kapanan işlemler listesi' : undefined}>
         {view.list.map(r => <article key={r.id}>
           <div><b>{r.symbol.replace('USDT', '/USDT')}</b><em className={String(r.direction).toUpperCase() === 'LONG' ? 'long' : 'short'}>{String(r.direction || '—').toUpperCase()}</em></div>
           <small>{when(r.created_at)}{r.reason ? ` · ${r.reason}` : ''}{typeof r.r_multiple === 'number' ? ` · ${fmt(r.r_multiple)}R` : ''}</small>
           <strong className={r.realized_pnl >= 0 ? 'win' : 'loss'}>{sign(r.realized_pnl)} USDT</strong>
         </article>)}
+        </div>
       </div>
       {updated && <p className="lpFoot">Son güncelleme {updated.toLocaleTimeString('tr-TR')} · 15 saniyede bir yenilenir</p>}
     </>}

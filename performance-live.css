@@ -22,7 +22,17 @@
 #root .lpCurve i.win { background: #34d399 !important; }
 #root .lpCurve i.loss { background: #f87171 !important; }
 #root .lpList { display: grid; gap: 10px; }
-#root .lpList h3 { margin: 0; font-size: 18px; }
+#root .lpList h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+#root .lpList h3 .lpCount { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: #9aa9ba; background: rgba(255,255,255,.07) !important; }
+#root .lpScroll { display: grid; gap: 10px; position: relative; }
+#root .lpScroll.scrolls { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; padding-right: 4px; margin-right: -4px; border-radius: 16px; }
+#root .lpScroll.scrolls:focus-visible { outline: 2px solid rgba(52,211,153,.55); outline-offset: 3px; }
+#root .lpScroll.scrolls[data-edge="start"] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
+#root .lpScroll.scrolls[data-edge="mid"] { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 18px), transparent); }
+#root .lpScroll.scrolls[data-edge="end"] { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16px); mask-image: linear-gradient(to bottom, transparent, #000 16px); }
+#root .lpScroll.scrolls::-webkit-scrollbar { width: 4px; }
+#root .lpScroll.scrolls::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 4px; }
+#root .lpScroll article { flex: none; }
 #root .lpList article { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.05) !important; }
 #root .lpList article > div { display: flex; align-items: center; gap: 10px; }
 #root .lpList article em { font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.08) !important; }
