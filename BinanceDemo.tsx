@@ -8,6 +8,7 @@ import {checkDemoResponse, demoRequest, prepareDemoTrading, startDemoAutomation}
 import './demo-recovery.css'
 import './demo-clean.css'
 import DemoInfoCards from './DemoInfoCards'
+import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
 
 const API = `${API_BASE}/binance-demo`
@@ -375,6 +376,23 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
 
   const connectedNow = status ? status.connected : null
   const [cockpitMenu,setCockpitMenu] = useState(false)
+  // Analiz stüdyosundaki "İşlem aç": emir göndermez; demo emir kartını o coin ve yönle doldurup gösterir.
+  useEffect(() => {
+    if (!masterTab) return
+    const apply = () => {
+      const intent = takeIntentForOrder()
+      if (!intent) return
+      takeIntentForOpen()
+      if (intent.symbol !== symbol) onSymbolChange?.(intent.symbol)
+      setTab('trade')
+      const direction = intent.direction
+      if (direction) window.setTimeout(() => setForm(current => ({...current,direction})), 120)
+      window.setTimeout(() => document.querySelector('.binanceDemoDeck .demoTicket')?.scrollIntoView({behavior:'smooth',block:'start'}), 250)
+    }
+    apply()
+    window.addEventListener(MANUAL_INTENT_EVENT, apply)
+    return () => window.removeEventListener(MANUAL_INTENT_EVENT, apply)
+  }, [masterTab, symbol, onSymbolChange])
   // Analiz sekmesindeki Master ekranı pozisyon kartını demo pozisyonlarıyla göstersin (yalnız okuma).
   useEffect(() => { onPositionsChange?.((account?.positions || []).filter(position => Math.abs(position.quantity) > 0)) }, [account, onPositionsChange])
   const [cockpitAt,setCockpitAt] = useState<number|null>(null)
