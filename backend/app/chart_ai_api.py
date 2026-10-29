@@ -113,7 +113,7 @@ def member_access(request: Request) -> tuple[str, QuotaAccess]:
         if subscription.get("status") != "TRIALING" or start is None or end is None or end - start != timedelta(days=7):
             raise ChartAiQuotaError("entitlement_invalid", "Deneme dönemi doğrulanamadı.", 503)
         return user["id"], QuotaAccess("trial", start, end)
-    if subscription.get("plan") == "MASTER_MODE" and subscription.get("status") in {"ACTIVE", "PAST_DUE"}:
+    if subscription.get("plan") in {"MASTER_MODE", "SMART_TRADE"} and subscription.get("status") in {"ACTIVE", "PAST_DUE"}:
         return user["id"], QuotaAccess("subscriber")
     raise ChartAiQuotaError(
         "access_denied", "Grafik AI için aktif deneme veya MASTER MODE üyeliği gerekir.", 403,
