@@ -27,7 +27,15 @@ async function request(path:string, options:RequestInit = {}):Promise<unknown> {
 
 export default function BinanceManualPayment({plan = 'MASTER_MODE'}: {plan?: PaidPlan} = {}) {
   const [config,setConfig] = useState<Configuration|null>(null)
-  const [current,setCurrent] = useState<Payment|null>(null)
+  const [loadedPayment,setCurrent] = useState<Payment|null>(null)
+  const [revealedId,setRevealedId] = useState('')
+  // Yalnız bakmak için açılan talep ekranda 1 saat kalır; sonra "Binance ile öde" düğmesine tekrar basılana kadar gizlenir.
+  // Süresi dolmuş talep de gizlenir. Bekleyen (işlem no gönderilmiş), onaylanan ve reddedilen talepler hep görünür.
+  const staleMs = 60 * 60 * 1000
+  const createdMs = loadedPayment ? new Date(loadedPayment.expires_at).getTime() - 48 * 60 * 60 * 1000 : 0
+  const hideStale = !!loadedPayment && (loadedPayment.status === 'expired'
+    || (loadedPayment.status === 'created' && loadedPayment.id !== revealedId && Number.isFinite(createdMs) && Date.now() - createdMs > staleMs))
+  const current = hideStale ? null : loadedPayment
   const [period,setPeriod] = useState<{start:string;end:string}|null>(null)
   const [number,setNumber] = useState('')
   const [loading,setLoading] = useState(true)
@@ -79,6 +87,7 @@ export default function BinanceManualPayment({plan = 'MASTER_MODE'}: {plan?: Pai
       const row = payment(await request(path,{method:'POST',...(body ? {body:JSON.stringify(body)} : {})}))
       if (mounted.current) {
         setCurrent(row);setNumber('')
+        if (path === '/requests') setRevealedId(row.id)
         // Zaten açık bir talep varsa o döner (tutar talepte sabittir): başka plan istendiyse kullanıcıya açıkça söyle.
         if (body && 'plan' in body && row.plan !== body.plan && row.plan) {
           setNotice(`Zaten açık bir ${PAID_PLAN_NAME[row.plan]} talebin var (${row.amount} USDT). Başka plan için bu talebin süresinin dolmasını beklemelisin.`)
