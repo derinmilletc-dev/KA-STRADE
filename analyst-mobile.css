@@ -449,3 +449,21 @@ html body #root main.v26App .coinAnalysisCenter .heatmapGrid > button small { co
   html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .coinIntervals > button { font-size: 11px !important; }
   html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter.coinAnalysisCenter .heatmapGrid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
+
+/* Telefonda coin detayı tam ekran açılır; başka kurallar yüksekliği içeriğe bağlayıp (align-self:start + height:auto)
+   paneli ekrandan taşırıyordu ve kaydırılamıyordu. Ekrana sabitle, içinde kaydır. */
+@media (max-width: 650px) {
+  #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisLayout > .coinDetailPanel.mobileOpen {
+    position: fixed !important;
+    inset: 0 !important;
+    align-self: stretch !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+}
