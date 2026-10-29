@@ -1610,6 +1610,7 @@ export default function LiveCockpit(props: Props) {
   const koCands = Number(scanner?.candidate_count) || 0
   const koFrac = koScanning || koJustDone ? 1 : koSession ? (sessionTotal.current > 0 ? sessionLeft / sessionTotal.current : 0) : Math.min(1, koWait / 900)
   const koDeg = Math.round(Math.max(0, Math.min(1, koFrac)) * 360)
+  const koTicks = Math.round(Math.max(0, Math.min(1, koFrac)) * 60)
   const koLabel = koScanning ? 'TARANIYOR' : koJustDone ? 'TARAMA BİTTİ' : koSession ? 'OTURUM' : 'SONRAKİ TARAMA'
   const koBig = koScanning ? 'Taranıyor' : koJustDone ? (koCands > 0 ? `${koCands} aday` : '0 aday') : koSession ? hms(sessionLeft) : upcoming ? mmss(koWait) : '—'
   const koSize = koScanning ? 'word' : koJustDone ? 'word' : koSession ? 'hms' : 'time'
@@ -1729,7 +1730,7 @@ export default function LiveCockpit(props: Props) {
           </div>}
           {coach && !stale && <div className="lcMobileOnly lcKo" data-phase={koPhase} data-urgent={koUrgent || undefined} data-testid="coach-ring">
             <button type="button" className="lcKoRing" data-size={koSize} style={{'--deg': `${koDeg}deg`} as CSSProperties} aria-label={koSession ? 'Oturum kalan süresi. Dokununca sonraki taramayı gösterir' : 'Sonraki tarama sayacı. Dokununca oturum süresini gösterir'} onClick={() => setKoView(value => value === 'scan' ? 'session' : 'scan')}>
-              <i className="lcKoTicks" aria-hidden="true"/><i className="lcKoSweep" aria-hidden="true"/><i className="lcKoHead" aria-hidden="true"/>
+              <svg className="lcKoSvg" viewBox="0 0 224 224" aria-hidden="true">{Array.from({length: 60}, (_, index) => <line key={index} x1="112" y1="6" x2="112" y2="17" transform={`rotate(${index * 6} 112 112)`} data-on={index < koTicks || undefined}/>)}</svg><i className="lcKoSweep" aria-hidden="true"/><i className="lcKoHead" aria-hidden="true"/>
               <span className="lcKoTxt"><small>{koLabel}</small><b>{koBig}</b><em>{koSub}</em></span>
             </button>
             <p className="lcKoSmart" role="status"><Check aria-hidden="true"/>{koSmart}</p>
