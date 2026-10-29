@@ -40,3 +40,11 @@ html body #root .originalManualOrder .manualAmount>.liveWsField>.liveWsChips{mar
 html body #root .originalManualOrder .manualAmount>.liveWsField>.liveWsHint{margin:0!important}
 html body #root .originalManualOrder .manualAmount .manualRange{margin:0!important}
 @media(max-width:700px){html body #root .originalManualOrder .manualAmount{grid-template-columns:1fr;grid-template-rows:none}html body #root .originalManualOrder .manualAmount>.liveWsField{grid-row:auto;grid-template-rows:none}}
+
+/* "İzni yenile" düğmesi: kilit şeridinde, onay penceresini açar (emir göndermez). */
+html body #root .originalManualOrder .manualLockStrip .manualRenewBtn{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:12px;padding:0 15px;min-height:42px;background:linear-gradient(135deg,#3ddc97,#16c9a8);color:#06281a;font-weight:800;box-shadow:0 6px 18px rgba(61,220,151,.22)}
+html body #root .originalManualOrder .manualLockStrip .manualRenewBtn svg{width:16px;height:16px}
+@media (max-width:760px){
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .manualLockStrip .manualRenewBtn{display:inline-flex!important;align-items:center!important;gap:7px!important;min-height:42px!important;border-radius:12px!important;background:linear-gradient(135deg,#3ddc97,#16c9a8)!important;color:#06281a!important;box-shadow:0 6px 18px rgba(61,220,151,.22)!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade.masterTrade.masterTrade[data-layout-tab="canli"]:not([hidden]):not([data-x]):not([data-y]) .lcRoot.lcRoot.lcRoot.lcRoot.lcRoot[data-manual-modal] .originalManualOrder:not(#mx1):not(#mx2) .manualLockStrip .manualRenewBtn svg{width:16px!important;height:16px!important}
+}
