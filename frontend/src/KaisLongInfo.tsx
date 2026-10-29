@@ -1,12 +1,14 @@
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Check, TrendingUp, X} from 'lucide-react'
+import {Check, TrendingUp, X, Zap} from 'lucide-react'
 import './kais-long.css'
 
 /** KAİS LONG: strateji adı ve kuralları. İki görünüm: Rehber şeridinde yeşil düğme ('chip'), canlı kartta küçük bağlantı ('link'). */
 export const KAIS_LONG_RULES = {direction: 'Yalnız LONG', confidence: '84+', protection: 'Stop + Hedef'} as const
 
-export default function KaisLongInfo({variant = 'chip'}: {variant?: 'chip' | 'link'}) {
+export type KaisLongAction = {label: string; run: () => void; disabled?: boolean}
+
+export default function KaisLongInfo({variant = 'chip', action, hint}: {variant?: 'chip' | 'link'; action?: KaisLongAction | null; hint?: string}) {
   const [open, setOpen] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -39,6 +41,9 @@ export default function KaisLongInfo({variant = 'chip'}: {variant?: 'chip' | 'li
           <li><i aria-hidden="true"><Check/></i>Günlük kayıp sınırı ve ARM kilidi aktif kalır</li>
           <li><i aria-hidden="true"><Check/></i>İstediğin an durdurabilirsin; açık pozisyon korumaları sürer</li>
         </ul>
+        {action
+          ? <button type="button" className="klGo" data-testid="kais-long-start" disabled={action.disabled} onClick={() => { setOpen(false); window.setTimeout(action.run, 0) }}><Zap aria-hidden="true"/>{action.label}</button>
+          : hint ? <p className="klHint">{hint}</p> : null}
       </section>
     </div>, document.body)}
   </>
