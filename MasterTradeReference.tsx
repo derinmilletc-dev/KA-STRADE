@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useRef, useState, type RefCallback, type ReactNode} from 'react'
-import {Activity, Zap, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff} from 'lucide-react'
+import {Activity, Zap, BarChart3, Cable, Camera, Check, ChevronDown, Crosshair, Eraser, LockKeyhole, Minimize2, Minus, PanelRight, Trash2, TrendingUp, Bell, Power, RefreshCw, Settings2, SlidersHorizontal, Wallet, X, ZoomIn, ZoomOut, RotateCcw, TriangleAlert, WifiOff, Grid3X3} from 'lucide-react'
 import {type DecisionAnalysis, type TradeDecision, type TriggerMonitor} from './masterTradeDecision'
 import {MasterTradeMetricTile, MasterTradeMetricVisual} from './MasterTradeLayout'
 import {PremiumBoundary, useMemberAccess} from './premium-access'
@@ -627,7 +627,7 @@ export default function MasterTradeReference(props: Props) {
           </div>
           {livePosition && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
           <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>
-          {available && <div className="refGridCard"><span><b>Grid planı önerisi</b><small>{gridSide} · aralık %5 · 5 kademe{gridSpan ? ` · ${gridSpan}` : ''}</small></span><button type="button" className="refGridBtn" onClick={() => launchManual({mode: 'grid', pct: 5})}>Grid ile aç →</button></div>}
+          {available && <div className="refGridCard"><i className="refGridIc" aria-hidden="true"><Grid3X3/></i><span><b>Grid planı önerisi</b><small>{gridSide} · aralık %5 · 5 kademe{gridSpan ? ` · ${gridSpan}` : ''}</small></span><button type="button" className="refGridBtn" onClick={() => launchManual({mode: 'grid', pct: 5})}>Grid ile aç →</button></div>}
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{drawMode === 'alarm' ? 'Alarm kurmak istediğin fiyata tıkla.' : drawMode === 'hline' ? 'Çizgiyi koymak istediğin fiyata tıkla.' : drawMode === 'trend' ? 'Başlangıç ve bitiş noktasına tıkla.' : 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
