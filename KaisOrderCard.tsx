@@ -50,7 +50,7 @@ export default function KaisOrderCard({initial, onClose, onResult}: {initial: Or
       {message && <p className={failed ? 'kaisOrderMsg err' : 'kaisOrderMsg'} role="status">{message}</p>}
       {stage !== 'sent' && <button type="button" className="kaisOrderTest" disabled={busy} onClick={() => void test()}>{stage === 'testing' ? 'Test ediliyor…' : 'Sunucuda test et (emir oluşmaz)'}</button>}
       {(stage === 'tested' || stage === 'sending') && <div className="kaisOrderConfirm">
-        <label>Göndermek için <b>{WORD}</b> yaz<input value={word} autoComplete="off" autoCapitalize="characters" disabled={stage === 'sending'} onChange={event => setWord(event.target.value)} placeholder={WORD}/></label>
+        <label>Göndermek için <b translate="no">{WORD}</b> yaz<input value={word} autoComplete="off" autoCapitalize="characters" disabled={stage === 'sending'} onChange={event => setWord(event.target.value)} placeholder={WORD}/></label>
         <button type="button" disabled={word.trim() !== WORD || stage === 'sending'} onClick={() => void send()}>{stage === 'sending' ? 'Gönderiliyor…' : 'Demo emri gönder'}</button>
       </div>}
       {stage === 'sent' && <button type="button" className="kaisOrderTest" onClick={onClose}>Kapat</button>}

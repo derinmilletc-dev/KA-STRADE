@@ -552,3 +552,5 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .refGridCard .refGridBtn { min-height: 38px !important; padding: 0 18px !important; border-radius: 999px !important; background: linear-gradient(135deg, #3ddc97, #16c9b0) !important; color: #04231a !important; font-weight: 850 !important; }
 }
 @media (max-width: 767px) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .refGridCard > .refGridIc { display: none !important; } }
+/* Uzun dillerde (EN) grid öneri satırı "..." ile kesilmesin, alt satıra insin */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .refGridCard small { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere !important; }
