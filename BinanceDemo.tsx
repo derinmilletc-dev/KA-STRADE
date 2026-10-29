@@ -315,7 +315,7 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
   </div>
 }
 
-export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo}:{active:boolean;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
+export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymbolChange,workspace='trade',initialTab,onOpenMaster,onOpenDemo,masterTab,onConnectedChange}:{active:boolean;masterTab?:'analiz'|'canli'|'pozisyonlar'|'baglanti';onConnectedChange?:(connected:boolean|null)=>void;onOpenMaster?:()=>void;onOpenDemo?:()=>void;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode;markets:MarketOption[];onSymbolChange:(symbol:string)=>void;workspace?:'trade'|'risk';initialTab?:V21Tab}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)
   const [account,setAccount] = useState<DemoAccount|null>(null)
   const [form,setForm] = useState<FormState>(initialForm)
@@ -353,6 +353,13 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   // Sistem izleme panelleri (bot sağlığı, karar geçmişi, güvenlik olayları) yalnız yöneticiye görünür.
   const {owner: systemViewer} = useMemberAccess()
   const [bottomTab,setBottomTab] = useState<'positions'|'orders'|'connection'|'bot'|'analytics'>('positions')
+  // Master görünümündeki sekmeler yalnız hangi demo bölümünün görüneceğini seçer; demo akışı aynıdır.
+  useEffect(() => {
+    if (!masterTab || masterTab === 'canli') return
+    setTab(current => current === 'trade' ? current : 'trade')
+    if (masterTab === 'pozisyonlar') setBottomTab(current => current === 'orders' ? current : 'positions')
+    if (masterTab === 'baglanti') setBottomTab('connection')
+  }, [masterTab])
   const [focusMode,setFocusMode] = useState(false)
   const demoDeckRef = useRef<HTMLElement>(null)
   const workspaceRef = useRef<HTMLElement>(null)
@@ -366,6 +373,8 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   useKaisErrorReaction(errorReactionNotice)
   useKaisWorkspaceReaction(`${tab}:${bottomTab}`, demoDeckRef, active)
 
+  const connectedNow = status ? status.connected : null
+  useEffect(() => { onConnectedChange?.(connectedNow) }, [connectedNow, onConnectedChange])
   const refreshStatus = async (signal?:AbortSignal) => {
     try {
       const payload = await apiCall<DemoStatus>('/status',{signal})
@@ -1040,7 +1049,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   const previewStopDistance = previewEntry > 0 && previewStop > 0 ? Math.abs(previewEntry - previewStop) : null
   const previewRiskReward = previewEntry > 0 && previewStop > 0 && previewTp1 > 0 ? Math.abs(previewTp1 - previewEntry) / Math.abs(previewEntry - previewStop) : null
 
-  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
+  return <section ref={demoDeckRef} className={`binanceDemoDeck${focusMode ? ' demoFocusMode' : ''}${isolatedRisk ? ' riskOnlyDeck' : ''}`} aria-label="Binance Futures Demo Köprüsü" data-master-tab={masterTab} data-build-marker="BUILD_COMMIT" data-build-commit={import.meta.env.VITE_BUILD_COMMIT} data-position-source="reconciled_active_positions" data-diagnostics="exchange_position_diagnostics">
     {tab === 'trade' && <section className="demoHero">
       <div className="demoHeroCopy"><span>DEMO / TESTNET</span><h2>DEMO TRADING</h2><small className="demoHeroSymbol">{symbol.replace('USDT','/USDT')} · 15m</small><p>Binance Futures Demo hesabında piyasa akışını izle ve emirleri güvenlik kapılarıyla doğrula.</p><div><b><ShieldCheck/> Yalnızca demo</b><span>{status?.rest_host || 'https://demo-fapi.binance.com'}</span></div><button type="button" className="demoHeroConnect" onClick={connect} disabled={busy || !status?.configured}><Radio/> Binance Demo'ya Bağlan</button></div>
       <div className="demoHeroStatus">

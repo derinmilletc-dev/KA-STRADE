@@ -1,0 +1,32 @@
+/* Demo İşlem Masası · Master Trade görünümü.
+   Yalnız görünüm: demo bölümleri Master'daki 4 sekmeye (Analiz · Demo İşlem · Pozisyonlar · Bağlantı) dağıtılır.
+   Demo motoru ve demo emir akışı değişmez. */
+
+/* Durum kartındaki hap: "Canlı" yerine sarı "Demo". */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6) {
+  border-color: rgba(251, 191, 36, .55) !important;
+  background: rgba(251, 191, 36, .1) !important;
+  color: #fbbf24 !important;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::before { background: #fbbf24 !important; animation: none !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::after { content: "Demo" !important; color: #fbbf24 !important; }
+/* Demo hesap bağlı değilse bağlantı hücresi kırmızımsı. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child { color: #fca5a5 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child i { background: #f87171 !important; animation: none !important; }
+
+/* Eski başlık şeridi demo sayfasında Master başlığına bırakıldı. */
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .v26ModeBar { display: none !important; }
+
+/* Sekmeye göre görünen bölümler. */
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute:is([data-demo-tab="pozisyonlar"], [data-demo-tab="baglanti"]) > .v26MarketBar { display: none !important; }
+
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="analiz"] > :not(.demoLiveChart, .v21DashboardInsights) { display: none !important; }
+
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > :is(.demoLiveChart, .v21DashboardInsights, .v21ExecutiveSummary, .v21AdvancedAnalytics) { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > .demoMainGrid > :not(.demoTicket) { display: none !important; }
+
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="pozisyonlar"] > :not(.demoMainGrid) { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="pozisyonlar"] > .demoMainGrid > .demoTicket,
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="pozisyonlar"] > .demoMainGrid > .demoBottomTabsNav > button:nth-child(n+3) { display: none !important; }
+
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="baglanti"] > :not(.demoSetupCard, .demoHero) { display: none !important; }
