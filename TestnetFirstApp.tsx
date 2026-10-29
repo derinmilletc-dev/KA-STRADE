@@ -1112,7 +1112,7 @@ export default function TestnetFirstApp() {
 
     <nav className="v26MobileBottomNav" aria-label="Mobil ana navigasyon">
       <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => navigate('dashboard')}><Home/><span>Ana sayfa</span></button>
-      <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>İşlem</span></button>
+      <button className={view === 'trading' ? 'active' : ''} type="button" onClick={() => navigate('trading')}><Activity/><span>Demo</span></button>
       {phoneLayout ? <div className="v26NavAssistantHost" ref={setNavAssistantHost}/> : <button className={view === 'analyst' ? 'active' : ''} type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span>Analist</span></button>}
       <button className={view === 'master-trade' ? 'active' : ''} type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span>Master</span></button>
       <button className={mobileMenuOpen || (phoneLayout && view === 'analyst') ? 'active' : ''} type="button" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}><Menu/><span>Menü</span></button>
