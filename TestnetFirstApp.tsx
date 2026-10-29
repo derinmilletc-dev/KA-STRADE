@@ -983,7 +983,7 @@ export default function TestnetFirstApp() {
   const clearNotifications = async () => {
     const current = notificationItemsRef.current
     if (!current.length) return
-    const latest = Math.max(Date.now(),...current.map(item => Date.parse(item.timestamp ?? '') || 0))
+    const latest = Math.max(0,...current.map(item => Date.parse(item.timestamp ?? '') || 0))
     try { localStorage.setItem(NOTIFICATION_CLEARED_KEY,JSON.stringify({at:latest,ids:current.map(item => item.id).slice(-500)})) } catch {}
     if (current.some(item => !item.read)) await markAllNotificationsRead()
     notificationItemsRef.current = []
