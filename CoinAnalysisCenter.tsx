@@ -48,6 +48,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
   const [sort,setSort] = useState<keyof Row>('final_decision_score')
   const [ascending,setAscending] = useState(false)
   const [loading,setLoading] = useState(false)
+  const [manualScan,setManualScan] = useState(false)
   const loadController = useRef<AbortController|null>(null)
   const resultRef = useRef<HTMLElement>(null)
   const [error,setError] = useState('')
@@ -79,7 +80,9 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
 
   const rowsRef = useRef<Row[]>([])
   rowsRef.current = rows
-  const load = async () => {
+  const load = async (manual = false) => {
+    const startedAt = Date.now()
+    if (manual) { setManualScan(true); setScanMessage('Taranıyor…') }
     loadController.current?.abort()
     const controller = new AbortController()
     loadController.current = controller
@@ -94,7 +97,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
       if (!response.ok) throw new Error(payload.detail || 'Market data temporarily unavailable.')
       if (controller.signal.aborted) return
       if (!background) { setAnalystSelection(''); setAnalystAnswer('') }
-      setRows(payload.results || []); setError(''); setScanMessage(`${payload.results?.length || 0} coin analiz edildi`)
+      setRows(payload.results || []); setError(''); setScanMessage(`${payload.results?.length || 0} coin analiz edildi${manual ? ` · ${new Date().toLocaleTimeString('tr-TR')}` : ''}`)
       if (payload.results?.length && !payload.results.some(row => row.symbol === selected)) setSelectedSymbol(payload.results[0].symbol)
     } catch (reason) {
       if (background) {
@@ -107,6 +110,8 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
     } finally {
       window.clearTimeout(timeout)
       if (loadController.current === controller) { loadController.current = null; setLoading(false) }
+      // Elle basılan taramada düğme en az yarım saniye 'Taranıyor' göstersin; basıldığı anlaşılsın.
+      if (manual) window.setTimeout(() => setManualScan(false), Math.max(0, 700 - (Date.now() - startedAt)))
     }
   }
   useEffect(() => { if (!autoScan) return; void load(); const timer = window.setInterval(() => void load(),60000); return () => { window.clearInterval(timer); loadController.current?.abort() } },[interval,autoScan])
@@ -354,7 +359,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         </div>
       </div>
     </section>
-    <header className="coinAnalysisHeader"><div><span><BarChart3/> {marketCopy.scanner}</span><h2>Coin Analiz Merkezi</h2><p>{marketCopy.subtitle}</p></div><div className="coinHeaderActions"><div className="coinHeaderStatus"><strong><i className={autoScan ? 'liveDot' : 'idleDot'}/>{autoScan ? marketCopy.live : marketCopy.paused}</strong><small>{rows.length} {marketCopy.assets}</small><small>{marketCopy.lastScan} · {scanMessage}</small></div><button type="button" onClick={() => void load()} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/>{loading ? marketCopy.scanning : marketCopy.runScan}</button></div></header>
+    <header className="coinAnalysisHeader"><div><span><BarChart3/> {marketCopy.scanner}</span><h2>Coin Analiz Merkezi</h2><p>{marketCopy.subtitle}</p></div><div className="coinHeaderActions"><div className="coinHeaderStatus"><strong><i className={autoScan ? 'liveDot' : 'idleDot'}/>{autoScan ? marketCopy.live : marketCopy.paused}</strong><small>{rows.length} {marketCopy.assets}</small><small>{marketCopy.lastScan} · {scanMessage}</small></div><button type="button" onClick={() => void load(true)} disabled={loading || manualScan}><RefreshCw className={loading || manualScan ? 'spin' : ''}/>{loading || manualScan ? marketCopy.scanning : marketCopy.runScan}</button></div></header>
     <div className="coinAnalysisToolbar"><label><Search/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search coin…"/>{query && <button type="button" className="searchClear" aria-label="Aramayı temizle" onClick={() => setQuery('')}><X/></button>}</label><button className="filterTrigger" type="button" onClick={() => { setDraftFilters(filters); setFilterOpen(true) }}><Filter/>FİLTRELER{filterCount(filters) ? ` · ${filterCount(filters)}` : ''}</button></div>
     <div className="activeFilterChips">{Object.entries(filters).filter(([key,value]) => value !== emptyFilters[key as keyof FilterState] && value !== false).map(([key,value]) => <button type="button" key={key} onClick={() => removeFilter(key as keyof FilterState)}>{filterNames[key]}{key === 'minRR' ? ` > ${value}` : `: ${value}`} <X/></button>)}</div>
     <div className="marketPulse"><span className="marketPulseLabel">{marketCopy.overview}</span><div className="marketPulseCards"><article><b>{hasMarketData ? rows.length : '—'}</b><small>{marketCopy.assets}</small></article><article className="positive"><b>{hasMarketData ? summary.long : '—'}</b><small>LONG</small></article><article className="negative"><b>{hasMarketData ? summary.short : '—'}</b><small>SHORT</small></article><article className="neutral"><b>{hasMarketData ? summary.watch : '—'}</b><small>{analystCopy.watch}</small></article><article className={hasMarketData ? (summary.long >= summary.short ? 'regimeCard positive' : 'regimeCard negative') : 'regimeCard neutral'}><b>{hasMarketData ? (summary.long >= summary.short ? 'YÜKSELİŞ' : 'DÜŞÜŞ') : '—'}</b><small>PİYASA GENİŞLİĞİ</small></article></div></div>
