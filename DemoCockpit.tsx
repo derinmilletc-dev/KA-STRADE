@@ -18,7 +18,7 @@ const detailText = (payload: unknown, fallback: string) => {
 
 type Plan = NonNullable<SharedLiveStatus['plans']>[number]
 
-export default function DemoCockpit({onNavigate}: {onNavigate?: (tab: string) => void}) {
+export default function DemoCockpit({onNavigate, onOpenManual}: {onNavigate?: (tab: string) => void; onOpenManual?: () => void}) {
   const {userId} = useMemberAccess()
   const [status, setStatus] = useState<SharedLiveStatus | null>(null)
   const [error, setError] = useState('')
@@ -78,7 +78,7 @@ export default function DemoCockpit({onNavigate}: {onNavigate?: (tab: string) =>
     String(plan.symbol || '').toUpperCase() === String(position.symbol || '').toUpperCase() && !terminal.includes(String(plan.status || '').toUpperCase()))
 
   return <LiveCockpit
-    demo onNavigate={onNavigate} key={userId} status={status} verified={status !== null && !error} loading={loading} guideInput={guideInput}
+    demo onNavigate={onNavigate} onOpenManual={onOpenManual} key={userId} status={status} verified={status !== null && !error} loading={loading} guideInput={guideInput}
     wallet={connected ? wallet : null} availableBalance={connected && Number.isFinite(available) ? available : null}
     marketBanSeconds={0} externalBusy={false} userId={userId}
     request={request} refresh={load} findPlan={findPlan}

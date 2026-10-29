@@ -51,3 +51,11 @@ html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demo
 
 /* Analiz: Master Analiz ekranının kendi üst çubuğu (logo, Canlı İşlem sekmeleri, canlı bağlantı) demoda gizli; üstte demo başlığı ve sekmeleri var. */
 html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute.demoMasterRoute.demoMasterRoute .masterReferenceAnalysis .refHeader.refHeader { display: none !important; }
+
+/* Demo İşlem = Master Canlı İşlem: sayfada yalnız Rehber kokpiti; demo emir kartı "Manuel işlem aç" ile pencere olarak açılır. */
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > .v21TradeActivityPanel { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"]:not([data-ticket-open]) .demoTicket.demoTicket.demoTicket { display: none !important; }
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"][data-ticket-open] .demoTicket.demoTicket.demoTicket { position: fixed !important; inset: 0 !important; z-index: 2147482000 !important; overflow-y: auto !important; overscroll-behavior: contain !important; padding: 64px 14px calc(var(--mobile-bottom-nav-height, 64px) + 40px) !important; margin: 0 !important; background: #070f1a !important; display: flex !important; }
+html body #root > main.v26App .demoMasterCockpit .demoTicketShade { position: fixed; inset: 0; z-index: 2147481000; background: rgba(2, 8, 14, .72); border: 0; padding: 0; }
+html body #root > main.v26App .demoMasterCockpit .demoTicketClose { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 14px; z-index: 2147482100; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 999px; border: 1px solid #223249; background: #0c1828; color: #cfe0ee; }
+html body #root > main.v26App .demoMasterCockpit .demoTicketClose svg { width: 20px; height: 20px; }
