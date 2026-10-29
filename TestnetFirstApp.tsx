@@ -1104,7 +1104,7 @@ export default function TestnetFirstApp() {
                   <button type="button" disabled={notificationReadBusy} className={`v26NotificationItem ${item.severity}${group.unread === 0 ? ' isRead' : ''}${group.important ? ' important' : ''}`} onClick={() => void openNotificationGroup(group.items)}><i>{item.severity === 'success' ? <BarChart3/> : <Bell/>}</i><span><b>{item.title}{count > 1 && <em className="v26NotificationCount">{`x${count}`}</em>}</b>{item.severity === 'critical' && <strong className="v26NotificationCritical">KRİTİK</strong>}{item.severity !== 'critical' && <strong className="v26NotificationSeverity">{notificationLevelLabels[item.severity]}</strong>}<p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</small>{group.important && <em className="v26NotificationAct">Aç →</em>}</span><time className="v26NotificationAgo">{notificationAgo(item.timestamp)}</time><ChevronRight className="v26NotificationChev"/></button>
                 </Fragment>
               })
-            })()}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Bildirim yok</b><p>Gerçek bir sistem olayı oluştuğunda burada görünecek.</p></div>}
+            })()}</div> : notificationState === 'empty' && <div className="v26NotificationEmpty"><Bell/><b>Hepsi temiz</b><p>Yeni bir şey olunca burada görünecek.</p></div>}
           <footer className="v26NotificationFoot"><button type="button" onClick={() => {setNotificationsOpen(false);navigate('setup')}}><Settings/>Bildirim ayarları →</button></footer>
           </section>}
         </div>
