@@ -42,6 +42,12 @@ for (const [name, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]
     const details = page.getByText('Teknik ayrıntılar', {exact: false}).first()
     if (await details.isVisible().catch(() => false)) { await details.click(); log(`RECOVERY ${(await page.locator('body').innerText()).slice(0, 1500)}`) }
     if (!count) { await page.screenshot({path: `shots-out/${name}-page.png`, fullPage: true}); return }
+    log(`${name} DIAG ${JSON.stringify(await page.evaluate(() => {
+      const out: string[] = []; let el = document.querySelector('.pvRoot') as HTMLElement | null
+      while (el && out.length < 8) { const cs = getComputedStyle(el); out.push(`${el.tagName}.${String(el.className).slice(0, 40)} W${Math.round(el.getBoundingClientRect().width)} d:${cs.display} gc:${cs.gridColumn} gtc:${cs.gridTemplateColumns.slice(0, 30)}`); el = el.parentElement }
+      const card = document.querySelector('.pvCard') as HTMLElement | null
+      if (card) { const cs = getComputedStyle(card); out.push(`CARD bg:${cs.backgroundColor} border:${cs.borderTopColor} ${cs.borderTopWidth}`) }
+      return out }))}`)
     await root.scrollIntoViewIfNeeded()
     await page.waitForTimeout(800)
     await root.screenshot({path: `shots-out/${name}-1-kapali.png`})
