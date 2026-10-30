@@ -586,10 +586,12 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   useEffect(() => { if (active && tab === 'performance') void refreshPerformance() },[active,tab,performancePeriod])
 
   useEffect(() => {
+    // Demo İşlem Masası (Master görünümü) sekmeleri kendi üst çubuğuyla açılır; sayfa kendiliğinden aşağı kaymasın.
+    if (masterTab) return
     const target = tab === 'dashboard' || tab === 'trade' ? demoDeckRef.current : workspaceRef.current
     if (!target) return
     window.requestAnimationFrame(() => target.scrollIntoView({block:'start',behavior:'smooth'}))
-  },[tab])
+  },[tab,masterTab])
 
   const armSeconds = status?.armed_until ? Math.max(0,Math.floor((new Date(status.armed_until).getTime()-clock)/1000)) : 0
   const nextScanMs = v21?.scanner.next_scan_at ? new Date(v21.scanner.next_scan_at).getTime() : null

@@ -1226,3 +1226,10 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizHead em{
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRowHead{color:var(--lc-mute);font-size:11px;font-weight:800;letter-spacing:.06em}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTableNote{margin:6px 0 0;color:var(--lc-mute);font-size:12px}
 @media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle svg{transition:none}}
+
+/* Kokpit ızgarası: 100 sütun arasındaki 16px aralık (99 x 16px = 1584px) sayfadan genişti; kartlar sağa taşıyor, sayfa yana kayıyordu.
+   Sütun aralığı 0, yan yana kartlar arasındaki 16px boşluk sağdaki kartın sol payıyla verilir (oranlar aynı). */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid{column-gap:0!important;row-gap:16px!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid .lcScan,html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcSide{margin-left:16px!important}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid[data-coach]>.lcSide{margin-left:0!important}
+@media (max-width:1100px){html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid .lcScan,html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcSide{margin-left:0!important}}
