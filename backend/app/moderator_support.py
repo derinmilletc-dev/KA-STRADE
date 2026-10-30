@@ -45,6 +45,11 @@ class CaseItem(ReadModel):
     created_at: datetime
     version: int = Field(ge=1)
     assigned_to_me: bool
+    # Canlı talepten: müşterinin dili ve son mesaj (liste satırı için; eski/silinmiş talepte boş).
+    language: Literal["tr", "en"] | None = None
+    last_author: Literal["CUSTOMER", "STAFF"] | None = None
+    last_preview: str = ""
+    last_at: datetime | None = None
 
 
 class CasesPage(ReadModel):
@@ -142,13 +147,18 @@ async def support_connection(request: Request, identity: ModeratorIdentity, perm
         yield conn
 
 
-def case_item(row, identity: ModeratorIdentity, *, full_subject=False) -> CaseItem:
+def case_item(row, identity: ModeratorIdentity, *, full_subject=False, ticket: dict | None = None) -> CaseItem:
     subject = mask_support_text(row["subject"])
+    last = support_thread.last_message(ticket) if ticket is not None else None
     return CaseItem(
         id=row["id"], user_id=row["user_id"], subject=subject if full_subject else subject[:100],
         priority=row["priority"], case_status=row["case_status"],
         assignee_user_id=row["assignee_user_id"], created_at=row["created_at_legacy"],
         version=row["version"], assigned_to_me=row["assignee_user_id"] == identity.user_id,
+        language=support_thread.ticket_language(ticket),
+        last_author=last["author"] if last else None,
+        last_preview=" ".join(mask_support_text(last["body"]).split())[:120] if last else "",
+        last_at=last["at"] if last else None,
     )
 
 
@@ -204,7 +214,8 @@ async def list_cases(
             f"SELECT c.* {VISIBLE} {FILTERS} ORDER BY c.created_at_legacy DESC, c.id LIMIT $5 OFFSET $6",
             *args, limit, offset,
         )
-        return CasesPage(items=[case_item(row, identity) for row in rows], total=total, limit=limit, offset=offset)
+        return CasesPage(items=[case_item(row, identity, ticket=legacy_ticket(request, row)) for row in rows],
+                         total=total, limit=limit, offset=offset)
 
 
 @router.get("/summary", response_model=Summary)
@@ -242,7 +253,7 @@ async def case_detail(
         )
         ticket = legacy_ticket(request, row)
         result = CaseDetail(
-            **case_item(row, identity, full_subject=True).model_dump(), customer=customer,
+            **case_item(row, identity, full_subject=True, ticket=ticket).model_dump(), customer=customer,
             message=mask_support_text(row["message"]), legacy_status=row["legacy_status"],
             legacy_response_note=mask_support_text(row["legacy_response_note"]),
             notes=[NoteItem(**{**dict(note), "body": mask_support_text(note["body"])}) for note in notes],

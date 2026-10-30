@@ -16,6 +16,7 @@ const detail = {
   priority: 'HIGH', case_status: 'OPEN', assignee_user_id: null, version: 1, assigned_to_me: false,
   created_at: '2026-10-10T10:00:00+00:00', legacy_status: 'OPEN', legacy_response_note: '',
   customer: profile, notes: [], thread: [], attachments: [],
+  language: null, last_author: null, last_preview: '', last_at: null,
 }
 const props = {detail, manage: false, busy: false, note: '', status: 'OPEN', onNoteChange: () => {}, onStatusChange: () => {},
   onTake: () => {}, onRelease: () => {}, onSaveStatus: () => {}, onAddNote: () => {}}
@@ -101,4 +102,24 @@ test('Conversation shows customer and team messages as escaped text; old note be
   const withFiles = render(SupportDetailCards, {...props, detail: {...detail, attachments: [{id: 'f1', name: 'ekran.png', type: 'image/png', size: 2048}]}, onLoadAttachment: async () => new Blob()})
   assert.match(withFiles, /ekran\.png/)
   assert.match(withFiles, /Görüntüle/)
+})
+
+test('Language is shown and steers the reply hint and quick replies; staff reply copies are not repeated as notes', () => {
+  const base = {...props, manage: true, detail: {...detail, assignee_user_id: 'moderator', assigned_to_me: true, language: 'en',
+    notes: [{id: 'n1', author_user_id: 'moderator', body: '[Müşteriye yanıt] Hi there', created_at: detail.created_at}]},
+    reply: '', onReplyChange: () => {}, onSendReply: () => {}}
+  const html = render(SupportDetailCards, base)
+  assert.match(html, /İngilizce kullanıyor/)
+  assert.match(html, /Yanıtını İngilizce yaz/)
+  assert.match(html, /Hazır yanıtlar/)
+  assert.match(html, /data-lang="en"/)
+  assert.match(html, /Henüz ekip notu yok/)
+  assert.doesNotMatch(html, /\[Müşteriye yanıt\]/)
+  const unknown = render(SupportDetailCards, {...base, detail: {...base.detail, language: null}})
+  assert.match(unknown, /dili bilinmiyor/)
+  const parsed = model.parseSupportCase({...detail, language: 'en', last_author: 'CUSTOMER', last_preview: 'Hâlâ olmuyor', last_at: detail.created_at})
+  assert.equal(parsed.language, 'en')
+  assert.equal(model.customerWaiting(parsed), true)
+  assert.equal(model.customerWaiting({...parsed, case_status: 'RESOLVED'}), false)
+  assert.equal(model.parseSupportCase({...detail, language: 'de'}).language, null)
 })

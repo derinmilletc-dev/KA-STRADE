@@ -101,3 +101,53 @@
   #root #support-card .spAnswer { grid-template-columns: 1fr; }
   #root #support-card .spAnswer .spSend { width: 100%; }
 }
+
+/* ===== Taleplerim kartları ===== */
+#root #support-card .spCase { width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: 12px; padding: 14px 16px; border: 0 !important; border-radius: 18px; background: rgba(255,255,255,.045) !important; color: inherit; text-align: left; cursor: pointer; transition: background .2s ease; }
+#root #support-card .spCase:hover { background: rgba(255,255,255,.075) !important; }
+#root #support-card .spCase > i { width: 9px; height: 9px; border-radius: 50%; background: #f5b942 !important; box-shadow: 0 0 0 4px rgba(245,185,66,.16); }
+#root #support-card .spCase[data-status="IN_PROGRESS"] > i { background: #38bdf8 !important; box-shadow: 0 0 0 4px rgba(56,189,248,.16); }
+#root #support-card .spCase[data-status="RESOLVED"] > i, #root #support-card .spCase[data-status="CLOSED"] > i { background: #34d399 !important; box-shadow: 0 0 0 4px rgba(52,211,153,.16); }
+#root #support-card .spCase[data-unread] > i { background: #34d399 !important; box-shadow: 0 0 0 4px rgba(52,211,153,.28); }
+#root #support-card .spCaseMain { display: grid; gap: 3px; min-width: 0; }
+#root #support-card .spCaseMain b { font-size: 14.5px; color: #edf2f8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root #support-card .spCaseMain small { font-size: 12.5px; color: #8fa1b5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root #support-card .spCaseSide { display: grid; gap: 3px; justify-items: end; text-align: right; }
+#root #support-card .spCaseSide em { font-style: normal; font-size: 12px; font-weight: 700; color: #b8c5d3; white-space: nowrap; }
+#root #support-card .spCase[data-unread] .spCaseSide em { color: #34d399; }
+#root #support-card .spCaseSide small { font-size: 11.5px; color: #7f91a4; white-space: nowrap; }
+#root #support-card .spCase > svg { width: 18px; height: 18px; color: #8fa1b5; }
+
+/* ===== Sohbet görünümü ===== */
+#root #support-card .spConv { display: grid; gap: 14px; min-width: 0; }
+#root #support-card .spConvHead { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 12px; align-items: center; }
+#root #support-card .spBack { width: 40px; height: 40px; display: grid; place-items: center; border: 0 !important; border-radius: 13px; background: rgba(255,255,255,.06) !important; color: #c9d4e0; cursor: pointer; }
+#root #support-card .spBack svg { width: 20px; height: 20px; }
+#root #support-card .spConvHead > span { display: grid; gap: 3px; min-width: 0; }
+#root #support-card .spConvHead b { font-size: 15.5px; color: #edf2f8; line-height: 1.35; overflow-wrap: anywhere; }
+#root #support-card .spConvHead small { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #f5b942; }
+#root #support-card .spConvHead small i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+#root #support-card .spConv[data-status="IN_PROGRESS"] .spConvHead small { color: #38bdf8; }
+#root #support-card .spConv[data-status="RESOLVED"] .spConvHead small, #root #support-card .spConv[data-status="CLOSED"] .spConvHead small { color: #34d399; }
+#root #support-card .spSteps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+#root #support-card .spSteps li { display: grid; gap: 5px; min-width: 0; }
+#root #support-card .spSteps i { height: 4px; border-radius: 9px; background: rgba(255,255,255,.09); }
+#root #support-card .spSteps li[data-on] i { background: #34d399; }
+#root #support-card .spSteps small { font-size: 11px; font-weight: 600; color: #7f91a4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root #support-card .spSteps li[data-on] small { color: #a7f3d0; }
+#root #support-card .spConv .spThread { gap: 10px; }
+#root #support-card .spConv .spThread li { min-width: 0; }
+#root #support-card .spConv .spThread li p { overflow-wrap: anywhere; }
+#root #support-card .spComposer { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: end; padding: 8px; border-radius: 18px; background: rgba(255,255,255,.05) !important; border: 1px solid rgba(255,255,255,.08); }
+#root #support-card .spComposer:focus-within { box-shadow: 0 0 0 3px rgba(52,211,153,.25); }
+#root #support-card .spClip, #root #support-card .spSendIcon { width: 42px; height: 42px; display: grid; place-items: center; border: 0 !important; border-radius: 13px; cursor: pointer; }
+#root #support-card .spClip { background: rgba(255,255,255,.07) !important; color: #c9d4e0; }
+#root #support-card .spSendIcon { background: linear-gradient(135deg, #34d399, #22b8cf) !important; color: #05261c !important; }
+#root #support-card .spClip:disabled, #root #support-card .spSendIcon:disabled { opacity: .4; cursor: default; }
+#root #support-card .spClip svg, #root #support-card .spSendIcon svg { width: 18px; height: 18px; }
+#root #support-card .spComposer textarea { width: 100%; min-height: 42px; max-height: 180px; resize: vertical; box-sizing: border-box; padding: 10px 6px; border: 0 !important; outline: 0 !important; background: transparent !important; color: #edf2f8; font: inherit; font-size: 14.5px; line-height: 1.45; }
+#root #support-card .spNote { margin: 0; text-align: center; font-size: 12px; color: #7f91a4; }
+@media (max-width: 420px) {
+  #root #support-card .spCase { grid-template-columns: auto minmax(0,1fr) auto; padding: 12px 14px; gap: 10px; }
+  #root #support-card .spCase > svg { display: none; }
+}
