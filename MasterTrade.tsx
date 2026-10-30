@@ -84,7 +84,7 @@ type CloseLifecycleState = 'IDLE' | 'CLOSING' | 'CLOSED' | 'CLOSE_FAILED' | 'HIS
 const NOT_RECORDED = 'Kaydedilmedi'
 const TRADE_CLOSE_REASON_TEXT: Record<string, string> = {
   MANUAL: 'Manuel kapatıldı', STOP: 'Stop çalıştı', TP1: 'TP1 hedefi', TP2: 'TP2 hedefi', TP3: 'TP3 hedefi',
-  EMERGENCY: 'Acil kapatma', SMART_EXIT: 'Akıllı Güven Puanı Çıkışı', SMART_STOP: 'Akıllı Kâr Koruma Stopu', UNKNOWN: 'Bilinmiyor',
+  EMERGENCY: 'Acil kapatma', SMART_EXIT: 'Akıllı Güven Puanı Çıkışı', SMART_STOP: 'Akıllı Kâr Koruma Stopu', FILL_RISK: 'Dolum riski aşıldı', UNKNOWN: 'Bilinmiyor',
 }
 const tradeCloseReasonText = (reason: string | null | undefined) => (reason && TRADE_CLOSE_REASON_TEXT[reason]) || reason || NOT_RECORDED
 const journalNumber = (value: unknown): number | null => {

@@ -25,10 +25,25 @@ def test_ok_fill_keeps_position():
     assert not result and close.await_count == 0 and p["manual_fill_audit"]["result"] == "OK"
 
 
+def test_slippage_within_tolerance_keeps_position():
+    # Gerçek risk planın 1,4 katı: %50 toleransın içinde, pozisyon kapanmaz.
+    p = plan()
+    result, close = run(p, {"entry_price": "100", "quantity": "1.4"})
+    assert not result and close.await_count == 0 and p["manual_fill_audit"]["result"] == "OK"
+
+
+def test_observed_slippage_case_keeps_position():
+    # Gerçek vaka: planlanan risk 0,5215, gerçek risk ~0,661 (oran ~1,27) eskiden %25 sınırında kapanıyordu.
+    p = plan(stop_loss="0.057860", initial_risk_usdt="0.5215")
+    result, close = run(p, {"entry_price": "0.058633", "quantity": "855"})
+    assert not result and close.await_count == 0 and p["manual_fill_audit"]["result"] == "OK"
+
+
 def test_slippage_over_tolerance_closes():
     p = plan()
-    result, close = run(p, {"entry_price": "100", "quantity": "1.5"})
+    result, close = run(p, {"entry_price": "100", "quantity": "1.6"})
     assert result and close.await_count == 1 and p["manual_fill_audit"]["result"] == "BREACH"
+    assert p["close_reason"] == "FILL_RISK"
 
 
 def test_stop_on_wrong_side_closes():
@@ -50,3 +65,8 @@ def test_unverifiable_input_keeps_stop_and_position():
     p = plan(initial_risk_usdt=None)
     result, close = run(p, {"entry_price": "100", "quantity": "1"})
     assert not result and close.await_count == 0 and p["manual_fill_audit"]["result"] == "UNVERIFIED"
+
+
+def test_fillrisk_intent_has_its_own_close_reason():
+    assert v.close_reason_for_intent("fillrisk-p1") == "FILL_RISK"
+    assert v.close_reason_for_intent("protection-p1") == "STOP"
