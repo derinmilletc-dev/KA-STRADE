@@ -15,7 +15,7 @@ test('network, timeout and invalid response errors always have Turkish explanati
 
 test('server errors never reflect internal details or credentials', () => {
   assert.equal(connectionHttpMessage(500, 'private-key private-secret traceback', ['private-key', 'private-secret']),
-    'Sunucu hatası (HTTP 500). Bağlantı kaydedilemedi veya doğrulanamadı; sunucu durumunu kontrol edin.')
+    'Sunucu hatası (HTTP 500). Bağlantı şu anda kaydedilemedi veya doğrulanamadı; birkaç dakika sonra tekrar dene.')
   assert.equal(redactConnectionMessage('private-key-private-secret private-key', ['private-key', 'private-key-private-secret']),
     '[GİZLİ] [GİZLİ]')
   assert.match(connectionHttpMessage(502, 'private-key private-secret', ['private-key', 'private-secret']), /\[GİZLİ\] \[GİZLİ\]/)
