@@ -1,0 +1,4 @@
+refTradeBtn=1
+button visible=true
+values ["Stop fiyatı=85212.3","TP1 fiyatı=85509.3","TP2 fiyatı=85657.7","TP3 fiyatı=85806.2"]
+note Stop girişten %0,17 uzakta. Bu coin 15 dakikada ortalama %0,10 oynuyor; stop bu hareketin yaklaşık 1,7 katı uzakta, küçük dalgalanmada tetiklenmez. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.

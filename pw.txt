@@ -1,0 +1,5 @@
+
+Running 1 test using 1 worker
+
+[1/1] frontend/tests/shots/poz-shots.spec.ts:31:1 › manual volatility stop
+  1 passed (21.9s)
