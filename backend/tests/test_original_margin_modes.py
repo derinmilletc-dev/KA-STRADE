@@ -225,4 +225,5 @@ def test_demo_and_backtest_do_not_know_margin_modes():
     users = sorted(path.name for path in app_dir.rglob("*.py")
                    if "margin_mode" in path.read_text(encoding="utf-8") or "MARGIN_MODES" in path.read_text(encoding="utf-8"))
     # assistant_tools.py yalnız OKUR: Kais üyenin kayıtlı teminat modunu söyleyebilsin diye (emir/hesap etkisi yok).
-    assert users == ["assistant_tools.py", "original_live_risk.py", "original_v2_live.py"]
+    # cockpit_demo_twin.py yalnız ekran uyumu için sabit "guvenli" döndürür; ayar endpoint'i 409 verir, mod mantığı yoktur.
+    assert users == ["assistant_tools.py", "cockpit_demo_twin.py", "original_live_risk.py", "original_v2_live.py"]
