@@ -2163,11 +2163,12 @@ async def v22_subscription_cancel(payload: CancellationRequest, request: Request
 
 @router.post("/auth/logout")
 async def v22_logout(request: Request, response: Response = None):
-    user = await authenticated_user_async(request)
-    rt = runtime(request)
-    async with rt["lock"]:
-        await invalidate_user_sessions(request, user)
-        save_state(rt["state"])
+    await authenticated_user_async(request)
+    # Yalnız bu cihazın oturumu kapanır. Eskiden auth_version artırılıyordu: bu tüm cihazları
+    # kapatıyor ve aynı sürüme bağlı canlı botu kilitleyip acil durdurmayı açıyordu.
+    from .account_settings import revoke_current_session
+
+    await revoke_current_session(request)
     try:
         from .exchange_connections import clear_session_vault_for_request
 

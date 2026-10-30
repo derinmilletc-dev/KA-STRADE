@@ -277,7 +277,7 @@ def record_live_lock_reason(state: dict[str, Any], code: str) -> None:
         "TRANSIENT_MARKET_DATA_FAILURE": "Piyasa verisi alınamadığı için ARM iptal edildi.",
         "RECONCILIATION_FAILURE": "Binance hesap ve pozisyon bilgileri doğrulanamadığı için ARM iptal edildi.",
         "USER_SESSION_EXPIRED_OR_UNPROVEN": "Kullanıcı oturumu sona erdiği veya doğrulanamadığı için ARM iptal edildi.",
-        "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE": "Oturum yetkisi iptal edildiği veya doğrulanamadığı için ARM iptal edildi.",
+        "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE": "Oturum kapandı, bot durdu. Tekrar giriş yapıp botu yeniden başlatabilirsin; açık pozisyonların stop ve hedefleri yerinde.",
         "ARM_EXPIRED": "ARM izin süresi doldu; yeniden onay gerekiyor.",
         "USER_DISARM": "ARM sizin durdurma isteğinizle iptal edildi.",
         "POLICY_CHANGED": "Risk limitleri değiştiği için onaylar ve ARM iptal edildi.",
@@ -294,6 +294,12 @@ def record_live_lock_reason(state: dict[str, Any], code: str) -> None:
     }
 
 
+# Oturum kaynaklı kilit: bot durur (ARM, otomasyon ve Original oturumu kapanır) ama acil durdurma
+# bayrağı açılmaz. Emir belirsizliği yoktur; kullanıcı tekrar giriş yapıp normal başlatma adımlarıyla
+# (2FA'lı acil durdurma kaldırma olmadan) yeniden başlatır. Açık pozisyonların stop/TP'si borsada kalır.
+SESSION_LOCK_REASONS = frozenset({"SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE", "USER_SESSION_EXPIRED_OR_UNPROVEN"})
+
+
 def lock_live_execution(
     state: dict[str, Any],
     reason: str,
@@ -304,6 +310,8 @@ def lock_live_execution(
     preserve_original_session: bool = False,
 ) -> None:
     from . import original_v2_live
+    # Oturum kilidi, önceden var olan belirsiz emir/uzlaştırma durumunu silmez (yeni belirsizlik olayı da üretmez).
+    keep_unknown = reason in SESSION_LOCK_REASONS and (state.get("execution_state") == "UNKNOWN" or bool(state.get("reconciliation_required")))
     if original_v2_live.running(state) and not preserve_original_session:
         original_v2_live.pause(state, reason)
     record_live_lock_reason(state, reason)
@@ -311,10 +319,11 @@ def lock_live_execution(
     state["real_trading_locked"] = True
     state["live_auto_trade"] = False
     state["auto"].update({"enabled": False, "session_until": 0.0})
-    state["execution_state"] = "UNKNOWN" if unknown else "LOCKED"
-    state["reconciliation_required"] = bool(unknown)
+    state["execution_state"] = "UNKNOWN" if unknown or keep_unknown else "LOCKED"
+    state["reconciliation_required"] = bool(unknown or keep_unknown)
     state.setdefault("emergency", {"active": False, "triggered_at": None, "reason": ""})
-    state["emergency"].update({"active": True, "triggered_at": now_iso(), "reason": reason})
+    if reason not in SESSION_LOCK_REASONS:
+        state["emergency"].update({"active": True, "triggered_at": now_iso(), "reason": reason})
     if reason in {"KILL_SWITCH_TRIGGERED", "AUTO_EXCEPTION", "RECONCILIATION_FAILURE", "POSITION_SYNC_MISMATCH"}:
         schedule_log_event(state.get("_app"), build_error_event(
             source="backend", service="trading_engine", kind="LiveExecutionLock", code=reason,
@@ -5017,8 +5026,24 @@ async def background_authorization_active(application: Any, state: dict[str, Any
     )
     if not valid:
         clear_session_vault_for_user_cache(application, str(authorization.get("user_id") or ""))
-        lock_live_execution(state, "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE")
+        if not session_lock_already_applied(state):
+            lock_live_execution(state, "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE")
     return valid
+
+
+def session_lock_already_applied(state: dict[str, Any]) -> bool:
+    """Oturum kilidi zaten tam uygulanmışsa True: döngü her 5 sn'de yeni olay/bildirim üretmesin.
+    Kilidin herhangi bir parçası açılmışsa (ARM, otomasyon, Original oturumu) False döner ve kilit yeniden uygulanır."""
+    from . import original_v2_live
+    lock_reason = state.get("live_lock_reason") if isinstance(state.get("live_lock_reason"), dict) else {}
+    return bool(
+        lock_reason.get("code") == "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE"
+        and state.get("real_trading_locked") is True
+        and float(state.get("armed_until") or 0) == 0.0
+        and state.get("live_auto_trade") is not True
+        and not (state.get("auto") or {}).get("enabled")
+        and not original_v2_live.running(state)
+    )
 
 
 _BACKGROUND_AUTH_RECENT: dict[int, float] = {}

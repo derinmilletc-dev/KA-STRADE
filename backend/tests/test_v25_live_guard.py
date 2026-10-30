@@ -1855,7 +1855,7 @@ class V25LiveGuardIntegrationContractTests(unittest.TestCase):
         self.assertEqual(state["emergency"]["reason"], "LIVE_CREDENTIALS_UNAVAILABLE")
 
     def test_transient_lock_emergency_clears_after_clean_snapshot_but_stays_locked(self):
-        for reason in ("BINANCE_ACCOUNT_RATE_LIMITED", "LIVE_CREDENTIALS_UNAVAILABLE", "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE"):
+        for reason in ("BINANCE_ACCOUNT_RATE_LIMITED", "LIVE_CREDENTIALS_UNAVAILABLE"):
             state = initial_state()
             with patch.object(v25_execution, "persist_state"):
                 v25_execution.lock_live_execution(state, reason)
@@ -1866,6 +1866,45 @@ class V25LiveGuardIntegrationContractTests(unittest.TestCase):
             self.assertTrue(state["real_trading_locked"])
             self.assertFalse(v25_execution.is_armed(state))
             self.assertTrue(any(event["kind"] == "LIVE_EMERGENCY_AUTO_CLEARED" for event in state["events"]))
+
+    def test_session_lock_stops_bot_without_emergency_latch(self):
+        for reason in ("SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE", "USER_SESSION_EXPIRED_OR_UNPROVEN"):
+            state = initial_state()
+            state["armed_until"] = time.time() + 600
+            state["auto"].update({"enabled": True, "session_until": time.time() + 600})
+            state["live_auto_trade"] = True
+            with patch.object(v25_execution, "persist_state"):
+                v25_execution.lock_live_execution(state, reason)
+            self.assertFalse(state["emergency"]["active"])
+            self.assertEqual(state["execution_state"], "LOCKED")
+            self.assertTrue(state["real_trading_locked"])
+            self.assertFalse(state["live_auto_trade"])
+            self.assertFalse(state["auto"]["enabled"])
+            self.assertFalse(v25_execution.is_armed(state))
+            self.assertEqual(state["live_lock_reason"]["code"], reason)
+
+    def test_session_lock_keeps_existing_unknown_execution_and_emergency(self):
+        state = initial_state()
+        with patch.object(v25_execution, "persist_state"):
+            v25_execution.lock_live_execution(state, "RECONCILIATION_FAILURE", unknown=True)
+            v25_execution.lock_live_execution(state, "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE")
+        self.assertEqual(state["execution_state"], "UNKNOWN")
+        self.assertTrue(state["reconciliation_required"])
+        self.assertTrue(state["emergency"]["active"])
+        self.assertEqual(state["emergency"]["reason"], "RECONCILIATION_FAILURE")
+
+    def test_revoked_background_session_locks_once_not_every_loop(self):
+        state = initial_state()
+        state["auto_authorization"] = {"user_id": "owner", "auth_version": 1, "expires_at_epoch": time.time() + 600}
+        application = SimpleNamespace(state=SimpleNamespace(v25_execution=state))
+        with patch("app.exchange_connections.authoritative_user_version_active", new=AsyncMock(return_value=False)), \
+                patch("app.exchange_connections.clear_session_vault_for_user_cache"), \
+                patch.object(v25_execution, "persist_state"):
+            for _ in range(3):
+                self.assertFalse(asyncio.run(v25_execution.background_authorization_active(application, state)))
+        locks = [event for event in state["events"] if event.get("reason") == "SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE"]
+        self.assertEqual(len(locks), 1)
+        self.assertFalse(state["emergency"]["active"])
 
     def test_manual_or_uncertain_emergency_is_never_auto_cleared(self):
         for reason, unknown in (("MANUAL_EMERGENCY_STOP", False), ("AUTO_EXCEPTION", False), ("RECONCILIATION_FAILURE", True)):

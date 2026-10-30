@@ -87,6 +87,13 @@ test('a stopped session reason is carried into the next step', () => {
   assert.match(guide({paused: true, pauseReason: 'Oturum süresi doldu.'}).message, /^Son oturum durdu: Oturum süresi doldu\./)
 })
 
+test('a session lock reads as a plain stop, never as an emergency', () => {
+  const stopped = guide({paused: true, pauseReason: 'SESSION_REVOKED_OR_AUTHORITY_UNAVAILABLE', authorizationValid: false})
+  assert.equal(stopped.phase, 'setup')
+  assert.match(stopped.message, /^Oturum kapandı, bot durdu\. /)
+  assert.doesNotMatch(stopped.message, /SESSION_REVOKED|Acil durdurma/)
+})
+
 test('presets stay inside server limits and can be recognised', () => {
   for (const preset of RISK_PRESETS) {
     assert.ok(preset.risk_percent >= 0.5 && preset.risk_percent <= 15, preset.id)

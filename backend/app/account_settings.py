@@ -867,6 +867,25 @@ async def mfa_login(payload: LoginCode, request: Request, response: Response):
     return {"token": marker, "user": auth.public_user(user), "license": auth.active_license(auth.runtime(request)["state"], user["id"]), "demo_only": True, "remember": remember}
 
 
+async def revoke_current_session(request) -> None:
+    """Çıkış: yalnız bu cihazın oturumunu kapatır (auth_version değişmez).
+
+    Diğer cihazlar ve auth_version'a bağlı arka plan canlı yetkisi etkilenmez. Her istek
+    track_session'dan geçtiği için iptal edilen bu token bir sonraki istekte 401 alır.
+    Tüm cihazları kapatmak için: diğer oturumları kapat, şifre değişikliği veya yönetici iptali.
+    """
+    payload = token_payload(request)
+    if not payload.get("jti"):
+        raise HTTPException(401, "Oturum kimliği gerekli")
+    async with store.edit(request, payload["sub"]) as doc:
+        row = doc.setdefault("sessions", {}).get(payload["jti"])
+        if row is None:
+            row = session_row(request, payload)
+            doc["sessions"][payload["jti"]] = row
+        row["revoked"] = True
+        activity(doc, "SESSION_REVOKED", "Çıkış yapıldı")
+
+
 @router.post("/account/sessions/revoke")
 async def revoke_session(payload: SessionRevoke, request: Request, response: Response):
     user = await member(request)

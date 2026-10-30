@@ -182,15 +182,25 @@ class SecurityAuthHardeningTests(unittest.IsolatedAsyncioTestCase):
             await coroutine
         self.assertEqual(caught.exception.status_code, status)
 
-    async def test_logout_revokes_other_worker_and_stale_snapshot_cannot_resurrect(self):
+    async def test_logout_revokes_this_session_on_every_worker_and_stale_snapshot_cannot_resurrect(self):
         worker2 = make_request(self.user, self.store, token=auth.bearer(self.request))
         await auth.authenticated_user_async(worker2)
         with patch("app.exchange_connections.clear_session_vault_for_request", new=AsyncMock()):
             self.assertEqual(await auth.v22_logout(self.request), {"ok": True})
-        self.assertEqual(self.store.users["customer"]["auth_version"], 2)
+        # Çıkış yalnız bu oturumu kapatır: hesap sürümü (diğer cihazlar ve canlı bot yetkisi) değişmez.
+        self.assertEqual(self.store.users["customer"]["auth_version"], 1)
         self.assertTrue(await auth.persist_v22_commercial(worker2.app))
-        self.assertEqual(self.store.users["customer"]["auth_version"], 2)
         await self.expect_status(401, auth.authenticated_user_async(worker2))
+        await self.expect_status(401, auth.authenticated_user_async(self.request))
+
+    async def test_logout_keeps_other_devices_signed_in(self):
+        other_device = make_request(self.user, self.store)
+        await auth.authenticated_user_async(self.request)
+        await auth.authenticated_user_async(other_device)
+        with patch("app.exchange_connections.clear_session_vault_for_request", new=AsyncMock()):
+            self.assertEqual(await auth.v22_logout(self.request), {"ok": True})
+        await self.expect_status(401, auth.authenticated_user_async(self.request))
+        self.assertEqual((await auth.authenticated_user_async(other_device))["id"], "customer")
 
     async def test_concurrent_invalidation_is_monotonic(self):
         other = make_request(self.user, self.store)
@@ -772,7 +782,8 @@ class SecurityAuthHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Path=/api", cookie)
         self.assertIn("HttpOnly", cookie)
         self.assertIn("Secure", cookie)
-        self.assertEqual(self.store.users["customer"]["auth_version"], 2)
+        self.assertEqual(self.store.users["customer"]["auth_version"], 1)
+        await self.expect_status(401, auth.authenticated_user_async(self.request))
 
     async def test_password_change_is_durable_and_renews_current_browser_cookie(self):
         self.request.cookies[auth.SESSION_COOKIE_NAME] = auth.bearer(self.request)
