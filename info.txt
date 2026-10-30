@@ -1,0 +1,6 @@
+phone pvRoot=1 slim=2
+phone DIAG ["SECTION.lcCard pvRoot W370 d:grid gc:1 / -1 gtc:328px","DIV.lcMain W0 d:contents gc:auto gtc:none","DIV.lcGrid W370 d:flex gc:auto gtc:repeat(100, minmax(0px, 1fr))","SECTION.lcRoot originalLiveWorkspace W370 d:flex gc:auto gtc:none","DIV.masterTradeOperationsPanel W370 d:block gc:auto gtc:none","DIV.masterTradeShell W370 d:flex gc:auto gtc:none","SECTION.masterTradePage masterTrade W370 d:block gc:auto gtc:none","SECTION.masterTradePresentationHost W370 d:block gc:auto gtc:none","CARD bg:rgb(23, 42, 59) border:rgb(36, 52, 68) 1px"]
+phone overflow=0
+desktop pvRoot=1 slim=2
+desktop DIAG ["SECTION.lcCard pvRoot W1380 d:grid gc:1 / -1 gtc:1338px","DIV.lcMain W0 d:contents gc:auto gtc:none","DIV.lcGrid W1380 d:grid gc:auto gtc:13.7969px 13.7969px 13.7969px ","SECTION.lcRoot originalLiveWorkspace W1380 d:grid gc:auto gtc:1380px","DIV.masterTradeOperationsPanel W1380 d:block gc:auto gtc:none","DIV.masterTradeShell W1380 d:block gc:auto gtc:none","SECTION.masterTradePage masterTrade W1380 d:block gc:auto gtc:none","SECTION.masterTradePresentationHost W1380 d:block gc:auto gtc:none","CARD bg:rgb(23, 42, 59) border:rgb(36, 52, 68) 1px"]
+desktop overflow=0
