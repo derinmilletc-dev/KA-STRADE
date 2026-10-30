@@ -3174,7 +3174,7 @@ async def manual_breakeven_after_tp1(
     return True
 
 
-MANUAL_FILL_RISK_TOLERANCE = Decimal("1.25")
+MANUAL_FILL_RISK_TOLERANCE = Decimal("1.5")
 
 
 class ManualPlanActionError(Exception):
@@ -3529,7 +3529,7 @@ async def manual_fill_risk_audit(
 ) -> bool:
     """Manual plans only: re-check risk from the real fill. Returns True when the position was closed.
 
-    Slippage or a partial fill that pushes the real stop risk beyond 125% of the planned
+    Slippage or a partial fill that pushes the real stop risk beyond 150% of the planned
     risk is treated as a breach: the position is closed reduce-only. Other plans are never touched.
     """
     if plan.get("source") != "MANUAL" or plan.get("manual_fill_audit"):
@@ -3560,6 +3560,7 @@ async def manual_fill_risk_audit(
     symbol = plan["symbol"]
     add_event(state, "MANUAL_FILL_RISK_BREACH", f"{symbol} gerçek dolum riski {decimal_text(actual)} USDT, plan {decimal_text(planned)} USDT; pozisyon reduce-only kapatılıyor.", symbol=symbol, plan_id=plan.get("id"))
     close_intent = f"fillrisk-{plan['id']}"
+    plan["close_reason"] = close_reason_for_intent(close_intent)
     close_ids = plan.setdefault("close_client_order_ids", [])
     close_id = client_id_for("CLOSE", close_intent)
     if close_id not in close_ids:
@@ -4271,6 +4272,8 @@ def close_reason_for_intent(intent: str) -> str:
         return "SMART_EXIT"
     if value.startswith("protection-"):
         return "STOP"
+    if value.startswith("fillrisk-"):
+        return "FILL_RISK"
     if value.startswith("emergency-close-"):
         return "EMERGENCY"
     return "UNKNOWN"
