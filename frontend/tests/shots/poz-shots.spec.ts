@@ -19,7 +19,7 @@ async function prepare(page: Page, width: number, height: number) {
   const plan2 = {id: 'plan-sol-0002', symbol: 'SOLUSDT', status: 'OPEN', source: 'MANUAL', provenance_state: 'CONFIRMED', exchange_protection: {stop: true, tp1: true, tp2: true, tp3: true}, stop_loss: 147.3, targets: [141.2, 138.4, 135.0], opened_at: new Date(Date.now() - 95 * 60000).toISOString(), initial_risk_usdt: 2.6}
   const live = {connected: true, real_trading_locked: false, armed: true, execution_state: 'ARMED', live_auto_trade: true, recovery_ready: true,
     credentials: {configured: true, fingerprint: 'SHA256:ABCDEF0123'}, readiness: {ready: true, gates: [{key: 'risk', passed: true}]}, authorization: {valid: true}, consent: {active: true}, policy_acknowledged: true,
-    account: {wallet_balance: 412.5, available_balance: 260.1, positions: [position, position2], open_orders: []}, plans: [plan, plan2], events: []}
+    account: {wallet_balance: 412.5, available_balance: 260.1, positions: [position, position2], open_orders: []}, plans: [plan, plan2], events: [], original_v2_live: {available: true, enabled: true, risk_revision: 1, daily: {locked: false}, session: {remaining_seconds: 3600}}}
   await page.route('**/api/v25/status', route => route.fulfill({json: live}))
   await page.route('**/api/exchange-connections/status', route => route.fulfill({json: {connections: {LIVE: {configured: true, active: true, fingerprint: 'ABCDEF0123'}}}}))
   await page.route('**/api/markets**', route => route.fulfill({json: previewMarkets}))
