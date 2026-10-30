@@ -1,7 +1,7 @@
 name: Tmp support check (temporary, delete before merge)
 on:
   push:
-    branches: [feat/destek-modern]
+    branches: [feat/destek-ekip-bildirimi]
 permissions:
   contents: read
 jobs:
