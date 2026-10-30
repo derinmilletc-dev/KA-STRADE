@@ -254,7 +254,7 @@ def test_bound_identity_uses_existing_user_role_version_cookie_and_session(setup
     assert "offline-code" not in response.headers["location"]
     logout = client.post("/api/v22/auth/logout", headers=HEADERS)
     assert logout.status_code == 200 and not client.cookies.get("protrebot_session")
-    assert pool.security[user["id"]]["auth_version"] == 5
+    assert pool.security[user["id"]]["auth_version"] == 4  # çıkış yalnız bu oturumu kapatır
     assert client.get("/api/v22/session", headers={"Authorization": "Bearer " + cookie}).status_code == 401
 
 
