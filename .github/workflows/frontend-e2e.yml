@@ -22,7 +22,13 @@ concurrency:
 jobs:
   live-trading-ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 41 test dosyası tek sırayla çalışınca 20 dakikalık süreye sığmıyor ve her koşu iptal oluyordu (hiçbir dalda yeşil olmadı).
+    # Paket 6 parçaya bölünür; her parça kendi koşucusunda paralel çalışır ve bir parçanın hatası diğerlerini durdurmaz.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     defaults:
       run:
         working-directory: frontend
@@ -41,4 +47,4 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm --prefix .. run build
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/6
