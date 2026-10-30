@@ -1233,3 +1233,40 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid .lcScan,html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcSide{margin-left:16px!important}
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid[data-coach]>.lcSide{margin-left:0!important}
 @media (max-width:1100px){html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid .lcScan,html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcSide{margin-left:0!important}}
+
+/* ===== Pozisyon kartı: ince, sade satır; dokununca detay açılır ===== */
+html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot .pvRoot.pvRoot .pvCard.pvCard.pvCard:not(#pv-x1):not(#pv-x2){padding:0!important;gap:0!important;border:1px solid #243444!important;border-radius:16px!important;background:#172A3B!important;background-image:none!important;box-shadow:none!important;overflow:hidden}
+html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot .pvRoot.pvRoot .pvCard.pvCard.pvCard[data-level="warn"]:not(#pv-x1):not(#pv-x2){border-color:rgba(255,196,87,.55)!important}
+html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot .pvRoot.pvRoot .pvCard.pvCard.pvCard[data-level="danger"]:not(#pv-x1):not(#pv-x2){border-color:rgba(255,132,121,.7)!important}
+html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot .pvRoot.pvRoot .pvCard.pvCard.pvCard:not(#pv-x1):not(#pv-x2) .pvSlim{display:grid!important;gap:8px!important;width:100%!important;min-height:0!important;margin:0!important;padding:11px 12px 9px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:var(--lc-ink)!important;font:inherit!important;font-size:14px!important;font-weight:400!important;line-height:1.3!important;text-align:left!important;cursor:pointer;-webkit-tap-highlight-color:transparent}
+html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot .pvRoot.pvRoot .pvCard.pvCard.pvCard:not(#pv-x1):not(#pv-x2) .pvSlim:focus-visible{outline:2px solid var(--lc-go);outline-offset:-2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimRow{display:flex;align-items:center;gap:10px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlim .pvCoin{width:32px!important;height:32px!important;border-radius:10px!important;font-size:9px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId{display:grid;gap:2px;flex:1 1 auto;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimName{display:flex;align-items:baseline;gap:6px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimName b{font-size:15px!important;font-weight:700!important;line-height:1.2!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimName em{font-style:normal!important;font-size:11px!important;font-weight:700!important;white-space:nowrap;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimName em[data-dir="LONG"]{color:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimName em[data-dir="SHORT"]{color:var(--lc-bad)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId small{display:flex!important;gap:0 5px;font-size:12px!important;font-weight:500!important;line-height:1.3!important;color:var(--lc-mute)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId small span{font-size:12px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId small span+span::before{content:"· ";color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimPnl{display:grid;gap:1px;justify-items:end;text-align:right;flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimPnl b{font-size:15px!important;font-weight:700!important;line-height:1.2!important;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimPnl small{font-size:11px!important;font-weight:500!important;color:var(--lc-mute)!important;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimChev{flex:none;width:16px!important;height:16px!important;color:var(--lc-mute);transition:transform .15s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-open] .pvSlimChev{transform:rotate(180deg)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin{position:relative;display:block;height:3px;border-radius:99px;background:rgba(255,255,255,.08)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--lc-go);opacity:.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin em{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin[data-level="warn"] i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin[data-level="danger"] i{background:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot{display:flex;justify-content:space-between;gap:8px;font-size:11px!important;font-weight:500!important;line-height:1.2!important;color:var(--lc-mute)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot span{font-size:11px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail{padding:4px 12px 12px;border-top:1px solid #243444}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail>.pvLadder{margin-top:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail .pvToggle{min-height:40px;background:transparent!important;color:var(--lc-mute)!important;font-weight:600}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail .pvToggle svg{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimChev{transition:none}}
+/* Pozisyonlar bölümü bilgisayarda tam genişlik (live-terminal.css'teki 12 sütunluk 1/8 kuralı 100 sütunlu ızgarada kartı daraltıyordu). */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcMain>.lcCard.pvRoot.pvRoot.pvRoot{grid-column:1/-1!important}
