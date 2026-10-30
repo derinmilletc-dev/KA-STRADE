@@ -49,6 +49,10 @@ test('demo vs master', async ({page}) => {
   await page.waitForTimeout(800)
   await shot(page, '01-home')
   await page.locator('.v26DashboardChoices button').filter({hasText: 'DEMO İŞLEM'}).click({force: true})
+  const ys: number[] = []
+  for (let i = 0; i < 12; i++) { ys.push(await page.evaluate(() => Math.round(window.scrollY))); await page.waitForTimeout(250) }
+  appendFileSync('shots-out/info.txt', `SCROLL ${JSON.stringify(ys)}\n`)
+  await page.screenshot({path: 'shots-out/02v-demo-default-viewport.png'})
   await shot(page, '02-demo-default')
   await page.getByRole('tab', {name: 'Analiz', exact: true}).first().click()
   await shot(page, '03-demo-analiz')
