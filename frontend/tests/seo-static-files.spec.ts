@@ -37,7 +37,7 @@ test('general crawling is allowed while private routes and sensitive query URLs 
   })
   const allowed = (path:string) => rules.filter(rule => rule.pattern.test(path))
     .sort((left,right) => right.length-left.length || Number(right.allow)-Number(left.allow))[0]?.allow ?? true
-  for (const path of ['/','/?lang=tr','/privacy','/privacy/','/terms','/risk','/pricing','/new-public-page','/assets/app.js','/og-image.png','/kaistrade-logo.png','/favicon.ico','/favicon-48x48.png','/favicon-96x96.png','/favicon-192x192.png','/favicon-512x512.png','/icon-192.png','/icon-512.png','/apple-touch-icon.png','/sitemap.xml','/robots.txt']) expect(allowed(path)).toBe(true)
+  for (const path of ['/','/?lang=tr','/privacy','/privacy/','/terms','/risk','/hesap-silme','/pricing','/new-public-page','/assets/app.js','/og-image.png','/kaistrade-logo.png','/favicon.ico','/favicon-48x48.png','/favicon-96x96.png','/favicon-192x192.png','/favicon-512x512.png','/icon-192.png','/icon-512.png','/apple-touch-icon.png','/sitemap.xml','/robots.txt']) expect(allowed(path)).toBe(true)
   for (const path of ['/favicon.ico','/favicon-48x48.png','/favicon-192x192.png','/apple-touch-icon.png']) {
     expect(allowed(`${path}?v=kaistrade-mark-3`)).toBe(true)
   }
@@ -64,14 +64,16 @@ test('Vercel serves SEO files outside the SPA fallback without changing API or O
     const fallback = deployment.rewrites.at(-1)
     if (!fallback) throw new Error('SPA fallback missing')
     expect(fallback.destination).toBe('/index.html')
-    for (const policy of ['privacy','terms','risk']) {
+    for (const policy of ['privacy','terms','risk','hesap-silme']) {
       for (const suffix of ['','/']) {
         expect(deployment.rewrites.find(rule => rule.source === `/${policy}${suffix}`))
           .toEqual({source:`/${policy}${suffix}`,destination:`/${policy}.html`})
       }
     }
     const pattern = fallbackPattern(fallback.source)
-    for (const path of ['/sitemap.xml','/robots.txt']) expect(pattern.test(path)).toBe(false)
+    for (const path of ['/sitemap.xml','/robots.txt','/.well-known/assetlinks.json']) expect(pattern.test(path)).toBe(false)
+    expect(deployment.headers.find(rule => rule.source === '/.well-known/assetlinks.json')?.headers)
+      .toEqual([{key:'Content-Type',value:'application/json; charset=utf-8'}])
     for (const path of ['/','/privacy','/terms','/risk','/profile','/verify-email','/master-trade','/api/v22/auth/google/callback']) {
       expect(pattern.test(path)).toBe(true)
     }
@@ -100,7 +102,10 @@ test('Vercel serves SEO files outside the SPA fallback without changing API or O
   expect(resolveRootRoute('/api/v22/auth/google/callback')).toBe('https://api.kaistrade.com/api/v22/auth/google/callback')
   expect(resolveRootRoute('/api/v22/session')).toBe('https://api.kaistrade.com/api/v22/session')
   expect(resolveRootRoute('/verify-email')).toBe('/index.html')
-  for (const policy of ['privacy','terms','risk']) expect(resolveRootRoute(`/${policy}`)).toBe(`/${policy}.html`)
+  for (const policy of ['privacy','terms','risk','hesap-silme']) expect(resolveRootRoute(`/${policy}`)).toBe(`/${policy}.html`)
+  // Digital Asset Links dosyası SPA'ya düşmemeli: dosya yoksa gövde HTML değil 404 olmalı.
+  expect(resolveRootRoute('/.well-known/assetlinks.json')).toBeNull()
+  expect(resolveRootRoute('/.well-known/anything/else')).toBeNull()
   expect(resolveRootRoute('/sitemap.xml')).toBeNull()
   expect(resolveRootRoute('/robots.txt')).toBeNull()
 })
