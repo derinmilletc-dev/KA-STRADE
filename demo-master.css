@@ -49,8 +49,9 @@ html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demo
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] .demoTicket .demoTicketActions :is(.demoSubmit, .demoTest):disabled { opacity: .45 !important; }
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] .demoTicket .demoTicketFeedback.demoTicketFeedback { border-radius: 16px !important; border: 1px solid #16253a !important; background: #0d1726 !important; }
 
-/* Analiz: Master Analiz ekranının kendi üst çubuğu (logo, Canlı İşlem sekmeleri, canlı bağlantı) demoda gizli; üstte demo başlığı ve sekmeleri var. */
-html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute.demoMasterRoute.demoMasterRoute .masterReferenceAnalysis .refHeader.refHeader { display: none !important; }
+/* Analiz: Master Analiz ekranının kendi üst çubuğu (logo, Analiz / Demo İşlem sekmeleri, bağlantı rozeti) demoda da görünür; Master ile birebir aynı. Demo başlığı ve sekme şeridi yalnız diğer sekmelerde. */
+/* Bilgisayar düzeninde Analiz ekranı kendi üst çubuğunu taşır; demo başlığı ve sekme şeridi o zaman gizlenir (telefonda ve diğer sekmelerde kalır). */
+html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute:has(.masterReferenceAnalysis) .demoMasterPage.demoMasterPage { display: none !important; }
 
 /* Demo İşlem = Master Canlı İşlem: sayfada yalnız Rehber kokpiti; demo emir kartı "Manuel işlem aç" ile pencere olarak açılır. */
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck)[data-master-tab="canli"] > .v21TradeActivityPanel { display: none !important; }

@@ -40,6 +40,8 @@ type Props = {
   timeline: Array<{time: string; message: string}>; error: string; dataIssue: string;
   analysisUpdatedAt?: string | null;
   positions?: readonly LivePosition[]; accountCheckedAt?: string | null;
+  // Demo İşlem masasının Analiz ekranı: aynı görünüm, ama yalnız demo hesabı. Canlı durum/izin burada kullanılmaz.
+  demo?: boolean; demoConnected?: boolean | null;
 }
 type LivePosition = {symbol: string; position_side?: string; direction?: string; quantity?: number; entry_price?: number; mark_price?: number; unrealized_pnl?: number; leverage?: number | null; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number}
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
@@ -360,6 +362,7 @@ function placeIndicatorMenu(details: HTMLDetailsElement) {
 
 export default function MasterTradeReference(props: Props) {
   const {premium, ready, userId, openUpgrade} = useMemberAccess()
+  const demo = props.demo === true
   const [notice, setNotice] = useState('')
   const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
   const [downloading, setDownloading] = useState(false)
@@ -551,10 +554,10 @@ export default function MasterTradeReference(props: Props) {
   const triggerStatus = triggerPresentation(trigger.lifecycle, trigger.available)
   const explainLock = () => {if (!premium) openUpgrade('Auto Trade'); else setNotice(blocker === 'Engel yok.' ? 'Mevcut Canlı İşlem güvenlik ve onay akışını tamamlayın.' : blocker)}
   // LİMİT/PİYASA burada emir göndermez; kullanıcıyı emirlerin verildiği Canlı İşlem sekmesine götürür.
-  const orderTab = () => {if (!premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
+  const orderTab = () => {if (!demo && !premium) openUpgrade('Manuel emir'); else props.onNavigate('canli')}
   // "İşlem aç": emir göndermez; Canlı İşlem'deki aynı Manuel işlem panelini bu coinle açar.
   const launchManual = (options?: {mode?: 'grid'; pct?: number}) => {
-    if (!premium) { openUpgrade('Manuel emir'); return }
+    if (!demo && !premium) { openUpgrade('Manuel emir'); return }
     const symbolNow = props.symbol
     const direction = options?.mode === 'grid' ? (decision.direction === 'SHORT' ? 'SHORT' : 'LONG') : decision.direction
     const go = () => { requestManualTrade(symbolNow, direction, options); props.onNavigate('canli'); window.scrollTo(0, 0) }
@@ -568,12 +571,14 @@ export default function MasterTradeReference(props: Props) {
   const livePosition = (props.positions ?? []).find(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0) ?? null
   const reasons = available ? [...new Set([...decision.reasons, ...(decision.direction === 'LONG' ? decision.longCase : decision.direction === 'SHORT' ? decision.shortCase : [])])].slice(0, 4) : []
   const action = !available ? 'Analiz yok' : ['WAIT', 'WATCH', 'NO TRADE'].includes(decision.status) ? decision.status === 'NO TRADE' ? 'BEKLE / NO TRADE' : 'BEKLE' : decision.direction === 'LONG' ? (currentLang() === 'en' ? 'BUY' : 'AL') : decision.direction === 'SHORT' ? (currentLang() === 'en' ? 'SELL' : 'SAT') : 'BEKLE'
-  const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
+  const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: demo ? 'Demo İşlem' : 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
   return <section className="masterReferenceAnalysis" data-layout-tab="analiz">
     <header className="refHeader masterTradeTerminalHeader">
       <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span translate="no" data-i18n-skip>kais<b>trade</b></span></a>
       <nav role="tablist" aria-label="Master Trade sections">{tabs.map(({id, label, Icon}) => <button key={id} id={`masterTradeTab-${id}`} type="button" role="tab" aria-selected={id === 'analiz'} aria-controls={`masterTradePanel-${id}`} onClick={() => props.onNavigate(id)}><Icon/>{label}</button>)}</nav>
-      <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'BAĞLI' : 'BAĞLANTI YOK'}{locked && <><LockKeyhole/> KİLİTLİ</>}</span>
+      {demo
+        ? <span className="refConnection" data-connected={props.demoConnected === true}><i/>{props.demoConnected === null || props.demoConnected === undefined ? 'DEMO OKUNUYOR' : props.demoConnected ? 'DEMO BAĞLI' : 'DEMO BAĞLANTI YOK'}</span>
+        : <span className="refConnection" data-connected={live?.connected === true}><i/>{live?.connected ? 'BAĞLI' : 'BAĞLANTI YOK'}{locked && <><LockKeyhole/> KİLİTLİ</>}</span>}
       <div className="masterTradeProfileSlot" aria-label="Profil menüsü"/>{props.assistantSlotRef && <div className="assistantMasterSlot" ref={props.assistantSlotRef}/>}
     </header>
     <main className="refWorkspace masterAnalysis" role="tabpanel" aria-labelledby="masterTradeTab-analiz" id="masterTradePanel-analiz">
@@ -583,7 +588,7 @@ export default function MasterTradeReference(props: Props) {
         <article className="refCard"><small>SİNYAL / DURUM</small><UpdatedAgo at={props.analysisUpdatedAt}/><strong className="refSignal" data-tone={directionTone(decision.direction)}>{available ? trLabel(decision.status) : 'Analiz yok'}</strong><span>{trLabel(analysis?.trend)}</span></article>
         <article className="refCard"><small>MTF / YÖN</small><strong><b className="refPill" data-tone={directionTone(decision.direction)}>{available ? decision.direction : '—'}</b></strong><span>{decision.mtfScore === null ? '—' : `${decision.mtfConfirmed} / ${decision.mtfTotal} teyit`}</span></article>
         <article className="refCard"><small>GÜVEN</small><strong><b className="refPill">{numeric(decision.confidenceScore, '%')}</b></strong><span>{trLabel(decision.signalStrength)}</span></article>
-        <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{trLabel(decision.entryQuality)} · Hedef R/Ö; canlıda TP1'de %60, kalanı TP3'te.</span></article>
+        <article className="refCard"><small>RİSK / ÖDÜL</small><strong>{decision.riskReward === null ? '—' : `1 : ${numeric(decision.riskReward, '', 2)}`}</strong><span>{trLabel(decision.entryQuality)}{demo ? ' · Hedef R/Ö; işlem demo hesapta açılır.' : " · Hedef R/Ö; canlıda TP1'de %60, kalanı TP3'te."}</span></article>
       </section>
       <section className="refCenter">
         <section className="refCard refChart" data-fs={terminal ? 'on' : undefined}>
@@ -654,7 +659,9 @@ export default function MasterTradeReference(props: Props) {
           <PremiumBoundary label="Why this decision" compact><ul className="refReasons">{reasons.length ? reasons.map(reason => <li key={reason}>{/not |unavailable|missing|failed/i.test(reason) ? <X className="negative"/> : <Check className="positive"/>}<span>{trLabel(reason)}</span></li>) : <li>—</li>}</ul></PremiumBoundary>
           <div className="refTargets" data-locked={!premium}><h3>OLASI HEDEFLER</h3>{[['TP1', analysis?.tp1], ['TP2', analysis?.tp2], ['TP3', analysis?.tp3], ['Stop Loss', analysis?.stop_loss]].map(([label, value]) => <div key={label} className={label === 'Stop Loss' ? 'refStop' : ''}><span>{label}</span><strong aria-hidden={!premium}>{premium && typeof value === 'number' ? analysisPrice(value) : '—'}</strong></div>)}{!premium && <button type="button" disabled={!ready || !userId} onClick={() => openUpgrade('Giriş / SL / TP seviyeleri')} aria-label="Olası hedefler · Premium"><LockKeyhole/></button>}</div>
         </section>
-        <section className="refCard refAutoTrade" data-enabled={enabled}><header><Power/><h2>AUTO TRADE</h2><button type="button" role="switch" aria-label="Auto Trade" aria-checked={enabled} disabled={!gatesReady} className="refToggle" onClick={props.onAutoTrade}><span/></button>{!gatesReady && <button type="button" className="refLockInfo" aria-label="Auto Trade neden kilitli?" onClick={explainLock}><LockKeyhole/></button>}<button type="button" className="refAutoSettings" aria-label="Auto Trade ayarlarına git" onClick={props.onAutoTrade}><Settings2/></button></header><p>{autoStatus}</p><small>Ayrı güvenlik kapıları gerekir</small><button type="button" className="refAutoLink" onClick={props.onAutoTrade}>{autoTradePresentation('LIVE', live?.live_auto_trade).action}</button></section>
+        {demo
+          ? <section className="refCard refAutoTrade" data-enabled="false" data-demo="true"><header><Power/><h2>DEMO İŞLEM</h2><button type="button" className="refAutoSettings" aria-label="Demo İşlem sekmesine git" onClick={props.onAutoTrade}><Settings2/></button></header><p>Demo hesap · gerçek para yok</p><small>Emirler yalnız demo hesaba gider</small><button type="button" className="refAutoLink" onClick={props.onAutoTrade}>Demo İşlem'e git</button></section>
+          : <section className="refCard refAutoTrade" data-enabled={enabled}><header><Power/><h2>AUTO TRADE</h2><button type="button" role="switch" aria-label="Auto Trade" aria-checked={enabled} disabled={!gatesReady} className="refToggle" onClick={props.onAutoTrade}><span/></button>{!gatesReady && <button type="button" className="refLockInfo" aria-label="Auto Trade neden kilitli?" onClick={explainLock}><LockKeyhole/></button>}<button type="button" className="refAutoSettings" aria-label="Auto Trade ayarlarına git" onClick={props.onAutoTrade}><Settings2/></button></header><p>{autoStatus}</p><small>Ayrı güvenlik kapıları gerekir</small><button type="button" className="refAutoLink" onClick={props.onAutoTrade}>{autoTradePresentation('LIVE', live?.live_auto_trade).action}</button></section>}
         {notice && <div className="refNotice" role="status">{notice}<button type="button" aria-label="Bilgiyi kapat" onClick={() => setNotice('')}><X/></button></div>}
         <section className="refCard refTrigger" aria-label="Trigger monitor">
           <h2>TETİK İZLEYİCİ <span className="refSnapshotChip">{trigger.available ? 'CANLI GÖRÜNÜM' : '—'}</span></h2>

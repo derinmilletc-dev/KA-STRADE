@@ -1074,7 +1074,7 @@ export default function TestnetFirstApp() {
       <div className="v26Brand" role="button" tabIndex={0} aria-label="Ana sayfaya dön" onClick={() => navigate('dashboard')} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate('dashboard') } }}><span className="v26BrandLogo"><img src="/kaistrade-logo.png" alt="KaisTrade"/></span></div>
       <div className="v26HomeHeaderStatus" aria-label="Sistem durumu"><i className={connectionState === 'online' && health?.status === 'ok' ? 'ok' : connectionState === 'offline' ? 'error' : 'pending'}/>{connectionState === 'offline' ? 'BAĞLANTI BEKLENİYOR' : connectionState === 'checking' ? 'KONTROL EDİLİYOR' : 'ÇEVRİMİÇİ'}</div>
       <div className="v26HeaderActions">
-        <AssistantChat pageContext={view} onNavigate={navigate} launcherTarget={phoneLayout ? navAssistantHost : view === 'master-trade' && desktopHeader ? masterAssistantHost : undefined}/>
+        <AssistantChat pageContext={view} onNavigate={navigate} launcherTarget={phoneLayout ? navAssistantHost : (view === 'master-trade' || view === 'trading' && demoTab === 'analiz') && desktopHeader ? masterAssistantHost : undefined}/>
         <button className="v26Refresh" aria-label="Piyasa verisini yenile" title="Piyasa verisini yenile" onClick={refresh} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/></button>
         <div className="v26Notifications" ref={notificationRef}>
           <button className={`v26NotificationButton${unreadNotifications ? ' hasUnread' : ''}`} type="button" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(open => !open)}><Bell/>{unreadNotifications > 0 && <span className="v26NotificationBadge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>
@@ -1144,7 +1144,7 @@ export default function TestnetFirstApp() {
 
     {view === 'trading' && <>
       <DemoMasterShell tab={demoTab} onTab={setDemoTab} connected={demoConnected} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>
-      {demoTab === 'analiz' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Analiz hazırlanıyor…</div>}><MasterTrade embedDemo demoPositions={demoPositions} onDemoTab={setDemoTab}/></Suspense>}
+      {demoTab === 'analiz' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Analiz hazırlanıyor…</div>}><MasterTrade embedDemo demoPositions={demoPositions} demoConnected={demoConnected} onDemoTab={setDemoTab} assistantSlotRef={setMasterAssistantHost}/></Suspense>}
       <section className="v26MarketBar">
         <div className="v26MarketTitle"><Activity/><span><small>SEÇİLİ TESTNET PAZARI</small><b>{symbol.replace('USDT','/USDT')}</b></span><strong className={analysis?.direction === 'SHORT' ? 'short' : analysis?.direction === 'LONG' ? 'long' : ''}>{analysis?.direction || (analysisProgress < 0 ? 'ANALİZ HATASI' : 'HESAPLANIYOR')} <em>{analysis ? `%${analysis.confidence}` : analysisProgress < 0 ? 'TEKRAR DENEYİN' : analysisProgress > 0 ? `%${analysisProgress}` : 'BAŞLATILIYOR'}</em></strong></div>
         <div className="v26MarketPicker" ref={marketPickerRef}>
