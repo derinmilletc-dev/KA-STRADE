@@ -9,7 +9,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
   color: #fbbf24 !important;
 }
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::before { background: #fbbf24 !important; animation: none !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::after { content: "Demo" !important; color: #fbbf24 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::after { content: none !important; }
 /* Demo hesap bağlı değilse bağlantı hücresi kırmızımsı. */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child { color: #fca5a5 !important; }
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child i { background: #f87171 !important; animation: none !important; }
@@ -64,3 +64,6 @@ html body #root > main.v26App .demoMasterCockpit .demoTicketClose svg { width: 2
 /* Demo başlık şeridi yalnız kendi yüksekliği kadar yer kaplar (Master sayfa kabının tam ekran yüksekliği burada boşluk açıyordu). */
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage { min-height: 0 !important; height: auto !important; }
 html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage > .masterTradeShell.masterTradeShell.masterTradeShell:not(#demo-shell-x1):not(#demo-shell-x2) { min-height: 0 !important; height: auto !important; }
+/* Demo İşlem sekmeleri ile içerik arası Master Canlı İşlem'deki kadar (fazladan alt boşluk ve üst pay yok). */
+html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage > .masterTradeShell.masterTradeShell.masterTradeShell:not(#demo-shell-x1):not(#demo-shell-x2):not(#demo-shell-x3) { padding-bottom: 0 !important; }
+html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck):not(#demo-deck-x1):not(#demo-deck-x2) { margin-top: 0 !important; }
