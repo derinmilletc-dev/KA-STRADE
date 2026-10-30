@@ -1118,3 +1118,111 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizHead em{
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRk .lcRkList .lcRkMeta{grid-column:1 / -1}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRk .lcRkList .lcRkAmt{grid-row:1}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcRk .lcRkPhrase input{box-sizing:border-box!important;max-width:100%!important}
+
+/* ===== Pozisyonlar (PositionsCard) — taşma/üst üste binme olmaması için container query ile ===== */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvInner{container-type:inline-size;container-name:pv;display:grid;gap:14px;min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot :is(.pvTools,.pvSum,.pvCards,.pvCard,.pvDetail,.pvHead,.pvId,.pvPnl,.pvMini,.pvVs,.pvProt,.pvIns,.pvActs,.pvLadder,.pvTile,.pvTable,.pvRow){min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSeg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:var(--lc-soft);max-width:100%}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSeg button{min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--lc-mute);font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSeg button[aria-pressed="true"]{background:var(--lc-raised);color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSeg button:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle:focus-visible,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvClose:focus-visible{outline:2px solid var(--lc-go);outline-offset:2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvViewSeg{display:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTile{display:grid;gap:3px;align-content:start;padding:12px;border-radius:14px;background:var(--lc-soft)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTile small{font-size:11.5px;line-height:1.3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTile b{font-size:15px;line-height:1.25;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTile em{font-style:normal;font-size:11.5px;line-height:1.35;color:var(--lc-mute);overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvBar{display:block;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:3px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvBar i{display:block;height:100%;border-radius:99px;background:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvBar[data-high] i{background:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot [data-tone="up"]{color:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot [data-tone="down"]{color:var(--lc-bad)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot [data-tone="warn"]{color:var(--lc-warn)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot [data-tone="info"]{color:var(--lc-info)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCards{display:grid;gap:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard{display:grid;gap:10px;padding:14px;border-radius:16px;background:var(--lc-raised);border-left:3px solid var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-level="warn"]{border-left-color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-level="danger"]{border-left-color:var(--lc-bad);background:rgba(255,132,121,.07)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-external]{border-left-color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvId{display:flex;gap:10px;align-items:center;min-width:0;flex:1 1 170px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvId>div{min-width:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvId>div>b{display:block;font-size:16px;line-height:1.2}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCoin{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--lc-soft);font-size:11px;font-weight:800;letter-spacing:.02em;overflow:hidden}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvChips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvChip{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--lc-soft);color:var(--lc-mute);font-size:11px;font-weight:700;line-height:1.5;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvChip[data-dir="LONG"]{background:rgba(61,220,151,.14);color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvChip[data-dir="SHORT"]{background:rgba(255,132,121,.14);color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvChip[data-kind="manual"]{background:rgba(124,184,255,.14);color:var(--lc-info)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPnl{display:grid;gap:2px;text-align:right;justify-items:end;flex:0 1 auto;max-width:100%}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPnl b{font-size:17px;line-height:1.2;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPnl small{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0 6px;font-size:11.5px;line-height:1.3;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPnl small span+span::before{content:"· ";}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvLadder{position:relative;height:calc(var(--rows) * 34px + 46px);margin:2px 0 0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTrack{position:absolute;left:0;right:0;top:calc(var(--rows) * 34px + 6px);height:6px;border-radius:99px;background:linear-gradient(90deg,var(--lc-bad) 0,var(--lc-bad) var(--e),var(--lc-go) var(--e),var(--lc-go) 100%);opacity:.55}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTrack[data-rev]{background:linear-gradient(90deg,var(--lc-go) 0,var(--lc-go) var(--e),var(--lc-bad) var(--e),var(--lc-bad) 100%)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk{position:absolute;transform:translateX(-50%);display:grid;gap:0;justify-items:center;text-align:center;white-space:nowrap;line-height:1.25}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk[data-row="0"]{top:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk[data-row="1"]{top:34px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk small{font-size:10px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk b{font-size:11.5px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk[data-key="stop"] b{color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMk[data-key^="tp"] b{color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDot{position:absolute;top:calc(var(--rows) * 34px + 2px);width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--lc-ink);border:3px solid var(--lc-card);box-sizing:border-box;box-shadow:0 0 0 2px var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDot[data-level="warn"]{box-shadow:0 0 0 2px var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDot[data-level="danger"]{box-shadow:0 0 0 2px var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvNow{top:calc(var(--rows) * 34px + 22px)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvNow b{color:var(--lc-ink)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMini{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvMini b{color:var(--lc-ink)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvFlag{display:inline-block;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--lc-mute);font-size:11.5px;font-weight:700;line-height:1.5}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvFlag[data-ok]{background:rgba(61,220,151,.12);color:var(--lc-go)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;width:100%;border:0;border-radius:12px;background:var(--lc-soft);color:var(--lc-ink);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle svg{width:16px;height:16px;transition:transform .15s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-open] .pvToggle svg{transform:rotate(180deg)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail{display:none;gap:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCard[data-open] .pvDetail{display:grid}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs>div{display:grid;gap:2px;align-content:start;padding:8px 10px;border-radius:10px;background:var(--lc-soft)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs small{font-size:11px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs b{font-size:13px;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvProt{display:flex;flex-wrap:wrap;gap:6px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIns{display:grid;gap:6px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIns p,#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvNote{margin:0;padding:8px 10px;border-radius:10px;background:var(--lc-soft);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvNote{color:var(--lc-mute)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvActs{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvActs .lcBtn{width:100%;min-height:44px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPct{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPct .lcBtn{padding:0 8px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvClose{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;border:0;border-radius:14px;background:rgba(255,132,121,.14);color:var(--lc-bad);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvClose svg{width:17px;height:17px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvClose:disabled{opacity:.45;cursor:not-allowed}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTable{display:none}
+@container pv (min-width:420px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@container pv (min-width:640px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSum{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvVs{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvActs{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvActs:has(> .pvClose:only-child){grid-template-columns:minmax(0,260px)}
+}
+@container pv (min-width:720px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvViewSeg{display:inline-flex}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot[data-view="table"] .pvCards{display:none}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot[data-view="table"] .pvTable{display:grid;gap:2px}
+}
+@container pv (min-width:900px){
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvCards{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,.8fr) minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.2fr) minmax(0,.9fr);gap:8px;align-items:center;padding:10px 12px;border-radius:10px;font-size:13px;border-left:3px solid transparent}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow>:nth-child(3){white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow:not(.pvRowHead){background:var(--lc-raised)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow[data-level="warn"]{border-left-color:var(--lc-warn)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRow[data-level="danger"]{border-left-color:var(--lc-bad)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRowHead{color:var(--lc-mute);font-size:11px;font-weight:800;letter-spacing:.06em}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTableNote{margin:6px 0 0;color:var(--lc-mute);font-size:12px}
+@media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle svg{transition:none}}
