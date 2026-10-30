@@ -28,4 +28,8 @@ assert.strictEqual(suggestVolatilityStop([], 100, 'LONG'), null)
 // Son (oluşan) mum hesaba katılmaz
 const spike = [...flat.slice(0, -1), {high: 150, low: 50, close: 100}]
 assert.deepStrictEqual(suggestVolatilityStop(spike, 100, 'LONG'), suggestVolatilityStop(flat, 100, 'LONG'))
+// Çok sakin coin: ATR çok küçük → en az %0,6
+const calm = Array.from({length: 30}, () => ({high: 100.01, low: 99.99, close: 100}))
+s = suggestVolatilityStop(calm, 100, 'LONG')!
+assert.ok(Math.abs(s.distancePct - 0.6) < 1e-9 && s.basis === 'pct_min')
 console.log('volatility-stop ok')

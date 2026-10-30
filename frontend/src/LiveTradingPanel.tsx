@@ -1273,7 +1273,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         setLevelsFromAnalysis(false)
         setOrder(current => current.symbol !== symbolNow || current.direction !== directionNow ? current : {...current,
           stop_loss: presetPrice(result.stop), tp1: presetPrice(entryNow + sgn * riskDistance), tp2: presetPrice(entryNow + sgn * riskDistance * 2), tp3: presetPrice(entryNow + sgn * riskDistance * 3)})
-        setVolStopNote({symbol: symbolNow, tone: 'ok', text: `Stop girişten %${pct(result.distancePct)} uzakta. Bu coin 15 dakikada ortalama %${pct(result.atrPct)} oynuyor; stop bu hareketin yaklaşık ${(riskDistance / result.atr).toFixed(1).replace('.', ',')} katı uzakta, küçük dalgalanmada tetiklenmez. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.`})
+        setVolStopNote({symbol: symbolNow, tone: 'ok', text: `Stop girişten %${pct(result.distancePct)} uzakta. Bu coin 15 dakikada ortalama %${pct(result.atrPct)} oynuyor; stop bu hareketin yaklaşık ${(riskDistance / result.atr).toFixed(1).replace('.', ',')} katı uzakta; küçük dalgalanmayla tetiklenme ihtimali azalır. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.`})
       } catch {
         setVolStopNote({symbol: symbolNow, text: 'Mum verisi alınamadı; tekrar dene veya stopu elle gir.', tone: 'warn'})
       } finally {
