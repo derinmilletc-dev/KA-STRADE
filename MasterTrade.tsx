@@ -178,7 +178,7 @@ const navigateTab = (tab: MasterTradeTab) => {
 }
 // embedDemo: Demo İşlem Masası'nın Analiz sekmesinde aynı Analiz ekranı. Yalnız herkese açık piyasa verisi okunur;
 // canlı hesap/durum sorguları, canlı risk önizlemesi ve canlı işlem paneli hiç çalışmaz. Pozisyonlar demo hesabından gelir.
-export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = false, demoPositions, onDemoTab }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement>; embedDemo?: boolean; demoPositions?: readonly unknown[]; onDemoTab?: (tab: MasterTradeTab) => void }) {
+export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = false, demoPositions, demoConnected, onDemoTab }: { onBack?: () => void; assistantSlotRef?: RefCallback<HTMLDivElement>; embedDemo?: boolean; demoPositions?: readonly unknown[]; demoConnected?: boolean | null; onDemoTab?: (tab: MasterTradeTab) => void }) {
   const {premium, owner, userId} = useMemberAccess()
   const urlTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
   const layoutTab: MasterTradeTab = embedDemo ? 'analiz' : urlTab
@@ -847,7 +847,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
     chart={() => reactionArea.current?.querySelector<SVGSVGElement>(
       referenceAnalysis ? 'svg[data-chart-ai-capture="reference"]' : 'svg[data-chart-ai-capture="legacy"]',
     ) ?? null}/> : null
-  const referenceContent = referenceAnalysis ? <MasterTradeReference assistantSlotRef={assistantSlotRef}
+  const referenceContent = referenceAnalysis ? <MasterTradeReference assistantSlotRef={assistantSlotRef} demo={embedDemo} demoConnected={demoConnected}
       chartAiControl={chartAiControl}
       symbol={draft.market} interval={interval} query={marketQuery} onQuery={setMarketQuery}
       scores={scannerCandidates.map(candidate => ({symbol: candidate.symbol, direction: candidate.direction, score: candidate.final_decision_score}))}
