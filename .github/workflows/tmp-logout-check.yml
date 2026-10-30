@@ -29,7 +29,22 @@ jobs:
       - name: Install
         working-directory: backend
         run: pip install -r requirements-dev.txt
-      - name: pytest
+      - name: pytest (PR) + pytest (main)
         working-directory: backend
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          python -m pytest tests/test_v25_live_guard.py tests/test_google_oauth.py tests/test_account_settings.py tests/test_v22_commercial.py -q -rfE --tb=short -p no:cacheprovider
+          set +e
+          T="tests/test_v25_live_guard.py tests/test_google_oauth.py tests/test_account_settings.py tests/test_v22_commercial.py"
+          python -m pytest $T -q -rfE --tb=line -p no:cacheprovider > /tmp/pr.txt 2>&1; PR=$?
+          cd .. && git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" fetch -q --depth=1 "https://github.com/$REPO" main && git checkout -q FETCH_HEAD && cd backend
+          python -m pytest $T -q -rfE --tb=line -p no:cacheprovider > /tmp/main.txt 2>&1
+          grep -E "^(FAILED|ERROR)" /tmp/pr.txt | sort > /tmp/prf.txt; grep -E "^(FAILED|ERROR)" /tmp/main.txt | sort > /tmp/mainf.txt
+          echo "::warning::PR summary: $(tail -1 /tmp/pr.txt)"
+          echo "::warning::MAIN summary: $(tail -1 /tmp/main.txt)"
+          comm -23 /tmp/prf.txt /tmp/mainf.txt | head -20 | while read -r l; do echo "::error::NEW ${l:0:900}"; done
+          comm -13 /tmp/prf.txt /tmp/mainf.txt | head -10 | while read -r l; do echo "::notice::FIXED ${l:0:300}"; done
+          comm -12 /tmp/prf.txt /tmp/mainf.txt | head -10 | while read -r l; do echo "::notice::BOTH ${l:0:300}"; done
+          test -z "$(comm -23 /tmp/prf.txt /tmp/mainf.txt)"
