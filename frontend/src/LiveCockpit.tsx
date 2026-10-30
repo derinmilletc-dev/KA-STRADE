@@ -3,12 +3,14 @@ import './copy-phrase.css'
 import {Bell, Check, ChevronDown, ChevronRight, Clock, Coins, FileCheck, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
-  GUIDE_STEPS, RISK_PRESETS, shadowNote, dailySummary, duration, liveGuide, matchPreset, positionNote, retryDelay, riskSummary,
+  GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, retryDelay, riskSummary,
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
+import PositionsCard, {type SmartPositionItem} from './PositionsCard'
+import type {RawRecord} from './position-view'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
@@ -592,7 +594,7 @@ export default function LiveCockpit(props: Props) {
     setEditLevels({stop: target.stop, tp1: target.targets[0], tp2: target.targets[1], tp3: target.targets[2]})
     setSheet('edit-protection')
   }
-  const askReduce = (target: ManualTarget) => { setSheetError(''); setManualTarget(target); setReducePct(50); setSheet('reduce-position') }
+  const askReduce = (target: ManualTarget, percent: 25 | 50 | 75 = 50) => { setSheetError(''); setManualTarget(target); setReducePct(percent); setSheet('reduce-position') }
   const changedLevel = (value: string, original: string) => {
     const next = Number(value.replace(',', '.')), before = Number(original)
     return Number.isFinite(next) && next > 0 && next !== before ? next : undefined
@@ -649,6 +651,7 @@ export default function LiveCockpit(props: Props) {
   // ---- Kendiliğinden düzelme: yalnız durum okuması, artan aralıklarla.
   const [retry, setRetry] = useState({attempt: 0, at: 0})
   const [now, setNow] = useState(() => Date.now())
+  const findPlanRaw = useCallback((position: RawRecord) => findPlan(position) as RawRecord | undefined, [findPlan])
   // Kais Koç sayacı (telefon): halkaya dokununca 'sonraki tarama' ile 'oturum' arasında geçer.
   const [koView, setKoView] = useState<'scan' | 'session'>('scan')
   const sessionTotal = useRef(0)
@@ -1923,49 +1926,10 @@ export default function LiveCockpit(props: Props) {
             </div></details>}
         </section>}
 
-        <section className="lcCard" aria-label="Açık pozisyonlar">
-          <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>Açık pozisyonlar{live ? ` · ${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : ''}</h3></div><small>{live ? stale ? `${duration(staleAge)} önce` : 'Binance verisi' : 'Doğrulama bekleniyor'}</small></header>
-          {positions.length === 0 ? <p className="lcEmpty">{live ? running ? 'Şu an açık pozisyon yok. Uygun fırsat çıkınca stop ve hedefleriyle burada görünür.' : 'Açık pozisyon yok.' : 'Güncel pozisyonlar doğrulanamadı.'}</p>
-            : <div className="lcPositions">{positions.map((position, index) => {
-              const plan = findPlan(position)
-              const external = !plan || plan.provenance_state === 'READ_ONLY_EXTERNAL' || plan.source === 'READ_ONLY_EXTERNAL'
-              const protection = !external && plan?.provenance_state === 'CONFIRMED' ? plan.exchange_protection : undefined
-              const note = external ? null : positionNote(position, plan as Parameters<typeof positionNote>[1], now)
-              const pnl = finite(position.unrealized_pnl)
-              // Yalnız sahipliği doğrulanmış bot pozisyonu kapatılabilir (sunucu da aynısını ister); dış pozisyona dokunulmaz.
-              const planId = plan && typeof plan.id === 'string' ? plan.id : ''
-              const closable = !external && plan?.provenance_state === 'CONFIRMED' && planId.length >= 6 && live
-              const flag = (ok: boolean | undefined) => <i data-ok={ok === true || undefined}>{ok === true ? 'Binance’te ✓' : 'doğrulanamadı'}</i>
-              return <article className="lcPosition" key={`${String(position.symbol)}-${index}`}>
-                <header><b>{String(position.symbol || '—').replace('USDT', '')}<span data-dir={String(position.direction || '').toUpperCase()}>{String(position.direction || '—')}</span></b>
-                  <strong data-sign={pnl === null ? undefined : pnl < 0 ? 'down' : 'up'}>{usdt(pnl, true)}</strong></header>
-                <div className="lcLevels">
-                  <span><small>Giriş</small><b>{String(position.entry_price ?? '—')}</b></span>
-                  <span><small>Fiyat</small><b>{String(position.mark_price ?? '—')}</b></span>
-                  <span><small>Stop</small><b>{String(plan?.stop_loss ?? '—')}</b>{!external && flag(protection?.stop)}</span>
-                  <span><small>TP1 (%{tp1Percent(plan)})</small><b>{String(plan?.targets?.[0] ?? '—')}</b>{!external && flag(protection?.tp1)}</span>
-                  {plan?.source === 'MANUAL' && <span><small>TP2 (%{tp2Percent(plan)})</small><b>{String(plan?.targets?.[1] ?? '—')}</b>{!external && flag(protection?.tp2)}</span>}
-                  <span><small>TP3</small><b>{String(plan?.targets?.[2] ?? '—')}</b>{!external && flag(protection?.tp3)}</span>
-                </div>
-                {note && <p className="lcNote" data-tone={note.tone}>{note.text}</p>}
-                {!external && (() => { const text = shadowNote((plan as {exit_shadow?: unknown} | undefined)?.exit_shadow); return text && <p className="lcNote lcShadowNote" data-tone="wait">{text}</p> })()}
-                {closable && plan?.source === 'MANUAL' && (() => {
-                  const levels = Array.isArray(plan?.targets) ? plan.targets.map(value => String(value ?? '')) : []
-                  const manual: ManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
-                    stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: String(position.mark_price ?? '—')}
-                  return <div className="lcPosManual">
-                    <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => askEditProtection(manual)}>Stop / hedef değiştir</button>
-                    <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => askReduce(manual)}>Kısmi kapat</button>
-                  </div>
-                })()}
-                {closable && <button type="button" className="lcPosClose" disabled={busy}
-                  onClick={() => askClosePosition({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl})}>
-                  <X aria-hidden="true"/>Pozisyonu kapat</button>}
-                {external && <p className="lcNote" data-tone="mute">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
-                {!external && plan?.provenance_state !== 'CONFIRMED' && <p className="lcNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
-              </article>
-            })}</div>}
-        </section>
+        <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
+          findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
+          wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
+          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce}/>
         {original && !coach && strategyCard}
       </div>
 
