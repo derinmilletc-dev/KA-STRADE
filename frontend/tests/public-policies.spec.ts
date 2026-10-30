@@ -79,7 +79,7 @@ test('home page publishes complete KaisTrade metadata before JavaScript in both 
   }
 })
 
-for (const policy of ['privacy', 'terms', 'risk'] as const) {
+for (const policy of ['privacy', 'terms', 'risk', 'hesap-silme'] as const) {
   test(`${policy} is public in both entry points and the production build without auth requests`, async ({page,request}) => {
     await page.route('https://**', route => route.abort())
     await page.routeWebSocket('**/*', socket => socket.close())

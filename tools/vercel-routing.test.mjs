@@ -47,7 +47,7 @@ for (const [name, config] of Object.entries(deployments)) {
 
 test('root config keeps API/OAuth routing and the SEO exclusions', () => {
   const root = deployments['vercel.json']
-  assert.equal(resolve(root, '/api/v22/auth/google/callback'), 'https://protrebot-rkpt.onrender.com/api/v22/auth/google/callback')
+  assert.equal(resolve(root, '/api/v22/auth/google/callback'), 'https://api.kaistrade.com/api/v22/auth/google/callback')
   for (const path of ['/sitemap.xml', '/robots.txt', '/sw.js']) assert.equal(resolve(root, path), null, path)
 })
 
