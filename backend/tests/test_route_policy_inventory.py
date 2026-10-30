@@ -45,6 +45,7 @@ MOD_ROUTES = {
     ("POST", "/api/mod/support/cases/{case_id}/status"): "support.manage",
     ("POST", "/api/mod/support/cases/{case_id}/notes"): "support.manage",
     ("POST", "/api/mod/support/cases/{case_id}/reply"): "support.manage",
+    ("GET", "/api/mod/support/cases/{case_id}/attachments/{attachment_id}"): "support.view",
     ("POST", "/api/mod/approvals"): "approvals.create",
     ("GET", "/api/mod/approvals"): "approvals.create",
     ("POST", "/api/mod/approvals/{approval_id}/cancel"): "approvals.create",

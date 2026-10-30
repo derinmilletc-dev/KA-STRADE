@@ -7,7 +7,8 @@ import {SupportIcon} from './MenuIcons'
 import './support-card.css'
 
 type Attachment = {id: string; name: string; type: string; size: number}
-type Ticket = {id: string; subject: string; message: string; status: string; created_at: string; response_note?: string; attachments?: Attachment[]}
+type ThreadMessage = {id: string; author: 'CUSTOMER' | 'STAFF'; body: string; created_at: string | null}
+type Ticket = {id: string; subject: string; message: string; status: string; created_at: string; response_note?: string; attachments?: Attachment[]; thread?: ThreadMessage[]; unread_replies?: number}
 type Home = {support_tickets?: Ticket[]}
 
 const TOPICS = [
@@ -31,6 +32,10 @@ export default function SupportCard() {
   const [drag, setDrag] = useState(false)
   const [fileError, setFileError] = useState('')
   const [warn, setWarn] = useState('')
+  const [replies, setReplies] = useState<Record<string, string>>({})
+  const [replyBusy, setReplyBusy] = useState<string | null>(null)
+  const [replyError, setReplyError] = useState<{id: string; text: string} | null>(null)
+  const autoOpened = useRef(false)
   const input = useRef<HTMLInputElement>(null)
   const filesRef = useRef<Picked[]>([])
   filesRef.current = files
@@ -72,7 +77,11 @@ export default function SupportCard() {
   const load = useCallback(async () => {
     try {
       const home = await accountRequest<Home>('/commerce/customer-home')
-      setTickets(home.support_tickets || [])
+      const list = home.support_tickets || []
+      setTickets(list)
+      // Bildirim veya e-postadan gelindiyse yeni yanıtı olan talep kendiliğinden açılır.
+      const fresh = list.find(item => (item.unread_replies ?? 0) > 0)
+      if (!autoOpened.current && fresh) { autoOpened.current = true; void openTicket(fresh) }
     } catch { setTickets([]) }
   }, [])
   useEffect(() => { void load() }, [load])
@@ -105,11 +114,31 @@ export default function SupportCard() {
       setError(e instanceof Error ? e.message : 'Talep gönderilemedi, tekrar dene.')
     } finally { setBusy(false) }
   }
+  const threadOf = (item: Ticket): ThreadMessage[] => item.thread
+    ?? (item.response_note ? [{id: `legacy-${item.id}`, author: 'STAFF', body: item.response_note, created_at: null}] : [])
+  async function openTicket(item: Ticket) {
+    setOpen(item.id)
+    if ((item.unread_replies ?? 0) === 0) return
+    setTickets(current => current?.map(row => row.id === item.id ? {...row, unread_replies: 0} : row) ?? current)
+    try { await accountRequest(`/commerce/support/${item.id}/read`, {method: 'POST'}) } catch { /* okundu bilgisi bir sonraki açılışta yeniden denenir */ }
+  }
+  const sendReply = async (item: Ticket) => {
+    const text = (replies[item.id] || '').trim()
+    if (text.length < 2) return
+    setReplyBusy(item.id); setReplyError(null)
+    try {
+      const updated = await accountRequest<Ticket>(`/commerce/support/${item.id}/messages`, {method: 'POST', body: JSON.stringify({body: text})})
+      setTickets(current => current?.map(row => row.id === item.id ? {...row, ...updated} : row) ?? current)
+      setReplies(current => ({...current, [item.id]: ''}))
+    } catch (e) {
+      setReplyError({id: item.id, text: e instanceof Error && e.message ? e.message : 'Mesaj gönderilemedi, tekrar dene.'})
+    } finally { setReplyBusy(null) }
+  }
   const ready = message.trim().length >= 5
   return <section className="accountCard" id="support-card">
     <div className="spHead">
       <span className="spBadge"><SupportIcon aria-hidden="true"/></span>
-      <div><h2>Destek</h2><p>Destek ekibimiz sana buradan dönüş yapar.</p></div>
+      <div><h2>Destek</h2><p>Yanıtımız burada, e-postanda ve bildirimlerinde görünür.</p></div>
     </div>
     {done ? <div className="spDone" role="status"><span><Check aria-hidden="true"/></span><b>Talebin alındı</b><small>{warn ? `Talebin kaydedildi ancak dosyalar eklenemedi: ${warn}` : 'En kısa sürede dönüş yapacağız.'}</small></div> : <>
       <div className="spTopics" role="radiogroup" aria-label="Konu">
@@ -143,17 +172,32 @@ export default function SupportCard() {
       <h3>Taleplerim</h3>
       {tickets.map(item => {
         const isOpen = open === item.id
-        return <article key={item.id} className={`spItem${isOpen ? ' open' : ''}`} data-status={item.status}>
-          <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : item.id)}>
+        const thread = threadOf(item)
+        const answered = thread.some(row => row.author === 'STAFF')
+        const unread = item.unread_replies ?? 0
+        return <article key={item.id} className={`spItem${isOpen ? ' open' : ''}`} data-status={item.status} data-unread={unread > 0 || undefined}>
+          <button type="button" aria-expanded={isOpen} onClick={() => isOpen ? setOpen(null) : void openTicket(item)}>
             <i aria-hidden="true"/>
             <span><b>{item.subject}</b><small>{accountDate(item.created_at)}</small></span>
-            <em>{STATUS[item.status] || item.status}</em>
+            <em>{unread > 0 ? 'Yeni yanıt' : STATUS[item.status] || item.status}</em>
             <ChevronDown aria-hidden="true"/>
           </button>
           <div className="spBody"><div>
-            <p>{item.message}</p>
+            <ol className="spThread" aria-label="Yazışma">
+              <li data-author="CUSTOMER"><small>{`Sen · ${accountDate(item.created_at)}`}</small><p>{item.message}</p></li>
+              {thread.map(row => <li key={row.id} data-author={row.author}>
+                <small>{row.author === 'STAFF' ? (row.created_at ? `Destek ekibi · ${accountDate(row.created_at)}` : 'Destek ekibi') : `Sen · ${row.created_at ? accountDate(row.created_at) : ''}`}</small>
+                <p>{row.body}</p>
+              </li>)}
+            </ol>
             {item.attachments && item.attachments.length > 0 && <ul className="spAttached">{item.attachments.map(file => <li key={file.id}><FileText aria-hidden="true"/><span><b>{file.name}</b><small>{formatSize(file.size)}</small></span><button type="button" aria-label={`${file.name} dosyasını indir`} onClick={() => void download(item.id, file)}><Download aria-hidden="true"/>İndir</button></li>)}</ul>}
-            {item.response_note ? <div className="spReply"><b>Destek ekibi</b><p>{item.response_note}</p></div> : <small className="spWait">Yanıt bekleniyor</small>}
+            {!answered && <small className="spWait">Yanıt bekleniyor · yanıt gelince e-posta ve bildirim alacaksın</small>}
+            <div className="spAnswer">
+              <textarea value={replies[item.id] || ''} maxLength={2000} rows={2} aria-label="Bu talebe yaz" placeholder={item.status === 'RESOLVED' || item.status === 'CLOSED' ? 'Sorun devam ediyorsa yaz, talep yeniden açılır…' : 'Bu talebe ek bilgi yaz…'}
+                onChange={e => setReplies(current => ({...current, [item.id]: e.target.value}))}/>
+              <button type="button" className="spSend" disabled={replyBusy === item.id || (replies[item.id] || '').trim().length < 2} onClick={() => void sendReply(item)}><Send aria-hidden="true"/>{replyBusy === item.id ? 'Gönderiliyor' : 'Gönder'}</button>
+            </div>
+            {replyError?.id === item.id && <p className="spError" role="alert">{replyError.text}</p>}
           </div></div>
         </article>
       })}

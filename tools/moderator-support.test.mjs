@@ -15,7 +15,7 @@ const detail = {
   id: 'case-id', user_id: 'customer-id', subject: 'Destek talebi', message: '<script>alert(1)</script>',
   priority: 'HIGH', case_status: 'OPEN', assignee_user_id: null, version: 1, assigned_to_me: false,
   created_at: '2026-10-10T10:00:00+00:00', legacy_status: 'OPEN', legacy_response_note: '',
-  customer: profile, notes: [],
+  customer: profile, notes: [], thread: [], attachments: [],
 }
 const props = {detail, manage: false, busy: false, note: '', status: 'OPEN', onNoteChange: () => {}, onStatusChange: () => {},
   onTake: () => {}, onRelease: () => {}, onSaveStatus: () => {}, onAddNote: () => {}}
@@ -82,4 +82,23 @@ test('Filter query has bounded pagination and exact state/assignment fields', ()
   assert.equal(query.get('limit'), '25')
   assert.equal(query.get('status'), 'WAITING')
   assert.equal(query.has('priority'), false)
+})
+
+test('Conversation shows customer and team messages as escaped text; old note becomes a team message', () => {
+  const thread = [{id: 'm1', author: 'STAFF', body: '<b>Kontrol ettik</b>', created_at: '2026-10-11T10:00:00+00:00'},
+    {id: 'm2', author: 'CUSTOMER', body: 'Hâlâ olmuyor', created_at: null}]
+  const html = render(SupportDetailCards, {...props, detail: {...detail, thread}})
+  assert.match(html, /Yazışma/)
+  assert.match(html, /data-author="STAFF"[^>]*>.*&lt;b&gt;Kontrol ettik&lt;\/b&gt;/s)
+  assert.match(html, /Hâlâ olmuyor/)
+  assert.doesNotMatch(html, /Eski sistemdeki cevap notu/)
+  const legacy = render(SupportDetailCards, {...props, detail: {...detail, legacy_response_note: 'Eski yanıt'}})
+  assert.match(legacy, /Destek ekibi.*Eski yanıt/s)
+  const parsed = model.parseSupportDetail({...detail, thread, attachments: [{id: 'f1', name: 'a.png', type: 'image/png', size: 10}]})
+  assert.equal(parsed.thread[1].created_at, null)
+  assert.equal(parsed.attachments[0].name, 'a.png')
+  assert.throws(() => model.parseSupportDetail({...detail, thread: [{...thread[0], author: 'OWNER'}]}))
+  const withFiles = render(SupportDetailCards, {...props, detail: {...detail, attachments: [{id: 'f1', name: 'ekran.png', type: 'image/png', size: 2048}]}, onLoadAttachment: async () => new Blob()})
+  assert.match(withFiles, /ekran\.png/)
+  assert.match(withFiles, /Görüntüle/)
 })

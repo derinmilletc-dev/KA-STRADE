@@ -265,7 +265,7 @@ def send_auth_email(*, to_email: str, display_name: str, subject: str, title: st
 
 
 def send_email_message(*, to_email: str, subject: str, text: str, html: str,
-                       idempotency_key: str | None = None) -> None:
+                       idempotency_key: str | None = None, idempotency_prefix: str = "chart-ai-") -> None:
     selected = provider()
     try:
         validate_configuration()
@@ -281,7 +281,7 @@ def send_email_message(*, to_email: str, subject: str, text: str, html: str,
                     "User-Agent": "KaisTrade-Transactional-Mail/1.0",
                 }
                 if idempotency_key:
-                    headers["Idempotency-Key"] = "chart-ai-" + hashlib.sha256(
+                    headers["Idempotency-Key"] = idempotency_prefix + hashlib.sha256(
                         idempotency_key.encode("utf-8"),
                     ).hexdigest()
                 response = client.post("https://api.resend.com/emails", json=payload, headers=headers)
@@ -345,3 +345,42 @@ def send_chart_ai_budget_warning_email(*, to_email: str, month: str,
         raise ValueError("Chart AI notification idempotency key is required")
     send_email_message(to_email=to_email, subject=subject, text=text, html=html,
                        idempotency_key=idempotency_key)
+
+
+SUPPORT_REPLY_PATH = "/support"
+
+
+def support_reply_content(*, ticket_subject: str, reply: str) -> tuple[str, str, str]:
+    """Destek yanıtı e-postası: konu, düz metin ve HTML. Yanıt metni olduğu gibi (kaçışlı) iletilir."""
+    base = validate_app_base_url()
+    link = base + SUPPORT_REPLY_PATH
+    validate_action_url(link)
+    topic = " ".join(str(ticket_subject or "").split())[:160]
+    body = str(reply or "").strip()[:1000]
+    if not body:
+        raise ValueError("Support reply body is required")
+    subject = "KaisTrade · Destek talebine yanıt geldi"
+    text = (f"KaisTrade\n\nDestek ekibi talebine yanıt verdi.\n\nTalep: {topic}\n\n{body}\n\n"
+            f"Yazışmanın tamamını görmek ve yanıt yazmak için:\n{link}\n\n"
+            "Bu e-postaya yanıt vermek yerine Destek sayfasından yaz. Şifreni veya API anahtarını asla paylaşma.")
+    paragraphs = "".join(f"<p style=\"margin:0 0 10px\">{escape(line)}</p>" for line in body.splitlines() if line.strip())
+    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
+<div style="max-width:560px;margin:32px auto;padding:28px;background:white;border-radius:16px">
+<p style="font-weight:700;margin:0 0 16px">KaisTrade</p>
+<p style="margin:0 0 6px">Destek ekibi talebine yanıt verdi.</p>
+<p style="margin:0 0 16px;color:#5b6b76">Talep: {escape(topic)}</p>
+<div style="padding:14px 16px;border-left:3px solid #1fa88f;background:#f2faf8;border-radius:8px;margin:0 0 18px">{paragraphs}</div>
+<p style="margin:0 0 18px"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">Yazışmayı aç ve yanıtla</a></p>
+<p style="margin:0;color:#7a8a94;font-size:12px">Bu e-postaya yanıt vermek yerine Destek sayfasından yaz. Şifreni veya API anahtarını asla paylaşma.</p>
+</div></body></html>"""
+    return subject, text, html
+
+
+def send_support_reply_email(*, to_email: str, ticket_subject: str, reply: str, idempotency_key: str) -> None:
+    if os.getenv("SUPPORT_REPLY_EMAIL_ENABLED", "true").strip().lower() not in ("true", "1", "yes"):
+        return
+    if not idempotency_key:
+        raise ValueError("Support reply idempotency key is required")
+    subject, text, html = support_reply_content(ticket_subject=ticket_subject, reply=reply)
+    send_email_message(to_email=to_email, subject=subject, text=text, html=html,
+                       idempotency_key=idempotency_key, idempotency_prefix="support-reply-")

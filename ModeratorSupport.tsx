@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {ChevronLeft, ChevronRight, MessageCircle} from 'lucide-react'
-import {moderatorApiRequest, moderatorRequest} from './moderator-api'
+import {moderatorApiRequest, moderatorBlob, moderatorRequest} from './moderator-api'
 import {moderatorDate, ModeratorRequestError} from './moderator-model'
 import {ModCard, ModEmpty, ModError} from './moderator-ui'
 import {SupportDetailCards, SupportPriorityBadge, SupportStatusBadge, SupportSummaryCards} from './support-ui'
@@ -71,10 +71,11 @@ function SupportDetailPanel({id, manage, onBack, onCustomer}: {id: string; manag
     {error !== null && <ModError error={error} onRetry={() => setVersion(value => value + 1)}/>}
     {detail && <SupportDetailCards detail={detail} manage={manage} busy={busy} note={note} status={status} onNoteChange={setNote} onStatusChange={setStatus}
       onTake={() => void mutate('take')} onRelease={() => void mutate('release')} onSaveStatus={() => void mutate('status')} onAddNote={event => {event.preventDefault(); void mutate('notes')}}
-      onCustomer={onCustomer ? () => onCustomer(detail.user_id) : undefined}/>}
+      onCustomer={onCustomer ? () => onCustomer(detail.user_id) : undefined}
+      onLoadAttachment={item => moderatorBlob(`${path}/attachments/${encodeURIComponent(item.id)}`, new AbortController().signal)}/>}
     {detail && manage && detail.assigned_to_me && <ModCard title="Müşteriye yanıt">
       <form className="mod-support-note" onSubmit={event => {event.preventDefault(); if (reply.trim().length >= 2) void mutate('reply')}}>
-        <p className="mod-secondary">Bu mesajı müşteri kendi Destek sayfasında görür. İç not değildir. Şifre, API anahtarı gibi bilgileri yazma.</p>
+        <p className="mod-secondary">Müşteri bu yanıtı Destek sayfasında görür, ayrıca e-posta ve bildirim alır. İç not değildir. Şifre, API anahtarı gibi bilgileri yazma.</p>
         <textarea value={reply} maxLength={1000} rows={4} disabled={busy} onChange={event => setReply(event.target.value)} aria-label="Müşteriye yanıt" placeholder="Müşteriye yazacağın yanıt…"/>
         <label><input type="checkbox" checked={resolve} disabled={busy} onChange={event => setResolve(event.target.checked)}/> Talebi çözüldü olarak kapat</label>
         <button type="submit" disabled={busy || reply.trim().length < 2}>Yanıtı gönder</button>
