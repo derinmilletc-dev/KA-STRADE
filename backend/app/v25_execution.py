@@ -5677,8 +5677,9 @@ async def execute_live_order(
             snapshot = await account_snapshot(client)
             record_live_entry_check(entry_checks, "signed_account_access", True, "Binance hesap snapshot'ı imzalı API isteğiyle alındı.", symbol=body.symbol)
             observation_stage = "ACCOUNT_MODE"
-            # Manuel emirde günlük işlem SAYISI sınırı yok (Original V2 LIVE ile aynı); günlük kayıp kilidi ve diğer kapılar aynen kalır.
-            entry_policy = {**state["policy"], "daily_trade_limit": 0} if source == "MANUAL" else state["policy"]
+            # Manuel emirde günlük işlem SAYISI ve ardışık kayıp SAYISI sınırı yok (Original V2 LIVE ile aynı);
+            # günlük kayıp kilidi, açık zarar kilidi ve diğer kapılar aynen kalır.
+            entry_policy = {**state["policy"], "daily_trade_limit": 0, "consecutive_loss_limit": 0} if source == "MANUAL" else state["policy"]
             if original_entry:
                 observation_stage = "ORIGINAL_ACCOUNT_AUTHORIZATION"
                 await original_v2_live.check_entry(application, client, state, snapshot)
