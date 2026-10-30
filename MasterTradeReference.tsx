@@ -11,7 +11,7 @@ import {CoinIcon} from './src/components/CoinIcon'
 import {MasterTradeAccordions} from './MasterTradeAccordions'
 import {MasterTradeMarketWatch} from './MasterTradeMarketWatch'
 import {MasterTradeCoinPicker} from './MasterTradeCoinPicker'
-import {requestManualTrade} from './trade-intent'
+import {OPEN_STUDIO_EVENT, consumeStudioRequest, requestManualTrade} from './trade-intent'
 import type {MarketScore} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
@@ -418,6 +418,15 @@ export default function MasterTradeReference(props: Props) {
     setOverlaySession(value => value + 1)
     fullscreen.open()
   }
+  // "Grafikte canlı takip et": Analysis Studio bu coinle kendiliğinden açılır (mount'ta bekleyen istek ya da açıkken olay).
+  const openStudioRef = useRef(openStudio)
+  openStudioRef.current = openStudio
+  useEffect(() => {
+    if (consumeStudioRequest()) openStudioRef.current(studioButton.current)
+    const onOpen = () => { if (consumeStudioRequest()) openStudioRef.current(studioButton.current) }
+    window.addEventListener(OPEN_STUDIO_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_STUDIO_EVENT, onOpen)
+  }, [])
   const rotateOverlay = useExitTransition(rotating)
   // Mobil geri: seçici açılırken kendi geçmiş kaydı eklenir (tam ekran işareti korunur); geri yalnız seçiciyi kapatır.
   const openCoinPicker = () => {

@@ -60,10 +60,23 @@ export function takeIntentForOpen(): boolean {
   return true
 }
 
+// Analysis Studio'yu (tam ekran grafik) açma isteği. Analiz ekranı henüz yüklenmemişse istek kısa süre saklanır;
+// ekran açılınca tüketilir. Bayat istek (5 sn'den eski) yok sayılır, böylece sonradan kendiliğinden açılmaz.
+export const OPEN_STUDIO_EVENT = 'kt:open-studio'
+const STUDIO_REQUEST_TTL_MS = 5000
+let studioRequestAt = 0
+export function consumeStudioRequest(now = Date.now()): boolean {
+  const pending = studioRequestAt > 0 && now - studioRequestAt <= STUDIO_REQUEST_TTL_MS
+  studioRequestAt = 0
+  return pending
+}
+
 /** Emir sonrası "Grafikte canlı takip et": paneli kapatır, analiz stüdyosunu bu coinle açar. */
 export function followSymbol(symbol: string) {
+  studioRequestAt = Date.now()
   window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
   window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol, tab: 'analiz'}}))
+  window.dispatchEvent(new CustomEvent(OPEN_STUDIO_EVENT))
 }
 
 /** "Pozisyonlarıma git": paneli kapatır, Pozisyonlar sekmesini açar. */
