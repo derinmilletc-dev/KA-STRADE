@@ -27,6 +27,7 @@ import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus
 import LiveCockpit from './LiveCockpit'
 import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
+import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
 
@@ -280,6 +281,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }, [order.symbol, order.direction, order.margin_usdt, order.leverage, manualStep])
   // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
+  // Manuel emir "Dalgaya göre" stop önerisi: yalnız form alanlarını doldurur, emir göndermez.
+  const [volStopBusy, setVolStopBusy] = useState(false)
+  const [volStopNote, setVolStopNote] = useState<{symbol: string; text: string; tone: 'ok' | 'warn'} | null>(null)
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
   const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
@@ -1251,6 +1255,32 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const sign = order.direction === 'LONG' ? 1 : -1
       setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
     }
+    const applyVolatilityStop = async () => {
+      if (!(entryRef > 0) || volStopBusy) return
+      const symbolNow = order.symbol, entryNow = entryRef
+      const directionNow: 'LONG' | 'SHORT' = order.direction === 'SHORT' ? 'SHORT' : 'LONG'
+      setVolStopBusy(true)
+      setVolStopNote(null)
+      try {
+        const response = await fetchWithTimeout(`${API_BASE}/klines/${encodeURIComponent(symbolNow)}?interval=15m&limit=60`, {cache: 'no-store'})
+        if (!response.ok) throw new Error('klines')
+        const candles: unknown = await response.json()
+        const result = Array.isArray(candles) ? suggestVolatilityStop(candles as StopCandle[], entryNow, directionNow) : null
+        if (!result) { setVolStopNote({symbol: symbolNow, text: 'Bu coin için yeterli mum verisi yok; stopu elle gir.', tone: 'warn'}); return }
+        const sgn = directionNow === 'LONG' ? 1 : -1
+        const riskDistance = Math.abs(entryNow - result.stop)
+        const pct = (value: number) => value.toFixed(2).replace('.', ',')
+        setLevelsFromAnalysis(false)
+        setOrder(current => current.symbol !== symbolNow || current.direction !== directionNow ? current : {...current,
+          stop_loss: presetPrice(result.stop), tp1: presetPrice(entryNow + sgn * riskDistance), tp2: presetPrice(entryNow + sgn * riskDistance * 2), tp3: presetPrice(entryNow + sgn * riskDistance * 3)})
+        setVolStopNote({symbol: symbolNow, tone: 'ok', text: `Stop girişten %${pct(result.distancePct)} uzakta. Bu coin 15 dakikada ortalama %${pct(result.atrPct)} oynuyor; stop bu hareketin yaklaşık ${(riskDistance / result.atr).toFixed(1).replace('.', ',')} katı uzakta; küçük dalgalanmayla tetiklenme ihtimali azalır. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.`})
+      } catch {
+        setVolStopNote({symbol: symbolNow, text: 'Mum verisi alınamadı; tekrar dene veya stopu elle gir.', tone: 'warn'})
+      } finally {
+        setVolStopBusy(false)
+      }
+    }
+    const volNote = volStopNote && volStopNote.symbol === order.symbol ? volStopNote : null
     const signedChange = (row: CoinRow) => `${Number(row.change) >= 0 ? '+' : ''}${Number(row.change).toFixed(2)}%`
     const duo = (signal: CoinSignal | undefined) => signal
       ? <span className="cpkDuo" data-lean={signal.lean} role="img" aria-label={`LONG yüzde ${signal.long ?? 'bilinmiyor'}, SHORT yüzde ${signal.short ?? 'bilinmiyor'}`}>
@@ -1584,8 +1614,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const stopMobile = <div className="mxtM mxtMStop">
       <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" onClick={fillAnalysis}><b>Kais analizi</b><small>Önerilen</small></button>}
-        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}><b>Stop %{item.pct}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
+        <button type="button" className="mxtMPk" data-rec={!hasAnalysis ? '1' : undefined} disabled={!(entryRef > 0) || volStopBusy} onClick={() => void applyVolatilityStop()}><b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</b><small>{hasAnalysis ? 'Coinin hareketine göre' : 'Önerilen'}</small></button>
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}><b>Stop %{item.pct}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
       </div>
+      {volNote && <p className="mxtHint" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
       {stopVisual}
       <div className="mxtMCard" data-tone="stop">
         <div className="mxtMLbl"><span>STOP</span><span>{stopDist ? `Girişe %${stopDist.pct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
@@ -1617,9 +1649,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {stopMobile}
       <div className="mxtSuggest mxtDesk" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtPick" data-rec="1" onClick={fillAnalysis}><b>Kais analizi <em>Önerilen</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
-        {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-rec={!hasAnalysis && item.pct === 1 ? '1' : undefined} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
-          <b>Stop %{item.pct}{!hasAnalysis && item.pct === 1 && <em>Önerilen</em>}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
+        <button type="button" className="mxtPick" data-rec={!hasAnalysis ? '1' : undefined} disabled={!(entryRef > 0) || volStopBusy} onClick={() => void applyVolatilityStop()}>
+          <b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}{!hasAnalysis && <em>Önerilen</em>}</b><small>Son dip ve coinin normal hareketine göre stop</small></button>
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
+          <b>Stop %{item.pct}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
       </div>
+      {volNote && <p className="mxtHint mxtDesk" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
       <section className="mxtSec mxtDesk" aria-label="Stop Loss">
         <h5>Stop Loss</h5>
         <label className="liveWsField">Stop fiyatı<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
