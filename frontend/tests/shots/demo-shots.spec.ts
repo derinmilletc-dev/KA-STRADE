@@ -26,7 +26,10 @@ const shot = async (page: Page, name: string) => {
   const info = await page.evaluate(() => ({
     scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth, scrollX: window.scrollX,
     wide: Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(el => el.getBoundingClientRect().right > document.documentElement.clientWidth + 2 || el.getBoundingClientRect().left < -2).slice(0, 12).map(el => `${el.tagName}.${String(el.className).slice(0, 80)} L${Math.round(el.getBoundingClientRect().left)} R${Math.round(el.getBoundingClientRect().right)}`),
-    tabs: Array.from(document.querySelectorAll('[role=tab]')).map(el => (el.textContent || '').trim()),
+    tabs: Array.from(document.querySelectorAll('[role=tab]')).filter(el => (el as HTMLElement).checkVisibility()).map(el => (el.textContent || '').trim()),
+    main: Array.from(document.querySelectorAll('#root > main > *')).map(el => { const r = el.getBoundingClientRect(); return `${el.tagName}.${String(el.className).slice(0, 50)} T${Math.round(r.top + scrollY)} H${Math.round(r.height)} W${Math.round(r.width)}` }),
+    deck: Array.from(document.querySelectorAll('.binanceDemoDeck > *')).map(el => { const r = el.getBoundingClientRect(); return `${el.tagName}.${String(el.className).slice(0, 50)} T${Math.round(r.top + scrollY)} H${Math.round(r.height)} W${Math.round(r.width)} ${getComputedStyle(el).display}` }),
+    guideChain: (() => { const out: string[] = []; let el = document.querySelector('.lcGuide') as HTMLElement | null; while (el && out.length < 14) { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); out.push(`${el.tagName}.${String(el.className).slice(0, 40)} L${Math.round(r.left)} W${Math.round(r.width)} ${cs.display} gc:${cs.gridTemplateColumns.slice(0, 40)} gcol:${cs.gridColumn}`); el = el.parentElement } return out })(),
   }))
   mkdirSync('shots-out', {recursive: true})
   appendFileSync('shots-out/info.txt', `SHOT ${name} ${JSON.stringify(info)}\n`)
