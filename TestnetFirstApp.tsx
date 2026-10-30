@@ -571,7 +571,7 @@ export default function TestnetFirstApp() {
   const [accessError,setAccessError] = useState('')
   const [markets,setMarkets] = useState<Market[]>([])
   const [marketsAt,setMarketsAt] = useState<number|null>(null)
-  const [demoTab,setDemoTab] = useState<DemoMasterTab>('canli')
+  const [demoTab,setDemoTab] = useState<DemoMasterTab>('analiz')  // Demo, Master Trade gibi Analiz ekranıyla açılır
   const [demoConnected,setDemoConnected] = useState<boolean|null>(null)
   const [demoPositions,setDemoPositions] = useState<readonly unknown[]>([])
   const [symbol,setSymbol] = useState('BTCUSDT')
