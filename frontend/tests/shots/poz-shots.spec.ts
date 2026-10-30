@@ -49,5 +49,9 @@ test('compare tops', async ({page}) => {
   await page.waitForTimeout(3000)
   await dismiss()
   await page.screenshot({path: 'shots-out/demo-islem-top.png'})
+  log(`GAP ${JSON.stringify(await page.evaluate(() => {
+    const box = (sel: string) => { const el = document.querySelector(sel) as HTMLElement | null; if (!el) return `${sel}:none`; const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return `${sel} T${Math.round(r.top)} B${Math.round(r.bottom)} m:${cs.margin} p:${cs.padding} gap:${cs.rowGap}` }
+    return ['.demoMasterPage', '.demoMasterPage .masterTradeShell', '.demoMasterPage .masterTradeTabs', '.binanceDemoDeck', '.binanceDemoDeck > .demoMasterCockpit', '.demoMasterCockpit .lcRoot', '.demoMasterCockpit .lcRoot > *:first-child'].map(box)
+  }))}`)
   await page.screenshot({path: 'shots-out/demo-islem-full.png', fullPage: true})
 })

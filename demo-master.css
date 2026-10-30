@@ -9,7 +9,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
   color: #fbbf24 !important;
 }
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::before { background: #fbbf24 !important; animation: none !important; }
-html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::after { content: "Demo" !important; color: #fbbf24 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"] .terminalStatusItem:nth-child(6)::after { content: none !important; }
 /* Demo hesap bağlı değilse bağlantı hücresi kırmızımsı. */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child { color: #fca5a5 !important; }
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade.masterTrade .terminalStatusStrip[data-mode="demo"][data-connected="false"] .terminalStatusItem:first-child i { background: #f87171 !important; animation: none !important; }
