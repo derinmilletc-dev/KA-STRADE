@@ -95,6 +95,8 @@ class Summary(ReadModel):
     open_cases: int | None = Field(default=None, ge=0)
     unassigned: int | None = Field(default=None, ge=0)
     assigned_to_me: int | None = Field(default=None, ge=0)
+    # Müşterinin son yazdığı, ekibin henüz yanıtlamadığı talepler (canlı talepten; panelde rozet).
+    customer_waiting: int | None = Field(default=None, ge=0)
 
 
 class StatusChange(BaseModel):
@@ -233,7 +235,7 @@ async def support_summary(
             )
             if row is None:
                 raise RuntimeError("Support counts unavailable")
-            return Summary(**dict(row))
+            return Summary(**dict(row), customer_waiting=support_thread.waiting_for_staff(request, identity.user_id))
     except HTTPException as exc:
         if exc.status_code != 503:
             raise

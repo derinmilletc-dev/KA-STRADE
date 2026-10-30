@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Activity, Banknote, ChevronLeft, ChevronRight, CreditCard, Home, LogOut, Mail, Menu, MessageCircle, ShieldCheck, UserRound, Users, Wallet} from 'lucide-react'
 import {accountRoleLabel} from './account-role'
 import {moderatorRequest} from './moderator-api'
+import {parseSupportSummary} from './support-model'
 import {ModBadge, ModCard, ModEmpty, ModError, ModResourceView, ModSearch} from './moderator-ui'
 import {
   moderatorSections, parseCustomerPage, parseCustomerPayments, parseCustomerProfile, parseCustomerSubscription,
@@ -103,15 +104,43 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
   const [userId, setUserId] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const heading = useRef<HTMLHeadingElement>(null)
+  const [waiting, setWaiting] = useState<number | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     setMe(null); setError(null)
     void moderatorRequest('/me', parseModeratorMe, controller.signal)
-      .then(value => {if (!controller.signal.aborted) {setMe(value); setSection('overview'); setUserId('')}})
+      .then(value => {
+        if (controller.signal.aborted) return
+        setMe(value); setUserId('')
+        // E-postadaki bağlantı (/moderator?section=support) doğrudan ilgili bölümü açar; yalnız izinli bölümler.
+        const wanted = new URLSearchParams(window.location.search).get('section')
+        setSection(visibleModeratorSections(value.permissions).find(item => item.id === wanted)?.id ?? 'overview')
+      })
       .catch(failure => {if (!controller.signal.aborted) setError(failure)})
     return () => controller.abort()
   }, [refresh])
   useEffect(() => {heading.current?.focus()}, [section])
+  const canSeeSupport = Boolean(me?.permissions.includes('support.view'))
+  useEffect(() => {
+    // Cevap bekleyen destek talebi sayısı: menüde rozet ve sekme başlığında; dakikada bir yenilenir, sekme açıkken.
+    if (!canSeeSupport) { setWaiting(null); return }
+    let controller = new AbortController()
+    const load = () => {
+      if (document.visibilityState === 'hidden') return
+      controller.abort(); controller = new AbortController()
+      void moderatorRequest('/support/summary', parseSupportSummary, controller.signal)
+        .then(value => {if (!controller.signal.aborted) setWaiting(value.customer_waiting)}).catch(() => {})
+    }
+    load()
+    const timer = window.setInterval(load, 60000)
+    document.addEventListener('visibilitychange', load)
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener('visibilitychange', load) }
+  }, [canSeeSupport, section])
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, '')
+    document.title = waiting ? `(${waiting}) ${base}` : base
+    return () => { document.title = base }
+  }, [waiting])
   const sections = visibleModeratorSections(me?.permissions ?? [])
   const title = moderatorSections.find(item => item.id === section)?.label ?? 'Genel Bakış'
   const navigate: Navigate = (next, selected = '') => {setSection(next); setUserId(selected); setMenuOpen(false)}
@@ -121,7 +150,7 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
       <a className="mod-brand" href="/dashboard" aria-label="KaisTrade ana sayfasına dön"><strong>KaisTrade</strong><span>Moderatör paneli</span></a>
       <button className="mod-menu-toggle" aria-expanded={menuOpen} aria-controls="mod-navigation" onClick={() => setMenuOpen(value => !value)}><Menu aria-hidden="true"/>Menü</button>
       <nav id="mod-navigation" aria-label="Moderatör menüsü" className={menuOpen ? 'mod-navigation mod-navigation-open' : 'mod-navigation'}>
-        {sections.map(item => {const Icon = icons[item.id]; return <button key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon aria-hidden="true"/>{item.label}</button>})}
+        {sections.map(item => {const Icon = icons[item.id]; return <button key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon aria-hidden="true"/><span className="mod-nav-label">{item.label}</span>{item.id === 'support' && waiting ? <span className="mod-nav-count" aria-label={`${waiting} cevap bekleyen talep`}>{waiting}</span> : null}</button>})}
       </nav>
       <div className="mod-account-links"><a href="/dashboard"><ChevronLeft aria-hidden="true"/>Ana sayfaya dön</a>{me?.role === 'OWNER' && <a href="/admin"><ChevronLeft aria-hidden="true"/>Admin paneline dön</a>}<a href="/settings"><UserRound aria-hidden="true"/>Profil ve güvenlik</a><button onClick={onLogout}><LogOut aria-hidden="true"/>Çıkış</button></div>
     </aside>

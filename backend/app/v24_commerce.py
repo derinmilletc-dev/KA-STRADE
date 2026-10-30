@@ -221,6 +221,7 @@ async def v24_support_create(payload: SupportRequest, request: Request):
         add_audit(rt["state"], "SUPPORT_OPENED", payload.subject, actor=user["id"], subject=row["id"])
         save_state(rt["state"])
     await support_thread.refresh_moderator_view(request)
+    support_thread.schedule_staff_notice(request, row, new=True)
     return row
 
 
@@ -251,6 +252,7 @@ async def v24_support_message(ticket_id: str, payload: SupportMessageRequest, re
         result = support_thread.customer_ticket(row)
     await support_thread.reopen_case(request, ticket_id, user["id"])
     await support_thread.refresh_moderator_view(request)
+    support_thread.schedule_staff_notice(request, row, new=False)
     return result
 
 

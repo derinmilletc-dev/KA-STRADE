@@ -34,7 +34,7 @@ export function SupportLanguageBadge({language}: {language: SupportLanguage | nu
 }
 export function SupportSummaryCards({summary}: {summary: SupportSummary | null}) {
   return <div className="mod-support-summary">
-    {[['Açık talepler', summary?.open_cases], ['Atanmamış', summary?.unassigned], ['Bana atanmış', summary?.assigned_to_me]].map(([label, count]) =>
+    {[['Açık talepler', summary?.open_cases], ['Cevap bekleyen', summary?.customer_waiting], ['Atanmamış', summary?.unassigned], ['Bana atanmış', summary?.assigned_to_me]].map(([label, count]) =>
       <ModCard key={label} title={String(label)}><p className="mod-primary">{count ?? 'veri yok'}</p></ModCard>)}
   </div>
 }

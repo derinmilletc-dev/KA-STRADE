@@ -395,3 +395,39 @@ def send_support_reply_email(*, to_email: str, ticket_subject: str, reply: str, 
     subject, text, html = support_reply_content(ticket_subject=ticket_subject, reply=reply, language=language)
     send_email_message(to_email=to_email, subject=subject, text=text, html=html,
                        idempotency_key=idempotency_key, idempotency_prefix="support-reply-")
+
+
+STAFF_NOTICE_PATH = "/moderator?section=support"
+
+
+def support_staff_content(*, kind: str, subject_line: str, preview: str) -> tuple[str, str, str]:
+    """Destek ekibine giden bildirim: yeni talep ya da müşteri yazdı. Müşteri e-postası/kimliği içermez."""
+    if kind not in ("new", "reply"):
+        raise ValueError("Unknown support staff notice")
+    base = validate_app_base_url()
+    link = base + STAFF_NOTICE_PATH
+    validate_action_url(link)
+    topic = " ".join(str(subject_line or "").split())[:160]
+    body = " ".join(str(preview or "").split())[:240]
+    lead = "Yeni bir destek talebi geldi." if kind == "new" else "Bir müşteri destek talebine yanıt yazdı."
+    subject = "KaisTrade · Yeni destek talebi" if kind == "new" else "KaisTrade · Müşteri destek talebine yazdı"
+    text = f"KaisTrade\n\n{lead}\n\nKonu: {topic}\n\n{body}\n\nTalebi aç:\n{link}"
+    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
+<div style="max-width:520px;margin:32px auto;padding:28px;background:white;border-radius:16px">
+<p style="font-weight:700;margin:0 0 16px">KaisTrade</p>
+<p style="margin:0 0 6px">{escape(lead)}</p>
+<p style="margin:0 0 14px;color:#5b6b76">Konu: {escape(topic)}</p>
+<div style="padding:12px 14px;border-left:3px solid #1fa88f;background:#f2faf8;border-radius:8px;margin:0 0 18px">{escape(body)}</div>
+<p style="margin:0"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">Talebi aç</a></p>
+</div></body></html>"""
+    return subject, text, html
+
+
+def send_support_staff_email(*, to_email: str, kind: str, subject_line: str, preview: str, idempotency_key: str) -> None:
+    if os.getenv("SUPPORT_STAFF_EMAIL_ENABLED", "true").strip().lower() not in ("true", "1", "yes"):
+        return
+    if not idempotency_key:
+        raise ValueError("Support staff notice idempotency key is required")
+    subject, text, html = support_staff_content(kind=kind, subject_line=subject_line, preview=preview)
+    send_email_message(to_email=to_email, subject=subject, text=text, html=html,
+                       idempotency_key=idempotency_key, idempotency_prefix="support-staff-")

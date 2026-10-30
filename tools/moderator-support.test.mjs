@@ -30,9 +30,9 @@ test('Status and priority pills are Turkish and carry text, not just color', () 
 test('Support empty notes and absent summary do not invent counts', () => {
   assert.match(render(SupportDetailCards, props), /Henüz ekip notu yok/)
   const html = render(SupportSummaryCards, {summary: null})
-  assert.equal((html.match(/veri yok/g) || []).length, 3)
+  assert.equal((html.match(/veri yok/g) || []).length, 4)
   assert.doesNotMatch(html, />0</)
-  assert.match(render(SupportSummaryCards, {summary: {open_cases: 0, unassigned: 2, assigned_to_me: 3}}), />0</)
+  assert.match(render(SupportSummaryCards, {summary: {open_cases: 0, unassigned: 2, assigned_to_me: 3, customer_waiting: 1}}), />0</)
 })
 
 test('Read-only, unassigned, other-assignee and no-manage cases disable note/status edits', () => {
@@ -74,7 +74,8 @@ test('Support response parsers project only safe fields and reject invalid shape
   assert.throws(() => model.parseSupportCase({...detail, version: 0}))
   assert.throws(() => model.parseSupportPage({items: [], total: 0, limit: 51, offset: 0}))
   assert.throws(() => model.parseSupportSummary({open_cases: -1, unassigned: 0, assigned_to_me: 0}))
-  assert.deepEqual(model.parseSupportSummary({open_cases: null, unassigned: null, assigned_to_me: null}), {open_cases: null, unassigned: null, assigned_to_me: null})
+  assert.deepEqual(model.parseSupportSummary({open_cases: null, unassigned: null, assigned_to_me: null}), {open_cases: null, unassigned: null, assigned_to_me: null, customer_waiting: null})
+  assert.equal(model.parseSupportSummary({open_cases: 1, unassigned: 0, assigned_to_me: 0, customer_waiting: 2}).customer_waiting, 2)
 })
 
 test('Filter query has bounded pagination and exact state/assignment fields', () => {

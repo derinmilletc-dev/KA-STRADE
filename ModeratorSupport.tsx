@@ -112,7 +112,7 @@ export default function ModeratorSupport({manage, onCustomer}: {manage: boolean;
   return <div className="ms-root"><div className="ms-layout" data-selected={selected ? '' : undefined}>
     <section className="ms-list" aria-label="Destek talepleri">
       <header className="ms-list-head"><h2>Destek talepleri</h2><p>Müşteri yazışmaları</p></header>
-      <div className="ms-stats">{([['Açık', summary?.open_cases], ['Atanmamış', summary?.unassigned], ['Bende', summary?.assigned_to_me]] as const).map(([label, count]) =>
+      <div className="ms-stats">{([['Açık', summary?.open_cases], ['Cevap bekleyen', summary?.customer_waiting], ['Atanmamış', summary?.unassigned], ['Bende', summary?.assigned_to_me]] as const).map(([label, count]) =>
         <div key={label}><b>{count ?? '—'}</b><small>{label}</small></div>)}</div>
       <div className="mod-support-filters ms-chips" role="group" aria-label="Talep filtreleri">
         {supportFilters.map(filter => <button key={filter.id} type="button" aria-pressed={query.filter === filter.id} onClick={() => setQuery({...query, filter: filter.id, offset: 0})}>{filter.label}</button>)}

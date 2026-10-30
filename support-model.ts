@@ -25,7 +25,7 @@ export type SupportDetail = SupportCase & {
   thread: SupportThreadItem[]; attachments: SupportAttachment[];
 }
 export type SupportPage = {items: SupportCase[]; total: number; limit: number; offset: number}
-export type SupportSummary = {open_cases: number | null; unassigned: number | null; assigned_to_me: number | null}
+export type SupportSummary = {open_cases: number | null; unassigned: number | null; assigned_to_me: number | null; customer_waiting: number | null}
 export type SupportFilter = 'all' | 'unassigned' | 'mine' | 'open' | 'waiting' | 'resolved'
 export const supportFilters: {id: SupportFilter; label: string}[] = [
   {id: 'all', label: 'Tümü'}, {id: 'unassigned', label: 'Atanmamış'}, {id: 'mine', label: 'Bana atanmış'},
@@ -122,5 +122,7 @@ export function parseSupportDetail(value: unknown): SupportDetail {
 export function parseSupportSummary(value: unknown): SupportSummary {
   const row = object(value)
   const count = (value: unknown) => value === null ? null : integer(value)
-  return {open_cases: count(row.open_cases), unassigned: count(row.unassigned), assigned_to_me: count(row.assigned_to_me)}
+  // customer_waiting eski sunucuda yoksa null (rozet gösterilmez, sayı uydurulmaz).
+  return {open_cases: count(row.open_cases), unassigned: count(row.unassigned), assigned_to_me: count(row.assigned_to_me),
+    customer_waiting: row.customer_waiting === undefined ? null : count(row.customer_waiting)}
 }
