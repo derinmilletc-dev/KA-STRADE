@@ -1226,3 +1226,38 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcWizHead em{
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvRowHead{color:var(--lc-mute);font-size:11px;font-weight:800;letter-spacing:.06em}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTableNote{margin:6px 0 0;color:var(--lc-mute);font-size:12px}
 @media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvToggle svg{transition:none}}
+
+/* Pozisyonlar kartı: Master/Demo sayfasındaki genel "arka plan ve çerçeveyi sıfırla" kuralı (!important) kutuları düzleştiriyordu; görsel özellikler daha özgül !important ile yeniden verilir. */
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvSeg{border-radius:12px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvSeg button{border:0!important;border-radius:9px!important;background:transparent!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvSeg button:focus-visible,html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvToggle:focus-visible,html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvClose:focus-visible{outline:2px solid var(--lc-go)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvTile{border-radius:14px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvBar{border-radius:99px!important;background:rgba(255,255,255,.08)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvBar i{border-radius:99px!important;background:var(--lc-go)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvBar[data-high] i{background:var(--lc-warn)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvCard{border-radius:16px!important;background:var(--lc-raised)!important;border-left:3px solid var(--lc-go)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvCard[data-level="warn"]{border-left-color:var(--lc-warn)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvCard[data-level="danger"]{border-left-color:var(--lc-bad)!important;background:rgba(255,132,121,.07)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvCard[data-external]{border-left-color:var(--lc-mute)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvCoin{border-radius:12px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvChip{border-radius:99px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvChip[data-dir="LONG"]{background:rgba(61,220,151,.14)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvChip[data-dir="SHORT"]{background:rgba(255,132,121,.14)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvChip[data-kind="manual"]{background:rgba(124,184,255,.14)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvTrack{border-radius:99px!important;background:linear-gradient(90deg,var(--lc-bad) 0,var(--lc-bad) var(--e),var(--lc-go) var(--e),var(--lc-go) 100%)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvTrack[data-rev]{background:linear-gradient(90deg,var(--lc-go) 0,var(--lc-go) var(--e),var(--lc-bad) var(--e),var(--lc-bad) 100%)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvDot{border-radius:50%!important;background:var(--lc-ink)!important;border:3px solid var(--lc-card)!important;box-shadow:0 0 0 2px var(--lc-go)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvDot[data-level="warn"]{box-shadow:0 0 0 2px var(--lc-warn)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvDot[data-level="danger"]{box-shadow:0 0 0 2px var(--lc-bad)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvFlag{border-radius:99px!important;background:rgba(255,255,255,.06)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvFlag[data-ok]{background:rgba(61,220,151,.12)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvToggle{border:0!important;border-radius:12px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvVs>div{border-radius:10px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvIns p,html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvNote{border-radius:10px!important;background:var(--lc-soft)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvClose{border:0!important;border-radius:14px!important;background:rgba(255,132,121,.14)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvRow{border-radius:10px!important;border-left:3px solid transparent!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvRow:not(.pvRowHead){background:var(--lc-raised)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvRow[data-level="warn"]{border-left-color:var(--lc-warn)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvRow[data-level="danger"]{border-left-color:var(--lc-bad)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvSeg button[aria-pressed="true"]{background:var(--lc-go)!important;color:var(--lc-go-ink)!important}
+html body #root .masterTradePage.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot.lcRoot.lcRoot .pvRoot .pvSeg button[aria-pressed="false"]{color:var(--lc-mute)!important}
