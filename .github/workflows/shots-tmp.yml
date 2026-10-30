@@ -1,0 +1,30 @@
+name: Shots (temporary)
+on:
+  push:
+    branches: ['shots-*']
+permissions:
+  contents: write
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test -c playwright.shots.config.ts
+        continue-on-error: true
+      - name: Push screenshots to a branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p shots-out && cd shots-out
+          git init -q -b out && git add -A
+          git -c user.name=shots -c user.email=shots@example.invalid commit -q -m "shots ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" out:refs/heads/shots-out-${GITHUB_REF_NAME}
