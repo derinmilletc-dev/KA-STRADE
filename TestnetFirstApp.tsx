@@ -562,7 +562,7 @@ export default function TestnetFirstApp() {
     media.addEventListener('change',update)
     return () => media.removeEventListener('change',update)
   },[])
-  const initialView = ():View => window.location.pathname === '/pricing' ? 'pricing' : window.location.pathname === '/billing' ? 'billing' : window.location.pathname === '/master-trade' ? 'master-trade' : 'dashboard'
+  const initialView = ():View => window.location.pathname === '/pricing' ? 'pricing' : window.location.pathname === '/billing' ? 'billing' : window.location.pathname === '/master-trade' ? 'master-trade' : window.location.pathname === '/support' ? 'support' : 'dashboard'
   const [view,setView] = useState<View>(initialView)
   const [perfMode,setPerfMode] = useState<'live'|'demo'>('live')
   useEffect(() => {applyPageMetadataForPath(`/${view}`,window.location.pathname)},[view])
@@ -652,9 +652,9 @@ export default function TestnetFirstApp() {
     setMobileMenuOpen(false)
     if (target === 'testnet' as View) target = 'dashboard'
     setView(target)
-    if (target === 'pricing' || target === 'billing' || target === 'master-trade') {
+    if (target === 'pricing' || target === 'billing' || target === 'master-trade' || target === 'support') {
       window.history.pushState({},'', `/${target}`)
-    } else if (window.location.pathname === '/pricing' || window.location.pathname === '/billing' || window.location.pathname === '/master-trade') {
+    } else if (window.location.pathname === '/pricing' || window.location.pathname === '/billing' || window.location.pathname === '/master-trade' || window.location.pathname === '/support') {
       window.history.pushState({},'', '/')
     }
   },[])
@@ -682,7 +682,7 @@ export default function TestnetFirstApp() {
     // ekran içi görünüm (İşlem, Analist…) korunur; yoksa tam ekran grafik kapanırken ana sayfaya atıyordu.
     const onHistory = () => setView(current => {
       const next = initialView()
-      return next === 'dashboard' && current !== 'pricing' && current !== 'billing' && current !== 'master-trade' ? current : next
+      return next === 'dashboard' && current !== 'pricing' && current !== 'billing' && current !== 'master-trade' && current !== 'support' ? current : next
     })
     window.addEventListener('protrebot-navigate',onNavigate)
     window.addEventListener('popstate',onHistory)
@@ -887,6 +887,7 @@ export default function TestnetFirstApp() {
     'trade-history': {view:'performance',selector:'.v21PerformanceCenter'},
     subscription: {view:'billing',selector:'.subscriptionPage'},
     settings: {view:'setup',selector:'.connectionCenter'},
+    support: {view:'support',selector:'#support-card .spMine'},
     }
     return targets[target] || {view:'trading',selector:'.v26MarketBar'}
   }

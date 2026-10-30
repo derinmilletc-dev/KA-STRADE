@@ -23,3 +23,14 @@ export async function moderatorApiRequest<T>(path: string, parse: (value: unknow
     return parse(await response.json())
   }, {signal, timeoutMs: 20000})
 }
+
+/** Moderatör paneli dosya indirme (ör. destek talebi eki): ham içerik, JSON değil. */
+export async function moderatorBlob(path: string, signal: AbortSignal): Promise<Blob> {
+  return withRequestDeadline(async transportSignal => {
+    const response = await fetch(`${API_BASE}/mod${path}`, {
+      method: 'GET', credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}, signal: transportSignal,
+    })
+    if (!response.ok) throw new ModeratorRequestError(response.status)
+    return response.blob()
+  }, {signal, timeoutMs: 20000})
+}

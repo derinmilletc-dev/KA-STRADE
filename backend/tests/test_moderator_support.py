@@ -404,3 +404,140 @@ def test_real_erasure_flow_invokes_tombstone_scrub_model(support, erased):
     else:
         assert pool.cases["legacy-1"]["message"] == "Müşteri mesajı"
     assert all(sql.strip().startswith("SELECT") for sql in pool.queries if "application_state_snapshots" in sql)
+
+
+# ---- Yazışma: moderatör yanıtı müşteriye (Destek ekranı + bildirim + e-posta), durum eşitleme, ekler ----
+from types import SimpleNamespace  # noqa: E402
+
+from app import support_thread  # noqa: E402
+
+C = headers("customer", "CUSTOMER")
+
+
+def add_ticket(client, **extra):
+    ticket = {"id": "legacy-1", "user_id": "customer", "subject": "Bağlantı sorusu", "message": "Müşteri mesajı",
+              "priority": "HIGH", "status": "OPEN", "created_at": "2026-10-10T10:00:00+00:00",
+              "updated_at": "2026-10-10T10:00:00+00:00", **extra}
+    client.app.state.v22_commercial["state"]["support_tickets"] = [ticket]
+    return ticket
+
+
+def no_writes():
+    return (patch("app.moderator_support.save_state"), patch("app.v24_commerce.save_state"))
+
+
+def test_take_reply_and_status_reach_the_customer_ticket(support):
+    client, pool = support
+    ticket = add_ticket(client)
+    path = f"/api/mod/support/cases/{load_case(client)}"
+    save_mod, save_commerce = no_writes()
+    with save_mod, save_commerce, patch("app.support_thread.schedule_reply_email") as email:
+        assert client.post(path + "/take", headers=H).status_code == 200
+        assert ticket["status"] == "IN_PROGRESS"  # müşteri "İnceleniyor" görür
+        assert client.post(path + "/reply", headers=H, json={"body": "Merhaba, kontrol ettik."}).status_code == 200
+        assert client.post(path + "/reply", headers=H, json={"body": "İkinci yanıt"}).status_code == 200
+        staff = [row for row in ticket["messages"] if row["author"] == "STAFF"]
+        assert [row["body"] for row in staff] == ["Merhaba, kontrol ettik.", "İkinci yanıt"]  # ilk yanıt silinmez
+        assert all(row["customer_read"] is False for row in staff)
+        assert ticket["response_note"] == "İkinci yanıt" and ticket["status"] == "IN_PROGRESS"
+        assert email.call_count == 2
+        version = pool.cases["legacy-1"]["version"]
+        assert client.post(path + "/status", headers=H, json={"status": "CLOSED", "expected_version": version}).status_code == 200
+        assert ticket["status"] == "CLOSED" and pool.cases["legacy-1"]["case_status"] == "CLOSED"
+        detail = client.get(path, headers=H).json()
+    assert [row["author"] for row in detail["thread"]] == ["STAFF", "STAFF"]
+    assert detail["thread"][-1]["body"] == "İkinci yanıt"
+
+
+def test_reply_without_live_ticket_is_404_and_changes_nothing(support):
+    client, pool = support
+    client.app.state.v22_commercial["state"]["support_tickets"] = []
+    path = f"/api/mod/support/cases/{load_case(client)}"
+    assert client.post(path + "/take", headers=H).status_code == 200
+    before = copy.deepcopy((pool.cases, pool.notes))
+    with patch("app.support_thread.schedule_reply_email") as email:
+        assert client.post(path + "/reply", headers=H, json={"body": "Yanıt"}).status_code == 404
+    assert (pool.cases, pool.notes) == before and email.call_count == 0
+
+
+def test_failed_audit_does_not_touch_customer_ticket(support):
+    client, pool = support
+    ticket = add_ticket(client)
+    path = f"/api/mod/support/cases/{load_case(client)}"
+    with patch("app.moderator_support.save_state"):
+        assert client.post(path + "/take", headers=H).status_code == 200
+    before = copy.deepcopy(ticket)
+    pool.audit_fail = True
+    with patch("app.moderator_support.save_state"), patch("app.support_thread.schedule_reply_email") as email:
+        assert client.post(path + "/reply", headers=H, json={"body": "Yanıt"}).status_code == 503
+    assert ticket == before and email.call_count == 0
+
+
+def test_customer_sees_thread_without_staff_identity_and_can_answer(support):
+    client, pool = support
+    ticket = add_ticket(client)
+    support_thread.append_message(ticket, support_thread.STAFF, "Ekip yanıtı", "moderator")
+    ticket["updated_by"] = "moderator"
+    with patch("app.v24_commerce.save_state"), \
+            patch("app.support_thread.reopen_case", AsyncMock()) as reopen, \
+            patch("app.support_thread.refresh_moderator_view", AsyncMock()) as refresh:
+        home = client.get("/api/v22/commerce/customer-home", headers=C)
+        assert home.status_code == 200, home.text
+        row = home.json()["support_tickets"][0]
+        assert row["unread_replies"] == 1 and row["thread"][0]["body"] == "Ekip yanıtı"
+        assert "moderator" not in home.text  # ekip üyesinin kimliği müşteriye gitmez
+        answered = client.post("/api/v22/commerce/support/legacy-1/messages", headers=C, json={"body": "Hâlâ olmuyor"})
+        assert answered.status_code == 200, answered.text
+        assert [item["author"] for item in answered.json()["thread"]] == ["STAFF", "CUSTOMER"]
+        assert answered.json()["unread_replies"] == 0 and "moderator" not in answered.text
+        assert ticket["status"] == "OPEN"
+        reopen.assert_awaited_once()
+        refresh.assert_awaited_once()
+        other = client.post("/api/v22/commerce/support/legacy-1/messages", headers=headers("owner", "OWNER"), json={"body": "x y"})
+        assert other.status_code == 404  # başkasının talebine yazılamaz
+        assert client.post("/api/v22/commerce/support/legacy-1/messages", headers=C, json={"body": " "}).status_code == 422
+
+
+def test_bell_lists_support_replies_and_marks_them_read(support):
+    client, _ = support
+    ticket = add_ticket(client)
+    first = support_thread.append_message(ticket, support_thread.STAFF, "Birinci yanıt", "moderator")
+    support_thread.append_message(ticket, support_thread.STAFF, "İkinci yanıt", "moderator")
+    request = SimpleNamespace(app=client.app)
+    customer = {"id": "customer", "role": "CUSTOMER"}
+    with patch("app.v22_commercial.authenticated_user", return_value=customer), patch("app.v22_commercial.save_state"):
+        items = support_thread.merge_support_bell(request, [])
+        assert len(items) == 2 and all(item["target"] == "support" and item["read"] is False for item in items)
+        read = support_thread.merge_support_bell(request, [], read_id="support:" + first["id"])
+        assert [item["read"] for item in read if item["id"] == "support:" + first["id"]] == [True]
+        with pytest.raises(Exception):
+            support_thread.merge_support_bell(request, [], read_id="support:yok")
+        assert all(item["read"] for item in support_thread.merge_support_bell(request, [], read_all=True))
+    with patch("app.v22_commercial.authenticated_user", return_value={"id": "owner", "role": "OWNER"}):
+        assert support_thread.merge_support_bell(request, []) == []  # başkasının yanıtı görünmez
+
+
+def test_reply_email_content_escapes_and_links_to_support(monkeypatch):
+    from app import email_service
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:5173")
+    subject, text, html = email_service.support_reply_content(ticket_subject="Ödeme", reply="<b>Merhaba</b>\nİkinci satır")
+    assert "Destek talebine yanıt" in subject
+    assert "/support" in text and "<b>Merhaba</b>" in text
+    assert "&lt;b&gt;Merhaba&lt;/b&gt;" in html and "<b>Merhaba</b>" not in html
+
+
+def test_moderator_sees_and_downloads_customer_attachments(support):
+    client, pool = support
+    add_ticket(client, attachments=[{"id": "file1", "name": "ekran.png", "type": "image/png", "size": 12}])
+    path = f"/api/mod/support/cases/{load_case(client)}"
+    detail = client.get(path, headers=H).json()
+    assert detail["attachments"] == [{"id": "file1", "name": "ekran.png", "type": "image/png", "size": 12}]
+    record = {"id": "file1", "user_id": "customer", "filename": "ekran.png", "content_type": "image/png", "data": b"\x89PNG"}
+    with patch("app.support_attachments.fetch", AsyncMock(return_value=record)) as fetch:
+        result = client.get(path + "/attachments/file1", headers=H)
+        assert result.status_code == 200 and result.content == b"\x89PNG"
+        assert fetch.await_args.args[1:] == ("legacy-1", "file1")
+        assert client.get(path + "/attachments/other", headers=H).status_code == 404  # talepte olmayan dosya
+        assert client.get(path + "/attachments/file1", headers=C).status_code == 403
+    with patch("app.support_attachments.fetch", AsyncMock(return_value={**record, "user_id": "someone"})):
+        assert client.get(path + "/attachments/file1", headers=H).status_code == 404

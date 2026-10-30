@@ -11,8 +11,11 @@ export type SupportCase = {
   assignee_user_id: string | null; created_at: string; version: number; assigned_to_me: boolean;
 }
 export type SupportNote = {id: string; author_user_id: string; body: string; created_at: string}
+export type SupportThreadItem = {id: string; author: 'CUSTOMER' | 'STAFF'; body: string; created_at: string | null}
+export type SupportAttachment = {id: string; name: string; type: string; size: number}
 export type SupportDetail = SupportCase & {
   message: string; legacy_status: string; legacy_response_note: string; notes: SupportNote[]; customer: CustomerProfile;
+  thread: SupportThreadItem[]; attachments: SupportAttachment[];
 }
 export type SupportPage = {items: SupportCase[]; total: number; limit: number; offset: number}
 export type SupportSummary = {open_cases: number | null; unassigned: number | null; assigned_to_me: number | null}
@@ -51,6 +54,10 @@ function integer(value: unknown, min = 0): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min) throw new ModeratorRequestError(502)
   return value
 }
+function array(value: unknown): unknown[] {
+  if (!Array.isArray(value) || value.length > 200) throw new ModeratorRequestError(502)
+  return value
+}
 function boolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw new ModeratorRequestError(502)
   return value
@@ -87,6 +94,16 @@ export function parseSupportDetail(value: unknown): SupportDetail {
     notes: row.notes.map(value => {
       const note = object(value)
       return {id: id(note.id), author_user_id: id(note.author_user_id), body: text(note.body), created_at: date(note.created_at)}
+    }),
+    // Eski sunucu bu alanları göndermeyebilir: yoksa boş liste.
+    thread: row.thread === undefined ? [] : array(row.thread).map(value => {
+      const item = object(value)
+      if (item.author !== 'CUSTOMER' && item.author !== 'STAFF') throw new ModeratorRequestError(502)
+      return {id: id(item.id), author: item.author, body: text(item.body), created_at: item.created_at === null || item.created_at === undefined ? null : date(item.created_at)}
+    }),
+    attachments: row.attachments === undefined ? [] : array(row.attachments).map(value => {
+      const item = object(value)
+      return {id: id(item.id), name: text(item.name), type: text(item.type), size: integer(item.size)}
     }),
   }
 }

@@ -14,7 +14,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .commerce_core import calculate_demo_invoice, launch_checklist, sanitize_business_settings
-from . import support_attachments
+from . import support_attachments, support_thread
 from .email_service import masked_recipient
 from .v22_commercial import (
     active_license,
@@ -72,6 +72,10 @@ class SupportRequest(BaseModel):
     subject: str = Field(min_length=3, max_length=160)
     message: str = Field(min_length=5, max_length=2000)
     priority: Literal["LOW", "NORMAL", "HIGH"] = "NORMAL"
+
+
+class SupportMessageRequest(BaseModel):
+    body: str = Field(min_length=2, max_length=2000)
 
 
 class SupportStatusRequest(BaseModel):
@@ -211,6 +215,7 @@ async def v24_support_create(payload: SupportRequest, request: Request):
         del rt["state"]["support_tickets"][500:]
         add_audit(rt["state"], "SUPPORT_OPENED", payload.subject, actor=user["id"], subject=row["id"])
         save_state(rt["state"])
+    await support_thread.refresh_moderator_view(request)
     return row
 
 
@@ -219,6 +224,38 @@ def _own_ticket(rt: dict, ticket_id: str, user: dict, *, owner_ok: bool = False)
     if not row or (row.get("user_id") != user["id"] and not owner_ok):
         raise HTTPException(404, "Destek kaydı bulunamadı")
     return row
+
+
+@router.post("/support/{ticket_id}/messages")
+async def v24_support_message(ticket_id: str, payload: SupportMessageRequest, request: Request):
+    """Müşteri aynı talebe yazmaya devam eder; talep yeniden açılır ve ekibe düşer."""
+    user = authenticated_user(request)
+    body = payload.body.strip()
+    if len(body) < 2:
+        raise HTTPException(422, "Mesaj en az 2 karakter olmalı")
+    rt = runtime(request)
+    async with rt["lock"]:
+        row = _own_ticket(rt, ticket_id, user)
+        support_thread.append_message(row, support_thread.CUSTOMER, body, user["id"])
+        support_thread.mark_read(row)
+        row["status"] = "OPEN"
+        add_audit(rt["state"], "SUPPORT_MESSAGE", "Müşteri destek talebine yazdı.", actor=user["id"], subject=ticket_id)
+        save_state(rt["state"])
+        result = support_thread.customer_ticket(row)
+    await support_thread.reopen_case(request, ticket_id, user["id"])
+    await support_thread.refresh_moderator_view(request)
+    return result
+
+
+@router.post("/support/{ticket_id}/read")
+async def v24_support_read(ticket_id: str, request: Request):
+    user = authenticated_user(request)
+    rt = runtime(request)
+    async with rt["lock"]:
+        row = _own_ticket(rt, ticket_id, user)
+        if support_thread.mark_read(row):
+            save_state(rt["state"])
+    return {"ok": True, "unread_replies": 0}
 
 
 @router.post("/support/{ticket_id}/attachments")
@@ -285,7 +322,7 @@ async def v24_customer_home(request: Request):
     license_row = active_license(state, user["id"])
     plan = state["plans"].get((license_row or {}).get("plan", ""), {})
     accepted = next((item for item in state["acceptances"] if item.get("user_id") == user["id"]), None)
-    tickets = [item for item in state["support_tickets"] if item.get("user_id") == user["id"]][:25]
+    tickets = [support_thread.customer_ticket(item) for item in state["support_tickets"] if item.get("user_id") == user["id"]][:25]
     return {
         "user": public_user(user),
         "license": license_row,

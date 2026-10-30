@@ -83,3 +83,21 @@
 #root #support-card .spAttached button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 0 !important; border-radius: 10px; background: rgba(52,211,153,.16) !important; color: #6ee7b7; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 #root #support-card .spAttached button:hover { background: rgba(52,211,153,.3) !important; }
 #root #support-card .spAttached button svg { width: 14px; height: 14px; }
+
+/* Yazışma (müşteri ↔ destek ekibi) ve aynı talebe yanıt */
+#root #support-card .spThread { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#root #support-card .spThread li { display: grid; gap: 4px; max-width: 88%; padding: 10px 13px; border-radius: 14px; background: rgba(255,255,255,.05) !important; justify-self: end; border-bottom-right-radius: 4px; }
+#root #support-card .spThread li[data-author="STAFF"] { justify-self: start; background: rgba(52,211,153,.10) !important; border: 1px solid rgba(52,211,153,.22); border-radius: 14px; border-bottom-left-radius: 4px; }
+#root #support-card .spThread small { font-size: 11.5px; color: #8fa1b5; font-weight: 600; }
+#root #support-card .spThread li[data-author="STAFF"] small { color: #34d399; }
+#root #support-card .spThread p { font-size: 14px; }
+#root #support-card .spAnswer { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: end; }
+#root #support-card .spAnswer textarea { width: 100%; min-height: 44px; resize: vertical; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12) !important; background: rgba(0,0,0,.22) !important; color: #edf2f8; font: inherit; font-size: 14px; }
+#root #support-card .spAnswer .spSend { height: 44px; }
+#root #support-card .spItem[data-unread] i { background: #34d399 !important; box-shadow: 0 0 0 4px rgba(52,211,153,.22); }
+#root #support-card .spItem[data-unread] em { color: #34d399; }
+@media (max-width: 520px) {
+  #root #support-card .spThread li { max-width: 94%; }
+  #root #support-card .spAnswer { grid-template-columns: 1fr; }
+  #root #support-card .spAnswer .spSend { width: 100%; }
+}
