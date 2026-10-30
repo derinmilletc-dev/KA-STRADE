@@ -36,18 +36,21 @@ test('manual volatility stop', async ({page}) => {
   await page.goto('/master-trade?tab=analiz', {waitUntil: 'domcontentloaded'})
   await page.waitForTimeout(5000)
   await dismiss()
-  await page.locator('.refTradeBtn').first().click()
+  await page.screenshot({path: 'shots-out/stop-0-analiz.png'})
+  log(`refTradeBtn=${await page.locator('.refTradeBtn').count()}`)
+  await page.locator('.refTradeBtn').first().click({timeout: 10000}).catch(error => log(`TRADEBTN ${String(error).slice(0, 300)}`))
   await page.waitForTimeout(3000)
+  await page.screenshot({path: 'shots-out/stop-0b-panel.png'})
   await dismiss()
   for (let i = 0; i < 4; i++) {
     if (await page.getByText('Dalgaya göre').first().isVisible().catch(() => false)) break
     const next = page.getByRole('button', {name: 'Devam →'}).first()
-    if (await next.isEnabled().catch(() => false)) { await next.click(); await page.waitForTimeout(1200) } else break
+    if (await next.isEnabled({timeout: 3000}).catch(() => false)) { await next.click({timeout: 5000}).catch(() => undefined); await page.waitForTimeout(1200) } else break
   }
   await page.screenshot({path: 'shots-out/stop-1-once.png'})
   const button = page.getByRole('button', {name: /Dalgaya göre/}).first()
   log(`button visible=${await button.isVisible().catch(() => false)}`)
-  await button.click().catch(error => log(`CLICK ${String(error).slice(0, 200)}`))
+  await button.click({timeout: 10000}).catch(error => log(`CLICK ${String(error).slice(0, 200)}`))
   await page.waitForTimeout(2500)
   await page.screenshot({path: 'shots-out/stop-2-sonra.png'})
   await page.setViewportSize({width: 390, height: 844})
