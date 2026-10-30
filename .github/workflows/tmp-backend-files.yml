@@ -1,13 +1,17 @@
-name: Tmp full backend run (temporary, delete before merge)
+name: Tmp backend per file (temporary, delete before merge)
 on:
   push:
     branches: [chore/testler-ci]
 permissions:
   contents: read
 jobs:
-  tmp-full:
+  tmp-backend-files:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: Checkout (submodules skipped)
         env:
@@ -29,17 +33,24 @@ jobs:
       - name: Install
         working-directory: backend
         run: pip install -r requirements-dev.txt
-      - name: full pytest (no pg tests)
+      - name: each test file with a time limit
         working-directory: backend
         shell: bash
         run: |
           set +e
-          start=$(date +%s)
-          timeout 2400 python -m pytest tests -q -rfE --tb=line -p no:cacheprovider --continue-on-collection-errors --ignore-glob='tests/*_pg.py' --durations=15 > /tmp/full.txt 2>&1
-          echo "exit=$? seconds=$(( $(date +%s) - start ))"
-          echo "::warning::SUMMARY $(tail -1 /tmp/full.txt)"
-          grep -E "^(FAILED|ERROR)" /tmp/full.txt | sed 's/ - .*//' | sort > /tmp/f.txt
-          echo "::warning::FAILCOUNT $(wc -l < /tmp/f.txt)"
-          split -l 25 /tmp/f.txt /tmp/chunk_
-          for c in /tmp/chunk_*; do echo "::warning::FAILS $(tr '\n' ' ' < $c)"; done
-          grep -A16 "slowest" /tmp/full.txt | head -18 | tr '\n' ' ' | sed 's/^/::warning::SLOW /'
+          i=0; ok=""; slow=""; bad=""
+          for f in $(ls tests/test_*.py | grep -v '_pg.py' | sort); do
+            if [ $((i % 6)) -eq ${{ matrix.shard }} ]; then
+              s=$(date +%s)
+              timeout 100 python -m pytest "$f" -q -p no:cacheprovider --tb=line -x > /tmp/o.txt 2>&1
+              code=$?
+              e=$(( $(date +%s) - s ))
+              if [ $code -eq 0 ]; then ok="$ok $f:${e}s"
+              elif [ $code -eq 124 ]; then slow="$slow $f"
+              else bad="$bad $f($(grep -E '^(FAILED|ERROR)' /tmp/o.txt | head -1 | cut -c1-120))"; fi
+            fi
+            i=$((i+1))
+          done
+          echo "::warning::OK$ok"
+          echo "::warning::SLOW$slow"
+          echo "::warning::BAD$bad"
