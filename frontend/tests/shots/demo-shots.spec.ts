@@ -37,8 +37,14 @@ test('demo vs master', async ({page}) => {
   await prepare(page)
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await page.waitForTimeout(3000)
+  for (const name of ['Sonra hatırlat', 'Remind me later', 'Daha sonra', 'Şimdi değil']) {
+    const button = page.getByRole('button', {name, exact: true})
+    if (await button.isVisible().catch(() => false)) await button.click()
+  }
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(800)
   await shot(page, '01-home')
-  await page.locator('.v26DashboardChoices button').filter({hasText: 'DEMO İŞLEM'}).click()
+  await page.locator('.v26DashboardChoices button').filter({hasText: 'DEMO İŞLEM'}).click({force: true})
   await shot(page, '02-demo-default')
   await page.getByRole('tab', {name: 'Analiz', exact: true}).first().click()
   await shot(page, '03-demo-analiz')
