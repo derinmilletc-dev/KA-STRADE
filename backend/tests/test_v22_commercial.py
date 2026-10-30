@@ -352,7 +352,7 @@ class V22CommercialTests(unittest.TestCase):
         self.assertIn('raise HTTPException(409, "OWNER hesabının rolü düşürülemez")', source)
         self.assertIn('"PASSWORD_RESET_REQUESTED"', source)
         self.assertIn('"SESSIONS_REVOKED"', source)
-        self.assertIn("return await erase_user_account(request, user)", source)
+        self.assertIn("await erase_user_account(request, user)", source)  # silme akışı hesabı kalıcı siler (sonucu döndürür)
         erasure_source = (BACKEND / "app" / "account_erasure.py").read_text(encoding="utf-8")
         self.assertIn('"ACCOUNT_ERASED"', erasure_source)
         self.assertIn("actor=ERASED, subject=ERASED", erasure_source)

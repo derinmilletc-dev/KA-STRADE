@@ -152,7 +152,10 @@ class V25LiveGuardCoreTests(unittest.TestCase):
             asyncio.run(v25_execution.account_snapshot(client, cached=True))
             self.assertFalse(v25_execution.is_armed(state))
             self.assertTrue(state["real_trading_locked"])
-            self.assertTrue(state["emergency"]["active"])
+            # Geçici hız sınırı kilidi, hesap temiz doğrulanınca acil durdurmayı kendiliğinden kaldırır;
+            # işlem kilidi yine açık kalır ve ARM yeniden onaylanmadan açılmaz.
+            self.assertFalse(state["emergency"]["active"])
+            self.assertTrue(any(event["kind"] == "LIVE_EMERGENCY_AUTO_CLEARED" for event in state["events"]))
         v25_execution.lock_live_execution(state, "UNKNOWN_ORDER_STATE", unknown=True)
         with patch.object(v25_execution.time, "time", return_value=300.0):
             v25_execution.begin_account_rate_limit_wait(state, v25_execution.LiveRateLimitError("offline", retry_after=180))
@@ -2876,9 +2879,12 @@ class V25LiveGuardIntegrationContractTests(unittest.TestCase):
             "destination": "https://api.kaistrade.com/api/:path*",
         }])
         self.assertLess(config["rewrites"].index(api_rewrites[0]), len(config["rewrites"]) - 1)
-        self.assertEqual(config["rewrites"][-1], {
-            "source": "/:path((?!sitemap\\.xml$|robots\\.txt$).*)", "destination": "/index.html",
-        })
+        fallback = config["rewrites"][-1]
+        self.assertEqual(fallback["destination"], "/index.html")
+        # Tüm yolları SPA'ya yönlendiren son kural; site haritası, robots ve service worker dosyasını yutmaz.
+        self.assertTrue(fallback["source"].startswith("/:path((?!"), fallback["source"])
+        for excluded in ("sitemap\\.xml$", "robots\\.txt$", "sw\\.js$"):
+            self.assertIn(excluded, fallback["source"])
         self.assertNotIn("tradebt8.onrender.com", VERCEL_SOURCE)
 
     def test_render_manifest_matches_production_service(self):

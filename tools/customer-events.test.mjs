@@ -64,7 +64,7 @@ test('OWNER panel gates creation and own moderator overview, preserves support p
   const panel = readFileSync(new URL('../ModeratorPanel.tsx', import.meta.url), 'utf8')
   assert.match(panel, /canRequest=\{!owner && permissions.includes\('approvals.create'\)\}/)
   assert.match(panel, /me.role === 'MODERATOR' && me.permissions.includes\('approvals.create'\)/)
-  assert.match(panel, /me.role === 'OWNER' \? <OwnerApprovalNotice\/> : <ModeratorApprovals\/>/)
+  assert.match(panel, /me.role === 'OWNER' \? <OwnerApprovalNotice\/> : <><ModeratorApprovals\/><ModeratorPremiumRequests\/><\/>/)
   assert.match(panel, /Admin paneline dön/)
   assert.match(panel, /id => navigate\('customers', id\)/)
   const admin = readFileSync(new URL('../AdminPanel.tsx', import.meta.url), 'utf8')

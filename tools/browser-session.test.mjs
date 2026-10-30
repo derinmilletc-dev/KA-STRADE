@@ -114,7 +114,9 @@ test('Explicit test-mode fixtures stay restricted to the test build', () => {
 
 test('Vercel proxies API before SPA fallback and rejects executable inline scripts', () => {
   const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'))
-  assert.equal(config.rewrites[0].source, '/api/:path*')
+  // API vekili, her yolu SPA'ya yönlendiren son kuraldan önce gelmeli (başka özel yönlendirmeler öne eklenebilir).
+  const apiIndex = config.rewrites.findIndex(row => row.source === '/api/:path*')
+  assert.ok(apiIndex >= 0 && apiIndex < config.rewrites.length - 1)
   assert.equal(config.rewrites.at(-1).destination, '/index.html')
   const headers = new Map(config.headers[0].headers.map(row => [row.key, row.value]))
   const policy = headers.get('Content-Security-Policy')
