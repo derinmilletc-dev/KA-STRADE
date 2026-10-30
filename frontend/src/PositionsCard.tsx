@@ -1,6 +1,6 @@
 import {useMemo, useState, type CSSProperties} from 'react'
 import {ChevronDown, X} from 'lucide-react'
-import {duration, shadowNote} from './live-guide'
+import {duration} from './live-guide'
 import {
   formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, sortPositions, summarize,
   type Ladder, type PositionMetrics, type PositionSort, type RawRecord,
@@ -100,42 +100,49 @@ export default function PositionsCard(props: Props) {
         const closable = !external && confirmed && planId.length >= 6 && live
         const manual = plan?.source === 'MANUAL'
         const source = external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
-        const isOpen = open[key] ?? metrics.level !== 'ok'
+        // İnce kart: varsayılan kapalı; yalnız stopa çok yakın pozisyon kendiliğinden açılır.
+        const isOpen = open[key] ?? metrics.level === 'danger'
         const insights = external ? [] : positionInsights(metrics, plan, protectedStop)
         const breakeven = plan?.breakeven_done === true || plan?.original_tp1_complete === true
         const smart = !external && props.smartEnabled ? smartFor(plan, String(position.symbol ?? '')) : undefined
-        const shadow = !external ? shadowNote((plan as {exit_shadow?: unknown} | undefined)?.exit_shadow) : null
         const flag = (ok: boolean | undefined, name: string, withBinance = false) => <span className="pvFlag" data-ok={ok === true || undefined}>{ok === true ? `${name} ✓${withBinance ? ' Binance’te' : ''}` : `${name} doğrulanamadı`}</span>
         const levels = Array.isArray(plan?.targets) ? (plan?.targets as unknown[]).map(value => String(value ?? '')) : []
         const manualTarget: PositionManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
           stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: String(position.mark_price ?? '—')}
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
+        const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
+        // İnce çubuk: fiyatın stop (sol) ile TP1 (sağ) arasındaki yeri. TP1 sonrası / bilinmiyorsa çubuk yok.
+        const tp1Left = metrics.toTp1Pct !== null && !breakeven ? metrics.toTp1Pct : null
+        const progress = external || metrics.toStopPct === null || tp1Left === null ? null
+          : tp1Left <= 0 ? 100 : Math.max(0, Math.min(100, metrics.toStopPct / (metrics.toStopPct + tp1Left) * 100))
+        const status = external ? 'Dış pozisyon' : metrics.level === 'danger' ? 'Stopa çok yakın' : metrics.level === 'warn' ? 'Stopa yakın' : breakeven ? 'Stop girişte' : protectedStop ? 'Korumalı' : 'Koruma doğrulanamadı'
+        const statusTone = external ? undefined : metrics.level === 'danger' ? 'down' : metrics.level === 'warn' || !protectedStop ? 'warn' : undefined
         return <article className="pvCard" key={key} data-level={metrics.level} data-open={isOpen || undefined} data-external={external || undefined}>
-          <header className="pvHead">
-            <div className="pvId"><span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>
-              <div><b>{metrics.coin || '—'}</b>
-                <div className="pvChips">
-                  <span className="pvChip" data-dir={metrics.direction}>{metrics.direction || '—'}</span>
-                  {metrics.leverage !== null && <span className="pvChip">{`${metrics.leverage}x${metrics.marginType ? ` · ${metrics.marginType === 'cross' ? 'Çapraz' : 'İzole'}` : ''}`}</span>}
-                  <span className="pvChip" data-kind={manual ? 'manual' : external ? 'external' : 'bot'}>{source}</span>
-                  {opened && <span className="pvChip">{`${opened} açık`}</span>}
-                </div></div></div>
-            <div className="pvPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : `${formatUsdt(pnl, true)} USDT`}</b>
-              <small data-tone={tone(pnl)}>{metrics.pnlOnMarginPct !== null && <span>{`${metrics.pnlOnMarginPct < 0 ? '−' : ''}${formatPct(Math.abs(metrics.pnlOnMarginPct), 1)} teminat`}</span>}{metrics.rMultiple !== null && <span>{formatR(metrics.rMultiple)}</span>}</small></div>
-          </header>
-
-          {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
-
-          <div className="pvMini">
-            {metrics.toStopPct !== null && <span>{'Stopa '}<b data-tone={metrics.level === 'ok' ? undefined : 'warn'}>{formatPct(metrics.toStopPct)}</b></span>}
-            {metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven && <span>{'TP1’e '}<b>{formatPct(metrics.toTp1Pct)}</b></span>}
-            {!external && <span className="pvFlag" data-ok={protectedStop || undefined}>{protectedStop ? 'Korumalı ✓' : 'Koruma doğrulanamadı'}</span>}
-          </div>
-
-          <button type="button" className="pvToggle" aria-expanded={isOpen} onClick={() => setOpen(current => ({...current, [key]: !isOpen}))}>{isOpen ? 'Gizle' : 'Detay'}<ChevronDown aria-hidden="true"/></button>
+          <button type="button" className="pvSlim" aria-expanded={isOpen} aria-label={`${metrics.coin || 'Pozisyon'} ${isOpen ? 'detayını gizle' : 'detayını göster'}`} onClick={toggle}>
+            <span className="pvSlimRow">
+              <span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>
+              <span className="pvSlimId">
+                <span className="pvSlimName"><b>{metrics.coin || '—'}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
+                <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span></small>
+              </span>
+              <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT · ${formatR(metrics.rMultiple)}` : 'USDT'}</small></span>
+              <ChevronDown className="pvSlimChev" aria-hidden="true"/>
+            </span>
+            {progress !== null && <span className="pvThin" data-level={metrics.level} aria-hidden="true"><i style={{width: `${progress}%`}}/><em style={{left: `${progress}%`}}/></span>}
+            {!external && (metrics.toStopPct !== null || tp1Left !== null) && <span className="pvSlimFoot">
+              <span>{metrics.toStopPct !== null ? (breakeven ? 'Stop girişte' : `Stop ${formatPct(metrics.toStopPct, 1)}`) : ''}</span>
+              <span>{tp1Left !== null ? (tp1Left > 0 ? `TP1 ${formatPct(tp1Left, 1)}` : 'TP1 geçildi') : ''}</span>
+            </span>}
+          </button>
 
           <div className="pvDetail">
+            {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
+            <div className="pvChips">
+              <span className="pvChip" data-kind={manual ? 'manual' : external ? 'external' : 'bot'}>{source}</span>
+              {metrics.marginType && <span className="pvChip">{metrics.marginType === 'cross' ? 'Çapraz' : 'İzole'}</span>}
+              {metrics.pnlOnMarginPct !== null && <span className="pvChip" data-tone={tone(metrics.pnlOnMarginPct)}>{`${metrics.pnlOnMarginPct < 0 ? '−' : ''}${formatPct(Math.abs(metrics.pnlOnMarginPct), 1)} teminata göre`}</span>}
+            </div>
             <div className="pvVs">
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
               <Cell label="Teminat" value={metrics.margin !== null ? `${formatUsdt(metrics.margin)} USDT` : null}/>
@@ -151,10 +158,9 @@ export default function PositionsCard(props: Props) {
               {flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
-            {(insights.length > 0 || smart || shadow) && <div className="pvIns">
+            {(insights.length > 0 || smart) && <div className="pvIns">
               {insights.map(item => <p key={item.text} data-tone={item.tone}>{item.text}</p>)}
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
-              {shadow && <p data-tone="info">{shadow}</p>}
             </div>}
 
             {external && <p className="pvNote">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
@@ -170,6 +176,7 @@ export default function PositionsCard(props: Props) {
                 onClick={() => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl})}>
                 <X aria-hidden="true"/>Pozisyonu kapat</button>
             </div>}
+            <button type="button" className="pvToggle" aria-expanded={isOpen} onClick={toggle}>Gizle<ChevronDown aria-hidden="true"/></button>
           </div>
         </article>
       })}</div>
