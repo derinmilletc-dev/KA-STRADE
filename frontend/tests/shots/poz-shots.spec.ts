@@ -31,6 +31,7 @@ async function prepare(page: Page, width: number, height: number) {
 for (const [name, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
   test(`positions ${name}`, async ({page}) => {
     page.on('pageerror', error => log(`PAGEERROR ${error.message}`))
+    page.on('console', message => { if (message.type() === 'error') log(`CONSOLE ${message.text().slice(0, 600)}`) })
     await prepare(page, width, height)
     await page.goto('/master-trade?tab=canli', {waitUntil: 'domcontentloaded'})
     await page.waitForTimeout(4000)
@@ -38,6 +39,8 @@ for (const [name, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]
     const root = page.locator('.pvRoot').first()
     const count = await root.count()
     log(`${name} pvRoot=${count} slim=${await page.locator('.pvSlim').count()}`)
+    const details = page.getByText('Teknik ayrıntılar', {exact: false}).first()
+    if (await details.isVisible().catch(() => false)) { await details.click(); log(`RECOVERY ${(await page.locator('body').innerText()).slice(0, 1500)}`) }
     if (!count) { await page.screenshot({path: `shots-out/${name}-page.png`, fullPage: true}); return }
     await root.scrollIntoViewIfNeeded()
     await page.waitForTimeout(800)
