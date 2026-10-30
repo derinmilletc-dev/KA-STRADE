@@ -350,11 +350,11 @@ def test_staff_self_and_erased_cases_are_hidden(support, target):
 def test_summary_real_counts_null_on_failure_and_shared_customer_rate_limit(support):
     client, pool = support
     id_ = load_case(client)
-    assert client.get("/api/mod/support/summary", headers=H).json() == {"open_cases": 1, "unassigned": 1, "assigned_to_me": 0}
+    assert client.get("/api/mod/support/summary", headers=H).json() == {"open_cases": 1, "unassigned": 1, "assigned_to_me": 0, "customer_waiting": 0}
     client.post(f"/api/mod/support/cases/{id_}/take", headers=H)
     assert client.get("/api/mod/support/summary", headers=H).json()["assigned_to_me"] == 1
     pool.summary_fail = True
-    assert client.get("/api/mod/support/summary", headers=H).json() == {"open_cases": None, "unassigned": None, "assigned_to_me": None}
+    assert client.get("/api/mod/support/summary", headers=H).json() == {"open_cases": None, "unassigned": None, "assigned_to_me": None, "customer_waiting": None}
     pool.summary_fail = False
     from app.moderator_customers import router as customers_router
     client.app.include_router(customers_router)
@@ -587,3 +587,122 @@ def test_reply_email_is_sent_in_the_customer_language(monkeypatch):
                                                idempotency_key="k1", language="en")
     assert "New reply" in send.call_args.kwargs["subject"]
     assert send.call_args.kwargs["idempotency_prefix"] == "support-reply-"
+
+
+# ---- Ekibe bildirim (yeni talep / müşteri yazdı) ve cevap bekleyen sayısı ----
+class StaffPool:
+    def __init__(self, assignee=None, permitted=()):
+        self.assignee, self.permitted, self.queries = assignee, list(permitted), []
+
+    async def fetchrow(self, sql, *args):
+        self.queries.append(sql)
+        return {"assignee_user_id": self.assignee} if self.assignee else None
+
+    async def fetch(self, sql, *args):
+        self.queries.append(sql)
+        return [{"user_id": uid} for uid in self.permitted]
+
+
+def staff_request(pool, ticket_owner="customer"):
+    users = [{"id": "owner", "role": "OWNER", "email": "owner@example.test", "active": True},
+             {"id": "mod-a", "role": "MODERATOR", "email": "a@example.test", "active": True},
+             {"id": "mod-b", "role": "MODERATOR", "email": "b@example.test", "active": True},
+             {"id": "mod-off", "role": "MODERATOR", "email": "off@example.test", "active": False},
+             {"id": ticket_owner, "role": "CUSTOMER", "email": "customer@example.test", "active": True}]
+    state = {"users": users, "support_tickets": []}
+    return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(db_pool=pool, v22_commercial={"state": state})))
+
+
+def run_notify(request, ticket, *, new=True, now=1_000_000.0):
+    import app.support_thread as thread
+    return asyncio.run(thread.notify_staff(request, ticket, new=new, now=now))
+
+
+@pytest.fixture
+def staff_mail():
+    import app.support_thread as thread
+    thread._STAFF_SENT.clear(); thread._STAFF_HOURLY.clear()
+    with patch("app.email_service.send_support_staff_email") as send:
+        yield send
+    thread._STAFF_SENT.clear(); thread._STAFF_HOURLY.clear()
+
+
+def test_unassigned_ticket_notifies_owner_and_permitted_moderators_only(staff_mail):
+    ticket = {"id": "t1", "user_id": "customer", "subject": "Bağlantı sorunu", "message": "Merhaba", "status": "OPEN", "created_at": "2026-10-10T10:00:00+00:00"}
+    request = staff_request(StaffPool(permitted=["mod-a", "mod-off", "customer"]))
+    assert run_notify(request, ticket) == 2
+    recipients = sorted(call.kwargs["to_email"] for call in staff_mail.call_args_list)
+    assert recipients == ["a@example.test", "owner@example.test"]  # etkin olmayan ve müşterinin kendisi yok, yetkisiz moderatör yok
+    assert all(call.kwargs["kind"] == "new" for call in staff_mail.call_args_list)
+
+
+def test_assigned_ticket_notifies_only_the_assignee_and_reply_kind(staff_mail):
+    ticket = {"id": "t1", "user_id": "customer", "subject": "Konu", "message": "İlk", "status": "IN_PROGRESS", "created_at": "2026-10-10T10:00:00+00:00"}
+    support_thread.append_message(ticket, support_thread.CUSTOMER, "Hâlâ olmuyor", "customer")
+    request = staff_request(StaffPool(assignee="mod-b", permitted=["mod-a"]))
+    assert run_notify(request, ticket, new=False) == 1
+    call = staff_mail.call_args
+    assert call.kwargs["to_email"] == "b@example.test" and call.kwargs["kind"] == "reply" and call.kwargs["preview"] == "Hâlâ olmuyor"
+
+
+def test_staff_notice_is_throttled_per_case_and_person(staff_mail):
+    ticket = {"id": "t1", "user_id": "customer", "subject": "Konu", "message": "Mesaj", "status": "OPEN", "created_at": "2026-10-10T10:00:00+00:00"}
+    request = staff_request(StaffPool(assignee="mod-a"))
+    assert run_notify(request, ticket, now=1_000_000.0) == 1
+    assert run_notify(request, ticket, now=1_000_100.0) == 0           # 10 dakika dolmadı
+    assert run_notify(request, {**ticket, "id": "t2"}, now=1_000_100.0) == 1  # başka talep etkilenmez
+    assert run_notify(request, ticket, now=1_000_000.0 + 601) == 1     # süre doldu
+
+
+def test_staff_notice_survives_mail_failure_and_masks_secrets(staff_mail):
+    ticket = {"id": "t1", "user_id": "customer", "subject": "Anahtar sk_live_aBcDef123456", "message": "api_key=private123", "status": "OPEN", "created_at": "2026-10-10T10:00:00+00:00"}
+    staff_mail.side_effect = RuntimeError("mail down")
+    request = staff_request(StaffPool(assignee="mod-a"))
+    assert run_notify(request, ticket) == 0  # hata yutulur, talep bozulmaz
+    staff_mail.side_effect = None
+    assert run_notify(request, ticket) == 1
+    kwargs = staff_mail.call_args.kwargs
+    assert "sk_live" not in kwargs["subject_line"] and "private123" not in kwargs["preview"]
+    assert "customer@example.test" not in str(kwargs)  # müşteri e-postası ekibe giden e-postaya girmez
+
+
+def test_staff_email_content_escapes_and_links_to_support_section(monkeypatch):
+    from app import email_service
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:5173")
+    subject, text, html = email_service.support_staff_content(kind="reply", subject_line="<b>Konu</b>", preview="<script>x</script>")
+    assert "Müşteri destek talebine yazdı" in subject
+    assert "/moderator?section=support" in text and "/moderator?section=support" in html
+    assert "<script>" not in html and "&lt;script&gt;" in html and "&lt;b&gt;Konu&lt;/b&gt;" in html
+    assert "Yeni destek talebi" in email_service.support_staff_content(kind="new", subject_line="A", preview="B")[0]
+    with pytest.raises(ValueError):
+        email_service.support_staff_content(kind="other", subject_line="A", preview="B")
+
+
+def test_summary_counts_tickets_where_the_customer_wrote_last(support):
+    client, _ = support
+    ticket = add_ticket(client)
+    path = "/api/mod/support/summary"
+    assert client.get(path, headers=H).json()["customer_waiting"] == 1          # ilk mesaj müşterinin
+    support_thread.append_message(ticket, support_thread.STAFF, "Yanıt", "moderator")
+    assert client.get(path, headers=H).json()["customer_waiting"] == 0          # ekip yanıtladı
+    support_thread.append_message(ticket, support_thread.CUSTOMER, "Tekrar yazdım", "customer")
+    assert client.get(path, headers=H).json()["customer_waiting"] == 1
+    ticket["status"] = "RESOLVED"
+    assert client.get(path, headers=H).json()["customer_waiting"] == 0          # çözülen sayılmaz
+    ticket["status"] = "OPEN"
+    client.app.state.v22_commercial["state"]["users"][2]["role"] = "MODERATOR"  # ekibin kendi hesabının talebi sayılmaz
+    assert client.get(path, headers=H).json()["customer_waiting"] == 0
+
+
+def test_creating_a_ticket_and_writing_again_notify_the_staff(support):
+    client, _ = support
+    client.app.state.v22_commercial["state"]["support_tickets"] = []
+    with patch("app.v24_commerce.save_state"), patch("app.support_thread.reopen_case", AsyncMock()), \
+            patch("app.support_thread.refresh_moderator_view", AsyncMock()), \
+            patch("app.support_thread.schedule_staff_notice") as notice:
+        created = client.post("/api/v22/commerce/support", headers=C, json={"subject": "Yeni konu", "message": "Merhaba destek"})
+        assert created.status_code == 200, created.text
+        assert notice.call_args.kwargs == {"new": True} and notice.call_args.args[1]["id"] == created.json()["id"]
+        again = client.post(f"/api/v22/commerce/support/{created.json()['id']}/messages", headers=C, json={"body": "Bir şey daha"})
+        assert again.status_code == 200
+        assert notice.call_args.kwargs == {"new": False}

@@ -207,3 +207,110 @@ def schedule_reply_email(request: Any, ticket: dict[str, Any], message: dict[str
 
 
 _PENDING: set[asyncio.Task] = set()
+
+
+# ---- Ekibe bildirim: yeni talep ya da müşteri yazdı --------------------------------------------------------------
+STAFF_EMAIL_INTERVAL = 600        # aynı talep + aynı kişi için en sık 10 dakikada bir e-posta
+STAFF_EMAIL_HOURLY_CAP = 30       # bir kişiye saatte en çok bu kadar destek e-postası
+_STAFF_SENT: dict[tuple[str, str], float] = {}
+_STAFF_HOURLY: dict[str, list[float]] = {}
+
+
+def staff_users(request: Any) -> dict[str, dict[str, Any]]:
+    """Destek bildirimi alabilecek etkin yönetici/moderatör hesapları (kimlik -> kullanıcı)."""
+    from .v22_commercial import runtime
+    return {str(user.get("id")): user for user in runtime(request)["state"].get("users", [])
+            if isinstance(user, dict) and user.get("role") in ("OWNER", "MODERATOR") and user.get("active") is not False
+            and str(user.get("email") or "").strip()}
+
+
+async def staff_recipient_ids(request: Any, ticket: dict[str, Any]) -> list[str]:
+    """Talep bir kişiye atanmışsa yalnız ona; atanmamışsa admin(ler) + destek yönetme yetkisi olan moderatörlere."""
+    users = staff_users(request)
+    pool = getattr(request.app.state, "db_pool", None)
+    assignee = None
+    if pool is not None:
+        try:
+            row = await pool.fetchrow("SELECT assignee_user_id FROM support_cases WHERE legacy_ticket_id = $1", str(ticket.get("id")))
+            assignee = row["assignee_user_id"] if row else None
+        except Exception as exc:
+            logger.warning("Support assignee lookup failed type=%s", type(exc).__name__)
+    if assignee:
+        return [assignee] if assignee in users and assignee != ticket.get("user_id") else []
+    ids = {uid for uid, user in users.items() if user.get("role") == "OWNER"}
+    if pool is not None:
+        try:
+            rows = await pool.fetch("SELECT DISTINCT user_id FROM moderator_permissions WHERE permission = 'support.manage'")
+            ids |= {str(row["user_id"]) for row in rows}
+        except Exception as exc:
+            logger.warning("Support moderator lookup failed type=%s", type(exc).__name__)
+    ids.discard(str(ticket.get("user_id")))
+    return sorted(uid for uid in ids if uid in users)
+
+
+async def notify_staff(request: Any, ticket: dict[str, Any], *, new: bool, now: float | None = None) -> int:
+    """Alıcılara e-posta gönderir; gönderilen sayıyı döndürür. Sıklık sınırı uygular, hata yutar (talebi bozmaz)."""
+    import time as _time
+    from . import email_service as mail
+    from .moderator_support import mask_support_text
+
+    moment = _time.time() if now is None else now
+    last = last_message(ticket)
+    subject_line = mask_support_text(str(ticket.get("subject") or ""))
+    preview = mask_support_text(last["body"])
+    sent = 0
+    for user_id in await staff_recipient_ids(request, ticket):
+        key = (str(ticket.get("id")), user_id)
+        if moment - _STAFF_SENT.get(key, 0.0) < STAFF_EMAIL_INTERVAL:
+            continue
+        recent = [t for t in _STAFF_HOURLY.get(user_id, []) if moment - t < 3600]
+        if len(recent) >= STAFF_EMAIL_HOURLY_CAP:
+            continue
+        email = str(staff_users(request)[user_id].get("email")).strip()
+        try:
+            await asyncio.to_thread(mail.send_support_staff_email, to_email=email, kind="new" if new else "reply",
+                                    subject_line=subject_line, preview=preview,
+                                    idempotency_key=f"support-staff:{ticket.get('id')}:{user_id}:{int(moment // STAFF_EMAIL_INTERVAL)}")
+        except Exception as exc:  # e-posta adresi loglanmaz
+            logger.warning("Support staff email failed type=%s", type(exc).__name__)
+            continue
+        _STAFF_SENT[key] = moment
+        _STAFF_HOURLY[user_id] = [*recent, moment]
+        sent += 1
+    if len(_STAFF_SENT) > 5000:
+        for old in sorted(_STAFF_SENT, key=_STAFF_SENT.get)[:2500]:
+            _STAFF_SENT.pop(old, None)
+    return sent
+
+
+def schedule_staff_notice(request: Any, ticket: dict[str, Any], *, new: bool) -> None:
+    """Müşteri yeni talep açınca / yazınca ekibe haber verir. Arka planda; hata müşteri isteğini etkilemez."""
+    async def deliver() -> None:
+        try:
+            await notify_staff(request, ticket, new=new)
+        except Exception as exc:
+            logger.warning("Support staff notice failed type=%s", type(exc).__name__)
+
+    try:
+        task = asyncio.get_running_loop().create_task(deliver())
+        _PENDING.add(task)
+        task.add_done_callback(_PENDING.discard)
+    except RuntimeError:
+        pass
+
+
+def waiting_for_staff(request: Any, viewer_id: str) -> int:
+    """Müşterinin son yazdığı ve kapanmamış talep sayısı (kendi hesabının talepleri hariç)."""
+    from .v22_commercial import runtime
+    state = runtime(request)["state"]
+    roles = {str(user.get("id")): user.get("role") for user in state.get("users", []) if isinstance(user, dict)}
+    count = 0
+    for ticket in state.get("support_tickets", []):
+        if not isinstance(ticket, dict):
+            continue
+        owner = str(ticket.get("user_id"))
+        if roles.get(owner) != "CUSTOMER" or owner == viewer_id or ticket.get("status") in ("RESOLVED", "CLOSED"):
+            continue
+        if last_message(ticket)["author"] == CUSTOMER:
+            count += 1
+    return count
