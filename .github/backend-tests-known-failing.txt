@@ -1,0 +1,43 @@
+# Şu an kırık (ya da çok yavaş) backend test dosyaları: kontrolde YOK. Düzelen dosya backend-tests.txt'e taşınır.
+# Tespit: tests/<dosya>.py ayrı çalıştırıldı, ilk hatada durdu (-x); dosyada birden çok hata olabilir.
+tests/test_admin_premium_grant.py
+tests/test_auth_security_requirements.py
+tests/test_binance_manual_entitlements.py
+tests/test_binance_manual_routes.py
+tests/test_chart_ai_analysis.py
+tests/test_chart_ai_api.py
+tests/test_chart_ai_local_guard.py
+tests/test_chart_ai_migration.py
+tests/test_chart_ai_owner_pilot.py
+tests/test_cockpit_demo_twin.py
+tests/test_diagnose_original_v2_features.py
+tests/test_directional_entry_limits.py
+tests/test_donchian_v2_boundaries.py
+tests/test_email_verification_v2.py
+tests/test_error_monitoring.py
+tests/test_free_trial.py
+tests/test_http_client_proxy.py
+tests/test_master_trade_final_audit.py
+tests/test_master_trade_v1.py
+tests/test_moderator_customer_audit.py
+tests/test_original_components.py
+tests/test_original_f2.py
+tests/test_original_f2_run2.py
+tests/test_original_hygiene.py
+tests/test_original_limit_rejection.py
+tests/test_original_live_risk.py
+tests/test_original_live_workflow.py
+tests/test_original_v2_demo_execution.py
+tests/test_original_v2_fill_lock.py
+tests/test_original_v2_live.py
+tests/test_regime_study.py
+tests/test_security_trading_hardening.py
+tests/test_signal_journal.py
+tests/test_stage1_hardening.py
+tests/test_v20_3_demo.py
+tests/test_v21_notification_routing.py
+tests/test_v25_auto_symbol_scope.py
+tests/test_v25_auto_timeframe.py
+tests/test_v25_execution_reliability.py
+# yavaş (100 sn'de bitmedi)
+tests/test_v21_scanner_dashboard.py
