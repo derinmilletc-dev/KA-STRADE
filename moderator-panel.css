@@ -144,3 +144,120 @@
 .mod-support-files li img { grid-column:1 / -1; max-width:100%; max-height:480px; object-fit:contain; border-radius:10px; background:#000; }
 .mod-support-file-error { grid-column:1 / -1; color:#f87171 !important; }
 @media (max-width:640px) { .mod-support-thread li { max-width:96%; } }
+
+/* ===================== Destek · yeni düzen (liste | sohbet | bilgi paneli) =====================
+   Genişlik ekrana değil bu bölümün kendisine göre seçilir (container query): yan menü açıkken de taşmaz. */
+.ms-root { container-type:inline-size; container-name:ms; display:block; min-width:0; }
+.ms-item, .ms-item > *, .ms-case-title, .ms-conv, .ms-side, .ms-panel, .ms-composer, .mod-support-thread li, .ms-langcard > span, .ms-stats div { min-width:0; }
+.ms-list, .ms-detail { min-width:0; }
+.ms-layout[data-selected] .ms-list { display:none; }
+.ms-layout:not([data-selected]) .ms-detail { display:none; }
+.ms-list { display:grid; gap:14px; align-content:start; }
+.ms-list-head h2 { margin:0; font-size:20px; font-weight:700; }
+.ms-list-head p { margin:2px 0 0; color:var(--admin-muted); font-size:13px; }
+.ms-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.ms-stats div { padding:10px 12px; border-radius:12px; background:var(--admin-surface); display:grid; gap:0; }
+.ms-stats b { font-size:20px; line-height:1.2; }
+.ms-stats small { color:var(--admin-muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ms-chips { gap:6px; }
+.ms-chips button { min-height:36px; padding:6px 12px; font-size:13px; }
+.ms-chips button[aria-pressed="true"] { background:rgba(61,220,151,.14); color:var(--admin-accent, #3ccf8e); }
+.ms-priority { display:flex; align-items:center; gap:10px; color:var(--admin-muted); font-size:13px; flex-wrap:wrap; }
+.ms-priority select { min-height:38px; max-width:100%; color:var(--admin-text); background:var(--admin-elevated); border:1px solid var(--admin-line); border-radius:10px; padding:6px 10px; }
+.ms-items { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.ms-item { width:100%; display:grid; gap:6px; text-align:left; padding:12px 14px; border:1px solid transparent; border-radius:14px; background:var(--admin-surface); color:var(--admin-text); }
+.ms-item:hover { background:var(--admin-elevated); }
+.ms-item[aria-current="true"] { border-color:rgba(61,220,151,.45); background:var(--admin-elevated); box-shadow:inset 3px 0 0 var(--admin-accent, #3ccf8e); }
+.ms-item-top { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start; }
+.ms-item-title { font-size:14px; font-weight:650; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+.ms-item-top time { font-size:11.5px; color:var(--admin-muted); white-space:nowrap; padding-top:2px; }
+.ms-item-last { color:var(--admin-muted); font-size:12.5px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+.ms-item-tags { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ms-item-tags .mod-badge { padding:2px 9px; font-size:11.5px; }
+.ms-assign { font-size:11.5px; color:var(--admin-muted); margin-left:auto; white-space:nowrap; }
+.ms-pill { display:inline-flex; align-items:center; border-radius:999px; padding:2px 9px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+.ms-pill-wait { background:rgba(246,196,95,.14); color:#f6c45f; }
+.ms-lang { display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:22px; padding:0 6px; border-radius:6px; font-size:11px; font-weight:800; letter-spacing:.04em; background:var(--admin-elevated); color:var(--admin-text); border:1px solid var(--admin-line); flex:none; }
+.ms-lang[data-lang="en"] { background:rgba(167,139,250,.14); color:#c9b2ff; border-color:rgba(167,139,250,.35); }
+.ms-lang[data-lang="unknown"] { color:var(--admin-muted); }
+.ms-pages { margin-top:4px; }
+.ms-pages button { min-height:38px; padding:6px 12px; }
+.ms-empty { display:grid; place-content:center; text-align:center; gap:6px; min-height:320px; padding:24px; border-radius:16px; background:var(--admin-surface); color:var(--admin-muted); }
+.ms-empty b { color:var(--admin-text); font-size:16px; }
+.ms-empty p { margin:0; max-width:340px; }
+.ms-detail-inner { display:grid; gap:12px; }
+.ms-back { justify-self:start; min-height:38px; border:0; border-radius:10px; padding:6px 14px; background:var(--admin-elevated); color:var(--admin-text); font-weight:600; }
+
+/* talep */
+.ms-case { display:grid; gap:14px; }
+.ms-case-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 16px; align-items:start; padding:16px 18px; border-radius:16px; background:var(--admin-surface); }
+.ms-case-head .ms-back { grid-column:1 / -1; }
+.ms-case-title { display:grid; gap:6px; }
+.ms-case-title h2 { margin:0; font-size:18px; font-weight:700; line-height:1.35; overflow-wrap:anywhere; }
+.ms-case-title .mod-badges { margin:0; }
+.ms-case-title small { color:var(--admin-muted); font-size:12px; }
+.ms-case-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.ms-btn { min-height:38px; border:1px solid var(--admin-line); border-radius:10px; padding:6px 14px; background:var(--admin-elevated); color:var(--admin-text); font-weight:650; white-space:nowrap; }
+.ms-go { background:#1fbf9d; color:#032019; border-color:transparent; }
+.ms-wide { width:100%; margin-top:10px; white-space:normal; }
+.ms-case-body { container-type:inline-size; container-name:mscase; min-width:0; }
+.ms-case-grid { display:grid; gap:14px; }
+.ms-conv { display:grid; gap:14px; align-content:start; padding:16px 18px; border-radius:16px; background:var(--admin-surface); }
+.ms-section-title { margin:0; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--admin-muted); }
+.ms-conv .mod-support-thread { margin:0; }
+.ms-conv .mod-support-thread li[data-author="NOTE"] { justify-self:center; max-width:94%; background:rgba(246,196,95,.08); border:1px dashed rgba(246,196,95,.4); }
+.ms-conv .mod-support-thread li[data-author="NOTE"] small { color:#e0b65a; }
+.ms-conv .mod-support-files { margin-top:0; }
+.ms-composer { display:grid; gap:10px; padding:10px; border-radius:14px; background:var(--admin-bg); border:1px solid var(--admin-line); }
+.ms-tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ms-tabs button { min-height:34px; border:0; border-radius:9px; padding:4px 12px; background:transparent; color:var(--admin-muted); font-weight:650; white-space:nowrap; }
+.ms-tabs button[aria-selected="true"] { background:rgba(61,220,151,.14); color:var(--admin-accent, #3ccf8e); }
+.ms-composer[data-mode="note"] .ms-tabs button[aria-selected="true"] { background:rgba(246,196,95,.14); color:#f6c45f; }
+.ms-templates { margin-left:auto; max-width:100%; min-height:34px; color:#f6c45f; background:transparent; border:1px solid rgba(246,196,95,.35); border-radius:9px; padding:4px 8px; font-weight:600; }
+.ms-readonly { margin:0; font-size:12.5px; color:var(--admin-muted); }
+.ms-langbar { margin:0; padding:8px 10px; border-radius:10px; font-size:12.5px; line-height:1.45; background:var(--admin-elevated); color:var(--admin-text); }
+.ms-langbar[data-lang="en"] { background:rgba(167,139,250,.12); color:#ddd0ff; border:1px solid rgba(167,139,250,.3); }
+.ms-composer textarea { width:100%; min-height:96px; resize:vertical; color:var(--admin-text); background:var(--admin-surface); border:1px solid var(--admin-line); border-radius:10px; padding:10px 12px; line-height:1.5; }
+.ms-composer-foot { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+.ms-composer-foot > small { color:var(--admin-muted); font-size:12px; flex:1 1 180px; }
+.ms-composer-foot .ms-go { margin-left:auto; }
+.ms-check { display:inline-flex; align-items:center; gap:8px; font-size:13px; }
+.ms-check input { width:18px; height:18px; flex:none; }
+.ms-side { display:grid; gap:12px; align-content:start; }
+.ms-panel { padding:14px 16px; border-radius:14px; background:var(--admin-surface); display:grid; gap:6px; }
+.ms-panel h4 { margin:0 0 4px; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--admin-muted); }
+.ms-panel p { margin:0; }
+.ms-panel .mod-badges { margin:6px 0 0; gap:6px; }
+.ms-panel .mod-support-status { margin:6px 0 0; }
+.ms-panel .mod-support-status > div { gap:8px; }
+.ms-panel .mod-support-status select { flex:1 1 140px; min-height:40px; }
+.ms-panel .mod-support-status button { min-height:40px; padding:8px 14px; }
+.ms-strong { font-weight:700; overflow-wrap:anywhere; }
+.ms-muted { color:var(--admin-muted); font-size:13px; }
+.ms-break { overflow-wrap:anywhere; }
+.ms-langcard { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:center; padding:10px; border-radius:12px; background:var(--admin-elevated); }
+.ms-langcard[data-lang="en"] { background:rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.3); }
+.ms-langcard span { display:grid; }
+.ms-langcard b { font-size:14px; }
+.ms-langcard small { color:var(--admin-muted); font-size:12px; }
+
+/* geniş: talep içinde sohbet | bilgi paneli */
+@container mscase (min-width: 760px) {
+  .ms-case-grid { grid-template-columns:minmax(0,1fr) 260px; align-items:start; }
+  .ms-side { position:sticky; top:16px; }
+}
+/* geniş: liste | talep yan yana, geri düğmesi gizli */
+@container ms (min-width: 940px) {
+  .ms-layout { display:grid; grid-template-columns:300px minmax(0,1fr); gap:18px; align-items:start; }
+  .ms-layout[data-selected] .ms-list { display:grid; }
+  .ms-layout:not([data-selected]) .ms-detail, .ms-layout[data-selected] .ms-detail { display:block; }
+  .ms-layout .ms-back { display:none; }
+  .ms-list { position:sticky; top:16px; max-height:calc(100vh - 32px); overflow:auto; padding-right:2px; }
+}
+@container ms (max-width: 520px) {
+  .ms-case-head { grid-template-columns:minmax(0,1fr); }
+  .ms-case-actions { justify-content:flex-start; }
+  .ms-conv, .ms-case-head { padding:14px; }
+  .mod-support-thread li { max-width:96%; }
+  .ms-templates { margin-left:0; flex:1 1 100%; }
+}

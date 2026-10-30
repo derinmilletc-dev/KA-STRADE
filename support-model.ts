@@ -6,9 +6,16 @@ export const statusLabels: Record<CaseStatus, string> = {NEW: 'Yeni', OPEN: 'Aç
 export const PRIORITIES = ['LOW', 'NORMAL', 'HIGH'] as const
 export type SupportPriority = typeof PRIORITIES[number]
 export const priorityLabels: Record<SupportPriority, string> = {LOW: 'Düşük', NORMAL: 'Normal', HIGH: 'Yüksek'}
+export type SupportLanguage = 'tr' | 'en'
 export type SupportCase = {
   id: string; user_id: string; subject: string; priority: SupportPriority; case_status: CaseStatus;
   assignee_user_id: string | null; created_at: string; version: number; assigned_to_me: boolean;
+  language: SupportLanguage | null; last_author: 'CUSTOMER' | 'STAFF' | null; last_preview: string; last_at: string | null;
+}
+export const languageNames: Record<SupportLanguage, string> = {tr: 'Türkçe', en: 'İngilizce'}
+/** Müşteri son yazan ve talep kapanmamışsa ekibin yanıtı bekleniyor. */
+export function customerWaiting(item: SupportCase): boolean {
+  return item.last_author === 'CUSTOMER' && item.case_status !== 'RESOLVED' && item.case_status !== 'CLOSED'
 }
 export type SupportNote = {id: string; author_user_id: string; body: string; created_at: string}
 export type SupportThreadItem = {id: string; author: 'CUSTOMER' | 'STAFF'; body: string; created_at: string | null}
@@ -76,6 +83,11 @@ export function parseSupportCase(value: unknown): SupportCase {
     id: id(row.id), user_id: id(row.user_id), subject: text(row.subject), priority, case_status: status,
     assignee_user_id: row.assignee_user_id === null ? null : id(row.assignee_user_id),
     created_at: date(row.created_at), version: integer(row.version, 1), assigned_to_me: boolean(row.assigned_to_me),
+    // Eski sunucu bu alanları göndermeyebilir.
+    language: row.language === 'tr' || row.language === 'en' ? row.language : null,
+    last_author: row.last_author === 'CUSTOMER' || row.last_author === 'STAFF' ? row.last_author : null,
+    last_preview: typeof row.last_preview === 'string' ? row.last_preview.slice(0, 160) : '',
+    last_at: row.last_at === null || row.last_at === undefined ? null : date(row.last_at),
   }
 }
 export function parseSupportPage(value: unknown): SupportPage {

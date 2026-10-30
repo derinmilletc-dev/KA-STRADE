@@ -72,6 +72,20 @@ def customer_ticket(ticket: dict[str, Any]) -> dict[str, Any]:
             "thread": public_thread(ticket), "unread_replies": unread_replies(ticket)}
 
 
+def ticket_language(ticket: dict[str, Any] | None) -> str | None:
+    value = (ticket or {}).get("language")
+    return value if value in ("tr", "en") else None
+
+
+def last_message(ticket: dict[str, Any]) -> dict[str, Any]:
+    """Listede gösterilecek son mesaj: yazışma yoksa müşterinin ilk mesajı."""
+    rows = [row for row in messages_of(ticket) if row.get("author") in (CUSTOMER, STAFF)]
+    if rows:
+        row = rows[-1]
+        return {"author": row["author"], "body": str(row.get("body") or ""), "at": row.get("created_at")}
+    return {"author": CUSTOMER, "body": str(ticket.get("message") or ""), "at": ticket.get("created_at")}
+
+
 def unread_replies(ticket: dict[str, Any]) -> int:
     return sum(1 for row in messages_of(ticket) if row.get("author") == STAFF and row.get("customer_read") is False)
 
@@ -174,12 +188,13 @@ def schedule_reply_email(request: Any, ticket: dict[str, Any], message: dict[str
     subject = str(ticket.get("subject") or "")
     body = str(message.get("body") or "")
     key = "support-reply:" + str(message.get("id"))
+    language = ticket_language(ticket) or "tr"
 
     async def deliver() -> None:
         from . import email_service as mail
         try:
             await asyncio.to_thread(mail.send_support_reply_email, to_email=email, ticket_subject=subject,
-                                    reply=body, idempotency_key=key)
+                                    reply=body, idempotency_key=key, language=language)
         except Exception as exc:  # gönderim hatası yanıtı etkilemez; e-posta adresi loglanmaz
             logger.warning("Support reply email failed type=%s", type(exc).__name__)
 

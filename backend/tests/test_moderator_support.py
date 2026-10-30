@@ -541,3 +541,49 @@ def test_moderator_sees_and_downloads_customer_attachments(support):
         assert client.get(path + "/attachments/file1", headers=C).status_code == 403
     with patch("app.support_attachments.fetch", AsyncMock(return_value={**record, "user_id": "someone"})):
         assert client.get(path + "/attachments/file1", headers=H).status_code == 404
+
+
+def test_language_and_last_message_reach_the_moderator_list_and_detail(support):
+    client, _ = support
+    ticket = add_ticket(client, language="en")
+    support_thread.append_message(ticket, support_thread.CUSTOMER, "I still get the same error", "customer")
+    item = client.get("/api/mod/support/cases", headers=H).json()["items"][0]
+    assert item["language"] == "en" and item["last_author"] == "CUSTOMER"
+    assert item["last_preview"] == "I still get the same error" and item["last_at"]
+    detail = client.get(f"/api/mod/support/cases/{item['id']}", headers=H).json()
+    assert detail["language"] == "en"
+    ticket.pop("language")
+    assert client.get("/api/mod/support/cases", headers=H).json()["items"][0]["language"] is None
+
+
+def test_customer_language_is_recorded_on_create_and_message(support):
+    client, _ = support
+    client.app.state.v22_commercial["state"]["support_tickets"] = []
+    with patch("app.v24_commerce.save_state"), \
+            patch("app.support_thread.reopen_case", AsyncMock()), \
+            patch("app.support_thread.refresh_moderator_view", AsyncMock()):
+        created = client.post("/api/v22/commerce/support", headers=C,
+                              json={"subject": "Hesap sorusu", "message": "Merhaba destek", "language": "en"})
+        assert created.status_code == 200, created.text
+        ticket = client.app.state.v22_commercial["state"]["support_tickets"][0]
+        assert ticket["language"] == "en" and "language" not in {k for k in ticket if k == "lang"}
+        assert client.post(f"/api/v22/commerce/support/{ticket['id']}/messages", headers=C,
+                           json={"body": "Türkçe devam", "language": "tr"}).status_code == 200
+        assert ticket["language"] == "tr"
+        assert client.post("/api/v22/commerce/support", headers=C,
+                           json={"subject": "Hesap sorusu", "message": "Merhaba destek", "language": "de"}).status_code == 422
+
+
+def test_reply_email_is_sent_in_the_customer_language(monkeypatch):
+    from app import email_service
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:5173")
+    subject, text, html = email_service.support_reply_content(ticket_subject="Billing", reply="Hello", language="en")
+    assert "New reply to your support request" in subject
+    assert "Open conversation and reply" in html and 'lang="en"' in html
+    subject_tr, _, html_tr = email_service.support_reply_content(ticket_subject="Ödeme", reply="Merhaba", language="tr")
+    assert "Destek talebine yanıt" in subject_tr and 'lang="tr"' in html_tr
+    with patch.object(email_service, "send_email_message") as send:
+        email_service.send_support_reply_email(to_email="a@example.test", ticket_subject="Billing", reply="Hello",
+                                               idempotency_key="k1", language="en")
+    assert "New reply" in send.call_args.kwargs["subject"]
+    assert send.call_args.kwargs["idempotency_prefix"] == "support-reply-"

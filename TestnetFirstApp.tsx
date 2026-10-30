@@ -887,7 +887,7 @@ export default function TestnetFirstApp() {
     'trade-history': {view:'performance',selector:'.v21PerformanceCenter'},
     subscription: {view:'billing',selector:'.subscriptionPage'},
     settings: {view:'setup',selector:'.connectionCenter'},
-    support: {view:'support',selector:'#support-card .spMine'},
+    support: {view:'support',selector:'#support-card'},
     }
     return targets[target] || {view:'trading',selector:'.v26MarketBar'}
   }

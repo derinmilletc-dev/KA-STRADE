@@ -72,10 +72,13 @@ class SupportRequest(BaseModel):
     subject: str = Field(min_length=3, max_length=160)
     message: str = Field(min_length=5, max_length=2000)
     priority: Literal["LOW", "NORMAL", "HIGH"] = "NORMAL"
+    # Müşterinin talebi yazarken kullandığı site dili; ekip bu dilde yanıt verir, e-posta bu dilde gider.
+    language: Literal["tr", "en"] | None = None
 
 
 class SupportMessageRequest(BaseModel):
     body: str = Field(min_length=2, max_length=2000)
+    language: Literal["tr", "en"] | None = None
 
 
 class SupportStatusRequest(BaseModel):
@@ -210,7 +213,9 @@ async def v24_support_create(payload: SupportRequest, request: Request):
     user = authenticated_user(request)
     rt = runtime(request)
     async with rt["lock"]:
-        row = {"id": uuid.uuid4().hex, "user_id": user["id"], "customer": public_user(user), **payload.model_dump(), "status": "OPEN", "created_at": now_iso(), "updated_at": now_iso(), "demo_only": True}
+        row = {"id": uuid.uuid4().hex, "user_id": user["id"], "customer": public_user(user), **payload.model_dump(exclude={"language"}), "status": "OPEN", "created_at": now_iso(), "updated_at": now_iso(), "demo_only": True}
+        if payload.language:
+            row["language"] = payload.language
         rt["state"]["support_tickets"].insert(0, row)
         del rt["state"]["support_tickets"][500:]
         add_audit(rt["state"], "SUPPORT_OPENED", payload.subject, actor=user["id"], subject=row["id"])
@@ -238,6 +243,8 @@ async def v24_support_message(ticket_id: str, payload: SupportMessageRequest, re
         row = _own_ticket(rt, ticket_id, user)
         support_thread.append_message(row, support_thread.CUSTOMER, body, user["id"])
         support_thread.mark_read(row)
+        if payload.language:
+            row["language"] = payload.language
         row["status"] = "OPEN"
         add_audit(rt["state"], "SUPPORT_MESSAGE", "Müşteri destek talebine yazdı.", actor=user["id"], subject=ticket_id)
         save_state(rt["state"])

@@ -350,8 +350,19 @@ def send_chart_ai_budget_warning_email(*, to_email: str, month: str,
 SUPPORT_REPLY_PATH = "/support"
 
 
-def support_reply_content(*, ticket_subject: str, reply: str) -> tuple[str, str, str]:
-    """Destek yanıtı e-postası: konu, düz metin ve HTML. Yanıt metni olduğu gibi (kaçışlı) iletilir."""
+SUPPORT_REPLY_TEXT = {
+    "tr": {"subject": "KaisTrade · Destek talebine yanıt geldi", "lead": "Destek ekibi talebine yanıt verdi.",
+           "topic": "Talep", "open": "Yazışmanın tamamını görmek ve yanıt yazmak için:", "button": "Yazışmayı aç ve yanıtla",
+           "foot": "Bu e-postaya yanıt vermek yerine Destek sayfasından yaz. Şifreni veya API anahtarını asla paylaşma."},
+    "en": {"subject": "KaisTrade · New reply to your support request", "lead": "Our support team replied to your request.",
+           "topic": "Request", "open": "To see the whole conversation and reply:", "button": "Open conversation and reply",
+           "foot": "Please reply from the Support page instead of this email. Never share your password or API key."},
+}
+
+
+def support_reply_content(*, ticket_subject: str, reply: str, language: str = "tr") -> tuple[str, str, str]:
+    """Destek yanıtı e-postası (müşterinin dilinde): konu, düz metin ve HTML. Yanıt metni kaçışlı iletilir."""
+    words = SUPPORT_REPLY_TEXT.get(language, SUPPORT_REPLY_TEXT["tr"])
     base = validate_app_base_url()
     link = base + SUPPORT_REPLY_PATH
     validate_action_url(link)
@@ -359,28 +370,28 @@ def support_reply_content(*, ticket_subject: str, reply: str) -> tuple[str, str,
     body = str(reply or "").strip()[:1000]
     if not body:
         raise ValueError("Support reply body is required")
-    subject = "KaisTrade · Destek talebine yanıt geldi"
-    text = (f"KaisTrade\n\nDestek ekibi talebine yanıt verdi.\n\nTalep: {topic}\n\n{body}\n\n"
-            f"Yazışmanın tamamını görmek ve yanıt yazmak için:\n{link}\n\n"
-            "Bu e-postaya yanıt vermek yerine Destek sayfasından yaz. Şifreni veya API anahtarını asla paylaşma.")
+    subject = words["subject"]
+    text = (f"KaisTrade\n\n{words['lead']}\n\n{words['topic']}: {topic}\n\n{body}\n\n"
+            f"{words['open']}\n{link}\n\n{words['foot']}")
     paragraphs = "".join(f"<p style=\"margin:0 0 10px\">{escape(line)}</p>" for line in body.splitlines() if line.strip())
-    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
+    html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
 <div style="max-width:560px;margin:32px auto;padding:28px;background:white;border-radius:16px">
 <p style="font-weight:700;margin:0 0 16px">KaisTrade</p>
-<p style="margin:0 0 6px">Destek ekibi talebine yanıt verdi.</p>
-<p style="margin:0 0 16px;color:#5b6b76">Talep: {escape(topic)}</p>
+<p style="margin:0 0 6px">{escape(words['lead'])}</p>
+<p style="margin:0 0 16px;color:#5b6b76">{escape(words['topic'])}: {escape(topic)}</p>
 <div style="padding:14px 16px;border-left:3px solid #1fa88f;background:#f2faf8;border-radius:8px;margin:0 0 18px">{paragraphs}</div>
-<p style="margin:0 0 18px"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">Yazışmayı aç ve yanıtla</a></p>
-<p style="margin:0;color:#7a8a94;font-size:12px">Bu e-postaya yanıt vermek yerine Destek sayfasından yaz. Şifreni veya API anahtarını asla paylaşma.</p>
+<p style="margin:0 0 18px"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">{escape(words['button'])}</a></p>
+<p style="margin:0;color:#7a8a94;font-size:12px">{escape(words['foot'])}</p>
 </div></body></html>"""
     return subject, text, html
 
 
-def send_support_reply_email(*, to_email: str, ticket_subject: str, reply: str, idempotency_key: str) -> None:
+def send_support_reply_email(*, to_email: str, ticket_subject: str, reply: str, idempotency_key: str,
+                             language: str = "tr") -> None:
     if os.getenv("SUPPORT_REPLY_EMAIL_ENABLED", "true").strip().lower() not in ("true", "1", "yes"):
         return
     if not idempotency_key:
         raise ValueError("Support reply idempotency key is required")
-    subject, text, html = support_reply_content(ticket_subject=ticket_subject, reply=reply)
+    subject, text, html = support_reply_content(ticket_subject=ticket_subject, reply=reply, language=language)
     send_email_message(to_email=to_email, subject=subject, text=text, html=html,
                        idempotency_key=idempotency_key, idempotency_prefix="support-reply-")

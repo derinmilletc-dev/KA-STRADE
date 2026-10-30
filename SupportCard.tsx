@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent} from 'react'
-import {Check, ChevronDown, CreditCard, Download, FileText, KeyRound, LineChart, MessageCircle, Paperclip, Send, UserRound, X} from 'lucide-react'
+import {Check, ChevronLeft, ChevronRight, CreditCard, Download, FileText, KeyRound, LineChart, MessageCircle, Paperclip, Send, UserRound, X} from 'lucide-react'
 import {accountDate, accountRequest} from './account-settings-api'
 import {API_BASE} from './api'
 import {ACCEPT, MAX_FILES, formatSize, prepare, toBase64, type Picked} from './support-files'
 import {SupportIcon} from './MenuIcons'
+import {currentLang} from './i18n'
 import './support-card.css'
 
 type Attachment = {id: string; name: string; type: string; size: number}
@@ -19,6 +20,7 @@ const TOPICS = [
   {name: 'Diğer', hint: 'Başka bir konu', Icon: MessageCircle},
 ]
 const STATUS: Record<string, string> = {OPEN: 'Alındı', IN_PROGRESS: 'İnceleniyor', RESOLVED: 'Çözüldü', CLOSED: 'Kapandı'}
+const STEP: Record<string, number> = {OPEN: 1, IN_PROGRESS: 2, RESOLVED: 3, CLOSED: 3}
 
 export default function SupportCard() {
   const [tickets, setTickets] = useState<Ticket[] | null>(null)
@@ -35,6 +37,11 @@ export default function SupportCard() {
   const [replies, setReplies] = useState<Record<string, string>>({})
   const [replyBusy, setReplyBusy] = useState<string | null>(null)
   const [replyError, setReplyError] = useState<{id: string; text: string} | null>(null)
+  const [replyFiles, setReplyFiles] = useState<Picked[]>([])
+  const replyInput = useRef<HTMLInputElement>(null)
+  const replyFilesRef = useRef<Picked[]>([])
+  replyFilesRef.current = replyFiles
+  useEffect(() => () => { replyFilesRef.current.forEach(item => item.preview && URL.revokeObjectURL(item.preview)) }, [])
   const autoOpened = useRef(false)
   const input = useRef<HTMLInputElement>(null)
   const filesRef = useRef<Picked[]>([])
@@ -96,7 +103,7 @@ export default function SupportCard() {
     setBusy(true); setError('')
     try {
       const subject = `${topic}: ${text.replace(/\s+/g, ' ').slice(0, 80)}`
-      const created = await accountRequest<{id: string}>('/commerce/support', {method: 'POST', body: JSON.stringify({subject, message: text, priority: 'NORMAL'})})
+      const created = await accountRequest<{id: string}>('/commerce/support', {method: 'POST', body: JSON.stringify({subject, message: text, priority: 'NORMAL', language: currentLang()})})
       let attachWarning = ''
       if (files.length) {
         try {
@@ -116,30 +123,98 @@ export default function SupportCard() {
   }
   const threadOf = (item: Ticket): ThreadMessage[] => item.thread
     ?? (item.response_note ? [{id: `legacy-${item.id}`, author: 'STAFF', body: item.response_note, created_at: null}] : [])
-  async function openTicket(item: Ticket) {
+  async function openTicket(item: Ticket, scroll = false) {
     setOpen(item.id)
+    if (scroll) window.requestAnimationFrame(() => document.getElementById('support-card')?.scrollIntoView({behavior: 'smooth', block: 'start'}))
     if ((item.unread_replies ?? 0) === 0) return
     setTickets(current => current?.map(row => row.id === item.id ? {...row, unread_replies: 0} : row) ?? current)
     try { await accountRequest(`/commerce/support/${item.id}/read`, {method: 'POST'}) } catch { /* okundu bilgisi bir sonraki açılışta yeniden denenir */ }
+  }
+  const clearReplyFiles = () => { replyFilesRef.current.forEach(item => item.preview && URL.revokeObjectURL(item.preview)); setReplyFiles([]) }
+  const addReplyFiles = async (list: FileList | null, room: number) => {
+    if (!list) return
+    setReplyError(null)
+    const incoming = Array.from(list)
+    if (incoming.length > room) setReplyError({id: open || '', text: room > 0 ? `Bu talebe en fazla ${room} dosya daha ekleyebilirsin.` : 'Bu talebe en fazla 3 dosya eklenebilir.'})
+    for (const file of incoming.slice(0, Math.max(room, 0))) {
+      try {
+        const picked = await prepare(file)
+        setReplyFiles(current => current.length >= room ? current : [...current, picked])
+      } catch (e) { setReplyError({id: open || '', text: e instanceof Error ? e.message : 'Dosya eklenemedi.'}) }
+    }
+    if (replyInput.current) replyInput.current.value = ''
   }
   const sendReply = async (item: Ticket) => {
     const text = (replies[item.id] || '').trim()
     if (text.length < 2) return
     setReplyBusy(item.id); setReplyError(null)
     try {
-      const updated = await accountRequest<Ticket>(`/commerce/support/${item.id}/messages`, {method: 'POST', body: JSON.stringify({body: text})})
+      const updated = await accountRequest<Ticket>(`/commerce/support/${item.id}/messages`, {method: 'POST', body: JSON.stringify({body: text, language: currentLang()})})
       setTickets(current => current?.map(row => row.id === item.id ? {...row, ...updated} : row) ?? current)
       setReplies(current => ({...current, [item.id]: ''}))
+      if (replyFilesRef.current.length) {
+        try {
+          const payload = {files: await Promise.all(replyFilesRef.current.map(async picked => ({name: picked.file.name, data: await toBase64(picked.file)})))}
+          const saved = await accountRequest<{attachments: Attachment[]}>(`/commerce/support/${item.id}/attachments`, {method: 'POST', body: JSON.stringify(payload)})
+          setTickets(current => current?.map(row => row.id === item.id ? {...row, attachments: saved.attachments} : row) ?? current)
+        } catch (e) {
+          setReplyError({id: item.id, text: `Mesajın gönderildi ancak dosyalar eklenemedi: ${e instanceof Error && e.message ? e.message : 'tekrar dene.'}`})
+        }
+        clearReplyFiles()
+      }
     } catch (e) {
       setReplyError({id: item.id, text: e instanceof Error && e.message ? e.message : 'Mesaj gönderilemedi, tekrar dene.'})
     } finally { setReplyBusy(null) }
   }
+  const active = open ? tickets?.find(item => item.id === open) ?? null : null
   const ready = message.trim().length >= 5
   return <section className="accountCard" id="support-card">
     <div className="spHead">
       <span className="spBadge"><SupportIcon aria-hidden="true"/></span>
       <div><h2>Destek</h2><p>Yanıtımız burada, e-postanda ve bildirimlerinde görünür.</p></div>
     </div>
+    {active ? (() => {
+      const item = active
+      const thread = threadOf(item)
+      const answered = thread.some(row => row.author === 'STAFF')
+      const step = STEP[item.status] ?? 1
+      const room = Math.max(0, MAX_FILES - (item.attachments?.length ?? 0))
+      const closed = item.status === 'RESOLVED' || item.status === 'CLOSED'
+      return <div className="spConv" data-status={item.status}>
+        <div className="spConvHead">
+          <button type="button" className="spBack" aria-label="Taleplerime dön" onClick={() => { setOpen(null); clearReplyFiles() }}><ChevronLeft aria-hidden="true"/></button>
+          <span><b>{item.subject}</b><small><i aria-hidden="true"/>{STATUS[item.status] || item.status}</small></span>
+        </div>
+        <ol className="spSteps" aria-label="Talep durumu">
+          {['Alındı', 'İnceleniyor', item.status === 'CLOSED' ? 'Kapandı' : 'Çözüldü'].map((label, index) => <li key={label} data-on={index < step || undefined}><i aria-hidden="true"/><small>{label}</small></li>)}
+        </ol>
+        <ol className="spThread" aria-label="Yazışma">
+          <li data-author="CUSTOMER"><small>{`Sen · ${accountDate(item.created_at)}`}</small><p>{item.message}</p></li>
+          {thread.map(row => <li key={row.id} data-author={row.author}>
+            <small>{row.author === 'STAFF' ? (row.created_at ? `KaisTrade Destek · ${accountDate(row.created_at)}` : 'KaisTrade Destek') : (row.created_at ? `Sen · ${accountDate(row.created_at)}` : 'Sen')}</small>
+            <p>{row.body}</p>
+          </li>)}
+        </ol>
+        {item.attachments && item.attachments.length > 0 && <ul className="spAttached">{item.attachments.map(file => <li key={file.id}><FileText aria-hidden="true"/><span><b title={file.name}>{file.name}</b><small>{formatSize(file.size)}</small></span><button type="button" aria-label={`${file.name} dosyasını indir`} onClick={() => void download(item.id, file)}><Download aria-hidden="true"/>İndir</button></li>)}</ul>}
+        {!answered && <small className="spWait">Yanıt bekleniyor · yanıt gelince e-posta ve bildirim alacaksın</small>}
+        {replyFiles.length > 0 && <ul className="spFiles" aria-label="Eklenecek dosyalar">
+          {replyFiles.map(picked => <li key={picked.key}>
+            {picked.preview ? <img src={picked.preview} alt=""/> : <span className="spFileIcon"><FileText aria-hidden="true"/></span>}
+            <span><b title={picked.file.name}>{picked.file.name}</b><small>{formatSize(picked.file.size)}</small></span>
+            <button type="button" aria-label={`${picked.file.name} dosyasını kaldır`} onClick={() => setReplyFiles(current => { const gone = current.find(row => row.key === picked.key); if (gone?.preview) URL.revokeObjectURL(gone.preview); return current.filter(row => row.key !== picked.key) })}><X aria-hidden="true"/></button>
+          </li>)}
+        </ul>}
+        <div className="spComposer">
+          <input ref={replyInput} type="file" accept={ACCEPT} multiple hidden onChange={e => void addReplyFiles(e.target.files, room - replyFiles.length)}/>
+          <button type="button" className="spClip" aria-label="Dosya ekle" title={room - replyFiles.length > 0 ? 'Dosya ekle' : 'Bu talebe en fazla 3 dosya eklenebilir'} disabled={room - replyFiles.length <= 0 || replyBusy === item.id} onClick={() => replyInput.current?.click()}><Paperclip aria-hidden="true"/></button>
+          <textarea value={replies[item.id] || ''} maxLength={2000} rows={1} aria-label="Bu talebe yaz" placeholder={closed ? 'Sorun devam ediyorsa yaz, talep yeniden açılır…' : 'Mesaj yaz…'}
+            onChange={e => setReplies(current => ({...current, [item.id]: e.target.value}))}/>
+          <button type="button" className="spSendIcon" aria-label="Gönder" disabled={replyBusy === item.id || (replies[item.id] || '').trim().length < 2} onClick={() => void sendReply(item)}><Send aria-hidden="true"/></button>
+        </div>
+        {replyError?.id === item.id && <p className="spError" role="alert">{replyError.text}</p>}
+        <p className="spNote">Yanıtlar burada, e-postanda ve bildirimlerinde görünür.</p>
+      </div>
+    })() : <>
     {done ? <div className="spDone" role="status"><span><Check aria-hidden="true"/></span><b>Talebin alındı</b><small>{warn ? `Talebin kaydedildi ancak dosyalar eklenemedi: ${warn}` : 'En kısa sürede dönüş yapacağız.'}</small></div> : <>
       <div className="spTopics" role="radiogroup" aria-label="Konu">
         {TOPICS.map(({name, hint, Icon}) => <button type="button" role="radio" aria-checked={name === topic} key={name} className={name === topic ? 'on' : ''} onClick={() => setTopic(name)}>
@@ -168,39 +243,26 @@ export default function SupportCard() {
       {fileError && <p className="spError" role="alert">{fileError}</p>}
       {error && <p className="spError" role="alert">{error}</p>}
     </>}
-    {tickets !== null && tickets.length > 0 && <div className="spMine">
-      <h3>Taleplerim</h3>
-      {tickets.map(item => {
-        const isOpen = open === item.id
-        const thread = threadOf(item)
-        const answered = thread.some(row => row.author === 'STAFF')
-        const unread = item.unread_replies ?? 0
-        return <article key={item.id} className={`spItem${isOpen ? ' open' : ''}`} data-status={item.status} data-unread={unread > 0 || undefined}>
-          <button type="button" aria-expanded={isOpen} onClick={() => isOpen ? setOpen(null) : void openTicket(item)}>
+      {tickets !== null && tickets.length > 0 && <div className="spMine">
+        <h3>Taleplerim</h3>
+        {tickets.map(item => {
+          const thread = threadOf(item)
+          const last = thread.length ? thread[thread.length - 1] : null
+          const unread = item.unread_replies ?? 0
+          return <button type="button" key={item.id} className="spCase" data-status={item.status} data-unread={unread > 0 || undefined} onClick={() => void openTicket(item, true)}>
             <i aria-hidden="true"/>
-            <span><b>{item.subject}</b><small>{accountDate(item.created_at)}</small></span>
-            <em>{unread > 0 ? 'Yeni yanıt' : STATUS[item.status] || item.status}</em>
-            <ChevronDown aria-hidden="true"/>
+            <span className="spCaseMain">
+              <b>{item.subject}</b>
+              <small>{last ? `${last.author === 'STAFF' ? 'Destek' : 'Sen'}: ${last.body}` : item.message}</small>
+            </span>
+            <span className="spCaseSide">
+              <em>{unread > 0 ? 'Yeni yanıt' : STATUS[item.status] || item.status}</em>
+              <small>{accountDate(item.created_at)}</small>
+            </span>
+            <ChevronRight aria-hidden="true"/>
           </button>
-          <div className="spBody"><div>
-            <ol className="spThread" aria-label="Yazışma">
-              <li data-author="CUSTOMER"><small>{`Sen · ${accountDate(item.created_at)}`}</small><p>{item.message}</p></li>
-              {thread.map(row => <li key={row.id} data-author={row.author}>
-                <small>{row.author === 'STAFF' ? (row.created_at ? `Destek ekibi · ${accountDate(row.created_at)}` : 'Destek ekibi') : `Sen · ${row.created_at ? accountDate(row.created_at) : ''}`}</small>
-                <p>{row.body}</p>
-              </li>)}
-            </ol>
-            {item.attachments && item.attachments.length > 0 && <ul className="spAttached">{item.attachments.map(file => <li key={file.id}><FileText aria-hidden="true"/><span><b>{file.name}</b><small>{formatSize(file.size)}</small></span><button type="button" aria-label={`${file.name} dosyasını indir`} onClick={() => void download(item.id, file)}><Download aria-hidden="true"/>İndir</button></li>)}</ul>}
-            {!answered && <small className="spWait">Yanıt bekleniyor · yanıt gelince e-posta ve bildirim alacaksın</small>}
-            <div className="spAnswer">
-              <textarea value={replies[item.id] || ''} maxLength={2000} rows={2} aria-label="Bu talebe yaz" placeholder={item.status === 'RESOLVED' || item.status === 'CLOSED' ? 'Sorun devam ediyorsa yaz, talep yeniden açılır…' : 'Bu talebe ek bilgi yaz…'}
-                onChange={e => setReplies(current => ({...current, [item.id]: e.target.value}))}/>
-              <button type="button" className="spSend" disabled={replyBusy === item.id || (replies[item.id] || '').trim().length < 2} onClick={() => void sendReply(item)}><Send aria-hidden="true"/>{replyBusy === item.id ? 'Gönderiliyor' : 'Gönder'}</button>
-            </div>
-            {replyError?.id === item.id && <p className="spError" role="alert">{replyError.text}</p>}
-          </div></div>
-        </article>
-      })}
-    </div>}
+        })}
+      </div>}
+    </>}
   </section>
 }
