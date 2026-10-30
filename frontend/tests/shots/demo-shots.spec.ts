@@ -1,4 +1,5 @@
 import {test, type Page} from '@playwright/test'
+import {appendFileSync, mkdirSync} from 'node:fs'
 import {mockAssistant} from '../helpers/assistant-api'
 import {demoReadFixtures} from '../helpers/demo-api'
 import {previewAnalysis, previewCandles, previewMarkets} from '../helpers/master-trade-preview-data'
@@ -21,17 +22,18 @@ async function prepare(page: Page) {
 
 const shot = async (page: Page, name: string) => {
   await page.waitForTimeout(2500)
-  await page.screenshot({path: `shots-out/${name}.png`, fullPage: true})
+  await page.screenshot({path: `shots-out/${name}.png`, fullPage: true, type: 'png', scale: 'css'})
   const info = await page.evaluate(() => ({
     scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth, scrollX: window.scrollX,
     wide: Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(el => el.getBoundingClientRect().right > document.documentElement.clientWidth + 2 || el.getBoundingClientRect().left < -2).slice(0, 12).map(el => `${el.tagName}.${String(el.className).slice(0, 80)} L${Math.round(el.getBoundingClientRect().left)} R${Math.round(el.getBoundingClientRect().right)}`),
     tabs: Array.from(document.querySelectorAll('[role=tab]')).map(el => (el.textContent || '').trim()),
   }))
-  console.log(`SHOT ${name} ${JSON.stringify(info)}`)
+  mkdirSync('shots-out', {recursive: true})
+  appendFileSync('shots-out/info.txt', `SHOT ${name} ${JSON.stringify(info)}\n`)
 }
 
 test('demo vs master', async ({page}) => {
-  page.on('pageerror', error => console.log(`PAGEERROR ${error.message}`))
+  page.on('pageerror', error => { mkdirSync('shots-out', {recursive: true}); appendFileSync('shots-out/info.txt', `PAGEERROR ${error.message}\n`) })
   await prepare(page)
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await page.waitForTimeout(3000)

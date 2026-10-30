@@ -3,7 +3,7 @@ on:
   push:
     branches: ['shots-*']
 permissions:
-  contents: read
+  contents: write
 jobs:
   shots:
     runs-on: ubuntu-latest
@@ -20,8 +20,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test -c playwright.shots.config.ts
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shots
-          path: shots-out/
-          if-no-files-found: warn
+      - name: Push screenshots to a branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p shots-out && cd shots-out
+          git init -q -b out && git add -A
+          git -c user.name=shots -c user.email=shots@example.invalid commit -q -m "shots ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" out:refs/heads/shots-out-${GITHUB_REF_NAME}
