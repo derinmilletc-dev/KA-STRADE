@@ -55,6 +55,14 @@ type ManualTarget = CloseTarget & {stop: string; targets: [string, string, strin
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
+// Risk paketi adımı (Kais Koç sihirbazı): "Kendim ayarlarım" kaydırıcısının durakları. Sınırlar sunucuyla aynı (%0,5–15).
+const RISK_STEPS = [0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15]
+const RISK_TICKS = [0.5, 2, 5, 10, 15]
+const PRESET_APPROVE: Record<string, string> = {temkinli: "Temkinli'yi onayla ✓", dengeli: "Dengeli'yi onayla ✓", agresif: "Agresif'i onayla ✓", maksimum: "Maksimum'u onayla ✓"}
+const riskToneOf = (risk: number) => risk <= 1 ? 'low' : risk <= 2 ? 'mid' : risk <= 5 ? 'warn' : 'hot'
+/** Üst üste 5 kayıpta bakiyenin eriyen payı (0–1). Yalnız gösterim. */
+const streakLoss = (riskPercent: number) => 1 - (1 - riskPercent / 100) ** 5
+const money = (value: number) => value.toLocaleString('tr-TR', {maximumFractionDigits: 2})
 const AGGRESSIVE_PHRASE = 'AGRESİF MODU KABUL EDİYORUM'
 const MODE_TEXT: Record<string, string> = {guvenli: 'Daha az teminat, daha küçük işlem. Bugünkü ayar.', orta: 'Daha büyük işlem; kayıp ve kazanç büyür.', agresif: 'En büyük işlem; kayıp ve kazanç en yüksek.'}
 const CLOSE_ALL_PHRASE = 'CANLI ACİL DURDUR'
@@ -191,6 +199,7 @@ export default function LiveCockpit(props: Props) {
     hours: readStored(hoursKey, validHours) ?? original?.session?.hours ?? 12,
   }))
   const [custom, setCustom] = useState(false)
+  const [wizCustom, setWizCustom] = useState(false)
   const [understood, setUnderstood] = useState(false)
   const [riskAck, setRiskAck] = useState(false)
   const [phrase, setPhrase] = useState('')
@@ -212,7 +221,7 @@ export default function LiveCockpit(props: Props) {
   const choosePreset = (id: string) => {
     const preset = RISK_PRESETS.find(item => item.id === id)
     if (!preset) return
-    setCustom(false)
+    setCustom(false); setWizCustom(false)
     setDraft({risk: preset.risk_percent, daily: preset.daily_loss_percent, coins: preset.symbol_count, hours: preset.session_hours})
     writeStored(coinsKey, preset.symbol_count); writeStored(hoursKey, preset.session_hours)
     setRiskAck(false); setPhrase('')
@@ -248,7 +257,7 @@ export default function LiveCockpit(props: Props) {
   const openLaunch = () => {
     setLaunchApprovals({}); setLaunchOps({}); setLaunchPhrase(''); setDailyText(null); setSheetError(''); setRiskError(''); setModeError('')
     setCustom(false); setCustomOn(false); setUnderstood(false); setRiskAck(false); setPhrase(''); setModePick(null)
-    setModeUnderstood(false); setModeAck(false); setModePhrase(''); setSmartPick('keep'); setSmartWizAck(false)
+    setModeUnderstood(false); setModeAck(false); setModePhrase(''); setSmartPick('keep'); setSmartWizAck(false); setWizCustom(false)
     setSheet('launch')
   }
   const openWizard = () => {
@@ -1210,7 +1219,6 @@ export default function LiveCockpit(props: Props) {
     const out: Advice[] = []
     const openCount = positions.length
     if (id === 'risk') {
-      if (draft.risk > 2) out.push({tone: 'warn', text: `%${draft.risk} işlem riski yüksek: kötü bir seride bakiye hızlı erir.`})
       if (openCount > 0) out.push({tone: 'info', text: `${openCount} açık pozisyon var. Onların Stop/TP'sine dokunulmaz.`})
     }
     if (id === 'daily') {
@@ -1259,28 +1267,119 @@ export default function LiveCockpit(props: Props) {
     policy: 'Sistemin sabit risk limitlerini (en çok pozisyon, günlük işlem sayısı vb.) kabul ettiğini kaydeder.',
     arm: 'ARM canlı emir kapısını açar. Başlatmadan ayrı tutulur ki iki karar ayrı verilsin.',
   }
-  const launchRec = (id: LaunchStepId): string | null => id === 'risk' ? 'Dengeli' : id === 'daily' ? `%${RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? 3}` : id === 'mode' ? recModeLabel : null
+  const launchRec = (id: LaunchStepId): string | null => {
+    if (id === 'daily') {
+      const presetDaily = RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent
+      return presetDaily !== undefined ? `%${presetDaily}` : null  // kendi riskini yazana uydurma bir öneri gösterilmez
+    }
+    return id === 'mode' ? recModeLabel : null  // risk adımının önerisi kendi kartında anlatılır
+  }
   const chipOf = (label: string, state: 'ok' | 'idle' | 'working' | 'error', title?: string) =>
     <span className="lcWzChip" data-state={state} title={title}><i aria-hidden="true">{state === 'ok' ? <Check/> : state === 'working' ? <RefreshCw className="lcSpin"/> : state === 'error' ? '!' : null}</i>{label}</span>
   const stateChips = (id: LaunchStepId) => {
     const meta = LAUNCH_STEPS.find(item => item.id === id)!
     const op = meta.op ? launchOpOf(meta.op) : undefined
     const approved = launchApproved(id)
-    return <span className="lcWzChips" aria-label="Onay, doğrulama ve işlem durumu">
-      {id === 'conn' ? null : chipOf('Onay', approved ? 'ok' : 'idle')}
-      {chipOf('Doğrulama', launchVerified[id] || (op?.state === 'done' && op.verified) ? 'ok' : 'idle')}
-      {id === 'conn' ? null : chipOf('İşlem', op?.state === 'done' ? 'ok' : op?.state === 'working' ? 'working' : op?.state === 'error' ? 'error' : 'idle')}
+    return <span className="lcWzChips lcWzLine" aria-label="Onay, doğrulama ve işlem durumu">
+      {id === 'conn' ? null : <>{chipOf('Sen onayla', approved ? 'ok' : 'idle')}<i className="lcWzLn" aria-hidden="true"/></>}
+      {chipOf('Kontrol', launchVerified[id] || (op?.state === 'done' && op.verified) ? 'ok' : 'idle')}
+      {id === 'conn' ? null : <><i className="lcWzLn" aria-hidden="true"/>{chipOf('Kaydedilir', op?.state === 'done' ? 'ok' : op?.state === 'working' ? 'working' : op?.state === 'error' ? 'error' : 'idle')}</>}
     </span>
   }
   const ringR = 26, ringC = 2 * Math.PI * ringR
   const activeMeta = launchActive === 'final' ? null : LAUNCH_STEPS.find(item => item.id === launchActive)!
   const activeIndex = launchActive === 'final' ? launchTotal : LAUNCH_STEPS.findIndex(item => item.id === launchActive) + 1
+  // ---- Risk paketi adımı: hazır paketler + "Kendim ayarlarım". Yalnız taslağı (draft) değiştirir; kaydetme en sonda mevcut akışla olur.
+  const rkPreset = RISK_PRESETS.find(item => item.risk_percent === draft.risk && item.symbol_count === draft.coins && item.session_hours === draft.hours)
+  const rkCustom = wizCustom || !rkPreset
+  const rkRec = RISK_PRESETS.find(item => item.id === 'dengeli')!
+  const rkNums = (risk: number, daily: number) => wallet !== null ? riskSummary(wallet, risk, Math.max(daily, risk), caps) : null
+  // Sunucu tavanı işlem başı kaybı kısabilir: kötü seri hesabı gerçekte uygulanabilen yüzdeyle yapılır.
+  const rkEffective = (risk: number) => { const nums = rkNums(risk, risk); return nums && wallet ? nums.perTrade / wallet * 100 : risk }
+  const rkAmount = (risk: number, daily: number) => {
+    const nums = rkNums(risk, daily)
+    return nums ? <span className="lcRkAmt"><b>{money(nums.perTrade)}</b><small>USDT · işlem başı</small>{nums.perTradeCapped && <em>sunucu tavanı</em>}</span>
+      : <span className="lcRkAmt"><b>{pct(risk)}</b><small>işlem başı risk</small></span>
+  }
+  const setWizRisk = (value: number) => { setDraft(current => ({...current, risk: value})); setRiskAck(false); setPhrase('') }
+  const rkIndex = RISK_STEPS.reduce((best, value, index) => Math.abs(value - draft.risk) < Math.abs(RISK_STEPS[best] - draft.risk) ? index : best, 0)
+  const rkBetween = (() => {
+    const same = RISK_PRESETS.find(item => item.risk_percent === draft.risk)
+    if (same) return `Risk olarak ${same.label} ile aynı seviyede.`
+    const lower = [...RISK_PRESETS].reverse().find(item => item.risk_percent < draft.risk)
+    const upper = RISK_PRESETS.find(item => item.risk_percent > draft.risk)
+    return lower && upper ? `Senin ayarın ${lower.label} ile ${upper.label} arasında.` : null
+  })()
+  const rkSimRows = (rkCustom || rkPreset?.id !== rkRec.id) ? [
+    {label: rkRec.label, risk: rkRec.risk_percent},
+    {label: rkCustom ? 'Senin ayarın' : rkPreset!.label, risk: draft.risk},
+  ] : []
+  const rkSimLoss = streakLoss(rkEffective(draft.risk))
+  const riskStepView = <div className="lcRk" data-testid="launch-risk-step">
+    {wallet !== null ? <p className="lcRkWallet"><span>{`Bakiyen ${money(wallet)} USDT`}</span><small>rakamlar buna göre</small></p>
+      : <p className="lcHint warn">Bakiye doğrulanınca her seçeneğin USDT karşılığı burada görünür.</p>}
+    <div className={rkCustom ? 'lcRkMini' : 'lcRkList'} role="radiogroup" aria-label="Risk paketi">
+      {RISK_PRESETS.map(preset => {
+        const selected = !rkCustom && rkPreset?.id === preset.id
+        const nums = rkNums(preset.risk_percent, preset.daily_loss_percent)
+        return <button type="button" role="radio" aria-checked={selected} key={preset.id} className="lcRkOpt" data-id={preset.id} data-tone={riskToneOf(preset.risk_percent)} data-selected={selected || undefined} disabled={busy} onClick={() => choosePreset(preset.id)}>
+          <span className="lcRkName"><b>{preset.label}</b>{preset.id === rkRec.id && <em>ÖNERİLEN</em>}</span>
+          {rkCustom ? <small className="lcRkMeta">{nums ? `${pct(preset.risk_percent)} · ${money(nums.perTrade)} USDT` : pct(preset.risk_percent)}</small> : <>
+            {rkAmount(preset.risk_percent, preset.daily_loss_percent)}
+            <small className="lcRkMeta">{nums ? `Günde en çok ${money(nums.perDay)} USDT · ${preset.symbol_count} coin · ${preset.session_hours} saat` : `Günlük ${pct(preset.daily_loss_percent)} · ${preset.symbol_count} coin · ${preset.session_hours} saat`}</small>
+            <i className="lcRkMeter" aria-hidden="true"><s style={{width: `${Math.max(4, preset.risk_percent / 15 * 100)}%`}}/></i>
+          </>}
+        </button>
+      })}
+    </div>
+    <button type="button" role="radio" aria-checked={rkCustom} className="lcRkOpt lcRkCustom" data-testid="launch-risk-custom" data-selected={rkCustom || undefined} disabled={busy} onClick={() => setWizCustom(true)}>
+      <i className="lcRkIco" aria-hidden="true"><SlidersHorizontal/></i>
+      <span className="lcRkName lcRkStack"><b>Kendim ayarlarım</b><small>{rkCustom ? 'Senin ayarın' : 'Risk, coin sayısı ve süreyi sen seç'}</small></span>
+      {rkCustom ? rkAmount(draft.risk, draft.risk) : <ChevronRight className="lcRkGo" aria-hidden="true"/>}
+    </button>
+    {rkCustom && <div className="lcRkPanel" data-testid="launch-risk-panel">
+      <div className="lcRkField">
+        <div className="lcRkHead"><span>İşlem başı risk</span><b>{pct(draft.risk)}</b></div>
+        <input type="range" className="lcRkRange" min={0} max={RISK_STEPS.length - 1} step={1} value={rkIndex} aria-label="İşlem başı risk" aria-valuetext={pct(draft.risk)} disabled={busy} data-testid="launch-risk-range" onChange={event => setWizRisk(RISK_STEPS[Number(event.target.value)])}/>
+        <div className="lcRkTicks" aria-hidden="true">{RISK_TICKS.map(tick => <span key={tick} style={{left: `${RISK_STEPS.indexOf(tick) / (RISK_STEPS.length - 1) * 100}%`}}>{pct(tick)}</span>)}</div>
+      </div>
+      <div className="lcRkField">
+        <div className="lcRkHead"><span>Taranacak coin sayısı</span><b>{Number.isFinite(draft.coins) ? draft.coins : '—'}</b></div>
+        <div className="lcRkStep">
+          <button type="button" aria-label="Coin sayısını azalt" disabled={busy || running || draft.coins <= 10} onClick={() => setStartParam('coins', Math.max(10, Math.ceil(draft.coins / 5) * 5 - 5))}>−</button>
+          <input className="lcRkNum" type="number" inputMode="numeric" min={10} max={100} step={5} value={Number.isFinite(draft.coins) ? draft.coins : ''} aria-label="Taranacak coin sayısı" disabled={busy || running} data-testid="launch-risk-coins" onChange={event => setStartParam('coins', Math.round(Number(event.target.value)))}/>
+          <button type="button" aria-label="Coin sayısını artır" disabled={busy || running || draft.coins >= 100} onClick={() => setStartParam('coins', Math.min(100, Math.floor(draft.coins / 5) * 5 + 5))}>+</button>
+        </div>
+        <div className="lcRkEnds" aria-hidden="true"><span>en az 10</span><span>en çok 100</span></div>
+        {!validCoins(draft.coins) && <p className="lcHint stop" role="alert">Coin sayısı 10 ile 100 arasında olmalı.</p>}
+      </div>
+      <div className="lcRkField">
+        <div className="lcRkHead"><span>Oturum süresi</span><b>{`${draft.hours} saat`}</b></div>
+        <div className="lcRkSeg" role="group" aria-label="Oturum süresi">{[1, 4, 12, 24].map(value => <button type="button" key={value} aria-pressed={draft.hours === value} disabled={busy || running} onClick={() => setStartParam('hours', value)}>{`${value} saat`}</button>)}</div>
+      </div>
+      {rkBetween && <p className="lcRkNear">{rkBetween}</p>}
+      {running && <p className="lcHint">Çalışırken coin sayısı ve süre bir sonraki başlatmada geçerli olur.</p>}
+    </div>}
+    {!rkCustom && rkPreset?.id === rkRec.id && <div className="lcRkWhy">
+      <b>{`Neden ${rkRec.label}?`}</b>
+      <ul>
+        <li>{(() => { const nums = rkNums(rkRec.risk_percent, rkRec.daily_loss_percent); return nums ? `Bir kayıpta en çok ${money(nums.perTrade)} USDT gider; bakiyeni hızlı eritmez.` : `İşlem başı ${pct(rkRec.risk_percent)} risk bakiyeni hızlı eritmez.` })()}</li>
+        <li>{`Günlük sınır ${pct(rkRec.daily_loss_percent)}: üst üste ${Math.round(rkRec.daily_loss_percent / rkRec.risk_percent)} kayıpta bot o gün durur.`}</li>
+      </ul>
+    </div>}
+    {rkSimRows.length > 0 && <div className="lcRkSim" data-tone={riskToneOf(draft.risk)} data-testid="launch-risk-streak">
+      <div className="lcRkSimHead"><b>Kötü seri örneği</b><small>üst üste 5 kayıp</small></div>
+      {rkSimRows.map(row => { const loss = streakLoss(rkEffective(row.risk)); return <div className="lcRkSimRow" key={row.label} data-tone={riskToneOf(row.risk)}>
+        <span>{row.label}</span><i aria-hidden="true"><s style={{width: `${Math.max(3, loss * 100)}%`}}/></i><b>{`−%${Math.round(loss * 100)}`}</b>
+      </div> })}
+      {wallet !== null && <p>{`5 kötü işlemde ${money(wallet)} USDT → yaklaşık ${money(wallet * (1 - rkSimLoss))} USDT.`}</p>}
+    </div>}
+    {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck lcRkAck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
+    {draft.risk > 5 && <label className="lcField lcRkPhrase">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/>
+      <small className="lcRkCount" aria-live="polite">{phrase === HIGH_RISK_PHRASE ? '✓' : `${[...phrase].filter((char, index) => char === [...HIGH_RISK_PHRASE][index]).length}/${[...HIGH_RISK_PHRASE].length}`}</small></label>}
+  </div>
   const editorOf = (id: LaunchStepId) => <>
-    {id === 'risk' && <>
-      <div className="lcWizList" role="radiogroup" aria-label="Risk paketi">{RISK_PRESETS.map(preset => <button type="button" role="radio" aria-checked={draft.risk === preset.risk_percent} key={preset.id} className="lcWizChip" data-selected={draft.risk === preset.risk_percent || undefined} data-rec={preset.id === 'dengeli' || undefined} disabled={busy} onClick={() => choosePreset(preset.id)}><b>{preset.label}{preset.id === 'dengeli' && <em>ÖNERİLEN</em>}</b><small>%{preset.risk_percent} · günlük %{preset.daily_loss_percent} · {preset.symbol_count} coin · {preset.session_hours} saat</small></button>)}</div>
-      {draft.risk > 2 && draft.risk <= 5 && <label className="lcCheck"><input type="checkbox" checked={riskAck} onChange={event => setRiskAck(event.target.checked)}/><span>%{draft.risk} işlem riskinin yüksek olduğunu anladım.</span></label>}
-      {draft.risk > 5 && <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{HIGH_RISK_PHRASE}</b> yaz<input value={phrase} autoComplete="off" onChange={event => setPhrase(event.target.value)}/></label>}
-    </>}
+    {id === 'risk' && riskStepView}
     {id === 'daily' && <><div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
       const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
       return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => { setDailyText(null); setDraft(current => ({...current, daily: value})) }}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
@@ -1376,7 +1475,7 @@ export default function LiveCockpit(props: Props) {
         <p className="lcSheetLead">{launchActive === 'final' ? 'Son adım: güvenlik onayı' : `Adım ${activeIndex} / ${launchTotal} · ${activeMeta?.title}`}</p>
       </div>
     </header>
-    <div className="lcMobileOnly lcWzSeg" aria-hidden="true">{Array.from({length: launchTotal}, (_, index) => <i key={index} data-on={index < launchDoneCount || undefined} data-now={index === launchDoneCount || undefined}/>)}</div>
+    <div className="lcMobileOnly lcWzSeg" aria-hidden="true"><span><i style={{width: `${Math.round(launchDoneCount / launchTotal * 100)}%`}}/></span><small>{`${Math.min(activeIndex, launchTotal)} / ${launchTotal}`}</small></div>
     <div className="lcWzBody">
       <ol className="lcWzRail" aria-label="Adımlar">
         {LAUNCH_STEPS.map((item, index) => {
@@ -1398,7 +1497,7 @@ export default function LiveCockpit(props: Props) {
           {activeMeta.id === 'conn'
             ? <p className="lcWzWhy">{launchWhy.conn} Bağlantı yok; önce Bağlantı sekmesinden Binance anahtarını kaydet.</p>
             : <>
-              <details className="lcWzWhyD"><summary>Neden bu öneri?</summary><p className="lcWzWhy">{launchWhy[activeMeta.id]}</p></details>
+              {activeMeta.id !== 'risk' && <details className="lcWzWhyD"><summary>Neden bu öneri?</summary><p className="lcWzWhy">{launchWhy[activeMeta.id]}</p></details>}
               {editorOf(activeMeta.id)}
               {launchRec(activeMeta.id) && <p className="lcWzRec">Önerilen: <b>{launchRec(activeMeta.id)}</b></p>}
               {adviceView(activeMeta.id)}
@@ -1408,8 +1507,10 @@ export default function LiveCockpit(props: Props) {
             ? <button type="button" className="lcBtn lcPrimary lcWzGo" onClick={() => { closeSheet(); goTab('baglanti') }}>Bağlantı'ya git</button>
             : <>
               {activeIndex > 2 && !launchRunning && <button type="button" className="lcMobileOnly lcWzBack" onClick={() => launchUndo(LAUNCH_STEPS[activeIndex - 2].id)}>← Geri</button>}
-              {!launchValid[activeMeta.id] && <p className="lcHint stop">{activeMeta.id === 'smart' ? 'Açmak için onay kutusunu işaretle.' : activeMeta.id === 'daily' ? 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı.' : 'Önce gerekli onay kutusunu / yazıyı tamamla.'}</p>}
-              <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>Onaylıyorum ✓</button>
+              {!launchValid[activeMeta.id] && activeMeta.id !== 'risk' && <p className="lcHint stop">{activeMeta.id === 'smart' ? 'Açmak için onay kutusunu işaretle.' : activeMeta.id === 'daily' ? 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı.' : 'Önce gerekli onay kutusunu / yazıyı tamamla.'}</p>}
+              <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>{activeMeta.id !== 'risk' ? 'Onaylıyorum ✓' : rkCustom ? 'Ayarımı onayla ✓' : PRESET_APPROVE[rkPreset?.id ?? ''] ?? 'Onaylıyorum ✓'}</button>
+              {activeMeta.id === 'risk' && !launchValid.risk && launchRiskValid && <p className="lcHint lcRkWait">{draft.risk > 5 ? 'Yazıyı tamamlayınca açılır.' : 'Onay kutusunu işaretleyince açılır.'}</p>}
+              {activeMeta.id === 'risk' && rkCustom && <p className="lcHint lcRkWait">Günlük kayıp sınırını bir sonraki adımda seçeceksin.</p>}
             </>}
         </section> : <section className="lcWzCard lcWzFinal" data-testid="launch-final">
           <small className="lcWzKicker">SON ADIM · GÜVENLİK PANELİ</small>
