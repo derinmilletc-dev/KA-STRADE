@@ -63,3 +63,4 @@ html body #root > main.v26App .demoMasterCockpit .demoTicketClose svg { width: 2
 
 /* Demo başlık şeridi yalnız kendi yüksekliği kadar yer kaplar (Master sayfa kabının tam ekran yüksekliği burada boşluk açıyordu). */
 html body #root > main.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage { min-height: 0 !important; height: auto !important; }
+html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage > .masterTradeShell.masterTradeShell.masterTradeShell:not(#demo-shell-x1):not(#demo-shell-x2) { min-height: 0 !important; height: auto !important; }
