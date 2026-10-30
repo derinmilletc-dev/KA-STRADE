@@ -17,7 +17,7 @@ async function prepare(page: Page) {
   await page.route('**/api/analysis-universe**', route => route.fulfill({json: {results: previewMarkets.map((m, i) => ({...m, direction: 'SHORT', confidence: 89 - i, final_decision_score: 89 - i, smart_score: 89 - i}))}}))
   await page.route('**/api/analysis/**', route => route.fulfill({json: previewAnalysis(new URL(route.request().url()).pathname.split('/').pop())}))
   await page.route('**/api/klines/**', route => route.fulfill({json: previewCandles(new URL(route.request().url()).pathname.split('/').pop())}))
-  await page.addInitScript(() => localStorage.setItem('protrebot-v25-session', 'cookie-session:shots-owner'))
+  await page.addInitScript(() => { localStorage.setItem('protrebot-v25-session', 'cookie-session:shots-owner'); localStorage.setItem('kais-site-tour:v1:shots-owner', `done|${Date.now()}`); localStorage.setItem('kt-app-ready', `done|${Date.now()}`) })
 }
 
 const shot = async (page: Page, name: string) => {
