@@ -218,3 +218,12 @@ html body #root .ktBill .ktBillPlan .ktBillNoAuto { color: var(--kb-mute); font-
 html body #root .ktBill .ktBillPlan.isSmart .ktBillPlanIcon { padding: 0; overflow: hidden; background: transparent; border: 0; }
 html body #root .ktBill .ktBillPlan.isSmart .ktBillPlanIcon img { display: block; width: 100%; height: 100%; border-radius: 14px; }
 @media (max-width: 767px) { html body #root .ktBill .ktBillStatusMain h2 { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; } }
+
+/* Tarama raporu 14: kartlarda fiyat ve düğmeler aynı hizada. */
+@media (min-width: 901px) {
+  html body #root .ktBill .ktBillPlan > header { min-height: 84px; }
+  html body #root .ktBill .ktBillPlanLead { min-height: calc(1.55em * 3); }
+  html body #root .ktBill .ktBillPlan ul { flex: 1 1 auto; align-content: start; }
+}
+/* 23: plan sayfasında silik minik yazılar okunur olsun. */
+html body #root .ktBill .ktBillTerms { font-size: 12px; color: #9fb0bd; }

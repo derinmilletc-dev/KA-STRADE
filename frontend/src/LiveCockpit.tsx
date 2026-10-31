@@ -938,12 +938,12 @@ export default function LiveCockpit(props: Props) {
     </div>}
   </div> : null
   const strategyCard = <section className="lcCard lcStrategy" id="lc-strategy" aria-label="Strateji ve risk">
-    <header className="lcCardHead"><div><small>STRATEJİ</small><h3>KAİS LONG · risk ayarı</h3></div>
+    <header className="lcCardHead"><div><small>STRATEJİ</small><h3>KAIS LONG · risk ayarı</h3></div>
       {verified && guideInput.connected && !guideInput.emergency && <button type="button" className="lcLink" aria-expanded={editorOpen} onClick={() => setSettingsOpen(value => !value)}>{editorOpen ? 'Kapat' : riskSaved ? 'Değiştir' : 'Seç'}<ChevronDown aria-hidden="true" data-open={editorOpen || undefined}/></button>}</header>
     <div className="lcStrategyNow">
       <span><small>İşlem başı hedef risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
       <span><small>Günlük kayıp sınırı</small><b>{riskSaved ? pct(savedDaily) : '—'}</b>{riskSaved && (dailyLimit !== null || wallet !== null) && <em>≈ {usdt(dailyLimit ?? (wallet !== null ? riskSummary(wallet, savedRisk, savedDaily, caps)?.perDay : null))}</em>}</span>
-      <span><small>Plan</small><b>en çok {draft.coins} coin</b><em>{draft.hours} saatlik oturum</em></span>
+      <span><small>Plan</small><b>{`en çok ${draft.coins} coin`}</b><em>{draft.hours} saatlik oturum</em></span>
     </div>
     {honestBlock}
     {modeBlock}
@@ -1051,7 +1051,7 @@ export default function LiveCockpit(props: Props) {
     <ol className="lcWizDots" aria-label="Adımlar">{WIZ_STEPS.map((label, index) => <li key={label} data-state={index < wizStep ? 'done' : index === wizStep ? 'now' : 'next'} aria-current={index === wizStep ? 'step' : undefined}><i aria-hidden="true">{index < wizStep ? '✓' : index + 1}</i><span>{label}</span></li>)}</ol>
     <div className="lcWizBar" role="progressbar" aria-valuemin={1} aria-valuemax={WIZ_STEPS.length} aria-valuenow={wizStep + 1} aria-label={`Adım ${wizStep + 1} / ${WIZ_STEPS.length}`}><i style={{width: `${((wizStep + 1) / WIZ_STEPS.length) * 100}%`}}/></div>
     {wizResumed && <p className="lcWizResume" role="status">Kaldığın yerden devam ediyorsun. <button type="button" className="lcLink" onClick={() => { clearWizDraft(); openWizard() }}>Baştan başla</button></p>}
-    <p className="lcWizCoach"><b>KAİS KOÇ</b>{WIZ_COACH[wizStep]}</p>
+    <p className="lcWizCoach"><b>KAIS KOÇ</b>{WIZ_COACH[wizStep]}</p>
     <div className="lcWizLive" aria-label="Seçimine göre tahmini rakamlar">
       <div><small>İşlem başı risk</small><b>{wizRiskNums ? usdt(wizRiskNums.perTrade) : '—'}</b></div>
       <div><small>Günlük en çok kayıp</small><b>{wizRiskNums ? usdt(wizRiskNums.perDay) : '—'}</b></div>
@@ -1773,8 +1773,8 @@ export default function LiveCockpit(props: Props) {
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone} data-ready={readyToStart || undefined}>
-      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>{dt('CANLI İŞLEM')}</span><span className="lcMPill">KAİS LONG</span></div>
-        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">{dt('CANLI İŞLEM')} · KAİS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
+      <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={running || undefined}><i aria-hidden="true"/>{dt('CANLI İŞLEM')}</span><span className="lcMPill">KAIS LONG</span></div>
+        <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">{dt('CANLI İŞLEM')} · KAIS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
           {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
@@ -1837,7 +1837,7 @@ export default function LiveCockpit(props: Props) {
         <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
-            <div><b>{coach ? 'KAİS KOÇ' : 'KAİS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
+            <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
             {!coach && guide.phase !== 'loading' && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`Adım ${guide.step} / ${GUIDE_STEPS.length}`} style={{'--p': `${Math.round(guide.step / GUIDE_STEPS.length * 100)}%`} as CSSProperties}><b aria-hidden="true">{guide.step}/{GUIDE_STEPS.length}</b></span>}
             {coach && !stale && <span className="lcMobileOnly lcKoPill">ÇALIŞIYOR</span>}
             <span className="lcHeadBtns">

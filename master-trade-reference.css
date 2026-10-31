@@ -391,7 +391,7 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis svg[data-draw-mode="trend"] { cursor: crosshair; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing line { stroke: #f0b90b; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--hline line { stroke: #4da3ff; }
-#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text { fill: #4da3ff; font-size: 11px; font-weight: 600; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text { fill: #4da3ff; font-size: 11px; font-weight: 600; paint-order: stroke fill; stroke: #070d0b; stroke-width: 5px; stroke-linejoin: round; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--draft line { stroke-dasharray: 5 4; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing circle { fill: #f0b90b; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing .refDrawingHit { stroke: transparent; stroke-width: 14; }
@@ -399,7 +399,7 @@
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing:hover line:not(.refDrawingHit) { stroke-width: 2.5; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawings[data-erasing="true"] .refDrawing:hover line:not(.refDrawingHit) { stroke: #ff5c5c; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChart { position: relative; }
-#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint { position: absolute; left: 12px; bottom: 34px; z-index: 2; pointer-events: none; box-shadow: 0 4px 14px #0007; margin: 0; padding: 6px 10px; font-size: 12px; color: #c9d6d4; background: #142024; border-radius: 6px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint { position: absolute; left: 50%; top: 12px; bottom: auto; transform: translateX(-50%); max-width: calc(100% - 24px); z-index: 2; pointer-events: none; box-shadow: 0 4px 14px #0007; margin: 0; padding: 6px 10px; font-size: 12px; color: #c9d6d4; background: #142024; border-radius: 6px; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawHint span { color: #7e9699; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refMetrics .refCard:has(:is(.refUpdatedAgo, .refCandleTimer)) { position: relative; }
 #root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refUpdatedAgo { position: absolute; top: 10px; right: 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; color: #7e9699; }

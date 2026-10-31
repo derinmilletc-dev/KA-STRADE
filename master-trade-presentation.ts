@@ -23,7 +23,7 @@ export function analysisPrice(value: number | null | undefined): string {
 export function autoTradePresentation(channel: 'LIVE' | 'DEMO', enabled: boolean | undefined) {
   return {
     label: enabled === undefined ? '—' : !enabled ? 'Kapalı' : channel === 'LIVE' ? "Live'da açık" : "Demo'da açık",
-    action: enabled ? "Auto Trade'e git" : "Auto Trade'i aç",
+    action: enabled ? 'Otomatik işleme git' : 'Otomatik işlemi aç',
   }
 }
 

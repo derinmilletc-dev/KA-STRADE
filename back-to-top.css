@@ -5,8 +5,8 @@
   z-index: 90;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 1px solid rgba(100, 215, 232, .42);
   border-radius: 14px;
@@ -22,7 +22,7 @@
 }
 
 .globalBackToTop.visible {
-  opacity: 1;
+  opacity: .7;
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0) scale(1);
@@ -71,3 +71,8 @@
     transform: none;
   }
 }
+
+.globalBackToTop.visible:hover,
+.globalBackToTop.visible:focus-visible { opacity: 1; }
+/* Sayfanın en altındaki içerik sabit düğmenin altında kalmasın. */
+#root > main { padding-bottom: max(var(--back-to-top-space, 0px), 72px); }

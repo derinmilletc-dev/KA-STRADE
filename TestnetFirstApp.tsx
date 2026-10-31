@@ -469,9 +469,9 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
     const candles = chart.addSeries(CandlestickSeries,{upColor:'#0caf62',downColor:'#ef594a',wickUpColor:'#0caf62',wickDownColor:'#ef594a',borderVisible:false})
     const volume = chart.addSeries(HistogramSeries,{priceFormat:{type:'volume'},priceScaleId:''})
     volume.priceScale().applyOptions({scaleMargins:{top:.82,bottom:0}})
-    const ema20 = chart.addSeries(LineSeries,{color:'#16a560',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:demoPresentation ? '' : 'EMA20'})
-    const ema50 = chart.addSeries(LineSeries,{color:'#f3a712',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:demoPresentation ? '' : 'EMA50'})
-    const ema200 = chart.addSeries(LineSeries,{color:'#8063d9',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:demoPresentation ? '' : 'EMA200'})
+    const ema20 = chart.addSeries(LineSeries,{color:'#16a560',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:''})
+    const ema50 = chart.addSeries(LineSeries,{color:'#f3a712',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:''})
+    const ema200 = chart.addSeries(LineSeries,{color:'#8063d9',lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:''})
 
     const applyAnalysis = (analysis:Analysis) => {
       ema20.setData(showEma ? (analysis.series?.ema20 ?? []).map(point => ({time:point.time as never,value:point.value})) : [])
@@ -526,6 +526,7 @@ function TestnetMarketChart({symbol,interval,onAnalysis,onAnalysisProgress,showL
 
   return <div className="v26ChartShell">
     <div className="v26ChartStatus"><span className={stream === 'CANLI' ? 'live' : stream === 'HATA' ? 'error' : ''}><i/>{stream}</span></div>
+    {showEma && !demoPresentation && <div className="v26ChartLegend" aria-hidden="true"><span style={{color:'#16a560'}}>EMA20</span><span style={{color:'#f3a712'}}>EMA50</span><span style={{color:'#8063d9'}}>EMA200</span></div>}
     <div className="v26Chart" ref={host}/>
   </div>
 }
@@ -1140,7 +1141,7 @@ export default function TestnetFirstApp() {
         <MobileMarketPulse markets={markets} onSelect={selectPulseSymbol}/>
       </section>
     </section>}
-    {view === 'dashboard' && !phoneLayout && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="pending"/>Testnet öncelikli</span></footer>}
+    {view === 'dashboard' && !phoneLayout && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="ok"/>Demo ve canlı işlem</span></footer>}
 
     {view === 'trading' && <>
       <DemoMasterShell tab={demoTab} onTab={setDemoTab} connected={demoConnected} assistantSlotRef={demoTab === 'analiz' ? undefined : setMasterAssistantHost} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>

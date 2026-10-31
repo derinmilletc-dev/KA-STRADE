@@ -56,7 +56,7 @@ test('Two centered cards hide Stripe even when configured; trial starts once wit
     expect(geometry.cards[0].y).toBe(geometry.cards[1].y)
     expect(geometry.cards[1].x).toBeGreaterThan(geometry.cards[0].x+geometry.cards[0].width)
   }
-  await expect(page.getByText('119.90 USD',{exact:true})).toBeVisible()
+  await expect(page.getByText('119.90 USDT',{exact:true})).toBeVisible()
   await expect(page.getByRole('button',{name:'START FREE TRIAL'})).toHaveCount(0)
   await expect(page.getByText('SECURE STRIPE BILLING',{exact:true})).toHaveCount(0)
   await page.getByRole('button',{name:'Ücretsiz denemeyi başlat',exact:true}).click()

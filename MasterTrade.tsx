@@ -117,6 +117,9 @@ const fmtNum = (value: number | null | undefined, decimals = 2) =>
 const fmtCompact = (value: number | null | undefined) =>
   value === undefined || value === null ? '—' : value.toLocaleString('tr-TR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 
+const usdtText = (value: number | null | undefined) => value === undefined || value === null || !Number.isFinite(value) ? '—' : `${fmtCompact(value)} USDT`
+const pctText = (value: number | null | undefined) => value === undefined || value === null || !Number.isFinite(value) ? '—' : `%${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
+
 const fmtPnl = (value: number | null | undefined) =>
   value === undefined || value === null || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 
@@ -799,8 +802,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
     { label: 'Daily PnL', value: dailyPerformance ? `${dailyPerformance.net_profit >= 0 ? '+' : ''}$${fmtCompact(dailyPerformance.net_profit)}` : '--', tone: 'muted' },
     { label: 'Daily Risk', value: '--', tone: 'muted' },
     { label: 'Limit', value: account?.limits?.max_open_positions === undefined ? '--' : `${account.limits.max_open_positions} positions`, tone: 'muted' },
-    { label: 'Open Risk', value: openRisk === null ? '--' : `$${fmtCompact(openRisk)}`, tone: 'warning' },
-    { label: 'Margin Used', value: usedMargin === null ? '--' : `$${fmtCompact(usedMargin)}`, tone: 'muted' },
+    { label: 'Open Risk', value: openRisk === null ? '--' : usdtText(openRisk), tone: 'warning' },
+    { label: 'Margin Used', value: usedMargin === null ? '--' : usdtText(usedMargin), tone: 'muted' },
     { label: 'Loss Streak', value: dailyPerformance ? String(dailyPerformance.losing_streak) : '--', tone: 'muted' },
   ]
   const masterTradeOffline = !snapshot && !markets.length && !marketLoading
@@ -1178,7 +1181,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <td data-cell="entry" data-label="Giriş fiyatı">${fmtMarketPrice(position.entry_price)}</td>
                       <td data-cell="mark" data-label="Anlık fiyat">${fmtMarketPrice(position.mark_price)}</td>
                       <td data-cell="lev">{position.leverage ? `${position.leverage}x` : '--'}</td>
-                      <td data-cell="margin" data-label="Teminat">{plan?.margin_usdt === undefined ? '--' : `$${fmtCompact(plan.margin_usdt)}`}</td>
+                      <td data-cell="margin" data-label="Teminat">{plan?.margin_usdt === undefined ? '--' : usdtText(plan.margin_usdt)}</td>
                       <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : `${position.unrealized_pnl >= 0 ? '+' : ''}$${fmtPnl(position.unrealized_pnl)}`}</td>
                       <td data-cell="pct">--</td>
                       <td data-cell="sl" data-label="Stop Loss">${fmtMarketPrice(stopLoss)}</td>
@@ -1296,14 +1299,14 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div className="perfMain"><small>Total trades</small><strong>{performanceSnapshot?.total_trades ?? '--'}</strong></div>
               <div className="perfMain"><small>Wins</small><strong>{performanceSnapshot?.wins ?? '--'}</strong></div>
               <div className="perfMain"><small>Losses</small><strong>{performanceSnapshot?.losses ?? '--'}</strong></div>
-              <div className="perfHero"><small>Win rate</small><strong>{performanceSnapshot ? `${performanceSnapshot.win_rate.toFixed(1)}%` : '--'}</strong></div>
-              <div className="perfHero"><small>Total PnL</small><strong className={(performanceSnapshot?.net_profit ?? 0) >= 0 ? 'positive' : 'negative'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.net_profit)}` : '--'}</strong></div>
-              <div className="perfMain"><small>Avg win</small><strong>{performanceSnapshot?.average_win === null || performanceSnapshot?.average_win === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_win)}`}</strong></div>
-              <div className="perfMain"><small>Avg loss</small><strong>{performanceSnapshot?.average_loss === null || performanceSnapshot?.average_loss === undefined ? '--' : `$${fmtCompact(performanceSnapshot.average_loss)}`}</strong></div>
+              <div className="perfHero"><small>Win rate</small><strong>{performanceSnapshot ? pctText(performanceSnapshot.win_rate) : '--'}</strong></div>
+              <div className="perfHero"><small>Total PnL</small><strong className={(performanceSnapshot?.net_profit ?? 0) >= 0 ? 'positive' : 'negative'}>{performanceSnapshot ? usdtText(performanceSnapshot.net_profit) : '--'}</strong></div>
+              <div className="perfMain"><small>Avg win</small><strong>{performanceSnapshot?.average_win === null || performanceSnapshot?.average_win === undefined ? '--' : usdtText(performanceSnapshot.average_win)}</strong></div>
+              <div className="perfMain"><small>Avg loss</small><strong>{performanceSnapshot?.average_loss === null || performanceSnapshot?.average_loss === undefined ? '--' : usdtText(performanceSnapshot.average_loss)}</strong></div>
               <div className="perfHero"><small>Profit factor</small><strong>{performanceSnapshot?.profit_factor === null || performanceSnapshot?.profit_factor === undefined ? '--' : performanceSnapshot.profit_factor.toFixed(2)}</strong></div>
-              <div className="perfAdv"><small>Best trade</small><strong className="positive">{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.best_trade)}` : '--'}</strong></div>
-              <div className="perfAdv"><small>Worst trade</small><strong className={(performanceSnapshot?.worst_trade ?? 0) < 0 ? 'negative' : 'muted'}>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.worst_trade)}` : '--'}</strong></div>
-              <div className="perfAdv"><small>Max drawdown</small><strong>{performanceSnapshot ? `$${fmtCompact(performanceSnapshot.max_drawdown)}` : '--'}</strong></div>
+              <div className="perfAdv"><small>Best trade</small><strong className="positive">{performanceSnapshot ? usdtText(performanceSnapshot.best_trade) : '--'}</strong></div>
+              <div className="perfAdv"><small>Worst trade</small><strong className={(performanceSnapshot?.worst_trade ?? 0) < 0 ? 'negative' : 'muted'}>{performanceSnapshot ? usdtText(performanceSnapshot.worst_trade) : '--'}</strong></div>
+              <div className="perfAdv"><small>Max drawdown</small><strong>{performanceSnapshot ? usdtText(performanceSnapshot.max_drawdown) : '--'}</strong></div>
             
               <button type="button" className="perfAdvToggle" aria-expanded={perfAdvOpen} onClick={() => setPerfAdvOpen(value => !value)}>{perfAdvOpen ? 'Gelişmiş istatistikleri gizle' : 'Gelişmiş istatistikleri göster'}</button>
             </div>
@@ -1368,9 +1371,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div><small>İlk stop</small><b>{orRecorded(selectedTrade.stopLoss, value => `$${fmtMarketPrice(value)}`)}</b></div>
               <div><small>Miktar</small><b>{orRecorded(selectedTrade.quantity, value => fmtNum(value, 4))}</b></div>
               <div><small>Kaldıraç</small><b>{orRecorded(selectedTrade.leverage, value => `${value}x`)}</b></div>
-              <div><small>Marjin</small><b>{orRecorded(selectedTrade.margin, value => `$${fmtCompact(value)}`)}</b></div>
-              <div><small>Pozisyon büyüklüğü</small><b>{orRecorded(selectedTrade.notional, value => `$${fmtCompact(value)}`)}</b></div>
-              <div><small>Başlangıç riski</small><b>{orRecorded(selectedTrade.initialRisk, value => `$${fmtCompact(value)}`)}</b></div>
+              <div><small>Marjin</small><b>{orRecorded(selectedTrade.margin, value => usdtText(value))}</b></div>
+              <div><small>Pozisyon büyüklüğü</small><b>{orRecorded(selectedTrade.notional, value => usdtText(value))}</b></div>
+              <div><small>Başlangıç riski</small><b>{orRecorded(selectedTrade.initialRisk, value => usdtText(value))}</b></div>
               <div><small>Sonuç (R)</small><b>{orRecorded(selectedTrade.rMultiple, value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}R`)}</b></div>
               <div><small>Komisyon</small><b>{orRecorded(selectedTrade.fees, value => `$${fmtPnl(value)}`)}</b></div>
               <div><small>Süre</small><b>{selectedTrade.duration ?? NOT_RECORDED}</b></div>

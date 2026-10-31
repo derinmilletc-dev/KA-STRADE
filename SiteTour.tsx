@@ -215,7 +215,7 @@ export default function SiteTour() {
       <div ref={panel} className="ktTourCard ktTourWelcome" role="dialog" aria-modal="true" aria-labelledby="kt-tour-title" data-testid="site-tour-welcome">
         <button type="button" className="ktTourX" aria-label="Kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button>
         <div className="ktTourEye" aria-hidden="true"><KaisEye size={120} state="idle"/></div>
-        <small className="ktTourKicker">KAİS · HOŞ GELDİN</small>
+        <small className="ktTourKicker">KAIS · HOŞ GELDİN</small>
         <h2 id="kt-tour-title">{name ? `Merhaba ${name}` : 'Merhaba'} 👋</h2>
         <p>Ben Kais. Seni siteyle tanıştırayım: nerede ne var, Ücretsiz ve Premium’da neler değişiyor, takıldığında nasıl yardım alırsın. Yaklaşık 2 dakika.</p>
         <button ref={primary} type="button" className="ktTourGo" data-testid="site-tour-start" onClick={begin}>Turu başlat</button>

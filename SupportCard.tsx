@@ -13,7 +13,7 @@ type Ticket = {id: string; subject: string; message: string; status: string; cre
 type Home = {support_tickets?: Ticket[]}
 
 const TOPICS = [
-  {name: 'Ödeme ve abonelik', hint: 'Fatura, üyelik', Icon: CreditCard},
+  {name: 'Abonelik ve ödeme', hint: 'Fatura, üyelik', Icon: CreditCard},
   {name: 'Binance bağlantısı', hint: 'API, bağlanamıyorum', Icon: KeyRound},
   {name: 'İşlem ve strateji', hint: 'Bot, emir, sonuçlar', Icon: LineChart},
   {name: 'Hesap ve giriş', hint: 'Şifre, güvenlik', Icon: UserRound},

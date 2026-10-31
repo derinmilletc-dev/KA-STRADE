@@ -1271,3 +1271,8 @@ html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.
 @media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimChev{transition:none}}
 /* Pozisyonlar bölümü bilgisayarda tam genişlik (live-terminal.css'teki 12 sütunluk 1/8 kuralı 100 sütunlu ızgarada kartı daraltıyordu). */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage.masterTrade.masterTrade[data-layout-tab="canli"] .lcRoot.lcRoot .lcGrid>.lcMain>.lcCard.pvRoot.pvRoot.pvRoot{grid-column:1/-1!important}
+
+/* Tarama raporu 17: günlük kayıp şeridi her sekmede (demo dahil) nefes alsın, sağdaki değer kesilmesin. */
+#root .lcRoot .lcDayLimit{display:grid;gap:6px;min-height:56px;padding:12px 14px;box-sizing:border-box}
+#root .lcRoot .lcDayLimit span{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;line-height:1.4}
+#root .lcRoot .lcDayLimit b{white-space:nowrap;overflow:visible}
