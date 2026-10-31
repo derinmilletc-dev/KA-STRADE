@@ -315,7 +315,7 @@ class FakeKlineClient:
             return {"symbols": [{"symbol": s, "status": "TRADING", "contractType": "PERPETUAL", "quoteAsset": "USDT",
                                  "filters": filters} for s in self.symbols]}
         symbol, interval, limit = params["symbol"], params["interval"], params["limit"]
-        step = {"15m": 900, "1h": 3600, "4h": 14400}[interval]
+        step = {"15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[interval]
         rng = random.Random(f"{self.seed}|{symbol}|{interval}")
         drift = self.drift * (0.5 + rng.random())
         last, price, rows = AT // step * step, 100.0, []

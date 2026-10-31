@@ -371,7 +371,8 @@ async def configure_original_kline_stream(application: Any, symbols: list[str]) 
     stream = getattr(application.state, "original_kline_stream", None)
     if stream is None:
         return
-    from .public_market_data import ORIGINAL_INTERVALS
+    # 15m (piyasa süzgeci/kâr koruma) + 30m (Kais canlı sinyali) + 1h/4h; bayrak 15m'e dönse de 30m akışı zararsızdır.
+    from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS as ORIGINAL_INTERVALS
     from . import live_registry
     if not live_registry.enabled():
         await stream.configure(symbols, ORIGINAL_INTERVALS)

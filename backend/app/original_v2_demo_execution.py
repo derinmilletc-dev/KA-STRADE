@@ -646,6 +646,9 @@ async def _candidates(
         }
 
     pullback_model = live_universe and pullback.pullback_enabled()  # varsayılan kapalı; geçersiz değer girişi reddeder
+    # Yalnız canlı Kais giriş taraması: sinyal dilimi (varsayılan 30 dk). Demo/backtest ve pullback modeli 15 dk'da kalır.
+    signal_interval = strategy.live_signal_interval() if live_universe and not pullback_model else "15m"
+    fetch_intervals = strategy.LIVE_KLINE_INTERVALS if signal_interval != "15m" else strategy.INTERVALS
     info = await client.public_get("/fapi/v1/exchangeInfo")
     symbol_info_by_symbol = {
         row["symbol"]: row for row in info.get("symbols", [])
@@ -656,7 +659,7 @@ async def _candidates(
     for symbol in symbols:
         frames, series_by_interval = {}, {}
         incomplete_history = False
-        for interval in strategy.INTERVALS:
+        for interval in fetch_intervals:
             try:
                 if kline_fetch is None:
                     raw = await client.public_get(
@@ -717,7 +720,8 @@ async def _candidates(
         if incomplete_history:
             continue
         try:
-            decision = StrategyInput(symbol, at, frames)
+            strategy_frames = frames if signal_interval == "15m" else strategy.live_strategy_frames(frames, signal_interval)
+            decision = StrategyInput(symbol, at, strategy_frames)
             results[symbol] = (
                 pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
                 else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
