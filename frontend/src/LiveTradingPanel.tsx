@@ -126,6 +126,8 @@ const saveRecentCoin = (symbol: string) => { try { localStorage.setItem(RECENT_C
 const coinPrice = (value: number) => Number.isFinite(value) ? value.toLocaleString('tr-TR', {maximumFractionDigits: value < 1 ? 6 : value < 100 ? 4 : 2}) : '—'
 const orderKey = (o: OrderDraft) => JSON.stringify([o.symbol, o.direction, o.order_type, o.margin_usdt, o.leverage, o.limit_price, o.stop_loss, o.tp1, o.tp2, o.tp3, o.tp_split, o.limit_expiry_minutes])
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '—' : String(value)
+/** Analizden gelen seviye fiyatı forma kısa yazılır (79547.65271290208 → 79547.65); boş/geçersizse ''. */
+const levelText = (value: unknown) => { if (value === null || value === undefined || value === '') return ''; const n = Number(value); return Number.isFinite(n) && n > 0 ? String(Number(n.toPrecision(7))) : '' }
 const signalPrice = (value: number | null | undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
 const money = (value: unknown) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
@@ -999,7 +1001,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // Analiz yalnız sayfada açık coin içindir; seçili coin farklıysa sessizce coin değiştirmez, başka coinin fiyatlarını da yazmaz.
     const fillBlock = analysisFillBlock(order.symbol, symbol)
     if (fillBlock) { setNotice({kind: 'error', text: fillBlock}); return }
-    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
+    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: levelText(analysis.entry), stop_loss: levelText(analysis.stop_loss), tp1: levelText(analysis.tp1), tp2: levelText(analysis.tp2), tp3: levelText(analysis.tp3)}))
     setNotice({kind: 'ok', text: 'Seçili analiz yönü ve seviyeleri forma dolduruldu.'})
   }
   // Adım değişince eski uyarı kalmasın (pencere içi uyarı yalnız o anki işlemin sonucunu göstersin).
@@ -1357,7 +1359,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="liveWsLabel">3 · Giriş ve miktar</span>
           <div className="liveWsSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={order.order_type === 'MARKET'} className={order.order_type === 'MARKET' ? 'on' : ''} onClick={() => set('order_type', 'MARKET')}>Piyasa</button><button type="button" aria-pressed={order.order_type === 'LIMIT'} className={order.order_type === 'LIMIT' ? 'on' : ''} onClick={() => set('order_type', 'LIMIT')}>Limit</button></div>
           <div className="liveWsTwo manualAmount">
-            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max={marginMax} value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].filter(v => v <= marginMax).map(v => <button type="button" key={v} aria-pressed={String(order.margin_usdt) === String(v)} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır · ` : ''}Risk ayarına göre en çok {marginMax} USDT</small></label>
+            <label className="liveWsField">Marjin (USDT)<input type="number" min="5" max={marginMax} value={order.margin_usdt} onChange={event => set('margin_usdt', event.target.value)}/><span className="liveWsChips">{[10, 25, 50, 100].filter(v => v <= marginMax).map(v => <button type="button" key={v} aria-pressed={String(order.margin_usdt) === String(v)} onClick={() => set('margin_usdt', String(v))}>{v}</button>)}</span><input type="range" className="manualRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/><small className="liveWsHint">{`${walletShare !== null ? `Hesabının %${walletShare.toFixed(1)}'i kullanılır · ` : ''}Risk ayarına göre en çok ${marginMax} USDT`}</small></label>
             <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={order.leverage} onChange={event => set('leverage', event.target.value)}/><span className="liveWsChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} aria-pressed={String(order.leverage) === String(v)} onClick={() => set('leverage', String(v))}>{v}x</button>)}</span><input type="range" className="manualRange" min="1" max="50" step="1" value={Number.isFinite(leverageValue) && leverageValue > 0 ? leverageValue : 1} onChange={event => set('leverage', event.target.value)} aria-label="Kaldıraç kaydırıcı"/><small className="liveWsHint">Düşük kaldıraç daha güvenlidir</small></label>
           </div>
           {order.order_type === 'LIMIT' && <label className="liveWsField">Limit fiyatı<input type="number" value={order.limit_price} onChange={event => set('limit_price', event.target.value)}/></label>}
@@ -1374,7 +1376,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <label className="liveWsField">Hedef 2 (TP2)<input type="number" value={order.tp2} onChange={event => set('tp2', event.target.value)}/></label>
             <label className="liveWsField">Hedef 3 (TP3)<input type="number" value={order.tp3} onChange={event => set('tp3', event.target.value)}/></label>
           </div>
-          <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>%{split.replace(/-/g, ' / ')}</button>)}</div><small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small></div>
+          <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>{`%${split.replace(/-/g, ' / ')}`}</button>)}</div><small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small></div>
           <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={fillAnalysis}><CircleDollarSign/> Analizden doldur</button></div>
           {tradingDefaults.preferences?.risk_per_trade && <div className="liveWsRow"><span className="liveWsHint">Kişisel risk tercihi: %{tradingDefaults.preferences.risk_per_trade}</span><button type="button" className="liveWsGhost" disabled={Boolean(busy) || !manualOrderReady} onClick={() => {
             const result = preferredRiskMargin({wallet: Number(status?.account?.wallet_balance), available: Number(status?.account?.available_balance), entry: order.order_type === 'LIMIT' ? Number(order.limit_price) : Number(analysis?.entry), stop: Number(order.stop_loss), leverage: Number(order.leverage), percent: tradingDefaults.preferences.risk_per_trade})
@@ -1519,7 +1521,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {duo(selectedSignal)}
         <div className="mxtFacts">
           <div><span>Sinyal yönü</span><b data-tone={selectedSignal.lean === 'LONG' ? 'up' : selectedSignal.lean === 'SHORT' ? 'down' : undefined}>{selectedSignal.lean === 'NEUTRAL' ? 'Net yön yok' : selectedSignal.lean}</b></div>
-          <div><span>Sinyal gücü</span><b>{strengthLabel(selectedSignal.confidence)} · %{selectedSignal.confidence}</b></div>
+          <div><span>Sinyal gücü</span><b>{`${strengthLabel(selectedSignal.confidence)} · %${selectedSignal.confidence}`}</b></div>
           <div><span>Seçtiğinle uyum</span><b data-tone={align === 'aligned' ? 'up' : align === 'opposed' ? 'warn' : undefined}>{align === 'aligned' ? 'Uyumlu' : align === 'opposed' ? 'Ters yönde' : 'Karşılaştırılamaz'}</b></div>
         </div>
         {align === 'opposed' && <p className="mxtWarn">Seçtiğin yön ({dirSide}), analizin ağır bastığı yönün tersi. Bu yalnızca bilgidir; kararı sen verirsin.</p>}
@@ -1615,7 +1617,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" onClick={fillAnalysis}><b>Kais analizi</b><small>Önerilen</small></button>}
         <button type="button" className="mxtMPk" data-rec={!hasAnalysis ? '1' : undefined} disabled={!(entryRef > 0) || volStopBusy} onClick={() => void applyVolatilityStop()}><b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</b><small>{hasAnalysis ? 'Coinin hareketine göre' : 'Önerilen'}</small></button>
-        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}><b>Stop %{item.pct}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}><b>{`Stop %${item.pct}`}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
       </div>
       {volNote && <p className="mxtHint" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
       {stopVisual}
@@ -1635,7 +1637,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="mxtMLbl"><span>HEDEFLER</span><span>TP1 dolunca stop girişe çekilir</span></div>
         <div className="mxtMTp">{([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
           const dist = targetDistancePct(entryRef, tpValues[index])
-          return <Fragment key={key}><i>{label}</i><span className="mxtMStep"><button type="button" aria-label={`${label} düşür`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, -1)}>−</button><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><button type="button" aria-label={`${label} yükselt`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, 1)}>+</button></span><em>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</em></Fragment>
+          return <Fragment key={key}><i>{label}</i><span className="mxtMStep"><button type="button" aria-label={`${label} düşür`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, -1)}>−</button><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><button type="button" aria-label={`${label} yükselt`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, 1)}>+</button></span><em>{`%${splitParts[index]} kapanır${dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}`}</em></Fragment>
         })}</div>
         <div className="mxtMLbl"><span>HEDEFİ RİSKE GÖRE AYARLA</span><span>TP1 = R×, TP2 = 2R×, TP3 = 3R×</span></div>
         <div className="mxtMChips" role="group" aria-label="Hedefi risk katına göre ayarla">{[1, 1.5, 2, 3].map(multiple => <button type="button" key={multiple} disabled={!(entryRef > 0) || !(stopValue > 0)} onClick={() => setTargetsByR(multiple)}>R {String(multiple).replace('.', ',')}</button>)}</div>
@@ -1652,7 +1654,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <button type="button" className="mxtPick" data-rec={!hasAnalysis ? '1' : undefined} disabled={!(entryRef > 0) || volStopBusy} onClick={() => void applyVolatilityStop()}>
           <b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}{!hasAnalysis && <em>Önerilen</em>}</b><small>Son dip ve coinin normal hareketine göre stop</small></button>
         {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
-          <b>Stop %{item.pct}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
+          <b>{`Stop %${item.pct}`}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
       </div>
       {volNote && <p className="mxtHint mxtDesk" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
       <section className="mxtSec mxtDesk" aria-label="Stop Loss">
@@ -1670,9 +1672,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <h5>Take Profit</h5>
         {([['tp1', 'TP1', 0], ['tp2', 'TP2', 1], ['tp3', 'TP3', 2]] as const).map(([key, label, index]) => {
           const dist = targetDistancePct(entryRef, tpValues[index])
-          return <div className="mxtTpRow" key={key}><b>{label}</b><input type="number" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><span>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</span></div>
+          return <div className="mxtTpRow" key={key}><b>{label}</b><input type="number" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><span>{`%${splitParts[index]} kapanır${dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}`}</span></div>
         })}
-        <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>%{split.replace(/-/g, ' / ')}</button>)}</div></div>
+        <div className="liveWsField">Hedef payları (TP1 / TP2 / TP3)<div className="liveWsSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} className={order.tp_split === split ? 'on' : ''} onClick={() => setOrder(current => ({...current, tp_split: split}))}>{`%${split.replace(/-/g, ' / ')}`}</button>)}</div></div>
         <small className="liveWsHint">TP1 dolunca stop girişe çekilir; TP3 kalan her şeyi kapatır.</small>
       </section>
       <section className="mxtSec mxtDesk" aria-label="Fiyat haritası">
@@ -1696,7 +1698,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
       <CheckList rows={checks}/>
-      {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
+      {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped && Number(risk.margin) < Number(order.margin_usdt) - 0.005 ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
       {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       {reviewResult && reviewed && <p className="mxtOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
       <div className="mxtActions">
@@ -1705,7 +1707,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
       {noticeEl}
       {sendBlock && sendBlock !== riskError && <p className="mxtHint">{sendBlock}</p>}
-      <p className="mxtHint">{feeNote} Hedefler: TP1 %{splitParts[0]}, TP2 %{splitParts[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</p>
+      <p className="mxtHint">{feeNote} {`Hedefler: TP1 %${splitParts[0]}, TP2 %${splitParts[1]}, TP3 kalanı kapatır.`}{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</p>
     </>
     const summaryAside = <aside className="mxtSummary" data-open={summaryOpen} aria-label="Emir özeti">
       <button type="button" className="mxtSumToggle" aria-expanded={summaryOpen} onClick={() => setSummaryOpen(open => !open)}><span>Emir özeti · {selectedRow?.display || order.symbol || 'coin seçilmedi'}</span><ChevronDown aria-hidden="true"/></button>
@@ -1922,7 +1924,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span><small>Tahmini zarar (stopta, komisyon dahil)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
           <span><small>TP1'de kâr (%{order.tp_split.split('-')[0]} kapanır, komisyon dahil)</small><b className={realGain !== null && realGain < 0 ? 'down' : 'up'}>{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
         </div>
-        {risk && <small className="liveWsHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</small>}
+        {risk && <small className="liveWsHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped && Number(risk.margin) < Number(order.margin_usdt) - 0.005 ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</small>}
         {riskError && <p className="liveWsWarn" role="alert">{riskError}</p>}
         <small className="liveWsHint">Tahminlere giriş ve çıkış komisyonu (taraf başı %{(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir. Hedefler: TP1 %{order.tp_split.split('-')[0]}, TP2 %{order.tp_split.split('-')[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</small>
         {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}

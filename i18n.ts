@@ -88,7 +88,9 @@ function translateCore(key: string, depth: number): string | null {
     let i = 0
     return en.replace(/\{\}/g, () => {
       const part = m[++i] ?? ''
-      return translateCore(norm(part), depth + 1) ?? part
+      const out = translateCore(norm(part), depth + 1)
+      // Parçanın baş/son boşluğu korunur: "Studio{}" + " · Kais…" → "Studio · Kais…" (boşluk yutulmaz).
+      return out === null ? part : `${/^\s*/.exec(part)?.[0] ?? ''}${out}${/\s*$/.exec(part)?.[0] ?? ''}`
     })
   }
   return null
@@ -99,13 +101,35 @@ const HAS_LETTER = /[A-Za-zÇĞİÖŞÜçğıöşü]/
 // uzun açık kalan sekmede belleği şişiriyordu. Sınır aşılınca önbellek sıfırlanır (sözlük aynı kalır).
 const CACHE_LIMIT = 4000
 
+/** Türkçe yüzde yazımı ("%80", "−%5,2", "<%1") İngilizcede sayıdan sonra yazılır ("80%"). Yalnız harfsiz yüzde metinleri. */
+const TR_PERCENT = /^(\s*)([<>≤≥+−-]?)%(\d[\d.,]*)(\s*)$/
+const TR_PERCENT_ANY = /%\d/
+const TR_PERCENT_ANY_G = /%(\d[\d.,]*\d|\d)/g
+const TR_PERCENT_LIST = /^(\s*)%(\d[\d.,]*(?:\s*\/\s*\d[\d.,]*)+)(\s*)$/
+function enPercent(text: string): string | null {
+  if (trMode || !patterns.length) return null
+  const m = TR_PERCENT.exec(text)
+  if (m) return `${m[1]}${m[2]}${m[3]}%${m[4]}`
+  // Hedef payları: "%60 / 20 / 20" → "60% / 20% / 20%"
+  const list = TR_PERCENT_LIST.exec(text)
+  if (list) return `${list[1]}${list[2].split('/').map(part => `${part.trim()}%`).join(' / ')}${list[3]}`
+  // Harfsiz karışık metin: "970.38 · %1.25" → "970.38 · 1.25%"
+  return TR_PERCENT_ANY.test(text) ? text.replace(TR_PERCENT_ANY_G, '$1%') : null
+}
+
+/** Çeviri sonrası kalan Türkçe yüzde yazımını ("Stop %3", "(%60 kapanır") İngilizce sıraya çevirir. */
+const TR_PERCENT_INLINE = /(^|[\s(·:/–—])([<>≤≥+−-]?)%(\d[\d.,]*\d|\d)/g
+function enPercentInline(text: string): string {
+  return trMode || !patterns.length || !text.includes('%') ? text : text.replace(TR_PERCENT_INLINE, '$1$2$3%')
+}
 export function translateText(text: string): string {
-  if (!text || !HAS_LETTER.test(text)) return text
+  if (!text) return text
+  if (!HAS_LETTER.test(text)) return enPercent(text) ?? text
   const key = apo(norm(text))
   if (!key) return text
   let out = cache.get(key)
   if (out === undefined) {
-    out = translateCore(key, 0) ?? key
+    out = enPercentInline(translateCore(key, 0) ?? key)
     if (cache.size >= CACHE_LIMIT) cache.clear()
     cache.set(key, out)
   }

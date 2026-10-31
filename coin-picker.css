@@ -119,6 +119,7 @@
   & .mxtDir button[aria-pressed='true'][data-side='LONG'] { background: rgba(57, 214, 154, .1) !important; box-shadow: inset 0 0 0 2px var(--mx-green); }
   & .mxtDir button[aria-pressed='true'][data-side='SHORT'] { background: rgba(239, 119, 119, .1) !important; box-shadow: inset 0 0 0 2px var(--mx-red); }
   & .mxtDir button[aria-pressed='true']::after { content: 'Seçili'; position: absolute; top: 14px; right: 16px; font-size: 12px; font-weight: 700; color: var(--mx-ink); }
+  &:not(:lang(tr)) .mxtDir button[aria-pressed='true']::after { content: 'Selected'; }
   & .mxtAi { display: grid; gap: 14px; padding: 16px; border-radius: 14px; background: var(--mx-bg2); box-shadow: inset 0 0 0 1px var(--mx-line); }
   & .mxtAi[data-align='opposed'] { box-shadow: inset 0 0 0 1.5px rgba(232, 183, 92, .6); }
   & .mxtFacts { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
