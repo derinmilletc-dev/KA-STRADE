@@ -1701,7 +1701,7 @@ export default function LiveCockpit(props: Props) {
   const lastScanMs = Date.parse(String(scanner?.last_scan_at || ''))
   const ago = (ms: number) => Number.isFinite(ms) ? `${duration(Math.max(0, (now - ms) / 1000))} önce` : ''
   const nonNegative = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
-  const scannedCount = Math.max(nonNegative(scanner?.scanned_symbol_count), nonNegative(scanner?.selected_symbols_count), nonNegative(scanner?.candidate_count), nonNegative(scanner?.candidate_symbols?.length))
+  const scannedCount = Math.max(nonNegative(scanner?.scanned_symbol_count), nonNegative(scanner?.scanned_symbols?.length), nonNegative(scanner?.candidate_count))
   const scans24h = Math.max(nonNegative(scanner?.last_24h?.scans), Number.isFinite(lastScanMs) && now - lastScanMs < 86_400_000 ? 1 : 0)
   const candidates24h = Math.max(nonNegative(scanner?.last_24h?.candidates), nonNegative(scanner?.candidate_count))
   const sessionEndsAt = Date.parse(String(original?.session?.expires_at || ''))
