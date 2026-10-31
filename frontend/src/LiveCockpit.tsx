@@ -83,7 +83,7 @@ const CLOSE_POSITION_PHRASE = 'CANLI POZİSYONU KAPAT'
 const PROTECTION_PHRASE = 'KORUMAYI GÜNCELLE'
 const REDUCE_PHRASE = 'KISMİ KAPAT'
 const usdt = (value: number | null | undefined, signed = false) => typeof value === 'number' && Number.isFinite(value)
-  ? `${signed && value > 0 ? '+' : ''}${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT` : '—'
+  ? `${signed && value > 0 ? '+' : ''}${(Math.abs(value) < 0.005 ? 0 : value).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT` : '—'
 const pct = (value: number) => `%${value.toLocaleString('tr-TR', {maximumFractionDigits: 2})}`
 const finite = (value: unknown): number | null => {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
@@ -1069,7 +1069,7 @@ export default function LiveCockpit(props: Props) {
         {DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
           const numbers = wallet !== null ? riskSummary(wallet, draft.risk, value, caps) : null
           return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} disabled={busy} onClick={() => setDraft(current => ({...current, daily: value}))}>
-            <b>%{value}</b><small>{numbers ? usdt(numbers.perDay) : ''}</small>
+            <b>{`%${value}`}</b><small>{numbers ? usdt(numbers.perDay) : ''}</small>
           </button>
         })}
       </div>
@@ -1385,7 +1385,7 @@ export default function LiveCockpit(props: Props) {
     {id === 'risk' && riskStepView}
     {id === 'daily' && <><div className="lcWizChips" role="radiogroup" aria-label="Günlük kayıp sınırı">{DAILY_CHOICES.filter(value => value >= draft.risk).map(value => {
       const recommended = value === (RISK_PRESETS.find(item => item.risk_percent === draft.risk)?.daily_loss_percent ?? -1)
-      return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => { setDailyText(null); setDraft(current => ({...current, daily: value})) }}><b>%{value}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
+      return <button type="button" role="radio" aria-checked={draft.daily === value} key={value} className="lcWizChip" data-selected={draft.daily === value || undefined} data-rec={recommended || undefined} disabled={busy} onClick={() => { setDailyText(null); setDraft(current => ({...current, daily: value})) }}><b>{`%${value}`}{recommended && <em>ÖNERİLEN</em>}</b><small>{wallet !== null ? usdt(riskSummary(wallet, draft.risk, value, caps)?.perDay ?? 0) : ''}</small></button>
     })}</div>
       <label className="lcField lcDailyOwn"><span>Ya da kendin yaz <em>%1 – %25</em></span>
         <span className="lcDailyBox"><b aria-hidden="true">%</b><input type="text" inputMode="decimal" autoComplete="off" data-testid="launch-daily-own" placeholder={String(draft.daily)} value={dailyText ?? ''} disabled={busy}
@@ -1398,7 +1398,7 @@ export default function LiveCockpit(props: Props) {
         const numbers = modeNumbers(item.per_trade_percent)
         return <button type="button" role="radio" aria-checked={chosenMode === item.mode} key={item.mode} className="lcWizChip lcWizMode" data-mode={item.mode} data-selected={chosenMode === item.mode || undefined} data-rec={item.mode === recModeId || undefined} disabled={busy} onClick={() => { setCustomOn(false); pickMode(item.mode) }}>
           <b>{item.label}{item.mode === recModeId && <em>ÖNERİLEN</em>}</b>
-          <small>%{item.per_trade_percent} teminat / işlem</small>
+          <small>{`%${item.per_trade_percent} teminat / işlem`}</small>
           <span className="lcMeter" aria-hidden="true"><i style={{width: `${Math.min(100, item.per_trade_percent)}%`}}/></span>
           {numbers && <span className="lcWizModeFacts"><span>Pozisyon en çok <b>{usdt(numbers.position)}</b></span><span>Stop %1'de risk ≈ <b>{pct(numbers.riskPercent)}</b></span></span>}
         </button>
@@ -1410,7 +1410,7 @@ export default function LiveCockpit(props: Props) {
     {id === 'smart' && smartSettings !== undefined && <>
       <div className="lcSmartState" data-on={smartCurrentlyOn || undefined}>
         <i aria-hidden="true"/>
-        <span><b>Şu an {smartCurrentlyOn ? 'AÇIK' : 'KAPALI'}</b><small>{smartCurrentlyOn ? `Puan eşiği ${smartSettings?.threshold ?? '—'} · bekleme ${smartSettings?.wait_minutes ?? '—'} dk` : 'Hiçbir akıllı emir gönderilmiyor'}</small></span>
+        <span><b>{smartCurrentlyOn ? 'Şu an AÇIK' : 'Şu an KAPALI'}</b><small>{smartCurrentlyOn ? `Puan eşiği ${smartSettings?.threshold ?? '—'} · bekleme ${smartSettings?.wait_minutes ?? '—'} dk` : 'Hiçbir akıllı emir gönderilmiyor'}</small></span>
       </div>
       <ol className="lcFlow" aria-label="Akıllı koruma nasıl çalışır">
         <li><i>1</i><b>Puan düşer</b><small>Eşiğin altına iner</small></li>
