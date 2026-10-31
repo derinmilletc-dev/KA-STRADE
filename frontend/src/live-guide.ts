@@ -133,7 +133,7 @@ export function liveGuide(input: GuideInput): Guide {
   }
 
   const pauseCode = input.paused ? input.pauseReason?.trim() ?? '' : ''
-  const stoppedNote = pauseCode ? `${PAUSE_TEXT[pauseCode] ?? `Son oturum durdu: ${pauseCode}`} ` : ''
+  const stoppedNote = pauseCode ? `${(PAUSE_TEXT[pauseCode] ?? `Son oturum durdu: ${pauseCode}`).replace(/([^.!?])$/, '$1.')} ` : ''
   if (input.balance === null) return problem('Bakiye doğrulanamadı', `${stoppedNote}Binance bakiyen okunamadı; risk tutarları bakiyeye göre hesaplandığı için devam edilemez. Kendiliğinden tekrar deneniyor.`, 'retry', 'Tekrar dene', 'warn', 2)
   const balanceText = `Binance hesabın doğrulandı · bakiye ${usdt(input.balance)}`
   if (!input.riskApproved) return {...base, phase: 'setup', tone: 'go', step: 2, done: balanceText,

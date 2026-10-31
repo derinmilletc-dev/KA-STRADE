@@ -934,7 +934,7 @@ export default function LiveCockpit(props: Props) {
     <div className="lcStrategyNow">
       <span><small>İşlem başı hedef risk</small><b>{riskSaved ? pct(savedRisk) : '—'}</b>{riskSaved && wallet !== null ? <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perTrade)}</em> : !riskSaved && <em>seçilmedi</em>}</span>
       <span><small>Günlük kayıp sınırı</small><b>{riskSaved ? pct(savedDaily) : '—'}</b>{riskSaved && wallet !== null && <em>≈ {usdt(riskSummary(wallet, savedRisk, savedDaily, caps)?.perDay)}</em>}</span>
-      <span><small>Tarama</small><b>{draft.coins} coin</b><em>{draft.hours} saatlik oturum</em></span>
+      <span><small>Tarama</small><b>{`${draft.coins} coin`}</b><em>{draft.hours} saatlik oturum</em></span>
     </div>
     {honestBlock}
     {modeBlock}
@@ -1792,7 +1792,7 @@ export default function LiveCockpit(props: Props) {
       <div className="lcStatusLinks">
         <span className="lcUpdated"><i className="lcLiveDot" aria-hidden="true"/><span><small>Son güncelleme</small><b>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '—'}</b></span></span>
         <button type="button" className="lcRefresh" aria-label="Yenile" title="Yenile" onClick={() => { void Promise.resolve(refresh()).catch(() => undefined) }}><RefreshCw aria-hidden="true"/></button>
-        {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %{original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}</b></span>}
+        {live && original?.margin_modes && <span className="lcModeChip" data-mode={savedMode} title="Teminat modu: her işleme ayrılabilecek en çok teminat">Teminat · <b>{`${original.margin_modes.find(row => row.mode === savedMode)?.label ?? 'Güvenli'} %${original.margin_modes.find(row => row.mode === savedMode)?.per_trade_percent ?? 30}`}</b></span>}
         <a className="lcPill lcPillLink" href="/profile#notify-settings" title="Bildirim ayarları"><Bell aria-hidden="true"/>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</a>
         <a className="lcPill lcPillLink" href="/master-trade?tab=baglanti" onClick={event => { event.preventDefault(); goTab('baglanti') }}>Bağlantı →</a>
         {running && <button type="button" className="lcBtn lcDanger lcBarStop" disabled={working === 'stop'} onClick={() => act('stop')}><Power aria-hidden="true"/>Durdur</button>}
@@ -1814,7 +1814,7 @@ export default function LiveCockpit(props: Props) {
       <div className="lcMChips">
         <span><small>Kullanılabilir</small><b>{verified && availableBalance !== null ? usdt(availableBalance) : '—'}</b></span>
         <span><small>Açık pozisyon</small><b>{live ? `${positions.length}${finite(policy.max_positions) ? ` / ${policy.max_positions}` : ''}` : '—'}</b></span>
-        {live && modeLabelNow && <span><small>Teminat modu</small><b>{modeLabelNow.label} %{modeLabelNow.per_trade_percent}</b></span>}
+        {live && modeLabelNow && <span><small>Teminat modu</small><b>{`${modeLabelNow.label} %${modeLabelNow.per_trade_percent}`}</b></span>}
       </div>
     </section>
     {stale && <p className="lcStaleNote" role="status">Bağlantı kesildi; aşağıdaki bilgiler {duration(staleAge)} önce doğrulandı. Yeniden bağlanınca kendiliğinden güncellenir.</p>}
@@ -1907,7 +1907,7 @@ export default function LiveCockpit(props: Props) {
           <div className="lcScanStats">
             <span><small>Son tarama</small><b>{Number.isFinite(lastScanMs) ? clock(scanner?.last_scan_at) : '—'}</b><em>{Number.isFinite(lastScanMs) ? ago(lastScanMs) : 'henüz yok'}</em></span>
             <span data-accent><small>Sonraki tarama</small><b>{upcoming ? new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</b><em>{upcoming ? banWaits ? 'Binance engeli bitince' : `${duration(upcoming.inSeconds)} sonra` : 'strateji çalışmıyor'}</em></span>
-            <span><small>Taranan</small><b>{scanner?.scanned_symbol_count ?? 0} coin</b><em>{scanner?.candidate_count ? `${scanner.candidate_count} aday` : 'aday yok'}</em></span>
+            <span><small>Taranan</small><b>{`${scanner?.scanned_symbol_count ?? 0} coin`}</b><em>{scanner?.candidate_count ? `${scanner.candidate_count} aday` : 'aday yok'}</em></span>
             <span><small>Son 24 saat</small><b>{scanner?.last_24h?.scans ?? 0} tarama</b><em>{scanner?.last_24h?.candidates ?? 0} aday · {scanner?.last_24h?.trades ?? 0} işlem</em></span>
           </div>
           <p className="lcMobileOnly lcMScanLine">{upcoming ? `Sonraki tarama ${new Date(upcoming.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})}` : 'Strateji çalışmıyor'} · son 24 saatte {scanner?.last_24h?.scans ?? 0} tarama, {scanner?.last_24h?.candidates ?? 0} aday, {scanner?.last_24h?.trades ?? 0} işlem</p>
