@@ -1192,7 +1192,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       // Master'ın Bağlantı kartının aynısı; alanlar ve düğmeler mevcut demo bağlantı işlevlerini kullanır (emir göndermez).
       const connected = Boolean(status?.connected)
       const gates:[string,boolean,string][] = [
-        ['Demo hesap bağlı',connected,connected ? 'Binance Futures Demo yanıt veriyor' : 'Demo anahtarlarını kaydet ve test et'],
+        [connected ? 'Demo hesap bağlı' : 'Demo hesap bağlı değil',connected,connected ? 'Binance Futures Demo yanıt veriyor' : 'Demo anahtarlarını kaydet ve test et'],
         ['Demo emir kilidi',!status?.armed,status?.armed ? 'Süreli demo emir izni açık' : 'Kapalı · emir için onay gerekir'],
         ['Gerçek işlem kilitli',v21?.real_trading_locked !== false,'Demo sayfası gerçek hesaba emir göndermez'],
         ['Otomasyon',!v21?.auto.enabled,v21?.auto.enabled ? 'Demo otomasyonu çalışıyor' : 'Kapalı'],

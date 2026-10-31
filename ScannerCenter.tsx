@@ -11,7 +11,7 @@ type Analysis = {
 }
 type Candidate = {
   rank?:number;symbol:string;direction?:string;score?:number;confidence?:string|number;confidence_value?:number
-  trend?:string;momentum?:string;volume_ratio?:number;rsi?:number;status?:string;reasons?:string[]
+  trend?:string;momentum?:string;volume_ratio?:number;rsi?:number;adx?:number;status?:string;reasons?:string[]
   mtf_trend?:string;macd_confirmation?:boolean;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number
 }
 type ScannerState = {
@@ -45,7 +45,10 @@ const setupLabel = (candidate:Candidate) => {
   if (/pullback|geri çekil/.test(reasons)) return 'Pullback'
   return candidateDirection(candidate) === 'NEUTRAL' ? 'No clear setup' : 'Trend continuation'
 }
-const hasHighVolume = (candidate:Candidate) => (safeNumber(candidate.volume_ratio) ?? 0) >= 1.15
+const HIGH_VOLUME_RATIO = 1.15
+const hasHighVolume = (candidate:Candidate) => (safeNumber(candidate.volume_ratio) ?? 0) >= HIGH_VOLUME_RATIO
+const marketKey = (value:string) => value.replace(/[/:_-]/g,'').toUpperCase()
+const positiveNumber = (value:unknown) => { const number = safeNumber(value); return number !== null && number > 0 ? number : null }
 
 export default function ScannerCenter({active,markets,symbol,onSymbolChange,analysis,chart,interval,onIntervalChange}:Props) {
   const [summary,setSummary] = useState<Summary|null>(null)
@@ -102,7 +105,7 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
   useEffect(() => { if (active) void loadSummary(true) },[active])
 
   const candidates = summary?.scanner?.all_candidates || summary?.scanner?.top_candidates || []
-  const marketBySymbol = useMemo(() => new Map(markets.map(market => [market.symbol,market])),[markets])
+  const marketBySymbol = useMemo(() => new Map(markets.map(market => [marketKey(market.symbol),market])),[markets])
   const scopedCandidates = universe === 'TOP 20' ? candidates.slice(0,20) : universe === 'TOP 50' ? candidates.slice(0,50) : candidates.filter(candidate => selectedSymbols.includes(candidate.symbol))
   const visible = useMemo(() => scopedCandidates.filter(candidate => {
     const itemDirection = candidateDirection(candidate)
@@ -131,6 +134,7 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
     if (synchronizedSymbol !== symbol) onSymbolChange(synchronizedSymbol)
   },[active,visible,symbol,onSymbolChange])
 
+  const selectedVolumeRatio = safeNumber(analysis?.volume_ratio) ?? safeNumber(selected?.volume_ratio)
   const locked = summary?.scanner?.locked === true
   const scannedCount = summary?.scanner?.coins_scanned ?? 0
   const strongLong = visible.filter(candidate => candidateDirection(candidate) === 'LONG' && candidateScore(candidate) >= 75).length
@@ -186,13 +190,13 @@ export default function ScannerCenter({active,markets,symbol,onSymbolChange,anal
 
     {!error && !locked && (loading || visible.length > 0) && <section className="scannerResults" aria-labelledby="scanner-results-title">
       <div className="scannerSectionHeading"><div><span>TECHNICAL OPPORTUNITIES</span><h3 id="scanner-results-title">SCANNER RESULTS</h3><small className="scannerResultMetadata">{scanMetadata}</small></div><div className="scannerFilters">{(['ALL','LONG','SHORT','STRONG','BREAKOUT','HIGH VOLUME'] as Filter[]).map(item => <button type="button" key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div></div>
-      <div className="scannerTableWrap"><table><thead><tr><th>SYMBOL</th><th>PRICE</th><th>DIRECTION</th><th>SCORE</th><th>TREND</th><th>RSI</th><th>MACD</th><th>ADX</th><th>VOLUME</th><th>SETUP</th></tr></thead><tbody>{loading ? <tr><td colSpan={10} className="scannerTableLoading">Loading current market data...</td></tr> : visible.map(candidate => { const market = marketBySymbol.get(candidate.symbol); const itemDirection = candidateDirection(candidate); return <tr key={candidate.symbol} className={candidate.symbol === symbol ? 'selected' : ''} onClick={() => onSymbolChange(candidate.symbol)} tabIndex={0} onKeyDown={event => {if (event.key === 'Enter') onSymbolChange(candidate.symbol)}}><td><strong>{candidate.symbol}</strong></td><td>{formatNumber(market?.price)}</td><td><b className={`scannerDirection scannerDirection-${itemDirection.toLowerCase()}`}>{itemDirection}</b></td><td><strong>{formatNumber(candidateScore(candidate),0)}</strong></td><td>{textValue(candidate.trend)}</td><td>{formatNumber(candidate.rsi,1)}</td><td>{candidate.macd_confirmation === undefined ? '—' : candidate.macd_confirmation ? 'Bullish' : 'Bearish'}</td><td>—</td><td>{formatNumber(candidate.volume_ratio,2)}x</td><td>{setupLabel(candidate)}</td></tr> })}</tbody></table></div>
+      <div className="scannerTableWrap"><table><thead><tr><th>SYMBOL</th><th>PRICE</th><th>DIRECTION</th><th>SCORE</th><th>TREND</th><th>RSI</th><th>MACD</th><th>ADX</th><th>VOLUME</th><th>SETUP</th></tr></thead><tbody>{loading ? <tr><td colSpan={10} className="scannerTableLoading">Loading current market data...</td></tr> : visible.map(candidate => { const market = marketBySymbol.get(marketKey(candidate.symbol)); const rowPrice = positiveNumber(market?.price) ?? positiveNumber(candidate.entry); const rowAdx = safeNumber(candidate.adx) ?? (candidate.symbol === symbol ? safeNumber(analysis?.adx) : null); const itemDirection = candidateDirection(candidate); return <tr key={candidate.symbol} className={candidate.symbol === symbol ? 'selected' : ''} onClick={() => onSymbolChange(candidate.symbol)} tabIndex={0} onKeyDown={event => {if (event.key === 'Enter') onSymbolChange(candidate.symbol)}}><td><strong>{candidate.symbol}</strong></td><td>{formatNumber(rowPrice,rowPrice !== null && rowPrice < 1 ? 6 : 2)}</td><td><b className={`scannerDirection scannerDirection-${itemDirection.toLowerCase()}`}>{itemDirection}</b></td><td><strong>{formatNumber(candidateScore(candidate),0)}</strong></td><td>{textValue(candidate.trend)}</td><td>{formatNumber(candidate.rsi,1)}</td><td>{candidate.macd_confirmation === undefined ? '—' : candidate.macd_confirmation ? 'Bullish' : 'Bearish'}</td><td>{formatNumber(rowAdx,1)}</td><td>{safeNumber(candidate.volume_ratio) === null ? '—' : `${formatNumber(candidate.volume_ratio,2)}x`}</td><td>{setupLabel(candidate)}</td></tr> })}</tbody></table></div>
     </section>}
 
     <section className="scannerDetail" aria-labelledby="scanner-detail-title">
       <div className="scannerDetailCopy"><div className="scannerSectionHeading"><div><span>SELECTED SYMBOL</span><h3 id="scanner-detail-title">{selected?.symbol || 'NO SYMBOL SELECTED'}</h3></div><b className="scannerCandidateLabel">{selectedDirection === 'NO CLEAR SETUP' ? selectedDirection : `${selectedDirection} CANDIDATE`}</b></div>
         <div className="scannerSnapshot"><h4>TECHNICAL SNAPSHOT</h4>{[['EMA 20',analysisValue?.ema?.ema20],['EMA 50',analysisValue?.ema?.ema50],['EMA 200',analysisValue?.ema?.ema200],['MACD',analysisValue?.macd],['RSI 14',analysisValue?.rsi],['ADX 14',analysisValue?.adx],['ATR 14',analysisValue?.atr],['Volume Ratio',analysisValue?.volume_ratio ?? selected?.volume_ratio]].map(([label,value]) => <span key={String(label)}><small>{label}</small><b>{typeof value === 'number' ? formatNumber(value,2) : '—'}</b></span>)}</div>
-        <div className="scannerExplanation"><h4>SIGNAL EXPLANATION</h4><p><b>Trend</b> {textValue(analysisValue?.trend || selected?.trend)}</p><p><b>Momentum</b> {textValue(analysisValue?.momentum || selected?.momentum)}</p><p><b>Volume</b> {hasHighVolume(selected || {}) ? 'Above average' : 'No confirmation'}</p><p><b>Structure</b> {setupLabel(selected || {})}</p><button type="button" className="scannerMasterTradeAction" onClick={() => window.dispatchEvent(new CustomEvent('protrebot-navigate',{detail:'master-trade'}))} disabled={!selected}>OPEN IN MASTER TRADE</button></div>
+        <div className="scannerExplanation"><h4>SIGNAL EXPLANATION</h4><p><b>Trend</b> {textValue(analysisValue?.trend || selected?.trend)}</p><p><b>Momentum</b> {textValue(analysisValue?.momentum || selected?.momentum)}</p><p><b>Volume</b> {selectedVolumeRatio === null ? '—' : selectedVolumeRatio >= HIGH_VOLUME_RATIO ? 'Above average' : 'No confirmation'}</p><p><b>Structure</b> {setupLabel(selected || {})}</p><button type="button" className="scannerMasterTradeAction" onClick={() => window.dispatchEvent(new CustomEvent('protrebot-navigate',{detail:'master-trade'}))} disabled={!selected}>OPEN IN MASTER TRADE</button></div>
       </div><div className="scannerChart"><div className="scannerChartHeader"><span>{selected?.symbol || 'NO SYMBOL SELECTED'} · {interval.toUpperCase()}</span><small>MARKET DATA</small></div>{chart}</div>
     </section>
   </section>
