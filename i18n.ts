@@ -99,8 +99,17 @@ const HAS_LETTER = /[A-Za-zÇĞİÖŞÜçğıöşü]/
 // uzun açık kalan sekmede belleği şişiriyordu. Sınır aşılınca önbellek sıfırlanır (sözlük aynı kalır).
 const CACHE_LIMIT = 4000
 
+/** Türkçe yüzde yazımı ("%80", "−%5,2", "<%1") İngilizcede sayıdan sonra yazılır ("80%"). Yalnız harfsiz yüzde metinleri. */
+const TR_PERCENT = /^(\s*)([<>≤≥+−-]?)%(\d[\d.,]*)(\s*)$/
+function enPercent(text: string): string | null {
+  if (trMode || !patterns.length) return null
+  const m = TR_PERCENT.exec(text)
+  return m ? `${m[1]}${m[2]}${m[3]}%${m[4]}` : null
+}
+
 export function translateText(text: string): string {
-  if (!text || !HAS_LETTER.test(text)) return text
+  if (!text) return text
+  if (!HAS_LETTER.test(text)) return enPercent(text) ?? text
   const key = apo(norm(text))
   if (!key) return text
   let out = cache.get(key)
