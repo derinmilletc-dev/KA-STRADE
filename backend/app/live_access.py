@@ -14,7 +14,7 @@ from fastapi import HTTPException, Request
 from . import live_registry
 
 logger = logging.getLogger(__name__)
-LIVE_MESSAGE = "LIVE işlem premium üyelik veya aktif deneme ile açılır"
+LIVE_MESSAGE = "LIVE işlem Smart Trade veya Master Mode ile açılır"
 
 
 def role_ok(role: Any) -> bool:

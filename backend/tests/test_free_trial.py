@@ -228,7 +228,8 @@ def test_live_transport_blocks_trial_before_clock_or_network_and_preserves_prote
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("path",["/api/v25/order","/api/v25/order/test","/api/v25/auto/start","/api/v25/arm"])
+@pytest.mark.parametrize("path",["/api/v25/order","/api/v25/order/test","/api/v25/auto/start","/api/v25/arm",
+                                 "/api/v25/grid/live/start","/api/v25/grid/live/resume","/api/v25/adopt-external-position"])
 def test_live_entry_endpoint_authority_denies_trial_before_any_exchange_or_ownership_change(path):
     from starlette.requests import Request
     conn = TrialConnection()

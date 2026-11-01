@@ -1645,6 +1645,7 @@ def execution_owner(request: Request) -> dict[str, Any]:
             raise HTTPException(403, "Master Trade aboneliğiniz bu özelliğe erişim vermiyor")
         if request.method != "GET" and request.url.path in {
             "/api/v25/order", "/api/v25/order/test", "/api/v25/auto/start", "/api/v25/arm",
+            "/api/v25/grid/live/start", "/api/v25/grid/live/resume", "/api/v25/adopt-external-position",
         } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
             raise HTTPException(403, LIVE_MESSAGE)
