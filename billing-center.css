@@ -495,3 +495,178 @@ html body #root .ktBill .ktBillPlan ul.ktBillFeatures { display: none; }
   html body #root .ktBill .ktBillPlan .ktBillNote { margin-top: 12px; padding-top: 16px !important; border-top: 1px solid rgba(255,255,255,.07) !important; font-size: 12.5px; }
 }
 @media (max-width: 374px) { html body #root .ktBill .ktBillPlan .ktBillPrice strong { font-size: 46px; } }
+
+/* ===== Ödeme penceresi (checkout): KAISTRADE lüks premium — siyah, orman yeşili, şampanya altını ===== */
+html body #root .ktBill .ktCheckout { --c-gold: #E8C877; --c-gold-l: #F8E7B0; --c-gold-d: #A8832F; --c-green: #37B98A; --c-text: #F4F3ED; --c-mute: #8E9C95; --c-soft: #B7C2BC; position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; }
+html body #root .ktBill .ktCheckoutBackdrop { position: absolute; inset: 0; background: radial-gradient(80% 60% at 50% 0%, rgba(24,120,78,.22), rgba(0,0,0,0) 70%), rgba(2,4,3,.82); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: ktCoFade .25s ease both; }
+html body #root .ktBill .ktCheckoutPanel { position: relative; display: flex; flex-direction: column; gap: 22px; width: min(100%, 560px); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 36px 36px 30px; border: 1.5px solid transparent; border-radius: 28px; background: linear-gradient(165deg, #0C1A13 0%, #08120D 52%, #050906 100%) padding-box, linear-gradient(145deg, #F8E7B0, #E8C877 24%, rgba(168,131,47,.5) 52%, rgba(55,185,138,.4) 78%, #F2D98F) border-box; box-shadow: 0 40px 90px -30px rgba(0,0,0,.95), 0 0 60px -26px rgba(232,200,119,.35); color: var(--c-text); animation: ktCoRise .3s cubic-bezier(.2,.8,.2,1) both; overscroll-behavior: contain; }
+@keyframes ktCoFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes ktCoRise { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
+html body #root .ktBill .ktCheckoutClose { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; background: rgba(255,255,255,.04); color: var(--c-soft); cursor: pointer; transition: background .2s ease, color .2s ease; }
+html body #root .ktBill .ktCheckoutClose:hover { background: rgba(255,255,255,.09); color: #fff; }
+html body #root .ktBill .ktCheckoutClose:focus-visible { outline: 2px solid var(--c-gold); outline-offset: 2px; }
+html body #root .ktBill .ktCheckoutClose svg { width: 18px; height: 18px; }
+html body #root .ktBill .ktCheckoutHead { display: block; padding: 0; }
+html body #root .ktBill .ktCheckoutHead .ktBillEyebrow { color: var(--c-gold); font-size: 11.5px; letter-spacing: .24em; }
+html body #root .ktBill .ktCheckoutHead h2 { margin: 10px 0 0; color: var(--c-text); font-size: 30px; font-weight: 650; letter-spacing: -.015em; line-height: 1.1; }
+html body #root .ktBill .ktCheckoutPrice { display: flex; align-items: baseline; gap: 10px; margin-top: 18px; }
+html body #root .ktBill .ktCheckoutPrice strong { font-size: 54px; font-weight: 300; letter-spacing: -.035em; line-height: 1; background: linear-gradient(180deg, #fff 0%, var(--c-gold-l) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-variant-numeric: tabular-nums; }
+html body #root .ktBill .ktCheckoutPrice span { color: var(--c-gold); font-size: 14px; font-weight: 650; letter-spacing: .18em; }
+html body #root .ktBill .ktCheckoutPrice em { margin-left: 2px; color: var(--c-mute); font-size: 14px; font-style: normal; }
+html body #root .ktBill .ktCheckoutMeta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 22px 0 0; border-top: 1px solid rgba(255,255,255,.08); border-bottom: 1px solid rgba(255,255,255,.08); }
+html body #root .ktBill .ktCheckoutMeta > div { padding: 14px 0 14px 16px; border-left: 1px solid rgba(255,255,255,.07); }
+html body #root .ktBill .ktCheckoutMeta > div:first-child { padding-left: 0; border-left: 0; }
+html body #root .ktBill .ktCheckoutMeta dt { color: var(--c-mute); font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+html body #root .ktBill .ktCheckoutMeta dd { margin: 5px 0 0; color: var(--c-text); font-size: 15px; font-weight: 600; }
+html body #root .ktBill .ktCheckoutSteps { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+html body #root .ktBill .ktCheckoutSteps li { display: flex; gap: 14px; align-items: flex-start; }
+html body #root .ktBill .ktCheckoutSteps li > b { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid rgba(232,200,119,.5); border-radius: 50%; color: var(--c-gold); font-size: 13px; font-weight: 700; }
+html body #root .ktBill .ktCheckoutSteps li strong { display: block; color: var(--c-text); font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+html body #root .ktBill .ktCheckoutSteps li span { display: block; margin-top: 2px; color: var(--c-mute); font-size: 13px; line-height: 1.5; }
+html body #root .ktBill .ktCheckout .ktBillPayBox { display: block; }
+html body #root .ktBill .ktCheckoutTip { display: flex; align-items: flex-start; gap: 10px; margin: 0; color: var(--c-mute); font-size: 12.5px; line-height: 1.5; }
+html body #root .ktBill .ktCheckoutTip svg { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--c-gold); }
+html body #root .ktBill .ktCheckoutTip b { color: var(--c-soft); font-weight: 600; }
+
+/* Mevcut Binance bileşeni: yalnız görünüm uyarlanır, mantık aynı */
+html body #root .ktBill .ktCheckout .ktBillPayBox .binanceManualPayment.binanceManualPayment { display: flex !important; flex-direction: column; gap: 14px; width: 100%; margin: 0 !important; padding: 22px !important; border: 1px solid rgba(232,200,119,.22) !important; border-radius: 20px !important; background: rgba(0,0,0,.28) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important; color: var(--c-text) !important; }
+html body #root .ktBill .ktCheckout .binanceManualPayment > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 0; padding: 0; border: 0; background: none; }
+html body #root .ktBill .ktCheckout .binanceManualPayment > header small { color: var(--c-gold) !important; font-size: 10.5px; font-weight: 700; letter-spacing: .2em; }
+html body #root .ktBill .ktCheckout .binanceManualPayment > header h3 { margin: 4px 0 0; color: var(--c-text); font-size: 19px; font-weight: 650; }
+html body #root .ktBill .ktCheckout .binanceManualPayment > header > span { flex: none; padding: 4px 11px; border: 1px solid rgba(232,200,119,.4) !important; border-radius: 999px; background: rgba(232,200,119,.08) !important; color: var(--c-gold-l) !important; font-size: 11px !important; font-weight: 600; letter-spacing: .06em; }
+html body #root .ktBill .ktCheckout .binanceManualPayment p { margin: 0; color: var(--c-soft) !important; font-size: 13.5px; line-height: 1.55; }
+html body #root .ktBill .ktCheckout .binanceManualPayment small { color: var(--c-mute); }
+html body #root .ktBill .ktCheckout .binanceManualDetails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; border: 0; background: none; }
+html body #root .ktBill .ktCheckout .binanceManualDetails > div { position: relative; display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 13px 14px; border: 1px solid rgba(255,255,255,.08) !important; border-radius: 14px; background: rgba(255,255,255,.03) !important; }
+html body #root .ktBill .ktCheckout .binanceManualDetails small { color: var(--c-mute) !important; font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+html body #root .ktBill .ktCheckout .binanceManualDetails strong { color: var(--c-text) !important; font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+html body #root .ktBill .ktCheckout .binanceManualReference.binanceManualReference { grid-column: 1 / -1; padding-right: 52px !important; border-color: rgba(232,200,119,.4) !important; background: rgba(232,200,119,.07) !important; }
+html body #root .ktBill .ktCheckout .binanceManualReference strong { color: var(--c-gold-l) !important; letter-spacing: .06em; }
+html body #root .ktBill .ktCheckout .binanceManualReference button { border: 0 !important; background: rgba(255,255,255,.08) !important; color: var(--c-soft) !important; }
+html body #root .ktBill .ktCheckout .binanceManualWarning { padding: 12px 14px; border: 1px solid rgba(232,200,119,.3) !important; border-radius: 12px; background: rgba(232,200,119,.06) !important; color: var(--c-soft) !important; }
+html body #root .ktBill .ktCheckout .binanceManualWarning b { color: var(--c-gold-l) !important; }
+html body #root .ktBill .ktCheckout .binanceManualPayment form { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 0; padding: 0; border: 0; background: none; }
+html body #root .ktBill .ktCheckout .binanceManualPayment label { color: var(--c-soft); font-size: 13px; font-weight: 600; }
+html body #root .ktBill .ktCheckout .binanceManualPayment input { width: 100%; min-height: 50px; padding: 0 16px; border: 1px solid rgba(255,255,255,.14) !important; border-radius: 14px; background: rgba(0,0,0,.35) !important; color: var(--c-text) !important; font-size: 15px; }
+html body #root .ktBill .ktCheckout .binanceManualPayment input:focus { outline: 0; border-color: var(--c-gold) !important; box-shadow: 0 0 0 3px rgba(232,200,119,.16) !important; }
+html body #root .ktBill .ktCheckout .binanceManualPrimary.binanceManualPrimary { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; margin: 0; padding: 0 20px; border: 0 !important; border-radius: 16px; background: linear-gradient(180deg, #F8E7B0 0%, #E8C877 55%, #C9A24A 100%) !important; color: #1B1405 !important; font-size: 15px; font-weight: 750; letter-spacing: .01em; box-shadow: 0 14px 28px -12px rgba(232,200,119,.7), inset 0 1px 0 rgba(255,255,255,.5) !important; cursor: pointer; transition: transform .15s ease, filter .15s ease; }
+html body #root .ktBill .ktCheckout .binanceManualPrimary.binanceManualPrimary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+html body #root .ktBill .ktCheckout .binanceManualPrimary.binanceManualPrimary:disabled { opacity: .5 !important; box-shadow: none !important; cursor: not-allowed; }
+html body #root .ktBill .ktCheckout .binanceManualRefresh.binanceManualRefresh { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid rgba(255,255,255,.1) !important; border-radius: 999px; background: transparent !important; color: var(--c-soft) !important; font-size: 12.5px; }
+html body #root .ktBill .ktCheckout .binanceManualPayment [role="status"] { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid rgba(232,200,119,.28) !important; border-radius: 14px; background: rgba(232,200,119,.06) !important; }
+html body #root .ktBill .ktCheckout .binanceManualPayment [role="status"] > strong { color: var(--c-gold-l) !important; font-size: 15px; }
+html body #root .ktBill .ktCheckout .binanceManualError { padding: 12px 14px; border: 1px solid rgba(241,122,122,.35) !important; border-radius: 12px; background: rgba(241,122,122,.08) !important; color: #F3B1B1 !important; font-size: 13px; }
+html body #root .ktBill .ktCheckout .binanceManualError button { margin-left: 6px; border: 0; background: none; color: var(--c-gold-l); text-decoration: underline; cursor: pointer; }
+
+@media (max-width: 700px) {
+  html body #root .ktBill .ktCheckout { place-items: end center; padding: 0; }
+  html body #root .ktBill .ktCheckoutPanel { width: 100%; max-height: 94dvh; gap: 20px; padding: 30px 20px calc(24px + env(safe-area-inset-bottom)); border-radius: 28px 28px 0 0; animation-name: ktCoSheet; }
+  @keyframes ktCoSheet { from { transform: translateY(40px); opacity: .6 } to { transform: none; opacity: 1 } }
+  html body #root .ktBill .ktCheckoutPanel::before { content: ""; position: absolute; top: 9px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: rgba(255,255,255,.18); }
+  html body #root .ktBill .ktCheckoutHead h2 { font-size: 26px; }
+  html body #root .ktBill .ktCheckoutPrice strong { font-size: 46px; }
+  html body #root .ktBill .ktCheckoutMeta dd { font-size: 14px; }
+  html body #root .ktBill .ktCheckout .binanceManualDetails { grid-template-columns: 1fr; }
+  html body #root .ktBill .ktCheckout .ktBillPayBox .binanceManualPayment.binanceManualPayment { padding: 18px !important; }
+}
+@media (prefers-reduced-motion: reduce) { html body #root .ktBill .ktCheckoutPanel, html body #root .ktBill .ktCheckoutBackdrop { animation: none; } }
+
+/* ===== Masaüstü: lüks premium Abonelik (yalnız ≥701px; referans görsele göre) ===== */
+@media (min-width: 701px) {
+  html body:has(main.ktBill) { background: radial-gradient(90% 46% at 14% 0%, rgba(24,120,78,.34) 0%, rgba(24,120,78,0) 65%), radial-gradient(60% 34% at 90% 4%, rgba(56,190,130,.16) 0%, rgba(56,190,130,0) 70%), #040706 !important; background-attachment: fixed !important; }
+  html body #root .ktBill.ktBill { --d-em: #2FD08A; --d-em-l: #8CF0C2; --d-sap: #5B9BFF; --d-sap-l: #A9CBFF; --d-gold: #E8C877; --d-gold-l: #F8E7B0; --d-gold-d: #A8832F; background: transparent !important; gap: 24px; width: min(100% - 48px, 1180px); }
+  /* Üst başlık: kutusuz */
+  html body #root .ktBill .ktBillHero { padding: 18px 4px 4px !important; border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: none !important; overflow: visible; }
+  html body #root .ktBill .ktBillHero::before, html body #root .ktBill .ktBillHero::after { display: none !important; }
+  html body #root .ktBill .ktBillHero .ktBillEyebrow { color: var(--d-gold) !important; font-size: 12px; font-weight: 700; letter-spacing: .24em; }
+  html body #root .ktBill .ktBillHero h1 { margin-top: 10px; color: #fff; font-size: 46px; font-weight: 750; letter-spacing: -.025em; line-height: 1.08; background: none; -webkit-text-fill-color: currentColor; }
+  html body #root .ktBill .ktBillHero p { max-width: 62ch; margin-top: 14px; color: #B3BEB8; font-size: 16px; line-height: 1.6; }
+  /* Durum şeridi */
+  html body #root .ktBill .ktBillStatus { gap: 0; padding: 18px 26px !important; border: 1px solid rgba(47,208,138,.28) !important; border-radius: 20px !important; background: rgba(8,18,13,.72) !important; box-shadow: 0 0 40px -22px rgba(47,208,138,.4) !important; }
+  html body #root .ktBill .ktBillStatusIcon { width: 52px; height: 52px; border: 1px solid rgba(232,200,119,.5) !important; border-radius: 50% !important; background: radial-gradient(circle at 30% 25%, rgba(232,200,119,.22), rgba(232,200,119,.04)) !important; color: var(--d-gold) !important; box-shadow: 0 0 22px -8px rgba(232,200,119,.5); }
+  html body #root .ktBill .ktBillStatusMain h2 { font-size: 20px; font-weight: 650; }
+  html body #root .ktBill .ktBillStats > div { padding: 2px 26px !important; border: 0 !important; border-left: 1px solid rgba(255,255,255,.1) !important; border-radius: 0 !important; background: none !important; }
+  html body #root .ktBill .ktBillStats dt { color: #8E9C95; font-size: 11px; font-weight: 600; letter-spacing: .16em; }
+  html body #root .ktBill .ktBillStats dd { margin-top: 5px; color: #fff; font-size: 16px; font-weight: 600; }
+  /* Plan kartları */
+  html body #root .ktBill .ktBillPlans { gap: 22px; align-items: stretch; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan.ktBillPlan.ktBillPlan {
+    --acc: var(--d-em); --acc-l: var(--d-em-l); --glow: rgba(47,208,138,.28); --bd: linear-gradient(150deg, rgba(140,240,194,.8), rgba(47,208,138,.22) 40%, rgba(47,208,138,.1) 64%, rgba(140,240,194,.55));
+    position: relative; gap: 20px; padding: 32px 30px 28px; border: 1.5px solid transparent !important; border-radius: 28px; overflow: hidden; transform: none;
+    background: linear-gradient(165deg, rgba(14,34,26,.96) 0%, rgba(8,18,14,.97) 55%, rgba(6,12,10,.98) 100%) padding-box, var(--bd) border-box !important;
+    box-shadow: 0 0 42px -16px var(--glow), 0 30px 60px -34px rgba(0,0,0,.95) !important;
+  }
+  html body #root .ktBill .ktBillPlan.isSmart.isSmart.isSmart { --acc: var(--d-sap); --acc-l: var(--d-sap-l); --glow: rgba(91,155,255,.3); --bd: linear-gradient(150deg, rgba(169,203,255,.85), rgba(91,155,255,.26) 42%, rgba(91,155,255,.1) 64%, rgba(169,203,255,.55)); background: linear-gradient(165deg, rgba(10,24,44,.96) 0%, rgba(7,15,28,.97) 55%, rgba(5,10,18,.98) 100%) padding-box, var(--bd) border-box !important; }
+  html body #root .ktBill .ktBillPlan.isFeatured.isFeatured.isFeatured { --acc: var(--d-gold); --acc-l: var(--d-gold-l); --glow: rgba(232,200,119,.36); --bd: linear-gradient(145deg, #FBEBB8, #E8C877 22%, rgba(168,131,47,.55) 48%, rgba(47,208,138,.45) 74%, #F2D98F); background: linear-gradient(165deg, rgba(22,32,22,.96) 0%, rgba(10,20,14,.97) 52%, rgba(6,12,9,.98) 100%) padding-box, var(--bd) border-box !important; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan:hover { transform: translateY(-3px); box-shadow: 0 0 52px -14px var(--glow), 0 36px 64px -34px rgba(0,0,0,.95) !important; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -40px; height: 100px; pointer-events: none; background: radial-gradient(55% 100% at 25% 100%, color-mix(in srgb, var(--acc) 26%, transparent), transparent 70%), radial-gradient(45% 100% at 85% 100%, rgba(47,208,138,.18), transparent 70%); }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan > * { position: relative; z-index: 1; }
+  html body #root .ktBill .ktBillPlan > header { padding: 0 !important; gap: 16px; align-items: center; }
+  html body #root .ktBill .ktBillPlan .ktBillPlanIcon { width: 62px; height: 62px; flex: none; border: 1px solid color-mix(in srgb, var(--acc) 55%, transparent) !important; border-radius: 50% !important; background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--acc) 30%, #0a120e), color-mix(in srgb, var(--acc) 6%, #070c09)) !important; color: var(--acc-l) !important; box-shadow: 0 0 24px -6px var(--glow), inset 0 1px 0 rgba(255,255,255,.14); }
+  html body #root .ktBill .ktBillPlan .ktBillPlanIcon svg { width: 28px; height: 28px; stroke-width: 1.5; }
+  html body #root .ktBill .ktBillPlan .ktBillPlanIcon img { display: none; }
+  html body #root .ktBill .ktBillPlan .ktBillPlanIcon .ktBillIconMobile { display: block; }
+  html body #root .ktBill .ktBillPlan .ktBillTag { display: block; margin-bottom: 4px; color: var(--acc-l) !important; font-size: 12px !important; font-weight: 650; letter-spacing: .2em; }
+  html body #root .ktBill .ktBillPlan h3 { margin: 0; color: #fff; font-size: 25px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; background: none; -webkit-text-fill-color: currentColor; }
+  html body #root .ktBill .ktBillRibbon.ktBillRibbon.ktBillRibbon { top: 18px; right: 18px; padding: 5px 13px 5px 11px !important; border: 0 !important; background: linear-gradient(180deg, var(--d-gold-l), var(--d-gold) 60%, #C9A24A) !important; color: #1B1405 !important; font-size: 11.5px !important; font-weight: 800; letter-spacing: .1em; box-shadow: 0 8px 18px -8px rgba(232,200,119,.7); }
+  html body #root .ktBill .ktBillRibbon::before { content: "★"; margin-right: 6px; }
+  html body #root .ktBill .ktBillPlanLead { color: #B6C1BB; font-size: 14.5px; line-height: 1.55; min-height: 3.1em; }
+  html body #root .ktBill .ktBillPlan .ktBillPrice { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: 18px 0 !important; border: 0 !important; border-top: 1px solid rgba(255,255,255,.08) !important; border-bottom: 1px solid rgba(255,255,255,.08) !important; border-radius: 0; background: none !important; }
+  html body #root .ktBill .ktBillPlan .ktBillPrice strong { font-size: 52px; font-weight: 700; letter-spacing: -.03em; line-height: 1; background: linear-gradient(180deg, #fff 0%, var(--acc-l) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; font-variant-numeric: tabular-nums; }
+  html body #root .ktBill .ktBillPlan .ktBillCurrency { margin: 0; color: var(--acc-l); font-size: 16px; font-weight: 700; letter-spacing: .08em; }
+  html body #root .ktBill .ktBillPlan .ktBillPer { margin: 0; padding: 0; background: none; color: #8E9C95; font-size: 14px; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) { flex: 1; display: grid; align-content: start; gap: 13px; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li { gap: 12px; color: #E9E8E0; font-size: 14.5px; line-height: 1.45; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li svg { width: 18px; height: 18px; margin-top: 1px; padding: 0; border-radius: 0; background: none; color: var(--acc); stroke-width: 2.4; }
+  html body #root .ktBill .ktBillPlan .ktBillLockNote { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 0 0 !important; border: 0 !important; border-top: 1px solid rgba(255,255,255,.08) !important; background: none !important; color: #7C8982; font-size: 13.5px; }
+  html body #root .ktBill .ktBillPlan .ktBillLockNote svg { width: 16px; height: 16px; color: #66736C; }
+  html body #root .ktBill .ktBillPlan .ktBillNote:not(.ktBillLockNote) { display: none; }
+  html body #root .ktBill .ktBillPlan .ktBillButton.ktBillButton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; margin-top: auto; border: 0 !important; border-radius: 16px; font-size: 15.5px; font-weight: 750; letter-spacing: .01em; transition: transform .18s ease, filter .18s ease, box-shadow .18s ease; }
+  html body #root .ktBill .ktBillPlan .ktBillButton svg { width: 18px; height: 18px; }
+  html body #root .ktBill .ktBillPlan .ktBillButton:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); }
+  html body #root .ktBill .ktBillPlan .ktBillButton:disabled { opacity: .5; cursor: not-allowed; }
+  html body #root .ktBill .ktBillPlan .ktBillButton.ktBillButton:focus-visible { outline: 2px solid var(--acc-l); outline-offset: 3px; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan:first-child .ktBillButton.ktBillButton { background: linear-gradient(180deg, #46DDA0, #27B97E) !important; color: #03140C !important; box-shadow: 0 12px 26px -12px rgba(47,208,138,.8), inset 0 1px 0 rgba(255,255,255,.35) !important; }
+  html body #root .ktBill .ktBillPlan.isSmart .ktBillButton.ktBillButton { background: linear-gradient(180deg, #7BB2FF, #4D86E6) !important; color: #04112A !important; box-shadow: 0 12px 26px -12px rgba(91,155,255,.8), inset 0 1px 0 rgba(255,255,255,.35) !important; }
+  html body #root .ktBill .ktBillPlan.isFeatured .ktBillButton.ktBillButton { background: linear-gradient(180deg, #F8E7B0 0%, #E8C877 55%, #C9A24A 100%) !important; color: #1B1405 !important; box-shadow: 0 12px 26px -12px rgba(232,200,119,.85), inset 0 1px 0 rgba(255,255,255,.5) !important; }
+  html body #root .ktBill .ktBillPlan .ktBillTerms { margin: -6px 0 0; color: #6F7C76; font-size: 12px !important; line-height: 1.5; text-align: center; }
+  /* Güven şeridi */
+  html body #root .ktBill .ktBillTrust { gap: 0; padding: 6px 0; border: 1px solid rgba(255,255,255,.08); border-radius: 22px; background: rgba(8,16,12,.6); }
+  html body #root .ktBill .ktBillTrust.ktBillTrust > div { align-items: center; gap: 16px; padding: 16px 26px; border: 0 !important; border-left: 1px solid rgba(255,255,255,.08) !important; border-radius: 0 !important; background: none !important; }
+  html body #root .ktBill .ktBillTrust.ktBillTrust > div:first-child { border-left: 0 !important; }
+  html body #root .ktBill .ktBillTrust svg { flex: none; width: 46px; height: 46px; margin: 0; padding: 12px; border: 1px solid rgba(232,200,119,.4); border-radius: 50%; background: rgba(232,200,119,.06); color: var(--d-gold); stroke-width: 1.6; }
+  html body #root .ktBill .ktBillTrust b { color: #fff; font-size: 15px; font-weight: 650; }
+  html body #root .ktBill .ktBillTrust small { color: #8E9C95; font-size: 13px; }
+}
+@media (min-width: 701px) and (max-width: 980px) { html body #root .ktBill .ktBillHero h1 { font-size: 36px; } html body #root .ktBill .ktBillPlan .ktBillPrice strong { font-size: 42px; } }
+@media (min-width: 701px) {
+  html body #root .ktBill .ktBillPlans > .ktBillPlan > .ktBillRibbon.ktBillRibbon.ktBillRibbon { position: absolute; z-index: 2; }
+  html body #root .ktBill.ktBill .ktBillHero.ktBillHero, html body #root .ktBill.ktBill .ktBillHero.ktBillHero > div { border: 0 !important; background: none !important; background-image: none !important; box-shadow: none !important; }
+  html body #root .ktBill.ktBill .ktBillStatus.ktBillStatus { border: 1px solid rgba(47,208,138,.3) !important; background: rgba(8,18,13,.72) !important; }
+}
+
+/* ===== Düzeltmeler: fiyat görünürlüğü (Safari), sade başlık/durum, çerçevesiz ikonlar ===== */
+html body #root .ktBill .ktBillPlan .ktBillPrice strong.ktBillPriceFix, html body #root .ktBill .ktBillPlan .ktBillPrice strong { background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important; -webkit-text-fill-color: currentColor !important; color: var(--acc-l, #fff) !important; opacity: 1 !important; visibility: visible !important; }
+html body #root .ktBill .ktCheckoutPrice strong { background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important; -webkit-text-fill-color: currentColor !important; color: var(--c-gold-l, #F8E7B0) !important; }
+html body #root .ktBill .ktBillPlan .ktBillPlanIcon, html body #root .ktBill .ktBillPlans > .ktBillPlan .ktBillPlanIcon { border: 0 !important; background: none !important; box-shadow: none !important; border-radius: 0 !important; }
+@media (max-width: 700px) {
+  /* Üst başlık: sade ve zarif */
+  html body #root .ktBill .ktBillMobileHead { padding: 14px 4px 2px; text-align: left; }
+  html body #root .ktBill .ktBillMobileHead::before { content: "ABONELİK"; display: block; margin-bottom: 10px; color: #E8C877; font-size: 11.5px; font-weight: 700; letter-spacing: .26em; }
+  html body #root .ktBill .ktBillMobileHead h1 { font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+  html body #root .ktBill .ktBillMobileHead p { margin-top: 10px; max-width: 32ch; color: #93A19A; font-size: 14.5px; line-height: 1.55; }
+  /* Mevcut plan: ince tek satır */
+  html body #root .ktBill .ktBillStatus.ktBillStatus { padding: 12px 14px !important; border: 1px solid rgba(255,255,255,.08) !important; border-radius: 16px !important; background: rgba(255,255,255,.025) !important; box-shadow: none !important; }
+  html body #root .ktBill .ktBillStats { display: none !important; }
+  html body #root .ktBill .ktBillStatusIcon { width: 36px !important; height: 36px !important; border: 0 !important; border-radius: 50% !important; background: rgba(232,200,119,.1) !important; }
+  html body #root .ktBill .ktBillStatusMain h2 { font-size: 15.5px; font-weight: 600; }
+  /* Sekmeler: ince yarı saydam hap kapsül */
+  html body #root .ktBill .ktBillTabs.ktBillTabs { gap: 0 !important; padding: 4px !important; border: 1px solid rgba(255,255,255,.09) !important; border-radius: 999px !important; background: rgba(255,255,255,.03) !important; }
+  html body #root .ktBill .ktBillTabs.ktBillTabs button { min-height: 42px !important; border: 0 !important; border-radius: 999px !important; background: transparent !important; color: #8E9C95 !important; font-weight: 500 !important; box-shadow: none !important; }
+  html body #root .ktBill .ktBillTabs.ktBillTabs button.isActive { background: color-mix(in srgb, var(--tab-acc) 16%, rgba(255,255,255,.04)) !important; color: var(--tab-acc) !important; font-weight: 650 !important; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tab-acc) 55%, transparent) !important; }
+  /* Kartlar: daha ince, daha az ağır */
+  html body #root .ktBill .ktBillPlans > .ktBillPlan.ktBillPlan.ktBillPlan { border-radius: 28px; }
+  html body #root .ktBill .ktBillPlan .ktBillPlanIcon { position: absolute; top: -4px; right: -2px; opacity: .85; }
+  html body #root .ktBill .ktBillPlan .ktBillPrice { padding: 20px 0 !important; }
+  html body #root .ktBill .ktBillPlan .ktBillPrice strong { font-size: 52px !important; font-weight: 300 !important; }
+}
