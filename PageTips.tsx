@@ -42,6 +42,8 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
   const [index, setIndex] = useState<number | null>(null)
   const [box, setBox] = useState<Box | null>(null)
   const [cardHeight, setCardHeight] = useState(170)
+  const cardHeightRef = useRef(170)
+  cardHeightRef.current = cardHeight
   const card = useRef<HTMLDivElement | null>(null)
   const primary = useRef<HTMLButtonElement | null>(null)
   const open = index !== null
@@ -51,9 +53,11 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
     if (owner === id) owner = null
     setIndex(null)
   }, [userId, id])
-  const begin = useCallback(() => {
+  const focusOnOpen = useRef(false)
+  const begin = useCallback((manual = false) => {
     if (owner && owner !== id) return
     owner = id
+    focusOnOpen.current = manual
     setIndex(0)
   }, [id])
 
@@ -62,14 +66,14 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
     if (!active || !ready || !userId || open || seen(userId, id) || !tourHandled(userId)) return
     const timer = window.setTimeout(() => {
       if (document.body.hasAttribute(TOUR_OPEN_ATTRIBUTE) || !findTarget(definition.tips[0]?.targets ?? [])) return
-      begin()
+      begin(false)
     }, 1200)
     return () => window.clearTimeout(timer)
   }, [active, ready, userId, id, open, begin, definition])
   // "?" tuşu: görülmüş olsa da baştan açar.
   useEffect(() => {
     const onOpen = (event: Event) => {
-      if ((event as CustomEvent).detail === id && active && !document.body.hasAttribute(TOUR_OPEN_ATTRIBUTE)) begin()
+      if ((event as CustomEvent).detail === id && active && !document.body.hasAttribute(TOUR_OPEN_ATTRIBUTE)) begin(true)
     }
     window.addEventListener(PAGE_TIPS_OPEN_EVENT, onOpen)
     return () => window.removeEventListener(PAGE_TIPS_OPEN_EVENT, onOpen)
@@ -105,7 +109,17 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
       if (!scrolled) {
         scrolled = true
         const rect = element.getBoundingClientRect()
-        if (rect.top < 70 || rect.bottom > window.innerHeight - 70) { try { element.scrollIntoView({block: 'center', behavior: 'smooth'}) } catch { /* eski tarayıcı */ } }
+        const viewport = window.innerHeight
+        const room = cardHeightRef.current + 36
+        // Kart hedefin altına ya da üstüne sığmıyorsa hedef, kartın üstündeki boş alana getirilir; hiç görünmüyorsa ortaya.
+        const fits = viewport - rect.bottom >= room || rect.top >= room
+        if (rect.top < 70 || rect.bottom > viewport - 70 || !fits) {
+          const top = !fits && rect.height < viewport - room - 100
+          const previous = element.style.scrollMarginTop
+          if (top) element.style.scrollMarginTop = '84px'
+          try { element.scrollIntoView({block: top ? 'start' : 'center', behavior: 'smooth'}) } catch { /* eski tarayıcı */ }
+          window.setTimeout(() => { element.style.scrollMarginTop = previous }, 1200)
+        }
       }
       const rect = element.getBoundingClientRect()
       const pad = 6
@@ -122,7 +136,7 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
     if (index === null || !card.current) return
     const height = Math.round(card.current.getBoundingClientRect().height)
     if (height && Math.abs(height - cardHeight) > 1) setCardHeight(height)
-    primary.current?.focus({preventScroll: true})
+    if (focusOnOpen.current) primary.current?.focus({preventScroll: true})
   }, [index, box, cardHeight])
 
   if (index === null || !userId) return null
@@ -136,7 +150,12 @@ export default function PageTips({id, active}: {id: TipsId; active: boolean}) {
   const left = box ? Math.min(Math.max(12, box.left + box.width / 2 - width / 2), vw - width - 12) : Math.max(12, (vw - width) / 2)
   if (placement === 'below' && box) style = {left, width, top: box.top + box.height + 14}
   else if (placement === 'above' && box) style = {left, width, top: box.top - cardHeight - 14}
-  else style = {left, width, bottom: 'max(14px, env(safe-area-inset-bottom))'}
+  else {
+    // Telefonda alt menünün hemen üstüne oturur (menüyü örtmez).
+    const nav = document.querySelector<HTMLElement>('.v26MobileBottomNav')
+    const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh
+    style = {left, width, bottom: Math.max(14, vh - navTop + 10)}
+  }
   const last = nextTipIndex(index, total) === null
   const go = () => { const next = nextTipIndex(index, total); if (next === null) close(true); else setIndex(next) }
 
