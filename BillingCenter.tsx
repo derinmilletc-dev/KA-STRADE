@@ -47,6 +47,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const [now, setNow] = useState(Date.now)
   const inFlight = useRef(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [sheetPlan, setSheetPlan] = useState<number | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>('MASTER_MODE')
@@ -142,6 +143,16 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     : binancePaid && hasAccess && smartTrade ? 'Erişimin aktif' : 'Ödemeye geç'
   const goToPayment = (plan: PaidPlan) => { lastFocus.current = document.activeElement as HTMLElement | null; setSelectedPlan(plan); setCheckoutOpen(true) }
   const closeCheckout = () => { setCheckoutOpen(false); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
+  const openSheet = (index: number) => { lastFocus.current = document.activeElement as HTMLElement | null; setSheetPlan(index) }
+  const closeSheet = () => { setSheetPlan(null); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
+  useEffect(() => {
+    if (sheetPlan === null) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !document.querySelector('dialog[open]')) closeSheet() }
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey) }
+  }, [sheetPlan])
   useEffect(() => {
     if (!checkoutOpen) return
     const previous = document.body.style.overflow
@@ -189,6 +200,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <div className="ktBillPrice"><strong>0</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 7 gün</span></div>
         <ul>{TRIAL_FEATURES.map(feature => <li key={feature.t}><Check/><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}</li>)}</ul>
         <FeatureList items={TRIAL_FEATURES} locked="Canlı işlem · ücretli planlarda açılır"/>
+        <button type="button" className="ktBillMore" onClick={() => openSheet(0)}>+{TRIAL_FEATURES.length + 1 - 4} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
         <p className="ktBillNote ktBillLockNote"><Lock/>Canlı işlem ücretli planlarla açılır.</p>
         {trialActive && <p className="ktBillInfo" role="status"><Clock3/>Kalan süre: <b>{trialDays} gün</b></p>}
         {trialUsed && !trialActive && <p className="ktBillInfo" role="status">Deneme sona erdi. Devam etmek için SMART TRADE ya da MASTER MODE’a geç.</p>}
@@ -206,6 +218,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <div className="ktBillPrice"><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{SMART_FEATURES.map(feature => <li key={feature.t}><Check/><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}</li>)}</ul>
         <FeatureList items={SMART_FEATURES} locked="KAIS stratejileri ve Auto Trade bu planda yok"/>
+        <button type="button" className="ktBillMore" onClick={() => openSheet(1)}>+{SMART_FEATURES.length + 1 - 4} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
         <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
         <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton" onClick={() => goToPayment('SMART_TRADE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{smartLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
@@ -222,6 +235,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <div className="ktBillPrice"><strong>{PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{MASTER_FEATURES.map(feature => <li key={feature.t} className={feature.hot ? 'isHot' : undefined}><Check/><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}</li>)}</ul>
         <FeatureList items={MASTER_FEATURES}/>
+        <button type="button" className="ktBillMore" onClick={() => openSheet(2)}>+{MASTER_FEATURES.length - 5} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
         <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton isPrimary" onClick={() => goToPayment('MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
@@ -229,6 +243,21 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     </section>
     <div className="ktBillDots" aria-hidden="true" data-plan={PLAN_TABS[activePlan].key}>{PLAN_TABS.map((tab, index) => <i key={tab.key} className={activePlan === index ? 'isActive' : undefined}/>)}</div>
 
+    {sheetPlan !== null && <div className="ktCheckout ktSheet" role="dialog" aria-modal="true" aria-labelledby="ktSheetTitle" data-plan={PLAN_TABS[sheetPlan].key}>
+      <div className="ktCheckoutBackdrop" onClick={closeSheet}/>
+      <div className="ktCheckoutPanel">
+        <button type="button" className="ktCheckoutClose" onClick={closeSheet} aria-label="Kapat"><X/></button>
+        <header className="ktCheckoutHead">
+          <span className="ktBillEyebrow">NELER DAHİL</span>
+          <h2 id="ktSheetTitle">{sheetPlan === 0 ? '1 Hafta Ücretsiz Deneme' : sheetPlan === 1 ? 'SMART TRADE' : 'MASTER MODE'}</h2>
+          <div className="ktCheckoutPrice"><strong>{sheetPlan === 0 ? '0' : sheetPlan === 1 ? PAID_PLAN_AMOUNT.SMART_TRADE : PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span>USDT</span><em>/ {sheetPlan === 0 ? '7' : '30'} gün</em></div>
+        </header>
+        {sheetPlan === 0 ? <FeatureList items={TRIAL_FEATURES} locked="Canlı işlem · ücretli planlarda açılır"/> : sheetPlan === 1 ? <FeatureList items={SMART_FEATURES} locked="KAIS stratejileri ve Auto Trade bu planda yok"/> : <FeatureList items={MASTER_FEATURES}/>}
+        {sheetPlan === 0
+          ? <button type="button" className="ktBillButton ktSheetCta" onClick={() => { closeSheet(); void startTrial() }} disabled={trialDisabled}>{trialLabel}</button>
+          : <button type="button" className="ktBillButton ktSheetCta" onClick={() => { const plan: PaidPlan = sheetPlan === 1 ? 'SMART_TRADE' : 'MASTER_MODE'; setSheetPlan(null); goToPayment(plan) }} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{sheetPlan === 1 ? smartLabel : masterLabel}</button>}
+      </div>
+    </div>}
     {checkoutOpen && binanceEnabled && authenticated && <div className="ktCheckout" role="dialog" aria-modal="true" aria-labelledby="ktCheckoutTitle">
       <div className="ktCheckoutBackdrop" onClick={closeCheckout}/>
       <div className="ktCheckoutPanel">
