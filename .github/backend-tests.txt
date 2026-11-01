@@ -212,3 +212,5 @@ tests/test_v8_logic.py
 tests/test_v9_logic.py
 tests/test_web_push.py
 tests/test_web_security.py
+tests/test_instagram_showcase.py
+tests/test_kais_access.py
