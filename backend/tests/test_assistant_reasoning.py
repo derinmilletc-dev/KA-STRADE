@@ -17,7 +17,7 @@ class ConfigDefaultsTests(unittest.TestCase):
     def test_budget_and_quota_limits_are_unchanged_and_history_is_eight(self):
         config = AssistantConfig()
         self.assertEqual(config.history_messages, 8)
-        self.assertEqual(config.daily_limit, 20)
+        self.assertEqual(config.daily_limit, 40)
         self.assertEqual(config.monthly_budget_usd, 50)
         self.assertEqual(config.model, "claude-haiku-5-5")
         self.assertEqual(config.voice_max_input_chars, 800)

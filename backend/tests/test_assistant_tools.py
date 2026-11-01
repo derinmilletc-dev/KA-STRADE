@@ -225,14 +225,15 @@ class AssistantToolsTests(AssistantToolsTestCase):
         for private in ("987654.321", "123456.789", "999888.777", "private strategy"):
             self.assertNotIn(private, cached.text)
 
-    async def test_premium_confirmation_cost_zero_and_no_spend(self):
+    async def test_paid_member_is_charged_against_a_daily_limit_of_forty_analyses(self):
         preview = await self.preview("premium")
-        self.assertEqual(preview["cost"], 0)
-        self.assertEqual(preview["analysis_cost"], self.credits.config.cost)
+        cost = self.credits.config.cost
+        self.assertEqual(preview["cost"], cost)
         self.assertEqual((await self.confirm(preview, "premium")).status_code, 200)
         credits = (await self.tool("get_my_credits", "premium")).json()["data"]
-        self.assertTrue(credits["unlimited"])
-        self.assertIsNone(credits["remaining"])
+        self.assertFalse(credits["unlimited"])
+        self.assertEqual(credits["total"], 40 * cost)
+        self.assertEqual(credits["remaining"], 40 * cost - cost)
 
     async def test_failed_analysis_refunds_cost_once(self):
         preview = await self.preview()
@@ -261,9 +262,6 @@ class AssistantToolsTests(AssistantToolsTestCase):
         preview = await self.preview()
         self.credits.config = CreditConfig(cost=20)
         self.assertEqual((await self.confirm(preview)).status_code, 409)
-        preview = await self.preview("premium")
-        self.app.state.v22_commercial["state"]["subscriptions"][0]["status"] = "UNPAID"
-        self.assertEqual((await self.confirm(preview, "premium")).status_code, 409)
         self.app.state.analyst_analysis.assert_not_awaited()
 
     async def test_insufficient_credits_uses_existing_consume_rejection(self):
@@ -431,7 +429,7 @@ class AssistantToolsTests(AssistantToolsTestCase):
         reply = (await self.chat("How do credits work?")).json()["reply"]
         for value in ("120/120", "12 credits", "12 hours", "9 minutes"):
             self.assertIn(value, reply)
-        self.assertIn("unlimited", (await self.chat("My credits?", "premium")).json()["reply"])
+        self.assertIn("480/480", (await self.chat("My credits?", "premium")).json()["reply"])  # günde 40 analiz x 12 kredi
 
     async def test_kais_ai_identity_tr_en_without_model_tools_or_credit_spending(self):
         before = await self.credits.credits("a", False)

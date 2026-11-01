@@ -125,6 +125,12 @@ class AssistantTools:
     def premium(self, user_id: str) -> bool:
         return bool(access_for_request(self.request, self.user(user_id))["isPremium"])
 
+    def analyst_access(self, user_id: str) -> tuple[bool, int | None]:
+        """(sınırsız mı, günlük analiz hakkı): deneme ve ücretli plan sınırlıdır, yalnızca sahip sınırsızdır."""
+        entitlements = access_for_request(self.request, self.user(user_id))["entitlements"]
+        limit = entitlements.get("analystDailyLimit")
+        return bool(entitlements.get("unlimitedAnalyst")), int(limit) if limit else None
+
     def credits(self) -> AnalystCredits:
         try:
             return credit_service(self.request)
@@ -152,9 +158,9 @@ class AssistantTools:
         return self.result({"plan": subscription["plan"], "status": subscription["status"], "isPremium": bool(access["isPremium"])})
 
     async def get_my_credits(self, user_id: str) -> dict[str, Any]:
-        premium = self.premium(user_id)
+        unlimited, limit = self.analyst_access(user_id)
         credits = self.credits()
-        snapshot = await credits.credits(user_id, premium)
+        snapshot = await credits.credits(user_id, unlimited, limit)
         reset = parse_datetime(snapshot["resetsAt"])
         return self.result({
             **snapshot,
@@ -197,7 +203,7 @@ class AssistantTools:
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
             raise HTTPException(403, "Invalid analysis confirmation") from None
         credits = self.credits()
-        cost = 0 if self.premium(user_id) else credits.config.cost
+        cost = 0 if self.analyst_access(user_id)[0] else credits.config.cost
         if (
             claims["symbol"] != payload.symbol or claims["timeframe"] != payload.timeframe
             or claims["expires_at"] <= self.clock() or claims["cost"] != cost
@@ -222,7 +228,7 @@ class AssistantTools:
         return self.result(data, stale=age is None or age >= self.credits().config.cache_minutes * 60)
 
     async def get_analysis(self, user_id: str, symbol: str, timeframe: str) -> dict[str, Any]:
-        premium = self.premium(user_id)
+        premium = self.analyst_access(user_id)[0]
         AnalysisArguments(symbol=symbol, timeframe=timeframe)
         credits = self.credits()
         cached = await credits.cached_analysis(user_id, symbol, timeframe)
@@ -239,9 +245,10 @@ class AssistantTools:
         self.user(user_id)
         key = self.verify_confirmation(user_id, payload)
         producer = self.request.app.state.analyst_analysis
+        unlimited, limit = self.analyst_access(user_id)
         response, status = await self.credits().consume(
-            user_id, self.premium(user_id), payload.symbol, payload.timeframe, key,
-            lambda: producer(payload.symbol, payload.timeframe),
+            user_id, unlimited, payload.symbol, payload.timeframe, key,
+            lambda: producer(payload.symbol, payload.timeframe), limit,
         )
         if status != 200:
             raise HTTPException(status, response)
@@ -477,8 +484,8 @@ class AssistantTools:
             status = ("Bu kullanıcı sitenin yöneticisi (admin). Premium erişimi VAR ve tüm analizleri sınırsız."
                       if tr else "This user is the site administrator (admin). They HAVE premium access and unlimited analyses.")
         elif premium:
-            status = (("Bu kullanıcının premium erişimi VAR" + (" ve analizleri sınırsız." if unlimited else " (deneme süresinde).")) if tr
-                      else ("This user HAS premium access" + (" with unlimited analyses." if unlimited else " (free trial).")))
+            status = (("Bu kullanıcının premium erişimi VAR" + (" ve analizleri sınırsız." if unlimited else "; günlük analiz hakkı sınırlıdır.")) if tr
+                      else ("This user HAS premium access" + (" with unlimited analyses." if unlimited else "; the daily analysis allowance is limited.")))
         else:
             status = (f"Bu kullanıcı premium DEĞİL; kendi analiz kredileri var (bir analiz {cost} kredi). "
                       f"Piyasa özeti (en iyi/en mantıklı coin, en iyi long/short) ona günde en fazla {limit} kez, her seferinde {cost} kredi düşerek verilir; "

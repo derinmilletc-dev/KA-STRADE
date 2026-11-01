@@ -139,7 +139,7 @@ def test_trial_has_demo_analysis_and_limited_assistant_but_not_live_or_unlimited
         assert not rights["entitlements"]["unlimitedAnalyst"]
         request = SimpleNamespace(state=SimpleNamespace(member_entitlement_proof=entitlements.EntitlementProof("user-a",1,sub)))
         with patch("app.analyst_credits.authenticated_user",return_value=USER):
-            assert member_access(request) == (USER,False)
+            assert member_access(request) == (USER,False,None)
         conn.now = next(iter(conn.trials.values()))["ends_at"]
         expired = await entitlements.resolve(conn,{"subscriptions":[]},"user-a")
         assert not expired["master_trade_access"] and expired["status"] == "EXPIRED"
@@ -341,7 +341,7 @@ def test_trial_ai_analyst_is_charged_and_cached_with_existing_budget(trial_api,t
     producer = AsyncMock(return_value={"symbol":"BTCUSDT","entry":100})
     @client.app.post("/api/analyst/trial-test")
     async def analysis(request:Request):
-        user, unlimited = analyst.member_access(request)
+        user, unlimited, _ = analyst.member_access(request)
         assert not unlimited
         payload, status = await credits.consume(user["id"],unlimited,"BTCUSDT","15m","trial-analysis-0001",producer)
         assert status == 200

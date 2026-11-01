@@ -37,7 +37,7 @@ class AssistantConfigTests(unittest.TestCase):
             "secret_min_alphanumeric_chars": 40,
             "budget_warning_fraction": Decimal("0.8"),
             "per_minute_limit": 6,
-            "daily_limit": 20,
+            "daily_limit": 40,
             "trial_daily_limit": 15,
             "free_market_daily_limit": 3,
             "monthly_budget_usd": Decimal(50),
