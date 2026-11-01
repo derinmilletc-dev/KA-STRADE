@@ -6,6 +6,7 @@ import {filterMarketQuotes, marketPrice, marketWindow, type MarketFilter, type M
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import './master-market-watch.css'
 import './market-search-card.css'
+import ScrollHintStrip from './ScrollHintStrip'
 
 const filters: MarketFilter[] = ['Tümü', 'Favoriler', 'Skorlu', 'Yükselenler', 'Düşenler']
 const sorts: MarketSort[] = ['Skor', '24s %', 'Hacim', 'A-Z']
@@ -112,7 +113,7 @@ function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: P
       <h2>PİYASA LİSTESİ <span>{filter} · {filtered.length}</span></h2>
       {rows.some(row => row.test) && <p className="refMarketDataNotice" role="note">OFFLINE TEST · TOKEN satırları sentetiktir, canlı sembol değildir.</p>}
       <label><Search/><input aria-label="Search markets" placeholder="Coin ara: BTC, ETH, Solana…" autoComplete="off" spellCheck={false} value={query} onChange={event => onQuery(event.target.value)}/>{query && <button type="button" className="refMarketClear" aria-label="Aramayı temizle" onClick={() => onQuery('')}><X aria-hidden="true"/></button>}</label>
-      <div className="refMarketFilters" role="group" aria-label="Piyasa filtreleri">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} data-empty={item !== 'Tümü' && counts[item] === 0 || undefined} onClick={() => setFilter(item)}>{item}{item !== 'Tümü' && <i className="refFilterCount" aria-hidden="true">{counts[item]}</i>}</button>)}</div>
+      <ScrollHintStrip className="refMarketFilters" role="group" label="Piyasa filtreleri" nextLabel="Diğer filtreleri göster" nudgeKey="kais-market-filter-nudge-seen">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} data-empty={item !== 'Tümü' && counts[item] === 0 || undefined} onClick={() => setFilter(item)}>{item}{item !== 'Tümü' && <i className="refFilterCount" aria-hidden="true">{counts[item]}</i>}</button>)}</ScrollHintStrip>
       <label className="refMarketSort"><ArrowUpDown className="refSortIcon" aria-hidden="true"/><span>Sıralama</span><select aria-label="Piyasa sıralaması" value={sort} onChange={event => {const value = event.target.value; const next = sorts.find(item => item === value); if (next) setSort(next)}}>{sorts.map(item => <option key={item}>{item}</option>)}</select></label>
       {(error || stale) && <p className="refMarketDataNotice" role="status">{error || 'Son kayıt gösteriliyor · Piyasa verisi güncel değil.'}</p>}
       {preferenceError && <p className="refMarketDataNotice" role="alert">{preferenceError}</p>}
