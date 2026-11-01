@@ -1102,8 +1102,8 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       return <section className="masterTradePage masterTrade masterLayoutV2 demoMasterCockpit" data-layout-tab="canli" aria-label="Demo işlem durumu">
         <section className="lcRoot originalLiveWorkspace" aria-label="Demo İşlem">
           <header className="lcStatusBar" data-tone={bar.tone}>
-            <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={autoOn || undefined}><i aria-hidden="true"/>DEMO İŞLEM</span>{demoStrategy === ORIGINAL_DEMO_ID && <span className="lcMPill">KAİS LONG</span>}</div>
-              <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">DEMO İŞLEM{demoStrategy === ORIGINAL_DEMO_ID ? ' · KAİS LONG' : ''}</small><b>{bar.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{cockpitAt ? new Date(cockpitAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'}</em></small></div>
+            <div className="lcStatusMain"><div className="lcMobileOnly lcMPills"><span className="lcMPill" data-live={autoOn || undefined}><i aria-hidden="true"/>DEMO İŞLEM</span>{demoStrategy === ORIGINAL_DEMO_ID && <span className="lcMPill">KAIS LONG</span>}</div>
+              <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">DEMO İŞLEM{demoStrategy === ORIGINAL_DEMO_ID ? ' · KAIS LONG' : ''}</small><b>{bar.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{cockpitAt ? new Date(cockpitAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'}</em></small></div>
               <div className="lcMobileOnly lcMore">
                 <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={cockpitMenu} onClick={() => setCockpitMenu(value => !value)}><span aria-hidden="true">⋯</span></button>
                 {cockpitMenu && <><div className="lcMoreShade" role="presentation" onClick={() => setCockpitMenu(false)}/>
@@ -1192,7 +1192,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       // Master'ın Bağlantı kartının aynısı; alanlar ve düğmeler mevcut demo bağlantı işlevlerini kullanır (emir göndermez).
       const connected = Boolean(status?.connected)
       const gates:[string,boolean,string][] = [
-        ['Demo hesap bağlı',connected,connected ? 'Binance Futures Demo yanıt veriyor' : 'Demo anahtarlarını kaydet ve test et'],
+        [connected ? 'Demo hesap bağlı' : 'Demo hesap bağlı değil',connected,connected ? 'Binance Futures Demo yanıt veriyor' : 'Demo anahtarlarını kaydet ve test et'],
         ['Demo emir kilidi',!status?.armed,status?.armed ? 'Süreli demo emir izni açık' : 'Kapalı · emir için onay gerekir'],
         ['Gerçek işlem kilitli',v21?.real_trading_locked !== false,'Demo sayfası gerçek hesaba emir göndermez'],
         ['Otomasyon',!v21?.auto.enabled,v21?.auto.enabled ? 'Demo otomasyonu çalışıyor' : 'Kapalı'],

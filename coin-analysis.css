@@ -1405,3 +1405,15 @@
 /* Analiste Sor: soru seçilince sonuç kartı ekranın üstüne hizalanır; sabit üst çubuğun altında kalmasın. */
 .coinAnalysisCenter .analystResultWorkspace { scroll-margin-top: 76px; }
 @media (max-width: 760px) { .coinAnalysisCenter .analystResultWorkspace { scroll-margin-top: 64px; } }
+
+/* Tarama raporu 12-13: tablo kart içine sığsın, detay grafiği kesilmesin. */
+.coinTableScroll table{min-width:0}
+.coinTableScroll td{padding:11px 8px}
+.coinTableScroll th button{padding:10px 6px}
+.coinDetailChart{height:420px}
+.coinDetailChart .v26ChartShell{min-height:0;height:100%}
+.coinDetailChart .v26Chart{height:100%}
+@media(max-width:700px){.coinDetailChart{height:340px}}
+/* Tarama raporu 23: Analist sayfasında minik silik yazılar. */
+#root .coinAnalysisCenter :is(small,th,th button,.coinTableMeta small,.analystCommandItems small,.analystSelectorList small){font-size:max(12px,.85em)}
+#root .coinAnalysisCenter :is(small,.analystCommandItems small){color:#a7bba9}

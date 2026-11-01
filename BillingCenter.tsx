@@ -130,7 +130,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
           <div><span className="ktBillTag">ÖDEMESİZ DENEME</span><h3>1 Hafta Ücretsiz Deneme</h3></div>
         </header>
         <p className="ktBillPlanLead">Kart veya ödeme bilgisi gerekmez. 7 gün boyunca çalışma alanını dene.</p>
-        <div className="ktBillPrice"><strong>0</strong><span className="ktBillCurrency">USD</span><span className="ktBillPer">/ 7 gün</span></div>
+        <div className="ktBillPrice"><strong>0</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 7 gün</span></div>
         <ul>{TRIAL_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
         <p className="ktBillNote"><Lock/>LIVE işlem ücretli planlarla açılır.</p>
         {trialActive && <p className="ktBillInfo" role="status"><Clock3/>Kalan süre: <b>{trialDays} gün</b></p>}

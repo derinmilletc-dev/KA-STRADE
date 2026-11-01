@@ -28,7 +28,7 @@ function MasterPlanPreview({disabledLabel}: {disabledLabel?: string}) {
   return <section className="subscriptionPlans" aria-label="MASTER MODE planı">
     <article className="subscriptionPlan subscriptionPlanFeatured">
       <header><span>MASTER MODE</span><h2>MASTER MODE</h2><p>Analiz ve işlem yönetimi için premium çalışma alanı.</p></header>
-      <div className="subscriptionPrice"><strong>{plan.monthlyPrice.toFixed(2)} USD</strong><span>/ ay</span></div>
+      <div className="subscriptionPrice"><strong>{plan.monthlyPrice.toFixed(2)} USDT</strong><span>/ ay</span></div>
       <ul>{masterFeaturesTr.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
       <small className="subscriptionTerms">Bu kart erişim açmaz veya ücret almaz. Ödeme yöntemi kullanılabilir olduğunda başvurabilirsiniz.</small>
       {disabledLabel && <button type="button" disabled>{disabledLabel}</button>}

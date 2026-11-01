@@ -119,7 +119,7 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   & .refDrawingTools { display: flex !important; flex-wrap: nowrap !important; gap: 2px !important; }
   & .refDrawingTools :is(button, summary) { min-width: 34px !important; min-height: 34px !important; }
   & .refAlarmToast { top: 8px !important; }
-  & .refDrawHint { bottom: 30px !important; left: 56px !important; max-width: calc(100% - 72px) !important; } /* sol çizim çubuğunun sağında */
+  & .refDrawHint { top: auto !important; transform: none !important; bottom: 30px !important; left: 56px !important; max-width: calc(100% - 72px) !important; } /* sol çizim çubuğunun sağında */
 
   & .refDrawingTools > :is(button, details) { width: auto !important; }
   & .kfsIdent { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden !important; display: flex !important; align-items: center !important; gap: 8px !important; white-space: nowrap !important; margin-right: 4px !important; }

@@ -261,7 +261,7 @@ for (const connected of [false, true]) test(`Locked navigation preserves all req
   for (const label of ['LİMİT','PİYASA']) await expect(root(page).getByRole('button', {name: label, exact: true})).toBeEnabled()
   await expect(root(page).getByRole('button', {name: 'LİMİT neden kilitli?'})).toHaveCount(0)
   expect(requests).toEqual(before)
-  await root(page).getByRole('button', {name: "Auto Trade'i aç", exact: true}).click()
+  await root(page).getByRole('button', {name: 'Otomatik işlemi aç', exact: true}).click()
   await expect(page).toHaveURL(/tab=canli/)
   await expect(page.locator('#master-trade-auto-trade')).toBeFocused()
   await expect(page.locator('#master-trade-auto-trade')).toContainText('ŞİMDİ YAPMAN GEREKEN')

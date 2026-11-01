@@ -1024,3 +1024,10 @@ html:has(.masterTradePage[data-layout-tab="canli"]) { scroll-padding-top: 124px;
 #master-trade-live-terminal>.originalAdvanced{grid-column:1/-1;min-width:0}
 
 @media(max-width:760px){.originalConnectionGrid{grid-template-columns:1fr}.originalConnectionGrid .masterTradeLiveApiActions button{flex:1}}
+
+/* Tarama raporu 15: tablo içindeki boş durum hücresi tüm genişliğe yayılıp ortalansın, diğer kartlarla aynı yazı tipi. */
+#root table td.emptyState { display: table-cell !important; text-align: center !important; vertical-align: middle; font-family: inherit !important; font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+
+/* Tarama raporu 21: ana sayfa alt bilgisi 10px ve silikti. */
+html body #root main.v26App .v26Footer,
+html body #root main.v26App .v26Footer span { font-size: 12px !important; color: #a5b4ae !important; }

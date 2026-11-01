@@ -43,9 +43,9 @@ test('Trigger lifecycle presentation never invents waiting or hides actual lifec
 })
 
 test('Read-only Auto Trade labels preserve channel identity and unknown state', () => {
-  assert.deepEqual(autoTradePresentation('LIVE', false), {label: 'Kapalı', action: "Auto Trade'i aç"})
-  assert.deepEqual(autoTradePresentation('LIVE', true), {label: "Live'da açık", action: "Auto Trade'e git"})
-  assert.deepEqual(autoTradePresentation('DEMO', true), {label: "Demo'da açık", action: "Auto Trade'e git"})
+  assert.deepEqual(autoTradePresentation('LIVE', false), {label: 'Kapalı', action: 'Otomatik işlemi aç'})
+  assert.deepEqual(autoTradePresentation('LIVE', true), {label: "Live'da açık", action: 'Otomatik işleme git'})
+  assert.deepEqual(autoTradePresentation('DEMO', true), {label: "Demo'da açık", action: 'Otomatik işleme git'})
   assert.equal(autoTradePresentation('LIVE', undefined).label, '—')
 })
 

@@ -84,7 +84,7 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
     {id: 'plans', kicker: 'PAKETLER', title: premium ? 'Master Mode açık' : 'Ücretsiz mi, Premium mu?',
       body: premium ? 'Premium üyeliğin aktif. Paketler sayfasından planını ve faturalarını yönetebilirsin.' : 'İkisiyle de Kais’i kullanırsın. Fark, ne kadar ve ne derinlikte baktığında:',
       view: 'billing', extra: 'plans'},
-    {id: 'kais', pin: 'Kais AI', kicker: 'KAİS AI', title: 'Sorularını Kais’e sor',
+    {id: 'kais', pin: 'Kais AI', kicker: 'KAIS AI', title: 'Sorularını Kais’e sor',
       body: `Kais; analizleri, piyasayı ve (izin verdiysen) kendi hesabını okuyup sade bir dille anlatır. ${phone ? 'Gözü alttaki menünün ortasında bulursun.' : 'Gözü sayfanın sağ üstünde bulursun.'} Yalnız okur: emir açamaz, kapatamaz, ayar değiştiremez.`,
       bullets: ['“Bu hafta nasıl gitti?”', '“Neden işlem açmadın?”', '“BTC mi ETH mi?”'], view: 'dashboard',
       targets: phone ? ['.v26NavAssistantHost button', '.v26NavAssistantHost'] : ['.v26HeaderActions .assistantLauncher', '.assistantLauncher']},
