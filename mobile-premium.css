@@ -8120,3 +8120,103 @@ body:has(#root .liveTradingPanel.liveUx),
     transition: transform 250ms ease-out, opacity 180ms ease-out;
   }
 }
+
+/* Menü: Instagram kartı ve alt başlık (telefon/tablet menüsü). */
+.v26MobileMenuSheet .v26MobileMenuSub {
+  margin: 3px 0 0;
+  color: rgba(211,224,237,.62);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(110,231,168,.2);
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(74,222,128,.16), transparent 55%),
+    linear-gradient(135deg, rgba(14,34,32,.96), rgba(10,23,36,.96));
+  color: #e5edf4;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta::after {
+  position: absolute;
+  right: -30px;
+  bottom: -40px;
+  width: 210px;
+  height: 90px;
+  border-top: 1px solid rgba(110,231,168,.28);
+  border-radius: 50%;
+  content: '';
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta:active { transform: scale(.98); }
+.v26MobileMenuSheet a.v26MobileMenuInsta:focus-visible { outline: 2px solid #6ee7a8; outline-offset: 2px; }
+.v26MobileMenuSheet .v26MobileMenuInstaIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.05);
+  color: #f4f8fb;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 24px; height: 24px; }
+.v26MobileMenuSheet .v26MobileMenuInstaText {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255,255,255,.1);
+}
+.v26MobileMenuSheet .v26MobileMenuInstaText b {
+  color: #f4f8fb;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  line-height: 1.25;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaText em { color: #7fe0a8; font-style: normal; font-weight: 500; }
+.v26MobileMenuSheet .v26MobileMenuInstaText strong { font-style: italic; font-weight: 800; }
+.v26MobileMenuSheet .v26MobileMenuInstaText small {
+  color: rgba(211,224,237,.68);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaGo {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(110,231,168,.38);
+  border-radius: 50%;
+  background: rgba(74,222,128,.08);
+  color: #b9f5d3;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaGo svg { width: 17px; height: 17px; }
+@media (prefers-reduced-motion: reduce) {
+  .v26MobileMenuSheet a.v26MobileMenuInsta { transition: none; }
+}
+@media (max-width: 374px) {
+  .v26MobileMenuSheet a.v26MobileMenuInsta { grid-template-columns: 38px minmax(0, 1fr) 30px; gap: 10px; padding: 10px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaIcon { width: 38px; height: 38px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 21px; height: 21px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaText { padding-left: 10px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaText b { font-size: 12px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaGo { width: 30px; height: 30px; }
+}
