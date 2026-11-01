@@ -145,6 +145,31 @@ function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string
 
 const coarsePointer = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
 
+/** Sohbetten bağımsız basit okuma (site turu anlatımı). Dönen fonksiyon okumayı keser; bitince ya da kesilince onDone bir kez çağrılır. */
+export function speakPlain(text: string, language: string, onDone?: () => void): () => void {
+  const clean = speakableText(text)
+  if (typeof window === 'undefined' || !window.speechSynthesis || !clean) { onDone?.(); return () => {} }
+  const synth = window.speechSynthesis
+  const tag = speechTag(language), base = language.slice(0, 2).toLowerCase()
+  let finished = false
+  const done = () => { if (finished) return; finished = true; window.clearTimeout(fallback); onDone?.() }
+  const fallback = window.setTimeout(done, 4000 + clean.length * 90)
+  if (synth.speaking || synth.pending) synth.cancel()
+  synth.resume()
+  const voice = pickVoice(synth.getVoices(), tag, base)
+  const parts = chunks(clean)
+  parts.forEach((part, index) => {
+    const utterance = new SpeechSynthesisUtterance(part)
+    utterance.lang = tag
+    if (voice) utterance.voice = voice
+    utterance.rate = savedRate()
+    utterance.pitch = savedVoiceName() || isKnownMale(voice) ? 1 : .7
+    if (index === parts.length - 1) { utterance.onend = done; utterance.onerror = done }
+    synth.speak(utterance)
+  })
+  return () => { if (finished) return; finished = true; window.clearTimeout(fallback); try { synth.cancel() } catch { /* yok say */ } }
+}
+
 /** Seçilen ses erkek olarak tanınmıyorsa tonu düşürürüz. */
 const isKnownMale = (voice?: SpeechSynthesisVoice) => !!voice && /\b(male|erkek|ahmet|cem|tolga|yusuf|mehmet|emre|kerem|david|mark|guy|daniel|james|george|alex|fred)\b/.test(voice.name.toLowerCase()) && !/female/.test(voice.name.toLowerCase())
 
