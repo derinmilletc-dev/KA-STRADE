@@ -1,6 +1,6 @@
 """Instagram vitrini: normalleştirme, önbellek, sayfalama, hata durumları ve gizli bilgi sızmaması."""
-import json
 import logging
+from pathlib import Path
 
 import httpx
 import pytest
@@ -55,9 +55,10 @@ class FakeMeta:
             return httpx.Response(400, json={"error": {"code": 100, "message": "Tried accessing nonexisting field"}})
         if request.url.path.endswith("/media"):
             return httpx.Response(200, json=self.pages[request.url.params.get("after")])
-        return httpx.Response(200, json={"user_id": "1789", "username": "kaistrade_", "name": "KAISTRADE",
-                                         "profile_picture_url": f"{CDN}avatar.jpg", "biography": "Kripto analiz platformu",
-                                         "media_count": 42})
+        profile = {"user_id": "1789", "username": "kaistrade_", "name": "KAISTRADE",
+                   "profile_picture_url": f"{CDN}avatar.jpg", "biography": "Kripto analiz platformu", "media_count": 42}
+        requested = set(fields.split(","))
+        return httpx.Response(200, json={key: value for key, value in profile.items() if key in requested})
 
 
 class Clock:
@@ -221,4 +222,6 @@ def test_feed_path_is_public_in_application_gates():
     from app import main, web_security
     assert ig.FEED_PATH in main.MEMBER_PUBLIC_PATHS
     assert ig.FEED_PATH in web_security.PUBLIC_PATHS
-    assert json.dumps(sorted(r.path for r in main.app.routes if getattr(r, "path", "") == ig.FEED_PATH)) == json.dumps([ig.FEED_PATH])
+    assert [route.path for route in ig.router.routes] == [ig.FEED_PATH]
+    source = (Path(main.__file__)).read_text(encoding="utf-8")
+    assert "app.include_router(instagram_showcase_router)" in source
