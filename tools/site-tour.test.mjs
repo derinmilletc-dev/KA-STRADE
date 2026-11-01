@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {buildTourSteps, firstName, parseTourMemory, shouldOfferTour, TOUR_WAIT_DAYS} from '../site-tour.ts'
+import {buildTourSteps, firstName, parseTourMemory, shouldOfferTour, TOUR_WAIT_DAYS, tourSpeech} from '../site-tour.ts'
 
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 9, 28, 12)
@@ -32,7 +32,7 @@ test('memory parsing ignores unknown values', () => {
 test('free and premium members get different Master Trade steps but the same ending', () => {
   const free = buildTourSteps(false)
   const premium = buildTourSteps(true)
-  assert.equal(premium.length, free.length + 3)
+  assert.equal(premium.length, free.length + 4)
   assert.ok(premium.some(step => step.id === 'studio') && premium.some(step => step.id === 'studio-trade'))
   assert.ok(premium.some(step => step.press === 'canli'))
   assert.ok(!free.some(step => step.press || step.need), 'free members are never sent to Master Trade')
@@ -42,6 +42,25 @@ test('free and premium members get different Master Trade steps but the same end
     assert.equal(new Set(steps.map(step => step.id)).size, steps.length)
     assert.ok(steps.some(step => step.extra === 'plans'))
   }
+})
+
+test('"sen dene" steps never lock the Next button and only exist for members who can reach the screen', () => {
+  const premium = buildTourSteps(true)
+  const free = buildTourSteps(false)
+  const tapSteps = premium.filter(step => step.tap)
+  assert.ok(tapSteps.length >= 1)
+  for (const step of tapSteps) {
+    assert.ok(!step.press, 'a tap step must not use the blocking press mechanism')
+    assert.ok(step.tapNudge && step.tapDone, 'nudge and success text are required')
+    assert.ok(step.tap.every(selector => typeof selector === 'string' && selector.length > 0))
+    assert.ok(step.targets && step.targets.length > 0)
+  }
+  assert.ok(!free.some(step => step.tap))
+})
+
+test('narration text is the step title and body', () => {
+  const step = buildTourSteps(false)[0]
+  assert.equal(tourSpeech(step), `${step.title}. ${step.body}`)
 })
 
 test('tour copy makes no profit promises', () => {

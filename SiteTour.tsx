@@ -1,11 +1,13 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties} from 'react'
 import {createPortal} from 'react-dom'
-import {X} from 'lucide-react'
+import {Volume2, VolumeX, X} from 'lucide-react'
 import KaisEye from './frontend/src/KaisEye'
 import {startKaisVoice} from './kais-ask'
+import {speakPlain} from './assistant-voice'
+import {currentLang, translateText} from './i18n'
 import {useMemberAccess} from './premium-access'
 import {
-  PHONE_QUERY, TOUR_OPEN_ATTRIBUTE, TOUR_PENDING_KEY, TOUR_START_EVENT, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey,
+  PHONE_QUERY, TOUR_OPEN_ATTRIBUTE, TOUR_PENDING_KEY, TOUR_START_EVENT, TOUR_VOICE_KEY, buildTourSteps, firstName, shouldOfferTour, tourMemoryKey, tourSpeech,
   type TourMemory, type TourStep, type TourView,
 } from './site-tour'
 import './site-tour.css'
@@ -50,7 +52,7 @@ const PREMIUM_ITEMS = [
 ]
 function Plans({premium}: {premium: boolean}) {
   if (premium) return <>
-    <div className="ktTourPlan" data-premium=""><em>AKTİF · MASTER MODE</em><ul>{PREMIUM_ITEMS.map(text => <li key={text}>{text}</li>)}</ul></div>
+    <div className="ktTourPlan" data-premium="" data-solo=""><em>AKTİF · MASTER MODE</em><ul>{PREMIUM_ITEMS.map(text => <li key={text}>{text}</li>)}</ul></div>
     <p className="ktTourFine">Planını, yenileme tarihini ve faturalarını Paketler ve Fatura sayfalarından yönetirsin. İstediğin zaman iptal edebilirsin.</p>
   </>
   return <>
@@ -58,6 +60,21 @@ function Plans({premium}: {premium: boolean}) {
     <div className="ktTourPlan" data-premium=""><em>PREMIUM</em><b>Master Mode · 119,90 USD / ay</b><ul>{PREMIUM_ITEMS.map(text => <li key={text}>{text}</li>)}</ul></div>
     <p className="ktTourFine">İstediğin zaman iptal edebilirsin. Deneme ve ödeme seçeneklerini Paketler sayfasında görürsün. Hiçbir paket kazanç garantisi vermez; risk kontrolü her zaman sende.</p>
   </>
+}
+
+const speechSupported = () => typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'
+const readNarrate = () => { try { return localStorage.getItem(TOUR_VOICE_KEY) === '1' } catch { return false } }
+const writeNarrate = (value: boolean) => { try { localStorage.setItem(TOUR_VOICE_KEY, value ? '1' : '0') } catch { /* saklama kapalıysa bu oturumda geçerli */ } }
+
+/** Sesli anlat düğmesi: tur adımlarını Kais'in sesiyle okur. Konuşurken küçük dalga çubukları oynar. */
+function NarrateToggle({on, talking, onToggle, compact}: {on: boolean; talking: boolean; onToggle: () => void; compact?: boolean}) {
+  const Icon = on ? Volume2 : VolumeX
+  return <button type="button" className="ktTourVoice" data-compact={compact || undefined} aria-pressed={on} data-talking={talking || undefined} data-testid="site-tour-narrate" title={on ? 'Sesli anlatımı kapat' : 'Sesli anlat'}
+    aria-label={on ? 'Sesli anlatımı kapat' : 'Sesli anlatımı aç'} onClick={onToggle}>
+    <Icon aria-hidden="true"/>
+    {!compact && <span>{on ? 'Sesli anlatım açık' : 'Sesli anlat'}</span>}
+    {on && <i className="ktTourEq" aria-hidden="true"><b/><b/><b/></i>}
+  </button>
 }
 
 function usePhone() {
@@ -80,6 +97,10 @@ export default function SiteTour() {
   const [box, setBox] = useState<Box | null>(null)
   const [panelHeight, setPanelHeight] = useState(260)
   const [more, setMore] = useState(false)
+  const [tapped, setTapped] = useState<string | null>(null)
+  const [narrate, setNarrate] = useState(readNarrate)
+  const [talking, setTalking] = useState(false)
+  const canNarrate = speechSupported()
   const [resume] = useState<string | null>(() => { try { return sessionStorage.getItem(RESUME_KEY) } catch { return null } })
   const dockTop = useRef(0)
   const panel = useRef<HTMLDivElement | null>(null)
@@ -146,6 +167,7 @@ export default function SiteTour() {
     if (entered.current === step.id) return
     entered.current = step.id
     setMore(false)
+    setTapped(null)
     if (step.view) goView(step.view)
     if (step.need && readTab() !== step.need) goTab(step.need)
   }, [mode, step])
@@ -199,6 +221,34 @@ export default function SiteTour() {
     return () => window.clearTimeout(timer)
   }, [mode, step, pressed]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Sen dene" adımı: hedefe dokunulursa adım tamamlanır ve kısa bir tebrikten sonra kendiliğinden ilerler. "İleri" hiç kilitlenmez.
+  useEffect(() => {
+    if (mode !== 'tour' || !step?.tap) return
+    const id = step.id, selectors = step.tap
+    const onClick = (event: MouseEvent) => {
+      const target = event.target
+      if (target instanceof Element && selectors.some(selector => target.closest(selector))) setTapped(id)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [mode, step?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (mode !== 'tour' || !step?.tap || tapped !== step.id) return
+    const id = step.id
+    const timer = window.setTimeout(() => setIndex(current => steps[current]?.id === id ? current + 1 : current), 1100)
+    return () => window.clearTimeout(timer)
+  }, [mode, step, tapped]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sesli anlatım: açıkken her adım Kais'in sesiyle okunur; adım değişince, tur kapanınca ya da kapatılınca susar.
+  useEffect(() => {
+    if (mode !== 'tour' || !step || !narrate || !canNarrate) { setTalking(false); return }
+    let active = true
+    setTalking(true)
+    const stop = speakPlain(translateText(tourSpeech(step)), currentLang(), () => { if (active) setTalking(false) })
+    return () => { active = false; stop(); setTalking(false) }
+  }, [mode, step?.id, narrate, canNarrate]) // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleNarrate = () => setNarrate(value => { writeNarrate(!value); return !value })
+
   useLayoutEffect(() => {
     if (mode === 'closed' || !panel.current) return
     const height = Math.round(panel.current.getBoundingClientRect().height)
@@ -232,13 +282,14 @@ export default function SiteTour() {
   const blocked = pressWaiting
   const mobile = window.innerWidth <= 640
   const vw = window.innerWidth, vh = window.innerHeight
-  const width = Math.min(420, vw - 24)
+  const shortLandscape = vw > 640 && vh <= 520
+  const width = Math.min(shortLandscape ? 600 : 420, vw - 24)
   let style: CSSProperties | undefined
   if (mobile) {
     // Telefon: ince panel hep alt menünün hemen üstünde durur, yeri değişmez; vurgulanan yer panelin üstündeki alana kaydırılır.
     const nav = document.querySelector<HTMLElement>('.v26MobileBottomNav')
     const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh - 6
-    style = {left: 8, right: 8, bottom: Math.max(8, vh - navTop + 8), maxHeight: Math.max(160, Math.min(navTop - 24, vh * 0.62))}
+    style = {left: 8, right: 8, bottom: Math.max(8, vh - navTop + 8), maxHeight: Math.max(160, Math.min(navTop - 24, Math.max(vh * 0.46, 330)))}
     dockTop.current = Math.max(0, vh - (typeof style.bottom === 'number' ? style.bottom : 8) - panelHeight)
   } else if (!box || box.height > vh * 0.55) {
     style = box ? {right: 24, bottom: 24, width} : {left: Math.max(12, (vw - width) / 2), top: Math.max(12, (vh - panelHeight) / 2), width}
@@ -253,16 +304,17 @@ export default function SiteTour() {
     const hasMore = Boolean(step.extra || step.feats || step.note || step.bullets)
     const pinFits = Boolean(box && step.pin && box.top + box.height + 40 < dockTop.current)
     return createPortal(<div className="ktTour" data-mode="tour" data-step={step.id} data-dock="">
-      {box ? <div className="ktTourSpot" data-press={step.press ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}
-      {box && step.press && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
+      {box ? <div className="ktTourSpot" data-press={step.press || (step.tap && tapped !== step.id) ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}
+      {box && (step.press || (step.tap && tapped !== step.id)) && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
       {box && pinFits && <span className="ktTourPin" aria-hidden="true" style={{top: box.top + box.height + 10, left: Math.min(Math.max(8, box.left + box.width / 2 - 80), vw - 168)}}>Burası: {step.pin}</span>}
       <div ref={panel} className="ktTourCard ktTourDock" data-mobile="" data-more={more || undefined} style={style} role="dialog" aria-modal="false" aria-labelledby="kt-tour-title" data-testid="site-tour">
         <i className="ktTourGrip" aria-hidden="true"/>
-        <div className="ktTourTop"><small className="ktTourKicker">{index + 1} / {steps.length} · {step.kicker}</small><button type="button" className="ktTourX" aria-label="Turu kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button></div>
+        <div className="ktTourTop"><small className="ktTourKicker">{index + 1} / {steps.length} · {step.kicker}</small>{canNarrate && <NarrateToggle compact on={narrate} talking={talking} onToggle={toggleNarrate}/>}<button type="button" className="ktTourX" aria-label="Turu kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button></div>
         <div className="ktTourBar" aria-hidden="true"><i style={{width: `${Math.round(((index + 1) / steps.length) * 100)}%`}}/></div>
-        <h3 id="kt-tour-title">{step.title}</h3>
-        <p>{step.body}</p>
+        <h3 key={`t-${step.id}`} id="kt-tour-title" className="ktTourSwap">{step.title}</h3>
+        <p key={`b-${step.id}`} className="ktTourSwap">{step.body}</p>
         {pressWaiting && <p className="ktTourNudge">👆 Parlayan sekmeye dokun.</p>}
+        {step.tap && (tapped === step.id ? <p className="ktTourNudge ktTourDone" role="status">✅ {step.tapDone}</p> : <p className="ktTourNudge">👆 {step.tapNudge}</p>)}
         {wrongTab && <button type="button" className="ktTourLink" onClick={() => step.need && goTab(step.need)}>Sizi oraya götüreyim</button>}
         {hasMore && <button type="button" className="ktTourMore" aria-expanded={more} onClick={() => setMore(value => !value)}>{more ? 'Daha az ⌃' : 'Daha fazla ⌄'}</button>}
         {hasMore && more && <div className="ktTourMoreBody">
@@ -284,8 +336,8 @@ export default function SiteTour() {
   }
 
   return createPortal(<div className="ktTour" data-mode="tour" data-step={step.id}>
-    {box ? <div className="ktTourSpot" data-press={step.press ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}
-    {box && step.press && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
+    {box ? <div className="ktTourSpot" data-press={step.press || (step.tap && tapped !== step.id) ? '' : undefined} style={{top: box.top, left: box.left, width: box.width, height: box.height}} aria-hidden="true"/> : <div className="ktTourDim" aria-hidden="true"/>}
+    {box && (step.press || (step.tap && tapped !== step.id)) && <span className="ktTourFinger" aria-hidden="true" style={{top: box.top + box.height - 10, left: box.left + box.width / 2 - 14}}>👆</span>}
     <div ref={panel} className="ktTourCard" data-mobile={mobile || undefined} style={style} role="dialog" aria-modal="false" aria-labelledby="kt-tour-title" data-testid="site-tour">
       <button type="button" className="ktTourX" aria-label="Turu kapat, bir daha sorma" onClick={() => close('never')}><X aria-hidden="true"/></button>
       {step.hero === 'studio' && <div className="ktTourHero" data-hero="studio" aria-hidden="true"><span className="ktTourRail"><i>✎</i><i>╱</i><i>⏰</i></span><span className="ktTourCandles">{[40,52,34,58,46,62,50,66,44,56,38,60,48].map((h, i) => <i key={i} data-dn={i % 3 === 1 || undefined} style={{height: h}}/>)}</span><b data-k="tp">TP1 79 229</b><b data-k="entry">GİRİŞ 80 526</b><b data-k="sl">SL 81 823</b></div>}
@@ -293,19 +345,21 @@ export default function SiteTour() {
       <div className="ktTourDots" aria-hidden="true">{steps.map((item, position) => <i key={item.id} data-on={position <= index || undefined}/>)}</div>
       {step.extra === 'voice' && <div className="ktTourWave" aria-hidden="true"><i/><i/><i/><KaisEye size={96} state="idle"/></div>}
       <small className="ktTourKicker">{index + 1} / {steps.length} · {step.kicker}</small>
-      <h3 id="kt-tour-title">{step.title}</h3>
-      <p>{step.body}</p>
+      <h3 key={`t-${step.id}`} id="kt-tour-title" className="ktTourSwap">{step.title}</h3>
+      <p key={`b-${step.id}`} className="ktTourSwap">{step.body}</p>
       {step.extra === 'plans' && <Plans premium={premium}/>}
       {step.extra === 'voice' && <div className="ktTourSay">{['Hey Kais, bugün nasıl gitti?', 'Hey Kais, BTC mi ETH mi?', 'Hey Kais, neden işlem açmadın?'].map(text => <span key={text}>🎙️ “{text}”</span>)}</div>}
       {step.feats && <div className="ktTourFeats">{step.feats.map(item => <div key={item.text} data-wide={item.wide || undefined}><span aria-hidden="true">{item.icon}</span>{item.text}</div>)}</div>}
       {step.note && <p className="ktTourNote">{step.note}</p>}
       {step.bullets && <ul className="ktTourList">{step.bullets.map(text => <li key={text}>{text}</li>)}</ul>}
+      {canNarrate && <NarrateToggle on={narrate} talking={talking} onToggle={toggleNarrate}/>}
       {pressWaiting && <p className="ktTourNudge">👆 Parlayan sekmeye dokun.</p>}
+      {step.tap && (tapped === step.id ? <p className="ktTourNudge ktTourDone" role="status">✅ {step.tapDone}</p> : <p className="ktTourNudge">👆 {step.tapNudge}</p>)}
       {wrongTab && <button type="button" className="ktTourLink" onClick={() => step.need && goTab(step.need)}>Sizi oraya götüreyim</button>}
-      {step.extra === 'voice' ? <>
+      {step.extra === 'voice' ? <div className="ktTourActions" data-stack="">
         <button ref={primary} type="button" className="ktTourGo" data-testid="site-tour-voice" onClick={() => { close('never'); startKaisVoice() }}>Hey Kais’i dene</button>
         <button type="button" className="ktTourGhost" onClick={next}>Turu bitir 🎉</button>
-      </> : <div className="ktTourActions">
+      </div> : <div className="ktTourActions">
         <button type="button" className="ktTourGhost" disabled={index === 0} onClick={() => setIndex(current => Math.max(0, current - 1))}>← Geri</button>
         <button ref={primary} type="button" className="ktTourGo" disabled={blocked} data-testid="site-tour-next" onClick={next}>{pressWaiting ? 'Sekmeye dokun…' : 'İleri →'}</button>
       </div>}

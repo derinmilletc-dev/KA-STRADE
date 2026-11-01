@@ -14,6 +14,7 @@ import LcMoreSheet from './frontend/src/LcMoreSheet'
 import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
 import { useKaisScreenContext } from './useKaisScreenContext'
+import PageTips from './PageTips'
 
 const API = `${API_BASE}/binance-demo`
 const V21_API = `${API_BASE}/v21`
@@ -1406,6 +1407,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       </div> : <div className="v21ActivityEmpty"><History/><b>Henüz demo işlemi yok</b><span>Order Ticket üzerinden ilk demo işlemini oluşturun.</span></div>}
     </section>}
 
+    <PageTips id="risk" active={active && tab === 'risk'}/>
     {tab === 'risk' && <section ref={workspaceRef} className="v21Workspace v21RiskManagement">
       <header className="v21WorkspaceHead"><div className="v21HeaderTitle"><Gauge/><div><h2>Risk Kasası</h2><p>Risk limitleri ve pozisyon boyutlandırma</p></div></div><div className="v21HeaderActions"><RiskKasasiInfo/><button type="button" className="v21ContextCta v21RiskReturn" onClick={() => (onOpenMaster ? onOpenMaster() : setTab('trade'))}>Canlı işleme dön</button><button type="button" className="v21ContextCta v21RiskReturn" onClick={() => (onOpenDemo ? onOpenDemo() : setTab('trade'))}>Demo işleme dön</button></div></header>
       <RiskPlainSummary draft={settingsDraft} daily={v21?.daily} repairs={v21?.protection.repairs} duplicateBlocks={v21?.protection.duplicate_blocks}/>

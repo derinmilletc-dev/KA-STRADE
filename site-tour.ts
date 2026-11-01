@@ -27,6 +27,10 @@ export type TourStep = {
   /** Adımın gösterilmesi için Master Trade'de bu sekmede olunmalı. */
   need?: 'canli' | 'analiz'
   extra?: 'plans' | 'voice'
+  /** "Sen dene" adımı: bu öğelerden birine dokunulursa adım kendiliğinden tamamlanır. "İleri" hiçbir zaman kilitlenmez. */
+  tap?: string[]
+  tapNudge?: string
+  tapDone?: string
   /** Telefonda vurgulanan yerin altında çıkan kısa etiket: "Burası: …". */
   pin?: string
 }
@@ -51,6 +55,10 @@ export function buildTourSteps(premium: boolean, phone = false): TourStep[] {
   ]
   if (premium) {
     steps.push(
+      {id: 'pick-coin', pin: 'coin listesi', kicker: 'SEN DENE', title: 'Bir coin seç',
+        body: 'Listeden bir coine dokun: grafik ve analiz o coine geçer. Denemek istemezsen İleri ile devam edebilirsin; hiçbir şey kaydedilmez ve işlem açılmaz.',
+        view: 'master-trade', targets: ['.refMarketRow:not(.selected)', '.refMarketRow'], need: 'analiz', tap: ['.refMarketRow'],
+        tapNudge: 'Parlayan satıra dokunmayı dene.', tapDone: 'Harika! Grafik seçtiğin coine geçti.'},
       {id: 'studio', pin: 'tam ekran grafik', kicker: 'ANALİZ STÜDYOSU', title: 'Grafik tam ekranda',
         body: phone
           ? '“Analysis Studio” düğmesi grafiği yatay tam ekranda açar. Düğmeye bas, telefonu yan çevir; kapatınca kaldığın yere dönersin.'
@@ -115,4 +123,10 @@ export function shouldOfferTour(raw: string | null | undefined, now: number): bo
 
 export function firstName(displayName: string | null | undefined): string {
   return String(displayName ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
+export const TOUR_VOICE_KEY = 'kais-site-tour:voice'
+/** Sesli anlatımda okunacak metin: başlık ve açıklama (madde listeleri ve uyarılar yazıda kalır). */
+export function tourSpeech(step: Pick<TourStep, 'title' | 'body'>): string {
+  return `${step.title}. ${step.body}`
 }

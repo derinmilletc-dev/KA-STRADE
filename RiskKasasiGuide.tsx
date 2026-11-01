@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {CheckCircle2, Save, ShieldCheck, TriangleAlert} from 'lucide-react'
 import './risk-kasasi-guide.css'
+import {PageTipsHelp} from './PageTips'
 
 /** Risk Kasası'nı düz dille anlatan parçalar. Yalnız görünüm: değerler ve kayıt (PUT /settings) BinanceDemo'da önceki gibi. */
 export type RiskDraft = {daily_loss_limit: number; daily_trade_limit: number; max_loss_per_trade: number; max_margin_per_trade: number
@@ -47,6 +48,7 @@ export function RiskPlainSummary({draft, daily, repairs, duplicateBlocks}: {draf
   const pnl = raw === undefined ? undefined : Math.abs(raw) < 0.005 ? 0 : raw
   const tone = left !== undefined && left <= 0 ? 'stop' : pct >= 75 ? 'warn' : 'ok'
   return <section className="rkSummary" data-tone={tone} aria-label="Risk özeti">
+    <PageTipsHelp id="risk"/>
     <small className="rkKicker">Bugünkü durumun</small>
     <p className="rkSentence">Bugün en fazla <b>{usdt(limit)}</b> kaybedebilirsin. Her işlemde en fazla <b>{usdt(draft.max_loss_per_trade)}</b> riske girer. Aynı anda en fazla <b>{draft.max_positions} işlem</b> açık olur.</p>
     <div className="rkBudget">
