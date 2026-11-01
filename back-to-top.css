@@ -76,3 +76,8 @@
 .globalBackToTop.visible:focus-visible { opacity: 1; }
 /* Sayfanın en altındaki içerik sabit düğmenin altında kalmasın. */
 #root > main { padding-bottom: max(var(--back-to-top-space, 0px), 72px); }
+
+/* Telefon: alt menünün üstünde dursun, "Menü" düğmesine binmesin. */
+@media (max-width: 700px) {
+  html body .globalBackToTop { bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
+}
