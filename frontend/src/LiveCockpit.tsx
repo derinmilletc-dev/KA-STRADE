@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react'
 import './copy-phrase.css'
-import {Bell, Check, ChevronDown, ChevronRight, Clock, Coins, FileCheck, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
+import {Bell, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Coins, FileCheck, Layers, MessageCircle, Power, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingUp, TriangleAlert, Wallet, X, Zap} from 'lucide-react'
 import type {SharedLiveStatus} from './LiveTradingPanel'
 import {
   GUIDE_STEPS, RISK_PRESETS, dailySummary, duration, liveGuide, matchPreset, retryDelay, riskSummary,
@@ -9,6 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
+import LcMoreSheet from './LcMoreSheet'
 import {MasterOnlyGate} from '../../premium-access'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import type {RawRecord} from './position-view'
@@ -16,6 +17,7 @@ import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../not
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
 import '../../live-cockpit-coach-mobile.css'
+import './lc-guide-sheet.css'
 
 const LAUNCH_TARGETS = ['[data-testid="launch-open-mobile"]', '[data-testid="launch-open"]']
 
@@ -317,6 +319,7 @@ export default function LiveCockpit(props: Props) {
   const [customOn, setCustomOn] = useState(false)
   const [wizStep, setWizStep] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)
+  const closeMore = useCallback(() => setMoreOpen(false), [])
   const [eventsOpen, setEventsOpen] = useState(false)
   const [smartPick, setSmartPick] = useState<'keep' | 'on' | 'off'>('keep')
   const [smartWizThreshold, setSmartWizThreshold] = useState(70)
@@ -1519,11 +1522,13 @@ export default function LiveCockpit(props: Props) {
           {activeMeta.id === 'conn'
             ? <button type="button" className="lcBtn lcPrimary lcWzGo" onClick={() => { closeSheet(); goTab('baglanti') }}>Bağlantı'ya git</button>
             : <>
-              {activeIndex > 2 && !launchRunning && <button type="button" className="lcMobileOnly lcWzBack" onClick={() => launchUndo(LAUNCH_STEPS[activeIndex - 2].id)}>← Geri</button>}
               {!launchValid[activeMeta.id] && activeMeta.id !== 'risk' && <p className="lcHint stop">{activeMeta.id === 'smart' ? 'Açmak için onay kutusunu işaretle.' : activeMeta.id === 'daily' ? 'Sınır %1–%25 arası ve işlem riskinden küçük olmamalı.' : 'Önce gerekli onay kutusunu / yazıyı tamamla.'}</p>}
-              <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>{activeMeta.id !== 'risk' ? 'Onaylıyorum ✓' : rkCustom ? 'Ayarımı onayla ✓' : PRESET_APPROVE[rkPreset?.id ?? ''] ?? 'Onaylıyorum ✓'}</button>
               {activeMeta.id === 'risk' && !launchValid.risk && launchRiskValid && <p className="lcHint lcRkWait">{draft.risk > 5 ? 'Yazıyı tamamlayınca açılır.' : 'Onay kutusunu işaretleyince açılır.'}</p>}
               {activeMeta.id === 'risk' && rkCustom && <p className="lcHint lcRkWait">Günlük kayıp sınırını bir sonraki adımda seçeceksin.</p>}
+              <div className="lcWzFoot">
+                {activeIndex > 2 && !launchRunning && <button type="button" className="lcMobileOnly lcWzBack" onClick={() => launchUndo(LAUNCH_STEPS[activeIndex - 2].id)}><ChevronLeft aria-hidden="true"/>Geri</button>}
+                <button type="button" className="lcBtn lcPrimary lcWzGo" data-testid={`launch-approve-${activeMeta.id}`} disabled={!launchValid[activeMeta.id] || busy} onClick={() => launchApprove(activeMeta.id)}>{activeMeta.id !== 'risk' ? 'Onaylıyorum ✓' : rkCustom ? 'Ayarımı onayla ✓' : PRESET_APPROVE[rkPreset?.id ?? ''] ?? 'Onaylıyorum ✓'}</button>
+              </div>
             </>}
         </section> : <section className="lcWzCard lcWzFinal" data-testid="launch-final">
           <small className="lcWzKicker">SON ADIM · GÜVENLİK PANELİ</small>
@@ -1778,15 +1783,13 @@ export default function LiveCockpit(props: Props) {
         <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">{dt('CANLI İŞLEM')} · KAIS LONG</small><b>{barState.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{lastGood.current ? new Date(lastGood.current.at).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : '—'}</em></small></div>
         <div className="lcMobileOnly lcMore">
           <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><span aria-hidden="true">⋯</span></button>
-          {moreOpen && <><div className="lcMoreShade" role="presentation" onClick={() => setMoreOpen(false)}/>
-            <div className="lcMoreMenu" role="menu">
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); goTab('baglanti') }}><i className="lcMoreIco" data-k="conn" aria-hidden="true"><ShieldCheck/></i><span>Bağlantı ayrıntısı</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); askKais(kaisQuestion) }}><i className="lcMoreIco" data-k="ask" aria-hidden="true"><MessageCircle/></i><span>Kais’e sor</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); void Promise.resolve(refresh()).catch(() => undefined) }}><i className="lcMoreIco" data-k="refresh" aria-hidden="true"><RefreshCw/></i><span>Yenile</span></button>
-              <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); window.location.href = '/profile#notify-settings' }}><i className="lcMoreIco" data-k="bell" aria-hidden="true"><Bell/></i><span>{notify ? 'Bildirimler açık' : 'Bildirimleri aç'}</span></button>
-              {live && <><div className="lcMoreSep" role="separator"/>
-              <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setMoreOpen(false); setSheet('close-all') }}><i className="lcMoreIco" data-k="stop" aria-hidden="true"><Power/></i><span>Acil durdur</span></button></>}
-            </div></>}
+          <LcMoreSheet open={moreOpen} onClose={closeMore} items={[
+            {key: 'conn', label: 'Bağlantı ayrıntısı', icon: <ShieldCheck/>, onSelect: () => goTab('baglanti')},
+            {key: 'ask', label: 'Kais’e sor', icon: <MessageCircle/>, onSelect: () => askKais(kaisQuestion)},
+            {key: 'refresh', label: 'Yenile', icon: <RefreshCw/>, onSelect: () => { void Promise.resolve(refresh()).catch(() => undefined) }},
+            {key: 'bell', label: notify ? 'Bildirimler açık' : 'Bildirimleri aç', icon: <Bell/>, onSelect: () => { window.location.href = '/profile#notify-settings' }},
+            ...(live ? [{key: 'stop', label: 'Acil durdur', icon: <Power/>, tone: 'stop' as const, onSelect: () => setSheet('close-all')}] : []),
+          ]}/>
         </div></div>
       {readyToStart && <div className="lcMobileOnly lcMStart">
         <button type="button" className="lcBtn lcPrimary" data-testid="launch-open-mobile" disabled={busy} onClick={openLaunch}><span className="lcMIco"><Zap aria-hidden="true"/></span><span className="lcMLbl">Hepsini hazırla ve başlat</span><span className="lcMGo"><ChevronRight aria-hidden="true"/></span></button>

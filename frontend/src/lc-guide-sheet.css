@@ -1,0 +1,20 @@
+/* Kais Rehber (Canlıya hazırlık) — telefon: alttan açılan, kayan pencere; Geri / Onayla altta sabit kalır. */
+@layer kaisFix {
+  .lcWzFoot { display: flex !important; align-items: stretch !important; gap: 10px !important; }
+  .lcWzFoot .lcWzGo { flex: 1 1 auto !important; min-width: 0 !important; }
+  .lcWzBack { align-items: center !important; justify-content: center !important; gap: 4px !important; flex: 0 0 auto !important; min-height: 48px !important; padding: 0 16px 0 10px !important; border-radius: 14px !important; border: 1px solid rgba(150, 190, 215, .28) !important; background: rgba(255, 255, 255, .05) !important; color: #d6e2f0 !important; font: inherit !important; font-size: 15px !important; font-weight: 700 !important; cursor: pointer !important; -webkit-tap-highlight-color: transparent !important; transition: background .15s, border-color .15s, transform .1s !important; }
+  .lcWzBack svg { width: 20px !important; height: 20px !important; }
+  .lcWzBack:hover { background: rgba(255, 255, 255, .09) !important; border-color: rgba(150, 190, 215, .45) !important; }
+  .lcWzBack:active { transform: scale(.97) !important; }
+  .lcWzBack:focus-visible { outline: 2px solid #5eead4 !important; outline-offset: 2px !important; }
+}
+@media (max-width: 640px) {
+  @layer kaisFix {
+    .lcWzBack { display: inline-flex !important; }
+    .lcBackdrop:has(.lcWz) { align-items: end !important; padding: 0 !important; overflow: hidden !important; }
+    .lcSheet:has(.lcWz) { box-sizing: border-box !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; max-height: calc(100dvh - 10px) !important; overflow-y: auto !important; overflow-x: hidden !important; overscroll-behavior: contain !important; -webkit-overflow-scrolling: touch !important; padding: 16px 14px 0 !important; border-radius: 22px 22px 0 0 !important; display: block !important; }
+    .lcSheet:has(.lcWz) .lcWz { padding-bottom: 0 !important; min-width: 0 !important; }
+    .lcSheet:has(.lcWz) .lcWzCard { padding-bottom: 0 !important; min-width: 0 !important; }
+    .lcSheet:has(.lcWz) .lcWzFoot { position: sticky !important; bottom: 0 !important; z-index: 3 !important; margin: 6px -14px 0 !important; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)) !important; background: linear-gradient(180deg, rgba(9, 15, 23, 0), rgba(9, 15, 23, .96) 22%) !important; }
+  }
+}

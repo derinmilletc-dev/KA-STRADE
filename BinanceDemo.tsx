@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Award, BarChart3, Bell, Calculator, CheckCircle2, ChevronDown, ClipboardList, Crosshair, FlaskConical, Gauge, History, LayoutDashboard, LineChart, LockKeyhole, Play, Radar, Radio, RefreshCw, Save, ScrollText, Search, Send, Settings2, ShieldAlert, ShieldCheck, Sparkles, Target, TestTube2, TriangleAlert, UnlockKeyhole, Wallet, X, Zap, Clock, Power } from 'lucide-react'
 import RiskKasasiInfo from './RiskKasasiInfo'
 import { API_BASE, buildDemoSavePayload, loadDemoCredentials, saveDemoCredentials, userSessionToken } from './api'
@@ -9,6 +9,7 @@ import './demo-recovery.css'
 import './demo-clean.css'
 import DemoInfoCards from './DemoInfoCards'
 import DemoCockpit from './DemoCockpit'
+import LcMoreSheet from './frontend/src/LcMoreSheet'
 import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
 
@@ -377,6 +378,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
 
   const connectedNow = status ? status.connected : null
   const [cockpitMenu,setCockpitMenu] = useState(false)
+  const closeCockpitMenu = useCallback(() => setCockpitMenu(false), [])
   const [ticketOpen,setTicketOpen] = useState(false)  // Master'daki gibi: emir kartı "Manuel işlem aç" ile pencere olarak açılır
   // Analiz stüdyosundaki "İşlem aç": emir göndermez; demo emir kartını o coin ve yönle doldurup gösterir.
   useEffect(() => {
@@ -1106,14 +1108,12 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
               <span className="lcStatusDot" aria-hidden="true"/><div className="lcStatusText"><small className="lcDeskKicker">DEMO İŞLEM{demoStrategy === ORIGINAL_DEMO_ID ? ' · KAIS LONG' : ''}</small><b>{bar.label}</b><small className="lcMobileOnly lcMUpd"><Clock aria-hidden="true"/>Son güncelleme <em>{cockpitAt ? new Date(cockpitAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}) : '—'}</em></small></div>
               <div className="lcMobileOnly lcMore">
                 <button type="button" className="lcMoreBtn" aria-label="Diğer işlemler" aria-haspopup="menu" aria-expanded={cockpitMenu} onClick={() => setCockpitMenu(value => !value)}><span aria-hidden="true">⋯</span></button>
-                {cockpitMenu && <><div className="lcMoreShade" role="presentation" onClick={() => setCockpitMenu(false)}/>
-                  <div className="lcMoreMenu" role="menu">
-                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); onMasterTab?.('baglanti') }}><i className="lcMoreIco" data-k="conn" aria-hidden="true"><ShieldCheck/></i><span>Bağlantı ayrıntısı</span></button>
-                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); setTab('auto') }}><i className="lcMoreIco" data-k="ask" aria-hidden="true"><Settings2/></i><span>Demo otomasyon ayarları</span></button>
-                    <button type="button" role="menuitem" onClick={() => { setCockpitMenu(false); void refreshStatus(); void refreshV21(false) }}><i className="lcMoreIco" data-k="refresh" aria-hidden="true"><RefreshCw/></i><span>Yenile</span></button>
-                    {status?.configured && <><div className="lcMoreSep" role="separator"/>
-                    <button type="button" role="menuitem" className="lcMoreStop" onClick={() => { setCockpitMenu(false); emergency() }}><i className="lcMoreIco" data-k="stop" aria-hidden="true"><Power/></i><span>Acil demo durdur</span></button></>}
-                  </div></>}
+                <LcMoreSheet open={cockpitMenu} onClose={closeCockpitMenu} items={[
+                  {key: 'conn', label: 'Bağlantı ayrıntısı', icon: <ShieldCheck/>, onSelect: () => onMasterTab?.('baglanti')},
+                  {key: 'ask', label: 'Demo otomasyon ayarları', icon: <Settings2/>, onSelect: () => setTab('auto')},
+                  {key: 'refresh', label: 'Yenile', icon: <RefreshCw/>, onSelect: () => { void refreshStatus(); void refreshV21(false) }},
+                  ...(status?.configured ? [{key: 'stop', label: 'Acil demo durdur', icon: <Power/>, tone: 'stop' as const, onSelect: () => emergency()}] : []),
+                ]}/>
               </div></div>
             <dl className="lcStatusStats">
               <div><dt>Bakiye</dt><dd>{money(wallet)}</dd></div>
