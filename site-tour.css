@@ -206,7 +206,7 @@ html body .ktTour .ktTourVoice[data-compact][data-talking] .ktTourEq b { animati
   html body .ktTour .ktTourDock .ktTourX, html body .ktTour .ktTourVoice[data-compact], html body .ktTour .ktTourMore { position: relative; }
   html body .ktTour .ktTourDock .ktTourX::after, html body .ktTour .ktTourVoice[data-compact]::after { content: ""; position: absolute; inset: -9px; }
   html body .ktTour .ktTourDock .ktTourMore { display: inline-flex; align-items: center; min-height: 30px; }
-  html body .ktTour .ktTourMore::after { content: ""; position: absolute; inset: -3px -12px; }
+  html body .ktTour .ktTourMore::after { content: ""; position: absolute; inset: -7px -12px; }
 }
 
 /* ---- Yatay telefon / kısa ekran: kart ekrana sığsın, önizleme resimleri gizlensin ---- */
