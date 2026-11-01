@@ -5,6 +5,7 @@ import math
 import os
 import re
 import time
+from pathlib import Path
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -91,7 +92,7 @@ from .v27_cloud_ops import (
 )
 from .execution_core import configured_min_confidence, configured_mtf_allow_either_timeframe, evaluate_entry_gates, risk_sized_order
 from .error_monitoring import build_error_event, ensure_error_schema, exception_event, log_event, schedule_log_event
-from .maintenance import default_maintenance_state, guard_new_entry, set_maintenance_mode
+from .maintenance import admin_maintenance_view, clear_schedule, default_maintenance_state, guard_new_entry, load_state as load_maintenance_state, public_maintenance_view, save_state as save_maintenance_state, schedule_maintenance, set_maintenance_mode
 from .paper_autonomy import (
     PAPER_AUTONOMY_VERSION,
     autonomy_policy,
@@ -1229,7 +1230,7 @@ async def lifespan(app: FastAPI):
     app.state.snapshot_lock = asyncio.Lock()
     app.state.health_lock = asyncio.Lock()
     app.state.health_snapshot = None
-    app.state.maintenance = default_maintenance_state()
+    app.state.maintenance = load_maintenance_state(maintenance_state_path())
     app.state.infrastructure = {"api": "BAĞLI", "database": "BAĞLANIYOR", "redis": "BAĞLANIYOR", "paper_storage": "BEKLENİYOR" if PAPER_ENABLED else "DEVRE DIŞI", "self_healing": "AKTİF", "last_checked": None, "message": "Testnet-First altyapısı kontrol ediliyor."}
     app.state.paper = {
         "balance": 10_000.0,
@@ -1401,7 +1402,7 @@ app.add_middleware(
 )
 
 MEMBER_PUBLIC_PATHS = frozenset({
-    "/api/health", "/api/health/database", "/api/web/access/check", "/api/web/access/logout", "/api/client-errors", "/api/v22/public", "/api/v22/bootstrap",
+    "/api/health", "/api/health/database", "/api/web/access/check", "/api/web/access/logout", "/api/client-errors", "/api/v22/public", "/api/v22/maintenance/public", "/api/v22/bootstrap",
     "/api/v22/auth/login", "/api/v22/auth/2fa/login", "/api/v22/auth/register", "/api/v22/auth/verify-email",
     "/api/v22/auth/verification-status", "/api/v22/auth/resend-verification", "/api/v22/auth/forgot-password", "/api/v22/auth/reset-password", "/api/v22/subscription/webhook",
     "/api/v22/auth/google/start", "/api/v22/auth/google/callback",
@@ -1818,10 +1819,29 @@ async def admin_health_check(request: Request):
     return await run_health_checks(request.app)
 
 
+def maintenance_state_path() -> Path:
+    from .local_storage import DATA_DIR
+    return DATA_DIR / "maintenance_state.json"
+
+
+def persist_maintenance(state: dict[str, Any]) -> None:
+    """Dosyaya yazılamazsa mod yine bellekte geçerli kalır; yalnızca loglanır."""
+    try:
+        save_maintenance_state(state, maintenance_state_path())
+    except OSError:
+        logging.getLogger(__name__).warning("Bakım durumu dosyaya yazılamadı", exc_info=True)
+
+
+@app.get("/api/v22/maintenance/public")
+async def maintenance_public(request: Request):
+    """Giriş ekranı ve site geri sayımı için herkese açık, sır içermeyen durum."""
+    return JSONResponse(public_maintenance_view(request.app.state.maintenance), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/v22/admin/maintenance")
 async def admin_maintenance_get(request: Request):
     authenticated_user(request, owner=True)
-    return dict(request.app.state.maintenance)
+    return admin_maintenance_view(request.app.state.maintenance)
 
 
 @app.post("/api/v22/admin/maintenance")
@@ -1830,9 +1850,41 @@ async def admin_maintenance_set(request: Request, payload: dict[str, Any]):
     mode = str(payload.get("mode") or "").strip().upper()
     reason = str(payload.get("reason") or "").strip()
     try:
-        return set_maintenance_mode(request.app.state.maintenance, mode, reason=reason, updated_by=user.get("email") if isinstance(user, dict) else None)
+        result = set_maintenance_mode(request.app.state.maintenance, mode, reason=reason, updated_by=user.get("email") if isinstance(user, dict) else None)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    persist_maintenance(request.app.state.maintenance)
+    return {**result, "now": time.time()}
+
+
+@app.post("/api/v22/admin/maintenance/schedule")
+async def admin_maintenance_schedule(request: Request, payload: dict[str, Any]):
+    """Bakımı ``minutes`` dakika sonrasına ya da ``starts_at`` (epoch saniye) anına planlar."""
+    user = authenticated_user(request, owner=True)
+    state = request.app.state.maintenance
+    now = time.time()
+    minutes = payload.get("minutes")
+    if isinstance(minutes, bool) or not isinstance(minutes, (int, float)) or minutes != minutes:
+        starts_at = payload.get("starts_at")
+    else:
+        starts_at = now + float(minutes) * 60
+    if isinstance(starts_at, bool) or not isinstance(starts_at, (int, float)):
+        raise HTTPException(422, "Süre veya başlangıç zamanı gerekli.")
+    try:
+        schedule_maintenance(state, starts_at=float(starts_at), updated_by=user.get("email") if isinstance(user, dict) else None, now=now)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    persist_maintenance(state)
+    return admin_maintenance_view(state)
+
+
+@app.delete("/api/v22/admin/maintenance/schedule")
+async def admin_maintenance_schedule_cancel(request: Request):
+    authenticated_user(request, owner=True)
+    state = request.app.state.maintenance
+    clear_schedule(state)
+    persist_maintenance(state)
+    return admin_maintenance_view(state)
 
 
 @app.get("/api/health")

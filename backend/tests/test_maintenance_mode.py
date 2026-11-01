@@ -206,5 +206,112 @@ class MaintenanceProtectionIsolationTests(unittest.TestCase):
             self.assertNotIn(forbidden, source)
 
 
+class ScheduledMaintenanceTests(unittest.TestCase):
+    """Geri sayım: planlanan an gelince bakım kendiliğinden başlar."""
+
+    def setUp(self):
+        self.state = MAINTENANCE.default_maintenance_state()
+        self.now = 1_800_000_000.0
+
+    def test_default_has_no_schedule(self):
+        self.assertIsNone(self.state["scheduled_at"])
+        view = MAINTENANCE.public_maintenance_view(self.state)
+        self.assertEqual(view["mode"], "NORMAL")
+        self.assertIsNone(view["scheduled_at"])
+
+    def test_schedule_keeps_normal_until_due_then_turns_maintenance(self):
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, updated_by="a@b.c", now=self.now)
+        self.assertFalse(MAINTENANCE.apply_due_schedule(self.state, now=self.now + 599))
+        self.assertEqual(self.state["mode"], "NORMAL")
+        self.assertFalse(MAINTENANCE.new_entry_blocked(self.state))
+        self.assertTrue(MAINTENANCE.apply_due_schedule(self.state, now=self.now + 600))
+        self.assertEqual(self.state["mode"], "MAINTENANCE")
+        self.assertEqual(self.state["updated_by"], "schedule")
+        self.assertIsNone(self.state["scheduled_at"])
+
+    def test_reading_mode_after_due_time_applies_schedule_and_blocks_entries(self):
+        import time
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=time.time() + 60, now=time.time())
+        self.state["scheduled_at"] = time.time() - 1
+        self.assertEqual(MAINTENANCE.get_maintenance_mode(self.state), "MAINTENANCE")
+        self.assertTrue(MAINTENANCE.new_entry_blocked(self.state))
+
+    def test_schedule_validation(self):
+        for bad in (self.now + 5, self.now - 10, self.now + 31 * 24 * 3600, float("nan"), True, "x"):
+            with self.assertRaises(ValueError):
+                MAINTENANCE.schedule_maintenance(self.state, starts_at=bad, now=self.now)
+        self.assertIsNone(self.state["scheduled_at"])
+
+    def test_cannot_schedule_while_already_in_maintenance_or_emergency(self):
+        for mode in ("MAINTENANCE", "EMERGENCY"):
+            MAINTENANCE.set_maintenance_mode(self.state, mode)
+            with self.assertRaises(ValueError):
+                MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, now=self.now)
+
+    def test_manual_mode_change_cancels_schedule(self):
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, now=self.now)
+        MAINTENANCE.set_maintenance_mode(self.state, "EMERGENCY")
+        self.assertIsNone(self.state["scheduled_at"])
+        MAINTENANCE.apply_due_schedule(self.state, now=self.now + 10_000)
+        self.assertEqual(self.state["mode"], "EMERGENCY")
+
+    def test_due_schedule_never_downgrades_emergency(self):
+        self.state["mode"] = "EMERGENCY"
+        self.state["scheduled_at"] = self.now
+        MAINTENANCE.apply_due_schedule(self.state, now=self.now + 1)
+        self.assertEqual(self.state["mode"], "EMERGENCY")
+        self.assertIsNone(self.state["scheduled_at"])
+
+    def test_cancel_clears_schedule(self):
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, now=self.now)
+        MAINTENANCE.clear_schedule(self.state)
+        self.assertIsNone(self.state["scheduled_at"])
+        self.assertFalse(MAINTENANCE.apply_due_schedule(self.state, now=self.now + 10_000))
+        self.assertEqual(self.state["mode"], "NORMAL")
+
+    def test_corrupt_schedule_value_is_ignored_and_cleared(self):
+        self.state["scheduled_at"] = "yarin"
+        self.assertEqual(MAINTENANCE.get_maintenance_mode(self.state), "NORMAL")
+        self.assertIsNone(self.state["scheduled_at"])
+
+    def test_public_view_hides_schedule_once_not_normal_and_has_no_secrets(self):
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, updated_by="owner@example.com", now=self.now)
+        view = MAINTENANCE.public_maintenance_view(self.state)
+        self.assertEqual(set(view), {"mode", "scheduled_at", "now"})
+        self.assertNotIn("owner@example.com", str(view))
+        MAINTENANCE.set_maintenance_mode(self.state, "MAINTENANCE")
+        self.assertIsNone(MAINTENANCE.public_maintenance_view(self.state)["scheduled_at"])
+
+    def test_state_survives_restart_via_file(self):
+        import tempfile
+        MAINTENANCE.schedule_maintenance(self.state, starts_at=self.now + 600, updated_by="o@x.y", now=self.now)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sub" / "maintenance_state.json"
+            MAINTENANCE.save_state(self.state, path)
+            loaded = MAINTENANCE.load_state(path)
+        self.assertEqual(loaded["scheduled_at"], self.state["scheduled_at"])
+        self.assertEqual(loaded["mode"], "NORMAL")
+
+    def test_overdue_schedule_applies_when_loaded_after_restart(self):
+        import tempfile, time
+        self.state["scheduled_at"] = time.time() - 30
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "m.json"
+            MAINTENANCE.save_state(self.state, path)
+            self.assertEqual(MAINTENANCE.load_state(path)["mode"], "MAINTENANCE")
+
+    def test_missing_or_corrupt_file_falls_back_to_normal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "m.json"
+            self.assertEqual(MAINTENANCE.load_state(path)["mode"], "NORMAL")
+            path.write_text("{bozuk", encoding="utf-8")
+            self.assertEqual(MAINTENANCE.load_state(path)["mode"], "NORMAL")
+            path.write_text('{"mode": "HACK", "scheduled_at": "x"}', encoding="utf-8")
+            loaded = MAINTENANCE.load_state(path)
+        self.assertEqual(loaded["mode"], "NORMAL")
+        self.assertIsNone(loaded["scheduled_at"])
+
+
 if __name__ == "__main__":
     unittest.main()

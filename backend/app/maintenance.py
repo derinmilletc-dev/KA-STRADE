@@ -13,7 +13,10 @@ table, cache layer, or background loop is introduced.
 
 from __future__ import annotations
 
+import json
+import os
 import time
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import HTTPException
@@ -24,7 +27,14 @@ VALID_MODES: frozenset[str] = frozenset({"NORMAL", "MAINTENANCE", "EMERGENCY"})
 
 def default_maintenance_state() -> dict[str, Any]:
     """Initial value for ``app.state.maintenance``. Default is always NORMAL."""
-    return {"mode": "NORMAL", "reason": "", "updated_at": None, "updated_by": None}
+    return {"mode": "NORMAL", "reason": "", "updated_at": None, "updated_by": None,
+            "scheduled_at": None, "scheduled_by": None, "scheduled_set_at": None}
+
+
+# Zamanlı bakım: admin bir başlangıç anı seçer; o an gelince mod kendiliğinden MAINTENANCE olur.
+# Arka plan döngüsü yok: süre dolduğunda ilk okuma modu uygular (apply_due_schedule).
+SCHEDULE_MIN_SECONDS = 30
+SCHEDULE_MAX_SECONDS = 30 * 24 * 3600
 
 
 def get_maintenance_mode(state: dict[str, Any] | None) -> str:
@@ -33,6 +43,7 @@ def get_maintenance_mode(state: dict[str, Any] | None) -> str:
     for new entries while never touching existing-position protection."""
     if not isinstance(state, dict):
         return "UNKNOWN"
+    apply_due_schedule(state)
     mode = state.get("mode")
     return mode if mode in VALID_MODES else "UNKNOWN"
 
@@ -102,4 +113,109 @@ def set_maintenance_mode(
     state["reason"] = reason
     state["updated_at"] = time.time()
     state["updated_by"] = updated_by
+    # Elle verilen karar zamanlanmış planın önüne geçer.
+    clear_schedule(state)
     return dict(state)
+
+
+def _valid_epoch(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if number == number and 0 < number < 4_102_444_800 else None
+
+
+def apply_due_schedule(state: dict[str, Any] | None, now: float | None = None) -> bool:
+    """Süresi dolmuş bir plan varsa modu MAINTENANCE yapar ve planı temizler.
+
+    Yalnızca NORMAL moddayken uygular: zaten MAINTENANCE/EMERGENCY ise (admin elle
+    geçtiyse) mevcut mod korunur, EMERGENCY asla düşürülmez."""
+    if not isinstance(state, dict):
+        return False
+    due = _valid_epoch(state.get("scheduled_at"))
+    if due is None:
+        if state.get("scheduled_at") is not None:
+            clear_schedule(state)  # bozuk değer: sessizce temizle, moda dokunma
+        return False
+    current = time.time() if now is None else now
+    if current < due:
+        return False
+    if state.get("mode") == "NORMAL":
+        state["mode"] = "MAINTENANCE"
+        state["reason"] = str(state.get("reason") or "") or "scheduled"
+        state["updated_at"] = due
+        state["updated_by"] = "schedule"
+    clear_schedule(state)
+    return True
+
+
+def clear_schedule(state: dict[str, Any]) -> None:
+    state["scheduled_at"] = None
+    state["scheduled_by"] = None
+    state["scheduled_set_at"] = None
+
+
+def schedule_maintenance(
+    state: dict[str, Any],
+    *,
+    starts_at: float,
+    updated_by: str | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Bakımı ileri bir ana planlar. Yalnızca NORMAL moddayken izin verilir."""
+    current = time.time() if now is None else now
+    moment = _valid_epoch(starts_at)
+    if moment is None:
+        raise ValueError("Geçersiz başlangıç zamanı.")
+    if state.get("mode") != "NORMAL":
+        raise ValueError("Sistem zaten bakımda veya acil durumda; önce Normal moda dönün.")
+    delta = moment - current
+    if delta < SCHEDULE_MIN_SECONDS:
+        raise ValueError("Başlangıç zamanı en az 30 saniye sonra olmalı.")
+    if delta > SCHEDULE_MAX_SECONDS:
+        raise ValueError("Bakım en fazla 30 gün sonrasına planlanabilir.")
+    state["scheduled_at"] = moment
+    state["scheduled_by"] = updated_by
+    state["scheduled_set_at"] = current
+    return dict(state)
+
+
+def public_maintenance_view(state: dict[str, Any] | None) -> dict[str, Any]:
+    """Giriş ekranı ve site için herkese açık, sır içermeyen görünüm."""
+    mode = get_maintenance_mode(state)
+    scheduled = _valid_epoch(state.get("scheduled_at")) if isinstance(state, dict) and mode == "NORMAL" else None
+    return {"mode": mode if mode in VALID_MODES else "MAINTENANCE", "scheduled_at": scheduled, "now": time.time()}
+
+
+def admin_maintenance_view(state: dict[str, Any]) -> dict[str, Any]:
+    get_maintenance_mode(state)
+    return {**state, "now": time.time()}
+
+
+def save_state(state: dict[str, Any], path: Path) -> None:
+    """Planı ve modu yeniden başlatmalara karşı dosyaya yazar (atomik, hata yutmaz)."""
+    payload = {key: state.get(key) for key in ("mode", "reason", "updated_at", "updated_by", "scheduled_at", "scheduled_by", "scheduled_set_at")}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(payload), encoding="utf-8")
+    os.replace(temp, path)
+
+
+def load_state(path: Path) -> dict[str, Any]:
+    """Dosyadan okur; dosya yok/bozuksa güvenli varsayılan (NORMAL) döner."""
+    state = default_maintenance_state()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return state
+    if not isinstance(raw, dict):
+        return state
+    if raw.get("mode") in VALID_MODES:
+        state["mode"] = raw["mode"]
+    for key in ("reason", "updated_by", "scheduled_by"):
+        if isinstance(raw.get(key), str):
+            state[key] = raw[key][:200]
+    for key in ("updated_at", "scheduled_at", "scheduled_set_at"):
+        state[key] = _valid_epoch(raw.get(key))
+    apply_due_schedule(state)
+    return state
