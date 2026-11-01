@@ -1,10 +1,12 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {Search, Star} from 'lucide-react'
+import {ArrowUpDown, Search, Star, X} from 'lucide-react'
 import {useMemberAccess} from './premium-access'
 import {CoinIcon} from './src/components/CoinIcon'
 import {filterMarketQuotes, marketPrice, marketWindow, type MarketFilter, type MarketScore, type MarketSort} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import './master-market-watch.css'
+import './market-search-card.css'
+import ScrollHintStrip from './ScrollHintStrip'
 
 const filters: MarketFilter[] = ['Tümü', 'Favoriler', 'Skorlu', 'Yükselenler', 'Düşenler']
 const sorts: MarketSort[] = ['Skor', '24s %', 'Hacim', 'A-Z']
@@ -31,6 +33,17 @@ function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: P
   const scoreMap = useMemo(() => new Map(scores.filter(row => Number.isFinite(row.score)).map(row => [row.symbol, row])), [scores])
   const filtered = useMemo(() => filterMarketQuotes(rows, scoreMap, favorites, search, filter, sort), [rows, scoreMap, favorites, search, filter, sort])
   const size = viewport.horizontal ? 260 : 52
+  // Filtre çiplerinde küçük sayaçlar (yalnız telefonda görünür): üye boş filtreye basmadan ne bulacağını görür.
+  const counts = useMemo(() => {
+    const result: Record<MarketFilter, number> = {'Tümü': rows.length, 'Favoriler': 0, 'Skorlu': 0, 'Yükselenler': 0, 'Düşenler': 0}
+    for (const row of rows) {
+      if (favorites.has(row.symbol)) result['Favoriler']++
+      if (scoreMap.has(row.symbol)) result['Skorlu']++
+      if (row.change !== null && row.change > 0) result['Yükselenler']++
+      if (row.change !== null && row.change < 0) result['Düşenler']++
+    }
+    return result
+  }, [rows, favorites, scoreMap])
   const window = marketWindow(viewport.offset, viewport.extent, filtered.length, size)
 
   useEffect(() => {
@@ -99,9 +112,9 @@ function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: P
     <section className="refCard refMarketSearch">
       <h2>PİYASA LİSTESİ <span>{filter} · {filtered.length}</span></h2>
       {rows.some(row => row.test) && <p className="refMarketDataNotice" role="note">OFFLINE TEST · TOKEN satırları sentetiktir, canlı sembol değildir.</p>}
-      <label><Search/><input aria-label="Search markets" placeholder="Sembol veya isim..." value={query} onChange={event => onQuery(event.target.value)}/></label>
-      <div className="refMarketFilters" role="group" aria-label="Piyasa filtreleri">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>{item}</button>)}</div>
-      <label className="refMarketSort">Sıralama<select aria-label="Piyasa sıralaması" value={sort} onChange={event => {const value = event.target.value; const next = sorts.find(item => item === value); if (next) setSort(next)}}>{sorts.map(item => <option key={item}>{item}</option>)}</select></label>
+      <label><Search/><input aria-label="Search markets" placeholder="Coin ara: BTC, ETH, Solana…" autoComplete="off" spellCheck={false} value={query} onChange={event => onQuery(event.target.value)}/>{query && <button type="button" className="refMarketClear" aria-label="Aramayı temizle" onClick={() => onQuery('')}><X aria-hidden="true"/></button>}</label>
+      <ScrollHintStrip className="refMarketFilters" role="group" label="Piyasa filtreleri" nextLabel="Diğer filtreleri göster" nudgeKey="kais-market-filter-nudge-seen">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} data-empty={item !== 'Tümü' && counts[item] === 0 || undefined} onClick={() => setFilter(item)}>{item}{item !== 'Tümü' && <i className="refFilterCount" aria-hidden="true">{counts[item]}</i>}</button>)}</ScrollHintStrip>
+      <label className="refMarketSort"><ArrowUpDown className="refSortIcon" aria-hidden="true"/><span>Sıralama</span><select aria-label="Piyasa sıralaması" value={sort} onChange={event => {const value = event.target.value; const next = sorts.find(item => item === value); if (next) setSort(next)}}>{sorts.map(item => <option key={item}>{item}</option>)}</select></label>
       {(error || stale) && <p className="refMarketDataNotice" role="status">{error || 'Son kayıt gösteriliyor · Piyasa verisi güncel değil.'}</p>}
       {preferenceError && <p className="refMarketDataNotice" role="alert">{preferenceError}</p>}
     </section>

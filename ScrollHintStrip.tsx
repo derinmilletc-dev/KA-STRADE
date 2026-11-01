@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
  * - İlk girişte bir kez hafifçe kayıp geri gelir (hareket azaltma açıksa yapılmaz) */
 const NUDGE_KEY = 'kais-strip-nudge-seen'
 
-export default function ScrollHintStrip({className, label, children}: {className: string; label: string; children: ReactNode}) {
+export default function ScrollHintStrip({className, label, children, role, nextLabel = 'Diğer coinleri göster', nudgeKey = NUDGE_KEY}: {className: string; label: string; children: ReactNode; role?: string; nextLabel?: string; nudgeKey?: string}) {
   const strip = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({start: true, end: true, ratio: 1, offset: 0})
 
@@ -38,15 +38,15 @@ export default function ScrollHintStrip({className, label, children}: {className
     const element = strip.current
     if (!element || element.scrollWidth <= element.clientWidth + 4) return
     let seen = false
-    try { seen = localStorage.getItem(NUDGE_KEY) === '1' } catch { seen = true }
+    try { seen = localStorage.getItem(nudgeKey) === '1' } catch { seen = true }
     if (seen || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     const timers = [
       window.setTimeout(() => element.scrollTo({left: 56, behavior: 'smooth'}), 700),
       window.setTimeout(() => element.scrollTo({left: 0, behavior: 'smooth'}), 1500),
     ]
-    try { localStorage.setItem(NUDGE_KEY, '1') } catch { /* yalnız bir kez göstermek içindir */ }
+    try { localStorage.setItem(nudgeKey, '1') } catch { /* yalnız bir kez göstermek içindir */ }
     return () => timers.forEach(window.clearTimeout)
-  }, [])
+  }, [nudgeKey])
 
   const page = (direction: 1 | -1) => {
     const element = strip.current
@@ -55,9 +55,9 @@ export default function ScrollHintStrip({className, label, children}: {className
   const scrollable = edges.ratio < 0.999
 
   return <div className="scrollHintWrap" data-start={edges.start || undefined} data-end={edges.end || undefined} data-scrollable={scrollable || undefined}>
-    <div ref={strip} className={className} aria-label={label} onScroll={measure}>{children}</div>
+    <div ref={strip} className={className} role={role} aria-label={label} onScroll={measure}>{children}</div>
     {scrollable && !edges.start && <button type="button" className="scrollHintArrow isStart" aria-label="Sola kaydır" onClick={() => page(-1)}><ChevronLeft aria-hidden="true"/></button>}
-    {scrollable && !edges.end && <button type="button" className="scrollHintArrow isEnd" aria-label="Diğer coinleri göster" onClick={() => page(1)}><ChevronRight aria-hidden="true"/></button>}
+    {scrollable && !edges.end && <button type="button" className="scrollHintArrow isEnd" aria-label={nextLabel} onClick={() => page(1)}><ChevronRight aria-hidden="true"/></button>}
     {scrollable && <span className="scrollHintTrack" aria-hidden="true"><i style={{width: `${edges.ratio * 100}%`, transform: `translateX(${(edges.offset / Math.max(edges.ratio, 0.01)) * 100}%)`}}/></span>}
   </div>
 }
