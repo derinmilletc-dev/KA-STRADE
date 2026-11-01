@@ -72,3 +72,6 @@ html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRou
 html body #root .binanceDemoDeck .demoMessage,
 html body #root .binanceDemoDeck .demoMessage span { font-size: 13px !important; line-height: 1.5 !important; font-weight: 600 !important; }
 html body #root .binanceDemoDeck .demoMessage-info { color: #b4c4bd !important; }
+
+/* Tarama raporu 24: Analiz dışındaki demo sekmelerinde yalnız üst çubuk gösterilir; bölüm içeriğe göre yüksekliğini alsın. */
+.masterReferenceAnalysis.demoTopBarOnly { min-height: 0 !important; height: auto !important; }

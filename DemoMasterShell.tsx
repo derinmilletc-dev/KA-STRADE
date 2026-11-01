@@ -22,7 +22,8 @@ export const DEMO_MASTER_TABS = [
 ] as const
 
 // Üst kısım her sekmede Master'ın Canlı İşlem görünümünü kullanır (Master'ın Analiz düzeni demo içeriğine uymuyor).
-export default function DemoMasterShell({tab, onTab, connected, lastUpdate, dataHealth, assistantSlotRef}: {
+export default function DemoMasterShell({tab, onTab, connected, lastUpdate, dataHealth, assistantSlotRef, topBar = false}: {
+  topBar?: boolean
   tab: DemoMasterTab
   onTab: (tab: DemoMasterTab) => void
   connected: boolean | null
@@ -49,9 +50,29 @@ export default function DemoMasterShell({tab, onTab, connected, lastUpdate, data
       </div>
       <div className="masterTradeSticky">
         <nav className="masterTradeTabs" aria-label="Demo İşlem Masası" role="tablist"><img className="masterTradeBrandLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade" width={896} height={216}/>{DEMO_MASTER_TABS.map(({id, label, icon: Icon}) =>
-          <button key={id} type="button" id={`demo-tab-${id}`} role="tab" aria-selected={tab === id} onClick={() => onTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}
+          <button key={id} type="button" id={topBar ? undefined : `demo-tab-${id}`} role="tab" aria-selected={tab === id} onClick={() => onTab(id)}><Icon aria-hidden="true"/><span>{label}</span></button>)}
         </nav>
       </div>
     </div>
+  </section>
+}
+
+// Bilgisayar görünümünde Analiz dışındaki demo sekmeleri de Analiz sekmesiyle aynı üst çubuğu kullanır (logo, sekmeler, bağlantı rozeti, profil, asistan).
+// Bu bölümün varlığı, eski demo başlığı ve sekme şeridini CSS ile gizler (demo-master.css, :has kuralı); sayfa sekmeler arası zıplamaz.
+export function DemoTopBar({tab, onTab, connected, assistantSlotRef}: {
+  tab: DemoMasterTab
+  onTab: (tab: DemoMasterTab) => void
+  connected: boolean | null
+  assistantSlotRef?: RefCallback<HTMLDivElement>
+}) {
+  return <section className="masterReferenceAnalysis demoTopBarOnly" data-layout-tab="analiz" aria-label="Demo İşlem üst çubuğu">
+    <header className="refHeader masterTradeTerminalHeader">
+      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span translate="no" data-i18n-skip>kais<b>trade</b></span></a>
+      <nav role="tablist" aria-label="Demo İşlem Masası">{DEMO_MASTER_TABS.map(({id, label, icon: Icon}) =>
+        <button key={id} id={`demo-tab-${id}`} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)}><Icon/>{label}</button>)}
+      </nav>
+      <span className="refConnection" data-connected={connected === true}><i/>{connected === null ? 'DEMO OKUNUYOR' : connected ? 'DEMO BAĞLI' : 'DEMO BAĞLANTI YOK'}</span>
+      <div className="masterTradeProfileSlot" aria-label="Profil menüsü"/>{assistantSlotRef && <div className="assistantMasterSlot" ref={assistantSlotRef}/>}
+    </header>
   </section>
 }

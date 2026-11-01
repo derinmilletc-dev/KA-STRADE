@@ -27,7 +27,7 @@ import NotificationSettings from './NotificationSettings'
 import ActiveSessionsCard from './ActiveSessionsCard'
 import SupportCenter from './SupportCenter'
 import LivePerformance from './LivePerformance'
-import DemoMasterShell, {type DemoMasterTab} from './DemoMasterShell'
+import DemoMasterShell, {DemoTopBar, type DemoMasterTab} from './DemoMasterShell'
 import './performance-live.css'
 import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
 
@@ -1144,7 +1144,8 @@ export default function TestnetFirstApp() {
     {view === 'dashboard' && !phoneLayout && <footer className="v26Footer"><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'API bağlı' : health ? 'API bağlantısı kesildi' : 'API kontrol ediliyor'}</span><span><i className={health?.status === 'ok' ? 'ok' : health ? 'error' : 'pending'}/>{health?.status === 'ok' ? 'Sistem çevrimiçi' : health ? 'Sistem çevrimdışı' : 'Sistem kontrol ediliyor'}</span><span><i className="ok"/>Demo ve canlı işlem</span></footer>}
 
     {view === 'trading' && <>
-      <DemoMasterShell tab={demoTab} onTab={setDemoTab} connected={demoConnected} assistantSlotRef={demoTab === 'analiz' ? undefined : setMasterAssistantHost} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>
+      {demoTab !== 'analiz' && !phoneLayout && <DemoTopBar tab={demoTab} onTab={setDemoTab} connected={demoConnected} assistantSlotRef={setMasterAssistantHost}/>}
+      <DemoMasterShell topBar={demoTab !== 'analiz' && !phoneLayout} tab={demoTab} onTab={setDemoTab} connected={demoConnected} assistantSlotRef={demoTab === 'analiz' || !phoneLayout ? undefined : setMasterAssistantHost} lastUpdate={marketsAt ? new Date(marketsAt).toLocaleTimeString('tr-TR') : '--'} dataHealth={marketError ? 'HATA' : marketsAt ? 'CANLI' : 'BEKLENİYOR'}/>
       {demoTab === 'analiz' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Analiz hazırlanıyor…</div>}><MasterTrade embedDemo demoPositions={demoPositions} demoConnected={demoConnected} onDemoTab={setDemoTab} assistantSlotRef={setMasterAssistantHost}/></Suspense>}
       <section className="v26MarketBar">
         <div className="v26MarketTitle"><Activity/><span><small>SEÇİLİ TESTNET PAZARI</small><b>{symbol.replace('USDT','/USDT')}</b></span><strong className={analysis?.direction === 'SHORT' ? 'short' : analysis?.direction === 'LONG' ? 'long' : ''}>{analysis?.direction || (analysisProgress < 0 ? 'ANALİZ HATASI' : 'HESAPLANIYOR')} <em>{analysis ? `%${analysis.confidence}` : analysisProgress < 0 ? 'TEKRAR DENEYİN' : analysisProgress > 0 ? `%${analysisProgress}` : 'BAŞLATILIYOR'}</em></strong></div>
