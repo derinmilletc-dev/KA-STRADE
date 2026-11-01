@@ -9,7 +9,7 @@ export function masterLayoutV2Enabled(search: string, width: number): boolean {
 
 export function analysisValue(value: number | null | undefined): string {
   return typeof value === 'number' && Number.isFinite(value)
-    ? value.toLocaleString('en-US', Math.abs(value) > 0 && Math.abs(value) < 1
+    ? value.toLocaleString('tr-TR', Math.abs(value) > 0 && Math.abs(value) < 1
       ? {minimumSignificantDigits: 3, maximumSignificantDigits: 5}
       : {minimumFractionDigits: 2, maximumFractionDigits: 2})
     : '—'
