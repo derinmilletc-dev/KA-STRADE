@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useRef, useState, type MouseEvent as ReactMouseEvent} from 'react'
 import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
 import {askKais} from './kais-ask'
@@ -143,6 +143,14 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     : binancePaid && hasAccess && smartTrade ? 'Erişimin aktif' : 'Ödemeye geç'
   const goToPayment = (plan: PaidPlan) => { lastFocus.current = document.activeElement as HTMLElement | null; setSelectedPlan(plan); setCheckoutOpen(true) }
   const closeCheckout = () => { setCheckoutOpen(false); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
+  const canPay = binanceEnabled && authenticated && !(binancePaid && hasAccess)
+  const onCardTap = (index: number, event: ReactMouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('button, a')) return
+    if (window.getSelection()?.toString()) return
+    if (window.matchMedia('(max-width: 700px)').matches) { openSheet(index); return }
+    if (index === 1 && canPay) goToPayment('SMART_TRADE')
+    else if (index === 2 && canPay) goToPayment('MASTER_MODE')
+  }
   const openSheet = (index: number) => { lastFocus.current = document.activeElement as HTMLElement | null; setSheetPlan(index) }
   const closeSheet = () => { setSheetPlan(null); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
   useEffect(() => {
@@ -191,7 +199,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     {!swiped && <p className="ktBillSwipeHint" aria-hidden="true"><ChevronLeft/>Diğer planlar için kaydır<ChevronRight/></p>}
 
     <section className="ktBillPlans" aria-label="Planlar" ref={plansRef} onScroll={onPlansScroll} onTouchStart={() => setSwiped(true)}>
-      <article className={`ktBillPlan${activePlan === 0 ? ' isActive' : ''}`}>
+      <article className={`ktBillPlan${activePlan === 0 ? ' isActive' : ''}`} onClick={event => onCardTap(0, event)}>
         <header>
           <div className="ktBillPlanIcon"><Sparkles/></div>
           <div><span className="ktBillTag">ÖDEMESİZ DENEME</span><h3>1 Hafta Ücretsiz Deneme</h3></div>
@@ -209,7 +217,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Hesap başına bir deneme. E-posta doğrulaması gerekir.</small>
       </article>
 
-      <article className={`ktBillPlan isSmart${activePlan === 1 ? ' isActive' : ''}`}>
+      <article className={`ktBillPlan isSmart${activePlan === 1 ? ' isActive' : ''}${canPay ? ' isPay' : ''}`} onClick={event => onCardTap(1, event)}>
         <header>
           <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/><BarChart3 className="ktBillIconMobile" aria-hidden="true"/></div>
           <div><span className="ktBillTag">AKILLI MANUEL İŞLEMLER</span><h3>SMART TRADE</h3></div>
@@ -225,7 +233,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
 
-      <article className={`ktBillPlan isFeatured${activePlan === 2 ? ' isActive' : ''}`}>
+      <article className={`ktBillPlan isFeatured${activePlan === 2 ? ' isActive' : ''}${canPay ? ' isPay' : ''}`} onClick={event => onCardTap(2, event)}>
         <span className="ktBillRibbon">ÖNERİLEN</span>
         <header>
           <div className="ktBillPlanIcon"><Crown/></div>
