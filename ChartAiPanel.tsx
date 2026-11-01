@@ -211,8 +211,8 @@ export default function ChartAiPanel(props: Props) {
       onChange={event => {const file = event.target.files?.[0]; event.target.value = ''; if (file) void prepare(file)}}/>
   </label>
   return <>
-    <button type="button" className="chartAiButton" disabled={loading} onClick={() => setOpen(true)} title="Grafiği açıkla; işlem veya emir göndermez">
-      <ChartAiIcon/>Kais AI'a Sor
+    <button type="button" className="chartAiButton" aria-label="Kais AI'a Sor" disabled={loading} onClick={() => setOpen(true)} title="Grafiği açıkla; işlem veya emir göndermez">
+      <ChartAiIcon/><span className="chartAiLabel">Kais AI<span className="refLabelExtra">'a Sor</span></span>
     </button>
     {open && createPortal(<dialog ref={dialog} className="chartAiDialog" aria-labelledby="chart-ai-title" onCancel={event => {event.preventDefault(); setOpen(false)}}>
       <header className="chartAiHeader">
