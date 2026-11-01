@@ -33,7 +33,7 @@ class MemberPremiumApiTests(unittest.IsolatedAsyncioTestCase):
         self.tokens = {user: issue_token(user, "CUSTOMER", secret, kind="USER") for user in ("a", "b", "premium")}
         self.producer = AsyncMock(return_value={"symbol": "BTCUSDT", "entry": 987654.321, "stop_loss": 123456.789, "tp1": 999888.777, "direction": "LONG"})
         self.application.state.analyst_analysis = self.producer
-        self.application.state.analyst_credits = AnalystCredits(CreditStore(self.application, path=Path(self.directory.name) / "credits.sqlite3"), CreditConfig())
+        self.application.state.analyst_credits = AnalystCredits(CreditStore(self.application, path=Path(self.directory.name) / "credits.sqlite3"), CreditConfig(total=100))
         self.entry_calls = 0
 
         @self.application.post("/api/v25/order")

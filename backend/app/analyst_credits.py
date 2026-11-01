@@ -27,13 +27,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analyst", tags=["Analyst credits"])
 
 ANALYSIS_COST = 10
+# Ücretsiz deneme / premium olmayan üye: günde 7 analiz (7 x ANALYSIS_COST kredi).
+DAILY_ANALYSES = 7
 # Premium olmayan üyenin asistandaki piyasa özeti kullanımları analyst_requests'e bu sembol + UTC gün ile yazılır (günlük sayaç).
 MARKET_OVERVIEW_SYMBOL = "MARKET_OVERVIEW"
 
 
 @dataclass(frozen=True)
 class CreditConfig:
-    total: int = 100
+    total: int = DAILY_ANALYSES * ANALYSIS_COST
     cost: int = ANALYSIS_COST
     window_hours: int = 24
     cache_minutes: int = 15
@@ -42,7 +44,7 @@ class CreditConfig:
     @classmethod
     def from_environment(cls) -> CreditConfig:
         config = cls(
-            total=int(os.getenv("ANALYST_DAILY_CREDITS", "100")),
+            total=int(os.getenv("ANALYST_DAILY_CREDITS", str(DAILY_ANALYSES * ANALYSIS_COST))),
             cost=int(os.getenv("ANALYST_COST", str(ANALYSIS_COST))),
             window_hours=int(os.getenv("CREDIT_WINDOW_HOURS", "24")),
             cache_minutes=int(os.getenv("ANALYST_CACHE_MINUTES", "15")),

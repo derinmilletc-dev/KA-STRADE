@@ -19,11 +19,10 @@ class LiveAccessTests(unittest.TestCase):
                 self.assertTrue(live_access.entitled(PAID))
                 self.assertTrue(live_access.entitled(PAST_DUE))
 
-    def test_trial_counts_only_when_multi_user_live_is_on(self):
-        with mock.patch.dict("os.environ", ON):
-            self.assertTrue(live_access.entitled(TRIAL))
-        with mock.patch.dict("os.environ", OFF):
-            self.assertFalse(live_access.entitled(TRIAL))
+    def test_free_trial_is_never_live_entitled(self):
+        for env in (ON, OFF):
+            with mock.patch.dict("os.environ", env):
+                self.assertFalse(live_access.entitled(TRIAL))
 
     def test_nobody_else_is_entitled(self):
         with mock.patch.dict("os.environ", ON):

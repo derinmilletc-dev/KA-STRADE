@@ -21,7 +21,7 @@ class AnalystCreditTests(unittest.IsolatedAsyncioTestCase):
         self.now = 100000.0
         application = SimpleNamespace(state=SimpleNamespace(db_pool=None))
         self.store = CreditStore(application, path=Path(self.directory.name) / "credits.sqlite3")
-        self.credits = AnalystCredits(self.store, CreditConfig(), clock=lambda: self.now)
+        self.credits = AnalystCredits(self.store, CreditConfig(total=100), clock=lambda: self.now)
         self.producer = AsyncMock(return_value={"symbol": "BTCUSDT", "entry": 98765.4321})
         self.environment = patch.dict("os.environ", {"PROTREBOT_DURABLE_AUTH_REQUIRED": "false", "ANALYST_COST": str(ANALYSIS_COST)})
         self.environment.start()
@@ -36,7 +36,8 @@ class AnalystCreditTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict("os.environ", {}, clear=True):
             config = CreditConfig.from_environment()
             self.assertEqual(config.cost, ANALYSIS_COST)
-            self.assertEqual(config.total, 100)
+            self.assertEqual(config.total, 70)
+            self.assertEqual(config.total // config.cost, 7)
             with patch.dict("os.environ", {"ANALYST_COST": "7"}):
                 self.assertEqual(CreditConfig.from_environment().cost, 7)
 
@@ -54,7 +55,7 @@ class AnalystCreditTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first["remaining"], 90)
         self.assertEqual(first["analysis_cost"], 10)
         self.assertEqual((await self.credits.credits("b", False))["remaining"], 100)
-        restored = AnalystCredits(self.store, clock=lambda: self.now)
+        restored = AnalystCredits(self.store, CreditConfig(total=100), clock=lambda: self.now)
         self.assertEqual((await restored.credits("a", False))["remaining"], 90)
         await self.buy(user="b")
         self.assertEqual((await self.credits.credits("a", False))["remaining"], 90)

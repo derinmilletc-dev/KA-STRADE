@@ -11,7 +11,7 @@ def test_trial_member_gets_the_lower_daily_limit():
     config = AssistantConfig(ANTHROPIC_API_KEY="assistant-tests-not-real")
     with patch("app.member_entitlements.subscription_for_request", return_value={"mode": "FREE_TRIAL"}):
         limited = limited_config(SimpleNamespace(), USER, config)
-    assert limited.daily_limit == config.trial_daily_limit == 5
+    assert limited.daily_limit == config.trial_daily_limit == 15
     assert config.daily_limit > config.trial_daily_limit  # original configuration is not modified
 
 
