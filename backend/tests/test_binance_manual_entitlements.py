@@ -470,9 +470,9 @@ def test_approved_manual_right_is_shared_by_entry_analyst_and_assistant(api):
 
     @client.app.post("/api/v25/order")
     async def entry(request: Request):
-        user, premium = member_access(request)
+        user, _unlimited, _limit = member_access(request)
         tools = AssistantTools(request)
-        assert premium and tools.premium(user["id"])
+        assert tools.premium(user["id"])
         assert (await tools.get_my_access(user["id"]))["data"]["isPremium"]
         calls.append(user["id"])
         return {"ok": True}

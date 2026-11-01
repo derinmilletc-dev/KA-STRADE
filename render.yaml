@@ -81,7 +81,7 @@ services:
       - key: ASSISTANT_PER_MINUTE_LIMIT
         value: "6"
       - key: ASSISTANT_DAILY_LIMIT
-        value: "20"
+        value: "40"
       - key: ASSISTANT_TRIAL_DAILY_LIMIT
         value: "15"
       - key: ASSISTANT_FREE_MARKET_DAILY_LIMIT

@@ -99,7 +99,7 @@ class CreditStore:
         self.initialized_pool: Any = None
 
     @asynccontextmanager
-    async def transaction(self, user_id: str, config: CreditConfig, now: float) -> AsyncIterator[CreditTransaction]:
+    async def transaction(self, user_id: str, config: CreditConfig, now: float, total: int | None = None) -> AsyncIterator[CreditTransaction]:
         pool = getattr(self.application.state, "db_pool", None)
         if pool is None and str(os.getenv("PROTREBOT_DURABLE_AUTH_REQUIRED", "")).lower() in {"true", "1", "yes", "on"}:
             raise HTTPException(503, "Analyst credit storage is unavailable")
@@ -113,7 +113,7 @@ class CreditStore:
                 transaction = CreditTransaction(connection, True)
                 await transaction.execute(
                     "INSERT INTO analyst_credits (user_id, credits_remaining, rate_start) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO NOTHING",
-                    user_id, config.total, now,
+                    user_id, total or config.total, now,
                 )
                 await transaction.row("SELECT user_id FROM analyst_credits WHERE user_id=$1 FOR UPDATE", user_id)
                 yield transaction
@@ -128,7 +128,7 @@ class CreditStore:
             transaction = CreditTransaction(connection, False)
             await transaction.execute(
                 "INSERT INTO analyst_credits (user_id, credits_remaining, rate_start) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO NOTHING",
-                user_id, config.total, now,
+                user_id, total or config.total, now,
             )
             try:
                 yield transaction
@@ -147,32 +147,42 @@ class AnalystCredits:
         self.config = config or CreditConfig.from_environment()
         self.clock = clock
 
-    def snapshot(self, remaining: int, window_start: float | None, premium: bool = False) -> dict[str, Any]:
+    def total_for(self, daily_limit: int | None) -> int:
+        """Günlük analiz hakkı (adet) varsa toplam kredi = hak x analiz maliyeti; yoksa varsayılan toplam."""
+        return daily_limit * self.config.cost if daily_limit else self.config.total
+
+    def snapshot(self, remaining: int, window_start: float | None, premium: bool = False, total: int | None = None) -> dict[str, Any]:
         resets = window_start + self.config.window_hours * 3600 if window_start is not None else None
         return {
-            "remaining": None if premium else remaining, "total": self.config.total,
+            "remaining": None if premium else remaining, "total": total or self.config.total,
             "analysis_cost": self.config.cost,
             "resetsAt": datetime.fromtimestamp(resets, timezone.utc).isoformat() if resets is not None and not premium else None,
             "unlimited": premium,
         }
 
-    async def account(self, transaction: CreditTransaction, user_id: str, now: float) -> tuple[int, float | None]:
+    async def account(self, transaction: CreditTransaction, user_id: str, now: float, total: int | None = None) -> tuple[int, float | None]:
         row = await transaction.row("SELECT * FROM analyst_credits WHERE user_id=$1", user_id)
         if row is None:
             raise RuntimeError("Analyst credit account was not created")
+        full = total or self.config.total
         start = row["window_start"]
         if start is not None and now >= start + self.config.window_hours * 3600:
-            await transaction.execute("UPDATE analyst_credits SET credits_remaining=$1, window_start=NULL WHERE user_id=$2", self.config.total, user_id)
-            return self.config.total, None
+            await transaction.execute("UPDATE analyst_credits SET credits_remaining=$1, window_start=NULL WHERE user_id=$2", full, user_id)
+            return full, None
+        if start is None and int(row["credits_remaining"]) != full:
+            # Açık pencere yok: plan değişse bile üye tam günlük hakkıyla başlar.
+            await transaction.execute("UPDATE analyst_credits SET credits_remaining=$1 WHERE user_id=$2", full, user_id)
+            return full, None
         return int(row["credits_remaining"]), start
 
-    async def credits(self, user_id: str, premium: bool) -> dict[str, Any]:
+    async def credits(self, user_id: str, premium: bool, daily_limit: int | None = None) -> dict[str, Any]:
         if premium:
             return self.snapshot(self.config.total, None, True)
         now = self.clock()
-        async with self.store.transaction(user_id, self.config, now) as transaction:
-            remaining, start = await self.account(transaction, user_id, now)
-            return self.snapshot(remaining, start)
+        total = self.total_for(daily_limit)
+        async with self.store.transaction(user_id, self.config, now, total) as transaction:
+            remaining, start = await self.account(transaction, user_id, now, total)
+            return self.snapshot(remaining, start, False, total)
 
     async def charge_market_overview(self, user_id: str, day: str, daily_limit: int) -> dict[str, Any]:
         """Premium olmayan üyenin piyasa özeti hakkı: günde en fazla daily_limit kez, her seferinde analiz maliyeti kadar kredi.
@@ -212,10 +222,11 @@ class AnalystCredits:
                 return None
             return {"result": json.loads(cached["result"]), "opened_at": cached["opened_at"]}
 
-    async def consume(self, user_id: str, premium: bool, symbol: str, timeframe: str, key: str, analyze: Callable[[], Awaitable[dict[str, Any]]]) -> tuple[dict[str, Any], int]:
+    async def consume(self, user_id: str, premium: bool, symbol: str, timeframe: str, key: str, analyze: Callable[[], Awaitable[dict[str, Any]]], daily_limit: int | None = None) -> tuple[dict[str, Any], int]:
         now = self.clock()
-        async with self.store.transaction(user_id, self.config, now) as transaction:
-            remaining, start = await self.account(transaction, user_id, now)
+        total = self.total_for(daily_limit)
+        async with self.store.transaction(user_id, self.config, now, total) as transaction:
+            remaining, start = await self.account(transaction, user_id, now, total)
             rate = await transaction.row("SELECT rate_start, rate_count FROM analyst_credits WHERE user_id=$1", user_id)
             if rate is None:
                 raise RuntimeError("Analyst rate-limit account was not created")
@@ -223,22 +234,22 @@ class AnalystCredits:
             count = 0 if rate_start != rate["rate_start"] else rate["rate_count"]
             if count >= self.config.rate_limit:
                 logger.warning("Analyst rate limit exceeded user_id=%s symbol=%s timeframe=%s", user_id, symbol, timeframe)
-                return {"detail": "Çok fazla analiz isteği.", **self.snapshot(remaining, start, premium), "retryAfter": max(1, int(rate_start + 60 - now))}, 429
+                return {"detail": "Çok fazla analiz isteği.", **self.snapshot(remaining, start, premium, total), "retryAfter": max(1, int(rate_start + 60 - now))}, 429
             await transaction.execute("UPDATE analyst_credits SET rate_start=$1, rate_count=$2 WHERE user_id=$3", rate_start, count + 1, user_id)
             previous = await transaction.row("SELECT * FROM analyst_requests WHERE user_id=$1 AND idempotency_key=$2", user_id, key)
             if previous is not None:
                 if (previous["symbol"], previous["timeframe"]) != (symbol, timeframe):
                     logger.warning("Analyst idempotency conflict user_id=%s", user_id)
                     return {"detail": "Idempotency key farklı bir analiz için kullanılmış."}, 409
-                return {**json.loads(previous["result"]), **self.snapshot(remaining, start, premium), "replayed": True}, previous["status_code"]
+                return {**json.loads(previous["result"]), **self.snapshot(remaining, start, premium, total), "replayed": True}, previous["status_code"]
             await transaction.execute("DELETE FROM analyst_cache WHERE user_id=$1 AND opened_at <= $2", user_id, now - self.config.cache_minutes * 60)
             cached = await transaction.row("SELECT * FROM analyst_cache WHERE user_id=$1 AND symbol=$2 AND timeframe=$3", user_id, symbol, timeframe)
             if cached is not None:
-                response = {"result": json.loads(cached["result"]), "cached": True, "cacheExpiresAt": datetime.fromtimestamp(cached["opened_at"] + self.config.cache_minutes * 60, timezone.utc).isoformat(), **self.snapshot(remaining, start, premium)}
+                response = {"result": json.loads(cached["result"]), "cached": True, "cacheExpiresAt": datetime.fromtimestamp(cached["opened_at"] + self.config.cache_minutes * 60, timezone.utc).isoformat(), **self.snapshot(remaining, start, premium, total)}
                 status_code = 200
             elif not premium and remaining < self.config.cost:
                 logger.info("Analyst credits exhausted user_id=%s", user_id)
-                return {"detail": "Günlük analiz kredileri tükendi.", **self.snapshot(remaining, start)}, 429
+                return {"detail": "Günlük analiz kredileri tükendi.", **self.snapshot(remaining, start, False, total)}, 429
             else:
                 charged = 0 if premium else self.config.cost
                 if charged:
@@ -252,11 +263,11 @@ class AnalystCredits:
                     logger.exception("Analyst analysis failed; refunding once user_id=%s symbol=%s timeframe=%s", user_id, symbol, timeframe)
                     remaining += charged
                     await transaction.execute("UPDATE analyst_credits SET credits_remaining=$1 WHERE user_id=$2", remaining, user_id)
-                    response = {"detail": "Analiz oluşturulamadı; kredi iade edildi.", **self.snapshot(remaining, start, premium)}
+                    response = {"detail": "Analiz oluşturulamadı; kredi iade edildi.", **self.snapshot(remaining, start, premium, total)}
                     status_code = 502
                 else:
                     await transaction.execute("INSERT INTO analyst_cache (user_id,symbol,timeframe,opened_at,result) VALUES ($1,$2,$3,$4,$5)", user_id, symbol, timeframe, now, encoded)
-                    response = {"result": result, "cached": False, "cacheExpiresAt": datetime.fromtimestamp(now + self.config.cache_minutes * 60, timezone.utc).isoformat(), **self.snapshot(remaining, start, premium)}
+                    response = {"result": result, "cached": False, "cacheExpiresAt": datetime.fromtimestamp(now + self.config.cache_minutes * 60, timezone.utc).isoformat(), **self.snapshot(remaining, start, premium, total)}
                     status_code = 200
             await transaction.execute(
                 "INSERT INTO analyst_requests (user_id,idempotency_key,symbol,timeframe,status_code,result) VALUES ($1,$2,$3,$4,$5,$6)",
@@ -271,10 +282,11 @@ class ConsumeAnalysis(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
 
 
-def member_access(request: Request) -> tuple[dict[str, Any], bool]:
+def member_access(request: Request) -> tuple[dict[str, Any], bool, int | None]:
     user = authenticated_user(request)
     access = access_for_request(request, user)
-    return user, bool(access["entitlements"].get("unlimitedAnalyst"))
+    limit = access["entitlements"].get("analystDailyLimit")
+    return user, bool(access["entitlements"].get("unlimitedAnalyst")), int(limit) if limit else None
 
 
 def service(request: Request) -> AnalystCredits:
@@ -287,17 +299,17 @@ def service(request: Request) -> AnalystCredits:
 
 @router.get("/credits")
 async def get_credits(request: Request):
-    user, premium = member_access(request)
-    return await service(request).credits(user["id"], premium)
+    user, premium, limit = member_access(request)
+    return await service(request).credits(user["id"], premium, limit)
 
 
 @router.post("/consume")
 async def consume_analysis(payload: ConsumeAnalysis, request: Request):
-    user, premium = member_access(request)
+    user, premium, limit = member_access(request)
     producer = request.app.state.analyst_analysis
     response, status = await service(request).consume(
         user["id"], premium, payload.symbol, payload.timeframe, payload.idempotency_key,
-        lambda: producer(payload.symbol, payload.timeframe),
+        lambda: producer(payload.symbol, payload.timeframe), limit,
     )
     headers = {"Retry-After": str(response["retryAfter"])} if "retryAfter" in response else None
     return JSONResponse(response, status_code=status, headers=headers)

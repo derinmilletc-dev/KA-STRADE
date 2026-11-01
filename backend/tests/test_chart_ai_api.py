@@ -161,20 +161,21 @@ def test_invalid_or_forged_acknowledgement_never_writes(chart_api, change, statu
     assert pool.state.acknowledgements == {} and pool.state.requests == {}
 
 
-def test_paid_master_mode_uses_thirty_five_rights_and_utc_monday_period(chart_api):
+def test_paid_master_mode_uses_fifteen_daily_rights_and_turkey_midnight_period(chart_api):
     client, _, pool = chart_api
     subscribe(client)
     payload = client.get(USAGE, headers=headers("customer", "CUSTOMER")).json()
     assert payload["access_type"] == "subscriber"
-    assert payload["quota"]["remaining"] == payload["quota"]["limit"] == 35
+    assert payload["quota"]["remaining"] == payload["quota"]["limit"] == 15
     start = datetime.fromisoformat(payload["period_start"].replace("Z", "+00:00"))
-    assert start.weekday() == 0 and start.hour == start.minute == start.second == 0
     assert start.utcoffset() == timedelta(0)
+    local_start = start + timedelta(hours=3)
+    assert local_start.hour == local_start.minute == local_start.second == 0
     assert payload["resets_at"] == payload["period_end"] and payload["trial_expires_at"] is None
     assert payload["server_now"] == pool.now.isoformat().replace("+00:00", "Z")
 
 
-@pytest.mark.parametrize("grace,access_type,limit", [(1, "subscriber", 35), (-1, "free", 3)])
+@pytest.mark.parametrize("grace,access_type,limit", [(1, "subscriber", 15), (-1, "free", 3)])
 def test_paid_past_due_uses_existing_canonical_grace_rules(chart_api, grace, access_type, limit):
     client, _, pool = chart_api
     subscribe(client, status="PAST_DUE", expired=True, grace=grace)
@@ -195,16 +196,17 @@ def test_owner_is_unlimited_without_subscription_and_actual_role_is_authoritativ
     assert not pool.state.requests
 
 
-def test_moderator_gets_thirty_five_weekly_analyses_without_subscription(chart_api):
+def test_moderator_gets_fifteen_daily_analyses_without_subscription(chart_api):
     client, _, pool = chart_api
     response = client.get(USAGE, headers=headers("moderator"))
     assert response.status_code == 200, response.text
     payload = response.json()
     assert "access_type" in payload, payload
     assert payload["access_type"] == "subscriber"
-    assert payload["quota"] == {"limit": 35, "used": 0, "reserved": 0, "remaining": 35, "unlimited": False}
+    assert payload["quota"] == {"limit": 15, "used": 0, "reserved": 0, "remaining": 15, "unlimited": False}
     start = datetime.fromisoformat(payload["period_start"].replace("Z", "+00:00"))
-    assert start.weekday() == 0 and start.hour == start.minute == start.second == 0
+    local_start = start + timedelta(hours=3)
+    assert local_start.hour == local_start.minute == local_start.second == 0
     assert payload["resets_at"] == payload["period_end"]
     assert pool.state.periods
 

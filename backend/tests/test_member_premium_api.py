@@ -70,7 +70,7 @@ class MemberPremiumApiTests(unittest.IsolatedAsyncioTestCase):
             response = await self.client.get("/api/analyst/credits", headers={"X-Protrebot-Owner": "test-owner-token-at-least-24-characters"})
             self.assertEqual(response.status_code, 401)
 
-    async def test_http_credits_are_per_member_and_premium_is_unlimited(self):
+    async def test_http_credits_are_per_member_and_paid_members_have_a_daily_limit(self):
         response = await self.client.get("/api/analyst/credits", headers=self.headers("a"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 100)
@@ -84,13 +84,14 @@ class MemberPremiumApiTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/api/analyst/credits", headers=self.headers("b"))
         self.assertEqual(response.json()["remaining"], 100)
         response = await self.client.post("/api/analyst/consume", json=body, headers=self.headers("premium"))
-        self.assertTrue(response.json()["unlimited"])
-        self.assertIsNone(response.json()["remaining"])
+        self.assertFalse(response.json()["unlimited"])
+        self.assertEqual(response.json()["total"], 400)  # günde 40 analiz x 10 kredi
+        self.assertEqual(response.json()["remaining"], 390)
         self.assertEqual(response.json()["analysis_cost"], 10)
         response = await self.client.get("/api/analyst/credits", headers=self.headers("premium"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["analysis_cost"], 10)
-        self.assertIsNone(response.json()["remaining"])
+        self.assertEqual(response.json()["remaining"], 390)
+        self.assertEqual(response.json()["total"], 400)
 
     async def test_free_member_cannot_call_entry_endpoint_even_without_valid_body(self):
         response = await self.client.post("/api/v25/order", json={}, headers=self.headers("a"))

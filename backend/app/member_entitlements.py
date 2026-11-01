@@ -15,6 +15,8 @@ from .subscription_core import entitlement_snapshot, parse_datetime
 
 # Ücretli planlar (gerçek emir hakkı verenler). Binance elle ödemede plan, ödenen tutardan çıkar.
 PAID_PLANS = frozenset({"MASTER_MODE", "SMART_TRADE"})
+# AI Analist günlük analiz hakkı: ücretli plan 40, deneme/ücretsiz 7. Yalnız OWNER sınırsızdır.
+ANALYST_PAID_DAILY = 40
 SMART_TRADE_FEATURES = ["Manuel işlem (Demo ve Canlı)", "KAIS Rehber", "KAIS AI asistanı", "Analiz Stüdyosu", "AI Analist ve Scanner", "Stop, hedef ve pozisyon koruması", "Grid işlemleri", "Demo hesapta tüm stratejiler", "7/24 destek", "30 günlük erişim", "Elle yenileme"]
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,8 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
         "isAdmin": owner, "canAccessMasterTrade": True, "isPremium": premium,
         "canExecuteMasterTrade": premium,
         "entitlements": {**subscription.get("entitlements", {}), "canExecuteMasterTrade": premium,
-                         "unlimitedAnalyst": owner or (premium and not free_trial),
+                         "unlimitedAnalyst": owner,
+                         "analystDailyLimit": None if owner else (ANALYST_PAID_DAILY if premium and not free_trial else None),
                          "canUseAutomation": not smart_trade},
     }
     from .free_trial import enabled as trial_enabled
@@ -225,6 +228,7 @@ def public_account_entitlement(request: Request, user: dict[str, Any]) -> tuple[
         "canExecuteMasterTrade": False,
         "canExecuteLive": False,
         "unlimitedAnalyst": False,
+        "analystDailyLimit": None,
     }
     return subscription, rights, False
 

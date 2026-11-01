@@ -2355,7 +2355,7 @@ okunur; diğer modüller model, limit veya fiyat değerlerini tekrar sabitlememe
 | `ASSISTANT_SECRET_MIN_ALPHANUMERIC_CHARS` | `40` | Uzun anahtar benzeri dizilerin engellenme eşiği |
 | `ASSISTANT_BUDGET_WARNING_FRACTION` | `0.8` | Aylık bütçe uyarısı eşiği |
 | `ASSISTANT_PER_MINUTE_LIMIT` | `6` | Kullanıcı başına dakikalık sınır |
-| `ASSISTANT_DAILY_LIMIT` | `20` | Kullanıcı başına UTC takvim günü sınırı |
+| `ASSISTANT_DAILY_LIMIT` | `40` | Kullanıcı başına UTC takvim günü sınırı |
 | `ASSISTANT_MONTHLY_BUDGET_USD` | `50` | Aylık USD bütçesi |
 | `ASSISTANT_MAX_OUTPUT_TOKENS` | `500` | Her üretim çağrısının çıktı token sınırı |
 | `ASSISTANT_MAX_LLM_CALLS_PER_MESSAGE` | `3` | Tek mesajın üretim çağrısı sınırı; en fazla üç olabilir |
