@@ -1417,3 +1417,5 @@
 /* Tarama raporu 23: Analist sayfasında minik silik yazılar. */
 #root .coinAnalysisCenter :is(small,th,th button,.coinTableMeta small,.analystCommandItems small,.analystSelectorList small){font-size:max(12px,.85em)}
 #root .coinAnalysisCenter :is(small,.analystCommandItems small){color:#a7bba9}
+/* Tarama raporu 23 (düzeltme): Analist'teki 8-10px yazılar. */
+html body #root .coinAnalysisCenter :is(small,th,th button,.coinTableMeta small) { font-size: 12px !important; }

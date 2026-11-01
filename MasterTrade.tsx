@@ -123,6 +123,9 @@ const pctText = (value: number | null | undefined) => value === undefined || val
 const fmtPnl = (value: number | null | undefined) =>
   value === undefined || value === null || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 
+const signedUsdt = (value: number | null | undefined) => value === undefined || value === null || !Number.isFinite(value) ? '—' : `${value > 0 ? '+' : ''}${fmtPnl(value)} USDT`
+const signedPct = (value: number | null | undefined) => value === undefined || value === null || !Number.isFinite(value) ? '—' : `${value < 0 ? '-' : value > 0 ? '+' : ''}%${Math.abs(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
 const fmtDecisionNumber = (value: number | null | undefined, decimals = 0) =>
   value === null || value === undefined || !Number.isFinite(value) ? '--' : value.toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals })
 
@@ -982,11 +985,11 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                 <span className="chartSymbol">{draft.market}</span>
                 <strong><MasterTradeValue>{currentPrice !== null ? `$${fmtMarketPrice(currentPrice)}` : '--'}</MasterTradeValue></strong>
               </div>
-              <span className={`delta ${selectedChange === null ? '' : selectedChange >= 0 ? 'positive' : 'negative'}`}>{selectedChange === null ? '--' : `${selectedChange >= 0 ? '+' : ''}${selectedChange.toFixed(2)}%`}</span>
+              <span className={`delta ${selectedChange === null ? '' : selectedChange >= 0 ? 'positive' : 'negative'}`}>{selectedChange === null ? '--' : signedPct(selectedChange)}</span>
             </div>
 
             <div className="marketStatsStrip">
-              <span><small>24H CHANGE</small><b className={selectedChange === null ? '' : selectedChange < 0 ? 'negative' : 'positive'}>{selectedChange === null ? '--' : `${selectedChange >= 0 ? '+' : ''}${selectedChange.toFixed(2)}%`}</b></span>
+              <span><small>24H CHANGE</small><b className={selectedChange === null ? '' : selectedChange < 0 ? 'negative' : 'positive'}>{selectedChange === null ? '--' : signedPct(selectedChange)}</b></span>
               <span><small>VOLUME</small><b><MasterTradeValue>{fmtCompact(selectedMarket?.volume)}</MasterTradeValue></b></span>
               <span><small>HIGH</small><b><MasterTradeValue>{chartCandles.length ? fmtMarketPrice(Math.max(...chartCandles.map(candle => candle.high))) : '--'}</MasterTradeValue></b></span>
               <span><small>LOW</small><b><MasterTradeValue>{chartCandles.length ? fmtMarketPrice(Math.min(...chartCandles.map(candle => candle.low))) : '--'}</MasterTradeValue></b></span>
@@ -1182,7 +1185,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <td data-cell="mark" data-label="Anlık fiyat">${fmtMarketPrice(position.mark_price)}</td>
                       <td data-cell="lev">{position.leverage ? `${position.leverage}x` : '--'}</td>
                       <td data-cell="margin" data-label="Teminat">{plan?.margin_usdt === undefined ? '--' : usdtText(plan.margin_usdt)}</td>
-                      <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : `${position.unrealized_pnl >= 0 ? '+' : ''}$${fmtPnl(position.unrealized_pnl)}`}</td>
+                      <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : signedUsdt(position.unrealized_pnl)}</td>
                       <td data-cell="pct">--</td>
                       <td data-cell="sl" data-label="Stop Loss">${fmtMarketPrice(stopLoss)}</td>
                       <td data-cell="tp" data-label="Take Profit">${fmtMarketPrice(target)}</td>
@@ -1275,8 +1278,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <td data-cell="side" className={trade.side === 'LONG' ? 'positive' : 'negative'}>{trade.side}</td>
                       <td data-cell="entry" data-label="Giriş">${fmtNum(trade.entryPrice)}</td>
                       <td data-cell="exit" data-label="Çıkış">${fmtNum(trade.exitPrice)}</td>
-                      <td data-cell="pnl" className={trade.realizedPnl > 0 ? 'positive' : trade.realizedPnl < 0 ? 'negative' : 'muted'}>{trade.realizedPnl > 0 ? '+' : ''}${fmtCompact(trade.realizedPnl)}</td>
-                      <td data-cell="pct" data-empty={trade.pnlPercent === null || undefined} className={trade.pnlPercent === null ? 'muted' : trade.pnlPercent >= 0 ? 'positive' : 'negative'}>{trade.pnlPercent === null ? '--' : `${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent.toFixed(2)}%`}</td>
+                      <td data-cell="pnl" className={trade.realizedPnl > 0 ? 'positive' : trade.realizedPnl < 0 ? 'negative' : 'muted'}>{signedUsdt(trade.realizedPnl)}</td>
+                      <td data-cell="pct" data-empty={trade.pnlPercent === null || undefined} className={trade.pnlPercent === null ? 'muted' : trade.pnlPercent >= 0 ? 'positive' : 'negative'}>{trade.pnlPercent === null ? '--' : signedPct(trade.pnlPercent)}</td>
                       <td data-cell="duration">{trade.duration || '--'}</td>
                       <td data-cell="source">{trade.source}</td>
                       <td data-cell="result"><span className={`statusBadge ${trade.realizedPnl > 0 ? 'win' : trade.realizedPnl < 0 ? 'loss' : 'open'}`}>{trade.realizedPnl > 0 ? 'WIN' : trade.realizedPnl < 0 ? 'LOSS' : '--'}</span></td>
@@ -1336,7 +1339,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div><small>Leverage</small><b>{positionAction.position.leverage ? `${positionAction.position.leverage}x` : '--'}</b></div>
               <div><small>Margin</small><b>--</b></div>
               <div><small>Liquidation</small><b>${fmtNum(positionAction.position.liquidation_price)}</b></div>
-              <div><small>Unrealized PnL</small><b className={(positionAction.position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{positionAction.position.unrealized_pnl === undefined ? '--' : `${positionAction.position.unrealized_pnl >= 0 ? '+' : ''}$${fmtPnl(positionAction.position.unrealized_pnl)}`}</b></div>
+              <div><small>Unrealized PnL</small><b className={(positionAction.position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{positionAction.position.unrealized_pnl === undefined ? '--' : signedUsdt(positionAction.position.unrealized_pnl)}</b></div>
               <div><small>PnL %</small><b>--</b></div>
               <div><small>Stop Loss</small><b>${fmtMarketPrice(positionAction.position.stop_loss)}</b></div>
               <div><small>TP1</small><b>${fmtMarketPrice(positionAction.position.tp1)}</b></div>
@@ -1364,8 +1367,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
             <div className="drawerMeta">
               <div><small>Yön</small><b className={selectedTrade.side === 'LONG' ? 'positive' : 'negative'}>{selectedTrade.side}</b></div>
               <div><small>Sonuç</small><b className={selectedTrade.realizedPnl > 0 ? 'positive' : selectedTrade.realizedPnl < 0 ? 'negative' : 'muted'}>{selectedTrade.realizedPnl > 0 ? 'KÂR' : selectedTrade.realizedPnl < 0 ? 'ZARAR' : 'BAŞA BAŞ'}</b></div>
-              <div><small>Net kâr / zarar</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>{selectedTrade.realizedPnl > 0 ? '+' : ''}${fmtPnl(selectedTrade.realizedPnl)}</b></div>
-              <div><small>ROI (marjine göre)</small><b>{orRecorded(selectedTrade.pnlPercent, value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`)}</b></div>
+              <div><small>Net kâr / zarar</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>{signedUsdt(selectedTrade.realizedPnl)}</b></div>
+              <div><small>ROI (marjine göre)</small><b>{orRecorded(selectedTrade.pnlPercent, value => signedPct(value))}</b></div>
               <div><small>Planlanan giriş</small><b>{orRecorded(selectedTrade.entryPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
               <div><small>Çıkış fiyatı</small><b>{orRecorded(selectedTrade.exitPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
               <div><small>İlk stop</small><b>{orRecorded(selectedTrade.stopLoss, value => `$${fmtMarketPrice(value)}`)}</b></div>
@@ -1375,7 +1378,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div><small>Pozisyon büyüklüğü</small><b>{orRecorded(selectedTrade.notional, value => usdtText(value))}</b></div>
               <div><small>Başlangıç riski</small><b>{orRecorded(selectedTrade.initialRisk, value => usdtText(value))}</b></div>
               <div><small>Sonuç (R)</small><b>{orRecorded(selectedTrade.rMultiple, value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}R`)}</b></div>
-              <div><small>Komisyon</small><b>{orRecorded(selectedTrade.fees, value => `$${fmtPnl(value)}`)}</b></div>
+              <div><small>Komisyon</small><b>{orRecorded(selectedTrade.fees, value => `${fmtPnl(value)} USDT`)}</b></div>
               <div><small>Süre</small><b>{selectedTrade.duration ?? NOT_RECORDED}</b></div>
               <div><small>Kaynak</small><b>{selectedTrade.source}</b></div>
               <div><small>Kapanış nedeni</small><b>{tradeCloseReasonText(selectedTrade.closeReason)}</b></div>

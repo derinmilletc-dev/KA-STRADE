@@ -227,3 +227,9 @@ html body #root .ktBill .ktBillPlan.isSmart .ktBillPlanIcon img { display: block
 }
 /* 23: plan sayfasında silik minik yazılar okunur olsun. */
 html body #root .ktBill .ktBillTerms { font-size: 12px; color: #9fb0bd; }
+
+/* Tarama raporu 14 (düzeltme): düğmeler kartların altında aynı hizada dursun. */
+@media (min-width: 901px) {
+  html body #root .ktBill .ktBillPlan .ktBillTerms { min-height: calc(1.5em * 2); }
+  html body #root .ktBill .ktBillPlan > .ktBillButton { margin-top: auto; }
+}

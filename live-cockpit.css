@@ -1279,3 +1279,8 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 
 /* Tarama raporu 22: Strateji kartı yanındaki sütunla aynı boyda dursun, altı boş kalmasın. */
 #root .lcRoot .lcGrid > .lcStrategy { align-self: stretch !important; }
+
+/* Tarama raporu 22 (düzeltme): yan sütun 2 satıra yayılıyor, Strateji kartı da 2 satıra yayılsın. */
+@media (min-width: 1101px) {
+  html body #root .binanceDemoDeck .lcGrid .lcStrategy { grid-row: span 2 !important; align-self: stretch !important; }
+}
