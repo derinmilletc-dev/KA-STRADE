@@ -30,6 +30,7 @@ import LivePerformance from './LivePerformance'
 import DemoMasterShell, {DemoTopBar, type DemoMasterTab} from './DemoMasterShell'
 import './performance-live.css'
 import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
+import {useKaisScreenContext} from './useKaisScreenContext'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -583,6 +584,7 @@ export default function TestnetFirstApp() {
   const [marketQuery,setMarketQuery] = useState('')
   const [marketPickerOpen,setMarketPickerOpen] = useState(false)
   const [interval,setInterval] = useState('15m')
+  useKaisScreenContext('demo-chart', `Demo grafiği: ${symbol} ${interval} · sekme: ${demoTab}`)
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
   useEffect(() => {

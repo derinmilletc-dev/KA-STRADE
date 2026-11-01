@@ -29,7 +29,7 @@ class AssistantConfig(BaseSettings):
     voice_max_input_chars: int = Field(default=800, gt=0)
     history_messages: int = Field(default=8, ge=0)
     history_message_max_chars: int = Field(default=2000, gt=0)
-    page_context_max_chars: int = Field(default=300, gt=0)
+    page_context_max_chars: int = Field(default=600, gt=0)
     request_timeout_seconds: int = Field(default=30, gt=0)
     protection_stale_seconds: int = Field(default=30, ge=30)
     proactive_enabled: bool = True

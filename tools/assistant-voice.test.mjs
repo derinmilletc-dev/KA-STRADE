@@ -23,3 +23,13 @@ test('pickAlternative keeps the top alternative unless only another one contains
   assert.equal(pickAlternative([{transcript: 'merhaba'}, {transcript: 'ar es ay'}]), 'ar es ay')
   assert.ok(vocabularyHits('bit koyun ve ar es ay') >= 2)
 })
+
+test('Daha fazla coin ve platform terimi doğru yazılır, normal cümleler bozulmaz', () => {
+  assert.equal(fixVoiceText('avalanş analizi yap'), 'Avalanche analizi yap')
+  assert.equal(fixVoiceText('çeyn link ne yapıyor'), 'Chainlink ne yapıyor')
+  assert.equal(fixVoiceText('layt koyn long mu'), 'Litecoin long mu')
+  assert.equal(fixVoiceText('gırıd işlemi aç'), 'Grid işlemi aç')
+  assert.equal(fixVoiceText('oto treyd açık mı'), 'Auto Trade açık mı')
+  assert.equal(fixVoiceText('ey ti ar kaç'), 'ATR kaç')
+  assert.equal(fixVoiceText('bu hafta nasıl gitti'), 'bu hafta nasıl gitti')
+})

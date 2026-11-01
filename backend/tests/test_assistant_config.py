@@ -27,7 +27,7 @@ class AssistantConfigTests(unittest.TestCase):
             "voice_max_input_chars": 800,
             "history_messages": 8,
             "history_message_max_chars": 2000,
-            "page_context_max_chars": 300,
+            "page_context_max_chars": 600,
             "request_timeout_seconds": 30,
             "protection_stale_seconds": 30,
             "proactive_enabled": True,
