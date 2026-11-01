@@ -14,6 +14,7 @@ import {authenticatedPath, type AccountRole} from './account-role'
 import ProfileSettings, {AccountRecoveryScreen} from './ProfileSettings'
 import { AUTH_PANEL_MARKETS, LIVE_MARKET_CONFIG } from './live-market-config'
 import TickerTape from './TickerTape'
+import { useShowcaseVisible } from './instagram-showcase-visibility'
 import TopMovers from './TopMovers'
 import { type LiveTickerData, type LiveTickerStatus, useLiveTickers } from './use-live-tickers'
 import { useTopMovers } from './use-top-movers'
@@ -22,6 +23,7 @@ import './auth.css'
 
 // Yönetim panelleri tembel yüklenir: müşteri paketine girmez, yalnızca ilgili yol açılınca indirilir.
 const AdminPanel = lazy(() => import('./AdminPanel'))
+const InstagramShowcasePhone = lazy(() => import('./InstagramShowcasePhone'))
 const ModeratorPanel = lazy(() => import('./ModeratorPanel'))
 const RequiredTwoFactor = lazy(() => import('./RequiredTwoFactor'))
 const staffFallback = <main className="authLoading"><div className="authLoader"><LoaderCircle className="spin"/><b>Yükleniyor…</b></div></main>
@@ -147,6 +149,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   const [token,setToken] = useState(userSessionToken())
   const [session,setSession] = useState<Session|null>(null)
   const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : surface === 'admin' ? 'login' : window.location.pathname === '/register' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
+  const showcaseVisible = useShowcaseVisible() && surface === 'customer'
   useEffect(() => {
     // Yönetim yüzeyi müşteri sayfa başlıklarını/arama motoru etiketlerini almaz (admin.html noindex kalır).
     if (surface === 'admin') document.title = 'KaisTrade Yönetim'
@@ -694,6 +697,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {mode === 'login' && LOCAL_OWNER_SETUP_PAGE && ownerSetupAvailable && <div className="authLinks"><button type="button" onClick={() => {setRegister(current => ({...current,email:login.email,password:'',confirm_password:''}));setMessage('');setFieldErrors({});setTermsError('');setMode('bootstrap')}}><ShieldCheck aria-hidden="true"/> İlk yönetici kurulumu</button></div>}
         {mode === 'login' && <section className="authMobileMarkets" aria-label="Canlı fiyatlar"><AuthCoinScreen data={market.data} status={market.status}/></section>}
       </section>
+      {mode === 'login' && showcaseVisible && <Suspense fallback={null}><InstagramShowcasePhone/></Suspense>}
     </main>}</LoginMarketShell>
   }
 
