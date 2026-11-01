@@ -27,6 +27,7 @@ class Connection(EntitlementConnection):
         self.reads = set()
         self.enqueue_fail = False
         self.read_fail = False
+        self.languages = {}
         self.canonical_users = {
             uid: {"security": {"role": role, "active": True, "email_verified": True,
                                "email": uid+"@example.test", "display_name": uid}}
@@ -129,6 +130,8 @@ class Connection(EntitlementConnection):
         return await super().fetchrow(sql, *args)
 
     async def fetchval(self, sql, *args):
+        if "FROM commercial_account_settings" in sql:
+            return self.languages.get(args[0])
         if "MIN(next_attempt_at)" in sql:
             return None
         if "SELECT $2::timestamptz" in sql:
@@ -169,6 +172,27 @@ def test_pending_goes_to_owner_both_channels_once_and_link_targets_owned_card():
     assert "user-a" in items[0]["message"] and "119.90 USDT" in items[0]["message"] and row.reference_code in items[0]["message"]
     assert run(notices.bell_items(conn,"other",100)) == []
     assert run(notices.bell_items(conn,"mod",100)) == []
+
+
+def test_bell_and_email_follow_the_recipient_account_language():
+    english = Connection()
+    english.languages["user-a"] = "en"
+    row = run(pending(english));run(decide(english,row));run(notices.sweep(english.application))
+    with patch.object(worker,"send_notification"):
+        deliver(english);deliver(english)
+    item = run(notices.bell_items(english,"user-a",100))[0]
+    assert item["title"] == "Your Binance payment was approved"
+    assert "is active until" in item["message"] and "Ödemen" not in item["message"] and "Referans" not in item["message"]
+    email_payload = run(notices.content(english,"user-a",{"payment_id":row.id,"event":"approved"}))
+    _, title, message, _ = notices.presentation(email_payload)
+    assert title == "Your Binance payment was approved" and "Reference:" in message
+
+    turkish = Connection()
+    row = run(pending(turkish));run(decide(turkish,row));run(notices.sweep(turkish.application))
+    with patch.object(worker,"send_notification"):
+        deliver(turkish);deliver(turkish)
+    item = run(notices.bell_items(turkish,"user-a",100))[0]
+    assert item["title"] == "Binance ödemen onaylandı" and "Referans" in item["message"]
 
 
 def test_email_error_cannot_undo_approval_or_block_bell_and_retry_does_not_duplicate():

@@ -103,6 +103,16 @@ def wake(application):
         logger.warning("Binance notification scheduling failed type=%s; periodic reconciliation retained", type(exc).__name__)
 
 
+async def recipient_language(conn, user_id) -> str:
+    """Alıcının hesap dili ("tr" | "en"). Okunamazsa Türkçe; bildirim bu yüzden asla düşmez (savepoint: ana işlem bozulmaz)."""
+    try:
+        async with conn.transaction():
+            value = await conn.fetchval("SELECT payload->>'language' FROM commercial_account_settings WHERE user_id=$1", user_id)
+    except Exception:  # noqa: BLE001 -- dil okunamadıysa varsayılan Türkçe
+        return "tr"
+    return "en" if value == "en" else "tr"
+
+
 async def content(conn, recipient, payload):
     if not isinstance(payload, dict) or set(payload) != {"payment_id", "event"} or payload["event"] not in EVENTS:
         raise ValueError("Invalid payment notification payload")
@@ -144,30 +154,36 @@ async def content(conn, recipient, payload):
         )
         if not eligible:
             return None
-    return {**dict(row), "event": event}
+    return {**dict(row), "event": event, "language": await recipient_language(conn, recipient)}
 
 
 def presentation(row):
+    """(önem, başlık, mesaj, hedef). Metin, alıcının hesap diline göre Türkçe veya İngilizce üretilir."""
+    english = row.get("language") == "en"
     event = row["event"]
     reference = row["reference_code"]
     plan_name = payments.PLAN_NAMES.get(payments.plan_for_amount(row.get("amount")), "MASTER MODE")
     end = row["period_end"].astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC") if row.get("period_end") else None
     if event == "pending":
-        return ("info", "Binance ödeme talebi",
-                (f"{row.get('customer_name') or row.get('customer_email') or row['user_id']} · "
-                 f"{row['amount']:.2f} USDT · {plan_name} · {reference}. Ödeme incelemenizi bekliyor."),
+        who = f"{row.get('customer_name') or row.get('customer_email') or row['user_id']} · {row['amount']:.2f} USDT · {plan_name} · {reference}."
+        return ("info", "Binance payment request" if english else "Binance ödeme talebi",
+                f"{who} " + ("The payment is waiting for your review." if english else "Ödeme incelemenizi bekliyor."),
                 f"/admin?section=binance-payments&payment={row['id']}")
     if event == "approved":
-        return ("success", "Binance ödemen onaylandı",
-                f"Ödemen onaylandı, {plan_name} {end} tarihine kadar aktif. Referans: {reference}.", "/billing")
+        return ("success", "Your Binance payment was approved" if english else "Binance ödemen onaylandı",
+                (f"Your payment was approved. {plan_name} is active until {end}. Reference: {reference}." if english
+                 else f"Ödemen onaylandı, {plan_name} {end} tarihine kadar aktif. Referans: {reference}."), "/billing")
     if event == "rejected":
         reason = row["decision_note"]
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("Missing rejection reason")
-        return ("warning", "Binance ödemen reddedildi", f"Ödemen reddedildi. Gerekçe: {reason} Referans: {reference}.", "/billing")
+        return ("warning", "Your Binance payment was rejected" if english else "Binance ödemen reddedildi",
+                (f"Your payment was rejected. Reason: {reason} Reference: {reference}." if english
+                 else f"Ödemen reddedildi. Gerekçe: {reason} Referans: {reference}."), "/billing")
     if event == "renewal":
-        return ("warning", f"{plan_name} yenileme hatırlatması",
-                f"{plan_name} erişimin {end} tarihinde sona eriyor. Yenilemek için Binance ile ödeme yapabilirsin. Referans: {reference}.",
+        return ("warning", f"{plan_name} renewal reminder" if english else f"{plan_name} yenileme hatırlatması",
+                (f"Your {plan_name} access ends on {end}. You can pay with Binance to renew. Reference: {reference}." if english
+                 else f"{plan_name} erişimin {end} tarihinde sona eriyor. Yenilemek için Binance ile ödeme yapabilirsin. Referans: {reference}."),
                 "/billing")
     raise ValueError("Unknown payment event")
 

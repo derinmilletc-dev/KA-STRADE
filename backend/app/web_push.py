@@ -19,6 +19,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .v22_commercial import authenticated_user_async
 
+from .server_i18n import account_language, localize
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v22/push", tags=["Push notifications"])
 
@@ -157,6 +159,10 @@ def _deliver(subscription: dict[str, Any], body: str) -> int:
 
 async def send_to_user(pool: Any, user_id: str, category: str | None, title: str, body: str, *, force: bool = False, url: str = "/master-trade") -> int:
     rows = await pool.fetch("SELECT endpoint,p256dh,auth,kinds FROM push_subscriptions WHERE user_id=$1", user_id)
+    if rows:
+        # Bildirim, hesabın seçili diliyle gider (çeviri yoksa Türkçe kalır; bildirim asla düşmez).
+        language = await account_language(pool, user_id)
+        title, body = localize(title, language), localize(body, language)
     message = json.dumps({"title": title[:80], "body": body[:160], "tag": f"kais-{category or 'test'}", "url": url}, ensure_ascii=False)
     sent = 0
     for row in rows:
