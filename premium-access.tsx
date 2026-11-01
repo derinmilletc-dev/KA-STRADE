@@ -1,10 +1,11 @@
-import { Children, cloneElement, createContext, isValidElement, type ReactElement, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
+import { Children, cloneElement, createContext, isValidElement, type MouseEvent as ReactMouseEvent, type ReactElement, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, LockKeyhole, X } from 'lucide-react'
+import { Check, Crown, LockKeyhole, X } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
 import {emitKaisTargetReaction} from './kais-reactions'
 import {clearKaisChatHistory, resumeKaisChatHistory} from './frontend/src/kais-chat-storage'
 import {setStaffView} from './error-visibility'
+import {PAID_PLAN_AMOUNT} from './smart-trade-plans'
 import './premium-access.css'
 
 type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; automationAllowed?:boolean; openUpgrade: (label: string) => void}
@@ -78,7 +79,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
   const openUpgrade = (label: string) => {
     if (!access.ready || !access.userId) return
     const seenKey = `protrebot-premium-card-seen:${access.userId}`
-    if (sessionStorage.getItem(seenKey)) {
+    if (!access.freeTrial && sessionStorage.getItem(seenKey)) {
       setToast(`${label} için Premium üyelik gerekli.`)
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current)
       toastTimer.current = window.setTimeout(() => setToast(''), 4500)
@@ -93,12 +94,24 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
     {createPortal(<>
       {upgradeOpen && <dialog ref={dialog} className="premiumDialog" aria-labelledby="premium-title" aria-describedby="premium-description" onCancel={event => { event.preventDefault(); setUpgradeOpen(false) }} onClick={event => { if (event.target === event.currentTarget) setUpgradeOpen(false) }}>
         <div className="premiumCard">
-          <button className="premiumClose" type="button" aria-label="Premium kartını kapat" onClick={() => setUpgradeOpen(false)}><X aria-hidden="true"/></button>
-          <LockKeyhole className="premiumCardIcon" aria-hidden="true"/>
-          <small>PREMIUM</small><h2 id="premium-title">Daha fazlasını aç</h2>
-          <p id="premium-description">{lockedLabel} Premium üyeliğe dahildir. Mevcut işlem güvenlik kapıları geçerliliğini korur.</p>
-          <ul><li><Check aria-hidden="true"/>Sınırsız Analyst analizi</li><li><Check aria-hidden="true"/>Ayrıntılı giriş, stop ve hedef seviyeleri</li><li><Check aria-hidden="true"/>Master Trade ve canlı işlem araçları</li></ul>
-          <div className="premiumCardActions"><a className="premiumPrimary" href="/pricing">Premium'a geç</a><button className="premiumSecondary" type="button" onClick={() => setUpgradeOpen(false)}>Şimdi değil</button></div>
+          <button className="premiumClose" type="button" aria-label="Kapat" onClick={() => setUpgradeOpen(false)}><X aria-hidden="true"/></button>
+          <span className="premiumBadge" aria-hidden="true"><LockKeyhole/></span>
+          <small className="premiumEyebrow">ÜCRETLİ ÖZELLİK</small>
+          <h2 id="premium-title">{lockedLabel} ücretli planlarda açılır</h2>
+          <p id="premium-description">{access.freeTrial ? 'Denemende analizleri ve demo işlemleri sınırlar içinde kullanabilirsin. Gerçek parayla işlem için bir plan seç.' : 'Bu özellik ücretli üyeliğe dahildir.'} Mevcut işlem güvenlik kapıları aynen geçerlidir.</p>
+          <div className="premiumPlans">
+            <article className="premiumPlan isSmart">
+              <header><span>SMART TRADE</span><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}<small> USDT / 30 gün</small></strong></header>
+              <ul><li><Check aria-hidden="true"/>Manuel işlem · Demo ve Canlı</li><li><Check aria-hidden="true"/>KAIS AI asistanı</li><li><Check aria-hidden="true"/>7/24 destek</li></ul>
+            </article>
+            <article className="premiumPlan isMaster">
+              <i className="premiumPlanTag"><Crown aria-hidden="true"/>ÖNERİLEN</i>
+              <header><span>MASTER MODE</span><strong>{PAID_PLAN_AMOUNT.MASTER_MODE}<small> USDT / 30 gün</small></strong></header>
+              <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>Daha akıllı KAIS AI</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
+            </article>
+          </div>
+          <div className="premiumCardActions"><a className="premiumPrimary" href="/billing">Planları gör</a><button className="premiumSecondary" type="button" onClick={() => setUpgradeOpen(false)}>Şimdi değil</button></div>
+          <p className="premiumFoot">Otomatik ücret yok. Ödeme Binance Pay ile, manuel doğrulanır.</p>
         </div>
       </dialog>}
       {toast && <aside className="premiumToast" role="status"><LockKeyhole aria-hidden="true"/><span>{toast}</span><a href="/pricing">Premium'a geç</a><button type="button" aria-label="Bildirimi kapat" onClick={() => setToast('')}><X aria-hidden="true"/></button></aside>}
@@ -149,4 +162,26 @@ function restrictTree(node: ReactNode): ReactNode {
 export function PremiumWorkspace({children}: {children: ReactNode}) {
   const {premium} = useMemberAccess()
   return premium ? children : Children.map(children, restrictTree)
+}
+
+const GATE_ACTION = 'button, input, select, textarea, [role="button"]'
+
+/** Deneme üyesi canlı işlem alanını görür; içindeki işlem düğmelerine basınca ücretli plan penceresi açılır. */
+export function TrialLiveGate({children}: {children: ReactNode}) {
+  const {freeTrial, liveAllowed, ready, openUpgrade} = useMemberAccess()
+  if (!ready || !freeTrial || liveAllowed) return <>{children}</>
+  const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('[aria-expanded]')) return
+    const x = event.clientX, y = event.clientY
+    const hit = target.closest(GATE_ACTION) ?? Array.from(event.currentTarget.querySelectorAll<HTMLElement>(GATE_ACTION)).find(element => {
+      if (element.hasAttribute('aria-expanded')) return false
+      const box = element.getBoundingClientRect()
+      return box.width > 0 && box.height > 0 && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+    })
+    if (!hit) return
+    event.preventDefault(); event.stopPropagation()
+    openUpgrade('Canlı işlem')
+  }
+  return <div className="trialLiveGate" onClickCapture={onClickCapture}>{children}</div>
 }

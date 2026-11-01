@@ -97,8 +97,8 @@ for (const width of [1440, 390]) {
     await locked.click()
     const modal = page.getByRole('dialog')
     await expect(modal).toBeVisible()
-    await expect(modal.getByRole('listitem')).toHaveCount(3)
-    await expect(modal.getByRole('link', {name: "Premium'a geç"})).toHaveAttribute('href', '/pricing')
+    await expect(modal.getByRole('listitem')).toHaveCount(6)
+    await expect(modal.getByRole('link', {name: 'Planları gör'})).toHaveAttribute('href', '/billing')
     const bounds = await modal.boundingBox()
     expect(bounds).not.toBeNull()
     if (width < 768) {

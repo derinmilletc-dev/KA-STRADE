@@ -22,7 +22,7 @@ import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters} from './gridMath'
 import {buildGridAlerts, type FiltersState} from './gridAlerts'
 import {openPositionsRiskToStop} from './gridPortfolio'
-import {PremiumWorkspace, useMemberAccess} from '../../premium-access'
+import {PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
 import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
@@ -1978,7 +1978,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       paused: runtime?.paused === true, pauseReason: runtime?.pause_reason || null,
       entryBlocker, sessionRemainingSeconds: runtime?.session?.remaining_seconds ?? 0,
     }
-    return <PremiumWorkspace><LiveCockpit
+    return <PremiumWorkspace><TrialLiveGate><LiveCockpit
       key={userId} status={status} verified={Boolean(status && statusVerified)} loading={statusLoading} guideInput={guideInput}
       wallet={snapshotVerified ? status.account.wallet_balance : null} availableBalance={snapshotVerified && Number.isFinite(available) ? available : null}
       marketBanSeconds={globalBanActive ? banCountdown : 0} externalBusy={Boolean(busy)} userId={userId}
@@ -2043,7 +2043,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         })()}
         {confirmationModal}
       </>}
-    /></PremiumWorkspace>
+    /></TrialLiveGate></PremiumWorkspace>
   }
   if (masterTrade) {
     const running = Boolean(status?.live_auto_trade)
@@ -2102,7 +2102,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const manualOrderCard = renderManualOrderCard()
     return <PremiumWorkspace>
       {notice.kind !== 'info' && <div className={`liveNotice masterTradeLiveNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.kind === 'error' ? <TriangleAlert/> : <CheckCircle2/>}<span>{notice.text}</span></div>}
-      <section id="master-trade-live-terminal" className="liveWs" aria-label="Canlı işlem" hidden={masterTradeTab === 'pozisyonlar'}>
+      <TrialLiveGate><section id="master-trade-live-terminal" className="liveWs" aria-label="Canlı işlem" hidden={masterTradeTab === 'pozisyonlar'}>
         {masterTradeTab === 'canli' && <>
           <section className="liveWsSection liveWsBand masterTradeLiveAccountHud" aria-label="Hesap özeti">
             <h3>Hesap özeti</h3>
@@ -2275,6 +2275,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </section>
         </>}
       </section>
+      </TrialLiveGate>
       {confirmationModal}
     </PremiumWorkspace>
   }
