@@ -303,7 +303,7 @@ test('Non-premium levels remain blurred and open only the existing premium card'
   await expect(root(page).locator('.masterTradeChartPills > span')).toHaveCount(1)
   const before = [...requests]
   await root(page).getByRole('button', {name: 'Olası hedefler · Premium'}).click()
-  await expect(page.getByRole('dialog', {name: 'Daha fazlasını aç'})).toBeVisible()
+  await expect(page.getByRole('dialog', {name: 'Olası hedefler ücretli planlarda açılır'})).toBeVisible()
   expect(requests).toEqual(before)
 })
 
