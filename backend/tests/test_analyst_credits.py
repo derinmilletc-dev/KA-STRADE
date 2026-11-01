@@ -42,7 +42,7 @@ class AnalystCreditTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(CreditConfig.from_environment().cost, 7)
 
     async def test_snapshot_reports_the_configured_cost_for_all_members(self):
-        self.credits.config = CreditConfig(cost=7)
+        self.credits.config = CreditConfig(total=100, cost=7)
         for premium in (False, True):
             snapshot = await self.credits.credits("a", premium)
             self.assertEqual(snapshot["analysis_cost"], 7)
