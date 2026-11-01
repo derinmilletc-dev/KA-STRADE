@@ -2345,7 +2345,7 @@ okunur; diğer modüller model, limit veya fiyat değerlerini tekrar sabitlememe
 | `ASSISTANT_DEEP_EFFORT` | `medium` | Analiz/karşılaştırma sorularında düşünme seviyesi (`low`/`medium`) |
 | `ASSISTANT_HISTORY_MESSAGES` | `8` | LLM'e gönderilecek geçmiş mesaj sayısı |
 | `ASSISTANT_HISTORY_MESSAGE_MAX_CHARS` | `2000` | Her geçmiş mesajı sunucuda bu uzunluğa kırpılır |
-| `ASSISTANT_PAGE_CONTEXT_MAX_CHARS` | `300` | Sayfa bağlamı karakter sınırı |
+| `ASSISTANT_PAGE_CONTEXT_MAX_CHARS` | `600` | Sayfa bağlamı karakter sınırı |
 | `ASSISTANT_REQUEST_TIMEOUT_SECONDS` | `30` | Sağlayıcı ve yerel veritabanı bekleme sınırı |
 | `ASSISTANT_PROTECTION_STALE_SECONDS` | `30` | Koruma/pozisyon verisinin taban eskime eşiği; etkin eşik `max(ayar, 2 × RECONCILE_SECONDS)` |
 | `ASSISTANT_PROACTIVE_ENABLED` | `true` | Uygulama içi, LLM'siz durum yoklamaları |
