@@ -22,9 +22,9 @@ const intervals = ['1m','5m','15m','30m','1h','4h','1d']
 const ANALYST_SCAN_LIMIT = 40
 const ANALYST_SCAN_TIMEOUT_MS = 15000
 const fmt = (value?:number) => value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('tr-TR',{maximumFractionDigits:value < 10 ? 3 : 2})
-const pctTr = (value?:number, signed=false) => value === undefined || !Number.isFinite(value) ? '—' : `${value < 0 ? '-' : signed && value > 0 ? '+' : ''}%${Math.abs(value).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+const pctTr = (value?:number, signed=false) => value === undefined || !Number.isFinite(value) ? '—' : `${value < 0 ? '-' : signed && value > 0 ? '+' : ''}%${Math.abs(value).toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2})}`
 const volumeNote = (ratio:number, short=false) => ratio < 0.5 ? `${ratio.toLocaleString('tr-TR',{maximumFractionDigits:2})}x · mum yeni açılmış olabilir` : `${ratio >= 1 ? '+' : ''}${pctTr((ratio - 1) * 100)}${short ? '' : ' ortalamaya göre'}`
-const pct = (value:number) => Number.isFinite(value) ? value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'
+const pct = (value:number) => Number.isFinite(value) ? value.toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}) : '—'
 const scoreLabel = (score:number) => score >= 90 ? 'Çok güçlü' : score >= 75 ? 'Güçlü' : score >= 60 ? 'Orta' : score >= 40 ? 'Nötr' : 'Zayıf'
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
 type SignalFact = {text:string;level:'good'|'warn'|'bad'}
