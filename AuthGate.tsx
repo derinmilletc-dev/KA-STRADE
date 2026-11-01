@@ -16,6 +16,7 @@ import { AUTH_PANEL_MARKETS, LIVE_MARKET_CONFIG } from './live-market-config'
 import TickerTape from './TickerTape'
 import { useShowcaseVisible } from './instagram-showcase-visibility'
 import TopMovers from './TopMovers'
+import MaintenanceCountdown from './MaintenanceCountdown'
 import { type LiveTickerData, type LiveTickerStatus, useLiveTickers } from './use-live-tickers'
 import { useTopMovers } from './use-top-movers'
 import '@fontsource-variable/plus-jakarta-sans'
@@ -657,7 +658,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   }
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {
     const registrationStrength = strength(register.password)
-    return <LoginMarketShell>{market => <main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
+    return <LoginMarketShell>{market => <><MaintenanceCountdown variant="login"/><main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
       {mode !== 'login' && <p className="authMobileSlogan">KaisTrade piyasayı tek yerden yönetin</p>}
       {mode === 'login' && <header className="authMobileIdentity"><img src="/kaistrade-logo.png" alt="KaisTrade"/><p>KaisTrade piyasayı tek yerden yönetin</p></header>}
       <AuthIntroPanel data={market.data} status={market.status} movers={market.movers} premium={mode === 'login'} onBrand={mode !== 'login' ? () => setMode('login') : undefined}/>
@@ -703,7 +704,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {mode === 'login' && <section className="authMobileMarkets" aria-label="Canlı fiyatlar"><AuthCoinScreen data={market.data} status={market.status}/></section>}
       </section>
       {mode === 'login' && showcaseVisible && <Suspense fallback={null}><InstagramShowcasePhone/></Suspense>}
-    </main>}</LoginMarketShell>
+    </main></>}</LoginMarketShell>
   }
 
   if (session.two_factor_setup_required) return <Suspense fallback={<main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b></div></main>}><RequiredTwoFactor onDone={() => void loadSession(token)} onLogout={() => void logout()}/></Suspense>
@@ -727,5 +728,6 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   const memberMenu = memberMenuOpen ? createPortal(<><div className="authMemberScrim" aria-hidden="true" style={{top:memberMenuPosition.scrim}}/><i className="authMemberArrow" aria-hidden="true" style={{top:memberMenuPosition.top - 6,left:memberMenuPosition.center - 6}}/><div ref={memberMenuRef} className="authMemberMenu authMemberPortalMenu" role="menu" style={{top:memberMenuPosition.top,left:memberMenuPosition.left}}><div className="authMemberMenuHead"><span className="authMemberAvatar" aria-hidden="true"><UserRound/></span><b className="authMemberName" data-i18n-skip="">{session.user.display_name}</b><small>HESABIM</small><strong>{session.user.email}</strong><button type="button" className="authMemberClose" aria-label="Menüyü kapat" onClick={() => setMemberMenuOpen(false)}><X/></button></div>{session.user.role === 'OWNER' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign(staffUrl('/admin'))}}><ShieldCheck/><span><b>Admin Dashboard</b><small>Control center</small></span>{chevron}</button>}{session.user.role === 'MODERATOR' && <button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign(staffUrl('/moderator'))}}><ShieldCheck/><span><b>Moderatör paneli</b><small>Destek ve onaylar</small></span>{chevron}</button>}<button type="button" role="menuitem" onClick={() => {setMemberMenuOpen(false);location.assign('/settings')}}><UserRound/><span><b>Profile &amp; Settings</b><small>Identity and security</small></span>{chevron}</button><button className="authMemberLogout" type="button" role="menuitem" onClick={() => void logout()}><LogOut/><span><b>Çıkış<span className="authMemberMore"> yap</span></b><small>End secure session</small></span>{chevron}</button></div></>,document.body) : null
   const profileControl = <div className="authSessionBar"><button ref={memberTriggerRef} className="authMemberTrigger" type="button" aria-label="Profil menüsünü aç" aria-expanded={memberMenuOpen} aria-haspopup="menu" onClick={() => setMemberMenuOpen(value => !value)}><svg className="authProfileGlyph" viewBox="3.5 3.8 17 17.9" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><circle cx="12" cy="8" r="3.15"/><path d="M4.7 20.1c.55-3.55 3.35-5.55 7.3-5.55s6.75 2 7.3 5.55c.05.32-.2.6-.52.6H5.22c-.32 0-.57-.28-.52-.6Z"/></svg></button></div>
   const adminMaintenanceBanner = session.user.role === 'OWNER' && (maintenanceMode === 'MAINTENANCE' || maintenanceMode === 'EMERGENCY') ? <div className="authAdminMaintenanceBar" role="status"><span>{maintenanceMode === 'EMERGENCY' ? 'Acil durum modu aktif.' : 'Bakım modu aktif.'} Üyeler bakım ekranını görüyor.</span><button type="button" onClick={() => location.assign(staffUrl('/admin'))}>Admin Panel</button></div> : null
-  return <>{sessionNotice}{adminMaintenanceBanner}{profileHeaderSlot ? createPortal(profileControl,profileHeaderSlot) : profileControl}{memberMenu}<AccountLanguageSync/>{children}</>
+  const maintenanceCountdown = <MaintenanceCountdown variant="app" onActivated={mode => setSession(previous => previous && previous.maintenance?.mode !== mode ? {...previous, maintenance: {mode}} : previous)}/>
+  return <>{sessionNotice}{maintenanceCountdown}{adminMaintenanceBanner}{profileHeaderSlot ? createPortal(profileControl,profileHeaderSlot) : profileControl}{memberMenu}<AccountLanguageSync/>{children}</>
 }
