@@ -8120,3 +8120,79 @@ body:has(#root .liveTradingPanel.liveUx),
     transition: transform 250ms ease-out, opacity 180ms ease-out;
   }
 }
+
+/* Menü: Instagram kartı ve alt başlık (telefon/tablet menüsü). İnce, sade, hafif animasyonlu. */
+.v26MobileMenuSheet .v26MobileMenuSub {
+  margin: 3px 0 0;
+  color: rgba(211,224,237,.62);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 46px;
+  margin: 0 0 10px;
+  padding: 6px 12px 6px 7px;
+  overflow: hidden;
+  border: 1px solid rgba(126,236,178,.18);
+  border-radius: 12px;
+  background: linear-gradient(100deg, rgba(126,236,178,.08), rgba(255,255,255,.02) 60%);
+  color: #e8f0f6;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  animation: ktInstaIn 420ms ease-out both;
+  transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+/* Ara sıra geçen çok hafif parıltı */
+.v26MobileMenuSheet a.v26MobileMenuInsta::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 30%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.06) 50%, transparent);
+  content: '';
+  transform: skewX(-18deg);
+  animation: ktInstaSheen 7s ease-in-out 1.5s infinite;
+  pointer-events: none;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta:active { transform: scale(.985); border-color: rgba(126,236,178,.36); }
+.v26MobileMenuSheet a.v26MobileMenuInsta:focus-visible { outline: 2px solid #7eecb2; outline-offset: 2px; }
+.v26MobileMenuSheet .v26MobileMenuInstaIcon {
+  display: grid;
+  flex: 0 0 32px;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  color: #f4f8fb;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 19px; height: 19px; }
+.v26MobileMenuSheet .v26MobileMenuInstaText {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaText b {
+  overflow: hidden;
+  color: #f2f7fa;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaText em { color: #86e4b2; font-style: normal; font-weight: 500; }
+@keyframes ktInstaIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ktInstaSheen { 0%, 70% { transform: skewX(-18deg) translateX(0); } 100% { transform: skewX(-18deg) translateX(480%); } }
+@media (prefers-reduced-motion: reduce) {
+  .v26MobileMenuSheet a.v26MobileMenuInsta { animation: none; }
+  .v26MobileMenuSheet a.v26MobileMenuInsta::after { display: none; }
+}

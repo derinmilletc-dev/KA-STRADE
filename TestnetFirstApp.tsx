@@ -551,6 +551,10 @@ function usePhoneLayout() {
   return phone
 }
 
+const INSTAGRAM_URL = 'https://www.instagram.com/kaistrade_/'
+// Instagram kamera simgesi (lucide 1.x marka simgelerini içermez); yalnız resmi hesaba bağlantıda kullanılır.
+const InstagramGlyph = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>
+
 export default function TestnetFirstApp() {
   const phoneLayout = usePhoneLayout()
   const [masterAssistantHost,setMasterAssistantHost] = useState<HTMLDivElement|null>(null)
@@ -1259,7 +1263,11 @@ export default function TestnetFirstApp() {
     </nav>
     {mobileMenuOpen && <div className="v26MobileMenuBackdrop" role="presentation" onClick={event => {if (event.target === event.currentTarget) setMobileMenuOpen(false)}}>
       <section className="v26MobileMenuSheet" role="dialog" aria-modal="true" aria-label="Çalışma alanları">
-        <header><div><h2>Çalışma alanları</h2></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
+        <header><div><h2>Çalışma alanları</h2><p className="v26MobileMenuSub">Platformun tüm araçlarına hızlı erişim</p></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
+        <a className="v26MobileMenuInsta" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="KAISTRADE Instagram hesabını aç: @kaistrade_" onClick={() => setMobileMenuOpen(false)}>
+          <span className="v26MobileMenuInstaIcon" aria-hidden="true"><InstagramGlyph/></span>
+          <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> keşfet.</b></span>
+        </a>
         <div className="v26MobileMenuChoices">
           {phoneLayout && <button type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span><b>Analist</b><small>Coin analizi ve sinyaller</small></span></button>}
           <button type="button" onClick={() => navigate('performance')}><BarChart3/><span><b>Performans</b><small>Kâr ve kazanma oranı</small></span></button>
