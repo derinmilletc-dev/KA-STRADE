@@ -22,9 +22,11 @@ KLINE_STREAM_URL = "wss://fstream.binance.com/market/ws"
 IDLE_TIMEOUT_SECONDS = 45
 MAX_RECONNECT_DELAY_SECONDS = 60
 MAX_CACHED_CANDLES = 1500
-ALLOWED_INTERVALS = frozenset(ORIGINAL_INTERVALS)
+# 30m: Kais Long canlı sinyali 30 dk kapanmış mumlardan okur (bkz. original_v2_demo.LIVE_KLINE_INTERVALS).
+ALLOWED_INTERVALS = frozenset(ORIGINAL_INTERVALS) | {"30m"}
 INTERVAL_MILLISECONDS = {
     "15m": 15 * 60 * 1000,
+    "30m": 30 * 60 * 1000,
     "1h": 60 * 60 * 1000,
     "4h": 4 * 60 * 60 * 1000,
 }

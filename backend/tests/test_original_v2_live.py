@@ -1044,8 +1044,14 @@ class CandleClient:
             info["symbols"] = [{**copy.deepcopy(reference), "symbol": symbol} for symbol in decisions.SYMBOLS]
             return info
         assert path == "/fapi/v1/klines"
-        duration = {"15m": 900, "1h": 3600, "4h": 14400}[params["interval"]]
-        rows = self.data.frames["BTCUSDT"][params["interval"]].closed(decisions.fixtures.AT)[-259:]
+        duration = {"15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[params["interval"]]
+        if params["interval"] == "30m":
+            # Sabit veride 30 dk mum yok: aynı 15 dk değerleri 30 dk aralıklarla, AT'den önce kapanmış olarak verilir.
+            # Böylece 30 dk yolunun analizi, 15 dk yoluyla birebir aynı fiyatları görür (yalnız zaman damgaları farklı).
+            source = self.data.frames["BTCUSDT"]["15m"].closed(decisions.fixtures.AT)[-259:]
+            rows = [{**row, "time": decisions.fixtures.AT - 1800 * (len(source) - index)} for index, row in enumerate(source)]
+        else:
+            rows = self.data.frames["BTCUSDT"][params["interval"]].closed(decisions.fixtures.AT)[-259:]
         if self.gap:
             rows = rows[:100] + rows[101:]
         if params["symbol"] == self.short_history_symbol and params["interval"] == "4h":
@@ -1075,8 +1081,8 @@ def test_live_scan_uses_stream_fetcher_for_every_strategy_interval():
         kline_fetch=streamed_fetch,
     ))
 
-    assert len(calls) == len(decisions.SYMBOLS) * len(strategy.INTERVALS)
-    assert {interval for _, interval, _ in calls} == set(strategy.INTERVALS)
+    assert len(calls) == len(decisions.SYMBOLS) * len(strategy.LIVE_KLINE_INTERVALS)
+    assert {interval for _, interval, _ in calls} == set(strategy.LIVE_KLINE_INTERVALS)
     assert all(limit == 260 for _, _, limit in calls)
     assert [path for path, _ in client.calls] == ["/fapi/v1/exchangeInfo"]
     assert all(path == "/fapi/v1/klines" for path, _ in fetcher_client.calls)

@@ -1,4 +1,4 @@
-"""Kais 2 canlı giriş kapısı: yalnız LONG ve güven >= 84 (yalnız daraltıcı)."""
+"""Kais 2 canlı giriş kapısı: yalnız LONG ve güven >= 86 (yalnız daraltıcı)."""
 import os
 import unittest
 from unittest import mock
@@ -35,7 +35,7 @@ class Kais2LiveGateTest(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def test_long_at_or_above_threshold_keeps_entry(self):
-        for confidence in (84, 84.0, 90, 100):
+        for confidence in (86, 86.0, 90, 100):
             result = apply_live_kais2_gate(make("LONG", confidence))
             self.assertTrue(result.signal.strategy_eligible, confidence)
             self.assertTrue(result.legacy["entry_eligible"])
@@ -43,7 +43,7 @@ class Kais2LiveGateTest(unittest.TestCase):
             self.assertTrue(check(result, "kais2_confidence").passed)
 
     def test_long_below_threshold_is_blocked(self):
-        for confidence in (80, 83, 83.99):
+        for confidence in (80, 84, 85, 85.99):
             result = apply_live_kais2_gate(make("LONG", confidence))
             self.assertFalse(result.signal.strategy_eligible, confidence)
             self.assertEqual(result.signal.decision, "WAIT")
@@ -54,7 +54,7 @@ class Kais2LiveGateTest(unittest.TestCase):
             self.assertFalse(check(result, "kais2_confidence").passed)
 
     def test_short_is_always_blocked(self):
-        for confidence in (80, 84, 99):
+        for confidence in (80, 86, 99):
             result = apply_live_kais2_gate(make("SHORT", confidence))
             self.assertFalse(result.signal.strategy_eligible, confidence)
             self.assertEqual(result.signal.reason, KAIS2_DIRECTION_REJECT_REASON)

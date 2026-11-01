@@ -141,15 +141,40 @@ def apply_live_momentum_gate(result: StrategyResult) -> StrategyResult:
     return StrategyResult(signal=signal, legacy=legacy)
 
 
-# Kais 2 canlı giriş kapısı (yalnız daraltıcı, yalnız canlı giriş taraması): yalnız LONG ve 15 dk güven puanı >= 84.
+# Kais 2 canlı giriş kapısı (yalnız daraltıcı, yalnız canlı giriş taraması): yalnız LONG ve sinyal güven puanı >= 86.
 # Dayanak: backtest (2024-07..2026-05, 376 işlem). SHORT zararın büyük kısmını yaptı; puan eşiği ilk yarıda seçildi,
 # ikinci yarıda sınandı (esik 84, ikinci yarıda +79.4 USDT, "hepsi" +65.1). Sonuç garanti değildir; bkz. ORIGINAL_V2_LIVE.md.
+# 2026-10-31: kurucu kararıyla 84 -> 86 ve sinyal 30 dk (C86_T30). tf-valid: 137 işlem, ort. +0.053R (BASE -0.041R),
+# fark +0.094R, p=0.15 -> istatistiksel kanıt DEĞİL; kurucunun bilinçli kararıdır.
 # Emir, risk, stop/hedef ve ARM kodlarına dokunmaz; yalnız bir girişe izin vermiş sonucu reddedebilir.
 KAIS2_GATE_FLAG = "PROTREBOT_KAIS2_LIVE_GATE"
 KAIS2_ALLOWED_DIRECTION = "LONG"
-KAIS2_MIN_CONFIDENCE = 84
+KAIS2_MIN_CONFIDENCE = 86
 KAIS2_DIRECTION_REJECT_REASON = "KAIS2_LONG_ONLY"
-KAIS2_CONFIDENCE_REJECT_REASON = "KAIS2_CONFIDENCE_BELOW_84"
+KAIS2_CONFIDENCE_REJECT_REASON = "KAIS2_CONFIDENCE_BELOW_86"
+
+# Canlı sinyal zaman dilimi (yalnız canlı giriş taraması; Demo, backtest ve Akıllı Kâr Koruma 15 dk'da kalır).
+# "30m": analiz (yön, puan, momentum, trap, breakout, ATR, stop/hedefler) kapanmış 30 dk mumlardan; 1s/4s onayı aynı;
+# 24 saatlik piyasa süzgeci 15 dk mumlardan (araştırmadaki T30 ile aynı kurulum). Tarama 15 dk'da bir sürer.
+# Geri dönüş: PROTREBOT_KAIS_SIGNAL_INTERVAL=15m. Geçersiz değer taramayı durdurur (sessizce varsayılana dönmez).
+LIVE_SIGNAL_INTERVAL_FLAG = "PROTREBOT_KAIS_SIGNAL_INTERVAL"
+LIVE_SIGNAL_INTERVAL_DEFAULT = "30m"
+LIVE_SIGNAL_INTERVALS = ("15m", "30m")
+LIVE_KLINE_INTERVALS = ("15m", "30m", "1h", "4h")
+
+
+def live_signal_interval() -> str:
+    value = os.getenv(LIVE_SIGNAL_INTERVAL_FLAG, LIVE_SIGNAL_INTERVAL_DEFAULT).strip().lower()
+    if value not in LIVE_SIGNAL_INTERVALS:
+        _fail("INVALID_KAIS_SIGNAL_INTERVAL")
+    return value
+
+
+def live_strategy_frames(frames: dict[str, Any], signal_interval: str) -> dict[str, Any]:
+    """Stratejinin birincil ("15m" anahtarlı) penceresine seçili sinyal dilimini koyar; 1s/4s değişmez."""
+    if signal_interval not in LIVE_SIGNAL_INTERVALS:
+        _fail("INVALID_KAIS_SIGNAL_INTERVAL")
+    return {"15m": frames[signal_interval], "1h": frames["1h"], "4h": frames["4h"]}
 
 
 def kais2_gate_enabled() -> bool:
