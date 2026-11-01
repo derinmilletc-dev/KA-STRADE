@@ -16,3 +16,7 @@
 #root .scannerCenter :is(table th,small,.scannerResultMetadata){color:#a9b8b1}
 /* Tarama raporu 23 (düzeltme): eski kurallar önceliği alıyordu, 12px şart. */
 html body #root .scannerCenter :is(table th,table td,small,.scannerResultMetadata) { font-size: 12px !important; }
+
+/* Tarama raporu 23 (Tarayıcı): küçük etiket, filtre ve rozet yazıları en az 12px. */
+html body #root:not(#a) main.v26App.workspaceRoute small,
+html body #root:not(#a) main.v26App.workspaceRoute .scannerCenter :is(small, .scannerEyebrow, .scannerResultMetadata span, .scannerFilters button, .scannerDirection, th, td, header span:not([class]), section > span:not([class])) { font-size: 12px !important; }
