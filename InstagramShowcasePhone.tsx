@@ -202,7 +202,6 @@ export function InstagramShowcaseScreen() {
 
   return <div className="igsScreen">
     <div className="igsStatusBar" aria-hidden="true"><i className="igsNotch"/></div>
-    <div className="igsTitleBar"><InstagramGlyph/><span>Instagram önizlemesi</span></div>
     {state === 'loading' && <LoadingState/>}
     {state === 'fallback' && <FallbackState href={profileHref}/>}
     {state === 'ready' && feed?.profile && <div ref={scroller} className="igsScroll" hidden={Boolean(open)} tabIndex={0} aria-label="KAISTRADE Instagram gönderileri">
