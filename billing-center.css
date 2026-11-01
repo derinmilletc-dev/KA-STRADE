@@ -716,3 +716,10 @@ html body #root .ktBill .ktBillPlan .ktBillPlanIcon, html body #root .ktBill .kt
   html body #root .ktBill .ktBillTrust small { font-size: 14px !important; }
 }
 @media (min-width: 701px) { html body #root .ktBill .ktBillHero > div { max-width: none !important; width: 100%; } html body #root .ktBill .ktBillHero h1 { max-width: none !important; } }
+
+/* Genel 'button' kuralı (köşe 6px !important) yeni yuvarlak köşeleri eziyordu: daha güçlü seçici ile geri alınır */
+html body #root .ktBill .ktBillTabs.ktBillTabs button.ktBillTabs__x, html body #root .ktBill .ktBillDock .ktBillButton.ktBillButton.ktBillButton { border-radius: 16px !important; }
+html body #root .ktBill .ktCheckoutClose.ktCheckoutClose.ktCheckoutClose { border-radius: 50% !important; }
+html body #root .ktBill .ktCheckout .binanceManualPrimary.binanceManualPrimary.binanceManualPrimary { border-radius: 16px !important; }
+html body #root .ktBill .ktCheckout .binanceManualRefresh.binanceManualRefresh.binanceManualRefresh { border-radius: 999px !important; }
+html body #root .ktBill .ktCheckout .binanceManualReference button { border-radius: 10px !important; }
