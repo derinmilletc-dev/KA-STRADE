@@ -137,6 +137,8 @@ OWNER_ENDPOINTS = [
     ("POST", "/api/v22/admin/system-health/check", None),
     ("GET", "/api/v22/admin/maintenance", None),
     ("POST", "/api/v22/admin/maintenance", {"mode": "OFF"}),
+    ("POST", "/api/v22/admin/maintenance/schedule", {"minutes": 30}),
+    ("DELETE", "/api/v22/admin/maintenance/schedule", None),
     ("POST", "/api/v22/customers",
      {"display_name": "Offline", "email": "offline@example.test", "password": "Offline-password-123!"}),
     ("POST", "/api/v22/customers/customer/status", {"active": True}),
