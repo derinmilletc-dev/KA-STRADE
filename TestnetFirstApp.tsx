@@ -1,7 +1,7 @@
 import { Fragment, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
-import { Activity, ArrowUpRight, BarChart3, Bell, BrainCircuit, ChevronRight, Settings, Star, Trash2, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
+import { Activity, BarChart3, Bell, BrainCircuit, ChevronRight, Settings, Star, Trash2, CheckCircle2, CircleDollarSign, Cloud, CloudCog, Home, KeyRound, LifeBuoy, LockKeyhole, Menu, Radar, RefreshCw, Save, ShieldCheck, Sparkles, TestTube2, X } from 'lucide-react'
 import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
 import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -1266,8 +1266,7 @@ export default function TestnetFirstApp() {
         <header><div><h2>Çalışma alanları</h2><p className="v26MobileMenuSub">Platformun tüm araçlarına hızlı erişim</p></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <a className="v26MobileMenuInsta" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="KAISTRADE Instagram hesabını aç: @kaistrade_" onClick={() => setMobileMenuOpen(false)}>
           <span className="v26MobileMenuInstaIcon" aria-hidden="true"><InstagramGlyph/></span>
-          <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> keşfet</b><small>Instagram · @kaistrade_</small></span>
-          <span className="v26MobileMenuInstaGo" aria-hidden="true"><ArrowUpRight/></span>
+          <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> keşfet.</b></span>
         </a>
         <div className="v26MobileMenuChoices">
           {phoneLayout && <button type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span><b>Analist</b><small>Coin analizi ve sinyaller</small></span></button>}
