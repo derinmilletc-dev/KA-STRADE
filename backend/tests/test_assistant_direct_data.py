@@ -214,7 +214,7 @@ class DirectAnswerTests(unittest.IsolatedAsyncioTestCase):
         unavailable = await fastpath.market_overview_answer(FakeTools({"scan": {"status": "unavailable"}, "movers": movers}, True), "u", "en", "best short")
         self.assertIn("could not access the scan data", unavailable["reply"])
         premium = await fastpath.market_overview_answer(FakeTools({"reason": "PREMIUM_REQUIRED"}, True), "u", "tr", "en iyi long hangisi")
-        self.assertIn("premium", premium["reply"])
+        self.assertIn("ücretli planlarda", premium["reply"])
         gainer = await fastpath.market_overview_answer(FakeTools({"scan": {"status": "fresh"}, "movers": movers}), "u", "tr", "en çok yükselen coin hangisi")
         self.assertIn("yükselişte olan coin yok", gainer["reply"])
         self.assertNotIn("AUSDT", gainer["reply"])

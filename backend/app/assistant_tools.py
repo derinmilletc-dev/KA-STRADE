@@ -18,7 +18,7 @@ from typing import Any, Literal
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from . import assistant_help, subscription_core, v25_execution
+from . import assistant_help, product_catalog, v25_execution
 from .analyst_credits import ANALYSIS_COST, AnalystCredits, ConsumeAnalysis, CreditConfig, CreditTransaction
 from .analyst_credits import service as credit_service
 from .assistant_config import AssistantConfig, load_assistant_config
@@ -141,15 +141,13 @@ class AssistantTools:
         return {"data": data, "fetched_at": datetime.fromtimestamp(self.clock(), timezone.utc).isoformat(), "stale": stale}
 
     async def get_plans(self, user_id: str) -> dict[str, Any]:
+        """Planlar, fiyatlar, ödeme, yenileme ve günlük AI hakları: müşteriye anlatılan ürün bilgisinin tamamı."""
         self.user(user_id)
-        return self.result({
-            "plans": [
-                {"id": key, "name": row["name"], "monthly_price": row["monthly_price"], "currency": "USD"}
-                for key, row in subscription_core.PLAN_CATALOG.items()
-            ],
-            "trial_days": subscription_core.TRIAL_DAYS,
-            "cancellation": dict(subscription_core.CANCELLATION_RULES),
-        })
+        try:
+            credits: CreditConfig | None = self.credits().config
+        except HTTPException:  # kredi servisi okunamazsa varsayılan analiz hakkı anlatılır; plan bilgisi yine verilir
+            credits = None
+        return self.result(product_catalog.plans(self.config, credits))
 
     async def get_my_access(self, user_id: str) -> dict[str, Any]:
         user = self.user(user_id)
@@ -173,7 +171,7 @@ class AssistantTools:
         if len(query) > self.config.max_input_chars:
             raise HTTPException(422, "Help query exceeds the configured message limit")
         try:
-            results = assistant_help.search(query, language, self.credits().config)
+            results = assistant_help.search(query, language, self.credits().config, self.config)
         except assistant_help.KnowledgeBaseError:
             raise HTTPException(503, "Help knowledge base is unavailable") from None
         return self.result({"results": results})
@@ -500,7 +498,7 @@ class AssistantTools:
                  "If a tool fails or returns no data, do not treat it as a permissions problem; briefly say you could not verify it right now and never invent an error.")
         header = "SUNUCU DOĞRULAMALI HESAP DURUMU (güvenilir sistem bilgisi):" if tr else "SERVER-VERIFIED ACCOUNT STATUS (trusted system information):"
         trial_note = (" Ücretsiz deneme üyesi." if tr else " Free-trial member.") if trial and not owner else ""
-        return f"{header} {status}{trial_note} {rules}"
+        return f"{header} {status}{trial_note}{plan_note(getattr(self, 'request', None), user, owner, trial, tr)} {rules}"
 
     async def get_my_activity(self, user_id: str, transaction: CreditTransaction) -> dict[str, Any]:
         # Internal check-in read only; not exposed as an LLM tool.
@@ -728,3 +726,27 @@ class AssistantTools:
             raise HTTPException(404, "Unknown assistant read tool")
         parsed = model.model_validate(arguments)
         return await getattr(self, name)(user_id, **parsed.model_dump())
+
+
+def plan_note(request: Any, user: dict[str, Any], owner: bool, trial: bool, tr: bool) -> str:
+    """Üyenin kendi planı ve bu planda nelerin açık olduğu (yalnız kendi hesabı; doğrulanamazsa boş)."""
+    if owner:
+        return ""
+    try:
+        subscription = subscription_for_request(request, user)
+    except Exception:  # noqa: BLE001 - plan doğrulanamazsa model tahmin etmesin
+        return ""
+    plan = str(subscription.get("plan") or "").upper()
+    active = bool(subscription.get("master_trade_access"))
+    if trial:
+        text = ("Planı: 1 Hafta Ücretsiz Deneme; canlı (gerçek parayla) işlem kapalı, işlemler yalnız Demo hesapta." if tr
+                else "Plan: Free Trial; live (real-money) trading is off, trading only on the Demo account.")
+    elif active and plan == "SMART_TRADE":
+        text = ("Planı: SMART TRADE; canlı manuel işlem açık, canlıda KAIS stratejileri ve Auto Trade kapalı (Demo'da açık)." if tr
+                else "Plan: SMART TRADE; live manual trading on, KAIS strategies and Auto Trade off on live (on for Demo).")
+    elif active and plan == "MASTER_MODE":
+        text = ("Planı: MASTER MODE; canlı işlem, canlı KAIS stratejileri ve Auto Trade açık." if tr
+                else "Plan: MASTER MODE; live trading, live KAIS strategies and Auto Trade are on.")
+    else:
+        text = ("Aktif ücretli planı yok." if tr else "No active paid plan.")
+    return " " + text

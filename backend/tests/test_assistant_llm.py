@@ -373,7 +373,7 @@ class AssistantLlmTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_help_language_is_server_selected_not_model_selected(self):
         self.transport.generate.side_effect = [
-            self.tool_turn("search_help", {"query": "Stripe billing portal", "language": "tr"}),
+            self.tool_turn("search_help", {"query": "refund cancel renewal", "language": "tr"}),
             ModelAnswer("Open Billing.", 100, 20),
         ]
         response = await self.chat()

@@ -32,7 +32,7 @@
       "share",
       "security"
     ],
-    "content": "Never share API Secrets, passwords or session tokens with anyone, Kais AI or support messages. Enter a Secret only in the designated connection field; it is stored in the encrypted server vault and is not displayed back. If exposed, revoke the key at the exchange and create a replacement. Secret detection is pattern-based and cannot guarantee detection of every leak.",
+    "content": "Never share API Secrets, passwords or session tokens with anyone, Kais AI or support messages. Enter a Secret only in the designated connection field; it is stored encrypted and securely and is never shown again. If exposed, revoke the key at the exchange and create a replacement.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "backend/app/exchange_connections.py",
@@ -51,7 +51,7 @@
       "money",
       "simulation"
     ],
-    "content": "Demo/Testnet uses the exchange test environment and separate keys; LIVE uses a real Binance Futures account and real capital. Do not mix credentials across environments. Paper is an application simulation engine, not the exchange Demo/Testnet account; it is disabled in the current deployment configuration and is not offered as an available trading feature in the active menu. Demo results do not guarantee profit or equivalent LIVE results.",
+    "content": "Demo/Testnet uses the exchange test environment and separate keys; LIVE uses a real Binance Futures account and real capital. Do not mix credentials across environments. Paper is an application simulation engine, not the exchange Demo/Testnet account; it is currently disabled and cannot be used. Demo results do not guarantee profit or equivalent LIVE results.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "backend/app/binance_demo.py",
@@ -75,7 +75,7 @@
       "forgot",
       "reset"
     ],
-    "content": "Complete registration on the sign-in screen and accept the terms/privacy notice. Verify your email using the code or link sent to your address, then sign in. Verified membership is required; there is no guest access. If you forgot your password, submit your email using the password-reset option, set a new password from the reset link and sign in again. Email delivery depends on server email configuration.",
+    "content": "Complete registration on the sign-in screen and accept the terms/privacy notice. Verify your email using the code or link sent to your address, then sign in. Verified membership is required; there is no guest access. If you forgot your password, submit your email using the password-reset option, set a new password from the reset link and sign in again. If the email does not arrive, check your spam folder and try again in a few minutes.",
     "code_sources": [
       "main.tsx",
       "AuthGate.tsx",
@@ -85,48 +85,150 @@
   },
   {
     "id": "plans",
-    "title": "Plans, trial and Master Mode",
+    "title": "Plans and prices: Trial, Smart Trade, Master Mode",
     "keywords": [
       "plan",
+      "plans",
       "premium",
       "price",
       "cost",
+      "how much",
       "trial",
       "master",
-      "subscription"
+      "smart",
+      "subscription",
+      "package",
+      "membership"
     ],
-    "content": "Abonelik (Subscription) → VIEW PLANS opens Plans & Pricing. {MASTER_PLAN_NAME} costs {MASTER_MONTHLY_PRICE} USD per month. The trial lasts {TRIAL_DAYS} days and requires a payment method; unless cancelled, it converts to a paid monthly subscription. Master Mode is the immediately paid plan option. Access depends on backend-verified subscription status, not simply clicking checkout.",
+    "content": "There are three options. The {TRIAL_DAYS}-day Free Trial needs no payment details, can be used once per account and trades only on the Demo account. SMART TRADE: {SMART_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. It includes Demo and live manual trading, Grid trading, the full Master Trade screen, stop/target/position protection, AI Analyst, Scanner, Analysis Studio, KAIS Guide and KAIS AI; KAIS strategies and Auto Trade are not available on the live account but all of them work on the Demo account. MASTER MODE: {MASTER_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. Everything in Smart Trade plus KAIS strategies and Auto Trade on the live account and priority support. Both paid plans have the same daily allowances: KAIS AI {KAIS_PAID_DAILY} messages, Chart AI {CHART_PAID_DAILY} analyses, AI Analyst {ANALYST_PAID_DAILY} analyses. Payment is made with Binance Pay in {CURRENCY} and there is no automatic renewal. See the plans under Home → ABONELİK (Subscription; mobile: Menu → Abonelik).",
     "code_sources": [
-      "TestnetFirstApp.tsx",
-      "SubscriptionCenter.tsx",
-      "backend/app/subscription_core.py",
-      "backend/app/v22_commercial.py"
+      "BillingCenter.tsx",
+      "BinanceManualPayment.tsx",
+      "backend/app/product_catalog.py"
     ]
   },
   {
     "id": "billing",
-    "title": "Billing: cancellation and Stripe portal",
+    "title": "Renewal, cancellation, refunds and plan changes",
     "keywords": [
-      "billing",
-      "stripe",
-      "portal",
+      "renewal",
+      "renew",
+      "extend",
       "cancel",
       "cancellation",
+      "refund",
       "subscription",
+      "end date",
+      "automatic",
       "invoice",
+      "change plan",
+      "upgrade",
+      "downgrade",
+      "period"
+    ],
+    "content": "Paid plans last {PAID_PERIOD_DAYS} days and do not renew automatically; when they end nothing is charged and the plan simply closes, so you do not need to cancel. To continue, pay again before or after the end date. If a payment is approved while your plan is still running, the new {PAID_PERIOD_DAYS} days are added after the current end date, so you keep your remaining days. If you want to move from Smart Trade to Master Mode immediately, write to Support before paying. Your current plan, status and end date are shown at the top of Home → ABONELİK. For refunds, payment or invoice problems, send a request from the Support section. KAIS AI cannot change your subscription or take payments.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "BinanceManualPayment.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "plan-compare",
+    "title": "What is the difference between Smart Trade and Master Mode?",
+    "keywords": [
+      "difference",
+      "compare",
+      "which",
+      "smart",
+      "master",
+      "smart trade",
+      "master mode",
+      "upgrade",
+      "switch",
+      "automation",
+      "auto trade",
+      "strategy"
+    ],
+    "content": "Both plans let you trade with real money (live), include the full Master Trade screen and give the same daily AI allowances: KAIS AI {KAIS_PAID_DAILY} messages, Chart AI {CHART_PAID_DAILY} analyses, AI Analyst {ANALYST_PAID_DAILY} analyses. The difference is automation. With Smart Trade you open live trades manually; KAIS strategies and Auto Trade run only on the Demo account. With Master Mode you can also use KAIS strategies and Auto Trade on the live account, and your support requests are prioritised. Smart Trade costs {SMART_PRICE} {CURRENCY} and Master Mode {MASTER_PRICE} {CURRENCY}; both last {PAID_PERIOD_DAYS} days. KAIS AI is the same assistant on every plan. If you press a live strategy or live Auto Trade button on Smart Trade, the Master Mode card opens so you can upgrade.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "trial",
+    "title": "Free trial: how to start, what is included, what is not",
+    "keywords": [
+      "trial",
+      "free",
+      "free trial",
+      "start",
+      "week",
+      "live",
+      "included",
+      "not included"
+    ],
+    "content": "The free trial lasts {TRIAL_DAYS} days and needs no payment details. It can be used once per account and requires a verified email; start it under Home → ABONELİK with “Ücretsiz denemeyi başlat” (Start free trial). The trial includes the Master Trade analysis screen, manual and Grid trading on the Demo account, KAIS strategies and Auto Trade on the Demo account, position protection and Scanner. Daily allowances: KAIS AI {KAIS_TRIAL_DAILY} messages, Chart AI {CHART_TRIAL_DAILY} analyses, AI Analyst {ANALYST_TRIAL_DAILY} analyses. Real-money (live) trading is off during the trial; pressing a live button opens the plans card. Live trading needs Smart Trade or Master Mode. When the trial ends nothing is charged and it does not turn into a paid plan; to continue, choose a plan and pay. If you pay during the trial, the paid {PAID_PERIOD_DAYS} days start after the trial ends, so you keep your remaining trial days.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "payment",
+    "title": "How do I pay with Binance Pay?",
+    "keywords": [
       "payment",
+      "pay",
+      "binance pay",
+      "binance",
+      "pay id",
+      "usdt",
+      "reference",
+      "reference code",
+      "transaction number",
+      "order number",
+      "buy",
+      "purchase",
+      "approval",
+      "pending",
+      "rejected",
       "card"
     ],
-    "content": "Home or mobile Menu → Abonelik (Subscription) opens Billing & Subscription. MANAGE BILLING PORTAL opens payment management for the linked Stripe customer; Stripe configuration and a linked customer are required. CANCEL AT PERIOD END schedules cancellation while access continues through that period. An active trial also offers CANCEL NOW. The assistant cannot change or cancel subscriptions. No refund guarantee is defined in code; billing history currently shows an empty-state component.",
+    "content": "Payments are made only with Binance Pay in {CURRENCY}; your card or wallet details are not stored. Under Home → ABONELİK (mobile: Menu → Abonelik) choose a plan and press “Binance ile öde” (Pay with Binance). Steps: first, a personal reference code is created. Then send the plan amount (Smart Trade {SMART_PRICE} {CURRENCY}, Master Mode {MASTER_PRICE} {CURRENCY}) with Binance Pay from the Binance app to the Pay ID shown on the payment screen, and write the reference code in the payment note. Finally, enter the Binance transaction/order number on the same screen within {PAYMENT_WINDOW_HOURS} hours. Every payment is checked and is usually approved within a few hours; once approved your access opens and you get a notification. The payment status (Pending, Approved, Rejected, Expired) is shown on the same screen. If the number is not entered within {PAYMENT_WINDOW_HOURS} hours, the request expires and you can create a new one. For a rejected, long-pending or wrong-amount payment, send a request from the Support section.",
     "code_sources": [
-      "SubscriptionCenter.tsx",
-      "backend/app/subscription_core.py",
-      "backend/app/v22_commercial.py"
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "ai-limits",
+    "title": "Daily AI allowances: KAIS AI, Chart AI and AI Analyst",
+    "keywords": [
+      "limit",
+      "limits",
+      "daily",
+      "allowance",
+      "quota",
+      "messages",
+      "how many",
+      "chart ai",
+      "kais ai",
+      "ai analyst",
+      "reset",
+      "renew",
+      "remaining"
+    ],
+    "content": "On Smart Trade and Master Mode: KAIS AI {KAIS_PAID_DAILY} messages a day, Chart AI {CHART_PAID_DAILY} chart analyses a day, AI Analyst {ANALYST_PAID_DAILY} analyses a day. On the free trial: KAIS AI {KAIS_TRIAL_DAILY} messages, Chart AI {CHART_TRIAL_DAILY} analyses, AI Analyst {ANALYST_TRIAL_DAILY} analyses a day. Members without a plan can use Chart AI {CHART_FREE_TOTAL} times in total. The KAIS AI message allowance renews every day at {KAIS_RESET_TIME} Turkey time and the Chart AI allowance at midnight Turkey time. The AI Analyst allowance renews when the {CREDIT_WINDOW_HOURS}-hour window that starts with your first analysis ends. You can see the remaining KAIS AI allowance on the chat counter and the Chart AI allowance at the top of its panel; you can also ask me for your remaining analyses. Chart AI is the “Kais AI'a Sor” button on the Master Trade → Analysis tab: upload a chart image and KAIS explains it; it never places trades.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
     ]
   },
   {
     "id": "analyst",
-    "title": "Analyst credits",
+    "title": "AI Analyst allowance and credits",
     "keywords": [
       "credit",
       "credits",
@@ -136,30 +238,34 @@
       "window",
       "cache",
       "refund",
-      "analysis"
+      "analysis",
+      "analyst",
+      "ai analyst",
+      "allowance"
     ],
-    "content": "Your personal budget is {ANALYST_BUDGET} credits; a fresh analysis costs {ANALYSIS_COST} credits. The {CREDIT_WINDOW_HOURS}-hour window starts with the first spend, not at midnight. After expiry, the next request renews the budget; unused credits do not roll over. A saved result for the same user, symbol and timeframe is free within {ANALYST_CACHE_MINUTES} minutes. A failed analysis refunds its cost once; the same idempotency key cannot double-charge or double-refund. Premium members do not spend credits. Master Trade does not spend Analyst credits. A fresh assistant analysis requires separate explicit user approval.",
+    "content": "Each fresh AI Analyst analysis uses {ANALYSIS_COST} credits. On Smart Trade and Master Mode the daily allowance is {ANALYST_PAID_DAILY} analyses. On the trial and without a plan it is {ANALYST_TRIAL_DAILY} analyses ({ANALYST_BUDGET} credits in total). The window starts with your first analysis and lasts {CREDIT_WINDOW_HOURS} hours; when it ends your allowance refills (not at midnight) and unused analyses do not carry over. Opening the same coin and timeframe again within {ANALYST_CACHE_MINUTES} minutes is free. If an analysis fails, its credits are refunded once. Viewing the Master Trade screen spends no credits. When you ask KAIS AI for a fresh analysis, it asks for your confirmation first.",
     "code_sources": [
       "backend/app/analyst_credits.py",
-      "CoinAnalysisCenter.tsx",
-      "analyst-credit-ui.tsx",
-      "backend/app/assistant_tools.py"
+      "backend/app/product_catalog.py",
+      "CoinAnalysisCenter.tsx"
     ]
   },
   {
     "id": "premium",
-    "title": "Free members versus premium",
+    "title": "Members without a plan versus paid plans",
     "keywords": [
       "free",
+      "no plan",
       "premium",
       "locked",
       "blur",
       "details",
       "entry",
       "reasons",
-      "access"
+      "access",
+      "lock"
     ],
-    "content": "Verified free members can view Master Trade read-only and use Analyst within their credit budget. Order forms, account connection, ARM, dry-run and starting LIVE Auto Trade require premium access. Entry/SL/TP levels, Why this decision, Long/Short case details, Trigger Monitor and top Scanner opportunity details are premium-locked. Real private details are filtered by the backend, not merely blurred with CSS. Premium can unlock details/execution access but does not bypass connection, risk, Consent, ARM or protection gates. Assistant summaries omit detailed trade levels/reasons even for premium members.",
+    "content": "Members without a plan can view Master Trade, use AI Analyst within the daily limit and try Chart AI {CHART_FREE_TOTAL} times in total. Entry/SL/TP levels, decision reasons, Long/Short case details, Trigger Monitor and Scanner top-opportunity details open on the trial and the paid plans. Placing orders, connecting an account and real-money (live) trading need Smart Trade or Master Mode. A paid plan does not skip the safety steps (connection, risk acknowledgement, Consent, ARM, protection). On every plan KAIS AI never gives entry/stop/target levels for an analysis in chat; they are shown on the Master Trade screen.",
     "code_sources": [
       "backend/app/premium_access.py",
       "backend/app/v22_commercial.py",
@@ -220,7 +326,7 @@
       "menu",
       "trading"
     ],
-    "content": "Home → İŞLEM (Trading) opens the Demo trading desk. RİSK opens the Demo Risk Vault with limits, sizing and protection settings. PERFORMANS shows Demo trade results and PnL/risk metrics, not consolidated performance for every LIVE account. OPERASYON shows Demo automation decisions, server/stream status and persistent evidence records; it is not a support service. AYARLAR opens API & Connection Center; mobile Menu → Bağlantılar is the equivalent path. Mobile bottom navigation includes Trading and Performance; other areas are under Menu. CANLI opens the separate real Futures preparation screen.",
+    "content": "Home → İŞLEM (Trading) opens the Demo trading desk. RİSK opens the Demo Risk Vault with limits, sizing and protection settings. PERFORMANS shows Demo trade results and PnL/risk metrics, not consolidated performance for every LIVE account. OPERASYON shows Demo automation decisions, connection status and trade records; it is not a support service. AYARLAR opens API & Connection Center; mobile Menu → Bağlantılar is the equivalent path. Mobile bottom navigation includes Trading and Performance; other areas are under Menu. CANLI opens the separate real Futures preparation screen.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "BinanceDemo.tsx",
@@ -243,7 +349,7 @@
       "automation",
       "auto"
     ],
-    "content": "Save/verify the correct environment connection first; LIVE risk policy acknowledgement, Consent and ARM are separate gates. Premium does not bypass them. Demo ARM lasts {DEMO_ARM_MINUTES} minutes; LIVE Consent {LIVE_CONSENT_HOURS} hours; LIVE ARM {LIVE_ARM_HOURS} hours; the supervised LIVE Auto Trade session {AUTO_SESSION_MINUTES} minutes. They are separate timers, not interchangeable permissions. Consent is bound to user/account/key fingerprint scope; renewed Consent disables ARM and Auto Trade and does not implicitly acknowledge the risk policy. Expired Consent stops new entries; its {CONSENT_GRACE_MINUTES}-minute renewal grace is not permission to enter new trades. Risk, Exposure, Protection, One-way and reconciliation gates must also pass. The assistant only explains; it cannot grant permissions or start trading.",
+    "content": "Save/verify the correct environment connection first; LIVE risk policy acknowledgement, Consent and ARM are separate gates. A paid plan does not bypass them. Demo ARM lasts {DEMO_ARM_MINUTES} minutes; LIVE Consent {LIVE_CONSENT_HOURS} hours; LIVE ARM {LIVE_ARM_HOURS} hours; the supervised LIVE Auto Trade session {AUTO_SESSION_MINUTES} minutes. They are separate timers, not interchangeable permissions. Consent is bound to user/account/key fingerprint scope; renewed Consent disables ARM and Auto Trade and does not implicitly acknowledge the risk policy. Expired Consent stops new entries; its {CONSENT_GRACE_MINUTES}-minute renewal grace is not permission to enter new trades. Risk, Exposure, Protection, One-way and reconciliation gates must also pass. The assistant only explains; it cannot grant permissions or start trading.",
     "code_sources": [
       "backend/app/binance_demo.py",
       "backend/app/v25_execution.py",
@@ -260,7 +366,7 @@
       "result",
       "score"
     ],
-    "content": "Final Decision is an analysis score/decision view combining components such as Confidence, liquidity, volatility, MTF, freshness and Risk/Reward. Interpret screen and backend scores in their own context. It is not order permission, an automatic trading command or a profit guarantee.",
+    "content": "Final Decision is an analysis score/decision view combining components such as Confidence, liquidity, volatility, MTF, freshness and Risk/Reward. Interpret each score in the context of its own screen. It is not order permission, an automatic trading command or a profit guarantee.",
     "code_sources": [
       "masterTradeDecision.ts",
       "MasterTrade.tsx",
@@ -373,7 +479,7 @@
       "ratio",
       "return"
     ],
-    "content": "Risk/Reward compares target distance to stop distance in the analysis. It is not realized return, win probability or a guaranteed result after fees/slippage. Private trade levels and this detail are filtered from free-member backend responses.",
+    "content": "Risk/Reward compares target distance to stop distance in the analysis. It is not realized return, win probability or a guaranteed result after fees/slippage. This detail and the trade levels are shown on the trial and the paid plans.",
     "code_sources": [
       "backend/app/analysis.py",
       "backend/app/main.py",
@@ -410,7 +516,7 @@
       "profit",
       "target"
     ],
-    "content": "Entry is the analysis/plan entry level; SL is the stop-loss level and TP denotes profit-taking targets. An analysis level does not prove that an exchange order exists or works. Entry/SL/TP details are premium-locked; actual protection requires backend verification.",
+    "content": "Entry is the analysis/plan entry level; SL is the stop-loss level and TP denotes profit-taking targets. An analysis level does not prove that an exchange order exists or works. Entry/SL/TP details open on the trial and the paid plans; check the real protection status on the Positions screen.",
     "code_sources": [
       "backend/app/analysis.py",
       "MasterTrade.tsx",
@@ -462,7 +568,7 @@
       "fingerprint",
       "duration"
     ],
-    "content": "Consent is the user's explicit acceptance of LIVE risk. The backend verifies its {LIVE_CONSENT_HOURS}-hour expiry and user/account/key fingerprint scope. Consent is not ARM or risk-policy acknowledgement. Renewed Consent disables ARM and Auto Trade; the assistant cannot grant it.",
+    "content": "Consent is the user's explicit acceptance of LIVE risk. Its {LIVE_CONSENT_HOURS}-hour expiry and user/account/key fingerprint scope are checked by the system. Consent is not ARM or risk-policy acknowledgement. Renewed Consent disables ARM and Auto Trade; the assistant cannot grant it.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "frontend/src/LiveTradingPanel.tsx"
@@ -479,7 +585,7 @@
       "preview",
       "order"
     ],
-    "content": "Dry-run checks quantity/direction/SL/TP and balance in the form, then uses Binance's test-order endpoint to validate the signature and order schema without creating a real order. It does not mean all LIVE entry gates passed, protection orders were installed or a later order can be opened. It requires premium access.",
+    "content": "Dry-run checks quantity/direction/SL/TP and balance in the form, then uses Binance's test-order feature to validate the order without creating a real order. It does not mean all LIVE entry gates passed, protection orders were installed or a later order can be opened. It requires Smart Trade or Master Mode.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "frontend/src/LiveTradingPanel.tsx"
@@ -528,7 +634,7 @@
       "working",
       "verified"
     ],
-    "content": "Protection is the backend's matching of exchange stop/protection orders to a position. An analysis SL is not sufficient evidence. Stale, ambiguous or failed data cannot verify protection; check the Positions screen. The assistant reports only backend-verified results and known data age; verified=false must not be described as working.",
+    "content": "Protection is the system's matching of exchange stop/protection orders to a position. An analysis SL is not sufficient evidence. Stale, ambiguous or failed data cannot verify protection; check the Positions screen. KAIS AI reports only results verified from the exchange and how current the data is; without verification (verified=false) it never describes protection as working.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "backend/app/assistant_tools.py"
@@ -899,9 +1005,10 @@
       "ai",
       "what can you do",
       "help",
-      "question"
+      "question",
+      "kais"
     ],
-    "content": "Kais AI explains the site's sections, on-screen terms and settings, points you to the right menu, and answers using the information in your account. It knows which screen you are on; ask 'what is this?' and it explains the section you are in. It does not give buy/sell advice and never asks for money or passwords. For work only the support team can do, it points you to the support form.",
+    "content": "KAIS AI explains the site's sections, screens and terms; answers questions about plans, prices, Binance Pay payment, the trial, daily allowances and support; and points you to the right menu. If you allow it in your profile, it reads and summarises your own trades, positions and settings; it compares coins and gives a market overview. It knows which screen you are on; ask “what is this?” and it explains that section. It does not trade, give buy/sell advice, change your subscription or take payments, and it never asks for passwords or API Secrets. For things only the support team can do, it points you to the Support section. KAIS AI is the same assistant on every plan; only the daily message allowance differs.",
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"

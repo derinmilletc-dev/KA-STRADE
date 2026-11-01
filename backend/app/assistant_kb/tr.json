@@ -32,7 +32,7 @@
       "paylaş",
       "güvenlik"
     ],
-    "content": "API Secret, parola ve oturum token'ını kimseyle, Kais AI ile veya destek mesajıyla paylaşma. Secret yalnız ilgili bağlantı ekranındaki gizli alana girilir; şifreli sunucu kasasında saklanır ve geri görüntülenmez. Yanlışlıkla paylaştıysan borsada anahtarı iptal edip yenisini oluşturmanı öneririz. Secret tespiti desen tabanlıdır; tüm sızıntıları yakalama garantisi yoktur.",
+    "content": "API Secret, parola ve oturum token'ını kimseyle, Kais AI ile veya destek mesajıyla paylaşma. Secret yalnız ilgili bağlantı ekranındaki gizli alana girilir; şifrelenerek güvenle saklanır ve tekrar gösterilmez. Yanlışlıkla paylaştıysan borsada anahtarı iptal edip yenisini oluşturmanı öneririz.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "backend/app/exchange_connections.py",
@@ -51,7 +51,7 @@
       "para",
       "simülasyon"
     ],
-    "content": "Demo/Testnet borsanın test ortamı ve ayrı anahtarlarıyla çalışır; LIVE gerçek Binance Futures hesabına ve gerçek sermayeye bağlıdır. Bir ortamın anahtarını diğerinde kullanma. Paper, borsa Demo/Testnet hesabından farklı uygulama içi simülasyon motorudur; mevcut dağıtım ayarında kapalıdır ve aktif menüden kullanılabilir bir işlem özelliği olarak sunulmaz. Demo sonuçları LIVE'da kâr veya aynı sonuç garantisi değildir.",
+    "content": "Demo/Testnet borsanın test ortamı ve ayrı anahtarlarıyla çalışır; LIVE gerçek Binance Futures hesabına ve gerçek sermayeye bağlıdır. Bir ortamın anahtarını diğerinde kullanma. Paper, borsa Demo/Testnet hesabından farklı uygulama içi simülasyon motorudur; şu an kapalıdır ve kullanılamaz. Demo sonuçları LIVE'da kâr veya aynı sonuç garantisi değildir.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "backend/app/binance_demo.py",
@@ -77,7 +77,7 @@
       "unuttum",
       "sıfırlama"
     ],
-    "content": "Giriş ekranında kayıt formunu doldur ve kullanım koşulları/gizlilik onayını ver. Kayıttan sonra e-postadaki doğrulama kodu veya bağlantısıyla adresini doğrula; ardından giriş yap. Üyelik doğrulaması gereklidir, misafir erişimi yoktur. Parolanı unuttuysan giriş ekranındaki parola sıfırlama seçeneğiyle e-postanı gönder, gelen sıfırlama bağlantısında yeni parolanı belirle ve yeniden giriş yap. E-posta teslimi sunucunun e-posta yapılandırmasına bağlıdır.",
+    "content": "Giriş ekranında kayıt formunu doldur ve kullanım koşulları/gizlilik onayını ver. Kayıttan sonra e-postadaki doğrulama kodu veya bağlantısıyla adresini doğrula; ardından giriş yap. Üyelik doğrulaması gereklidir, misafir erişimi yoktur. Parolanı unuttuysan giriş ekranındaki parola sıfırlama seçeneğiyle e-postanı gönder, gelen sıfırlama bağlantısında yeni parolanı belirle ve yeniden giriş yap. E-posta gelmediyse gereksiz (spam) klasörünü kontrol et ve birkaç dakika sonra yeniden dene.",
     "code_sources": [
       "main.tsx",
       "AuthGate.tsx",
@@ -87,48 +87,160 @@
   },
   {
     "id": "plans",
-    "title": "Planlar, trial ve Master Mode",
+    "title": "Planlar ve fiyatlar: Deneme, Smart Trade, Master Mode",
     "keywords": [
       "plan",
+      "planlar",
       "premium",
       "fiyat",
       "ücret",
+      "kaç para",
+      "ne kadar",
       "trial",
       "deneme",
       "master",
-      "abonelik"
+      "smart",
+      "abonelik",
+      "paket",
+      "üyelik"
     ],
-    "content": "Abonelik → VIEW PLANS, Plans & Pricing sayfasını açar. {MASTER_PLAN_NAME} aylık {MASTER_MONTHLY_PRICE} USD'dir. Trial süresi {TRIAL_DAYS} gündür ve ödeme yöntemi gerektirir; iptal edilmezse deneme sonunda ücretli aylık aboneliğe dönüşür. Master Mode doğrudan ücretli plan seçeneğidir. Erişim ödeme ekranına tıklamakla değil, backend'in doğruladığı abonelik durumuyla belirlenir.",
+    "content": "Üç seçenek var. {TRIAL_DAYS} günlük Ücretsiz Deneme: ödeme bilgisi istenmez, hesap başına bir kez kullanılır ve işlemler yalnız Demo hesapta yapılır. SMART TRADE: {PAID_PERIOD_DAYS} gün için {SMART_PRICE} {CURRENCY}. Demo ve canlı manuel işlem, Grid işlemleri, Master Trade ekranının tamamı, stop/hedef/pozisyon koruması, AI Analist, Scanner, Analiz Stüdyosu, KAIS Rehber ve KAIS AI dahildir; canlı hesapta KAIS stratejileri ve Auto Trade yoktur, Demo hesapta hepsi açıktır. MASTER MODE: {PAID_PERIOD_DAYS} gün için {MASTER_PRICE} {CURRENCY}. Smart Trade'deki her şeye ek olarak canlı hesapta KAIS stratejileri, canlı Auto Trade ve öncelikli destek vardır. Ücretli iki planda günlük haklar aynıdır: KAIS AI {KAIS_PAID_DAILY} mesaj, Grafik AI {CHART_PAID_DAILY} analiz, AI Analist {ANALYST_PAID_DAILY} analiz. Ödeme Binance Pay ile {CURRENCY} olarak yapılır ve otomatik yenileme yoktur. Planları Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında görürsün.",
     "code_sources": [
-      "TestnetFirstApp.tsx",
-      "SubscriptionCenter.tsx",
-      "backend/app/subscription_core.py",
-      "backend/app/v22_commercial.py"
+      "BillingCenter.tsx",
+      "BinanceManualPayment.tsx",
+      "backend/app/product_catalog.py"
     ]
   },
   {
     "id": "billing",
-    "title": "Billing: iptal ve Stripe portalı",
+    "title": "Yenileme, iptal, iade ve plan değişikliği",
     "keywords": [
-      "billing",
-      "stripe",
-      "portal",
+      "yenileme",
+      "yenile",
+      "uzat",
       "iptal",
+      "iade",
+      "para iadesi",
       "abonelik",
+      "bitiş",
+      "süre",
+      "otomatik",
       "fatura",
-      "ödeme",
-      "kart"
+      "plan değiştir",
+      "yükselt",
+      "düşür",
+      "dönem"
     ],
-    "content": "Ana sayfa veya mobil menü → Abonelik, Billing & Subscription sayfasını açar. MANAGE BILLING PORTAL ile bağlı Stripe hesabının ödeme yönetimine geçilir; portal için Stripe yapılandırması ve bağlı müşteri gerekir. CANCEL AT PERIOD END iptali dönem sonuna planlar; erişim o zamana kadar sürer. Aktif trial'da CANCEL NOW seçeneği de vardır. Asistan aboneliği değiştirmez veya iptal etmez. Kodda tanımlı bir iade garantisi yoktur; fatura geçmişi alanı şu an boş durum bileşenidir.",
+    "content": "Ücretli planlar {PAID_PERIOD_DAYS} gün geçerlidir ve otomatik yenilenmez; süre bitince ücret alınmaz, plan kendiliğinden kapanır. Bu yüzden iptal etmen gerekmez. Devam etmek istersen süre bitmeden veya bittikten sonra yeniden ödeme yaparsın. Plan sürerken yaptığın ödeme onaylanırsa yeni {PAID_PERIOD_DAYS} gün mevcut sürenin bitişinden sonra eklenir; kalan günlerin kaybolmaz. Smart Trade'den Master Mode'a hemen geçmek istiyorsan ödeme yapmadan önce Destek'e yaz. Mevcut planın, durumu ve bitiş tarihi Ana sayfa → ABONELİK ekranının üstünde görünür. İade, ödeme veya fatura sorunları için Destek bölümünden talep oluştur. KAIS AI aboneliğini değiştiremez ve ödeme alamaz.",
     "code_sources": [
-      "SubscriptionCenter.tsx",
-      "backend/app/subscription_core.py",
-      "backend/app/v22_commercial.py"
+      "BillingCenter.tsx",
+      "BinanceManualPayment.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "plan-compare",
+    "title": "Smart Trade ile Master Mode farkı nedir?",
+    "keywords": [
+      "fark",
+      "farkı",
+      "karşılaştır",
+      "hangisi",
+      "smart",
+      "master",
+      "smart trade",
+      "master mode",
+      "yükselt",
+      "geçiş",
+      "otomatik",
+      "auto trade",
+      "strateji"
+    ],
+    "content": "İki plan da gerçek parayla (canlı) işlem açmanı sağlar, Master Trade ekranının tamamını ve aynı günlük AI haklarını verir: KAIS AI {KAIS_PAID_DAILY} mesaj, Grafik AI {CHART_PAID_DAILY} analiz, AI Analist {ANALYST_PAID_DAILY} analiz. Fark otomasyondadır. Smart Trade'de canlı işlemleri sen elle açarsın; KAIS stratejileri ve Auto Trade yalnız Demo hesapta çalışır. Master Mode'da KAIS stratejilerini ve Auto Trade'i canlı hesapta da kullanırsın ve destek talebin öncelikli ele alınır. Smart Trade {SMART_PRICE} {CURRENCY}, Master Mode {MASTER_PRICE} {CURRENCY}; ikisi de {PAID_PERIOD_DAYS} gün geçerlidir. KAIS AI tüm planlarda aynı asistandır. Smart Trade kullanırken canlı stratejiye veya canlı Auto Trade'e basarsan Master Mode kartı açılır; oradan Master Mode'a geçebilirsin.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "trial",
+    "title": "Ücretsiz deneme: nasıl başlar, neler açık, neler kapalı?",
+    "keywords": [
+      "deneme",
+      "ücretsiz",
+      "trial",
+      "bedava",
+      "free",
+      "denemede",
+      "deneme süresi",
+      "başlat",
+      "hafta",
+      "canlı",
+      "kapalı"
+    ],
+    "content": "Ücretsiz deneme {TRIAL_DAYS} gün sürer ve ödeme bilgisi istenmez. Hesap başına bir kez kullanılır ve e-posta doğrulaması gerekir; Ana sayfa → ABONELİK ekranında “Ücretsiz denemeyi başlat” ile açılır. Denemede Master Trade analiz ekranı, Demo hesapta manuel ve Grid işlemler, Demo hesapta KAIS stratejileri ve Auto Trade, pozisyon koruması ve Scanner açıktır. Günlük haklar: KAIS AI {KAIS_TRIAL_DAILY} mesaj, Grafik AI {CHART_TRIAL_DAILY} analiz, AI Analist {ANALYST_TRIAL_DAILY} analiz. Gerçek parayla (canlı) işlem denemede kapalıdır; canlı bir tuşa basarsan planlar kartı açılır. Canlı işlem için Smart Trade veya Master Mode gerekir. Deneme bitince ücret alınmaz ve ücretli plana kendiliğinden geçilmez; devam etmek için plan seçip ödeme yaparsın. Deneme sürerken ödeme yaparsan ücretli {PAID_PERIOD_DAYS} gün denemenin bitişinden sonra başlar, kalan deneme günlerin kaybolmaz.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "payment",
+    "title": "Binance Pay ile ödeme nasıl yapılır?",
+    "keywords": [
+      "ödeme",
+      "öde",
+      "ödeme yap",
+      "binance pay",
+      "binance",
+      "pay",
+      "pay id",
+      "usdt",
+      "referans",
+      "referans kodu",
+      "işlem numarası",
+      "sipariş numarası",
+      "satın al",
+      "onay",
+      "bekliyor",
+      "reddedildi",
+      "kart",
+      "havale"
+    ],
+    "content": "Ödemeler yalnız Binance Pay ile {CURRENCY} olarak yapılır; kart veya cüzdan bilgin kaydedilmez. Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında planı seç ve “Binance ile öde”ye bas. Adımlar: önce sana özel bir referans kodu oluşur. Sonra plan tutarını (Smart Trade {SMART_PRICE} {CURRENCY}, Master Mode {MASTER_PRICE} {CURRENCY}) Binance uygulamasından Binance Pay ile ödeme ekranında gösterilen Pay ID'ye gönder ve ödeme notuna referans kodunu yaz. Son olarak Binance'teki işlem/sipariş numarasını {PAYMENT_WINDOW_HOURS} saat içinde aynı ekrana gir. Her ödeme kontrol edilir ve genelde birkaç saat içinde onaylanır; onaylanınca erişimin açılır ve bildirim gelir. Ödeme durumunu (Bekliyor, Onaylandı, Reddedildi, Süresi doldu) aynı ekranda görürsün. Numara {PAYMENT_WINDOW_HOURS} saat içinde girilmezse talebin süresi dolar; yeni talep oluşturabilirsin. Reddedilen, uzun süre bekleyen veya yanlış tutarla gönderilen ödeme için Destek bölümünden talep oluştur.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
+    ]
+  },
+  {
+    "id": "ai-limits",
+    "title": "Günlük AI hakları: KAIS AI, Grafik AI ve AI Analist",
+    "keywords": [
+      "limit",
+      "hak",
+      "haklar",
+      "günlük",
+      "sınır",
+      "mesaj hakkı",
+      "kaç mesaj",
+      "kaç analiz",
+      "grafik ai",
+      "kais ai",
+      "ai analist",
+      "yenilenir",
+      "sıfırlanır",
+      "kalan"
+    ],
+    "content": "Smart Trade ve Master Mode'da: KAIS AI günde {KAIS_PAID_DAILY} mesaj, Grafik AI günde {CHART_PAID_DAILY} grafik analizi, AI Analist günde {ANALYST_PAID_DAILY} analiz. Ücretsiz denemede: KAIS AI günde {KAIS_TRIAL_DAILY} mesaj, Grafik AI günde {CHART_TRIAL_DAILY} analiz, AI Analist günde {ANALYST_TRIAL_DAILY} analiz. Plansız üyeler Grafik AI'yi toplam {CHART_FREE_TOTAL} kez kullanabilir. KAIS AI mesaj hakkı her gün Türkiye saatiyle {KAIS_RESET_TIME}'te, Grafik AI hakkı her gece yarısı (Türkiye saati) yenilenir. AI Analist hakkı ilk analizle başlayan {CREDIT_WINDOW_HOURS} saatlik süre dolunca yenilenir. Kalan KAIS AI hakkını sohbet penceresindeki sayaçta, Grafik AI hakkını panelin üstünde görürsün; kalan analiz hakkını bana da sorabilirsin. Grafik AI, Master Trade → Analiz sekmesindeki “Kais AI'a Sor” düğmesidir: grafik görselini yüklersin, KAIS grafiği açıklar; işlem açmaz.",
+    "code_sources": [
+      "BillingCenter.tsx",
+      "backend/app/product_catalog.py"
     ]
   },
   {
     "id": "analyst",
-    "title": "Analyst kredi sistemi",
+    "title": "AI Analist hakları ve kredi",
     "keywords": [
       "kredi",
       "bütçe",
@@ -138,30 +250,35 @@
       "cache",
       "önbellek",
       "iade",
-      "analiz"
+      "analiz",
+      "analist",
+      "ai analist",
+      "hak"
     ],
-    "content": "Kişisel bütçe {ANALYST_BUDGET} kredi, taze analiz maliyeti {ANALYSIS_COST} kredidir. {CREDIT_WINDOW_HOURS} saatlik pencere ilk kredi harcamasında başlar; gece yarısı sıfırlanmaz. Süre dolduktan sonraki istekte bütçe yenilenir; kullanılmayan krediler devretmez. Aynı kullanıcının aynı sembol/zaman dilimi için {ANALYST_CACHE_MINUTES} dakika içindeki kayıtlı analiz sonucu ücretsizdir. Analiz hata verirse harcanan maliyet bir kez iade edilir; aynı idempotency anahtarı tekrar düşüm/iade yapmaz. Premium üyelerde kredi düşmez. Master Trade kredi harcamaz. Asistanın taze analiz isteği ayrı açık kullanıcı onayı gerektirir.",
+    "content": "AI Analist'te her taze analiz {ANALYSIS_COST} kredi kullanır. Smart Trade ve Master Mode'da günlük hak {ANALYST_PAID_DAILY} analizdir. Deneme ve plansız üyelikte {ANALYST_TRIAL_DAILY} analizdir (toplam {ANALYST_BUDGET} kredi). Süre ilk analizde başlar ve {CREDIT_WINDOW_HOURS} saat sürer; dolunca hakkın yeniden dolar (gece yarısı sıfırlanmaz); kullanılmayan haklar devretmez. Aynı coin ve zaman dilimi için {ANALYST_CACHE_MINUTES} dakika içinde tekrar açılan analiz ücretsizdir. Analiz hata verirse kredi bir kez iade edilir. Master Trade ekranına bakmak kredi harcamaz. KAIS AI üzerinden taze analiz isterken önce onayın alınır.",
     "code_sources": [
       "backend/app/analyst_credits.py",
-      "CoinAnalysisCenter.tsx",
-      "analyst-credit-ui.tsx",
-      "backend/app/assistant_tools.py"
+      "backend/app/product_catalog.py",
+      "CoinAnalysisCenter.tsx"
     ]
   },
   {
     "id": "premium",
-    "title": "Ücretsiz üye ve premium farkı",
+    "title": "Plansız üye ile ücretli plan farkı",
     "keywords": [
       "ücretsiz",
+      "plansız",
       "premium",
       "kilitli",
       "bulanık",
       "detay",
       "entry",
       "gerekçe",
-      "yetki"
+      "yetki",
+      "kilit",
+      "açılmıyor"
     ],
-    "content": "Ücretsiz doğrulanmış üye Master Trade'i salt-okunur görüntüleyebilir ve Analyst'i kredi bütçesiyle kullanır. Emir formu, hesap bağlama, ARM, dry-run ve LIVE Auto Trade başlatma premium yetkiye tabidir. Entry/SL/TP seviyeleri, Why this decision, Long/Short case detayları, Trigger Monitor ve Scanner üst fırsat detayları premium kilitlidir. Gerçek özel detaylar backend'de filtrelenir; yalnız CSS bulanıklığına güvenilmez. Premium bu detayları ve işlem yetkisini açabilir, fakat bağlantı, risk, Consent, ARM ve koruma kapılarını kaldırmaz. Asistan özetleri premium üyede de ayrıntılı işlem seviyeleri/gerekçeleri vermez.",
+    "content": "Plansız üye Master Trade'i görüntüleyebilir, AI Analist'i günlük sınırla kullanır ve Grafik AI'yi toplam {CHART_FREE_TOTAL} kez deneyebilir. Entry/SL/TP seviyeleri, karar gerekçeleri, Long/Short senaryo detayları, Trigger Monitor ve Scanner'daki üst fırsat detayları denemede ve ücretli planlarda açılır. Emir verme, hesap bağlama ve gerçek parayla (canlı) işlem Smart Trade veya Master Mode gerektirir. Ücretli plan da güvenlik adımlarını (bağlantı, risk onayı, Consent, ARM, koruma) atlatmaz. KAIS AI sohbette hiçbir planda analiz için giriş/stop/hedef seviyesi vermez; bunlar Master Trade ekranında görünür.",
     "code_sources": [
       "backend/app/premium_access.py",
       "backend/app/v22_commercial.py",
@@ -225,7 +342,7 @@
       "menü",
       "işlem"
     ],
-    "content": "Ana sayfa → İŞLEM Demo işlem masasını açar. RİSK, Demo Risk Kasası'nda limit/boyut/koruma ayarlarını gösterir. PERFORMANS, Demo işlem sonuçları ve PnL/risk ölçümleridir; tüm LIVE hesaplarının birleşik performansı değildir. OPERASYON, Demo otomasyon kararını, sunucu/stream durumunu ve kalıcı kanıt kayıtlarını gösterir; destek hizmeti değildir. AYARLAR, API & Connection Center'dır; mobil Menü → Bağlantılar yolundadır. Mobil alt çubukta İşlem ve Performans; diğer alanlar Menü içindedir. CANLI, ayrı gerçek Futures hazırlık ekranıdır.",
+    "content": "Ana sayfa → İŞLEM Demo işlem masasını açar. RİSK, Demo Risk Kasası'nda limit/boyut/koruma ayarlarını gösterir. PERFORMANS, Demo işlem sonuçları ve PnL/risk ölçümleridir; tüm LIVE hesaplarının birleşik performansı değildir. OPERASYON, Demo otomasyon kararını, bağlantı durumunu ve işlem kayıtlarını gösterir; destek hizmeti değildir. AYARLAR, API & Connection Center'dır; mobil Menü → Bağlantılar yolundadır. Mobil alt çubukta İşlem ve Performans; diğer alanlar Menü içindedir. CANLI, ayrı gerçek Futures hazırlık ekranıdır.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "BinanceDemo.tsx",
@@ -248,7 +365,7 @@
       "otomasyon",
       "auto"
     ],
-    "content": "Önce doğru ortam bağlantısını kaydet/doğrula; LIVE için risk politikası ve risk onayı, Consent ve ARM ayrı kapılardır. Premium olmak bunları atlatmaz. Demo ARM {DEMO_ARM_MINUTES} dakika; LIVE Consent {LIVE_CONSENT_HOURS} saat; LIVE ARM {LIVE_ARM_HOURS} saat; LIVE Auto Trade gözetimli oturumu {AUTO_SESSION_MINUTES} dakikadır: farklı sayaçlardır, biri diğerini açmaz. Consent kullanıcı/hesap/anahtar fingerprint kapsamına bağlıdır; yeniden Consent ARM ve Auto Trade'i kapatır, risk politikasını kendiliğinden onaylamaz. Consent sona erdiğinde yeni girişler durur; {CONSENT_GRACE_MINUTES} dakikalık yeniden onay süresi yeni işlem izni değildir. Risk, Exposure, Protection, One-way ve reconciliation kapıları da sağlanmalıdır. Asistan sadece açıklar; bu izinleri vermez veya işlem başlatmaz.",
+    "content": "Önce doğru ortam bağlantısını kaydet/doğrula; LIVE için risk politikası ve risk onayı, Consent ve ARM ayrı kapılardır. Ücretli plan bunları atlatmaz. Demo ARM {DEMO_ARM_MINUTES} dakika; LIVE Consent {LIVE_CONSENT_HOURS} saat; LIVE ARM {LIVE_ARM_HOURS} saat; LIVE Auto Trade gözetimli oturumu {AUTO_SESSION_MINUTES} dakikadır: farklı sayaçlardır, biri diğerini açmaz. Consent kullanıcı/hesap/anahtar fingerprint kapsamına bağlıdır; yeniden Consent ARM ve Auto Trade'i kapatır, risk politikasını kendiliğinden onaylamaz. Consent sona erdiğinde yeni girişler durur; {CONSENT_GRACE_MINUTES} dakikalık yeniden onay süresi yeni işlem izni değildir. Risk, Exposure, Protection, One-way ve reconciliation kapıları da sağlanmalıdır. Asistan sadece açıklar; bu izinleri vermez veya işlem başlatmaz.",
     "code_sources": [
       "backend/app/binance_demo.py",
       "backend/app/v25_execution.py",
@@ -266,7 +383,7 @@
       "sonuç",
       "score"
     ],
-    "content": "Final Decision, analiz bileşenlerinden üretilen puan/karar görünümüdür. Confidence, likidite, volatilite, MTF, veri tazeliği ve Risk/Reward gibi girdiler kullanılır; ekran ve backend puanı aynı bağlamda değerlendirilmelidir. Emir izni, otomatik işlem komutu veya kâr garantisi değildir.",
+    "content": "Final Decision, analiz bileşenlerinden üretilen puan/karar görünümüdür. Confidence, likidite, volatilite, MTF, veri tazeliği ve Risk/Reward gibi girdiler kullanılır; puan, bulunduğu ekranın bağlamında değerlendirilmelidir. Emir izni, otomatik işlem komutu veya kâr garantisi değildir.",
     "code_sources": [
       "masterTradeDecision.ts",
       "MasterTrade.tsx",
@@ -384,7 +501,7 @@
       "getiri",
       "oran"
     ],
-    "content": "Risk/Reward, hedefe uzaklığın stop mesafesine oranıdır; analizde olası hedef/risk ilişkisini gösterir. Gerçekleşmiş getiri, kazanma olasılığı veya ücret/slippage sonrası garanti sonuç değildir. Özel işlem seviyeleri ve bu detay ücretsiz üyeye backend'de filtrelenir.",
+    "content": "Risk/Reward, hedefe uzaklığın stop mesafesine oranıdır; analizde olası hedef/risk ilişkisini gösterir. Gerçekleşmiş getiri, kazanma olasılığı veya ücret/slippage sonrası garanti sonuç değildir. Bu detay ve işlem seviyeleri denemede ve ücretli planlarda görünür.",
     "code_sources": [
       "backend/app/analysis.py",
       "backend/app/main.py",
@@ -422,7 +539,7 @@
       "profit",
       "hedef"
     ],
-    "content": "Entry analiz/plan giriş seviyesidir; SL stop-loss seviyesi, TP kâr alma hedefleridir. Analizde bir seviyenin görünmesi o emrin borsada kurulduğunu veya çalıştığını kanıtlamaz. Entry/SL/TP ayrıntıları premium kilitlidir; gerçek koruma durumu backend'de doğrulanmalıdır.",
+    "content": "Entry analiz/plan giriş seviyesidir; SL stop-loss seviyesi, TP kâr alma hedefleridir. Analizde bir seviyenin görünmesi o emrin borsada kurulduğunu veya çalıştığını kanıtlamaz. Entry/SL/TP ayrıntıları denemede ve ücretli planlarda açılır; gerçek koruma durumunu Pozisyonlar ekranından kontrol et.",
     "code_sources": [
       "backend/app/analysis.py",
       "MasterTrade.tsx",
@@ -475,7 +592,7 @@
       "fingerprint",
       "süre"
     ],
-    "content": "Consent, LIVE riskini kullanıcının açık kabulüdür; {LIVE_CONSENT_HOURS} saatlik süre ve kullanıcı/hesap/anahtar fingerprint kapsamı backend'de doğrulanır. Consent, ARM veya risk politikası onayı yerine geçmez. Yeniden Consent, ARM ve Auto Trade'i kapatır; asistan bu onayı veremez.",
+    "content": "Consent, LIVE riskini kullanıcının açık kabulüdür; {LIVE_CONSENT_HOURS} saatlik süre ve kullanıcı/hesap/anahtar fingerprint kapsamı sistem tarafından kontrol edilir. Consent, ARM veya risk politikası onayı yerine geçmez. Yeniden Consent, ARM ve Auto Trade'i kapatır; asistan bu onayı veremez.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "frontend/src/LiveTradingPanel.tsx"
@@ -492,7 +609,7 @@
       "önizleme",
       "emir"
     ],
-    "content": "Dry-run, formda miktar/yön/SL/TP ve bakiye kontrolleri yaptıktan sonra Binance'in test-order endpoint'iyle imza ve emir şemasını gerçek emir oluşturmadan doğrular. Tüm LIVE giriş kapılarının geçtiği, koruma emirlerinin kurulduğu veya sonradan emir açılabileceği anlamına gelmez. Premium yetkiye tabidir.",
+    "content": "Dry-run, formda miktar/yön/SL/TP ve bakiye kontrolleri yaptıktan sonra Binance'in test emri özelliğiyle emri gerçek emir oluşturmadan doğrular. Tüm LIVE giriş kapılarının geçtiği, koruma emirlerinin kurulduğu veya sonradan emir açılabileceği anlamına gelmez. Smart Trade veya Master Mode gerektirir.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "frontend/src/LiveTradingPanel.tsx"
@@ -544,7 +661,7 @@
       "çalışıyor",
       "doğrulama"
     ],
-    "content": "Protection, backend'in borsadan okuduğu stop/koruma emirlerini pozisyonla eşleştirdiği durumdur. Analizde SL bulunması yeterli kanıt değildir. Veri bayat, belirsiz veya hatalıysa koruma doğrulanmış sayılmaz; Pozisyonlar ekranından kontrol et. Asistan yalnız backend'in doğruladığı sonucu ve bilinen veri yaşını aktarır; verified=false ise çalışıyor demez.",
+    "content": "Protection, sistemin borsadan okuduğu stop/koruma emirlerini pozisyonla eşleştirdiği durumdur. Analizde SL bulunması yeterli kanıt değildir. Veri bayat, belirsiz veya hatalıysa koruma doğrulanmış sayılmaz; Pozisyonlar ekranından kontrol et. KAIS AI yalnız borsadan doğrulanan sonucu ve verinin ne kadar güncel olduğunu aktarır; doğrulama yoksa (verified=false) korumayı çalışıyor diye göstermez.",
     "code_sources": [
       "backend/app/v25_execution.py",
       "backend/app/assistant_tools.py"
@@ -918,9 +1035,10 @@
       "yapay zeka",
       "ne yapabilir",
       "yardım",
-      "soru"
+      "soru",
+      "kais"
     ],
-    "content": "Kais AI sitedeki bölümleri, ekranlardaki terimleri ve ayarları açıklar, seni doğru menüye yönlendirir ve hesabındaki bilgileri okuyarak yanıtlar. Hangi ekranda olduğunu bilir; 'bu ne?' diye sorarsan bulunduğun bölümü anlatır. Al-sat tavsiyesi vermez, para veya şifre bilgisi istemez. Destek ekibinin yapması gereken işler için seni destek formuna yönlendirir.",
+    "content": "KAIS AI sitedeki bölümleri, ekranları ve terimleri açıklar; planlar, fiyatlar, Binance Pay ödemesi, deneme, günlük haklar ve destek konularında yanıt verir ve seni doğru menüye yönlendirir. Profilinde izin verdiysen kendi işlemlerini, pozisyonlarını ve ayarlarını okuyup özetler; coinleri karşılaştırır ve piyasa özeti verir. Hangi ekranda olduğunu bilir; “bu ne?” diye sorarsan o bölümü anlatır. İşlem açmaz, al-sat tavsiyesi vermez, aboneliğini değiştirmez, ödeme almaz; şifre veya API Secret istemez. Destek ekibinin yapması gereken işler için seni Destek bölümüne yönlendirir. KAIS AI tüm planlarda aynı asistandır; planlara göre yalnız günlük mesaj hakkı değişir.",
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"

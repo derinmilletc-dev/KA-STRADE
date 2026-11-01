@@ -21,6 +21,8 @@ AMOUNT = Decimal("119.90")  # Master Mode (geriye uyumlu ad)
 # Plan, ödenen tutardan çıkar: veritabanı yalnız bu iki tutara izin verir (migration 20261029_001).
 PLAN_AMOUNTS: dict[str, Decimal] = {"MASTER_MODE": Decimal("119.90"), "SMART_TRADE": Decimal("39.90")}
 PLAN_NAMES = {"MASTER_MODE": "MASTER MODE", "SMART_TRADE": "SMART TRADE"}
+PAID_PERIOD_DAYS = 30  # her onaylı ödeme bu kadar gün erişim verir
+PAYMENT_WINDOW_HOURS = 48  # işlem numarası için süre (migration 20261011_001 varsayılanıyla aynı)
 REFERENCE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 TRANSACTION_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}", re.ASCII)
 Status = Literal["created", "pending", "approved", "rejected", "expired"]
@@ -96,7 +98,7 @@ def period_start(now: datetime, *, trial_end: datetime | None = None,
 def payment_period(now: datetime, *, trial_end: datetime | None = None,
                    manual_end: datetime | None = None) -> tuple[datetime, datetime]:
     start = period_start(now, trial_end=trial_end, manual_end=manual_end)
-    return start, start + timedelta(days=30)
+    return start, start + timedelta(days=PAID_PERIOD_DAYS)
 
 
 @asynccontextmanager
@@ -247,7 +249,7 @@ async def submit_transaction(conn: PaymentConnection, user_id: str, request_id: 
                     raise
                 raise HTTPException(409, "Bu Binance işlem numarası başka bir talepte kullanılmış.") from None
     if expired:
-        raise HTTPException(410, "48 saat içinde işlem numarası girilmedi; ödeme talebinin süresi doldu.")
+        raise HTTPException(410, f"{PAYMENT_WINDOW_HOURS} saat içinde işlem numarası girilmedi; ödeme talebinin süresi doldu.")
     if result is None:
         raise RuntimeError("Payment submission did not produce a result")
     return result

@@ -10,7 +10,9 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from app import error_exposure
-from app import assistant_api, assistant_help, subscription_core, v25_execution
+from decimal import Decimal
+
+from app import assistant_api, assistant_help, binance_manual_payments, subscription_core, v25_execution
 from app.analyst_credits import AnalystCredits, CreditConfig, CreditStore
 from app.assistant_api import AssistantService, ModelAnswer, router
 from app.assistant_config import AssistantConfig
@@ -173,17 +175,34 @@ class AssistantToolsTests(AssistantToolsTestCase):
             response = await self.tool(name, "a", user_id="b", **arguments.get(name, {}))
             self.assertEqual(response.status_code, 422)
 
-    async def test_plans_prices_trial_and_cancellation_use_core_sources(self):
-        catalog = {**subscription_core.PLAN_CATALOG,
-                   "MASTER_MODE": {**subscription_core.PLAN_CATALOG["MASTER_MODE"], "monthly_price": 249.95}}
-        with patch.object(subscription_core, "PLAN_CATALOG", catalog), patch.object(subscription_core, "TRIAL_DAYS", 14):
-            result = await self.tools().get_plans("a")
-            self.assertEqual(result["data"]["trial_days"], 14)
-            self.assertEqual(result["data"]["plans"][1]["monthly_price"], 249.95)
-            self.assertEqual(result["data"]["cancellation"], subscription_core.CANCELLATION_RULES)
+    async def test_plans_prices_trial_payment_and_limits_use_core_sources(self):
+        amounts = {"MASTER_MODE": Decimal("249.95"), "SMART_TRADE": Decimal("59.5")}
+        with patch.dict(binance_manual_payments.PLAN_AMOUNTS, amounts), patch.object(subscription_core, "TRIAL_DAYS", 14):
+            data = (await self.tools().get_plans("a"))["data"]
+            plans = {row["id"]: row for row in data["plans"]}
+            self.assertEqual(list(plans), ["TRIAL", "SMART_TRADE", "MASTER_MODE"])
+            self.assertEqual((plans["TRIAL"]["price"], plans["TRIAL"]["period_days"]), ("0", 14))
+            self.assertEqual((plans["SMART_TRADE"]["price"], plans["MASTER_MODE"]["price"]), ("59.50", "249.95"))
+            self.assertEqual({row["currency"] for row in plans.values()}, {"USDT"})
+            self.assertFalse(plans["TRIAL"]["live_trading"])
+            self.assertTrue(plans["SMART_TRADE"]["live_trading"])
+            self.assertFalse(plans["SMART_TRADE"]["live_strategies_and_auto_trade"])
+            self.assertTrue(plans["MASTER_MODE"]["live_strategies_and_auto_trade"])
+            self.assertEqual(plans["MASTER_MODE"]["daily_limits"], {
+                "kais_ai_messages_per_day": self.config.daily_limit, "chart_ai_per_day": 15, "ai_analyst_per_day": 40})
+            self.assertEqual(plans["SMART_TRADE"]["daily_limits"], plans["MASTER_MODE"]["daily_limits"])
+            self.assertEqual(plans["TRIAL"]["daily_limits"]["chart_ai_per_day"], 7)
+            self.assertEqual(data["payment"]["method"], "Binance Pay")
+            self.assertFalse(data["renewal"]["automatic_renewal"])
+            text = json.dumps(data, ensure_ascii=False)
+            for internal in ("Stripe", "backend", "admin", "moderat", "yönetici"):
+                self.assertNotIn(internal, text)
             response = await self.chat("What is the subscription price and trial?")
-            self.assertIn("249.95", response.json()["reply"])
-            self.assertIn("14 days", response.json()["reply"])
+            for value in ("249.95 USDT", "59.50 USDT", "14 days", "Binance Pay"):
+                self.assertIn(value, response.json()["reply"])
+            reply = (await self.chat("Premium fiyat ve deneme nedir?")).json()["reply"]
+            for value in ("249.95 USDT", "59.50 USDT", "14 gün", "Binance Pay", "Demo", "iptal gerekmez"):
+                self.assertIn(value, reply)
         self.provider.assert_not_awaited()
 
     async def test_access_only_returns_current_members_plan_status_premium(self):
@@ -389,9 +408,11 @@ class AssistantToolsTests(AssistantToolsTestCase):
             self.assertEqual(len(result), 3)
             for row in result:
                 self.assertEqual(row["language"], language)
-                self.assertTrue(row["source"].startswith(f"backend/app/assistant_kb/{language}.json#"))
-            self.assertIn("120", result[0]["content"])
-            self.assertIn("12", result[0]["content"])
+                self.assertEqual(row["source"], f"help:{row['id']}")  # iç dosya yolu ve kod kaynağı modele gitmez
+                self.assertNotIn("code_sources", row)
+            analyst = next(row for row in result if row["id"] == "analyst")
+            self.assertIn("120", analyst["content"])
+            self.assertIn("12", analyst["content"])
         self.assertEqual((await self.tool("search_help", query="unmatchedxyz", language="en")).json()["data"]["results"], [])
         self.assertEqual((await self.tool("search_help", query="x" * (self.config.max_input_chars + 1))).status_code, 422)
 
@@ -483,7 +504,8 @@ class AssistantToolsTests(AssistantToolsTestCase):
                 self.assertEqual(result["language"], language)
                 self.assertEqual(result["sources"], [source])
                 if source == "get_plans":
-                    self.assertIn("119,90" if language == "tr" else "119.90", result["reply"])
+                    self.assertIn("119.90 USDT", result["reply"])
+                    self.assertIn("39.90 USDT", result["reply"])
                     self.assertIn("7", result["reply"])
                 elif source == "search_help":
                     for text in ("AYARLAR", "Bağlantılar", "API & Connection Center"):
