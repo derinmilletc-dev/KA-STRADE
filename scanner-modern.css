@@ -20,3 +20,9 @@ html body #root .scannerCenter :is(table th,table td,small,.scannerResultMetadat
 /* Tarama raporu 23 (Tarayıcı): küçük etiket, filtre ve rozet yazıları en az 12px. */
 html body #root:not(#a) main.v26App.workspaceRoute small,
 html body #root:not(#a) main.v26App.workspaceRoute .scannerCenter :is(small, .scannerEyebrow, .scannerResultMetadata span, .scannerFilters button, .scannerDirection, th, td, header span:not([class]), section > span:not([class])) { font-size: 12px !important; }
+
+/* Tarama raporu 23 (kalanlar): başlık üstü etiketler, aday etiketi, açıklama başlıkları, grafik göstergesi. */
+html body #root:not(#a) main.v26App.workspaceRoute .scannerCenter :is(.scannerSectionHeading span, .scannerSectionHeading b, .scannerCandidateLabel, .scannerSnapshot h4, .scannerExplanation h4, .v26ChartLegend span) { font-size: 12px !important; }
+
+/* Ana menü kart alt yazıları en az 12px. */
+html body #root:not(#a) .v26DashboardChoices button small { font-size: 12px !important; }
