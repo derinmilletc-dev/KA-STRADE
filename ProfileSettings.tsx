@@ -11,6 +11,7 @@ import SiteTourSetting from './SiteTourSetting'
 import LiveConnectionCard from './LiveConnectionCard'
 import {passwordPolicyError} from './password-policy'
 import PasswordChangeForm, {PasswordDialogHeader} from './PasswordChangeForm'
+import EmailChangeForm, {EmailDialogHeader} from './EmailChangeForm'
 import {MARKETING_CONSENT_TEXT} from './compliance-content'
 import LanguagePicker from './LanguagePicker'
 import {currentLang, setLang, type Lang} from './i18n'
@@ -229,18 +230,19 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
         </div>
       </>}
     </div>
-    {dialog && data && <SettingsDialog className={dialog === 'password' ? 'pwDialog' : undefined} header={dialog === 'password' ? <PasswordDialogHeader/> : undefined} title={dialog === 'two-factor' && (!data.security.two_factor_enabled || recoveryCodes.length > 0) ? 'Hesabını koru' : titles[dialog]} busy={busy || recoveryCodes.length > 0} onClose={closeDialog}>
+    {dialog && data && <SettingsDialog className={dialog === 'password' || dialog === 'email' ? 'pwDialog' : undefined} header={dialog === 'password' ? <PasswordDialogHeader/> : dialog === 'email' ? <EmailDialogHeader/> : undefined} title={dialog === 'two-factor' && (!data.security.two_factor_enabled || recoveryCodes.length > 0) ? 'Hesabını koru' : titles[dialog]} busy={busy || recoveryCodes.length > 0} onClose={closeDialog}>
       {notice && <p className={`accountNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.text}</p>}
       {dialog === 'sessions' ? <><p>Diğer oturumları kapatmak bu cihazdaki oturumunuzu korur.</p><button disabled={busy} onClick={() => void run(() => mutate('/account/sessions/revoke-others', {}, 'Diğer oturumlar kapatıldı.'))}>Diğer oturumları kapat</button><ul className="accountSessions">{data.sessions.map(session => <li key={session.id}><Monitor/><div><b>{session.device} · {session.browser}{session.current && ' · Bu cihaz'}</b><small>Son etkinlik: {accountDate(session.last_seen_at)}</small><small>Başlangıç: {accountDate(session.created_at)} · Bitiş: {accountDate(session.expires_at)}</small></div><button disabled={busy} onClick={() => void run(() => mutate('/account/sessions/revoke', {session_id: session.id}, 'Oturum kapatıldı.'))}>Oturumu kapat</button></li>)}</ul>{!data.sessions.length && <p>Kayıtlı aktif oturum yok.</p>}</>
         : dialog === 'activity' ? <>{data.activity.length ? activity(true) : <p>Kayıtlı hesap aktivitesi yok.</p>}</>
         : recoveryCodes.length ? <RecoveryCodes codes={recoveryCodes} onSaved={() => {closeDialog(); setNotice({kind: 'success', text: 'İki aşamalı doğrulama başarıyla etkinleştirildi.'})}}/>
         : dialog === 'two-factor' && !data.security.two_factor_enabled ? <TwoFactorSetup enrollment={enrollment} onBusyChange={setBusy} onEnabled={enabledEnrollment}
           setupForm={<form onSubmit={submit} className="accountForm">{proofFields()}<button className="verificationPrimary" disabled={busy}>{busy ? <LoaderCircle/> : <ShieldCheck/>}Kurulumu başlat</button></form>}/>
+        : dialog === 'email' ? <EmailChangeForm newEmail={newEmail} setNewEmail={setNewEmail} currentEmail={data.user.email} proof={proof} setProof={setProof}
+          hasPassword={Boolean(data.user.auth_methods.includes('password'))} twoFactor={data.security.two_factor_enabled} emailDelivery={data.security.email_delivery_available} busy={busy} onRequestEmailCode={requestReauthEmail} onSubmit={submit}/>
         : dialog === 'password' ? <PasswordChangeForm newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} proof={proof} setProof={setProof}
           hasPassword={Boolean(data.user.auth_methods.includes('password'))} twoFactor={data.security.two_factor_enabled} emailDelivery={data.security.email_delivery_available} busy={busy} onRequestEmailCode={requestReauthEmail} onSubmit={submit}/>
         : <form onSubmit={submit} className="accountForm">
           {dialog === 'profile' && <label>Ad soyad<input autoComplete="name" minLength={2} maxLength={80} required value={name} onChange={event => setName(event.target.value)}/></label>}
-          {dialog === 'email' && <label>Yeni e-posta<input type="email" autoComplete="email" required maxLength={180} value={newEmail} onChange={event => setNewEmail(event.target.value)}/></label>}
           {dialog === 'delete' && <><div className="accountWarning" role="note"><b>Bu işlem geri alınamaz.</b><ul><li>Profiliniz, oturumlarınız, bildirim ve kişisel ayarlarınız silinir.</li><li>Açık borsa pozisyonu veya emri varsa silme başlamaz; önce kapatın.</li><li>Finansal ve işlem kayıtları kimliksizleştirilerek saklanabilir.</li></ul></div><label>Onay için HESABIMI SIL yazın<input required pattern="HESABIMI SIL" autoComplete="off" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog === 'close' && <><p>Hesabınız kapatılacak; verileriniz yönetici panelinde kalacaktır.</p><label>Onay için HESABI KAPAT yazın<input required pattern="HESABI KAPAT" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog !== 'profile' && proofFields()}
