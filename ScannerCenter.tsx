@@ -32,10 +32,10 @@ const safeNumber = (value:unknown):number|null => typeof value === 'number' && N
 const textValue = (value:unknown, fallback='—') => typeof value === 'string' && value.trim() ? value : fallback
 const formatNumber = (value:unknown, digits=2) => {
   const number = safeNumber(value)
-  return number === null ? '—' : number.toLocaleString('en-US',{maximumFractionDigits:digits})
+  return number === null ? '—' : number.toLocaleString('tr-TR',{maximumFractionDigits:digits})
 }
-const formatPrice = (value:number|null) => value === null ? '—' : value >= 1 ? value.toLocaleString('en-US',{maximumFractionDigits:value >= 1000 ? 2 : 4}) : value.toLocaleString('en-US',{maximumSignificantDigits:4})
-const formatSmart = (value:unknown) => { const number = safeNumber(value); if (number === null) return '—'; return Math.abs(number) > 0 && Math.abs(number) < 1 ? number.toLocaleString('en-US',{maximumSignificantDigits:4}) : number.toLocaleString('en-US',{maximumFractionDigits:2}) }
+const formatPrice = (value:number|null) => value === null ? '—' : value >= 1 ? value.toLocaleString('tr-TR',{maximumFractionDigits:value >= 1000 ? 2 : 4}) : value.toLocaleString('tr-TR',{maximumSignificantDigits:4})
+const formatSmart = (value:unknown) => { const number = safeNumber(value); if (number === null) return '—'; return Math.abs(number) > 0 && Math.abs(number) < 1 ? number.toLocaleString('tr-TR',{maximumSignificantDigits:4}) : number.toLocaleString('tr-TR',{maximumFractionDigits:2}) }
 const formatTime = (value?:string|null) => value ? new Date(value).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : '—'
 const candidateDirection = (candidate:Candidate) => ['LONG','SHORT'].includes(String(candidate.direction || '').toUpperCase()) ? String(candidate.direction).toUpperCase() : 'NEUTRAL'
 const candidateScore = (candidate:Candidate) => safeNumber(candidate.score) ?? safeNumber(candidate.confidence_value) ?? 0

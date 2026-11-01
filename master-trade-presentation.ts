@@ -16,8 +16,7 @@ export function analysisValue(value: number | null | undefined): string {
 }
 
 export function analysisPrice(value: number | null | undefined): string {
-  const formatted = analysisValue(value)
-  return formatted === '—' ? formatted : `$${formatted}`
+  return analysisValue(value)
 }
 
 export function autoTradePresentation(channel: 'LIVE' | 'DEMO', enabled: boolean | undefined) {

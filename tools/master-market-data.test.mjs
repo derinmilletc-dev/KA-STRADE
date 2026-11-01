@@ -56,7 +56,7 @@ test('Multiplier logo normalization preserves real numbered assets', () => {
 
 test('Market quote formatting keeps meaningful low-price digits without fabricated numbers', () => {
   assert.equal(marketPrice(null), '—')
-  assert.equal(marketPrice(85360.8), '$85,360.80')
-  assert.equal(marketPrice(.01913), '$0.01913')
-  assert.equal(marketPrice(.000001234), '$0.000001234')
+  assert.equal(marketPrice(85360.8), '85,360.80')
+  assert.equal(marketPrice(.01913), '0.01913')
+  assert.equal(marketPrice(.000001234), '0.000001234')
 })

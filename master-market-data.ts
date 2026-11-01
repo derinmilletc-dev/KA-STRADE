@@ -52,5 +52,5 @@ export function filterMarketQuotes(rows: readonly MarketQuote[], scores: Readonl
 export function marketPrice(value: number | null): string {
   if (value === null) return '—'
   const decimals = value === 0 ? 2 : Math.min(20, Math.max(2, 3 - Math.floor(Math.log10(Math.abs(value)))))
-  return `$${value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: decimals})}`
+  return `${value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: decimals})}`
 }

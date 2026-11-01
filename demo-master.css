@@ -75,3 +75,12 @@ html body #root .binanceDemoDeck .demoMessage-info { color: #b4c4bd !important; 
 
 /* Tarama raporu 24: Analiz dışındaki demo sekmelerinde yalnız üst çubuk gösterilir; bölüm içeriğe göre yüksekliğini alsın. */
 .masterReferenceAnalysis.demoTopBarOnly { min-height: 0 !important; height: auto !important; }
+
+/* Telefon (Demo İşlem sekmeleri): alt menüde zaten "Ana sayfa" var; ayrı geri düğmesi, başlık ve uzun durum şeridi kaldırıldı, yalnız bağlantı durumu kalır. */
+@media (max-width: 700px) {
+  html body #root:not(#a) main.v26App.demoMasterRoute > .homeBackButton,
+  html body #root:not(#a) main.v26App.demoMasterRoute .demoMasterPage .masterTradeTerminalIdentity,
+  html body #root:not(#a) main.v26App.demoMasterRoute .demoMasterPage .terminalStatusStrip[data-mode="demo"] > .terminalStatusItem:nth-child(n+2) { display: none !important; }
+  html body #root:not(#a) main.v26App.demoMasterRoute .demoMasterPage .masterTradeTerminalHeader { min-height: 0 !important; padding: 0 !important; margin: 0 !important; border: 0 !important; }
+  html body #root:not(#a) main.v26App.demoMasterRoute .demoMasterPage .terminalStatusStrip[data-mode="demo"] { display: flex !important; grid-template-columns: none !important; padding: 8px 14px !important; min-height: 0 !important; gap: 10px; }
+}
