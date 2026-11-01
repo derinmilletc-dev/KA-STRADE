@@ -1290,3 +1290,8 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
   html body #root .binanceDemoDeck .lcGrid .lcStrategy { align-content: start !important; }
   html body #root .binanceDemoDeck .lcGrid .lcStrategy .lcStrategyNow { align-self: start !important; }
 }
+
+/* Tarama raporu 22 (kesin): Strateji kartı yan sütuna uzayıp boş kalmasın; içeriği kadar yüksek olsun. */
+@media (min-width: 1101px) {
+  html body #root:not(#a) .binanceDemoDeck .lcGrid .lcStrategy { grid-row: auto !important; align-self: start !important; }
+}
