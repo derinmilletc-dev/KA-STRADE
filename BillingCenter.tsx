@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet, Zap} from 'lucide-react'
+import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
@@ -43,7 +43,9 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const [trialAttempt, setTrialAttempt] = useState(0)
   const [now, setNow] = useState(Date.now)
   const inFlight = useRef(false)
-  const paymentRef = useRef<HTMLElement>(null)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const lastFocus = useRef<HTMLElement | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>('MASTER_MODE')
   const plansRef = useRef<HTMLElement>(null)
   const [activePlan, setActivePlan] = useState(2)
@@ -134,7 +136,17 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     : binancePaid && hasAccess ? 'Erişimin aktif' : 'Ödemeye geç'
   const smartLabel = methodsLoading ? 'Yükleniyor…' : methodsError ? 'Ödeme bilgisi alınamadı' : !binanceEnabled ? 'Ödeme yakında açılacak'
     : binancePaid && hasAccess && smartTrade ? 'Erişimin aktif' : 'Ödemeye geç'
-  const goToPayment = (plan: PaidPlan) => { setSelectedPlan(plan); window.setTimeout(() => paymentRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'}), 0) }
+  const goToPayment = (plan: PaidPlan) => { lastFocus.current = document.activeElement as HTMLElement | null; setSelectedPlan(plan); setCheckoutOpen(true) }
+  const closeCheckout = () => { setCheckoutOpen(false); window.setTimeout(() => lastFocus.current?.focus?.(), 0) }
+  useEffect(() => {
+    if (!checkoutOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeCheckout() }
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey) }
+  }, [checkoutOpen])
 
   return <main className="subscriptionPage ktBill">
     <header className="ktBillHero">
@@ -221,19 +233,29 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     </section>
     <div className="ktBillDots" aria-hidden="true" data-plan={PLAN_TABS[activePlan].key}>{PLAN_TABS.map((tab, index) => <i key={tab.key} className={activePlan === index ? 'isActive' : undefined}/>)}</div>
 
-    {binanceEnabled && authenticated && <section className="ktBillPay" ref={paymentRef} aria-label="Binance ile ödeme">
-      <div className="ktBillSteps">
-        <span className="ktBillEyebrow">NASIL ÖDENİR?</span>
-        <h2>3 adımda {PAID_PLAN_NAME[selectedPlan]}</h2>
-        <ol>
+    {checkoutOpen && binanceEnabled && authenticated && <div className="ktCheckout" role="dialog" aria-modal="true" aria-labelledby="ktCheckoutTitle">
+      <div className="ktCheckoutBackdrop" onClick={closeCheckout}/>
+      <div className="ktCheckoutPanel">
+        <button type="button" className="ktCheckoutClose" ref={closeRef} onClick={closeCheckout} aria-label="Ödeme ekranını kapat"><X/></button>
+        <header className="ktCheckoutHead">
+          <span className="ktBillEyebrow">GÜVENLİ ÖDEME</span>
+          <h2 id="ktCheckoutTitle">{PAID_PLAN_NAME[selectedPlan]}</h2>
+          <div className="ktCheckoutPrice"><strong>{PAID_PLAN_AMOUNT[selectedPlan]}</strong><span>USDT</span><em>/ 30 gün</em></div>
+          <dl className="ktCheckoutMeta">
+            <div><dt>Plan</dt><dd>{PAID_PLAN_NAME[selectedPlan]}</dd></div>
+            <div><dt>Süre</dt><dd>30 gün</dd></div>
+            <div><dt>Yöntem</dt><dd>Binance Pay</dd></div>
+          </dl>
+        </header>
+        <ol className="ktCheckoutSteps">
           <li><b>1</b><div><strong>Ödeme talebi oluştur</strong><span>“Binance ile öde”ye bas; sana özel referans kodu çıkar.</span></div></li>
           <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>{PAID_PLAN_AMOUNT[selectedPlan]} USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
           <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
         </ol>
-        <p className="ktBillStepsTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
+        <div className="ktBillPayBox"><BinanceManualPayment plan={selectedPlan}/></div>
+        <p className="ktCheckoutTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
       </div>
-      <div className="ktBillPayBox"><BinanceManualPayment plan={selectedPlan}/></div>
-    </section>}
+    </div>}
     {methodsError && <p className="ktBillAlert" role="alert">{methodsError} <button type="button" onClick={onRetry}><RefreshCw/>Yeniden dene</button></p>}
 
     <footer className="ktBillTrust">
