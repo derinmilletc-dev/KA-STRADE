@@ -563,7 +563,8 @@ test('Missing 4h history is an explicit partial MTF warning, not fabricated conf
 for (const width of [1024, 390]) test(`Responsive reference layout at ${width}px keeps controls and all data reachable`, async ({page}) => {
   await prepare(page, {width})
   await expect(root(page)).toBeVisible()
-  await expect(root(page).locator('.refMarketSearch')).toBeVisible()
+  // Telefonda piyasa listesi tek satırlık coin şeridine dönüşür; masaüstü/tablette tam liste kalır.
+  await expect(root(page).locator(width === 390 ? '.mkBar' : '.refMarketSearch')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   if (width === 390) {
     await expect(root(page).locator('.refIndicatorGrid')).toHaveCSS('overflow-x', 'auto')
@@ -893,7 +894,7 @@ test('Changing coins hides the old report immediately and ignores its late respo
   await expect(root(page).locator('.refTargets strong').first()).toHaveText(analysisPrice(previewAnalysis('1000SHIBUSDT').tp1))
 })
 
-for (const width of [1024, 390]) test(`650-symbol universe uses a bounded horizontal strip at ${width}px`, async ({page}) => {
+for (const width of [1024]) test(`650-symbol universe uses a bounded horizontal strip at ${width}px`, async ({page}) => {
   await prepare(page, {width, universe: true})
   const watch = root(page).locator('.refMarketUniverse'), viewport = watch.locator('.refMarketViewport')
   await expect(viewport).toHaveCSS('overflow-x', 'auto')
@@ -904,4 +905,21 @@ for (const width of [1024, 390]) test(`650-symbol universe uses a bounded horizo
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   const positions = await watch.evaluate(element => ({search: element.querySelector('.refMarketSearch')!.getBoundingClientRect().bottom, strip: element.querySelector('.refVirtualWatchlist')!.getBoundingClientRect().top}))
   expect(positions.search).toBeLessThanOrEqual(positions.strip)
+})
+
+test('Phone coin picker opens from the compact bar, searches by name and switches the analysed symbol', async ({page}) => {
+  await prepare(page, {width: 390})
+  const bar = root(page).locator('.mkBar')
+  await expect(bar).toBeVisible()
+  await expect(root(page).locator('.refMarketSearch')).toHaveCount(0)
+  await bar.click()
+  const sheet = page.getByRole('dialog', {name: 'Piyasalar'})
+  await expect(sheet).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await sheet.getByRole('searchbox', {name: 'Coin ara'}).fill('eth')
+  await expect(sheet.locator('.mkRow').first()).toHaveAttribute('data-symbol', 'ETHUSDT')
+  await sheet.locator('[data-symbol="ETHUSDT"] .mkPick').click()
+  await expect(sheet).toHaveCount(0)
+  await expect(bar).toContainText('ETH')
+  await expect(root(page).locator('.refReportSymbol')).toContainText('ETHUSDT')
 })

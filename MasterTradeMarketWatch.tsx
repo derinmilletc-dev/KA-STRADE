@@ -5,6 +5,7 @@ import {CoinIcon} from './src/components/CoinIcon'
 import {filterMarketQuotes, marketPrice, marketWindow, type MarketFilter, type MarketScore, type MarketSort} from './master-market-data'
 import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import './master-market-watch.css'
+import {MarketPickerMobile} from './MarketPickerMobile'
 
 const filters: MarketFilter[] = ['Tümü', 'Favoriler', 'Skorlu', 'Yükselenler', 'Düşenler']
 const sorts: MarketSort[] = ['Skor', '24s %', 'Hacim', 'A-Z']
@@ -12,12 +13,26 @@ const favoriteIcon = <Star aria-hidden="true"/>
 
 type Props = {symbol: string; query: string; onQuery: (value: string) => void; onMarket: (symbol: string) => void; scores: readonly MarketScore[]; feed: MasterMarketFeed}
 
-export function MasterTradeMarketWatch(props: Props) {
-  const {userId} = useMemberAccess()
-  return <MarketWatch key={userId ?? 'anonymous'} userId={userId} {...props}/>
+const MOBILE_QUERY = '(max-width: 700px)'
+function useMobile() {
+  const [mobile, setMobile] = useState(() => typeof matchMedia === 'function' && matchMedia(MOBILE_QUERY).matches)
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return
+    const media = matchMedia(MOBILE_QUERY)
+    const update = () => setMobile(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  return mobile
 }
 
-function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: Props & {userId: string | null}) {
+export function MasterTradeMarketWatch(props: Props) {
+  const {userId} = useMemberAccess()
+  const mobile = useMobile()
+  return <MarketWatch key={`${userId ?? 'anonymous'}:${mobile ? 'm' : 'd'}`} userId={userId} mobile={mobile} {...props}/>
+}
+
+function MarketWatch({userId, mobile, symbol, query, onQuery, onMarket, scores, feed}: Props & {userId: string | null; mobile: boolean}) {
   const {rows, error, stale} = feed
   const [filter, setFilter] = useState<MarketFilter>('Tümü')
   const [sort, setSort] = useState<MarketSort>('Skor')
@@ -95,6 +110,10 @@ function MarketWatch({userId, symbol, query, onQuery, onMarket, scores, feed}: P
       setPreferenceError(error instanceof Error ? error.message : 'Favoriler kaydedilemedi.')
     }
   }
+  // Telefonda: tek satırlık coin şeridi + alttan açılan akıllı liste (aynı veri, favoriler ve seçim akışı).
+  if (mobile) return <aside className="refMarkets refMarketUniverse mkMobile" aria-label="Piyasa listesi">
+    <MarketPickerMobile symbol={symbol} rows={rows} scoreMap={scoreMap} favorites={favorites} canFavorite={Boolean(key)} onToggleFavorite={toggleFavorite} userId={userId} error={error || preferenceError || undefined} stale={stale} onMarket={onMarket}/>
+  </aside>
   return <aside className="refMarkets refMarketUniverse" aria-label="Piyasa listesi">
     <section className="refCard refMarketSearch">
       <h2>PİYASA LİSTESİ <span>{filter} · {filtered.length}</span></h2>
