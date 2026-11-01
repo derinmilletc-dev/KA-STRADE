@@ -22,7 +22,7 @@ import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters} from './gridMath'
 import {buildGridAlerts, type FiltersState} from './gridAlerts'
 import {openPositionsRiskToStop} from './gridPortfolio'
-import {PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
+import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
 import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
@@ -227,7 +227,7 @@ function errorMessage(payload: unknown, fallback: string): string {
 export default function LiveTradingPanel({active, symbol, analysis, masterTrade, masterTradeTab, sharedStatus, sharedStatusVerified = true, sharedStatusError = '', sharedStatusLoading, sharedConnections, onRefreshStatus}: Props) {
   const [originalNotice, setOriginalNotice] = useState('')
   const [connectionNotice, setConnectionNotice] = useState<{kind: 'info' | 'ok' | 'error'; text: string} | null>(null)
-  const {freeTrial, userId, automationAllowed} = useMemberAccess()
+  const {freeTrial, userId, automationAllowed, openUpgrade} = useMemberAccess()
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
   const [sizingNotice, setSizingNotice] = useState('')
@@ -915,7 +915,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const autoToggle = () => {
     if (status?.live_auto_trade || status?.auto?.enabled) return stopAutoTrade()
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
-    if (automationAllowed === false) {setNotice({kind:'error',text:'Otomatik stratejiler MASTER MODE ile açılır. Smart Trade yalnız elle işlem içindir.'});return}
+    if (automationAllowed === false) {openUpgrade('Canlı Auto Trade', 'master');return}
     if (!autoTimeframeSupported) {
       setNotice({kind: 'error', text: autoTimeframeMessage})
       return
@@ -2070,7 +2070,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                 : !liveArmed
                   ? {tone: 'go', title: 'Canlı emir iznini aç (ARM)', text: 'Son güvenlik onayı. Bu, otomatik işlemin emir açabilmesi için gerekli.', label: 'Canlı emir iznini aç', run: armLive, off: Boolean(busy)}
                   : !running
-                    ? {tone: 'go', title: 'Otomatik işlemi başlat', text: autoReady ? 'Her şey hazır. Başlattığında strateji seçili coinleri tarar ve kurallara uyan fırsatta emir açar.' : (blocker || 'Başlatma şartları henüz tamamlanmadı.'), label: 'Otomatik işlemi başlat', run: autoToggle, off: Boolean(busy) || !autoReady}
+                    ? {tone: 'go', title: 'Otomatik işlemi başlat', text: autoReady ? 'Her şey hazır. Başlattığında strateji seçili coinleri tarar ve kurallara uyan fırsatta emir açar.' : (blocker || 'Başlatma şartları henüz tamamlanmadı.'), label: 'Otomatik işlemi başlat', run: autoToggle, off: Boolean(busy) || (!autoReady && automationAllowed !== false)}
                     : {tone: 'ok', title: 'Otomatik işlem çalışıyor', text: 'Seçili coinler izleniyor. İstediğin an durdurabilirsin.', label: 'Durdur', run: stopAutoTrade, off: Boolean(busy)}
     const stateText = status === null ? 'Bilinmiyor' : emergency || recoveryRequired ? 'Durduruldu' : running ? (executionLocked ? 'Sadece tarıyor' : 'Çalışıyor') : liveArmed ? 'Hazır (ARM açık)' : readinessReady ? 'Hazır' : 'Kilitli'
     const gateTr = (value: string) => value === 'READY' || value === 'CLEAR' ? 'Tamam' : value === 'UNKNOWN' ? 'Bilinmiyor' : 'Engelli'
@@ -2210,9 +2210,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               <div className="liveWsLaunch">
                 <div className="liveWsLaunchRow"><span><small>CANLI EMİR İZNİ (ARM)</small><b>{liveArmed ? 'Açık' : 'Kapalı'}</b></span><button type="button" className="liveWsGhost" onClick={liveArmed ? disarmLive : armLive} disabled={Boolean(busy) || (!liveArmed && (!authorizationValid || !configured || !connected || emergency || recoveryRequired || !readinessReady))}>{liveArmed ? 'ARM\'ı kapat' : 'ARM\'ı aç'}</button></div>
                 <div className="masterTradeLiveAssistantActions" aria-label="Auto Trade controls">
-                  <button type="button" className={`liveWsPrimary big ${running ? 'danger' : ''}`} onClick={running ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!running && !autoReady)}>{!running && !autoReady ? <LockKeyhole/> : <Power/>} {running ? 'OTOMATİK İŞLEMİ DURDUR' : 'OTOMATİK İŞLEMİ BAŞLAT'}</button>
+                  <button type="button" className={`liveWsPrimary big ${running ? 'danger' : ''}`} onClick={running ? stopAutoTrade : autoToggle} disabled={Boolean(busy) || (!running && !autoReady && automationAllowed !== false)}>{!running && !autoReady ? <LockKeyhole/> : <Power/>} {running ? 'OTOMATİK İŞLEMİ DURDUR' : 'OTOMATİK İŞLEMİ BAŞLAT'}</button>
                 </div>
-                {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {automationAllowed === false ? 'Otomatik stratejiler MASTER MODE ile açılır (Smart Trade yalnız elle işlem).' : blocker || 'önceki adımları tamamla'}</p>}
+                {!running && !autoReady && <p className="liveWsHint">Başlatılamıyor: {automationAllowed === false ? 'Canlı otomatik stratejiler MASTER MODE ile açılır (Smart Trade\'de canlı işlem elle yapılır).' : blocker || 'önceki adımları tamamla'}</p>}
                 <div className="liveWsMeta"><span><small>Tarayıcı</small><b>{scannerStatus}</b></span><span><small>Taranan</small><b>{status?.scanner?.scanned_symbol_count ?? 0}</b></span><span><small>Aday</small><b>{candidateCount}</b></span><span><small>Son tarama</small><b>{date(status?.scanner?.last_scan_at || status?.auto?.last_scan)}</b></span></div>
                 {running && <p className="liveWsHint">{automationReason}</p>}
               </div>

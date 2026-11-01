@@ -15,7 +15,7 @@ from .subscription_core import entitlement_snapshot, parse_datetime
 
 # Ücretli planlar (gerçek emir hakkı verenler). Binance elle ödemede plan, ödenen tutardan çıkar.
 PAID_PLANS = frozenset({"MASTER_MODE", "SMART_TRADE"})
-SMART_TRADE_FEATURES = ["Manuel işlem", "Analiz Stüdyosu", "Yapay Zeka", "Gelişmiş analizler", "30 günlük erişim", "Elle yenileme"]
+SMART_TRADE_FEATURES = ["Manuel işlem (Demo ve Canlı)", "KAIS Rehber", "KAIS AI asistanı", "Analiz Stüdyosu", "AI Analist ve Scanner", "Stop, hedef ve pozisyon koruması", "Grid işlemleri", "Demo hesapta tüm stratejiler", "7/24 destek", "30 günlük erişim", "Elle yenileme"]
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
     free_trial = subscription.get("mode") == "FREE_TRIAL"
     paid = owner or bool(subscription.get("master_trade_access") and subscription.get("plan") in PAID_PLANS
                          and subscription.get("status") in {"ACTIVE", "PAST_DUE"})
-    # Smart Trade yalnız elle işlem planıdır: Kais'in otomatik stratejileri ve otomatik işlem kapalı.
+    # Smart Trade: canlıda yalnız elle işlem; Kais'in CANLI otomatik stratejileri kapalı (demo stratejiler serbest).
     smart_trade = subscription.get("plan") == "SMART_TRADE" and not owner
     result = {
         "isAdmin": owner, "canAccessMasterTrade": True, "isPremium": premium,

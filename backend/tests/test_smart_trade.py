@@ -94,10 +94,12 @@ def test_unknown_amount_in_an_approved_record_is_an_error_not_access():
 
 
 def test_automation_start_paths_are_locked_but_stop_and_manual_paths_are_not():
-    for path in ("/api/v25/auto/start", "/api/v25/original-v2/start", "/api/v25/original-v2/extend-session",
-                 "/api/paper/bot/start", "/api/v7/orchestrator/start"):
+    for path in ("/api/v25/auto/start", "/api/v25/original-v2/start", "/api/v25/original-v2/extend-session"):
         assert path in SMART_TRADE_AUTOMATION_PATHS and automation_locked(path, "POST")
         assert not automation_locked(path, "GET")
+    # Demo/paper stratejiler Smart Trade için serbest
+    for path in ("/api/paper/bot/start", "/api/v7/orchestrator/start", "/api/v9/twin/start", "/api/v10/evolution/start", "/api/v11/risk/start"):
+        assert not automation_locked(path, "POST")
     for path in ("/api/v25/auto/stop", "/api/v25/original-v2/stop", "/api/v25/disarm", "/api/v25/emergency",
                  "/api/v25/order", "/api/v25/arm", "/api/v25/grid/live/start", "/api/v25/position/close"):
         assert not automation_locked(path, "POST")

@@ -8,7 +8,7 @@ import {setStaffView} from './error-visibility'
 import {PAID_PLAN_AMOUNT} from './smart-trade-plans'
 import './premium-access.css'
 
-type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; automationAllowed?:boolean; openUpgrade: (label: string) => void}
+type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; automationAllowed?:boolean; openUpgrade: (label: string, kind?: 'master') => void}
 const missingProvider = () => { throw new Error('MemberAccessProvider is required for premium interactions.') }
 const AccessContext = createContext<MemberAccess>({premium: false, ready: false, userId: null, owner: false, error: '', assistantAllowed:false, freeTrial:false, liveAllowed:false, openUpgrade: missingProvider})
 export const useMemberAccess = () => useContext(AccessContext)
@@ -17,6 +17,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
   const [access, setAccess] = useState<Omit<MemberAccess, 'openUpgrade'>>({premium: false, ready: false, userId: null, owner: false, error: '', assistantAllowed:false,freeTrial:false,liveAllowed:false})
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [lockedLabel, setLockedLabel] = useState('')
+  const [upgradeKind, setUpgradeKind] = useState<'both' | 'master'>('both')
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number | null>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -76,8 +77,10 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
     }
   }, [upgradeOpen])
   useEffect(() => () => { if (toastTimer.current !== null) window.clearTimeout(toastTimer.current) }, [])
-  const openUpgrade = (label: string) => {
+  const openUpgrade = (label: string, kind?: 'master') => {
     if (!access.ready || !access.userId) return
+    if (kind === 'master') { setUpgradeKind('master'); setLockedLabel(label); setUpgradeOpen(true); return }
+    setUpgradeKind('both')
     const seenKey = `protrebot-premium-card-seen:${access.userId}`
     if (!access.freeTrial && sessionStorage.getItem(seenKey)) {
       setToast(`${label} için Premium üyelik gerekli.`)
@@ -92,7 +95,22 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
   return <AccessContext.Provider value={{...access, openUpgrade}}>
     {access.error && <p className="memberAccessError" role="alert">{access.error}</p>}{children}
     {createPortal(<>
-      {upgradeOpen && <dialog ref={dialog} className="premiumDialog" aria-labelledby="premium-title" aria-describedby="premium-description" onCancel={event => { event.preventDefault(); setUpgradeOpen(false) }} onClick={event => { if (event.target === event.currentTarget) setUpgradeOpen(false) }}>
+      {upgradeOpen && upgradeKind === 'master' && <dialog ref={dialog} className="premiumDialog isMasterOnly" aria-labelledby="premium-title" aria-describedby="premium-description" onCancel={event => { event.preventDefault(); setUpgradeOpen(false) }} onClick={event => { if (!(event.target as HTMLElement).closest('a')) setUpgradeOpen(false) }}>
+        <div className="premiumCard">
+          <button className="premiumClose" type="button" aria-label="Kapat" onClick={() => setUpgradeOpen(false)}><X aria-hidden="true"/></button>
+          <span className="premiumBadge" aria-hidden="true"><Crown/></span>
+          <small className="premiumEyebrow">MASTER MODE</small>
+          <h2 id="premium-title">{lockedLabel} Master Mode ile açılır</h2>
+          <p id="premium-description">Smart Trade'de canlı işlem elle yapılır. Canlı stratejiler ve Auto Trade için Master Mode'a geçebilirsin.</p>
+          <article className="premiumPlan isMaster">
+            <header><span>MASTER MODE</span><strong>{PAID_PLAN_AMOUNT.MASTER_MODE}<small> USDT / 30 gün</small></strong></header>
+            <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>KAIS stratejileri canlıda</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
+          </article>
+          <div className="premiumCardActions isSingle"><a className="premiumPrimary" href="/billing">Master Mode'a geç</a></div>
+          <p className="premiumFoot">Herhangi bir yere dokunarak kapatabilirsin.</p>
+        </div>
+      </dialog>}
+      {upgradeOpen && upgradeKind === 'both' && <dialog ref={dialog} className="premiumDialog" aria-labelledby="premium-title" aria-describedby="premium-description" onCancel={event => { event.preventDefault(); setUpgradeOpen(false) }} onClick={event => { if (event.target === event.currentTarget) setUpgradeOpen(false) }}>
         <div className="premiumCard">
           <button className="premiumClose" type="button" aria-label="Kapat" onClick={() => setUpgradeOpen(false)}><X aria-hidden="true"/></button>
           <span className="premiumBadge" aria-hidden="true"><LockKeyhole/></span>
@@ -107,7 +125,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
             <article className="premiumPlan isMaster">
               <i className="premiumPlanTag"><Crown aria-hidden="true"/>ÖNERİLEN</i>
               <header><span>MASTER MODE</span><strong>{PAID_PLAN_AMOUNT.MASTER_MODE}<small> USDT / 30 gün</small></strong></header>
-              <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>Daha akıllı KAIS AI</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
+              <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>KAIS stratejileri canlıda</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
             </article>
           </div>
           <div className="premiumCardActions"><a className="premiumPrimary" href="/billing">Planları gör</a><button className="premiumSecondary" type="button" onClick={() => setUpgradeOpen(false)}>Şimdi değil</button></div>
@@ -182,6 +200,26 @@ export function TrialLiveGate({children}: {children: ReactNode}) {
     if (!hit) return
     event.preventDefault(); event.stopPropagation()
     openUpgrade('Canlı işlem')
+  }
+  return <div className="trialLiveGate" onClickCapture={onClickCapture}>{children}</div>
+}
+
+/** Smart Trade üyesi Master Mode'a özel alana basınca tek kartlı Master Mode penceresi açılır. */
+export function MasterOnlyGate({children, label}: {children: ReactNode; label: string}) {
+  const {premium, owner, ready, automationAllowed, freeTrial, openUpgrade} = useMemberAccess()
+  if (!ready || !premium || owner || freeTrial || automationAllowed !== false) return <>{children}</>
+  const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('[aria-expanded]')) return
+    const x = event.clientX, y = event.clientY
+    const hit = target.closest(GATE_ACTION) ?? Array.from(event.currentTarget.querySelectorAll<HTMLElement>(GATE_ACTION)).find(element => {
+      if (element.hasAttribute('aria-expanded')) return false
+      const box = element.getBoundingClientRect()
+      return box.width > 0 && box.height > 0 && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+    })
+    if (!hit) return
+    event.preventDefault(); event.stopPropagation()
+    openUpgrade(label, 'master')
   }
   return <div className="trialLiveGate" onClickCapture={onClickCapture}>{children}</div>
 }
