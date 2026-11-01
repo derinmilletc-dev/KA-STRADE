@@ -56,8 +56,6 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
     # Smart Trade: canlıda yalnız elle işlem; Kais'in CANLI otomatik stratejileri kapalı (demo stratejiler serbest).
     smart_trade = subscription.get("plan") == "SMART_TRADE" and not owner
     result = {
-        # KAIS AI yalnız aktif deneme veya ücretli plan (Smart Trade, Master Mode) ile açılır; plansız üye kullanamaz.
-        "assistantAllowed": premium,
         "isAdmin": owner, "canAccessMasterTrade": True, "isPremium": premium,
         "canExecuteMasterTrade": premium,
         "entitlements": {**subscription.get("entitlements", {}), "canExecuteMasterTrade": premium,
@@ -66,6 +64,10 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
                          "canUseAutomation": not smart_trade},
     }
     from .free_trial import enabled as trial_enabled
+    if enabled() or free_trial or trial_enabled():
+        # Ücretli üyelik (Binance) veya deneme açıkken KAIS AI yalnız aktif deneme ya da ücretli planla
+        # (Smart Trade, Master Mode) kullanılır; planı olmayan üye kullanamaz.
+        result["assistantAllowed"] = premium
     if free_trial or trial_enabled():
         # Aktif deneme üyeleri de asistanı (sesli dahil) kullanır; günlük hakları assistant_api içinde kısıtlanır.
         result.update(canExecuteLive=paid, assistantAllowed=premium, freeTrial=free_trial)
