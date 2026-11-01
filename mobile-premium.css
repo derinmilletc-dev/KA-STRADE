@@ -8110,3 +8110,13 @@ body:has(#root .liveTradingPanel.liveUx),
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart > .refGridCard small { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere !important; }
   html body #root > main.v26App.workspaceRoute.workspaceRoute .subscriptionPage.subscriptionPage :is(h1,h2,h3,p,small,b,span,button) { overflow-wrap: anywhere; }
 }
+
+/* Alt menü: aşağı kaydırırken tamamen gizlensin (güvenli alan payı dahil), yarım kalmasın. */
+@media (max-width: 1024px) {
+  html body #root > main.v26App > .v26Header.v26HeaderHidden ~ .v26MobileBottomNav.v26MobileBottomNav {
+    transform: translateY(calc(100% + max(8px, env(safe-area-inset-bottom, 0px)) + 28px)) !important;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 250ms ease-out, opacity 180ms ease-out;
+  }
+}
