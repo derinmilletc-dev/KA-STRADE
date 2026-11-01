@@ -361,7 +361,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         await self.complete(access=trial)
         await self.complete(access=self.access)
         self.assertEqual((await self.store.usage("user", trial)).remaining, 6)
-        self.assertEqual((await self.store.usage("user", self.access)).remaining, 34)
+        self.assertEqual((await self.store.usage("user", self.access)).remaining, 14)
 
     async def test_concurrent_replays_get_only_one_private_lease(self):
         key = uuid4()
@@ -373,7 +373,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.store.usage("user", self.access)).reserved, 1)
 
     async def test_parallel_different_keys_cannot_oversubscribe_last_credit(self):
-        for _ in range(34):
+        for _ in range(14):
             await self.complete()
         responses = await asyncio.gather(*(self.reserve() for _ in range(10)), return_exceptions=True)
         self.assertEqual(sum(not isinstance(r, Exception) for r in responses), 1)
@@ -508,7 +508,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(expired.quota_consumed)
         self.assertFalse((await self.reserve(key=key)).created)
         self.assertEqual(self.stored(key)["result_text"], None)
-        self.assertEqual((await self.store.usage("user", self.access)).used, 1)
+        self.assertEqual(sum(p["used"] for p in self.pool.state.periods.values()), 1)  # hak 24 saat sonra da geri verilmez
 
     async def test_result_cleanup_is_bounded_and_idempotent(self):
         for _ in range(3):
@@ -518,7 +518,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.store.purge_results(limit=2), 1)
         self.assertEqual(await self.store.purge_results(limit=2), 0)
         self.assertTrue(all(r["result_text"] is None for r in self.pool.state.requests.values()))
-        self.assertEqual((await self.store.usage("user", self.access)).used, 3)
+        self.assertEqual(sum(p["used"] for p in self.pool.state.periods.values()), 3)
 
     async def test_wrong_lease_and_second_start_do_not_change_financial_state(self):
         reservation = await self.reserve()
