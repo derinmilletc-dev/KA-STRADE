@@ -1419,3 +1419,6 @@
 #root .coinAnalysisCenter :is(small,.analystCommandItems small){color:#a7bba9}
 /* Tarama raporu 23 (düzeltme): Analist'teki 8-10px yazılar. */
 html body #root .coinAnalysisCenter :is(small,th,th button,.coinTableMeta small) { font-size: 12px !important; }
+
+/* Tarama raporu 23 (son düzeltme): Analist'te 8-11px kalan açıklamalar; eski :has kurallarını geçecek özgüllük. */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter :is(small,th,th button) { font-size: 12px !important; }
