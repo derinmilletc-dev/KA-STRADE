@@ -188,7 +188,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   // Telefonda sağdaki fiyat sütunu daha dar; grafik alanı genişler.
   const narrow = size.width < 560
   const plotWidth = Math.max(30, size.width - (narrow ? 120 : 176))
-  const axisPrice = (value: number) => narrow ? analysisPrice(value).replace('$', '') : analysisPrice(value)
+  const axisPrice = (value: number) => analysisPrice(value)
   const plotHeight = Math.max(1, size.height - 26)
   const priceHeight = plotHeight * .79
   // Yakınlaştırma: zoom = görünen mum sayısı (null = varsayılan), offset = sağdan kaç mum geride durulduğu (0 = en son mum).

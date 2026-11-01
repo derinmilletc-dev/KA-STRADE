@@ -816,7 +816,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
     ['Volatility', tradeDecision.breakdown.volatility], ['MTF', tradeDecision.breakdown.mtf],
     ['Freshness', tradeDecision.breakdown.freshness], ['Risk/Reward', tradeDecision.breakdown.riskReward],
   ] : []
-  const triggerPriceText = (value: number | null | undefined) => masterLayoutV2 ? analysisPrice(value) : value === null || value === undefined ? '--' : `$${fmtDecisionNumber(value, 6)}`
+  const triggerPriceText = (value: number | null | undefined) => masterLayoutV2 ? analysisPrice(value) : value === null || value === undefined ? '--' : `${fmtDecisionNumber(value, 6)}`
 
   useLayoutEffect(() => {
     if (!masterLayoutV2 || layoutTab !== 'analiz' || !decisionColumn.current) return
@@ -901,7 +901,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
           </div>
           <div className="masterTradeFocusPrice">
             <small>MARKET PRICE</small>
-            <strong><MasterTradeValue>{currentPrice !== null ? `$${fmtMarketPrice(currentPrice)}` : '--'}</MasterTradeValue></strong>
+            <strong><MasterTradeValue>{currentPrice !== null ? `${fmtMarketPrice(currentPrice)}` : '--'}</MasterTradeValue></strong>
           </div>
           <div className="masterTradeFocusDecision">
             <small>SIGNAL / STATUS</small>
@@ -955,7 +955,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <span>{scannerCandidates.length ? `FINAL ${fmtDecisionNumber(item.finalDecisionScore)}/100` : 'FINAL DECISION PENDING'}</span>
                     </div>
                     <div className="watchlistStats">
-                      <strong>{masterLayoutV2 ? analysisPrice(scannerCandidates.find(candidate => candidate.symbol === item.symbol)?.price ?? markets.find(market => market.symbol === item.symbol)?.price) : `$${item.price.toLocaleString('en-US', { maximumFractionDigits: 6 })}`}</strong>
+                      <strong>{masterLayoutV2 ? analysisPrice(scannerCandidates.find(candidate => candidate.symbol === item.symbol)?.price ?? markets.find(market => market.symbol === item.symbol)?.price) : `${item.price.toLocaleString('en-US', { maximumFractionDigits: 6 })}`}</strong>
                       <em className={item.direction === 'LONG' ? 'positive' : item.direction === 'SHORT' ? 'negative' : 'muted'}>{item.direction} {scannerCandidates.length ? `${masterLayoutV2 ? 'Skor ' : ''}${fmtDecisionNumber(item.confidence)}%` : 'RAW MARKET'}</em>
                     </div>
                   </button>
@@ -966,7 +966,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                 <div><span className="panelEyebrow">MARKET SCANNER</span><h3>Top opportunities</h3></div>
                 <span className="livePill">LIVE</span>
               </summary>
-              <div className="scannerList">{scannerCandidates.length ? scannerCandidates.map((candidate, index) => <button type="button" key={candidate.symbol} onClick={() => selectMarket(candidate.symbol)}><div className="scannerCandidateMeta"><strong>{candidate.symbol}</strong><div><span className="scannerScore">#{index + 1}</span><strong>{fmtDecisionNumber(candidate.final_decision_score)}<small> / 100 FINAL DECISION</small></strong></div></div><div className="scannerCandidateStats"><strong><MasterTradeValue>{candidate.price === undefined ? '--' : `$${fmtMarketPrice(candidate.price)}`}</MasterTradeValue></strong><small data-tone={masterTradeTone(candidate.direction)} title={`${candidate.direction} · ${masterLayoutV2 ? 'Skor' : 'Confidence'} ${fmtDecisionNumber(candidate.confidence)}%`}>{candidate.direction} · {masterLayoutV2 ? 'Skor' : 'Confidence'} {fmtDecisionNumber(candidate.confidence)}%</small></div></button>) : <div className="emptyState">NO CURRENT OPPORTUNITY SNAPSHOT</div>}</div>
+              <div className="scannerList">{scannerCandidates.length ? scannerCandidates.map((candidate, index) => <button type="button" key={candidate.symbol} onClick={() => selectMarket(candidate.symbol)}><div className="scannerCandidateMeta"><strong>{candidate.symbol}</strong><div><span className="scannerScore">#{index + 1}</span><strong>{fmtDecisionNumber(candidate.final_decision_score)}<small> / 100 FINAL DECISION</small></strong></div></div><div className="scannerCandidateStats"><strong><MasterTradeValue>{candidate.price === undefined ? '--' : `${fmtMarketPrice(candidate.price)}`}</MasterTradeValue></strong><small data-tone={masterTradeTone(candidate.direction)} title={`${candidate.direction} · ${masterLayoutV2 ? 'Skor' : 'Confidence'} ${fmtDecisionNumber(candidate.confidence)}%`}>{candidate.direction} · {masterLayoutV2 ? 'Skor' : 'Confidence'} {fmtDecisionNumber(candidate.confidence)}%</small></div></button>) : <div className="emptyState">NO CURRENT OPPORTUNITY SNAPSHOT</div>}</div>
             </details>
             </div>
           </aside>
@@ -983,7 +983,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
             <div className="chartPriceSummary">
               <div>
                 <span className="chartSymbol">{draft.market}</span>
-                <strong><MasterTradeValue>{currentPrice !== null ? `$${fmtMarketPrice(currentPrice)}` : '--'}</MasterTradeValue></strong>
+                <strong><MasterTradeValue>{currentPrice !== null ? `${fmtMarketPrice(currentPrice)}` : '--'}</MasterTradeValue></strong>
               </div>
               <span className={`delta ${selectedChange === null ? '' : selectedChange >= 0 ? 'positive' : 'negative'}`}>{selectedChange === null ? '--' : signedPct(selectedChange)}</span>
             </div>
@@ -1014,7 +1014,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                 {chartHoverIndex !== null && <g className="chartCrosshair"><line x1={chartX(chartHoverIndex)} x2={chartX(chartHoverIndex)} y1="0" y2="260" /><circle cx={chartX(chartHoverIndex)} cy={chartY(chartCandles[chartHoverIndex].close)} r="3" /></g>}
               </svg>}
               {!!chartCandles.length && <MasterTradeChartLabels lines={premium && showChartLevels ? positionedLevelLines : []} currentPrice={currentPrice} toY={chartY} format={fmtMarketPrice} pills/>}
-              <div className="chartBadge">{currentPrice !== null ? `$${fmtMarketPrice(currentPrice)}` : '--'}</div>
+              <div className="chartBadge">{currentPrice !== null ? `${fmtMarketPrice(currentPrice)}` : '--'}</div>
             </div>
 
             <div className="indicatorGrid">
@@ -1181,14 +1181,14 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <td data-cell="symbol"><strong>{position.symbol}</strong><span className="positionAge">{position.age || '--'}</span></td>
                       <td data-cell="side"><span className={position.direction === 'LONG' ? 'positive' : 'negative'}>{position.direction || '--'}</span></td>
                       <td data-cell="size" data-label="Miktar">{fmtNum(position.quantity, 2)}</td>
-                      <td data-cell="entry" data-label="Giriş fiyatı">${fmtMarketPrice(position.entry_price)}</td>
-                      <td data-cell="mark" data-label="Anlık fiyat">${fmtMarketPrice(position.mark_price)}</td>
+                      <td data-cell="entry" data-label="Giriş fiyatı">{fmtMarketPrice(position.entry_price)}</td>
+                      <td data-cell="mark" data-label="Anlık fiyat">{fmtMarketPrice(position.mark_price)}</td>
                       <td data-cell="lev">{position.leverage ? `${position.leverage}x` : '--'}</td>
                       <td data-cell="margin" data-label="Teminat">{plan?.margin_usdt === undefined ? '--' : usdtText(plan.margin_usdt)}</td>
                       <td data-cell="pnl" data-label="Gerçekleşmemiş K/Z" className={(position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl === undefined ? '--' : signedUsdt(position.unrealized_pnl)}</td>
                       <td data-cell="pct">--</td>
-                      <td data-cell="sl" data-label="Stop Loss">${fmtMarketPrice(stopLoss)}</td>
-                      <td data-cell="tp" data-label="Take Profit">${fmtMarketPrice(target)}</td>
+                      <td data-cell="sl" data-label="Stop Loss">{fmtMarketPrice(stopLoss)}</td>
+                      <td data-cell="tp" data-label="Take Profit">{fmtMarketPrice(target)}</td>
                       <td data-cell="status"><span className="statusBadge open">OPEN</span></td>
                       <td data-cell="actions"><div className="positionActions"><button type="button" onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'DETAILS', position: positionWithProtection(position) }) }}>DETAILS</button><button type="button" className="dangerAction positionCloseButton" aria-label={`Close ${position.symbol} position`} onClick={() => { setPositionActionError(''); setPositionAction({ mode: 'CLOSE', position }) }}><XCircle size={14} aria-hidden="true" /> CLOSE POSITION</button></div></td>
                     </tr>
@@ -1227,7 +1227,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                           <td data-cell="symbol">{order.symbol || '--'}</td>
                           <td data-cell="side" className={order.side === 'BUY' || order.side === 'LONG' ? 'positive' : 'negative'}><span className="friendlyText">{orderSideLabel(order.side)}</span><span className="rawText">{order.side || '--'}</span></td>
                           <td data-cell="type"><span className="friendlyText">{orderTypeLabel(order.type)}</span><span className="rawText">{order.type || '--'}</span></td>
-                          <td data-cell="price" data-label="Tetikleme fiyatı">${fmtMarketPrice(order.price || order.trigger_price)}</td>
+                          <td data-cell="price" data-label="Tetikleme fiyatı">{fmtMarketPrice(order.price || order.trigger_price)}</td>
                           <td data-cell="qty" data-label="Miktar">{fmtNum(order.quantity)}</td>
                           <td data-cell="status"><span className="statusBadge open">{order.status || '--'}</span></td>
                           <td data-cell="reduce" data-label="Sadece azaltma">{order.reduce_only === undefined ? '--' : order.reduce_only ? 'REDUCE ONLY' : 'NO'}</td>
@@ -1276,8 +1276,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                       <td data-cell="date">{new Date(trade.closeTime).toLocaleDateString('en-GB')}</td>
                       <td data-cell="symbol"><strong>{trade.symbol}</strong></td>
                       <td data-cell="side" className={trade.side === 'LONG' ? 'positive' : 'negative'}>{trade.side}</td>
-                      <td data-cell="entry" data-label="Giriş">${fmtNum(trade.entryPrice)}</td>
-                      <td data-cell="exit" data-label="Çıkış">${fmtNum(trade.exitPrice)}</td>
+                      <td data-cell="entry" data-label="Giriş">{fmtNum(trade.entryPrice)}</td>
+                      <td data-cell="exit" data-label="Çıkış">{fmtNum(trade.exitPrice)}</td>
                       <td data-cell="pnl" className={trade.realizedPnl > 0 ? 'positive' : trade.realizedPnl < 0 ? 'negative' : 'muted'}>{signedUsdt(trade.realizedPnl)}</td>
                       <td data-cell="pct" data-empty={trade.pnlPercent === null || undefined} className={trade.pnlPercent === null ? 'muted' : trade.pnlPercent >= 0 ? 'positive' : 'negative'}>{trade.pnlPercent === null ? '--' : signedPct(trade.pnlPercent)}</td>
                       <td data-cell="duration">{trade.duration || '--'}</td>
@@ -1334,15 +1334,15 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div><small>Direction</small><b>{positionAction.position.direction || '--'}</b></div>
               <div><small>Status</small><b>OPEN</b></div>
               <div><small>Quantity</small><b>{fmtNum(positionAction.position.quantity, 6)}</b></div>
-              <div><small>Entry Price</small><b>${fmtMarketPrice(positionAction.position.entry_price)}</b></div>
-              <div><small>Mark Price</small><b>${fmtMarketPrice(positionAction.position.mark_price)}</b></div>
+              <div><small>Entry Price</small><b>{fmtMarketPrice(positionAction.position.entry_price)}</b></div>
+              <div><small>Mark Price</small><b>{fmtMarketPrice(positionAction.position.mark_price)}</b></div>
               <div><small>Leverage</small><b>{positionAction.position.leverage ? `${positionAction.position.leverage}x` : '--'}</b></div>
               <div><small>Margin</small><b>--</b></div>
-              <div><small>Liquidation</small><b>${fmtNum(positionAction.position.liquidation_price)}</b></div>
+              <div><small>Liquidation</small><b>{fmtNum(positionAction.position.liquidation_price)}</b></div>
               <div><small>Unrealized PnL</small><b className={(positionAction.position.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{positionAction.position.unrealized_pnl === undefined ? '--' : signedUsdt(positionAction.position.unrealized_pnl)}</b></div>
               <div><small>PnL %</small><b>--</b></div>
-              <div><small>Stop Loss</small><b>${fmtMarketPrice(positionAction.position.stop_loss)}</b></div>
-              <div><small>TP1</small><b>${fmtMarketPrice(positionAction.position.tp1)}</b></div>
+              <div><small>Stop Loss</small><b>{fmtMarketPrice(positionAction.position.stop_loss)}</b></div>
+              <div><small>TP1</small><b>{fmtMarketPrice(positionAction.position.tp1)}</b></div>
               <div><small>TP2</small><b>--</b></div>
               <div><small>TP3</small><b>--</b></div>
             </div>
@@ -1369,9 +1369,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
               <div><small>Sonuç</small><b className={selectedTrade.realizedPnl > 0 ? 'positive' : selectedTrade.realizedPnl < 0 ? 'negative' : 'muted'}>{selectedTrade.realizedPnl > 0 ? 'KÂR' : selectedTrade.realizedPnl < 0 ? 'ZARAR' : 'BAŞA BAŞ'}</b></div>
               <div><small>Net kâr / zarar</small><b className={selectedTrade.realizedPnl >= 0 ? 'positive' : 'negative'}>{signedUsdt(selectedTrade.realizedPnl)}</b></div>
               <div><small>ROI (marjine göre)</small><b>{orRecorded(selectedTrade.pnlPercent, value => signedPct(value))}</b></div>
-              <div><small>Planlanan giriş</small><b>{orRecorded(selectedTrade.entryPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
-              <div><small>Çıkış fiyatı</small><b>{orRecorded(selectedTrade.exitPrice, value => `$${fmtMarketPrice(value)}`)}</b></div>
-              <div><small>İlk stop</small><b>{orRecorded(selectedTrade.stopLoss, value => `$${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>Planlanan giriş</small><b>{orRecorded(selectedTrade.entryPrice, value => `${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>Çıkış fiyatı</small><b>{orRecorded(selectedTrade.exitPrice, value => `${fmtMarketPrice(value)}`)}</b></div>
+              <div><small>İlk stop</small><b>{orRecorded(selectedTrade.stopLoss, value => `${fmtMarketPrice(value)}`)}</b></div>
               <div><small>Miktar</small><b>{orRecorded(selectedTrade.quantity, value => fmtNum(value, 4))}</b></div>
               <div><small>Kaldıraç</small><b>{orRecorded(selectedTrade.leverage, value => `${value}x`)}</b></div>
               <div><small>Marjin</small><b>{orRecorded(selectedTrade.margin, value => usdtText(value))}</b></div>
@@ -1391,10 +1391,10 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
                 {[
                   ['Emir gönderildi', fmtTradeTime(selectedTrade.orderSubmittedTime)],
                   ['Giriş gerçekleşti', fmtTradeTime(selectedTrade.openTime)],
-                  ['TP1', `${orRecorded(selectedTrade.tp1, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.tp1Done || selectedTrade.closeReason === 'TP1' ? ' · Ulaşıldı' : ''}`],
+                  ['TP1', `${orRecorded(selectedTrade.tp1, value => `${fmtMarketPrice(value)}`)}${selectedTrade.tp1Done || selectedTrade.closeReason === 'TP1' ? ' · Ulaşıldı' : ''}`],
                   ...(selectedTrade.breakevenTime ? [['Stop girişe çekildi', fmtTradeTime(selectedTrade.breakevenTime)]] : []),
-                  ['TP2', `${orRecorded(selectedTrade.tp2, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP2' ? ' · Ulaşıldı' : ''}`],
-                  ['TP3', `${orRecorded(selectedTrade.tp3, value => `$${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP3' ? ' · Ulaşıldı' : ''}`],
+                  ['TP2', `${orRecorded(selectedTrade.tp2, value => `${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP2' ? ' · Ulaşıldı' : ''}`],
+                  ['TP3', `${orRecorded(selectedTrade.tp3, value => `${fmtMarketPrice(value)}`)}${selectedTrade.closeReason === 'TP3' ? ' · Ulaşıldı' : ''}`],
                   ['Kapandı', `${fmtTradeTime(selectedTrade.closeTime)} · ${tradeCloseReasonText(selectedTrade.closeReason)}`],
                 ].map(([event, detail], index) => (
                   <div key={`${event}-${index}`} className="timelineItem">
