@@ -14,3 +14,5 @@
 /* Tarama raporu 23: tablo ve açıklamalar en az 12px ve okunur renkte. */
 #root .scannerCenter :is(table th,table td,small,.scannerResultMetadata,label){font-size:max(12px,.85em)}
 #root .scannerCenter :is(table th,small,.scannerResultMetadata){color:#a9b8b1}
+/* Tarama raporu 23 (düzeltme): eski kurallar önceliği alıyordu, 12px şart. */
+html body #root .scannerCenter :is(table th,table td,small,.scannerResultMetadata) { font-size: 12px !important; }
