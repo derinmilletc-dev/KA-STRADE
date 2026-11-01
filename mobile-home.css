@@ -211,3 +211,10 @@ html body #root main.v26App .mobileHome .mhSkel i.big { width: 70%; height: 30px
 html body #root main.v26App .mobileHome .mhSkelPlan i.big { width: 38px; height: 38px; border-radius: 50%; flex: none; }
 @keyframes mhSkel { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { html body #root main.v26App .mobileHome .mhSkel i { animation: none; } }
+
+/* Telefon: ana sayfa dışındaki sayfalarda logo sol kenara yapışıyordu; sayfa kenar boşluğuna (14px) hizalanır. */
+@media (max-width: 700px) {
+  html body #root > main.v26App.workspaceRoute > .v26Header.v26HomeHeader .v26BrandLogo {
+    translate: 11px 0 !important;
+  }
+}
