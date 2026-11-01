@@ -88,9 +88,21 @@ def needs_deep_reasoning(message: str) -> bool:
     return len(text) > 160 or any(stem in text for stem in DEEP_STEMS)
 
 
+TOOL_PURPOSES = {
+    "get_plans": "Complete customer product facts: Free Trial, SMART TRADE and MASTER MODE prices (USDT), what each plan includes "
+                 "and excludes, daily AI limits (KAIS AI, Chart AI, AI Analyst) and reset times, Binance Pay payment steps, "
+                 "approval, renewal, cancellation and refund/problem routing. Use for any plan, price, trial, payment, renewal, "
+                 "cancel, refund, upgrade or limit question.",
+    "get_my_access": "The current member's own plan and status.",
+    "get_my_credits": "The current member's remaining AI Analyst allowance (credits) and reset time.",
+    "search_help": "Customer help articles about screens, menus, terms, payment, trial, plans and limits.",
+}
+
+
 def build_request(config: AssistantConfig, language: Language, payload: ChatInput) -> LLMRequest:
     tools: list[ToolParam] = [
-        {"name": entry["name"], "description": f"Read-only {entry['name']}; authenticated identity is supplied by the server. No mutations or confirmations.",
+        {"name": entry["name"], "description": (TOOL_PURPOSES[entry["name"]] + " " if entry["name"] in TOOL_PURPOSES else "")
+         + f"Read-only {entry['name']}; authenticated identity is supplied by the server. No mutations or confirmations.",
          "input_schema": entry["input_schema"]}
         for entry in TOOL_DEFINITIONS
     ]
@@ -230,12 +242,13 @@ def summary(name: str, result: dict[str, Any], language: Language) -> str:
         ) + " " + LEVEL_REDIRECTS[language]
     if name == "get_my_credits":
         if data.get("unlimited"):
-            return "Premium: sınırsız analiz." if language == "tr" else "Premium: unlimited analysis."
+            return "Sınırsız analiz." if language == "tr" else "Unlimited analysis."
         return f"{data.get('remaining')}/{data.get('total')} " + ("kredi." if language == "tr" else "credits.")
     if name == "get_my_access":
         return f"{data.get('plan') or 'Free'}: {data.get('status')}."
     if name == "get_plans":
-        return "; ".join(f"{row['name']}: {row['monthly_price']} {row['currency']}" for row in data.get("plans", []))
+        return "; ".join(f"{row['name']}: {row['price']} {row['currency']} / {row['period_days']}"
+                         + (" gün" if language == "tr" else " days") for row in data.get("plans", []))
     if name == "get_market_overview":
         movers = (data.get("movers") or {}).get("top_gainers") or []
         return "; ".join(f"{row['symbol']} {row['change_24h_percent']}%" for row in movers)

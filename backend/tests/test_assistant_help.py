@@ -5,7 +5,9 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from app import assistant_help, binance_demo, subscription_core, v25_execution
+from decimal import Decimal
+
+from app import assistant_help, binance_demo, binance_manual_payments, subscription_core, v25_execution
 from app.analyst_credits import CreditConfig
 
 
@@ -27,6 +29,7 @@ class AssistantHelpTests(unittest.TestCase):
             "account-mode", "fingerprint", "risk-warning", "support", "site-map",
             "live-guide", "live-screen", "live-status", "live-scan", "margin-mode", "risk-target",
             "live-session", "live-positions", "live-notify", "connection-tab", "how-bot-works", "kais-ai", "margin-who",
+            "plan-compare", "trial", "payment", "ai-limits",
         }
         self.assertEqual({row.id for row in tr}, expected)
         root = Path(__file__).resolve().parents[2]
@@ -41,7 +44,7 @@ class AssistantHelpTests(unittest.TestCase):
         config = CreditConfig(total=140, cost=14, window_hours=13, cache_minutes=8)
         assistant_help.entries(CreditConfig(), "en")
         for language in ("tr", "en"):
-            with patch.dict(subscription_core.PLAN_CATALOG["MASTER_MODE"], {"monthly_price": 177.25, "name": "Changed plan"}), \
+            with patch.dict(binance_manual_payments.PLAN_AMOUNTS, {"MASTER_MODE": Decimal("177.25"), "SMART_TRADE": Decimal("44.5")}), \
                  patch.object(subscription_core, "TRIAL_DAYS", 9), \
                  patch.object(binance_demo, "ARM_SECONDS", 11 * 60), \
                  patch.object(v25_execution, "LIVE_CONSENT_SECONDS", 17 * 3600), \
@@ -51,8 +54,10 @@ class AssistantHelpTests(unittest.TestCase):
                 rows = {row["id"]: row for row in assistant_help.entries(config, language)}
             for value in ("140", "14", "13", "8"):
                 self.assertIn(value, rows["analyst"]["content"])
-            for value in ("177.25", "Changed plan", "9"):
+            for value in ("177.25", "44.50", "9"):
                 self.assertIn(value, rows["plans"]["content"])
+            for value in ("177.25", "44.50"):
+                self.assertIn(value, rows["payment"]["content"])
             for value in ("11", "17", "19", "23", "7"):
                 self.assertIn(value, rows["gates"]["content"])
             for row in rows.values():
@@ -67,7 +72,13 @@ class AssistantHelpTests(unittest.TestCase):
             ("tr", "Smart Score", "smart-score"),
             ("tr", "kredilerim", "analyst"),
             ("tr", "secretim", "secret-safety"),
-            ("en", "Stripe billing portal", "billing"),
+            ("en", "refund cancel renewal", "billing"),
+            ("tr", "Binance Pay ile nasıl ödeme yaparım", "payment"),
+            ("tr", "deneme süresinde canlı işlem açabilir miyim", "trial"),
+            ("tr", "smart trade ile master mode farkı", "plan-compare"),
+            ("tr", "grafik ai kaç hak", "ai-limits"),
+            ("en", "How do I pay with Binance Pay", "payment"),
+            ("en", "free trial", "trial"),
             ("en", "Trigger Monitor", "trigger"),
             ("en", "One-way Hedge", "account-mode"),
             ("en", "Final Decision", "final-decision"),
@@ -106,7 +117,10 @@ class AssistantHelpTests(unittest.TestCase):
         for language in ("tr", "en"):
             rows = {row["id"]: row for row in assistant_help.entries(CreditConfig(), language)}
             text = " ".join(row["content"] for row in rows.values())
-            self.assertNotRegex(text, r"(?i)CommercialHub|\bGrid\b|lisans|license|ajan|\bagent\b|2FA|24/7|7/24")
+            # Grid işlemleri artık Smart Trade ve Master Mode planlarında satılan bir özelliktir.
+            self.assertNotRegex(text, r"(?i)CommercialHub|lisans|license|ajan|\bagent\b|2FA|24/7|7/24")
+            # Müşteriye iç/teknik kavram sızmaz.
+            self.assertNotRegex(text, r"(?i)backend|stripe|kodda|in code|endpoint|deployment|idempotency|bilgi taban|knowledge base|sunucu kasas|server vault")
             self.assertIn("kapalı", rows["environments"]["content"]) if language == "tr" else self.assertIn("disabled", rows["environments"]["content"])
             self.assertIn("verified=false", rows["protection"]["content"])
             self.assertIn("gece yarısı sıfırlanmaz", rows["analyst"]["content"]) if language == "tr" else self.assertIn("not at midnight", rows["analyst"]["content"])

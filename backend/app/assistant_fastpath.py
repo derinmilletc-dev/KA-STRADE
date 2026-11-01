@@ -178,6 +178,42 @@ def money(value: Any) -> str:
         return "?"
 
 
+def plans_reply(data: dict[str, Any], language: Language) -> str:
+    """Plan özeti: yalnız get_plans verisinden; müşteriye net, eksiksiz ve kısa."""
+    plans = {row["id"]: row for row in data["plans"]}
+    trial, smart, master = plans["TRIAL"], plans["SMART_TRADE"], plans["MASTER_MODE"]
+    tl, pl = trial["daily_limits"], master["daily_limits"]
+    if language == "tr":
+        return (
+            "Üç seçenek var:\n"
+            f"• **{trial['name']}**: {trial['price']} {trial['currency']}, {trial['period_days']} gün. Ödeme bilgisi istenmez, hesap başına bir kez "
+            f"kullanılır. İşlemler yalnız Demo hesapta; KAIS AI günde {tl['kais_ai_messages_per_day']} mesaj, Grafik AI günde "
+            f"{tl['chart_ai_per_day']}, AI Analist günde {tl['ai_analyst_per_day']} analiz.\n"
+            f"• **{smart['name']}**: {smart['price']} {smart['currency']} / {smart['period_days']} gün. Demo ve canlı manuel işlem, Grid, "
+            "pozisyon koruması, AI Analist ve Scanner. Canlıda KAIS stratejileri ve Auto Trade yok; Demo hesapta hepsi açık.\n"
+            f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} gün. Smart Trade'deki her şey, "
+            "ek olarak canlıda KAIS stratejileri, canlı Auto Trade ve öncelikli destek.\n"
+            f"Ücretli iki planda da KAIS AI günde {pl['kais_ai_messages_per_day']} mesaj, Grafik AI günde {pl['chart_ai_per_day']}, "
+            f"AI Analist günde {pl['ai_analyst_per_day']} analiz.\n"
+            f"Ödeme {data['payment']['method']} ile {data['payment']['currency']} olarak yapılır; otomatik yenileme olmadığı için iptal "
+            "gerekmez. Planı Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranından seçebilirsin."
+        )
+    return (
+        "There are three options:\n"
+        f"• **Free Trial**: {trial['price']} {trial['currency']}, {trial['period_days']} days. No payment details, once per account. "
+        f"Trading on the Demo account only; KAIS AI {tl['kais_ai_messages_per_day']} messages a day, Chart AI {tl['chart_ai_per_day']}, "
+        f"AI Analyst {tl['ai_analyst_per_day']} analyses a day.\n"
+        f"• **{smart['name']}**: {smart['price']} {smart['currency']} / {smart['period_days']} days. Demo and live manual trading, Grid, "
+        "position protection, AI Analyst and Scanner. No KAIS strategies or Auto Trade on live; all of them work on Demo.\n"
+        f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} days. Everything in Smart Trade plus "
+        "KAIS strategies and Auto Trade on live, and priority support.\n"
+        f"Both paid plans include KAIS AI {pl['kais_ai_messages_per_day']} messages, Chart AI {pl['chart_ai_per_day']} and "
+        f"AI Analyst {pl['ai_analyst_per_day']} analyses a day.\n"
+        f"Payment is made with {data['payment']['method']} in {data['payment']['currency']}; there is no automatic renewal, so nothing "
+        "to cancel. Choose a plan under Home → ABONELİK (Subscription)."
+    )
+
+
 async def demo_positions_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
     """Binance Demo açık pozisyonları (salt okunur). Doğrulanamayan her durum açıkça söylenir; veri uydurulmaz."""
     tr = language == "tr"
@@ -232,15 +268,15 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
     data = result.get("data") or {}
     base = {"language": language, "sources": ["get_market_overview"], "fetched_at": result.get("fetched_at")}
     if data.get("reason") == "PREMIUM_REQUIRED":
-        return {**base, "stale": False, "reply": ("Piyasa özeti Master Mode (premium) üyelik gerektirir." if tr
-                                                  else "The market overview requires a Master Mode (premium) membership.")}
+        return {**base, "stale": False, "reply": ("Piyasa özeti ücretli planlarda (Smart Trade veya Master Mode) açıktır." if tr
+                                                  else "The market overview is included in the paid plans (Smart Trade or Master Mode).")}
     usage = data.get("free_usage") or {}
     if data.get("reason") == "FREE_DAILY_LIMIT":
-        return {**base, "stale": False, "reply": (f"Bugünkü {usage.get('daily_limit')} piyasa özeti hakkını kullandın; yarın yenilenir. Sınırsız kullanım için Master Mode (premium) üyeliğe geçebilirsin." if tr
-                                                  else f"You have used today's {usage.get('daily_limit')} market overviews; they renew tomorrow. Master Mode (premium) gives unlimited use.")}
+        return {**base, "stale": False, "reply": (f"Bugünkü {usage.get('daily_limit')} piyasa özeti hakkını kullandın; yarın yenilenir. Ücretli planlarda (Smart Trade veya Master Mode) bu sınır yoktur." if tr
+                                                  else f"You have used today's {usage.get('daily_limit')} market overviews; they renew tomorrow. The paid plans (Smart Trade or Master Mode) have no such limit.")}
     if data.get("reason") == "CREDITS_EXHAUSTED":
-        return {**base, "stale": False, "reply": (f"Piyasa özeti {usage.get('cost')} kredi gerektiriyor ama şu an {usage.get('remaining_credits')} kredin var. Kredilerin yenilenince ya da Master Mode (premium) ile tekrar sorabilirsin." if tr
-                                                  else f"The market overview needs {usage.get('cost')} credits but you have {usage.get('remaining_credits')}. Ask again when your credits renew, or with Master Mode (premium).")}
+        return {**base, "stale": False, "reply": (f"Piyasa özeti {usage.get('cost')} kredi gerektiriyor ama şu an {usage.get('remaining_credits')} kredin var. Kredilerin yenilenince ya da ücretli bir planla (Smart Trade veya Master Mode) tekrar sorabilirsin." if tr
+                                                  else f"The market overview needs {usage.get('cost')} credits but you have {usage.get('remaining_credits')}. Ask again when your credits renew, or with a paid plan (Smart Trade or Master Mode).")}
     scan, movers = data.get("scan") or {}, data.get("movers") or {}
     focus = market_focus(message) or {"gainer", "long", "short", "confidence"}
     parts: list[str] = []
@@ -359,19 +395,7 @@ async def answer(
     result = await tools.dispatch(user_id, name, {})
     data = result["data"]
     if name == "get_plans":
-        plan = next(row for row in data["plans"] if row["id"] == "MASTER_MODE")
-        price = f"{plan['monthly_price']:.2f}"
-        if language == "tr":
-            reply = f"{plan['name']}: {price.replace('.', ',')} {plan['currency']}/ay. Deneme süresi {data['trial_days']} gün."
-        else:
-            reply = f"{plan['name']}: {price} {plan['currency']}/month. Trial: {data['trial_days']} days."
-        cancellation = data["cancellation"]
-        if cancellation["cancel_anytime"]:
-            reply += " İstediğin zaman iptal edebilirsin." if language == "tr" else " You can cancel anytime."
-        if cancellation["default_effective"] == "period_end":
-            reply += " Varsayılan iptal dönem sonunda gerçekleşir." if language == "tr" else " Cancellation defaults to the end of the billing period."
-        if cancellation["immediate_cancellation_supported"]:
-            reply += " Anında iptal seçeneği de vardır." if language == "tr" else " Immediate cancellation is also supported."
+        reply = plans_reply(data, language)
     elif name == "get_my_access":
         plan = data["plan"] or ("Ücretsiz" if language == "tr" else "Free")
         premium = ("evet" if data["isPremium"] else "hayır") if language == "tr" else ("yes" if data["isPremium"] else "no")
@@ -379,7 +403,7 @@ async def answer(
         reply = (f"Planın: {plan}, durumu: {status_tr}. Premium erişimin {'var' if data['isPremium'] else 'yok'}." if language == "tr"
                  else f"Your plan: {plan}. Status: {data['status']}. Premium: {premium}.")
     elif data["unlimited"]:
-        reply = "Premium üyeliğinde analiz sınırsızdır; kredi düşmez." if language == "tr" else "Premium analysis is unlimited; no credits are spent."
+        reply = "Analizlerin sınırsızdır; kredi düşmez." if language == "tr" else "Your analyses are unlimited; no credits are spent."
     else:
         reply = (
             f"Kalan kredi: {data['remaining']}/{data['total']}. Taze analiz {data['analysis_cost']} kredi. "

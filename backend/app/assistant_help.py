@@ -33,9 +33,10 @@ class Article:
     code_sources: tuple[str, ...]
 
 
-def placeholder_values(config: CreditConfig) -> dict[str, str]:
-    from . import original_v2_live  # geç içe aktarma: yalnız yüzdeleri okur
+def placeholder_values(config: CreditConfig, assistant: Any = None) -> dict[str, str]:
+    from . import original_v2_live, product_catalog  # geç içe aktarma: yalnız yüzdeleri ve ürün bilgisini okur
 
+    rights = product_catalog.limits(assistant, config)
     safe, total = original_v2_live.margin_percent_limits("guvenli")
     mid, _ = original_v2_live.margin_percent_limits("orta")
     aggressive, _ = original_v2_live.margin_percent_limits("agresif")
@@ -49,8 +50,21 @@ def placeholder_values(config: CreditConfig) -> dict[str, str]:
         "CREDIT_WINDOW_HOURS": str(config.window_hours),
         "ANALYST_CACHE_MINUTES": str(config.cache_minutes),
         "MASTER_PLAN_NAME": str(subscription_core.PLAN_CATALOG["MASTER_MODE"]["name"]),
-        "MASTER_MONTHLY_PRICE": f'{subscription_core.PLAN_CATALOG["MASTER_MODE"]["monthly_price"]:.2f}',
+        "MASTER_MONTHLY_PRICE": product_catalog.price("MASTER_MODE"),
         "TRIAL_DAYS": str(subscription_core.TRIAL_DAYS),
+        "SMART_PRICE": product_catalog.price("SMART_TRADE"),
+        "MASTER_PRICE": product_catalog.price("MASTER_MODE"),
+        "CURRENCY": product_catalog.CURRENCY,
+        "PAID_PERIOD_DAYS": str(product_catalog.binance_manual_payments.PAID_PERIOD_DAYS),
+        "PAYMENT_WINDOW_HOURS": str(product_catalog.binance_manual_payments.PAYMENT_WINDOW_HOURS),
+        "KAIS_PAID_DAILY": str(rights["MASTER_MODE"]["kais_ai_messages_per_day"]),
+        "KAIS_TRIAL_DAILY": str(rights["TRIAL"]["kais_ai_messages_per_day"]),
+        "CHART_PAID_DAILY": str(rights["MASTER_MODE"]["chart_ai_per_day"]),
+        "CHART_TRIAL_DAILY": str(rights["TRIAL"]["chart_ai_per_day"]),
+        "CHART_FREE_TOTAL": str(product_catalog.chart_ai_store.FREE_LIFETIME_LIMIT),
+        "ANALYST_PAID_DAILY": str(rights["MASTER_MODE"]["ai_analyst_per_day"]),
+        "ANALYST_TRIAL_DAILY": str(rights["TRIAL"]["ai_analyst_per_day"]),
+        "KAIS_RESET_TIME": f"{product_catalog.KAIS_RESET_HOUR_TR:02d}:00",
         "DEMO_ARM_MINUTES": f"{binance_demo.ARM_SECONDS / 60:g}",
         "LIVE_CONSENT_HOURS": f"{v25_execution.LIVE_CONSENT_SECONDS / 3600:g}",
         "LIVE_ARM_HOURS": f"{v25_execution.LIVE_ARM_SECONDS / 3600:g}",
@@ -100,14 +114,14 @@ def load_articles(language: Language) -> tuple[Article, ...]:
     return tuple(articles)
 
 
-def entries(config: CreditConfig, language: Language) -> list[dict[str, Any]]:
-    values = placeholder_values(config)
+def entries(config: CreditConfig, language: Language, assistant: Any = None) -> list[dict[str, Any]]:
+    """Müşteriye gidebilecek makale alanları: iç dosya yolu ve kod kaynakları modele/üyeye hiç verilmez."""
+    values = placeholder_values(config, assistant)
     return [{
         "id": article.id,
         "title": article.title.format_map(values),
         "content": article.content.format_map(values),
-        "source": f"backend/app/assistant_kb/{language}.json#{article.id}",
-        "code_sources": list(article.code_sources),
+        "source": f"help:{article.id}",
         "language": language,
     } for article in load_articles(language)]
 
@@ -125,7 +139,7 @@ STOP_WORDS = {
 }
 
 
-def search(query: str, language: Language, config: CreditConfig) -> list[dict[str, Any]]:
+def search(query: str, language: Language, config: CreditConfig, assistant: Any = None) -> list[dict[str, Any]]:
     articles = load_articles(language)
     words = terms(query) - STOP_WORDS[language]
     ranked = []
@@ -142,5 +156,5 @@ def search(query: str, language: Language, config: CreditConfig) -> list[dict[st
         if score:
             ranked.append((score, index))
     ranked.sort(key=lambda item: (-item[0], item[1]))
-    rendered = entries(config, language)
+    rendered = entries(config, language, assistant)
     return [rendered[index] for _, index in ranked[:HELP_RESULT_LIMIT]]
