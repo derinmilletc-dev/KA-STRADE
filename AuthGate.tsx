@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowRight, ArrowUpRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -695,6 +695,11 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
         <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button><button onClick={() => setMode('register')}>Yeni hesap oluştur</button></>}{mode === 'register' ? <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></> : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
         {mode === 'login' && LOCAL_OWNER_SETUP_PAGE && ownerSetupAvailable && <div className="authLinks"><button type="button" onClick={() => {setRegister(current => ({...current,email:login.email,password:'',confirm_password:''}));setMessage('');setFieldErrors({});setTermsError('');setMode('bootstrap')}}><ShieldCheck aria-hidden="true"/> İlk yönetici kurulumu</button></div>}
+        {mode === 'login' && <a className="authInstagramFollow" href="https://www.instagram.com/kaistrade_/" target="_blank" rel="noopener noreferrer">
+          <svg className="authInstagramGlyph" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="authIgGradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#feda75"/><stop offset=".3" stopColor="#fa7e1e"/><stop offset=".6" stopColor="#d62976"/><stop offset="1" stopColor="#4f5bd5"/></linearGradient></defs><g fill="none" stroke="url(#authIgGradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></g><circle cx="17.5" cy="6.5" r="1.1" fill="url(#authIgGradient)"/></svg>
+          <span>Instagram'da bizi takip et</span>
+          <ArrowUpRight className="authInstagramArrow" aria-hidden="true"/>
+        </a>}
         {mode === 'login' && <section className="authMobileMarkets" aria-label="Canlı fiyatlar"><AuthCoinScreen data={market.data} status={market.status}/></section>}
       </section>
       {mode === 'login' && showcaseVisible && <Suspense fallback={null}><InstagramShowcasePhone/></Suspense>}
