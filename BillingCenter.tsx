@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
+import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
@@ -19,6 +19,8 @@ export type BillingSubscription = {
 const STATUS_TR: Record<string, string> = {ACTIVE: 'Aktif', TRIALING: 'Deneme dönemi', PAST_DUE: 'Ödeme gecikti', UNPAID: 'Ödenmedi', CANCELLED: 'İptal edildi', EXPIRED: 'Süresi doldu'}
 const trDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('tr-TR', {day: 'numeric', month: 'long', year: 'numeric'}) : '—'
 const TRIAL_FEATURES = ['Master Trade analiz, grafik ve piyasa izleme', 'AI Analist · mevcut kredi sınırıyla', 'Kais AI asistanı · günlük sınırlı', 'Original V2, Demo Auto Trade ve pozisyon koruması']
+const featureIcon = (text: string) => /Grid/.test(text) ? <Grid3X3/> : /LIVE|canlı/.test(text) ? <Zap/> : /koruma|Stop/.test(text) ? <ShieldCheck/> : /analiz|grafik/i.test(text) ? <BarChart3/> : /AI|Kais/.test(text) ? <Bot/> : <Check/>
+const FeatureList = ({items, locked}: {items: readonly string[]; locked?: string}) => <ul className="ktBillFeatures">{items.map(feature => <li key={feature}><i>{featureIcon(feature)}</i><span>{feature}</span></li>)}{locked && <li className="isLocked"><i><Lock/></i><span>{locked}</span></li>}</ul>
 const PLAN_TABS = [{key: 'trial', label: 'Deneme'}, {key: 'smart', label: 'Smart Trade'}, {key: 'master', label: 'Master Mode'}] as const
 const MASTER_FEATURES = ['Master Trade analiz ve canlı işlem', 'Kais AI asistanı ve AI Analist', 'Original V2, Auto Trade ve pozisyon koruması', 'Demo ve LIVE işlem · güvenlik kontrolleriyle']
 
@@ -156,6 +158,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
 
     <section className="ktBillPlans" aria-label="Planlar" ref={plansRef} onScroll={onPlansScroll} onTouchStart={() => setSwiped(true)}>
       <article className="ktBillPlan">
+        <span className="ktBillGlow" aria-hidden="true"/>
         <header>
           <div className="ktBillPlanIcon"><Sparkles/></div>
           <div><span className="ktBillTag">ÖDEMESİZ DENEME</span><h3>1 Hafta Ücretsiz Deneme</h3></div>
@@ -163,7 +166,8 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <p className="ktBillPlanLead">Kart veya ödeme bilgisi gerekmez. 7 gün boyunca çalışma alanını dene.</p>
         <div className="ktBillPrice"><strong>0</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 7 gün</span></div>
         <ul>{TRIAL_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
-        <p className="ktBillNote"><Lock/>LIVE işlem ücretli planlarla açılır.</p>
+        <FeatureList items={TRIAL_FEATURES} locked="LIVE işlem · ücretli planlarda açılır"/>
+        <p className="ktBillNote ktBillLockNote"><Lock/>LIVE işlem ücretli planlarla açılır.</p>
         {trialActive && <p className="ktBillInfo" role="status"><Clock3/>Kalan süre: <b>{trialDays} gün</b></p>}
         {trialUsed && !trialActive && <p className="ktBillInfo" role="status">Deneme sona erdi. Devam etmek için SMART TRADE ya da MASTER MODE’a geç.</p>}
         <button type="button" className="ktBillButton" onClick={() => void startTrial()} disabled={trialDisabled}>{trialLabel}</button>
@@ -172,6 +176,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       </article>
 
       <article className="ktBillPlan isSmart">
+        <span className="ktBillGlow" aria-hidden="true"/>
         <header>
           <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/></div>
           <div><span className="ktBillTag">AKILLI MANUEL İŞLEMLER</span><h3>SMART TRADE</h3></div>
@@ -179,6 +184,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
         <div className="ktBillPrice"><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{SMART_TRADE_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
+        <FeatureList items={SMART_TRADE_FEATURES} locked="Kais otomatik stratejileri ve Auto Trade yok"/>
         <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
         <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
         <button type="button" className="ktBillButton" onClick={() => goToPayment('SMART_TRADE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{smartLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
@@ -186,6 +192,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       </article>
 
       <article className="ktBillPlan isFeatured">
+        <span className="ktBillGlow" aria-hidden="true"/>
         <span className="ktBillRibbon">ÖNERİLEN</span>
         <header>
           <div className="ktBillPlanIcon"><Crown/></div>
@@ -194,6 +201,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <p className="ktBillPlanLead">Yapay zekâ ve canlı işlem dahil tüm premium çalışma alanı.</p>
         <div className="ktBillPrice"><strong>{PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{MASTER_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
+        <FeatureList items={MASTER_FEATURES}/>
         <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
         <button type="button" className="ktBillButton isPrimary" onClick={() => goToPayment('MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
