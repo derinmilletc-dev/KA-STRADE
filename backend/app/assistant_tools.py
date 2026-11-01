@@ -484,8 +484,8 @@ class AssistantTools:
             status = ("Bu kullanıcı sitenin yöneticisi (admin). Premium erişimi VAR ve tüm analizleri sınırsız."
                       if tr else "This user is the site administrator (admin). They HAVE premium access and unlimited analyses.")
         elif premium:
-            status = (("Bu kullanıcının premium erişimi VAR" + (" ve analizleri sınırsız." if unlimited else " (deneme süresinde).")) if tr
-                      else ("This user HAS premium access" + (" with unlimited analyses." if unlimited else " (free trial).")))
+            status = (("Bu kullanıcının premium erişimi VAR" + (" ve analizleri sınırsız." if unlimited else "; günlük analiz hakkı sınırlıdır.")) if tr
+                      else ("This user HAS premium access" + (" with unlimited analyses." if unlimited else "; the daily analysis allowance is limited.")))
         else:
             status = (f"Bu kullanıcı premium DEĞİL; kendi analiz kredileri var (bir analiz {cost} kredi). "
                       f"Piyasa özeti (en iyi/en mantıklı coin, en iyi long/short) ona günde en fazla {limit} kez, her seferinde {cost} kredi düşerek verilir; "
