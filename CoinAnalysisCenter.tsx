@@ -8,6 +8,7 @@ import './analyst-clean.css'
 import './analyst-desktop.css'
 import './analyst-mobile.css'
 import './analyst-mobile-minimal.css'
+import ScrollHintStrip from './ScrollHintStrip'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
 type Row = {symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
@@ -342,7 +343,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         </div>
       </header>
       {credits.error && <div className="analystCreditError" role="alert"><span>{credits.error}</span><button type="button" onClick={() => void credits.refresh()}>Tekrar dene</button></div>}
-      {stripRows.length > 0 && <div className="analystCoinStrip" aria-label="En güçlü sinyaller">{stripRows.map(row => <button type="button" key={row.symbol} data-on={row.symbol === active?.symbol ? '1' : '0'} aria-current={row.symbol === active?.symbol ? 'true' : undefined} onClick={() => selectAnalystCoin(row.symbol)}>{row.display}<em className={tone(row.direction)}>{fmt(row.confidence)}</em></button>)}</div>}
+      {stripRows.length > 0 && <ScrollHintStrip className="analystCoinStrip" label="En güçlü sinyaller">{stripRows.map(row => <button type="button" key={row.symbol} data-on={row.symbol === active?.symbol ? '1' : '0'} aria-current={row.symbol === active?.symbol ? 'true' : undefined} onClick={() => selectAnalystCoin(row.symbol)}>{row.display}<em className={tone(row.direction)}>{fmt(row.confidence)}</em></button>)}</ScrollHintStrip>}
       <div className="analystCommandTabs" role="tablist" aria-label="Analiz araçları">{([['quick',analystCopy.tabs.quick],['technical',analystCopy.tabs.technical],['decision',analystCopy.tabs.decision]] as Array<[CommandTab,string]>).map(([value,label]) => <button type="button" role="tab" key={value} aria-selected={commandTab === value} className={commandTab === value ? 'active' : ''} onClick={() => setCommandTab(value)}>{label}</button>)}</div>
       <div className="analystCommandGrid" data-tab={commandTab}>
         <section className={`analystCommandGroup analystQuickGroup${commandTab === 'quick' ? ' isActiveTab' : ''}`}>
