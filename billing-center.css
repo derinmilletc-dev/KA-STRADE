@@ -822,3 +822,28 @@ html body #root .ktBill .ktSheet .ktSheetCta.ktSheetCta { display: flex; align-i
 html body #root .ktBill .ktSheet[data-plan="smart"] .ktSheetCta.ktSheetCta { color: #04112A !important; background: linear-gradient(180deg, #7BB2FF, #4D86E6) !important; }
 html body #root .ktBill .ktSheet[data-plan="master"] .ktSheetCta.ktSheetCta { color: #1B1405 !important; background: linear-gradient(180deg, #F8E7B0 0%, #E8C877 55%, #C9A24A 100%) !important; }
 html body #root .ktBill .ktSheet .ktSheetCta:disabled { opacity: .5; }
+
+/* ===== Telefon cilası: alt çubuk, kart görünümü, KAIS AI'a sor (yalnız ≤700px) ===== */
+@media (max-width: 700px) {
+  /* Alt çubuk içeriği kapatmasın: sayfaya boşluk, çubuk ekrana sığsın */
+  html body #root:not(#a) main.subscriptionPage.ktBill { padding-bottom: calc(var(--ktDockBottom, 86px) + 104px) !important; }
+  html body #root .ktBill .ktBillDock.ktBillDock { box-sizing: border-box; left: 12px; right: 12px; width: auto; max-width: calc(100vw - 24px); overflow: hidden; }
+  html body #root .ktBill .ktBillDock > div { flex: 1 1 auto; min-width: 0; }
+  html body #root .ktBill .ktBillDock .ktBillButton.ktBillButton.ktBillButton { flex: 0 0 auto; width: auto !important; max-width: 52%; min-width: 120px; white-space: nowrap; }
+  /* Kart: daha sade ve kurumsal */
+  html body #root .ktBill .ktBillPlan .ktBillTag { font-size: 11px; letter-spacing: .2em; }
+  html body #root .ktBill .ktBillPlan h3 { letter-spacing: .01em; }
+  html body #root .ktBill .ktBillPlan .ktBillPrice { border-top: 1px solid rgba(255,255,255,.08); border-bottom: 1px solid rgba(255,255,255,.08); }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li { gap: 14px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li > i { display: none; }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li > em { order: -1; display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--acc-l); }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li > em svg { width: 13px; height: 13px; stroke-width: 2.6; }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li.isLocked > i { display: block; order: -1; width: 22px; height: 22px; padding: 4px; color: #5F6B65; }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures li:last-child { border-bottom: 0; }
+  html body #root .ktBill .ktBillMore.ktBillMore.ktBillMore { justify-content: center; width: 100%; min-height: 46px; margin: 14px 0 0; border: 1px solid color-mix(in srgb, var(--acc) 38%, transparent) !important; border-radius: 14px !important; background: color-mix(in srgb, var(--acc) 8%, transparent) !important; }
+  /* KAIS AI'a sor: düzgün hizalı, taşmayan satır */
+  html body #root .ktBill .ktCheckoutAsk.ktCheckoutAsk.ktCheckoutAsk { height: auto !important; min-height: 72px; padding: 14px 16px; align-items: center; overflow: visible; }
+  html body #root .ktBill .ktCheckoutAsk span { display: block; flex: 1 1 auto; min-width: 0; text-align: left; line-height: 1.3; }
+  html body #root .ktBill .ktCheckoutAsk b { line-height: 1.3; }
+  html body #root .ktBill .ktCheckoutAsk small { margin-top: 3px; font-size: 12.5px !important; line-height: 1.4; white-space: normal; }
+}
