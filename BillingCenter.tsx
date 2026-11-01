@@ -122,8 +122,9 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const expiry = subscription?.current_period_end || subscription?.trial_end
   const smartTrade = subscription?.plan === 'SMART_TRADE'
   const planName = onTrial ? '1 Hafta Ücretsiz Deneme' : smartTrade ? 'SMART TRADE' : subscription?.plan ? 'MASTER MODE' : 'Aktif plan yok'
-  const badge = loading ? 'Yükleniyor' : loadError ? 'Bilgi alınamadı' : hasAccess ? (onTrial ? 'Deneme aktif' : 'Aktif') : STATUS_TR[status] || 'Kapalı'
-  const badgeTone = loading || loadError ? 'neutral' : hasAccess ? 'positive' : 'warning'
+  const noPlan = !hasAccess && !onTrial && !subscription?.plan
+  const badge = loading ? 'Yükleniyor' : loadError ? 'Bilgi alınamadı' : hasAccess ? (onTrial ? 'Deneme aktif' : 'Aktif') : noPlan ? 'Abonelik yok' : STATUS_TR[status] || 'Kapalı'
+  const badgeTone = loading || loadError || noPlan ? 'neutral' : hasAccess ? 'positive' : 'warning'
 
   const trialUsed = trial?.enabled === true && trial.used
   const trialDays = trial?.enabled === true && trial.ends_at ? Math.max(0, Math.ceil((Date.parse(trial.ends_at) - now) / 86400000)) : 0
