@@ -8121,7 +8121,7 @@ body:has(#root .liveTradingPanel.liveUx),
   }
 }
 
-/* Menü: Instagram kartı ve alt başlık (telefon/tablet menüsü). */
+/* Menü: Instagram kartı ve alt başlık (telefon/tablet menüsü). Zarif cam görünüm, hafif animasyon. */
 .v26MobileMenuSheet .v26MobileMenuSub {
   margin: 3px 0 0;
   color: rgba(211,224,237,.62);
@@ -8131,92 +8131,174 @@ body:has(#root .liveTradingPanel.liveUx),
 }
 .v26MobileMenuSheet a.v26MobileMenuInsta {
   position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 34px;
+  grid-template-columns: 46px minmax(0, 1fr) 36px;
   align-items: center;
-  gap: 12px;
-  margin: 0 0 10px;
-  padding: 12px;
+  gap: 13px;
+  margin: 0 0 12px;
+  padding: 13px 13px 13px 12px;
   overflow: hidden;
-  border: 1px solid rgba(110,231,168,.2);
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
   background:
-    radial-gradient(120% 140% at 100% 0%, rgba(74,222,128,.16), transparent 55%),
-    linear-gradient(135deg, rgba(14,34,32,.96), rgba(10,23,36,.96));
-  color: #e5edf4;
+    linear-gradient(140deg, rgba(15,38,35,.97) 0%, rgba(11,26,38,.97) 58%, rgba(13,31,34,.97) 100%) padding-box,
+    linear-gradient(120deg, rgba(126,236,178,.55), rgba(255,255,255,.07) 38%, rgba(255,255,255,.05) 62%, rgba(126,236,178,.32)) border-box;
+  box-shadow: 0 10px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
+  color: #e8f0f6;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 160ms ease, border-color 160ms ease;
+  animation: ktInstaIn 520ms cubic-bezier(.2,.8,.2,1) both;
+  transition: transform 180ms ease, box-shadow 180ms ease;
 }
-.v26MobileMenuSheet a.v26MobileMenuInsta::after {
+/* Yumuşak, yavaşça gezinen yeşil ışık ve ince dalga */
+.v26MobileMenuSheet a.v26MobileMenuInsta::before {
   position: absolute;
-  right: -30px;
-  bottom: -40px;
-  width: 210px;
-  height: 90px;
-  border-top: 1px solid rgba(110,231,168,.28);
-  border-radius: 50%;
+  z-index: -1;
+  inset: -40% -20% auto auto;
+  width: 70%;
+  height: 160%;
+  background: radial-gradient(closest-side, rgba(84,214,145,.2), transparent 70%);
   content: '';
-  transform: rotate(-12deg);
+  animation: ktInstaGlow 7s ease-in-out infinite alternate;
   pointer-events: none;
 }
-.v26MobileMenuSheet a.v26MobileMenuInsta:active { transform: scale(.98); }
-.v26MobileMenuSheet a.v26MobileMenuInsta:focus-visible { outline: 2px solid #6ee7a8; outline-offset: 2px; }
+/* Ara sıra kartın üzerinden geçen ince parıltı */
+.v26MobileMenuSheet a.v26MobileMenuInsta::after {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 38%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.07) 45%, rgba(190,255,220,.11) 50%, transparent 60%);
+  content: '';
+  transform: skewX(-18deg) translateX(0);
+  animation: ktInstaSheen 6.5s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta:active {
+  transform: scale(.985);
+  box-shadow: 0 6px 18px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.v26MobileMenuSheet a.v26MobileMenuInsta:focus-visible { outline: 2px solid #7eecb2; outline-offset: 3px; }
+/* Simge: Instagram renklerinde ince, yavaş dönen halka */
 .v26MobileMenuSheet .v26MobileMenuInstaIcon {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  background: rgba(255,255,255,.05);
-  color: #f4f8fb;
+  color: #fbfdff;
 }
-.v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 24px; height: 24px; }
+.v26MobileMenuSheet .v26MobileMenuInstaIcon::before {
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, #feda75, #fa7e1e, #d62976, #962fbf, #4f5bd5, #feda75);
+  content: '';
+  opacity: .85;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: ktInstaRing 9s linear infinite;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaIcon::after {
+  position: absolute;
+  inset: 4px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, rgba(255,255,255,.12), rgba(255,255,255,.03) 70%);
+  content: '';
+}
+.v26MobileMenuSheet .v26MobileMenuInstaIcon svg { position: relative; width: 22px; height: 22px; }
 .v26MobileMenuSheet .v26MobileMenuInstaText {
   position: relative;
   z-index: 1;
   display: grid;
   gap: 3px;
   min-width: 0;
-  padding-left: 12px;
-  border-left: 1px solid rgba(255,255,255,.1);
+  padding-left: 13px;
+  border-left: 1px solid rgba(255,255,255,.09);
 }
 .v26MobileMenuSheet .v26MobileMenuInstaText b {
-  color: #f4f8fb;
-  font-size: 13px;
+  color: #f6fafc;
+  font-size: 13.5px;
   font-weight: 700;
-  letter-spacing: .01em;
+  letter-spacing: .015em;
   line-height: 1.25;
 }
-.v26MobileMenuSheet .v26MobileMenuInstaText em { color: #7fe0a8; font-style: normal; font-weight: 500; }
+.v26MobileMenuSheet .v26MobileMenuInstaText em {
+  background: linear-gradient(90deg, #8ff0bd, #5fd39a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #7fe0a8;
+  -webkit-text-fill-color: transparent;
+  font-style: normal;
+  font-weight: 500;
+}
 .v26MobileMenuSheet .v26MobileMenuInstaText strong { font-style: italic; font-weight: 800; }
 .v26MobileMenuSheet .v26MobileMenuInstaText small {
-  color: rgba(211,224,237,.68);
+  color: rgba(211,224,237,.66);
   font-size: 10.5px;
   font-weight: 400;
   line-height: 1.35;
+}
+.v26MobileMenuSheet .v26MobileMenuInstaText i {
+  justify-self: start;
+  margin-top: 3px;
+  padding: 2px 8px;
+  border: 1px solid rgba(126,236,178,.22);
+  border-radius: 999px;
+  background: rgba(126,236,178,.07);
+  color: #a9eecb;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: .03em;
 }
 .v26MobileMenuSheet .v26MobileMenuInstaGo {
   position: relative;
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(110,231,168,.38);
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(126,236,178,.36);
   border-radius: 50%;
-  background: rgba(74,222,128,.08);
-  color: #b9f5d3;
+  background: radial-gradient(circle at 30% 25%, rgba(126,236,178,.18), rgba(126,236,178,.05));
+  box-shadow: 0 0 0 0 rgba(126,236,178,.28);
+  color: #c4f7dc;
+  animation: ktInstaPulse 3.2s ease-out 1s infinite;
 }
-.v26MobileMenuSheet .v26MobileMenuInstaGo svg { width: 17px; height: 17px; }
-@media (prefers-reduced-motion: reduce) {
-  .v26MobileMenuSheet a.v26MobileMenuInsta { transition: none; }
+.v26MobileMenuSheet .v26MobileMenuInstaGo svg {
+  width: 17px;
+  height: 17px;
+  animation: ktInstaNudge 3.2s ease-in-out 1s infinite;
 }
+@keyframes ktInstaIn { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes ktInstaGlow { from { transform: translate(0, 0); opacity: .8; } to { transform: translate(-38%, 18%); opacity: 1; } }
+@keyframes ktInstaSheen { 0%, 62% { transform: skewX(-18deg) translateX(0); } 100% { transform: skewX(-18deg) translateX(420%); } }
+@keyframes ktInstaRing { to { transform: rotate(360deg); } }
+@keyframes ktInstaPulse { 0% { box-shadow: 0 0 0 0 rgba(126,236,178,.28); } 70%, 100% { box-shadow: 0 0 0 9px rgba(126,236,178,0); } }
+@keyframes ktInstaNudge { 0%, 70%, 100% { transform: none; } 80% { transform: translate(2px, -2px); } 90% { transform: none; } }
 @media (max-width: 374px) {
-  .v26MobileMenuSheet a.v26MobileMenuInsta { grid-template-columns: 38px minmax(0, 1fr) 30px; gap: 10px; padding: 10px; }
-  .v26MobileMenuSheet .v26MobileMenuInstaIcon { width: 38px; height: 38px; }
-  .v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 21px; height: 21px; }
+  .v26MobileMenuSheet a.v26MobileMenuInsta { grid-template-columns: 40px minmax(0, 1fr) 32px; gap: 10px; padding: 11px 10px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaIcon { width: 40px; height: 40px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaIcon svg { width: 20px; height: 20px; }
   .v26MobileMenuSheet .v26MobileMenuInstaText { padding-left: 10px; }
-  .v26MobileMenuSheet .v26MobileMenuInstaText b { font-size: 12px; }
-  .v26MobileMenuSheet .v26MobileMenuInstaGo { width: 30px; height: 30px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaText b { font-size: 12.5px; }
+  .v26MobileMenuSheet .v26MobileMenuInstaGo { width: 32px; height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v26MobileMenuSheet a.v26MobileMenuInsta,
+  .v26MobileMenuSheet a.v26MobileMenuInsta::before,
+  .v26MobileMenuSheet a.v26MobileMenuInsta::after,
+  .v26MobileMenuSheet .v26MobileMenuInstaIcon::before,
+  .v26MobileMenuSheet .v26MobileMenuInstaGo,
+  .v26MobileMenuSheet .v26MobileMenuInstaGo svg { animation: none; }
+  .v26MobileMenuSheet a.v26MobileMenuInsta::after { display: none; }
 }

@@ -1266,7 +1266,7 @@ export default function TestnetFirstApp() {
         <header><div><h2>Çalışma alanları</h2><p className="v26MobileMenuSub">Platformun tüm araçlarına hızlı erişim</p></div><button type="button" aria-label="Menüyü kapat" onClick={() => setMobileMenuOpen(false)}><X/></button></header>
         <a className="v26MobileMenuInsta" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="KAISTRADE Instagram hesabını aç: @kaistrade_" onClick={() => setMobileMenuOpen(false)}>
           <span className="v26MobileMenuInstaIcon" aria-hidden="true"><InstagramGlyph/></span>
-          <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> <strong>keşfet.</strong></b><small>Duyurular, yenilikler ve platform güncellemeleri.</small></span>
+          <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> <strong>keşfet.</strong></b><small>Duyurular, yenilikler ve platform güncellemeleri.</small><i>@kaistrade_</i></span>
           <span className="v26MobileMenuInstaGo" aria-hidden="true"><ArrowUpRight/></span>
         </a>
         <div className="v26MobileMenuChoices">
