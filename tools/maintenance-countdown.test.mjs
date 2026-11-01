@@ -45,3 +45,10 @@ test('polling is rare when idle, brisk near zero and calm after failures', () =>
   assert.equal(nextPollDelay(-4000, false), 2_000)
   assert.equal(nextPollDelay(5000, true), 30_000)
 })
+
+import {countdownParts} from '../maintenance-countdown.ts'
+test('splits the countdown into day/hour/minute/second boxes', () => {
+  assert.deepEqual(countdownParts(90_061_000), {days: 1, hours: 1, minutes: 1, seconds: 1})
+  assert.deepEqual(countdownParts(59_100), {days: 0, hours: 0, minutes: 1, seconds: 0})
+  assert.deepEqual(countdownParts(-1), {days: 0, hours: 0, minutes: 0, seconds: 0})
+})

@@ -49,3 +49,16 @@ export function nextPollDelay(remaining: number | null, failed: boolean): number
   if (remaining <= 0) return 2_000
   return Math.min(20_000, Math.max(1_500, remaining + 500))
 }
+
+export type CountdownParts = {days: number; hours: number; minutes: number; seconds: number}
+
+/** Geri sayımı kutu kutu göstermek için gün / saat / dakika / saniye parçaları. */
+export function countdownParts(ms: number): CountdownParts {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  return {days: Math.floor(total / 86400), hours: Math.floor((total % 86400) / 3600), minutes: Math.floor((total % 3600) / 60), seconds: total % 60}
+}
+
+/** Admin ekranında "başlangıç saati" göstermek için (cihazın yerel saati, sunucu farkıyla düzeltilmiş). */
+export function startClock(scheduledAtMs: number, locale?: string): string {
+  return new Date(scheduledAtMs).toLocaleTimeString(locale, {hour: '2-digit', minute: '2-digit'})
+}
