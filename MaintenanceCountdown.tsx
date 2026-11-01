@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Wrench } from 'lucide-react'
+import { Wrench, X } from 'lucide-react'
 import { API_BASE } from './api'
 import { currentLang } from './i18n'
 import { countdownParts, countdownPhase, nextPollDelay, parsePublicMaintenance, remainingMs } from './maintenance-countdown'
@@ -60,23 +60,16 @@ export default function MaintenanceCountdown({variant, onActivated}: {variant: '
 
   const running = Boolean(info && info.mode !== 'NORMAL')
   const visible = counting || (variant === 'login' && running)
-  const card = useRef<HTMLDivElement | null>(null)
+  const dismissKey = info?.at ? `kais-maint-dismissed:${info.at}` : null
+  const [dismissed, setDismissed] = useState(false)
   useEffect(() => {
-    // Giriş ekranında kart sabit durur; telefonda sayfa içeriğini kartın altına iter (ölçüyle, tahminsiz).
-    if (variant !== 'login' || !visible) return
-    const root = document.documentElement
-    root.classList.add('ktMaintLoginOffset')
-    const element = card.current
-    const measure = () => root.style.setProperty('--ktMaintH', `${Math.ceil((element?.getBoundingClientRect().height ?? 0) + 8)}px`)
-    measure()
-    const observer = typeof ResizeObserver === 'function' && element ? new ResizeObserver(measure) : null
-    if (observer && element) observer.observe(element)
-    return () => { observer?.disconnect(); root.classList.remove('ktMaintLoginOffset'); root.style.removeProperty('--ktMaintH') }
-  }, [variant, visible, running])
+    try { setDismissed(Boolean(dismissKey && variant === 'app' && sessionStorage.getItem(dismissKey))) } catch { setDismissed(false) }
+  }, [dismissKey, variant])
+  const dismiss = () => { setDismissed(true); try { if (dismissKey) sessionStorage.setItem(dismissKey, '1') } catch { /* tarayıcı depolaması kapalı: yalnızca bu açılışta gizlenir */ } }
 
-  if (!info || !visible) return null
+  if (!info || !visible || (dismissed && !running)) return null
   if (running) {
-    return <div ref={card} className="ktMaint" data-variant={variant} data-phase="due" role="status">
+    return <div className="ktMaint" data-variant={variant} data-phase="due" role="status">
       <span className="ktMaintBadge" aria-hidden="true"><Wrench/></span>
       <div className="ktMaintBody"><b className="ktMaintTitle">Sistem şu anda bakımda.</b><span className="ktMaintNote">Açık pozisyonlar ve risk korumaları çalışmaya devam eder.</span></div>
     </div>
@@ -87,12 +80,13 @@ export default function MaintenanceCountdown({variant, onActivated}: {variant: '
   const labels = currentLang() === 'en' ? ['Days', 'Hours', 'Min', 'Sec'] : ['Gün', 'Saat', 'Dk', 'Sn']
   const units: Array<[string, number]> = [...(parts.days > 0 ? [[labels[0], parts.days] as [string, number]] : []), [labels[1], parts.hours], [labels[2], parts.minutes], [labels[3], parts.seconds]]
   const pad = (value: number) => String(value).padStart(2, '0')
-  return <div ref={card} className="ktMaint" data-variant={variant} data-phase={phase} role="status">
+  return <div className="ktMaint" data-variant={variant} data-phase={phase} role="status">
     <span className="ktMaintBadge" aria-hidden="true"><Wrench/></span>
     <div className="ktMaintBody">
       <b className="ktMaintTitle">{phase === 'due' ? 'Bakım başlıyor…' : 'Planlı bakım'}</b>
       <span className="ktMaintNote">{phase === 'due' ? 'Birkaç saniye içinde bakım ekranına geçilir.' : 'Açık pozisyonlar ve risk korumaları çalışmaya devam eder.'}</span>
     </div>
     {phase !== 'due' && <div className="ktMaintClock" aria-hidden="true">{units.map(([label, value]) => <div className="ktMaintUnit" key={label}><b>{pad(value)}</b><small>{label}</small></div>)}</div>}
+    {variant === 'app' && <button type="button" className="ktMaintClose" aria-label="Kapat" onClick={dismiss}><X aria-hidden="true"/></button>}
   </div>
 }
