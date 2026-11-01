@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, Check, Clock3, CreditCard, Crown, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
+import {ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet} from 'lucide-react'
 import {userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
@@ -19,6 +19,7 @@ export type BillingSubscription = {
 const STATUS_TR: Record<string, string> = {ACTIVE: 'Aktif', TRIALING: 'Deneme dönemi', PAST_DUE: 'Ödeme gecikti', UNPAID: 'Ödenmedi', CANCELLED: 'İptal edildi', EXPIRED: 'Süresi doldu'}
 const trDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('tr-TR', {day: 'numeric', month: 'long', year: 'numeric'}) : '—'
 const TRIAL_FEATURES = ['Master Trade analiz, grafik ve piyasa izleme', 'AI Analist · mevcut kredi sınırıyla', 'Kais AI asistanı · günlük sınırlı', 'Original V2, Demo Auto Trade ve pozisyon koruması']
+const PLAN_TABS = [{key: 'trial', label: 'Deneme'}, {key: 'smart', label: 'Smart Trade'}, {key: 'master', label: 'Master Mode'}] as const
 const MASTER_FEATURES = ['Master Trade analiz ve canlı işlem', 'Kais AI asistanı ve AI Analist', 'Original V2, Auto Trade ve pozisyon koruması', 'Demo ve LIVE işlem · güvenlik kontrolleriyle']
 
 export default function BillingCenter({subscription, loading, loadError, trialEnabled, binanceEnabled, methodsLoading, methodsError, onRetry, onMasterTrade}: {
@@ -42,6 +43,31 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const inFlight = useRef(false)
   const paymentRef = useRef<HTMLElement>(null)
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>('MASTER_MODE')
+  const plansRef = useRef<HTMLElement>(null)
+  const [activePlan, setActivePlan] = useState(2)
+  const [swiped, setSwiped] = useState(false)
+
+  const scrollToPlan = (index: number, behavior: ScrollBehavior) => {
+    const list = plansRef.current
+    const card = list?.children[index] as HTMLElement | undefined
+    if (!list || !card) return
+    list.scrollTo({left: card.offsetLeft - (list.clientWidth - card.offsetWidth) / 2, behavior})
+  }
+  const onPlansScroll = () => {
+    const list = plansRef.current
+    if (!list) return
+    const middle = list.scrollLeft + list.clientWidth / 2
+    let best = 0, distance = Infinity
+    Array.from(list.children).forEach((child, index) => {
+      const card = child as HTMLElement
+      const gap = Math.abs(card.offsetLeft + card.offsetWidth / 2 - middle)
+      if (gap < distance) { distance = gap; best = index }
+    })
+    setActivePlan(best)
+  }
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 700px)').matches) scrollToPlan(2, 'auto')
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000)
@@ -116,14 +142,19 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       <dl className="ktBillStats">
         <div><dt>ERİŞİM</dt><dd>{subscription ? hasAccess ? 'Açık' : 'Kapalı' : '—'}</dd></div>
         <div><dt>BİTİŞ TARİHİ</dt><dd>{expiry ? trDate(expiry) : '—'}</dd></div>
-        <div><dt>ÖDEME YÖNTEMİ</dt><dd>{binancePaid ? 'Binance' : onTrial ? 'Ödemesiz deneme' : '—'}</dd></div>
-        <div><dt>YENİLEME</dt><dd>{binancePaid || onTrial ? 'Elle · otomatik ücret yok' : '—'}</dd></div>
+        <div className={binancePaid || onTrial ? undefined : 'ktBillStatEmpty'}><dt>ÖDEME YÖNTEMİ</dt><dd>{binancePaid ? 'Binance' : onTrial ? 'Ödemesiz deneme' : '—'}</dd></div>
+        <div className={binancePaid || onTrial ? undefined : 'ktBillStatEmpty'}><dt>YENİLEME</dt><dd>{binancePaid || onTrial ? 'Elle · otomatik ücret yok' : '—'}</dd></div>
       </dl>
       {hasAccess && <button type="button" className="ktBillGhost" onClick={onMasterTrade}><ShieldCheck/>Master Trade’e git<ArrowRight/></button>}
       {loadError && <p className="ktBillAlert" role="alert">Abonelik bilgileri yüklenemedi. <button type="button" onClick={onRetry}>Yeniden dene</button></p>}
     </section>
 
-    <section className="ktBillPlans" aria-label="Planlar">
+    <div className="ktBillTabs" role="tablist" aria-label="Plan seç">
+      {PLAN_TABS.map((tab, index) => <button key={tab.key} type="button" role="tab" aria-selected={activePlan === index} className={activePlan === index ? 'isActive' : undefined} onClick={() => { setSwiped(true); scrollToPlan(index, 'smooth') }}>{tab.label}</button>)}
+    </div>
+    {!swiped && <p className="ktBillSwipeHint" aria-hidden="true"><ChevronLeft/>Diğer planlar için kaydır<ChevronRight/></p>}
+
+    <section className="ktBillPlans" aria-label="Planlar" ref={plansRef} onScroll={onPlansScroll} onTouchStart={() => setSwiped(true)}>
       <article className="ktBillPlan">
         <header>
           <div className="ktBillPlanIcon"><Sparkles/></div>
@@ -168,6 +199,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
     </section>
+    <div className="ktBillDots" aria-hidden="true">{PLAN_TABS.map((tab, index) => <i key={tab.key} className={activePlan === index ? 'isActive' : undefined}/>)}</div>
 
     {binanceEnabled && authenticated && <section className="ktBillPay" ref={paymentRef} aria-label="Binance ile ödeme">
       <div className="ktBillSteps">
@@ -189,5 +221,14 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       <div><ShieldCheck/><span><b>Elle doğrulanan ödeme</b><small>Her ödeme yönetici tarafından kontrol edilir.</small></span></div>
       <div><Clock3/><span><b>Net süre</b><small>30 gün biter, istersen yenilersin.</small></span></div>
     </footer>
+    <div className="ktBillDock" role="region" aria-label="Seçili plan">
+      <div>
+        <small>{activePlan === 0 ? 'ÜCRETSİZ DENEME' : activePlan === 1 ? 'SMART TRADE' : 'MASTER MODE'}</small>
+        <strong>{activePlan === 0 ? '0' : activePlan === 1 ? PAID_PLAN_AMOUNT.SMART_TRADE : PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)} <span>USDT / {activePlan === 0 ? '7' : '30'} gün</span></strong>
+      </div>
+      {activePlan === 0
+        ? <button type="button" className="ktBillButton" onClick={() => void startTrial()} disabled={trialDisabled}>{trialLabel}</button>
+        : <button type="button" className={`ktBillButton${activePlan === 2 ? ' isPrimary' : ''}`} onClick={() => goToPayment(activePlan === 1 ? 'SMART_TRADE' : 'MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{activePlan === 1 ? smartLabel : masterLabel}</button>}
+    </div>
   </main>
 }

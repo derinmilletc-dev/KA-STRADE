@@ -236,3 +236,37 @@ html body #root .ktBill .ktBillTerms { font-size: 12px; color: #9fb0bd; }
 
 /* Tarama raporu 23 (Abonelik): küçük etiket ve rozet yazıları en az 12px. */
 html body #root:not(#a) main.subscriptionPage.ktBill :is(small, dt, .ktBillEyebrow, .ktBillBadge, .ktBillTag, .ktBillRibbon, header span, section span:not([class])) { font-size: 12px !important; }
+
+/* ===== Telefon: kaydırmalı planlar (sekmeler, ipucu, noktalar, sabit düğme) ===== */
+html body #root .ktBill .ktBillTabs, html body #root .ktBill .ktBillSwipeHint, html body #root .ktBill .ktBillDots, html body #root .ktBill .ktBillDock { display: none; }
+@media (max-width: 700px) {
+  html body #root .ktBill.ktBill { padding-bottom: 150px; overflow-x: clip; }
+  html body #root .ktBill .ktBillHero p { display: none; }
+  html body #root .ktBill .ktBillHero { padding: 18px 18px; }
+  html body #root .ktBill .ktBillHero h1 { margin-top: 8px; font-size: 22px; }
+  html body #root .ktBill .ktBillStatEmpty { display: none; }
+  html body #root .ktBill .ktBillStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  html body #root .ktBill .ktBillTabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--kb-line2); border-radius: 16px; background: rgba(255,255,255,.04); }
+  html body #root .ktBill .ktBillTabs button { min-height: 42px; padding: 0 6px; border: 0; border-radius: 12px; background: transparent; color: var(--kb-soft); font: inherit; font-size: 13.5px; font-weight: 700; transition: background .2s ease, color .2s ease; }
+  html body #root .ktBill .ktBillTabs button.isActive { background: rgba(61,220,151,.16); color: var(--kb-green); box-shadow: inset 0 0 0 1px rgba(61,220,151,.35); }
+  html body #root .ktBill .ktBillSwipeHint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -4px 0 -4px; color: var(--kb-mute); font-size: 12.5px; animation: ktBillHint 1.8s ease-in-out infinite; }
+  html body #root .ktBill .ktBillSwipeHint svg { width: 16px; height: 16px; }
+  @keyframes ktBillHint { 0%, 100% { opacity: .55; transform: translateX(0); } 50% { opacity: 1; transform: translateX(4px); } }
+
+  html body #root .ktBill.ktBill > .ktBillPlans.ktBillPlans { position: relative; display: flex !important; grid-template-columns: none; gap: 12px; width: 100vw; margin-inline: calc(50% - 50vw); padding: 2px 8vw 6px !important; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scroll-padding-inline: 8vw; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; align-items: stretch; }
+  html body #root .ktBill .ktBillPlans::-webkit-scrollbar { display: none; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan { flex: 0 0 84vw; width: 84vw; scroll-snap-align: center; scroll-snap-stop: always; }
+  html body #root .ktBill .ktBillPlans > .ktBillPlan > .ktBillButton { display: none; }
+
+  html body #root .ktBill .ktBillDots { display: flex; justify-content: center; gap: 7px; margin-top: -4px; }
+  html body #root .ktBill .ktBillDots i { width: 7px; height: 7px; border-radius: 999px; background: rgba(255,255,255,.22); transition: width .2s ease, background .2s ease; }
+  html body #root .ktBill .ktBillDots i.isActive { width: 22px; background: var(--kb-green); }
+
+  html body #root .ktBill .ktBillDock { position: fixed; left: 12px; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 80; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 16px; border: 1px solid var(--kb-line2); border-radius: 18px; background: rgba(11,18,26,.94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+  html body #root .ktBill .ktBillDock small { display: block; color: var(--kb-mute); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+  html body #root .ktBill .ktBillDock strong { display: block; margin-top: 2px; color: var(--kb-text); font-size: 20px; font-weight: 800; line-height: 1.1; }
+  html body #root .ktBill .ktBillDock strong span { color: var(--kb-mute); font-size: 12px; font-weight: 600; }
+  html body #root .ktBill .ktBillDock .ktBillButton { flex: 0 1 auto; width: auto; min-width: 130px; min-height: 46px; margin: 0; padding: 0 16px; font-size: 14px; }
+  html body:has(.ktBillDock) .globalBackToTop { bottom: calc(160px + env(safe-area-inset-bottom)) !important; }
+}
