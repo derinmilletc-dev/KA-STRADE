@@ -16,10 +16,10 @@ test('Reference layout is the default at every responsive width with an explicit
 })
 
 test('Analysis prices always have two decimals and never invent unavailable data', () => {
-  assert.equal(analysisPrice(85360.8), '85,360.80')
-  assert.equal(analysisPrice(0.01234), '0.01234')
-  assert.equal(analysisPrice(.00000012345), '0.00000012345')
-  assert.equal(analysisPrice(0), '0.00')
+  assert.equal(analysisPrice(85360.8), '85.360,80')
+  assert.equal(analysisPrice(0.01234), '0,01234')
+  assert.equal(analysisPrice(.00000012345), '0,00000012345')
+  assert.equal(analysisPrice(0), '0,00')
   for (const value of [undefined, null, NaN, Infinity, -Infinity]) assert.equal(analysisPrice(value), '—')
 })
 
@@ -28,10 +28,10 @@ test('Bundled coin symbols normalize quote currencies without changing unknown a
 })
 
 test('Small-price MACD values retain significant digits instead of becoming zero', () => {
-  assert.equal(analysisValue(.0000014168), '0.0000014168')
-  assert.equal(analysisValue(-.000002678), '-0.000002678')
-  assert.equal(analysisValue(12.345), '12.35')
-  assert.equal(analysisValue(0), '0.00')
+  assert.equal(analysisValue(.0000014168), '0,0000014168')
+  assert.equal(analysisValue(-.000002678), '-0,000002678')
+  assert.equal(analysisValue(12.345), '12,35')
+  assert.equal(analysisValue(0), '0,00')
   for (const value of [undefined, null, NaN, Infinity]) assert.equal(analysisValue(value), '—')
 })
 
