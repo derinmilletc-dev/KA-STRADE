@@ -155,20 +155,20 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   return <main className="subscriptionPage ktBill">
 
 
-    <section className={`ktBillStatus tone-${badgeTone}`} aria-label="Mevcut abonelik">
+    <section className={`ktBillStatus tone-${badgeTone}${noPlan && !loading && !loadError ? ' isNoPlan' : ''}`} aria-label="Mevcut abonelik">
       <div className="ktBillStatusMain">
         <div className="ktBillStatusIcon">{hasAccess ? <ShieldCheck/> : <Lock/>}</div>
         <div>
           <small>MEVCUT PLAN</small>
           <h2>{planName}</h2>
         </div>
-        <span className="ktBillBadge">{badge}</span>
+        {(loading || loadError || !noPlan) && <span className="ktBillBadge">{badge}</span>}
       </div>
       <dl className="ktBillStats">
         <div><dt>ERİŞİM</dt><dd>{subscription ? hasAccess ? 'Açık' : 'Kapalı' : '—'}</dd></div>
         <div><dt>BİTİŞ TARİHİ</dt><dd>{expiry ? trDate(expiry) : '—'}</dd></div>
         <div className={binancePaid || onTrial ? undefined : 'ktBillStatEmpty'}><dt>ÖDEME YÖNTEMİ</dt><dd>{binancePaid ? 'Binance' : onTrial ? 'Ödemesiz deneme' : '—'}</dd></div>
-        <div className={binancePaid || onTrial ? undefined : 'ktBillStatEmpty'}><dt>YENİLEME</dt><dd>{binancePaid || onTrial ? 'Elle · otomatik ücret yok' : '—'}</dd></div>
+        <div className={binancePaid || onTrial ? undefined : 'ktBillStatEmpty'}><dt>YENİLEME</dt><dd>{binancePaid || onTrial ? 'Otomatik yenileme yok' : '—'}</dd></div>
       </dl>
       {hasAccess && <button type="button" className="ktBillGhost" onClick={onMasterTrade}><ShieldCheck/>Master Trade’e git<ArrowRight/></button>}
       {loadError && <p className="ktBillAlert" role="alert">Abonelik bilgileri yüklenemedi. <button type="button" onClick={onRetry}>Yeniden dene</button></p>}

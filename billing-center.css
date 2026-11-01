@@ -657,7 +657,12 @@ html body #root .ktBill .ktBillPlan .ktBillPlanIcon, html body #root .ktBill .kt
   html body #root .ktBill .ktBillMobileHead p { margin-top: 10px; max-width: 32ch; color: #93A19A; font-size: 14.5px; line-height: 1.55; }
   /* Mevcut plan: ince tek satır */
   html body #root .ktBill .ktBillStatus.ktBillStatus { padding: 12px 14px !important; border: 1px solid rgba(255,255,255,.08) !important; border-radius: 16px !important; background: rgba(255,255,255,.025) !important; box-shadow: none !important; }
-  html body #root .ktBill .ktBillStats { display: none !important; }
+  html body #root .ktBill .ktBillStatus.isNoPlan .ktBillStats { display: none !important; }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07); }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats > div { padding: 2px 14px !important; border: 0 !important; border-left: 1px solid rgba(255,255,255,.08) !important; border-radius: 0 !important; background: none !important; }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats > div:first-child { border-left: 0 !important; padding-left: 0 !important; }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats dt { color: #8E9C95; font-size: 10.5px; letter-spacing: .14em; }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats dd { margin-top: 4px; color: #fff; font-size: 14.5px; font-weight: 600; }
   html body #root .ktBill .ktBillStatusIcon { width: 36px !important; height: 36px !important; border: 0 !important; border-radius: 50% !important; background: rgba(232,200,119,.1) !important; }
   html body #root .ktBill .ktBillStatusMain h2 { font-size: 15.5px; font-weight: 600; }
   /* Sekmeler: ince yarı saydam hap kapsül */
@@ -757,3 +762,8 @@ html body #root .ktBill .ktCheckoutAsk span { flex: 1; min-width: 0; font-size: 
 html body #root .ktBill .ktCheckoutAsk b { display: block; color: #F8E7B0; font-size: 15.5px; font-weight: 650; }
 html body #root .ktBill .ktCheckoutAsk small { display: block; margin-top: 2px; color: #93A19A; font-size: 12.5px !important; line-height: 1.4; }
 html body #root .ktBill .ktCheckoutAsk > svg { flex: none; width: 20px; height: 20px; color: #E8C877; }
+@media (min-width: 701px) { html body #root .ktBill .ktBillStatus.isNoPlan .ktBillStats { display: none !important; } }
+@media (max-width: 700px) {
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats { gap: 12px 18px !important; }
+  html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats > div, html body #root .ktBill .ktBillStatus:not(.isNoPlan) .ktBillStats > div:first-child { padding: 0 !important; border: 0 !important; background: none !important; }
+}
