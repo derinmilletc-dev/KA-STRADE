@@ -27,6 +27,7 @@ import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
 import {FOLLOW_SYMBOL_EVENT} from './trade-intent'
 import {chartSnapshot} from './chart-ai-client'
+import {useKaisScreenContext} from './useKaisScreenContext'
 
 type TradeSide = 'LONG' | 'SHORT'
 type TradeHistoryRow = {
@@ -262,6 +263,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState<string | null>(null)
   const accountRefreshInFlight = useRef<{forceLiveSnapshot: boolean; promise: Promise<boolean>} | null>(null)
   const activeSnapshot = snapshot?.symbol === draft.market && snapshot.timeframe === interval ? snapshot : null
+  useKaisScreenContext('master-trade', draft.market ? `Master Trade grafiği: ${draft.market} ${interval}` : null)
   const selectedQuote = referenceEnabled ? marketFeed.rows.find(row => row.symbol === draft.market) : undefined
   const currentPrice = selectedQuote?.price ?? activeSnapshot?.currentPrice ?? null
   const candles = activeSnapshot?.candles ?? []

@@ -235,3 +235,36 @@ class StaleLabelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BalanceFastPathTests(unittest.IsolatedAsyncioTestCase):
+    def test_short_balance_questions_use_the_fast_path_but_actions_and_howtos_do_not(self):
+        for message in ("bakiyem ne", "Bakiyemi göster", "bakiyem ne kadar", "what is my balance", "show my balance"):
+            self.assertEqual(fastpath.intent(message), "get_my_account_summary", message)
+        for message in ("bakiyemi nasıl artırırım", "bakiyemi yatırmak istiyorum, nasıl", "bakiyem yeterli mi", "is my balance enough",
+                        "bakiyemle BTC long aç", "bakiyeyi neden gösteremiyorsun"):
+            self.assertNotEqual(fastpath.intent(message), "get_my_account_summary", message)
+
+    async def reply(self, data, stale=False, language="tr"):
+        from unittest.mock import AsyncMock
+        from types import SimpleNamespace
+        tools = SimpleNamespace(dispatch=AsyncMock(return_value={"data": data, "fetched_at": "2026-01-01T00:00:00+00:00", "stale": stale}))
+        return await fastpath.account_summary_answer(tools, "u", language)
+
+    async def test_answers_from_verified_numbers_only(self):
+        good = {"wallet_balance": 136.15, "available_balance": 120.5, "unrealized_pnl": -1.25, "open_positions": 1,
+                "daily_loss": {"loss": 2.0, "limit": 10.0, "locked": False, "remaining": 8.0}}
+        result = await self.reply(good)
+        self.assertIn("136.15", result["reply"])
+        self.assertIn("8.00", result["reply"])
+        self.assertEqual(result["sources"], ["get_my_account_summary"])
+        english = await self.reply(good, language="en")
+        self.assertIn("balance", english["reply"])
+
+    async def test_unverified_stale_or_incomplete_data_falls_back_to_the_model(self):
+        self.assertIsNone(await self.reply({"reason": "ACCOUNT_ACCESS_OFF"}, stale=True))
+        self.assertIsNone(await self.reply({"wallet_balance": 1.0, "available_balance": 1.0}, stale=True))
+        self.assertIsNone(await self.reply({"wallet_balance": None, "available_balance": 1.0}))
+        locked = await self.reply({"wallet_balance": 50.0, "available_balance": 40.0, "open_positions": 0,
+                                   "daily_loss": {"locked": True}})
+        self.assertIn("ulaşıldı", locked["reply"])

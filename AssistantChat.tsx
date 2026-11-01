@@ -5,6 +5,9 @@ import { Check, Copy, LockKeyhole, MoreHorizontal, Send, Trash2, X } from 'lucid
 import { useVoice, type VoiceAnswer } from './assistant-voice'
 import { useKaisWake, useWakeEnabled, wakeSupported } from './useKaisWake'
 import { takeVoiceLaunch } from './kais-wake-text'
+import { preferencesLine, readKaisScreenContext } from './kais-screen-context'
+import { useKaisScreenContext } from './useKaisScreenContext'
+import { useTradingPreferences } from './useTradingPreferences'
 import KaisAgentHolo from './KaisAgentHolo'
 import KaisPupilDive, {pupilDiveOrigin, type PupilDive} from './KaisPupilDive'
 import KaisOrderCard from './KaisOrderCard'
@@ -176,6 +179,8 @@ function PlainText({content}: {content: string}) {
 function AssistantSession({userId, pageContext, language, launcherTarget, onNavigate}: {userId: string; pageContext: string; language: Language; launcherTarget?: HTMLElement | null; onNavigate?: (view: AgentView) => void}) {
   const copy = assistantCopy[language]
   const motionPaused = useAssistantMotion()
+  const savedPreferences = useTradingPreferences().preferences
+  useKaisScreenContext('preferences', preferencesLine(savedPreferences))
   const privateFocus = useKaisPrivacy()
   const [initial] = useState(() => {
     clearLegacyChatHistory()
@@ -581,7 +586,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     activeRequest.current = controller
     try {
       setAgentActions(previous => [...previous.slice(-3), language === 'en' ? 'Asked Kais' : 'Kais\'e soruldu'])
-      const response = await request('chat', controller.signal, {message, history, page_context: truncate(`${pageContext}${new URLSearchParams(window.location.search).get('tab') ? ` · sekme: ${new URLSearchParams(window.location.search).get('tab')}` : ''}`, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
+      const response = await request('chat', controller.signal, {message, history, page_context: truncate(`${pageContext}${new URLSearchParams(window.location.search).get('tab') ? ` · sekme: ${new URLSearchParams(window.location.search).get('tab')}` : ''}${readKaisScreenContext() ? ` · ekranda: ${readKaisScreenContext()}` : ''}`, usage.limits.page_context_max_chars), language, ...(viaVoice ? {voice: true} : {})})
       if (viaVoice) speechMark.current = timingOf.get(response) ?? null
       if (controller.signal.aborted) return null
       if (!text(response.reply) || !['tr', 'en'].includes(String(response.language))) throw new AssistantFailure(502, 'invalid_response')

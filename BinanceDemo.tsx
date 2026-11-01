@@ -13,6 +13,7 @@ import DemoCockpit from './DemoCockpit'
 import LcMoreSheet from './frontend/src/LcMoreSheet'
 import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
+import { useKaisScreenContext } from './useKaisScreenContext'
 
 const API = `${API_BASE}/binance-demo`
 const V21_API = `${API_BASE}/v21`
@@ -336,6 +337,7 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   const [clock,setClock] = useState(Date.now())
   const isolatedRisk = workspace === 'risk'
   const [tab,setTab] = useState<V21Tab>(initialTab || (isolatedRisk ? 'risk' : 'trade'))
+  useKaisScreenContext('demo-workspace', active ? `Demo işlem alanı: ${symbol} · bölüm: ${tab}` : null)
   const [v21,setV21] = useState<V21Summary|null>(null)
   const [settingsDraft,setSettingsDraft] = useState<V21Settings|null>(null)
   const [v21Busy,setV21Busy] = useState(false)

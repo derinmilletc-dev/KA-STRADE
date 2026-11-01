@@ -137,6 +137,11 @@ def intent(message: str) -> str | None:
                            or words & {"kar", "zarar", "pnl"})
         if about_positions and is_read_request(words):
             return "get_demo_positions"
+    # Bakiye: kısa, açık okuma sorusu ("bakiyem ne", "what is my balance"). Eylem/eğitim/evet-hayır sorusu modele gider.
+    if (len(words) <= 8 and not is_action_or_educational(words) and not words & YES_NO_PARTICLES
+            and words & {"bakiye", "bakiyem", "bakiyemi", "bakiyeyi", "balance", "balances"}
+            and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
+        return "get_my_account_summary"
     if re.fullmatch(r"(?:sen kimsin|kimsin|adin ne|senin adin ne|who are you|what is your name)(?:\s*[?!.])*", normalized.strip()):
         return "identity"
     if any(word.startswith(("analiz", "analysis")) for word in words) and any(
@@ -331,6 +336,41 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
     return {**base, "stale": unverified, "reply": ". ".join(parts) + ("" if parts[-1].endswith(".") else ".") + suffix}
 
 
+async def account_summary_answer(tools: AssistantTools, user_id: str, language: Language) -> dict | None:
+    """Bakiye ve günlük sınır (salt okunur). Doğrulanamayan, eski ya da eksik her durumda None döner; model/araç yolu devralır."""
+    tr = language == "tr"
+    try:
+        result = await tools.dispatch(user_id, "get_my_account_summary", {})
+    except Exception:  # noqa: BLE001 - hızlı yol hiçbir zaman hata cevabı üretmez
+        return None
+    data = result.get("data") or {}
+    if data.get("reason") or result.get("stale"):
+        return None
+    wallet, available = data.get("wallet_balance"), data.get("available_balance")
+    if not isinstance(wallet, (int, float)) or not isinstance(available, (int, float)):
+        return None
+    unrealized = data.get("unrealized_pnl")
+    positions = data.get("open_positions")
+    daily = data.get("daily_loss") if isinstance(data.get("daily_loss"), dict) else {}
+    remaining = daily.get("remaining")
+    parts = [f"Bakiyen {wallet:.2f} USDT, kullanılabilir {available:.2f} USDT." if tr
+             else f"Your balance is {wallet:.2f} USDT, with {available:.2f} USDT available."]
+    if isinstance(positions, int):
+        if positions and isinstance(unrealized, (int, float)):
+            parts.append(f"{positions} açık işlemin var, anlık kâr/zarar {unrealized:+.2f} USDT." if tr
+                         else f"You have {positions} open positions with {unrealized:+.2f} USDT unrealized profit/loss.")
+        elif not positions:
+            parts.append("Açık işlemin yok." if tr else "You have no open positions.")
+    if daily.get("locked"):
+        parts.append("Günlük zarar sınırına ulaşıldı, bugün yeni işlem açılmaz." if tr
+                     else "The daily loss limit is reached, so no new trades open today.")
+    elif isinstance(remaining, (int, float)):
+        parts.append(f"Bugün için kalan zarar hakkın {remaining:.2f} USDT." if tr
+                     else f"Your remaining loss allowance for today is {remaining:.2f} USDT.")
+    return {"reply": " ".join(parts), "language": language, "sources": ["get_my_account_summary"],
+            "fetched_at": result.get("fetched_at"), "stale": False}
+
+
 async def answer(
     tools: AssistantTools, user_id: str, message: str, language: Language,
     usage_reader: Callable[[], Awaitable[dict[str, Any]]] | None = None, has_history: bool = False,
@@ -388,6 +428,8 @@ async def answer(
             reply = ("Bayat/doğrulanmamış veri. " if language == "tr" else "Stale/unverified data. ") + reply
         return {"reply": reply, "language": language, "sources": [name],
                 "fetched_at": result["fetched_at"], "stale": result["stale"]}
+    if name == "get_my_account_summary":
+        return await account_summary_answer(tools, user_id, language)
     if name == "get_demo_positions":
         return await demo_positions_answer(tools, user_id, language)
     if name == "get_market_overview":

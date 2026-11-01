@@ -61,7 +61,7 @@ services:
       - key: ASSISTANT_HISTORY_MESSAGE_MAX_CHARS
         value: "2000"
       - key: ASSISTANT_PAGE_CONTEXT_MAX_CHARS
-        value: "300"
+        value: "600"
       - key: ASSISTANT_REQUEST_TIMEOUT_SECONDS
         value: "30"
       - key: ASSISTANT_PROTECTION_STALE_SECONDS

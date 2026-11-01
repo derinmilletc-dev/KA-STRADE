@@ -61,6 +61,16 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(message=message):
                 self.assertFalse(needs_deep_reasoning(message))
 
+    def test_voice_questions_stay_on_the_fast_model_unless_comparing(self):
+        for message in ("neden düştü", "riskim ne", "stratejim nasıl", "why is it down"):
+            with self.subTest(message=message):
+                self.assertFalse(needs_deep_reasoning(message, voice=True))
+        self.assertTrue(needs_deep_reasoning("iki coini karşılaştır", voice=True))
+        config = AssistantConfig()
+        request = build_request(config, "tr", ChatInput(message="neden düştü", voice=True))
+        self.assertEqual(request.effort, "low")
+        self.assertLessEqual(request.max_tokens, 600)
+
     def test_request_effort_follows_question_and_config(self):
         config = AssistantConfig()
         self.assertEqual(build_request(config, "tr", ChatInput(message="merhaba")).effort, "low")

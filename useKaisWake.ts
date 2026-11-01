@@ -53,7 +53,7 @@ export function useWakeEnabled(): [boolean, (value: boolean) => void] {
 }
 
 /** active false iken hiç dinlemez. Sürekli hata alırsa (izin yok vb.) durur ve blocked döner. */
-/** onHeard: ad duyulduğu AN (ara sonuç) — ekran hemen açılsın. onWake: cümle bitince (ya da en geç ~1,8 sn sonra) soruyla. */
+/** onHeard: ad duyulduğu AN (ara sonuç) — ekran hemen açılsın. onWake: cümle bitince (ya da en geç ~1,1 sn sonra) soruyla. */
 export function useKaisWake(active: boolean, language: string, onWake: (question: string) => void, onHeard?: () => void): {listening: boolean; blocked: string | null} {
   const [listening, setListening] = useState(false)
   const [blocked, setBlocked] = useState<string | null>(null)
@@ -78,7 +78,7 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
       instance.lang = language.toLowerCase().startsWith('en') ? 'en-US' : 'tr-TR'
       instance.continuous = true
       instance.interimResults = true
-      instance.maxAlternatives = 1
+      instance.maxAlternatives = 3
       const fire = () => {
         if (stopped) return
         stopped = true
@@ -91,14 +91,14 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
       instance.onresult = event => {
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
           const result = event.results[index]
-          const wake = detectWake(result[0]?.transcript ?? '')
+          const wake = detectWake(Array.from({length: Math.min(result.length, 3)}, (_, i) => result[i]?.transcript ?? ''))
           if (!wake) continue
           question = wake.question
           // Ad duyulur duyulmaz ekranı aç; soru için aynı dinlemeyi sürdür (mikrofon kapatılıp açılmaz, kelime kaybolmaz).
-          if (!heard) { heard = true; heardRef.current?.(); deadline = window.setTimeout(fire, 1800) }
+          if (!heard) { heard = true; heardRef.current?.(); deadline = window.setTimeout(fire, 1100) }
           if (result.isFinal) { fire(); return }
           // Soru gelmeye devam ettikçe bekleme süresini uzat (konuşma sürerken kesilmesin).
-          if (wake.question) { window.clearTimeout(deadline); deadline = window.setTimeout(fire, 1200) }
+          if (wake.question) { window.clearTimeout(deadline); deadline = window.setTimeout(fire, 800) }
         }
       }
       instance.onerror = event => {
