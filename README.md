@@ -2275,7 +2275,7 @@ salt-okunur görüntüler. İşlem/bağlantı yetkisi mevcut OWNER veya aktif ab
 kurallarından belirlenir; istemci plan bilgisi yetki vermez. Premium, mevcut
 LOCKED / ARM / consent ve risk kapılarını kaldırmaz.
 
-Sunucu ayarları: `ANALYST_DAILY_CREDITS=100`, `ANALYST_COST=10`,
+Sunucu ayarları: `ANALYST_DAILY_CREDITS=70` (7 analiz/gün), `ANALYST_COST=10`,
 `CREDIT_WINDOW_HOURS=24`, `ANALYST_CACHE_MINUTES=15`.
 Varsayılan analiz maliyeti `backend/app/analyst_credits.py` içindeki
 `ANALYSIS_COST` sabitinden gelir; `ANALYST_COST` mevcut ortam ayarıyla değiştirilebilir.

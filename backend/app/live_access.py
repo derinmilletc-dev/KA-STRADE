@@ -1,7 +1,7 @@
 """Who may use LIVE trading.
 
 Before multi-user LIVE only the OWNER account could. With MULTI_USER_LIVE on, a member may
-too, but only while they have an active premium (MASTER_MODE) or an active free trial. The OWNER
+too, but only while they have an active paid plan (SMART_TRADE or MASTER_MODE). The free trial is demo-only. The OWNER
 account is unchanged. Every check here is fail-closed.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from fastapi import HTTPException, Request
 from . import live_registry
 
 logger = logging.getLogger(__name__)
-LIVE_MESSAGE = "LIVE işlem premium üyelik veya aktif deneme ile açılır"
+LIVE_MESSAGE = "LIVE işlem Smart Trade veya Master Mode ile açılır"
 
 
 def role_ok(role: Any) -> bool:
@@ -23,12 +23,9 @@ def role_ok(role: Any) -> bool:
 
 
 def entitled(subscription: dict[str, Any]) -> bool:
-    """Paid premium, or (multi-user LIVE) an active free trial."""
-    paid = bool(subscription.get("master_trade_access") and subscription.get("plan") in {"MASTER_MODE", "SMART_TRADE"}
+    """Yalnız ücretli plan (Smart Trade / Master Mode). Ücretsiz deneme canlı işlem açamaz; demo kullanır."""
+    return bool(subscription.get("master_trade_access") and subscription.get("plan") in {"MASTER_MODE", "SMART_TRADE"}
                 and subscription.get("status") in {"ACTIVE", "PAST_DUE"})
-    trial = bool(live_registry.enabled() and subscription.get("mode") == "FREE_TRIAL"
-                 and subscription.get("master_trade_access") and subscription.get("status") == "TRIALING")
-    return paid or trial
 
 
 def require_live_member(request: Request) -> dict[str, Any]:

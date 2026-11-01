@@ -40,7 +40,7 @@ class AssistantConfig(BaseSettings):
     budget_warning_fraction: Decimal = Field(default=Decimal("0.8"), gt=0, le=1, allow_inf_nan=False)
     per_minute_limit: int = Field(default=6, gt=0)
     daily_limit: int = Field(default=20, gt=0)
-    trial_daily_limit: int = Field(default=5, gt=0)
+    trial_daily_limit: int = Field(default=15, gt=0)
     # Premium olmayan üyeye asistanda piyasa özeti ("en iyi coin/long/short") günde en fazla bu kadar, her seferinde analiz kredisi düşerek. 0 = yalnız premium.
     free_market_daily_limit: int = Field(default=3, ge=0)
     monthly_budget_usd: Decimal = Field(default=Decimal(50), ge=0, allow_inf_nan=False)
