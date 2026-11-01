@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
-import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
+import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
+import {askKais} from './kais-ask'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
 import {PLAN_BY_CODE} from './subscription'
@@ -146,7 +147,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     closeRef.current?.focus()
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeCheckout() }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !document.querySelector('dialog[open]')) closeCheckout() }
     window.addEventListener('keydown', onKey)
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey) }
   }, [checkoutOpen])
@@ -248,6 +249,11 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
           <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
         </ol>
         <div className="ktBillPayBox"><BinanceManualPayment plan={selectedPlan}/></div>
+        <button type="button" className="ktCheckoutAsk" onClick={() => askKais(`${PAID_PLAN_NAME[selectedPlan]} planı (${PAID_PLAN_AMOUNT[selectedPlan]} USDT / 30 gün) hakkında bilgi almak istiyorum. Neler dahil ve Binance Pay ile nasıl ödeme yaparım?`)}>
+          <i aria-hidden="true"><MessageCircle/></i>
+          <span><b>KAIS AI’a sor</b><small>Plan, fiyat veya ödeme adımları hakkında hemen sor</small></span>
+          <ChevronRight aria-hidden="true"/>
+        </button>
         <p className="ktCheckoutTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
       </div>
     </div>}
@@ -255,7 +261,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
 
     <footer className="ktBillTrust">
       <div><CreditCard/><span><b>Otomatik ücret yok</b><small>Kartın veya cüzdanın kayıtlı tutulmaz.</small></span></div>
-      <div><ShieldCheck/><span><b>Elle doğrulanan ödeme</b><small>Her ödeme yönetici tarafından kontrol edilir.</small></span></div>
+      <div><ShieldCheck/><span><b>Manuel doğrulama</b><small>Her ödeme yönetici tarafından kontrol edilir.</small></span></div>
       <div><Clock3/><span><b>Net süre</b><small>30 gün biter, istersen yenilersin.</small></span></div>
     </footer>
     <div className="ktBillDock" role="region" aria-label="Seçili plan" data-plan={PLAN_TABS[activePlan].key}>
