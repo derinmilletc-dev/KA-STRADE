@@ -9,6 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
+import {MasterOnlyGate} from '../../premium-access'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import type {RawRecord} from './position-view'
 import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -1943,7 +1944,7 @@ export default function LiveCockpit(props: Props) {
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
           onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce}/>
-        {original && !coach && strategyCard}
+        {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>
 
       <aside className="lcSide">
@@ -1972,7 +1973,7 @@ export default function LiveCockpit(props: Props) {
     <details className="lcDrawer" id="lc-drawer" open={settingsDrawerOpen || undefined} onToggle={event => { const open = (event.currentTarget as HTMLDetailsElement).open; if (coach) setSettingsOpen(open) }}>
       <summary><span className="lcDrawerIcon"><SlidersHorizontal aria-hidden="true"/></span><span className="lcDrawerTitle"><b>Ayarlar ve gelişmiş</b><small>Risk ayarı, kurtarma ve acil durdurma tek yerde.</small></span><span className="lcDrawerChip" data-tone={drawerChip.tone}><i aria-hidden="true"/>{drawerChip.text}</span><ChevronDown aria-hidden="true"/></summary>
       <div className="lcDrawerBody">
-        {original && coach && strategyCard}
+        {original && coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
         {extras}
       </div>
     </details>

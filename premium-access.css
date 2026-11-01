@@ -85,3 +85,9 @@
   .premiumCardActions { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .premiumCard { animation: none; } .premiumPrimary { transition: none; } }
+
+/* Yalnız Master Mode kartı (Smart Trade üyesi) */
+.premiumDialog.isMasterOnly { width: min(460px, calc(100vw - 32px)); cursor: pointer; }
+.premiumDialog.isMasterOnly .premiumPlan { margin: 22px 0; }
+.premiumCardActions.isSingle { grid-template-columns: 1fr; }
+@media (max-width: 767px) { .premiumDialog.isMasterOnly .premiumCard > p:not(.premiumFoot) { display: block; } }
