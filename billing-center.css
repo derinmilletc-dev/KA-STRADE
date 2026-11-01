@@ -747,3 +747,13 @@ html body #root .ktBill .isHot .ktBillFeatTag { border-color: rgba(232,200,119,.
 html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { flex: 1; min-width: 0; font-size: inherit !important; }
 @media (min-width: 701px) { html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { font-size: 16px !important; line-height: 1.35; } }
 @media (max-width: 700px) { html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { font-size: 14.5px !important; line-height: 1.4; } }
+/* Ödeme penceresi: KAIS AI'a sor */
+html body #root .ktBill .ktCheckoutAsk.ktCheckoutAsk.ktCheckoutAsk { display: flex; align-items: center; gap: 14px; width: 100%; margin: 0; padding: 14px 16px; border: 1px solid rgba(232,200,119,.34) !important; border-radius: 18px !important; background: linear-gradient(135deg, rgba(232,200,119,.1), rgba(47,208,138,.06)) !important; color: #F4F3ED !important; text-align: left; cursor: pointer; transition: transform .15s ease, border-color .2s ease, background .2s ease; }
+html body #root .ktBill .ktCheckoutAsk:hover { transform: translateY(-1px); border-color: rgba(232,200,119,.6) !important; }
+html body #root .ktBill .ktCheckoutAsk:focus-visible { outline: 2px solid #E8C877; outline-offset: 2px; }
+html body #root .ktBill .ktCheckoutAsk i { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, rgba(232,200,119,.3), rgba(232,200,119,.06)); color: #F8E7B0; }
+html body #root .ktBill .ktCheckoutAsk i svg { width: 21px; height: 21px; }
+html body #root .ktBill .ktCheckoutAsk span { flex: 1; min-width: 0; font-size: inherit !important; }
+html body #root .ktBill .ktCheckoutAsk b { display: block; color: #F8E7B0; font-size: 15.5px; font-weight: 650; }
+html body #root .ktBill .ktCheckoutAsk small { display: block; margin-top: 2px; color: #93A19A; font-size: 12.5px !important; line-height: 1.4; }
+html body #root .ktBill .ktCheckoutAsk > svg { flex: none; width: 20px; height: 20px; color: #E8C877; }
