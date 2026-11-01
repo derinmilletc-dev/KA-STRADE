@@ -1530,7 +1530,7 @@ async def owner_preview_gate(request, call_next):
             return apply_cors_headers(request, JSONResponse({"detail": "Üyelik yetkisi doğrulanamadı."}, status_code=503))
         if request.url.path.startswith("/api/assistant/") and access.get("assistantAllowed") is False:
             return apply_cors_headers(request, JSONResponse(
-                {"detail": "Kais asistanı MASTER MODE ile açılır.", "code": "ASSISTANT_MASTER_MODE_REQUIRED"}, status_code=403,
+                {"detail": "KAIS AI; Smart Trade, Master Mode veya ücretsiz denemeyle açılır.", "code": "ASSISTANT_MASTER_MODE_REQUIRED"}, status_code=403,
             ))
         trial_safety_action = proof.subscription.get("mode") == "FREE_TRIAL" and request.url.path in {
             "/api/v25/auto/stop", "/api/v25/disarm", "/api/v25/emergency", "/api/v25/position/close",

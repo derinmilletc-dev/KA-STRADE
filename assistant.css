@@ -215,3 +215,55 @@ body.site-copy-protected [data-assistant-chat] * { user-select: text; -webkit-us
 .assistantComposer .assistantVoiceTalk svg .b4 { animation-delay: .45s !important; }
 @keyframes assistantTalkBars { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.45); } }
 @media (prefers-reduced-motion: reduce) { .assistantComposer .assistantVoiceTalk svg rect { animation: none !important; } }
+
+/* Planı olmayan üye: KAIS uyarısı (kısa, modern; ardından Abonelik açılır). */
+.kaisLockedToast {
+  position: fixed;
+  z-index: 1200;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 11px 11px 13px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(126,236,178,.22);
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(14,34,32,.97), rgba(10,22,34,.97));
+  box-shadow: 0 16px 40px rgba(0,0,0,.42);
+  color: #e8f0f6;
+  transform: translateX(-50%);
+  animation: kaisLockedIn 260ms ease-out both;
+  backdrop-filter: blur(8px);
+}
+.kaisLockedToastEye { display: grid; place-items: center; }
+.kaisLockedToastText { display: grid; gap: 2px; min-width: 0; }
+.kaisLockedToastText b { color: #f4f8fb; font-size: 13px; font-weight: 600; }
+.kaisLockedToastText small { color: rgba(211,224,237,.7); font-size: 11px; line-height: 1.35; }
+.kaisLockedToastGo {
+  padding: 7px 13px;
+  border: 1px solid rgba(126,236,178,.4);
+  border-radius: 999px;
+  background: rgba(126,236,178,.1);
+  color: #c4f7dc;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kaisLockedToastBar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, #5fd39a, #8ff0bd);
+  transform-origin: left;
+  animation: kaisLockedBar 1800ms linear both;
+}
+@media (min-width: 1025px) { .kaisLockedToast { bottom: 32px; } }
+@keyframes kaisLockedIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes kaisLockedBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .kaisLockedToast, .kaisLockedToastBar { animation: none; } }
