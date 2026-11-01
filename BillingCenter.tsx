@@ -20,8 +20,8 @@ const STATUS_TR: Record<string, string> = {ACTIVE: 'Aktif', TRIALING: 'Deneme d�
 const trDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('tr-TR', {day: 'numeric', month: 'long', year: 'numeric'}) : '—'
 const TRIAL_FEATURES = ['Master Trade analiz, grafik ve piyasa izleme', 'AI Analist · mevcut kredi sınırıyla', 'Kais AI asistanı · günlük sınırlı', 'Original V2, Demo Auto Trade ve pozisyon koruması']
 const featureIcon = (text: string) => /Grid/.test(text) ? <Grid3X3/> : /LIVE|canlı/.test(text) ? <Zap/> : /koruma|Stop/.test(text) ? <ShieldCheck/> : /analiz|grafik/i.test(text) ? <BarChart3/> : /AI|Kais/.test(text) ? <Bot/> : <Check/>
-const FeatureList = ({items, locked}: {items: readonly string[]; locked?: string}) => <ul className="ktBillFeatures">{items.map(feature => <li key={feature}><i>{featureIcon(feature)}</i><span>{feature}</span></li>)}{locked && <li className="isLocked"><i><Lock/></i><span>{locked}</span></li>}</ul>
-const PLAN_TABS = [{key: 'trial', label: 'Deneme'}, {key: 'smart', label: 'Smart Trade'}, {key: 'master', label: 'Master Mode'}] as const
+const FeatureList = ({items, locked}: {items: readonly string[]; locked?: string}) => <ul className="ktBillFeatures">{items.map(feature => <li key={feature}><i>{featureIcon(feature)}</i><span>{feature}</span><em aria-label="Dahil"><Check/></em></li>)}{locked && <li className="isLocked"><i><Lock/></i><span>{locked}</span><em className="srOnly">Bu planda yok</em></li>}</ul>
+const PLAN_TABS = [{key: 'trial', label: 'Deneme', icon: <Sparkles/>}, {key: 'smart', label: 'Smart Trade', icon: <BarChart3/>}, {key: 'master', label: 'Master Mode', icon: <Crown/>}] as const
 const MASTER_FEATURES = ['Master Trade analiz ve canlı işlem', 'Kais AI asistanı ve AI Analist', 'Original V2, Auto Trade ve pozisyon koruması', 'Demo ve LIVE işlem · güvenlik kontrolleriyle']
 
 export default function BillingCenter({subscription, loading, loadError, trialEnabled, binanceEnabled, methodsLoading, methodsError, onRetry, onMasterTrade}: {
@@ -69,6 +69,19 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   }
   useEffect(() => {
     if (window.matchMedia('(max-width: 700px)').matches) scrollToPlan(2, 'auto')
+  }, [])
+  useEffect(() => {
+    const root = document.documentElement
+    const place = () => {
+      const nav = document.querySelector('.v26MobileBottomNav')
+      const top = nav ? nav.getBoundingClientRect().top : NaN
+      if (Number.isFinite(top) && top > 0 && window.matchMedia('(max-width: 700px)').matches) root.style.setProperty('--ktDockBottom', `${Math.max(0, Math.round(window.innerHeight - top + 10))}px`)
+      else root.style.removeProperty('--ktDockBottom')
+    }
+    place()
+    window.addEventListener('resize', place); window.addEventListener('orientationchange', place)
+    const timer = window.setTimeout(place, 400)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('orientationchange', place); window.clearTimeout(timer); root.style.removeProperty('--ktDockBottom') }
   }, [])
 
   useEffect(() => {
@@ -132,6 +145,8 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       </div>
     </header>
 
+    <div className="ktBillMobileHead"><h1>Abonelik Planları</h1><p>İhtiyacına uygun planı seç, KAIS’in tüm gücünden faydalan.</p></div>
+
     <section className={`ktBillStatus tone-${badgeTone}`} aria-label="Mevcut abonelik">
       <div className="ktBillStatusMain">
         <div className="ktBillStatusIcon">{hasAccess ? <ShieldCheck/> : <Lock/>}</div>
@@ -151,14 +166,13 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       {loadError && <p className="ktBillAlert" role="alert">Abonelik bilgileri yüklenemedi. <button type="button" onClick={onRetry}>Yeniden dene</button></p>}
     </section>
 
-    <div className="ktBillTabs" role="tablist" aria-label="Plan seç">
-      {PLAN_TABS.map((tab, index) => <button key={tab.key} type="button" role="tab" aria-selected={activePlan === index} className={activePlan === index ? 'isActive' : undefined} onClick={() => { setSwiped(true); scrollToPlan(index, 'smooth') }}>{tab.label}</button>)}
+    <div className="ktBillTabs" role="tablist" aria-label="Plan seç" data-plan={PLAN_TABS[activePlan].key}>
+      {PLAN_TABS.map((tab, index) => <button key={tab.key} type="button" role="tab" aria-selected={activePlan === index} className={activePlan === index ? 'isActive' : undefined} onClick={() => { setSwiped(true); scrollToPlan(index, 'smooth') }}>{tab.icon}<span>{tab.label}</span></button>)}
     </div>
     {!swiped && <p className="ktBillSwipeHint" aria-hidden="true"><ChevronLeft/>Diğer planlar için kaydır<ChevronRight/></p>}
 
     <section className="ktBillPlans" aria-label="Planlar" ref={plansRef} onScroll={onPlansScroll} onTouchStart={() => setSwiped(true)}>
-      <article className="ktBillPlan">
-        <span className="ktBillGlow" aria-hidden="true"/>
+      <article className={`ktBillPlan${activePlan === 0 ? ' isActive' : ''}`}>
         <header>
           <div className="ktBillPlanIcon"><Sparkles/></div>
           <div><span className="ktBillTag">ÖDEMESİZ DENEME</span><h3>1 Hafta Ücretsiz Deneme</h3></div>
@@ -175,10 +189,9 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Hesap başına bir deneme. E-posta doğrulaması gerekir.</small>
       </article>
 
-      <article className="ktBillPlan isSmart">
-        <span className="ktBillGlow" aria-hidden="true"/>
+      <article className={`ktBillPlan isSmart${activePlan === 1 ? ' isActive' : ''}`}>
         <header>
-          <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/></div>
+          <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/><BarChart3 className="ktBillIconMobile" aria-hidden="true"/></div>
           <div><span className="ktBillTag">AKILLI MANUEL İŞLEMLER</span><h3>SMART TRADE</h3></div>
         </header>
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
@@ -191,8 +204,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
 
-      <article className="ktBillPlan isFeatured">
-        <span className="ktBillGlow" aria-hidden="true"/>
+      <article className={`ktBillPlan isFeatured${activePlan === 2 ? ' isActive' : ''}`}>
         <span className="ktBillRibbon">ÖNERİLEN</span>
         <header>
           <div className="ktBillPlanIcon"><Crown/></div>
@@ -207,7 +219,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
     </section>
-    <div className="ktBillDots" aria-hidden="true">{PLAN_TABS.map((tab, index) => <i key={tab.key} className={activePlan === index ? 'isActive' : undefined}/>)}</div>
+    <div className="ktBillDots" aria-hidden="true" data-plan={PLAN_TABS[activePlan].key}>{PLAN_TABS.map((tab, index) => <i key={tab.key} className={activePlan === index ? 'isActive' : undefined}/>)}</div>
 
     {binanceEnabled && authenticated && <section className="ktBillPay" ref={paymentRef} aria-label="Binance ile ödeme">
       <div className="ktBillSteps">
@@ -229,7 +241,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       <div><ShieldCheck/><span><b>Elle doğrulanan ödeme</b><small>Her ödeme yönetici tarafından kontrol edilir.</small></span></div>
       <div><Clock3/><span><b>Net süre</b><small>30 gün biter, istersen yenilersin.</small></span></div>
     </footer>
-    <div className="ktBillDock" role="region" aria-label="Seçili plan">
+    <div className="ktBillDock" role="region" aria-label="Seçili plan" data-plan={PLAN_TABS[activePlan].key}>
       <div>
         <small>{activePlan === 0 ? 'ÜCRETSİZ DENEME' : activePlan === 1 ? 'SMART TRADE' : 'MASTER MODE'}</small>
         <strong>{activePlan === 0 ? '0' : activePlan === 1 ? PAID_PLAN_AMOUNT.SMART_TRADE : PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)} <span>USDT / {activePlan === 0 ? '7' : '30'} gün</span></strong>
