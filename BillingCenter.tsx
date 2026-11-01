@@ -199,7 +199,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <ul>{SMART_TRADE_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
         <FeatureList items={SMART_TRADE_FEATURES} locked="Kais otomatik stratejileri ve Auto Trade yok"/>
         <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
-        <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
+        <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton" onClick={() => goToPayment('SMART_TRADE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{smartLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
@@ -214,7 +214,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <div className="ktBillPrice"><strong>{PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{MASTER_FEATURES.map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
         <FeatureList items={MASTER_FEATURES}/>
-        <p className="ktBillNote"><Wallet/>Binance Pay ile ödenir, elle onaylanır.</p>
+        <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton isPrimary" onClick={() => goToPayment('MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
