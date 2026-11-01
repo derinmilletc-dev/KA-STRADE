@@ -1043,7 +1043,9 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
     transition: transform .15s ease, border-color .15s ease, background-color .15s ease;
+    animation: authInstagramBreath 3.6s ease-in-out 1s infinite;
   }
+  #root .authCardLogin a.authInstagramFollow:is(:active, :focus-visible) { animation: none; }
   #root .authCardLogin a.authInstagramFollow span { flex: 1; font-size: 13.5px !important; font-weight: 500; letter-spacing: .01em; color: rgba(241, 245, 244, .92); }
   #root .authCardLogin .authInstagramGlyph { flex: 0 0 auto; width: 21px; height: 21px; }
   #root .authCardLogin .authInstagramArrow { flex: 0 0 auto; width: 16px; height: 16px; stroke-width: 1.75; color: #e8c27a; transition: transform .15s ease; }
@@ -1052,6 +1054,8 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
   #root .authCardLogin a.authInstagramFollow:hover .authInstagramArrow { transform: translate(2px, -2px); }
   #root .authCardLogin a.authInstagramFollow:focus-visible { outline: 2px solid #e8c27a; outline-offset: 3px; }
 }
+/* Çok hafif "nefes": %2 büyüyüp eski boyuna döner. */
+@keyframes authInstagramBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
 @media (prefers-reduced-motion: reduce) {
-  #root .authCardLogin a.authInstagramFollow, #root .authCardLogin .authInstagramArrow { transition: none; }
+  #root .authCardLogin a.authInstagramFollow, #root .authCardLogin .authInstagramArrow { transition: none; animation: none; }
 }
