@@ -723,3 +723,27 @@ html body #root .ktBill .ktCheckoutClose.ktCheckoutClose.ktCheckoutClose { borde
 html body #root .ktBill .ktCheckout .binanceManualPrimary.binanceManualPrimary.binanceManualPrimary { border-radius: 16px !important; }
 html body #root .ktBill .ktCheckout .binanceManualRefresh.binanceManualRefresh.binanceManualRefresh { border-radius: 999px !important; }
 html body #root .ktBill .ktCheckout .binanceManualReference button { border-radius: 10px !important; }
+
+/* ===== Özellik listesi: modern satırlar, etiketler (Sınırlı / Demo / Gelişmiş / Öncelikli) ===== */
+html body #root .ktBill .ktBillFeatTag { flex: none; margin-left: auto; padding: 3px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(255,255,255,.04); color: #AEBAB4; font-size: 11px !important; font-weight: 600; letter-spacing: .06em; line-height: 1.3; white-space: nowrap; }
+html body #root .ktBill .isHot .ktBillFeatTag { border-color: rgba(232,200,119,.55); background: rgba(232,200,119,.1); color: #F8E7B0; }
+@media (min-width: 701px) {
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) { gap: 0 !important; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li { align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.055); font-size: 15.5px !important; font-weight: 450; line-height: 1.35; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li:last-child { border-bottom: 0; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li > span { flex: 1; min-width: 0; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li svg { margin-top: 0 !important; flex: none; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li.isHot { color: #F8E7B0; }
+  html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li.isHot:first-of-type, html body #root .ktBill .ktBillPlan > ul:not(.ktBillFeatures) li.isHot { }
+  html body #root .ktBill .ktBillPlan .ktBillLockNote { padding-top: 14px !important; }
+}
+@media (max-width: 700px) {
+  html body #root .ktBill .ktBillFeatures li { align-items: center; }
+  html body #root .ktBill .ktBillFeatures li.isHot { color: #F8E7B0; }
+  html body #root .ktBill .ktBillFeatures li.isHot em { color: #E8C877; }
+  html body #root .ktBill .ktBillFeatures li .ktBillFeatTag { font-size: 10.5px !important; padding: 2px 8px; }
+  html body #root .ktBill .ktBillPlan > ul.ktBillFeatures::before { content: "NELER DAHİL"; }
+}
+html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { flex: 1; min-width: 0; font-size: inherit !important; }
+@media (min-width: 701px) { html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { font-size: 16px !important; line-height: 1.35; } }
+@media (max-width: 700px) { html body #root:not(#a) main.subscriptionPage.ktBill .ktBillFeatText { font-size: 14.5px !important; line-height: 1.4; } }
