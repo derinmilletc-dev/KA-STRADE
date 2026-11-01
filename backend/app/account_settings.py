@@ -300,9 +300,10 @@ async def delivery(request, user, *, email=None, title, action_url, label, expir
         auth.record_event(request, user, "auth.email_verification_failed", "verification_failed", "verification", 503) if title == auth.VERIFY_SUBJECT else None
         raise HTTPException(503, "E-posta servisi kullanılamıyor")
     try:
+        language = await store.language_of(request, user["id"])
         await asyncio.to_thread(auth.send_auth_email, to_email=email or user["email"],
                                 display_name=user.get("display_name", ""), subject=title, title=title,
-                                action_url=action_url, action_label=label, expiry=expiry)
+                                action_url=action_url, action_label=label, expiry=expiry, language=language)
     except auth.GMAIL_DELIVERY_ERRORS as exc:
         auth.log_gmail_failure(exc, request.app)
         auth.record_event(request, user, "auth.email_verification_failed", "verification_failed", "verification", 503) if title == auth.VERIFY_SUBJECT else None
@@ -313,12 +314,13 @@ async def delivery(request, user, *, email=None, title, action_url, label, expir
 
 async def notify_two_factor(request, user, *, active):
     title = "İki aşamalı doğrulama etkinleştirildi" if active else "İki aşamalı doğrulama kapatıldı"
+    language = await store.language_of(request, user["id"])
     try:
         await asyncio.wait_for(asyncio.to_thread(
             auth.send_auth_email, to_email=user["email"], display_name=user.get("display_name", ""),
             subject="KaisTrade · " + title, title=title,
             action_url=auth.app_base_url() + "/settings", action_label="Hesabımı kontrol et",
-            information_only=True, security_notice=title + "."), timeout=5.0)
+            information_only=True, security_notice=title + ".", language=language), timeout=5.0)
     except TimeoutError:
         auth.logger.warning("Two-factor security notification delivery was not confirmed before its deadline")
         return False

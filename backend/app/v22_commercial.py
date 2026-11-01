@@ -1114,10 +1114,12 @@ class RegisterRequest(BaseModel):
 
 class EmailTokenRequest(BaseModel):
     token: str = Field(min_length=20, max_length=600)
+    language: Literal["tr", "en"] | None = None
 
 
 class PasswordResetRequest(BaseModel):
     email: str = Field(min_length=5, max_length=180)
+    language: Literal["tr", "en"] | None = None
 
 
 class PasswordResetConfirmRequest(BaseModel):
@@ -1491,6 +1493,7 @@ async def register_password_user(payload: RegisterRequest, request: Request, bro
             if email_verification.enabled():
                 mail.update(title="E-posta adresini onayla", action_label="E-postamı doğrula",
                             expiry="30 dakika", verification_v2=True)
+            mail["language"] = payload.language
     if gmail_configured():
         try:
             await asyncio.to_thread(send_auth_email, **mail)
@@ -1561,7 +1564,7 @@ async def v22_resend_verification(payload: EmailTokenRequest, request: Request):
         raise HTTPException(503, email_service.unavailable_message(), headers={"X-Email-Delivery-Error": "1", "Retry-After": "60"})
     if email_verification.enabled():
         try:
-            return await email_verification.send_link(request, proof["sub"])
+            return await email_verification.send_link(request, proof["sub"], language=payload.language)
         except email_service.EmailDeliveryError as exc:
             log_gmail_failure(exc, request.app)
             raise HTTPException(503, "Doğrulama maili gönderilemedi. Lütfen tekrar dene.",
@@ -1592,7 +1595,8 @@ async def v22_resend_verification(payload: EmailTokenRequest, request: Request):
     try:
         await asyncio.to_thread(send_auth_email, to_email=user["email"], display_name=user["display_name"],
                                 subject=VERIFY_SUBJECT, title="Hesabını doğrula",
-                                action_url=f"{app_base_url()}/verify-email?token={token}", action_label="E-posta adresimi doğrula")
+                                action_url=f"{app_base_url()}/verify-email?token={token}", action_label="E-posta adresimi doğrula",
+                                language=await _mail_language(request, user["id"], payload.language))
     except GMAIL_DELIVERY_ERRORS as exc:
         log_gmail_failure(exc, request.app)
         record_event(request, user, "auth.email_verification_failed", "verification_failed", "verification", 503)
@@ -1677,6 +1681,11 @@ async def v22_verification_status(request: Request, token: str = Query(..., min_
     return {"verified": bool(user.get("email_verified", False))}
 
 
+async def _mail_language(request: Request, user_id: str, hint: str | None = None) -> str:
+    from .account_store import language_of
+    return await language_of(request, user_id, hint)
+
+
 @router.post("/auth/forgot-password")
 async def v22_forgot_password(payload: PasswordResetRequest, request: Request):
     rt = runtime(request)
@@ -1707,7 +1716,8 @@ async def v22_forgot_password(payload: PasswordResetRequest, request: Request):
             raise HTTPException(503, "Kalıcı hesap veritabanı hazır değil")
         if gmail_configured():
             try:
-                await asyncio.to_thread(send_auth_email, to_email=user["email"], display_name=user["display_name"], subject=RESET_SUBJECT, title="Parolanı yenile", action_url=f"{app_base_url()}/reset-password?token={reset_token}", action_label="Parolamı yenile")
+                await asyncio.to_thread(send_auth_email, to_email=user["email"], display_name=user["display_name"], subject=RESET_SUBJECT, title="Parolanı yenile", action_url=f"{app_base_url()}/reset-password?token={reset_token}", action_label="Parolamı yenile",
+                                    language=await _mail_language(request, user["id"], payload.language))
             except GMAIL_DELIVERY_ERRORS as exc:
                 log_gmail_failure(exc, request.app)
                 raise HTTPException(503, "Parola yenileme e-postası gönderilemedi") from exc
@@ -2375,7 +2385,8 @@ async def v22_admin_password_reset(user_id: str, request: Request):
     if (DURABLE_AUTH_REQUIRED or getattr(request.app.state, "db_pool", None) is not None) and not persisted:
         raise HTTPException(503, "Parola yenileme isteği kalıcı depoya yazılamadı")
     try:
-        await asyncio.to_thread(send_auth_email, to_email=user["email"], display_name=user["display_name"], subject=RESET_SUBJECT, title="Parolanı yenile", action_url=f"{app_base_url()}/reset-password?token={reset_token}", action_label="Parolamı yenile")
+        await asyncio.to_thread(send_auth_email, to_email=user["email"], display_name=user["display_name"], subject=RESET_SUBJECT, title="Parolanı yenile", action_url=f"{app_base_url()}/reset-password?token={reset_token}", action_label="Parolamı yenile",
+                                    language=await _mail_language(request, user["id"]))
     except GMAIL_DELIVERY_ERRORS:
         raise HTTPException(503, "Parola yenileme e-postası gönderilemedi") from None
     return {"ok": True, "message": "Parola yenileme bağlantısı gönderildi.", "demo_only": True}

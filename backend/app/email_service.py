@@ -19,12 +19,101 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from .server_i18n import localize
 from .web_security import production_or_hosted_environment
 
 logger = logging.getLogger(__name__)
 CANONICAL_EMAIL_ORIGIN = "https://kaistrade.com"
 VERIFY_SUBJECT = "KaisTrade hesabını doğrula"
 RESET_SUBJECT = "KaisTrade parolanı yenile"
+# Hesap e-postalarındaki sabit cümleler. Dil bilinmiyorsa her zaman Türkçe gider.
+AUTH_WORDS = {
+    "tr": {
+        "hello": "Merhaba", "user": "KaisTrade kullanıcısı",
+        "info": "Giriş sayfasını kullanabilirsin. Parolanı unuttuysan aynı sayfadan sıfırlayabilirsin.",
+        "action": "KaisTrade hesabındaki işlemi tamamlamak için aşağıdaki düğmeyi kullan.",
+        "expiry_html": "Güvenlik bağlantısı veya kodu {expiry} içinde geçerliliğini yitirir.",
+        "copy": "Düğme açılmıyorsa bu bağlantıyı tarayıcına kopyala:",
+        "ignore": "Bu işlemi sen yapmadıysan bu maili yok sayabilirsin.",
+        "never": "KaisTrade parolanı veya borsa API anahtarını e-posta ile istemez.",
+        "complete": "KaisTrade hesabındaki işlemi tamamla: {label}",
+        "expiry_text": "Bağlantı veya kod {expiry} içinde geçerliliğini yitirir.",
+        "verify_title": "E-posta adresini onayla",
+        "verify_body": "KaisTrade hesabını doğrulamak için aşağıdaki bağlantıyı aç. Bağlantı tek kullanımlıktır ve 30 dakika geçerlidir.",
+        "verify_btn_body": "KaisTrade hesabını doğrulamak için aşağıdaki butona dokun. Bağlantı tek kullanımlıktır ve 30 dakika geçerlidir.",
+        "verify_cta": "E-postamı doğrula",
+        "verify_copy": "Buton çalışmıyor mu? Bu bağlantıyı tarayıcına yapıştır:",
+        "verify_ignore": "KaisTrade hesabı sen açmadıysan bu e-postayı görmezden gelebilirsin. Şifreni veya API anahtarlarını asla e-postayla istemeyiz.",
+        "sec_check": "Bu işlemi sen yapmadıysan hesabını hemen kontrol et:",
+        "sec_check_short": "Bu işlemi sen yapmadıysan hesabını hemen kontrol et.",
+        "sec_link": "Hesabımı kontrol et",
+        "sec_never": "Parolanı veya API anahtarlarını e-postayla istemeyiz.",
+    },
+    "en": {
+        "hello": "Hello", "user": "KaisTrade user",
+        "info": "You can use the sign-in page. If you forgot your password, you can reset it from the same page.",
+        "action": "Use the button below to complete the action on your KaisTrade account.",
+        "expiry_html": "This security link or code expires in {expiry}.",
+        "copy": "If the button does not open, copy this link into your browser:",
+        "ignore": "If you did not request this, you can ignore this email.",
+        "never": "KaisTrade never asks for your password or exchange API key by email.",
+        "complete": "Complete the action on your KaisTrade account: {label}",
+        "expiry_text": "This link or code expires in {expiry}.",
+        "verify_title": "Confirm your email address",
+        "verify_body": "Open the link below to verify your KaisTrade account. The link can be used once and is valid for 30 minutes.",
+        "verify_btn_body": "Tap the button below to verify your KaisTrade account. The link can be used once and is valid for 30 minutes.",
+        "verify_cta": "Verify my email",
+        "verify_copy": "Button not working? Paste this link into your browser:",
+        "verify_ignore": "If you did not create a KaisTrade account, you can ignore this email. We never ask for your password or API keys by email.",
+        "sec_check": "If you did not do this, check your account right away:",
+        "sec_check_short": "If you did not do this, check your account right away.",
+        "sec_link": "Check my account",
+        "sec_never": "We never ask for your password or API keys by email.",
+    },
+}
+
+
+# Hesap e-postalarında geçen başlık / konu / düğme / süre metinlerinin İngilizcesi.
+AUTH_EN = {
+    "KaisTrade hesabını doğrula": "Verify your KaisTrade account",
+    "KaisTrade parolanı yenile": "Reset your KaisTrade password",
+    "Hesabını doğrula": "Verify your account",
+    "Parolanı yenile": "Reset your password",
+    "E-posta adresini onayla": "Confirm your email address",
+    "E-posta adresimi doğrula": "Verify my email address",
+    "E-postamı doğrula": "Verify my email",
+    "E-posta adresimi onayla": "Confirm my email address",
+    "Parolamı yenile": "Reset my password",
+    "Hesabımı kontrol et": "Check my account",
+    "HESABINIZI KONTROL EDİN": "CHECK YOUR ACCOUNT",
+    "KaisTrade hesap doğrulaması": "KaisTrade account verification",
+    "KaisTrade yeni e-posta doğrulaması": "KaisTrade new email verification",
+    "KaisTrade e-posta adresin değiştirildi": "Your KaisTrade email address was changed",
+    "İki aşamalı doğrulama etkinleştirildi": "Two-factor authentication was turned on",
+    "İki aşamalı doğrulama kapatıldı": "Two-factor authentication was turned off",
+    "İki aşamalı doğrulama etkinleştirildi.": "Two-factor authentication was turned on.",
+    "İki aşamalı doğrulama kapatıldı.": "Two-factor authentication was turned off.",
+    "24 saat": "24 hours", "30 dakika": "30 minutes", "10 dakika": "10 minutes", "1 saat": "1 hour", "15 dakika": "15 minutes",
+}
+
+
+def auth_text(text: str, language: str | None) -> str:
+    """Hesap e-postası metnini dile göre döndürür; bilinmeyen metin ve Türkçe aynen kalır."""
+    if language != "en" or not text:
+        return text
+    if text in AUTH_EN:
+        return AUTH_EN[text]
+    if text.startswith("KaisTrade · "):
+        return "KaisTrade · " + auth_text(text[len("KaisTrade · "):], language)
+    if text.startswith("Doğrulama kodu: "):
+        return "Verification code: " + text[len("Doğrulama kodu: "):]
+    return localize(text, language)
+
+
+def words(language: str | None) -> dict[str, str]:
+    return AUTH_WORDS["en" if language == "en" else "tr"]
+
+
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 GMAIL_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
@@ -142,78 +231,82 @@ def failure_details(exc: BaseException) -> dict[str, str]:
             "message": "E-posta sağlayıcısı gönderimi tamamlayamadı."}
 
 
-def auth_email_html(title: str, display_name: str, action_url: str, action_label: str, expiry: str, *, information_only: bool = False) -> str:
+def auth_email_html(title: str, display_name: str, action_url: str, action_label: str, expiry: str, *, information_only: bool = False,
+                    language: str = "tr") -> str:
+    w = words(language)
     title, display_name, action_url, action_label, expiry = (
         escape(str(value), quote=True) for value in (title, display_name, action_url, action_label, expiry)
     )
-    instruction = ("Giriş sayfasını kullanabilirsin. Parolanı unuttuysan aynı sayfadan sıfırlayabilirsin."
-                   if information_only else "KaisTrade hesabındaki işlemi tamamlamak için aşağıdaki düğmeyi kullan.")
-    expiry_notice = "" if information_only else f'<p style="font-size:13px">Güvenlik bağlantısı veya kodu {expiry} içinde geçerliliğini yitirir.</p>'
-    return f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#18242d">
+    instruction = w["info"] if information_only else w["action"]
+    expiry_notice = "" if information_only else f'<p style="font-size:13px">{w["expiry_html"].format(expiry=expiry)}</p>'
+    return f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#18242d">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:12px"><tr><td style="padding:32px">
 <p style="font-weight:700;color:#2457c5">KaisTrade</p>
 <h1 style="font-size:24px">{title}</h1>
-<p>Merhaba {display_name or 'KaisTrade kullanıcısı'},</p>
+<p>{w['hello']} {display_name or w['user']},</p>
 <p>{instruction}</p>
 <p style="margin:28px 0"><a href="{action_url}" style="display:inline-block;padding:14px 24px;background:#2457c5;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">{action_label}</a></p>
-<p style="font-size:13px">Düğme açılmıyorsa bu bağlantıyı tarayıcına kopyala:</p>
+<p style="font-size:13px">{w['copy']}</p>
 <p style="font-size:13px;overflow-wrap:anywhere"><a href="{action_url}">{action_url}</a></p>
 {expiry_notice}
-<p style="font-size:13px;color:#566570">Bu işlemi sen yapmadıysan bu maili yok sayabilirsin.</p>
-<p style="font-size:13px;color:#566570">KaisTrade parolanı veya borsa API anahtarını e-posta ile istemez.</p>
+<p style="font-size:13px;color:#566570">{w['ignore']}</p>
+<p style="font-size:13px;color:#566570">{w['never']}</p>
 </td></tr></table></td></tr></table></body></html>"""
 
 
-def verification_email(action_url: str) -> tuple[str, str]:
+def verification_email(action_url: str, language: str = "tr") -> tuple[str, str]:
+    w = words(language)
     link = escape(action_url, quote=True)
     text = (
-        "KaisTrade\n\nE-posta adresini onayla\n\n"
-        "KaisTrade hesabını doğrulamak için aşağıdaki bağlantıyı aç. "
-        "Bağlantı tek kullanımlıktır ve 30 dakika geçerlidir.\n\n"
-        f"{action_url}\n\n"
-        "KaisTrade hesabı sen açmadıysan bu e-postayı görmezden gelebilirsin. "
-        "Şifreni veya API anahtarlarını asla e-postayla istemeyiz."
+        f"KaisTrade\n\n{w['verify_title']}\n\n{w['verify_body']}\n\n"
+        f"{action_url}\n\n{w['verify_ignore']}"
     )
-    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#0B0E0C;color:#E6ECE8;font-family:Arial,sans-serif">
+    html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#0B0E0C;color:#E6ECE8;font-family:Arial,sans-serif">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0B0E0C"><tr><td align="center" style="padding:36px 16px">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#121714;border:1px solid #1F2823;border-radius:18px"><tr><td style="padding:32px">
 <p style="margin:0 0 28px;font-size:22px;font-weight:700;color:#F2F6F3">Kais<span style="color:#5FCB8E">Trade</span></p>
 <p style="font-size:32px;color:#5FCB8E" aria-hidden="true">&#9993;</p>
-<h1 style="font-size:25px;color:#F2F6F3">E-posta adresini onayla</h1>
-<p style="font-size:15px;line-height:1.7">KaisTrade hesabını doğrulamak için aşağıdaki butona dokun. Bağlantı tek kullanımlıktır ve 30 dakika geçerlidir.</p>
-<table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0"><tr><td bgcolor="#5FCB8E" style="border-radius:14px"><a href="{link}" style="display:inline-block;padding:16px 24px;color:#06120C;font-size:15px;font-weight:700;text-decoration:none">E-postamı doğrula</a></td></tr></table>
-<p style="font-size:13px;color:#A3B0A9;line-height:1.6">Buton çalışmıyor mu? Bu bağlantıyı tarayıcına yapıştır:</p>
+<h1 style="font-size:25px;color:#F2F6F3">{w['verify_title']}</h1>
+<p style="font-size:15px;line-height:1.7">{w['verify_btn_body']}</p>
+<table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0"><tr><td bgcolor="#5FCB8E" style="border-radius:14px"><a href="{link}" style="display:inline-block;padding:16px 24px;color:#06120C;font-size:15px;font-weight:700;text-decoration:none">{w['verify_cta']}</a></td></tr></table>
+<p style="font-size:13px;color:#A3B0A9;line-height:1.6">{w['verify_copy']}</p>
 <p style="font-size:13px;overflow-wrap:anywhere;word-break:break-all"><a href="{link}" style="color:#7FD8A6">{link}</a></p>
-<p style="margin-top:28px;font-size:12px;line-height:1.7;color:#8E9C95">KaisTrade hesabı sen açmadıysan bu e-postayı görmezden gelebilirsin. Şifreni veya API anahtarlarını asla e-postayla istemeyiz.</p>
+<p style="margin-top:28px;font-size:12px;line-height:1.7;color:#8E9C95">{w['verify_ignore']}</p>
 </td></tr></table></td></tr></table></body></html>"""
     return text, html
 
 
 def send_auth_email(*, to_email: str, display_name: str, subject: str, title: str,
                     action_url: str, action_label: str, expiry: str = "24 saat", information_only: bool = False,
-                    verification_v2: bool = False, security_notice: str | None = None) -> None:
+                    verification_v2: bool = False, security_notice: str | None = None,
+                    language: str = "tr") -> None:
     selected = provider()
+    w = words(language)
+    if language == "en":
+        subject, title, action_label, expiry = (auth_text(v, "en") for v in (subject, title, action_label, expiry))
+        if security_notice is not None:
+            security_notice = auth_text(security_notice, "en")
     try:
         validate_configuration()
         validate_action_url(action_url)
-        expiry_notice = "" if information_only else f"Bağlantı veya kod {expiry} içinde geçerliliğini yitirir.\n"
-        text = (f"KaisTrade\n\n{title}\n\nMerhaba {display_name},\n"
-                f"KaisTrade hesabındaki işlemi tamamla: {action_label}\n\n{action_url}\n\n"
+        expiry_notice = "" if information_only else w["expiry_text"].format(expiry=expiry) + "\n"
+        text = (f"KaisTrade\n\n{title}\n\n{w['hello']} {display_name},\n"
+                f"{w['complete'].format(label=action_label)}\n\n{action_url}\n\n"
                 f"{expiry_notice}"
-                "Bu işlemi sen yapmadıysan bu maili yok sayabilirsin.\n"
-                "KaisTrade parolanı veya borsa API anahtarını e-posta ile istemez.")
-        html = auth_email_html(title, display_name, action_url, action_label, expiry, information_only=information_only)
+                f"{w['ignore']}\n{w['never']}")
+        html = auth_email_html(title, display_name, action_url, action_label, expiry, information_only=information_only,
+                               language=language)
         if verification_v2:
-            text, html = verification_email(action_url)
+            text, html = verification_email(action_url, language)
         if security_notice is not None:
-            text = f"KaisTrade\n\n{title}\n\n{security_notice}\n\nBu işlemi sen yapmadıysan hesabını hemen kontrol et:\n{action_url}\n\nParolanı veya API anahtarlarını e-postayla istemeyiz."
-            html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#080e0c;color:#e7ecf3;font-family:Arial,sans-serif">
+            text = f"KaisTrade\n\n{title}\n\n{security_notice}\n\n{w['sec_check']}\n{action_url}\n\n{w['sec_never']}"
+            html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#080e0c;color:#e7ecf3;font-family:Arial,sans-serif">
 <div style="max-width:480px;margin:32px auto;padding:28px;border:1px solid #ffffff26;border-radius:16px">
 <p style="color:#37c98a;font-weight:bold">KaisTrade</p><h1 style="font-size:24px">{escape(title)}</h1>
-<p>{escape(security_notice)}</p><p>Bu işlemi sen yapmadıysan hesabını hemen kontrol et.</p>
-<p><a style="color:#37c98a" href="{escape(action_url, quote=True)}">Hesabımı kontrol et</a></p>
-<p>Parolanı veya API anahtarlarını e-postayla istemeyiz.</p></div></body></html>"""
+<p>{escape(security_notice)}</p><p>{w['sec_check_short']}</p>
+<p><a style="color:#37c98a" href="{escape(action_url, quote=True)}">{w['sec_link']}</a></p>
+<p>{w['sec_never']}</p></div></body></html>"""
         reply_to = os.getenv("EMAIL_REPLY_TO", "").strip()
         if selected == "resend":
             payload = {"from": f"KaisTrade <{parseaddr(os.environ['EMAIL_FROM'])[1]}>", "to": [to_email],
