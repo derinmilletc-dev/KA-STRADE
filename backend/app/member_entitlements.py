@@ -64,9 +64,13 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
                          "canUseAutomation": not smart_trade},
     }
     from .free_trial import enabled as trial_enabled
+    if enabled() or free_trial or trial_enabled():
+        # Ücretli üyelik (Binance) veya deneme açıkken KAIS AI yalnız aktif deneme ya da ücretli planla
+        # (Smart Trade, Master Mode) kullanılır; planı olmayan üye kullanamaz.
+        result["assistantAllowed"] = premium
     if free_trial or trial_enabled():
         # Aktif deneme üyeleri de asistanı (sesli dahil) kullanır; günlük hakları assistant_api içinde kısıtlanır.
-        result.update(canExecuteLive=paid, assistantAllowed=owner or not free_trial or premium, freeTrial=free_trial)
+        result.update(canExecuteLive=paid, assistantAllowed=premium, freeTrial=free_trial)
         result["entitlements"]["canExecuteLive"] = paid
     from . import live_access, live_registry
     if live_registry.enabled():

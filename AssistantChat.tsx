@@ -855,6 +855,45 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   </>
 }
 
+/** Planı olmayan üye: KAIS göz düğmesi görünür; basınca kısa, modern bir uyarı çıkar ve Abonelik ekranı açılır. */
+function LockedKais({launcherTarget, onNavigate, language}: {launcherTarget?: HTMLElement | null; onNavigate?: (view: AgentView) => void; language: Language}) {
+  const [notice, setNotice] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  const go = () => {
+    window.clearTimeout(timer.current)
+    setNotice(false)
+    if (onNavigate) onNavigate('billing')
+    else window.location.assign('/billing')
+  }
+  const open = () => {
+    setNotice(true)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(go, 1800)
+  }
+  useEffect(() => {
+    // Sitedeki "KAIS AI'a sor" ve sesli çağrılar da aynı uyarıyı gösterir.
+    const asked = () => open()
+    window.addEventListener(KAIS_ASK_EVENT, asked)
+    window.addEventListener(KAIS_VOICE_EVENT, asked)
+    return () => { window.removeEventListener(KAIS_ASK_EVENT, asked); window.removeEventListener(KAIS_VOICE_EVENT, asked) }
+  })
+  const en = language === 'en'
+  const launcher = <button type="button" className="assistantLauncher isLocked" aria-label={en ? 'Kais AI (paid plans)' : 'Kais AI (ücretli planlarda)'} onClick={open}><KaisEye size={56} state="idle"/></button>
+  return <>
+    {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
+    {notice && createPortal(<div className="kaisLockedToast" role="status" aria-live="polite">
+      <span className="kaisLockedToastEye" aria-hidden="true"><KaisEye size={34} state="idle"/></span>
+      <span className="kaisLockedToastText">
+        <b>{en ? 'Kais AI is included in the plans' : 'KAIS AI planlarla açılır'}</b>
+        <small>{en ? 'Use it with Smart Trade, Master Mode or the free trial. Opening Subscription…' : 'Smart Trade, Master Mode veya ücretsiz denemeyle kullanabilirsin. Abonelik ekranı açılıyor…'}</small>
+      </span>
+      <button type="button" className="kaisLockedToastGo" onClick={go}>{en ? 'Go' : 'Git'}</button>
+      <i className="kaisLockedToastBar" aria-hidden="true"/>
+    </div>, document.body)}
+  </>
+}
+
 export default function AssistantChat({pageContext, launcherTarget, onNavigate}: {pageContext: string; launcherTarget?: HTMLElement | null; onNavigate?: (view: AgentView) => void}) {
   const {ready, userId, assistantAllowed} = useMemberAccess()
   const [historyEpoch, setHistoryEpoch] = useState(0)
@@ -873,5 +912,7 @@ export default function AssistantChat({pageContext, launcherTarget, onNavigate}:
     observer.observe(document.documentElement, {attributes: true, attributeFilter: ['lang']})
     return () => observer.disconnect()
   }, [])
-  return ready && userId && assistantAllowed ? <AssistantSession key={`${userId}:${historyEpoch}`} userId={userId} pageContext={pageContext} language={language} launcherTarget={launcherTarget} onNavigate={onNavigate}/> : null
+  if (!ready || !userId) return null
+  return assistantAllowed ? <AssistantSession key={`${userId}:${historyEpoch}`} userId={userId} pageContext={pageContext} language={language} launcherTarget={launcherTarget} onNavigate={onNavigate}/>
+    : <LockedKais launcherTarget={launcherTarget} onNavigate={onNavigate} language={language}/>
 }
