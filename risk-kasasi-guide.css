@@ -1,0 +1,95 @@
+/* Risk Kasası: düz dille özet, hazır ayarlar, alan açıklamaları. Eski kuralları ezmek için katmanlı + !important. */
+@layer kaisFix {
+  .v21RiskManagement > * { grid-row: auto !important; }
+  .v21RiskManagement > .v21WorkspaceHead { order: 0 !important; }
+  .v21RiskManagement > .rkSummary { order: 1 !important; }
+  .v21RiskManagement > .rkPresets { order: 2 !important; }
+  .v21RiskManagement > .rkLayout { order: 3 !important; }
+
+  .rkSummary { display: grid !important; gap: 14px !important; padding: 18px !important; border-radius: 18px !important; border: 1px solid #ffffff14 !important; background: linear-gradient(180deg, #121417, #0c0e10) !important; color: #eef3f1 !important; }
+  .rkKicker { font-size: 11.5px !important; font-weight: 800 !important; letter-spacing: .1em !important; text-transform: uppercase !important; color: #8fa09a !important; }
+  .rkSentence { margin: 0 !important; font-size: 17px !important; line-height: 1.55 !important; font-weight: 500 !important; color: #dfe7e4 !important; }
+  .rkSentence b { color: #fff !important; font-weight: 800 !important; white-space: nowrap; }
+  .rkBudget { display: grid !important; gap: 8px !important; padding: 14px !important; border-radius: 14px !important; background: #ffffff07 !important; border: 1px solid #ffffff10 !important; }
+  .rkBudgetTop { display: flex !important; justify-content: space-between !important; gap: 10px !important; align-items: baseline !important; font-size: 13px !important; color: #a5b3ae !important; }
+  .rkBudgetTop b { font-size: 14px !important; color: #fff !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rkBar { display: block !important; height: 8px !important; border-radius: 99px !important; background: #ffffff14 !important; overflow: hidden !important; }
+  .rkBar u { display: block !important; height: 100% !important; min-width: 0 !important; border-radius: 99px !important; background: #2fd699 !important; transition: width .4s ease; text-decoration: none !important; }
+  .rkSummary[data-tone=warn] .rkBar u { background: #f2b84b !important; }
+  .rkSummary[data-tone=stop] .rkBar u { background: #f0707a !important; }
+  .rkBudgetNote { margin: 0 !important; font-size: 12.5px !important; line-height: 1.45 !important; color: #8fa09a !important; }
+  .rkSummary[data-tone=warn] .rkBudgetNote { color: #f6cf80 !important; }
+  .rkSummary[data-tone=stop] .rkBudgetNote { color: #f59aa2 !important; font-weight: 700 !important; }
+  .rkGuards { margin: 0 !important; display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .rkGuards > div { display: grid !important; gap: 4px !important; align-content: start !important; min-width: 0 !important; padding: 12px !important; border-radius: 12px !important; background: #ffffff05 !important; border: 1px solid #ffffff0d !important; }
+  .rkGuards dt { font-size: 12px !important; color: #8fa09a !important; font-weight: 600 !important; }
+  .rkGuards dd { margin: 0 !important; font-size: 15px !important; font-weight: 800 !important; color: #fff !important; }
+  .rkGuards dd[data-sign=up] { color: #2fd699 !important; } .rkGuards dd[data-sign=down] { color: #f0707a !important; }
+  .rkGuards small { font-size: 11.5px !important; line-height: 1.4 !important; color: #74847f !important; }
+  .rkOk { display: inline-flex !important; align-items: center !important; gap: 5px !important; color: #7fe0b5 !important; font-size: 13.5px !important; font-weight: 700 !important; }
+  .rkOk svg { width: 15px !important; height: 15px !important; }
+
+  .rkPresets { display: grid !important; gap: 10px !important; }
+  .rkPresetsHead { display: grid !important; gap: 2px !important; padding: 0 2px !important; }
+  .rkPresetsHead b { font-size: 15px !important; color: #fff !important; }
+  .rkPresetsHead small { font-size: 12.5px !important; color: #8fa09a !important; line-height: 1.45 !important; }
+  .rkPresetRow { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .rkPreset { display: grid !important; gap: 3px !important; align-content: start !important; justify-items: start !important; min-width: 0 !important; min-height: 0 !important; height: auto !important; padding: 12px !important; border-radius: 14px !important; border: 1px solid #ffffff17 !important; background: #0f1113 !important; color: #e6ecea !important; text-align: left !important; text-transform: none !important; letter-spacing: 0 !important; cursor: pointer; box-shadow: none !important; transition: border-color .15s, background .15s, transform .1s; -webkit-tap-highlight-color: transparent; }
+  .rkPreset:active { transform: scale(.98) !important; }
+  .rkPreset b { font-size: 15px !important; font-weight: 800 !important; color: #fff !important; }
+  .rkPreset small { font-size: 11.5px !important; line-height: 1.35 !important; color: #8fa09a !important; }
+  .rkPreset em { margin-top: 4px !important; font-style: normal !important; font-size: 11.5px !important; font-weight: 700 !important; color: #c9d4d0 !important; }
+  .rkPreset[aria-checked=true] { border-color: var(--workspace-accent, #e07b39) !important; background: color-mix(in srgb, var(--workspace-accent, #e07b39) 12%, #0f1113) !important; }
+  .rkPreset[data-id=calm] b::before, .rkPreset[data-id=balanced] b::before, .rkPreset[data-id=bold] b::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; vertical-align: 2px; }
+  .rkPreset[data-id=calm] b::before { background: #2fd699; } .rkPreset[data-id=balanced] b::before { background: #f2b84b; } .rkPreset[data-id=bold] b::before { background: #f0707a; }
+
+  .rkHelp { margin: 6px 0 0 !important; font-size: 12px !important; line-height: 1.45 !important; color: #7f8f8a !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; }
+  .rkWarn { list-style: none !important; margin: 14px 0 0 !important; padding: 0 !important; display: grid !important; gap: 8px !important; }
+  .rkWarn li { display: flex !important; gap: 9px !important; padding: 11px 12px !important; border-radius: 12px !important; background: #3a2a10 !important; border: 1px solid #f2b84b40 !important; color: #f6dca6 !important; font-size: 12.5px !important; line-height: 1.5 !important; }
+  .rkWarn svg, .rkFine svg { width: 17px !important; height: 17px !important; flex: none !important; margin-top: 1px !important; }
+  .rkFine { display: flex !important; align-items: center !important; gap: 8px !important; margin: 14px 2px 0 !important; font-size: 12.5px !important; color: #7fe0b5 !important; }
+  .rkSaveWrap { display: grid !important; gap: 8px !important; margin-top: 16px !important; }
+  .rkSaveWrap .v21SaveButton { position: static !important; margin: 0 !important; width: 100% !important; }
+  .rkDirty { display: flex !important; align-items: center !important; gap: 7px !important; justify-content: center !important; font-size: 12.5px !important; font-weight: 700 !important; color: #f6cf80 !important; }
+  .rkDirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f2b84b; }
+
+  .rkCalc { min-width: 0 !important; border-radius: 18px !important; border: 1px solid #ffffff12 !important; background: #0c0d0f !important; overflow: hidden !important; }
+  .rkCalc > summary { display: flex !important; align-items: center !important; gap: 12px !important; padding: 16px !important; cursor: pointer; list-style: none !important; color: #e6ecea !important; }
+  .rkCalc > summary::-webkit-details-marker { display: none; }
+  .rkCalc > summary > svg:first-child { width: 22px !important; height: 22px !important; flex: none !important; color: var(--workspace-accent, #e07b39) !important; }
+  .rkCalc > summary span { display: grid !important; gap: 2px !important; flex: 1 !important; min-width: 0 !important; }
+  .rkCalc > summary b { font-size: 15px !important; color: #fff !important; }
+  .rkCalc > summary small { font-size: 12px !important; line-height: 1.45 !important; color: #8fa09a !important; }
+  .rkCalcChev { width: 20px !important; height: 20px !important; flex: none !important; color: #8fa09a !important; transition: transform .2s; }
+  .rkCalc[open] .rkCalcChev { transform: rotate(180deg); }
+  .rkCalc > .v21Card { border-radius: 0 !important; border-top: 1px solid #ffffff10 !important; }
+
+  .rkPresets { padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+  .v21RiskManagement .v21ProtectionRow { grid-template-columns: minmax(0, 1fr) auto auto !important; }
+  .v21RiskManagement .v21ProtectionRow > span { order: 1 !important; }
+  .v21RiskManagement .v21ProtectionRow > .v21ProtectionState { display: inline-block !important; order: 2 !important; min-width: 44px !important; text-align: right !important; font-style: normal !important; font-size: 12.5px !important; font-weight: 800 !important; letter-spacing: 0 !important; text-transform: none !important; color: #7f8f8a !important; background: none !important; border: 0 !important; padding: 0 !important; }
+  .v21RiskManagement .v21ProtectionRow.active > .v21ProtectionState { color: var(--workspace-accent, #e07b39) !important; }
+  .v21RiskManagement .v21ProtectionRow > input[type="checkbox"] { order: 3 !important; }
+  .v21RiskManagement .v21ProtectionRow > input[type="checkbox"]::after { left: 3px !important; background: #fff !important; transition: left .15s !important; }
+  .v21RiskManagement .v21ProtectionRow > input[type="checkbox"]:checked::after { left: 21px !important; }
+}
+@media (max-width: 640px) {
+  @layer kaisFix {
+    .rkLayout { grid-template-columns: minmax(0, 1fr) !important; }
+    .rkGuards { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+    .rkGuards > div:first-child { grid-column: 1 / -1 !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
+    .rkSentence { font-size: 16px !important; }
+    .rkPreset { padding: 11px 10px !important; }
+    .v21RiskManagement .v21FieldGrid-settings { grid-template-columns: minmax(0, 1fr) !important; }
+    .v21RiskManagement .v21FieldGrid-settings > .v21FieldGroup { grid-column: 1 / -1 !important; }
+  }
+}
+.rkDirtyBar { position: fixed; left: 12px; right: 12px; bottom: calc(var(--mobile-bottom-nav-height, 59px) + 24px + env(safe-area-inset-bottom, 0px)); z-index: 2147482000; max-width: 520px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; border-radius: 16px; border: 1px solid #f2b84b40; background: #16130cf2; backdrop-filter: blur(10px); box-shadow: 0 14px 40px #000c; color: #f6cf80; font-family: "Plus Jakarta Sans", Manrope, system-ui, sans-serif; font-size: 13px; font-weight: 700; line-height: 1.3; animation: rkUp .2s ease-out; }
+.rkDirtyBar span { display: flex; align-items: center; gap: 8px; }
+.rkDirtyBar span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f2b84b; flex: none; }
+.rkDirtyBar button { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--workspace-accent, #dc6a2c); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.rkDirtyBar button svg { width: 17px; height: 17px; }
+.rkDirtyBar button:disabled { opacity: .6; cursor: not-allowed; }
+@media (min-width: 901px) { .rkDirtyBar { bottom: 24px; } }
+@keyframes rkUp { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rkBar u, .rkPreset, .rkCalcChev { transition: none !important; } .rkDirtyBar { animation: none; } }
