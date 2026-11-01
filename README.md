@@ -2868,6 +2868,38 @@ $env:PYTHONPATH='backend'
 .\.venv\Scripts\python.exe -m ruff check backend\app\assistant_config.py backend\app\assistant_api.py backend\app\assistant_storage.py backend\app\assistant_tools.py backend\app\assistant_fastpath.py backend\app\assistant_help.py backend\tests\test_assistant_config.py backend\tests\test_assistant_api.py backend\tests\test_assistant_tools.py
 ```
 
+## Giriş ekranı Instagram vitrini
+
+Masaüstü giriş ekranında (≥1280px genişlik, ≥600px yükseklik) resmi `@kaistrade_` hesabının gerçek
+gönderilerini gösteren telefon. Telefon ve tablette bileşen yüklenmez ve istek yapılmaz.
+
+- Sunucu: `GET /api/public/instagram/feed` (`backend/app/instagram_showcase.py`), oturum gerektirmez.
+  Yalnız Meta'nın resmi **Instagram API with Instagram Login** uç noktaları (`graph.instagram.com`) kullanılır;
+  izin yalnız `instagram_business_basic`. Yanıt normalleştirilir (yalnız Instagram/Meta CDN `https` adresleri),
+  ~12 dakika önbelleğe alınır, Meta hata verirse son içerik `stale` olarak en fazla 7 gün gösterilir.
+  Sayfalama yalnız sunucunun verdiği `after` imleçleriyle yapılır; ham Meta bağlantıları ve erişim anahtarı
+  tarayıcıya gönderilmez, günlüklere yazılmaz.
+- Ön yüz: `InstagramShowcasePhone.tsx`, `instagram-showcase.css`, `instagram-showcase-visibility.ts`.
+  Görseller ve videolar Instagram CDN'inden yüklenir; CSP (`vercel.json`) `img-src` ve `media-src` için
+  `https://*.cdninstagram.com https://*.fbcdn.net` izni verir.
+
+| Değişken | Örnek | Açıklama |
+| --- | --- | --- |
+| `INSTAGRAM_ACCESS_TOKEN` | — | Uzun ömürlü Instagram User erişim anahtarı (gizli; yalnız sunucu ortamında) |
+| `INSTAGRAM_USER_ID` | — | İsteğe bağlı; boşsa `me` kullanılır |
+| `INSTAGRAM_USERNAME` | `kaistrade_` | Bağlantılar için kullanıcı adı |
+| `INSTAGRAM_API_VERSION` | `v26.0` | Graph API sürümü (`vNN.N`) |
+
+Anahtar boşsa vitrin "Instagram'da Görüntüle" bağlantılı yedek kartı gösterir; sahte gönderi gösterilmez.
+Uzun ömürlü anahtar (60 gün) sunucu tarafından haftada bir `GET graph.instagram.com/refresh_access_token`
+(`grant_type=ig_refresh_token`) ile yenilenir ve uygulama sırrıyla şifrelenerek veri klasöründe
+(`instagram_token.enc`) saklanır. Ortamdaki anahtar değiştirilirse eski kayıt yok sayılır.
+
+Meta kurulumu: Instagram hesabı Profesyonel (İşletme veya İçerik Üreticisi) olmalı; Meta for Developers'ta
+"Business" türünde uygulama → Instagram ürünü → "API setup with Instagram login" → hesabı ekleyip
+`instagram_business_basic` ile erişim anahtarı üretin ve `INSTAGRAM_ACCESS_TOKEN` olarak `/etc/kaistrade.env`
+dosyasına ekleyin, ardından `sudo bash /opt/kaistrade/deploy/vps/update.sh`.
+
 ## V28'de yeni olanlar
 
 - Testnet ve gerçek hesap için ayrı bağlantı kartları

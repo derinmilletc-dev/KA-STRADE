@@ -25,6 +25,7 @@ from .analysis import analyze
 from .analyst_credits import router as analyst_credits_router
 from .assistant_api import router as assistant_router, shutdown_assistant
 from .chart_ai_api import router as chart_ai_router, shutdown_chart_ai
+from .instagram_showcase import router as instagram_showcase_router
 from .chart_ai_maintenance import chart_ai_maintenance_loop
 from .browser_security import (
     OWNER_ACCESS_COOKIE, USER_SESSION_COOKIE, browser_request, clear_browser_cookie,
@@ -1408,6 +1409,7 @@ MEMBER_PUBLIC_PATHS = frozenset({
     "/api/v22/auth/registration/status", "/api/v22/auth/registration/resend",
     "/api/v22/auth/registration/exchange",
     "/api/v22/auth/registration/email",
+    "/api/public/instagram/feed",
 })
 
 
@@ -1667,6 +1669,7 @@ app.include_router(assistant_router)
 from .web_push import router as web_push_router
 app.include_router(web_push_router)
 app.include_router(chart_ai_router)
+app.include_router(instagram_showcase_router)
 
 
 async def analyst_analysis(symbol: str, timeframe: str) -> dict:

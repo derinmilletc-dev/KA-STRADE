@@ -53,7 +53,7 @@ test('Vercel serves SEO files outside the SPA fallback without changing API or O
   expect(rootDeployment.env).toEqual({VITE_API_BASE:'/api'})
   expect(frontendDeployment.env).toEqual({VITE_API_URL:'https://api.kaistrade.com'})
   expect(rootDeployment.headers.find(rule => rule.source === '/(.*)')?.headers).toEqual([
-    {key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.binance.com wss://stream.binance.com:9443; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"},
+    {key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.cdninstagram.com https://*.fbcdn.net; media-src 'self' https://*.cdninstagram.com https://*.fbcdn.net; font-src 'self'; connect-src 'self' https://api.binance.com wss://stream.binance.com:9443 wss://fstream.binance.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"},
     {key:'Strict-Transport-Security',value:'max-age=31536000; includeSubDomains'},
     {key:'X-Content-Type-Options',value:'nosniff'},
     {key:'X-Frame-Options',value:'DENY'},
