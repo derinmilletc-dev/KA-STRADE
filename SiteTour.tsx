@@ -289,7 +289,7 @@ export default function SiteTour() {
     // Telefon: ince panel hep alt menünün hemen üstünde durur, yeri değişmez; vurgulanan yer panelin üstündeki alana kaydırılır.
     const nav = document.querySelector<HTMLElement>('.v26MobileBottomNav')
     const navTop = nav && nav.getBoundingClientRect().height > 0 ? nav.getBoundingClientRect().top : vh - 6
-    style = {left: 8, right: 8, bottom: Math.max(8, vh - navTop + 8), maxHeight: Math.max(160, Math.min(navTop - 24, vh * 0.62))}
+    style = {left: 8, right: 8, bottom: Math.max(8, vh - navTop + 8), maxHeight: Math.max(160, Math.min(navTop - 24, Math.max(vh * 0.46, 330)))}
     dockTop.current = Math.max(0, vh - (typeof style.bottom === 'number' ? style.bottom : 8) - panelHeight)
   } else if (!box || box.height > vh * 0.55) {
     style = box ? {right: 24, bottom: 24, width} : {left: Math.max(12, (vw - width) / 2), top: Math.max(12, (vh - panelHeight) / 2), width}

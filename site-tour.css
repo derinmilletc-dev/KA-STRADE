@@ -231,3 +231,14 @@ html body .ktTour .ktTourActions[data-stack] { grid-template-columns: 1fr; }
   html body .ktTour .ktTourPlan[data-solo] ul { columns: 2; column-gap: 18px; }
   html body .ktTour .ktTourPlan[data-solo] li { break-inside: avoid; margin-bottom: 6px; }
 }
+
+/* Telefon: açılan panel ekranın yarısını geçmez; uzarsa içinde kayar, Geri/İleri altta sabit kalır. */
+@media (max-width: 640px) {
+  html body .ktTour .ktTourDock { overscroll-behavior: contain; scrollbar-width: none; }
+  html body .ktTour .ktTourDock::-webkit-scrollbar { display: none; }
+  html body .ktTour .ktTourDock .ktTourActions { position: sticky; bottom: -12px; z-index: 2; margin: 0 -6px -12px; padding: 8px 6px 12px; background: linear-gradient(180deg, rgba(12, 21, 33, 0), rgba(12, 21, 33, .96) 30%); }
+}
+@media (max-width: 640px) {
+  html body .ktTour .ktTourDock .ktTourMore { z-index: 1; min-height: 36px; margin-bottom: 4px; }
+  html body .ktTour .ktTourDock .ktTourMore::after { inset: -4px -12px; }
+}
