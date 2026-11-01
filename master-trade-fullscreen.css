@@ -347,3 +347,64 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refPosCard { width: 220px !important; padding: 10px 12px !important; gap: 6px !important; }
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refPosCard :is(dl, > p) { display: none !important; }
 }
+
+/* ---------- Yatay terminal üst çubuğu (v2) ----------
+   Hiçbir öğe küçülüp üst üste binmez. Çubuk, gerçek kullanılabilir genişliğine göre (çentik/güvenli alan
+   düşüldükten sonra; container query) önce yazıları kısaltır, sonra simgeye indirir, en son ikincil
+   düğmeleri gizler. Sıra: sembol+fiyat · zaman · göstergeler | Kais AI · İşlem · ayarlar · görüntü · Analiz · çıkış */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar {
+  container-type: inline-size; container-name: kfsbar;
+  gap: 6px !important; min-height: 46px !important; padding: 6px 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, .07) !important; background: linear-gradient(180deg, #0d1518, #0a1013) !important;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > * { flex: 0 0 auto !important; min-width: 0; margin: 0 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .kfsIdent { display: flex !important; align-items: center !important; gap: 10px !important; min-width: max-content !important; overflow: visible !important; padding-right: 4px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuote { display: grid; gap: 1px; line-height: 1.1; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuote strong { font-size: 15px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; letter-spacing: .01em; white-space: nowrap; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta em { display: inline !important; font-size: 10.5px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta em[data-tone="positive"] { color: #58e0a0 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta em[data-tone="negative"] { color: #ff7d86 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta .refLiveBadge { display: inline-flex !important; align-items: center; gap: 4px; color: rgba(220, 233, 231, .6) !important; font-size: 9.5px !important; font-weight: 700; letter-spacing: .08em; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta .refLiveBadge i { width: 6px; height: 6px; border-radius: 50%; background: #58e0a0; box-shadow: 0 0 0 3px rgba(88, 224, 160, .15); }
+
+/* Ortak düğme dili */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > :is(select, .chartAiButton, .refTradeBtn), html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators > summary, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsActions > button, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools > button:not(.refDrawTool), html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools > details > summary {
+  box-sizing: border-box !important; height: 34px !important; min-height: 34px !important; border-radius: 9px !important;
+  font-size: 12.5px !important; font-weight: 600 !important; letter-spacing: 0 !important; text-transform: none !important; white-space: nowrap !important;
+}
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > select[aria-label] { width: 80px !important; max-width: none !important; flex: 0 0 80px !important; padding: 0 6px 0 10px !important; font-size: 13px !important; line-height: 32px !important; text-overflow: clip !important; border: 1px solid rgba(255, 255, 255, .12) !important; background-color: rgba(255, 255, 255, .04) !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators > summary { display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 0 10px !important; border: 1px solid rgba(255, 255, 255, .12) !important; background: rgba(255, 255, 255, .04) !important; color: #dce9e7 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators > summary svg { width: 15px !important; height: 15px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .chartAiButton { display: inline-flex !important; margin-left: auto !important; gap: 7px !important; padding: 0 12px !important; border: 1.5px solid #5fd9a8 !important; background: rgba(95, 217, 168, .08) !important; color: #e8fff4 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .chartAiButton .chartAiLabel { text-transform: none !important; letter-spacing: 0 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .chartAiButton svg { width: 17px !important; height: 17px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refTradeBtn { display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 0 12px !important; overflow: visible !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refTradeBtn svg { width: 16px !important; height: 16px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refTradeBtn > span { display: inline !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools { display: flex !important; gap: 4px !important; width: auto !important; max-width: none !important; grid-column: auto !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools > button:not(.refDrawTool), html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools > details > summary { display: inline-grid !important; place-items: center !important; width: 34px !important; padding: 0 !important; border: 1px solid rgba(255, 255, 255, .1) !important; background: rgba(255, 255, 255, .03) !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools svg { width: 16px !important; height: 16px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsActions { margin-left: 0 !important; gap: 6px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsActions > button { border-radius: 9px !important; }
+
+/* 1. kademe: yazılar kısalır */
+@container kfsbar (max-width: 979px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators .refIndicatorsLabel, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators > summary > svg:last-child { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refIndicators > summary { width: 34px; padding: 0 !important; justify-content: center !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .refLabelExtra { display: none !important; }
+}
+/* 2. kademe: görüntü indirme gizlenir */
+@container kfsbar (max-width: 819px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools > button { display: none !important; }
+}
+/* 3. kademe: Kais AI, İşlem ve Analiz yalnız simge */
+@container kfsbar (max-width: 699px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar :is(.chartAiLabel, .kfsActionLabel), html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refTradeBtn > span { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > :is(.chartAiButton, .refTradeBtn), html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsActions > .kfsAnalysisBtn { width: 34px !important; padding: 0 !important; justify-content: center !important; }
+}
+/* 4. kademe: grafik ayarları gizlenir, CANLI yazısı yalnız nokta */
+@container kfsbar (max-width: 559px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools { display: none !important; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta .refLiveBadge { font-size: 0 !important; gap: 0; }
+}
