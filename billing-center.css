@@ -233,3 +233,6 @@ html body #root .ktBill .ktBillTerms { font-size: 12px; color: #9fb0bd; }
   html body #root .ktBill .ktBillPlan .ktBillTerms { min-height: calc(1.5em * 2); }
   html body #root .ktBill .ktBillPlan > .ktBillButton { margin-top: auto; }
 }
+
+/* Tarama raporu 23 (Abonelik): küçük etiket ve rozet yazıları en az 12px. */
+html body #root:not(#a) main.subscriptionPage.ktBill :is(small, dt, .ktBillEyebrow, .ktBillBadge, .ktBillTag, .ktBillRibbon, header span, section span:not([class])) { font-size: 12px !important; }
