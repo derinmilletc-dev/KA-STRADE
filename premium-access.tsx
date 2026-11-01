@@ -107,7 +107,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
             <article className="premiumPlan isMaster">
               <i className="premiumPlanTag"><Crown aria-hidden="true"/>ÖNERİLEN</i>
               <header><span>MASTER MODE</span><strong>{PAID_PLAN_AMOUNT.MASTER_MODE}<small> USDT / 30 gün</small></strong></header>
-              <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>Daha akıllı KAIS AI</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
+              <ul><li><Check aria-hidden="true"/>Canlı işlem ve Auto Trade</li><li><Check aria-hidden="true"/>KAIS stratejileri canlıda</li><li><Check aria-hidden="true"/>Öncelikli, hızlı 7/24 destek</li></ul>
             </article>
           </div>
           <div className="premiumCardActions"><a className="premiumPrimary" href="/billing">Planları gör</a><button className="premiumSecondary" type="button" onClick={() => setUpgradeOpen(false)}>Şimdi değil</button></div>

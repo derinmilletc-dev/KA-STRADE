@@ -21,11 +21,11 @@ const STATUS_TR: Record<string, string> = {ACTIVE: 'Aktif', TRIALING: 'Deneme d�
 const trDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('tr-TR', {day: 'numeric', month: 'long', year: 'numeric'}) : '—'
 type Feat = {t: string; tag?: string; hot?: boolean}
 const TRIAL_FEATURES: Feat[] = [{t: 'Master Trade analiz'}, {t: 'KAIS AI asistanı', tag: 'Sınırlı'}, {t: 'KAIS Rehber', tag: 'Sınırlı'}, {t: 'Analiz Stüdyosu'}, {t: 'AI Analist', tag: 'Sınırlı'}, {t: 'KAIS stratejileri · Demo Auto Trade'}, {t: 'Pozisyon koruması'}, {t: 'Manuel ve Grid işlemler', tag: 'Demo'}]
-const SMART_FEATURES: Feat[] = [{t: 'Manuel işlem · Demo ve Canlı'}, {t: 'KAIS Rehber'}, {t: 'KAIS AI asistanı'}, {t: 'Analiz Stüdyosu'}, {t: 'AI Analist ve Scanner'}, {t: 'Stop, hedef ve pozisyon koruması'}, {t: 'Grid işlemleri'}, {t: '7/24 destek'}]
+const SMART_FEATURES: Feat[] = [{t: 'Manuel işlem · Demo ve Canlı'}, {t: 'KAIS Rehber'}, {t: 'KAIS AI asistanı'}, {t: 'Analiz Stüdyosu'}, {t: 'AI Analist ve Scanner'}, {t: 'Stop, hedef ve pozisyon koruması'}, {t: 'Grid işlemleri'}, {t: 'Demo hesapta tüm stratejiler'}, {t: '7/24 destek'}]
 const featureIcon = (text: string) => /Grid/.test(text) ? <Grid3X3/> : /LIVE|canlı/.test(text) ? <Zap/> : /koruma|Stop/.test(text) ? <ShieldCheck/> : /analiz|grafik/i.test(text) ? <BarChart3/> : /AI|Kais/.test(text) ? <Bot/> : <Check/>
 const FeatureList = ({items, locked}: {items: readonly Feat[]; locked?: string}) => <ul className="ktBillFeatures">{items.map(feature => <li key={feature.t} className={feature.hot ? 'isHot' : undefined}><i>{featureIcon(feature.t)}</i><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}<em aria-label="Dahil"><Check/></em></li>)}{locked && <li className="isLocked"><i><Lock/></i><span className="ktBillFeatText">{locked}</span><em className="srOnly">Bu planda yok</em></li>}</ul>
 const PLAN_TABS = [{key: 'trial', label: 'Deneme', icon: <Sparkles/>}, {key: 'smart', label: 'Smart Trade', icon: <BarChart3/>}, {key: 'master', label: 'Master Mode', icon: <Crown/>}] as const
-const MASTER_FEATURES: Feat[] = [{t: 'Master Trade analiz'}, {t: 'Canlı işlem'}, {t: 'Manuel ve Grid işlemler'}, {t: 'KAIS Rehber'}, {t: 'Analiz Stüdyosu'}, {t: 'AI Analist ve Scanner'}, {t: 'KAIS stratejileri ve Auto Trade'}, {t: 'Stop, hedef ve pozisyon koruması'}, {t: 'Daha akıllı, gerçek bir asistan: KAIS AI', tag: 'Gelişmiş', hot: true}, {t: 'Öncelikli ve hızlı 7/24 destek', tag: 'Öncelikli', hot: true}]
+const MASTER_FEATURES: Feat[] = [{t: 'Master Trade analiz'}, {t: 'Canlı işlem'}, {t: 'Manuel ve Grid işlemler'}, {t: 'KAIS Rehber'}, {t: 'Analiz Stüdyosu'}, {t: 'AI Analist ve Scanner'}, {t: 'KAIS stratejileri ve Auto Trade'}, {t: 'Stop, hedef ve pozisyon koruması'}, {t: 'KAIS AI asistanı'}, {t: 'Öncelikli ve hızlı 7/24 destek', tag: 'Öncelikli', hot: true}]
 
 export default function BillingCenter({subscription, loading, loadError, trialEnabled, binanceEnabled, methodsLoading, methodsError, onRetry, onMasterTrade}: {
   subscription: BillingSubscription | null
@@ -225,7 +225,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
         <div className="ktBillPrice"><strong>{PAID_PLAN_AMOUNT.SMART_TRADE}</strong><span className="ktBillCurrency">USDT</span><span className="ktBillPer">/ 30 gün</span></div>
         <ul>{SMART_FEATURES.map(feature => <li key={feature.t}><Check/><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}</li>)}</ul>
-        <FeatureList items={SMART_FEATURES} locked="KAIS stratejileri ve Auto Trade bu planda yok"/>
+        <FeatureList items={SMART_FEATURES} locked="Canlıda KAIS stratejileri ve Auto Trade bu planda yok"/>
         <button type="button" className="ktBillMore" onClick={() => openSheet(1)}>+{SMART_FEATURES.length + 1 - 4} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
         <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
         <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
@@ -260,7 +260,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
           <h2 id="ktSheetTitle">{sheetPlan === 0 ? '1 Hafta Ücretsiz Deneme' : sheetPlan === 1 ? 'SMART TRADE' : 'MASTER MODE'}</h2>
           <div className="ktCheckoutPrice"><strong>{sheetPlan === 0 ? '0' : sheetPlan === 1 ? PAID_PLAN_AMOUNT.SMART_TRADE : PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)}</strong><span>USDT</span><em>/ {sheetPlan === 0 ? '7' : '30'} gün</em></div>
         </header>
-        {sheetPlan === 0 ? <FeatureList items={TRIAL_FEATURES} locked="Canlı işlem · ücretli planlarda açılır"/> : sheetPlan === 1 ? <FeatureList items={SMART_FEATURES} locked="KAIS stratejileri ve Auto Trade bu planda yok"/> : <FeatureList items={MASTER_FEATURES}/>}
+        {sheetPlan === 0 ? <FeatureList items={TRIAL_FEATURES} locked="Canlı işlem · ücretli planlarda açılır"/> : sheetPlan === 1 ? <FeatureList items={SMART_FEATURES} locked="Canlıda KAIS stratejileri ve Auto Trade bu planda yok"/> : <FeatureList items={MASTER_FEATURES}/>}
         {sheetPlan === 0
           ? <button type="button" className="ktBillButton ktSheetCta" onClick={() => { closeSheet(); void startTrial() }} disabled={trialDisabled}>{trialLabel}</button>
           : <button type="button" className="ktBillButton ktSheetCta" onClick={() => { const plan: PaidPlan = sheetPlan === 1 ? 'SMART_TRADE' : 'MASTER_MODE'; setSheetPlan(null); goToPayment(plan) }} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{sheetPlan === 1 ? smartLabel : masterLabel}</button>}

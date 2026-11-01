@@ -157,14 +157,12 @@ def requires_premium(path: str, method: str) -> bool:
     return path.startswith(("/api/paper/demo/", "/api/v20/profile/"))
 
 
-# Smart Trade (yalnız elle işlem planı): Kais'in otomatik stratejilerini başlatan yollar kapalıdır.
+# Smart Trade: CANLI otomatik stratejiler kapalıdır (canlı işlem yalnız elle). Demo/paper stratejiler serbesttir.
 # Durdurma/güvenlik yolları (…/stop, disarm, emergency) bilerek burada YOK: biri otomasyonu durdurabilmelidir.
 SMART_TRADE_AUTOMATION_PATHS = frozenset({
     "/api/v25/auto/start", "/api/v25/original-v2/start", "/api/v25/original-v2/extend-session",
-    "/api/paper/bot/start", "/api/v7/orchestrator/start", "/api/v9/twin/start",
-    "/api/v10/evolution/start", "/api/v11/risk/start",
 })
-AUTOMATION_LOCKED_MESSAGE = "Otomatik stratejiler MASTER MODE ile açılır. Smart Trade yalnız elle işlem içindir."
+AUTOMATION_LOCKED_MESSAGE = "Canlı otomatik stratejiler MASTER MODE ile açılır. Smart Trade'de canlı işlem elle yapılır; stratejileri demo hesapta kullanabilirsin."
 
 
 def automation_locked(path: str, method: str) -> bool:
