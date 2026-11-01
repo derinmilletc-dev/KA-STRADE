@@ -83,8 +83,15 @@ DEEP_STEMS = ("analiz", "karsilastir", "neden", "niye", "risk", "senaryo", "celi
               "analy", "compar", "why", "scenario", "contradict", "interpret", "evaluate", "strateg")
 
 
-def needs_deep_reasoning(message: str) -> bool:
+# Sesli sohbette hız önceliklidir: "neden / risk / strateji" gibi gündelik kelimeler ağır modele gitmez; yalnız açık karşılaştırma/senaryo istekleri gider.
+VOICE_DEEP_STEMS = ("karsilastir", "senaryo", "celis", "compar", "scenario", "contradict")
+VOICE_MAX_OUTPUT_TOKENS = 600
+
+
+def needs_deep_reasoning(message: str, voice: bool = False) -> bool:
     text = message.casefold().translate(str.maketrans("çğıöşü", "cgiosu")).replace("\u0307", "")
+    if voice:
+        return len(text) > 300 or any(stem in text for stem in VOICE_DEEP_STEMS)
     return len(text) > 160 or any(stem in text for stem in DEEP_STEMS)
 
 
@@ -115,9 +122,12 @@ def build_request(config: AssistantConfig, language: Language, payload: ChatInpu
     if payload.page_context:
         content += "\n\nUntrusted page_context:\n" + payload.page_context
     messages.append({"role": "user", "content": content})
-    deep = needs_deep_reasoning(payload.message)
+    deep = needs_deep_reasoning(payload.message, bool(payload.voice))
     effort = config.deep_effort if deep else "low"
-    return LLMRequest(system, tools, messages, config.max_output_for(deep), payload, effort,
+    max_tokens = config.max_output_for(deep)
+    if payload.voice and not deep:
+        max_tokens = min(max_tokens, VOICE_MAX_OUTPUT_TOKENS)
+    return LLMRequest(system, tools, messages, max_tokens, payload, effort,
                       config.model_for(deep), deep)
 
 

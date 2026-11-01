@@ -22,3 +22,12 @@ test('voice launch parameter is consumed once', () => {
   assert.equal(replaced, '/master-trade?tab=canli')
   assert.equal(takeVoiceLaunch({search: '?tab=canli', pathname: '/', hash: ''}, () => { throw new Error('no') }), false)
 })
+
+test('geniş yazılışlar yalnız "hey" ile, birden fazla tahminle uyandırır', () => {
+  assert.deepEqual(detectWake('hey kış bakiyem ne'), {question: 'bakiyem ne'})
+  assert.deepEqual(detectWake('hey case'), {question: ''})
+  assert.deepEqual(detectWake(['hey kaşıyor', 'hey kaiz nasılsın']), {question: 'nasılsın'})
+  assert.equal(detectWake('kış geldi'), null)
+  assert.equal(detectWake('case closed'), null)
+  assert.equal(detectWake('hey kaiser'), null)
+})
