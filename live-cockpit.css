@@ -1276,3 +1276,6 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .lcRoot .lcDayLimit{display:grid;gap:6px;min-height:56px;padding:12px 14px;box-sizing:border-box}
 #root .lcRoot .lcDayLimit span{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;line-height:1.4}
 #root .lcRoot .lcDayLimit b{white-space:nowrap;overflow:visible}
+
+/* Tarama raporu 22: Strateji kartı yanındaki sütunla aynı boyda dursun, altı boş kalmasın. */
+#root .lcRoot .lcGrid > .lcStrategy { align-self: stretch !important; }

@@ -1027,3 +1027,7 @@ html:has(.masterTradePage[data-layout-tab="canli"]) { scroll-padding-top: 124px;
 
 /* Tarama raporu 15: tablo içindeki boş durum hücresi tüm genişliğe yayılıp ortalansın, diğer kartlarla aynı yazı tipi. */
 #root table td.emptyState { display: table-cell !important; text-align: center !important; vertical-align: middle; font-family: inherit !important; font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+
+/* Tarama raporu 21: ana sayfa alt bilgisi 10px ve silikti. */
+html body #root main.v26App .v26Footer,
+html body #root main.v26App .v26Footer span { font-size: 12px !important; color: #a5b4ae !important; }

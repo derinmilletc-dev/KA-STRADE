@@ -67,3 +67,8 @@ html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRou
 /* Demo İşlem sekmeleri ile içerik arası Master Canlı İşlem'deki kadar (fazladan alt boşluk ve üst pay yok). */
 html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .masterTradePage.demoMasterPage.demoMasterPage > .masterTradeShell.masterTradeShell.masterTradeShell:not(#demo-shell-x1):not(#demo-shell-x2):not(#demo-shell-x3) { padding-bottom: 0 !important; }
 html body #root > main.v26App.v26App.workspaceRoute.workspaceRoute.demoMasterRoute.demoMasterRoute > .binanceDemoDeck.binanceDemoDeck.binanceDemoDeck:not(.riskOnlyDeck):not(#demo-deck-x1):not(#demo-deck-x2) { margin-top: 0 !important; }
+
+/* Tarama raporu 21: Demo İşlem durum yazısı 8px idi, okunur boyuta çıkarıldı. */
+html body #root .binanceDemoDeck .demoMessage,
+html body #root .binanceDemoDeck .demoMessage span { font-size: 13px !important; line-height: 1.5 !important; font-weight: 600 !important; }
+html body #root .binanceDemoDeck .demoMessage-info { color: #b4c4bd !important; }
