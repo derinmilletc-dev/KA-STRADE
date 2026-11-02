@@ -157,8 +157,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const startOrder = (next: Side) => {
     if (!demo && !premium) { onUpgrade(); return }
     const fresh = levelsFor(next, price, analysis)
-    if (!positive(price) || !fresh) { setToast({kind: 'error', title: tx('Fiyat ya da analiz verisi hazır değil', 'Price or analysis data is not ready'), detail: tx('Birkaç saniye sonra tekrar dene.', 'Try again in a few seconds.')}); return }
-    setSheetError(''); setIntentId(newIntentId()); setFrozen({price, levels: fresh}); setSide(next); setSettings(false)
+    const at = positive(price)
+    if (at === null || !fresh) { setToast({kind: 'error', title: tx('Fiyat ya da analiz verisi hazır değil', 'Price or analysis data is not ready'), detail: tx('Birkaç saniye sonra tekrar dene.', 'Try again in a few seconds.')}); return }
+    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false)
   }
   const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError('') }
   const changeParam = (change: Partial<Prefs>) => { update(change); setIntentId(newIntentId()); setSheetError('') }
