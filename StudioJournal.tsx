@@ -27,12 +27,15 @@ export function JournalPanel({entries, onNote, onClear, onClose}: {entries: read
   const [confirmClear, setConfirmClear] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
   const summary = useMemo(() => summarizeJournal(entries), [entries])
+  const closeFn = useRef(onClose)
+  closeFn.current = onClose
+  // Odak yalnız açılırken düğmeye gider; üst bileşen her saniye yeniden çizilse de yazarken odak çalınmaz.
   useEffect(() => {
     closeRef.current?.focus()
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); closeFn.current() } }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  }, [])
   return <aside className="sqgPanel sqjPanel" role="dialog" aria-label={tx('İşlem günlüğü', 'Trade journal')}>
     <header className="sqgHead"><BookOpen aria-hidden="true"/><b>{tx('GÜNLÜK', 'JOURNAL')}</b>
       <button ref={closeRef} type="button" className="sqgX" style={{marginLeft: 'auto'}} aria-label={tx('Günlüğü kapat', 'Close the journal')} onClick={onClose}><X aria-hidden="true"/></button></header>

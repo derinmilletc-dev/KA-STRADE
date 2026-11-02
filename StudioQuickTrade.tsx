@@ -431,11 +431,13 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
                   {RISK_PCT_CHOICES.map(value => <button key={value} type="button" role="radio" aria-checked={prefs.riskPct === value} data-on={prefs.riskPct === value} disabled={sending} onClick={() => changeParam({riskPct: value})}>%{String(value).replace('.', ',')}</button>)}</div>
                   <p className="sqtSized" role="status">{sized && !sized.tooSmall ? tx(`→ ${fmt(sized.margin)} USDT teminat · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (üst sınır)' : ''}`, `→ ${fmt(sized.margin)} USDT margin · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (capped)' : ''}`) : balance === null && (!demo || balanceFailed) ? tx('Bakiye okunamadı', 'Balance unavailable') : sized?.tooSmall ? tx('Teminat çok küçük kalıyor', 'Margin would be too small') : tx('Hesaplanıyor…', 'Calculating…')}</p></div>}
             <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => changeParam({leverage: value})} disabled={sending}/>
+            <div className="sqtActions">
             {sheetError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{sheetError}</p>}
             <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock}
               label={sending ? busy ?? '' : kind === 'LIMIT' ? tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'} limit`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'} limit`) : tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'}`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'}`)} onDone={() => void placeOrder()}
               hint={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} emrini göndermek için basılı tut`, `Press and hold to send the ${symbol} ${side === 'LONG' ? 'buy' : 'sell'} order`)}/>
             <button type="button" className="sqtCancel" onClick={closeSheet} disabled={sending}>{tx('Vazgeç', 'Cancel')}</button>
+            </div>
           </div>
         </div>
         <p className="sqtFine">{demo ? tx('Yalnız Demo hesaba gider · gerçek para yok.', 'Goes to the Demo account only · no real money.') : tx('Gerçek para kullanılır.', 'Real money is used.')} {tx('Analiz kazanç garantisi değildir.', 'The analysis is not a guarantee of profit.')}</p>

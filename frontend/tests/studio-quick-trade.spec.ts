@@ -339,7 +339,7 @@ test('Limit emir: öneriler pasif tarafta, yanlış taraf reddedilir, gövde LIM
   await sheet.locator('.sqtPresets button').nth(1).click()
   await expect(sheet.locator('.sqtLimit .sqtError')).toHaveCount(0)
   await expect(sheet.locator('.sqtHold')).toBeEnabled()
-  await sheet.getByRole('radio', {name: '4 sa'}).click()
+  await sheet.getByRole('radio', {name: '4 sa', exact: true}).click()
   const typed = Number((await input.inputValue()).replace(',', '.'))
   await page.screenshot({path: 'test-results/manual-limit.png'})
   await hold(page, sheet.locator('.sqtHold'), 1800)
