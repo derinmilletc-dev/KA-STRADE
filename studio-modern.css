@@ -94,3 +94,71 @@
 .masterReferenceAnalysis .sqtLayer .sqtPickBtn:hover:not(:disabled) { background: #112535; border-color: #4a86b8; }
 .masterReferenceAnalysis .sqtLayer .sqtPickHint { position: absolute; z-index: 3; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 99px; background: var(--sqm-glass); border: 1px solid #2f536f; box-shadow: 0 14px 36px rgba(0, 0, 0, .6); font-size: 12px; color: #cfe6ff; white-space: nowrap; max-width: calc(100% - 16px); }
 .masterReferenceAnalysis .sqtLayer .sqtPickHint span { overflow: hidden; text-overflow: ellipsis; }
+
+/* ======================= Emir sayfası · pro görünüm =======================
+   Yalnız renk, yüzey ve yazı: ölçüler değişmez. Yön rengi (AL = yeşil, SAT = kırmızı) tüm vurgulara akar. */
+.masterReferenceAnalysis .sqtLayer .sqtSheet { --sqp-side: #2fd69a; --sqp-dim: #0f3a2b; --sqp-ring: #1f8f6199; --sqp-line: #14212c; --sqp-well: #0a121a; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet[data-side="SHORT"] { --sqp-side: #ff7686; --sqp-dim: #3a1820; --sqp-ring: #b13a4c99; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet { background-color: #0b141d; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(560px 170px at 0% 0%, color-mix(in srgb, var(--sqp-side) 14%, transparent), transparent 72%), radial-gradient(460px 200px at 100% 100%, color-mix(in srgb, var(--sqm-accent) 8%, transparent), transparent 72%);
+}
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHead { background-color: rgba(10, 17, 25, .86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--sqp-line); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHead > b { font-size: 16px; letter-spacing: .02em; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtTag { border-radius: 9px; letter-spacing: .12em; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtTag[data-side="LONG"] { background-color: var(--sqp-dim); color: var(--sqp-side); border-color: var(--sqp-ring); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtTag[data-side="SHORT"] { background-color: var(--sqp-dim); color: var(--sqp-side); border-color: var(--sqp-ring); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtMkt { font-size: 11.5px; color: #8aa0ad; }
+@keyframes sqpPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: no-preference) { .masterReferenceAnalysis .sqtLayer .sqtSheet .sqtAcc > i { animation: sqpPulse 1.8s ease-in-out infinite; } }
+
+/* Özet: sol renk şeritli, büyük rakamlı kutular */
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats > div { background-color: #0a121a; border-color: var(--sqp-line); padding-left: 12px; box-shadow: inset 3px 0 0 var(--sqp-tone, #3b4d5b), inset 0 1px 0 rgba(255, 255, 255, .04); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats > [data-tone="loss"] { --sqp-tone: #e5586a; background-color: #170f14; border-color: #2c1a21; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats > [data-tone="gain"] { --sqp-tone: #22c88a; background-color: #0c1a16; border-color: #173128; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats small { font-size: 9px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #6f8696; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats b { font-size: 14.5px; }
+/* Seviye şeridi */
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtBar { height: 10px; gap: 3px; background-color: #0a121a; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtBar > i[data-tone="entry"] { flex: 0 0 3px; background-color: #e8f1f7; border-radius: 2px; box-shadow: 0 0 8px rgba(232, 241, 247, .65); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtLevels small { font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtLevels [data-tone="loss"] small { color: #ff8d9a; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtLevels [data-tone="gain"] small { color: #3ee0a0; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtLevels [data-tone="entry"] small { color: #b4c4ce; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtLevels > span { color: #d6e3ea; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtChecks li { color: #7fcfa6; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtChecks li[data-ok="false"] { color: var(--sqt-amber); }
+
+/* Kontroller: koyu kuyu içinde yön renkli seçili hap */
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtParam > small, .masterReferenceAnalysis .sqtLayer .sqtSheet .sqtField > small { color: #6c8190; font-size: 9px; letter-spacing: .1em; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtParam > div[role="radiogroup"] { background-color: #070d14; border-color: var(--sqp-line); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtParam > div[role="radiogroup"] > button { font-weight: 600; letter-spacing: .01em; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtParam > div[role="radiogroup"] > button[data-on="true"] { background-color: var(--sqp-dim); color: var(--sqp-side); box-shadow: inset 0 0 0 1px var(--sqp-ring), 0 3px 10px rgba(0, 0, 0, .4); font-weight: 700; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtPresets button { background-color: #0a121a; border-color: var(--sqp-line); color: #9db0bb; font-weight: 600; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtPresets button[data-on="true"] { background-color: var(--sqp-dim); border-color: var(--sqp-ring); color: var(--sqp-side); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtField input { font-size: 15px; font-weight: 650; letter-spacing: .01em; font-variant-numeric: tabular-nums; background-color: #070d14; border-color: var(--sqp-line); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtPickBtn { background-color: #0a1622; border-color: #2a4a63; color: #8fc4f5; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtSized { color: #8aa0ad; }
+
+/* Basılı tut: yön renkli, parlak yüzeyli ana düğme; Vazgeç sessiz */
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHold { font-weight: 700; letter-spacing: .02em; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); border-radius: 13px; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHold:not(:disabled) { background-color: var(--sqp-dim); border-color: var(--sqp-ring); box-shadow: 0 8px 22px color-mix(in srgb, var(--sqp-side) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.v26App .masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHold:not(:disabled) { background-image: linear-gradient(180deg, color-mix(in srgb, var(--sqp-side) 30%, #0d1620), color-mix(in srgb, var(--sqp-side) 13%, #0d1620)) !important; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHold::after { content: ""; position: absolute; inset: 0 0 55% 0; z-index: 0; pointer-events: none; background: linear-gradient(rgba(255, 255, 255, .09), transparent); }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtHoldLabel { z-index: 1; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtCancel { border-color: var(--sqp-line); color: #8aa0ad; font-weight: 600; background-color: transparent; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtCancel:hover:not(:disabled) { color: #d6e3ea; border-color: #2a3d4d; background-color: #0d1822; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtFine { color: #62798a; }
+
+/* Geniş alçak ekran (üç sütun): sütunlar arasında ince ayırıcı çizgiler (yerleşimi etkilemez) */
+@media (max-height: 620px) and (min-width: 820px) {
+  .masterReferenceAnalysis .sqtLayer .sqtSheet :is(.sqtSizing, .sqtOrd) { position: relative; }
+  .masterReferenceAnalysis .sqtLayer .sqtSheet :is(.sqtSizing, .sqtOrd)::before { content: ""; position: absolute; left: -8px; top: 2px; bottom: 2px; width: 1px; background-color: var(--sqp-line); pointer-events: none; }
+}
+
+/* Emir sayfası · istatistik etiketleri kelime ortasından bölünmesin */
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats small { overflow-wrap: normal; word-break: keep-all; hyphens: none; letter-spacing: .04em; font-size: 8.5px; line-height: 1.2; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats > div { padding-right: 6px; min-width: 0; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats small { font-size: 8px; letter-spacing: .015em; }
+.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtStats > div { padding-left: 11px; padding-right: 4px; }
