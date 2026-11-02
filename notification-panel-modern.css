@@ -1,10 +1,10 @@
-/* Bildirim paneli: telefonda sade, akıllı görünüm (yalnız <=700px). Veri ve tıklama davranışı aynı. */
+/* Bildirim paneli: sade, akıllı kart görünümü (telefon ve bilgisayar). Veri ve tıklama davranışı aynı. */
 .v26NotificationChev, .v26NotificationTools, .v26NotificationGroup, .v26NotificationSkeleton, .v26NotificationFoot, .v26NotificationAct, .v26NotificationAgo { display: none; }
 .v26NotificationCount { margin-left: 6px; font-style: normal; opacity: .7; }
 #root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 #root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear svg { flex: none; width: 12px; height: 12px; }
 #root main.v26App .v26NotificationPanel > header > div:last-child > button.v26NotificationClear.armed { color: #ff8a8a; }
-@media (max-width: 700px) {
+@media all {
   #root#root main.v26App .v26NotificationPanel { display: flex !important; flex-direction: column !important; background: #121a23 !important; border: 1px solid rgba(148, 163, 184, .12) !important; border-radius: 24px !important; box-shadow: 0 24px 48px rgba(0, 0, 0, .5) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   #root#root main.v26App .v26NotificationPanel > header { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; padding: 16px 16px 6px !important; border: 0 !important; background: none !important; }
   #root#root main.v26App .v26NotificationPanel > header small { display: none !important; }
@@ -105,3 +105,12 @@
   #root#root main.v26App .v26NotificationPanel .v26NotificationFilters button em { padding: 1px 6px !important; font-size: 11px !important; }
 }
 @keyframes v26NotifShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* Bilgisayar: panel zilin altında sabit genişlikte açılır; liste kendi içinde kayar */
+@media (min-width: 701px) {
+  #root#root main.v26App .v26NotificationPanel { width: 440px !important; max-width: calc(100vw - 24px) !important; max-height: min(720px, calc(100vh - 200px)) !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationList { max-height: none !important; overflow-y: auto !important; scrollbar-width: thin !important; scrollbar-color: #2a3644 transparent !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationItem { cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationItem:hover { border-color: var(--cb) !important; }
+  #root#root main.v26App .v26NotificationPanel .v26NotificationFilters button { height: 36px !important; }
+}
