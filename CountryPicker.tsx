@@ -27,7 +27,7 @@ function flag(code: string) {
 
 type Props = {value: string; onChange: (code: string) => void; lang: 'tr' | 'en'; mobile: boolean; label: string; placeholder: string; searchPlaceholder: string; emptyText: string; suggestedLabel: string; suggested?: string}
 
-export default function CountryPicker({value, onChange, lang, mobile, label, placeholder, searchPlaceholder, emptyText, suggestedLabel, suggested}: Props) {
+export default function CountryPicker({value, onChange, lang, mobile, label, placeholder, searchPlaceholder, emptyText}: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -45,14 +45,10 @@ export default function CountryPicker({value, onChange, lang, mobile, label, pla
       return name.includes(needle) ? 2 : 3
     }
     const found = needle ? all.filter(item => rank(item) < 3).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, lang)) : all
-    if (!needle && suggested) {
-      const top = found.find(item => item.code === suggested)
-      return top ? [top, ...found.filter(item => item.code !== suggested)] : found
-    }
     return found
-  }, [all, query, suggested, lang])
+  }, [all, query, lang])
 
-  useEffect(() => { setActive(0) }, [query, open])
+  useEffect(() => { setActive(open && !query ? Math.max(0, rows.findIndex(item => item.code === value)) : 0) }, [query, open]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (open) window.setTimeout(() => search.current?.focus({preventScroll: true}), 30) }, [open])
   useEffect(() => {
     if (!open || mobile) return
@@ -75,9 +71,8 @@ export default function CountryPicker({value, onChange, lang, mobile, label, pla
       {mobile && <button type="button" onClick={() => setOpen(false)} aria-label="×"><X aria-hidden="true"/></button>}</div>
     <ul ref={list} role="listbox" aria-label={label}>
       {rows.length === 0 && <li className="fdCountryEmpty">{emptyText}</li>}
-      {rows.map((item, index) => <li key={item.code} role="option" aria-selected={item.code === value} className={`${index === active ? 'act' : ''} ${item.code === value ? 'sel' : ''}`} onMouseEnter={() => setActive(index)} onClick={() => pick(item.code)}>
+      {rows.map((item, index) => <li key={item.code} role="option" aria-selected={item.code === value} className={`${index === active ? 'act' : ''} ${item.code === value ? 'sel' : ''}`} onMouseMove={() => active !== index && setActive(index)} onClick={() => pick(item.code)}>
         <span className="fdFlag" aria-hidden="true">{flag(item.code)}</span><span className="fdCName">{item.name}</span>
-        {!query && suggested === item.code && index === 0 && <small>{suggestedLabel}</small>}
         {item.code === value && <Check aria-hidden="true"/>}
       </li>)}
     </ul>
