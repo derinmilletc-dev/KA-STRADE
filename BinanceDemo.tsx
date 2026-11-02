@@ -404,14 +404,6 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   }, [masterTab, symbol, onSymbolChange])
   // Analiz sekmesindeki Master ekranı pozisyon kartını demo pozisyonlarıyla göstersin (yalnız okuma).
   useEffect(() => { onPositionsChange?.((account?.positions || []).filter(position => Math.abs(position.quantity) > 0)) }, [account, onPositionsChange])
-  // Analysis Studio'daki hızlı AL/SAT/kapat sonrası hesap hemen yenilenir (10 sn'lik döngüyü beklemeden).
-  const refreshAccountRef = useRef(refreshAccount)
-  refreshAccountRef.current = refreshAccount
-  useEffect(() => {
-    const onRefresh = () => { void refreshAccountRef.current(true) }
-    window.addEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
-    return () => window.removeEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
-  },[])
   const [cockpitAt,setCockpitAt] = useState<number|null>(null)
   useEffect(() => { if (status) setCockpitAt(Date.now()) }, [status])
   useEffect(() => { onConnectedChange?.(connectedNow) }, [connectedNow, onConnectedChange])
@@ -495,6 +487,14 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
       }
     }
   }
+  // Analysis Studio'daki hızlı AL/SAT/kapat sonrası hesap hemen yenilenir (10 sn'lik döngüyü beklemeden).
+  const refreshAccountRef = useRef(refreshAccount)
+  refreshAccountRef.current = refreshAccount
+  useEffect(() => {
+    const onRefresh = () => { void refreshAccountRef.current(true) }
+    window.addEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
+    return () => window.removeEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
+  },[])
   const refreshV21 = async (quiet=true,signal?:AbortSignal) => {
     const requestId = ++v21RequestId.current
     try {
