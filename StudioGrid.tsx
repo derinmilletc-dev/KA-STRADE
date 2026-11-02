@@ -332,7 +332,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
     const ok = await act(row, 'stop')
     if (!ok) return
     if (row.side === 'LONG' || row.side === 'SHORT' || row.side === 'NEUTRAL') updatePrefs({mode: row.side})
-    seeded.current = ''; setPreset(prefs.preset === 'custom' ? 'analysis' : prefs.preset); setTab('new')
+    seeded.current = ''; setPreset(prefs.preset); setTab('new')
   }
 
   const totalNow = running.reduce((sum, row) => { const p = gridPnl(row, row.symbol === symbol ? price : null); return sum + (p.total ?? p.realized) }, 0)
