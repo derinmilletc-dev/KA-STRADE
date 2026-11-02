@@ -2051,6 +2051,7 @@ def enrich_snapshot_with_plans(snapshot: dict[str, Any], state: dict[str, Any]) 
         plan = active_by_symbol.get(str(position.get("symbol") or ""))
         if not plan:
             continue
+        position["plan_source"] = str(plan.get("source") or "") or None
         requested = int(plan.get("requested_leverage") or plan.get("leverage") or 0) or None
         applied = int(plan.get("applied_leverage") or 0) or position.get("leverage")
         position["requested_leverage"] = requested

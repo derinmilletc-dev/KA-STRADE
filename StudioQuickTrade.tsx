@@ -6,7 +6,7 @@ import {analysisPrice} from './master-trade-presentation'
 import {requestPositionsRefresh} from './trade-intent'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {
-  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
+  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, DEMO_STOP_PHRASE, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
   activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, isOpen, levelsFor, limitIssue, limitPresets, nearestChoice, newIntentId, parseJournal, planRights, postJson, riskSummary,
   setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx,
   type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
@@ -20,7 +20,7 @@ import './studio-modern.css'
 
 setLanguageReader(() => currentLang() === 'en')
 
-export type StudioPosition = PositionLike & {stop_loss?: number; tp1?: number; tp2?: number; tp3?: number}
+export type StudioPosition = PositionLike & {stop_loss?: number; tp1?: number; tp2?: number; tp3?: number; plan_source?: string | null}
 export type StudioDecision = {direction: string; confidenceScore: number | null; mtfScore: number | null; mtfConfirmed: number; mtfTotal: number; status: string}
 
 const V25 = `${API_BASE}/v25`
@@ -302,8 +302,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     } finally { busyRef.current = false; setBusy(null) }
   }
 
-  // ---- Açık pozisyon: stop yönetimi (başa baş / sıkılaştır / elle). Yalnız canlı MANUEL planlarda; sunucu eski stopu doğrulayarak değiştirir. ----
-  const canManage = !demo && rights.reduce && Boolean(current)
+  // ---- Açık pozisyon: stop yönetimi (başa baş / sıkılaştır / elle). Yalnız MANUEL planlarda (Canlı ve Demo); sunucu eski stopu doğrulayarak değiştirir. ----
+  const canManage = Boolean(current) && (demo ? current?.plan_source === 'MANUAL' : rights.reduce)
   const applyStop = async (stop: number) => {
     if (!current || !canManage || busyRef.current) return
     const problem = stopIssue(sideOf(current), positive(price) ?? positive(current.mark_price), positive(current.stop_loss), stop)
@@ -311,7 +311,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     busyRef.current = true
     setBusy(tx('Stop güncelleniyor…', 'Updating the stop…')); setStopError('')
     try {
-      const result = await postJson<unknown>(`${V25}/position/protection`, {plan_id: rights.id, stop_loss: stop, confirmation: 'KORUMAYI GÜNCELLE'}, 60000)
+      const result = demo
+        ? await postJson<unknown>(`${DEMO}/position/protection`, {symbol: current.symbol, stop_loss: stop, confirmation: DEMO_STOP_PHRASE}, 60000)
+        : await postJson<unknown>(`${V25}/position/protection`, {plan_id: rights.id, stop_loss: stop, confirmation: 'KORUMAYI GÜNCELLE'}, 60000)
       if (result.ok) {
         setStopAsk(null)
         setToast({kind: 'ok', title: tx(`${current.symbol} stopu güncellendi`, `${current.symbol} stop updated`), detail: tx('Eski stop silinip yenisi borsadan doğrulanarak kuruldu.', 'The old stop was removed and the new one was confirmed on the exchange.')})
@@ -392,7 +394,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
           </button>
         : <PositionCard position={current} price={price} pnl={pnl} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
-            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop)} : undefined} demoManageNote={demo}/>}
+            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop)} : undefined} demoManageNote={demo && !canManage}/>}
       {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0))} USDT</strong></span></header>
@@ -542,7 +544,7 @@ function PositionCard({position, price, pnl, rights, demo, busy, action, actionE
       {!rights.close && <p className="sqtNoteSmall">{tx('Bu pozisyon bot ya da dış kaynaklı; kapatma Pozisyonlar sekmesinden.', 'This position is bot-managed or external; close it from the Positions tab.')}</p>}
     </div>}
     {action === null && manage && <StopManager position={position} manage={manage} sending={sending} busy={busy}/>}
-    {action === null && demoManageNote && <p className="sqtNoteSmall">{tx('Stop taşıma (başa baş, sıkılaştırma) şimdilik yalnız canlı manuel işlemlerde.', 'Stop management (break-even, tightening) is live manual trades only for now.')}</p>}
+    {action === null && demoManageNote && <p className="sqtNoteSmall">{tx('Stop taşıma yalnız elle açtığın işlemlerde; bot ya da dış pozisyonlara dokunulmaz.', 'Stop management is for trades you opened by hand; bot and external positions are never touched.')}</p>}
     {action === 'half' && <div className="sqtAsk" role="alertdialog" aria-label={tx('Yarısını kapat onayı', 'Close half confirmation')}><span>{tx('Pozisyonun yarısı piyasa fiyatından kapatılsın mı?', 'Close half of the position at market price?')}</span><div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => onRun('half')}>{sending ? busy : tx('Evet, kapat', 'Yes, close')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={onCancelAsk}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
     {actionError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{actionError}</p>}
     {sending && action === null && <p className="sqtNoteSmall" role="status">{busy}</p>}

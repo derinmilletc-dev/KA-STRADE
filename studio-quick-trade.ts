@@ -16,6 +16,7 @@ export const DEMO_PHRASE = 'DEMO'
 export const LIVE_CLOSE_PHRASE = 'CANLI POZİSYONU KAPAT'
 export const LIVE_REDUCE_PHRASE = 'KISMİ KAPAT'
 export const DEMO_CLOSE_PHRASE = 'DEMO KAPAT'
+export const DEMO_STOP_PHRASE = 'DEMO STOP GÜNCELLE'
 export const DEMO_REDUCE_PHRASE = 'DEMO AZALT'
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
