@@ -449,5 +449,129 @@ class TestStartEndpointGates(unittest.TestCase):
         self.assertIn("require_enabled", text[text.index("async def v25_grid_live_resume"):][:500])
 
 
+class TestMultiGridRunner(unittest.TestCase):
+    """Çoklu grid: kullanıcı başına birden fazla coin, kullanıcılar birbirini görmez, coin başına tek grid, üst sınır."""
+
+    def setUp(self) -> None:
+        self.ex = ExchangeFake()
+        for sym in (SYM, "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "ADAUSDT"):
+            self.ex.set_price(sym, 100.0)
+        self.api = FakeBinance(self.ex)
+        self.runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        self.runner._record = lambda *a, **k: None
+        self.runner.blocked_check = lambda s: False
+        self.runner._ensure_loop = lambda *a, **k: None
+        self.state: dict[str, Any] = {"real_trading_locked": False, "emergency": {}, "events": [], "policy": POLICY}
+
+    def run_async(self, fn):
+        async def scenario():
+            adapter = BinanceLiveGridAdapter(self.api, asyncio.get_running_loop(), timeout=5)
+            return await fn(adapter)
+        return asyncio.run(scenario())
+
+    def test_one_member_runs_grids_on_several_coins_and_others_cannot_see_them(self):
+        async def flow(adapter):
+            await self.runner.start(None, self.state, adapter, prepare(recycle=True), SYM, user_id="u1", owner=False)
+            out = await self.runner.start(None, self.state, adapter, prepare(), "ETHUSDT", user_id="u1", owner=False)
+            self.assertEqual(out["active_count"], 2)
+            self.assertEqual({g["symbol"] for g in out["grids"]}, {SYM, "ETHUSDT"})
+            self.assertTrue(next(g for g in out["grids"] if g["symbol"] == SYM)["recycle"])
+            with self.assertRaises(grid_live.LiveGridError):        # aynı coinde ikinci grid yok
+                await self.runner.start(None, self.state, adapter, prepare(), SYM, user_id="u1", owner=False)
+            other = self.runner.status_payload("u2", owner=False)
+            self.assertEqual((other["grids"], other["grid"]), ([], None))
+            # başka üye aynı coinde kendi grid'ini açabilir (ayrı hesap)
+            await self.runner.start(None, self.state, adapter, prepare(), "SOLUSDT", user_id="u2", owner=False)
+            self.assertEqual([g["symbol"] for g in self.runner.status_payload("u2", owner=False)["grids"]], ["SOLUSDT"])
+            self.assertTrue(self.runner.symbol_busy(SYM, "u1"))
+            self.assertFalse(self.runner.symbol_busy(SYM, "u2"))
+        self.run_async(flow)
+
+    def test_member_cannot_stop_another_members_grid(self):
+        async def flow(adapter):
+            out = await self.runner.start(None, self.state, adapter, prepare(), SYM, user_id="u1", owner=False)
+            gid = out["started_grid_id"]
+            with self.assertRaises(grid_live.LiveGridError) as caught:
+                await self.runner.pause(self.state, adapter, user_id="u2", grid_id=gid, owner=False)
+            self.assertEqual(caught.exception.status, 404)
+            with self.assertRaises(grid_live.LiveGridError):
+                await self.runner.emergency(None, self.state, adapter, user_id="u2", grid_id=gid, owner=False)
+            done = await self.runner.pause(self.state, adapter, user_id="u1", grid_id=gid, owner=False)
+            self.assertEqual(done["grids"][0]["status"], STOPPED)
+        self.run_async(flow)
+
+    def test_per_user_grid_cap(self):
+        async def flow(adapter):
+            for sym in (SYM, "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT")[:grid_live.MAX_GRIDS_PER_USER]:
+                await self.runner.start(None, self.state, adapter, prepare(), sym, user_id="u1", owner=False)
+            with self.assertRaises(grid_live.LiveGridError) as caught:
+                await self.runner.start(None, self.state, adapter, prepare(), "ADAUSDT", user_id="u1", owner=False)
+            self.assertEqual(caught.exception.status, 409)
+        self.run_async(flow)
+
+    def test_pause_targets_only_the_named_grid(self):
+        async def flow(adapter):
+            a = (await self.runner.start(None, self.state, adapter, prepare(), SYM, user_id="u1", owner=False))["started_grid_id"]
+            await self.runner.start(None, self.state, adapter, prepare(), "ETHUSDT", user_id="u1", owner=False)
+            with self.assertRaises(grid_live.LiveGridError):          # iki grid varken hangisi belirtilmeli
+                await self.runner.pause(self.state, adapter, user_id="u1", owner=False)
+            out = await self.runner.pause(self.state, adapter, user_id="u1", grid_id=a, owner=False)
+            statuses = {g["symbol"]: g["status"] for g in out["grids"]}
+            self.assertEqual(statuses, {SYM: STOPPED, "ETHUSDT": RUNNING})
+            eth_entries = [o for o in self.ex.orders.values() if o.symbol == "ETHUSDT" and o.status == NEW]
+            self.assertEqual(len(eth_entries), 2)
+        self.run_async(flow)
+
+    def test_reserved_risk_counts_running_grids_only_once(self):
+        async def flow(adapter):
+            await self.runner.start(None, self.state, adapter, prepare(), SYM, user_id="u1", owner=False)
+            reserved = self.runner.reserved_risk("u1")
+            plan = prepare()
+            self.assertAlmostEqual(reserved["worst_loss_usdt"], plan["worst_loss_usdt"])
+            self.assertAlmostEqual(reserved["pending_entry_notional_usdt"], plan["total_notional_usdt"], places=6)
+            self.assertEqual(reserved["symbols"], [SYM])
+            self.ex.set_price(SYM, 98.95)                               # 1. kademe dolar: artık pozisyon, bekleyen değil
+            await asyncio.to_thread(self.runner._tick_once, self.runner._engines[self.runner.occupying_row("u1", SYM, owner=False)["grid_id"]])
+            after = self.runner.reserved_risk("u1")
+            self.assertLess(after["pending_entry_notional_usdt"], reserved["pending_entry_notional_usdt"])
+        self.run_async(flow)
+
+    def test_legacy_ownerless_grid_belongs_to_the_owner_only(self):
+        store = self.runner.store
+        store.create_grid("legacy", SYM, LONG, {"stop_price": 1, "levels": []})
+        store.set_grid("legacy", status=RUNNING)
+        self.assertIsNotNone(self.runner.occupying_row("owner-id", SYM, owner=True))
+        self.assertIsNone(self.runner.occupying_row("member", SYM, owner=False))
+        self.assertEqual(self.runner.status_payload("member", owner=False)["grids"], [])
+
+
+class TestSmartLimits(unittest.TestCase):
+    def test_level_profit_must_beat_fees(self):
+        with self.assertRaises(grid_live.LiveGridError) as caught:
+            prepare(lower=98.98, upper=99.0, count=2, rules={**RULES, "tick": 0.01})
+        self.assertIn("ücret", str(caught.exception))
+
+    def test_running_grids_use_up_the_daily_loss_allowance(self):
+        plan = prepare()
+        with self.assertRaises(grid_live.LiveGridError) as caught:
+            prepare(reserved_worst_loss=POLICY["daily_loss_limit"] - plan["worst_loss_usdt"] / 2)
+        self.assertIn("çalışan grid", str(caught.exception))
+
+    def test_pending_entries_of_other_grids_count_towards_exposure(self):
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare(reserved_pending_notional=POLICY["max_total_exposure_usdt"])
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare(open_positions=3, reserved_symbols=2)
+
+    def test_plan_carries_cycle_flag_and_profit_estimate(self):
+        plan = prepare(recycle=True)
+        self.assertTrue(plan["recycle"])
+        self.assertGreater(plan["profit_per_cycle_usdt"], 0)
+        self.assertEqual((plan["lower"], plan["upper"], plan["count"]), (98.0, 99.0, 2))
+        spec = grid_live.grid_spec_from_plan("gx", SYM, plan)
+        self.assertTrue(spec.recycle)
+        self.assertAlmostEqual(spec.meta["worst_loss_usdt"], plan["worst_loss_usdt"])
+
+
 if __name__ == "__main__":
     unittest.main()

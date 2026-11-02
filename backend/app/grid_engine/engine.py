@@ -44,15 +44,48 @@ class GridSpec:
     side: str
     levels: list[GridLevelSpec]
     stop_price: float
+    recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (gerçek grid turu)
+    meta: dict = field(default_factory=dict)   # önizleme özeti (en kötü zarar, marjin...): yalnız gösterim/risk toplamı
 
     def as_json(self) -> dict:
-        return {"stop_price": self.stop_price, "levels": [vars(l) for l in self.levels]}
+        return {"stop_price": self.stop_price, "levels": [vars(l) for l in self.levels], "recycle": bool(self.recycle), "meta": dict(self.meta)}
+
+
+def grid_stats(spec: GridSpec, orders) -> dict:
+    """Defterden özet: tamamlanan tur, dolu kademe, kesinleşen hedef kârı (ücret tahmini düşülmüş).
+    Stop/acil kapanış fiyatı borsada değişebileceği için zarar burada tahmin edilmez (gösterimde anlık fiyatla hesaplanır)."""
+    sign = 1 if spec.side == LONG else -1
+    by_key = {(o["level"], o["cycle"]): o for o in orders if o["role"] == "E"}
+    cycles = 0
+    realized = 0.0
+    fees = 0.0
+    for t in orders:
+        if t["role"] != "T" or t["filled"] <= EPS:
+            continue
+        e = by_key.get((t["level"], t["cycle"]))
+        if e is None:
+            continue
+        realized += sign * (t["price"] - e["price"]) * t["filled"]
+        fees += (t["price"] + e["price"]) * t["filled"] * 0.0002
+    targets = [o for o in orders if o["role"] == "T"]
+    for e in by_key.values():
+        mine = [t for t in targets if t["level"] == e["level"] and t["cycle"] == e["cycle"]]
+        if e["status"] == FILLED and mine and all(t["status"] == FILLED for t in mine) and abs(sum(t["filled"] for t in mine) - e["filled"]) <= 1e-8:
+            cycles += 1
+    open_levels = []
+    for (level, cycle), e in sorted(by_key.items()):
+        hedged = sum(t["filled"] for t in targets if t["level"] == level and t["cycle"] == cycle)
+        qty = round(e["filled"] - hedged, 8)
+        if qty > EPS:
+            open_levels.append({"level": level, "cycle": cycle, "entry": e["price"], "qty": qty})
+    return {"cycles": cycles, "realized_usdt": round(realized - fees, 8), "gross_usdt": round(realized, 8), "fees_usdt": round(fees, 8),
+            "open_levels": open_levels, "filled_levels": len({o["level"] for o in open_levels})}
 
 
 class GridEngine:
     def __init__(self, exchange: ExchangePort, store: GridStore, spec: GridSpec, *,
                  risk_gate: Callable[[], tuple[bool, str]] | None = None, max_close_attempts: int = 5, absence_confirmations: int = 2,
-                 sleep: Callable[[float], None] = lambda s: None) -> None:
+                 sleep: Callable[[float], None] = lambda s: None, user_id: str = "", account: str = "LIVE") -> None:
         if spec.side not in (LONG, SHORT):
             raise ValueError("yön LONG/SHORT olmalı")
         if not 2 <= len(spec.levels) <= MAX_LEVELS:
@@ -64,8 +97,9 @@ class GridEngine:
         self.entry_side, self.exit_side = (BUY, SELL) if spec.side == LONG else (SELL, BUY)
         self.sign = 1 if spec.side == LONG else -1
         self._last_reject = 0
+        self._protect_only = False                 # duraklatılmış grid'te koruma kurulurken yeni tur açılmaz
         self.prefix = f"kg-{re.sub(r'[^A-Za-z0-9]', '', spec.grid_id)[:16]}-"
-        if store.create_grid(self.gid, self.sym, spec.side, spec.as_json()):
+        if store.create_grid(self.gid, self.sym, spec.side, spec.as_json(), user_id=user_id, account=account):
             for i, lv in enumerate(spec.levels, 1):
                 self._intent(role="E", level=i, rev=0, side=self.entry_side, type=LIMIT, price=lv.entry, stop_price=0.0, qty=lv.qty, reduce_only=0)
 
@@ -87,8 +121,33 @@ class GridEngine:
 
     def _intent(self, **row) -> str:
         cid = client_order_id(self.gid, self.spec.side, row["level"], row["role"], row["rev"])
-        self.store.add_order({"client_id": cid, "grid_id": self.gid, "status": PENDING_SEND, **row})
+        self.store.add_order({"client_id": cid, "grid_id": self.gid, "status": PENDING_SEND, "cycle": 0, **row})
         return cid
+
+    def _cycle_closed(self, entry, targets) -> bool:
+        """Bu turun girişi tamamen doldu ve aynı turun hedefleri girişin tamamını kapattı mı?"""
+        if entry["status"] != FILLED or entry["filled"] <= EPS:
+            return False
+        mine = [t for t in targets if t["level"] == entry["level"] and t["cycle"] == entry["cycle"]]
+        return bool(mine) and all(t["status"] == FILLED for t in mine) and abs(sum(t["filled"] for t in mine) - entry["filled"]) <= 1e-8
+
+    def _recycle(self) -> None:
+        entries, targets = self.store.orders(self.gid, "E"), self.store.orders(self.gid, "T")
+        for index, lv in enumerate(self.spec.levels, 1):
+            mine = [e for e in entries if e["level"] == index]
+            if not mine:
+                continue
+            last = max(mine, key=lambda e: (e["cycle"], e["rev"]))
+            if not self._cycle_closed(last, targets):
+                continue
+            rev = max(e["rev"] for e in mine) + 1
+            cid = self._intent(role="E", level=index, rev=rev, cycle=last["cycle"] + 1, side=self.entry_side, type=LIMIT, price=lv.entry,
+                               stop_price=0.0, qty=lv.qty, reduce_only=0)
+            self._send(self.store.order(cid))
+
+    # ---------- özet (gösterim) ----------
+    def stats(self) -> dict:
+        return grid_stats(self.spec, self.store.orders(self.gid))
 
     def grid_net(self) -> float:
         """Bu grid'in pozisyonu (pozitif = grid yönünde açık miktar)."""
@@ -154,7 +213,7 @@ class GridEngine:
         misses = row["misses"] + 1
         self.store.set_order(cid, misses=misses)
         if misses >= self.absence_confirmations:
-            self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
+            self._send(self.store.order(cid))
 
     # ---------- başlatma ----------
     def start(self) -> str:
@@ -241,6 +300,8 @@ class GridEngine:
             self._alert("bilgi", "Stop tetiklendi: bekleyen emirler iptal edildi, yeni emir açılmayacak.")
             return
         entries = self.store.orders(self.gid, "E")
+        if self.spec.recycle and self.status == RUNNING:
+            return                              # tur açık: tüm kademeler kapansa da grid yeni girişlerle sürer
         if entries and all(e["status"] in TERMINAL for e in entries) and abs(self.grid_net()) <= EPS and any(e["filled"] > EPS for e in entries):
             self._cancel_all(roles=("S", "T"))
             self._set(COMPLETED)
@@ -256,13 +317,12 @@ class GridEngine:
         if net <= EPS:
             for old in active:                    # pozisyon yok: artık gereksiz (aşırı büyük) stop kalmasın
                 self._cancel(old["client_id"])
-            return
-        if abs(covered - net) > 1e-8:
+        elif abs(covered - net) > 1e-8:
             rev = len(self.store.orders(self.gid, "S"))
             self._last_reject = 0
             cid = self._intent(role="S", level=0, rev=rev, side=self.exit_side, type=STOP_MARKET, price=0.0, stop_price=self.spec.stop_price, qty=net, reduce_only=1)
-            self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
-            status = self.store.db.execute("SELECT status FROM orders WHERE client_id=?", (cid,)).fetchone()["status"]
+            self._send(self.store.order(cid))
+            status = self.store.order(cid)["status"]
             if status in (NEW, PARTIAL):
                 for old in active:
                     self._cancel(old["client_id"])
@@ -280,15 +340,21 @@ class GridEngine:
                 self._alert("kritik", "MÜDAHALE GEREKLİ: koruyucu stop kurulamadı (borsa reddetti). Yeni giriş emirleri iptal edildi; eski stoplar iptal EDİLMEDİ.")
             else:
                 self._alert("kritik", "Yeni koruyucu stop henüz doğrulanamadı; eski stoplar korunuyor, tekrar denenecek.")
-        # 2) Her dolum artışı için sadece o artışın hedefi (reduceOnly limit)
+        # 2) Her dolum artışı için sadece o artışın hedefi (reduceOnly limit). Hedef, girişin turunu taşır.
+        targets = self.store.orders(self.gid, "T")
         for e in self.store.orders(self.gid, "E"):
-            covered = sum(t["qty"] for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
+            covered = sum(t["qty"] for t in targets if t["level"] == e["level"] and t["cycle"] == e["cycle"])
             delta = round(e["filled"] - covered, 8)
             if delta > EPS:
-                rev = sum(1 for t in self.store.orders(self.gid, "T") if t["level"] == e["level"])
+                rev = sum(1 for t in targets if t["level"] == e["level"])
                 lv = self.spec.levels[e["level"] - 1]
-                cid = self._intent(role="T", level=e["level"], rev=rev, side=self.exit_side, type=LIMIT, price=lv.target, stop_price=0.0, qty=delta, reduce_only=1)
-                self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
+                cid = self._intent(role="T", level=e["level"], rev=rev, cycle=e["cycle"], side=self.exit_side, type=LIMIT, price=lv.target,
+                                   stop_price=0.0, qty=delta, reduce_only=1)
+                self._send(self.store.order(cid))
+                targets = self.store.orders(self.gid, "T")
+        # 3) Tur: kademenin girişi ve hedefi tamamen dolduysa aynı kademede yeni giriş (yalnız çalışırken)
+        if self.spec.recycle and self.status == RUNNING and not self._protect_only:
+            self._recycle()
 
     # ---------- iptal ----------
     def _cancel(self, cid: str) -> bool:
@@ -299,7 +365,7 @@ class GridEngine:
         except ExchangeRejected as exc:
             if exc.code == UNKNOWN_ORDER:       # dolmuş/iptal olmuş olabilir: gerçek durumu oku
                 self._adopt(cid)
-                row = self.store.db.execute("SELECT status FROM orders WHERE client_id=?", (cid,)).fetchone()
+                row = self.store.order(cid)
                 return row["status"] in TERMINAL
             return False
         except ExchangeError:
@@ -335,9 +401,11 @@ class GridEngine:
         """Durdurulmuş grid'te de (iptal yarışında) dolan miktar korunmalı."""
         saved = self.status
         self.store.set_grid(self.gid, status=RUNNING)
+        self._protect_only = True
         try:
             self._ensure_protection()
         finally:
+            self._protect_only = False
             self.store.set_grid(self.gid, status=saved)
 
     def emergency_stop(self) -> str:
@@ -400,4 +468,4 @@ class GridEngine:
             return
         rev = len(self.store.orders(self.gid, "C"))
         cid = self._intent(role="C", level=0, rev=rev, side=self.exit_side, type=MARKET, price=0.0, stop_price=0.0, qty=qty, reduce_only=1)
-        self._send(self.store.db.execute("SELECT * FROM orders WHERE client_id=?", (cid,)).fetchone())
+        self._send(self.store.order(cid))

@@ -1804,13 +1804,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       title: 'GRID\'İ DURDUR',
       message: 'Bekleyen giriş emirleri iptal edilir. Açık pozisyon varsa stop ve hedefleriyle yerinde kalır.',
       simple: true,
-      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, '/grid/live/stop', {method: 'POST', timeoutMs: 60000})) },
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, `/grid/live/stop${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`, {method: 'POST', timeoutMs: 60000})) },
     })
     const emergencyLiveGrid = () => setConfirm({
       title: 'GRID ACİL DURDUR',
       message: 'Bekleyen girişler iptal edilir, grid pozisyonu piyasadan kapatılır ve kapandığı borsadan doğrulanır. Doğrulanamazsa koruyucu stoplara dokunulmaz.',
       expected: 'ACİL DURDUR',
-      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, '/grid/live/emergency', {method: 'POST', timeoutMs: 90000})) },
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, `/grid/live/emergency${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`, {method: 'POST', timeoutMs: 90000})) },
     })
     const gridLiveBlock = liveGrid?.enabled || liveGridRow || liveGridLast ? <div className="mgpLive" role="group" aria-label="Canlı grid">
       {liveGridRow && <>

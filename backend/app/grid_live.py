@@ -23,7 +23,7 @@ from fastapi import HTTPException
 
 from .execution_core import HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
-                                 GridLevelSpec, GridSpec)
+                                 GridLevelSpec, GridSpec, grid_stats)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
 from .grid_engine.ports import EPS, LONG, SHORT
 from .grid_engine.store import TERMINAL, GridStore
@@ -41,6 +41,7 @@ MAKER_FEE, TAKER_FEE = 0.0002, 0.0005          # gridMath.ts ile aynı
 TICK_SECONDS = 5.0
 MAX_LOOP_ERRORS = 6
 FINAL_STATUSES = {STOPPED, COMPLETED, EMERGENCY_CLOSED}
+MAX_GRIDS_PER_USER = 5                         # kullanıcı başına aynı anda çalışan grid (coin başına bir)
 NEEDS_USER = {BLOCKED, INTERVENTION_REQUIRED}
 
 
@@ -69,7 +70,8 @@ def _snap(value: Any, tick: Decimal, mode: str = ROUND_HALF_UP) -> Decimal:
 
 def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int, margin_usdt: float, leverage: int, stop: float,
                       price: float, rules: dict[str, Any], policy: dict[str, Any], realized_pnl_today: float,
-                      existing_exposure: float, open_positions: int) -> dict[str, Any]:
+                      existing_exposure: float, open_positions: int, recycle: bool = False, reserved_worst_loss: float = 0.0,
+                      reserved_pending_notional: float = 0.0, reserved_symbols: int = 0) -> dict[str, Any]:
     """Önizlemeyle aynı hesap + canlı sert sınırlar. Herhangi bir kontrol başarısızsa LiveGridError (grid başlamaz)."""
     direction = str(direction).upper()
     if direction not in (LONG, SHORT):
@@ -123,6 +125,8 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
         better = r["target"] > r["entry"] if direction == LONG else r["target"] < r["entry"]
         if not better:
             problems.append(f"Kademe {r['level']} hedefi girişten ileride değil.")
+        elif abs(r["target"] - r["entry"]) * r["qty"] <= (r["entry"] + r["target"]) * r["qty"] * MAKER_FEE + 1e-12:
+            problems.append(f"Kademe {r['level']} kârı işlem ücretini karşılamıyor; aralığı genişlet ya da kademe sayısını azalt.")
         wrong_side = r["entry"] >= price if direction == LONG else r["entry"] <= price
         if wrong_side:
             problems.append(f"Kademe {r['level']} güncel fiyatın yanlış tarafında; limit emir hemen dolar.")
@@ -142,14 +146,16 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
     loss_limit = float(policy.get("max_loss_per_trade", 3))
     if worst_loss > loss_limit + 1e-9:
         problems.append(f"En kötü zarar {worst_loss:.2f} USDT, tek işlem sınırı {loss_limit:g} USDT.")
-    daily_left = float(policy.get("daily_loss_limit", 10)) + min(0.0, float(realized_pnl_today))
+    daily_left = float(policy.get("daily_loss_limit", 10)) + min(0.0, float(realized_pnl_today)) - max(0.0, float(reserved_worst_loss))
     if daily_left <= 0 or worst_loss > daily_left + 1e-9:
-        problems.append(f"En kötü zarar {worst_loss:.2f} USDT, bugün kalan zarar hakkı {max(daily_left, 0):.2f} USDT.")
+        reserved_note = f" (çalışan grid'ler {float(reserved_worst_loss):.2f} USDT ayırdı)" if reserved_worst_loss > 0 else ""
+        problems.append(f"En kötü zarar {worst_loss:.2f} USDT, bugün kalan zarar hakkı {max(daily_left, 0):.2f} USDT{reserved_note}.")
     exposure_limit = float(policy.get("max_total_exposure_usdt", 350))
-    if existing_exposure + total_notional > exposure_limit + 1e-9:
-        problems.append(f"Toplam maruziyet {existing_exposure + total_notional:.2f}, sınır {exposure_limit:g} USDT.")
-    if open_positions >= int(policy.get("max_positions", 5)):
-        problems.append("Açık pozisyon sınırı dolu.")
+    exposure_now = existing_exposure + max(0.0, float(reserved_pending_notional))
+    if exposure_now + total_notional > exposure_limit + 1e-9:
+        problems.append(f"Toplam maruziyet {exposure_now + total_notional:.2f}, sınır {exposure_limit:g} USDT.")
+    if open_positions + max(0, int(reserved_symbols)) >= int(policy.get("max_positions", 5)):
+        problems.append("Açık pozisyon / grid sınırı dolu.")
     max_stop_pct = float(policy.get("max_stop_distance_pct", 5))
     if stop_distance_pct > max_stop_pct + 1e-9:
         problems.append(f"Stop mesafesi %{stop_distance_pct:.2f}, sınır %{max_stop_pct:g}.")
@@ -157,73 +163,171 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
         problems.append("Stop, tahmini likidasyona çok yakın; kaldıracı düşür ya da stopu yakınlaştır.")
     if problems:
         raise LiveGridError(" ".join(dict.fromkeys(problems)))
+    gross_per_cycle = sum(abs(r["target"] - r["entry"]) * r["qty"] for r in rows)
+    fees_per_cycle = sum((r["entry"] + r["target"]) * r["qty"] * MAKER_FEE for r in rows)
     return {"direction": direction, "stop_price": stop_price, "levels": rows, "total_margin_usdt": round(total_margin, 6),
             "total_notional_usdt": round(total_notional, 6), "worst_loss_usdt": round(worst_loss, 6),
-            "stop_distance_pct": round(stop_distance_pct, 4), "leverage": int(leverage)}
+            "stop_distance_pct": round(stop_distance_pct, 4), "leverage": int(leverage), "recycle": bool(recycle),
+            "lower": float(lower), "upper": float(upper), "count": count,
+            "profit_per_cycle_usdt": round((gross_per_cycle - fees_per_cycle) / count, 8), "spacing_pct": round(spacing / price * 100, 4)}
 
 
 def grid_spec_from_plan(grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
-    return GridSpec(grid_id, symbol, plan["direction"], [GridLevelSpec(r["entry"], r["target"], r["qty"]) for r in plan["levels"]], plan["stop_price"])
+    meta = {key: plan[key] for key in ("total_margin_usdt", "total_notional_usdt", "worst_loss_usdt", "leverage", "stop_distance_pct",
+                                       "lower", "upper", "count") if key in plan}
+    return GridSpec(grid_id, symbol, plan["direction"], [GridLevelSpec(r["entry"], r["target"], r["qty"]) for r in plan["levels"]],
+                    plan["stop_price"], recycle=bool(plan.get("recycle", False)), meta=meta)
 
 
 def grid_spec_from_row(row: Any) -> GridSpec:
     spec = json.loads(row["spec"])
-    return GridSpec(row["grid_id"], row["symbol"], row["side"], [GridLevelSpec(**lv) for lv in spec["levels"]], float(spec["stop_price"]))
+    return GridSpec(row["grid_id"], row["symbol"], row["side"], [GridLevelSpec(**lv) for lv in spec["levels"]], float(spec["stop_price"]),
+                    recycle=bool(spec.get("recycle", False)), meta=dict(spec.get("meta") or {}))
+
+
+def _owner_matches(row: Any, user_id: str, *, owner: bool) -> bool:
+    """Grid'in sahibi bu kullanıcı mı? Sahipsiz ('') eski kayıtlar yalnız yöneticiye aittir."""
+    row_user = str(row["user_id"] or "")
+    return row_user == str(user_id or "") if row_user else bool(owner)
 
 
 # ---------------------------------------------------------------- çalıştırıcı
 class LiveGridRunner:
-    """Tek aktif canlı grid. Motor ayrı iş parçacığında koşar; borsa çağrıları olay döngüsüne köprülenir."""
+    """Kullanıcı başına birden fazla canlı grid (coin başına bir). Her grid kendi döngüsünde koşar; motor çağrıları
+    ayrı iş parçacığında yapılır ve borsa çağrıları olay döngüsüne köprülenir. Bir kullanıcı yalnız kendi grid'lerini görür/yönetir."""
 
     def __init__(self, store: GridStore) -> None:
         self.store = store
-        self._engine: GridEngine | None = None
-        self._task: asyncio.Task | None = None
+        self._engines: dict[str, GridEngine] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._paused_for_block: set[str] = set()
+        self._errors: dict[str, int] = {}
+        self._adapters: dict[str, BinanceLiveGridAdapter] = {}
         self._lock: asyncio.Lock | None = None
-        self._adapter: BinanceLiveGridAdapter | None = None
-        self._paused_for_block = False
-        self.loop_errors = 0
+
+    # ---- geriye uyum (tek grid dönemi alanları)
+    @property
+    def _engine(self) -> GridEngine | None:
+        row = self.store.latest_grid()
+        return self._engines.get(row["grid_id"]) if row is not None else None
+
+    @property
+    def loop_errors(self) -> int:
+        return max(self._errors.values(), default=0)
 
     @property
     def lock(self) -> asyncio.Lock:
+        """Başlatma (yer kontrolü + kayıt) için tek kilit: aynı anda iki istek aynı coinde iki grid açamaz."""
         if self._lock is None:
             self._lock = asyncio.Lock()
         return self._lock
 
+    def grid_lock(self, grid_id: str) -> asyncio.Lock:
+        lock = self._locks.get(grid_id)
+        if lock is None:
+            lock = self._locks[grid_id] = asyncio.Lock()
+        return lock
+
     # ---- defter okuma
-    def current_row(self) -> Any:
-        return self.store.db.execute("SELECT * FROM grid ORDER BY rowid DESC LIMIT 1").fetchone()
+    def current_row(self, user_id: str | None = None, *, owner: bool = True) -> Any:
+        if user_id is None:
+            return self.store.latest_grid()
+        rows = self.user_rows(user_id, owner=owner)
+        return rows[0] if rows else None
 
-    def occupying_row(self) -> Any:
-        row = self.current_row()
-        return row if row is not None and row["status"] not in FINAL_STATUSES else None
+    def user_rows(self, user_id: str, *, owner: bool = False, active_only: bool = False) -> list[Any]:
+        rows = self.store.grids(user_id=str(user_id or ""), include_legacy=owner,
+                                exclude_statuses=FINAL_STATUSES if active_only else None)
+        return [r for r in rows if _owner_matches(r, user_id, owner=owner)]
 
-    def loop_running(self) -> bool:
-        return self._task is not None and not self._task.done()
+    def occupying_row(self, user_id: str | None = None, symbol: str | None = None, *, owner: bool = True) -> Any:
+        """Yer tutan (bitmemiş) grid. user_id yoksa tüm defter (eski davranış)."""
+        if user_id is None:
+            rows = self.store.grids(exclude_statuses=FINAL_STATUSES)
+        else:
+            rows = self.user_rows(user_id, owner=owner, active_only=True)
+        if symbol is not None:
+            rows = [r for r in rows if r["symbol"] == symbol]
+        return rows[0] if rows else None
 
-    def status_payload(self) -> dict[str, Any]:
-        row = self.current_row()
-        out: dict[str, Any] = {**limits_payload(), "loop_running": self.loop_running(), "grid": None}
-        if row is None:
-            return out
+    def occupying_rows(self, user_id: str, *, owner: bool = False) -> list[Any]:
+        return self.user_rows(user_id, owner=owner, active_only=True)
+
+    def symbol_busy(self, symbol: str, user_id: str = "", *, owner: bool = False) -> bool:
+        """Bu kullanıcının bu coinde bitmemiş grid'i var mı? (Manuel/otomatik emir bu coine girmemeli.)"""
+        return self.occupying_row(str(user_id or ""), symbol, owner=owner) is not None
+
+    def loop_running(self, grid_id: str | None = None) -> bool:
+        if grid_id is None:
+            return any(not task.done() for task in self._tasks.values())
+        task = self._tasks.get(grid_id)
+        return task is not None and not task.done()
+
+    def reserved_risk(self, user_id: str, *, owner: bool = False) -> dict[str, Any]:
+        """Kullanıcının çalışan grid'lerinin ayırdığı risk: en kötü zarar toplamı ve henüz dolmamış giriş emirlerinin değeri
+        (dolmuş kısım zaten borsa pozisyonu olarak sayılır; çift sayılmaz)."""
+        worst, pending, symbols = 0.0, 0.0, []
+        for row in self.occupying_rows(user_id, owner=owner):
+            spec = json.loads(row["spec"])
+            worst += float((spec.get("meta") or {}).get("worst_loss_usdt") or 0.0)
+            for o in self.store.orders(row["grid_id"], "E"):
+                if o["status"] not in TERMINAL:
+                    pending += max(0.0, o["qty"] - o["filled"]) * o["price"]
+            symbols.append(row["symbol"])
+        return {"worst_loss_usdt": round(worst, 8), "pending_entry_notional_usdt": round(pending, 8), "symbols": symbols,
+                "count": len(symbols)}
+
+    def grid_payload(self, row: Any) -> dict[str, Any]:
         gid = row["grid_id"]
         orders = self.store.orders(gid)
         net = 0.0
         for o in orders:
             net += o["filled"] if o["role"] == "E" else -o["filled"] if o["role"] in ("T", "S", "C") else 0.0
-        out["grid"] = {
+        spec_row = json.loads(row["spec"])
+        try:
+            stats = grid_stats(grid_spec_from_row(row), orders)
+        except (KeyError, TypeError, ValueError):
+            stats = None
+        return {
             "grid_id": gid, "symbol": row["symbol"], "side": row["side"], "status": row["status"], "reason": row["halt_reason"],
-            "position_qty": round(net, 8), "spec": json.loads(row["spec"]), "needs_user": row["status"] in NEEDS_USER,
-            "orders": [{"client_id": o["client_id"], "role": o["role"], "level": o["level"], "side": o["side"], "type": o["type"],
+            "position_qty": round(net, 8), "spec": spec_row, "needs_user": row["status"] in NEEDS_USER, "loop_running": self.loop_running(gid),
+            "recycle": bool(spec_row.get("recycle", False)), "created_at": row["created_at"], "updated_at": row["updated_at"], "stats": stats,
+            "orders": [{"client_id": o["client_id"], "role": o["role"], "level": o["level"], "cycle": o["cycle"], "side": o["side"], "type": o["type"],
                         "price": o["price"], "stop_price": o["stop_price"], "qty": o["qty"], "filled": o["filled"], "status": o["status"]}
-                       for o in orders],
+                       for o in orders if o["status"] not in ("CANCELED", "REJECTED") or o["filled"] > EPS],
             "alerts": [{"level": level, "text": text} for level, text in self.store.alerts(gid)[-12:]],
         }
+
+    def status_payload(self, user_id: str | None = None, *, owner: bool = True, history: int = 6) -> dict[str, Any]:
+        """Bu kullanıcının grid'leri: çalışanlar + son bitenler. 'grid' alanı geriye uyum için en yenisidir."""
+        if user_id is None:
+            rows = self.store.grids(limit=history + 20)
+        else:
+            rows = self.user_rows(user_id, owner=owner)
+        active = [r for r in rows if r["status"] not in FINAL_STATUSES]
+        finished = [r for r in rows if r["status"] in FINAL_STATUSES][:history]
+        grids = [self.grid_payload(r) for r in active + finished]
+        out: dict[str, Any] = {**limits_payload(), "loop_running": any(g["loop_running"] for g in grids), "grids": grids,
+                               "active_count": len(active), "grid": grids[0] if grids else None}
+        if grids:
+            latest = rows[0]["grid_id"]
+            out["grid"] = next(g for g in grids if g["grid_id"] == latest) if any(g["grid_id"] == latest for g in grids) else grids[0]
         return out
+
+    def find_row(self, user_id: str | None, grid_id: str | None, *, owner: bool = True, active_only: bool = True) -> Any:
+        """İstenen grid (yoksa tek aktif grid). Başkasının grid'i 'bulunamadı' sayılır."""
+        if user_id is None:
+            rows = self.store.grids(exclude_statuses=FINAL_STATUSES if active_only else None)
+        else:
+            rows = self.user_rows(user_id, owner=owner, active_only=active_only)
+        if grid_id:
+            return next((r for r in rows if r["grid_id"] == grid_id), None)
+        return rows[0] if len(rows) == 1 else None
 
     # ---- motor kurma
     def build_engine(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any]) -> GridEngine:
-        return self._new_engine(grid_spec_from_row(row), adapter, state)
+        return self._new_engine(grid_spec_from_row(row), adapter, state, user_id=str(row["user_id"] or ""))
 
     @staticmethod
     def blocked_check(state: dict[str, Any]) -> bool:
@@ -231,7 +335,7 @@ class LiveGridRunner:
         from . import v25_execution as v25
         return bool(v25.live_execution_blocked(state))
 
-    def _new_engine(self, spec: GridSpec, adapter: BinanceLiveGridAdapter, state: dict[str, Any]) -> GridEngine:
+    def _new_engine(self, spec: GridSpec, adapter: BinanceLiveGridAdapter, state: dict[str, Any], *, user_id: str = "") -> GridEngine:
         def risk_gate() -> tuple[bool, str]:
             if self.blocked_check(state):
                 return False, "canlı yürütme kilitli"
@@ -239,7 +343,7 @@ class LiveGridRunner:
                 return False, "gerçek işlem kilidi kapalı"
             return True, ""
 
-        return GridEngine(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep)
+        return GridEngine(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep, user_id=user_id)
 
     def _record(self, state: dict[str, Any], kind: str, message: str, **extra: Any) -> None:
         from . import v25_execution as v25
@@ -250,69 +354,91 @@ class LiveGridRunner:
             logger.warning("LIVE_GRID_EVENT_FAILED kind=%s", kind)
 
     # ---- yaşam döngüsü
-    async def start(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, plan: dict[str, Any], symbol: str) -> dict[str, Any]:
+    async def start(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, plan: dict[str, Any], symbol: str, *,
+                    user_id: str = "", owner: bool = True) -> dict[str, Any]:
         async with self.lock:
-            if self.occupying_row() is not None:
-                raise LiveGridError("Zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor). Önce onu durdur.", 409)
+            if self.occupying_row(user_id, symbol, owner=owner) is not None:
+                raise LiveGridError(f"{symbol} için zaten bir grid var (çalışıyor ya da müdahale bekliyor). Önce onu durdur.", 409)
+            if len(self.occupying_rows(user_id, owner=owner)) >= MAX_GRIDS_PER_USER:
+                raise LiveGridError(f"Aynı anda en fazla {MAX_GRIDS_PER_USER} grid çalışabilir. Önce birini durdur.", 409)
             grid_id = "g" + uuid.uuid4().hex[:12]
-            engine = self._new_engine(grid_spec_from_plan(grid_id, symbol, plan), adapter, state)
-            self._engine, self._adapter, self._paused_for_block, self.loop_errors = engine, adapter, False, 0
+            engine = self._new_engine(grid_spec_from_plan(grid_id, symbol, plan), adapter, state, user_id=user_id)
+            self._engines[grid_id] = engine
+            self._paused_for_block.discard(grid_id)
+            self._errors[grid_id] = 0
+            self._adapters[grid_id] = adapter
             self._record(state, "LIVE_GRID_START", f"{symbol} canlı grid başlatılıyor ({plan['direction']}, {len(plan['levels'])} kademe, "
-                         f"marjin {plan['total_margin_usdt']} USDT).", symbol=symbol, grid_id=grid_id)
+                         f"marjin {plan['total_margin_usdt']} USDT{', tur açık' if plan.get('recycle') else ''}).", symbol=symbol, grid_id=grid_id)
+        async with self.grid_lock(grid_id):
             status = await asyncio.to_thread(engine.start)
-            if status == BLOCKED:
-                self._record(state, "LIVE_GRID_BLOCKED", f"{symbol} grid başlamadı: {self.store.grid(grid_id)['halt_reason']}", symbol=symbol, grid_id=grid_id)
-            else:
-                self._ensure_loop(app, state)
-            return self.status_payload()
+        if status == BLOCKED:
+            self._record(state, "LIVE_GRID_BLOCKED", f"{symbol} grid başlamadı: {self.store.grid(grid_id)['halt_reason']}", symbol=symbol, grid_id=grid_id)
+        else:
+            self._ensure_loop(app, state, grid_id)
+        return {**self.status_payload(user_id, owner=owner), "started_grid_id": grid_id}
 
-    def _ensure_loop(self, app: Any, state: dict[str, Any]) -> None:
-        if not self.loop_running():
-            self._task = asyncio.get_running_loop().create_task(self._run(app, state), name="live-grid-loop")
+    def _ensure_loop(self, app: Any, state: dict[str, Any], grid_id: str | None = None) -> None:
+        gid = grid_id or next(iter(self._engines), None)
+        if gid is None or self.loop_running(gid):
+            return
+        self._tasks[gid] = asyncio.get_running_loop().create_task(self._run(app, state, gid), name=f"live-grid-{gid}")
 
-    async def resume(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter) -> dict[str, Any]:
-        async with self.lock:
-            row = self.occupying_row()
-            if row is None:
-                raise LiveGridError("Devam ettirilecek canlı grid yok.", 404)
-            if row["status"] in NEEDS_USER:
-                raise LiveGridError("Grid müdahale bekliyor; önce ACİL DURDUR ile kapat ya da borsayı elle kontrol et.", 409)
-            self._engine, self._adapter, self._paused_for_block, self.loop_errors = self.build_engine(row, adapter, state), adapter, False, 0
-            self._ensure_loop(app, state)
-            return self.status_payload()
+    async def resume(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, *, user_id: str | None = None,
+                     grid_id: str | None = None, owner: bool = True) -> dict[str, Any]:
+        """Döngüsü durmuş (ör. sunucu yeniden başladı) grid'leri devam ettirir. grid_id yoksa kullanıcının tüm uygun grid'leri."""
+        rows = [self.find_row(user_id, grid_id, owner=owner)] if grid_id else (
+            self.occupying_rows(user_id, owner=owner) if user_id is not None else [r for r in [self.occupying_row()] if r is not None])
+        rows = [r for r in rows if r is not None]
+        if not rows:
+            raise LiveGridError("Devam ettirilecek canlı grid yok.", 404)
+        resumable = [r for r in rows if r["status"] not in NEEDS_USER]
+        if not resumable:
+            raise LiveGridError("Grid müdahale bekliyor; önce ACİL DURDUR ile kapat ya da borsayı elle kontrol et.", 409)
+        for row in resumable:
+            gid = row["grid_id"]
+            async with self.grid_lock(gid):
+                if self.loop_running(gid):
+                    continue
+                self._engines[gid] = self.build_engine(row, adapter, state)
+                self._adapters[gid] = adapter
+                self._paused_for_block.discard(gid)
+                self._errors[gid] = 0
+                self._ensure_loop(app, state, gid)
+        return self.status_payload(user_id, owner=owner)
 
-    async def _run(self, app: Any, state: dict[str, Any]) -> None:
+    async def _run(self, app: Any, state: dict[str, Any], grid_id: str | None = None) -> None:
+        gid = grid_id or next(iter(self._engines), "")
         last_status = ""
         while True:
             await asyncio.sleep(TICK_SECONDS)
-            engine = self._engine
+            engine = self._engines.get(gid)
             if engine is None:
                 return
             try:
-                async with self.lock:
-                    if engine is not self._engine:
+                async with self.grid_lock(gid):
+                    if engine is not self._engines.get(gid):
                         return
-                    if not self._paused_for_block and self.blocked_check(state) and engine.status == RUNNING:
-                        self._paused_for_block = True       # kilit/acil durum: yeni giriş yok; pozisyon korunur
+                    if gid not in self._paused_for_block and self.blocked_check(state) and engine.status == RUNNING:
+                        self._paused_for_block.add(gid)        # kilit/acil durum: yeni giriş yok; pozisyon korunur
                         await asyncio.to_thread(engine.pause)
-                        self._record(state, "LIVE_GRID_PAUSED", f"{engine.sym} canlı yürütme kilitlendi; grid duraklatıldı, korumalar sürüyor.", grid_id=engine.gid)
+                        self._record(state, "LIVE_GRID_PAUSED", f"{engine.sym} canlı yürütme kilitlendi; grid duraklatıldı, korumalar sürüyor.", grid_id=gid)
                     status = await asyncio.to_thread(self._tick_once, engine)
-                self.loop_errors = 0
+                self._errors[gid] = 0
             except Exception as exc:  # ağ/ayrıştırma: sonraki tur tekrar dener; sürekli ise duraklat
-                self.loop_errors += 1
-                logger.warning("LIVE_GRID_TICK_FAILED type=%s count=%s", type(exc).__name__, self.loop_errors)
-                if self.loop_errors >= MAX_LOOP_ERRORS:
+                self._errors[gid] = self._errors.get(gid, 0) + 1
+                logger.warning("LIVE_GRID_TICK_FAILED grid=%s type=%s count=%s", gid, type(exc).__name__, self._errors[gid])
+                if self._errors[gid] >= MAX_LOOP_ERRORS:
                     try:
-                        async with self.lock:
+                        async with self.grid_lock(gid):
                             await asyncio.to_thread(engine.pause)
                     except Exception:
                         pass
-                    self._record(state, "LIVE_GRID_LOOP_FAILED", f"{engine.sym} grid döngüsü art arda hata verdi; yeni giriş durduruldu. Borsayı kontrol edin.", grid_id=engine.gid)
+                    self._record(state, "LIVE_GRID_LOOP_FAILED", f"{engine.sym} grid döngüsü art arda hata verdi; yeni giriş durduruldu. Borsayı kontrol edin.", grid_id=gid)
                     return
                 continue
             if status != last_status:
                 last_status = status
-                self._record(state, "LIVE_GRID_STATUS", f"{engine.sym} grid durumu: {status}", grid_id=engine.gid, status=status)
+                self._record(state, "LIVE_GRID_STATUS", f"{engine.sym} grid durumu: {status}", grid_id=gid, status=status)
             if status in FINAL_STATUSES or status in NEEDS_USER:
                 return
 
@@ -334,29 +460,36 @@ class LiveGridRunner:
         entries = engine.store.orders(engine.gid, "E")
         return abs(engine.grid_net()) <= EPS and bool(entries) and all(e["status"] in TERMINAL for e in entries)
 
-    async def pause(self, state: dict[str, Any], adapter: BinanceLiveGridAdapter) -> dict[str, Any]:
-        async with self.lock:
-            row = self.current_row()
-            if row is None or row["status"] in FINAL_STATUSES:
-                raise LiveGridError("Durdurulacak canlı grid yok.", 404)
-            engine = self._engine if self._engine is not None and self._engine.gid == row["grid_id"] else self.build_engine(row, adapter, state)
-            self._engine = engine
+    def _engine_for(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any]) -> GridEngine:
+        engine = self._engines.get(row["grid_id"])
+        if engine is None:
+            engine = self.build_engine(row, adapter, state)
+            self._engines[row["grid_id"]] = engine
+        return engine
+
+    async def pause(self, state: dict[str, Any], adapter: BinanceLiveGridAdapter, *, user_id: str | None = None, grid_id: str | None = None,
+                    owner: bool = True) -> dict[str, Any]:
+        row = self.find_row(user_id, grid_id, owner=owner)
+        if row is None:
+            raise LiveGridError("Durdurulacak canlı grid yok." if not grid_id else "Bu grid bulunamadı ya da zaten bitti.", 404)
+        async with self.grid_lock(row["grid_id"]):
+            engine = self._engine_for(row, adapter, state)
             status = await asyncio.to_thread(engine.pause)
             if status == PAUSED and self._flat_and_entries_done(engine):
                 self.store.set_grid(engine.gid, status=STOPPED, halt_reason="Kullanıcı durdurdu; açık pozisyon yok")
             self._record(state, "LIVE_GRID_PAUSED", f"{engine.sym} grid durduruldu (bekleyen girişler iptal; açık pozisyon stop/hedefle kalır).", grid_id=engine.gid)
-            return self.status_payload()
+        return self.status_payload(user_id, owner=owner)
 
-    async def emergency(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter) -> dict[str, Any]:
-        async with self.lock:
-            row = self.current_row()
-            if row is None or row["status"] in FINAL_STATUSES:
-                raise LiveGridError("Acil durdurulacak canlı grid yok.", 404)
-            engine = self._engine if self._engine is not None and self._engine.gid == row["grid_id"] else self.build_engine(row, adapter, state)
-            self._engine = engine
+    async def emergency(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, *, user_id: str | None = None,
+                        grid_id: str | None = None, owner: bool = True) -> dict[str, Any]:
+        row = self.find_row(user_id, grid_id, owner=owner)
+        if row is None:
+            raise LiveGridError("Acil durdurulacak canlı grid yok." if not grid_id else "Bu grid bulunamadı ya da zaten bitti.", 404)
+        async with self.grid_lock(row["grid_id"]):
+            engine = self._engine_for(row, adapter, state)
             status = await asyncio.to_thread(engine.emergency_stop)
             self._record(state, "LIVE_GRID_EMERGENCY", f"{engine.sym} grid ACİL DURDUR sonucu: {status}", grid_id=engine.gid, status=status)
-            return self.status_payload()
+        return self.status_payload(user_id, owner=owner)
 
 
 def runner_for(app: Any) -> LiveGridRunner:
