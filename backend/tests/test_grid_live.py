@@ -573,5 +573,74 @@ class TestSmartLimits(unittest.TestCase):
         self.assertAlmostEqual(spec.meta["worst_loss_usdt"], plan["worst_loss_usdt"])
 
 
+def prepare_neutral(**over):
+    args = dict(lower=97.0, upper=103.0, count=6, margin_usdt=60.0, leverage=2, stop_lower=95.0, stop_upper=105.0, price=100.0,
+                rules=RULES, policy={**POLICY, "max_loss_per_trade": 5.0}, realized_pnl_today=0.0, existing_exposure=0.0, open_positions=0)
+    args.update(over)
+    return grid_live.prepare_live_neutral_grid(**args)
+
+
+class TestNeutralPlan(unittest.TestCase):
+    def test_lines_skip_the_one_at_the_price_and_split_into_buys_and_sells(self):
+        plan = prepare_neutral()
+        self.assertEqual(plan["direction"], "NEUTRAL")
+        self.assertEqual([(r["side"], r["entry"], r["target"]) for r in plan["levels"]],
+                         [(LONG, 97.0, 98.0), (LONG, 98.0, 99.0), (LONG, 99.0, 100.0), (SHORT, 101.0, 100.0), (SHORT, 102.0, 101.0), (SHORT, 103.0, 102.0)])
+        self.assertEqual((plan["stop_price"], plan["stop_price_upper"]), (95.0, 105.0))
+        self.assertTrue(plan["recycle"])
+        self.assertAlmostEqual(plan["worst_loss_usdt"], max(plan["worst_loss_down_usdt"], plan["worst_loss_up_usdt"]))
+        self.assertGreater(plan["profit_per_cycle_usdt"], 0)
+
+    def test_price_outside_the_range_or_wrong_stops_are_refused(self):
+        for over in ({"price": 96.0}, {"price": 104.0}, {"stop_lower": 97.5}, {"stop_upper": 102.0}, {"count": 1}, {"count": 21}):
+            with self.assertRaises(grid_live.LiveGridError, msg=str(over)):
+                prepare_neutral(**over)
+
+    def test_one_sided_range_is_refused(self):
+        with self.assertRaises(grid_live.LiveGridError) as caught:
+            prepare_neutral(price=97.2)
+        self.assertIn("iki tarafında", str(caught.exception))
+
+    def test_risk_limits_apply_to_the_worse_side(self):
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare_neutral(policy={**POLICY, "max_loss_per_trade": 1.0})
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare_neutral(reserved_worst_loss=9.5)
+        with self.assertRaises(grid_live.LiveGridError):       # likidasyona yakın
+            prepare_neutral(leverage=10, policy={**POLICY, "max_loss_per_trade": 50.0, "daily_loss_limit": 50.0, "max_leverage": 20,
+                                                 "max_stop_distance_pct": 50.0}, stop_lower=90.0, stop_upper=110.0)
+
+    def test_neutral_runner_flow_on_the_live_adapter(self):
+        ex = ExchangeFake()
+        ex.set_price(SYM, 100.0)
+        api = FakeBinance(ex)
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        runner._record = lambda *a, **k: None
+        runner.blocked_check = lambda s: False
+        runner._ensure_loop = lambda *a, **k: None
+        state: dict[str, Any] = {"real_trading_locked": False, "emergency": {}, "events": [], "policy": POLICY}
+
+        async def scenario():
+            adapter = BinanceLiveGridAdapter(api, asyncio.get_running_loop(), timeout=5)
+            out = await runner.start(None, state, adapter, prepare_neutral(), SYM, user_id="u1", owner=False)
+            gid = out["started_grid_id"]
+            self.assertEqual(out["grids"][0]["status"], RUNNING)
+            engine = runner._engines[gid]
+            for price in (98.9, 100.1, 101.1, 99.9):
+                ex.set_price(SYM, price)
+                await asyncio.to_thread(runner._tick_once, engine)
+                await asyncio.to_thread(runner._tick_once, engine)
+                self.assertAlmostEqual(engine.grid_net(), ex.positions.get(SYM, 0.0))
+            row = runner.status_payload("u1", owner=False)["grids"][0]
+            self.assertGreaterEqual(row["stats"]["cycles"], 2)
+            self.assertEqual(runner.store.grid(gid)["side"], "NEUTRAL")
+            rebuilt = runner.build_engine(runner.store.grid(gid), adapter, state)       # yeniden başlatmada aynı nötr motor
+            self.assertEqual(type(rebuilt).__name__, "NeutralGridEngine")
+            done = await runner.emergency(None, state, adapter, user_id="u1", grid_id=gid, owner=False)
+            self.assertEqual(done["grids"][0]["status"], EMERGENCY_CLOSED)
+            self.assertAlmostEqual(ex.positions.get(SYM, 0.0), 0.0)
+        asyncio.run(scenario())
+
+
 if __name__ == "__main__":
     unittest.main()

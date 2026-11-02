@@ -7839,14 +7839,15 @@ async def v25_grid_filters(request: Request, symbol: str) -> dict[str, Any]:
 
 class GridLiveStartRequest(BaseModel):
     symbol: str = Field(min_length=3, max_length=20)
-    direction: Literal["LONG", "SHORT"]
+    direction: Literal["LONG", "SHORT", "NEUTRAL"]
     lower: float = Field(gt=0)
     upper: float = Field(gt=0)
     count: int = Field(ge=2, le=20)
     margin_usdt: float = Field(gt=0)
     leverage: int = Field(ge=1, le=125)
-    stop: float = Field(gt=0)
-    recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (sürekli grid)
+    stop: float = Field(gt=0)                          # tek yönlü: stop; nötr: alt stop
+    stop_upper: float | None = Field(default=None, gt=0)  # yalnız nötr grid: üst stop
+    recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (sürekli grid); nötr grid her zaman turludur
     confirmation: str = ""
 
 
@@ -7924,14 +7925,19 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
             reserved = runner.reserved_risk(user_id, owner=owner)
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
-            plan = grid_live.prepare_live_grid(
-                direction=body.direction, lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt,
-                leverage=body.leverage, stop=body.stop, price=float(price), rules=rules, policy=state["policy"],
+            common = dict(
+                lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt, leverage=body.leverage,
+                price=float(price), rules=rules, policy=state["policy"],
                 realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
                 existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
-                recycle=body.recycle, reserved_worst_loss=reserved["worst_loss_usdt"],
-                reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_worst_loss=reserved["worst_loss_usdt"], reserved_pending_notional=reserved["pending_entry_notional_usdt"],
                 reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
+            if body.direction == "NEUTRAL":
+                if body.stop_upper is None:
+                    raise grid_live.LiveGridError("Nötr grid için üst stop gerekli.")
+                plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
+            else:
+                plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":

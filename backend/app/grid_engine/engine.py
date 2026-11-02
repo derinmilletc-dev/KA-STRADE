@@ -35,6 +35,7 @@ class GridLevelSpec:
     entry: float
     target: float
     qty: float
+    side: str = ""                 # nötr grid'te kademenin yönü (LONG: altta alış, SHORT: üstte satış); tek yönlüde boş
 
 
 @dataclass
@@ -46,15 +47,21 @@ class GridSpec:
     stop_price: float
     recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (gerçek grid turu)
     meta: dict = field(default_factory=dict)   # önizleme özeti (en kötü zarar, marjin...): yalnız gösterim/risk toplamı
+    stop_price_upper: float = 0.0  # nötr grid: üst stop (açık SHORT miktarını korur); stop_price alt stoptur
 
     def as_json(self) -> dict:
-        return {"stop_price": self.stop_price, "levels": [vars(l) for l in self.levels], "recycle": bool(self.recycle), "meta": dict(self.meta)}
+        out = {"stop_price": self.stop_price, "levels": [vars(l) for l in self.levels], "recycle": bool(self.recycle), "meta": dict(self.meta)}
+        if self.stop_price_upper:
+            out["stop_price_upper"] = self.stop_price_upper
+        return out
 
 
 def grid_stats(spec: GridSpec, orders) -> dict:
     """Defterden özet: tamamlanan tur, dolu kademe, kesinleşen hedef kârı (ücret tahmini düşülmüş).
     Stop/acil kapanış fiyatı borsada değişebileceği için zarar burada tahmin edilmez (gösterimde anlık fiyatla hesaplanır)."""
-    sign = 1 if spec.side == LONG else -1
+    def sign_of(level: int) -> int:
+        side = (spec.levels[level - 1].side if 0 < level <= len(spec.levels) else "") or spec.side
+        return 1 if side == LONG else -1
     by_key = {(o["level"], o["cycle"]): o for o in orders if o["role"] == "E"}
     cycles = 0
     realized = 0.0
@@ -65,7 +72,7 @@ def grid_stats(spec: GridSpec, orders) -> dict:
         e = by_key.get((t["level"], t["cycle"]))
         if e is None:
             continue
-        realized += sign * (t["price"] - e["price"]) * t["filled"]
+        realized += sign_of(t["level"]) * (t["price"] - e["price"]) * t["filled"]
         fees += (t["price"] + e["price"]) * t["filled"] * 0.0002
     targets = [o for o in orders if o["role"] == "T"]
     for e in by_key.values():
@@ -77,7 +84,8 @@ def grid_stats(spec: GridSpec, orders) -> dict:
         hedged = sum(t["filled"] for t in targets if t["level"] == level and t["cycle"] == cycle)
         qty = round(e["filled"] - hedged, 8)
         if qty > EPS:
-            open_levels.append({"level": level, "cycle": cycle, "entry": e["price"], "qty": qty})
+            side = (spec.levels[level - 1].side if 0 < level <= len(spec.levels) else "") or spec.side
+            open_levels.append({"level": level, "cycle": cycle, "entry": e["price"], "qty": qty, **({"side": side} if spec.side not in (LONG, SHORT) else {})})
     return {"cycles": cycles, "realized_usdt": round(realized - fees, 8), "gross_usdt": round(realized, 8), "fees_usdt": round(fees, 8),
             "open_levels": open_levels, "filled_levels": len({o["level"] for o in open_levels})}
 
@@ -86,8 +94,8 @@ class GridEngine:
     def __init__(self, exchange: ExchangePort, store: GridStore, spec: GridSpec, *,
                  risk_gate: Callable[[], tuple[bool, str]] | None = None, max_close_attempts: int = 5, absence_confirmations: int = 2,
                  sleep: Callable[[float], None] = lambda s: None, user_id: str = "", account: str = "LIVE") -> None:
-        if spec.side not in (LONG, SHORT):
-            raise ValueError("yön LONG/SHORT olmalı")
+        if spec.side not in self.SIDES:
+            raise ValueError(f"yön {'/'.join(self.SIDES)} olmalı")
         if not 2 <= len(spec.levels) <= MAX_LEVELS:
             raise ValueError(f"kademe sayısı 2-{MAX_LEVELS} arasında olmalı")
         self.ex, self.store, self.spec = exchange, store, spec
@@ -95,13 +103,14 @@ class GridEngine:
         self.max_close_attempts, self.sleep = max_close_attempts, sleep
         self.absence_confirmations = absence_confirmations
         self.entry_side, self.exit_side = (BUY, SELL) if spec.side == LONG else (SELL, BUY)
-        self.sign = 1 if spec.side == LONG else -1
+        self.sign = 1 if spec.side == LONG else -1     # nötr grid'te kullanılmaz (kademe yönü ayrı)
         self._last_reject = 0
         self._protect_only = False                 # duraklatılmış grid'te koruma kurulurken yeni tur açılmaz
         self.prefix = f"kg-{re.sub(r'[^A-Za-z0-9]', '', spec.grid_id)[:16]}-"
         if store.create_grid(self.gid, self.sym, spec.side, spec.as_json(), user_id=user_id, account=account):
             for i, lv in enumerate(spec.levels, 1):
-                self._intent(role="E", level=i, rev=0, side=self.entry_side, type=LIMIT, price=lv.entry, stop_price=0.0, qty=lv.qty, reduce_only=0)
+                self._intent(role="E", level=i, rev=0, side=self._entry_side(i), type=LIMIT, price=lv.entry, stop_price=0.0, qty=lv.qty,
+                             reduce_only=0, tag=self._level_tag(i))
 
     # ---------- durum ----------
     @property
@@ -119,8 +128,21 @@ class GridEngine:
             self._set(BLOCKED, reason)
         self._alert("kritik", reason)
 
-    def _intent(self, **row) -> str:
-        cid = client_order_id(self.gid, self.spec.side, row["level"], row["role"], row["rev"])
+    SIDES: tuple[str, ...] = (LONG, SHORT)
+
+    def _entry_side(self, level: int) -> str:
+        return self.entry_side
+
+    def _level_tag(self, level: int) -> str:
+        """Emir kimliğindeki yön harfi (L/S)."""
+        return self.spec.side
+
+    def _position_delta(self) -> float:
+        """Bu grid'in borsa pozisyonuna katkısı (işaretli: LONG +)."""
+        return self.sign * self.grid_net()
+
+    def _intent(self, tag: str | None = None, **row) -> str:
+        cid = client_order_id(self.gid, tag or self.spec.side, row["level"], row["role"], row["rev"])
         self.store.add_order({"client_id": cid, "grid_id": self.gid, "status": PENDING_SEND, "cycle": 0, **row})
         return cid
 
@@ -141,8 +163,8 @@ class GridEngine:
             if not self._cycle_closed(last, targets):
                 continue
             rev = max(e["rev"] for e in mine) + 1
-            cid = self._intent(role="E", level=index, rev=rev, cycle=last["cycle"] + 1, side=self.entry_side, type=LIMIT, price=lv.entry,
-                               stop_price=0.0, qty=lv.qty, reduce_only=0)
+            cid = self._intent(role="E", level=index, rev=rev, cycle=last["cycle"] + 1, side=self._entry_side(index), type=LIMIT, price=lv.entry,
+                               stop_price=0.0, qty=lv.qty, reduce_only=0, tag=self._level_tag(index))
             self._send(self.store.order(cid))
 
     # ---------- özet (gösterim) ----------
@@ -279,7 +301,7 @@ class GridEngine:
                         pass
                 self._halt(f"Defterde olmayan grid emri bulundu ve iptal edildi: {orphans}")
                 return False
-            expected = self.store.grid(self.gid)["baseline"] + self.sign * self.grid_net()
+            expected = self.store.grid(self.gid)["baseline"] + self._position_delta()
             actual = self.ex.position(self.sym)
             if abs(actual - expected) > 1e-6:
                 self._halt(f"Pozisyon uyuşmuyor: borsa {actual}, defter {expected}")
@@ -424,9 +446,9 @@ class GridEngine:
             self._cancel_all(roles=("T",))   # hedefler koruyucu değil; reduceOnly kapanışla çakışmasın
             net = self.grid_net()
             entries_open = [e for e in self.store.orders(self.gid, "E") if e["status"] not in TERMINAL]
-            if net <= EPS and not entries_open:
+            if abs(net) <= EPS and not entries_open:
                 break
-            if net > EPS:
+            if abs(net) > EPS:
                 self._close(net)
             self.sleep(0.5 * (attempt + 1))
         verified = False
