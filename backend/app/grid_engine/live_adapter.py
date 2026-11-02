@@ -248,6 +248,22 @@ class BinanceLiveGridAdapter:
                 total += Decimal(str(row.get("unRealizedProfit", "0") or "0"))
         return float(round(total, 8))
 
+    def risk_snapshot(self, symbol: str) -> dict[str, float]:
+        """Pozisyonun likidasyon fiyatı ve işaret fiyatı. Pozisyon yoksa liq=0. Okunamazsa hata fırlatır."""
+        payload = self._signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}, read=True)
+        if not isinstance(payload, list):
+            raise ExchangeUnreachable("pozisyon yanıtı doğrulanamadı")
+        amount, liq, mark = Decimal("0"), Decimal("0"), Decimal("0")
+        for row in _rows(payload):
+            if row.get("symbol") != symbol:
+                continue
+            row_amt = Decimal(str(row.get("positionAmt", "0") or "0"))
+            if row_amt != 0:
+                amount += row_amt
+                liq = Decimal(str(row.get("liquidationPrice", "0") or "0"))
+                mark = Decimal(str(row.get("markPrice", "0") or "0"))
+        return {"amount": float(amount), "liq": float(liq), "mark": float(mark)}
+
     def position(self, symbol: str) -> float:
         payload = self._signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}, read=True)
         rows = _rows(payload)

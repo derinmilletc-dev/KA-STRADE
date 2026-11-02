@@ -47,12 +47,38 @@ DEMO_ENV_FLAG = "KAISTRADE_GRID_DEMO"
 DEMO_MAX_EXPOSURE_USDT = 2000.0
 CONFIRM_DEMO_START = "DEMO GRID BAŞLAT"
 NEEDS_USER = {BLOCKED, INTERVENTION_REQUIRED}
+# Likidasyon mesafesi (işaret fiyatından likidasyon fiyatına, % olarak): bu eşiklerin altında kademeli önlem alınır.
+LIQ_WARN_PCT, LIQ_PAUSE_PCT, LIQ_CLOSE_PCT = 12.0, 7.0, 3.5
+LIQ_CHECK_SECONDS = 15.0
+LOCK_KEEP_DEFAULT_PCT = 70.0        # kâr kilidi: zirve kârın en az bu kadarı korunur
 
 
 class LiveGridError(Exception):
     def __init__(self, message: str, status: int = 422) -> None:
         super().__init__(message)
         self.status = status
+
+
+def liq_distance_pct(mark: float, liq: float, amount: float) -> float | None:
+    """Pozisyonun likidasyon fiyatına yüzde kaç kaldığı (işaret fiyatına göre). Veri yoksa None; likidasyon fiyatı zaten aşılmışsa 0."""
+    if not (mark > 0 and liq > 0) or abs(amount) <= EPS:
+        return None
+    if amount > 0:
+        return 0.0 if liq >= mark else (mark - liq) / mark * 100.0
+    return 0.0 if liq <= mark else (liq - mark) / mark * 100.0
+
+
+def liq_level(distance_pct: float | None) -> str:
+    """'ok' | 'warn' | 'pause' | 'close' | 'unknown'."""
+    if distance_pct is None:
+        return "unknown"
+    if distance_pct <= LIQ_CLOSE_PCT:
+        return "close"
+    if distance_pct <= LIQ_PAUSE_PCT:
+        return "pause"
+    if distance_pct <= LIQ_WARN_PCT:
+        return "warn"
+    return "ok"
 
 
 def live_enabled() -> bool:
@@ -297,22 +323,31 @@ def prepare_live_neutral_grid(*, lower: float, upper: float, count: int, margin_
             "profit_per_cycle_usdt": round((gross - fees) / len(rows), 8), "spacing_pct": round(spacing / price * 100, 4)}
 
 
-def apply_protection(plan: dict[str, Any], take_profit_usdt: float | None, loss_limit_usdt: float | None) -> dict[str, Any]:
-    """Grid başına kâr/zarar koruması: hedef kâra ulaşınca yeni giriş durur; zarar sınırına inince grid piyasadan kapatılır.
-    Sunucu döngüsünde uygulanır (tarayıcı kapalıyken de çalışır)."""
-    for name, value in (("take_profit_usdt", take_profit_usdt), ("loss_limit_usdt", loss_limit_usdt)):
+def apply_protection(plan: dict[str, Any], take_profit_usdt: float | None, loss_limit_usdt: float | None, *,
+                     profit_lock_usdt: float | None = None, close_on_target: bool = False) -> dict[str, Any]:
+    """Grid başına kâr/zarar koruması (sunucu döngüsünde uygulanır; tarayıcı kapalıyken de çalışır):
+    - take_profit_usdt: hedef kâra ulaşınca yeni giriş durur (close_on_target ise açık pozisyon da kontrollü kapatılır);
+    - profit_lock_usdt: kâr bu değere ulaşınca kilit devreye girer; zirve kârın %70'inin altına düşerse grid kapatılır;
+    - loss_limit_usdt: zarar sınırına inince grid piyasadan kapatılır."""
+    for name, value in (("take_profit_usdt", take_profit_usdt), ("loss_limit_usdt", loss_limit_usdt), ("profit_lock_usdt", profit_lock_usdt)):
         if value is None:
             continue
         number = float(value)
         if not (number == number and 0 < number <= 1_000_000):
-            raise LiveGridError(f"{'Hedef kâr' if name == 'take_profit_usdt' else 'Zarar sınırı'} sıfırdan büyük bir sayı olmalı.")
+            label = {"take_profit_usdt": "Hedef kâr", "loss_limit_usdt": "Zarar sınırı", "profit_lock_usdt": "Kâr kilidi"}[name]
+            raise LiveGridError(f"{label} sıfırdan büyük bir sayı olmalı.")
         plan[name] = round(number, 6)
+    if profit_lock_usdt is not None:
+        plan["lock_keep_pct"] = LOCK_KEEP_DEFAULT_PCT
+    if close_on_target:
+        plan["close_on_target"] = True
     return plan
 
 
 def grid_spec_from_plan(grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
     meta = {key: plan[key] for key in ("total_margin_usdt", "total_notional_usdt", "worst_loss_usdt", "leverage", "stop_distance_pct",
-                                       "lower", "upper", "count", "profit_per_cycle_usdt", "spacing_pct", "take_profit_usdt", "loss_limit_usdt") if key in plan}
+                                       "lower", "upper", "count", "profit_per_cycle_usdt", "spacing_pct", "take_profit_usdt", "loss_limit_usdt",
+                                       "profit_lock_usdt", "lock_keep_pct", "close_on_target") if key in plan}
     return GridSpec(grid_id, symbol, plan["direction"],
                     [GridLevelSpec(r["entry"], r["target"], r["qty"], str(r.get("side") or "")) for r in plan["levels"]],
                     plan["stop_price"], recycle=bool(plan.get("recycle", False)), meta=meta,
@@ -348,6 +383,9 @@ class LiveGridRunner:
         self._errors: dict[str, int] = {}
         self._adapters: dict[str, BinanceLiveGridAdapter] = {}
         self._lock: asyncio.Lock | None = None
+        self._liq: dict[str, dict[str, Any]] = {}        # grid_id -> son likidasyon ölçümü (panelde gösterilir)
+        self._liq_checked: dict[str, float] = {}
+        self._liq_alerted: dict[str, str] = {}
 
     # ---- geriye uyum (tek grid dönemi alanları)
     @property
@@ -440,6 +478,7 @@ class LiveGridRunner:
                         "price": o["price"], "stop_price": o["stop_price"], "qty": o["qty"], "filled": o["filled"], "status": o["status"]}
                        for o in orders if o["status"] not in ("CANCELED", "REJECTED") or o["filled"] > EPS],
             "alerts": [{"level": level, "text": text} for level, text in self.store.alerts(gid)[-12:]],
+            "liq": self._liq.get(gid), "peak_pnl": round(float(row["peak_pnl"] or 0.0), 6),
         }
 
     def status_payload(self, user_id: str | None = None, *, owner: bool = True, history: int = 6) -> dict[str, Any]:
@@ -605,15 +644,75 @@ class LiveGridRunner:
             logger.warning("LIVE_GRID_LIMIT_CHECK_FAILED grid=%s type=%s", engine.gid, type(exc).__name__)
             return ""
 
+    def _check_liquidation(self, engine: GridEngine, state: dict[str, Any]) -> str:
+        """Açık pozisyonun likidasyon fiyatına yaklaşmasını izler (en çok her LIQ_CHECK_SECONDS'ta bir borsaya sorar).
+        %12 altı: uyarı · %7 altı: yeni giriş durur (stoplar kalır) · %3,5 altı: pozisyon kontrollü kapatılır."""
+        if engine.status not in (RUNNING, PAUSED) or not hasattr(engine.ex, "risk_snapshot"):
+            return ""
+        gid = engine.gid
+        now = time.monotonic()
+        if now - self._liq_checked.get(gid, -1e9) < LIQ_CHECK_SECONDS:
+            return ""
+        self._liq_checked[gid] = now
+        snap = engine.ex.risk_snapshot(engine.sym)
+        distance = liq_distance_pct(float(snap["mark"]), float(snap["liq"]), float(snap["amount"]))
+        level = liq_level(distance)
+        self._liq[gid] = {"distance_pct": None if distance is None else round(distance, 2), "level": level,
+                          "liq_price": float(snap["liq"]), "mark": float(snap["mark"]), "at": time.time()}
+        if level in ("ok", "unknown"):
+            self._liq_alerted.pop(gid, None)
+            return ""
+        text = f"Likidasyona %{distance:.1f} kaldı (likidasyon {float(snap['liq']):g}, fiyat {float(snap['mark']):g})."
+        if self._liq_alerted.get(gid) != level:
+            self._liq_alerted[gid] = level
+            engine._alert("uyarı" if level == "warn" else "kritik", text)
+        if level == "pause" and engine.status == RUNNING:
+            reason = f"Likidasyona yaklaşıldı (%{distance:.1f}); yeni giriş durdu, stoplar korunuyor"
+            self._stop_reasons[gid] = reason
+            engine.pause()
+            self.store.set_grid(gid, halt_reason=reason)
+            self._record(state, "LIVE_GRID_LIQ_PAUSE", f"{engine.sym} grid {reason}.", grid_id=gid)
+            return "LIQ_PAUSE"
+        if level == "close":
+            status = engine.emergency_stop()
+            if status == EMERGENCY_CLOSED:
+                self.store.set_grid(gid, halt_reason=f"Likidasyona çok yaklaşıldı (%{distance:.1f}); pozisyon kapatıldı")
+            self._record(state, "LIVE_GRID_LIQ_CLOSE", f"{engine.sym} grid likidasyona %{distance:.1f} kala kapatıldı; sonuç: {status}.", grid_id=gid, status=status)
+            return "LIQ_CLOSE"
+        return ""
+
     def _guard_once(self, engine: GridEngine, state: dict[str, Any]) -> str:
+        liq = self._check_liquidation(engine, state)
+        if liq:
+            return liq
         meta = engine.spec.meta or {}
         take_profit = float(meta.get("take_profit_usdt") or 0.0)
         loss_limit = float(meta.get("loss_limit_usdt") or 0.0)
-        if (take_profit <= 0 and loss_limit <= 0) or engine.status != RUNNING:
+        lock_start = float(meta.get("profit_lock_usdt") or 0.0)
+        if (take_profit <= 0 and loss_limit <= 0 and lock_start <= 0) or engine.status != RUNNING:
             return ""
         stats = grid_stats(engine.spec, engine.store.orders(engine.gid))
         realized = float(stats["realized_usdt"])
+        if lock_start > 0:
+            peak = float(self.store.grid(engine.gid)["peak_pnl"] or 0.0)
+            if realized > peak + 0.005:
+                peak = realized
+                self.store.set_grid(engine.gid, peak_pnl=round(peak, 8))
+            keep = float(meta.get("lock_keep_pct") or LOCK_KEEP_DEFAULT_PCT)
+            if peak >= lock_start and realized <= peak * keep / 100.0:
+                status = engine.emergency_stop()
+                if status == EMERGENCY_CLOSED:
+                    self.store.set_grid(engine.gid, halt_reason=f"Kâr kilidi: zirve +{peak:.2f}, şimdi +{realized:.2f} USDT; pozisyon kapatıldı")
+                self._record(state, "LIVE_GRID_PROFIT_LOCK", f"{engine.sym} grid kâr kilidiyle kapatıldı (zirve +{peak:.2f}, şimdi +{realized:.2f}); sonuç: {status}.",
+                             grid_id=engine.gid, status=status)
+                return "PROFIT_LOCK"
         if take_profit > 0 and realized >= take_profit:
+            if meta.get("close_on_target"):
+                status = engine.emergency_stop()
+                if status == EMERGENCY_CLOSED:
+                    self.store.set_grid(engine.gid, halt_reason=f"Hedef kâra ulaşıldı (+{realized:.2f} USDT); pozisyon kapatıldı")
+                self._record(state, "LIVE_GRID_TAKE_PROFIT", f"{engine.sym} grid hedef kârla kapatıldı (+{realized:.2f} USDT); sonuç: {status}.", grid_id=engine.gid, status=status)
+                return "TAKE_PROFIT"
             reason = f"Hedef kâra ulaşıldı (+{realized:.2f} USDT); yeni giriş durdu"
             self._stop_reasons[engine.gid] = reason
             engine.pause()
