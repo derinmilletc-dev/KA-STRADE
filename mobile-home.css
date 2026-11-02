@@ -218,3 +218,18 @@ html body #root main.v26App .mobileHome .mhSkelPlan i.big { width: 38px; height:
     translate: 11px 0 !important;
   }
 }
+
+/* Telefon ana sayfa: logo, bildirim ve profil bulanık görünmesin.
+   Küsuratlı kaydırma (transform) ve küsuratlı yükseklik görseli ara pikselde çizip yumuşatıyordu; değerler tam piksele yuvarlanır.
+   round() desteklenmeyen tarayıcıda yukarıdaki (yuvarlanmamış) değer geçerli kalır. */
+@media (max-width: 700px) {
+  html body #root > main.v26App > .v26Header.v26HomeHeader.v26HomeHeader > .v26Brand > .v26BrandLogo {
+    transform: translateX(round(nearest, calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px), 1px)) !important;
+  }
+  html body #root > main.v26App.mobileHomeRoute.mobileHomeRoute > .v26Header.v26HomeHeader.v26HomeHeader > .v26Brand > .v26BrandLogo {
+    transform: translate(round(nearest, calc(-0.5 * (100% - min(100%, 234.6px)) - 0.201 * min(100%, 234.6px) + 14px), 1px), 1px) !important;
+  }
+  html body #root > main.v26App.mobileHomeRoute > .v26Header.v26HomeHeader .v26HeaderProfileSlot { transform: none; }
+  html body #root > main.v26App.homeRoute > .v26Header.v26HomeHeader .v26BrandLogo,
+  html body #root > main.v26App.homeRoute > .v26Header.v26HomeHeader .v26BrandLogo img { backface-visibility: hidden; -webkit-font-smoothing: antialiased; image-rendering: auto; }
+}

@@ -1269,6 +1269,7 @@ export default function TestnetFirstApp() {
         <a className="v26MobileMenuInsta" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="KAISTRADE Instagram hesabını aç: @kaistrade_" onClick={() => setMobileMenuOpen(false)}>
           <span className="v26MobileMenuInstaIcon" aria-hidden="true"><InstagramGlyph/></span>
           <span className="v26MobileMenuInstaText"><b>KAISTRADE <em>dünyasını</em> keşfet.</b></span>
+          <span className="v26MobileMenuInstaGo" aria-hidden="true"><ChevronRight/></span>
         </a>
         <div className="v26MobileMenuChoices">
           {phoneLayout && <button type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span><b>Analist</b><small>Coin analizi ve sinyaller</small></span></button>}
