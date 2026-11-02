@@ -662,6 +662,12 @@ class MoveStopRequest(BaseModel):
     confirmation: str = Field(min_length=1, max_length=32)
 
 
+class TrailRequest(BaseModel):
+    symbol: str = Field(min_length=5, max_length=20)
+    pct: float | None = Field(default=None, gt=0, le=100)
+    confirmation: str = Field(min_length=1, max_length=32)
+
+
 class ReducePositionRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     quantity: float = Field(gt=0)
@@ -2052,6 +2058,7 @@ def enrich_snapshot_with_plans(snapshot: dict[str, Any], state: dict[str, Any]) 
         if not plan:
             continue
         position["plan_source"] = str(plan.get("source") or "") or None
+        position["trail_pct"] = (plan.get("trail") or {}).get("pct") if isinstance(plan.get("trail"), dict) else None
         requested = int(plan.get("requested_leverage") or plan.get("leverage") or 0) or None
         applied = int(plan.get("applied_leverage") or 0) or position.get("leverage")
         position["requested_leverage"] = requested
@@ -2395,6 +2402,8 @@ async def move_demo_stop(
     plan: dict[str, Any],
     new_stop_value: float,
     policy: dict[str, Any],
+    *,
+    tighten_only: bool = False,
 ) -> dict[str, Any]:
     """Move the stop of one MANUAL Demo plan.
 
@@ -2415,7 +2424,7 @@ async def move_demo_stop(
     async with lock:
         STOP_MOVE_ACTIVE.add(key)
         try:
-            return await _move_demo_stop_locked(client, state, plan, new_stop_value, policy)
+            return await _move_demo_stop_locked(client, state, plan, new_stop_value, policy, tighten_only=tighten_only)
         finally:
             STOP_MOVE_ACTIVE.discard(key)
             STOP_MOVE_DONE_AT[key] = time.monotonic()
@@ -2427,6 +2436,8 @@ async def _move_demo_stop_locked(
     plan: dict[str, Any],
     new_stop_value: float,
     policy: dict[str, Any],
+    *,
+    tighten_only: bool = False,
 ) -> dict[str, Any]:
     symbol, direction = str(plan["symbol"]).upper(), str(plan.get("direction") or "").upper()
     if direction not in {"LONG", "SHORT"}:
@@ -2456,16 +2467,18 @@ async def _move_demo_stop_locked(
     old_stop = Decimal(str(plan["stop_loss"]))
     if new_stop == old_stop:
         raise BinanceDemoError("Stop zaten bu fiyatta.", http_status=422)
+    if tighten_only and ((long_side and new_stop <= old_stop) or (not long_side and new_stop >= old_stop)):
+        raise BinanceDemoError("Stop yalnız sıkılaştırılabilir.", http_status=422)
     loss_at_stop = quantity * ((entry - new_stop) if long_side else (new_stop - entry))
     limit = Decimal(str(policy.get("max_loss_per_trade", 0) or 0))
-    if loss_at_stop > limit:
+    if loss_at_stop > limit and not tighten_only:
         raise BinanceDemoError(
             f"Yeni stopta zarar yaklaşık {decimal_text(loss_at_stop.quantize(Decimal('0.01')))} USDT olur; "
             f"işlem başı risk sınırın {decimal_text(limit)} USDT. Stopu uzaklaştırarak riski büyütemezsin.",
             http_status=422,
         )
     targets = [Decimal(str(value)) for value in plan.get("targets") or []]
-    if targets and any((long_side and target <= new_stop) or (not long_side and target >= new_stop) for target in targets):
+    if not tighten_only and targets and any((long_side and target <= new_stop) or (not long_side and target >= new_stop) for target in targets):
         raise BinanceDemoError("Stop, hedeflerin öbür tarafında olmalı.", http_status=422)
 
     old_algo = _single_plan_algo_id(plan, "stop_algo_id")
@@ -2500,6 +2513,46 @@ async def _move_demo_stop_locked(
         f"{symbol} stop taşınamadı; Demo pozisyon güvenlik için kapatılıyor.",
         "Stop kurulamadı; pozisyon güvenlik için kapatıldı.",
     )
+
+
+async def demo_trailing_step(client: BinanceDemoClient, state: dict[str, Any], plan: dict[str, Any], position_row: dict[str, Any]) -> bool:
+    """Server-side trailing for one MANUAL Demo plan: only tightens, throttled, switches itself off after repeated failures."""
+    from . import manual_trail
+
+    trail = plan.get("trail")
+    if not isinstance(trail, dict) or plan.get("source") != "MANUAL" or not can_mutate_lifecycle(plan):
+        return False
+    if plan.get("position_status") != "OPEN" or plan.get("stop_protection_cancelled") or not plan.get("stop_algo_id"):
+        return False
+    pct = manual_trail.valid_trail_pct(trail.get("pct"))
+    if pct is None or not manual_trail.trail_due(trail):
+        return False
+    try:
+        mark = Decimal(str(position_row.get("markPrice")))
+        current_stop = Decimal(str(plan["stop_loss"]))
+    except (InvalidOperation, ValueError, TypeError, KeyError):
+        return False
+    direction = str(plan.get("direction") or "").upper()
+    if manual_trail.trail_target(direction, mark, current_stop, pct) is None:
+        return False  # kaba hesap: taşımaya değmiyor; borsa kuralları okunmaz
+    symbol = str(plan["symbol"]).upper()
+    try:
+        tick = (await symbol_rules(client, symbol))["tick"]
+        target = manual_trail.trail_target(direction, mark, current_stop, pct, tick)
+        if target is None:
+            return False
+        await move_demo_stop(client, state, plan, float(target), {}, tighten_only=True)
+    except BinanceDemoError as exc:
+        disabled = manual_trail.record_trail_failure(trail, str(exc))
+        if disabled:
+            plan.pop("trail", None)
+            add_event(state, "İZ SÜREN KAPANDI", f"{symbol} iz süren stop üst üste başarısız oldu; kapatıldı. Mevcut stop yerinde duruyor.")
+        persist_runtime(state)
+        return disabled
+    manual_trail.record_trail_move(trail)
+    add_event(state, "İZ SÜREN STOP", f"{symbol} iz süren stop {decimal_text(target)} seviyesine taşındı.")
+    persist_runtime(state)
+    return True
 
 
 async def reduce_symbol_position(client: BinanceDemoClient, symbol: str, quantity: Decimal, position_side: str = "BOTH") -> dict[str, Any] | None:
@@ -3967,6 +4020,8 @@ async def _protect_demo_state(application: Any, user_id: str, state: dict[str, A
                     ) or changed
                 elif protection_state == "UNKNOWN":
                     continue
+                elif protection_state == "MATCHED" and isinstance(plan.get("trail"), dict):
+                    changed = await demo_trailing_step(client, state, plan, active_position) or changed
             elif active_position is None and plan.get("position_status") == "OPEN":
                 if _within_plan_reconciliation_grace(plan):
                     continue
@@ -4596,6 +4651,41 @@ async def demo_move_stop(request: Request, body: MoveStopRequest) -> dict[str, A
         return result
     except BinanceDemoError as exc:
         raise safe_exchange_error(exc) from exc
+
+
+@router.post("/position/trail")
+async def demo_set_trail(request: Request, body: TrailRequest) -> dict[str, Any]:
+    """Turn the server-side trailing stop on/off for the user's manual Demo position."""
+    from . import manual_trail
+
+    if body.confirmation.strip().upper() != "DEMO İZ SÜREN":
+        raise HTTPException(422, "İz süren stopu değiştirmek için DEMO İZ SÜREN yazın.")
+    symbol = normalize_symbol(body.symbol)
+    state = state_for(request)
+    user_id = _current_user_id(request=request, state=state)
+    pct = None
+    if body.pct is not None:
+        pct = manual_trail.valid_trail_pct(body.pct)
+        if pct is None:
+            raise HTTPException(422, "İz süren mesafe %0,3 ile %10 arasında olmalı.")
+    async with state["lock"]:
+        candidates = [
+            plan for plan in state.get("plans", {}).values()
+            if isinstance(plan, dict) and str(plan.get("symbol") or "").upper() == symbol
+            and plan.get("position_status") == "OPEN" and plan.get("source") == "MANUAL" and can_mutate_lifecycle(plan)
+            and (not user_id or str(plan.get("user_id") or plan.get("_user_id") or "").strip() == user_id)
+        ]
+        if len(candidates) != 1:
+            raise HTTPException(404, "Bu paritede iz süren stop için tek bir manuel Demo pozisyonu bulunamadı.")
+        plan = candidates[0]
+        if pct is None:
+            plan.pop("trail", None)
+            add_event(state, "İZ SÜREN KAPATILDI", f"{symbol} iz süren stop kapatıldı.")
+        else:
+            plan["trail"] = manual_trail.trail_config(pct, utc_now())
+            add_event(state, "İZ SÜREN AÇILDI", f"{symbol} iz süren stop %{pct} mesafeyle açıldı.")
+        persist_runtime(state)
+    return {"ok": True, "symbol": symbol, "trail_pct": float(pct) if pct is not None else None}
 
 
 @router.post("/position/reduce")

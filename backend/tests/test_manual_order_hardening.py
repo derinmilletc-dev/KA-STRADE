@@ -604,3 +604,69 @@ class StopBridgeTests(ManualActionBase):
         owned = {row["client_algo_id"] for row in execution.owned_protection_rows(plan, rows)}
         self.assertIn(bridge_client, owned)
         self.assertEqual(execution.close_reason_for_client_id(plan, bridge_client), "STOP")
+
+
+class ManualTrailingTests(ManualActionBase):
+    def trail_plan(self, exchange, direction="LONG", pct="2", **extra):
+        from app import manual_trail
+
+        state, plan = open_manual_plan(exchange, direction, **extra)
+        plan["trail"] = manual_trail.trail_config(Decimal(pct), "now")
+        return state, plan
+
+    def step(self, exchange, state, plan):
+        position = {"mark_price": exchange.mark, "entry_price": exchange.entry, "quantity": "1", "direction": plan["direction"]}
+        return asyncio.run(execution.manual_trailing_step(exchange, state, plan, position))
+
+    def test_long_trail_moves_the_stop_up_and_beyond_filled_targets(self):
+        exchange = FakeExchange(mark="130")  # TP1 (110) ve TP2 (115) çoktan aşıldı
+        state, plan = self.trail_plan(exchange)
+        self.assertTrue(self.step(exchange, state, plan))
+        stops = self.stops(exchange)
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(Decimal(stops[0]["triggerPrice"]), Decimal("127.4"))
+        self.assertEqual(plan["stop_algo_id"], stops[0]["algoId"])
+        self.assertEqual(plan["protection_state"], "MATCHED")
+        self.assertEqual(plan["trail"]["failures"], 0)
+
+    def test_short_trail_moves_the_stop_down(self):
+        exchange = FakeExchange(entry="100", mark="70", direction="SHORT")
+        state, plan = self.trail_plan(exchange, "SHORT")
+        self.assertTrue(self.step(exchange, state, plan))
+        self.assertEqual(Decimal(self.stops(exchange)[0]["triggerPrice"]), Decimal("71.4"))
+
+    def test_trail_is_throttled_never_loosens_and_ignores_small_moves(self):
+        exchange = FakeExchange(mark="130")
+        state, plan = self.trail_plan(exchange)
+        self.assertTrue(self.step(exchange, state, plan))
+        before = len(exchange.calls)
+        self.assertFalse(self.step(exchange, state, plan))  # 30 sn dolmadı
+        self.assertEqual(len(exchange.calls), before)
+        plan["trail"]["last_move_epoch"] = 0
+        exchange.mark = "125"  # fiyat düştü: stop gevşemez
+        self.assertFalse(self.step(exchange, state, plan))
+        exchange.mark = "130.2"  # çok küçük iyileşme: taşınmaz
+        self.assertFalse(self.step(exchange, state, plan))
+        self.assertEqual(Decimal(self.stops(exchange)[0]["triggerPrice"]), Decimal("127.4"))
+
+    def test_failed_move_restores_old_stop_and_three_failures_switch_trailing_off(self):
+        exchange = FakeExchange(mark="130")
+        state, plan = self.trail_plan(exchange)
+        for sequence in range(1, 4):
+            exchange.fail_post_prefixes.add(execution.client_id_for(f"SLMV{sequence}", plan["intent_id"]))
+        for _ in range(3):
+            plan["trail"]["last_move_epoch"] = 0 if plan.get("trail") else 0
+            self.step(exchange, state, plan)
+        self.assertNotIn("trail", plan)
+        stops = self.stops(exchange)
+        self.assertEqual(len(stops), 1)
+        self.assertEqual(Decimal(stops[0]["triggerPrice"]), Decimal("95"))
+        self.assertEqual(plan["protection_state"], "MATCHED")
+
+    def test_non_manual_unprotected_or_blocked_plans_are_ignored(self):
+        for change in ({"source": "AUTO"}, {"protection_state": "MISSING"}):
+            with self.subTest(change=change):
+                exchange = FakeExchange(mark="130")
+                state, plan = self.trail_plan(exchange, **change)
+                self.assertFalse(self.step(exchange, state, plan))
+                self.assertFalse([call for call in exchange.calls if call[0] in {"POST", "DELETE"}])

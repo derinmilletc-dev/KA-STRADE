@@ -221,5 +221,69 @@ class DemoStopMoveTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(posted, [])
 
 
+class DemoTrailingTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        binance_demo.STOP_MOVE_ACTIVE.clear()
+        binance_demo.STOP_MOVE_DONE_AT.clear()
+        self.patches = [patch.object(binance_demo, "persist_runtime"), patch.object(binance_demo, "symbol_rules", new=DemoStopMoveTests._rules)]
+        for item in self.patches:
+            item.start()
+
+    def tearDown(self):
+        for item in self.patches:
+            item.stop()
+
+    def setup_plan(self, direction="LONG", mark="120", pct=2):
+        from app import manual_trail
+
+        exchange, plan = FakeDemoExchange(direction, mark=mark), manual_plan(direction)
+        plan["trail"] = manual_trail.trail_config(Decimal(str(pct)), "now")
+        state = {"plans": {plan["id"]: plan}, "events": []}
+        row = {"markPrice": mark, "positionAmt": exchange.positions_amt}
+        return exchange, plan, state, row
+
+    async def test_trailing_tightens_stop_and_beyond_a_filled_target(self):
+        exchange, plan, state, row = self.setup_plan()  # mark 120, %2 -> 117.6; TP1 110 çoktan aşıldı
+        self.assertTrue(await binance_demo.demo_trailing_step(exchange, state, plan, row))
+        self.assertEqual(Decimal(exchange.stops()[0]["triggerPrice"]), Decimal("117.6"))
+        self.assertEqual(plan["trail"]["failures"], 0)
+        self.assertGreater(plan["trail"]["last_move_epoch"], 0)
+
+    async def test_trailing_is_throttled_and_never_loosens(self):
+        exchange, plan, state, row = self.setup_plan()
+        await binance_demo.demo_trailing_step(exchange, state, plan, row)
+        calls_after_first = len(exchange.calls)
+        self.assertFalse(await binance_demo.demo_trailing_step(exchange, state, plan, row))  # aralık dolmadı
+        self.assertEqual(len(exchange.calls), calls_after_first)
+        plan["trail"]["last_move_epoch"] = 0
+        row_down = {**row, "markPrice": "100"}
+        exchange.mark = "100"
+        self.assertFalse(await binance_demo.demo_trailing_step(exchange, state, plan, row_down))
+        self.assertEqual(Decimal(exchange.stops()[0]["triggerPrice"]), Decimal("117.6"))
+
+    async def test_short_trailing_moves_down(self):
+        exchange, plan, state, row = self.setup_plan("SHORT", mark="80")
+        self.assertTrue(await binance_demo.demo_trailing_step(exchange, state, plan, row))
+        self.assertEqual(Decimal(exchange.stops()[0]["triggerPrice"]), Decimal("81.6"))
+
+    async def test_three_failures_switch_trailing_off_and_keep_the_stop(self):
+        exchange, plan, state, row = self.setup_plan()
+        exchange.fail_new_prefixes.add("SLMV")
+        for attempt in range(3):
+            plan["trail"]["last_move_epoch"] = 0 if "trail" in plan else 0
+            await binance_demo.demo_trailing_step(exchange, state, plan, row)
+        self.assertNotIn("trail", plan)
+        stops = exchange.stops()
+        self.assertEqual(len(stops), 1)  # her denemede eski stop geri kuruldu
+        self.assertEqual(Decimal(stops[0]["triggerPrice"]), Decimal("95"))
+        self.assertIn(stops[0]["algoId"], plan["protection_ids"])
+
+    async def test_bot_plan_is_ignored(self):
+        exchange, plan, state, row = self.setup_plan()
+        plan["source"] = "AUTO"
+        self.assertFalse(await binance_demo.demo_trailing_step(exchange, state, plan, row))
+        self.assertEqual(exchange.calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()

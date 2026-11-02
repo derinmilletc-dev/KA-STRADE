@@ -17,6 +17,9 @@ export const LIVE_CLOSE_PHRASE = 'CANLI POZİSYONU KAPAT'
 export const LIVE_REDUCE_PHRASE = 'KISMİ KAPAT'
 export const DEMO_CLOSE_PHRASE = 'DEMO KAPAT'
 export const DEMO_STOP_PHRASE = 'DEMO STOP GÜNCELLE'
+export const DEMO_TRAIL_PHRASE = 'DEMO İZ SÜREN'
+export const LIVE_TRAIL_PHRASE = 'İZ SÜREN STOP'
+export const TRAIL_CHOICES = [.5, 1, 2, 3] as const
 export const DEMO_REDUCE_PHRASE = 'DEMO AZALT'
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
