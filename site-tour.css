@@ -178,6 +178,11 @@ html body .ktPtHelp:focus-visible { outline: 3px solid rgba(61, 220, 151, .45); 
 html body .ktPtHelp svg { width: 18px; height: 18px; }
 .refMarketSearch, .rkSummary { position: relative; }
 @media (max-width: 700px) { html body .ktPtHelp { width: 44px; height: 44px; top: 6px; right: 6px; } }
+
+/* Piyasa listesi: "?" tuşu köşede değil, başlığın hemen yanında; sayaç rozetini artık kapatmaz. */
+html body .refMarketSearch h2 .ktPtHelp { position: static; flex: none; width: 32px; height: 32px; margin: -4px auto -4px 8px; }
+html body .refMarketSearch h2 .ktPtHelp svg { width: 17px; height: 17px; }
+@media (max-width: 700px) { html body .refMarketSearch h2 .ktPtHelp { width: 40px; height: 40px; margin: -8px auto -8px 6px; } }
 @keyframes ktPtFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ktPtIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes ktPtSwap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
