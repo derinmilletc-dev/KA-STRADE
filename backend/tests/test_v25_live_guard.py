@@ -1134,6 +1134,35 @@ class V25LiveGuardCoreTests(unittest.TestCase):
         self.assertFalse(state["auto"]["enabled"])
         self.assertEqual(state["auto"]["session_until"], 0)
 
+    def _consent_call(self, body, now=1_800_000_000):
+        state = initial_state()
+        state["lock"] = asyncio.Lock()
+        request = SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(v25_execution=state, v21_demo=None)),
+            method="POST", headers={"x-protrebot-session": "owner-session"},
+            state=SimpleNamespace(member={"id": "owner", "role": "OWNER"}),
+        )
+        with patch.object(v25_execution, "live_credentials_status", return_value=("api-key-123456", "secret-key-123456", "fingerprint")), \
+            patch.object(v25_execution, "persist_state"), \
+            patch.object(v25_execution, "require_live_understanding", new=AsyncMock()), \
+            patch.object(v25_execution.time, "time", return_value=now):
+            asyncio.run(v25_execution.v25_web_consent(request, body))
+        return state
+
+    def test_consent_hours_choice_shortens_expiry(self):
+        now = 1_800_000_000
+        for hours in (1, 4, 8, 12, 24):
+            state = self._consent_call(v25_execution.ConsentRequest(understood=True, hours=hours), now)
+            self.assertEqual(state["web_consent"]["expires_at_epoch"], now + hours * 3600)
+        default = self._consent_call(v25_execution.ConsentRequest(understood=True), now)
+        self.assertEqual(default["web_consent"]["expires_at_epoch"], now + 24 * 3600)
+
+    def test_consent_rejects_other_hours_and_never_exceeds_24h(self):
+        from fastapi import HTTPException
+        for hours in (0, 2, 25, 48, -1):
+            with self.assertRaises(HTTPException):
+                self._consent_call(v25_execution.ConsentRequest(understood=True, hours=hours))
+
     def test_policy_change_clears_policy_acknowledgement(self):
         state = initial_state()
         state["lock"] = asyncio.Lock()

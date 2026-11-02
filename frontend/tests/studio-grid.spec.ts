@@ -50,7 +50,7 @@ async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844,
   await page.route('**/api/analysis-universe**', route => route.fulfill({json: {results: previewMarkets.map((market, index) => ({...market, direction: 'LONG', confidence: 94 - index, final_decision_score: 90 - index}))}}))
   await page.route('**/api/analysis/**', route => route.fulfill({json: previewAnalysis(new URL(route.request().url()).pathname.split('/').pop())}))
   await page.route('**/api/klines/**', route => route.fulfill({json: previewCandles(new URL(route.request().url()).pathname.split('/').pop(), FIXED_NOW)}))
-  const statusBody = () => ({ok: true, enabled: mock.enabled, max_levels: 20, max_margin_usdt: 300, max_leverage: 20, grids: mock.grids, active_count: mock.grids.filter(g => g.status === 'RUNNING').length, grid: mock.grids[0] ?? null})
+  const statusBody = () => ({ok: true, enabled: mock.enabled, max_levels: 20, max_margin_usdt: 300, max_leverage: 50, grids: mock.grids, active_count: mock.grids.filter(g => g.status === 'RUNNING').length, grid: mock.grids[0] ?? null})
   await page.route('**/api/v25/grid/live/status', route => route.fulfill({json: statusBody()}))
   await page.route('**/api/v25/grid/filters**', route => route.fulfill({json: {ok: true, symbol: 'BTCUSDT', tickSize: 0.1, stepSize: 0.001, minQty: 0.001, minNotional: 5}}))
   await page.route('**/api/v25/grid/live/start', route => {

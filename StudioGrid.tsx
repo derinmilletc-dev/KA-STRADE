@@ -4,6 +4,7 @@ import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import {requestPositionsRefresh} from './trade-intent'
 import {HoldButton} from './studio-hold'
+import {ConsentRenew} from './StudioConsent'
 import {tx, type AnalysisLevels} from './studio-quick-trade'
 import {
   GRID_MAX_COUNT, GRID_MIN_COUNT, atrPct, backtestGrid, barSeconds, chartLinesFor, chartLinesForRows, gridActive, gridPnl, gridRangeStatus, gridStatusText, gridSummary, previewGrid, priceText, requestGrid,
@@ -168,7 +169,7 @@ const MODES: {id: GridMode; tr: string; en: string; hintTr: string; hintEn: stri
   {id: 'SHORT', tr: 'Düşüş', en: 'Downtrend', hintTr: 'Yalnız satış kademeleri: yükselişlerde satar, bir kademe aşağıda geri alır.', hintEn: 'Sell levels only: sells rallies, buys back one level lower.'},
 ]
 const PRESETS: {id: Exclude<GridPreset, 'custom'>; tr: string; en: string}[] = [{id: 'analysis', tr: 'Analize göre', en: 'By analysis'}, {id: 'atr', tr: 'Oynaklık', en: 'Volatility'}, {id: 'tight', tr: 'Dar', en: 'Tight'}, {id: 'wide', tr: 'Geniş', en: 'Wide'}]
-const MARGIN_STEPS = [20, 50, 100, 200, 300], LEVERAGE_STEPS = [1, 2, 3, 5, 10]
+const MARGIN_STEPS = [20, 50, 100, 200, 300], LEVERAGE_STEPS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50]
 
 export type GridProps = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void; analysis: AnalysisLevels; decision: string
@@ -204,7 +205,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   const maxCount = Math.min(GRID_MAX_COUNT, Number(status?.max_levels) || GRID_MAX_COUNT)
   const maxMargin = Number(status?.max_margin_usdt) > 0 ? Number(status?.max_margin_usdt) : 300
   const policyLev = Number(policy.max_leverage)
-  const maxLeverage = Math.max(1, Math.min(Number(status?.max_leverage) || 20, !demo && Number.isFinite(policyLev) && policyLev >= 1 ? Math.floor(policyLev) : 20))
+  const maxLeverage = Math.max(1, Math.min(Number(status?.max_leverage) || 50, !demo && Number.isFinite(policyLev) && policyLev >= 1 ? Math.floor(policyLev) : 50))
   const policyMargin = Number(policy.max_margin_per_trade)
   const marginCap = Math.min(maxMargin, !demo && Number.isFinite(policyMargin) && policyMargin > 0 ? policyMargin : maxMargin)
   const marginChoices = useMemo(() => { const list = MARGIN_STEPS.filter(v => v <= marginCap); return list.length ? list : [Math.max(10, Math.floor(marginCap))] }, [marginCap])
@@ -402,7 +403,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
           <div className="sqgCol">
           <div className="sqgParams">
             <div className="sqtParam"><small>{tx('Toplam teminat (USDT)', 'Total margin (USDT)')}</small><div role="radiogroup" aria-label={tx('Toplam teminat', 'Total margin')}>{marginChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === margin} data-on={v === margin} disabled={!!busy} onClick={() => updatePrefs({margin: v})}>{v}</button>)}</div></div>
-            <div className="sqtParam"><small>{tx('Kaldıraç', 'Leverage')}</small><div role="radiogroup" aria-label={tx('Kaldıraç', 'Leverage')}>{leverageChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === leverage} data-on={v === leverage} disabled={!!busy} onClick={() => updatePrefs({leverage: v})}>{v}x</button>)}</div></div>
+            <div className="sqtParam"><small>{tx('Kaldıraç', 'Leverage')}</small><div role="radiogroup" className="sqgLevScroll" aria-label={tx('Kaldıraç', 'Leverage')}>{leverageChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === leverage} data-on={v === leverage} disabled={!!busy} onClick={() => updatePrefs({leverage: v})}>{v}x</button>)}</div></div>
           </div>
 
           {params && params.mode !== 'NEUTRAL'
@@ -441,7 +442,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
           <ul className="sqgChecks" aria-live="polite">
             {(preview?.issues ?? []).map(text => <li key={text} data-ok="false"><TriangleAlert aria-hidden="true"/>{text}</li>)}
             {(preview?.warnings ?? []).map(text => <li key={text} data-ok="warn"><Info aria-hidden="true"/>{text}</li>)}
-            {blockReason && <li data-ok="false"><ShieldAlert aria-hidden="true"/>{blockReason}</li>}
+            {blockReason && <li data-ok="false"><ShieldAlert aria-hidden="true"/>{blockReason}{!demo && liveBlocker && blockReason === liveBlocker && <ConsentRenew blocker={liveBlocker} onDone={hours => onToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/>}</li>}
             {server.state === 'rejected' && <li data-ok="false"><ShieldAlert aria-hidden="true"/>{server.message}</li>}
             {preview?.ok && !blockReason && server.state !== 'rejected' && (server.state === 'ok'
               ? <li data-ok="true"><Check aria-hidden="true"/>{tx('Sunucu planı doğruladı', 'The server confirmed the plan')}{Number.isFinite(server.worst) && server.worst ? tx(` · en kötü −${fmt(server.worst!)} USDT`, ` · worst case −${fmt(server.worst!)} USDT`) : ''}</li>

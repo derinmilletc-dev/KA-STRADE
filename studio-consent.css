@@ -1,0 +1,51 @@
+/* Analiz Stüdyosu · risk izni yenileme paneli. Düz renkler kullanılır (sayfa genelinde background-image kapalıdır). */
+.masterReferenceAnalysis .sqcAnchor { display: inline-flex; margin-left: 8px; vertical-align: middle; }
+.masterReferenceAnalysis .sqcOpen { min-height: 28px; padding: 0 12px; border: 1px solid #6a5420; border-radius: 999px; background-color: #2a2110; color: #f2c46d; font: 700 11px/1 inherit; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.masterReferenceAnalysis .sqcOpen:active { transform: scale(.97); }
+.masterReferenceAnalysis .sqcOpen:focus-visible { outline: 2px solid #f2c46d; outline-offset: 2px; }
+.masterReferenceAnalysis .sqcScrim { position: absolute; inset: 0; z-index: 9; background-color: rgba(2, 6, 10, .74); backdrop-filter: blur(2px); }
+.masterReferenceAnalysis .sqcPanel {
+  position: absolute; inset: 0; z-index: 10; margin: auto; width: min(560px, calc(100% - 20px)); height: fit-content; max-height: calc(100% - 16px); overflow: auto;
+  border: 1px solid rgba(148, 163, 184, .16); border-radius: 22px; background-color: #121a23; color: #e8eef4; box-shadow: 0 24px 56px rgba(0, 0, 0, .6);
+  font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums;
+}
+.masterReferenceAnalysis .sqcPanel > header { display: flex; align-items: center; gap: 10px; padding: 12px 12px 10px 16px; border-bottom: 1px solid rgba(148, 163, 184, .12); }
+.masterReferenceAnalysis .sqcPanel > header > svg { flex: none; width: 22px; height: 22px; color: #7eecb2; }
+.masterReferenceAnalysis .sqcPanel > header > div { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.masterReferenceAnalysis .sqcPanel > header b { font-size: 15px; letter-spacing: -.01em; }
+.masterReferenceAnalysis .sqcPanel > header small { color: #8da2b4; font-size: 11px; }
+.masterReferenceAnalysis .sqcX { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(148, 163, 184, .16); border-radius: 12px; background-color: #0e151d; color: #dce7ef; cursor: pointer; }
+.masterReferenceAnalysis .sqcX svg { width: 16px; height: 16px; }
+.masterReferenceAnalysis .sqcBody { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px 16px 16px; }
+@media (min-width: 560px) { .masterReferenceAnalysis .sqcBody { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.masterReferenceAnalysis .sqcCol { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.masterReferenceAnalysis .sqcLabel { color: #8da2b4; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.masterReferenceAnalysis .sqcHours { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 3px; border: 1px solid rgba(148, 163, 184, .14); border-radius: 14px; background-color: #0e151d; }
+.masterReferenceAnalysis .sqcHours button { display: grid; justify-items: center; gap: 0; min-height: 44px; padding: 4px 0; border: 1px solid transparent; border-radius: 11px; background-color: transparent; color: #b9c8d6; font: 700 15px/1.1 inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.masterReferenceAnalysis .sqcHours button em { font-style: normal; font-size: 9.5px; font-weight: 600; color: #7f93a6; }
+.masterReferenceAnalysis .sqcHours button[data-on] { border-color: rgba(62, 224, 160, .5); background-color: #12392d; color: #7eecb2; }
+.masterReferenceAnalysis .sqcHours button[data-on] em { color: #5fcf9e; }
+.masterReferenceAnalysis .sqcNote, .masterReferenceAnalysis .sqcWarn { margin: 0; color: #aebdca; font-size: 11px; }
+.masterReferenceAnalysis .sqcWarn { color: #f2c46d; }
+.masterReferenceAnalysis .sqcCheck { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, .14); border-radius: 14px; background-color: #0e151d; cursor: pointer; }
+.masterReferenceAnalysis .sqcCheck input { position: absolute; opacity: 0; pointer-events: none; }
+.masterReferenceAnalysis .sqcCheck > span { display: grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid #4b6074; border-radius: 7px; background-color: #0a1118; color: #06130d; }
+.masterReferenceAnalysis .sqcCheck input:checked + span { border-color: #3ee0a0; background-color: #3ee0a0; }
+.masterReferenceAnalysis .sqcCheck input:focus-visible + span { outline: 2px solid #7eecb2; outline-offset: 2px; }
+.masterReferenceAnalysis .sqcCheck span svg { width: 14px; height: 14px; }
+.masterReferenceAnalysis .sqcCheck b { display: block; font-size: 12.5px; }
+.masterReferenceAnalysis .sqcCheck small { display: block; margin-top: 1px; color: #8da2b4; font-size: 11px; }
+.masterReferenceAnalysis .sqcError { margin: 0; padding: 8px 10px; border: 1px solid #5a2430; border-radius: 10px; background-color: #1a1015; color: #ff8d9a; font-size: 11.5px; }
+.masterReferenceAnalysis .sqcActs { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.masterReferenceAnalysis .sqcGo { min-height: 46px; padding: 0 14px; border: 1px solid rgba(62, 224, 160, .55); border-radius: 14px; background-color: #1d7a58; color: #f2fff9; font: 800 13px/1.15 inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.masterReferenceAnalysis .sqcGo:disabled { border-color: rgba(148, 163, 184, .16); background-color: #18222d; color: #6f8394; cursor: not-allowed; }
+.masterReferenceAnalysis .sqcNo { min-height: 46px; padding: 0 14px; border: 1px solid rgba(148, 163, 184, .16); border-radius: 14px; background-color: transparent; color: #9fb1c1; font: 600 12.5px/1 inherit; cursor: pointer; }
+@media (max-height: 460px) {
+  .masterReferenceAnalysis .sqcPanel { border-radius: 18px; }
+  .masterReferenceAnalysis .sqcPanel > header { padding: 8px 10px 7px 14px; }
+  .masterReferenceAnalysis .sqcBody { gap: 8px 14px; padding: 9px 14px 11px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .masterReferenceAnalysis .sqcHours button { min-height: 38px; }
+  .masterReferenceAnalysis .sqcGo, .masterReferenceAnalysis .sqcNo { min-height: 40px; }
+  .masterReferenceAnalysis .sqcWarn { font-size: 10.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .masterReferenceAnalysis .sqcOpen:active { transform: none; } }
