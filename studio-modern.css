@@ -53,6 +53,14 @@
 .masterReferenceAnalysis .sqtLayer .sqtHold { border-radius: 15px; box-shadow: 0 10px 26px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .1); }
 .masterReferenceAnalysis .sqtLayer .sqtHold:not(:disabled) { border-color: color-mix(in srgb, var(--sqm-accent) 45%, transparent); }
 .masterReferenceAnalysis .sqtLayer .sqtActions { background-color: #0d1620; box-shadow: 0 -10px 14px -6px #0d1620; }
+@media (max-height: 620px) and (min-width: 820px) {
+  .masterReferenceAnalysis .sqtLayer .sqtHold { white-space: nowrap; font-size: 12px; letter-spacing: 0; padding: 0 6px; }
+  .masterReferenceAnalysis .sqtLayer .sqtFine { display: none; }
+  .masterReferenceAnalysis .sqtLayer .sqtPresets button { font-size: 10.5px; padding: 0; }
+  .masterReferenceAnalysis .sqtLayer .sqtActions { position: static; margin-bottom: 0; padding: 0; background-color: transparent; box-shadow: none; align-self: end; grid-template-columns: minmax(0, 1fr) auto; }
+  .masterReferenceAnalysis .sqtLayer .sqtActions > .sqtError { grid-column: 1 / -1; }
+  .masterReferenceAnalysis .sqtLayer .sqtActions > .sqtCancel { padding: 0 10px; min-height: 38px; }
+}
 
 /* Açık pozisyon kartı: kâr/zarar rengi ışıma verir */
 .masterReferenceAnalysis .sqtLayer .sqtPnl strong { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }

@@ -15,6 +15,8 @@
 
 /* ---------- Üstte: açık pozisyon sekmeleri (OHLC satırının sağı) ---------- */
 .masterReferenceAnalysis .refOhlc:has(.sqtTabs) { align-items: center; }
+/* OHLC yazıları asla sıkışıp üst üste binmez; sekmeler kalan yeri alır ve kendi içinde kayar. */
+.masterReferenceAnalysis .refOhlc:has(.sqtTabs) > :not(.sqtTabs) { flex: 0 0 auto; }
 .masterReferenceAnalysis .sqtTabs {
   margin-left: auto; flex: 0 1 auto; min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 1px 0; pointer-events: auto;
 }
@@ -190,7 +192,7 @@
   width: 272px; max-width: 100%; display: grid; gap: 6px; padding: 10px 12px; border-radius: 18px; background: rgba(12, 19, 27, .86); border: 1px solid rgba(255, 255, 255, .1);
   backdrop-filter: blur(14px); box-shadow: 0 10px 26px #000a;
   /* Alçak ekranda kart OHLC satırının altına taşmaz; uzun içerik (stop yönetimi) kendi içinde kayar. */
-  max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; align-content: start;
+  max-height: calc(100dvh - 130px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; align-content: start;
 }
 .masterReferenceAnalysis .sqtCardTop { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
 .masterReferenceAnalysis .sqtCardTop > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -255,15 +257,32 @@
 .masterReferenceAnalysis .sqtToast > button svg { width: 13px; height: 13px; }
 
 /* ---------- Alçak yatay ekranlar (telefon): sıkı yerleşim, hiçbir öğe üst üste binmez ---------- */
+/* Emir sayfasının sağ sütunu (emir tipi + limit + büyüklük + kaldıraç + düğmeler) alçak ekranda çok uzar; büyüklük grubunu sol sütunun altına al. */
+.masterReferenceAnalysis .sqtOrd, .masterReferenceAnalysis .sqtSizing { display: grid; gap: 7px; min-width: 0; }
+@media (max-height: 460px), (max-height: 620px) and (min-width: 820px) {
+  .masterReferenceAnalysis .sqtBody { grid-template-areas: "left ord" "size ord" "size act"; }
+  .masterReferenceAnalysis .sqtLeft { grid-area: left; }
+  .masterReferenceAnalysis .sqtRight { display: contents; }
+  .masterReferenceAnalysis .sqtOrd { grid-area: ord; }
+  .masterReferenceAnalysis .sqtSizing { grid-area: size; }
+  .masterReferenceAnalysis .sqtActions { grid-area: act; align-self: end; }
+  .masterReferenceAnalysis .sqtChecks li:not([data-ok="false"]):not(:last-child) { display: none; }
+}
+/* Geniş alçak ekran (≥740): üç sütun — özet | büyüklük + düğmeler | emir tipi + limit; kaydırma gerekmez. */
+@media (max-height: 620px) and (min-width: 820px) {
+  .masterReferenceAnalysis .sqtLayer .sqtBody { grid-template-columns: minmax(0, 1fr) 200px 216px; grid-template-areas: "left size ord" "left act ord"; align-items: start; }
+}
 @media (max-height: 420px) {
   .masterReferenceAnalysis .sqtLayer { --sqt-bottom: 30px; }
   .masterReferenceAnalysis .sqtSheet { padding: 8px 12px 6px; gap: 6px; border-radius: 18px; }
   .masterReferenceAnalysis .sqtBody { grid-template-columns: minmax(0, 1fr) 210px; gap: 10px; }
   .masterReferenceAnalysis .sqtFine, .masterReferenceAnalysis .sqtNote { display: none; }
   .masterReferenceAnalysis .sqtStats > div { padding: 5px 8px; }
-  .masterReferenceAnalysis .sqtParam button { min-height: 28px; }
-  .masterReferenceAnalysis .sqtHold { min-height: 40px; }
-  .masterReferenceAnalysis .sqtCancel { min-height: 28px; }
+  .masterReferenceAnalysis .sqtParam button { min-height: 26px; }
+  .masterReferenceAnalysis .sqtPresets button { min-height: 24px; }
+  .masterReferenceAnalysis .sqtRight, .masterReferenceAnalysis .sqtOrd, .masterReferenceAnalysis .sqtSizing, .masterReferenceAnalysis .sqtLimit { gap: 5px; }
+  .masterReferenceAnalysis .sqtHold { min-height: 38px; }
+  .masterReferenceAnalysis .sqtCancel { min-height: 24px; }
 }
 @media (max-height: 360px) {
   .masterReferenceAnalysis .sqtChecks li:not([data-ok="false"]):not(:last-child) { display: none; }
@@ -271,7 +290,7 @@
   .masterReferenceAnalysis .sqtWarn { padding: 5px 8px; }
 }
 @media (max-width: 620px) {
-  .masterReferenceAnalysis .sqtBody { grid-template-columns: 1fr; }
+  .masterReferenceAnalysis .sqtBody { grid-template-columns: 1fr; grid-template-areas: none; }
   .masterReferenceAnalysis .sqtSide { min-width: 92px; padding: 0 10px; }
   .masterReferenceAnalysis .sqtMid { min-width: 88px; padding: 2px 8px; }
 }
