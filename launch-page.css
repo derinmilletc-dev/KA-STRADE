@@ -24,7 +24,7 @@ main { display: block; padding: 0 16px 24px; }
 .fdPrimary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(46, 229, 157, .32); }
 .fdPrimary:disabled { background-color: #17212b; color: #6b7c8d; box-shadow: none; cursor: not-allowed; }
 .fdPrimary svg { width: 18px; height: 18px; }
-.fdQuota { display: grid; gap: 2px; padding-left: 20px; border-left: 1px solid var(--line); }
+.fdQuota { display: flex; align-items: center; gap: 12px; padding-left: 20px; border-left: 1px solid var(--line); }
 .fdQuota small { color: var(--mute); font-size: 13px; }
 .fdQuota strong { font-size: 28px; letter-spacing: -.03em; color: var(--green); }
 .fdQuota em { font-style: normal; font-size: 13px; font-weight: 600; color: #cfd8e2; letter-spacing: 0; }
@@ -134,3 +134,43 @@ main { display: block; padding: 0 16px 24px; }
   .fdHalo { width: 280px; height: 280px; } .fdRing { width: 260px; height: 260px; }
 }
 @media (prefers-reduced-motion: reduce) { .fdPrimary { transition: none; } .fdPrimary:hover:not(:disabled) { transform: none; } }
+
+.fdQuota > svg { width: 28px; height: 28px; color: var(--green); flex: none; }
+.fdQuota > span { display: grid; gap: 2px; }
+.fdMeter { flex: 1; min-width: 90px; height: 10px; border-radius: 99px; background-color: #1a242d; overflow: hidden; }
+.fdMeter b { display: block; height: 100%; border-radius: 99px; background-color: var(--green); box-shadow: 0 0 12px rgba(46,229,157,.6); }
+.fdEyePhoto { position: relative; width: min(100%, 560px); aspect-ratio: 4 / 3; object-fit: cover; border-radius: 28px; -webkit-mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); }
+.fdBrandWord { display: none; }
+
+@media (max-width: 700px) {
+  main { padding: 0 14px 20px; }
+  .fdTop { padding: 10px 14px; }
+  .fdHero { position: relative; display: block; padding: 18px 0 14px; overflow: hidden; }
+  .fdHeroCopy { position: relative; z-index: 1; max-width: 66%; }
+  .fdBadge { padding: 5px 14px; font-size: 12px; letter-spacing: .14em; }
+  .fdHero h1 { font-size: 40px; margin: 12px 0 8px; }
+  .fdHero h2 { font-size: 19px; line-height: 1.25; margin-bottom: 8px; }
+  .fdHero p { font-size: 13.5px; max-width: none; }
+  .fdActions { display: block; margin-top: 0; }
+  .fdActions .fdPrimary { display: none; }
+  .fdEyeStage { position: absolute; right: -70px; top: 6px; width: 62%; min-height: 0; order: 0; opacity: .9; z-index: 0; pointer-events: none; }
+  .fdEye { transform: scale(.5); margin: -75px -90px; }
+  .fdEyePhoto { width: 100%; }
+  .fdHalo { width: 200px; height: 200px; } .fdRing { display: none; }
+  .fdBar { display: none; }
+  .fdQuota { position: relative; z-index: 1; margin: 14px 0 0; padding: 14px 16px; border: 1px solid rgba(46,229,157,.35); border-radius: 18px; background-color: rgba(11,18,24,.95); }
+  .fdQuota strong { font-size: 24px; }
+  .fdStrip { grid-template-columns: repeat(4, minmax(0, 1fr)); border-radius: 18px; }
+  .fdStrip > div { flex-direction: column; gap: 6px; padding: 12px 4px; text-align: center; }
+  .fdStrip > div + div { border-left: 1px solid var(--line) !important; border-top: 0 !important; }
+  .fdStrip svg { width: 26px; height: 26px; }
+  .fdStrip span { font-size: 11.5px; } .fdStrip b { font-size: 12.5px; }
+  .fdLayout { display: flex; flex-direction: column; gap: 22px; padding-top: 22px; }
+  .fdColA { display: contents; }
+  .fdBlock { order: 1; } .fdFormWrap { order: 2; } .fdColB { order: 3; } .fdBenefit { order: 4; } .fdTrust { order: 5; }
+  .fdSteps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .fdSteps::before { display: block; left: 12%; right: 12%; top: 22px; }
+  .fdSteps i { width: 44px; height: 44px; } .fdSteps i svg { width: 19px; height: 19px; }
+  .fdSteps b { font-size: 11.5px; } .fdSteps p { font-size: 10.5px; }
+  .fdForm { border-radius: 22px; }
+}

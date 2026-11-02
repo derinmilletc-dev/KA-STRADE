@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent} from 'react'
-import {ArrowRight, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, Zap} from 'lucide-react'
+import {ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, Zap} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang, setLang} from './i18n'
 import KaisEye from './KaisEye'
@@ -10,6 +10,9 @@ import './launch-page.css'
 const t = (tr: string, en: string) => (currentLang() === 'en' ? en : tr)
 const PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 const SEATS = 30
+/** Gerçek onaylı koltuk sayısı; boşsa sayaç çubuğu gösterilmez (sahte doluluk yok). */
+const TAKEN = Math.max(0, Math.min(SEATS, Number(import.meta.env.VITE_FOUNDING_TAKEN ?? '')) || 0)
+const EYE_PHOTO = '/founding-eye.webp'
 
 type Form = {email: string; name: string; country: string; experience: string; capital: string; reason: string; feedback: boolean; price: boolean; consent: boolean; website: string}
 const EMPTY: Form = {email: '', name: '', country: '', experience: '', capital: '', reason: '', feedback: true, price: false, consent: false, website: ''}
@@ -24,6 +27,8 @@ export default function LaunchPage() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [message, setMessage] = useState('')
   const formRef = useRef<HTMLElement>(null)
+  const [photo, setPhoto] = useState(false)
+  useEffect(() => { const img = new Image(); img.onload = () => setPhoto(true); img.src = EYE_PHOTO }, [])
   useEffect(() => { document.title = t('KaisTrade · Founding 30 Erken Erişim', 'KaisTrade · Founding 30 Early Access') }, [])
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(current => ({...current, [key]: value}))
   const changeLang = (lang: 'tr' | 'en') => { setLang(lang); force(n => n + 1) }
@@ -61,13 +66,13 @@ export default function LaunchPage() {
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
-            <div className="fdQuota"><small>{t('Kontenjan', 'Quota')}</small><strong>{SEATS} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></strong></div>
+            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {SEATS} <em>{t('Dolu', 'Taken')}</em></> : <>{SEATS} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / SEATS * 100}%`}}/></i>}</div>
           </div>
         </div>
         <div className="fdEyeStage" aria-hidden="true">
           <i className="fdBar fdBar1"/><i className="fdBar fdBar2"/><i className="fdBar fdBar3"/><i className="fdBar fdBar4"/><i className="fdBar fdBar5"/>
           <span className="fdHalo"/><span className="fdRing"/>
-          <div className="fdEye"><KaisEye size={300} state="idle" aria-label="KaisTrade"/></div>
+          {photo ? <img className="fdEyePhoto" src={EYE_PHOTO} alt=""/> : <div className="fdEye"><KaisEye size={300} state="idle" aria-label="KaisTrade"/></div>}
         </div>
       </section>
 
