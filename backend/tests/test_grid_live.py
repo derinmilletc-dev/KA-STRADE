@@ -284,10 +284,12 @@ class TestHardLimits(unittest.TestCase):
     def test_limits_are_the_agreed_ones(self):
         self.assertEqual((grid_live.LIVE_MAX_LEVELS, grid_live.LIVE_MAX_MARGIN_USDT), (20, 300.0))
 
-    def test_default_is_disabled(self):
+    def test_default_is_enabled_and_zero_disables(self):
         import os
         old = os.environ.pop(grid_live.ENV_FLAG, None)
         try:
+            self.assertTrue(grid_live.live_enabled())
+            os.environ[grid_live.ENV_FLAG] = "0"
             self.assertFalse(grid_live.live_enabled())
             with self.assertRaises(Exception):
                 grid_live.require_enabled()

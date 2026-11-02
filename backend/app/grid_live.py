@@ -1,6 +1,6 @@
 """Manuel GRID — canlı çalıştırma katmanı (sunucuda varsayılan KAPALI).
 
-- Açılması için sunucuda KAISTRADE_GRID_LIVE=1 olmalı (kullanıcı kendisi açar). Kapalıyken başlatma reddedilir.
+- Varsayılan AÇIK; sunucuda KAISTRADE_GRID_LIVE=0 ile kapatılır. Kapalıyken başlatma reddedilir.
 - Tavanlar: en fazla 20 kademe, toplam marjin en fazla 300 USDT (sistem tavanı), kaldıraç en fazla 20x. Asıl koruma hesabın
   kendi risk ayarlarıdır: en kötü zarar, tek işlem ve günlük zarar sınırını, toplam büyüklük de maruziyet sınırını aşarsa grid HİÇ başlamaz.
 - Plan, ekrandaki önizlemeyle AYNI hesaptan geçer (gridMath.ts): kademe/miktar borsa adımlarına yuvarlanır, en kötü zarar
@@ -56,7 +56,8 @@ class LiveGridError(Exception):
 
 
 def live_enabled() -> bool:
-    return env_flag(ENV_FLAG)
+    """Canlı grid varsayılan AÇIK; KAISTRADE_GRID_LIVE=0 ile kapatılır (kapalıyken başlatma reddedilir, stop/acil durdur çalışır)."""
+    return env_flag(ENV_FLAG, default=True)
 
 
 def limits_payload() -> dict[str, Any]:
@@ -731,7 +732,7 @@ def build_adapter(app: Any, request: Any) -> BinanceLiveGridAdapter:
 
 def require_enabled() -> None:
     if not live_enabled():
-        raise HTTPException(403, f"Canlı grid kapalı. Sunucuda {ENV_FLAG}=1 ile açılır.")
+        raise HTTPException(403, f"Canlı grid kapalı. Sunucuda {ENV_FLAG} değeri 0 yapılmış; kaldırın veya 1 yapın.")
 
 
 def http_error(exc: LiveGridError) -> HTTPException:
