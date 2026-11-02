@@ -31,7 +31,7 @@ from urllib.parse import urlencode
 from .web_security import env_flag
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from .local_storage import DATA_DIR, migrate_legacy_files
@@ -4450,6 +4450,9 @@ class DemoGridStartRequest(BaseModel):
     stop: float = Field(gt=0)                              # tek yönlü: stop; nötr: alt stop
     stop_upper: float | None = Field(default=None, gt=0)   # yalnız nötr: üst stop
     recycle: bool = True
+    take_profit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)
+    loss_limit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)
+    preview: bool = False          # True: yalnız planı hesapla; emir ve ayar değişikliği yok
     confirmation: str = ""
 
 
@@ -4487,10 +4490,10 @@ def _demo_grid_adapter(request: Request):
 
 
 @router.get("/grid/status")
-async def demo_grid_status(request: Request) -> dict[str, Any]:
+async def demo_grid_status(request: Request, history: int = Query(default=6, ge=1, le=50)) -> dict[str, Any]:
     from . import grid_live
     user_id, owner = _grid_actor(request)
-    payload = grid_live.demo_runner_for(request.app).status_payload(user_id, owner=owner)
+    payload = grid_live.demo_runner_for(request.app).status_payload(user_id, owner=owner, history=history)
     return {"ok": True, **payload, "enabled": grid_live.demo_enabled(), "account": "DEMO"}
 
 
@@ -4517,9 +4520,10 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
     from .grid_engine.filters import GridFilterError, extract_symbol_filters
     if not grid_live.demo_enabled():
         raise HTTPException(403, "Demo grid şu an kapalı.")
-    if body.confirmation.strip().upper() != grid_live.CONFIRM_DEMO_START:
-        raise HTTPException(422, f"Demo grid için {grid_live.CONFIRM_DEMO_START} yazın.")
-    guard_new_entry(getattr(request.app.state, "maintenance", None))
+    if not body.preview:
+        if body.confirmation.strip().upper() != grid_live.CONFIRM_DEMO_START:
+            raise HTTPException(422, f"Demo grid için {grid_live.CONFIRM_DEMO_START} yazın.")
+        guard_new_entry(getattr(request.app.state, "maintenance", None))
     application = request.app
     user_id, owner = _grid_actor(request)
     state = state_for(request)
@@ -4529,7 +4533,8 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
     try:
         async with state["lock"]:
             client = client_for(request)
-            await ensure_one_way_position_mode(client)
+            if not body.preview:
+                await ensure_one_way_position_mode(client)
             snapshot = await account_snapshot(client)
             symbol = await resolve_demo_symbol(client, body.symbol)
             if runner.occupying_row(user_id, symbol, owner=owner) is not None:
@@ -4564,8 +4569,11 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
                 plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
             else:
                 plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
+            grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Demo hesabında grid marjini için yeterli kullanılabilir bakiye yok.")
+            if body.preview:
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO"}
             await set_isolated_margin(client, symbol)
             audit = await apply_verified_leverage(client, symbol, plan["leverage"])
             if not audit.get("leverage_verified"):

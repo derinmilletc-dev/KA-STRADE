@@ -102,7 +102,8 @@ class FakeBinance:
         if (method, path) == ("GET", "/fapi/v1/allAlgoOrders"):
             return [self._algo_row(o) for o in ex.orders.values() if o.symbol == params["symbol"] and o.type == STOP_MARKET]
         if (method, path) == ("GET", "/fapi/v3/positionRisk"):
-            return [{"symbol": params["symbol"], "positionAmt": str(ex.positions.get(params["symbol"], 0.0)), "positionSide": "BOTH"}]
+            return [{"symbol": params["symbol"], "positionAmt": str(ex.positions.get(params["symbol"], 0.0)), "positionSide": "BOTH",
+                     "unRealizedProfit": str(getattr(self, "upnl", 0.0))}]
         raise AssertionError(f"beklenmeyen çağrı {method} {path}")
 
 
@@ -673,3 +674,68 @@ class TestDemoRunner(unittest.TestCase):
             os.environ.pop(grid_live.DEMO_ENV_FLAG, None)
             if old is not None:
                 os.environ[grid_live.DEMO_ENV_FLAG] = old
+
+
+class TestProtection(unittest.TestCase):
+    """Hedef kâr / zarar sınırı: sunucu döngüsünde uygulanır."""
+
+    def test_apply_protection_validates_and_lands_in_spec_meta(self):
+        plan = grid_live.apply_protection(prepare(), 5.0, 8.0)
+        self.assertEqual((plan["take_profit_usdt"], plan["loss_limit_usdt"]), (5.0, 8.0))
+        meta = grid_live.grid_spec_from_plan("GID1", SYM, plan).meta
+        self.assertEqual((meta["take_profit_usdt"], meta["loss_limit_usdt"]), (5.0, 8.0))
+        self.assertNotIn("take_profit_usdt", grid_live.apply_protection(prepare(), None, None))
+        for bad in (0, -1, float("nan")):
+            with self.assertRaises(grid_live.LiveGridError):
+                grid_live.apply_protection(prepare(), bad, None)
+
+    def _runner(self):
+        ex = ExchangeFake()
+        ex.set_price(SYM, 100.0)
+        api = FakeBinance(ex)
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        runner._record = lambda *a, **k: None
+        runner.blocked_check = lambda s: False
+        runner._ensure_loop = lambda *a, **k: None
+        return ex, api, runner
+
+    def _guard(self, plan, stats, upnl=0.0):
+        ex, api, runner = self._runner()
+        api.upnl = upnl
+        state: dict[str, Any] = {"real_trading_locked": False, "emergency": {}, "events": [], "policy": POLICY}
+        original = grid_live.grid_stats
+
+        async def flow():
+            adapter = BinanceLiveGridAdapter(api, asyncio.get_running_loop(), timeout=5)
+            await runner.start(None, state, adapter, plan, SYM, user_id="u1", owner=False)
+            engine = next(iter(runner._engines.values()))
+            grid_live.grid_stats = lambda spec, orders: stats
+            try:
+                result = await asyncio.to_thread(runner._guard_once, engine, state)
+            finally:
+                grid_live.grid_stats = original
+            return result, engine.status, runner.status_payload("u1", owner=False)["grids"][0]
+        return asyncio.run(flow())
+
+    def test_take_profit_pauses_with_reason(self):
+        plan = grid_live.apply_protection(prepare(), 5.0, None)
+        result, status, row = self._guard(plan, {"realized_usdt": 6.0, "open_levels": 0})
+        self.assertEqual((result, status), ("TAKE_PROFIT", PAUSED))
+        self.assertIn("Hedef kâr", row["reason"])
+
+    def test_below_target_does_nothing(self):
+        plan = grid_live.apply_protection(prepare(), 5.0, 8.0)
+        result, status, _ = self._guard(plan, {"realized_usdt": 1.0, "open_levels": 0})
+        self.assertEqual((result, status), ("", RUNNING))
+
+    def test_loss_limit_uses_realized_plus_unrealized_and_emergency_closes(self):
+        plan = grid_live.apply_protection(prepare(), None, 8.0)
+        result, status, row = self._guard(plan, {"realized_usdt": -2.0, "open_levels": 1}, upnl=-7.0)
+        self.assertEqual(result, "LOSS_LIMIT")
+        self.assertEqual(status, EMERGENCY_CLOSED)
+        self.assertIn("Zarar sınırı", row["reason"])
+
+    def test_loss_limit_not_hit_when_total_is_smaller(self):
+        plan = grid_live.apply_protection(prepare(), None, 8.0)
+        result, status, _ = self._guard(plan, {"realized_usdt": -2.0, "open_levels": 1}, upnl=-3.0)
+        self.assertEqual((result, status), ("", RUNNING))

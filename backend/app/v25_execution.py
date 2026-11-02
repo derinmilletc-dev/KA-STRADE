@@ -7848,6 +7848,9 @@ class GridLiveStartRequest(BaseModel):
     stop: float = Field(gt=0)                          # tek yönlü: stop; nötr: alt stop
     stop_upper: float | None = Field(default=None, gt=0)  # yalnız nötr grid: üst stop
     recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (sürekli grid); nötr grid her zaman turludur
+    take_profit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)   # gerçekleşen kâr bu değere ulaşınca yeni giriş durur
+    loss_limit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)    # gerçekleşen+açık zarar bu değere ulaşınca grid kapatılır
+    preview: bool = False          # True: yalnız planı hesapla; emir, marjin/kaldıraç ayarı ve kayıt yok
     confirmation: str = ""
 
 
@@ -7872,11 +7875,11 @@ def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request |
 
 
 @router.get("/grid/live/status")
-async def v25_grid_live_status(request: Request) -> dict[str, Any]:
+async def v25_grid_live_status(request: Request, history: int = Query(default=6, ge=1, le=50)) -> dict[str, Any]:
     user = execution_owner(request)
     from . import grid_live
     user_id, owner = grid_actor(user)
-    return {"ok": True, **grid_live.runner_for(request.app).status_payload(user_id, owner=owner)}
+    return {"ok": True, **grid_live.runner_for(request.app).status_payload(user_id, owner=owner, history=history)}
 
 
 @router.post("/grid/live/start")
@@ -7884,24 +7887,25 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
     """Canlı grid (ilk test: en fazla 2 kademe / 10 USDT). Varsayılan KAPALI; her risk kapısı geçilmeden tek emir gitmez."""
     user = execution_owner(request)
     from . import grid_live, original_v2_live
-    grid_live.require_enabled()
-    if body.confirmation.strip().upper() != grid_live.CONFIRM_START:
-        raise HTTPException(422, f"Canlı grid için {grid_live.CONFIRM_START} yazın.")
     application, state = request.app, request.app.state.v25_execution
     runner = grid_live.runner_for(application)
     user_id, owner = grid_actor(user)
-    original_v2_live.require_fill_unlocked(state)
-    guard_new_entry(getattr(application.state, "maintenance", None))
-    if not state.get("recovery_ready", False):
-        raise HTTPException(503, "Canlı durum kurtarma tamamlanmadı; grid başlatılmadı.")
-    if not is_armed(state):
-        raise HTTPException(423, "24 saatlik canlı emir kilidi kapalı veya süresi doldu.")
-    if live_execution_blocked(state):
-        raise HTTPException(423, "Canlı yürütme kilitli; acil durum veya belirsiz emir uzlaştırması tamamlanmadı.")
-    if state.get("real_trading_locked") is not False:
-        raise HTTPException(423, "Gerçek işlem kilidi kapalı; grid başlatılmadı.")
-    if not readiness_for(application, state, request, None)["ready"]:
-        raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; grid başlatılmadı.")
+    if not body.preview:      # önizleme emir göndermez; kapılar yalnız gerçek başlatmada aranır
+        grid_live.require_enabled()
+        if body.confirmation.strip().upper() != grid_live.CONFIRM_START:
+            raise HTTPException(422, f"Canlı grid için {grid_live.CONFIRM_START} yazın.")
+        original_v2_live.require_fill_unlocked(state)
+        guard_new_entry(getattr(application.state, "maintenance", None))
+        if not state.get("recovery_ready", False):
+            raise HTTPException(503, "Canlı durum kurtarma tamamlanmadı; grid başlatılmadı.")
+        if not is_armed(state):
+            raise HTTPException(423, "24 saatlik canlı emir kilidi kapalı veya süresi doldu.")
+        if live_execution_blocked(state):
+            raise HTTPException(423, "Canlı yürütme kilitli; acil durum veya belirsiz emir uzlaştırması tamamlanmadı.")
+        if state.get("real_trading_locked") is not False:
+            raise HTTPException(423, "Gerçek işlem kilidi kapalı; grid başlatılmadı.")
+        if not readiness_for(application, state, request, None)["ready"]:
+            raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; grid başlatılmadı.")
     symbol = normalize_symbol(body.symbol)
     if runner.occupying_row(user_id, symbol, owner=owner) is not None:
         raise HTTPException(409, f"{symbol} için zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor).")
@@ -7938,8 +7942,11 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
             else:
                 plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
+            grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
+            if body.preview:
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0)}
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":
                 raise HTTPException(409, "Isolated marjin uygulanamadı; grid başlatılmadı.")
             audit = await apply_live_verified_leverage(client, symbol, plan["leverage"], expected_margin_type="ISOLATED")

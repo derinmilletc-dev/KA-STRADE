@@ -296,9 +296,22 @@ def prepare_live_neutral_grid(*, lower: float, upper: float, count: int, margin_
             "profit_per_cycle_usdt": round((gross - fees) / len(rows), 8), "spacing_pct": round(spacing / price * 100, 4)}
 
 
+def apply_protection(plan: dict[str, Any], take_profit_usdt: float | None, loss_limit_usdt: float | None) -> dict[str, Any]:
+    """Grid başına kâr/zarar koruması: hedef kâra ulaşınca yeni giriş durur; zarar sınırına inince grid piyasadan kapatılır.
+    Sunucu döngüsünde uygulanır (tarayıcı kapalıyken de çalışır)."""
+    for name, value in (("take_profit_usdt", take_profit_usdt), ("loss_limit_usdt", loss_limit_usdt)):
+        if value is None:
+            continue
+        number = float(value)
+        if not (number == number and 0 < number <= 1_000_000):
+            raise LiveGridError(f"{'Hedef kâr' if name == 'take_profit_usdt' else 'Zarar sınırı'} sıfırdan büyük bir sayı olmalı.")
+        plan[name] = round(number, 6)
+    return plan
+
+
 def grid_spec_from_plan(grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
     meta = {key: plan[key] for key in ("total_margin_usdt", "total_notional_usdt", "worst_loss_usdt", "leverage", "stop_distance_pct",
-                                       "lower", "upper", "count", "profit_per_cycle_usdt", "spacing_pct") if key in plan}
+                                       "lower", "upper", "count", "profit_per_cycle_usdt", "spacing_pct", "take_profit_usdt", "loss_limit_usdt") if key in plan}
     return GridSpec(grid_id, symbol, plan["direction"],
                     [GridLevelSpec(r["entry"], r["target"], r["qty"], str(r.get("side") or "")) for r in plan["levels"]],
                     plan["stop_price"], recycle=bool(plan.get("recycle", False)), meta=meta,
@@ -327,6 +340,7 @@ class LiveGridRunner:
         self.store = store
         self.account = account            # "LIVE" (gerçek hesap) ya da "DEMO" (Binance Futures Demo; ayrı defter)
         self._engines: dict[str, GridEngine] = {}
+        self._stop_reasons: dict[str, str] = {}
         self._tasks: dict[str, asyncio.Task] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._paused_for_block: set[str] = set()
@@ -560,6 +574,9 @@ class LiveGridRunner:
                         await asyncio.to_thread(engine.pause)
                         self._record(state, "LIVE_GRID_PAUSED", f"{engine.sym} canlı yürütme kilitlendi; grid duraklatıldı, korumalar sürüyor.", grid_id=gid)
                     status = await asyncio.to_thread(self._tick_once, engine)
+                    limit = await self._guard_limits(engine, state)
+                    if limit:
+                        status = engine.status
                 self._errors[gid] = 0
             except Exception as exc:  # ağ/ayrıştırma: sonraki tur tekrar dener; sürekli ise duraklat
                 self._errors[gid] = self._errors.get(gid, 0) + 1
@@ -579,6 +596,39 @@ class LiveGridRunner:
             if status in FINAL_STATUSES or status in NEEDS_USER:
                 return
 
+    async def _guard_limits(self, engine: GridEngine, state: dict[str, Any]) -> str:
+        """Hedef kâr / zarar sınırı. Hata olursa grid'in kendi stopu zaten korur; bu kontrol sessizce sonraki tura kalır."""
+        try:
+            return await asyncio.to_thread(self._guard_once, engine, state)
+        except Exception as exc:
+            logger.warning("LIVE_GRID_LIMIT_CHECK_FAILED grid=%s type=%s", engine.gid, type(exc).__name__)
+            return ""
+
+    def _guard_once(self, engine: GridEngine, state: dict[str, Any]) -> str:
+        meta = engine.spec.meta or {}
+        take_profit = float(meta.get("take_profit_usdt") or 0.0)
+        loss_limit = float(meta.get("loss_limit_usdt") or 0.0)
+        if (take_profit <= 0 and loss_limit <= 0) or engine.status != RUNNING:
+            return ""
+        stats = grid_stats(engine.spec, engine.store.orders(engine.gid))
+        realized = float(stats["realized_usdt"])
+        if take_profit > 0 and realized >= take_profit:
+            reason = f"Hedef kâra ulaşıldı (+{realized:.2f} USDT); yeni giriş durdu"
+            self._stop_reasons[engine.gid] = reason
+            engine.pause()
+            self.store.set_grid(engine.gid, halt_reason=reason)
+            self._record(state, "LIVE_GRID_TAKE_PROFIT", f"{engine.sym} grid {reason}.", grid_id=engine.gid)
+            return "TAKE_PROFIT"
+        if loss_limit > 0:
+            unrealized = float(engine.ex.unrealized(engine.sym)) if stats["open_levels"] and hasattr(engine.ex, "unrealized") else 0.0
+            if realized + unrealized <= -loss_limit:
+                status = engine.emergency_stop()
+                if status == EMERGENCY_CLOSED:
+                    self.store.set_grid(engine.gid, halt_reason=f"Zarar sınırına ulaşıldı ({realized + unrealized:.2f} USDT); pozisyon kapatıldı")
+                self._record(state, "LIVE_GRID_LOSS_LIMIT", f"{engine.sym} grid zarar sınırına ulaştı ({realized + unrealized:.2f} USDT); sonuç: {status}.", grid_id=engine.gid, status=status)
+                return "LOSS_LIMIT"
+        return ""
+
     def _tick_once(self, engine: GridEngine) -> str:
         engine.tick()
         status = engine.status
@@ -588,7 +638,7 @@ class LiveGridRunner:
                 self.store.set_grid(engine.gid, status=BLOCKED)
             status = engine.status
         if status == PAUSED and self._flat_and_entries_done(engine):
-            self.store.set_grid(engine.gid, status=STOPPED, halt_reason="Duraklatıldı; açık pozisyon ve bekleyen giriş yok")
+            self.store.set_grid(engine.gid, status=STOPPED, halt_reason=self._stop_reasons.pop(engine.gid, "") or "Duraklatıldı; açık pozisyon ve bekleyen giriş yok")
             status = STOPPED
         return status
 
