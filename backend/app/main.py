@@ -1411,6 +1411,7 @@ MEMBER_PUBLIC_PATHS = frozenset({
     "/api/v22/auth/registration/exchange",
     "/api/v22/auth/registration/email",
     "/api/public/instagram/feed",
+    "/api/v22/founding/apply", "/api/v22/founding/confirm", "/api/v22/founding/status",
 })
 
 
@@ -1653,6 +1654,9 @@ app.include_router(notification_admin_router)
 app.include_router(binance_manual_router)
 from .free_trial import router as free_trial_router
 app.include_router(free_trial_router)
+from .founding import admin_router as founding_admin_router, public_router as founding_public_router
+app.include_router(founding_public_router)
+app.include_router(founding_admin_router)
 app.include_router(binance_manual_admin_router)
 app.include_router(moderator_events_router)
 app.include_router(campaign_router)

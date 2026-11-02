@@ -1,0 +1,28 @@
+.adminFounding { display: grid; gap: 16px; max-width: 1100px; }
+.adminFounding h2 { margin: 0 0 4px; }
+.adminFounding header p { margin: 0; opacity: .75; }
+.afError, .afInfo { margin: 0; padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+.afError { background: #2a1217; color: #ff9aa6; border: 1px solid #5a2430; }
+.afInfo { background: #0d2a20; color: #7eecb2; border: 1px solid #1f5a41; }
+.afSettings { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; padding: 16px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; }
+.afSettings label { display: grid; gap: 4px; font-size: 12px; opacity: .9; }
+.afSettings input:not([type="checkbox"]), .afActs input { min-height: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(148,163,184,.3); background: transparent; color: inherit; font: inherit; }
+.afToggle { display: flex !important; align-items: center; gap: 8px; }
+.adminFounding button { min-height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid rgba(148,163,184,.35); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.adminFounding button:disabled { opacity: .5; cursor: not-allowed; }
+.adminFounding button.ok { background: #2ee59d; border-color: #2ee59d; color: #04130c; font-weight: 700; }
+.adminFounding button.no { border-color: #7a2c39; color: #ff9aa6; }
+.afChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.afChips button.on { border-color: #2ee59d; color: #2ee59d; }
+.afChips b { margin-left: 4px; }
+.afList { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.afRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; }
+.afWho { display: grid; gap: 2px; min-width: 0; }
+.afWho small { opacity: .7; overflow-wrap: anywhere; }
+.afBadge { margin-left: 6px; padding: 2px 8px; border-radius: 99px; font-size: 11px; background: rgba(148,163,184,.18); }
+.afBadge.approved { background: #0d2a20; color: #7eecb2; }
+.afBadge.waitlist { background: #2a2410; color: #f4b63c; }
+.afBadge.rejected { background: #2a1217; color: #ff9aa6; }
+.afActs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.afActs input { width: 190px; }
+@media (max-width: 760px) { .afRow { grid-template-columns: 1fr; } .afActs { justify-content: flex-start; } .afActs input { width: 100%; } }

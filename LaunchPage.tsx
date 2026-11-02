@@ -8,10 +8,8 @@ import './launch-page.css'
 
 /** Founding 30 – Erken Erişim lansman sayfası. Giriş ekranı dondurulduğunda herkese açık ana sayfadır. */
 const t = (tr: string, en: string) => (currentLang() === 'en' ? en : tr)
-const PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
+const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 const SEATS = 30
-/** Gerçek onaylı koltuk sayısı; boşsa sayaç çubuğu gösterilmez (sahte doluluk yok). */
-const TAKEN = Math.max(0, Math.min(SEATS, Number(import.meta.env.VITE_FOUNDING_TAKEN ?? '')) || 0)
 const EYE_PHOTO = '/founding-eye.webp'
 
 type Form = {email: string; name: string; country: string; experience: string; capital: string; reason: string; feedback: boolean; price: boolean; consent: boolean; website: string}
@@ -34,6 +32,19 @@ export default function LaunchPage() {
   const [message, setMessage] = useState('')
   const formRef = useRef<HTMLElement>(null)
   const [photo, setPhoto] = useState(false)
+  const [live, setLive] = useState<{open: boolean; seats: number; taken: number; price: string | null}>({open: true, seats: SEATS, taken: 0, price: null})
+  const [banner, setBanner] = useState<'confirmed' | 'expired' | 'invalid' | null>(null)
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get('founding')
+    if (value === 'confirmed' || value === 'expired' || value === 'invalid') { setBanner(value); window.history.replaceState(null, '', window.location.pathname) }
+    const controller = new AbortController()
+    fetch(`${API_BASE}/v22/founding/status`, {signal: controller.signal}).then(r => r.ok ? r.json() : null).then(body => {
+      if (body && typeof body.seats === 'number') setLive({open: body.open !== false, seats: body.seats, taken: Number(body.taken) || 0, price: typeof body.price === 'string' ? body.price : null})
+    }).catch(() => { /* durum alınamazsa varsayılanlarla devam */ })
+    return () => controller.abort()
+  }, [])
+  const PRICE = live.price || ENV_PRICE
+  const TAKEN = live.taken
   const [sheet, setSheet] = useState(false)
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches)
   useEffect(() => { const q = window.matchMedia('(max-width: 700px)'); const on = () => setMobile(q.matches); q.addEventListener('change', on); return () => q.removeEventListener('change', on) }, [])
@@ -68,6 +79,7 @@ export default function LaunchPage() {
     </header>
 
     <main>
+      {banner && <p className={`fdBanner ${banner}`} role="status">{banner === 'confirmed' ? t('E-postan onaylandı. Başvurun incelemeye alındı; 72 saat içinde dönüş yapacağız.', 'Email confirmed. Your application is in review; we will reply within 72 hours.') : banner === 'expired' ? t('Onay bağlantısının süresi dolmuş. Formu yeniden gönderirsen yeni bağlantı yollarız.', 'This confirmation link has expired. Submit the form again and we will send a new one.') : t('Onay bağlantısı geçersiz.', 'This confirmation link is invalid.')}</p>}
       <section className="fdHero">
         <div className="fdHeroCopy">
           <span className="fdBadge">EARLY ACCESS</span>
@@ -76,7 +88,7 @@ export default function LaunchPage() {
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
-            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {SEATS} <em>{t('Dolu', 'Taken')}</em></> : <>{SEATS} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / SEATS * 100}%`}}/></i>}</div>
+            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>{t('Dolu', 'Taken')}</em></> : <>{live.seats} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
           </div>
         </div>
         <div className="fdEyeStage" aria-hidden="true">
@@ -127,7 +139,8 @@ export default function LaunchPage() {
             <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
             <input className="fdHoney" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={event => set('website', event.target.value)}/>
             {phase === 'error' && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{message}</p>}
-            <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy'}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
+            <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy' || !live.open}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
+            {!live.open && <p className="fdError" role="status"><TriangleAlert aria-hidden="true"/>{t('Başvurular şu anda kapalı.', 'Applications are currently closed.')}</p>}
             <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t('’nı, geri bildirim vermeyi ve kurucu fiyatının onayda bildirileceğini kabul edersin.', ', agree to give feedback, and understand the founder price is shared on approval.')}</p>
           </form>}
         </section>
