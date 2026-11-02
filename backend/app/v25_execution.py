@@ -5811,6 +5811,10 @@ async def execute_live_order(
             record_live_entry_check(entry_checks, "symbol_occupancy", occupancy_verified and not symbol_occupied, occupancy_detail, symbol=symbol)
             if not occupancy_verified or symbol_occupied:
                 raise LiveExchangeError(occupancy_detail, http_status=409, check_key="symbol_occupancy")
+            if grid_symbol_busy(application, state, request, spec["symbol"]):
+                detail = f"{normalize_symbol(spec['symbol'])} üzerinde çalışan bir grid var; aynı coinde ayrıca işlem açılmaz."
+                record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
+                raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
             if automatic_entry:
                 observation_stage = "FRESH_CREDENTIALS"
                 fresh_credentials = await fresh_auto_submission_credentials(application, state, check_results=entry_checks)
@@ -7838,18 +7842,40 @@ class GridLiveStartRequest(BaseModel):
     direction: Literal["LONG", "SHORT"]
     lower: float = Field(gt=0)
     upper: float = Field(gt=0)
-    count: int = Field(ge=2, le=5)
+    count: int = Field(ge=2, le=20)
     margin_usdt: float = Field(gt=0)
     leverage: int = Field(ge=1, le=125)
     stop: float = Field(gt=0)
+    recycle: bool = False          # True: hedef dolunca aynı kademede yeniden giriş (sürekli grid)
     confirmation: str = ""
+
+
+def grid_actor(user: dict[str, Any]) -> tuple[str, bool]:
+    """Grid sahibi kimliği: yalnız kendi grid'lerini görür/yönetir. Yönetici, sahipsiz eski kayıtları da görür."""
+    return str(user.get("id") or ""), user.get("role") == "OWNER"
+
+
+def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request | None, symbol: str) -> bool:
+    """Bu kullanıcının bu coinde bitmemiş canlı grid'i var mı? Varsa manuel/otomatik emir o coine girmez (aynı pozisyon karışmasın)."""
+    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
+    if runner is None:
+        return False
+    user_id = current_user_id(request) if request is not None else str(
+        ((state.get("live_session_authorization") or {}).get("user_id")) or ((state.get("auto_authorization") or {}).get("user_id")) or "")
+    try:
+        # owner=True: sahipsiz (çoklu grid öncesi) kayıtlar da sayılır; emin olunamayan durumda engellemek güvenli taraftır.
+        return bool(runner.symbol_busy(normalize_symbol(symbol), user_id, owner=True))
+    except Exception:  # defter okunamazsa güvenli taraf: meşgul say
+        logger.warning("GRID_OCCUPANCY_READ_FAILED symbol=%s", symbol)
+        return True
 
 
 @router.get("/grid/live/status")
 async def v25_grid_live_status(request: Request) -> dict[str, Any]:
-    execution_owner(request)
+    user = execution_owner(request)
     from . import grid_live
-    return {"ok": True, **grid_live.runner_for(request.app).status_payload()}
+    user_id, owner = grid_actor(user)
+    return {"ok": True, **grid_live.runner_for(request.app).status_payload(user_id, owner=owner)}
 
 
 @router.post("/grid/live/start")
@@ -7862,6 +7888,7 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
         raise HTTPException(422, f"Canlı grid için {grid_live.CONFIRM_START} yazın.")
     application, state = request.app, request.app.state.v25_execution
     runner = grid_live.runner_for(application)
+    user_id, owner = grid_actor(user)
     original_v2_live.require_fill_unlocked(state)
     guard_new_entry(getattr(application.state, "maintenance", None))
     if not state.get("recovery_ready", False):
@@ -7874,9 +7901,11 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
         raise HTTPException(423, "Gerçek işlem kilidi kapalı; grid başlatılmadı.")
     if not readiness_for(application, state, request, None)["ready"]:
         raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; grid başlatılmadı.")
-    if runner.occupying_row() is not None:
-        raise HTTPException(409, "Zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor).")
     symbol = normalize_symbol(body.symbol)
+    if runner.occupying_row(user_id, symbol, owner=owner) is not None:
+        raise HTTPException(409, f"{symbol} için zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor).")
+    if len(runner.occupying_rows(user_id, owner=owner)) >= grid_live.MAX_GRIDS_PER_USER:
+        raise HTTPException(409, f"Aynı anda en fazla {grid_live.MAX_GRIDS_PER_USER} grid çalışabilir. Önce birini durdur.")
     try:
         async with state["lock"]:
             client = client_for(application, request)
@@ -7893,11 +7922,16 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
             rules = await live_symbol_rules(client, symbol, "LIMIT")
             price = await ticker_price(client, symbol)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
+            reserved = runner.reserved_risk(user_id, owner=owner)
+            position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
             plan = grid_live.prepare_live_grid(
                 direction=body.direction, lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt,
                 leverage=body.leverage, stop=body.stop, price=float(price), rules=rules, policy=state["policy"],
                 realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
-                existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions))
+                existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
+                recycle=body.recycle, reserved_worst_loss=reserved["worst_loss_usdt"],
+                reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":
@@ -7910,7 +7944,7 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
     except (LiveExchangeError, BinanceDemoError) as exc:
         raise safe_exchange_error(exc) from exc
     try:
-        result = await runner.start(application, state, grid_live.build_adapter(application, request), plan, symbol)
+        result = await runner.start(application, state, grid_live.build_adapter(application, request), plan, symbol, user_id=user_id, owner=owner)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     add_event(state, "LIVE_GRID_ACCEPTED", f"{symbol} canlı grid kabul edildi.", actor=user["id"], symbol=symbol)
@@ -7919,37 +7953,45 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
 
 
 @router.post("/grid/live/stop")
-async def v25_grid_live_stop(request: Request) -> dict[str, Any]:
+async def v25_grid_live_stop(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
     """Yeni giriş yok, bekleyen girişler iptal; açık pozisyon stop ve hedefleriyle kalır. Bayrak kapalı olsa da çalışır."""
-    execution_owner(request)
+    user = execution_owner(request)
     from . import grid_live
+    user_id, owner = grid_actor(user)
     try:
-        result = await grid_live.runner_for(request.app).pause(request.app.state.v25_execution, grid_live.build_adapter(request.app, request))
+        result = await grid_live.runner_for(request.app).pause(request.app.state.v25_execution, grid_live.build_adapter(request.app, request),
+                                                               user_id=user_id, grid_id=grid_id, owner=owner)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     return {"ok": True, **result}
 
 
 @router.post("/grid/live/emergency")
-async def v25_grid_live_emergency(request: Request) -> dict[str, Any]:
+async def v25_grid_live_emergency(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
     """Grid ACİL DURDUR: girişleri iptal, piyasadan kapat, borsadan doğrula. Doğrulanamazsa stoplara dokunulmaz. Bayrak kapalı olsa da çalışır."""
-    execution_owner(request)
+    user = execution_owner(request)
     from . import grid_live
+    user_id, owner = grid_actor(user)
     try:
-        result = await grid_live.runner_for(request.app).emergency(request.app, request.app.state.v25_execution, grid_live.build_adapter(request.app, request))
+        result = await grid_live.runner_for(request.app).emergency(request.app, request.app.state.v25_execution,
+                                                                   grid_live.build_adapter(request.app, request), user_id=user_id,
+                                                                   grid_id=grid_id, owner=owner)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     return {"ok": True, **result}
 
 
 @router.post("/grid/live/resume")
-async def v25_grid_live_resume(request: Request) -> dict[str, Any]:
+async def v25_grid_live_resume(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
     """Sunucu yeniden başladıktan sonra grid döngüsünü devam ettirir (borsadaki stoplar zaten yerinde kalır)."""
-    execution_owner(request)
+    user = execution_owner(request)
     from . import grid_live
     grid_live.require_enabled()
+    user_id, owner = grid_actor(user)
     try:
-        result = await grid_live.runner_for(request.app).resume(request.app, request.app.state.v25_execution, grid_live.build_adapter(request.app, request))
+        result = await grid_live.runner_for(request.app).resume(request.app, request.app.state.v25_execution,
+                                                                grid_live.build_adapter(request.app, request), user_id=user_id,
+                                                                grid_id=grid_id, owner=owner)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     return {"ok": True, **result}
