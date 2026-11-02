@@ -103,7 +103,8 @@ class FakeBinance:
             return [self._algo_row(o) for o in ex.orders.values() if o.symbol == params["symbol"] and o.type == STOP_MARKET]
         if (method, path) == ("GET", "/fapi/v3/positionRisk"):
             return [{"symbol": params["symbol"], "positionAmt": str(ex.positions.get(params["symbol"], 0.0)), "positionSide": "BOTH",
-                     "unRealizedProfit": str(getattr(self, "upnl", 0.0))}]
+                     "unRealizedProfit": str(getattr(self, "upnl", 0.0)),
+                     "liquidationPrice": str(getattr(self, "liq", 0.0)), "markPrice": str(getattr(self, "mark", 0.0))}]
         raise AssertionError(f"beklenmeyen çağrı {method} {path}")
 
 
@@ -644,6 +645,139 @@ class TestNeutralPlan(unittest.TestCase):
             self.assertAlmostEqual(ex.positions.get(SYM, 0.0), 0.0)
         asyncio.run(scenario())
 
+
+
+class LiquidationAndLockTests(unittest.TestCase):
+    """Çalışırken likidasyon mesafesi izleme ve iz süren kâr kilidi."""
+
+    def test_distance_long_and_short(self):
+        self.assertAlmostEqual(grid_live.liq_distance_pct(100.0, 90.0, 1.0), 10.0)
+        self.assertAlmostEqual(grid_live.liq_distance_pct(100.0, 108.0, -1.0), 8.0)
+        self.assertEqual(grid_live.liq_distance_pct(100.0, 101.0, 1.0), 0.0)     # likidasyon fiyatı zaten aşılmış
+        self.assertIsNone(grid_live.liq_distance_pct(100.0, 0.0, 1.0))           # pozisyon yok / veri yok
+        self.assertIsNone(grid_live.liq_distance_pct(100.0, 90.0, 0.0))
+
+    def test_levels(self):
+        levels = [grid_live.liq_level(v) for v in (None, 50.0, 12.0, 9.0, 7.0, 5.0, 3.5, 1.0)]
+        self.assertEqual(levels, ["unknown", "ok", "warn", "warn", "pause", "pause", "close", "close"])
+
+    def _run(self, plan, *, position, liq, mark, stats=None, check_twice=False, peak=None):
+        ex = ExchangeFake()
+        ex.set_price(SYM, 100.0)
+        api = FakeBinance(ex)
+        api.liq, api.mark = liq, mark
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        runner._record = lambda *a, **k: None
+        runner.blocked_check = lambda s: False
+        runner._ensure_loop = lambda *a, **k: None
+        state: dict[str, Any] = {"real_trading_locked": False, "emergency": {}, "events": [], "policy": POLICY}
+        original = grid_live.grid_stats
+
+        async def flow():
+            adapter = BinanceLiveGridAdapter(api, asyncio.get_running_loop(), timeout=5)
+            await runner.start(None, state, adapter, plan, SYM, user_id="u1", owner=False)
+            engine = next(iter(runner._engines.values()))
+            engine.ex.risk_snapshot = lambda symbol: {"amount": position, "liq": liq, "mark": mark}   # borsa düz kalır; yalnız risk ölçümü verilir
+            if peak is not None:
+                runner.store.set_grid(engine.gid, peak_pnl=peak)
+            if stats is not None:
+                grid_live.grid_stats = lambda spec, orders: stats
+            try:
+                result = await asyncio.to_thread(runner._guard_once, engine, state)
+                again = await asyncio.to_thread(runner._guard_once, engine, state) if check_twice else None
+            finally:
+                grid_live.grid_stats = original
+            return result, again, engine, runner.status_payload("u1", owner=False)["grids"][0]
+        return asyncio.run(flow())
+
+    def test_far_from_liquidation_does_nothing_and_reports_distance(self):
+        result, _, engine, row = self._run(prepare(), position=0.01, liq=70.0, mark=100.0)
+        self.assertEqual((result, engine.status), ("", RUNNING))
+        self.assertEqual(row["liq"]["level"], "ok")
+        self.assertAlmostEqual(row["liq"]["distance_pct"], 30.0)
+
+    def test_warn_zone_only_alerts_once(self):
+        result, again, engine, row = self._run(prepare(), position=0.01, liq=90.0, mark=100.0, check_twice=True)
+        self.assertEqual((result, engine.status), ("", RUNNING))
+        self.assertEqual(row["liq"]["level"], "warn")
+        warnings = [a for a in row["alerts"] if "Likidasyona" in a["text"]]
+        self.assertEqual(len(warnings), 1)
+
+    def test_pause_zone_stops_new_entries_keeps_position_protection(self):
+        result, _, engine, row = self._run(prepare(), position=0.01, liq=94.0, mark=100.0)
+        self.assertEqual((result, engine.status), ("LIQ_PAUSE", PAUSED))
+        self.assertIn("Likidasyona yaklaşıldı", row["reason"])
+
+    def test_close_zone_closes_position(self):
+        result, _, engine, row = self._run(prepare(), position=0.01, liq=97.0, mark=100.0)
+        self.assertEqual(result, "LIQ_CLOSE")
+        self.assertEqual(engine.status, EMERGENCY_CLOSED)
+        self.assertIn("pozisyon kapatıldı", row["reason"])
+
+    def test_short_position_uses_upper_liquidation(self):
+        result, _, engine, _ = self._run(prepare(), position=-0.01, liq=103.0, mark=100.0)
+        self.assertEqual((result, engine.status), ("LIQ_CLOSE", EMERGENCY_CLOSED))
+
+    def test_no_position_no_action(self):
+        result, _, engine, row = self._run(prepare(), position=0.0, liq=0.0, mark=100.0)
+        self.assertEqual((result, engine.status), ("", RUNNING))
+        self.assertEqual(row["liq"]["level"], "unknown")
+
+    def test_check_is_throttled(self):
+        ex = ExchangeFake()
+        calls = []
+        class Spy:
+            def __init__(self, inner): self.inner = inner
+            def __getattr__(self, name): return getattr(self.inner, name)
+            def risk_snapshot(self, symbol):
+                calls.append(symbol)
+                return {"amount": 0.0, "liq": 0.0, "mark": 100.0}
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        spy = Spy(ex)
+        class Eng:
+            gid, sym, status = "g1", SYM, RUNNING
+        Eng.ex = spy
+        runner._check_liquidation(Eng, {})
+        runner._check_liquidation(Eng, {})
+        self.assertEqual(len(calls), 1)
+
+    def test_profit_lock_validation_and_meta(self):
+        plan = grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=10.0, close_on_target=True)
+        meta = grid_live.grid_spec_from_plan("gx", SYM, plan).meta
+        self.assertEqual((meta["profit_lock_usdt"], meta["lock_keep_pct"], meta["close_on_target"]), (10.0, 70.0, True))
+        for bad in (0, -1, float("nan"), 2_000_000):
+            with self.assertRaises(grid_live.LiveGridError):
+                grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=bad)
+        self.assertNotIn("profit_lock_usdt", grid_live.apply_protection(prepare(), None, None))
+
+    def test_profit_lock_tracks_peak_and_does_not_trigger_early(self):
+        plan = grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=10.0)
+        result, _, engine, row = self._run(plan, position=0.0, liq=0.0, mark=100.0, stats={"realized_usdt": 12.0, "open_levels": 0})
+        self.assertEqual((result, engine.status), ("", RUNNING))
+        self.assertAlmostEqual(row["peak_pnl"], 12.0)
+
+    def test_profit_lock_closes_when_profit_falls_below_keep(self):
+        plan = grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=10.0)
+        result, _, engine, row = self._run(plan, position=0.0, liq=0.0, mark=100.0, peak=20.0, stats={"realized_usdt": 13.0, "open_levels": 0})
+        self.assertEqual(result, "PROFIT_LOCK")
+        self.assertEqual(engine.status, EMERGENCY_CLOSED)
+        self.assertIn("Kâr kilidi", row["reason"])
+
+    def test_profit_lock_holds_above_keep(self):
+        plan = grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=10.0)
+        result, _, engine, _ = self._run(plan, position=0.0, liq=0.0, mark=100.0, peak=20.0, stats={"realized_usdt": 15.0, "open_levels": 0})
+        self.assertEqual((result, engine.status), ("", RUNNING))
+
+    def test_profit_lock_not_active_before_start_level(self):
+        plan = grid_live.apply_protection(prepare(), None, None, profit_lock_usdt=10.0)
+        result, _, engine, _ = self._run(plan, position=0.0, liq=0.0, mark=100.0, peak=6.0, stats={"realized_usdt": 1.0, "open_levels": 0})
+        self.assertEqual((result, engine.status), ("", RUNNING))
+
+    def test_take_profit_closes_position_when_requested(self):
+        plan = grid_live.apply_protection(prepare(), 5.0, None, close_on_target=True)
+        result, _, engine, row = self._run(plan, position=0.0, liq=0.0, mark=100.0, stats={"realized_usdt": 6.0, "open_levels": 0})
+        self.assertEqual((result, engine.status), ("TAKE_PROFIT", EMERGENCY_CLOSED))
+        self.assertIn("pozisyon kapatıldı", row["reason"])
 
 if __name__ == "__main__":
     unittest.main()

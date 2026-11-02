@@ -28,6 +28,7 @@ MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("account", "TEXT NOT NULL DEFAULT 'LIVE'"),
         ("created_at", "REAL NOT NULL DEFAULT 0"),
         ("updated_at", "REAL NOT NULL DEFAULT 0"),
+        ("peak_pnl", "REAL NOT NULL DEFAULT 0"),     # iz süren kâr kilidi: görülen en yüksek gerçekleşen kâr
     ],
     "orders": [
         ("cycle", "INTEGER NOT NULL DEFAULT 0"),      # kademenin kaçıncı turu (giriş + hedefleri aynı turu taşır)

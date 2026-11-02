@@ -4785,6 +4785,8 @@ class DemoGridStartRequest(BaseModel):
     recycle: bool = True
     take_profit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)
     loss_limit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)
+    profit_lock_usdt: float | None = Field(default=None, gt=0, le=1_000_000)     # kâr bu değere ulaşınca kilit başlar; zirvenin %70'i altına düşerse grid kapatılır
+    close_on_target: bool = False                                                  # True: hedef kâra ulaşınca açık pozisyon da kontrollü kapatılır
     preview: bool = False          # True: yalnız planı hesapla; emir ve ayar değişikliği yok
     confirmation: str = ""
 
@@ -4902,7 +4904,7 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
                 plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
             else:
                 plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
-            grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt)
+            grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt, profit_lock_usdt=body.profit_lock_usdt, close_on_target=body.close_on_target)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Demo hesabında grid marjini için yeterli kullanılabilir bakiye yok.")
             if body.preview:
