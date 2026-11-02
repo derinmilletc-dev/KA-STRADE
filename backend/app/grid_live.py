@@ -43,6 +43,9 @@ TICK_SECONDS = 5.0
 MAX_LOOP_ERRORS = 6
 FINAL_STATUSES = {STOPPED, COMPLETED, EMERGENCY_CLOSED}
 MAX_GRIDS_PER_USER = 5                         # kullanıcı başına aynı anda çalışan grid (coin başına bir)
+DEMO_ENV_FLAG = "KAISTRADE_GRID_DEMO"
+DEMO_MAX_EXPOSURE_USDT = 2000.0
+CONFIRM_DEMO_START = "DEMO GRID BAŞLAT"
 NEEDS_USER = {BLOCKED, INTERVENTION_REQUIRED}
 
 
@@ -320,8 +323,9 @@ class LiveGridRunner:
     """Kullanıcı başına birden fazla canlı grid (coin başına bir). Her grid kendi döngüsünde koşar; motor çağrıları
     ayrı iş parçacığında yapılır ve borsa çağrıları olay döngüsüne köprülenir. Bir kullanıcı yalnız kendi grid'lerini görür/yönetir."""
 
-    def __init__(self, store: GridStore) -> None:
+    def __init__(self, store: GridStore, *, account: str = "LIVE") -> None:
         self.store = store
+        self.account = account            # "LIVE" (gerçek hesap) ya da "DEMO" (Binance Futures Demo; ayrı defter)
         self._engines: dict[str, GridEngine] = {}
         self._tasks: dict[str, asyncio.Task] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -453,14 +457,17 @@ class LiveGridRunner:
     def build_engine(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any]) -> GridEngine:
         return self._new_engine(grid_spec_from_row(row), adapter, state, user_id=str(row["user_id"] or ""))
 
-    @staticmethod
-    def blocked_check(state: dict[str, Any]) -> bool:
-        """Canlı yürütme kilitli mi (acil durum, belirsiz emir, hız sınırı)? Testlerde değiştirilebilir."""
+    def blocked_check(self, state: dict[str, Any]) -> bool:
+        """Canlı yürütme kilitli mi (acil durum, belirsiz emir, hız sınırı)? Demo'da canlı kilitleri yoktur. Testlerde değiştirilebilir."""
+        if self.account == "DEMO":
+            return False
         from . import v25_execution as v25
         return bool(v25.live_execution_blocked(state))
 
     def _new_engine(self, spec: GridSpec, adapter: BinanceLiveGridAdapter, state: dict[str, Any], *, user_id: str = "") -> GridEngine:
         def risk_gate() -> tuple[bool, str]:
+            if self.account == "DEMO":
+                return True, ""
             if self.blocked_check(state):
                 return False, "canlı yürütme kilitli"
             if state.get("real_trading_locked") is not False:
@@ -468,15 +475,20 @@ class LiveGridRunner:
             return True, ""
 
         engine_cls = NeutralGridEngine if spec.side == NEUTRAL else GridEngine
-        return engine_cls(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep, user_id=user_id)
+        return engine_cls(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep, user_id=user_id, account=self.account)
 
     def _record(self, state: dict[str, Any], kind: str, message: str, **extra: Any) -> None:
-        from . import v25_execution as v25
         try:
+            if self.account == "DEMO":
+                from . import binance_demo as demo
+                demo.add_event(state, kind.replace("LIVE_GRID", "DEMO_GRID"), message)
+                demo.persist_runtime(state)
+                return
+            from . import v25_execution as v25
             v25.add_event(state, kind, message, **extra)
             v25.persist_state(state)
         except Exception:  # günlük yazılamasa da grid korunmalı
-            logger.warning("LIVE_GRID_EVENT_FAILED kind=%s", kind)
+            logger.warning("GRID_EVENT_FAILED account=%s kind=%s", self.account, kind)
 
     # ---- yaşam döngüsü
     async def start(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, plan: dict[str, Any], symbol: str, *,
@@ -625,6 +637,37 @@ def runner_for(app: Any) -> LiveGridRunner:
     runner = LiveGridRunner(GridStore(str(DATA_DIR / "grid_live.sqlite3"), check_same_thread=False))
     app.state.live_grid_runner = runner
     return runner
+
+
+def demo_runner_for(app: Any) -> LiveGridRunner:
+    """Demo (Binance Futures Demo) grid'leri: ayrı defter, aynı motor ve kurallar."""
+    existing = getattr(app.state, "demo_grid_runner", None)
+    if existing is not None:
+        return existing
+    from .local_storage import DATA_DIR
+    runner = LiveGridRunner(GridStore(str(DATA_DIR / "grid_demo.sqlite3"), check_same_thread=False), account="DEMO")
+    app.state.demo_grid_runner = runner
+    return runner
+
+
+def demo_enabled() -> bool:
+    """Demo grid varsayılan AÇIK (gerçek para yok); KAISTRADE_GRID_DEMO=0 ile kapatılabilir."""
+    import os
+    return str(os.getenv(DEMO_ENV_FLAG, "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def demo_policy(settings: dict[str, Any] | None) -> dict[str, Any]:
+    """Demo grid risk politikası: kullanıcının Demo risk ayarlarındaki zarar sınırları; grid'e özgü üst sınırlar sabit."""
+    settings = settings if isinstance(settings, dict) else {}
+    def number(key: str, default: float) -> float:
+        try:
+            value = float(settings.get(key, default))
+        except (TypeError, ValueError):
+            return default
+        return value if value > 0 else default
+    return {"max_leverage": LIVE_MAX_LEVERAGE, "max_loss_per_trade": number("max_loss_per_trade", 5.0),
+            "daily_loss_limit": number("daily_loss_limit", 30.0), "max_total_exposure_usdt": DEMO_MAX_EXPOSURE_USDT,
+            "max_positions": max(int(number("max_positions", 3)), MAX_GRIDS_PER_USER + 1), "max_stop_distance_pct": 15.0}
 
 
 # ---------------------------------------------------------------- uç noktaların iş mantığı (v25_execution.py çağırır)

@@ -4046,6 +4046,8 @@ async def execute_demo_order(
             stale_reason = stale_protection_entry_reason(snapshot, state, symbol)
             if stale_reason:
                 raise BinanceDemoError(stale_reason, http_status=409)
+            if demo_grid_busy(application, state, symbol):
+                raise BinanceDemoError(f"Entry blocked: {symbol} üzerinde çalışan bir Demo grid var.", http_status=409)
             confirmed_slot_conflict = find_conflicting_confirmed_plan(
                 state.get("plans"),
                 {"symbol": symbol},
@@ -4434,3 +4436,181 @@ async def demo_emergency(request: Request, body: EmergencyRequest) -> dict[str, 
             }
         except BinanceDemoError as exc:
             raise safe_exchange_error(exc) from exc
+
+
+# ---------------------------------------------------------------- Demo grid (aynı motor; ayrı defter, gerçek para yok)
+class DemoGridStartRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=20)
+    direction: Literal["LONG", "SHORT", "NEUTRAL"]
+    lower: float = Field(gt=0)
+    upper: float = Field(gt=0)
+    count: int = Field(ge=2, le=20)
+    margin_usdt: float = Field(gt=0)
+    leverage: int = Field(ge=1, le=125)
+    stop: float = Field(gt=0)                              # tek yönlü: stop; nötr: alt stop
+    stop_upper: float | None = Field(default=None, gt=0)   # yalnız nötr: üst stop
+    recycle: bool = True
+    confirmation: str = ""
+
+
+def _grid_actor(request: Request) -> tuple[str, bool]:
+    request_state = getattr(request, "state", None)
+    user = getattr(request_state, "member", None) or getattr(request_state, "user", None) or {}
+    return str(user.get("id") or "").strip(), user.get("role") == "OWNER" or not str(user.get("id") or "").strip()
+
+
+def demo_grid_busy(application: Any, state: dict[str, Any], symbol: str) -> bool:
+    """Bu kullanıcının bu coinde bitmemiş Demo grid'i var mı? Varsa manuel/otomatik Demo emri o coine girmez."""
+    runner = getattr(getattr(application, "state", None), "demo_grid_runner", None)
+    if runner is None:
+        return False
+    user_id = str(state.get("_user_id") or "").strip()
+    try:
+        return bool(runner.symbol_busy(normalize_symbol(symbol), user_id, owner=not user_id))
+    except Exception:
+        logger.warning("DEMO_GRID_OCCUPANCY_READ_FAILED symbol=%s", symbol)
+        return True
+
+
+def _demo_grid_error(exc: Exception) -> HTTPException:
+    from . import grid_live
+    if isinstance(exc, grid_live.LiveGridError):
+        return grid_live.http_error(exc)
+    if isinstance(exc, BinanceDemoError):
+        return safe_exchange_error(exc)
+    raise exc
+
+
+def _demo_grid_adapter(request: Request):
+    from .grid_engine.live_adapter import BinanceLiveGridAdapter
+    return BinanceLiveGridAdapter(client_for(request), asyncio.get_running_loop())
+
+
+@router.get("/grid/status")
+async def demo_grid_status(request: Request) -> dict[str, Any]:
+    from . import grid_live
+    user_id, owner = _grid_actor(request)
+    payload = grid_live.demo_runner_for(request.app).status_payload(user_id, owner=owner)
+    return {"ok": True, **payload, "enabled": grid_live.demo_enabled(), "account": "DEMO"}
+
+
+@router.get("/grid/filters")
+async def demo_grid_filters(request: Request, symbol: str) -> dict[str, Any]:
+    """Demo borsasının fiyat/miktar kuralları ve anlık fiyat (yalnız herkese açık veri; emir yok)."""
+    from .grid_engine.filters import GridFilterError, extract_symbol_filters
+    client = BinanceDemoClient(request.app.state.http, "", "", public_only=True)
+    try:
+        resolved = await resolve_demo_symbol(client, symbol)
+        rules = extract_symbol_filters(await client.public_get("/fapi/v1/exchangeInfo"), resolved)
+        ticker = await client.public_get("/fapi/v1/ticker/price", {"symbol": resolved})
+    except GridFilterError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except BinanceDemoError as exc:
+        raise safe_exchange_error(exc) from exc
+    return {"ok": True, "created_order": False, "source": "demo_exchangeInfo", "price": float((ticker or {}).get("price") or 0), **rules}
+
+
+@router.post("/grid/start")
+async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[str, Any]:
+    """Demo grid: canlıyla aynı hesap ve kurallar (risk, ücret, en düşük emir, likidasyon). Demo'da ARM gerekmez."""
+    from . import grid_live
+    from .grid_engine.filters import GridFilterError, extract_symbol_filters
+    if not grid_live.demo_enabled():
+        raise HTTPException(403, "Demo grid şu an kapalı.")
+    if body.confirmation.strip().upper() != grid_live.CONFIRM_DEMO_START:
+        raise HTTPException(422, f"Demo grid için {grid_live.CONFIRM_DEMO_START} yazın.")
+    guard_new_entry(getattr(request.app.state, "maintenance", None))
+    application = request.app
+    user_id, owner = _grid_actor(request)
+    state = state_for(request)
+    runner = grid_live.demo_runner_for(application)
+    if len(runner.occupying_rows(user_id, owner=owner)) >= grid_live.MAX_GRIDS_PER_USER:
+        raise HTTPException(409, f"Aynı anda en fazla {grid_live.MAX_GRIDS_PER_USER} grid çalışabilir. Önce birini durdur.")
+    try:
+        async with state["lock"]:
+            client = client_for(request)
+            await ensure_one_way_position_mode(client)
+            snapshot = await account_snapshot(client)
+            symbol = await resolve_demo_symbol(client, body.symbol)
+            if runner.occupying_row(user_id, symbol, owner=owner) is not None:
+                raise HTTPException(409, f"{symbol} için zaten bir Demo grid var.")
+            reason = stale_protection_entry_reason(snapshot, state, symbol)
+            if reason or any(_symbol_matches(item.get("symbol"), symbol) for item in snapshot.get("open_algo_orders", [])):
+                raise HTTPException(409, f"{symbol} üzerinde açık pozisyon veya emir var; aynı coinde grid açılmaz.")
+            try:
+                raw = extract_symbol_filters(await client.public_get("/fapi/v1/exchangeInfo"), symbol)
+            except GridFilterError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            rules = {"tick": raw["tickSize"], "step": raw["stepSize"], "min_qty": raw["minQty"], "min_notional": raw["minNotional"]}
+            ticker = await client.public_get("/fapi/v1/ticker/price", {"symbol": symbol})
+            price = float((ticker or {}).get("price") or 0)
+            if price <= 0:
+                raise HTTPException(503, "Demo fiyatı okunamadı; grid başlatılmadı.")
+            from .v21_demo import state_for as v21_state_for
+            v21_state = v21_state_for(request)
+            policy = grid_live.demo_policy(v21_state.get("settings"))
+            positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
+            reserved = runner.reserved_risk(user_id, owner=owner)
+            position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
+            common = dict(
+                lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt, leverage=body.leverage,
+                price=price, rules=rules, policy=policy, realized_pnl_today=verified_realized_pnl(v21_state),
+                existing_exposure=sum(float(p.get("notional") or 0) for p in positions), open_positions=len(positions),
+                reserved_worst_loss=reserved["worst_loss_usdt"], reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
+            if body.direction == "NEUTRAL":
+                if body.stop_upper is None:
+                    raise grid_live.LiveGridError("Nötr grid için üst stop gerekli.")
+                plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
+            else:
+                plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
+            if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
+                raise HTTPException(409, "Demo hesabında grid marjini için yeterli kullanılabilir bakiye yok.")
+            await set_isolated_margin(client, symbol)
+            audit = await apply_verified_leverage(client, symbol, plan["leverage"])
+            if not audit.get("leverage_verified"):
+                raise HTTPException(409, "Demo kaldıracı doğrulanamadı; grid başlatılmadı.")
+        result = await runner.start(application, state, _demo_grid_adapter(request), plan, symbol, user_id=user_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    add_event(state, "DEMO_GRID_ACCEPTED", f"{symbol} Demo grid kabul edildi.")
+    persist_runtime(state)
+    return {"ok": True, "plan": plan, **result, "account": "DEMO"}
+
+
+@router.post("/grid/stop")
+async def demo_grid_stop(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import grid_live
+    user_id, owner = _grid_actor(request)
+    try:
+        result = await grid_live.demo_runner_for(request.app).pause(state_for(request), _demo_grid_adapter(request), user_id=user_id,
+                                                                    grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
+
+
+@router.post("/grid/emergency")
+async def demo_grid_emergency(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import grid_live
+    user_id, owner = _grid_actor(request)
+    try:
+        result = await grid_live.demo_runner_for(request.app).emergency(request.app, state_for(request), _demo_grid_adapter(request),
+                                                                        user_id=user_id, grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
+
+
+@router.post("/grid/resume")
+async def demo_grid_resume(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import grid_live
+    if not grid_live.demo_enabled():
+        raise HTTPException(403, "Demo grid şu an kapalı.")
+    user_id, owner = _grid_actor(request)
+    try:
+        result = await grid_live.demo_runner_for(request.app).resume(request.app, state_for(request), _demo_grid_adapter(request),
+                                                                     user_id=user_id, grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
