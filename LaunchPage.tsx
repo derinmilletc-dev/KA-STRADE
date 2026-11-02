@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState, type FormEvent} from 'react'
-import {ArrowRight, BarChart3, Check, TriangleAlert, Eye, Gauge, Lock, ShieldCheck, Sparkles, Users} from 'lucide-react'
+import {ArrowRight, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, Zap} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang, setLang} from './i18n'
+import KaisEye from './KaisEye'
 import LanguagePicker from './LanguagePicker'
 import './launch-page.css'
 
@@ -47,89 +48,93 @@ export default function LaunchPage() {
   return <div className="fdRoot" data-i18n-skip>
     <header className="fdTop">
       <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo.png" alt="KaisTrade"/></a>
+      <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>
       <div className="fdTopRight"><LanguagePicker value={currentLang()} onChange={changeLang}/><button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button></div>
     </header>
 
     <main>
       <section className="fdHero">
         <div className="fdHeroCopy">
-          <span className="fdBadge"><Sparkles aria-hidden="true"/>{t('FOUNDING 30 · ERKEN ERİŞİM', 'FOUNDING 30 · EARLY ACCESS')}</span>
-          <h1>{t('Vadeli işlemde profesyonel kontrol.', 'Professional control for futures trading.')}<span>{t('İlk 30 kurucudan biri ol.', 'Be one of the first 30 founders.')}</span></h1>
-          <p>{t('Analiz, risk kilidi ve otomatik grid işlem tek çalışma alanında. Lansmandan önce yalnızca 30 kişiyi elle seçiyoruz.', 'Analysis, risk locks and automated grid trading in one workspace. Before launch we hand-pick only 30 people.')}</p>
-          <div className="fdActions"><button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button><a className="fdGhost" href="#nasil">{t('Nasıl çalışır?', 'How it works')}</a></div>
-          <ul className="fdFacts"><li><Check aria-hidden="true"/>{t('Başvuru ücretsiz, ödeme yok', 'Free to apply, no payment')}</li><li><Check aria-hidden="true"/>{t('Her başvuru elle incelenir', 'Every application is reviewed by hand')}</li><li><Check aria-hidden="true"/>{t('12 ay sabit fiyat', '12-month locked price')}</li></ul>
-        </div>
-        <aside className="fdSeatCard" aria-label={t('Kurucu koltukları', 'Founder seats')}>
-          <header><b>{t('Kurucu koltukları', 'Founder seats')}</b><span>{SEATS}</span></header>
-          <div className="fdSeats" aria-hidden="true">{Array.from({length: SEATS}, (_, index) => <i key={index}/>)}</div>
-          <p>{t('Koltuklar elle onaylanır. Kontenjan dolunca başvurular sıralı bekleme listesine alınır.', 'Seats are approved by hand. When full, applications join an ordered waitlist.')}</p>
-          <dl>
-            <div><dt>{t('Karar süresi', 'Decision time')}</dt><dd>{t('72 saat içinde', 'Within 72 hours')}</dd></div>
-            <div><dt>{t('Lansmanda', 'At launch')}</dt><dd>{t('48 saat içinde aktive et', 'Activate within 48 hours')}</dd></div>
-          </dl>
-        </aside>
-      </section>
-
-      <section className="fdTrust" aria-label={t('Güven', 'Trust')}>
-        <div><Lock aria-hidden="true"/><b>{t('Paran sende kalır', 'Your funds stay with you')}</b><span>{t('Para çekme yetkisi olmayan API anahtarıyla çalışırız.', 'We work with API keys that have no withdrawal permission.')}</span></div>
-        <div><ShieldCheck aria-hidden="true"/><b>{t('Risk kilitleri açık', 'Risk locks included')}</b><span>{t('Zaman sınırlı izin, 2FA ve acil durdurma.', 'Time-limited permission, 2FA and emergency stop.')}</span></div>
-        <div><Eye aria-hidden="true"/><b>{t('Dürüst anlatım', 'Honest messaging')}</b><span>{t('Kâr garantisi vermeyiz; riskleri açıkça yazarız.', 'We never promise profit and state risks plainly.')}</span></div>
-      </section>
-
-      <section className="fdSection">
-        <h2>{t('Ne alıyorsun?', 'What do you get?')}</h2>
-        <div className="fdCards">
-          <article><BarChart3 aria-hidden="true"/><h3>{t('Analiz Stüdyosu', 'Analysis Studio')}</h3><p>{t('Grafik, seviyeler ve hızlı emir hazırlığı tek ekranda.', 'Charts, levels and quick order preparation on one screen.')}</p></article>
-          <article><Gauge aria-hidden="true"/><h3>{t('Grid + koruma', 'Grid + protection')}</h3><p>{t('Kâr kilidi, likidasyon izleme ve günlük zarar limiti.', 'Profit lock, liquidation monitoring and a daily loss limit.')}</p></article>
-          <article><ShieldCheck aria-hidden="true"/><h3>{t('Risk izni', 'Risk permission')}</h3><p>{t('Gerçek işlem için süreli izin; bitmeden uyarı alırsın.', 'Time-limited permission for live trading, with warnings before it ends.')}</p></article>
-          <article><Users aria-hidden="true"/><h3>{t('Kurucu ayrıcalığı', 'Founder perks')}</h3><p>{t('Doğrudan kanal, yol haritasına söz ve kurucu rozeti.', 'A direct channel, a say in the roadmap and a founder badge.')}</p></article>
-        </div>
-      </section>
-
-      <section className="fdSection" id="nasil">
-        <h2>{t('Nasıl çalışır?', 'How it works')}</h2>
-        <ol className="fdSteps">
-          <li><b>1</b><h3>{t('Başvur', 'Apply')}</h3><p>{t('Kısa formu doldur. Ücret ve ön ödeme yok.', 'Fill in the short form. No fee, no deposit.')}</p></li>
-          <li><b>2</b><h3>{t('İnceleme', 'Review')}</h3><p>{t('72 saat içinde elle değerlendirip dönüş yaparız.', 'We review by hand and reply within 72 hours.')}</p></li>
-          <li><b>3</b><h3>{t('Teyit', 'Confirm')}</h3><p>{t('Onaylanırsan lansmandan önce koltuğunu teyit edersin.', 'If approved, you confirm your seat before launch.')}</p></li>
-          <li><b>4</b><h3>{t('Aktive et', 'Activate')}</h3><p>{t('Lansman günü 48 saat içinde ödeme yapınca üyeliğin açılır.', 'On launch day, pay within 48 hours and your membership opens.')}</p></li>
-        </ol>
-      </section>
-
-      <section className="fdSection fdPrice">
-        <div><span className="fdEyebrow">{t('KURUCU FİYATI', 'FOUNDER PRICE')}</span><strong>{PRICE || t('Yakında', 'Soon')}</strong><p>{PRICE ? t('12 ay boyunca sabit. Aboneliğin kesintisiz sürdüğü sürece geçerli.', 'Locked for 12 months while your subscription stays active.') : t('Kurucu fiyatı başvurudan önce bu sayfada açıklanır.', 'The founder price is published on this page before you apply.')}</p></div>
-        <ul><li><Check aria-hidden="true"/>{t('12 ay fiyat garantisi', '12-month price guarantee')}</li><li><Check aria-hidden="true"/>{t('İstediğin zaman iptal', 'Cancel any time')}</li><li><Check aria-hidden="true"/>{t('Ömür boyu vaadi yok, net şartlar var', 'No lifetime promises, just clear terms')}</li></ul>
-      </section>
-
-      <section className="fdSection fdFormWrap" ref={formRef} id="basvuru">
-        <h2>{t('Başvuru', 'Application')}</h2>
-        {phase === 'done' ? <div className="fdDone" role="status"><Check aria-hidden="true"/><h3>{t('Başvurun alındı', 'Application received')}</h3><p>{t('E-postanı kontrol et ve başvurunu onayla. 72 saat içinde sana dönüş yapacağım.', 'Check your email and confirm your application. I will get back to you within 72 hours.')}</p></div>
-        : <form className="fdForm" onSubmit={submit} noValidate>
-          <div className="fdGrid">
-            <label>{t('E-posta', 'Email')}<input type="email" autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
-            <label>{t('Ad soyad', 'Full name')}<input autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
-            <label>{t('Ülke', 'Country')}<input autoComplete="country-name" value={form.country} onChange={event => set('country', event.target.value)} required/></label>
-            <label>{t('Binance Futures deneyimin', 'Binance Futures experience')}<select value={form.experience} onChange={event => set('experience', event.target.value)} required><option value="">{t('Seç', 'Select')}</option>{EXPERIENCE().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label>{t('Yaklaşık sermaye aralığı', 'Approximate capital range')}<select value={form.capital} onChange={event => set('capital', event.target.value)} required><option value="">{t('Seç', 'Select')}</option>{CAPITAL().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label className="fdWide">{t('Neden KaisTrade?', 'Why KaisTrade?')}<textarea rows={3} maxLength={600} value={form.reason} onChange={event => set('reason', event.target.value)} required/></label>
+          <span className="fdBadge">EARLY ACCESS</span>
+          <h1>Founding <b>30</b></h1>
+          <h2>{t('İlk 30 kurucu üyeden biri ol.', 'Be one of the first 30 founding members.')}</h2>
+          <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
+          <div className="fdActions">
+            <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
+            <div className="fdQuota"><small>{t('Kontenjan', 'Quota')}</small><strong>{SEATS} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></strong></div>
           </div>
-          <input className="fdHoney" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={event => set('website', event.target.value)}/>
-          <label className="fdCheck"><input type="checkbox" checked={form.feedback} onChange={event => set('feedback', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{t('Geri bildirim veririm', 'I will give feedback')}</b><small>{t('Kurucular ürünü birlikte şekillendirir.', 'Founders help shape the product.')}</small></div></label>
-          <label className="fdCheck"><input type="checkbox" checked={form.price} onChange={event => set('price', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{PRICE ? t(`Kurucu fiyatını (${PRICE}) kabul ediyorum`, `I accept the founder price (${PRICE})`) : t('Kurucu fiyatının onayda bildirileceğini anlıyorum', 'I understand the founder price is shared on approval')}</b><small>{t('Onaylanırsam lansmanda 48 saat içinde ödeme yapmam gerektiğini biliyorum.', 'If approved I must pay within 48 hours at launch.')}</small></div></label>
-          <label className="fdCheck"><input type="checkbox" checked={form.consent} onChange={event => set('consent', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{t('Gizlilik Politikası’nı okudum', 'I have read the Privacy Policy')}</b><small>{t('Verilerim yalnızca bu başvuru için kullanılır.', 'My data is used only for this application.')} <a href="/privacy">{t('Oku', 'Read')}</a></small></div></label>
-          {phase === 'error' && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{message}</p>}
-          <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy'}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
-          <p className="fdFine">{t('Başvuru ücretsizdir. Hiçbir kart bilgisi istenmez.', 'Applying is free. No card details are requested.')}</p>
-        </form>}
+        </div>
+        <div className="fdEyeStage" aria-hidden="true">
+          <i className="fdBar fdBar1"/><i className="fdBar fdBar2"/><i className="fdBar fdBar3"/><i className="fdBar fdBar4"/><i className="fdBar fdBar5"/>
+          <span className="fdHalo"/><span className="fdRing"/>
+          <div className="fdEye"><KaisEye size={300} state="idle" aria-label="KaisTrade"/></div>
+        </div>
       </section>
 
-      <section className="fdSection fdFaq">
-        <h2>{t('Sık sorulanlar', 'FAQ')}</h2>
-        <details><summary>{t('Şimdi ödeme yapıyor muyum?', 'Do I pay now?')}</summary><p>{t('Hayır. Başvuru ücretsiz. Onaylanırsan ödemeyi yalnızca lansman gününde, 48 saatlik pencerede yaparsın.', 'No. Applying is free. If approved you pay only on launch day within a 48-hour window.')}</p></details>
-        <details><summary>{t('Kâr garantisi var mı?', 'Is profit guaranteed?')}</summary><p>{t('Hayır. Vadeli işlemler yüksek risk taşır ve sermayenin tamamını kaybedebilirsin. Geçmiş sonuçlar geleceği garanti etmez.', 'No. Futures trading is high risk and you can lose all of your capital. Past results do not guarantee future results.')}</p></details>
-        <details><summary>{t('Paramı tutuyor musunuz?', 'Do you hold my funds?')}</summary><p>{t('Hayır. Paran Binance hesabında kalır. Yalnızca işlem yetkili, para çekme yetkisiz API anahtarı kullanırız.', 'No. Your funds stay on your Binance account. We only use trade-enabled API keys without withdrawal permission.')}</p></details>
-        <details><summary>{t('Lansman ne zaman?', 'When is the launch?')}</summary><p>{t('Tarih belli olunca onaylı kurucuları önce e-postayla bilgilendiririz.', 'Once the date is set, approved founders hear first by email.')}</p></details>
+      <section className="fdStrip" id="ozellikler" aria-label={t('Kurucu avantajları', 'Founder perks')}>
+        <div><ShieldCheck aria-hidden="true"/><span><b>{t('12 Ay', '12-Month')}</b>{t('Sabit Fiyat', 'Locked Price')}</span></div>
+        <div><Crown aria-hidden="true"/><span><b>{t('Kurucu', 'Founder')}</b>{t('Üye Rozeti', 'Member Badge')}</span></div>
+        <div><Zap aria-hidden="true"/><span><b>{t('Erken', 'Early')}</b>{t('Erişim', 'Access')}</span></div>
+        <div><Headphones aria-hidden="true"/><span><b>{t('Öncelikli', 'Priority')}</b>{t('Destek', 'Support')}</span></div>
       </section>
+
+      <div className="fdLayout">
+        <div className="fdColA">
+          <section className="fdBlock">
+            <h2>{t('Nasıl Çalışır?', 'How it works')}</h2>
+            <ol className="fdSteps">
+              <li><i><BarChart3 aria-hidden="true"/></i><b>1. {t('Başvur', 'Apply')}</b><p>{t('Kısa formu doldur. Ücret ve ön ödeme yok.', 'Fill in the short form. No fee, no deposit.')}</p></li>
+              <li><i><Search aria-hidden="true"/></i><b>2. {t('İncele', 'Review')}</b><p>{t('72 saat içinde elle değerlendirip dönüş yaparız.', 'We review by hand and reply within 72 hours.')}</p></li>
+              <li><i><Check aria-hidden="true"/></i><b>3. {t('Onay', 'Approval')}</b><p>{t('Uygun görülürsen koltuğunu teyit edersin.', 'If approved, you confirm your seat.')}</p></li>
+              <li><i><Rocket aria-hidden="true"/></i><b>4. {t('Lansman', 'Launch')}</b><p>{t('Lansman günü 48 saat içinde ödeme yapınca üyeliğin açılır.', 'On launch day, pay within 48 hours and your membership opens.')}</p></li>
+            </ol>
+          </section>
+
+          <section className="fdBenefit">
+            <Tag aria-hidden="true"/>
+            <div><h3>{t('Kurucu Üyelik Avantajı', 'Founding membership perk')}</h3><p>{t('Onaylanan ilk 30 kişiye seçilen üyelik planında 12 ay boyunca sabit fiyat garantisi sunulur.', 'The first 30 approved members get a 12-month locked price on their chosen plan.')}</p></div>
+            <div className="fdPriceTag"><small>{t('KURUCU FİYATI', 'FOUNDER PRICE')}</small><strong>{PRICE || t('Yakında', 'Soon')}</strong></div>
+          </section>
+
+          <section className="fdTrust" aria-label={t('Güven', 'Trust')}>
+            <div><Lock aria-hidden="true"/><b>{t('Paran sende kalır', 'Your funds stay with you')}</b><span>{t('Para çekme yetkisi olmayan API anahtarıyla çalışırız.', 'We use API keys with no withdrawal permission.')}</span></div>
+            <div><Gauge aria-hidden="true"/><b>{t('Risk kilitleri açık', 'Risk locks included')}</b><span>{t('Zaman sınırlı izin, 2FA, acil durdurma.', 'Time-limited permission, 2FA, emergency stop.')}</span></div>
+            <div><Eye aria-hidden="true"/><b>{t('Dürüst anlatım', 'Honest messaging')}</b><span>{t('Kâr garantisi vermeyiz; riskleri açıkça yazarız.', 'We never promise profit and state risks plainly.')}</span></div>
+          </section>
+        </div>
+
+        <section className="fdFormWrap" ref={formRef} id="basvuru">
+          {phase === 'done' ? <div className="fdDone" role="status"><Check aria-hidden="true"/><h3>{t('Başvurun alındı', 'Application received')}</h3><p>{t('E-postanı kontrol et ve başvurunu onayla. 72 saat içinde sana dönüş yapacağım.', 'Check your email and confirm your application. I will get back to you within 72 hours.')}</p></div>
+          : <form className="fdForm" onSubmit={submit} noValidate>
+            <header><h2>{t('Kurucu Üyelik Başvurusu', 'Founding Member Application')}</h2><p>{t('Ücretsiz başvurunu şimdi yap. Onaylanan adaylara lansman daveti gönderilir.', 'Apply for free now. Approved applicants receive a launch invitation.')}</p></header>
+            <label>{t('Ad soyad', 'Full name')}<input autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
+            <label>{t('E-posta adresi', 'Email address')}<input type="email" autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
+            <label>{t('Ülke', 'Country')}<input autoComplete="country-name" value={form.country} onChange={event => set('country', event.target.value)} required/></label>
+            <div className="fdTwo">
+              <label>{t('Binance Futures deneyimin', 'Binance Futures experience')}<select value={form.experience} onChange={event => set('experience', event.target.value)} required><option value="">{t('Seç', 'Select')}</option>{EXPERIENCE().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label>{t('Sermaye aralığı', 'Capital range')}<select value={form.capital} onChange={event => set('capital', event.target.value)} required><option value="">{t('Seç', 'Select')}</option>{CAPITAL().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            </div>
+            <label>{t('KaisTrade’i neden kullanmak istiyorsun?', 'Why do you want to use KaisTrade?')}<textarea rows={3} maxLength={600} value={form.reason} onChange={event => set('reason', event.target.value)} required/></label>
+            <input className="fdHoney" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={event => set('website', event.target.value)}/>
+            <label className="fdCheck"><input type="checkbox" checked={form.feedback} onChange={event => set('feedback', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{t('Geri bildirim vermeyi kabul ediyorum', 'I agree to give feedback')}</b></div></label>
+            <label className="fdCheck"><input type="checkbox" checked={form.price} onChange={event => set('price', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{PRICE ? t(`Kurucu fiyatını (${PRICE}) kabul ediyorum`, `I accept the founder price (${PRICE})`) : t('Kurucu fiyatının onayda bildirileceğini anlıyorum', 'I understand the founder price is shared on approval')}</b><small>{t('Onaylanırsam lansmanda 48 saat içinde ödeme yapmam gerekir.', 'If approved I must pay within 48 hours at launch.')}</small></div></label>
+            <label className="fdCheck"><input type="checkbox" checked={form.consent} onChange={event => set('consent', event.target.checked)}/><span aria-hidden="true"><Check/></span><div><b>{t('Gizlilik Politikası’nı okudum', 'I have read the Privacy Policy')}</b><small><a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a></small></div></label>
+            {phase === 'error' && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{message}</p>}
+            <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy'}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
+            <p className="fdFine">{t('Başvuru ücretsizdir. Hiçbir kart bilgisi istenmez.', 'Applying is free. No card details are requested.')}</p>
+          </form>}
+        </section>
+
+        <section className="fdColB fdFaq" id="sss">
+          <h2>{t('Sıkça Sorulan Sorular', 'Frequently asked questions')}</h2>
+          <details><summary>{t('Başvuru ücretsiz mi?', 'Is applying free?')}</summary><p>{t('Evet. Başvuru ücretsizdir ve kart bilgisi istenmez. Onaylanırsan ödemeyi yalnızca lansman gününde, 48 saatlik pencerede yaparsın.', 'Yes. Applying is free and no card details are requested. If approved you pay only on launch day within a 48-hour window.')}</p></details>
+          <details><summary>{t('Başvurum ne zaman onaylanır?', 'When is my application approved?')}</summary><p>{t('Her başvuru elle incelenir; 72 saat içinde e-postayla dönüş yaparız.', 'Every application is reviewed by hand; we reply by email within 72 hours.')}</p></details>
+          <details><summary>{t('Ödeme ne zaman yapılır?', 'When do I pay?')}</summary><p>{t('Yalnızca lansman gününde, onaylı kurucular için açılan 48 saatlik pencerede. Süre dolarsa koltuk sıradaki adaya geçer.', 'Only on launch day, in a 48-hour window for approved founders. If it expires the seat moves to the next applicant.')}</p></details>
+          <details><summary>{t('12 aylık fiyat garantisi nasıl çalışır?', 'How does the 12-month price lock work?')}</summary><p>{t('Aboneliğin kesintisiz sürdüğü sürece seçtiğin plan için aynı fiyatı 12 ay ödersin. İptal edersen kilit biter. Ömür boyu vaadi yoktur.', 'While your subscription stays active you pay the same price for your plan for 12 months. Cancelling ends the lock. No lifetime promise.')}</p></details>
+          <details><summary>{t('KaisTrade kâr garantisi veriyor mu?', 'Does KaisTrade guarantee profit?')}</summary><p>{t('Hayır. Vadeli işlemler yüksek risk taşır ve sermayenin tamamını kaybedebilirsin. Geçmiş sonuçlar geleceği garanti etmez.', 'No. Futures trading is high risk and you can lose all of your capital. Past results do not guarantee future results.')}</p></details>
+          <details><summary>{t('Binance API güvenliği nasıl sağlanıyor?', 'How is Binance API security handled?')}</summary><p>{t('Paran Binance hesabında kalır. Yalnızca işlem yetkili, para çekme yetkisiz API anahtarı kullanırız.', 'Your funds stay on your Binance account. We only use trade-enabled API keys without withdrawal permission.')}</p></details>
+        </section>
+      </div>
     </main>
 
     <footer className="fdFoot">
