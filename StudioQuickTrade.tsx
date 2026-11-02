@@ -459,6 +459,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             </ul>
           </div>
           <div className="sqtRight">
+            <div className="sqtOrd">
             <div className="sqtParam"><small>{tx('Emir tipi', 'Order type')}</small><div role="radiogroup" aria-label={tx('Emir tipi', 'Order type')}>
               <button type="button" role="radio" aria-checked={kind === 'MARKET'} data-on={kind === 'MARKET'} disabled={sending} onClick={() => pickKind('MARKET')}>{tx('Piyasa', 'Market')}</button>
               <button type="button" role="radio" aria-checked={kind === 'LIMIT'} data-on={kind === 'LIMIT'} disabled={sending} onClick={() => pickKind('LIMIT')}>Limit</button></div></div>
@@ -472,15 +473,18 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
                 {[...LIMIT_EXPIRY_CHOICES, null].map(choice => <button key={String(choice)} type="button" role="radio" aria-checked={expiry === choice} data-on={expiry === choice} disabled={sending} onClick={() => setExpiry(choice)}>{choice === null ? tx('Süresiz', 'None') : choice === 1440 ? tx('24 sa', '24 h') : tx(`${choice / 60} sa`, `${choice / 60} h`)}</button>)}</div></div>}
               {limitError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{limitError}</p>}
             </div>}
+            </div>
+            <div className="sqtSizing">
             <div className="sqtParam"><small>{tx('Büyüklük', 'Sizing')}</small><div role="radiogroup" aria-label={tx('Büyüklük yöntemi', 'Sizing method')}>
               <button type="button" role="radio" aria-checked={prefs.sizing === 'fixed'} data-on={prefs.sizing === 'fixed'} disabled={sending} onClick={() => changeParam({sizing: 'fixed'})}>{tx('Sabit teminat', 'Fixed margin')}</button>
               <button type="button" role="radio" aria-checked={prefs.sizing === 'risk'} data-on={prefs.sizing === 'risk'} disabled={sending} onClick={() => changeParam({sizing: 'risk'})}>{tx('Risk %', 'Risk %')}</button></div></div>
             {prefs.sizing === 'fixed'
               ? <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => changeParam({margin: value})} disabled={sending}/>
-              : <div className="sqtParam"><small>{tx('Hesabın yüzdesi kadar risk', 'Risk as % of account')}</small><div role="radiogroup" aria-label={tx('Risk yüzdesi', 'Risk percentage')}>
+              : <div className="sqtParam"><small>{tx('Hesap riski (%)', 'Account risk (%)')}</small><div role="radiogroup" aria-label={tx('Risk yüzdesi', 'Risk percentage')}>
                   {RISK_PCT_CHOICES.map(value => <button key={value} type="button" role="radio" aria-checked={prefs.riskPct === value} data-on={prefs.riskPct === value} disabled={sending} onClick={() => changeParam({riskPct: value})}>%{String(value).replace('.', ',')}</button>)}</div>
                   <p className="sqtSized" role="status">{sized && !sized.tooSmall ? tx(`→ ${fmt(sized.margin)} USDT teminat · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (üst sınır)' : ''}`, `→ ${fmt(sized.margin)} USDT margin · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (capped)' : ''}`) : balance === null && (!demo || balanceFailed) ? tx('Bakiye okunamadı', 'Balance unavailable') : sized?.tooSmall ? tx('Teminat çok küçük kalıyor', 'Margin would be too small') : tx('Hesaplanıyor…', 'Calculating…')}</p></div>}
             <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => changeParam({leverage: value})} disabled={sending}/>
+            </div>
             <div className="sqtActions">
             {sheetError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{sheetError}</p>}
             <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock}
