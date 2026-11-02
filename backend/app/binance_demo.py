@@ -656,6 +656,12 @@ class ClosePositionRequest(BaseModel):
     position_side: Literal["BOTH", "LONG", "SHORT"] = "BOTH"
 
 
+class MoveStopRequest(BaseModel):
+    symbol: str = Field(min_length=5, max_length=20)
+    stop_loss: float = Field(gt=0)
+    confirmation: str = Field(min_length=1, max_length=32)
+
+
 class ReducePositionRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     quantity: float = Field(gt=0)
@@ -2295,6 +2301,206 @@ async def close_symbol_position(client: BinanceDemoClient, symbol: str, position
     return await client.signed("POST", "/fapi/v1/order", params)
 
 
+# --- Manual Demo stop move -------------------------------------------------
+# While a stop is being replaced the protection loop must not "repair" the
+# momentarily missing stop (that would create a duplicate). These two
+# process-local markers keep it out until the move has finished.
+STOP_MOVE_ACTIVE: set[str] = set()
+STOP_MOVE_DONE_AT: dict[str, float] = {}
+STOP_MOVE_ACTIVE_STATUSES = {"NEW", "WORKING", "PENDING_NEW", "PARTIALLY_FILLED"}
+
+
+def stop_move_blocks_repair(plan: dict[str, Any], snapshot_at: float | None) -> bool:
+    """True while a move is running, or when the snapshot is older than the last finished move."""
+    key = str(plan.get("id") or "")
+    if key in STOP_MOVE_ACTIVE:
+        return True
+    done_at = STOP_MOVE_DONE_AT.get(key)
+    return done_at is not None and (snapshot_at is None or snapshot_at <= done_at)
+
+
+def _snapshot_has_stop(snapshot: dict[str, Any], symbol: str, algo_id: int, side: str) -> bool:
+    if snapshot.get("open_algo_orders_available") is not True or snapshot.get("open_algo_orders_quality") != "CONFIRMED":
+        return False
+    for order in snapshot.get("open_algo_orders") or []:
+        if not isinstance(order, dict) or _algo_id(order) != algo_id:
+            continue
+        return (
+            str(order.get("symbol") or "").upper() == symbol
+            and str(order.get("type") or "").upper() == "STOP_MARKET"
+            and str(order.get("side") or "").upper() == side
+            and str(order.get("status") or "").upper() in STOP_MOVE_ACTIVE_STATUSES
+        )
+    return False
+
+
+def _snapshot_lacks_algo(snapshot: dict[str, Any], algo_id: int) -> bool:
+    """Only a CONFIRMED snapshot can prove an order is gone."""
+    if snapshot.get("open_algo_orders_available") is not True or snapshot.get("open_algo_orders_quality") != "CONFIRMED":
+        return False
+    return not any(isinstance(order, dict) and _algo_id(order) == algo_id for order in snapshot.get("open_algo_orders") or [])
+
+
+async def _delete_algo_confirmed(client: BinanceDemoClient, symbol: str, algo_id: int) -> bool:
+    try:
+        await client.signed("DELETE", "/fapi/v1/algoOrder", {"symbol": symbol, "algoId": algo_id})
+    except BinanceDemoError:
+        pass  # the result is judged by the exchange snapshot below
+    return _snapshot_lacks_algo(await _fresh_protection_snapshot(client, symbol), algo_id)
+
+
+async def _install_moved_stop(
+    client: BinanceDemoClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    price: Decimal,
+    kind: str,
+    close_side: str,
+) -> bool:
+    """Place one closePosition stop, check ownership rules and confirm it on the exchange."""
+    symbol = str(plan["symbol"]).upper()
+    client_id = new_client_id(kind)
+    stray_id: int | None = None
+    try:
+        result = await post_algo(client, {
+            "algoType": "CONDITIONAL", "symbol": symbol, "side": close_side, "workingType": "MARK_PRICE",
+            "priceProtect": "TRUE", "type": "STOP_MARKET", "triggerPrice": decimal_text(price),
+            "closePosition": "true", "clientAlgoId": client_id,
+        })
+        stray_id = _algo_id(result) if isinstance(result, dict) else None
+        plans = [item for item in state.get("plans", {}).values() if isinstance(item, dict)]
+        new_id = _validate_new_protection_identity(plan, result, plans, expected_type="STOP_MARKET", expected_side=close_side)
+        if new_id is None:
+            raise BinanceDemoError("Yeni stop kimliği doğrulanamadı.", http_status=409)
+        if not _snapshot_has_stop(await _fresh_protection_snapshot(client, symbol), symbol, new_id, close_side):
+            raise BinanceDemoError("Yeni stop borsada doğrulanamadı.", http_status=409)
+    except BinanceDemoError:
+        if stray_id is not None:
+            await _delete_algo_confirmed(client, symbol, stray_id)
+        return False
+    ids = list(_plan_protection_ids(plan) or [])
+    ids.append(new_id)
+    plan["protection_ids"] = ids
+    plan["stop_algo_id"] = new_id
+    plan["stop_client_id"] = client_id
+    plan["stop_loss"] = decimal_text(price)
+    persist_runtime(state)
+    return True
+
+
+async def move_demo_stop(
+    client: BinanceDemoClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    new_stop_value: float,
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    """Move the stop of one MANUAL Demo plan.
+
+    Binance allows one closePosition stop per side, so the old stop is removed (and proven gone) before the new
+    one is placed. A failed new stop restores the old price; if that fails too the position is closed. The plan is
+    never left believing in a stop that is not on the exchange.
+    """
+    key = str(plan.get("id") or "")
+    if not key or plan.get("source") != "MANUAL":
+        raise BinanceDemoError("Stop yalnız manuel açılan Demo pozisyonlarında taşınabilir.", http_status=422)
+    if not can_mutate_lifecycle(plan):
+        raise BinanceDemoError("Plan sahipliği doğrulanmadı; pozisyona dokunulmadı.", http_status=423)
+    if plan.get("position_status") != "OPEN" or plan.get("stop_protection_cancelled") or plan.get("protection_repair_pending"):
+        raise BinanceDemoError("Pozisyon korumalı ve açık değil; stop taşınamaz.", http_status=409)
+    lock = protection_lock(plan)
+    if key in STOP_MOVE_ACTIVE or lock.locked():
+        raise BinanceDemoError("Bu pozisyonda koruma işlemi sürüyor; birkaç saniye sonra dene.", http_status=409)
+    async with lock:
+        STOP_MOVE_ACTIVE.add(key)
+        try:
+            return await _move_demo_stop_locked(client, state, plan, new_stop_value, policy)
+        finally:
+            STOP_MOVE_ACTIVE.discard(key)
+            STOP_MOVE_DONE_AT[key] = time.monotonic()
+
+
+async def _move_demo_stop_locked(
+    client: BinanceDemoClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    new_stop_value: float,
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    symbol, direction = str(plan["symbol"]).upper(), str(plan.get("direction") or "").upper()
+    if direction not in {"LONG", "SHORT"}:
+        raise BinanceDemoError("Pozisyon yönü okunamadı; stop taşınamadı.", http_status=409)
+    long_side = direction == "LONG"
+    close_side = "SELL" if long_side else "BUY"
+    rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
+    row = next((item for item in rows if position_amount(item.get("positionAmt")) != 0), None)
+    if row is None:
+        raise BinanceDemoError("Borsada bu plana ait açık pozisyon bulunamadı.", http_status=409)
+    amount = position_amount(row.get("positionAmt"))
+    if (amount > 0) != long_side:
+        raise BinanceDemoError("Pozisyon yönü plan ile uyuşmuyor; stop taşınamadı.", http_status=409)
+    try:
+        mark = Decimal(str(row.get("markPrice")))
+        entry = Decimal(str(row.get("entryPrice")))
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise BinanceDemoError("Pozisyon fiyatı okunamadı; değişiklik yapılmadı.", http_status=503) from exc
+    quantity = abs(amount)
+    if not all(value.is_finite() and value > 0 for value in (mark, entry, quantity)):
+        raise BinanceDemoError("Pozisyon fiyatı geçersiz; değişiklik yapılmadı.", http_status=503)
+
+    rules = await symbol_rules(client, symbol)
+    new_stop = round_tick(Decimal(str(new_stop_value)), rules["tick"])
+    if (long_side and new_stop >= mark) or (not long_side and new_stop <= mark):
+        raise BinanceDemoError("Yeni stop, güncel fiyatın zarar tarafında olmalı (yoksa hemen tetiklenir).", http_status=422)
+    old_stop = Decimal(str(plan["stop_loss"]))
+    if new_stop == old_stop:
+        raise BinanceDemoError("Stop zaten bu fiyatta.", http_status=422)
+    loss_at_stop = quantity * ((entry - new_stop) if long_side else (new_stop - entry))
+    limit = Decimal(str(policy.get("max_loss_per_trade", 0) or 0))
+    if loss_at_stop > limit:
+        raise BinanceDemoError(
+            f"Yeni stopta zarar yaklaşık {decimal_text(loss_at_stop.quantize(Decimal('0.01')))} USDT olur; "
+            f"işlem başı risk sınırın {decimal_text(limit)} USDT. Stopu uzaklaştırarak riski büyütemezsin.",
+            http_status=422,
+        )
+    targets = [Decimal(str(value)) for value in plan.get("targets") or []]
+    if targets and any((long_side and target <= new_stop) or (not long_side and target >= new_stop) for target in targets):
+        raise BinanceDemoError("Stop, hedeflerin öbür tarafında olmalı.", http_status=422)
+
+    old_algo = _single_plan_algo_id(plan, "stop_algo_id")
+    plans = [item for item in state.get("plans", {}).values() if isinstance(item, dict)]
+    snapshot = await _fresh_protection_snapshot(client, symbol)
+    protection, _matched, _missing = _protection_classification(
+        plan, snapshot, required_ids={old_algo} if old_algo else None, plans=plans, strict_unassigned=False,
+    )
+    if old_algo is None or protection != "MATCHED" or not _snapshot_has_stop(snapshot, symbol, old_algo, close_side):
+        raise BinanceDemoError("Mevcut stop borsada doğrulanamadı; değişiklik yapılmadı.", http_status=423)
+
+    if not await _delete_algo_confirmed(client, symbol, old_algo):
+        raise BinanceDemoError("Eski stop borsadan kaldırılamadı; hiçbir şey değişmedi.", http_status=409)
+    plan["protection_ids"] = [item for item in (_plan_protection_ids(plan) or set()) if item != old_algo]
+    plan["stop_algo_id"] = None
+    plan["previous_stop_loss"] = decimal_text(old_stop)
+    plan["stop_move_count"] = int(plan.get("stop_move_count") or 0) + 1
+    persist_runtime(state)
+
+    if await _install_moved_stop(client, state, plan, new_stop, "SLMV", close_side):
+        add_event(state, "STOP TAŞINDI", f"{symbol} stop {decimal_text(old_stop)} → {decimal_text(new_stop)} taşındı.")
+        persist_runtime(state)
+        return {"ok": True, "symbol": symbol, "stop": "MOVED", "stop_loss": decimal_text(new_stop)}
+    if await _install_moved_stop(client, state, plan, old_stop, "SLRB", close_side):
+        add_event(state, "STOP GERİ KURULDU", f"{symbol} yeni stop kurulamadı; eski stop ({decimal_text(old_stop)}) geri kuruldu.")
+        persist_runtime(state)
+        raise BinanceDemoError("Yeni stop kurulamadı; eski stop geri kuruldu, pozisyon korumalı.", http_status=409)
+    plan["protection_status"] = "CRITICAL / UNPROTECTED"
+    await _abort_protection_installation(
+        client, state, plan,
+        BinanceDemoError("Stop taşınamadı ve eski stop geri kurulamadı.", http_status=502),
+        f"{symbol} stop taşınamadı; Demo pozisyon güvenlik için kapatılıyor.",
+        "Stop kurulamadı; pozisyon güvenlik için kapatıldı.",
+    )
+
+
 async def reduce_symbol_position(client: BinanceDemoClient, symbol: str, quantity: Decimal, position_side: str = "BOTH") -> dict[str, Any] | None:
     rows = await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol})
     normalized_side = str(position_side or "BOTH").upper()
@@ -3266,12 +3472,16 @@ async def _repair_missing_stop_protection(
     snapshot: dict[str, Any],
     *,
     plans: list[dict[str, Any]],
+    snapshot_at: float | None = None,
 ) -> bool:
     if not _has_protection_identity(plan):
         return False
     lock = protection_lock(plan)
     async with lock:
         if plan.get("protection_repair_pending"):
+            return False
+        # A stop move finished (or is running) after this snapshot was read: it is stale, never repair from it.
+        if stop_move_blocks_repair(plan, snapshot_at):
             return False
         protection_state, _matched_ids, missing_ids = _protection_classification(
             plan, snapshot, plans=plans, strict_unassigned=False
@@ -3743,13 +3953,16 @@ async def _protect_demo_state(application: Any, user_id: str, state: dict[str, A
                 )
                 changed = changed or lifecycle_before != lifecycle_after
             if active_position is not None:
+                if str(plan.get("id") or "") in STOP_MOVE_ACTIVE:
+                    continue
+                snapshot_at = time.monotonic()
                 protection_snapshot = await _fresh_protection_snapshot(client, plan["symbol"])
                 protection_state, _matched_ids, _missing_ids = _protection_classification(
                     plan, protection_snapshot, plans=plans
                 )
                 if protection_state == "MISSING":
                     changed = await _repair_missing_stop_protection(
-                        client, state, plan, protection_snapshot, plans=plans
+                        client, state, plan, protection_snapshot, plans=plans, snapshot_at=snapshot_at,
                     ) or changed
                 elif protection_state == "UNKNOWN":
                     continue
@@ -4351,6 +4564,35 @@ async def demo_close_position(request: Request, body: ClosePositionRequest) -> d
         add_event(state, "POZİSYON KAPATILDI", f"{symbol} Demo pozisyonu reduce-only piyasa emriyle kapatıldı.")
         persist_runtime(state)
         return {"ok": True, "symbol": symbol, "order_id": result.get("orderId")}
+    except BinanceDemoError as exc:
+        raise safe_exchange_error(exc) from exc
+
+
+@router.post("/position/protection")
+async def demo_move_stop(request: Request, body: MoveStopRequest) -> dict[str, Any]:
+    """Move the stop of the user's manual Demo position (bot / external positions are never touched)."""
+    if body.confirmation.strip().upper() != "DEMO STOP GÜNCELLE":
+        raise HTTPException(422, "Stopu taşımak için DEMO STOP GÜNCELLE yazın.")
+    try:
+        symbol = normalize_symbol(body.symbol)
+        state = state_for(request)
+        user_id = _current_user_id(request=request, state=state)
+        async with state["lock"]:
+            candidates = [
+                plan for plan in state.get("plans", {}).values()
+                if isinstance(plan, dict)
+                and str(plan.get("symbol") or "").upper() == symbol
+                and plan.get("position_status") == "OPEN"
+                and (not user_id or str(plan.get("user_id") or plan.get("_user_id") or "").strip() == user_id)
+            ]
+            if len(candidates) != 1:
+                raise HTTPException(404, "Bu paritede stopu taşınabilir tek bir manuel Demo pozisyonu bulunamadı.")
+            from .v21_demo import state_for as v21_state_for
+
+            result = await move_demo_stop(
+                client_for(request), state, candidates[0], body.stop_loss, v21_state_for(request).get("settings", {}),
+            )
+        return result
     except BinanceDemoError as exc:
         raise safe_exchange_error(exc) from exc
 
