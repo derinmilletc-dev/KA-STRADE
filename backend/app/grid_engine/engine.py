@@ -291,8 +291,8 @@ class GridEngine:
         return True
 
     def _detect_end(self) -> None:
-        if self.status in (EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED):
-            return
+        if self.status in (EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, STOPPED, COMPLETED):
+            return                                  # bitmiş grid'in sonucu sonradan değişmez
         stops = self.store.orders(self.gid, "S")
         if abs(self.grid_net()) <= EPS and any(s["filled"] > EPS for s in stops):
             self._cancel_all(roles=("E", "T", "S"))
@@ -332,7 +332,7 @@ class GridEngine:
                 self._cancel_all(roles=("E", "T"))
                 self._close(net)
                 self._sync_for_emergency()
-                self._detect_end()
+                self._stop_after_forced_close()
             elif status == REJECTED:
                 # Kesin ret ve fiyat geçilmiş değil: dolu miktar korunamıyor → yeni giriş durdurulur, müdahale istenir.
                 self._cancel_all(roles=("E",))
@@ -460,6 +460,15 @@ class GridEngine:
             return True
         except ExchangeError:
             return False
+
+    def _stop_after_forced_close(self) -> None:
+        """Fiyat stopu geçtiği için piyasadan kapatıldı: kapanış doğrulandıysa grid biter (yeni tur açılmaz)."""
+        if abs(self.grid_net()) <= EPS:
+            self._cancel_all(roles=("E", "T", "S"))
+            self._set(STOPPED, "Fiyat stop seviyesini geçti; grid piyasadan kapatıldı")
+            self._alert("bilgi", "Fiyat stop seviyesini geçtiği için grid piyasadan kapatıldı; yeni emir açılmayacak.")
+        else:
+            self._detect_end()                    # kapanış henüz doğrulanmadı: sonraki tur tekrar dener
 
     def _close(self, qty: float) -> None:
         rows = [r for r in self.store.orders(self.gid, "C") if r["status"] not in TERMINAL]

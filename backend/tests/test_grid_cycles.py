@@ -189,5 +189,19 @@ class TestStatsPure(unittest.TestCase):
         self.assertLess(abs(out["fees_usdt"]), EPS)
 
 
+
+class TestForcedClose(CycleBase):
+    def test_recycling_grid_stops_after_price_jumped_beyond_the_stop(self):
+        engine = GridEngine(self.ex, self.store, spec())
+        engine.start()
+        self.ex.set_price(SYM, 95.9)            # iki kademe dolar; motor görmeden fiyat stopun altına iner
+        self.ex.prices[SYM] = 89.0
+        engine.tick()
+        self.assertAlmostEqual(self.ex.positions.get(SYM, 0.0), 0.0)
+        self.assertEqual(engine.status, STOPPED)
+        engine.tick()
+        self.assertEqual(self.live(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
