@@ -411,8 +411,11 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             : params && <p className="sqgHint"><Info aria-hidden="true"/>{tx('Nötr grid her zaman sürekli çalışır: hedef dolunca aynı çizgide yeniden kurulur.', 'A neutral grid always cycles: when a target fills the line is re-armed.')}</p>}
 
           {params && <div className="sqgProt" role="group" aria-label={tx('Kâr ve zarar koruması', 'Profit and loss protection')}>
-            <ProtField id="sqg-tp" label={tx('Hedef kâr (USDT)', 'Take profit (USDT)')} hint={tx('Ulaşınca yeni giriş durur', 'New entries stop when reached')} value={params.takeProfit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, takeProfit: value} : current)}/>
+            <ProtField id="sqg-tp" label={tx('Hedef kâr (USDT)', 'Take profit (USDT)')} hint={params.closeOnTarget ? tx('Ulaşınca yeni giriş durur ve pozisyon kapanır', 'New entries stop and the position closes') : tx('Ulaşınca yeni giriş durur', 'New entries stop when reached')} value={params.takeProfit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, takeProfit: value} : current)}/>
             <ProtField id="sqg-sl" label={tx('Zarar sınırı (USDT)', 'Loss limit (USDT)')} hint={tx('Ulaşınca grid kapatılır', 'The grid is closed when reached')} value={params.lossLimit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, lossLimit: value} : current)}/>
+            <ProtField id="sqg-lock" label={tx('Kâr kilidi (USDT)', 'Profit lock (USDT)')} hint={tx('Bu kâra ulaşınca kilit başlar; kâr zirvenin %70’ine düşerse grid kapanır', 'Starts at this profit; the grid closes if profit falls below 70% of its peak')} value={params.profitLock ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, profitLock: value} : current)}/>
+            <label className="sqgSwitch sqgProtSwitch"><input type="checkbox" checked={!!params.closeOnTarget} disabled={!!busy || !(params.takeProfit && params.takeProfit > 0)} onChange={event => setParams(current => current ? {...current, closeOnTarget: event.target.checked} : current)}/><span aria-hidden="true"/>
+              <div><b>{tx('Hedefte pozisyonu da kapat', 'Also close the position at target')}</b><small>{params.takeProfit && params.takeProfit > 0 ? tx('Kapalıysa hedefte yalnız yeni giriş durur.', 'If off, only new entries stop at the target.') : tx('Önce bir hedef kâr gir.', 'Enter a take-profit first.')}</small></div></label>
           </div>}
 
           {preview && preview.activeLevels > 0 && <dl className="sqgStats">
@@ -534,6 +537,8 @@ function GridCard({row, price, demo, busy, ask, setAsk, holdMs, onAct, onSelect,
       <div><dt>{tx('Açık kademe', 'Open levels')}</dt><dd>{openCount}</dd></div>
       <div><dt>{tx('Aralık', 'Range')}</dt><dd>{lo !== null && hi !== null ? `${priceText(lo, locale())} – ${priceText(hi, locale())}` : '—'}</dd></div>
     </dl>
+    {!done && row.liq && row.liq.distance_pct !== null && <div className="sqgLiq" data-level={row.liq.level} role="status"><span>{tx('Likidasyona', 'To liquidation')}</span><b>%{fmt(row.liq.distance_pct, 1)}</b><i aria-hidden="true"><u style={{width: `${Math.min(100, row.liq.distance_pct / 30 * 100)}%`}}/></i></div>}
+    {!done && (row.spec?.meta?.profit_lock_usdt ?? 0) > 0 && <p className="sqgLock"><Info aria-hidden="true"/>{tx(`Kâr kilidi: ${fmt(row.spec?.meta?.profit_lock_usdt ?? 0, 2)} USDT'den sonra aktif · zirve ${fmt(row.peak_pnl ?? 0, 2)}`, `Profit lock: active above ${fmt(row.spec?.meta?.profit_lock_usdt ?? 0, 2)} USDT · peak ${fmt(row.peak_pnl ?? 0, 2)}`)}</p>}
     {row.reason && <p className="sqgReason">{row.reason}</p>}
     {alert && <p className="sqgAlert" data-level={alert.level}><TriangleAlert aria-hidden="true"/>{alert.text}</p>}
     {staleLoop && <p className="sqgAlert" data-level="uyarı"><TriangleAlert aria-hidden="true"/>{tx('Grid döngüsü durmuş (sunucu yeniden başlamış olabilir). Borsadaki stoplar yerinde; devam ettir.', 'The grid loop has stopped (the server may have restarted). Exchange stops stay in place; resume it.')}</p>}

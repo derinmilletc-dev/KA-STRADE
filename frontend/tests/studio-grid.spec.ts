@@ -331,3 +331,38 @@ test('Sunucu planı doğrular; kesin ret başlatmayı kapatır, koruma alanları
   expect(mock.starts[0]).not.toHaveProperty('preview')
   await page.screenshot({path: 'test-results/grid-protect.png'})
 })
+
+test('Çalışan grid: likidasyon mesafesi ve kâr kilidi kartta görünür; grafikte likidasyon çizgisi var', async ({page}) => {
+  const p = price('BTCUSDT')
+  const row = gridRow('gl', 'BTCUSDT', 'LONG', {
+    liq: {distance_pct: 6.2, level: 'pause', liq_price: p * .93, mark: p}, peak_pnl: 2.5,
+    spec: {meta: {profit_lock_usdt: 5, lock_keep_pct: 70}, stop_price: p * .96, levels: [{entry: p * .99, target: p * .995}, {entry: p * .98, target: p * .99}, {entry: p * .97, target: p * .98}]},
+    stats: {cycles: 1, realized_usdt: 0.4, gross_usdt: 0.5, fees_usdt: 0.1, open_levels: [{level: 1, cycle: 1, entry: p * .98, qty: 0.001}]},
+  })
+  await prepare(page, {grids: [row]})
+  await layer(page).locator('.sqgChip').click()
+  await panel(page).locator('.sqgTabs button').nth(1).click()
+  const card = panel(page).locator('.sqgCard').first()
+  await expect(card.locator('.sqgLiq')).toContainText('6,2')
+  await expect(card.locator('.sqgLiq')).toHaveAttribute('data-level', 'pause')
+  await expect(card.locator('.sqgLock')).toContainText('5,00')
+  await page.screenshot({path: 'test-results/grid-liq-card.png'})
+  await panel(page).getByRole('button', {name: /kapat|close/i}).first().click().catch(() => undefined)
+  await expect(page.locator('.refGridOverlay [data-kind="held"]')).toHaveCount(1)
+  await expect(page.locator('.refGridOverlay [data-kind="buy"]')).toHaveCount(2)
+  await page.screenshot({path: 'test-results/grid-lines-chart.png'})
+})
+
+test('Başlatma: kâr kilidi ve hedefte kapat gövdeye girer; hedef kâr yokken anahtar kapalıdır', async ({page}) => {
+  const mock = await prepare(page)
+  await ready(page)
+  const closeSwitch = panel(page).locator('.sqgProtSwitch input')
+  await expect(closeSwitch).toBeDisabled()
+  await panel(page).locator('#sqg-tp').fill('5'); await panel(page).locator('#sqg-tp').blur()
+  await panel(page).locator('#sqg-lock').fill('8'); await panel(page).locator('#sqg-lock').blur()
+  await expect(closeSwitch).toBeEnabled()
+  await closeSwitch.check()
+  await hold(page, panel(page).locator('.sqgFoot .sqtHold'), 2000)
+  await expect.poll(() => mock.starts.length, {timeout: 8000}).toBe(1)
+  expect(mock.starts[0]).toMatchObject({take_profit_usdt: 5, profit_lock_usdt: 8, close_on_target: true})
+})

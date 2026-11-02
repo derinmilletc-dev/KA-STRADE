@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {gridPnl, previewBody, previewGrid, snapTo, startBody, suggestGrid} from '../studio-grid.ts'
+import {chartLinesForRows, gridPnl, previewBody, previewGrid, snapTo, startBody, suggestGrid} from '../studio-grid.ts'
 
 const filters = {tickSize: 0.1, stepSize: 0.001, minNotional: 5, minQty: 0.001}
 const base = {mode: 'NEUTRAL', lower: 98, upper: 102, count: 8, stop: 96.5, stopUpper: 103.5, margin: 100, leverage: 3, recycle: true}
@@ -192,4 +192,40 @@ test('startBody: koruma alanları yalnız pozitifse gider; previewBody yalnız p
   const body = startBody('BTCUSDT', {...p, takeProfit: 5, lossLimit: 8}, false)
   assert.equal(body.take_profit_usdt, 5); assert.equal(body.loss_limit_usdt, 8); assert.equal('preview' in body, false)
   assert.equal(previewBody('BTCUSDT', p, true).preview, true)
+})
+
+test('startBody: kâr kilidi yalnız pozitifse; hedefte kapat yalnız hedef kâr varken gider', () => {
+  const plain = startBody('BTCUSDT', base, true)
+  assert.equal('profit_lock_usdt' in plain, false)
+  assert.equal('close_on_target' in plain, false)
+  assert.equal(startBody('BTCUSDT', {...base, profitLock: 10}, true).profit_lock_usdt, 10)
+  assert.equal(startBody('BTCUSDT', {...base, profitLock: 0}, true).profit_lock_usdt, undefined)
+  assert.equal(startBody('BTCUSDT', {...base, closeOnTarget: true}, true).close_on_target, undefined)
+  const both = startBody('BTCUSDT', {...base, takeProfit: 5, closeOnTarget: true}, true)
+  assert.equal(both.close_on_target, true)
+  assert.equal(both.take_profit_usdt, 5)
+})
+
+test('chartLinesForRows: dolmuş kademe parlak + hedefi, bekleyenler kesikli, likidasyon eksen genişletmez', () => {
+  const row = {grid_id: 'g1', symbol: 'BTCUSDT', side: 'LONG', status: 'RUNNING', reason: '', position_qty: 0.1, needs_user: false,
+    stats: {cycles: 0, realized_usdt: 0, gross_usdt: 0, fees_usdt: 0, open_levels: [{level: 1, cycle: 1, entry: 99, qty: 0.1}]},
+    spec: {stop_price: 95, levels: [{entry: 100, target: 101, side: 'LONG'}, {entry: 99, target: 100, side: 'LONG'}, {entry: 98, target: 99, side: 'LONG'}]},
+    liq: {distance_pct: 6.2, level: 'pause', liq_price: 60, mark: 100}}
+  const lines = chartLinesForRows([row])
+  assert.deepEqual(lines.filter(l => l.kind === 'held').map(l => l.price), [99])
+  assert.deepEqual(lines.filter(l => l.kind === 'target').map(l => l.price), [100])
+  assert.deepEqual(lines.filter(l => l.kind === 'buy').map(l => l.price), [100, 98])
+  const liq = lines.find(l => l.kind === 'liq')
+  assert.equal(liq.price, 60)
+  assert.equal(liq.noRange, true)
+  assert.match(liq.label, /6\.2/)
+  assert.equal(lines.filter(l => l.kind === 'bound').length, 2)
+  assert.ok(lines.find(l => l.kind === 'stop').label.startsWith('Stop'))
+})
+
+test('chartLinesForRows: biten grid çizilmez; likidasyon verisi yoksa liq çizgisi yok', () => {
+  const done = {grid_id: 'g2', symbol: 'ETHUSDT', side: 'LONG', status: 'STOPPED', reason: '', position_qty: 0, needs_user: false, spec: {levels: [{entry: 10, target: 11}]}}
+  assert.deepEqual(chartLinesForRows([done]), [])
+  const live = {...done, status: 'RUNNING', liq: null}
+  assert.equal(chartLinesForRows([live]).some(l => l.kind === 'liq'), false)
 })
