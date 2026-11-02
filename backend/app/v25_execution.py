@@ -3241,6 +3241,7 @@ async def manual_update_protection(
     *,
     stop_loss: float | None,
     targets: dict[int, float],
+    tighten_only: bool = False,
 ) -> dict[str, Any]:
     """Manuel pozisyonda Stop ve/veya açık hedefleri değiştirir.
 
@@ -3271,9 +3272,11 @@ async def manual_update_protection(
     if new_stop is not None:
         if (long_side and new_stop >= mark) or (not long_side and new_stop <= mark):
             raise ManualPlanActionError("Yeni stop, güncel fiyatın zarar tarafında olmalı (yoksa hemen tetiklenir).", http_status=422)
+        if tighten_only and ((long_side and new_stop <= Decimal(str(plan["stop_loss"]))) or (not long_side and new_stop >= Decimal(str(plan["stop_loss"])))):
+            raise ManualPlanActionError("Stop yalnız sıkılaştırılabilir.", http_status=422)
         loss_at_stop = quantity * ((entry - new_stop) if long_side else (new_stop - entry))
         limit = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["max_loss_per_trade"]))
-        if loss_at_stop > limit:
+        if loss_at_stop > limit and not tighten_only:
             raise ManualPlanActionError(
                 f"Yeni stopta zarar yaklaşık {decimal_text(loss_at_stop.quantize(Decimal('0.01')))} USDT olur; "
                 f"işlem başı risk sınırın {decimal_text(limit)} USDT. Stopu uzaklaştırarak riski büyütemezsin.",
@@ -3300,7 +3303,7 @@ async def manual_update_protection(
     ordered = final_targets[0] <= final_targets[1] <= final_targets[2] if long_side else final_targets[0] >= final_targets[1] >= final_targets[2]
     if not ordered:
         raise ManualPlanActionError("Hedefler sırayla olmalı (TP1, TP2, TP3).", http_status=422)
-    if new_stop is not None and any(
+    if new_stop is not None and not tighten_only and any(
         (long_side and target <= new_stop) or (not long_side and target >= new_stop) for target in final_targets
     ):
         raise ManualPlanActionError("Stop, hedeflerin öbür tarafında olmalı.", http_status=422)
@@ -3349,6 +3352,48 @@ async def manual_update_protection(
               stop=result["stop"], targets=result["targets"])
     persist_state(state)
     return result
+
+
+async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
+    """Manuel plan için sunucu tarafı iz süren stop. Yalnız sıkılaştırır; aynı doğrulamalı stop değiştirme akışını kullanır.
+
+    Aralıklıdır, küçük kıpırdamalarda taşımaz ve üst üste başarısız olursa kendini kapatır (mevcut stop yerinde kalır)."""
+    from . import manual_trail
+
+    trail = plan.get("trail")
+    if not isinstance(trail, dict) or plan.get("source") != "MANUAL" or not live_plan_can_mutate(plan):
+        return False
+    if plan.get("protection_state") != "MATCHED" or not plan.get("stop_algo_id") or live_execution_blocked(state):
+        return False
+    pct = manual_trail.valid_trail_pct(trail.get("pct"))
+    if pct is None or not manual_trail.trail_due(trail):
+        return False
+    try:
+        mark = Decimal(str(position["mark_price"]))
+        current_stop = Decimal(str(plan["stop_loss"]))
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return False
+    direction = str(plan.get("direction") or "").upper()
+    if manual_trail.trail_target(direction, mark, current_stop, pct) is None:
+        return False  # kaba hesap: taşımaya değmiyor; borsa kuralları okunmaz
+    symbol = plan["symbol"]
+    try:
+        rules = await live_symbol_rules(client, symbol, "MARKET")
+        target = manual_trail.trail_target(direction, mark, current_stop, pct, rules["tick"])
+        if target is None:
+            return False
+        await manual_update_protection(client, state, plan, stop_loss=float(target), targets={}, tighten_only=True)
+    except (ManualPlanActionError, LiveExchangeError) as exc:
+        disabled = manual_trail.record_trail_failure(trail, sanitized_exception_message(exc) if isinstance(exc, LiveExchangeError) else str(exc))
+        if disabled:
+            plan.pop("trail", None)
+            add_event(state, "MANUAL_TRAIL_DISABLED", f"{symbol} iz süren stop üst üste başarısız oldu; kapatıldı. Mevcut stop yerinde duruyor.", symbol=symbol, plan_id=plan.get("id"))
+        persist_state(state)
+        return False
+    manual_trail.record_trail_move(trail)
+    add_event(state, "MANUAL_TRAIL_MOVED", f"{symbol} iz süren stop {decimal_text(target)} seviyesine taşındı.", symbol=symbol, plan_id=plan.get("id"))
+    persist_state(state)
+    return True
 
 
 async def _install_stop_bridge(
@@ -6925,6 +6970,10 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                 await manual_breakeven_after_tp1(client, state, plan, position, open_algos)
             except LiveExchangeError as exc:
                 logger.warning("MANUAL_BREAKEVEN_DEFERRED symbol=%s reason=%s", symbol, sanitized_exception_message(exc))
+            try:
+                await manual_trailing_step(client, state, plan, position)
+            except Exception as exc:  # noqa: BLE001 - iz süren hata ana koruma döngüsünü asla durdurmaz
+                logger.warning("MANUAL_TRAIL_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
     try:
         # Akıllı Kâr Koruma: yalnız Original V2 Live planları; hata ana korumayı asla durdurmaz.
         from . import original_profit_guard, original_v2_live as _original_live
@@ -8705,6 +8754,42 @@ async def v25_manual_protection(request: Request, body: ManualProtectionRequest)
         add_event(state, "MANUAL_PROTECTION_REQUEST", "Manuel koruma değişikliği uygulandı.", actor=user["id"], plan_id=body.plan_id)
         persist_state(state)
     return {"ok": True, **result, "plan": plan}
+
+
+class ManualTrailRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    pct: float | None = Field(default=None, gt=0, le=100)
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/position/trail")
+async def v25_manual_trail(request: Request, body: ManualTrailRequest) -> dict[str, Any]:
+    """Manuel pozisyon için sunucu tarafı iz süren stopu aç/kapat (yalnız MANUEL planlar)."""
+    from . import manual_trail
+
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "İZ SÜREN STOP":
+        raise HTTPException(422, "İz süren stopu değiştirmek için İZ SÜREN STOP yazın.")
+    pct = None
+    if body.pct is not None:
+        pct = manual_trail.valid_trail_pct(body.pct)
+        if pct is None:
+            raise HTTPException(422, "İz süren mesafe %0,3 ile %10 arasında olmalı.")
+    state = request.app.state.v25_execution
+    async with state["lock"]:
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            _manual_plan_guard(state, plan)
+        except ManualPlanActionError as exc:
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        if pct is None:
+            plan.pop("trail", None)
+            add_event(state, "MANUAL_TRAIL_OFF", f"{plan['symbol']} iz süren stop kapatıldı.", actor=user["id"], plan_id=body.plan_id)
+        else:
+            plan["trail"] = manual_trail.trail_config(pct, now_iso())
+            add_event(state, "MANUAL_TRAIL_ON", f"{plan['symbol']} iz süren stop %{pct} mesafeyle açıldı.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, "trail_pct": float(pct) if pct is not None else None, "plan": plan}
 
 
 @router.post("/position/reduce")

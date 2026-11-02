@@ -434,6 +434,27 @@ test('Stop yönetimi: bot/dış pozisyonda görünmez; başa baş fiyat henüz g
   await expect(layer(page).locator('.sqtManage')).toHaveCount(0)
 })
 
+test('İz süren stop: seçim onay ister, sunucuya doğru gider; açıkken Kapat pct=null yollar', async ({page}) => {
+  const trails: Array<Record<string, unknown>> = []
+  await prepare(page, {positions: [profitable()], plans: [{...planFor('BTCUSDT', 'LONG'), trail: {pct: 2}}]})
+  await page.route('**/api/v25/position/trail', route => { trails.push(route.request().postDataJSON()); return route.fulfill({json: {ok: true}}) })
+  await layer(page).locator('.sqtChip').click()
+  const row = layer(page).locator('.sqtTrailRow')
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('%2')
+  await expect(row.getByRole('button', {name: '%2'})).toBeDisabled()
+  await row.getByRole('button', {name: '%1', exact: true}).click()
+  await expect(layer(page).getByRole('alertdialog', {name: 'İz süren stop onayı'})).toContainText('Yalnız sıkılaşır')
+  expect(trails).toHaveLength(0)
+  await layer(page).getByRole('button', {name: 'Evet, aç'}).click()
+  await expect.poll(() => trails.length, {timeout: 8000}).toBe(1)
+  expect(trails[0]).toMatchObject({plan_id: 'plan-BTCUSDT-1', pct: 1, confirmation: 'İZ SÜREN STOP'})
+  await row.getByRole('button', {name: 'Kapat'}).click()
+  await expect.poll(() => trails.length, {timeout: 8000}).toBe(2)
+  expect(trails[1]).toMatchObject({plan_id: 'plan-BTCUSDT-1', pct: null})
+  await page.screenshot({path: 'test-results/manual-trail.png'})
+})
+
 test('Günlük: gönderilen emir kaydedilir, not saklanır, temizleme iki adımlıdır; Esc yalnız paneli kapatır', async ({page}) => {
   const mock = await prepare(page)
   const sheet = await openBuy(page)

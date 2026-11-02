@@ -189,6 +189,8 @@
 .masterReferenceAnalysis .sqtCard {
   width: 272px; max-width: 100%; display: grid; gap: 6px; padding: 10px 12px; border-radius: 18px; background: rgba(12, 19, 27, .86); border: 1px solid rgba(255, 255, 255, .1);
   backdrop-filter: blur(14px); box-shadow: 0 10px 26px #000a;
+  /* Alçak ekranda kart OHLC satırının altına taşmaz; uzun içerik (stop yönetimi) kendi içinde kayar. */
+  max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; align-content: start;
 }
 .masterReferenceAnalysis .sqtCardTop { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
 .masterReferenceAnalysis .sqtCardTop > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -301,9 +303,14 @@
 .masterReferenceAnalysis .sqtManage { display: grid; gap: 6px; padding-top: 6px; border-top: 1px solid #1d2c39; }
 .masterReferenceAnalysis .sqtManage > small { font-size: 10px; letter-spacing: .06em; color: #7f94a0; text-transform: uppercase; }
 .masterReferenceAnalysis .sqtManageRow { display: flex; gap: 6px; }
-.masterReferenceAnalysis .sqtManageRow > .sqtBtn { flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 0 8px; }
+.masterReferenceAnalysis .sqtManageRow > .sqtBtn { flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 0 3px; font-size: 10.5px; }
 .masterReferenceAnalysis .sqtManageRow > input { flex: 2 1 0; }
 .masterReferenceAnalysis .sqtManage [data-tone="warn"] { color: #f0c36a; }
+.masterReferenceAnalysis .sqtTrailRow { align-items: center; }
+.masterReferenceAnalysis .sqtTrailLabel { flex: 0 0 auto; font-size: 11px; color: #b7c6cf; white-space: nowrap; }
+.masterReferenceAnalysis .sqtTrailLabel b { color: #3ee0a0; font-weight: 600; }
+.masterReferenceAnalysis .sqtTrailRow > .sqtTrailChip { flex: 1 1 0; padding: 0 2px; font-variant-numeric: tabular-nums; }
+.masterReferenceAnalysis .sqtTrailChip[data-on] { background: #10392b; border-color: #1f8f61; color: #3ee0a0; opacity: 1; }
 
 /* Emri gönderen alan: kart uzun olsa da (limit + risk %) basılı tut düğmesi hep görünür kalır. */
 .masterReferenceAnalysis .sqtActions { position: sticky; bottom: -8px; display: grid; gap: 6px; padding: 6px 0 8px; margin-bottom: -8px; background: #0e1822; z-index: 1; }

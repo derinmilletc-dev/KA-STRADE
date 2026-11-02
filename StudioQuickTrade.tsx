@@ -6,7 +6,7 @@ import {analysisPrice} from './master-trade-presentation'
 import {requestPositionsRefresh} from './trade-intent'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {
-  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
+  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, DEMO_STOP_PHRASE, DEMO_TRAIL_PHRASE, LIVE_TRAIL_PHRASE, TRAIL_CHOICES, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
   activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, isOpen, levelsFor, limitIssue, limitPresets, nearestChoice, newIntentId, parseJournal, planRights, postJson, riskSummary,
   setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx,
   type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
@@ -20,7 +20,7 @@ import './studio-modern.css'
 
 setLanguageReader(() => currentLang() === 'en')
 
-export type StudioPosition = PositionLike & {stop_loss?: number; tp1?: number; tp2?: number; tp3?: number}
+export type StudioPosition = PositionLike & {stop_loss?: number; tp1?: number; tp2?: number; tp3?: number; plan_source?: string | null; trail_pct?: number | null}
 export type StudioDecision = {direction: string; confidenceScore: number | null; mtfScore: number | null; mtfConfirmed: number; mtfTotal: number; status: string}
 
 const V25 = `${API_BASE}/v25`
@@ -302,8 +302,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     } finally { busyRef.current = false; setBusy(null) }
   }
 
-  // ---- Açık pozisyon: stop yönetimi (başa baş / sıkılaştır / elle). Yalnız canlı MANUEL planlarda; sunucu eski stopu doğrulayarak değiştirir. ----
-  const canManage = !demo && rights.reduce && Boolean(current)
+  // ---- Açık pozisyon: stop yönetimi (başa baş / sıkılaştır / elle). Yalnız MANUEL planlarda (Canlı ve Demo); sunucu eski stopu doğrulayarak değiştirir. ----
+  const canManage = Boolean(current) && (demo ? current?.plan_source === 'MANUAL' : rights.reduce)
   const applyStop = async (stop: number) => {
     if (!current || !canManage || busyRef.current) return
     const problem = stopIssue(sideOf(current), positive(price) ?? positive(current.mark_price), positive(current.stop_loss), stop)
@@ -311,7 +311,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     busyRef.current = true
     setBusy(tx('Stop güncelleniyor…', 'Updating the stop…')); setStopError('')
     try {
-      const result = await postJson<unknown>(`${V25}/position/protection`, {plan_id: rights.id, stop_loss: stop, confirmation: 'KORUMAYI GÜNCELLE'}, 60000)
+      const result = demo
+        ? await postJson<unknown>(`${DEMO}/position/protection`, {symbol: current.symbol, stop_loss: stop, confirmation: DEMO_STOP_PHRASE}, 60000)
+        : await postJson<unknown>(`${V25}/position/protection`, {plan_id: rights.id, stop_loss: stop, confirmation: 'KORUMAYI GÜNCELLE'}, 60000)
       if (result.ok) {
         setStopAsk(null)
         setToast({kind: 'ok', title: tx(`${current.symbol} stopu güncellendi`, `${current.symbol} stop updated`), detail: tx('Eski stop silinip yenisi borsadan doğrulanarak kuruldu.', 'The old stop was removed and the new one was confirmed on the exchange.')})
@@ -321,6 +323,24 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         setToast({kind: 'warn', title: tx('Stop sonucu doğrulanamadı', 'Stop result could not be confirmed'), detail: `${result.message} ${tx('Pozisyonu ve stopu kontrol et; tekrar denemeden önce yenilenmesini bekle.', 'Check the position and its stop; wait for a refresh before trying again.')}`})
         requestPositionsRefresh()
       } else setStopError(result.message)
+    } finally { busyRef.current = false; setBusy(null) }
+  }
+
+  // ---- İz süren stop: sunucu pozisyonu izler, stopu yalnız sıkılaştırır; kapatınca mevcut stop yerinde kalır ----
+  const [trailError, setTrailError] = useState('')
+  const activeTrail = demo ? positive(current?.trail_pct ?? undefined) : positive((plan as {trail?: {pct?: number}} | undefined)?.trail?.pct)
+  const setTrail = async (pct: number | null) => {
+    if (!current || !canManage || busyRef.current) return
+    busyRef.current = true
+    setBusy(pct === null ? tx('İz süren kapatılıyor…', 'Turning trailing off…') : tx('İz süren açılıyor…', 'Turning trailing on…')); setTrailError('')
+    try {
+      const result = demo
+        ? await postJson<unknown>(`${DEMO}/position/trail`, {symbol: current.symbol, pct, confirmation: DEMO_TRAIL_PHRASE}, 30000)
+        : await postJson<unknown>(`${V25}/position/trail`, {plan_id: rights.id, pct, confirmation: LIVE_TRAIL_PHRASE}, 30000)
+      if (result.ok) {
+        setToast({kind: 'ok', title: pct === null ? tx(`${current.symbol} iz süren stop kapatıldı`, `${current.symbol} trailing stop turned off`) : tx(`${current.symbol} iz süren stop açık · %${String(pct).replace('.', ',')}`, `${current.symbol} trailing stop on · ${pct}%`), detail: pct === null ? tx('Mevcut stop yerinde duruyor.', 'The current stop stays in place.') : tx('Sunucu izler; stop yalnız sıkılaşır, gevşemez.', 'The server tracks it; the stop only tightens, never loosens.')})
+        requestPositionsRefresh()
+      } else setTrailError(result.message)
     } finally { busyRef.current = false; setBusy(null) }
   }
 
@@ -392,7 +412,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
           </button>
         : <PositionCard position={current} price={price} pnl={pnl} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
-            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop)} : undefined} demoManageNote={demo}/>}
+            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop), trail: {pct: activeTrail, error: trailError, onSet: pct => void setTrail(pct)}} : undefined} demoManageNote={demo && !canManage}/>}
       {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0))} USDT</strong></span></header>
@@ -494,7 +514,7 @@ function Ladder({side, entry, levels}: {side: Side; entry: number; levels: Level
   </div>
 }
 
-type Manage = {mark: number | null; ask: {stop: number; label: string} | null; error: string; onAsk: (stop: number, label: string) => void; onCancel: () => void; onApply: (stop: number) => void}
+type Manage = {mark: number | null; ask: {stop: number; label: string} | null; error: string; onAsk: (stop: number, label: string) => void; onCancel: () => void; onApply: (stop: number) => void; trail: {pct: number | null; error: string; onSet: (pct: number | null) => void}}
 
 /** Stop yönetimi: başa baş, fiyatı izleyerek sıkılaştırma (tek seferlik), elle stop. Riski büyütecek hareket kabul edilmez. */
 function StopManager({position, manage, sending, busy}: {position: StudioPosition; manage: Manage; sending: boolean; busy: string | null}) {
@@ -505,17 +525,27 @@ function StopManager({position, manage, sending, busy}: {position: StudioPositio
   const tight = [.5, 1].map(pct => ({pct, value: tightenStop(side, manage.mark, stop, pct)}))
   const typed = Number(text.replace(',', '.'))
   const typedProblem = text.trim() ? stopIssue(side, manage.mark, stop, typed) : null
+  const [trailAsk, setTrailAsk] = useState<number | null>(null)
+  const fmtPct = (value: number) => String(value).replace('.', ',')
   return <div className="sqtManage" role="group" aria-label={tx('Stop yönetimi', 'Stop management')}>
     <small>{tx('Stop yönetimi', 'Stop management')}</small>
     <div className="sqtManageRow">
       <button type="button" className="sqtBtn" disabled={!be || sending} title={be ? analysisPrice(be) : tx('Fiyat henüz başa baş seviyesini geçmedi', 'Price has not passed break-even yet')} onClick={() => be && manage.onAsk(be, tx('Başa baş', 'Break-even'))}>{tx('Başa baş', 'Break-even')}</button>
-      {tight.map(({pct, value}) => <button key={pct} type="button" className="sqtBtn" disabled={!value || sending} title={value ? analysisPrice(value) : tx('Şu an stopu bu kadar yaklaştıramaz', 'Cannot tighten the stop this much right now')} onClick={() => value && manage.onAsk(value, tx(`Fiyatın %${String(pct).replace('.', ',')} gerisi`, `${pct}% behind price`))}>{tx('Sıkılaştır', 'Tighten')} %{String(pct).replace('.', ',')}</button>)}
+      {tight.map(({pct, value}) => <button key={pct} type="button" className="sqtBtn" disabled={!value || sending} title={value ? analysisPrice(value) : tx('Şu an stopu bu kadar yaklaştıramaz', 'Cannot tighten the stop this much right now')} aria-label={tx(`Stopu fiyatın %${String(pct).replace('.', ',')} gerisine sıkılaştır`, `Tighten the stop to ${pct}% behind price`)} onClick={() => value && manage.onAsk(value, tx(`Fiyatın %${String(pct).replace('.', ',')} gerisi`, `${pct}% behind price`))}>{tx('Sıkı', 'Tight')} %{String(pct).replace('.', ',')}</button>)}
     </div>
     <div className="sqtManageRow">
       <input id="sqt-stop-new" inputMode="decimal" autoComplete="off" spellCheck={false} aria-label={tx('Yeni stop fiyatı', 'New stop price')} placeholder={stop ? analysisPrice(stop) : tx('Yeni stop', 'New stop')} value={text} disabled={sending} onChange={event => setText(event.target.value)}/>
       <button type="button" className="sqtBtn" disabled={sending || !text.trim() || Boolean(typedProblem)} onClick={() => manage.onAsk(typed, tx('Elle stop', 'Manual stop'))}>{tx('Uygula', 'Apply')}</button>
     </div>
     {typedProblem && <p className="sqtNoteSmall" data-tone="warn">{typedProblem}</p>}
+    <div className="sqtManageRow sqtTrailRow" role="group" aria-label={tx('İz süren stop', 'Trailing stop')}>
+      <span className="sqtTrailLabel">{tx('İz süren', 'Trailing')}</span>
+      {TRAIL_CHOICES.map(pct => <button key={pct} type="button" className="sqtBtn sqtTrailChip" data-on={manage.trail.pct === pct || undefined} aria-pressed={manage.trail.pct === pct} disabled={sending || manage.trail.pct === pct} onClick={() => setTrailAsk(pct)}>%{fmtPct(pct)}</button>)}
+      {manage.trail.pct && <button type="button" className="sqtBtn" disabled={sending} onClick={() => { setTrailAsk(null); manage.trail.onSet(null) }}>{tx('Kapat', 'Off')}</button>}
+    </div>
+    {trailAsk !== null && <div className="sqtAsk" role="alertdialog" aria-label={tx('İz süren stop onayı', 'Trailing stop confirmation')}><span>{tx(`Stop, fiyatın %${fmtPct(trailAsk)} gerisinden otomatik izlensin mi? Yalnız sıkılaşır; hata olursa kendini kapatır, stop yerinde kalır.`, `Trail the stop automatically ${trailAsk}% behind price? It only tightens; if it fails it switches itself off and the stop stays.`)}</span>
+      <div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => { const value = trailAsk; setTrailAsk(null); manage.trail.onSet(value) }}>{tx('Evet, aç', 'Yes, turn on')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={() => setTrailAsk(null)}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
+    {manage.trail.error && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{manage.trail.error}</p>}
     {manage.ask && <div className="sqtAsk" role="alertdialog" aria-label={tx('Stop güncelleme onayı', 'Stop update confirmation')}><span>{tx(`Stop ${analysisPrice(manage.ask.stop)} olarak güncellensin mi? (${manage.ask.label})`, `Update the stop to ${analysisPrice(manage.ask.stop)}? (${manage.ask.label})`)}</span>
       <div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => manage.onApply(manage.ask!.stop)}>{sending ? busy : tx('Evet, güncelle', 'Yes, update')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={manage.onCancel}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
     {manage.error && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{manage.error}</p>}
@@ -542,7 +572,7 @@ function PositionCard({position, price, pnl, rights, demo, busy, action, actionE
       {!rights.close && <p className="sqtNoteSmall">{tx('Bu pozisyon bot ya da dış kaynaklı; kapatma Pozisyonlar sekmesinden.', 'This position is bot-managed or external; close it from the Positions tab.')}</p>}
     </div>}
     {action === null && manage && <StopManager position={position} manage={manage} sending={sending} busy={busy}/>}
-    {action === null && demoManageNote && <p className="sqtNoteSmall">{tx('Stop taşıma (başa baş, sıkılaştırma) şimdilik yalnız canlı manuel işlemlerde.', 'Stop management (break-even, tightening) is live manual trades only for now.')}</p>}
+    {action === null && demoManageNote && <p className="sqtNoteSmall">{tx('Stop taşıma yalnız elle açtığın işlemlerde; bot ya da dış pozisyonlara dokunulmaz.', 'Stop management is for trades you opened by hand; bot and external positions are never touched.')}</p>}
     {action === 'half' && <div className="sqtAsk" role="alertdialog" aria-label={tx('Yarısını kapat onayı', 'Close half confirmation')}><span>{tx('Pozisyonun yarısı piyasa fiyatından kapatılsın mı?', 'Close half of the position at market price?')}</span><div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => onRun('half')}>{sending ? busy : tx('Evet, kapat', 'Yes, close')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={onCancelAsk}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
     {actionError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{actionError}</p>}
     {sending && action === null && <p className="sqtNoteSmall" role="status">{busy}</p>}
