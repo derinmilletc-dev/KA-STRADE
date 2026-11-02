@@ -8196,3 +8196,26 @@ body:has(#root .liveTradingPanel.liveUx),
   .v26MobileMenuSheet a.v26MobileMenuInsta { animation: none; }
   .v26MobileMenuSheet a.v26MobileMenuInsta::after { display: none; }
 }
+
+/* Menü · Instagram butonu: turuncu → pembe → mor çerçeve, koyu mor zemin, renkli ikon, sağda ok (menüdeki referans görünüm). */
+.v26MobileMenuSheet a.v26MobileMenuInsta {
+  min-height: 52px;
+  padding: 7px 10px 7px 9px;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  background-color: #1d0f21;
+  background-image: linear-gradient(100deg, #2a1024, #1c0f2a 70%), linear-gradient(100deg, #f58529, #dd2a7b 45%, #8134af 75%, #515bd4);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  color: #fff;
+}
+.v26App .v26MobileMenuSheet a.v26MobileMenuInsta { background-image: linear-gradient(100deg, #2a1024, #1c0f2a 70%), linear-gradient(100deg, #f58529, #dd2a7b 45%, #8134af 75%, #515bd4) !important; background-origin: border-box; background-clip: padding-box, border-box; }
+.v26MobileMenuSheet a.v26MobileMenuInsta:active { border-color: transparent; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaIcon { flex-basis: 36px; width: 36px; height: 36px; border-radius: 11px; background-color: #0b0d12; border: 1px solid rgba(255, 255, 255, .08); color: #fff; }
+.v26App .v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaIcon { background-image: linear-gradient(135deg, #f58529, #dd2a7b 55%, #8134af) !important; border: 0; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaIcon svg { width: 20px; height: 20px; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaText b { color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaText em { color: #4ee0a0; font-weight: 700; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaGo { display: grid; flex: 0 0 30px; place-items: center; width: 30px; height: 30px; border-radius: 50%; background-color: rgba(221, 42, 123, .35); color: #fff; }
+.v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaGo svg { width: 17px; height: 17px; }
+.v26MobileMenuSheet a.v26MobileMenuInsta::after { background: linear-gradient(105deg, transparent, rgba(255, 255, 255, .09) 50%, transparent); }
