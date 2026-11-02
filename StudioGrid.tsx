@@ -7,7 +7,7 @@ import {HoldButton} from './studio-hold'
 import {tx, type AnalysisLevels} from './studio-quick-trade'
 import {
   GRID_MAX_COUNT, GRID_MIN_COUNT, atrPct, backtestGrid, barSeconds, chartLinesFor, chartLinesForRows, gridActive, gridPnl, gridRangeStatus, gridStatusText, gridSummary, previewGrid, priceText, requestGrid,
-  setGridLanguageReader, snapTo, startBody, suggestGrid,
+  previewBody, setGridLanguageReader, snapTo, startBody, suggestGrid,
   type Candle, type GridChartLine, type GridFilters, type GridMode, type GridParams, type GridPreset, type GridRow, type GridStatus,
 } from './studio-grid'
 import './studio-grid.css'
@@ -79,6 +79,25 @@ function NumField({label, value, onCommit, tick, disabled, tone = 'range', id}: 
   return <label className="sqgField" data-tone={tone} htmlFor={id}><small>{label}</small>
     <input id={id} inputMode="decimal" autoComplete="off" spellCheck={false} value={text} disabled={disabled} onFocus={() => { focused.current = true }}
       onChange={event => setText(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === 'Enter') { event.currentTarget.blur() } }}/>
+  </label>
+}
+
+/** İsteğe bağlı USDT sınırı: boş/0 = kapalı. Yalnız pozitif sayı kabul edilir. */
+function ProtField({label, hint, value, onCommit, disabled, id}: {label: string; hint: string; value: number; onCommit: (value: number) => void; disabled?: boolean; id: string}) {
+  const [text, setText] = useState(() => value > 0 ? String(value) : '')
+  const focused = useRef(false)
+  useEffect(() => { if (!focused.current) setText(value > 0 ? String(value) : '') }, [value])
+  const commit = () => {
+    focused.current = false
+    const raw = text.trim().replace(',', '.')
+    if (!raw) { onCommit(0); setText(''); return }
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1_000_000) { const rounded = Math.round(parsed * 100) / 100; onCommit(rounded); setText(String(rounded)) } else setText(value > 0 ? String(value) : '')
+  }
+  return <label className="sqgField sqgProtField" htmlFor={id}><small>{label}</small>
+    <input id={id} inputMode="decimal" autoComplete="off" spellCheck={false} placeholder={tx('Kapalı', 'Off')} value={text} disabled={disabled} onFocus={() => { focused.current = true }}
+      onChange={event => setText(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}/>
+    <em>{hint}</em>
   </label>
 }
 
@@ -170,6 +189,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [ask, setAsk] = useState<string | null>(null)
+  const [server, setServer] = useState<{state: 'idle' | 'checking' | 'ok' | 'rejected' | 'unknown'; message: string; worst?: number; perCycle?: number}>({state: 'idle', message: ''})
   const busyRef = useRef(false)
   useEffect(() => { onOpenChange?.(open && !hidden); return () => onOpenChange?.(false) }, [open, hidden, onOpenChange])
   const symbolRef = useRef(symbol)
@@ -255,7 +275,26 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
     : here ? tx(`${short(symbol)} için zaten çalışan bir grid var.`, `A grid is already running on ${short(symbol)}.`)
     : !demo && liveBlocker ? liveBlocker
     : disabledReason || (filtersState === 'error' ? tx('Borsa kuralları okunamadı; güvenli tarafta kalmak için başlatılmaz.', 'Exchange rules could not be read; for safety the grid will not start.') : '')
-  const canStart = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && !busy && running.length < 5
+  const canStart = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && !busy && running.length < 5 && server.state !== 'rejected'
+
+  // Sunucuya plan sorusu (emir yok): sunucunun kuralları son sözü söyler; kesin ret varsa başlatma kapanır, ulaşılamazsa yerel kontrol geçerli kalır.
+  const serverKey = params ? JSON.stringify(startBody(symbol, params, demo)) : ''
+  const localOk = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && (demo || premium)
+  useEffect(() => {
+    if (!open || tab !== 'new' || !localOk || !params) { setServer({state: 'idle', message: ''}); return }
+    let cancelled = false
+    setServer({state: 'checking', message: ''})
+    const timer = window.setTimeout(() => {
+      void requestGrid<{plan?: {worst_loss_usdt?: number; profit_per_cycle_usdt?: number}}>(`${base(demo)}/start`, 'POST', previewBody(symbol, params, demo), 20000).then(result => {
+        if (cancelled) return
+        if (result.ok) setServer({state: 'ok', message: '', worst: Number(result.data?.plan?.worst_loss_usdt), perCycle: Number(result.data?.plan?.profit_per_cycle_usdt)})
+        else if (!result.uncertain && result.status >= 400 && result.status < 500 && result.status !== 401 && result.status !== 403 && result.status !== 404) setServer({state: 'rejected', message: result.message})
+        else setServer({state: 'unknown', message: ''})
+      })
+    }, 650)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab, localOk, serverKey])
 
   const start = async () => {
     if (!params || busyRef.current) return
@@ -371,6 +410,11 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
                 <div><b>{tx('Sürekli çalış', 'Keep cycling')}</b><small>{tx('Hedef dolunca aynı kademede yeniden giriş kurulur. Kapalıysa her kademe bir kez çalışır.', 'When a target fills the same level is re-armed. If off, each level runs once.')}</small></div></label>
             : params && <p className="sqgHint"><Info aria-hidden="true"/>{tx('Nötr grid her zaman sürekli çalışır: hedef dolunca aynı çizgide yeniden kurulur.', 'A neutral grid always cycles: when a target fills the line is re-armed.')}</p>}
 
+          {params && <div className="sqgProt" role="group" aria-label={tx('Kâr ve zarar koruması', 'Profit and loss protection')}>
+            <ProtField id="sqg-tp" label={tx('Hedef kâr (USDT)', 'Take profit (USDT)')} hint={tx('Ulaşınca yeni giriş durur', 'New entries stop when reached')} value={params.takeProfit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, takeProfit: value} : current)}/>
+            <ProtField id="sqg-sl" label={tx('Zarar sınırı (USDT)', 'Loss limit (USDT)')} hint={tx('Ulaşınca grid kapatılır', 'The grid is closed when reached')} value={params.lossLimit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, lossLimit: value} : current)}/>
+          </div>}
+
           {preview && preview.activeLevels > 0 && <dl className="sqgStats">
             <div><dt>{tx('Kademe aralığı', 'Level spacing')}</dt><dd>%{fmt(preview.spacingPct, 2)}</dd></div>
             <div data-tone="gain"><dt>{tx('Tur başı net kâr', 'Net per cycle')}</dt><dd>{preview.profitPerCycle !== null ? `+${fmt(preview.profitPerCycle, Math.abs(preview.profitPerCycle) < 0.1 ? 4 : 2)}` : '—'} <u>USDT</u></dd></div>
@@ -395,7 +439,10 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             {(preview?.issues ?? []).map(text => <li key={text} data-ok="false"><TriangleAlert aria-hidden="true"/>{text}</li>)}
             {(preview?.warnings ?? []).map(text => <li key={text} data-ok="warn"><Info aria-hidden="true"/>{text}</li>)}
             {blockReason && <li data-ok="false"><ShieldAlert aria-hidden="true"/>{blockReason}</li>}
-            {preview?.ok && !blockReason && <li data-ok="true"><Check aria-hidden="true"/>{tx('Kademeler borsa kurallarına uyuyor; son kontrolü sunucu yapar.', 'Levels fit the exchange rules; the server runs the final check.')}</li>}
+            {server.state === 'rejected' && <li data-ok="false"><ShieldAlert aria-hidden="true"/>{server.message}</li>}
+            {preview?.ok && !blockReason && server.state !== 'rejected' && (server.state === 'ok'
+              ? <li data-ok="true"><Check aria-hidden="true"/>{tx('Sunucu planı doğruladı', 'The server confirmed the plan')}{Number.isFinite(server.worst) && server.worst ? tx(` · en kötü −${fmt(server.worst!)} USDT`, ` · worst case −${fmt(server.worst!)} USDT`) : ''}</li>
+              : <li data-ok="true"><Check aria-hidden="true"/>{server.state === 'checking' ? tx('Kademeler borsa kurallarına uyuyor · sunucu doğruluyor…', 'Levels fit the exchange rules · the server is checking…') : tx('Kademeler borsa kurallarına uyuyor; son kontrolü sunucu yapar.', 'Levels fit the exchange rules; the server runs the final check.')}</li>)}
             {filtersState === 'loading' && <li data-ok="warn"><Info aria-hidden="true"/>{tx('Borsa kuralları okunuyor…', 'Reading exchange rules…')}</li>}
           </ul>
           {error && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}

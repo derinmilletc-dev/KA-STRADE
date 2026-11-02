@@ -205,3 +205,6 @@
 .masterReferenceAnalysis .sqgHist[data-tone="bad"] { border-color: #8f2a3a; }
 .masterReferenceAnalysis .sqgTotals { margin-bottom: 2px; }
 .masterReferenceAnalysis .sqgTabs button { padding: 0 9px; }
+
+.masterReferenceAnalysis .sqgProt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.masterReferenceAnalysis .sqgProtField em { display: block; font-style: normal; font-size: 10px; line-height: 1.25; color: var(--sqg-dim, #7f93a6); margin-top: 3px; }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {gridPnl, previewGrid, snapTo, startBody, suggestGrid} from '../studio-grid.ts'
+import {gridPnl, previewBody, previewGrid, snapTo, startBody, suggestGrid} from '../studio-grid.ts'
 
 const filters = {tickSize: 0.1, stepSize: 0.001, minNotional: 5, minQty: 0.001}
 const base = {mode: 'NEUTRAL', lower: 98, upper: 102, count: 8, stop: 96.5, stopUpper: 103.5, margin: 100, leverage: 3, recycle: true}
@@ -183,4 +183,13 @@ test('gridRangeStatus aralık dışını ve içini ayırt eder; gridSummary sür
   assert.equal(gridRangeStatus({}, 100).state, 'unknown')
   assert.equal(gridSummary({created_at: 1000, updated_at: 8200, stats: {cycles: 4, realized_usdt: 1.2, fees_usdt: 0.1}}).hours, 2)
   assert.equal(gridSummary({stats: null}).hours, null)
+})
+
+test('startBody: koruma alanları yalnız pozitifse gider; previewBody yalnız preview ekler', () => {
+  const p = {mode: 'LONG', lower: 90, upper: 100, count: 5, stop: 85, stopUpper: 0, margin: 50, leverage: 2, recycle: true}
+  assert.equal('take_profit_usdt' in startBody('BTCUSDT', p, true), false)
+  assert.equal('loss_limit_usdt' in startBody('BTCUSDT', {...p, takeProfit: 0, lossLimit: 0}, true), false)
+  const body = startBody('BTCUSDT', {...p, takeProfit: 5, lossLimit: 8}, false)
+  assert.equal(body.take_profit_usdt, 5); assert.equal(body.loss_limit_usdt, 8); assert.equal('preview' in body, false)
+  assert.equal(previewBody('BTCUSDT', p, true).preview, true)
 })

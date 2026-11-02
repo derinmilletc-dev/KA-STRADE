@@ -14,7 +14,7 @@ const FIXED_NOW = Date.now()
 const price = (symbol: string) => previewMarkets.find(market => market.symbol === symbol)!.price
 
 type Row = Record<string, unknown>
-type Mock = {positions: Array<Record<string, unknown>>; starts: Array<Record<string, unknown>>; stops: string[]; emergencies: string[]; grids: Row[]; startStatus: number; startBody: unknown; enabled: boolean}
+type Mock = {positions: Array<Record<string, unknown>>; starts: Array<Record<string, unknown>>; stops: string[]; emergencies: string[]; grids: Row[]; startStatus: number; startBody: unknown; enabled: boolean; previews: Array<Record<string, unknown>>; previewStatus: number; previewBody: unknown}
 
 const gridRow = (id: string, symbol: string, side: string, extra: Row = {}): Row => ({
   grid_id: id, symbol, side, status: 'RUNNING', reason: '', position_qty: 0, needs_user: false, loop_running: true, recycle: true, alerts: [], orders: [],
@@ -23,7 +23,7 @@ const gridRow = (id: string, symbol: string, side: string, extra: Row = {}): Row
 })
 
 async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844, height: 390}) {
-  const mock: Mock = {positions: [], starts: [], stops: [], emergencies: [], grids: [], startStatus: 200, startBody: null, enabled: true, ...seed}
+  const mock: Mock = {positions: [], starts: [], stops: [], emergencies: [], grids: [], startStatus: 200, startBody: null, enabled: true, previews: [], previewStatus: 200, previewBody: null, ...seed}
   await page.addInitScript(() => {
     try { localStorage.setItem('kais-site-tour:v1:studio-member', `never|${Date.now()}`); for (const id of ['market', 'risk']) localStorage.setItem(`kais-page-tips:v1:studio-member:${id}`, 'seen'); localStorage.setItem('kaistrade-studio-grid-prefs', JSON.stringify({margin: 300, leverage: 5, recycle: true, mode: 'NEUTRAL', preset: 'analysis'})) } catch { /* yok */ }
     let current: Element | null = null
@@ -55,6 +55,11 @@ async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844,
   await page.route('**/api/v25/grid/filters**', route => route.fulfill({json: {ok: true, symbol: 'BTCUSDT', tickSize: 0.1, stepSize: 0.001, minQty: 0.001, minNotional: 5}}))
   await page.route('**/api/v25/grid/live/start', route => {
     const body = route.request().postDataJSON() as Row
+    if (body.preview) {
+      mock.previews.push(body)
+      if (mock.previewStatus !== 200) return route.fulfill({status: mock.previewStatus, json: mock.previewBody ?? {detail: 'Plan reddedildi.'}})
+      return route.fulfill({json: {ok: true, preview: true, plan: {worst_loss_usdt: 12.5, profit_per_cycle_usdt: 0.4}, available_balance: 900}})
+    }
     mock.starts.push(body)
     if (mock.startStatus !== 200) return route.fulfill({status: mock.startStatus, json: mock.startBody ?? {detail: 'Grid reddedildi.'}})
     mock.grids.unshift(gridRow(`g${mock.starts.length}`, String(body.symbol), String(body.direction), {stats: {cycles: 0, realized_usdt: 0, gross_usdt: 0, fees_usdt: 0, open_levels: []}}))
@@ -300,3 +305,28 @@ for (const [width, height] of [[667, 375], [740, 360], [844, 390], [1180, 700]] 
     await page.screenshot({path: `test-results/grid-layout-${width}.png`})
   })
 }
+
+
+test('Sunucu planı doğrular; kesin ret başlatmayı kapatır, koruma alanları isteğe eklenir', async ({page}) => {
+  const mock = await prepare(page, {previewStatus: 409, previewBody: {detail: 'Kullanılabilir bakiye grid marjininden düşük.'}})
+  await layer(page).locator('.sqgChip').click()
+  await expect(panel(page)).toBeVisible()
+  await expect(panel(page).locator('.sqgChecks')).toContainText('Kullanılabilir bakiye grid marjininden düşük.', {timeout: 10000})
+  await expect(panel(page).locator('.sqgFoot .sqtHold')).toBeDisabled()
+  expect(mock.starts).toHaveLength(0)
+  expect(mock.previews.length).toBeGreaterThan(0)
+  mock.previewStatus = 200
+  await panel(page).locator('#sqg-tp').fill('5')
+  await panel(page).locator('#sqg-sl').fill('8')
+  await panel(page).locator('#sqg-sl').blur()
+  await expect(panel(page).locator('.sqgChecks')).toContainText('Sunucu planı doğruladı', {timeout: 10000})
+  await expect(panel(page).locator('.sqgFoot .sqtHold')).toBeEnabled()
+  const last = mock.previews[mock.previews.length - 1]
+  expect(last).toMatchObject({preview: true, take_profit_usdt: 5, loss_limit_usdt: 8})
+  expect(mock.starts).toHaveLength(0)
+  await hold(page, panel(page).locator('.sqgFoot .sqtHold'), 1800)
+  await expect.poll(() => mock.starts.length, {timeout: 8000}).toBe(1)
+  expect(mock.starts[0]).toMatchObject({take_profit_usdt: 5, loss_limit_usdt: 8})
+  expect(mock.starts[0]).not.toHaveProperty('preview')
+  await page.screenshot({path: 'test-results/grid-protect.png'})
+})

@@ -22,7 +22,7 @@ function errorText(payload: unknown, fallback: string): string {
 export type GridMode = 'LONG' | 'SHORT' | 'NEUTRAL'
 export type GridPreset = 'analysis' | 'atr' | 'tight' | 'wide' | 'custom'
 export type GridFilters = {tickSize: number; stepSize: number; minNotional: number; minQty: number}
-export type GridParams = {mode: GridMode; lower: number; upper: number; count: number; stop: number; stopUpper: number; margin: number; leverage: number; recycle: boolean}
+export type GridParams = {mode: GridMode; lower: number; upper: number; count: number; stop: number; stopUpper: number; margin: number; leverage: number; recycle: boolean; takeProfit?: number; lossLimit?: number}
 
 export const GRID_MAKER_FEE = 0.0002
 export const GRID_TAKER_FEE = 0.0005
@@ -276,7 +276,13 @@ export async function requestGrid<T>(url: string, method: 'GET' | 'POST', body?:
 export function startBody(symbol: string, p: GridParams, demo: boolean) {
   const base = {symbol, direction: p.mode, lower: p.lower, upper: p.upper, count: p.count, margin_usdt: p.margin, leverage: p.leverage, stop: p.stop, recycle: p.mode === 'NEUTRAL' ? true : p.recycle,
     confirmation: demo ? GRID_DEMO_PHRASE : GRID_LIVE_PHRASE}
-  return p.mode === 'NEUTRAL' ? {...base, stop_upper: p.stopUpper} : base
+  const withStop = p.mode === 'NEUTRAL' ? {...base, stop_upper: p.stopUpper} : base
+  return {...withStop, ...(p.takeProfit && p.takeProfit > 0 ? {take_profit_usdt: p.takeProfit} : {}), ...(p.lossLimit && p.lossLimit > 0 ? {loss_limit_usdt: p.lossLimit} : {})}
+}
+
+/** Sunucuda yalnız plan hesaplatır (emir yok): panelde "sunucu onayladı" göstermek için. */
+export function previewBody(symbol: string, p: GridParams, demo: boolean) {
+  return {...startBody(symbol, p, demo), preview: true}
 }
 
 /** Canlı kâr/zarar tahmini: gerçekleşen tur kârı + açık kademelerin anlık değeri. */
