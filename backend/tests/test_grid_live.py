@@ -644,3 +644,32 @@ class TestNeutralPlan(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDemoRunner(unittest.TestCase):
+    """Demo hesap: aynı motor, ayrı defter; canlı kilidi uygulanmaz, Demo risk politikası kullanılır."""
+
+    def test_demo_runner_is_demo_account_and_not_blocked_by_live_lock(self):
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False), account="DEMO")
+        self.assertEqual(runner.account, "DEMO")
+        self.assertFalse(runner.blocked_check({"real_trading_locked": True, "emergency": {"active": True}}))
+
+    def test_demo_policy_reads_user_settings_with_safe_defaults(self):
+        policy = grid_live.demo_policy({"max_loss_per_trade": 7, "daily_loss_limit": "bad", "max_positions": 1})
+        self.assertEqual(policy["max_loss_per_trade"], 7.0)
+        self.assertEqual(policy["daily_loss_limit"], 30.0)
+        self.assertGreater(policy["max_positions"], grid_live.MAX_GRIDS_PER_USER)
+        self.assertEqual(policy["max_total_exposure_usdt"], grid_live.DEMO_MAX_EXPOSURE_USDT)
+        self.assertEqual(grid_live.demo_policy(None)["daily_loss_limit"], 30.0)
+
+    def test_demo_flag_defaults_on_and_can_be_turned_off(self):
+        import os
+        old = os.environ.pop(grid_live.DEMO_ENV_FLAG, None)
+        try:
+            self.assertTrue(grid_live.demo_enabled())
+            os.environ[grid_live.DEMO_ENV_FLAG] = "0"
+            self.assertFalse(grid_live.demo_enabled())
+        finally:
+            os.environ.pop(grid_live.DEMO_ENV_FLAG, None)
+            if old is not None:
+                os.environ[grid_live.DEMO_ENV_FLAG] = old

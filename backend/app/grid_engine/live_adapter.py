@@ -66,6 +66,8 @@ def translate_error(exc: Exception, *, read: bool) -> Exception:
         return ExchangeTimeout(text)
     if getattr(exc, "transient_read_failure", False) or exc.__class__.__name__ == "LiveRateLimitError":
         return ExchangeUnreachable(text)
+    if int(getattr(exc, "http_status", 0) or 0) == 429 or code in (-1003, -1021):
+        return ExchangeUnreachable(text)        # hız sınırı / saat kayması: geçici; motor kimlikle sorup tekrar dener
     if isinstance(code, int):
         return ExchangeRejected(code, text)
     if read or int(getattr(exc, "http_status", 0) or 0) >= 500:
