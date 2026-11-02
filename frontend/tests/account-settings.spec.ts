@@ -246,19 +246,23 @@ test('Password change rejects missing common rules without sending a request', a
   await expect(page.getByRole('heading', {name: 'Profil & Ayarlar'})).toBeVisible()
 })
 
-test('Disabling two-factor authentication keeps the current device only', async ({page}) => {
-  const {data, mutations} = await prepare(page)
+test('Two-factor is mandatory: status dialog has no disable option and sends nothing', async ({page}, testInfo) => {
+  const {data, mutations} = await prepare(page, {width: 390})
   data.security.two_factor_enabled = true
   await page.goto(`${base}/settings`)
-  await page.getByRole('button', {name: '2FA yönet'}).click()
-  await page.getByLabel('Mevcut parola').fill('Offline-Password1!')
-  await page.getByLabel('2FA veya kurtarma kodu').fill('OFFLINE-RECOVERY-CODE')
-  await page.getByRole('dialog').getByRole('button', {name: '2FA devre dışı bırak'}).click()
+  await expect(page.getByText('Etkin · zorunlu koruma')).toBeVisible()
+  await page.getByRole('button', {name: 'Ayrıntılar'}).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByTestId('two-factor-status')).toBeVisible()
+  await expect(dialog.getByText('Hesabın koruma altında')).toBeVisible()
+  await expect(dialog.getByText('2FA her KaisTrade hesabında zorunludur ve kapatılamaz.')).toBeVisible()
+  await expect(dialog.getByText(/devre dışı/i)).toHaveCount(0)
+  await expect(dialog.getByLabel('Mevcut parola')).toHaveCount(0)
+  await page.screenshot({path: testInfo.outputPath('two-factor-status-mobile.png'), animations: 'disabled'})
+  await dialog.getByRole('button', {name: 'Tamam'}).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(data.sessions.map(session => session.id)).toEqual(['current-session'])
-  expect(data.security.two_factor_enabled).toBe(false)
-  expect(mutations.map(item => item.path)).toEqual(['/api/v22/account/2fa/disable'])
-  expect(await page.evaluate(() => localStorage.getItem('protrebot-v25-session'))).toBe('cookie-session:account-test-user')
+  expect(mutations).toEqual([])
+  expect(data.security.two_factor_enabled).toBe(true)
 })
 
 test('Google-only changes require email reauthentication and mail-unavailable UI is honest', async ({page}) => {

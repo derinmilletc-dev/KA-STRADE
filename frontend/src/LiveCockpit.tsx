@@ -1775,6 +1775,21 @@ export default function LiveCockpit(props: Props) {
   ] : []
   const coachNote = coach && running ? [why, breakdown?.headline ? `Son 24 saat: ${breakdown.headline}` : null].filter(Boolean).join(' ') : ''
 
+
+  // Kais Rehber penceresi açıkken telefondaki alt menü gizlenir; Onayla/Geri tuşlarının üstüne binmesin (Canlı ve Demo).
+  const guideOpen = Boolean(sheetView)
+  useEffect(() => {
+    if (!guideOpen) return
+    const root = document.documentElement
+    const count = Number(root.dataset.ktGuideOpen || 0) + 1
+    root.dataset.ktGuideOpen = String(count)
+    return () => {
+      const left = Number(root.dataset.ktGuideOpen || 1) - 1
+      if (left > 0) root.dataset.ktGuideOpen = String(left)
+      else delete root.dataset.ktGuideOpen
+    }
+  }, [guideOpen])
+
   return <section className="lcRoot originalLiveWorkspace" aria-label={dt('Canlı İşlem')} data-demo={demo || undefined} data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode} from 'react'
 import {Activity, ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Copy, KeyRound, LoaderCircle, LockKeyhole, LogOut, Mail, Monitor, Pencil, Save, ShieldCheck, Trash2, UserRound, X} from 'lucide-react'
 import TwoFactorSetup, {type EnrollmentResult} from './TwoFactorSetup'
+import TwoFactorStatus, {TwoFactorStatusHeader} from './TwoFactorStatus'
 import {RecoveryCodes, VerificationSymbol} from './verification-ui'
 import {accountDate, accountInitials, accountRequest, TRADING_TIMEFRAMES, type AccountMutation, type AccountOverview, type SensitiveProof, type TradingPreferences} from './account-settings-api'
 import './profile-settings.css'
@@ -143,7 +144,8 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
       } else if (dialog === 'close') {
         await mutate('/account/close', {...proof, confirmation}, 'Hesap kapatıldı.')
       } else if (dialog === 'two-factor') {
-        if (data?.security.two_factor_enabled) {await mutate('/account/2fa/disable', proof, 'İki aşamalı doğrulama kapatıldı.'); closeDialog()}
+        // 2FA zorunlu: etkin hesapta kapatma yolu yoktur (durum ekranı yalnız gösterir).
+        if (data?.security.two_factor_enabled) closeDialog()
         else if (!enrollment) {
           setEnrollment(await accountRequest<{secret: string; otpauth_uri: string}>('/account/2fa/setup', {method: 'POST', body: JSON.stringify(proof)}))
           setProof({})
@@ -187,6 +189,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
   }
   const titles: Record<DialogKind, string> = {profile: 'Profili düzenle', email: 'E-posta adresini değiştir', password: 'Parolayı değiştir', 'two-factor': 'İki aşamalı doğrulama', sessions: 'Aktif oturumlar', activity: 'Son aktiviteler', close: 'Hesabı kapat', delete: 'Hesabımı kalıcı olarak sil'}
   const activity = (all = false) => <ol className="accountActivities">{(all ? data?.activity : data?.activity.slice(0, 5))?.map(item => <li key={item.id}><Activity/><div><b>{item.message}</b><small>{item.kind}</small></div><time dateTime={item.created_at}>{accountDate(item.created_at)}</time></li>)}</ol>
+  const twoFactorStatus = dialog === 'two-factor' && Boolean(data?.security.two_factor_enabled) && recoveryCodes.length === 0
   return <main className="accountSettings">
     <header className="accountTopbar"><a href="/" className="accountBrand" translate="no" data-i18n-skip>kais<b>trade</b></a><button type="button" className="accountTopIdentity" aria-label="Profil bilgilerini düzenle" aria-haspopup="dialog" aria-expanded={dialog === 'profile'} disabled={busy || !data} onClick={() => openDialog('profile')}><i>{accountInitials(data?.user.display_name || '')}</i><span>{data?.user.display_name || '—'}</span><ChevronDown/></button><button type="button" onClick={onLogout} aria-label="Çıkış"><LogOut/></button></header>
     <div className="accountWorkspace"><a href="/" className="accountBack"><ArrowLeft/>Ana sayfaya dön</a>
@@ -203,7 +206,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           <section className="accountCard accountPlan"><h2>Mevcut paket <span className="accountBadge muted">{data.subscription.status}</span></h2><div><div><strong>{data.subscription.plan}</strong><p>{data.subscription.is_premium ? 'Premium erişimi mevcut' : 'Premium erişimi yok'}</p><small>Bitiş: {accountDate(data.subscription.expires_at)}</small>{data.user.role === 'OWNER' && <small>Yönetici erişimi ücretli abonelik anlamına gelmez.</small>}</div><ul>{data.subscription.features.map(feature => <li key={feature.key}>{feature.included ? <Check/> : <LockKeyhole/>}<span>{feature.label}</span><small>{feature.included ? 'Dahil' : 'Yükselt'}</small></li>)}</ul></div><a className="accountPrimary" href="/pricing">Paketleri görüntüle<ArrowRight/></a></section>
           <section className="accountCard"><h2>Güvenlik</h2><div className="accountSecurityRows">
             <div><i><KeyRound/></i><span><b>Parola</b><small>{data.user.auth_methods.includes('password') ? `Son değişiklik: ${accountDate(data.user.password_changed_at)}` : 'Google hesabı · yerel parola yok'}</small></span><button disabled={busy} onClick={() => openDialog('password')}>{data.user.auth_methods.includes('password') ? 'Parolayı değiştir' : 'Parola oluştur'}</button></div>
-            <div><i><ShieldCheck/></i><span><b>İki aşamalı doğrulama</b><small>{data.security.two_factor_enabled ? 'Etkin' : 'Hesabınıza ek koruma ekleyin'}</small></span><button disabled={busy} onClick={() => openDialog('two-factor')}>{data.security.two_factor_enabled ? '2FA yönet' : '2FA etkinleştir'}</button></div>
+            <div><i><ShieldCheck/></i><span><b>İki aşamalı doğrulama</b><small>{data.security.two_factor_enabled ? <span className="tfaBadge"><i aria-hidden="true"/>Etkin · zorunlu koruma</span> : 'Her hesap için zorunlu · şimdi kur'}</small></span><button disabled={busy} onClick={() => openDialog('two-factor')}>{data.security.two_factor_enabled ? 'Ayrıntılar' : '2FA etkinleştir'}</button></div>
             <div><i><Mail/></i><span><b>E-posta adresi</b><small>{data.user.email_verified ? 'Doğrulandı' : 'Doğrulama gerekli'}</small></span><button disabled={busy || !data.security.email_delivery_available} onClick={() => openDialog('email')}>E-postayı değiştir</button></div>
             {!data.user.email_verified && <button disabled={busy || !data.security.email_delivery_available} onClick={() => void run(() => mutate('/account/verification/resend', {}, 'Doğrulama e-postası gönderildi.'))}>Doğrulama e-postasını tekrar gönder</button>}
             <div><i><Monitor/></i><span><b>Aktif oturumlar</b><small>{data.security.active_sessions} oturum</small></span><button disabled={busy} onClick={() => openDialog('sessions')}>Oturumları yönet</button></div>
@@ -230,11 +233,12 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
         </div>
       </>}
     </div>
-    {dialog && data && <SettingsDialog className={dialog === 'password' || dialog === 'email' ? 'pwDialog' : undefined} header={dialog === 'password' ? <PasswordDialogHeader/> : dialog === 'email' ? <EmailDialogHeader/> : undefined} title={dialog === 'two-factor' && (!data.security.two_factor_enabled || recoveryCodes.length > 0) ? 'Hesabını koru' : titles[dialog]} busy={busy || recoveryCodes.length > 0} onClose={closeDialog}>
+    {dialog && data && <SettingsDialog className={dialog === 'password' || dialog === 'email' ? 'pwDialog' : twoFactorStatus ? 'tfaDialog' : undefined} header={dialog === 'password' ? <PasswordDialogHeader/> : dialog === 'email' ? <EmailDialogHeader/> : twoFactorStatus ? <TwoFactorStatusHeader/> : undefined} title={dialog === 'two-factor' && (!data.security.two_factor_enabled || recoveryCodes.length > 0) ? 'Hesabını koru' : titles[dialog]} busy={busy || recoveryCodes.length > 0} onClose={closeDialog}>
       {notice && <p className={`accountNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.text}</p>}
       {dialog === 'sessions' ? <><p>Diğer oturumları kapatmak bu cihazdaki oturumunuzu korur.</p><button disabled={busy} onClick={() => void run(() => mutate('/account/sessions/revoke-others', {}, 'Diğer oturumlar kapatıldı.'))}>Diğer oturumları kapat</button><ul className="accountSessions">{data.sessions.map(session => <li key={session.id}><Monitor/><div><b>{session.device} · {session.browser}{session.current && ' · Bu cihaz'}</b><small>Son etkinlik: {accountDate(session.last_seen_at)}</small><small>Başlangıç: {accountDate(session.created_at)} · Bitiş: {accountDate(session.expires_at)}</small></div><button disabled={busy} onClick={() => void run(() => mutate('/account/sessions/revoke', {session_id: session.id}, 'Oturum kapatıldı.'))}>Oturumu kapat</button></li>)}</ul>{!data.sessions.length && <p>Kayıtlı aktif oturum yok.</p>}</>
         : dialog === 'activity' ? <>{data.activity.length ? activity(true) : <p>Kayıtlı hesap aktivitesi yok.</p>}</>
         : recoveryCodes.length ? <RecoveryCodes codes={recoveryCodes} onSaved={() => {closeDialog(); setNotice({kind: 'success', text: 'İki aşamalı doğrulama başarıyla etkinleştirildi.'})}}/>
+        : twoFactorStatus ? <TwoFactorStatus onDone={closeDialog}/>
         : dialog === 'two-factor' && !data.security.two_factor_enabled ? <TwoFactorSetup enrollment={enrollment} onBusyChange={setBusy} onEnabled={enabledEnrollment}
           setupForm={<form onSubmit={submit} className="accountForm">{proofFields()}<button className="verificationPrimary" disabled={busy}>{busy ? <LoaderCircle/> : <ShieldCheck/>}Kurulumu başlat</button></form>}/>
         : dialog === 'email' ? <EmailChangeForm newEmail={newEmail} setNewEmail={setNewEmail} currentEmail={data.user.email} proof={proof} setProof={setProof}
@@ -246,7 +250,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
           {dialog === 'delete' && <><div className="accountWarning" role="note"><b>Bu işlem geri alınamaz.</b><ul><li>Profiliniz, oturumlarınız, bildirim ve kişisel ayarlarınız silinir.</li><li>Açık borsa pozisyonu veya emri varsa silme başlamaz; önce kapatın.</li><li>Finansal ve işlem kayıtları kimliksizleştirilerek saklanabilir.</li></ul></div><label>Onay için HESABIMI SIL yazın<input required pattern="HESABIMI SIL" autoComplete="off" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog === 'close' && <><p>Hesabınız kapatılacak; verileriniz yönetici panelinde kalacaktır.</p><label>Onay için HESABI KAPAT yazın<input required pattern="HESABI KAPAT" value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label></>}
           {dialog !== 'profile' && proofFields()}
-          <button className="accountPrimary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Check/>}{dialog === 'two-factor' ? '2FA devre dışı bırak' : dialog === 'close' ? 'Hesabı kapat' : dialog === 'delete' ? 'Kalıcı olarak sil' : dialog === 'email' ? 'Doğrulama gönder' : 'Kaydet'}</button>
+          <button className="accountPrimary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Check/>}{dialog === 'close' ? 'Hesabı kapat' : dialog === 'delete' ? 'Kalıcı olarak sil' : dialog === 'email' ? 'Doğrulama gönder' : 'Kaydet'}</button>
         </form>}
     </SettingsDialog>}
   </main>
