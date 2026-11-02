@@ -139,7 +139,7 @@ main { display: block; padding: 0 16px 24px; }
 .fdQuota > span { display: grid; gap: 2px; }
 .fdMeter { flex: 1; min-width: 90px; height: 10px; border-radius: 99px; background-color: #1a242d; overflow: hidden; }
 .fdMeter b { display: block; height: 100%; border-radius: 99px; background-color: var(--green); box-shadow: 0 0 12px rgba(46,229,157,.6); }
-.fdEyePhoto { position: relative; width: min(100%, 560px); aspect-ratio: 4 / 3; object-fit: cover; border-radius: 28px; -webkit-mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); }
+.fdEyePhoto { position: relative; width: min(100%, 560px); aspect-ratio: 345 / 332; object-fit: cover; border-radius: 28px; -webkit-mask-image: radial-gradient(ellipse at center, #000 42%, transparent 74%); mask-image: radial-gradient(ellipse at center, #000 42%, transparent 74%); }
 .fdBrandWord { display: none; }
 
 @media (max-width: 700px) {
@@ -252,3 +252,7 @@ main { display: block; padding: 0 16px 24px; }
 }
 @media (max-width: 700px) { .fdHero, .fdLayout { width: 100%; } }
 @media (max-width: 700px) and (max-height: 720px) { .fdQuota { display: none; } }
+@media (max-width: 700px) {
+  .fdEyeStage { right: -14px; top: 0; width: 56%; opacity: 1; }
+  .fdEyePhoto { border-radius: 0; -webkit-mask-image: radial-gradient(ellipse at 60% 50%, #000 40%, transparent 78%); mask-image: radial-gradient(ellipse at 60% 50%, #000 40%, transparent 78%); }
+}

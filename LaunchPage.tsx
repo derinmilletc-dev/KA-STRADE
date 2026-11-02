@@ -62,7 +62,7 @@ export default function LaunchPage() {
 
   return <div className="fdRoot" data-i18n-skip>
     <header className="fdTop">
-      <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo.png" alt="KaisTrade"/></a>
+      <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
       <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>
       <div className="fdTopRight"><LanguagePicker value={currentLang()} onChange={changeLang}/><button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button></div>
     </header>
