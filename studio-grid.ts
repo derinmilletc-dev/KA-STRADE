@@ -22,7 +22,7 @@ function errorText(payload: unknown, fallback: string): string {
 export type GridMode = 'LONG' | 'SHORT' | 'NEUTRAL'
 export type GridPreset = 'analysis' | 'atr' | 'tight' | 'wide' | 'custom'
 export type GridFilters = {tickSize: number; stepSize: number; minNotional: number; minQty: number}
-export type GridParams = {mode: GridMode; lower: number; upper: number; count: number; stop: number; stopUpper: number; margin: number; leverage: number; recycle: boolean; takeProfit?: number; lossLimit?: number}
+export type GridParams = {mode: GridMode; lower: number; upper: number; count: number; stop: number; stopUpper: number; margin: number; leverage: number; recycle: boolean; takeProfit?: number; lossLimit?: number; profitLock?: number; closeOnTarget?: boolean}
 
 export const GRID_MAKER_FEE = 0.0002
 export const GRID_TAKER_FEE = 0.0005
@@ -236,7 +236,9 @@ export type GridStats = {cycles: number; realized_usdt: number; gross_usdt: numb
 export type GridRow = {
   grid_id: string; symbol: string; side: string; status: string; reason: string; position_qty: number; needs_user: boolean; loop_running?: boolean; recycle?: boolean
   created_at?: number; updated_at?: number; stats?: GridStats | null; orders?: GridOrder[]; alerts?: {level: string; text: string}[]
-  spec?: {stop_price?: number; stop_price_upper?: number; levels?: {entry: number; target: number; side?: string}[]}
+  spec?: {stop_price?: number; stop_price_upper?: number; levels?: {entry: number; target: number; side?: string}[]
+    meta?: {take_profit_usdt?: number; loss_limit_usdt?: number; profit_lock_usdt?: number; lock_keep_pct?: number; close_on_target?: boolean}}
+  liq?: {distance_pct: number | null; level: string; liq_price: number; mark: number} | null; peak_pnl?: number
 }
 export type GridStatus = {enabled?: boolean; max_levels?: number; max_margin_usdt?: number; max_leverage?: number; active_count?: number; grids?: GridRow[]; grid?: GridRow | null}
 export const GRID_FINAL = ['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED']
@@ -277,7 +279,7 @@ export function startBody(symbol: string, p: GridParams, demo: boolean) {
   const base = {symbol, direction: p.mode, lower: p.lower, upper: p.upper, count: p.count, margin_usdt: p.margin, leverage: p.leverage, stop: p.stop, recycle: p.mode === 'NEUTRAL' ? true : p.recycle,
     confirmation: demo ? GRID_DEMO_PHRASE : GRID_LIVE_PHRASE}
   const withStop = p.mode === 'NEUTRAL' ? {...base, stop_upper: p.stopUpper} : base
-  return {...withStop, ...(p.takeProfit && p.takeProfit > 0 ? {take_profit_usdt: p.takeProfit} : {}), ...(p.lossLimit && p.lossLimit > 0 ? {loss_limit_usdt: p.lossLimit} : {})}
+  return {...withStop, ...(p.profitLock && p.profitLock > 0 ? {profit_lock_usdt: p.profitLock} : {}), ...(p.closeOnTarget && p.takeProfit && p.takeProfit > 0 ? {close_on_target: true} : {}), ...(p.takeProfit && p.takeProfit > 0 ? {take_profit_usdt: p.takeProfit} : {}), ...(p.lossLimit && p.lossLimit > 0 ? {loss_limit_usdt: p.lossLimit} : {})}
 }
 
 /** Sunucuda yalnız plan hesaplatır (emir yok): panelde "sunucu onayladı" göstermek için. */
@@ -421,7 +423,8 @@ export function gridSummary(row: GridRow): {hours: number | null; cycles: number
   return {hours, cycles: row.stats?.cycles ?? 0, net: row.stats?.realized_usdt ?? 0, fees: row.stats?.fees_usdt ?? 0}
 }
 
-export type GridChartLine = {price: number; kind: 'buy' | 'sell' | 'skip' | 'bound' | 'stop' | 'entry' | 'target'; label?: string; id?: string; draggable?: boolean}
+/** held: dolmuş (pozisyon tutan) kademe · liq: likidasyon fiyatı (eksen aralığını genişletmez; yalnız görünürse çizilir). */
+export type GridChartLine = {price: number; kind: 'buy' | 'sell' | 'skip' | 'bound' | 'stop' | 'entry' | 'target' | 'held' | 'liq'; label?: string; id?: string; draggable?: boolean; noRange?: boolean}
 /** Grafiğe bağlanan etkileşimler: fiyat seçme (limit emir) ve sürüklenebilir çizgiyi bırakma (stop taşıma). */
 export type ChartTools = {pick?: {onPick: (price: number) => void}; onLineDrop?: (id: string, price: number) => void}
 
@@ -429,8 +432,9 @@ export type ChartTools = {pick?: {onPick: (price: number) => void}; onLineDrop?:
 export function chartLinesFor(preview: GridPreview | null, p: GridParams | null): GridChartLine[] {
   if (!preview || !p || preview.lines.length === 0) return []
   const out: GridChartLine[] = preview.lines.map(l => ({price: l.price, kind: l.kind}))
-  out.push({price: p.upper, kind: 'bound', label: 'Üst'}, {price: p.lower, kind: 'bound', label: 'Alt'}, {price: p.stop, kind: 'stop', label: p.mode === 'NEUTRAL' ? 'Alt stop' : 'Stop'})
-  if (p.mode === 'NEUTRAL' && finite(p.stopUpper)) out.push({price: p.stopUpper, kind: 'stop', label: 'Üst stop'})
+  out.push({price: p.upper, kind: 'bound', label: `${tx('Üst', 'Top')} ${priceText(p.upper)}`}, {price: p.lower, kind: 'bound', label: `${tx('Alt', 'Bottom')} ${priceText(p.lower)}`},
+    {price: p.stop, kind: 'stop', label: `${p.mode === 'NEUTRAL' ? tx('Alt stop', 'Lower stop') : 'Stop'} ${priceText(p.stop)}`})
+  if (p.mode === 'NEUTRAL' && finite(p.stopUpper)) out.push({price: p.stopUpper, kind: 'stop', label: `${tx('Üst stop', 'Upper stop')} ${priceText(p.stopUpper)}`})
   return out
 }
 
@@ -438,10 +442,28 @@ export function chartLinesForRows(rows: readonly GridRow[]): GridChartLine[] {
   const out: GridChartLine[] = []
   for (const row of rows) {
     if (!gridActive(row)) continue
-    for (const l of row.spec?.levels ?? []) if (finite(l.entry)) out.push({price: l.entry, kind: l.side === 'SHORT' || (!l.side && row.side === 'SHORT') ? 'sell' : 'buy'})
+    // Dolmuş (pozisyon tutan) kademeler düz ve parlak, bekleyenler ince kesikli; dolmuş kademenin hedefi de ayrıca çizilir.
+    const held = new Set((row.stats?.open_levels ?? []).map(l => l.level))
+    const levels = row.spec?.levels ?? []
+    levels.forEach((l, index) => {
+      if (!finite(l.entry)) return
+      const sell = l.side === 'SHORT' || (!l.side && row.side === 'SHORT')
+      if (held.has(index)) {
+        out.push({price: l.entry, kind: 'held'})
+        if (finite(l.target)) out.push({price: l.target, kind: 'target'})
+      } else out.push({price: l.entry, kind: sell ? 'sell' : 'buy'})
+    })
     const lo = row.spec?.stop_price, hi = row.spec?.stop_price_upper
-    if (finite(lo)) out.push({price: lo, kind: 'stop', label: 'Stop'})
-    if (finite(hi)) out.push({price: hi, kind: 'stop', label: 'Stop'})
+    if (finite(lo)) out.push({price: lo, kind: 'stop', label: `Stop ${priceText(lo)}`})
+    if (finite(hi)) out.push({price: hi, kind: 'stop', label: `Stop ${priceText(hi)}`})
+    const entries = levels.map(l => l.entry).filter(finite)
+    if (entries.length) {
+      out.push({price: Math.max(...entries), kind: 'bound', label: `${tx('Üst', 'Top')} ${priceText(Math.max(...entries))}`}, {price: Math.min(...entries), kind: 'bound', label: `${tx('Alt', 'Bottom')} ${priceText(Math.min(...entries))}`})
+    }
+    const liq = row.liq
+    if (liq && finite(liq.liq_price) && liq.liq_price > 0) {
+      out.push({price: liq.liq_price, kind: 'liq', noRange: true, label: `${tx('Likidasyon', 'Liquidation')} ${priceText(liq.liq_price)}${liq.distance_pct !== null && finite(liq.distance_pct) ? ` · %${liq.distance_pct.toFixed(1)}` : ''}`})
+    }
   }
   return out
 }

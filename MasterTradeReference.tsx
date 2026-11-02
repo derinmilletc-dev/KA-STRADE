@@ -215,7 +215,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   ]) as Array<{label: string; value: unknown; tone: string}>).filter((line): line is {label: string; value: number; tone: string} => typeof line.value === 'number' && Number.isFinite(line.value))
   const baseRange = analysisChartRange(visible)
   // Grid çizgileri varken eksen, çizgilerin tamamını içine alacak kadar genişler (stoplar ve sınırlar görünür kalır).
-  const gridPrices = gridLines.map(line => line.price).filter(price => Number.isFinite(price) && price > 0)
+  const gridPrices = gridLines.filter(line => !line.noRange).map(line => line.price).filter(price => Number.isFinite(price) && price > 0)
   const range = baseRange && gridPrices.length
     ? (() => { const low = Math.min(baseRange.low, ...gridPrices), high = Math.max(baseRange.high, ...gridPrices), pad = (high - low) * .03; return {low: low - pad, high: high + pad} })()
     : baseRange
