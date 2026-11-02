@@ -102,3 +102,77 @@ test('Canlı plan: yalnız sahipliği doğrulanmış plan kapatılır, kısmi ka
   assert.deepEqual(planRights(activePlan(plans, 'SOLUSDT')), {id: 'plan-ext-1', close: false, reduce: false})
   assert.deepEqual(planRights(undefined), {id: '', close: false, reduce: false})
 })
+
+import {addJournal, breakEvenStop, limitIssue, limitPresets, parseJournal, setJournalNote, sizeByRisk, stopIssue, summarizeJournal, tightenStop} from '../studio-quick-trade.ts'
+
+test('Limit önerileri pasif tarafta: AL altta, SAT üstte; analiz girişi uygunsa ilk', () => {
+  const buy = limitPresets('LONG', 100, 99)
+  assert.equal(buy[0], 99); assert.ok(buy.every(v => v < 100))
+  const sell = limitPresets('SHORT', 100, 101)
+  assert.equal(sell[0], 101); assert.ok(sell.every(v => v > 100))
+  assert.ok(limitPresets('LONG', 100, 101).every(v => v < 100))
+  assert.deepEqual(limitPresets('LONG', null), [])
+})
+
+test('Limit doğrulama: piyasa tarafındaki, boş ve çok uzak fiyatlar reddedilir', () => {
+  assert.equal(limitIssue('LONG', 100, 99), null)
+  assert.equal(limitIssue('SHORT', 100, 101), null)
+  assert.match(limitIssue('LONG', 100, 100.5), /altında/)
+  assert.match(limitIssue('SHORT', 100, 99), /üstünde/)
+  assert.match(limitIssue('LONG', 100, null), /gir/)
+  assert.match(limitIssue('LONG', 100, 70), /uzak/)
+  assert.notEqual(limitIssue('LONG', null, 99), null)
+})
+
+test('Riske göre büyüklük: teminat = risk ÷ (stop mesafesi × kaldıraç); sınır ve asgari işaretlenir', () => {
+  const r = sizeByRisk({balance: 1000, riskPct: 1, entry: 100, stop: 98, leverage: 5, maxMargin: 300})
+  assert.equal(r.riskUsdt, 10); assert.equal(r.margin, 100); assert.ok(Math.abs(r.actualRisk - 10) < 1e-9); assert.equal(r.capped, false); assert.equal(r.tooSmall, false)
+  const capped = sizeByRisk({balance: 100000, riskPct: 2, entry: 100, stop: 98, leverage: 5, maxMargin: 300})
+  assert.equal(capped.capped, true); assert.equal(capped.margin, 300); assert.ok(capped.actualRisk < capped.riskUsdt)
+  const small = sizeByRisk({balance: 100, riskPct: .5, entry: 100, stop: 90, leverage: 10, maxMargin: 300})
+  assert.equal(small.tooSmall, true)
+  assert.equal(sizeByRisk({balance: 0, riskPct: 1, entry: 100, stop: 98, leverage: 5, maxMargin: 300}), null)
+  assert.equal(sizeByRisk({balance: 1000, riskPct: 1, entry: 100, stop: 100, leverage: 5, maxMargin: 300}), null)
+  const shortSide = sizeByRisk({balance: 1000, riskPct: 1, entry: 100, stop: 102, leverage: 5, maxMargin: 300})
+  assert.equal(shortSide.margin, 100)
+})
+
+test('Başa baş ve sıkılaştırma yalnız kâr yönünde ve fiyatın zarar tarafında', () => {
+  assert.equal(breakEvenStop('LONG', 100, 100.05), null)       // fiyat henüz başa baş seviyesinin altında
+  assert.equal(breakEvenStop('LONG', 100, 101), 100.12)
+  assert.equal(breakEvenStop('SHORT', 100, 99), 99.88)
+  assert.equal(breakEvenStop('SHORT', 100, 100.1), null)
+  assert.equal(tightenStop('LONG', 110, 98, 1), 108.9)
+  assert.equal(tightenStop('LONG', 110, 109, 1), null)         // mevcut stoptan geride kalırdı
+  assert.equal(tightenStop('SHORT', 90, 102, 1), 90.9)
+  assert.equal(tightenStop('SHORT', 90, 90.5, 1), null)
+  assert.equal(tightenStop('LONG', null, 98, 1), null)
+})
+
+test('Elle stop: tetiklenecek ya da riski artıracak stop reddedilir', () => {
+  assert.equal(stopIssue('LONG', 110, 98, 105), null)
+  assert.match(stopIssue('LONG', 110, 98, 111), /zarar tarafında/)
+  assert.match(stopIssue('LONG', 110, 98, 95), /uzaklaştır/)
+  assert.equal(stopIssue('SHORT', 90, 102, 95), null)
+  assert.match(stopIssue('SHORT', 90, 102, 89), /zarar tarafında/)
+  assert.match(stopIssue('SHORT', 90, 102, 105), /uzaklaştır/)
+  assert.match(stopIssue('LONG', 110, 98, null), /gir/)
+})
+
+test('Günlük: tekrar eklenmez, sınırlı kalır, not güncellenir, bozuk kayıt temizlenir, özet doğru', () => {
+  const make = (id, followed, risk, rr) => ({id, ts: 1, account: 'DEMO', symbol: 'BTCUSDT', side: 'LONG', kind: 'MARKET', entry: 100, stop: 98, tp1: 102, tp2: 104, tp3: 106, margin: 50, leverage: 2, riskUsdt: risk, rewardRisk: rr, analysis: 'LONG', followedAnalysis: followed, note: ''})
+  let list = addJournal([], make('a', true, 2, 1.5))
+  list = addJournal(list, make('a', true, 2, 1.5))
+  assert.equal(list.length, 1)
+  list = addJournal(list, make('b', false, 4, null))
+  assert.equal(list[0].id, 'b')
+  list = setJournalNote(list, 'a', 'x'.repeat(400))
+  assert.equal(list.find(i => i.id === 'a').note.length, 280)
+  const s = summarizeJournal(list)
+  assert.equal(s.count, 2); assert.equal(s.followedPct, 50); assert.equal(s.avgRisk, 3); assert.equal(s.avgRewardRisk, 1.5)
+  assert.deepEqual(parseJournal('bozuk'), []); assert.deepEqual(parseJournal('[{"id":1},{"x":2}]'), [])
+  let many = []
+  for (let i = 0; i < 230; i++) many = addJournal(many, make(`k${i}`, true, 1, 1))
+  assert.equal(many.length, 200)
+  assert.equal(summarizeJournal([]).followedPct, null)
+})

@@ -312,3 +312,179 @@ test('İngilizce: AL/SAT yerine BUY/SELL, onay kartı İngilizce', async ({brows
   await expect(layer(page).locator('.sqtSheet')).toContainText('Hold · BUY')
   await context.close()
 })
+
+// ---------------------------------------------------------------- manuel işlem: emir tipleri, risk %, stop yönetimi, grafik çizgileri, günlük
+const openBuy = async (page: Page) => {
+  await layer(page).getByRole('button', {name: /AL \(LONG\)/}).click()
+  const sheet = layer(page).locator('.sqtSheet')
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+const chartLines = (page: Page) => terminal(page).locator('.refGridOverlay [data-kind]')
+
+test('Limit emir: öneriler pasif tarafta, yanlış taraf reddedilir, gövde LIMIT + fiyat + süre ile gider', async ({page}) => {
+  const mock = await prepare(page)
+  const sheet = await openBuy(page)
+  await sheet.getByRole('radio', {name: 'Limit'}).click()
+  const input = sheet.locator('#sqt-limit')
+  await expect(input).toBeVisible()
+  const first = Number((await input.inputValue()).replace(',', '.'))
+  expect(first).toBeGreaterThan(0); expect(first).toBeLessThan(price('BTCUSDT'))
+  await expect(sheet).toContainText('Limit emri')
+  // Piyasanın üstünde bir AL limiti anında dolar: reddedilir ve basılı tut kapanır
+  await input.fill(String(price('BTCUSDT') * 1.01))
+  await expect(sheet.locator('.sqtLimit .sqtError')).toContainText('piyasanın altında')
+  await expect(sheet.locator('.sqtHold')).toBeDisabled()
+  await page.screenshot({path: 'test-results/manual-limit-error.png'})
+  await sheet.locator('.sqtPresets button').nth(1).click()
+  await expect(sheet.locator('.sqtLimit .sqtError')).toHaveCount(0)
+  await expect(sheet.locator('.sqtHold')).toBeEnabled()
+  await sheet.getByRole('radio', {name: '4 sa'}).click()
+  const typed = Number((await input.inputValue()).replace(',', '.'))
+  await page.screenshot({path: 'test-results/manual-limit.png'})
+  await hold(page, sheet.locator('.sqtHold'), 1800)
+  await expect.poll(() => mock.orders.length, {timeout: 8000}).toBe(1)
+  const order = mock.orders[0] as Record<string, number | string | null>
+  expect(order).toMatchObject({order_type: 'LIMIT', limit_price: typed, limit_expiry_minutes: 240, direction: 'LONG'})
+  expect(Number(order.stop_loss)).toBeLessThan(typed); expect(Number(order.tp1)).toBeGreaterThan(typed)
+})
+
+test('Piyasa emri limit alanı olmadan gider (limit_price null, süre null)', async ({page}) => {
+  const mock = await prepare(page)
+  const sheet = await openBuy(page)
+  await expect(sheet.locator('#sqt-limit')).toHaveCount(0)
+  await hold(page, sheet.locator('.sqtHold'), 1800)
+  await expect.poll(() => mock.orders.length, {timeout: 8000}).toBe(1)
+  expect(mock.orders[0]).toMatchObject({order_type: 'MARKET', limit_price: null, limit_expiry_minutes: null, margin_usdt: 25})
+})
+
+test('Risk %: teminat hesaptan hesaplanır, üst sınırı aşmaz ve emre bu teminat gider', async ({page}) => {
+  const mock = await prepare(page)
+  const sheet = await openBuy(page)
+  await sheet.getByRole('radio', {name: 'Risk %'}).click()
+  await sheet.getByRole('radio', {name: '%1', exact: true}).click()
+  const sized = sheet.locator('.sqtSized')
+  await expect(sized).toContainText('USDT teminat')
+  await expect(sized).toContainText('risk ≈')
+  await page.screenshot({path: 'test-results/manual-risk.png'})
+  await hold(page, sheet.locator('.sqtHold'), 1800)
+  await expect.poll(() => mock.orders.length, {timeout: 8000}).toBe(1)
+  const order = mock.orders[0] as Record<string, number | string | null>
+  const entry = price('BTCUSDT'), stopFraction = Math.abs(entry - Number(order.stop_loss)) / entry
+  const expected = Math.min(100, Math.floor(1000 * .01 / (stopFraction * Number(order.leverage)) * 100) / 100)
+  expect(Math.abs(Number(order.margin_usdt) - expected)).toBeLessThan(Math.max(0.2, expected * .01))
+  expect(Number(order.margin_usdt)).toBeLessThanOrEqual(100)
+})
+
+test('Grafik çizgileri: onay kartı açıkken giriş/stop/hedefler çizilir, kapanınca kalkar; açık pozisyonda da görünür', async ({page}) => {
+  await prepare(page)
+  const sheet = await openBuy(page)
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="entry"]')).toHaveCount(1)
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="stop"]')).toHaveCount(1)
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="target"]')).toHaveCount(3)
+  await page.screenshot({path: 'test-results/manual-chart-lines.png'})
+  await sheet.getByRole('button', {name: 'Vazgeç'}).last().click()
+  await expect(chartLines(page)).toHaveCount(0)
+})
+
+test('Açık pozisyonun giriş/stop/hedef çizgileri grafikte durur', async ({page}) => {
+  await prepare(page, {positions: [position('BTCUSDT', 'LONG')], plans: [planFor('BTCUSDT', 'LONG')]})
+  await expect(layer(page).locator('.sqtChip')).toBeVisible({timeout: 15000})
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="entry"]')).toHaveCount(1, {timeout: 10000})
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="stop"]')).toHaveCount(1)
+})
+
+const profitable = (): Pos => {
+  const base = position('BTCUSDT', 'LONG')
+  return {...base, entry_price: base.entry_price * .97, stop_loss: base.entry_price * .95, tp1: base.entry_price * 1.01, tp2: base.entry_price * 1.02, tp3: base.entry_price * 1.03}
+}
+
+test('Stop yönetimi: başa baş iki adımlı onayla sunucuya doğru stopla gider; geçersiz stop engellenir', async ({page}) => {
+  const protections: Array<Record<string, unknown>> = []
+  await prepare(page, {positions: [profitable()], plans: [planFor('BTCUSDT', 'LONG')]})
+  await page.route('**/api/v25/position/protection', route => { protections.push(route.request().postDataJSON()); return route.fulfill({json: {ok: true}}) })
+  await layer(page).locator('.sqtChip').click()
+  const manage = layer(page).locator('.sqtManage')
+  await expect(manage).toBeVisible()
+  const be = manage.getByRole('button', {name: 'Başa baş'})
+  await expect(be).toBeEnabled()
+  await page.screenshot({path: 'test-results/manual-stop-manage.png'})
+  await be.click()
+  await expect(manage.getByRole('alertdialog')).toContainText('güncellensin mi')
+  expect(protections).toHaveLength(0)
+  await manage.getByRole('button', {name: 'Evet, güncelle'}).click()
+  await expect.poll(() => protections.length, {timeout: 8000}).toBe(1)
+  const entry = profitable().entry_price
+  expect(protections[0]).toMatchObject({plan_id: 'plan-BTCUSDT-1', confirmation: 'KORUMAYI GÜNCELLE'})
+  expect(Math.abs(Number(protections[0].stop_loss) - entry * 1.0012)).toBeLessThan(entry * .0002)
+  // Elle stop: fiyatın üstü ve mevcut stoptan geri değerler reddedilir
+  const field = manage.locator('#sqt-stop-new')
+  await field.fill(String(price('BTCUSDT') * 1.05))
+  await expect(manage).toContainText('zarar tarafında')
+  await expect(manage.getByRole('button', {name: 'Uygula'})).toBeDisabled()
+  await field.fill(String(profitable().stop_loss * .9))
+  await expect(manage).toContainText('uzaklaştır')
+  await expect(manage.getByRole('button', {name: 'Uygula'})).toBeDisabled()
+})
+
+test('Stop yönetimi: bot/dış pozisyonda görünmez; başa baş fiyat henüz gelmediyse kapalıdır', async ({page}) => {
+  await prepare(page, {positions: [position('BTCUSDT', 'LONG')], plans: [planFor('BTCUSDT', 'LONG', 'BOT')]})
+  await layer(page).locator('.sqtChip').click()
+  await expect(layer(page).locator('.sqtCard')).toBeVisible()
+  await expect(layer(page).locator('.sqtManage')).toHaveCount(0)
+})
+
+test('Günlük: gönderilen emir kaydedilir, not saklanır, temizleme iki adımlıdır; Esc yalnız paneli kapatır', async ({page}) => {
+  const mock = await prepare(page)
+  const sheet = await openBuy(page)
+  await hold(page, sheet.locator('.sqtHold'), 1800)
+  await expect.poll(() => mock.orders.length, {timeout: 8000}).toBe(1)
+  await expect(sheet).toBeHidden()
+  await page.waitForTimeout(400)
+  const chip = layer(page).locator('.sqjChip')
+  await expect(chip).toBeVisible()
+  await chip.click()
+  const panel = layer(page).locator('.sqjPanel')
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('.sqjRow')).toHaveCount(1)
+  await expect(panel.locator('.sqjRow')).toContainText('BTC')
+  await expect(panel.locator('.sqjRow')).toContainText('CANLI')
+  await expect(panel.locator('.sqjRow')).toContainText('Risk')
+  await panel.locator('.sqjNote').fill('Plana uydum')
+  await panel.locator('.sqjNote').blur()
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kaistrade-studio-journal') ?? '[]')[0]?.note)).toBe('Plana uydum')
+  await page.screenshot({path: 'test-results/manual-journal.png'})
+  await panel.getByRole('button', {name: 'Günlüğü temizle'}).click()
+  await expect(panel.getByRole('alertdialog')).toBeVisible()
+  await panel.getByRole('button', {name: 'Vazgeç'}).click()
+  await expect(panel.locator('.sqjRow')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(panel).toBeHidden()
+  await expect(terminal(page)).toBeVisible()
+  await chip.click()
+  await panel.getByRole('button', {name: 'Günlüğü temizle'}).click()
+  await panel.getByRole('button', {name: 'Evet, sil'}).click()
+  await expect(panel.locator('.sqjRow')).toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('kaistrade-studio-journal'))).toBe('[]')
+})
+
+for (const size of [{width: 667, height: 375}, {width: 740, height: 360}, {width: 844, height: 390}, {width: 1180, height: 700}]) {
+  test(`Yerleşim ${size.width}×${size.height}: limit + risk % açıkken kart ekran içinde, basılı tut ulaşılabilir; günlük/GRID çipleri çakışmaz`, async ({page}) => {
+    await prepare(page, {}, size)
+    const grid = layer(page).locator('.sqgChip'), journalChip = layer(page).locator('.sqjChip'), dock = layer(page).locator('.sqtDock')
+    await expect(journalChip).toBeVisible()
+    const g = await boxOf(grid), j = await boxOf(journalChip), d = await boxOf(dock), rail = await boxOf(terminal(page).locator('.kfsRail'))
+    for (const box of [g, j]) { expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(size.width); expect(box.y + box.height).toBeLessThanOrEqual(size.height) }
+    expect(overlaps(g, j)).toBe(false); expect(overlaps(j, d)).toBe(false); expect(overlaps(g, d)).toBe(false); expect(overlaps(j, rail)).toBe(false)
+    await page.screenshot({path: `test-results/manual-chips-${size.width}x${size.height}.png`})
+    const sheet = await openBuy(page)
+    await sheet.getByRole('radio', {name: 'Limit'}).click()
+    await sheet.getByRole('radio', {name: 'Risk %'}).click()
+    const s = await boxOf(sheet)
+    expect(s.x).toBeGreaterThanOrEqual(0); expect(s.x + s.width).toBeLessThanOrEqual(size.width); expect(s.y).toBeGreaterThanOrEqual(0); expect(s.y + s.height).toBeLessThanOrEqual(size.height)
+    const holdButton = sheet.locator('.sqtHold')
+    await holdButton.scrollIntoViewIfNeeded()
+    await expect(holdButton).toBeInViewport()
+    await page.screenshot({path: `test-results/manual-sheet-${size.width}x${size.height}.png`})
+  })
+}

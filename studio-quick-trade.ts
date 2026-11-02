@@ -158,3 +158,112 @@ export function planRights(plan: PlanLike | undefined): {id: string; close: bool
   const confirmed = Boolean(plan) && plan?.provenance_state === 'CONFIRMED' && plan?.source !== 'READ_ONLY_EXTERNAL' && plan?.mutation_policy !== 'READ_ONLY_EXTERNAL'
   return {id, close: confirmed && id.length >= 6, reduce: confirmed && id.length >= 6 && plan?.source === 'MANUAL'}
 }
+
+// ---------------------------------------------------------------- emir tipi: piyasa / limit
+export type OrderKind = 'MARKET' | 'LIMIT'
+export const LIMIT_OFFSETS = [.25, .5, 1, 2] as const
+export const LIMIT_MAX_DISTANCE_PCT = 15
+export const LIMIT_EXPIRY_CHOICES = [60, 240, 1440] as const
+export type LimitExpiry = typeof LIMIT_EXPIRY_CHOICES[number] | null
+
+/** Limit giriş önerileri: piyasadan pasif tarafta (AL: altta, SAT: üstte). Analizin giriş seviyesi uygunsa ilk sırada. */
+export function limitPresets(side: Side, price: number | null | undefined, analysisEntry?: number | null): number[] {
+  if (!finite(price)) return []
+  const sign = side === 'LONG' ? -1 : 1
+  const list: number[] = []
+  if (finite(analysisEntry) && sign * (analysisEntry - price) > 0 && Math.abs(analysisEntry - price) / price * 100 <= LIMIT_MAX_DISTANCE_PCT) list.push(round(analysisEntry))
+  for (const offset of LIMIT_OFFSETS) list.push(round(price * (1 + sign * offset / 100)))
+  return [...new Set(list)]
+}
+
+/** Limit fiyat geçerli mi? Piyasa fiyatına göre pasif tarafta olmalı (aksi halde emir anında dolar; bunun için Piyasa seçilir). */
+export function limitIssue(side: Side, price: number | null | undefined, limit: number | null | undefined): string | null {
+  if (!finite(price)) return tx('Fiyat verisi hazır değil.', 'Price data is not ready.')
+  if (!finite(limit)) return tx('Limit fiyatı gir.', 'Enter a limit price.')
+  const passive = side === 'LONG' ? limit < price * .9995 : limit > price * 1.0005
+  if (!passive) return side === 'LONG'
+    ? tx('Limit fiyat piyasanın altında olmalı. Hemen almak için Piyasa emrini seç.', 'The limit price must be below the market. Choose Market to buy right away.')
+    : tx('Limit fiyat piyasanın üstünde olmalı. Hemen satmak için Piyasa emrini seç.', 'The limit price must be above the market. Choose Market to sell right away.')
+  if (Math.abs(limit - price) / price * 100 > LIMIT_MAX_DISTANCE_PCT) return tx(`Limit fiyat piyasadan çok uzak (en fazla %${LIMIT_MAX_DISTANCE_PCT}).`, `The limit price is too far from the market (max ${LIMIT_MAX_DISTANCE_PCT}%).`)
+  return null
+}
+
+// ---------------------------------------------------------------- riske göre pozisyon büyüklüğü
+export const RISK_PCT_CHOICES = [.5, 1, 2] as const
+export type RiskSizing = {margin: number; riskUsdt: number; actualRisk: number; capped: boolean; tooSmall: boolean}
+
+/**
+ * Hesabın yüzdesi kadar risk alacak şekilde teminatı bulur: teminat = risk ÷ (stop mesafesi × kaldıraç).
+ * Üst sınırı aşarsa sınıra çekilir (capped), asgari teminatın altında kalırsa tooSmall olur.
+ */
+export function sizeByRisk(opts: {balance: number | null | undefined; riskPct: number; entry: number; stop: number; leverage: number; maxMargin: number; minMargin?: number}): RiskSizing | null {
+  const {balance, riskPct, entry, stop, leverage, maxMargin, minMargin = 5} = opts
+  if (!finite(balance) || !finite(riskPct) || !finite(entry) || !finite(stop) || !finite(leverage) || !finite(maxMargin)) return null
+  const stopFraction = Math.abs(entry - stop) / entry
+  if (!(stopFraction > 0)) return null
+  const riskUsdt = balance * riskPct / 100
+  const raw = Math.floor(riskUsdt / (stopFraction * leverage) * 100) / 100
+  const capped = raw > maxMargin
+  const margin = capped ? Math.floor(maxMargin * 100) / 100 : raw
+  return {margin, riskUsdt, actualRisk: margin * leverage * stopFraction, capped, tooSmall: margin < minMargin}
+}
+
+// ---------------------------------------------------------------- açık pozisyonda stop yönetimi
+/** Başa baş: girişin biraz ötesi (iki yön komisyon + kayma payı). Fiyat henüz oraya gelmediyse null. */
+export function breakEvenStop(side: Side, entry: number | null | undefined, mark: number | null | undefined, feePct = .12): number | null {
+  if (!finite(entry) || !finite(mark)) return null
+  const stop = round(side === 'LONG' ? entry * (1 + feePct / 100) : entry * (1 - feePct / 100))
+  return side === 'LONG' ? (stop < mark ? stop : null) : (stop > mark ? stop : null)
+}
+
+/** Stopu fiyatın pct kadar gerisine çeker; yalnız kâr yönünde (mevcut stoptan daha iyi) ve fiyatın zarar tarafında geçerli. */
+export function tightenStop(side: Side, mark: number | null | undefined, currentStop: number | null | undefined, pct: number): number | null {
+  if (!finite(mark) || !finite(pct)) return null
+  const next = round(side === 'LONG' ? mark * (1 - pct / 100) : mark * (1 + pct / 100))
+  if (side === 'LONG') return next < mark && (!finite(currentStop) || next > currentStop) ? next : null
+  return next > mark && (!finite(currentStop) || next < currentStop) ? next : null
+}
+
+/** Elle yazılan stop: zarar tarafında ve mevcut stoptan geriye (riski artıracak yönde) gitmiyorsa geçerli; aksi halde neden yazar. */
+export function stopIssue(side: Side, mark: number | null | undefined, currentStop: number | null | undefined, next: number | null | undefined): string | null {
+  if (!finite(mark)) return tx('Fiyat verisi hazır değil.', 'Price data is not ready.')
+  if (!finite(next)) return tx('Stop fiyatını gir.', 'Enter a stop price.')
+  if (side === 'LONG' ? next >= mark : next <= mark) return tx('Stop, güncel fiyatın zarar tarafında olmalı (yoksa hemen tetiklenir).', 'The stop must be on the loss side of the current price (otherwise it triggers immediately).')
+  if (finite(currentStop) && (side === 'LONG' ? next < currentStop : next > currentStop)) return tx('Stopu uzaklaştırarak riski büyütemezsin; yalnız yaklaştırabilirsin.', 'You cannot widen the stop to increase risk; you can only tighten it.')
+  return null
+}
+
+// ---------------------------------------------------------------- işlem günlüğü (yalnız bu tarayıcıda)
+export type JournalEntry = {
+  id: string; ts: number; account: 'LIVE' | 'DEMO'; symbol: string; side: Side; kind: OrderKind
+  entry: number; stop: number; tp1: number; tp2: number; tp3: number; margin: number; leverage: number
+  riskUsdt: number; rewardRisk: number | null; analysis: string; followedAnalysis: boolean | null; note: string
+}
+export const JOURNAL_KEY = 'kaistrade-studio-journal'
+export const JOURNAL_MAX = 200
+
+export function parseJournal(raw: string | null): JournalEntry[] {
+  try {
+    const list: unknown = JSON.parse(raw ?? '[]')
+    if (!Array.isArray(list)) return []
+    return list.filter((item): item is JournalEntry => !!item && typeof item === 'object' && typeof (item as JournalEntry).id === 'string'
+      && typeof (item as JournalEntry).symbol === 'string' && Number.isFinite((item as JournalEntry).ts)).slice(0, JOURNAL_MAX)
+  } catch { return [] }
+}
+/** Yeni kayıt başa eklenir; aynı id tekrar eklenmez (yeniden deneme iki kayıt üretmesin); en fazla JOURNAL_MAX tutulur. */
+export const addJournal = (list: readonly JournalEntry[], entry: JournalEntry): JournalEntry[] =>
+  list.some(item => item.id === entry.id) ? [...list] : [entry, ...list].slice(0, JOURNAL_MAX)
+export const setJournalNote = (list: readonly JournalEntry[], id: string, note: string): JournalEntry[] =>
+  list.map(item => item.id === id ? {...item, note: note.slice(0, 280)} : item)
+
+export type JournalSummary = {count: number; followedPct: number | null; avgRisk: number | null; avgRewardRisk: number | null}
+export function summarizeJournal(list: readonly JournalEntry[]): JournalSummary {
+  const judged = list.filter(item => item.followedAnalysis !== null)
+  const rr = list.filter(item => item.rewardRisk !== null)
+  return {
+    count: list.length,
+    followedPct: judged.length ? judged.filter(item => item.followedAnalysis).length / judged.length * 100 : null,
+    avgRisk: list.length ? list.reduce((s, item) => s + item.riskUsdt, 0) / list.length : null,
+    avgRewardRisk: rr.length ? rr.reduce((s, item) => s + (item.rewardRisk as number), 0) / rr.length : null,
+  }
+}
