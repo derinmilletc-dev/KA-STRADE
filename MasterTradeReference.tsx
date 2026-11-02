@@ -20,7 +20,7 @@ import {useLiveCandles} from './useLiveCandles'
 import {AnalysisDrawer, RotateOverlay, useExitTransition, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {DrawingRail} from './MasterTradeDrawingRail'
 import StudioQuickTrade, {StudioPositionTabs} from './StudioQuickTrade'
-import type {GridChartLine} from './studio-grid'
+import type {ChartTools, GridChartLine} from './studio-grid'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
 // Sonra yüklenmeli: yatay tam ekran kuralları mobil kuralların üstüne yazar.
@@ -145,8 +145,9 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = []}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = [], tools}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]; tools?: ChartTools}) {
   const [hover, setHover] = useState<number | null>(null)
+  const [lineDrag, setLineDrag] = useState<{id: string; price: number} | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchor, setAnchor] = useState<ChartPoint | null>(null)
   const [zoom, setZoom] = useState<number | null>(null)
@@ -240,7 +241,13 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
     <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}{ohlcExtra}</div>
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p>{dataIssue && recoverSymbol && onRecover && <button type="button" className="refChartRecover" onClick={onRecover}>Önceki sembole dön · {recoverSymbol}</button>}</div></div> : <>
-        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} data-dragging={dragging} onClick={event => {
+        <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={tools?.pick ? 'hline' : drawMode} data-dragging={dragging} onClick={event => {
+          if (tools?.pick) {
+            const box = event.currentTarget.getBoundingClientRect()
+            const point = pointAt((event.clientX - box.left) / box.width * size.width, (event.clientY - box.top) / box.height * size.height)
+            if (point) tools.pick.onPick(point.price)
+            return
+          }
           if (drawMode !== 'hline' && drawMode !== 'trend' && drawMode !== 'alarm') return
           const box = event.currentTarget.getBoundingClientRect()
           const point = pointAt((event.clientX - box.left) / box.width * size.width, (event.clientY - box.top) / box.height * size.height)
@@ -254,7 +261,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
         }} onDoubleClick={() => { if (drawMode === 'none') resetView() }}
         onPointerDown={event => {
           // Sol tuşla ya da parmakla sürükleyince grafik geçmişe/ileriye kayar (çizim modunda değilken).
-          if (drawMode !== 'none' || (event.pointerType === 'mouse' && event.button !== 0)) return
+          if (drawMode !== 'none' || tools?.pick || (event.pointerType === 'mouse' && event.button !== 0)) return
           pointers.current.set(event.pointerId, {x: event.clientX, y: event.clientY})
           event.currentTarget.setPointerCapture(event.pointerId)
           if (pointers.current.size === 2) {
@@ -301,8 +308,28 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
           {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
           <g className="masterTradeChartLabels">{([] as typeof labels).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
           <g className="refTimeAxis">{Array.from({length: narrow ? 4 : 6}, (_, index) => {const last = narrow ? 3 : 5; const candle = visible[Math.round(index / last * (visible.length - 1))]; return <text key={index} x={10 + index / last * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === last ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
-          {gridLines.length > 0 && <g className="refGridOverlay" aria-hidden="true">{gridLines.filter(line => line.price >= range.low && line.price <= range.high).map((line, index) => <g key={`${line.kind}-${line.price}-${index}`} data-kind={line.kind}>
+          {gridLines.length > 0 && <g className="refGridOverlay" aria-hidden="true">{gridLines.filter(line => line.price >= range.low && line.price <= range.high && !(lineDrag && line.id === lineDrag.id)).map((line, index) => <g key={`${line.kind}-${line.price}-${index}`} data-kind={line.kind}>
             <line x1="0" x2={plotWidth} y1={y(line.price)} y2={y(line.price)} vectorEffect="non-scaling-stroke"/>{line.label && <text x={plotWidth - 4} y={y(line.price) - 3} textAnchor="end">{line.label}</text>}</g>)}</g>}
+          {tools?.onLineDrop && <g className="refGridDrag">{gridLines.filter(line => line.draggable && line.id && line.price >= range.low && line.price <= range.high).map(line => {
+            const shown = lineDrag && lineDrag.id === line.id ? lineDrag.price : line.price
+            const priceFrom = (event: {clientY: number; currentTarget: SVGLineElement}) => {
+              const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
+              if (!box) return null
+              const viewY = (event.clientY - box.top) / box.height * size.height
+              return Math.max(range.low, Math.min(range.high, range.high - Math.max(0, Math.min(priceHeight, viewY)) / priceHeight * (range.high - range.low)))
+            }
+            return <g key={line.id} data-kind={line.kind} data-dragging={lineDrag?.id === line.id || undefined}>
+              {lineDrag?.id === line.id && <><line className="refGridGhost" x1="0" x2={plotWidth} y1={y(shown)} y2={y(shown)} vectorEffect="non-scaling-stroke"/><text className="refGridGhostTag" x={plotWidth - 4} y={y(shown) - 4} textAnchor="end">{analysisPrice(shown)}</text></>}
+              <line className="refGridHit" x1="0" x2={plotWidth} y1={y(line.price)} y2={y(line.price)} role="slider" aria-label={`${line.label ?? line.kind} — sürükle`}
+                onPointerDown={event => { event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setLineDrag({id: line.id!, price: line.price}) }}
+                onPointerMove={event => { if (!lineDrag || lineDrag.id !== line.id) return; const next = priceFrom(event); if (next !== null) setLineDrag({id: line.id!, price: next}) }}
+                onPointerUp={event => { const next = lineDrag && lineDrag.id === line.id ? priceFrom(event) ?? lineDrag.price : null; setLineDrag(null); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (next !== null && Math.abs(next - line.price) / line.price > .0002) tools?.onLineDrop?.(line.id!, next) }}
+                onPointerCancel={() => setLineDrag(null)}/>
+            </g>
+          })}</g>}
+          {tools?.pick && hoverY !== null && hoverY >= 0 && hoverY <= priceHeight && <g className="refPickGuide" aria-hidden="true">
+            <line x1="0" x2={plotWidth} y1={hoverY} y2={hoverY} vectorEffect="non-scaling-stroke"/>
+            <text x={plotWidth - 6} y={hoverY - 6} textAnchor="end">{analysisPrice(range.high - hoverY / priceHeight * (range.high - range.low))}</text></g>}
           <g className="refDrawings" data-erasing={drawMode === 'erase'}>{drawings.map(drawing => {
             const line = drawing.type === 'hline'
               ? {x1: 0, x2: plotWidth, y1: y(drawing.price), y2: y(drawing.price)}
@@ -378,6 +405,7 @@ export default function MasterTradeReference(props: Props) {
   const liveChart = useLiveCandles(props.symbol, props.interval, props.candles)
   const [drawMode, setDrawMode] = useState<DrawMode>('none')
   const [gridLines, setGridLines] = useState<GridChartLine[]>([])
+  const [chartTools, setChartTools] = useState<ChartTools>({})
   const [drawings, setDrawings] = useState<{symbol: string; list: Drawing[]}>(() => ({symbol: props.symbol, list: readDrawings(props.symbol)}))
   const symbolDrawings = drawings.symbol === props.symbol ? drawings.list : readDrawings(props.symbol)
   // Geri al / yinele: yalnız çizim listesinin tarayıcıdaki anlık görüntüleri; emir veya veri akışıyla ilgisi yok.
@@ -407,7 +435,7 @@ export default function MasterTradeReference(props: Props) {
   const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray, .sqgPanel)') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray, .sqgPanel, .sqtPickHint)') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
@@ -643,7 +671,7 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
-            <ReferenceChart {...props} gridLines={gridLines} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+            <ReferenceChart {...props} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
               drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
@@ -653,7 +681,7 @@ export default function MasterTradeReference(props: Props) {
             </AnalysisDrawer>}
             {terminal && <StudioQuickTrade symbol={props.symbol} price={liveChart.price ?? props.price} demo={demo} premium={premium} onUpgrade={() => openUpgrade('Manuel emir')} live={live}
               analysis={analysis} decision={{direction: decision.direction, confidenceScore: decision.confidenceScore, mtfScore: decision.mtfScore, mtfConfirmed: decision.mtfConfirmed ?? 0, mtfTotal: decision.mtfTotal, status: decision.status}}
-              positions={props.positions ?? []} onSelect={selectOpenPosition} drawerOpen={drawerOpen} candles={liveChart.candles} onGridLines={setGridLines} dataReady={available && liveChart.candles.length >= 2 && !props.dataIssue && !props.refreshing}/>}
+              positions={props.positions ?? []} onSelect={selectOpenPosition} drawerOpen={drawerOpen} candles={liveChart.candles} onGridLines={setGridLines} onChartTools={setChartTools} dataReady={available && liveChart.candles.length >= 2 && !props.dataIssue && !props.refreshing}/>}
           </div>
           {livePosition && !terminal && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
           <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>

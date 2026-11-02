@@ -14,8 +14,9 @@ import {
 import {JournalChip, JournalPanel} from './StudioJournal'
 import {HoldButton, useHold} from './studio-hold'
 import StudioGrid from './StudioGrid'
-import type {Candle, GridChartLine} from './studio-grid'
+import type {Candle, ChartTools, GridChartLine} from './studio-grid'
 import './studio-quick-trade.css'
+import './studio-modern.css'
 
 setLanguageReader(() => currentLang() === 'en')
 
@@ -100,10 +101,10 @@ type Props = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void
   live: SharedLiveStatus | null; analysis: AnalysisLevels; decision: StudioDecision
   positions: readonly StudioPosition[]; onSelect: (symbol: string) => void; drawerOpen: boolean; dataReady: boolean
-  candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void
+  candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void; onChartTools?: (tools: ChartTools) => void
 }
 
-export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines}: Props) {
+export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines, onChartTools}: Props) {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [side, setSide] = useState<Side | null>(null)
   const [frozen, setFrozen] = useState<{price: number; levels: Levels} | null>(null)
@@ -120,6 +121,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const [now, setNow] = useState(() => Date.now())
   const [gridOpen, setGridOpen] = useState(false)
   const [journalOpen, setJournalOpen] = useState(false)
+  const [picking, setPicking] = useState(false)
   const [kind, setKind] = useState<OrderKind>('MARKET')
   const [limitText, setLimitText] = useState('')
   const [expiry, setExpiry] = useState<LimitExpiry>(1440)
@@ -146,16 +148,22 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
 
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id) }, [])
   // Coin değişince açık pencereler kapanır; yarım kalmış bir onay başka coine gitmesin.
-  useEffect(() => { setSide(null); setFrozen(null); setSettings(false); setAction(null); setActionError(''); setSheetError(''); setTray(false); setKind('MARKET'); setLimitText(''); setStopAsk(null); setStopError('') }, [symbol])
+  useEffect(() => { setSide(null); setFrozen(null); setSettings(false); setAction(null); setActionError(''); setSheetError(''); setTray(false); setKind('MARKET'); setLimitText(''); setStopAsk(null); setStopError(''); setPicking(false) }, [symbol])
+  useEffect(() => { if (!side) setPicking(false) }, [side])
   useEffect(() => { if (!current) { setCard(false); setAction(null); setStopAsk(null); setStopError('') } }, [current])
   useEffect(() => { if (!toast) return; const id = window.setTimeout(() => setToast(null), toast.kind === 'ok' ? 4500 : 9000); return () => window.clearTimeout(id) }, [toast])
   // Esc: önce pencereyi kapatır (tam ekranı kapatmadan).
   useEffect(() => {
     if (!side && !settings && !tray) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busyRef.current) { event.stopPropagation(); setSide(null); setFrozen(null); setSettings(false); setTray(false) } }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || busyRef.current) return
+      event.stopPropagation()
+      if (picking) { setPicking(false); return }   // fiyat seçerken Esc yalnız seçimi bırakır; kart açık kalır
+      setSide(null); setFrozen(null); setSettings(false); setTray(false)
+    }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [side, settings, tray])
+  }, [side, settings, tray, picking])
 
   const startOrder = (next: Side) => {
     if (!demo && !premium) { onUpgrade(); return }
@@ -319,16 +327,35 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   // ---- Grafik çizgileri: onay kartındaki plan ve açık pozisyonun seviyeleri (grid çizgileriyle birlikte) ----
   const tradeLines = useMemo<GridChartLine[]>(() => {
     const out: GridChartLine[] = []
-    const add = (value: unknown, kind: GridChartLine['kind'], label: string) => { const n = positive(value); if (n) out.push({price: n, kind, label: `${label} ${analysisPrice(n)}`}) }
+    const add = (value: unknown, kind: GridChartLine['kind'], label: string, extra?: Partial<GridChartLine>) => { const n = positive(value); if (n) out.push({price: n, kind, label: `${label} ${analysisPrice(n)}`, ...extra}) }
     if (side && levels && entryPrice > 0) {
       add(entryPrice, 'entry', kind === 'LIMIT' ? tx('Limit', 'Limit') : tx('Giriş', 'Entry')); add(levels.stop, 'stop', 'Stop'); add(levels.tp1, 'target', 'TP1'); add(levels.tp2, 'target', 'TP2'); add(levels.tp3, 'target', 'TP3')
     } else if (current) {
-      add(current.entry_price, 'entry', tx('Giriş', 'Entry')); add(current.stop_loss, 'stop', 'Stop'); add(current.tp1, 'target', 'TP1'); add(current.tp2, 'target', 'TP2'); add(current.tp3, 'target', 'TP3')
+      add(current.entry_price, 'entry', tx('Giriş', 'Entry')); add(current.stop_loss, 'stop', 'Stop', canManage ? {id: 'pos-stop', draggable: true} : undefined); add(current.tp1, 'target', 'TP1'); add(current.tp2, 'target', 'TP2'); add(current.tp3, 'target', 'TP3')
     }
     return out
-  }, [side, levels, entryPrice, kind, current])
+  }, [side, levels, entryPrice, kind, current, canManage])
   useEffect(() => { onGridLines?.([...gridLocal, ...tradeLines]) }, [gridLocal, tradeLines, onGridLines])
   useEffect(() => () => onGridLines?.([]), [onGridLines])
+
+  // Grafik etkileşimleri: limit fiyatı grafikten seç ve stop çizgisini sürükle. İşleyiciler ref'ten okunur; efekt gereksiz yere yenilenmez.
+  const toolsRef = useRef({pick: (_price: number) => {}, drop: (_id: string, _price: number) => {}})
+  toolsRef.current = {
+    pick: (value: number) => { setLimitText(String(Number(value.toPrecision(6)))); setIntentId(newIntentId()); setSheetError(''); setPicking(false) },
+    drop: (id: string, value: number) => {
+      if (id !== 'pos-stop' || !current) return
+      const rounded = Number(value.toPrecision(6))
+      const problem = stopIssue(sideOf(current), positive(price) ?? positive(current.mark_price), positive(current.stop_loss), rounded)
+      setCard(true)
+      if (problem) { setStopAsk(null); setStopError(problem); return }
+      setStopError(''); setStopAsk({stop: rounded, label: tx('Grafikten sürüklendi', 'Dragged on the chart')})
+    },
+  }
+  const toolsReady = picking || canManage
+  useEffect(() => {
+    onChartTools?.(toolsReady ? {pick: picking ? {onPick: value => toolsRef.current.pick(value)} : undefined, onLineDrop: canManage ? (id, value) => toolsRef.current.drop(id, value) : undefined} : {})
+  }, [onChartTools, picking, canManage, toolsReady])
+  useEffect(() => () => onChartTools?.({}), [onChartTools])
 
   const dockDisabled = !dataReady || sending || lockLeft > 0
   const aligned = (target: Side) => decision.direction === target ? 'with' : decision.direction === 'LONG' || decision.direction === 'SHORT' ? 'against' : 'none'
@@ -341,7 +368,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     <StudioGrid symbol={symbol} price={price} demo={demo} premium={premium} onUpgrade={onUpgrade} analysis={analysis} decision={decision.direction} liveBlocker={liveBlocked ? blocker : ''}
       policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen} candles={candles} onLines={setGridLocal}
       extra={<JournalChip count={journal.length} onOpen={() => setJournalOpen(true)}/>}/>
-    {journalOpen && !side && <JournalPanel entries={journal} onNote={(id, note) => writeJournal(journal.map(item => item.id === id ? {...item, note: note.slice(0, 280)} : item))} onClear={() => writeJournal([])} onClose={() => setJournalOpen(false)}/>}
+    {journalOpen && !side && <JournalPanel entries={journal} demo={demo} onNote={(id, note) => writeJournal(journal.map(item => item.id === id ? {...item, note: note.slice(0, 280)} : item))} onClear={() => writeJournal([])} onClose={() => setJournalOpen(false)}/>}
 
     {!current && !side && <div className="sqtDock" data-demo={demo || undefined} role="group" aria-label={tx('Hızlı alım satım', 'Quick buy / sell')}>
       <button type="button" className="sqtMid" aria-expanded={settings} aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')} onClick={() => setSettings(open => !open)}>
@@ -376,9 +403,11 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       </div>}
     </div>}
 
-    {side && frozen && risk && <>
+    {picking && <div className="sqtPickHint" role="status"><span>{tx('Grafikte limit fiyatı için bir yere dokun', 'Tap the chart where you want the limit price')}</span><button type="button" className="sqtBtn" onClick={() => setPicking(false)}>{tx('Vazgeç', 'Cancel')}</button></div>}
+
+    {side && frozen && risk && !picking && <>
       <div className="sqtScrim" onClick={closeSheet} aria-hidden="true"/>
-      <div className="sqtSheet" role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
+      <div className="sqtSheet" data-demo={demo || undefined} role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
         <header className="sqtHead">
           <span className="sqtTag" data-side={side}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('SAT · SHORT', 'SELL · SHORT')}</span><b>{symbol}</b>
           <span className="sqtMkt">{kind === 'LIMIT' ? tx('Limit emri', 'Limit order') : tx('Piyasa emri', 'Market order')} · {analysisPrice(entryPrice)}</span>
@@ -416,6 +445,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             {kind === 'LIMIT' && <div className="sqtLimit">
               <label className="sqtField" htmlFor="sqt-limit"><small>{tx('Limit fiyat', 'Limit price')}</small>
                 <input id="sqt-limit" inputMode="decimal" autoComplete="off" spellCheck={false} value={limitText} disabled={sending} onChange={event => { setLimitText(event.target.value); setIntentId(newIntentId()); setSheetError('') }}/></label>
+              <button type="button" className="sqtPickBtn" disabled={sending} onClick={() => setPicking(true)}>{tx('Grafikten seç', 'Pick on chart')}</button>
               <div className="sqtPresets" role="group" aria-label={tx('Limit fiyat önerileri', 'Limit price suggestions')}>{presets.map((value, index) => <button key={value} type="button" data-on={Number(limitText.replace(',', '.')) === value} disabled={sending} title={analysisPrice(value)}
                 onClick={() => { setLimitText(String(value)); setIntentId(newIntentId()); setSheetError('') }}>{index === 0 && analysis?.entry && Math.abs(value - analysis.entry) < 1e-9 ? tx('Analiz', 'Analysis') : `${value < (price0 ?? value) ? '−' : '+'}${fmt(Math.abs(value / (price0 ?? value) - 1) * 100, 2).replace(/[.,]?0+$/, '')}%`}</button>)}</div>
               {!demo && <div className="sqtParam"><small>{tx('Geçerlilik', 'Expires')}</small><div role="radiogroup" aria-label={tx('Limit emir geçerlilik süresi', 'Limit order expiry')}>
@@ -500,7 +530,7 @@ function PositionCard({position, price, pnl, rights, demo, busy, action, actionE
   const side = sideOf(position)
   const entry = positive(position.entry_price), stop = positive(position.stop_loss), tp1 = positive(position.tp1)
   const sending = busy !== null
-  return <div className="sqtCard" aria-label={tx(`${position.symbol} açık pozisyon`, `${position.symbol} open position`)}>
+  return <div className="sqtCard" data-demo={demo || undefined} aria-label={tx(`${position.symbol} açık pozisyon`, `${position.symbol} open position`)}>
     <div className="sqtCardTop"><i aria-hidden="true"/><b>{position.symbol}</b><span data-side={side}>{side}{positive(position.leverage ?? undefined) ? ` ${position.leverage}x` : ''}</span>
       {onTray && <button type="button" className="sqtLink" onClick={onTray}>{tx('Tümü', 'All')}</button>}
       <button type="button" className="sqtRound" aria-label={tx('Küçült', 'Collapse')} onClick={onCollapse}><ChevronDown/></button></div>

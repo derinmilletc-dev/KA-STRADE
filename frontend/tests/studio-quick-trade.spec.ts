@@ -488,3 +488,71 @@ for (const size of [{width: 667, height: 375}, {width: 740, height: 360}, {width
     await page.screenshot({path: `test-results/manual-sheet-${size.width}x${size.height}.png`})
   })
 }
+
+// Grafikte fiyat seç / stop sürükle: SVG koordinatından fiyata çeviri.
+const axis = async (page: Page) => page.evaluate(() => {
+  const svg = document.querySelector('.masterReferenceAnalysis .refChart[data-fs="on"] svg[data-chart-ai-capture="reference"]') as SVGSVGElement
+  const box = svg.getBoundingClientRect(), [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+  return {left: box.left, top: box.top, bw: box.width, bh: box.height, vw: width, vh: height, low: Number(svg.dataset.axisLow), high: Number(svg.dataset.axisHigh), priceHeight: Number(svg.dataset.priceHeight)}
+})
+const yForPrice = (a: Awaited<ReturnType<typeof axis>>, value: number) => a.top + (a.high - value) / (a.high - a.low) * a.priceHeight / a.vh * a.bh
+const priceAtY = (a: Awaited<ReturnType<typeof axis>>, clientY: number) => a.high - ((clientY - a.top) / a.bh * a.vh) / a.priceHeight * (a.high - a.low)
+
+test('Grafikten limit fiyatı seç: kart gizlenir, dokunulan fiyat alana yazılır; Esc yalnız seçimi bırakır', async ({page}) => {
+  await prepare(page)
+  const sheet = await openBuy(page)
+  await sheet.getByRole('radio', {name: 'Limit'}).click()
+  await sheet.getByRole('button', {name: 'Grafikten seç'}).click()
+  await expect(layer(page).locator('.sqtPickHint')).toBeVisible()
+  await expect(sheet).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(layer(page).locator('.sqtPickHint')).toBeHidden()
+  await expect(sheet).toBeVisible()
+  await sheet.getByRole('button', {name: 'Grafikten seç'}).click()
+  const a = await axis(page)
+  const clickY = yForPrice(a, a.low + (a.high - a.low) * .35), clickX = a.left + a.bw * .45
+  await page.mouse.move(clickX, clickY)
+  await page.screenshot({path: 'test-results/manual-pick.png'})
+  await page.mouse.click(clickX, clickY)
+  await expect(layer(page).locator('.sqtPickHint')).toBeHidden()
+  await expect(sheet).toBeVisible()
+  const written = Number((await sheet.locator('#sqt-limit').inputValue()).replace(',', '.'))
+  expect(Math.abs(written - priceAtY(a, clickY)) / written).toBeLessThan(.003)
+})
+
+test('Stopu grafikte sürükle: bırakınca onay çıkar, onaylayınca sunucuya yeni stop gider; zarar tarafı dışına bırakılırsa uyarır', async ({page}) => {
+  const protections: Array<Record<string, unknown>> = []
+  await prepare(page, {positions: [profitable()], plans: [planFor('BTCUSDT', 'LONG')]})
+  await page.route('**/api/v25/position/protection', route => { protections.push(route.request().postDataJSON()); return route.fulfill({json: {ok: true}}) })
+  const hit = terminal(page).locator('.refGridDrag .refGridHit')
+  await expect(hit).toHaveCount(1, {timeout: 15000})
+  const a = await axis(page)
+  const start = profitable().stop_loss, target = profitable().entry_price * 1.004
+  const box = (await hit.boundingBox())!
+  const x = a.left + a.bw * .5
+  await page.mouse.move(x, yForPrice(a, start)); await page.mouse.down()
+  await page.mouse.move(x, yForPrice(a, (start + target) / 2), {steps: 4})
+  await page.mouse.move(x, yForPrice(a, target), {steps: 4})
+  await expect(terminal(page).locator('.refGridGhostTag')).toBeVisible()
+  await page.screenshot({path: 'test-results/manual-drag.png'})
+  await page.mouse.up()
+  expect(box).not.toBeNull()
+  const manage = layer(page).locator('.sqtManage')
+  await expect(manage.getByRole('alertdialog')).toContainText('güncellensin mi')
+  expect(protections).toHaveLength(0)
+  await manage.getByRole('button', {name: 'Evet, güncelle'}).click()
+  await expect.poll(() => protections.length, {timeout: 8000}).toBe(1)
+  expect(Math.abs(Number(protections[0].stop_loss) - target) / target).toBeLessThan(.003)
+  // Fiyatın üstüne bırakmak geçersizdir: onay yerine uyarı
+  const a2 = await axis(page)
+  await page.mouse.move(x, yForPrice(a2, start)); await page.mouse.down()   // sahte sunucu stopu değiştirmedi: çizgi hâlâ eski yerinde
+  await page.mouse.move(x, yForPrice(a2, price('BTCUSDT') * 1.02), {steps: 6})
+  await page.mouse.up()
+  await expect(manage).toContainText('zarar tarafında')
+})
+
+test('Bot/dış pozisyonda stop çizgisi sürüklenemez', async ({page}) => {
+  await prepare(page, {positions: [profitable()], plans: [planFor('BTCUSDT', 'LONG', 'BOT')]})
+  await expect(chartLines(page).locator('xpath=self::*[@data-kind="stop"]')).toHaveCount(1, {timeout: 15000})
+  await expect(terminal(page).locator('.refGridDrag .refGridHit')).toHaveCount(0)
+})

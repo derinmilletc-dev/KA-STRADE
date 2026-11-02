@@ -23,7 +23,7 @@ function NoteField({entry, onNote}: {entry: JournalEntry; onNote: (id: string, n
 }
 
 /** İşlem günlüğü: Studio'dan gönderilen emirler (yalnız bu tarayıcıda saklanır). Plan, risk ve analize uyum görünür; not eklenebilir. */
-export function JournalPanel({entries, onNote, onClear, onClose}: {entries: readonly JournalEntry[]; onNote: (id: string, note: string) => void; onClear: () => void; onClose: () => void}) {
+export function JournalPanel({entries, demo, onNote, onClear, onClose}: {entries: readonly JournalEntry[]; demo: boolean; onNote: (id: string, note: string) => void; onClear: () => void; onClose: () => void}) {
   const [confirmClear, setConfirmClear] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
   const summary = useMemo(() => summarizeJournal(entries), [entries])
@@ -36,7 +36,7 @@ export function JournalPanel({entries, onNote, onClear, onClose}: {entries: read
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
   }, [])
-  return <aside className="sqgPanel sqjPanel" role="dialog" aria-label={tx('İşlem günlüğü', 'Trade journal')}>
+  return <aside className="sqgPanel sqjPanel" data-demo={demo || undefined} role="dialog" aria-label={tx('İşlem günlüğü', 'Trade journal')}>
     <header className="sqgHead"><BookOpen aria-hidden="true"/><b>{tx('GÜNLÜK', 'JOURNAL')}</b>
       <button ref={closeRef} type="button" className="sqgX" style={{marginLeft: 'auto'}} aria-label={tx('Günlüğü kapat', 'Close the journal')} onClick={onClose}><X aria-hidden="true"/></button></header>
     <div className="sqgBody">

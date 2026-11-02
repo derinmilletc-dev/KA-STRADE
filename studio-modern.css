@@ -1,0 +1,88 @@
+/* Analysis Studio · modern görünüm katmanı (Canlı ve Demo).
+   Yalnız renk, yüzey, gölge, yazı ve geçişler: ölçüler korunur, bu yüzden yerleşim testleri aynen geçerli.
+   Hesap rengi: CANLI = sıcak kırmızı, DEMO = yeşil. Sayfadaki "background-image: none" kuralı yalnız gerçek öğeleri etkiler; geçişler ::before üzerinde. */
+.masterReferenceAnalysis .sqtLayer { --sqm-live: #ff6577; --sqm-demo: #3ee0a0; --sqm-accent: var(--sqm-live); --sqm-glass: rgba(12, 19, 28, .94); --sqm-line: rgba(255, 255, 255, .09); }
+.masterReferenceAnalysis .sqtLayer :is([data-demo]) { --sqm-accent: var(--sqm-demo); }
+
+/* Cam yüzeyler + hesap rengiyle ince üst çizgi */
+.masterReferenceAnalysis .sqtLayer :is(.sqtSheet, .sqgPanel, .sqtCard, .sqtTray, .sqtPop) {
+  background: var(--sqm-glass); -webkit-backdrop-filter: blur(20px) saturate(1.25); backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid var(--sqm-line); box-shadow: 0 24px 64px rgba(0, 0, 0, .62), 0 0 0 1px rgba(255, 255, 255, .025), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+.masterReferenceAnalysis .sqtLayer :is(.sqtSheet, .sqgPanel, .sqtCard)::before {
+  content: ""; position: absolute; left: 22px; right: 22px; top: 0; height: 2px; border-radius: 0 0 4px 4px; pointer-events: none; z-index: 4;
+  background: linear-gradient(90deg, transparent, var(--sqm-accent), transparent); opacity: .85;
+}
+.masterReferenceAnalysis .sqtLayer .sqtCard { position: relative; border-radius: 18px; }
+
+/* Üst başlık kaydırırken yerinde kalır; basılı tut alanı zaten altta sabit */
+.masterReferenceAnalysis .sqtLayer .sqtHead { position: sticky; top: -10px; z-index: 3; margin: -10px -14px 0; padding: 10px 14px 6px; background: #0d1620; border-radius: 20px 20px 0 0; }
+@media (max-height: 420px) { .masterReferenceAnalysis .sqtLayer .sqtHead { top: -8px; margin: -8px -12px 0; padding: 8px 12px 4px; border-radius: 18px 18px 0 0; } }
+.masterReferenceAnalysis .sqtLayer .sqtTag { box-shadow: 0 0 0 1px rgba(255, 255, 255, .03), 0 6px 16px rgba(0, 0, 0, .35); }
+.masterReferenceAnalysis .sqtLayer .sqtHead > b { letter-spacing: .01em; font-weight: 700; }
+.masterReferenceAnalysis .sqtLayer .sqtMkt { font-variant-numeric: tabular-nums; }
+
+/* Etiketler ve yazı alanları */
+.masterReferenceAnalysis .sqtLayer :is(.sqtParam > small, .sqtField > small, .sqgField small, .sqtManage > small) { font-weight: 600; letter-spacing: .07em; text-transform: uppercase; font-size: 9.5px; color: #7d92a0; }
+.masterReferenceAnalysis .sqtLayer :is(.sqtField input, .sqgField input, .sqtManage input, .sqjNote) { background: #0a121a; border-color: #1b2a37; border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
+.masterReferenceAnalysis .sqtLayer :is(.sqtField input, .sqgField input, .sqtManage input, .sqjNote):focus-visible { outline: none; border-color: var(--sqm-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sqm-accent) 22%, transparent); }
+
+/* Seçici gruplar: kayan "hap" görünümlü bölmeli kontrol */
+.masterReferenceAnalysis .sqtLayer .sqtParam > div[role="radiogroup"] { gap: 3px; padding: 2px; border-radius: 12px; background: #09111a; border: 1px solid #16232f; }
+.masterReferenceAnalysis .sqtLayer .sqtParam > div[role="radiogroup"] > button { min-height: 28px; border: 0; border-radius: 9px; background: transparent; color: #98abb6; transition: background .15s, color .15s, box-shadow .15s, transform .08s; }
+.masterReferenceAnalysis .sqtLayer .sqtParam > div[role="radiogroup"] > button:hover:not(:disabled):not([data-on="true"]) { background: #101c27; color: #cfdde5; }
+.masterReferenceAnalysis .sqtLayer .sqtParam > div[role="radiogroup"] > button[data-on="true"] { background: #123a2c; color: #46e8aa; box-shadow: inset 0 0 0 1px #1f8f6188, 0 4px 14px rgba(0, 0, 0, .35); }
+.masterReferenceAnalysis .sqtLayer .sqtParam > div[role="radiogroup"] > button:active:not(:disabled) { transform: scale(.97); }
+.masterReferenceAnalysis .sqtLayer .sqtPresets button { border-radius: 9px; transition: background .15s, border-color .15s, color .15s; }
+
+/* Özet kutuları, kontrol listesi, hedef/stop şeridi */
+.masterReferenceAnalysis .sqtLayer .sqtStats > div { border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); }
+.masterReferenceAnalysis .sqtLayer .sqtStats b { font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.01em; }
+.masterReferenceAnalysis .sqtLayer .sqtStats small { letter-spacing: .04em; }
+.masterReferenceAnalysis .sqtLayer .sqtBar { height: 9px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5); }
+.masterReferenceAnalysis .sqtLayer .sqtLevels span { font-variant-numeric: tabular-nums; }
+.masterReferenceAnalysis .sqtLayer .sqtChips > span { backdrop-filter: blur(6px); }
+
+/* Düğmeler ve çipler: cam görünüm, hafif yükselme, basma geri bildirimi */
+.masterReferenceAnalysis .sqtLayer :is(.sqtChip, .sqgChip, .sqjChip, .sqtCloseDock, .sqtMid, .sqtBtn, .sqtCancel, .sqtX, .sqgX, .sqtRound) { transition: border-color .15s, background .15s, transform .08s, box-shadow .15s; }
+.masterReferenceAnalysis .sqtLayer :is(.sqtChip, .sqgChip, .sqjChip, .sqtMid):hover { border-color: rgba(255, 255, 255, .22); }
+.masterReferenceAnalysis .sqtLayer :is(.sqtChip, .sqgChip, .sqjChip, .sqtMid, .sqtBtn, .sqtCancel):active { transform: scale(.97); }
+.masterReferenceAnalysis .sqtLayer :is(.sqtChip, .sqgChip, .sqjChip, .sqtMid, .sqtCloseDock) { -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+.masterReferenceAnalysis .sqtLayer .sqtSide[data-side="buy"] { box-shadow: 0 10px 28px rgba(23, 168, 107, .32), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.masterReferenceAnalysis .sqtLayer .sqtSide[data-side="sell"] { box-shadow: 0 10px 28px rgba(229, 88, 106, .3), inset 0 1px 0 rgba(255, 255, 255, .2); }
+.masterReferenceAnalysis .sqtLayer .sqtHold { border-radius: 15px; box-shadow: 0 10px 26px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .1); }
+.masterReferenceAnalysis .sqtLayer .sqtHold:not(:disabled) { border-color: color-mix(in srgb, var(--sqm-accent) 45%, transparent); }
+.masterReferenceAnalysis .sqtLayer .sqtActions { background-color: #0d1620; box-shadow: 0 -10px 14px -6px #0d1620; }
+
+/* Açık pozisyon kartı: kâr/zarar rengi ışıma verir */
+.masterReferenceAnalysis .sqtLayer .sqtPnl strong { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.masterReferenceAnalysis .sqtLayer .sqtPos[data-tone="up"] .sqtPnl strong, .masterReferenceAnalysis .sqtLayer .sqtPos[data-tone="up"] .sqtChip strong { text-shadow: 0 0 18px rgba(62, 224, 160, .35); }
+.masterReferenceAnalysis .sqtLayer .sqtPos[data-tone="down"] .sqtPnl strong, .masterReferenceAnalysis .sqtLayer .sqtPos[data-tone="down"] .sqtChip strong { text-shadow: 0 0 18px rgba(255, 141, 154, .3); }
+.masterReferenceAnalysis .sqtLayer .sqtMeta b { font-variant-numeric: tabular-nums; }
+
+/* Bildirim, grid ve günlük */
+.masterReferenceAnalysis .sqtLayer .sqtToast { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 16px 40px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.masterReferenceAnalysis .sqtLayer :is(.sqgCard, .sqjRow, .sqgBack) { border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04); }
+.masterReferenceAnalysis .sqtLayer .sqgTabs { border-radius: 12px; }
+.masterReferenceAnalysis .sqtLayer .sqgTabs button { transition: background .15s, color .15s; border-radius: 9px; }
+
+/* İnce kaydırma çubukları */
+.masterReferenceAnalysis .sqtLayer :is(.sqtSheet, .sqgBody, .sqtTray) { scrollbar-width: thin; scrollbar-color: #26394a transparent; }
+
+/* Açılış hareketi (hareket azaltma açıkken yok) */
+@keyframes sqmRise { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes sqmSlide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes sqmDrop { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes sqmFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .masterReferenceAnalysis .sqtLayer .sqtSheet { animation: sqmRise .2s cubic-bezier(.2, .8, .2, 1); }
+  .masterReferenceAnalysis .sqtLayer .sqgPanel { animation: sqmSlide .2s cubic-bezier(.2, .8, .2, 1); }
+  .masterReferenceAnalysis .sqtLayer .sqtToast { animation: sqmDrop .22s cubic-bezier(.2, .8, .2, 1); }
+  .masterReferenceAnalysis .sqtLayer :is(.sqtCard, .sqtTray, .sqtPop) { animation: sqmFade .16s ease-out; }
+}
+
+/* Grafikten fiyat seçme */
+.masterReferenceAnalysis .sqtLayer .sqtPickBtn { min-height: 28px; border-radius: 9px; border: 1px dashed #2f536f; background: #0d1b27; color: #9fd0ff; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
+.masterReferenceAnalysis .sqtLayer .sqtPickBtn:hover:not(:disabled) { background: #112535; border-color: #4a86b8; }
+.masterReferenceAnalysis .sqtLayer .sqtPickHint { position: absolute; z-index: 3; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 99px; background: var(--sqm-glass); border: 1px solid #2f536f; box-shadow: 0 14px 36px rgba(0, 0, 0, .6); font-size: 12px; color: #cfe6ff; white-space: nowrap; max-width: calc(100% - 16px); }
+.masterReferenceAnalysis .sqtLayer .sqtPickHint span { overflow: hidden; text-overflow: ellipsis; }
