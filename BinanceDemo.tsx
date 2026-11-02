@@ -11,7 +11,7 @@ import './demo-clean.css'
 import DemoInfoCards from './DemoInfoCards'
 import DemoCockpit from './DemoCockpit'
 import LcMoreSheet from './frontend/src/LcMoreSheet'
-import {MANUAL_INTENT_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
+import {MANUAL_INTENT_EVENT, POSITIONS_REFRESH_EVENT, takeIntentForOpen, takeIntentForOrder} from './trade-intent'
 import { useMemberAccess } from './premium-access'
 import { useKaisScreenContext } from './useKaisScreenContext'
 import PageTips from './PageTips'
@@ -404,6 +404,14 @@ export default function BinanceDemo({active,symbol,analysis,chart,markets,onSymb
   }, [masterTab, symbol, onSymbolChange])
   // Analiz sekmesindeki Master ekranı pozisyon kartını demo pozisyonlarıyla göstersin (yalnız okuma).
   useEffect(() => { onPositionsChange?.((account?.positions || []).filter(position => Math.abs(position.quantity) > 0)) }, [account, onPositionsChange])
+  // Analysis Studio'daki hızlı AL/SAT/kapat sonrası hesap hemen yenilenir (10 sn'lik döngüyü beklemeden).
+  const refreshAccountRef = useRef(refreshAccount)
+  refreshAccountRef.current = refreshAccount
+  useEffect(() => {
+    const onRefresh = () => { void refreshAccountRef.current(true) }
+    window.addEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
+    return () => window.removeEventListener(POSITIONS_REFRESH_EVENT,onRefresh)
+  },[])
   const [cockpitAt,setCockpitAt] = useState<number|null>(null)
   useEffect(() => { if (status) setCockpitAt(Date.now()) }, [status])
   useEffect(() => { onConnectedChange?.(connectedNow) }, [connectedNow, onConnectedChange])

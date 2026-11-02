@@ -19,6 +19,7 @@ import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
 import {AnalysisDrawer, RotateOverlay, useExitTransition, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {DrawingRail} from './MasterTradeDrawingRail'
+import StudioQuickTrade, {StudioPositionTabs} from './StudioQuickTrade'
 import {drawingId, readDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import './master-trade-reference.css'
 // Sonra yüklenmeli: yatay tam ekran kuralları mobil kuralların üstüne yazar.
@@ -143,7 +144,7 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null}) {
+function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode}) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchor, setAnchor] = useState<ChartPoint | null>(null)
@@ -230,7 +231,7 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const hoverPoint = hover !== null && hoverY !== null && drawMode === 'trend' && anchor ? pointAt(x(hover), hoverY) : null
   const selected = hover === null ? visible[visible.length - 1] : visible[Math.min(hover, visible.length - 1)]
   return <>
-    <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}</div>
+    <div className="refOhlc"><b>{symbol} · {interval}</b>{live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}{selected ? <><span>O {analysisPrice(selected.open)}</span><span>H {analysisPrice(selected.high)}</span><span>L {analysisPrice(selected.low)}</span><span>C {analysisPrice(selected.close)}</span></> : <span>—</span>}{ohlcExtra}</div>
     <div className="refChartCanvas" ref={canvas}>
       {!range || dataIssue ? <div className="refChartEmpty" role="status"><div><BarChart3 aria-hidden="true"/><strong>{refreshing ? 'Veriler yükleniyor...' : 'Analiz yok'}</strong><p>{dataIssue || (refreshing ? `${symbol} mumları ve analizi alınıyor.` : 'Bu sembol için yeterli veri yok')}</p>{dataIssue && recoverSymbol && onRecover && <button type="button" className="refChartRecover" onClick={onRecover}>Önceki sembole dön · {recoverSymbol}</button>}</div></div> : <>
         <svg data-chart-ai-capture="reference" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" data-axis-low={range.low} data-axis-high={range.high} data-price-height={priceHeight} data-plot-height={plotHeight} aria-label={`${symbol} ${interval} candlestick chart`} data-draw-mode={drawMode} data-dragging={dragging} onClick={event => {
@@ -397,7 +398,7 @@ export default function MasterTradeReference(props: Props) {
   const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"]') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray)') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)
@@ -565,6 +566,8 @@ export default function MasterTradeReference(props: Props) {
     if (terminal) { fullscreen.close(); window.setTimeout(go, 350) } else go()
   }
   const openTrade = () => launchManual()
+  // Açık işlem sekmesi / listesi: yalnız grafiği o coine geçirir (emir veya pozisyona dokunmaz).
+  const selectOpenPosition = (next: string) => { if (next !== props.symbol) props.onMarket(next) }
   const gridSide: 'LONG' | 'SHORT' = decision.direction === 'SHORT' ? 'SHORT' : 'LONG'
   const gridPrice = Number(liveChart.price ?? props.price)
   const gridSpan = gridPrice > 0 ? (() => { const sgn = gridSide === 'LONG' ? -1 : 1; const a = gridPrice * (1 + sgn * 0.005), b = gridPrice * (1 + sgn * 0.05); const f = (v: number) => String(Number(v.toPrecision(6))); return `${f(Math.min(a, b))} – ${f(Math.max(a, b))}` })() : null
@@ -631,7 +634,7 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
-            <ReferenceChart {...props} position={livePosition} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+            <ReferenceChart {...props} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
               drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
@@ -639,8 +642,11 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
               <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
             </AnalysisDrawer>}
+            {terminal && <StudioQuickTrade symbol={props.symbol} price={liveChart.price ?? props.price} demo={demo} premium={premium} onUpgrade={() => openUpgrade('Manuel emir')} live={live}
+              analysis={analysis} decision={{direction: decision.direction, confidenceScore: decision.confidenceScore, mtfScore: decision.mtfScore, mtfConfirmed: decision.mtfConfirmed ?? 0, mtfTotal: decision.mtfTotal, status: decision.status}}
+              positions={props.positions ?? []} onSelect={selectOpenPosition} drawerOpen={drawerOpen} dataReady={available && liveChart.candles.length >= 2 && !props.dataIssue && !props.refreshing}/>}
           </div>
-          {livePosition && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
+          {livePosition && !terminal && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
           <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>
           {available && <div className="refGridCard"><i className="refGridIc" aria-hidden="true"><Grid3X3/></i><span><b>Grid planı önerisi</b><small>{gridSide} · aralık %5 · 5 kademe{gridSpan ? ` · ${gridSpan}` : ''}</small></span><button type="button" className="refGridBtn" onClick={() => launchManual({mode: 'grid', pct: 5})}>Grid ile aç →</button></div>}
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
