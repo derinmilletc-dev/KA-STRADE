@@ -398,7 +398,7 @@ export default function MasterTradeReference(props: Props) {
   const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray)') !== null)
+  const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray, .sqgPanel)') !== null)
   const terminal = fullscreen.state.open && fullscreen.state.landscape
   const rotating = fullscreen.state.open && !fullscreen.state.landscape
   useIsolatedFocus(terminal ? '.refChart[data-fs="on"]' : rotating ? '.kfsOverlay' : null)

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent} from 'react'
+import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
 import {ChevronDown, ChevronUp, Check, TriangleAlert, X} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
@@ -10,6 +10,8 @@ import {
   activePlan, allowedLeverages, allowedMargins, isOpen, levelsFor, nearestChoice, newIntentId, planRights, postJson, riskSummary, setLanguageReader, sideOf, tx,
   type AnalysisLevels, type Levels, type PositionLike, type Side,
 } from './studio-quick-trade'
+import {HoldButton, useHold} from './studio-hold'
+import StudioGrid from './StudioGrid'
 import './studio-quick-trade.css'
 
 setLanguageReader(() => currentLang() === 'en')
@@ -50,62 +52,6 @@ export function positionPnl(position: StudioPosition, livePrice: number | null):
   const lev = positive(position.leverage ?? undefined)
   const margin = entry && qty > 0 && lev ? entry * qty / lev : null
   return {pnl, pct: pnl !== null && margin ? pnl / margin * 100 : null}
-}
-
-/** Basılı tutma: dokunma, fare ve klavye (Boşluk/Enter) ile aynı davranır; bırakınca ya da imleç çıkınca sıfırlanır. */
-function useHold(ms: number, onDone: () => void, disabled: boolean) {
-  const [holding, setHolding] = useState(false)
-  const timer = useRef<number | null>(null)
-  const startedAt = useRef(0)
-  const done = useRef(onDone)
-  done.current = onDone
-  const finish = useCallback(() => {
-    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
-    setHolding(false); done.current()
-  }, [])
-  const cancel = useCallback(() => {
-    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
-    setHolding(false)
-  }, [])
-  // Bırakma: süre gerçekten dolduysa (sayfa meşgulken zamanlayıcı geç kalsa bile) işlem tamamlanır; dolmadıysa vazgeçilir.
-  const release = useCallback(() => {
-    if (timer.current !== null && performance.now() - startedAt.current >= ms) finish()
-    else cancel()
-  }, [cancel, finish, ms])
-  const start = useCallback(() => {
-    if (disabled || timer.current !== null) return
-    setHolding(true)
-    startedAt.current = performance.now()
-    timer.current = window.setTimeout(finish, ms)
-  }, [disabled, ms, finish])
-  useEffect(() => cancel, [cancel])
-  useEffect(() => { if (disabled) cancel() }, [disabled, cancel])
-  const bind = {
-    // İşaretçi yakalanır: basılı tutarken yazı/yerleşim değişse ya da fiyat güncellense de tuş "terk edildi" sayılmaz.
-    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return
-      try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* desteklenmiyorsa sorun değil */ }
-      start()
-    },
-    onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (timer.current === null) return
-      const box = event.currentTarget.getBoundingClientRect()
-      const away = event.clientX < box.left - 16 || event.clientX > box.right + 16 || event.clientY < box.top - 16 || event.clientY > box.bottom + 16
-      if (away) cancel() // parmağı tuştan uzağa kaydırmak vazgeçmektir
-    },
-    onPointerUp: release, onLostPointerCapture: release, onPointerCancel: cancel, onBlur: cancel,
-    onContextMenu: (event: {preventDefault: () => void}) => event.preventDefault(),
-    onKeyDown: (event: {key: string; repeat: boolean; preventDefault: () => void}) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); start() } },
-    onKeyUp: (event: {key: string}) => { if (event.key === ' ' || event.key === 'Enter') release() },
-  }
-  return {holding, bind}
-}
-
-function HoldButton({ms, label, tone, disabled, onDone, hint}: {ms: number; label: string; tone: 'buy' | 'sell' | 'danger'; disabled: boolean; onDone: () => void; hint: string}) {
-  const {holding, bind} = useHold(ms, onDone, disabled)
-  return <button type="button" className="sqtHold" data-tone={tone} data-holding={holding} disabled={disabled} aria-label={hint} style={{'--sqt-hold': `${ms}ms`} as CSSProperties} {...bind}>
-    <span className="sqtHoldFill" aria-hidden="true"/><span className="sqtHoldLabel">{holding ? tx('Bırakma…', 'Keep holding…') : label}</span>
-  </button>
 }
 
 /** Açık işlem varken sağ altta: pozisyonu kapatan tek tuş (LONG → SAT, SHORT → AL). Basılı tutarak çalışır; yeni işlem açmaz. */
@@ -166,6 +112,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const [actionError, setActionError] = useState('')
   const [lockedUntil, setLockedUntil] = useState(0)
   const [now, setNow] = useState(() => Date.now())
+  const [gridOpen, setGridOpen] = useState(false)
   const busyRef = useRef(false)
 
   const open = useMemo(() => positions.filter(isOpen), [positions])
@@ -292,8 +239,11 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const confidenceText = tx(`${aligned(side ?? 'LONG') === 'with' ? 'Analiz seninle' : 'Analiz ters'} · ${decision.direction}${decision.confidenceScore !== null ? ` · güven %${Math.round(decision.confidenceScore)}` : ''}`, `${aligned(side ?? 'LONG') === 'with' ? 'Analysis agrees' : 'Analysis is opposite'} · ${decision.direction}${decision.confidenceScore !== null ? ` · confidence ${Math.round(decision.confidenceScore)}%` : ''}`)
   const pnl = current ? positionPnl(current, price) : null
 
-  return <div className="sqtLayer" data-drawer={drawerOpen || undefined}>
+  return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
+
+    <StudioGrid symbol={symbol} price={price} demo={demo} premium={premium} onUpgrade={onUpgrade} analysis={analysis} decision={decision.direction} liveBlocker={liveBlocked ? blocker : ''}
+      policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen}/>
 
     {!current && !side && <div className="sqtDock" data-demo={demo || undefined} role="group" aria-label={tx('Hızlı alım satım', 'Quick buy / sell')}>
       <button type="button" className="sqtMid" aria-expanded={settings} aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')} onClick={() => setSettings(open => !open)}>
