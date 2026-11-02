@@ -118,3 +118,69 @@ test('Pahalı coinde miktar adımı kademe boyutunu belirler: öneri kademeyi az
   assert.equal(low.ok, false)
   assert.match(low.issues.join(' '), /teminatı en az ~\d+ USDT/)
 })
+
+import {atrPct, backtestGrid, barSeconds, gridRangeStatus, gridSummary} from '../studio-grid.ts'
+
+const bars = (prices, start = 1_700_000_000, step = 900) => prices.map((p, i) => { const open = i === 0 ? p : prices[i - 1]; return {time: start + i * step, open, high: Math.max(open, p) + 0.05, low: Math.min(open, p) - 0.05, close: p} })
+
+test('barSeconds saniye ve milisaniye zamanını tanır; ATR yetersiz mumda null', () => {
+  assert.equal(barSeconds(bars([1, 2, 3, 4])), 900)
+  assert.equal(barSeconds(bars([1, 2, 3, 4], 1_700_000_000_000, 900_000)), 900)
+  assert.equal(barSeconds(bars([1, 2])), null)
+  assert.equal(atrPct(bars([100, 101, 100])), null)
+  const a = atrPct(bars(Array.from({length: 40}, (_, i) => 100 + (i % 2 ? 1 : -1))))
+  assert.ok(a > 1.9 && a < 2.3, String(a))
+})
+
+test('ATR ön ayarı: hareketli coinde geniş, sakin coinde dar aralık önerir', () => {
+  const calm = suggestGrid('NEUTRAL', 100, null, 'atr', {tick: 0.01, margin: 300, leverage: 5, atr: {pct: 0.05, barSeconds: 900}})
+  const wild = suggestGrid('NEUTRAL', 100, null, 'atr', {tick: 0.01, margin: 300, leverage: 5, atr: {pct: 0.4, barSeconds: 900}})
+  assert.ok(wild.upper - wild.lower > calm.upper - calm.lower)
+  assert.match(wild.note, /ATR/)
+  const none = suggestGrid('NEUTRAL', 100, null, 'atr', {tick: 0.01, margin: 300, leverage: 5})
+  assert.match(none.note, /yeterli mum yok/)
+})
+
+const nParams = {mode: 'NEUTRAL', lower: 98, upper: 102, count: 8, stop: 96.5, stopUpper: 103.5, margin: 200, leverage: 3, recycle: true}
+const nPrev = () => previewGrid(nParams, 100, {tickSize: 0.01, stepSize: 0.001, minNotional: 5, minQty: 0.001})
+
+test('Backtest: yatay fiyatta tur ve net kâr oluşur, stop çalışmaz', () => {
+  const zig = Array.from({length: 120}, (_, i) => 100 + Math.sin(i / 2) * 1.4)
+  const out = backtestGrid(nParams, nPrev(), 100, bars(zig))
+  assert.ok(out.cycles >= 3, `cycles ${out.cycles}`)
+  assert.ok(out.net > 0 && out.fees > 0)
+  assert.equal(out.stopped, false)
+  assert.ok(out.inRangePct > 80)
+  assert.ok(out.maxDrawdown >= 0)
+})
+
+test('Backtest: tek yönlü sert düşüşte stop çalışır, zarar kaydedilir', () => {
+  const drop = Array.from({length: 40}, (_, i) => 100 - i * 0.4)
+  const out = backtestGrid(nParams, nPrev(), 100, bars(drop))
+  assert.equal(out.stopped, true)
+  assert.ok(out.stoppedAt > 0 && out.stoppedAt < 40)
+  assert.ok(out.net < 0)
+  assert.equal(out.openLevels, 0)
+})
+
+test('Backtest: pencerenin başındaki fiyata ölçeklenir (fiyat çok farklı olsa da aynı şekil)', () => {
+  const zig = Array.from({length: 120}, (_, i) => 50 + Math.sin(i / 2) * 0.7)
+  const out = backtestGrid(nParams, nPrev(), 100, bars(zig))
+  assert.ok(out.cycles >= 3, `cycles ${out.cycles}`)
+})
+
+test('Backtest: geçersiz plan ya da az mum sonuç üretmez', () => {
+  assert.equal(backtestGrid(nParams, nPrev(), 100, bars([100, 101])), null)
+  assert.equal(backtestGrid({...nParams, lower: 99, upper: 98}, previewGrid({...nParams, lower: 99, upper: 98}, 100, null), 100, bars(Array(30).fill(100))), null)
+})
+
+test('gridRangeStatus aralık dışını ve içini ayırt eder; gridSummary süreyi hesaplar', () => {
+  const row = {spec: {levels: [{entry: 98, target: 99}, {entry: 102, target: 101}]}}
+  assert.equal(gridRangeStatus(row, 100).state, 'inside')
+  assert.equal(gridRangeStatus(row, 103).state, 'above')
+  assert.equal(gridRangeStatus(row, 96).state, 'below')
+  assert.equal(gridRangeStatus(row, null).state, 'unknown')
+  assert.equal(gridRangeStatus({}, 100).state, 'unknown')
+  assert.equal(gridSummary({created_at: 1000, updated_at: 8200, stats: {cycles: 4, realized_usdt: 1.2, fees_usdt: 0.1}}).hours, 2)
+  assert.equal(gridSummary({stats: null}).hours, null)
+})

@@ -20,7 +20,7 @@ function errorText(payload: unknown, fallback: string): string {
 }
 
 export type GridMode = 'LONG' | 'SHORT' | 'NEUTRAL'
-export type GridPreset = 'analysis' | 'tight' | 'wide' | 'custom'
+export type GridPreset = 'analysis' | 'atr' | 'tight' | 'wide' | 'custom'
 export type GridFilters = {tickSize: number; stepSize: number; minNotional: number; minQty: number}
 export type GridParams = {mode: GridMode; lower: number; upper: number; count: number; stop: number; stopUpper: number; margin: number; leverage: number; recycle: boolean}
 
@@ -55,7 +55,7 @@ export function priceText(value: number | null | undefined, locale = 'tr-TR'): s
 
 export type Suggestion = {lower: number; upper: number; count: number; stop: number; stopUpper: number; source: 'analysis' | 'default'; note: string}
 
-type SuggestOptions = {tick?: number; step?: number; maxCount?: number; margin: number; leverage: number; minNotional?: number}
+type SuggestOptions = {tick?: number; step?: number; maxCount?: number; margin: number; leverage: number; minNotional?: number; atr?: {pct: number; barSeconds: number} | null}
 
 /**
  * Fiyata, analize ve seçilen genişliğe göre akıllı aralık / kademe / stop önerir.
@@ -75,9 +75,15 @@ export function suggestGrid(mode: GridMode, price: number, analysis: AnalysisLev
   const base = a && finite(a.entry) ? a.entry : price
   let w: number
   let source: Suggestion['source'] = 'default'
+  let atrUsed = false
   if (preset === 'tight') w = .02
   else if (preset === 'wide') w = .06
-  else if (hasAnalysis && a) {
+  else if (preset === 'atr' && options.atr && finite(options.atr.pct) && finite(options.atr.barSeconds)) {
+    // Yarım günlük tipik hareket: ATR% × √(yarım gündeki mum sayısı). Sakin coinde dar, hareketli coinde geniş aralık çıkar.
+    const barsHalfDay = Math.max(1, 43200 / options.atr.barSeconds)
+    w = clamp(options.atr.pct / 100 * Math.sqrt(barsHalfDay), .012, .07); atrUsed = true
+  }
+  else if (preset === 'analysis' && hasAnalysis && a) {
     const d = Math.max(Math.abs((a.tp1 as number) - base), Math.abs(base - (a.stop_loss as number))) / base
     w = clamp(d * 1.4, .015, .07); source = 'analysis'
   } else w = .02
@@ -111,7 +117,10 @@ export function suggestGrid(mode: GridMode, price: number, analysis: AnalysisLev
   const spacingPct = (n: number) => rangePct / Math.max(1, n - slots) * 100
   const perLevel = (n: number) => options.margin / n * options.leverage
   while (count > GRID_MIN_COUNT && (perLevel(count) < minNotional || spacingPct(count) < GRID_MIN_SPACING_PCT + .02)) count--
-  const note = source === 'analysis'
+  const note = atrUsed
+    ? tx('Aralık, coinin son mumlardaki oynaklığından (ATR) hesaplandı.', 'The range is derived from the coin’s recent volatility (ATR).')
+    : preset === 'atr' ? tx('Oynaklık için yeterli mum yok; Dar aralık önerildi.', 'Not enough candles for volatility; the Tight range was suggested.')
+    : source === 'analysis'
     ? tx('Aralık, analizin hedef/stop mesafesinden türetildi.', 'The range is derived from the analysis target/stop distance.')
     : preset === 'analysis'
       ? tx('Analizde kullanılabilir seviye yok; Dar aralık önerildi.', 'No usable analysis levels; the Tight range was suggested.')
@@ -120,15 +129,16 @@ export function suggestGrid(mode: GridMode, price: number, analysis: AnalysisLev
 }
 
 export type GridLine = {price: number; kind: 'buy' | 'sell' | 'skip'; target: number | null}
+export type GridLevel = {entry: number; target: number; side: 'LONG' | 'SHORT'; qty: number}
 export type GridPreview = {
-  ok: boolean; issues: string[]; warnings: string[]; lines: GridLine[]
+  ok: boolean; issues: string[]; warnings: string[]; lines: GridLine[]; levels: GridLevel[]
   spacing: number; spacingPct: number; activeLevels: number; levelNotional: number; totalNotional: number; marginNeeded: number
   profitPerCycle: number | null; worstLoss: number | null; stopStretchPct: number | null
 }
 
 type PreviewLimits = {maxMargin?: number; maxLeverage?: number; maxLoss?: number | null}
 
-const empty = (issues: string[]): GridPreview => ({ok: false, issues, warnings: [], lines: [], spacing: 0, spacingPct: 0, activeLevels: 0, levelNotional: 0, totalNotional: 0, marginNeeded: 0, profitPerCycle: null, worstLoss: null, stopStretchPct: null})
+const empty = (issues: string[]): GridPreview => ({ok: false, issues, warnings: [], lines: [], levels: [], spacing: 0, spacingPct: 0, activeLevels: 0, levelNotional: 0, totalNotional: 0, marginNeeded: 0, profitPerCycle: null, worstLoss: null, stopStretchPct: null})
 
 /** Sunucuyla aynı kademe yerleşimi ve zarar formülü (grid_live.py · prepare_live_grid / prepare_live_neutral_grid). */
 export function previewGrid(p: GridParams, price: number | null | undefined, filters: GridFilters | null, limits: PreviewLimits = {}): GridPreview {
@@ -215,7 +225,7 @@ export function previewGrid(p: GridParams, price: number | null | undefined, fil
   if (!neutral && (p.upper - p.lower) / price > .12) warnings.push(tx('Aralık geniş; fiyat uzaklaşırsa çok sayıda kademe dolabilir.', 'The range is wide; many levels can fill if the price runs away.'))
   const avgProfit = rows.length ? rows.reduce((s, r) => s + Math.abs(r.target - r.entry) * r.qty - (r.entry + r.target) * r.qty * GRID_MAKER_FEE, 0) / rows.length : null
   return {
-    ok: issues.length === 0, issues, warnings, lines, spacing, spacingPct, activeLevels: rows.length,
+    ok: issues.length === 0, issues, warnings, lines, levels: rows, spacing, spacingPct, activeLevels: rows.length,
     levelNotional: rows.length ? totalNotional / rows.length : 0, totalNotional, marginNeeded, profitPerCycle: avgProfit, worstLoss, stopStretchPct: stretch,
   }
 }
@@ -281,4 +291,149 @@ export function gridPnl(row: GridRow, price: number | null | undefined): {realiz
     return s + (sideOf === 'SHORT' ? (l.entry - price) : (price - l.entry)) * l.qty
   }, 0)
   return {realized, unrealized, total: realized + unrealized, cycles}
+}
+
+// ---------------------------------------------------------------- mumlardan türetilen hesaplar
+export type Candle = {time: number; open: number; high: number; low: number; close: number; volume?: number}
+
+/** Mum süresi (saniye): son mumların zaman farklarının ortancası. Milisaniye zamanı da tanır. */
+export function barSeconds(candles: readonly Candle[]): number | null {
+  const tail = candles.slice(-21)
+  const diffs: number[] = []
+  for (let i = 1; i < tail.length; i++) { const d = tail[i].time - tail[i - 1].time; if (d > 0 && Number.isFinite(d)) diffs.push(d) }
+  if (diffs.length < 2) return null
+  diffs.sort((a, b) => a - b)
+  const median = diffs[Math.floor(diffs.length / 2)]
+  return median > 100000 ? median / 1000 : median
+}
+
+/** Ortalama gerçek aralık (ATR) fiyatın yüzdesi olarak. Yeterli mum yoksa null. */
+export function atrPct(candles: readonly Candle[], period = 14): number | null {
+  if (candles.length < period + 1) return null
+  const tail = candles.slice(-(period + 1))
+  let sum = 0
+  for (let i = 1; i < tail.length; i++) {
+    const c = tail[i], prev = tail[i - 1].close
+    sum += Math.max(c.high - c.low, Math.abs(c.high - prev), Math.abs(c.low - prev))
+  }
+  const last = tail[tail.length - 1].close
+  return finite(last) && sum > 0 ? sum / period / last * 100 : null
+}
+
+export type Backtest = {
+  candles: number; hours: number; cycles: number; net: number; fees: number; maxDrawdown: number; stopped: boolean; stoppedAt: number | null
+  openLevels: number; inRangePct: number; cyclesPerDay: number
+}
+
+/**
+ * Aynı şekildeki gridin (aynı genişlik, kademe sayısı ve stoplar) geçmiş mumlarda nasıl çalışacağını tahmin eder.
+ * Seviyeler pencerenin ilk fiyatına göre ölçeklenir; böylece "şimdiki gridi o günlerde kursaydım" sorusu cevaplanır.
+ * Mum içi sıra bilinmediği için kötümser varsayım: yükselen mumda önce düşük, düşen mumda önce yüksek görülür.
+ * Ücret (maker/taker) dahildir; funding, kayma ve kısmi dolum dahil DEĞİLDİR.
+ */
+export function backtestGrid(p: GridParams, preview: GridPreview, nowPrice: number, candles: readonly Candle[]): Backtest | null {
+  if (!preview.ok || !preview.levels.length || !finite(nowPrice) || candles.length < 8) return null
+  const first = candles[0].open
+  if (!finite(first)) return null
+  const k = first / nowPrice
+  const neutral = p.mode === 'NEUTRAL'
+  const stopLo = (neutral || p.mode === 'LONG') ? p.stop * k : 0
+  const stopHi = neutral ? p.stopUpper * k : p.mode === 'SHORT' ? p.stop * k : Infinity
+  type L = {entry: number; target: number; sign: 1 | -1; qty: number; open: boolean}
+  const levels: L[] = preview.levels.map(r => ({entry: r.entry * k, target: r.target * k, sign: r.side === 'LONG' ? 1 : -1, qty: r.qty, open: false}))
+  let realized = 0, fees = 0, cycles = 0, peak = 0, maxDd = 0, stopped = false, stoppedAt: number | null = null, inRange = 0
+  const lower = p.lower * k, upper = p.upper * k
+  const equityAt = (price: number) => realized + levels.reduce((s, l) => l.open ? s + l.sign * (price - l.entry) * l.qty : s, 0)
+  const mark = (price: number) => { const e = equityAt(price); if (e > peak) peak = e; if (peak - e > maxDd) maxDd = peak - e }
+  type Ev = {price: number; kind: 'entry' | 'target' | 'stop'; level?: L}
+  const segment = (a: number, b: number) => {
+    if (a === b || stopped) return
+    const down = b < a, lo = Math.min(a, b), hi = Math.max(a, b)
+    const hit = (price: number) => price >= lo && price <= hi
+    const events: Ev[] = []
+    for (const l of levels) {
+      if (!l.open && hit(l.entry) && (l.sign === 1 ? down : !down)) events.push({price: l.entry, kind: 'entry', level: l})
+      if (l.open && hit(l.target) && (l.sign === 1 ? !down : down)) events.push({price: l.target, kind: 'target', level: l})
+    }
+    if (down && hit(stopLo) && levels.some(l => l.open && l.sign === 1)) events.push({price: stopLo, kind: 'stop'})
+    if (!down && hit(stopHi) && levels.some(l => l.open && l.sign === -1)) events.push({price: stopHi, kind: 'stop'})
+    events.sort((x, y) => down ? y.price - x.price : x.price - y.price)
+    for (const ev of events) {
+      if (ev.kind === 'entry' && ev.level) { ev.level.open = true; mark(ev.price) }
+      else if (ev.kind === 'target' && ev.level && ev.level.open) {
+        const l = ev.level
+        realized += l.sign * (l.target - l.entry) * l.qty - (l.entry + l.target) * l.qty * GRID_MAKER_FEE
+        fees += (l.entry + l.target) * l.qty * GRID_MAKER_FEE
+        l.open = false; cycles++; mark(ev.price)
+      } else if (ev.kind === 'stop') {
+        const side = down ? 1 : -1
+        for (const l of levels) {
+          if (!l.open || l.sign !== side) continue
+          const fee = l.entry * l.qty * GRID_MAKER_FEE + ev.price * l.qty * GRID_TAKER_FEE
+          realized += l.sign * (ev.price - l.entry) * l.qty - fee; fees += fee; l.open = false
+        }
+        mark(ev.price)
+        if (!levels.some(l => l.open)) { stopped = true; return }
+      }
+    }
+    mark(b)
+  }
+  for (let i = 0; i < candles.length && !stopped; i++) {
+    const c = candles[i]
+    const path = c.close >= c.open ? [c.open, c.low, c.high, c.close] : [c.open, c.high, c.low, c.close]
+    for (let j = 1; j < path.length && !stopped; j++) segment(path[j - 1], path[j])
+    if (stopped) { stoppedAt = i; break }
+    if (c.close >= lower && c.close <= upper) inRange++
+  }
+  const seen = stopped && stoppedAt !== null ? stoppedAt + 1 : candles.length
+  const bar = barSeconds(candles) ?? 0
+  const hours = bar > 0 ? seen * bar / 3600 : 0
+  const last = candles[Math.min(seen, candles.length) - 1]?.close ?? first
+  const net = equityAt(last)
+  return {
+    candles: seen, hours, cycles, net, fees, maxDrawdown: maxDd, stopped, stoppedAt, openLevels: levels.filter(l => l.open).length,
+    inRangePct: seen > 0 ? inRange / seen * 100 : 0, cyclesPerDay: hours > 0 ? cycles / (hours / 24) : 0,
+  }
+}
+
+/** Fiyat grid aralığının dışında mı? Çalışan gridin kademe ve hedeflerinden bulunur; kısa bir tampon (%0,1) tanınır. */
+export function gridRangeStatus(row: GridRow, price: number | null | undefined): {state: 'inside' | 'above' | 'below' | 'unknown'; pct: number} {
+  const levels = row.spec?.levels ?? []
+  if (!finite(price) || !levels.length) return {state: 'unknown', pct: 0}
+  const all = levels.flatMap(l => [l.entry, l.target]).filter(finite)
+  if (!all.length) return {state: 'unknown', pct: 0}
+  const lo = Math.min(...all), hi = Math.max(...all)
+  if (price > hi * 1.001) return {state: 'above', pct: (price - hi) / hi * 100}
+  if (price < lo * .999) return {state: 'below', pct: (lo - price) / lo * 100}
+  return {state: 'inside', pct: 0}
+}
+
+/** Grid geçmişi için tek satırlık özet. */
+export function gridSummary(row: GridRow): {hours: number | null; cycles: number; net: number; fees: number} {
+  const created = Number(row.created_at), updated = Number(row.updated_at)
+  const hours = created > 0 && updated >= created ? (updated - created) / 3600 : null
+  return {hours, cycles: row.stats?.cycles ?? 0, net: row.stats?.realized_usdt ?? 0, fees: row.stats?.fees_usdt ?? 0}
+}
+
+export type GridChartLine = {price: number; kind: 'buy' | 'sell' | 'skip' | 'bound' | 'stop'; label?: string}
+
+/** Grafik üzerinde çizilecek çizgiler: önizleme (panel açıkken) ya da çalışan gridlerin kademeleri ve stopları. */
+export function chartLinesFor(preview: GridPreview | null, p: GridParams | null): GridChartLine[] {
+  if (!preview || !p || preview.lines.length === 0) return []
+  const out: GridChartLine[] = preview.lines.map(l => ({price: l.price, kind: l.kind}))
+  out.push({price: p.upper, kind: 'bound', label: 'Üst'}, {price: p.lower, kind: 'bound', label: 'Alt'}, {price: p.stop, kind: 'stop', label: p.mode === 'NEUTRAL' ? 'Alt stop' : 'Stop'})
+  if (p.mode === 'NEUTRAL' && finite(p.stopUpper)) out.push({price: p.stopUpper, kind: 'stop', label: 'Üst stop'})
+  return out
+}
+
+export function chartLinesForRows(rows: readonly GridRow[]): GridChartLine[] {
+  const out: GridChartLine[] = []
+  for (const row of rows) {
+    if (!gridActive(row)) continue
+    for (const l of row.spec?.levels ?? []) if (finite(l.entry)) out.push({price: l.entry, kind: l.side === 'SHORT' || (!l.side && row.side === 'SHORT') ? 'sell' : 'buy'})
+    const lo = row.spec?.stop_price, hi = row.spec?.stop_price_upper
+    if (finite(lo)) out.push({price: lo, kind: 'stop', label: 'Stop'})
+    if (finite(hi)) out.push({price: hi, kind: 'stop', label: 'Stop'})
+  }
+  return out
 }

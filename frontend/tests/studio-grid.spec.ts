@@ -214,6 +214,75 @@ test('Canlı grid kapalıysa (bayrak) panel nedenini yazar ve başlatmaz', async
   expect(mock.starts).toHaveLength(0)
 })
 
+test('Geçmişe göre deneme: kart görünür, tur ve net sonuç yazar; Oynaklık önayarı aralığı değiştirir', async ({page}) => {
+  await prepare(page)
+  await ready(page)
+  const back = panel(page).locator('.sqgBack')
+  await back.scrollIntoViewIfNeeded()
+  await expect(back).toContainText('Geçmişte nasıl çalışırdı')
+  await expect(back).toContainText('Tamamlanan tur')
+  await expect(back).toContainText('En büyük düşüş')
+  const before = await num(panel(page).locator('#sqg-upper'))
+  await panel(page).locator('.sqgPresets button', {hasText: 'Oynaklık'}).click()
+  await expect(panel(page).locator('.sqgPresets button', {hasText: 'Oynaklık'})).toHaveAttribute('aria-checked', 'true')
+  await expect(panel(page).locator('.sqgNote')).toContainText(/ATR|yeterli mum/)
+  await expect.poll(() => num(panel(page).locator('#sqg-upper'))).not.toBe(before)
+})
+
+test('Grafikte grid çizgileri: panel açıkken önizleme çizgileri, kapanınca kalkar', async ({page}) => {
+  await prepare(page)
+  const overlay = terminal(page).locator('.refGridOverlay')
+  await expect(overlay).toHaveCount(0)
+  await ready(page)
+  await expect.poll(() => terminal(page).locator('.refGridOverlay line').count()).toBeGreaterThan(5)
+  await expect(terminal(page).locator('.refGridOverlay [data-kind="stop"]').first()).toBeAttached()
+  await page.screenshot({path: 'test-results/grid-chart-lines.png'})
+  await page.keyboard.press('Escape')
+  await expect(overlay).toHaveCount(0)
+})
+
+test('Çalışan gridin kademeleri panel kapalıyken de grafikte görünür', async ({page}) => {
+  await prepare(page, {grids: [gridRow('ga', 'BTCUSDT', 'NEUTRAL')]})
+  await expect.poll(() => terminal(page).locator('.refGridOverlay line').count()).toBeGreaterThan(0)
+})
+
+test('Fiyat aralığın dışındaysa uyarı çıkar; açık kademe yoksa "Durdur ve yeniden kur" gridi durdurup yeni öneriyi açar', async ({page}) => {
+  const p = price('BTCUSDT')
+  const far = {spec: {levels: [{entry: p * .9, target: p * .91}, {entry: p * .92, target: p * .93}]}, stats: {cycles: 1, realized_usdt: 0.1, gross_usdt: 0.12, fees_usdt: 0.02, open_levels: []}}
+  const mock = await prepare(page, {grids: [gridRow('gx', 'BTCUSDT', 'NEUTRAL', far)]})
+  await layer(page).locator('.sqgChip').click()
+  await panel(page).locator('.sqgTabs button').nth(1).click()
+  const card = panel(page).locator('.sqgCard')
+  await expect(card.locator('.sqgRange')).toContainText('aralığının')
+  await card.getByRole('button', {name: /Durdur ve yeniden kur/}).click()
+  expect(mock.stops).toHaveLength(0)
+  await card.locator('.sqgRange .sqtBtn').first().click()
+  await expect.poll(() => mock.stops).toEqual(['gx'])
+  await expect(panel(page).locator('#sqg-upper')).toBeVisible({timeout: 10000})
+})
+
+test('Fiyat aralık dışındayken açık kademe varsa yeniden kur kapalıdır ve nedeni yazar', async ({page}) => {
+  const p = price('BTCUSDT')
+  const far = {spec: {levels: [{entry: p * .9, target: p * .91}]}, stats: {cycles: 0, realized_usdt: 0, gross_usdt: 0, fees_usdt: 0, open_levels: [{level: 1, cycle: 0, entry: p * .9, qty: 0.001}]}}
+  await prepare(page, {grids: [gridRow('gy', 'BTCUSDT', 'LONG', far)]})
+  await layer(page).locator('.sqgChip').click()
+  await panel(page).locator('.sqgTabs button').nth(1).click()
+  await expect(panel(page).locator('.sqgRange')).toContainText('Açık kademe var')
+  await expect(panel(page).getByRole('button', {name: /Durdur ve yeniden kur/})).toHaveCount(0)
+})
+
+test('Geçmiş sekmesi: biten gridler özetlenir, toplam net ve tur görünür', async ({page}) => {
+  const done = (id: string, net: number, status: string) => gridRow(id, 'BTCUSDT', 'LONG', {status, reason: 'Kullanıcı durdurdu', created_at: 1_700_000_000, updated_at: 1_700_000_000 + 7200, stats: {cycles: 4, realized_usdt: net, gross_usdt: net + 0.1, fees_usdt: 0.1, open_levels: []}})
+  await prepare(page, {grids: [done('h1', 1.25, 'STOPPED'), done('h2', -0.4, 'EMERGENCY_CLOSED')]})
+  await layer(page).locator('.sqgChip').click()
+  await panel(page).locator('.sqgTabs button').nth(2).click()
+  await expect(panel(page).locator('.sqgHist')).toHaveCount(2)
+  await expect(panel(page).locator('.sqgTotals')).toContainText('Toplam net')
+  await expect(panel(page).locator('.sqgTotals')).toContainText('+0,850')
+  await expect(panel(page).locator('.sqgHist').first()).toContainText('2 saat')
+  await page.screenshot({path: 'test-results/grid-history.png'})
+})
+
 for (const [width, height] of [[667, 375], [740, 360], [844, 390], [1180, 700]] as const) {
   test(`Yerleşim ${width}×${height}: panel ekran içinde, gövde kayar, başlat düğmesi hep görünür, harita taşmaz`, async ({page}) => {
     await prepare(page, {}, {width, height})

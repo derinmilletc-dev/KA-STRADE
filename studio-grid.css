@@ -176,3 +176,32 @@
 /* Açık pozisyon varken GRID çipi, pozisyon çipinin üstüne yığılır; kart ya da liste açıkken gizlenir (üst üste binmesin). */
 .masterReferenceAnalysis .sqtLayer:has(.sqtPos) .sqgChip { bottom: calc(var(--sqt-bottom) + 44px); }
 .masterReferenceAnalysis .sqtLayer:has(:is(.sqtCard, .sqtTray)) .sqgChip { display: none; }
+
+/* ---------- Grafik üstündeki grid çizgileri (ReferenceChart içinde) ---------- */
+.refGridOverlay line { stroke-width: 1; pointer-events: none; }
+.refGridOverlay [data-kind="buy"] line { stroke: rgba(62, 224, 160, .5); }
+.refGridOverlay [data-kind="sell"] line { stroke: rgba(255, 141, 154, .5); }
+.refGridOverlay [data-kind="skip"] line { stroke: rgba(255, 255, 255, .25); stroke-dasharray: 2 4; }
+.refGridOverlay [data-kind="bound"] line { stroke: rgba(143, 193, 255, .8); stroke-dasharray: 6 4; }
+.refGridOverlay [data-kind="stop"] line { stroke: rgba(255, 101, 119, .85); stroke-dasharray: 3 3; }
+.refGridOverlay text { font-size: 10px; font-weight: 700; paint-order: stroke; stroke: #0a121a; stroke-width: 3px; pointer-events: none; }
+.refGridOverlay [data-kind="bound"] text { fill: #9fd0ff; }
+.refGridOverlay [data-kind="stop"] text { fill: #ff8d9a; }
+
+/* ---------- Geçmişe göre deneme, aralık dışı uyarısı, geçmiş ---------- */
+.masterReferenceAnalysis .sqgBack { display: grid; gap: 6px; padding: 9px; border-radius: 12px; background: var(--sqg-card); border: 1px solid var(--sqg-line); }
+.masterReferenceAnalysis .sqgBack h4 { margin: 0; font-size: 12px; }
+.masterReferenceAnalysis .sqgBackSub { margin: 0; font-size: 10.5px; color: var(--sqg-dim); }
+.masterReferenceAnalysis .sqgBack .sqgStats > div { background: #0e1822; }
+.masterReferenceAnalysis .sqgBackWarn { display: flex; gap: 6px; margin: 0; font-size: 10.5px; line-height: 1.35; color: #f2c46d; }
+.masterReferenceAnalysis .sqgBackWarn svg { width: 13px; height: 13px; flex: none; margin-top: 1px; }
+.masterReferenceAnalysis .sqgBackFine { margin: 0; font-size: 10px; line-height: 1.35; color: var(--sqg-dim); }
+.masterReferenceAnalysis .sqgRange { display: grid; gap: 6px; padding: 7px 9px; border-radius: 10px; background: #2b2412; border: 1px solid #6b5520; color: #ffd98a; font-size: 10.5px; line-height: 1.35; }
+.masterReferenceAnalysis .sqgRange p { display: flex; gap: 6px; margin: 0; }
+.masterReferenceAnalysis .sqgRange p svg { width: 13px; height: 13px; flex: none; margin-top: 1px; }
+.masterReferenceAnalysis .sqgRange small { color: #cdb27a; }
+.masterReferenceAnalysis .sqgRange .sqtBtn { min-height: 30px; }
+.masterReferenceAnalysis .sqgHist { display: grid; gap: 6px; padding: 9px 10px; border-radius: 12px; background: var(--sqg-card); border: 1px solid var(--sqg-line); }
+.masterReferenceAnalysis .sqgHist[data-tone="bad"] { border-color: #8f2a3a; }
+.masterReferenceAnalysis .sqgTotals { margin-bottom: 2px; }
+.masterReferenceAnalysis .sqgTabs button { padding: 0 9px; }

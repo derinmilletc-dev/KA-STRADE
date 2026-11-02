@@ -12,6 +12,7 @@ import {
 } from './studio-quick-trade'
 import {HoldButton, useHold} from './studio-hold'
 import StudioGrid from './StudioGrid'
+import type {Candle, GridChartLine} from './studio-grid'
 import './studio-quick-trade.css'
 
 setLanguageReader(() => currentLang() === 'en')
@@ -95,9 +96,10 @@ type Props = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void
   live: SharedLiveStatus | null; analysis: AnalysisLevels; decision: StudioDecision
   positions: readonly StudioPosition[]; onSelect: (symbol: string) => void; drawerOpen: boolean; dataReady: boolean
+  candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void
 }
 
-export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady}: Props) {
+export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines}: Props) {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [side, setSide] = useState<Side | null>(null)
   const [frozen, setFrozen] = useState<{price: number; levels: Levels} | null>(null)
@@ -243,7 +245,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
 
     <StudioGrid symbol={symbol} price={price} demo={demo} premium={premium} onUpgrade={onUpgrade} analysis={analysis} decision={decision.direction} liveBlocker={liveBlocked ? blocker : ''}
-      policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen}/>
+      policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen} candles={candles} onLines={onGridLines}/>
 
     {!current && !side && <div className="sqtDock" data-demo={demo || undefined} role="group" aria-label={tx('Hızlı alım satım', 'Quick buy / sell')}>
       <button type="button" className="sqtMid" aria-expanded={settings} aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')} onClick={() => setSettings(open => !open)}>

@@ -6,8 +6,9 @@ import {requestPositionsRefresh} from './trade-intent'
 import {HoldButton} from './studio-hold'
 import {tx, type AnalysisLevels} from './studio-quick-trade'
 import {
-  GRID_MAX_COUNT, GRID_MIN_COUNT, gridActive, gridPnl, gridStatusText, previewGrid, priceText, requestGrid, setGridLanguageReader, snapTo, startBody, suggestGrid,
-  type GridFilters, type GridMode, type GridParams, type GridPreset, type GridRow, type GridStatus,
+  GRID_MAX_COUNT, GRID_MIN_COUNT, atrPct, backtestGrid, barSeconds, chartLinesFor, chartLinesForRows, gridActive, gridPnl, gridRangeStatus, gridStatusText, gridSummary, previewGrid, priceText, requestGrid,
+  setGridLanguageReader, snapTo, startBody, suggestGrid,
+  type Candle, type GridChartLine, type GridFilters, type GridMode, type GridParams, type GridPreset, type GridRow, type GridStatus,
 } from './studio-grid'
 import './studio-grid.css'
 
@@ -34,7 +35,7 @@ const readPrefs = (): Prefs => {
     return {
       margin: Number(v.margin) > 0 ? Number(v.margin) : DEFAULT_PREFS.margin, leverage: Number(v.leverage) >= 1 ? Number(v.leverage) : DEFAULT_PREFS.leverage,
       recycle: v.recycle !== false, mode: v.mode === 'LONG' || v.mode === 'SHORT' || v.mode === 'NEUTRAL' ? v.mode : DEFAULT_PREFS.mode,
-      preset: v.preset === 'tight' || v.preset === 'wide' || v.preset === 'analysis' ? v.preset : DEFAULT_PREFS.preset,
+      preset: v.preset === 'tight' || v.preset === 'wide' || v.preset === 'analysis' || v.preset === 'atr' ? v.preset : DEFAULT_PREFS.preset,
     }
   } catch { return DEFAULT_PREFS }
 }
@@ -147,18 +148,19 @@ const MODES: {id: GridMode; tr: string; en: string; hintTr: string; hintEn: stri
   {id: 'LONG', tr: 'Yükseliş', en: 'Uptrend', hintTr: 'Yalnız alış kademeleri: düşüşlerde alır, bir kademe yukarıda satar.', hintEn: 'Buy levels only: buys dips, sells one level higher.'},
   {id: 'SHORT', tr: 'Düşüş', en: 'Downtrend', hintTr: 'Yalnız satış kademeleri: yükselişlerde satar, bir kademe aşağıda geri alır.', hintEn: 'Sell levels only: sells rallies, buys back one level lower.'},
 ]
-const PRESETS: {id: Exclude<GridPreset, 'custom'>; tr: string; en: string}[] = [{id: 'analysis', tr: 'Analize göre', en: 'By analysis'}, {id: 'tight', tr: 'Dar', en: 'Tight'}, {id: 'wide', tr: 'Geniş', en: 'Wide'}]
+const PRESETS: {id: Exclude<GridPreset, 'custom'>; tr: string; en: string}[] = [{id: 'analysis', tr: 'Analize göre', en: 'By analysis'}, {id: 'atr', tr: 'Oynaklık', en: 'Volatility'}, {id: 'tight', tr: 'Dar', en: 'Tight'}, {id: 'wide', tr: 'Geniş', en: 'Wide'}]
 const MARGIN_STEPS = [20, 50, 100, 200, 300], LEVERAGE_STEPS = [1, 2, 3, 5, 10]
 
 export type GridProps = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void; analysis: AnalysisLevels; decision: string
   liveBlocker: string; policy: Record<string, unknown>; dataReady: boolean; hasPosition: boolean; hidden: boolean
   onSelect: (symbol: string) => void; onToast: (toast: GridToast) => void; onOpenChange?: (open: boolean) => void
+  candles?: readonly Candle[]; onLines?: (lines: GridChartLine[]) => void
 }
 
-export default function StudioGrid({symbol, price, demo, premium, onUpgrade, analysis, decision, liveBlocker, policy, dataReady, hasPosition, hidden, onSelect, onToast, onOpenChange}: GridProps) {
+export default function StudioGrid({symbol, price, demo, premium, onUpgrade, analysis, decision, liveBlocker, policy, dataReady, hasPosition, hidden, onSelect, onToast, onOpenChange, candles = [], onLines}: GridProps) {
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<'new' | 'running'>('new')
+  const [tab, setTab] = useState<'new' | 'running' | 'history'>('new')
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [params, setParams] = useState<GridParams | null>(null)
   const [preset, setPreset] = useState<GridPreset>(prefs.preset)
@@ -176,7 +178,8 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   const {status, setStatus, error: statusError, reload} = useGridStatus(demo, open, !hidden)
   const rows = status?.grids ?? (status?.grid ? [status.grid] : [])
   const running = rows.filter(gridActive)
-  const recent = rows.filter(row => !gridActive(row)).slice(0, 3)
+  const finished = rows.filter(row => !gridActive(row))
+  const atr = useMemo(() => { const pct = atrPct(candles), bar = barSeconds(candles); return pct !== null && bar !== null ? {pct, barSeconds: bar} : null }, [candles])
   const here = running.find(row => row.symbol === symbol) ?? null
   const maxCount = Math.min(GRID_MAX_COUNT, Number(status?.max_levels) || GRID_MAX_COUNT)
   const maxMargin = Number(status?.max_margin_usdt) > 0 ? Number(status?.max_margin_usdt) : 300
@@ -210,11 +213,11 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   }, [open, tab, demo, symbol])
 
   const suggest = useCallback((mode: GridMode, which: Exclude<GridPreset, 'custom'>, keep?: Partial<GridParams>) => {
-    const s = suggestGrid(mode, price ?? 0, analysis, which, {tick: filters?.tickSize, step: filters?.stepSize, maxCount, margin, leverage, minNotional: filters?.minNotional})
+    const s = suggestGrid(mode, price ?? 0, analysis, which, {tick: filters?.tickSize, step: filters?.stepSize, atr, maxCount, margin, leverage, minNotional: filters?.minNotional})
     if (!s) { setParams(null); setNote(tx('Fiyat ya da analiz verisi hazır değil.', 'Price or analysis data is not ready.')); return }
     setNote(s.note)
     setParams({mode, lower: s.lower, upper: s.upper, count: s.count, stop: s.stop, stopUpper: s.stopUpper, margin, leverage, recycle: prefs.recycle, ...keep})
-  }, [price, analysis, filters, maxCount, margin, leverage, prefs.recycle])
+  }, [price, analysis, filters, atr, maxCount, margin, leverage, prefs.recycle])
 
   // Panel ilk açıldığında, coin değişince ve kurallar gelince öneri yenilenir; kullanıcı elle değiştirdiyse (Özel) üzerine yazılmaz.
   const seeded = useRef('')
@@ -240,6 +243,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
 
   const limits = useMemo(() => ({maxMargin: marginCap, maxLeverage, maxLoss}), [marginCap, maxLeverage, maxLoss])
   const preview = useMemo(() => params ? previewGrid(params, price, filters, limits) : null, [params, price, filters, limits])
+  const backtest = useMemo(() => params && preview && finite(price) ? backtestGrid(params, preview, price, candles) : null, [params, preview, price, candles])
 
   const edit = (change: Partial<GridParams>) => { setParams(current => current ? {...current, ...change} : current); setPreset('custom'); setError('') }
   const pickMode = (mode: GridMode) => { updatePrefs({mode}); suggest(mode, preset === 'custom' ? prefs.preset : preset); if (preset === 'custom') setPreset(prefs.preset); setError('') }
@@ -269,23 +273,42 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
     } finally { busyRef.current = false; setBusy('') }
   }
 
-  const act = async (row: GridRow, kind: 'stop' | 'emergency' | 'resume') => {
-    if (busyRef.current) return
+  const act = async (row: GridRow, kind: 'stop' | 'emergency' | 'resume'): Promise<boolean> => {
+    if (busyRef.current) return false
     busyRef.current = true; setBusy(kind === 'emergency' ? tx('Acil kapatılıyor…', 'Emergency closing…') : kind === 'stop' ? tx('Durduruluyor…', 'Stopping…') : tx('Devam ettiriliyor…', 'Resuming…')); setError('')
+    let succeeded = false
     try {
       const result = await requestGrid<GridStatus>(`${base(demo)}/${kind}?grid_id=${encodeURIComponent(row.grid_id)}`, 'POST', {}, kind === 'emergency' ? 120000 : 60000)
       if (result.ok) {
+        succeeded = true
         setStatus(result.data); setAsk(null); requestPositionsRefresh()
         onToast({kind: 'ok', title: kind === 'emergency' ? tx(`${short(row.symbol)} grid acil kapatıldı`, `${short(row.symbol)} grid emergency-closed`) : kind === 'stop' ? tx(`${short(row.symbol)} grid durduruldu`, `${short(row.symbol)} grid stopped`) : tx(`${short(row.symbol)} grid devam ediyor`, `${short(row.symbol)} grid resumed`),
           detail: kind === 'stop' ? tx('Bekleyen girişler iptal edildi; açık pozisyon varsa stop ve hedefleriyle yerinde.', 'Pending entries were cancelled; any open position stays with its stop and targets.') : undefined})
       } else if (result.uncertain) { void reload(); setError(`${result.message} ${tx('Durum yenileniyor; sonucu kontrol et.', 'Refreshing the status; check the result.')}`) } else setError(result.message)
     } finally { busyRef.current = false; setBusy('') }
+    return succeeded
+  }
+  // Aralığı yeniden kur: grid'i durdurur; pozisyon kalmadıysa fiyata ortalanmış yeni öneriyle "Yeni" sekmesini açar.
+  const recenter = async (row: GridRow) => {
+    const ok = await act(row, 'stop')
+    if (!ok) return
+    if (row.side === 'LONG' || row.side === 'SHORT' || row.side === 'NEUTRAL') updatePrefs({mode: row.side})
+    seeded.current = ''; setPreset(prefs.preset === 'custom' ? 'analysis' : prefs.preset); setTab('new')
   }
 
   const totalNow = running.reduce((sum, row) => { const p = gridPnl(row, row.symbol === symbol ? price : null); return sum + (p.total ?? p.realized) }, 0)
   const hasBlocking = rows.some(row => row.needs_user)
   const holdMs = demo ? HOLD_MS.demo : HOLD_MS.live
   const startWord = params?.mode === 'NEUTRAL' ? tx('Nötr', 'Neutral') : params?.mode === 'LONG' ? tx('Yükseliş', 'Uptrend') : tx('Düşüş', 'Downtrend')
+
+  // Grafikte çizgiler: panel açıkken önizleme, kapalıyken bu coindeki çalışan gridlerin kademeleri.
+  const lines = useMemo<GridChartLine[]>(() => {
+    if (hidden) return []
+    if (open && tab === 'new') return chartLinesFor(preview, params)
+    return chartLinesForRows(running.filter(row => row.symbol === symbol))
+  }, [hidden, open, tab, preview, params, running, symbol])
+  useEffect(() => { onLines?.(lines) }, [lines, onLines])
+  useEffect(() => () => onLines?.([]), [onLines])
 
   if (hidden) return null
   return <>
@@ -300,6 +323,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
         <div className="sqgTabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab === 'new'} data-on={tab === 'new'} onClick={() => setTab('new')}>{tx('Yeni', 'New')}</button>
           <button type="button" role="tab" aria-selected={tab === 'running'} data-on={tab === 'running'} onClick={() => setTab('running')}>{tx('Çalışan', 'Running')}{running.length > 0 && <em>{running.length}</em>}</button>
+          <button type="button" role="tab" aria-selected={tab === 'history'} data-on={tab === 'history'} onClick={() => setTab('history')}>{tx('Geçmiş', 'History')}</button>
         </div>
         <button type="button" className="sqgX" aria-label={tx('Kapat', 'Close')} onClick={() => setOpen(false)} disabled={!!busy}><X aria-hidden="true"/></button>
       </header>
@@ -354,6 +378,19 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             <div><dt>{tx('Gereken teminat', 'Margin needed')}</dt><dd>{fmt(preview.marginNeeded)} <u>USDT</u></dd></div>
           </dl>}
 
+          {backtest && <section className="sqgBack" aria-label={tx('Geçmişe göre deneme', 'Backtest')}>
+            <h4>{tx('Geçmişte nasıl çalışırdı?', 'How would it have run?')}</h4>
+            <p className="sqgBackSub">{tx(`Son ${backtest.candles} mum (≈ ${fmt(backtest.hours, backtest.hours < 10 ? 1 : 0)} saat) · aynı genişlik ve kademe`, `Last ${backtest.candles} candles (≈ ${fmt(backtest.hours, backtest.hours < 10 ? 1 : 0)} h) · same width and levels`)}</p>
+            <dl className="sqgStats">
+              <div><dt>{tx('Tamamlanan tur', 'Cycles')}</dt><dd>{backtest.cycles} <u>{tx(`· günde ~${fmt(backtest.cyclesPerDay, 1)}`, `· ~${fmt(backtest.cyclesPerDay, 1)}/day`)}</u></dd></div>
+              <div data-tone={backtest.net >= 0 ? 'gain' : 'loss'}><dt>{tx('Net sonuç', 'Net result')}</dt><dd>{signed(backtest.net, Math.abs(backtest.net) < 1 ? 3 : 2)} <u>USDT</u></dd></div>
+              <div data-tone="loss"><dt>{tx('En büyük düşüş', 'Max drawdown')}</dt><dd>−{fmt(backtest.maxDrawdown)} <u>USDT</u></dd></div>
+              <div><dt>{tx('Aralıkta kalma', 'Time in range')}</dt><dd>%{fmt(backtest.inRangePct, 0)}</dd></div>
+            </dl>
+            {backtest.stopped && <p className="sqgBackWarn"><TriangleAlert aria-hidden="true"/>{tx('Bu dönemde stop çalışırdı; grid erken biterdi.', 'The stop would have triggered in this window; the grid would have ended early.')}</p>}
+            <p className="sqgBackFine">{tx('Geçmiş sonuç gelecek için garanti değildir. Ücret dahil; funding ve kayma hariç.', 'Past results are no guarantee. Fees included; funding and slippage excluded.')}</p>
+          </section>}
+
           <ul className="sqgChecks" aria-live="polite">
             {(preview?.issues ?? []).map(text => <li key={text} data-ok="false"><TriangleAlert aria-hidden="true"/>{text}</li>)}
             {(preview?.warnings ?? []).map(text => <li key={text} data-ok="warn"><Info aria-hidden="true"/>{text}</li>)}
@@ -367,12 +404,12 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
 
         {tab === 'running' && <>
           {statusError && !status && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{statusError}</p>}
-          {!running.length && !recent.length && <p className="sqgEmpty">{tx('Henüz grid yok. “Yeni” sekmesinden başlat.', 'No grids yet. Start one from the “New” tab.')}</p>}
-          {running.map(row => <GridCard key={row.grid_id} row={row} price={row.symbol === symbol ? price : null} demo={demo} busy={!!busy} ask={ask} setAsk={setAsk} holdMs={holdMs} onAct={act} onSelect={onSelect}/>)}
-          {recent.length > 0 && <h4 className="sqgSub">{tx('Son biten', 'Recently finished')}</h4>}
-          {recent.map(row => <GridCard key={row.grid_id} row={row} price={null} demo={demo} busy={!!busy} ask={ask} setAsk={setAsk} holdMs={holdMs} onAct={act} onSelect={onSelect} done/>)}
+          {!running.length && <p className="sqgEmpty">{tx('Çalışan grid yok. “Yeni” sekmesinden başlat.', 'No running grids. Start one from the “New” tab.')}</p>}
+          {running.map(row => <GridCard key={row.grid_id} row={row} price={row.symbol === symbol ? price : null} demo={demo} busy={!!busy} ask={ask} setAsk={setAsk} holdMs={holdMs} onAct={act} onSelect={onSelect} onRecenter={recenter}/>)}
           {error && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
         </>}
+
+        {tab === 'history' && <History rows={finished}/>}
       </div>
 
       {tab === 'new' && <footer className="sqgFoot">
@@ -387,10 +424,45 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   </>
 }
 
-function GridCard({row, price, demo, busy, ask, setAsk, holdMs, onAct, onSelect, done = false}: {
+const trim = (value: number, digits: number) => value.toLocaleString(locale(), {minimumFractionDigits: 0, maximumFractionDigits: digits})
+const duration = (hours: number | null) => hours === null ? '—' : hours < 1 ? tx(`${Math.max(1, Math.round(hours * 60))} dk`, `${Math.max(1, Math.round(hours * 60))} min`) : hours < 48 ? tx(`${trim(hours, hours < 10 ? 1 : 0)} saat`, `${trim(hours, hours < 10 ? 1 : 0)} h`) : tx(`${trim(hours / 24, 1)} gün`, `${trim(hours / 24, 1)} d`)
+
+/** Biten gridlerin kısa raporu: süre, tur, ücret ve net sonuç; üstte toplam. */
+function History({rows}: {rows: GridRow[]}) {
+  const items = rows.map(row => ({row, ...gridSummary(row)}))
+  const net = items.reduce((s, i) => s + i.net, 0), cycles = items.reduce((s, i) => s + i.cycles, 0), fees = items.reduce((s, i) => s + i.fees, 0)
+  if (!items.length) return <p className="sqgEmpty">{tx('Henüz biten grid yok.', 'No finished grids yet.')}</p>
+  return <>
+    <dl className="sqgStats sqgTotals">
+      <div data-tone={net >= 0 ? 'gain' : 'loss'}><dt>{tx('Toplam net', 'Total net')}</dt><dd>{signed(net, 3)} <u>USDT</u></dd></div>
+      <div><dt>{tx('Toplam tur', 'Total cycles')}</dt><dd>{cycles}</dd></div>
+      <div><dt>{tx('Ödenen ücret', 'Fees paid')}</dt><dd>{fmt(fees, 3)} <u>USDT</u></dd></div>
+      <div><dt>{tx('Grid sayısı', 'Grids')}</dt><dd>{items.length}</dd></div>
+    </dl>
+    {items.map(({row, hours, cycles: c, net: n, fees: f}) => {
+      const state = gridStatusText(row.status)
+      const sideText = row.side === 'NEUTRAL' ? tx('Nötr', 'Neutral') : row.side === 'LONG' ? tx('Yükseliş', 'Uptrend') : tx('Düşüş', 'Downtrend')
+      return <article key={row.grid_id} className="sqgHist" data-tone={state.tone}>
+        <div className="sqgCardTop"><b>{row.symbol}</b><span className="sqgSide" data-side={row.side}>{sideText}</span><span className="sqgState" data-tone={state.tone}>{state.text}</span></div>
+        <dl className="sqgMeta">
+          <div><dt>{tx('Net', 'Net')}</dt><dd data-tone={n >= 0 ? 'up' : 'down'}>{signed(n, 3)}</dd></div>
+          <div><dt>{tx('Tur', 'Cycles')}</dt><dd>{c}</dd></div>
+          <div><dt>{tx('Ücret', 'Fees')}</dt><dd>{fmt(f, 3)}</dd></div>
+          <div><dt>{tx('Süre', 'Duration')}</dt><dd>{duration(hours)}</dd></div>
+        </dl>
+        {row.reason && <p className="sqgReason">{row.reason}</p>}
+      </article>
+    })}
+    <p className="sqgBackFine">{tx('Net: tamamlanan turların kârı (ücret düşülmüş). Stop ya da acil kapanıştaki zarar borsadaki gerçekleşen fiyata göre değişir; pozisyonlar sekmesinden kontrol et.', 'Net: profit of completed cycles (fees deducted). Loss on a stop or emergency close depends on the exchange fill price; check it on the Positions tab.')}</p>
+  </>
+}
+
+function GridCard({row, price, demo, busy, ask, setAsk, holdMs, onAct, onSelect, onRecenter}: {
   row: GridRow; price: number | null; demo: boolean; busy: boolean; ask: string | null; setAsk: (id: string | null) => void; holdMs: number
-  onAct: (row: GridRow, kind: 'stop' | 'emergency' | 'resume') => void; onSelect: (symbol: string) => void; done?: boolean
+  onAct: (row: GridRow, kind: 'stop' | 'emergency' | 'resume') => unknown; onSelect: (symbol: string) => void; onRecenter?: (row: GridRow) => unknown
 }) {
+  const done = !gridActive(row)
+  const range = gridRangeStatus(row, price)
   const pnl = gridPnl(row, price)
   const state = gridStatusText(row.status)
   const levels = row.spec?.levels ?? []
@@ -418,6 +490,19 @@ function GridCard({row, price, demo, busy, ask, setAsk, holdMs, onAct, onSelect,
     {row.reason && <p className="sqgReason">{row.reason}</p>}
     {alert && <p className="sqgAlert" data-level={alert.level}><TriangleAlert aria-hidden="true"/>{alert.text}</p>}
     {staleLoop && <p className="sqgAlert" data-level="uyarı"><TriangleAlert aria-hidden="true"/>{tx('Grid döngüsü durmuş (sunucu yeniden başlamış olabilir). Borsadaki stoplar yerinde; devam ettir.', 'The grid loop has stopped (the server may have restarted). Exchange stops stay in place; resume it.')}</p>}
+    {!done && (range.state === 'above' || range.state === 'below') && <div className="sqgRange" role="status">
+      <p><TriangleAlert aria-hidden="true"/>{range.state === 'above'
+        ? tx(`Fiyat grid aralığının %${fmt(range.pct, 2)} üstünde. Alış kademeleri dolmaz; mevcut kademeler hedefte bekler.`, `Price is ${fmt(range.pct, 2)}% above the grid range. Buy levels will not fill; open levels wait at their targets.`)
+        : tx(`Fiyat grid aralığının %${fmt(range.pct, 2)} altında. Satış kademeleri dolmaz; açık kademeler stopa yaklaşıyor olabilir.`, `Price is ${fmt(range.pct, 2)}% below the grid range. Sell levels will not fill; open levels may be nearing the stop.`)}</p>
+      {onRecenter && (openCount === 0
+        ? (ask === `recenter:${row.grid_id}`
+            ? <div className="sqgAsk" role="alertdialog" aria-label={tx('Yeniden kur onayı', 'Re-centre confirmation')}>
+                <span>{tx('Grid durdurulsun ve fiyata ortalanmış yeni bir öneri açılsın mı? Bekleyen girişler iptal edilir.', 'Stop this grid and open a new suggestion centred on the price? Pending entries are cancelled.')}</span>
+                <div><button type="button" className="sqtBtn" data-tone="primary" disabled={busy} onClick={() => void onRecenter(row)}>{tx('Evet, yeniden kur', 'Yes, re-centre')}</button><button type="button" className="sqtBtn" disabled={busy} onClick={() => setAsk(null)}>{tx('Vazgeç', 'Cancel')}</button></div>
+              </div>
+            : <button type="button" className="sqtBtn" data-tone="primary" disabled={busy} onClick={() => setAsk(`recenter:${row.grid_id}`)}>{tx('Durdur ve yeniden kur', 'Stop and re-centre')}</button>)
+        : <small>{tx('Açık kademe var: önce hedefine ulaşmasını bekle ya da acil kapat; sonra yeniden kurulabilir.', 'There are open levels: wait for them to reach their targets or emergency-close, then re-centre.')}</small>)}
+    </div>}
     {!done && <div className="sqgActs">
       {ask === `stop:${row.grid_id}`
         ? <div className="sqgAsk" role="alertdialog" aria-label={tx('Grid durdurma onayı', 'Stop grid confirmation')}>
