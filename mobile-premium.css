@@ -5330,7 +5330,8 @@ body {
   top: 0;
   z-index: 1100;
   transition: transform 200ms ease-out;
-  will-change: transform;
+  /* will-change: transform kaldırıldı: telefonda üst menüyü (logo, bildirim paneli) ayrı katmanda düşük çözünürlükle çizip bulanıklaştırıyordu.
+     Gizlenip gösterilirken geçiş (transition) katmanı zaten kendiliğinden hazırlar. */
 }
 #root > main.v26App > .v26Header.v26HomeHeader.v26HeaderHidden {
   transform: translateY(-100%);
