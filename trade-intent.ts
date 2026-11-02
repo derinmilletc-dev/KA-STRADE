@@ -84,3 +84,10 @@ export function goPositions() {
   window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
   window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol: null, tab: 'pozisyonlar'}}))
 }
+
+/** Hızlı AL/SAT, kapatma ve azaltma sonrası: açık pozisyon listesinin hemen yenilenmesini ister (Demo ve Canlı dinler). */
+export const POSITIONS_REFRESH_EVENT = 'kt:positions-refresh'
+export function requestPositionsRefresh() {
+  // Borsa kaydı birkaç saniye geç yansıyabilir; kısa aralıklarla üç kez istenir.
+  for (const delay of [0, 1500, 4500]) window.setTimeout(() => window.dispatchEvent(new CustomEvent(POSITIONS_REFRESH_EVENT)), delay)
+}

@@ -25,7 +25,7 @@ import {useTradingPreferences} from './useTradingPreferences'
 import {MarketDataFailure, isNetworkFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
-import {FOLLOW_SYMBOL_EVENT} from './trade-intent'
+import {FOLLOW_SYMBOL_EVENT, POSITIONS_REFRESH_EVENT} from './trade-intent'
 import {chartSnapshot} from './chart-ai-client'
 import {useKaisScreenContext} from './useKaisScreenContext'
 
@@ -522,6 +522,15 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
     return promise
   }
 
+  // Stüdyodaki hızlı AL/SAT/kapat işlemleri sonrası hesap (canlı pozisyonlar) hemen yenilenir. Demo'da liste Demo ekranından gelir.
+  const refreshAccountRef = useRef(refreshAccountData)
+  refreshAccountRef.current = refreshAccountData
+  useEffect(() => {
+    if (embedDemo) return
+    const onRefresh = () => { void refreshAccountRef.current(true).catch(() => undefined) }
+    window.addEventListener(POSITIONS_REFRESH_EVENT, onRefresh)
+    return () => window.removeEventListener(POSITIONS_REFRESH_EVENT, onRefresh)
+  }, [embedDemo])
   useEffect(() => {
     if (embedDemo) return
     const controller = new AbortController()
