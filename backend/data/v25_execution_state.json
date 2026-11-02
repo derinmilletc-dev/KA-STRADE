@@ -1,0 +1,134 @@
+{
+  "version": "25.0.0",
+  "policy": {
+    "allowed_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT"
+    ],
+    "interval": "15m",
+    "allow_long": true,
+    "allow_short": true,
+    "max_margin_per_trade": 25.0,
+    "max_loss_per_trade": 3.0,
+    "max_leverage": 30,
+    "max_positions": 5,
+    "max_same_direction_positions": 2,
+    "max_direction_exposure_usdt": null,
+    "max_total_exposure_usdt": 350.0,
+    "daily_loss_limit": 10.0,
+    "daily_trade_limit": 3,
+    "consecutive_loss_limit": 3,
+    "min_confidence": 80,
+    "mtf_allow_either_timeframe": false,
+    "max_trap_score": 35,
+    "max_spread_bps": 8.0,
+    "max_stop_distance_pct": 5,
+    "atr_stop_multiplier": 1.5,
+    "liquidation_buffer_pct": 0.5,
+    "fee_bps_per_side": 5.0,
+    "slippage_bps_per_side": 3.0,
+    "minimum_net_reward_usdt": 0.25,
+    "scan_seconds": 120,
+    "require_one_way": true,
+    "require_isolated": true,
+    "stop_required": true
+  },
+  "policy_ack_digest": null,
+  "connected": false,
+  "connection": {
+    "last_checked": null,
+    "last_error": null,
+    "clock_offset_ms": null
+  },
+  "heartbeat": {
+    "last_heartbeat": null,
+    "last_heartbeat_epoch": 0.0,
+    "last_successful_cycle": null,
+    "last_successful_cycle_epoch": 0.0,
+    "last_successful_order": null,
+    "open_orders": 0,
+    "open_positions": 0
+  },
+  "stream": {
+    "status": "ANAHTAR BEKLİYOR",
+    "transport": "REST UZLAŞTIRMA",
+    "last_event": null,
+    "last_error": null,
+    "event_count": 0,
+    "reconnect_count": 0
+  },
+  "snapshot": null,
+  "snapshot_session_id": null,
+  "live_session_authorization": {
+    "session_id": "",
+    "user_id": "",
+    "fingerprint": "",
+    "trading_account_id": "",
+    "policy_digest": "",
+    "auth_version": null,
+    "auth_expires_at_epoch": null
+  },
+  "events": [
+    {
+      "id": "b96ddff323084e008c76715a4864c0eb",
+      "kind": "CREDENTIAL_REFRESH_RETRY_SUCCEEDED",
+      "message": "İlk credential çözümlemesi boş döndü; tek zorunlu yenileme denemesi tamamlandı.",
+      "created_at": "2026-11-02T17:21:58.010372+00:00"
+    }
+  ],
+  "mtf_decision_history": [],
+  "plans": {},
+  "persistence_revision": 1,
+  "intents": {},
+  "armed_until": 0.0,
+  "live_lock_reason": null,
+  "account_rate_limit": null,
+  "auto": {
+    "enabled": false,
+    "busy": false,
+    "cycles": 0,
+    "last_scan": null,
+    "last_scan_stats": null,
+    "confidence_rejection_history": [],
+    "last_skip_reason": null,
+    "last_cycle_stage": "idle",
+    "last_decision": "Güvenli yeniden başlatma: canlı otomasyon yeniden onay bekliyor.",
+    "last_error": null,
+    "session_until": 0.0
+  },
+  "auto_authorization": {
+    "session_id": "",
+    "user_id": "",
+    "fingerprint": "",
+    "expires_at_epoch": 0.0
+  },
+  "real_trading_locked": true,
+  "live_auto_trade": false,
+  "emergency": {
+    "active": false,
+    "triggered_at": null,
+    "reason": null
+  },
+  "web_consent": {
+    "accepted_at": null,
+    "expires_at_epoch": 0.0,
+    "key_fingerprint": null,
+    "user_id": "",
+    "trading_account_id": "",
+    "policy_digest": ""
+  },
+  "duplicate_blocks": 0,
+  "protection_repairs": 0,
+  "recovery_ready": false,
+  "recovery_loaded": true,
+  "recovery_error": null,
+  "execution_state": "LOCKED",
+  "reconciliation_required": false,
+  "transient_reconciliation": null,
+  "transient_market_data": null,
+  "last_order_error": null,
+  "monitoring_credentials_stale_since": null,
+  "trade_review": null
+}

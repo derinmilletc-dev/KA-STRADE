@@ -6,6 +6,8 @@ acil durdurma doğrulaması ve sert sınırlar (2 kademe / 10 USDT) uçtan uca d
 """
 from __future__ import annotations
 
+import time
+
 import asyncio
 import threading
 import unittest
@@ -794,6 +796,64 @@ class LiquidationAndLockTests(unittest.TestCase):
         result, _, engine, row = self._run(plan, position=0.0, liq=0.0, mark=100.0, stats={"realized_usdt": 6.0, "open_levels": 0})
         self.assertEqual((result, engine.status), ("TAKE_PROFIT", EMERGENCY_CLOSED))
         self.assertIn("pozisyon kapatıldı", row["reason"])
+
+class DailyLimitTests(unittest.TestCase):
+    """Bugünün özeti ve günlük zarar limiti."""
+
+    def _flow(self, stats, *, limit):
+        ex = ExchangeFake()
+        ex.set_price(SYM, 100.0)
+        api = FakeBinance(ex)
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        events: list[tuple[str, str]] = []
+        runner._record = lambda state, kind, message, **extra: events.append((kind, message))
+        runner.blocked_check = lambda s: False
+        runner._ensure_loop = lambda *a, **k: None
+        policy = {k: v for k, v in POLICY.items() if k != "daily_loss_limit"}
+        if limit is not None:
+            policy["daily_loss_limit"] = limit
+        state: dict[str, Any] = {"real_trading_locked": False, "emergency": {}, "events": [], "policy": policy}
+        original = grid_live.grid_stats
+
+        async def flow():
+            adapter = BinanceLiveGridAdapter(api, asyncio.get_running_loop(), timeout=5)
+            await runner.start(None, state, adapter, prepare(), SYM, user_id="u1", owner=False)
+            engine = next(iter(runner._engines.values()))
+            grid_live.grid_stats = lambda spec, orders: stats
+            try:
+                summary = runner.day_summary("u1", owner=False, limit=runner.daily_limit_of(state))
+                result = await asyncio.to_thread(runner._guard_once, engine, state)
+                again = await asyncio.to_thread(runner._guard_once, engine, state)
+            finally:
+                grid_live.grid_stats = original
+            return summary, result, again, engine.status, runner.status_payload("u1", owner=False)["grids"][0]
+        return asyncio.run(flow()), events
+
+    def test_summary_counts_todays_grid_and_reports_remaining_allowance(self):
+        (summary, result, _, status, _), _ = self._flow({"realized_usdt": -2.5, "fees_usdt": 0.2, "cycles": 3, "open_levels": 0}, limit=10.0)
+        self.assertEqual((summary["grids"], summary["cycles"], summary["realized_usdt"], summary["fees_usdt"]), (1, 3, -2.5, 0.2))
+        self.assertEqual((summary["used_usdt"], summary["left_usdt"], summary["reached"]), (2.5, 7.5, False))
+        self.assertEqual((result, status), ("", RUNNING))
+
+    def test_reaching_the_limit_pauses_new_entries_once_with_an_event(self):
+        (summary, result, again, status, row), events = self._flow({"realized_usdt": -11.0, "fees_usdt": 0.5, "cycles": 9, "open_levels": 0}, limit=10.0)
+        self.assertTrue(summary["reached"])
+        self.assertEqual((result, status), ("DAILY_LIMIT", PAUSED))
+        self.assertEqual(again, "")                                   # 60 sn kısıtı: art arda ikinci çağrı tekrar olay yazmaz
+        self.assertIn("Günlük zarar limiti", row["reason"])
+        self.assertEqual([kind for kind, _ in events].count("LIVE_GRID_DAILY_LIMIT"), 1)
+
+    def test_profit_never_reaches_the_limit_and_missing_limit_disables_the_check(self):
+        (summary, result, _, status, _), _ = self._flow({"realized_usdt": 4.0, "fees_usdt": 0.1, "cycles": 2, "open_levels": 0}, limit=10.0)
+        self.assertEqual((summary["used_usdt"], summary["reached"], result, status), (0.0, False, "", RUNNING))
+        (summary, result, _, status, _), _ = self._flow({"realized_usdt": -50.0, "fees_usdt": 0.1, "cycles": 2, "open_levels": 0}, limit=None)
+        self.assertEqual((summary["limit_usdt"], summary["reached"], result), (None, False, ""))
+
+    def test_day_summary_ignores_grids_untouched_since_yesterday(self):
+        runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        old = runner.day_summary("u1", owner=False, limit=5.0, now=time.time() + 3 * 86400)
+        self.assertEqual((old["grids"], old["realized_usdt"], old["reached"]), (0, 0.0, False))
+
 
 if __name__ == "__main__":
     unittest.main()

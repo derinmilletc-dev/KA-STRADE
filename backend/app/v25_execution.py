@@ -1550,6 +1550,35 @@ def consent_status(
     }
 
 
+CONSENT_WARN_STAGES = ((1800.0, "30 dakika"), (300.0, "5 dakika"))
+
+
+def check_consent_expiry(state: dict[str, Any]) -> None:
+    """Canlı izin bitmeden 30 ve 5 dakika kala bir kez uyarı olayı (push dahil) yazar. İzin yenilenince sayaç sıfırlanır."""
+    consent = state.get("web_consent") or {}
+    expires = float(consent.get("expires_at_epoch") or 0)
+    now = time.time()
+    if expires <= now:
+        return
+    seen = state.setdefault("consent_warned", {})
+    if seen.get("expires") != expires:
+        seen.clear()
+        seen["expires"] = expires
+    left = expires - now
+    for seconds, label in sorted(CONSENT_WARN_STAGES):      # kısa aşama önce: süre 5 dakikanın altındaysa yalnız "5 dakika" uyarısı gider
+        key = f"s{int(seconds)}"
+        if left <= seconds and not seen.get(key):
+            seen[key] = True
+            # daha kısa aşama atlandıysa uzun olanı da işaretle (tek bildirim)
+            for other, _ in CONSENT_WARN_STAGES:
+                if other >= seconds:
+                    seen[f"s{int(other)}"] = True
+            add_event(state, "LIVE_CONSENT_EXPIRING", f"Canlı risk izni {label} içinde bitecek. Canlı İşlem ekranından \"İzni yenile\" ile uzat.",
+                      actor=str(consent.get("user_id") or ""))
+            persist_state(state)
+            break
+
+
 def consent_grace_expired(state: dict[str, Any]) -> bool:
     expires = float((state.get("web_consent") or {}).get("expires_at_epoch") or 0)
     return bool(expires and time.time() >= expires + LIVE_CONSENT_GRACE_SECONDS)
@@ -7048,6 +7077,10 @@ async def execution_loop(application: Any) -> None:
             state = application.state.v25_execution
             from . import original_v2_live
             original_v2_live.check_session_time(state)
+            try:
+                check_consent_expiry(state)
+            except Exception:
+                logger.warning("CONSENT_EXPIRY_CHECK_FAILED")
             wait_seconds = account_rate_limit_wait_seconds(state)
             if wait_seconds > 0:
                 await background_authorization_active(application, state)
@@ -7913,6 +7946,7 @@ class GridLiveStartRequest(BaseModel):
     profit_lock_usdt: float | None = Field(default=None, gt=0, le=1_000_000)     # kâr bu değere ulaşınca kilit başlar; zirvenin %70'i altına düşerse grid kapatılır
     close_on_target: bool = False                                                  # True: hedef kâra ulaşınca açık pozisyon da kontrollü kapatılır
     preview: bool = False          # True: yalnız planı hesapla; emir, marjin/kaldıraç ayarı ve kayıt yok
+    high_leverage_ack: bool = False   # 20x üstü gerçek başlatma için ek onay
     confirmation: str = ""
 
 
@@ -7941,7 +7975,9 @@ async def v25_grid_live_status(request: Request, history: int = Query(default=6,
     user = execution_owner(request)
     from . import grid_live
     user_id, owner = grid_actor(user)
-    return {"ok": True, **grid_live.runner_for(request.app).status_payload(user_id, owner=owner, history=history)}
+    runner = grid_live.runner_for(request.app)
+    day = runner.day_summary(user_id, owner=owner, limit=runner.daily_limit_of(request.app.state.v25_execution))
+    return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": day}
 
 
 @router.post("/grid/live/start")
@@ -7956,6 +7992,8 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
         grid_live.require_enabled()
         if body.confirmation.strip().upper() != grid_live.CONFIRM_START:
             raise HTTPException(422, f"Canlı grid için {grid_live.CONFIRM_START} yazın.")
+        if body.leverage > grid_live.HIGH_LEVERAGE_ACK_ABOVE and not body.high_leverage_ack:
+            raise HTTPException(422, f"{grid_live.HIGH_LEVERAGE_ACK_ABOVE}x üzeri kaldıraç için ek onay gerekli (kısa mesafede likidasyon riski yüksektir).")
         original_v2_live.require_fill_unlocked(state)
         guard_new_entry(getattr(application.state, "maintenance", None))
         if not state.get("recovery_ready", False):
@@ -7969,6 +8007,9 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
         if not readiness_for(application, state, request, None)["ready"]:
             raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; grid başlatılmadı.")
     symbol = normalize_symbol(body.symbol)
+    day_limit = grid_live.LiveGridRunner.daily_limit_of(state)
+    if day_limit is not None and runner.day_summary(user_id, owner=owner, limit=day_limit)["reached"]:
+        raise HTTPException(409, f"Günlük grid zarar limitine ulaşıldı (-{day_limit:.2f} USDT). Yeni grid yarın (UTC) başlatılabilir; limiti Risk ayarından değiştirebilirsin.")
     if runner.occupying_row(user_id, symbol, owner=owner) is not None:
         raise HTTPException(409, f"{symbol} için zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor).")
     if len(runner.occupying_rows(user_id, owner=owner)) >= grid_live.MAX_GRIDS_PER_USER:

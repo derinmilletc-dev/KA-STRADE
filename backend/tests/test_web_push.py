@@ -10,6 +10,8 @@ class WebPushTests(unittest.TestCase):
             "LIVE_ENTRY": "entry", "LIVE_ENTRY_RECOVERED": "entry", "LIVE_CLOSE": "close", "LIVE_ENTRY_CANCELLED": "close",
             "PROTECTION_FAIL": "protection", "LIVE_STREAM_STALE": "connection", "LIVE_DISARM": "arm", "LIVE_EMERGENCY": "emergency",
             "ORIGINAL_SESSION_EXPIRING": "arm", "ORIGINAL_LIVE_PAUSED": "arm",
+            "LIVE_CONSENT_EXPIRING": "arm", "LIVE_GRID_PROFIT_LOCK": "grid", "LIVE_GRID_DAILY_LIMIT": "grid", "LIVE_GRID_LIQ_CLOSE": "grid",
+            "LIVE_GRID_PAUSED": None, "LIVE_GRID_START": None,
             "LIVE_STREAM_RECOVERED": None, "SCAN_STARTED": None,
         }
         for kind, category in expected.items():

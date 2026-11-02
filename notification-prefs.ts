@@ -1,6 +1,6 @@
 import {useEffect, useRef} from 'react'
 
-export type NotifyKind = 'entry' | 'close' | 'protection' | 'connection' | 'arm' | 'emergency'
+export type NotifyKind = 'entry' | 'close' | 'protection' | 'connection' | 'arm' | 'emergency' | 'grid'
 export type NotifyPrefs = {enabled: Record<NotifyKind, boolean>; browser: boolean; sound: boolean}
 
 export const NOTIFY_KINDS: {id: NotifyKind; title: string; hint: string; pattern: RegExp; tone: 'ok' | 'warn' | 'bad'}[] = [
@@ -8,13 +8,14 @@ export const NOTIFY_KINDS: {id: NotifyKind; title: string; hint: string; pattern
   {id: 'close', title: 'Pozisyon kapandı', hint: 'Pozisyon kapatıldığında veya emir iptal edildiğinde', pattern: /^LIVE_CLOSE$|^LIVE_ENTRY_CANCELLED$|STOP_HIT|TP_HIT/, tone: 'ok'},
   {id: 'protection', title: 'Stop / koruma sorunu', hint: 'Stop kurulamadığında veya koruma onarıldığında', pattern: /^PROTECTION_(FAIL|BLOCK|REPAIR)$|LIVE_STOP_VERIFICATION_RETRY|OWNERSHIP_UNCERTAIN|LIVE_FOREIGN_ORDER|LIVE_ENTRY_REMAINDER_UNCERTAIN/, tone: 'bad'},
   {id: 'connection', title: 'Bağlantı sorunu', hint: 'Binance bağlantısı koptuğunda veya hız sınırına takıldığında', pattern: /^(?!.*(RECOVERED|RESTORED|RESUMED)).*(STALE|RATE_LIMIT|RATE_LIMITED|AUTO_ERROR|MONITORING)/, tone: 'warn'},
-  {id: 'arm', title: 'İzin süresi / kilit', hint: 'İzin veya oturum bitmek üzereyken ya da canlı işlem durduğunda', pattern: /LIVE_CONSENT_REAUTH_REQUIRED|LIVE_CONSENT_GRACE_EXPIRED|LIVE_AUTO_FAIL_CLOSED|^LIVE_DISARM$|^ORIGINAL_SESSION_EXPIRING$|^ORIGINAL_LIVE_PAUSED$/, tone: 'warn'},
+  {id: 'arm', title: 'İzin süresi / kilit', hint: 'İzin veya oturum bitmek üzereyken ya da canlı işlem durduğunda', pattern: /LIVE_CONSENT_REAUTH_REQUIRED|LIVE_CONSENT_GRACE_EXPIRED|LIVE_AUTO_FAIL_CLOSED|^LIVE_DISARM$|^ORIGINAL_SESSION_EXPIRING$|^ORIGINAL_LIVE_PAUSED$|^LIVE_CONSENT_EXPIRING$/, tone: 'warn'},
+  {id: 'grid', title: 'Grid olayı', hint: 'Grid kâr kilidi, hedef, günlük limit veya likidasyon yakınlığıyla durduğunda', pattern: /^LIVE_GRID_(TAKE_PROFIT|PROFIT_LOCK|LOSS_LIMIT|LIQ_PAUSE|LIQ_CLOSE|DAILY_LIMIT|LOOP_FAILED)$/, tone: 'warn'},
   {id: 'emergency', title: 'Acil durum', hint: 'Acil durdurma veya belirsiz emir durumunda', pattern: /^LIVE_EMERGENCY$|UNKNOWN_ORDER/, tone: 'bad'},
 ]
 
 const KEY = 'kais-notify-prefs:v1'
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
-  enabled: {entry: true, close: true, protection: true, connection: true, arm: true, emergency: true},
+  enabled: {entry: true, close: true, protection: true, connection: true, arm: true, emergency: true, grid: true},
   browser: false,
   sound: true,
 }

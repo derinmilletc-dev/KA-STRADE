@@ -51,6 +51,8 @@ NEEDS_USER = {BLOCKED, INTERVENTION_REQUIRED}
 # Likidasyon mesafesi (işaret fiyatından likidasyon fiyatına, % olarak): bu eşiklerin altında kademeli önlem alınır.
 LIQ_WARN_PCT, LIQ_PAUSE_PCT, LIQ_CLOSE_PCT = 12.0, 7.0, 3.5
 LIQ_CHECK_SECONDS = 15.0
+DAILY_CHECK_SECONDS = 60.0
+HIGH_LEVERAGE_ACK_ABOVE = 20          # bu kaldıracın üstünde canlı başlatma ek onay ister
 LOCK_KEEP_DEFAULT_PCT = 70.0        # kâr kilidi: zirve kârın en az bu kadarı korunur
 
 
@@ -387,6 +389,7 @@ class LiveGridRunner:
         self._liq: dict[str, dict[str, Any]] = {}        # grid_id -> son likidasyon ölçümü (panelde gösterilir)
         self._liq_checked: dict[str, float] = {}
         self._liq_alerted: dict[str, str] = {}
+        self._daily_checked: dict[str, float] = {}
 
     # ---- geriye uyum (tek grid dönemi alanları)
     @property
@@ -481,6 +484,64 @@ class LiveGridRunner:
             "alerts": [{"level": level, "text": text} for level, text in self.store.alerts(gid)[-12:]],
             "liq": self._liq.get(gid), "peak_pnl": round(float(row["peak_pnl"] or 0.0), 6),
         }
+
+    def day_summary(self, user_id: str, *, owner: bool = False, limit: float | None = None, now: float | None = None) -> dict[str, Any]:
+        """Bugün (UTC gün başından beri) hareketi olan grid'lerin toplamı: gerçekleşen kâr/zarar, ücret, döngü. Limit verilirse kalan hak da hesaplanır."""
+        stamp = time.time() if now is None else now
+        start = stamp - (stamp % 86400.0)
+        cycles, grids, realized, fees, best, worst = 0, 0, 0.0, 0.0, None, None
+        for row in self.user_rows(user_id, owner=owner):
+            if float(row["updated_at"] or 0) < start:
+                continue
+            try:
+                stats = grid_stats(grid_spec_from_row(row), self.store.orders(row["grid_id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            net = float(stats.get("realized_usdt") or 0.0)
+            grids += 1
+            cycles += int(stats.get("cycles") or 0)
+            realized += net
+            fees += float(stats.get("fees_usdt") or 0.0)
+            best = net if best is None else max(best, net)
+            worst = net if worst is None else min(worst, net)
+        out: dict[str, Any] = {"day_start": start, "grids": grids, "cycles": cycles, "realized_usdt": round(realized, 4), "fees_usdt": round(fees, 4),
+                               "best_usdt": None if best is None else round(best, 4), "worst_usdt": None if worst is None else round(worst, 4),
+                               "limit_usdt": None, "used_usdt": 0.0, "left_usdt": None, "reached": False}
+        if limit is not None and limit > 0:
+            used = max(0.0, -realized)
+            out.update({"limit_usdt": round(float(limit), 4), "used_usdt": round(used, 4), "left_usdt": round(max(0.0, float(limit) - used), 4),
+                        "reached": used >= float(limit)})
+        return out
+
+    @staticmethod
+    def daily_limit_of(state: dict[str, Any]) -> float | None:
+        try:
+            value = float((state.get("policy") or {}).get("daily_loss_limit"))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def _check_daily_limit(self, engine: GridEngine, state: dict[str, Any]) -> str:
+        """Günlük zarar sınırı: tüm grid'lerin bugünkü gerçekleşen net zararı sınıra varınca yeni giriş durur (stoplar kalır)."""
+        if engine.status != RUNNING:
+            return ""
+        now = time.monotonic()
+        if now - self._daily_checked.get(engine.gid, -1e9) < DAILY_CHECK_SECONDS:
+            return ""
+        self._daily_checked[engine.gid] = now
+        limit = self.daily_limit_of(state)
+        if limit is None:
+            return ""
+        row = self.store.grid(engine.gid)
+        day = self.day_summary(str(row["user_id"] or ""), owner=False, limit=limit)
+        if not day["reached"]:
+            return ""
+        reason = f"Günlük zarar limitine ulaşıldı ({day['realized_usdt']:.2f} / -{limit:.2f} USDT); yeni giriş durdu, stoplar korunuyor"
+        self._stop_reasons[engine.gid] = reason
+        engine.pause()
+        self.store.set_grid(engine.gid, halt_reason=reason)
+        self._record(state, "LIVE_GRID_DAILY_LIMIT", f"{engine.sym} grid {reason}.", grid_id=engine.gid)
+        return "DAILY_LIMIT"
 
     def status_payload(self, user_id: str | None = None, *, owner: bool = True, history: int = 6) -> dict[str, Any]:
         """Bu kullanıcının grid'leri: çalışanlar + son bitenler. 'grid' alanı geriye uyum için en yenisidir."""
@@ -686,6 +747,9 @@ class LiveGridRunner:
         liq = self._check_liquidation(engine, state)
         if liq:
             return liq
+        daily = self._check_daily_limit(engine, state)
+        if daily:
+            return daily
         meta = engine.spec.meta or {}
         take_profit = float(meta.get("take_profit_usdt") or 0.0)
         loss_limit = float(meta.get("loss_limit_usdt") or 0.0)
