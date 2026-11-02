@@ -124,7 +124,7 @@ test('Nötr öneri: fiyat aralığın içinde, stoplar dışında; kısa basış
   const upper = await num(panel(page).locator('#sqg-upper')), lower = await num(panel(page).locator('#sqg-lower'))
   const stopUp = await num(panel(page).locator('#sqg-stop-up')), stop = await num(panel(page).locator('#sqg-stop'))
   expect(lower).toBeLessThan(p); expect(upper).toBeGreaterThan(p); expect(stop).toBeLessThan(lower); expect(stopUp).toBeGreaterThan(upper)
-  await expect(panel(page).locator('.sqgStats')).toContainText('USDT')
+  await expect(panel(page).locator('.sqgStats').first()).toContainText('USDT')
   const start = panel(page).locator('.sqgFoot .sqtHold')
   await hold(page, start, 300)
   await page.waitForTimeout(300)
