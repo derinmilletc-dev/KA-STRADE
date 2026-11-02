@@ -285,6 +285,22 @@ class TestHardLimits(unittest.TestCase):
     def test_limits_are_the_agreed_ones(self):
         self.assertEqual((grid_live.LIVE_MAX_LEVELS, grid_live.LIVE_MAX_MARGIN_USDT), (20, 300.0))
 
+    def test_leverage_ceiling_is_system_max_but_user_policy_still_caps(self):
+        self.assertEqual(grid_live.LIVE_MAX_LEVERAGE, 50)
+        wide = {**POLICY, "max_leverage": 50, "max_loss_per_trade": 50.0, "daily_loss_limit": 50.0, "max_stop_distance_pct": 5.0}
+        plan = prepare(leverage=50, policy=wide, stop=98.8, lower=99.0, upper=99.5, count=2, margin_usdt=5.0)
+        self.assertEqual(plan["leverage"], 50)
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare(leverage=30, policy={**wide, "max_leverage": 20}, stop=98.8, lower=99.0, upper=99.5, count=2, margin_usdt=5.0)
+        with self.assertRaises(grid_live.LiveGridError):
+            prepare(leverage=51, policy=wide, stop=98.8, lower=99.0, upper=99.5, count=2, margin_usdt=5.0)
+
+    def test_stop_too_close_to_liquidation_blocked_at_50x(self):
+        wide = {**POLICY, "max_leverage": 50, "max_loss_per_trade": 50.0, "daily_loss_limit": 50.0}
+        with self.assertRaises(grid_live.LiveGridError) as ctx:
+            prepare(leverage=50, policy=wide, stop=96.0, lower=98.0, upper=99.0, count=2, margin_usdt=5.0)
+        self.assertIn("likidasyon", str(ctx.exception).lower())
+
     def test_default_is_enabled_and_zero_disables(self):
         import os
         old = os.environ.pop(grid_live.ENV_FLAG, None)

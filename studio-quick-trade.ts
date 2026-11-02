@@ -271,3 +271,8 @@ export function summarizeJournal(list: readonly JournalEntry[]): JournalSummary 
     avgRewardRisk: rr.length ? rr.reduce((s, item) => s + (item.rewardRisk as number), 0) / rr.length : null,
   }
 }
+
+/** Canlı risk izni süre seçenekleri (saat): sunucu yalnız bunları kabul eder; 24 saatten uzun izin yoktur. */
+export const CONSENT_HOURS = [1, 4, 8, 12, 24] as const
+/** İzin bittiği için engel varsa panelde "İzni yenile" düğmesi gösterilir. */
+export const consentRenewable = (blocker: string) => blocker === '24 saatlik izin sona erdi.' || blocker === '24 saatlik LIVE authorization gerekli.'

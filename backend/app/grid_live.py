@@ -21,7 +21,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from .execution_core import HARD_MAX_MARGIN_USDT
+from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 ENV_FLAG = "KAISTRADE_GRID_LIVE"
 LIVE_MAX_LEVELS = 20
 LIVE_MAX_MARGIN_USDT = HARD_MAX_MARGIN_USDT   # sistem genel tavanı (300)
-LIVE_MAX_LEVERAGE = 20
+LIVE_MAX_LEVERAGE = HARD_MAX_LEVERAGE        # sistem genel tavanı (50); kullanıcının risk ayarındaki max_leverage yine bunun altında tutar
+LIVE_DEFAULT_POLICY_LEVERAGE = 20            # risk ayarında değer yoksa varsayılan
 CONFIRM_START = "CANLI GRID BAŞLAT"
 CONFIRM_EMERGENCY = "GRID ACİL DURDUR"
 MAKER_FEE, TAKER_FEE = 0.0002, 0.0005          # gridMath.ts ile aynı
@@ -116,7 +117,7 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
         raise LiveGridError(f"Kademe sayısı 2 ile {LIVE_MAX_LEVELS} arasında olmalı.")
     if margin_usdt > LIVE_MAX_MARGIN_USDT + 1e-9:
         raise LiveGridError(f"Toplam marjin en fazla {LIVE_MAX_MARGIN_USDT:g} USDT olabilir.")
-    max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_MAX_LEVERAGE))))
+    max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_DEFAULT_POLICY_LEVERAGE))))
     if leverage > max_lev:
         raise LiveGridError(f"Kaldıraç en fazla {max_lev}x olabilir.")
     if lower >= upper:
@@ -229,7 +230,7 @@ def prepare_live_neutral_grid(*, lower: float, upper: float, count: int, margin_
         raise LiveGridError(f"Kademe sayısı 2 ile {LIVE_MAX_LEVELS} arasında olmalı.")
     if margin_usdt > LIVE_MAX_MARGIN_USDT + 1e-9:
         raise LiveGridError(f"Toplam marjin en fazla {LIVE_MAX_MARGIN_USDT:g} USDT olabilir.")
-    max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_MAX_LEVERAGE))))
+    max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_DEFAULT_POLICY_LEVERAGE))))
     if leverage > max_lev:
         raise LiveGridError(f"Kaldıraç en fazla {max_lev}x olabilir.")
     if not lower < price < upper:

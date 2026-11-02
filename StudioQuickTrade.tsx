@@ -14,6 +14,7 @@ import {
 import {JournalChip, JournalPanel} from './StudioJournal'
 import {HoldButton, useHold} from './studio-hold'
 import StudioGrid from './StudioGrid'
+import {ConsentRenew} from './StudioConsent'
 import type {Candle, ChartTools, GridChartLine} from './studio-grid'
 import './studio-quick-trade.css'
 import './studio-modern.css'
@@ -399,7 +400,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       {settings && <div className="sqtPop" role="dialog" aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')}>
         <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => update({margin: value})}/>
         <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => update({leverage: value})}/>
-        {liveBlocked && <p className="sqtPopWarn"><TriangleAlert aria-hidden="true"/>{blocker}</p>}
+        {liveBlocked && <p className="sqtPopWarn"><TriangleAlert aria-hidden="true"/>{blocker}<ConsentRenew blocker={blocker} onDone={hours => setToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/></p>}
       </div>}
       {lockLeft > 0 && <p className="sqtLockNote" role="status">{tx(`Sonuç kontrol ediliyor · ${lockLeft} sn`, `Checking the result · ${lockLeft} s`)}</p>}
     </div>}
@@ -454,7 +455,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             <ul className="sqtChecks">
               <li data-ok="true"><Check aria-hidden="true"/>{kind === 'LIMIT' ? tx('Limit dolunca stop ve 3 hedef kurulur; dolmazsa pozisyon açılmaz', 'Stop and 3 targets are placed when the limit fills; no position opens if it does not') : tx('Stop ve 3 hedef emirle birlikte gider', 'Stop and 3 targets are sent with the order')}</li>
               {sizingBlock && <li data-ok="false"><TriangleAlert aria-hidden="true"/>{sized?.tooSmall ? tx('Risk yüzdesine göre teminat 5 USDT altında kalıyor; riski artır ya da stopu yaklaştır.', 'Sized margin falls below 5 USDT; raise the risk or tighten the stop.') : balance === null && !(demo && !balanceFailed) ? tx('Bakiye okunamadı; Sabit teminat seç.', 'Balance could not be read; choose Fixed margin.') : tx('Bakiye okunuyor…', 'Reading balance…')}</li>}
-              {!demo && <li data-ok={!liveBlocked}>{liveBlocked ? <TriangleAlert aria-hidden="true"/> : <Check aria-hidden="true"/>}{liveBlocked ? blocker : tx('ARM açık · canlı kapılar geçti', 'ARM is on · live gates passed')}</li>}
+              {!demo && <li data-ok={!liveBlocked}>{liveBlocked ? <TriangleAlert aria-hidden="true"/> : <Check aria-hidden="true"/>}{liveBlocked ? <>{blocker}<ConsentRenew blocker={blocker} onDone={hours => setToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/></> : tx('ARM açık · canlı kapılar geçti', 'ARM is on · live gates passed')}</li>}
               <li data-ok={risk.stopBeforeLiquidation}>{risk.stopBeforeLiquidation ? <Check aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{risk.stopBeforeLiquidation ? tx('Stop, likidasyondan önce çalışır', 'The stop triggers before liquidation') : tx('Stop likidasyona çok yakın; kaldıracı düşür', 'The stop is too close to liquidation; lower the leverage')}</li>
             </ul>
           </div>

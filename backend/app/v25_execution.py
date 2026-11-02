@@ -7765,9 +7765,20 @@ async def v25_policy_ack(request: Request, body: Confirmation) -> dict[str, Any]
     return public_status(request.app, request)
 
 
+CONSENT_HOUR_CHOICES = (1, 4, 8, 12, 24)
+
+
+class ConsentRequest(Confirmation):
+    hours: int = Field(default=24, strict=True)   # yalnız 1/4/8/12/24; 24 saatten uzun izin verilemez
+
+
 @router.post("/consent")
-async def v25_web_consent(request: Request, body: Confirmation) -> dict[str, Any]:
-    """Create a fingerprint-bound, expiring 24-hour live consent."""
+async def v25_web_consent(request: Request, body: ConsentRequest) -> dict[str, Any]:
+    """Create a fingerprint-bound, expiring live consent (varsayılan 24 saat; kullanıcı daha kısa süre seçebilir)."""
+    hours = getattr(body, "hours", 24)
+    if hours not in CONSENT_HOUR_CHOICES:
+        raise HTTPException(422, "İzin süresi 1, 4, 8, 12 ya da 24 saat olabilir.")
+    consent_seconds = min(float(hours) * 3600.0, float(LIVE_CONSENT_SECONDS))
     user = execution_owner(request)
     await require_live_understanding(request, user, body.understood)
     state = request.app.state.v25_execution
@@ -7788,7 +7799,7 @@ async def v25_web_consent(request: Request, body: Confirmation) -> dict[str, Any
         }
         state["web_consent"] = {
             "accepted_at": now_iso(),
-            "expires_at_epoch": time.time() + LIVE_CONSENT_SECONDS,
+            "expires_at_epoch": time.time() + consent_seconds,
             "key_fingerprint": fingerprint,
             "user_id": str(user["id"]),
             "trading_account_id": trading_account_id,
@@ -7798,7 +7809,7 @@ async def v25_web_consent(request: Request, body: Confirmation) -> dict[str, Any
         state["auto"]["enabled"] = False
         state["auto"]["session_until"] = 0.0
         record_live_lock_reason(state, "CONSENT_RENEWED")
-        add_event(state, "LIVE_WEB_CONSENT", "24 saatlik canlı risk izni verildi; süre veya API key fingerprint değişene kadar korunur.", actor=user["id"])
+        add_event(state, "LIVE_WEB_CONSENT", f"{hours} saatlik canlı risk izni verildi; süre veya API key fingerprint değişene kadar korunur.", actor=user["id"])
         persist_state(state)
     return public_status(request.app, request)
 
