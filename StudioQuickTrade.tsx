@@ -56,25 +56,47 @@ export function positionPnl(position: StudioPosition, livePrice: number | null):
 function useHold(ms: number, onDone: () => void, disabled: boolean) {
   const [holding, setHolding] = useState(false)
   const timer = useRef<number | null>(null)
+  const startedAt = useRef(0)
   const done = useRef(onDone)
   done.current = onDone
+  const finish = useCallback(() => {
+    if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
+    setHolding(false); done.current()
+  }, [])
   const cancel = useCallback(() => {
     if (timer.current !== null) { window.clearTimeout(timer.current); timer.current = null }
     setHolding(false)
   }, [])
+  // Bırakma: süre gerçekten dolduysa (sayfa meşgulken zamanlayıcı geç kalsa bile) işlem tamamlanır; dolmadıysa vazgeçilir.
+  const release = useCallback(() => {
+    if (timer.current !== null && performance.now() - startedAt.current >= ms) finish()
+    else cancel()
+  }, [cancel, finish, ms])
   const start = useCallback(() => {
     if (disabled || timer.current !== null) return
     setHolding(true)
-    timer.current = window.setTimeout(() => { timer.current = null; setHolding(false); done.current() }, ms)
-  }, [disabled, ms])
+    startedAt.current = performance.now()
+    timer.current = window.setTimeout(finish, ms)
+  }, [disabled, ms, finish])
   useEffect(() => cancel, [cancel])
   useEffect(() => { if (disabled) cancel() }, [disabled, cancel])
   const bind = {
-    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => { if (event.pointerType === 'mouse' && event.button !== 0) return; start() },
-    onPointerUp: cancel, onPointerLeave: cancel, onPointerCancel: cancel, onBlur: cancel,
+    // İşaretçi yakalanır: basılı tutarken yazı/yerleşim değişse ya da fiyat güncellense de tuş "terk edildi" sayılmaz.
+    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+      try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* desteklenmiyorsa sorun değil */ }
+      start()
+    },
+    onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (timer.current === null) return
+      const box = event.currentTarget.getBoundingClientRect()
+      const away = event.clientX < box.left - 16 || event.clientX > box.right + 16 || event.clientY < box.top - 16 || event.clientY > box.bottom + 16
+      if (away) cancel() // parmağı tuştan uzağa kaydırmak vazgeçmektir
+    },
+    onPointerUp: release, onLostPointerCapture: release, onPointerCancel: cancel, onBlur: cancel,
     onContextMenu: (event: {preventDefault: () => void}) => event.preventDefault(),
     onKeyDown: (event: {key: string; repeat: boolean; preventDefault: () => void}) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); start() } },
-    onKeyUp: (event: {key: string}) => { if (event.key === ' ' || event.key === 'Enter') cancel() },
+    onKeyUp: (event: {key: string}) => { if (event.key === ' ' || event.key === 'Enter') release() },
   }
   return {holding, bind}
 }
@@ -84,6 +106,24 @@ function HoldButton({ms, label, tone, disabled, onDone, hint}: {ms: number; labe
   return <button type="button" className="sqtHold" data-tone={tone} data-holding={holding} disabled={disabled} aria-label={hint} style={{'--sqt-hold': `${ms}ms`} as CSSProperties} {...bind}>
     <span className="sqtHoldFill" aria-hidden="true"/><span className="sqtHoldLabel">{holding ? tx('Bırakma…', 'Keep holding…') : label}</span>
   </button>
+}
+
+/** Açık işlem varken sağ altta: pozisyonu kapatan tek tuş (LONG → SAT, SHORT → AL). Basılı tutarak çalışır; yeni işlem açmaz. */
+function CloseDock({position, demo, disabled, onDone}: {position: StudioPosition; demo: boolean; disabled: boolean; onDone: () => void}) {
+  const long = sideOf(position) === 'LONG'
+  const ms = demo ? HOLD_MS.demo : HOLD_MS.live
+  const {holding, bind} = useHold(ms, onDone, disabled) // yazı basılıyken değişmez: tuş boyutu sabit kalır
+  const word = long ? tx('SAT', 'SELL') : tx('AL', 'BUY')
+  const lev = positive(position.leverage ?? undefined)
+  return <div className="sqtCloseDock" data-demo={demo || undefined} role="group" aria-label={tx('Pozisyonu kapat', 'Close position')}>
+    <span className="sqtCloseInfo"><span className="sqtMode" data-demo={demo || undefined}>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span><b>{short(position.symbol)} · {sideOf(position)}{lev ? ` ${lev}x` : ''}</b></span>
+    <button type="button" className="sqtSide sqtCloseBtn" data-side={long ? 'sell' : 'buy'} data-holding={holding} disabled={disabled} style={{'--sqt-hold': `${ms}ms`} as CSSProperties} {...bind}
+      aria-label={tx(`${position.symbol} pozisyonunu kapatmak için ${word} tuşunu basılı tut`, `Press and hold ${word} to close the ${position.symbol} position`)}>
+      <span className="sqtHoldFill" aria-hidden="true"/>
+      <span className="sqtTx"><b>{word}</b><small>{tx('basılı tut · kapat', 'hold · close')}</small></span>
+      <span className="sqtIc" aria-hidden="true">{long ? '▼' : '▲'}</span>
+    </button>
+  </div>
 }
 
 type Toast = {kind: 'ok' | 'warn' | 'error'; title: string; detail?: string}
@@ -256,7 +296,6 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
 
     {!current && !side && <div className="sqtDock" data-demo={demo || undefined} role="group" aria-label={tx('Hızlı alım satım', 'Quick buy / sell')}>
-      <button type="button" className="sqtSide" data-side="sell" disabled={dockDisabled} onClick={() => startOrder('SHORT')} aria-label={`${symbol} ${tx('SAT', 'SELL')} (SHORT)`}><span className="sqtIc" aria-hidden="true">▼</span><span className="sqtTx"><b>{tx('SAT', 'SELL')}</b><small>{price0 ? analysisPrice(price0) : '—'}</small></span></button>
       <button type="button" className="sqtMid" aria-expanded={settings} aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')} onClick={() => setSettings(open => !open)}>
         <span className="sqtMode" data-demo={demo || undefined}>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
         <b>{margin} USDT <em>· {leverage}x</em></b>
@@ -278,6 +317,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
           </button>
         : <PositionCard position={current} price={price} pnl={pnl} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}/>}
+      {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0))} USDT</strong></span></header>
         {open.map(item => { const value = positionPnl(item, item.symbol === symbol ? price : null); return <button key={item.symbol} type="button" className="sqtTrayRow" data-on={item.symbol === symbol} onClick={() => { onSelect(item.symbol); setTray(false) }}>
