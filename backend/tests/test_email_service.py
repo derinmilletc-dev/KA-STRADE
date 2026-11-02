@@ -189,3 +189,67 @@ def test_resend_health_checks_configuration_without_delivery(monkeypatch):
     assert missing["status"] == "NOT CONFIGURED"
     https.assert_not_called()
     gmail.assert_not_called()
+
+
+TURKISH_LETTERS = set("çğıöşüÇĞİÖŞÜ")
+
+
+def sent_payload(monkeypatch, **overrides):
+    resend_configuration(monkeypatch)
+    payloads = []
+
+    def accept(request):
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json={"id": "offline-language-fixture"})
+
+    arguments = dict(
+        to_email="sample@icloud.com", display_name="Ada", subject=mail.RESET_SUBJECT, title="Parolanı yenile",
+        action_url="https://kaistrade.com/reset-password?token=offline-token", action_label="Parolamı yenile")
+    arguments.update(overrides)
+    with mocked_https(accept):
+        mail.send_auth_email(**arguments)
+    assert len(payloads) == 1
+    return payloads[0]
+
+
+VARIANTS = {
+    "reset": {},
+    "verify_v1": dict(subject=mail.VERIFY_SUBJECT, title="Hesabını doğrula", action_label="E-posta adresimi doğrula"),
+    "verify_v2": dict(subject=mail.VERIFY_SUBJECT, title="E-posta adresini onayla", action_label="E-postamı doğrula",
+                      expiry="30 dakika", verification_v2=True),
+    "code": dict(subject="KaisTrade hesap doğrulaması", title="KaisTrade hesap doğrulaması",
+                 action_label="Doğrulama kodu: 123456", expiry="10 dakika"),
+    "email_change": dict(subject="KaisTrade e-posta adresin değiştirildi", title="KaisTrade e-posta adresin değiştirildi",
+                         action_label="HESABINIZI KONTROL EDİN"),
+    "two_factor": dict(subject="KaisTrade · İki aşamalı doğrulama kapatıldı", title="İki aşamalı doğrulama kapatıldı",
+                       action_label="Hesabımı kontrol et", information_only=True,
+                       security_notice="İki aşamalı doğrulama kapatıldı."),
+}
+
+
+@pytest.mark.parametrize("name", sorted(VARIANTS))
+def test_account_emails_are_fully_english_for_english_accounts(monkeypatch, name):
+    payload = sent_payload(monkeypatch, language="en", **VARIANTS[name])
+    for part in ("subject", "html", "text"):
+        leftovers = TURKISH_LETTERS & set(payload[part])
+        assert not leftovers, (name, part, leftovers)
+    assert 'lang="en"' in payload["html"]
+    assert "https://kaistrade.com" in payload["text"]
+
+
+@pytest.mark.parametrize("name", sorted(VARIANTS))
+def test_account_emails_stay_turkish_by_default_and_for_unknown_languages(monkeypatch, name):
+    default = sent_payload(monkeypatch, **VARIANTS[name])
+    unknown = sent_payload(monkeypatch, language="de", **VARIANTS[name])
+    assert default == unknown
+    assert 'lang="tr"' in default["html"]
+    assert "Merhaba" in default["text"] or "KaisTrade" in default["text"]
+
+
+def test_english_reset_email_has_translated_subject_button_and_footer(monkeypatch):
+    payload = sent_payload(monkeypatch, language="en")
+    assert payload["subject"] == "Reset your KaisTrade password"
+    assert "Reset my password" in payload["html"]
+    assert "Hello Ada" in payload["text"]
+    assert "24 hours" in payload["text"]
+    assert "never asks for your password" in payload["text"]

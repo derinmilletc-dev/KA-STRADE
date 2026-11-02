@@ -214,3 +214,4 @@ tests/test_web_push.py
 tests/test_web_security.py
 tests/test_instagram_showcase.py
 tests/test_kais_access.py
+tests/test_server_i18n.py

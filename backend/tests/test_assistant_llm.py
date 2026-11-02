@@ -393,6 +393,15 @@ class AssistantLlmTests(unittest.IsolatedAsyncioTestCase):
                 dispatch.assert_not_awaited()
         self.assertEqual(await self.calls(), 2)
 
+    async def test_reply_language_is_the_site_selection_not_the_message_language(self):
+        policy = SYSTEM_POLICY
+        self.assertIn("kullanıcı başka dilde yazsa bile", policy)
+        self.assertNotIn("Kullanıcının dilinde cevap ver", policy)
+        self.assertNotIn("in the user's language", policy)
+        self.assertIn("even if the user writes in another language", policy)
+        self.assertTrue(system_prompt("tr").endswith("Yanıt dili: Türkçe."))
+        self.assertTrue(system_prompt("en").endswith("Response language: English."))
+
     async def test_bilingual_policy_has_required_boundaries_and_stable_cache_prefix(self):
         for language in ("tr", "en"):
             prompt = system_prompt(language)

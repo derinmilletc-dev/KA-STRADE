@@ -223,7 +223,7 @@ async def pending_status(request) -> dict:
                 "can_change_email": not verified}
 
 
-async def send_link(request, user_id: str, *, pending: tuple[str, dict] | None = None) -> dict:
+async def send_link(request, user_id: str, *, pending: tuple[str, dict] | None = None, language: str | None = None) -> dict:
     from . import v22_commercial as auth
     async with store.edit(request, user_id) as doc:
         user = await load_user(request, user_id, doc)
@@ -239,7 +239,8 @@ async def send_link(request, user_id: str, *, pending: tuple[str, dict] | None =
                     auth.send_auth_email, to_email=user["email"], display_name=user["display_name"],
                     subject=auth.VERIFY_SUBJECT, title="E-posta adresini onayla",
                     action_url=auth.app_base_url() + "/verify-email?token=" + token,
-                    action_label="E-postamı doğrula", expiry="30 dakika", verification_v2=True)
+                    action_label="E-postamı doğrula", expiry="30 dakika", verification_v2=True,
+                    language=language if language in ("tr", "en") else ("en" if doc.get("language") == "en" else "tr"))
             except auth.GMAIL_DELIVERY_ERRORS as exc:
                 auth.log_gmail_failure(exc, request.app)
                 auth.record_event(request, user, "auth.email_verification_failed", "verification_failed", "verification", 503)
@@ -302,7 +303,8 @@ async def change_pending_email(request, response, email: str, password: str) -> 
                 auth.send_auth_email, to_email=email, display_name=user["display_name"],
                 subject=auth.VERIFY_SUBJECT, title="E-posta adresini onayla",
                 action_url=auth.app_base_url() + "/verify-email?token=" + link,
-                action_label="E-postamı doğrula", expiry="30 dakika", verification_v2=True)
+                action_label="E-postamı doğrula", expiry="30 dakika", verification_v2=True,
+                language="en" if doc.get("language") == "en" else "tr")
         except auth.GMAIL_DELIVERY_ERRORS as exc:
             auth.log_gmail_failure(exc, request.app)
             auth.record_event(request, user, "auth.email_verification_failed", "verification_failed", "verification", 503)

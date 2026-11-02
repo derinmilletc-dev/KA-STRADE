@@ -67,6 +67,17 @@ def connection(request):
     return db
 
 
+async def language_of(request, user_id: str, hint: str | None = None) -> str:
+    """E-posta dili: önce istekteki dil seçimi, yoksa hesabın kayıtlı dili. Bulunamazsa Türkçe."""
+    if hint in ("tr", "en"):
+        return hint
+    try:
+        doc = await read(request, user_id) or {}
+    except Exception:  # dil okunamadı diye e-posta düşmesin
+        return "tr"
+    return "en" if doc.get("language") == "en" else "tr"
+
+
 async def read(request, user_id: str) -> dict | None:
     pool = getattr(request.app.state, "db_pool", None)
     active = (ACTIVE.get() or {}).get((id(request.app), user_id))

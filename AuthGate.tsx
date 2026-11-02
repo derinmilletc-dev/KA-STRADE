@@ -225,7 +225,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     if (busy || resendSeconds > 0 || !verificationStatusToken) return
     setBusy(true); setSubmitFailed(false); setResendSeconds(60)
     try {
-      const result = await request<{message:string;retry_after:number}>('/auth/resend-verification',{method:'POST',body:JSON.stringify({token:verificationStatusToken})})
+      const result = await request<{message:string;retry_after:number}>('/auth/resend-verification',{method:'POST',body:JSON.stringify({token:verificationStatusToken,language:currentLang()})})
       if (!result || typeof result.message !== 'string' || !Number.isFinite(result.retry_after) || result.retry_after < 0) throw new AuthRequestError('Doğrulama mailinin sonucu doğrulanamadı. Lütfen tekrar dene.',502)
       setMessage(result.message); setVerificationNotice(true); setVerificationMailFailed(false); setResendSeconds(Math.max(60,result.retry_after))
     } catch (error) {
@@ -540,7 +540,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         setEmail(register.email); setVerificationStatusToken(result.verification_status_token || ''); setVerificationInput(''); setVerificationNotice(true); setVerificationMailFailed(false); setResendSeconds(60); setMode('verify'); setMessage(result.message)
         setRegister({...EMPTY_REGISTRATION})
       } else if (mode === 'forgot') {
-        const result = await request<{development_reset_token?:string;message:string}>('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})})
+        const result = await request<{development_reset_token?:string;message:string}>('/auth/forgot-password',{method:'POST',body:JSON.stringify({email,language:currentLang()})})
         if (result.development_reset_token) setResetToken(result.development_reset_token)
         setMessage(result.message); if (result.development_reset_token) setMode('reset')
       } else if (mode === 'reset') {
