@@ -25,6 +25,7 @@ from .execution_core import HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
+from .grid_engine.neutral import NEUTRAL, NeutralGridEngine
 from .grid_engine.ports import EPS, LONG, SHORT
 from .grid_engine.store import TERMINAL, GridStore
 from .web_security import env_flag
@@ -172,17 +173,140 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
             "profit_per_cycle_usdt": round((gross_per_cycle - fees_per_cycle) / count, 8), "spacing_pct": round(spacing / price * 100, 4)}
 
 
+def _parse_rules(rules: dict[str, Any]) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal | None]:
+    try:
+        tick, step = _dec(rules["tick"]), _dec(rules["step"])
+        min_qty, min_notional = _dec(rules.get("min_qty", 0)), _dec(rules.get("min_notional", 0))
+        max_qty = _dec(rules["max_qty"]) if rules.get("max_qty") is not None else None
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        raise LiveGridError("Borsa fiyat/miktar kuralları okunamadı; grid başlatılmadı.", 503) from None
+    if not (tick > 0 and step > 0):
+        raise LiveGridError("Borsa fiyat/miktar kuralları geçersiz; grid başlatılmadı.", 503)
+    return tick, step, min_qty, min_notional, max_qty
+
+
+def prepare_live_neutral_grid(*, lower: float, upper: float, count: int, margin_usdt: float, leverage: int, stop_lower: float,
+                              stop_upper: float, price: float, rules: dict[str, Any], policy: dict[str, Any], realized_pnl_today: float,
+                              existing_exposure: float, open_positions: int, reserved_worst_loss: float = 0.0,
+                              reserved_pending_notional: float = 0.0, reserved_symbols: int = 0) -> dict[str, Any]:
+    """Nötr grid: alt-üst aralığa count+1 çizgi; fiyata en yakın çizgi boş, altında ALIŞ, üstünde SATIŞ (her biri bir çizgi ötede hedef).
+    İki tarafta stop. En kötü zarar, fiyatın tek yöne gidip ilgili stopa ulaştığı senaryodur. Kontrol başarısızsa grid başlamaz."""
+    values = (lower, upper, margin_usdt, leverage, stop_lower, stop_upper, price)
+    if not all(isinstance(v, (int, float)) and v == v and v > 0 and v != float("inf") for v in values):
+        raise LiveGridError("Fiyat, marjin ve kaldıraç sıfırdan büyük sayı olmalı.")
+    count = int(count)
+    if not 2 <= count <= LIVE_MAX_LEVELS:
+        raise LiveGridError(f"Kademe sayısı 2 ile {LIVE_MAX_LEVELS} arasında olmalı.")
+    if margin_usdt > LIVE_MAX_MARGIN_USDT + 1e-9:
+        raise LiveGridError(f"Toplam marjin en fazla {LIVE_MAX_MARGIN_USDT:g} USDT olabilir.")
+    max_lev = min(LIVE_MAX_LEVERAGE, int(float(policy.get("max_leverage", LIVE_MAX_LEVERAGE))))
+    if leverage > max_lev:
+        raise LiveGridError(f"Kaldıraç en fazla {max_lev}x olabilir.")
+    if not lower < price < upper:
+        raise LiveGridError("Nötr grid için güncel fiyat alt ve üst sınırın arasında olmalı.")
+    if not stop_lower < lower:
+        raise LiveGridError("Alt stop, alt sınırın altında olmalı.")
+    if not stop_upper > upper:
+        raise LiveGridError("Üst stop, üst sınırın üstünde olmalı.")
+    tick, step, min_qty, min_notional, max_qty = _parse_rules(rules)
+
+    spacing = (upper - lower) / count
+    lines = [float(_snap(lower + spacing * k, tick)) for k in range(count + 1)]
+    problems: list[str] = []
+    if len(set(lines)) != len(lines):
+        problems.append("Yuvarlamadan sonra iki çizgi aynı fiyata düşüyor; aralığı genişlet ya da kademe sayısını azalt.")
+    skip = min(range(len(lines)), key=lambda k: abs(lines[k] - price))
+    per_margin = margin_usdt / count
+    rows: list[dict[str, Any]] = []
+    for k, line in enumerate(lines):
+        if k == skip:
+            continue
+        side = LONG if k < skip else SHORT
+        target = lines[k + 1] if side == LONG else lines[k - 1]
+        qty = _snap(per_margin * leverage / line, step, ROUND_FLOOR)
+        rows.append({"level": len(rows) + 1, "entry": line, "target": target, "qty": float(qty), "side": side})
+    stop_lo = float(_snap(stop_lower, tick, ROUND_FLOOR))
+    stop_hi = float(_snap(stop_upper, tick, ROUND_CEILING))
+    for r in rows:
+        notional = r["qty"] * r["entry"]
+        if r["qty"] <= 0 or Decimal(repr(r["qty"])) < min_qty or notional + 1e-9 < max(float(min_notional), 5.0):
+            problems.append(f"Kademe {r['level']} borsanın en düşük emir değerinin altında.")
+        if max_qty is not None and Decimal(repr(r["qty"])) > max_qty:
+            problems.append(f"Kademe {r['level']} borsanın en büyük miktarını aşıyor.")
+        if abs(r["target"] - r["entry"]) * r["qty"] <= (r["entry"] + r["target"]) * r["qty"] * MAKER_FEE + 1e-12:
+            problems.append(f"Kademe {r['level']} kârı işlem ücretini karşılamıyor; aralığı genişlet ya da kademe sayısını azalt.")
+        wrong_side = r["entry"] >= price if r["side"] == LONG else r["entry"] <= price
+        if wrong_side:
+            problems.append(f"Kademe {r['level']} güncel fiyatın yanlış tarafında; limit emir hemen dolar.")
+    longs = [r for r in rows if r["side"] == LONG]
+    shorts = [r for r in rows if r["side"] == SHORT]
+    if not longs or not shorts:
+        problems.append("Fiyat aralığın bir ucuna çok yakın; nötr grid'in iki tarafında da kademe olmalı.")
+
+    def side_loss(items: list[dict[str, Any]], stop: float) -> float:
+        raw = sum(r["qty"] * abs(r["entry"] - stop) for r in items)
+        return raw + sum(r["qty"] * r["entry"] for r in items) * MAKER_FEE + sum(r["qty"] * stop for r in items) * TAKER_FEE
+
+    loss_down, loss_up = side_loss(longs, stop_lo), side_loss(shorts, stop_hi)
+    worst_loss = max(loss_down, loss_up)
+    long_notional = sum(r["qty"] * r["entry"] for r in longs)
+    short_notional = sum(r["qty"] * r["entry"] for r in shorts)
+    total_notional = long_notional + short_notional
+    total_margin = total_notional / leverage
+    near_long = max((r["entry"] for r in longs), default=price)
+    near_short = min((r["entry"] for r in shorts), default=price)
+    far_long = min((r["entry"] for r in longs), default=price)
+    far_short = max((r["entry"] for r in shorts), default=price)
+    stop_distance_pct = max(abs(far_long - stop_lo) / far_long * 100, abs(stop_hi - far_short) / far_short * 100)
+    worst_stretch_pct = max(abs(near_long - stop_lo) / near_long * 100, abs(stop_hi - near_short) / near_short * 100)
+
+    if total_margin > LIVE_MAX_MARGIN_USDT + 1e-9 or total_margin > margin_usdt + 1e-6:
+        problems.append(f"Gereken marjin {total_margin:.2f} USDT, sınırı aşıyor.")
+    loss_limit = float(policy.get("max_loss_per_trade", 3))
+    if worst_loss > loss_limit + 1e-9:
+        problems.append(f"En kötü zarar {worst_loss:.2f} USDT, tek işlem sınırı {loss_limit:g} USDT.")
+    daily_left = float(policy.get("daily_loss_limit", 10)) + min(0.0, float(realized_pnl_today)) - max(0.0, float(reserved_worst_loss))
+    if daily_left <= 0 or worst_loss > daily_left + 1e-9:
+        reserved_note = f" (çalışan grid'ler {float(reserved_worst_loss):.2f} USDT ayırdı)" if reserved_worst_loss > 0 else ""
+        problems.append(f"En kötü zarar {worst_loss:.2f} USDT, bugün kalan zarar hakkı {max(daily_left, 0):.2f} USDT{reserved_note}.")
+    exposure_limit = float(policy.get("max_total_exposure_usdt", 350))
+    exposure_now = existing_exposure + max(0.0, float(reserved_pending_notional))
+    side_max = max(long_notional, short_notional)          # aynı anda yalnız bir taraf açık pozisyona dönüşür
+    if exposure_now + side_max > exposure_limit + 1e-9:
+        problems.append(f"Toplam maruziyet {exposure_now + side_max:.2f}, sınır {exposure_limit:g} USDT.")
+    if open_positions + max(0, int(reserved_symbols)) >= int(policy.get("max_positions", 5)):
+        problems.append("Açık pozisyon / grid sınırı dolu.")
+    max_stop_pct = float(policy.get("max_stop_distance_pct", 5))
+    if stop_distance_pct > max_stop_pct + 1e-9:
+        problems.append(f"Stop mesafesi %{stop_distance_pct:.2f}, sınır %{max_stop_pct:g}.")
+    if worst_stretch_pct * leverage > 70:
+        problems.append("Stop, tahmini likidasyona çok yakın; kaldıracı düşür ya da stopları yakınlaştır.")
+    if problems:
+        raise LiveGridError(" ".join(dict.fromkeys(problems)))
+    gross = sum(abs(r["target"] - r["entry"]) * r["qty"] for r in rows)
+    fees = sum((r["entry"] + r["target"]) * r["qty"] * MAKER_FEE for r in rows)
+    return {"direction": NEUTRAL, "stop_price": stop_lo, "stop_price_upper": stop_hi, "levels": rows,
+            "total_margin_usdt": round(total_margin, 6), "total_notional_usdt": round(total_notional, 6),
+            "worst_loss_usdt": round(worst_loss, 6), "worst_loss_down_usdt": round(loss_down, 6), "worst_loss_up_usdt": round(loss_up, 6),
+            "stop_distance_pct": round(stop_distance_pct, 4), "leverage": int(leverage), "recycle": True,
+            "lower": float(lower), "upper": float(upper), "count": count,
+            "profit_per_cycle_usdt": round((gross - fees) / len(rows), 8), "spacing_pct": round(spacing / price * 100, 4)}
+
+
 def grid_spec_from_plan(grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
     meta = {key: plan[key] for key in ("total_margin_usdt", "total_notional_usdt", "worst_loss_usdt", "leverage", "stop_distance_pct",
-                                       "lower", "upper", "count") if key in plan}
-    return GridSpec(grid_id, symbol, plan["direction"], [GridLevelSpec(r["entry"], r["target"], r["qty"]) for r in plan["levels"]],
-                    plan["stop_price"], recycle=bool(plan.get("recycle", False)), meta=meta)
+                                       "lower", "upper", "count", "profit_per_cycle_usdt", "spacing_pct") if key in plan}
+    return GridSpec(grid_id, symbol, plan["direction"],
+                    [GridLevelSpec(r["entry"], r["target"], r["qty"], str(r.get("side") or "")) for r in plan["levels"]],
+                    plan["stop_price"], recycle=bool(plan.get("recycle", False)), meta=meta,
+                    stop_price_upper=float(plan.get("stop_price_upper") or 0.0))
 
 
 def grid_spec_from_row(row: Any) -> GridSpec:
     spec = json.loads(row["spec"])
     return GridSpec(row["grid_id"], row["symbol"], row["side"], [GridLevelSpec(**lv) for lv in spec["levels"]], float(spec["stop_price"]),
-                    recycle=bool(spec.get("recycle", False)), meta=dict(spec.get("meta") or {}))
+                    recycle=bool(spec.get("recycle", False)), meta=dict(spec.get("meta") or {}),
+                    stop_price_upper=float(spec.get("stop_price_upper") or 0.0))
 
 
 def _owner_matches(row: Any, user_id: str, *, owner: bool) -> bool:
@@ -343,7 +467,8 @@ class LiveGridRunner:
                 return False, "gerçek işlem kilidi kapalı"
             return True, ""
 
-        return GridEngine(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep, user_id=user_id)
+        engine_cls = NeutralGridEngine if spec.side == NEUTRAL else GridEngine
+        return engine_cls(adapter, self.store, spec, risk_gate=risk_gate, sleep=time.sleep, user_id=user_id)
 
     def _record(self, state: dict[str, Any], kind: str, message: str, **extra: Any) -> None:
         from . import v25_execution as v25
