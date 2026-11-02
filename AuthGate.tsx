@@ -13,6 +13,7 @@ import {CUSTOMER_ORIGIN, redirectStaffPathToAdminOrigin, staffSurfacePath, staff
 import {authenticatedPath, type AccountRole} from './account-role'
 import ProfileSettings, {AccountRecoveryScreen} from './ProfileSettings'
 import { AUTH_PANEL_MARKETS, LIVE_MARKET_CONFIG } from './live-market-config'
+import LaunchPage from './LaunchPage'
 import TickerTape from './TickerTape'
 import { useShowcaseVisible } from './instagram-showcase-visibility'
 import TopMovers from './TopMovers'
@@ -145,6 +146,9 @@ function MaintenanceScreen({mode}:{mode:string}) {
 }
 
 
+
+/** Build ayarı: VITE_LAUNCH_MODE=off ile giriş ekranı geri açılır. */
+const LAUNCH_FROZEN = String(import.meta.env.VITE_LAUNCH_MODE ?? '').trim().toLowerCase() !== 'off'
 
 export default function AuthGate({children,surface='customer'}:{children:ReactNode;surface?:Surface}) {
   const [token,setToken] = useState(userSessionToken())
@@ -656,6 +660,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
       <footer className="staffFooter">© 2026 KaisTrade</footer>
     </main>
   }
+  // Lansman modu: giriş ve kayıt ekranları dondurulur, ziyaretçiler Founding 30 sayfasını görür. Sahip/test girişi: /giris
+  if (!session && LAUNCH_FROZEN && surface === 'customer' && window.location.pathname !== '/giris' && !['reset','forgot','verify','mfa'].includes(mode)) return <LaunchPage/>
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {
     const registrationStrength = strength(register.password)
     return <LoginMarketShell>{market => <><MaintenanceCountdown variant="login"/><main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
