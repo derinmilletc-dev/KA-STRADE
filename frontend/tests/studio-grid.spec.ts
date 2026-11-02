@@ -120,6 +120,7 @@ test('Çip: sol altta, AL çubuğu ve araç çubuklarıyla çakışmaz; panel ek
 test('Nötr öneri: fiyat aralığın içinde, stoplar dışında; kısa basış başlatmaz, basılı tutmak doğru gövdeyi gönderir', async ({page}) => {
   const mock = await prepare(page)
   await ready(page)
+  await expect(panel(page).locator('#sqg-upper')).toHaveValue(/^\d+([.,]\d)?$/)   // fiyat adımına (0,1) oturmuş değer; kurallar gelmeden okunmasın
   const p = price('BTCUSDT')
   const upper = await num(panel(page).locator('#sqg-upper')), lower = await num(panel(page).locator('#sqg-lower'))
   const stopUp = await num(panel(page).locator('#sqg-stop-up')), stop = await num(panel(page).locator('#sqg-stop'))
