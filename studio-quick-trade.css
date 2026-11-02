@@ -41,8 +41,8 @@
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 42px; min-width: 112px; padding: 0 14px;
   border: 0; border-radius: 999px; color: #fff; cursor: pointer;
 }
-.masterReferenceAnalysis .sqtSide[data-side="buy"] { background: linear-gradient(180deg, #22c88a, #139a68); box-shadow: 0 0 0 1px #35e0a455 inset, 0 6px 18px #16a56e44; }
-.masterReferenceAnalysis .sqtSide[data-side="sell"] { background: linear-gradient(180deg, #e5586a, #c13c4e); box-shadow: 0 0 0 1px #ff8d9a44 inset, 0 6px 18px #d6485a44; }
+.masterReferenceAnalysis .sqtSide[data-side="buy"] { background: #19b47a; box-shadow: 0 0 0 1px #35e0a455 inset, 0 6px 18px #16a56e44; }
+.masterReferenceAnalysis .sqtSide[data-side="sell"] { background: #d44a5c; box-shadow: 0 0 0 1px #ff8d9a44 inset, 0 6px 18px #d6485a44; }
 .masterReferenceAnalysis .sqtSide:disabled { opacity: .45; filter: saturate(.6); cursor: not-allowed; }
 .masterReferenceAnalysis .sqtSide:active:not(:disabled) { transform: scale(.97); }
 .masterReferenceAnalysis .sqtTx { display: flex; flex-direction: column; line-height: 1.05; }
@@ -56,6 +56,24 @@
 }
 .masterReferenceAnalysis .sqtMid b { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .masterReferenceAnalysis .sqtMid em { font-style: normal; color: #8fa4ad; font-weight: 500; }
+/* ---------- Açık işlem varken: pozisyonu kapat (çipin hemen sağında; fiyat ekseni ve çiple çakışmaz) ---------- */
+.masterReferenceAnalysis .sqtCloseDock {
+  position: relative; flex: none; display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 12px;
+  border-radius: 999px; background: rgba(14, 22, 30, .84); border: 1px solid rgba(255, 255, 255, .09);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .06); backdrop-filter: blur(14px); max-width: calc(100% - 16px);
+}
+.masterReferenceAnalysis .sqtCloseInfo { display: flex; flex-direction: column; align-items: center; gap: 4px; white-space: nowrap; }
+.masterReferenceAnalysis .sqtCloseInfo b { font-size: 12px; font-weight: 650; color: #e7eef5; }
+.masterReferenceAnalysis .sqtCloseBtn { overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+.masterReferenceAnalysis .sqtCloseBtn .sqtHoldFill { background: rgba(255, 255, 255, .22); }
+.masterReferenceAnalysis .sqtCloseBtn[data-holding="true"] .sqtHoldFill { width: 100%; transition: width var(--sqt-hold, 1s) linear; }
+.masterReferenceAnalysis .sqtCloseBtn :is(.sqtTx, .sqtIc) { position: relative; }
+.masterReferenceAnalysis .sqtCloseBtn[data-side="sell"] .sqtTx { align-items: flex-start; }
+.masterReferenceAnalysis .sqtCloseBtn:focus-visible { outline: 2px solid #a9d4ff; outline-offset: 2px; }
+@media (max-width: 760px) {
+  .masterReferenceAnalysis .sqtCloseDock { padding: 5px; }
+  .masterReferenceAnalysis .sqtCloseInfo { display: none; }
+}
 .masterReferenceAnalysis .sqtMode { padding: 1px 9px; border-radius: 99px; font-size: 9.5px; font-weight: 700; letter-spacing: .1em; background: #2a1419; color: #ff9aa6; border: 1px solid #6a2a3555; }
 .masterReferenceAnalysis .sqtMode[data-demo] { background: #0f2e24; color: #3ee0a0; border-color: #1f8f6155; }
 .masterReferenceAnalysis .sqtPop {
@@ -146,8 +164,8 @@
 }
 .masterReferenceAnalysis .sqtHold[data-tone="sell"] { background: #3a1820; border-color: #8f2a3a77; }
 .masterReferenceAnalysis .sqtHold[data-tone="danger"] { min-height: 32px; flex: 1; border-radius: 11px; font-size: 11.5px; background: #2a1419; border-color: #8f2a3a77; color: #ffb3bd; }
-.masterReferenceAnalysis .sqtHoldFill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #139a68, #22c88a); transition: width .18s ease-out; }
-.masterReferenceAnalysis .sqtHold[data-tone="sell"] .sqtHoldFill { background: linear-gradient(90deg, #c13c4e, #e5586a); }
+.masterReferenceAnalysis .sqtHoldFill { position: absolute; inset: 0 auto 0 0; width: 0; background: #1aa873; transition: width .18s ease-out; }
+.masterReferenceAnalysis .sqtHold[data-tone="sell"] .sqtHoldFill { background: #cf4558; }
 .masterReferenceAnalysis .sqtHold[data-tone="danger"] .sqtHoldFill { background: #c13c4e88; }
 .masterReferenceAnalysis .sqtHold[data-holding="true"] .sqtHoldFill { width: 100%; transition: width var(--sqt-hold, 1s) linear; }
 .masterReferenceAnalysis .sqtHoldLabel { position: relative; }
@@ -155,7 +173,7 @@
 .masterReferenceAnalysis .sqtHold:focus-visible { outline: 2px solid #a9d4ff; outline-offset: 2px; }
 
 /* ---------- Açık pozisyon: çip, kart, liste ---------- */
-.masterReferenceAnalysis .sqtPos { position: absolute; left: 10px; bottom: var(--sqt-bottom); max-width: calc(100% - 20px); }
+.masterReferenceAnalysis .sqtPos { position: absolute; left: 10px; bottom: var(--sqt-bottom); max-width: calc(100% - 20px); display: flex; align-items: center; gap: 8px; }
 .masterReferenceAnalysis .sqtChip {
   display: inline-flex; align-items: center; gap: 9px; height: 36px; padding: 0 8px 0 12px; border-radius: 99px; white-space: nowrap; font-size: 12.5px;
   background: rgba(12, 19, 27, .74); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(12px); box-shadow: 0 6px 18px #0008; cursor: pointer;
@@ -257,5 +275,13 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .masterReferenceAnalysis .sqtHoldFill { transition: none !important; }
-  .masterReferenceAnalysis .sqtHold[data-holding="true"] .sqtHoldFill { transition: width var(--sqt-hold, 1s) linear !important; }
+  .masterReferenceAnalysis :is(.sqtHold, .sqtCloseBtn)[data-holding="true"] .sqtHoldFill { transition: width var(--sqt-hold, 1s) linear !important; }
 }
+
+/* Sayfadaki genel kural (.v26App.workspaceRoute * { background-image: none !important }) degradeleri siler.
+   Düz renkler yukarıda yedek olarak durur; degradeler yalnız bu bileşende, daha belirgin seçiciyle geri gelir. */
+.v26App .masterReferenceAnalysis .sqtSide[data-side="buy"] { background-image: linear-gradient(180deg, #22c88a, #139a68) !important; }
+.v26App .masterReferenceAnalysis .sqtSide[data-side="sell"] { background-image: linear-gradient(180deg, #e5586a, #c13c4e) !important; }
+.v26App .masterReferenceAnalysis .sqtHold:not([data-tone="sell"]):not([data-tone="danger"]) .sqtHoldFill { background-image: linear-gradient(90deg, #139a68, #22c88a) !important; }
+.v26App .masterReferenceAnalysis .sqtHold[data-tone="sell"] .sqtHoldFill { background-image: linear-gradient(90deg, #c13c4e, #e5586a) !important; }
+.v26App .masterReferenceAnalysis .sqtCloseBtn .sqtHoldFill { background-image: none !important; }

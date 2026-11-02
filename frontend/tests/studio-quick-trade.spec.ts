@@ -100,12 +100,13 @@ const overlaps = (a: {x: number; y: number; width: number; height: number}, b: {
   a.x < b.x + b.width - 1 && b.x < a.x + a.width - 1 && a.y < b.y + b.height - 1 && b.y < a.y + a.height - 1
 const boxOf = async (locator: Locator) => { const box = await locator.boundingBox(); expect(box).not.toBeNull(); return box! }
 
-test('Dock: AL ve SAT görünür, yalnız açık işlemi olmayan coinde; hiçbir şeyin üstüne binmez', async ({page}) => {
+test('Dock: açık işlem yokken yalnız AL görünür (SAT yok); hiçbir şeyin üstüne binmez', async ({page}) => {
   await prepare(page)
   const dock = layer(page).locator('.sqtDock')
   await expect(dock).toBeVisible()
   await expect(dock.getByRole('button', {name: /AL \(LONG\)/})).toBeEnabled()
-  await expect(dock.getByRole('button', {name: /SAT \(SHORT\)/})).toBeEnabled()
+  await expect(dock.getByRole('button', {name: /SAT/})).toHaveCount(0)
+  await expect(layer(page).locator('.sqtCloseDock')).toHaveCount(0)
   const size = page.viewportSize()!
   const d = await boxOf(dock)
   expect(d.x).toBeGreaterThanOrEqual(0); expect(d.x + d.width).toBeLessThanOrEqual(size.width); expect(d.y + d.height).toBeLessThanOrEqual(size.height)
@@ -146,19 +147,38 @@ test('AL: onay kartı açılır, kısa basış emir göndermez, basılı tutunca
   await page.screenshot({path: 'test-results/studio-chip.png'})
 })
 
-test('SAT (analiz LONG iken): uyarı çıkar, SHORT için stop yukarıda hedefler aşağıda gider', async ({page}) => {
-  const mock = await prepare(page)
-  await layer(page).getByRole('button', {name: /SAT \(SHORT\)/}).click()
-  const sheet = layer(page).locator('.sqtSheet')
-  await expect(sheet.locator('.sqtWarn')).toContainText('Analiz LONG diyor')
-  await page.screenshot({path: 'test-results/studio-sheet-sat.png'})
-  await hold(page, sheet.locator('.sqtHold'), 1700)
-  await expect.poll(() => mock.orders.length, {timeout: 8000}).toBe(1)
-  const order = mock.orders[0] as Record<string, number | string>
-  expect(order.direction).toBe('SHORT')
-  expect(Number(order.stop_loss)).toBeGreaterThan(price('BTCUSDT'))
-  expect(Number(order.tp1)).toBeLessThan(price('BTCUSDT'))
-  expect(Number(order.tp1)).toBeGreaterThan(Number(order.tp2)); expect(Number(order.tp2)).toBeGreaterThan(Number(order.tp3))
+test('Açık işlem varken: AL yerine SAT · kapat çıkar; kısa basış kapatmaz, basılı tutunca pozisyonu kapatır', async ({page}) => {
+  const mock = await prepare(page, {positions: [position('BTCUSDT', 'LONG')], plans: [planFor('BTCUSDT', 'LONG')]})
+  const closeDock = layer(page).locator('.sqtCloseDock')
+  await expect(closeDock).toBeVisible({timeout: 15000})
+  await expect(layer(page).locator('.sqtDock')).toHaveCount(0)
+  const button = closeDock.locator('.sqtCloseBtn')
+  await expect(button).toContainText('SAT')
+  // Soldaki çip ve sol çizim çubuğu ile çakışmaz, ekran içinde
+  const size = page.viewportSize()!
+  const d = await boxOf(closeDock), chip = await boxOf(layer(page).locator('.sqtChip')), rail = await boxOf(terminal(page).locator('.kfsRail'))
+  expect(overlaps(d, chip)).toBe(false); expect(overlaps(d, rail)).toBe(false)
+  expect(d.x + d.width).toBeLessThanOrEqual(size.width); expect(d.y + d.height).toBeLessThanOrEqual(size.height)
+  await page.screenshot({path: 'test-results/studio-close-dock.png'})
+  await hold(page, button, 300)
+  await page.waitForTimeout(300)
+  expect(mock.closes).toHaveLength(0)
+  await hold(page, button, 1700)
+  await expect.poll(() => mock.closes.length, {timeout: 8000}).toBe(1)
+  expect(mock.closes[0]).toMatchObject({plan_id: 'plan-BTCUSDT-1', confirmation: 'CANLI POZİSYONU KAPAT'})
+  expect(mock.orders).toHaveLength(0)
+  // Pozisyon kapanınca yeniden yalnız AL
+  await expect(layer(page).locator('.sqtDock')).toBeVisible({timeout: 15000})
+  await expect(layer(page).locator('.sqtCloseDock')).toHaveCount(0)
+})
+
+test('SHORT pozisyonda kapatma tuşu AL olur; kart açılınca kapatma çubuğu gizlenir', async ({page}) => {
+  await prepare(page, {positions: [position('BTCUSDT', 'SHORT')], plans: [planFor('BTCUSDT', 'SHORT')]})
+  const closeDock = layer(page).locator('.sqtCloseDock')
+  await expect(closeDock.locator('.sqtCloseBtn')).toContainText('AL', {timeout: 15000})
+  await layer(page).locator('.sqtChip').click()
+  await expect(layer(page).locator('.sqtCard')).toBeVisible()
+  await expect(closeDock).toHaveCount(0)
 })
 
 test('Reddedilen emir: hata kartta gösterilir, kart açık kalır, pozisyon oluşmaz', async ({page}) => {
@@ -233,6 +253,8 @@ test('Açık işlemler: sekmeler yalnız açık işlem varken görünür, dokunu
   await expect(terminal(page).locator('.kfsSymbolBtn')).toContainText('ETHUSDT')
   await expect(tabs.getByRole('tab', {name: /ETH/})).toHaveAttribute('aria-selected', 'true')
   // ETH'de kapat (basılı tut)
+  await expect(terminal(page).locator('.refReportSymbol')).toContainText('ETH', {timeout: 15000}).catch(() => {})
+  await page.waitForTimeout(1500) // yeni coinin verisi yüklenirken basılı tutma başlamasın
   if (!(await layer(page).locator('.sqtCard').isVisible())) await layer(page).locator('.sqtChip').click()
   await hold(page, layer(page).locator('.sqtCard .sqtHold'), 1700)
   await expect.poll(() => mock.closes.length).toBe(1)
@@ -260,6 +282,11 @@ for (const size of [{width: 667, height: 375}, {width: 740, height: 360}, {width
     const t = await boxOf(tabs)
     expect(t.x + t.width).toBeLessThanOrEqual(ohlc.x + ohlc.width + 1)
     const chip = layer(page).locator('.sqtChip')
+    const closeDock = await boxOf(layer(page).locator('.sqtCloseDock'))
+    const chipBox = await boxOf(chip)
+    expect(overlaps(closeDock, chipBox)).toBe(false)
+    expect(closeDock.x + closeDock.width).toBeLessThanOrEqual(size.width); expect(closeDock.y + closeDock.height).toBeLessThanOrEqual(size.height)
+    await page.screenshot({path: `test-results/studio-layout-close-${size.width}x${size.height}.png`})
     await chip.click()
     const card = layer(page).locator('.sqtCard')
     const c = await boxOf(card)
@@ -279,9 +306,9 @@ test('İngilizce: AL/SAT yerine BUY/SELL, onay kartı İngilizce', async ({brows
   const context = await browser.newContext({baseURL: 'http://127.0.0.1:4174', hasTouch: true, isMobile: true, viewport: {width: 844, height: 390}, locale: 'en-US'})
   const page = await context.newPage()
   await prepare(page)
-  await expect(layer(page).getByRole('button', {name: /BUY \(LONG\)/})).toBeVisible()
-  await layer(page).getByRole('button', {name: /SELL \(SHORT\)/}).click()
+  await expect(layer(page).getByRole('button', {name: /SELL/})).toHaveCount(0)
+  await layer(page).getByRole('button', {name: /BUY \(LONG\)/}).click()
   await expect(layer(page).locator('.sqtSheet')).toContainText('If stopped out')
-  await expect(layer(page).locator('.sqtSheet')).toContainText('Hold · SELL')
+  await expect(layer(page).locator('.sqtSheet')).toContainText('Hold · BUY')
   await context.close()
 })
