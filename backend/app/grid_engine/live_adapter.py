@@ -237,6 +237,17 @@ class BinanceLiveGridAdapter:
                 raise ExchangeRejected(UNKNOWN_ORDER, str(exc)) from exc
             raise
 
+    def unrealized(self, symbol: str) -> float:
+        """Borsanın bildirdiği gerçekleşmemiş kâr/zarar (USDT). Grid o coinde tek başına olduğu için grid'inkidir. Okunamazsa hata fırlatır."""
+        payload = self._signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}, read=True)
+        if not isinstance(payload, list):
+            raise ExchangeUnreachable("pozisyon yanıtı doğrulanamadı")
+        total = Decimal("0")
+        for row in _rows(payload):
+            if row.get("symbol") == symbol:
+                total += Decimal(str(row.get("unRealizedProfit", "0") or "0"))
+        return float(round(total, 8))
+
     def position(self, symbol: str) -> float:
         payload = self._signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}, read=True)
         rows = _rows(payload)
