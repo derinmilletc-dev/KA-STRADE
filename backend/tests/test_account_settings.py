@@ -58,6 +58,23 @@ def test_two_factor_notifications_only_follow_confirmed_changes_and_never_includ
     assert setup.mail.call_args.kwargs["security_notice"] == "İki aşamalı doğrulama kapatıldı."
 
 
+def test_mandatory_two_factor_cannot_be_disabled(setup):
+    client = setup.runtime()
+    h = headers("customer")
+    secret = client.post("/api/v22/account/2fa/setup", headers=h, json={"current_password": PASSWORD}).json()["secret"]
+    enabled = client.post("/api/v22/account/2fa/enable", headers=h, json={"code": pyotp.TOTP(secret).now()})
+    assert enabled.status_code == 200
+    setup.mail.reset_mock()
+    renewed = {"Authorization": "Bearer " + enabled.json()["token"]}
+    with patch.dict("os.environ", {"REQUIRE_2FA": "true"}):
+        refused = client.post("/api/v22/account/2fa/disable", headers=renewed,
+                              json={"current_password": PASSWORD, "totp_code": enabled.json()["recovery_codes"][0]})
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == account.TWO_FACTOR_MANDATORY_DETAIL
+    assert get_doc(setup)["two_factor_enabled"] is True
+    setup.mail.assert_not_called()
+
+
 def test_two_factor_delivery_failure_reports_committed_state_without_losing_backup_codes(setup):
     from app.email_service import EmailDeliveryError
     client = setup.runtime()

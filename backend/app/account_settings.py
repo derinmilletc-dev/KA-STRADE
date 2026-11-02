@@ -778,9 +778,16 @@ async def enable_totp(payload: Code, request: Request, response: Response):
     return {"recovery_codes": codes, "reauthenticate": False, "token": marker, "notification_sent": notification_sent}
 
 
+TWO_FACTOR_MANDATORY_DETAIL = "İki aşamalı doğrulama her hesap için zorunludur; kapatılamaz."
+
+
 @router.post("/account/2fa/disable")
 async def disable_totp(payload: Proof, request: Request, response: Response):
     user = await member(request)
+    from .required_two_factor import required as two_factor_required
+    if two_factor_required():
+        # Zorunlu 2FA açıkken kapatma yok: hesap korumasız kalamaz (arayüzde de bu seçenek yok).
+        raise HTTPException(status_code=403, detail=TWO_FACTOR_MANDATORY_DETAIL)
     await proof(request, user, payload)
     async with store.edit(request, user["id"]) as doc:
         doc["two_factor_enabled"] = False
