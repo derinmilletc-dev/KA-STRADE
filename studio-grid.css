@@ -3,10 +3,11 @@
 .masterReferenceAnalysis .sqtLayer { --sqg-bg: #0e1822; --sqg-card: #111d28; --sqg-line: #1d2c39; --sqg-text: #e7eef5; --sqg-dim: #7f94a0; }
 
 /* ---------- Köşedeki GRID çipi ---------- */
+.masterReferenceAnalysis .sqgChipRow { position: absolute; left: 10px; bottom: var(--sqt-bottom); display: flex; align-items: center; gap: 6px; max-width: calc(50% - 150px); min-width: 0; }
 .masterReferenceAnalysis .sqgChip {
-  position: absolute; left: 10px; bottom: var(--sqt-bottom); display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px 0 11px;
+  position: static; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px 0 11px;
   border-radius: 999px; background: rgba(14, 22, 30, .88); border: 1px solid rgba(255, 255, 255, .1); color: var(--sqg-text); cursor: pointer; font-size: 12px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .5); backdrop-filter: blur(12px); max-width: calc(50% - 150px); min-width: 0; white-space: nowrap;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5); backdrop-filter: blur(12px); max-width: 100%; min-width: 0; white-space: nowrap;
 }
 .masterReferenceAnalysis .sqgChip svg { width: 15px; height: 15px; flex: none; color: #8fc1ff; }
 .masterReferenceAnalysis .sqgChip b { letter-spacing: .08em; font-size: 11.5px; }
@@ -16,7 +17,7 @@
 .masterReferenceAnalysis .sqgChip strong[data-tone="down"], .masterReferenceAnalysis .sqgPnl[data-tone="down"] strong, .masterReferenceAnalysis .sqgMeta dd[data-tone="down"] { color: #ff8d9a; }
 .masterReferenceAnalysis .sqgDot { width: 6px; height: 6px; border-radius: 50%; background: #3ee0a0; box-shadow: 0 0 8px #3ee0a0; }
 .masterReferenceAnalysis .sqgChip:focus-visible, .masterReferenceAnalysis .sqgPanel :is(button, input):focus-visible { outline: 2px solid #a9d4ff; outline-offset: 2px; }
-@media (max-width: 760px) { .masterReferenceAnalysis .sqgChip { max-width: calc(50% - 140px); } .masterReferenceAnalysis .sqgChip :is(strong, span:not(.sqgDot)) { display: none; } }
+@media (max-width: 760px) { .masterReferenceAnalysis .sqgChipRow { max-width: calc(50% - 140px); } .masterReferenceAnalysis .sqgChip :is(strong, span:not(.sqgDot)) { display: none; } }
 
 /* ---------- Panel ---------- */
 .masterReferenceAnalysis .sqgPanel {
@@ -174,8 +175,8 @@
 }
 
 /* Açık pozisyon varken GRID çipi, pozisyon çipinin üstüne yığılır; kart ya da liste açıkken gizlenir (üst üste binmesin). */
-.masterReferenceAnalysis .sqtLayer:has(.sqtPos) .sqgChip { bottom: calc(var(--sqt-bottom) + 44px); }
-.masterReferenceAnalysis .sqtLayer:has(:is(.sqtCard, .sqtTray)) .sqgChip { display: none; }
+.masterReferenceAnalysis .sqtLayer:has(.sqtPos) .sqgChipRow { bottom: calc(var(--sqt-bottom) + 44px); }
+.masterReferenceAnalysis .sqtLayer:has(:is(.sqtCard, .sqtTray)) .sqgChipRow { display: none; }
 
 /* ---------- Grafik üstündeki grid çizgileri (ReferenceChart içinde) ---------- */
 .refGridOverlay line { stroke-width: 1; pointer-events: none; }
@@ -208,3 +209,43 @@
 
 .masterReferenceAnalysis .sqgProt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .masterReferenceAnalysis .sqgProtField em { display: block; font-style: normal; font-size: 10px; line-height: 1.25; color: var(--sqg-dim, #7f93a6); margin-top: 3px; }
+
+.refGridOverlay [data-kind="entry"] line { stroke: rgba(224, 232, 240, .85); stroke-dasharray: 8 3; stroke-width: 1.5; }
+.refGridOverlay [data-kind="entry"] text { fill: #e6eef5; }
+.refGridOverlay [data-kind="target"] line { stroke: rgba(62, 224, 160, .8); stroke-dasharray: 5 4; }
+.refGridOverlay [data-kind="target"] text { fill: #5fe9b0; }
+
+/* ---------- İşlem günlüğü ---------- */
+.masterReferenceAnalysis .sqtLayer:has(.sqjPanel) .sqgChipRow { display: none; }
+.masterReferenceAnalysis .sqjChip { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border-radius: 50%; background: rgba(14, 22, 30, .88); border: 1px solid rgba(255, 255, 255, .1); color: #8fc1ff; cursor: pointer; box-shadow: 0 10px 26px rgba(0, 0, 0, .5); backdrop-filter: blur(12px); }
+.masterReferenceAnalysis .sqjChip svg { width: 16px; height: 16px; }
+.masterReferenceAnalysis .sqjChip em { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: #2a5f8f; color: #fff; font-style: normal; font-size: 9.5px; font-weight: 700; display: grid; place-items: center; }
+.masterReferenceAnalysis .sqjChip:focus-visible { outline: 2px solid #a9d4ff; outline-offset: 2px; }
+.masterReferenceAnalysis .sqjSummary { margin: 0; }
+.masterReferenceAnalysis .sqjList { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.masterReferenceAnalysis .sqjRow { padding: 9px 10px; border-radius: 12px; background: var(--sqg-card); border: 1px solid var(--sqg-line); display: grid; gap: 4px; }
+.masterReferenceAnalysis .sqjRow[data-side="LONG"] { border-left: 3px solid #1f8f61; }
+.masterReferenceAnalysis .sqjRow[data-side="SHORT"] { border-left: 3px solid #b8344a; }
+.masterReferenceAnalysis .sqjTop { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.masterReferenceAnalysis .sqjTop b { font-size: 13px; }
+.masterReferenceAnalysis .sqjTop time { margin-left: auto; font-size: 10.5px; color: var(--sqg-dim); white-space: nowrap; }
+.masterReferenceAnalysis .sqjTag { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.masterReferenceAnalysis .sqjTag[data-side="LONG"] { background: #10392b; color: #3ee0a0; }
+.masterReferenceAnalysis .sqjTag[data-side="SHORT"] { background: #3a1820; color: #ff8d9a; }
+.masterReferenceAnalysis .sqjAcc { padding: 2px 7px; border-radius: 99px; font-size: 9.5px; font-weight: 700; letter-spacing: .1em; background: #2a1419; color: #ff8d9a; }
+.masterReferenceAnalysis .sqjAcc[data-demo] { background: #0f2e24; color: #3ee0a0; }
+.masterReferenceAnalysis .sqjPlan, .masterReferenceAnalysis .sqjMeta { margin: 0; font-size: 11px; color: #b7c6cf; line-height: 1.4; }
+.masterReferenceAnalysis .sqjMeta { color: var(--sqg-dim); }
+.masterReferenceAnalysis .sqjFollow { margin-left: 6px; padding: 1px 7px; border-radius: 99px; font-size: 10px; background: #0f2e24; color: #3ee0a0; }
+.masterReferenceAnalysis .sqjFollow[data-ok="false"] { background: #2a1419; color: #ff8d9a; }
+.masterReferenceAnalysis .sqjNote { width: 100%; box-sizing: border-box; resize: vertical; min-height: 30px; max-height: 90px; padding: 6px 8px; border-radius: 9px; background: #0b141c; border: 1px solid var(--sqg-line); color: var(--sqg-text); font: inherit; font-size: 11.5px; }
+.masterReferenceAnalysis .sqjNote:focus-visible { outline: 2px solid #a9d4ff; outline-offset: 1px; }
+.masterReferenceAnalysis .sqjClear { justify-self: center; }
+
+/* ---------- Grafikte sürüklenebilir stop ve fiyat seçme ---------- */
+.refGridDrag .refGridHit { stroke: transparent; stroke-width: 22px; pointer-events: stroke; cursor: ns-resize; touch-action: none; }
+.refGridDrag .refGridHit:hover { stroke: rgba(255, 101, 119, .14); }
+.refGridDrag .refGridGhost { stroke: #ffb3bd; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+.refGridDrag .refGridGhostTag { fill: #ffd2d8; font-size: 11px; font-weight: 700; paint-order: stroke; stroke: #0a121a; stroke-width: 3px; pointer-events: none; }
+.refPickGuide line { stroke: #8fc1ff; stroke-width: 1.2; stroke-dasharray: 5 4; pointer-events: none; }
+.refPickGuide text { fill: #bfe0ff; font-size: 11px; font-weight: 700; paint-order: stroke; stroke: #0a121a; stroke-width: 3px; pointer-events: none; }

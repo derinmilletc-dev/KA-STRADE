@@ -421,7 +421,9 @@ export function gridSummary(row: GridRow): {hours: number | null; cycles: number
   return {hours, cycles: row.stats?.cycles ?? 0, net: row.stats?.realized_usdt ?? 0, fees: row.stats?.fees_usdt ?? 0}
 }
 
-export type GridChartLine = {price: number; kind: 'buy' | 'sell' | 'skip' | 'bound' | 'stop'; label?: string}
+export type GridChartLine = {price: number; kind: 'buy' | 'sell' | 'skip' | 'bound' | 'stop' | 'entry' | 'target'; label?: string; id?: string; draggable?: boolean}
+/** Grafiğe bağlanan etkileşimler: fiyat seçme (limit emir) ve sürüklenebilir çizgiyi bırakma (stop taşıma). */
+export type ChartTools = {pick?: {onPick: (price: number) => void}; onLineDrop?: (id: string, price: number) => void}
 
 /** Grafik üzerinde çizilecek çizgiler: önizleme (panel açıkken) ya da çalışan gridlerin kademeleri ve stopları. */
 export function chartLinesFor(preview: GridPreview | null, p: GridParams | null): GridChartLine[] {

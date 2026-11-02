@@ -6,14 +6,17 @@ import {analysisPrice} from './master-trade-presentation'
 import {requestPositionsRefresh} from './trade-intent'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {
-  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE,
-  activePlan, allowedLeverages, allowedMargins, isOpen, levelsFor, nearestChoice, newIntentId, planRights, postJson, riskSummary, setLanguageReader, sideOf, tx,
-  type AnalysisLevels, type Levels, type PositionLike, type Side,
+  DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
+  activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, isOpen, levelsFor, limitIssue, limitPresets, nearestChoice, newIntentId, parseJournal, planRights, postJson, riskSummary,
+  setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx,
+  type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
 } from './studio-quick-trade'
+import {JournalChip, JournalPanel} from './StudioJournal'
 import {HoldButton, useHold} from './studio-hold'
 import StudioGrid from './StudioGrid'
-import type {Candle, GridChartLine} from './studio-grid'
+import type {Candle, ChartTools, GridChartLine} from './studio-grid'
 import './studio-quick-trade.css'
+import './studio-modern.css'
 
 setLanguageReader(() => currentLang() === 'en')
 
@@ -33,13 +36,15 @@ const signed = (value: number, digits = 2) => `${value >= 0 ? '+' : '−'}${fmt(
 const positive = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 const short = (symbol: string) => symbol.replace(/USDT$/, '')
 
-type Prefs = {margin: number; leverage: number}
+type Prefs = {margin: number; leverage: number; sizing: 'fixed' | 'risk'; riskPct: number}
+const DEFAULT_PREFS: Prefs = {margin: 25, leverage: 2, sizing: 'fixed', riskPct: 1}
 const readPrefs = (): Prefs => {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}')
     const value = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : {}
-    return {margin: Number(value.margin) || 25, leverage: Number(value.leverage) || 2}
-  } catch { return {margin: 25, leverage: 2} }
+    const riskPct = Number(value.riskPct)
+    return {margin: Number(value.margin) || 25, leverage: Number(value.leverage) || 2, sizing: value.sizing === 'risk' ? 'risk' : 'fixed', riskPct: (RISK_PCT_CHOICES as readonly number[]).includes(riskPct) ? riskPct : 1}
+  } catch { return DEFAULT_PREFS }
 }
 const savePrefs = (prefs: Prefs) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)) } catch { /* tarayıcı kaydı kapalı olabilir */ } }
 
@@ -96,10 +101,10 @@ type Props = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void
   live: SharedLiveStatus | null; analysis: AnalysisLevels; decision: StudioDecision
   positions: readonly StudioPosition[]; onSelect: (symbol: string) => void; drawerOpen: boolean; dataReady: boolean
-  candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void
+  candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void; onChartTools?: (tools: ChartTools) => void
 }
 
-export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines}: Props) {
+export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines, onChartTools}: Props) {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [side, setSide] = useState<Side | null>(null)
   const [frozen, setFrozen] = useState<{price: number; levels: Levels} | null>(null)
@@ -115,6 +120,17 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const [lockedUntil, setLockedUntil] = useState(0)
   const [now, setNow] = useState(() => Date.now())
   const [gridOpen, setGridOpen] = useState(false)
+  const [journalOpen, setJournalOpen] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const [kind, setKind] = useState<OrderKind>('MARKET')
+  const [limitText, setLimitText] = useState('')
+  const [expiry, setExpiry] = useState<LimitExpiry>(1440)
+  const [demoBalance, setDemoBalance] = useState<number | null>(null)
+  const [balanceFailed, setBalanceFailed] = useState(false)
+  const [journal, setJournal] = useState<JournalEntry[]>(() => { try { return parseJournal(localStorage.getItem(JOURNAL_KEY)) } catch { return [] } })
+  const [gridLocal, setGridLocal] = useState<GridChartLine[]>([])
+  const [stopAsk, setStopAsk] = useState<{stop: number; label: string} | null>(null)
+  const [stopError, setStopError] = useState('')
   const busyRef = useRef(false)
 
   const open = useMemo(() => positions.filter(isOpen), [positions])
@@ -132,72 +148,123 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
 
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id) }, [])
   // Coin değişince açık pencereler kapanır; yarım kalmış bir onay başka coine gitmesin.
-  useEffect(() => { setSide(null); setFrozen(null); setSettings(false); setAction(null); setActionError(''); setSheetError(''); setTray(false) }, [symbol])
-  useEffect(() => { if (!current) { setCard(false); setAction(null) } }, [current])
+  useEffect(() => { setSide(null); setFrozen(null); setSettings(false); setAction(null); setActionError(''); setSheetError(''); setTray(false); setKind('MARKET'); setLimitText(''); setStopAsk(null); setStopError(''); setPicking(false) }, [symbol])
+  useEffect(() => { if (!side) setPicking(false) }, [side])
+  useEffect(() => { if (!current) { setCard(false); setAction(null); setStopAsk(null); setStopError('') } }, [current])
   useEffect(() => { if (!toast) return; const id = window.setTimeout(() => setToast(null), toast.kind === 'ok' ? 4500 : 9000); return () => window.clearTimeout(id) }, [toast])
   // Esc: önce pencereyi kapatır (tam ekranı kapatmadan).
   useEffect(() => {
     if (!side && !settings && !tray) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busyRef.current) { event.stopPropagation(); setSide(null); setFrozen(null); setSettings(false); setTray(false) } }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || busyRef.current) return
+      event.stopPropagation()
+      if (picking) { setPicking(false); return }   // fiyat seçerken Esc yalnız seçimi bırakır; kart açık kalır
+      setSide(null); setFrozen(null); setSettings(false); setTray(false)
+    }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [side, settings, tray])
+  }, [side, settings, tray, picking])
 
   const startOrder = (next: Side) => {
     if (!demo && !premium) { onUpgrade(); return }
     const fresh = levelsFor(next, price, analysis)
     const at = positive(price)
     if (at === null || !fresh) { setToast({kind: 'error', title: tx('Fiyat ya da analiz verisi hazır değil', 'Price or analysis data is not ready'), detail: tx('Birkaç saniye sonra tekrar dene.', 'Try again in a few seconds.')}); return }
-    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false)
+    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false); setKind('MARKET'); setLimitText('')
   }
   const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError('') }
   const changeParam = (change: Partial<Prefs>) => { update(change); setIntentId(newIntentId()); setSheetError('') }
 
   const sending = busy !== null
   const lockLeft = Math.max(0, Math.ceil((lockedUntil - now) / 1000))
-  const risk = frozen && side ? riskSummary(frozen.price, frozen.levels, margin, leverage) : null
+  const price0 = positive(price)
+  // Limit emirde giriş, yazılan limit fiyattır; stop/hedefler o fiyata göre yeniden hesaplanır.
+  const limitValue = Number(limitText.replace(',', '.'))
+  const limitProblem = side && kind === 'LIMIT' ? limitIssue(side, price0, limitValue) : null
+  const limitLevels = side && kind === 'LIMIT' && !limitProblem ? levelsFor(side, limitValue, analysis) : null
+  const limitError = limitProblem ?? (side && kind === 'LIMIT' && !limitLevels ? tx('Bu limit fiyat için stop ve hedefler hesaplanamadı.', 'Stop and targets could not be calculated for this limit price.') : null)
+  const entryPrice = frozen && kind === 'LIMIT' && limitLevels ? limitValue : frozen?.price ?? 0
+  const levels = frozen ? (kind === 'LIMIT' && limitLevels ? limitLevels : frozen.levels) : null
+  const balance = demo ? demoBalance : positive(live?.account?.wallet_balance ?? undefined)
+  const maxMargin = demo ? 100 : Math.min(Number(policy.max_margin_per_trade) || 100, 300)
+  const sized = side && levels && prefs.sizing === 'risk' ? sizeByRisk({balance, riskPct: prefs.riskPct, entry: entryPrice, stop: levels.stop, leverage, maxMargin}) : null
+  const sizingBlock = prefs.sizing === 'risk' && (!sized || sized.tooSmall)
+  const effMargin = prefs.sizing === 'risk' && sized && !sized.tooSmall ? sized.margin : margin
+  const risk = frozen && side && levels ? riskSummary(entryPrice, levels, effMargin, leverage) : null
+  const presets = side ? limitPresets(side, price0, analysis?.entry) : []
+
+  // Demo bakiyesi yalnız "Risk %" seçiliyken okunur (hesap ucu ağırdır).
+  useEffect(() => {
+    if (!demo || !side || prefs.sizing !== 'risk') return
+    let cancelled = false
+    setBalanceFailed(false)
+    void fetch(`${DEMO}/account`).then(response => response.ok ? response.json() : Promise.reject(new Error('account'))).then((data: {wallet_balance?: unknown}) => {
+      if (cancelled) return
+      const value = Number(data?.wallet_balance)
+      if (Number.isFinite(value) && value > 0) setDemoBalance(value); else setBalanceFailed(true)
+    }).catch(() => { if (!cancelled) setBalanceFailed(true) })
+    return () => { cancelled = true }
+  }, [demo, side, prefs.sizing])
+
+  const pickKind = (next: OrderKind) => {
+    if (next === kind) return
+    setKind(next); setIntentId(newIntentId()); setSheetError('')
+    if (next === 'LIMIT' && !limitText && side) { const first = presets[0]; if (first) setLimitText(String(first)) }
+  }
+  const writeJournal = (next: JournalEntry[]) => { setJournal(next); try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(next)) } catch { /* tarayıcı kaydı kapalı olabilir */ } }
 
   const placeOrder = async () => {
-    if (!side || !frozen || busyRef.current) return
+    if (!side || !frozen || !levels || !risk || busyRef.current) return
     const livePrice = positive(price)
-    if (!livePrice || Math.abs(livePrice - frozen.price) / frozen.price * 100 > MAX_DRIFT_PCT) {
+    if (kind === 'LIMIT') {
+      const issue = limitIssue(side, livePrice, limitValue)
+      if (issue) { setSheetError(issue); return }
+    } else if (!livePrice || Math.abs(livePrice - frozen.price) / frozen.price * 100 > MAX_DRIFT_PCT) {
       const fresh = livePrice ? levelsFor(side, livePrice, analysis) : null
       if (livePrice && fresh) setFrozen({price: livePrice, levels: fresh})
       setIntentId(newIntentId())
       setSheetError(tx(`Fiyat %${MAX_DRIFT_PCT} üzerinde oynadı; seviyeler güncellendi. Kontrol edip tekrar basılı tut.`, `The price moved by more than ${MAX_DRIFT_PCT}%; levels were updated. Review them and hold again.`))
       return
     }
+    if (sizingBlock) { setSheetError(tx('Risk yüzdesine göre teminat hesaplanamadı; Sabit teminat seç ya da riski/stopu değiştir.', 'The margin could not be sized from the risk percentage; choose Fixed margin or change the risk/stop.')); return }
     busyRef.current = true
-    const {levels} = frozen
-    const base = {symbol, direction: side, order_type: 'MARKET', margin_usdt: margin, leverage, limit_price: null, stop_loss: levels.stop, tp1: levels.tp1, tp2: levels.tp2, tp3: levels.tp3}
+    const base = {symbol, direction: side, order_type: kind, margin_usdt: effMargin, leverage, limit_price: kind === 'LIMIT' ? limitValue : null, stop_loss: levels.stop, tp1: levels.tp1, tp2: levels.tp2, tp3: levels.tp3}
+    const entry: JournalEntry = {
+      id: intentId, ts: Date.now(), account: demo ? 'DEMO' : 'LIVE', symbol, side, kind, entry: entryPrice, stop: levels.stop, tp1: levels.tp1, tp2: levels.tp2, tp3: levels.tp3,
+      margin: effMargin, leverage, riskUsdt: risk.lossAtStop, rewardRisk: risk.rewardRisk, analysis: decision.direction,
+      followedAnalysis: decision.direction === 'LONG' || decision.direction === 'SHORT' ? decision.direction === side : null, note: '',
+    }
     try {
       if (demo) {
         setBusy(tx('Demo emri gönderiliyor…', 'Sending demo order…'))
         const result = await postJson<{risk_adjusted?: boolean}>(`${DEMO}/order`, {...base, confirmation: DEMO_PHRASE}, 60000)
-        finish(result, tx('Demo emri gönderildi', 'Demo order sent'))
+        finish(result, kind === 'LIMIT' ? tx('Demo limit emri kuruldu', 'Demo limit order placed') : tx('Demo emri gönderildi', 'Demo order sent'), entry)
       } else {
         setBusy(tx('Binance doğrulaması…', 'Checking with Binance…'))
-        const payload = {...base, tp_split: '60-20-20', limit_expiry_minutes: null, intent_id: intentId}
+        const payload = {...base, tp_split: '60-20-20', limit_expiry_minutes: kind === 'LIMIT' ? expiry : null, intent_id: intentId}
         const test = await postJson<unknown>(`${V25}/order/test`, payload, 45000)
         if (!test.ok) { setSheetError(test.message); return }
         setBusy(tx('Emir gönderiliyor…', 'Sending order…'))
         const result = await postJson<{risk_adjusted?: boolean}>(`${V25}/order`, {...payload, confirmation: LIVE_PHRASE}, 60000)
-        finish(result, tx('Canlı emir gönderildi', 'Live order sent'))
+        finish(result, kind === 'LIMIT' ? tx('Canlı limit emri kuruldu', 'Live limit order placed') : tx('Canlı emir gönderildi', 'Live order sent'), entry)
       }
     } finally {
       busyRef.current = false
       setBusy(null)
     }
   }
-  const finish = (result: Awaited<ReturnType<typeof postJson<{risk_adjusted?: boolean}>>>, title: string) => {
+  const finish = (result: Awaited<ReturnType<typeof postJson<{risk_adjusted?: boolean}>>>, title: string, entry: JournalEntry) => {
     if (result.ok) {
       setSide(null); setFrozen(null); setSheetError('')
-      setToast({kind: 'ok', title: `${title} · ${symbol}`, detail: result.data?.risk_adjusted ? tx('Risk limiti nedeniyle büyüklük otomatik azaltıldı. Stop ve hedefler emirle birlikte kuruldu.', 'The size was reduced automatically because of the risk limit. Stop and targets are placed with the order.') : tx('Stop ve hedefler emirle birlikte kuruluyor.', 'Stop and targets are being placed with the order.')})
+      writeJournal(addJournal(journal, entry))
+      setToast({kind: 'ok', title: `${title} · ${symbol}`, detail: entry.kind === 'LIMIT' ? tx('Fiyat limite gelince dolar; stop ve hedefler dolumdan sonra kurulur. Günlüğe kaydedildi.', 'It fills when the price reaches the limit; stop and targets are placed after the fill. Saved to the journal.')
+        : result.data?.risk_adjusted ? tx('Risk limiti nedeniyle büyüklük otomatik azaltıldı. Stop ve hedefler emirle birlikte kuruldu.', 'The size was reduced automatically because of the risk limit. Stop and targets are placed with the order.') : tx('Stop ve hedefler emirle birlikte kuruluyor.', 'Stop and targets are being placed with the order.')})
       requestPositionsRefresh()
     } else if (result.uncertain) {
       // Emir gitmiş olabilir: aynı emri tekrar göndermeyiz; pozisyonlar yenilenir ve kısa süre yeni emir kapalı kalır.
       setSide(null); setFrozen(null)
       setLockedUntil(Date.now() + 20000)
+      writeJournal(addJournal(journal, {...entry, note: tx('Sonuç doğrulanamadı; borsayı kontrol et.', 'Result not confirmed; check the exchange.')}))
       setToast({kind: 'warn', title: tx('Emir sonucu doğrulanamadı', 'Order result could not be confirmed'), detail: `${result.message} ${tx('Pozisyonların yenilenmesini bekle; açıldıysa sekmede görünür. Emri tekrar göndermeden önce kontrol et.', 'Wait for positions to refresh; if it opened it will appear as a tab. Check before sending the order again.')}`})
       requestPositionsRefresh()
     } else {
@@ -235,17 +302,73 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     } finally { busyRef.current = false; setBusy(null) }
   }
 
+  // ---- Açık pozisyon: stop yönetimi (başa baş / sıkılaştır / elle). Yalnız canlı MANUEL planlarda; sunucu eski stopu doğrulayarak değiştirir. ----
+  const canManage = !demo && rights.reduce && Boolean(current)
+  const applyStop = async (stop: number) => {
+    if (!current || !canManage || busyRef.current) return
+    const problem = stopIssue(sideOf(current), positive(price) ?? positive(current.mark_price), positive(current.stop_loss), stop)
+    if (problem) { setStopError(problem); setStopAsk(null); return }
+    busyRef.current = true
+    setBusy(tx('Stop güncelleniyor…', 'Updating the stop…')); setStopError('')
+    try {
+      const result = await postJson<unknown>(`${V25}/position/protection`, {plan_id: rights.id, stop_loss: stop, confirmation: 'KORUMAYI GÜNCELLE'}, 60000)
+      if (result.ok) {
+        setStopAsk(null)
+        setToast({kind: 'ok', title: tx(`${current.symbol} stopu güncellendi`, `${current.symbol} stop updated`), detail: tx('Eski stop silinip yenisi borsadan doğrulanarak kuruldu.', 'The old stop was removed and the new one was confirmed on the exchange.')})
+        requestPositionsRefresh()
+      } else if (result.uncertain) {
+        setStopAsk(null)
+        setToast({kind: 'warn', title: tx('Stop sonucu doğrulanamadı', 'Stop result could not be confirmed'), detail: `${result.message} ${tx('Pozisyonu ve stopu kontrol et; tekrar denemeden önce yenilenmesini bekle.', 'Check the position and its stop; wait for a refresh before trying again.')}`})
+        requestPositionsRefresh()
+      } else setStopError(result.message)
+    } finally { busyRef.current = false; setBusy(null) }
+  }
+
+  // ---- Grafik çizgileri: onay kartındaki plan ve açık pozisyonun seviyeleri (grid çizgileriyle birlikte) ----
+  const tradeLines = useMemo<GridChartLine[]>(() => {
+    const out: GridChartLine[] = []
+    const add = (value: unknown, kind: GridChartLine['kind'], label: string, extra?: Partial<GridChartLine>) => { const n = positive(value); if (n) out.push({price: n, kind, label: `${label} ${analysisPrice(n)}`, ...extra}) }
+    if (side && levels && entryPrice > 0) {
+      add(entryPrice, 'entry', kind === 'LIMIT' ? tx('Limit', 'Limit') : tx('Giriş', 'Entry')); add(levels.stop, 'stop', 'Stop'); add(levels.tp1, 'target', 'TP1'); add(levels.tp2, 'target', 'TP2'); add(levels.tp3, 'target', 'TP3')
+    } else if (current) {
+      add(current.entry_price, 'entry', tx('Giriş', 'Entry')); add(current.stop_loss, 'stop', 'Stop', canManage ? {id: 'pos-stop', draggable: true} : undefined); add(current.tp1, 'target', 'TP1'); add(current.tp2, 'target', 'TP2'); add(current.tp3, 'target', 'TP3')
+    }
+    return out
+  }, [side, levels, entryPrice, kind, current, canManage])
+  useEffect(() => { onGridLines?.([...gridLocal, ...tradeLines]) }, [gridLocal, tradeLines, onGridLines])
+  useEffect(() => () => onGridLines?.([]), [onGridLines])
+
+  // Grafik etkileşimleri: limit fiyatı grafikten seç ve stop çizgisini sürükle. İşleyiciler ref'ten okunur; efekt gereksiz yere yenilenmez.
+  const toolsRef = useRef({pick: (_price: number) => {}, drop: (_id: string, _price: number) => {}})
+  toolsRef.current = {
+    pick: (value: number) => { setLimitText(String(Number(value.toPrecision(6)))); setIntentId(newIntentId()); setSheetError(''); setPicking(false) },
+    drop: (id: string, value: number) => {
+      if (id !== 'pos-stop' || !current) return
+      const rounded = Number(value.toPrecision(6))
+      const problem = stopIssue(sideOf(current), positive(price) ?? positive(current.mark_price), positive(current.stop_loss), rounded)
+      setCard(true)
+      if (problem) { setStopAsk(null); setStopError(problem); return }
+      setStopError(''); setStopAsk({stop: rounded, label: tx('Grafikten sürüklendi', 'Dragged on the chart')})
+    },
+  }
+  const toolsReady = picking || canManage
+  useEffect(() => {
+    onChartTools?.(toolsReady ? {pick: picking ? {onPick: value => toolsRef.current.pick(value)} : undefined, onLineDrop: canManage ? (id, value) => toolsRef.current.drop(id, value) : undefined} : {})
+  }, [onChartTools, picking, canManage, toolsReady])
+  useEffect(() => () => onChartTools?.({}), [onChartTools])
+
   const dockDisabled = !dataReady || sending || lockLeft > 0
   const aligned = (target: Side) => decision.direction === target ? 'with' : decision.direction === 'LONG' || decision.direction === 'SHORT' ? 'against' : 'none'
-  const price0 = positive(price)
   const confidenceText = tx(`${aligned(side ?? 'LONG') === 'with' ? 'Analiz seninle' : 'Analiz ters'} · ${decision.direction}${decision.confidenceScore !== null ? ` · güven %${Math.round(decision.confidenceScore)}` : ''}`, `${aligned(side ?? 'LONG') === 'with' ? 'Analysis agrees' : 'Analysis is opposite'} · ${decision.direction}${decision.confidenceScore !== null ? ` · confidence ${Math.round(decision.confidenceScore)}%` : ''}`)
   const pnl = current ? positionPnl(current, price) : null
 
-  return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || undefined}>
+  return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || journalOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
 
     <StudioGrid symbol={symbol} price={price} demo={demo} premium={premium} onUpgrade={onUpgrade} analysis={analysis} decision={decision.direction} liveBlocker={liveBlocked ? blocker : ''}
-      policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen} candles={candles} onLines={onGridLines}/>
+      policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen} candles={candles} onLines={setGridLocal}
+      extra={<JournalChip count={journal.length} onOpen={() => setJournalOpen(true)}/>}/>
+    {journalOpen && !side && <JournalPanel entries={journal} demo={demo} onNote={(id, note) => writeJournal(journal.map(item => item.id === id ? {...item, note: note.slice(0, 280)} : item))} onClear={() => writeJournal([])} onClose={() => setJournalOpen(false)}/>}
 
     {!current && !side && <div className="sqtDock" data-demo={demo || undefined} role="group" aria-label={tx('Hızlı alım satım', 'Quick buy / sell')}>
       <button type="button" className="sqtMid" aria-expanded={settings} aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')} onClick={() => setSettings(open => !open)}>
@@ -268,7 +391,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             <strong>{pnl.pnl === null ? '—' : `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`}</strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}<ChevronUp aria-hidden="true"/>
           </button>
         : <PositionCard position={current} price={price} pnl={pnl} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
-            onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}/>}
+            onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
+            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop)} : undefined} demoManageNote={demo}/>}
       {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0))} USDT</strong></span></header>
@@ -279,12 +403,14 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       </div>}
     </div>}
 
-    {side && frozen && risk && <>
+    {picking && <div className="sqtPickHint" role="status"><span>{tx('Grafikte limit fiyatı için bir yere dokun', 'Tap the chart where you want the limit price')}</span><button type="button" className="sqtBtn" onClick={() => setPicking(false)}>{tx('Vazgeç', 'Cancel')}</button></div>}
+
+    {side && frozen && risk && !picking && <>
       <div className="sqtScrim" onClick={closeSheet} aria-hidden="true"/>
-      <div className="sqtSheet" role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
+      <div className="sqtSheet" data-demo={demo || undefined} role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
         <header className="sqtHead">
           <span className="sqtTag" data-side={side}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('SAT · SHORT', 'SELL · SHORT')}</span><b>{symbol}</b>
-          <span className="sqtMkt">{tx('Piyasa emri', 'Market order')} · {analysisPrice(frozen.price)}</span>
+          <span className="sqtMkt">{kind === 'LIMIT' ? tx('Limit emri', 'Limit order') : tx('Piyasa emri', 'Market order')} · {analysisPrice(entryPrice)}</span>
           <span className="sqtAcc" data-demo={demo || undefined}><i aria-hidden="true"/>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
           <button type="button" className="sqtX" aria-label={tx('Vazgeç', 'Cancel')} onClick={closeSheet} disabled={sending}><X/></button>
         </header>
@@ -297,28 +423,51 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
               {risk.rewardRisk !== null && <span data-tone={risk.rewardRisk >= 1 ? 'ok' : 'warn'}>{tx('R/Ö', 'R/R')} 1 : {fmt(risk.rewardRisk, 1)}</span>}
             </div>
             {aligned(side) === 'against' && <p className="sqtWarn"><b>{tx(`Analiz ${decision.direction} diyor.`, `The analysis says ${decision.direction}.`)}</b> {tx(`${side === 'LONG' ? 'AL' : 'SAT'} analizin tersine bir işlemdir.`, `${side === 'LONG' ? 'BUY' : 'SELL'} is a trade against the analysis.`)}</p>}
-            {frozen.levels.source === 'mirror' && <p className="sqtNote">{tx('Analiz seviyeleri bu yöne ya da fiyata uymadığı için stop ve hedefler analizin mesafeleriyle yeniden hesaplandı.', 'The analysis levels do not fit this direction or price, so stop and targets were recalculated using the analysis distances.')}</p>}
-            {frozen.levels.source === 'default' && <p className="sqtNote">{tx('Analiz seviyesi bulunamadı; standart mesafeler kullanıldı (stop %1,5).', 'No analysis levels found; standard distances were used (1.5% stop).')}</p>}
-            <Ladder side={side} entry={frozen.price} levels={frozen.levels}/>
+            {levels!.source === 'mirror' && <p className="sqtNote">{tx('Analiz seviyeleri bu yöne ya da fiyata uymadığı için stop ve hedefler analizin mesafeleriyle yeniden hesaplandı.', 'The analysis levels do not fit this direction or price, so stop and targets were recalculated using the analysis distances.')}</p>}
+            {levels!.source === 'default' && <p className="sqtNote">{tx('Analiz seviyesi bulunamadı; standart mesafeler kullanıldı (stop %1,5).', 'No analysis levels found; standard distances were used (1.5% stop).')}</p>}
+            <Ladder side={side} entry={entryPrice} levels={levels!}/>
             <div className="sqtStats">
               <div data-tone="loss"><small>{tx('Stop olursa', 'If stopped out')}</small><b>−{fmt(risk.lossAtStop)} USDT</b></div>
               <div data-tone="gain"><small>{tx("TP1'de", 'At TP1')}</small><b>+{fmt(risk.gainAtTp1)} USDT</b></div>
               <div><small>{tx('Pozisyon büyüklüğü', 'Position size')}</small><b>{fmt(risk.notional, 0)} USDT</b></div>
             </div>
             <ul className="sqtChecks">
-              <li data-ok="true"><Check aria-hidden="true"/>{tx('Stop ve 3 hedef emirle birlikte gider', 'Stop and 3 targets are sent with the order')}</li>
+              <li data-ok="true"><Check aria-hidden="true"/>{kind === 'LIMIT' ? tx('Limit dolunca stop ve 3 hedef kurulur; dolmazsa pozisyon açılmaz', 'Stop and 3 targets are placed when the limit fills; no position opens if it does not') : tx('Stop ve 3 hedef emirle birlikte gider', 'Stop and 3 targets are sent with the order')}</li>
+              {sizingBlock && <li data-ok="false"><TriangleAlert aria-hidden="true"/>{sized?.tooSmall ? tx('Risk yüzdesine göre teminat 5 USDT altında kalıyor; riski artır ya da stopu yaklaştır.', 'Sized margin falls below 5 USDT; raise the risk or tighten the stop.') : balance === null && !(demo && !balanceFailed) ? tx('Bakiye okunamadı; Sabit teminat seç.', 'Balance could not be read; choose Fixed margin.') : tx('Bakiye okunuyor…', 'Reading balance…')}</li>}
               {!demo && <li data-ok={!liveBlocked}>{liveBlocked ? <TriangleAlert aria-hidden="true"/> : <Check aria-hidden="true"/>}{liveBlocked ? blocker : tx('ARM açık · canlı kapılar geçti', 'ARM is on · live gates passed')}</li>}
               <li data-ok={risk.stopBeforeLiquidation}>{risk.stopBeforeLiquidation ? <Check aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{risk.stopBeforeLiquidation ? tx('Stop, likidasyondan önce çalışır', 'The stop triggers before liquidation') : tx('Stop likidasyona çok yakın; kaldıracı düşür', 'The stop is too close to liquidation; lower the leverage')}</li>
             </ul>
           </div>
           <div className="sqtRight">
-            <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => changeParam({margin: value})} disabled={sending}/>
+            <div className="sqtParam"><small>{tx('Emir tipi', 'Order type')}</small><div role="radiogroup" aria-label={tx('Emir tipi', 'Order type')}>
+              <button type="button" role="radio" aria-checked={kind === 'MARKET'} data-on={kind === 'MARKET'} disabled={sending} onClick={() => pickKind('MARKET')}>{tx('Piyasa', 'Market')}</button>
+              <button type="button" role="radio" aria-checked={kind === 'LIMIT'} data-on={kind === 'LIMIT'} disabled={sending} onClick={() => pickKind('LIMIT')}>Limit</button></div></div>
+            {kind === 'LIMIT' && <div className="sqtLimit">
+              <label className="sqtField" htmlFor="sqt-limit"><small>{tx('Limit fiyat', 'Limit price')}</small>
+                <input id="sqt-limit" inputMode="decimal" autoComplete="off" spellCheck={false} value={limitText} disabled={sending} onChange={event => { setLimitText(event.target.value); setIntentId(newIntentId()); setSheetError('') }}/></label>
+              <button type="button" className="sqtPickBtn" disabled={sending} onClick={() => setPicking(true)}>{tx('Grafikten seç', 'Pick on chart')}</button>
+              <div className="sqtPresets" role="group" aria-label={tx('Limit fiyat önerileri', 'Limit price suggestions')}>{presets.map((value, index) => <button key={value} type="button" data-on={Number(limitText.replace(',', '.')) === value} disabled={sending} title={analysisPrice(value)}
+                onClick={() => { setLimitText(String(value)); setIntentId(newIntentId()); setSheetError('') }}>{index === 0 && analysis?.entry && Math.abs(value - analysis.entry) < 1e-9 ? tx('Analiz', 'Analysis') : `${value < (price0 ?? value) ? '−' : '+'}${fmt(Math.abs(value / (price0 ?? value) - 1) * 100, 2).replace(/[.,]?0+$/, '')}%`}</button>)}</div>
+              {!demo && <div className="sqtParam"><small>{tx('Geçerlilik', 'Expires')}</small><div role="radiogroup" aria-label={tx('Limit emir geçerlilik süresi', 'Limit order expiry')}>
+                {[...LIMIT_EXPIRY_CHOICES, null].map(choice => <button key={String(choice)} type="button" role="radio" aria-checked={expiry === choice} data-on={expiry === choice} disabled={sending} onClick={() => setExpiry(choice)}>{choice === null ? tx('Süresiz', 'None') : choice === 1440 ? tx('24 sa', '24 h') : tx(`${choice / 60} sa`, `${choice / 60} h`)}</button>)}</div></div>}
+              {limitError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{limitError}</p>}
+            </div>}
+            <div className="sqtParam"><small>{tx('Büyüklük', 'Sizing')}</small><div role="radiogroup" aria-label={tx('Büyüklük yöntemi', 'Sizing method')}>
+              <button type="button" role="radio" aria-checked={prefs.sizing === 'fixed'} data-on={prefs.sizing === 'fixed'} disabled={sending} onClick={() => changeParam({sizing: 'fixed'})}>{tx('Sabit teminat', 'Fixed margin')}</button>
+              <button type="button" role="radio" aria-checked={prefs.sizing === 'risk'} data-on={prefs.sizing === 'risk'} disabled={sending} onClick={() => changeParam({sizing: 'risk'})}>{tx('Risk %', 'Risk %')}</button></div></div>
+            {prefs.sizing === 'fixed'
+              ? <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => changeParam({margin: value})} disabled={sending}/>
+              : <div className="sqtParam"><small>{tx('Hesabın yüzdesi kadar risk', 'Risk as % of account')}</small><div role="radiogroup" aria-label={tx('Risk yüzdesi', 'Risk percentage')}>
+                  {RISK_PCT_CHOICES.map(value => <button key={value} type="button" role="radio" aria-checked={prefs.riskPct === value} data-on={prefs.riskPct === value} disabled={sending} onClick={() => changeParam({riskPct: value})}>%{String(value).replace('.', ',')}</button>)}</div>
+                  <p className="sqtSized" role="status">{sized && !sized.tooSmall ? tx(`→ ${fmt(sized.margin)} USDT teminat · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (üst sınır)' : ''}`, `→ ${fmt(sized.margin)} USDT margin · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (capped)' : ''}`) : balance === null && (!demo || balanceFailed) ? tx('Bakiye okunamadı', 'Balance unavailable') : sized?.tooSmall ? tx('Teminat çok küçük kalıyor', 'Margin would be too small') : tx('Hesaplanıyor…', 'Calculating…')}</p></div>}
             <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => changeParam({leverage: value})} disabled={sending}/>
+            <div className="sqtActions">
             {sheetError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{sheetError}</p>}
-            <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation}
-              label={sending ? busy ?? '' : tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'}`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'}`)} onDone={() => void placeOrder()}
+            <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock}
+              label={sending ? busy ?? '' : kind === 'LIMIT' ? tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'} limit`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'} limit`) : tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'}`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'}`)} onDone={() => void placeOrder()}
               hint={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} emrini göndermek için basılı tut`, `Press and hold to send the ${symbol} ${side === 'LONG' ? 'buy' : 'sell'} order`)}/>
             <button type="button" className="sqtCancel" onClick={closeSheet} disabled={sending}>{tx('Vazgeç', 'Cancel')}</button>
+            </div>
           </div>
         </div>
         <p className="sqtFine">{demo ? tx('Yalnız Demo hesaba gider · gerçek para yok.', 'Goes to the Demo account only · no real money.') : tx('Gerçek para kullanılır.', 'Real money is used.')} {tx('Analiz kazanç garantisi değildir.', 'The analysis is not a guarantee of profit.')}</p>
@@ -345,15 +494,43 @@ function Ladder({side, entry, levels}: {side: Side; entry: number; levels: Level
   </div>
 }
 
-function PositionCard({position, price, pnl, rights, demo, busy, action, actionError, onCollapse, onAsk, onCancelAsk, onRun, onTray}: {
+type Manage = {mark: number | null; ask: {stop: number; label: string} | null; error: string; onAsk: (stop: number, label: string) => void; onCancel: () => void; onApply: (stop: number) => void}
+
+/** Stop yönetimi: başa baş, fiyatı izleyerek sıkılaştırma (tek seferlik), elle stop. Riski büyütecek hareket kabul edilmez. */
+function StopManager({position, manage, sending, busy}: {position: StudioPosition; manage: Manage; sending: boolean; busy: string | null}) {
+  const side = sideOf(position)
+  const [text, setText] = useState('')
+  const stop = positive(position.stop_loss), entry = positive(position.entry_price)
+  const be = breakEvenStop(side, entry, manage.mark)
+  const tight = [.5, 1].map(pct => ({pct, value: tightenStop(side, manage.mark, stop, pct)}))
+  const typed = Number(text.replace(',', '.'))
+  const typedProblem = text.trim() ? stopIssue(side, manage.mark, stop, typed) : null
+  return <div className="sqtManage" role="group" aria-label={tx('Stop yönetimi', 'Stop management')}>
+    <small>{tx('Stop yönetimi', 'Stop management')}</small>
+    <div className="sqtManageRow">
+      <button type="button" className="sqtBtn" disabled={!be || sending} title={be ? analysisPrice(be) : tx('Fiyat henüz başa baş seviyesini geçmedi', 'Price has not passed break-even yet')} onClick={() => be && manage.onAsk(be, tx('Başa baş', 'Break-even'))}>{tx('Başa baş', 'Break-even')}</button>
+      {tight.map(({pct, value}) => <button key={pct} type="button" className="sqtBtn" disabled={!value || sending} title={value ? analysisPrice(value) : tx('Şu an stopu bu kadar yaklaştıramaz', 'Cannot tighten the stop this much right now')} onClick={() => value && manage.onAsk(value, tx(`Fiyatın %${String(pct).replace('.', ',')} gerisi`, `${pct}% behind price`))}>{tx('Sıkılaştır', 'Tighten')} %{String(pct).replace('.', ',')}</button>)}
+    </div>
+    <div className="sqtManageRow">
+      <input id="sqt-stop-new" inputMode="decimal" autoComplete="off" spellCheck={false} aria-label={tx('Yeni stop fiyatı', 'New stop price')} placeholder={stop ? analysisPrice(stop) : tx('Yeni stop', 'New stop')} value={text} disabled={sending} onChange={event => setText(event.target.value)}/>
+      <button type="button" className="sqtBtn" disabled={sending || !text.trim() || Boolean(typedProblem)} onClick={() => manage.onAsk(typed, tx('Elle stop', 'Manual stop'))}>{tx('Uygula', 'Apply')}</button>
+    </div>
+    {typedProblem && <p className="sqtNoteSmall" data-tone="warn">{typedProblem}</p>}
+    {manage.ask && <div className="sqtAsk" role="alertdialog" aria-label={tx('Stop güncelleme onayı', 'Stop update confirmation')}><span>{tx(`Stop ${analysisPrice(manage.ask.stop)} olarak güncellensin mi? (${manage.ask.label})`, `Update the stop to ${analysisPrice(manage.ask.stop)}? (${manage.ask.label})`)}</span>
+      <div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => manage.onApply(manage.ask!.stop)}>{sending ? busy : tx('Evet, güncelle', 'Yes, update')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={manage.onCancel}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
+    {manage.error && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{manage.error}</p>}
+  </div>
+}
+
+function PositionCard({position, price, pnl, rights, demo, busy, action, actionError, onCollapse, onAsk, onCancelAsk, onRun, onTray, manage, demoManageNote}: {
   position: StudioPosition; price: number | null; pnl: {pnl: number | null; pct: number | null}
   rights: {id: string; close: boolean; reduce: boolean}; demo: boolean; busy: string | null; action: 'half' | 'close' | null; actionError: string
-  onCollapse: () => void; onAsk: (kind: 'half' | 'close') => void; onCancelAsk: () => void; onRun: (kind: 'half' | 'close') => void; onTray?: () => void
+  onCollapse: () => void; onAsk: (kind: 'half' | 'close') => void; onCancelAsk: () => void; onRun: (kind: 'half' | 'close') => void; onTray?: () => void; manage?: Manage; demoManageNote?: boolean
 }) {
   const side = sideOf(position)
   const entry = positive(position.entry_price), stop = positive(position.stop_loss), tp1 = positive(position.tp1)
   const sending = busy !== null
-  return <div className="sqtCard" aria-label={tx(`${position.symbol} açık pozisyon`, `${position.symbol} open position`)}>
+  return <div className="sqtCard" data-demo={demo || undefined} aria-label={tx(`${position.symbol} açık pozisyon`, `${position.symbol} open position`)}>
     <div className="sqtCardTop"><i aria-hidden="true"/><b>{position.symbol}</b><span data-side={side}>{side}{positive(position.leverage ?? undefined) ? ` ${position.leverage}x` : ''}</span>
       {onTray && <button type="button" className="sqtLink" onClick={onTray}>{tx('Tümü', 'All')}</button>}
       <button type="button" className="sqtRound" aria-label={tx('Küçült', 'Collapse')} onClick={onCollapse}><ChevronDown/></button></div>
@@ -364,6 +541,8 @@ function PositionCard({position, price, pnl, rights, demo, busy, action, actionE
       {rights.close && <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone="danger" disabled={sending} label={tx('Kapat · basılı tut', 'Close · hold')} onDone={() => onRun('close')} hint={tx(`${position.symbol} pozisyonunu kapatmak için basılı tut`, `Press and hold to close the ${position.symbol} position`)}/>}
       {!rights.close && <p className="sqtNoteSmall">{tx('Bu pozisyon bot ya da dış kaynaklı; kapatma Pozisyonlar sekmesinden.', 'This position is bot-managed or external; close it from the Positions tab.')}</p>}
     </div>}
+    {action === null && manage && <StopManager position={position} manage={manage} sending={sending} busy={busy}/>}
+    {action === null && demoManageNote && <p className="sqtNoteSmall">{tx('Stop taşıma (başa baş, sıkılaştırma) şimdilik yalnız canlı manuel işlemlerde.', 'Stop management (break-even, tightening) is live manual trades only for now.')}</p>}
     {action === 'half' && <div className="sqtAsk" role="alertdialog" aria-label={tx('Yarısını kapat onayı', 'Close half confirmation')}><span>{tx('Pozisyonun yarısı piyasa fiyatından kapatılsın mı?', 'Close half of the position at market price?')}</span><div><button type="button" className="sqtBtn" data-tone="primary" disabled={sending} onClick={() => onRun('half')}>{sending ? busy : tx('Evet, kapat', 'Yes, close')}</button><button type="button" className="sqtBtn" disabled={sending} onClick={onCancelAsk}>{tx('Vazgeç', 'Cancel')}</button></div></div>}
     {actionError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{actionError}</p>}
     {sending && action === null && <p className="sqtNoteSmall" role="status">{busy}</p>}

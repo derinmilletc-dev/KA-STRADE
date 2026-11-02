@@ -285,3 +285,25 @@
 .v26App .masterReferenceAnalysis .sqtHold:not([data-tone="sell"]):not([data-tone="danger"]) .sqtHoldFill { background-image: linear-gradient(90deg, #139a68, #22c88a) !important; }
 .v26App .masterReferenceAnalysis .sqtHold[data-tone="sell"] .sqtHoldFill { background-image: linear-gradient(90deg, #c13c4e, #e5586a) !important; }
 .v26App .masterReferenceAnalysis .sqtCloseBtn .sqtHoldFill { background-image: none !important; }
+
+/* ---------- Emir tipi, limit fiyat, riske göre büyüklük ---------- */
+.masterReferenceAnalysis .sqtLimit { display: grid; gap: 6px; }
+.masterReferenceAnalysis .sqtField { display: grid; gap: 3px; min-width: 0; }
+.masterReferenceAnalysis .sqtField > small { font-size: 10px; letter-spacing: .04em; color: #7f94a0; }
+.masterReferenceAnalysis .sqtField input, .masterReferenceAnalysis .sqtManage input { width: 100%; box-sizing: border-box; min-width: 0; height: 32px; padding: 0 9px; border-radius: 9px; background: #111d28; border: 1px solid #1d2c39; color: #e7eef5; font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.masterReferenceAnalysis .sqtField input:focus-visible, .masterReferenceAnalysis .sqtManage input:focus-visible { outline: 2px solid #a9d4ff; outline-offset: 1px; }
+.masterReferenceAnalysis .sqtPresets { display: flex; flex-wrap: wrap; gap: 5px; }
+.masterReferenceAnalysis .sqtPresets button { flex: 1 1 0; min-width: 44px; min-height: 28px; padding: 0 3px; white-space: nowrap; font-variant-numeric: tabular-nums; border-radius: 8px; background: #111d28; border: 1px solid #1d2c39; color: #b7c6cf; font-size: 11px; cursor: pointer; }
+.masterReferenceAnalysis .sqtPresets button[data-on="true"] { background: #10392b; border-color: #1f8f61; color: #3ee0a0; }
+.masterReferenceAnalysis .sqtSized { margin: 4px 0 0; font-size: 10.5px; line-height: 1.35; color: #9fb0ba; }
+
+/* ---------- Açık pozisyonda stop yönetimi ---------- */
+.masterReferenceAnalysis .sqtManage { display: grid; gap: 6px; padding-top: 6px; border-top: 1px solid #1d2c39; }
+.masterReferenceAnalysis .sqtManage > small { font-size: 10px; letter-spacing: .06em; color: #7f94a0; text-transform: uppercase; }
+.masterReferenceAnalysis .sqtManageRow { display: flex; gap: 6px; }
+.masterReferenceAnalysis .sqtManageRow > .sqtBtn { flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 0 8px; }
+.masterReferenceAnalysis .sqtManageRow > input { flex: 2 1 0; }
+.masterReferenceAnalysis .sqtManage [data-tone="warn"] { color: #f0c36a; }
+
+/* Emri gönderen alan: kart uzun olsa da (limit + risk %) basılı tut düğmesi hep görünür kalır. */
+.masterReferenceAnalysis .sqtActions { position: sticky; bottom: -8px; display: grid; gap: 6px; padding: 6px 0 8px; margin-bottom: -8px; background: #0e1822; z-index: 1; }

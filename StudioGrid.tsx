@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode} from 'react'
 import {Check, Grid3X3, Info, Minus, ShieldAlert, Sparkles, TriangleAlert, X} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
@@ -174,10 +174,10 @@ export type GridProps = {
   symbol: string; price: number | null; demo: boolean; premium: boolean; onUpgrade: () => void; analysis: AnalysisLevels; decision: string
   liveBlocker: string; policy: Record<string, unknown>; dataReady: boolean; hasPosition: boolean; hidden: boolean
   onSelect: (symbol: string) => void; onToast: (toast: GridToast) => void; onOpenChange?: (open: boolean) => void
-  candles?: readonly Candle[]; onLines?: (lines: GridChartLine[]) => void
+  candles?: readonly Candle[]; onLines?: (lines: GridChartLine[]) => void; extra?: ReactNode
 }
 
-export default function StudioGrid({symbol, price, demo, premium, onUpgrade, analysis, decision, liveBlocker, policy, dataReady, hasPosition, hidden, onSelect, onToast, onOpenChange, candles = [], onLines}: GridProps) {
+export default function StudioGrid({symbol, price, demo, premium, onUpgrade, analysis, decision, liveBlocker, policy, dataReady, hasPosition, hidden, onSelect, onToast, onOpenChange, candles = [], onLines, extra}: GridProps) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'new' | 'running' | 'history'>('new')
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
@@ -351,10 +351,10 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
 
   if (hidden) return null
   return <>
-    {!open && <button type="button" className="sqgChip" data-live={running.length > 0 || undefined} data-warn={hasBlocking || undefined} aria-label={tx('Grid paneli', 'Grid panel')} aria-haspopup="dialog" onClick={() => { setTab(running.length && !here ? 'running' : 'new'); setOpen(true) }}>
+    {!open && <div className="sqgChipRow"><button type="button" className="sqgChip" data-live={running.length > 0 || undefined} data-warn={hasBlocking || undefined} aria-label={tx('Grid paneli', 'Grid panel')} aria-haspopup="dialog" onClick={() => { setTab(running.length && !here ? 'running' : 'new'); setOpen(true) }}>
       <Grid3X3 aria-hidden="true"/><b>GRID</b>
       {running.length > 0 && <><span className="sqgDot" aria-hidden="true"/><span>{running.length}</span><strong data-tone={totalNow >= 0 ? 'up' : 'down'}>{signed(totalNow)}</strong></>}
-    </button>}
+    </button>{extra}</div>}
 
     {open && <aside className="sqgPanel" role="dialog" aria-label={tx('Grid paneli', 'Grid panel')} data-demo={demo || undefined}>
       <header className="sqgHead">
