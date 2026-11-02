@@ -279,3 +279,40 @@
 .masterReferenceAnalysis .sqgParams .sqtParam > .sqgLevScroll { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
 .masterReferenceAnalysis .sqgParams .sqtParam > .sqgLevScroll::-webkit-scrollbar { display: none; }
 .masterReferenceAnalysis .sqgParams .sqtParam > .sqgLevScroll button { flex: 0 0 auto; min-width: 44px; scroll-snap-align: start; }
+
+/* Bugünün özeti + günlük limit çubuğu */
+.masterReferenceAnalysis .sqgDay { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid rgba(148, 163, 184, .16); border-radius: 18px; background-color: #0f1720; }
+.masterReferenceAnalysis .sqgDay > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.masterReferenceAnalysis .sqgDay h4 { margin: 0; font-size: 13px; letter-spacing: -.01em; }
+.masterReferenceAnalysis .sqgDay > header span { color: #7f94a0; font-size: 10px; }
+.masterReferenceAnalysis .sqgDayNet { display: flex; align-items: baseline; gap: 6px; }
+.masterReferenceAnalysis .sqgDayNet b { font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.masterReferenceAnalysis .sqgDayNet b[data-tone="up"] { color: #3ee0a0; }
+.masterReferenceAnalysis .sqgDayNet b[data-tone="down"] { color: #ff8d9a; }
+.masterReferenceAnalysis .sqgDayNet u { text-decoration: none; color: #7f94a0; font-size: 11px; }
+.masterReferenceAnalysis .sqgDayNet small { margin-left: auto; color: #7f94a0; font-size: 10px; }
+.masterReferenceAnalysis .sqgDayMeta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.masterReferenceAnalysis .sqgDayMeta > div { padding: 6px 8px; border-radius: 12px; background-color: #0a1118; }
+.masterReferenceAnalysis .sqgDayMeta dt { color: #7f94a0; font-size: 9.5px; }
+.masterReferenceAnalysis .sqgDayMeta dd { margin: 1px 0 0; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.masterReferenceAnalysis .sqgDayMeta dd[data-tone="up"] { color: #3ee0a0; }
+.masterReferenceAnalysis .sqgDayMeta dd[data-tone="down"] { color: #ff8d9a; }
+.masterReferenceAnalysis .sqgDayLimit { display: grid; gap: 4px; }
+.masterReferenceAnalysis .sqgDayLimit p { margin: 0; font-size: 10.5px; color: #9fb1c1; }
+.masterReferenceAnalysis .sqgDayLimit[data-tone="bad"] p { color: #ff8d9a; }
+.masterReferenceAnalysis .sqgDayBar { height: 6px; overflow: hidden; border-radius: 999px; background-color: #1a2531; }
+.masterReferenceAnalysis .sqgDayBar i { display: block; height: 100%; border-radius: 999px; background-color: #3ee0a0; }
+.masterReferenceAnalysis .sqgDayLimit[data-tone="warn"] .sqgDayBar i { background-color: #f2c46d; }
+.masterReferenceAnalysis .sqgDayLimit[data-tone="bad"] .sqgDayBar i { background-color: #ff6b7d; }
+
+/* 20x üstü ek onay */
+.masterReferenceAnalysis .sqgAck { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid #6a5420; border-radius: 14px; background-color: #201a0d; cursor: pointer; }
+.masterReferenceAnalysis .sqgAck input { position: absolute; opacity: 0; pointer-events: none; }
+.masterReferenceAnalysis .sqgAck > span { display: grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid #8a7030; border-radius: 7px; background-color: #14100a; color: #14100a; }
+.masterReferenceAnalysis .sqgAck[data-on] { border-color: rgba(62, 224, 160, .5); background-color: #0f2a20; }
+.masterReferenceAnalysis .sqgAck[data-on] > span { border-color: #3ee0a0; background-color: #3ee0a0; }
+.masterReferenceAnalysis .sqgAck input:focus-visible + span { outline: 2px solid #f2c46d; outline-offset: 2px; }
+.masterReferenceAnalysis .sqgAck > span svg { width: 14px; height: 14px; }
+.masterReferenceAnalysis .sqgAck b { display: block; font-size: 12px; color: #f2c46d; }
+.masterReferenceAnalysis .sqgAck[data-on] b { color: #7eecb2; }
+.masterReferenceAnalysis .sqgAck small { display: block; margin-top: 2px; color: #aebdca; font-size: 11px; line-height: 1.4; }

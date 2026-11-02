@@ -1,0 +1,160 @@
+{
+  "version": "25.0.0",
+  "policy": {
+    "allowed_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT"
+    ],
+    "interval": "15m",
+    "allow_long": true,
+    "allow_short": true,
+    "max_margin_per_trade": 25.0,
+    "max_loss_per_trade": 3.0,
+    "max_leverage": 30,
+    "max_positions": 5,
+    "max_same_direction_positions": 2,
+    "max_direction_exposure_usdt": null,
+    "max_total_exposure_usdt": 350.0,
+    "daily_loss_limit": 10.0,
+    "daily_trade_limit": 3,
+    "consecutive_loss_limit": 3,
+    "min_confidence": 80,
+    "mtf_allow_either_timeframe": false,
+    "max_trap_score": 35,
+    "max_spread_bps": 8.0,
+    "max_stop_distance_pct": 5,
+    "atr_stop_multiplier": 1.5,
+    "liquidation_buffer_pct": 0.5,
+    "fee_bps_per_side": 5.0,
+    "slippage_bps_per_side": 3.0,
+    "minimum_net_reward_usdt": 0.25,
+    "scan_seconds": 120,
+    "require_one_way": true,
+    "require_isolated": true,
+    "stop_required": true
+  },
+  "policy_ack_digest": null,
+  "connected": false,
+  "connection": {
+    "last_checked": null,
+    "last_error": null,
+    "clock_offset_ms": null
+  },
+  "heartbeat": {
+    "last_heartbeat": null,
+    "last_heartbeat_epoch": 0.0,
+    "last_successful_cycle": null,
+    "last_successful_cycle_epoch": 0.0,
+    "last_successful_order": null,
+    "open_orders": 0,
+    "open_positions": 0
+  },
+  "stream": {
+    "status": "ANAHTAR BEKLİYOR",
+    "transport": "REST UZLAŞTIRMA",
+    "last_event": null,
+    "last_error": null,
+    "event_count": 0,
+    "reconnect_count": 0
+  },
+  "snapshot": null,
+  "snapshot_session_id": null,
+  "live_session_authorization": {
+    "session_id": "",
+    "user_id": "",
+    "fingerprint": "",
+    "trading_account_id": "",
+    "policy_digest": "",
+    "auth_version": null,
+    "auth_expires_at_epoch": null
+  },
+  "events": [
+    {
+      "id": "7f493c0b565c4e15b1ce8fcc434b3ea2",
+      "kind": "LIVE_EMERGENCY_AUTO_CLEARED",
+      "message": "Geçici kilit nedeni düzeldi ve Binance hesabı yeniden doğrulandı; acil durdurma kalktı. Canlı işlem için ARM yeniden onaylanmalı.",
+      "created_at": "2026-11-02T17:21:37.314394+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED"
+    },
+    {
+      "id": "730b060cfb92490a905dd5fbbdfbca77",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_RECOVERED",
+      "message": "Binance hesap bilgileri yeniden doğrulandı; önceki ARM süresi uzatılmadı.",
+      "created_at": "2026-11-02T17:21:37.314366+00:00"
+    },
+    {
+      "id": "496281e1413645169b8095cfd2328969",
+      "kind": "LIVE_FAIL_CLOSED",
+      "message": "Canlı yürütme güvenlik nedeniyle kilitlendi.",
+      "created_at": "2026-11-02T17:21:37.314337+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED",
+      "execution_state": "LOCKED",
+      "symbol": null,
+      "client_order_id_suffix": null,
+      "reconciliation_required": false,
+      "unknown_execution": false
+    },
+    {
+      "id": "682950ccb8d449dea3dbada785f02bb7",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_WAIT",
+      "message": "Binance hesap sorgusu hız sınırında; ARM süresi korunuyor, yeni girişler hesap yeniden doğrulanana kadar kapalı.",
+      "created_at": "2026-11-02T17:21:37.313746+00:00",
+      "retry_after_seconds": 180
+    }
+  ],
+  "mtf_decision_history": [],
+  "plans": {},
+  "persistence_revision": 1,
+  "intents": {},
+  "armed_until": 0.0,
+  "live_lock_reason": null,
+  "account_rate_limit": null,
+  "auto": {
+    "enabled": false,
+    "busy": false,
+    "cycles": 0,
+    "last_scan": null,
+    "last_scan_stats": null,
+    "confidence_rejection_history": [],
+    "last_skip_reason": null,
+    "last_cycle_stage": "idle",
+    "last_decision": "Güvenli yeniden başlatma: canlı otomasyon yeniden onay bekliyor.",
+    "last_error": null,
+    "session_until": 0.0
+  },
+  "auto_authorization": {
+    "session_id": "",
+    "user_id": "",
+    "fingerprint": "",
+    "expires_at_epoch": 0.0
+  },
+  "real_trading_locked": true,
+  "live_auto_trade": false,
+  "emergency": {
+    "active": false,
+    "triggered_at": "2026-11-02T17:21:37.314316+00:00",
+    "reason": "BINANCE_ACCOUNT_RATE_LIMITED_RECOVERED"
+  },
+  "web_consent": {
+    "accepted_at": null,
+    "expires_at_epoch": 0.0,
+    "key_fingerprint": null,
+    "user_id": "",
+    "trading_account_id": "",
+    "policy_digest": ""
+  },
+  "duplicate_blocks": 0,
+  "protection_repairs": 0,
+  "recovery_ready": false,
+  "recovery_loaded": true,
+  "recovery_error": null,
+  "execution_state": "LOCKED",
+  "reconciliation_required": false,
+  "transient_reconciliation": null,
+  "transient_market_data": null,
+  "last_order_error": null,
+  "monitoring_credentials_stale_since": null,
+  "trade_review": null
+}

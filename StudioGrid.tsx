@@ -8,8 +8,8 @@ import {ConsentRenew} from './StudioConsent'
 import {tx, type AnalysisLevels} from './studio-quick-trade'
 import {
   GRID_MAX_COUNT, GRID_MIN_COUNT, atrPct, backtestGrid, barSeconds, chartLinesFor, chartLinesForRows, gridActive, gridPnl, gridRangeStatus, gridStatusText, gridSummary, previewGrid, priceText, requestGrid,
-  previewBody, setGridLanguageReader, snapTo, startBody, suggestGrid,
-  type Candle, type GridChartLine, type GridFilters, type GridMode, type GridParams, type GridPreset, type GridRow, type GridStatus,
+  HIGH_LEVERAGE_ABOVE, previewBody, setGridLanguageReader, snapTo, startBody, suggestGrid,
+  type Candle, type GridChartLine, type GridFilters, type GridMode, type GridParams, type GridPreset, type GridDay, type GridRow, type GridStatus,
 } from './studio-grid'
 import './studio-grid.css'
 
@@ -270,13 +270,18 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   const pickMode = (mode: GridMode) => { updatePrefs({mode}); suggest(mode, preset === 'custom' ? prefs.preset : preset); if (preset === 'custom') setPreset(prefs.preset); setError('') }
   const pickPreset = (which: Exclude<GridPreset, 'custom'>) => { updatePrefs({preset: which}); setPreset(which); if (params) suggest(params.mode, which); setError('') }
 
+  const [levAck, setLevAck] = useState(false)
+  const needAck = !demo && !!params && params.leverage > HIGH_LEVERAGE_ABOVE
+  useEffect(() => { setLevAck(false) }, [params?.leverage, symbol])
+  const dayLimitHit = !demo && status?.day?.reached === true
   const blockReason = !dataReady || !finite(price) ? tx('Fiyat verisi hazır değil.', 'Price data is not ready.')
     : !demo && !premium ? ''
     : hasPosition ? tx(`${short(symbol)} üzerinde açık pozisyon var; aynı coinde grid açılmaz.`, `There is an open ${short(symbol)} position; a grid cannot start on the same coin.`)
     : here ? tx(`${short(symbol)} için zaten çalışan bir grid var.`, `A grid is already running on ${short(symbol)}.`)
+    : dayLimitHit ? tx(`Günlük zarar limitine ulaşıldı (−${fmt(status?.day?.limit_usdt ?? 0, 2)} USDT). Yeni grid yarın (UTC) açılır.`, `Daily loss limit reached (−${fmt(status?.day?.limit_usdt ?? 0, 2)} USDT). New grids unlock tomorrow (UTC).`)
     : !demo && liveBlocker ? liveBlocker
     : disabledReason || (filtersState === 'error' ? tx('Borsa kuralları okunamadı; güvenli tarafta kalmak için başlatılmaz.', 'Exchange rules could not be read; for safety the grid will not start.') : '')
-  const canStart = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && !busy && running.length < 5 && server.state !== 'rejected'
+  const canStart = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && !busy && running.length < 5 && server.state !== 'rejected' && (!needAck || levAck)
 
   // Sunucuya plan sorusu (emir yok): sunucunun kuralları son sözü söyler; kesin ret varsa başlatma kapanır, ulaşılamazsa yerel kontrol geçerli kalır.
   const serverKey = params ? JSON.stringify(startBody(symbol, params, demo)) : ''
@@ -449,12 +454,18 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
               : <li data-ok="true"><Check aria-hidden="true"/>{server.state === 'checking' ? tx('Kademeler borsa kurallarına uyuyor · sunucu doğruluyor…', 'Levels fit the exchange rules · the server is checking…') : tx('Kademeler borsa kurallarına uyuyor; son kontrolü sunucu yapar.', 'Levels fit the exchange rules; the server runs the final check.')}</li>)}
             {filtersState === 'loading' && <li data-ok="warn"><Info aria-hidden="true"/>{tx('Borsa kuralları okunuyor…', 'Reading exchange rules…')}</li>}
           </ul>
+          {needAck && params && <label className="sqgAck" data-on={levAck || undefined}>
+            <input type="checkbox" checked={levAck} onChange={event => setLevAck(event.target.checked)}/>
+            <span aria-hidden="true"><Check/></span>
+            <div><b>{tx(`${params.leverage}x yüksek kaldıraç`, `${params.leverage}x high leverage`)}</b><small>{tx(`Fiyat girişe göre yaklaşık %${fmt(100 / params.leverage, 1)} ters giderse pozisyon likide olabilir. Stop mesafesi bunun içinde kalmalı. Riski anlıyorum.`, `If price moves about ${fmt(100 / params.leverage, 1)}% against the entry the position can be liquidated. Keep your stop inside that distance. I understand the risk.`)}</small></div>
+          </label>}
           {error && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
           </div>
         </div>}
 
         {tab === 'running' && <>
           {statusError && !status && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{statusError}</p>}
+          {status?.day && <DayCard day={status.day} demo={demo}/>}
           {!running.length && <p className="sqgEmpty">{tx('Çalışan grid yok. “Yeni” sekmesinden başlat.', 'No running grids. Start one from the “New” tab.')}</p>}
           {running.map(row => <GridCard key={row.grid_id} row={row} price={row.symbol === symbol ? price : null} demo={demo} busy={!!busy} ask={ask} setAsk={setAsk} holdMs={holdMs} onAct={act} onSelect={onSelect} onRecenter={recenter}/>)}
           {error && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
@@ -479,6 +490,28 @@ const trim = (value: number, digits: number) => value.toLocaleString(locale(), {
 const duration = (hours: number | null) => hours === null ? '—' : hours < 1 ? tx(`${Math.max(1, Math.round(hours * 60))} dk`, `${Math.max(1, Math.round(hours * 60))} min`) : hours < 48 ? tx(`${trim(hours, hours < 10 ? 1 : 0)} saat`, `${trim(hours, hours < 10 ? 1 : 0)} h`) : tx(`${trim(hours / 24, 1)} gün`, `${trim(hours / 24, 1)} d`)
 
 /** Biten gridlerin kısa raporu: süre, tur, ücret ve net sonuç; üstte toplam. */
+function DayCard({day, demo}: {day: GridDay; demo: boolean}) {
+  const net = day.realized_usdt
+  const limit = !demo && day.limit_usdt ? day.limit_usdt : 0
+  const ratio = limit > 0 ? Math.min(1, day.used_usdt / limit) : 0
+  const tone = day.reached ? 'bad' : ratio >= 0.6 ? 'warn' : 'ok'
+  return <section className="sqgDay" data-tone={net >= 0 ? 'gain' : 'loss'} aria-label={tx('Bugünün özeti', "Today's summary")}>
+    <header><h4>{tx('Bugün', 'Today')}</h4><span>{tx('UTC gün başından beri', 'Since UTC midnight')}</span></header>
+    <div className="sqgDayNet"><b data-tone={net >= 0 ? 'up' : 'down'}>{signed(net, 2)}</b><u>USDT</u><small>{tx('gerçekleşen net', 'realized net')}</small></div>
+    <dl className="sqgDayMeta">
+      <div><dt>{tx('Grid', 'Grids')}</dt><dd>{day.grids}</dd></div>
+      <div><dt>{tx('Tur', 'Cycles')}</dt><dd>{day.cycles}</dd></div>
+      <div><dt>{tx('Ücret', 'Fees')}</dt><dd>{fmt(day.fees_usdt, 2)}</dd></div>
+      {day.best_usdt !== null && <div><dt>{tx('En iyi', 'Best')}</dt><dd data-tone={day.best_usdt >= 0 ? 'up' : 'down'}>{signed(day.best_usdt, 2)}</dd></div>}
+    </dl>
+    {limit > 0 && <div className="sqgDayLimit" data-tone={tone}>
+      <div className="sqgDayBar" role="progressbar" aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.min(limit, day.used_usdt)} aria-label={tx('Günlük zarar limiti', 'Daily loss limit')}><i style={{width: `${Math.round(ratio * 100)}%`}}/></div>
+      <p>{day.reached ? tx(`Limit doldu · yeni grid açılmaz, açık gridlerde yeni giriş durur`, 'Limit reached · no new grids, open grids stop new entries')
+        : tx(`Günlük zarar limiti: ${fmt(day.used_usdt, 2)} / ${fmt(limit, 2)} USDT · ${fmt(day.left_usdt ?? 0, 2)} hakkın var`, `Daily loss limit: ${fmt(day.used_usdt, 2)} / ${fmt(limit, 2)} USDT · ${fmt(day.left_usdt ?? 0, 2)} left`)}</p>
+    </div>}
+  </section>
+}
+
 function History({rows}: {rows: GridRow[]}) {
   const items = rows.map(row => ({row, ...gridSummary(row)}))
   const net = items.reduce((s, i) => s + i.net, 0), cycles = items.reduce((s, i) => s + i.cycles, 0), fees = items.reduce((s, i) => s + i.fees, 0)

@@ -4829,7 +4829,8 @@ async def demo_grid_status(request: Request, history: int = Query(default=6, ge=
     from . import grid_live
     user_id, owner = _grid_actor(request)
     payload = grid_live.demo_runner_for(request.app).status_payload(user_id, owner=owner, history=history)
-    return {"ok": True, **payload, "enabled": grid_live.demo_enabled(), "account": "DEMO"}
+    runner = grid_live.demo_runner_for(request.app)
+    return {"ok": True, **payload, "day": runner.day_summary(user_id, owner=owner), "enabled": grid_live.demo_enabled(), "account": "DEMO"}
 
 
 @router.get("/grid/filters")

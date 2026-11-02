@@ -3283,5 +3283,46 @@ class V25MarginModeCompatibilityTests(unittest.TestCase):
             asyncio.run(v25_execution.set_live_isolated_margin(client, "BTCUSDT"))
 
 
+class ConsentExpiryWarningTests(unittest.TestCase):
+    """İzin bitmeden 30 ve 5 dakika kala tek seferlik uyarı; izin yenilenince yeniden kurulur."""
+
+    def _state(self, left_seconds):
+        return {"web_consent": {"expires_at_epoch": time.time() + left_seconds, "user_id": "u1"}, "events": []}
+
+    def _run(self, state, *, times=1):
+        import app.v25_execution as live
+        sent = []
+        with patch.object(live, "add_event", side_effect=lambda st, kind, message, **extra: sent.append((kind, message, extra))), \
+                patch.object(live, "persist_state"):
+            for _ in range(times):
+                live.check_consent_expiry(state)
+        return sent
+
+    def test_far_from_expiry_stays_silent(self):
+        self.assertEqual(self._run(self._state(3 * 3600), times=3), [])
+
+    def test_thirty_minute_warning_is_sent_once_then_five_minute_warning(self):
+        state = self._state(25 * 60)
+        first = self._run(state, times=3)
+        self.assertEqual([item[0] for item in first], ["LIVE_CONSENT_EXPIRING"])
+        self.assertIn("30 dakika", first[0][1])
+        self.assertEqual(first[0][2]["actor"], "u1")
+        state["web_consent"]["expires_at_epoch"] = time.time() + 120
+        second = self._run(state, times=3)
+        self.assertEqual(len(second), 1)       # süre ilerleyince 5 dakika aşaması ayrıca ve yalnız bir kez bildirilir
+        self.assertIn("5 dakika", second[0][1])
+
+    def test_renewing_consent_resets_the_counter(self):
+        state = self._state(4 * 60)
+        self.assertEqual(len(self._run(state)), 1)
+        self.assertEqual(self._run(state, times=2), [])
+        state["web_consent"]["expires_at_epoch"] = time.time() + 20 * 60      # yenilenmiş, yeni süre
+        again = self._run(state)
+        self.assertEqual(len(again), 1)
+
+    def test_expired_consent_is_not_warned_about(self):
+        self.assertEqual(self._run(self._state(-10)), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

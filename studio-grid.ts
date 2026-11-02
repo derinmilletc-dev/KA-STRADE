@@ -240,7 +240,9 @@ export type GridRow = {
     meta?: {take_profit_usdt?: number; loss_limit_usdt?: number; profit_lock_usdt?: number; lock_keep_pct?: number; close_on_target?: boolean}}
   liq?: {distance_pct: number | null; level: string; liq_price: number; mark: number} | null; peak_pnl?: number
 }
-export type GridStatus = {enabled?: boolean; max_levels?: number; max_margin_usdt?: number; max_leverage?: number; active_count?: number; grids?: GridRow[]; grid?: GridRow | null}
+export type GridDay = {grids: number; cycles: number; realized_usdt: number; fees_usdt: number; best_usdt: number | null; worst_usdt: number | null; limit_usdt: number | null; used_usdt: number; left_usdt: number | null; reached: boolean}
+export const HIGH_LEVERAGE_ABOVE = 20   // bu kaldıracın üstünde canlı başlatma ek onay ister
+export type GridStatus = {enabled?: boolean; day?: GridDay | null; max_levels?: number; max_margin_usdt?: number; max_leverage?: number; active_count?: number; grids?: GridRow[]; grid?: GridRow | null}
 export const GRID_FINAL = ['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED']
 export const gridActive = (row: GridRow) => !GRID_FINAL.includes(row.status)
 
@@ -279,7 +281,7 @@ export function startBody(symbol: string, p: GridParams, demo: boolean) {
   const base = {symbol, direction: p.mode, lower: p.lower, upper: p.upper, count: p.count, margin_usdt: p.margin, leverage: p.leverage, stop: p.stop, recycle: p.mode === 'NEUTRAL' ? true : p.recycle,
     confirmation: demo ? GRID_DEMO_PHRASE : GRID_LIVE_PHRASE}
   const withStop = p.mode === 'NEUTRAL' ? {...base, stop_upper: p.stopUpper} : base
-  return {...withStop, ...(p.profitLock && p.profitLock > 0 ? {profit_lock_usdt: p.profitLock} : {}), ...(p.closeOnTarget && p.takeProfit && p.takeProfit > 0 ? {close_on_target: true} : {}), ...(p.takeProfit && p.takeProfit > 0 ? {take_profit_usdt: p.takeProfit} : {}), ...(p.lossLimit && p.lossLimit > 0 ? {loss_limit_usdt: p.lossLimit} : {})}
+  return {...withStop, ...(!demo && p.leverage > HIGH_LEVERAGE_ABOVE ? {high_leverage_ack: true} : {}), ...(p.profitLock && p.profitLock > 0 ? {profit_lock_usdt: p.profitLock} : {}), ...(p.closeOnTarget && p.takeProfit && p.takeProfit > 0 ? {close_on_target: true} : {}), ...(p.takeProfit && p.takeProfit > 0 ? {take_profit_usdt: p.takeProfit} : {}), ...(p.lossLimit && p.lossLimit > 0 ? {loss_limit_usdt: p.lossLimit} : {})}
 }
 
 /** Sunucuda yalnız plan hesaplatır (emir yok): panelde "sunucu onayladı" göstermek için. */
