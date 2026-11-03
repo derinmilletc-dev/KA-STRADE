@@ -214,7 +214,7 @@ def test_payment_approval_and_2fa_hooks_are_wired():
 def test_registration_paths_check_invites():
     import inspect
     from app import google_oauth, v22_commercial
-    assert "require_registration_open(request, normalize_email(payload.email), payload.invite_token)" in inspect.getsource(v22_commercial.register_password_user)
+    assert "require_registration_open(request, normalize_email(payload.email), getattr(payload, \"invite_token\", None))" in inspect.getsource(v22_commercial.register_password_user)
     assert "consume_invite" in inspect.getsource(v22_commercial.register_password_user)
     src = inspect.getsource(google_oauth.complete)
     assert 'registration_allowed(request, attempt["identity"]["email"])' in src and "consume_invite" in src
