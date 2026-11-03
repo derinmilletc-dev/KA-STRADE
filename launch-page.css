@@ -625,3 +625,10 @@ main { display: block; padding: 0 16px 24px; }
   .fdEyeStage { top: -82px; }
   .fdSteps p { display: none; }
 }
+/* Göz katmanı alttaki içeriğin üstüne taşmasın (avantaj şeridi bulanık/koyu görünüyordu) */
+.fdEyeStage::before { content: none; display: none; }
+.fdHeroCopy, .fdStrip, .fdLayout, .fdFaqRow { position: relative; z-index: 2; }
+@media (max-width: 700px) {
+  .fdHero { z-index: 1; }
+  .fdEyeStage { -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); mask-image: linear-gradient(to bottom, #000 70%, transparent 100%); }
+}
