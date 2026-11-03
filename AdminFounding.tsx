@@ -3,11 +3,13 @@ import {API_BASE} from './api'
 import './admin-founding.css'
 
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
-type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: boolean | null; trading_experience: boolean | null; reason: string; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
+type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
 type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string}
 type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings}
 
 const LABEL: Record<Status, string> = {pending_email: 'E-posta bekliyor', new: 'Yeni', approved: 'Onaylı', waitlist: 'Bekleme listesi', rejected: 'Reddedildi'}
+const FUTURES: Record<string, string> = {active: 'Aktif kullanıyor', past: 'Daha önce kullandı', never: 'Henüz kullanmadı'}
+const TRADING: Record<string, string> = {new: 'Yeni başlıyor', lt6m: '6 aydan az', '6to12m': '6–12 ay', gt1y: '1 yıldan fazla'}
 const ORDER: Status[] = ['new', 'approved', 'waitlist', 'rejected', 'pending_email']
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -92,7 +94,7 @@ export default function AdminFounding() {
       {data?.items.map(item => <li key={item.id} className={`afRow ${item.status}`}>
         <div className="afWho"><b>{item.name}</b> <span className={`afBadge ${item.status}`}>{LABEL[item.status]}{item.approved_seq ? ` #${item.approved_seq}` : ''}</span>
           <small>{item.email} · {item.country} · {item.lang.toUpperCase()} · {new Date(item.created_at).toLocaleString('tr-TR')}</small>
-          {(item.futures_experience !== null || item.trading_experience !== null) && <span className="afTags"><em className={item.futures_experience ? 'yes' : 'no'}>Binance Futures: {item.futures_experience ? 'Evet' : 'Hayır'}</em><em className={item.trading_experience ? 'yes' : 'no'}>Trading: {item.trading_experience ? 'Evet' : 'Hayır'}</em></span>}
+          {(item.futures_experience || item.trading_experience) && <span className="afTags">{item.futures_experience && <em className={item.futures_experience === 'active' ? 'yes' : ''}>Binance Futures: {FUTURES[item.futures_experience] ?? item.futures_experience}</em>}{item.trading_experience && <em className={item.trading_experience === 'gt1y' ? 'yes' : ''}>Trading: {TRADING[item.trading_experience] ?? item.trading_experience}</em>}</span>}
           {item.reason && <q className="afReason">{item.reason}</q>}</div>
         {item.status !== 'pending_email' && <div className="afActs">
           <input aria-label="Not" placeholder="Not (isteğe bağlı)" maxLength={500} value={notes[item.id] ?? item.note} onChange={event => setNotes({...notes, [item.id]: event.target.value})}/>

@@ -47,8 +47,8 @@ SCHEMA = (
         approved_seq INTEGER, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())""",
     """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_email_key ON founding_applications (lower(email))""",
     """CREATE INDEX IF NOT EXISTS founding_applications_status_idx ON founding_applications (status, created_at)""",
-    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS futures_experience BOOLEAN""",
-    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS trading_experience BOOLEAN""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS futures_experience TEXT CHECK (futures_experience IN ('active','past','never'))""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS trading_experience TEXT CHECK (trading_experience IN ('new','lt6m','6to12m','gt1y'))""",
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''""",
 )
 
@@ -86,8 +86,8 @@ class Apply(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     country: str = Field(min_length=2, max_length=80)
     lang: str = Field(default="tr", max_length=8)
-    futures_experience: bool
-    trading_experience: bool
+    futures_experience: Literal["active", "past", "never"]
+    trading_experience: Literal["new", "lt6m", "6to12m", "gt1y"]
     reason: str = Field(min_length=10, max_length=600)
     website: str = Field(default="", max_length=200)  # bal tuzağı: dolu gelirse bot
 

@@ -3,6 +3,7 @@ import {ArrowLeft, ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headp
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import KaisEye from './KaisEye'
+import OptionPicker from './OptionPicker'
 import CountryPicker, {countryName, guessCountry} from './CountryPicker'
 import './launch-page.css'
 
@@ -12,10 +13,11 @@ const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 const SEATS = 30
 const EYE_PHOTO = '/founding-eye.webp'
 
-type YesNo = '' | 'yes' | 'no'
-type Form = {email: string; name: string; country: string; futures: YesNo; trading: YesNo; reason: string; website: string}
+type Form = {email: string; name: string; country: string; futures: string; trading: string; reason: string; website: string}
 const EMPTY: Form = {email: '', name: '', country: '', futures: '', trading: '', reason: '', website: ''}
 const REASON_MIN = 10
+const FUTURES = (): [string, string][] => [['active', t('Aktif kullanıyorum', 'I use it actively')], ['past', t('Daha önce kullandım', 'I have used it before')], ['never', t('Henüz kullanmadım', 'I have not used it yet')]]
+const TRADING = (): [string, string][] => [['new', t('Yeni başlıyorum', 'Just starting')], ['lt6m', t('6 aydan az', 'Less than 6 months')], ['6to12m', t('6–12 ay', '6–12 months')], ['gt1y', t('1 yıldan fazla', 'More than 1 year')]]
 type Phase = 'idle' | 'busy' | 'done' | 'error'
 
 
@@ -66,7 +68,7 @@ export default function LaunchPage() {
     if (!valid || phase === 'busy') return
     setPhase('busy'); setMessage('')
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures === 'yes', trading_experience: form.trading === 'yes', reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures, trading_experience: form.trading, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
       if (response.ok) { setPhase('done'); return }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
@@ -145,10 +147,10 @@ export default function LaunchPage() {
             <label>{t('E-posta adresi', 'Email address')}<input type="email" placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
             <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
             </div> : <div className="fdStepPane" key="s2">
-              <fieldset className="fdQ"><legend>{t('Binance Futures deneyimin var mı?', 'Do you have Binance Futures experience?')}</legend>
-                <div className="fdChoices">{(['yes', 'no'] as const).map(value => <label key={value} className={form.futures === value ? 'on' : ''}><input type="radio" name="futures" value={value} checked={form.futures === value} onChange={() => set('futures', value)}/><i aria-hidden="true"/>{value === 'yes' ? t('Evet', 'Yes') : t('Hayır', 'No')}</label>)}</div></fieldset>
-              <fieldset className="fdQ"><legend>{t('Trading deneyimin var mı?', 'Do you have trading experience?')}</legend>
-                <div className="fdChoices">{(['yes', 'no'] as const).map(value => <label key={value} className={form.trading === value ? 'on' : ''}><input type="radio" name="trading" value={value} checked={form.trading === value} onChange={() => set('trading', value)}/><i aria-hidden="true"/>{value === 'yes' ? t('Evet', 'Yes') : t('Hayır', 'No')}</label>)}</div></fieldset>
+              <fieldset className="fdQ"><legend>{t('Binance Futures deneyimin', 'Binance Futures experience')}</legend>
+                <div className="fdRadios">{FUTURES().map(([value, label]) => <label key={value} className={form.futures === value ? 'on' : ''}><input type="radio" name="futures" value={value} checked={form.futures === value} onChange={() => set('futures', value)}/><i aria-hidden="true"/>{label}</label>)}</div></fieldset>
+              <div className="fdQ"><span className="fdQLabel" id="fd-trading">{t('Trading deneyimin', 'Trading experience')}</span>
+                <OptionPicker value={form.trading} onChange={value => set('trading', value)} mobile={mobile} label={t('Trading deneyimin', 'Trading experience')} placeholder={t('Deneyim süreni seç', 'Select your experience')} options={TRADING().map(([value, label]) => ({value, label}))}/></div>
               <label className="fdReason">{t('Neden KaisTrade kullanmak istiyorsun?', 'Why do you want to use KaisTrade?')}<textarea rows={3} maxLength={600} placeholder={t('Beklentilerini kısaca anlat…', 'Briefly describe what you expect…')} value={form.reason} onChange={event => set('reason', event.target.value)}/>
                 <small>{form.reason.trim().length < REASON_MIN ? t(`En az ${REASON_MIN} karakter`, `At least ${REASON_MIN} characters`) : `${form.reason.length}/600`}</small></label>
             </div>}
