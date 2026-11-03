@@ -1310,6 +1310,9 @@ async def lifespan(app: FastAPI):
     from .erasure_sweeper_worker import erasure_sweeper_loop, sweeper_enabled
     if sweeper_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(erasure_sweeper_loop(app)))
+    from .founding_invites import sweep_enabled as founding_sweep_enabled, sweep_loop as founding_sweep_loop
+    if founding_sweep_enabled():  # havuz yoksa her tur sessizce atlanır
+        app.state.runtime_tasks.append(asyncio.create_task(founding_sweep_loop(app)))
     from .closed_account_retention import closed_account_retention_loop, retention_enabled
     if retention_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))

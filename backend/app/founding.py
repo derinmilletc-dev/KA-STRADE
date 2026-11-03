@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -27,7 +28,15 @@ logger = logging.getLogger(__name__)
 public_router = APIRouter(prefix="/api/v22/founding", tags=["Founding 30"])
 admin_router = APIRouter(prefix="/api/v22/admin/founding", tags=["Founding 30 admin"])
 
-Status = Literal["pending_email", "new", "approved", "waitlist", "rejected"]
+Status = Literal["pending_email", "new", "approved", "waitlist", "rejected", "invited", "invite_expired",
+                 "account_created", "payment_pending", "active"]
+ALL_STATUSES = ("pending_email", "new", "approved", "waitlist", "rejected", "invited", "invite_expired",
+                "account_created", "payment_pending", "active")
+# Kontenjandan koltuk tutan durumlar (onaylanmış ama davet bekleyenler de koltuk ayırır)
+RESERVED_STATUSES = ("approved", "invited", "account_created", "payment_pending", "active")
+# Hesap açılmış başvurularda yönetici kararı (onay/bekleme/ret) uygulanmaz
+ACCOUNT_STATUSES = ("account_created", "payment_pending", "active")
+HEARD_FROM = ("instagram", "tiktok", "x", "youtube", "google", "friend", "telegram", "other")
 EMAIL_TTL = timedelta(hours=48)
 DEFAULT_SEATS = 30
 MAX_SEATS = 200
@@ -61,6 +70,23 @@ SCHEMA = (
     """CREATE TABLE IF NOT EXISTS founding_funnel (
         day DATE NOT NULL, event TEXT NOT NULL CHECK (event IN ('view','start','step2','submit','success')),
         n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, event))""",
+    """ALTER TABLE founding_settings ADD COLUMN IF NOT EXISTS registration_open BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE founding_applications DROP CONSTRAINT IF EXISTS founding_applications_status_check""",
+    """ALTER TABLE founding_applications ADD CONSTRAINT founding_applications_status_check CHECK (status IN ('pending_email','new','approved','waitlist','rejected','invited','invite_expired','account_created','payment_pending','active'))""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS country_code TEXT""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS heard_from TEXT""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'form'""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_token_hash TEXT""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMPTZ""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMPTZ""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_reminded_at TIMESTAMPTZ""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_accepted_at TIMESTAMPTZ""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_revoked_at TIMESTAMPTZ""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS invite_count INTEGER NOT NULL DEFAULT 0""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS user_id TEXT""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_invite_key ON founding_applications (invite_token_hash)""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_user_key ON founding_applications (user_id)""",
 )
 
 
@@ -91,6 +117,52 @@ def _clean(value: str, limit: int) -> str:
     return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:limit]
 
 
+REGISTRATION_CLOSED_MESSAGE = ("KaisTrade yalnızca davetle üye kabul ediyor. Yeni hesap için geçerli, sana özel bir davet gerekir; "
+                               "davetin yoksa kaistrade.com adresinden üyelik başvurusu yapabilirsin.")
+
+
+async def registration_allowed(request: Request, email: str | None = None, invite_token: str | None = None) -> bool:
+    """Yeni hesap yalnız geçerli davetle açılır (KaisTrade kapalı üyelik).
+
+    - FOUNDING_REGISTRATION=open|closed ortam değişkeni her şeyi ezer (acil durum / yerel geliştirme).
+    - Yönetici 'herkese açık kayıt' anahtarı (founding_settings.registration_open) açıksa izin verilir.
+    - Aksi halde: e-postaya bağlı, süresi dolmamış, kullanılmamış bir davet gerekir. Parola kaydında davet
+      bağlantısındaki belirteç de eşleşmelidir; Google kaydında doğrulanmış Google e-postası davet e-postası olmalıdır.
+    Veritabanı yoksa (yerel geliştirme) açık kalır. Mevcut hesapların girişi etkilenmez.
+    """
+    forced = os.getenv("FOUNDING_REGISTRATION", "").strip().lower()
+    if forced in {"open", "closed"}:
+        return forced == "open"
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        return True
+    try:
+        await ensure_schema(pool)
+        async with pool.acquire() as conn:
+            value = await conn.fetchval("SELECT registration_open FROM founding_settings WHERE id = 1")
+            if value is True:
+                return True
+            if value is not False:  # ayar okunamadı (test/eski şema): mevcut davranış korunur
+                return True
+            if not email:
+                return False
+            row = await conn.fetchrow(
+                """SELECT id FROM founding_applications WHERE lower(email) = $1 AND status = 'invited'
+                   AND invite_token_hash IS NOT NULL AND invite_expires_at > now()
+                   AND ($2::text IS NULL OR invite_token_hash = $2)""",
+                email.strip().lower(), _hash(invite_token) if invite_token else None,
+            )
+            return row is not None
+    except Exception:  # noqa: BLE001 - ayar okunamazsa kayıt akışı kendi hatasını verir
+        logger.warning("Founding registration setting could not be read", exc_info=True)
+        return True
+
+
+async def require_registration_open(request: Request, email: str | None = None, invite_token: str | None = None) -> None:
+    if not await registration_allowed(request, email, invite_token):
+        raise HTTPException(403, REGISTRATION_CLOSED_MESSAGE)
+
+
 class Apply(BaseModel):
     model_config = ConfigDict(extra="ignore")
     email: str = Field(min_length=5, max_length=254)
@@ -100,6 +172,8 @@ class Apply(BaseModel):
     futures_experience: Literal["active", "past", "never"]
     trading_experience: Literal["new", "lt6m", "6to12m", "gt1y"]
     reason: str = Field(min_length=10, max_length=600)
+    country_code: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    heard_from: Literal["instagram", "tiktok", "x", "youtube", "google", "friend", "telegram", "other"] | None = None
     website: str = Field(default="", max_length=200)  # bal tuzağı: dolu gelirse bot
 
 
@@ -109,6 +183,13 @@ REF_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"  # karışan 0/O, 1/I yok
 def new_reference() -> str:
     """Sıralı olmayan başvuru numarası (kaç başvuru olduğunu açığa çıkarmaz)."""
     return "KT-F30-" + "".join(secrets.choice(REF_ALPHABET) for _ in range(5))
+
+
+def mail_language(country_code: str | None, country: str = "") -> str:
+    """E-posta dili seçilen ülkeye göre: Türkiye -> Türkçe, diğer tüm ülkeler -> İngilizce."""
+    if country_code:
+        return "tr" if country_code.upper() == "TR" else "en"
+    return "tr" if country.strip().lower() in {"türkiye", "turkey", "turkiye", "türkei"} else "en"
 
 
 def _app_base() -> str:
@@ -154,11 +235,12 @@ async def _ensure_reference(conn: Any, app_id: int) -> None:
 
 
 async def _settings(conn: Any) -> Any:
-    return await conn.fetchrow("SELECT seats, applications_open, launch_at, price_text FROM founding_settings WHERE id = 1")
+    return await conn.fetchrow("SELECT seats, applications_open, launch_at, price_text, registration_open FROM founding_settings WHERE id = 1")
 
 
 async def _taken(conn: Any) -> int:
-    return int(await conn.fetchval("SELECT COUNT(*) FROM founding_applications WHERE status = 'approved'"))
+    """Kontenjan: aktif üyeler + hesap/ödeme aşamasındakiler + gönderilmiş davetler + davet bekleyen onaylılar."""
+    return int(await conn.fetchval("SELECT COUNT(*) FROM founding_applications WHERE status = ANY($1::text[])", list(RESERVED_STATUSES)))
 
 
 @public_router.get("/status")
@@ -195,7 +277,7 @@ async def apply(body: Apply, request: Request):
         raise HTTPException(422, "Ad ve ülke zorunludur.")
     if len(reason) < 10:
         raise HTTPException(422, "Lütfen KaisTrade'i neden kullanmak istediğini kısaca yaz.")
-    lang = "en" if body.lang == "en" else "tr"
+    lang = mail_language(body.country_code, country)
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     send = False
@@ -209,10 +291,10 @@ async def apply(body: Apply, request: Request):
             if row is None:
                 await conn.execute(
                     """INSERT INTO founding_applications (email, name, country, lang, email_token_hash, email_token_expires, ip_hash,
-                       futures_experience, trading_experience, reason, reference)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
+                       futures_experience, trading_experience, reason, reference, country_code, heard_from)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)""",
                     email, name, country, lang, _hash(token), now + EMAIL_TTL, _hash(client_ip(request)),
-                    body.futures_experience, body.trading_experience, reason, reference,
+                    body.futures_experience, body.trading_experience, reason, reference, body.country_code, body.heard_from,
                 )
                 send = True
             else:
@@ -362,6 +444,7 @@ class Settings(BaseModel):
     applications_open: bool
     launch_at: datetime | None = None
     price_text: str = Field(default="", max_length=40)
+    registration_open: bool = False
 
 
 class Decision(BaseModel):
@@ -369,12 +452,20 @@ class Decision(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
+def iso(value: Any) -> str | None:
+    return value.isoformat() if value else None
+
+
 def _item(row: Any) -> dict:
     return {
         "id": int(row["id"]), "email": row["email"], "name": row["name"], "country": row["country"], "lang": row["lang"],
         "status": row["status"], "note": row["note"], "approved_seq": row["approved_seq"],
         "futures_experience": row["futures_experience"], "trading_experience": row["trading_experience"],
-        "reason": row["reason"] or "", "reference": row["reference"],
+        "reason": row["reason"] or "", "reference": row["reference"], "heard_from": row["heard_from"], "source": row["source"],
+        "invite_sent_at": iso(row["invite_sent_at"]), "invite_expires_at": iso(row["invite_expires_at"]),
+        "invite_accepted_at": iso(row["invite_accepted_at"]), "invite_count": int(row["invite_count"] or 0),
+        "invite_open": bool(row["invite_token_hash"]) and row["status"] == "invited", "user_id": row["user_id"],
+        "activated_at": iso(row["activated_at"]),
         "email_confirmed_at": row["email_confirmed_at"].isoformat() if row["email_confirmed_at"] else None,
         "decided_at": row["decided_at"].isoformat() if row["decided_at"] else None,
         "created_at": row["created_at"].isoformat(),
@@ -395,7 +486,8 @@ async def admin_list(request: Request, status: Status | None = None, limit: int 
     return {
         "items": [_item(r) for r in rows], "counts": counts, "funnel": funnel,
         "settings": {"seats": int(settings["seats"]), "applications_open": bool(settings["applications_open"]),
-                     "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"]},
+                     "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"],
+                     "registration_open": bool(settings["registration_open"])},
     }
 
 
@@ -407,8 +499,9 @@ async def admin_settings(body: Settings, request: Request):
         if body.seats < taken:
             raise HTTPException(409, f"Zaten {taken} kişi onaylı; koltuk sayısı bunun altına düşürülemez.")
         await conn.execute(
-            """UPDATE founding_settings SET seats=$1, applications_open=$2, launch_at=$3, price_text=$4, updated_at=now() WHERE id=1""",
-            body.seats, body.applications_open, body.launch_at, _clean(body.price_text, 40),
+            """UPDATE founding_settings SET seats=$1, applications_open=$2, launch_at=$3, price_text=$4, registration_open=$5,
+               updated_at=now() WHERE id=1""",
+            body.seats, body.applications_open, body.launch_at, _clean(body.price_text, 40), body.registration_open,
         )
     return {"ok": True}
 
@@ -422,8 +515,10 @@ async def _decide(request: Request, app_id: int, new_status: str, note: str) -> 
             raise HTTPException(404, "Başvuru bulunamadı.")
         if row["status"] == "pending_email":
             raise HTTPException(409, "Başvuranın e-postası henüz onaylanmadı.")
+        if row["status"] in ACCOUNT_STATUSES:
+            raise HTTPException(409, "Bu kişi davetle hesabını açmış; başvuru kararı artık değiştirilemez.")
         seq = row["approved_seq"]
-        if new_status == "approved" and row["status"] != "approved":
+        if new_status == "approved" and row["status"] not in RESERVED_STATUSES:
             settings = await _settings(conn)
             await conn.execute("SELECT pg_advisory_xact_lock(71010030)")
             taken = await _taken(conn)
@@ -432,11 +527,16 @@ async def _decide(request: Request, app_id: int, new_status: str, note: str) -> 
             seq = int(await conn.fetchval("SELECT COALESCE(MAX(approved_seq),0)+1 FROM founding_applications"))
         if new_status != "approved":
             seq = None
-        changed = row["status"] != new_status
+        changed = row["status"] != new_status and not (new_status == "approved" and row["status"] in RESERVED_STATUSES)
+        if new_status == "approved" and row["status"] in RESERVED_STATUSES:
+            raise HTTPException(409, "Bu başvuru zaten onaylı.")
         await _ensure_reference(conn, app_id)
         await conn.execute(
             """UPDATE founding_applications SET status=$2, note=CASE WHEN $3 <> '' THEN $3 ELSE note END, approved_seq=$4,
-               decided_at=now(), decided_by=$5, updated_at=now() WHERE id=$1""",
+               decided_at=now(), decided_by=$5, updated_at=now(),
+               invite_token_hash=CASE WHEN $2 = 'approved' THEN invite_token_hash ELSE NULL END,
+               invite_revoked_at=CASE WHEN $2 <> 'approved' AND invite_token_hash IS NOT NULL THEN now() ELSE invite_revoked_at END
+               WHERE id=$1""",
             app_id, new_status, _clean(note, 500), seq, actor.user_id,
         )
         updated = await conn.fetchrow("SELECT * FROM founding_applications WHERE id = $1", app_id)
@@ -457,3 +557,6 @@ async def admin_waitlist(request: Request, body: Decision, app_id: int = Path(ge
 @admin_router.post("/{app_id}/reject")
 async def admin_reject(request: Request, body: Decision, app_id: int = Path(ge=1)):
     return await _decide(request, app_id, "rejected", body.note)
+
+
+from . import founding_invites  # noqa: E402,F401  (davet uçlarını aynı yönlendiricilere ekler)

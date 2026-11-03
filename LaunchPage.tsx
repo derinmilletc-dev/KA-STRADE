@@ -20,10 +20,11 @@ const PRICE_PERIOD = (): string => t('/ay', '/mo')
 const SEATS = 30
 const EYE_PHOTO = '/founding-eye.webp'
 
-type Form = {email: string; name: string; country: string; futures: string; trading: string; reason: string; website: string}
-const EMPTY: Form = {email: '', name: '', country: '', futures: '', trading: '', reason: '', website: ''}
+type Form = {email: string; name: string; country: string; futures: string; trading: string; heard: string; reason: string; website: string}
+const EMPTY: Form = {email: '', name: '', country: '', futures: '', trading: '', heard: '', reason: '', website: ''}
 const REASON_MIN = 10
 const FUTURES = (): [string, string][] => [['active', t('Aktif kullanıyorum', 'I use it actively')], ['past', t('Daha önce kullandım', 'I have used it before')], ['never', t('Henüz kullanmadım', 'I have not used it yet')]]
+const HEARD = (): [string, string][] => [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X (Twitter)'], ['youtube', 'YouTube'], ['google', t('Google araması', 'Google search')], ['friend', t('Arkadaş tavsiyesi', 'A friend')], ['telegram', 'Telegram'], ['other', t('Diğer', 'Other')]]
 const TRADING = (): [string, string][] => [['new', t('Yeni başlıyorum', 'Just starting')], ['lt6m', t('6 aydan az', 'Less than 6 months')], ['6to12m', t('6–12 ay', '6–12 months')], ['gt1y', t('1 yıldan fazla', 'More than 1 year')]]
 type Phase = 'idle' | 'busy' | 'done' | 'error'
 
@@ -81,11 +82,11 @@ export default function LaunchPage() {
   const goForm = () => formRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'})
 
   const [step, setStep] = useState<1 | 2>(1)
-  const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
+  const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2 && !!form.heard
   // 1. aşamadan 2. aşamaya giden çizgi, formun doluluğuna göre ilerler (gönderilince tamamlanır)
-  const filledOne = [form.name.trim().length >= 2, /^\S+@\S+\.\S+$/.test(form.email), form.country.length === 2].filter(Boolean).length
+  const filledOne = [form.name.trim().length >= 2, /^\S+@\S+\.\S+$/.test(form.email), form.country.length === 2, !!form.heard].filter(Boolean).length
   const filledTwo = [!!form.futures, !!form.trading, form.reason.trim().length >= REASON_MIN].filter(Boolean).length
-  const progress = phase === 'busy' || phase === 'done' ? 1 : step === 1 ? filledOne / 6 : 0.5 + filledTwo / 6
+  const progress = phase === 'busy' || phase === 'done' ? 1 : step === 1 ? filledOne / 8 : 0.5 + filledTwo / 6
   const valid = stepOne && !!form.futures && !!form.trading && form.reason.trim().length >= REASON_MIN
   const goStep = (next: 1 | 2) => { setStep(next); setPhase(current => current === 'error' ? 'idle' : current); setMessage('') }
   const [intro, setIntro] = useState<IntroOutcome | null>(null)
@@ -104,7 +105,7 @@ export default function LaunchPage() {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 15000)
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures, trading_experience: form.trading, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), country_code: form.country || undefined, futures_experience: form.futures, trading_experience: form.trading, heard_from: form.heard, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
       if (response.ok) {
         let ref: string | null = null
         try { const body = await response.json(); ref = typeof body?.reference === 'string' && /^KT-F30-[A-Z0-9]{5}$/.test(body.reference) ? body.reference : null } catch { /* gövde yok */ }
@@ -189,7 +190,11 @@ export default function LaunchPage() {
             {step === 1 ? <div className="fdStepPane" key="s1">
             <label>{t('Ad soyad', 'Full name')}<input placeholder={t('Ad Soyad', 'Full name')} autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
             <label>{t('E-posta adresi', 'Email address')}<input type="email" placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
+            <div className="fdPair">
             <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
+              <div className="fdQ fdHeard"><span className="fdQLabel">{t('KaisTrade’i nereden duydun?', 'How did you hear about KaisTrade?')}</span>
+                <OptionPicker value={form.heard} onChange={value => set('heard', value)} mobile={mobile} label={t('KaisTrade’i nereden duydun?', 'How did you hear about KaisTrade?')} placeholder={t('Nereden duydun?', 'How did you hear?')} options={HEARD().map(([value, label]) => ({value, label}))}/></div>
+            </div>
             </div> : <div className="fdStepPane" key="s2">
               <fieldset className="fdQ"><legend>{t('Binance Futures deneyimin', 'Binance Futures experience')}</legend>
                 <div className="fdRadios">{FUTURES().map(([value, label]) => <label key={value} className={form.futures === value ? 'on' : ''}><input type="radio" name="futures" value={value} checked={form.futures === value} onChange={() => set('futures', value)}/><i aria-hidden="true"/>{label}</label>)}</div></fieldset>

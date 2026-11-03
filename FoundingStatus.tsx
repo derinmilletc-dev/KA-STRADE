@@ -3,7 +3,7 @@ import {ArrowRight, Check, ClipboardList, Clock, Home, Layers, LoaderCircle, Mai
 import {API_BASE} from './api'
 import './founding-success.css'
 
-type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
+type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected' | 'invited' | 'invite_expired' | 'account_created' | 'payment_pending' | 'active'
 type View = {reference: string; first_name: string; status: Status; created_at: string | null; email_confirmed_at: string | null; decided_at: string | null}
 type Props = {t: (tr: string, en: string) => string}
 
@@ -14,7 +14,7 @@ function parse(body: unknown): View | null {
   if (!body || typeof body !== 'object') return null
   const value = body as Record<string, unknown>
   if (typeof value.reference !== 'string' || typeof value.status !== 'string') return null
-  if (!['pending_email', 'new', 'approved', 'waitlist', 'rejected'].includes(value.status)) return null
+  if (!['pending_email', 'new', 'approved', 'waitlist', 'rejected', 'invited', 'invite_expired', 'account_created', 'payment_pending', 'active'].includes(value.status)) return null
   const date = (key: string) => typeof value[key] === 'string' ? value[key] as string : null
   return {reference: value.reference, first_name: typeof value.first_name === 'string' ? value.first_name : '', status: value.status as Status,
     created_at: date('created_at'), email_confirmed_at: date('email_confirmed_at'), decided_at: date('decided_at')}
@@ -61,31 +61,46 @@ export default function FoundingStatus({t}: Props) {
   const when = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(t('tr-TR', 'en-GB'), {day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'}) : ''
 
   if (view) {
-    const decided = ['approved', 'waitlist', 'rejected'].includes(view.status)
-    const result: Record<string, [string, string]> = {
+    const result: Record<Status, [string, string]> = {
+      pending_email: [t('E-posta onayı bekliyor', 'Awaiting email confirmation'), 'wait'], new: [t('İnceleme bekliyor', 'Under review'), 'wait'],
       approved: [t('Onaylandı', 'Approved'), 'ok'], waitlist: [t('Bekleme listesi', 'Waitlist'), 'wait'], rejected: [t('Olumsuz', 'Not approved'), 'no'],
-      new: [t('İnceleme bekliyor', 'Awaiting review'), 'wait'], pending_email: [t('E-posta onayı bekliyor', 'Awaiting email confirmation'), 'wait'],
+      invited: [t('Davet gönderildi', 'Invitation sent'), 'ok'], invite_expired: [t('Davet süresi doldu', 'Invitation expired'), 'no'],
+      account_created: [t('Hesap oluşturuldu', 'Account created'), 'ok'], payment_pending: [t('Ödeme bekleniyor', 'Payment pending'), 'wait'],
+      active: [t('Aktif üye', 'Active member'), 'ok'],
     }
     const [label, tone] = result[view.status]
-    const steps = [
-      {done: true, title: t('Başvuru alındı', 'Application received'), sub: when(view.created_at), icon: <ClipboardList aria-hidden="true"/>},
-      {done: !!view.email_confirmed_at, current: view.status === 'pending_email', title: t('E-posta onaylandı', 'Email confirmed'),
-        sub: view.email_confirmed_at ? when(view.email_confirmed_at) : t('E-postandaki onay bağlantısına tıkla', 'Click the link in your email'), icon: <Mail aria-hidden="true"/>},
-      {done: decided, current: view.status === 'new', title: t('Manuel inceleme', 'Manual review'),
-        sub: decided ? when(view.decided_at) : view.status === 'new' ? t('Ekibimiz başvurunu inceliyor', 'Our team is reviewing it') : t('Sırada', 'Up next'), icon: <Search aria-hidden="true"/>},
-      {done: decided, title: t('Sonuç', 'Result'), sub: decided ? label : t('E-postayla bildirilecek', 'We will email you'), icon: <Check aria-hidden="true"/>},
+    // Sekiz aşama: hangisinin bittiği, hangisinde olunduğu
+    const at: Record<Status, number> = {pending_email: 0, new: 1, waitlist: 2, rejected: 2, approved: 3, invited: 3, invite_expired: 3,
+      account_created: 5, payment_pending: 6, active: 8}
+    const current = at[view.status]
+    const stalled = view.status === 'rejected' || view.status === 'invite_expired'
+    const STAGES: [string, string, string, JSX.Element][] = [
+      [t('Başvuru alındı', 'Application submitted'), when(view.created_at), view.status === 'pending_email' ? t('E-postandaki onay bağlantısına tıkla', 'Click the link in your email') : '', <ClipboardList key="a" aria-hidden="true"/>],
+      [t('Başvuru incelemesi', 'Application review'), '', t('Ekibimiz manuel inceliyor', 'Our team is reviewing it'), <Search key="b" aria-hidden="true"/>],
+      [t('Üyelik onayı', 'Membership approval'), when(view.decided_at), view.status === 'waitlist' ? t('Bekleme listesindesin', 'You are on the waitlist') : view.status === 'rejected' ? t('Bu dönem kabul edilmedi', 'Not accepted this round') : '', <Check key="c" aria-hidden="true"/>],
+      [t('Davet', 'Invitation'), '', view.status === 'approved' ? t('Lansmandan 7 gün önce e-postana gelir', 'Arrives 7 days before launch') : view.status === 'invite_expired' ? t('Süresi doldu · destekle iletişime geç', 'Expired · contact support') : t('Davet e-postandaki bağlantıyla hesabını aç', 'Open your account from the invitation email'), <Mail key="d" aria-hidden="true"/>],
+      [t('Hesap kurulumu', 'Account setup'), '', '', <Layers key="e" aria-hidden="true"/>],
+      [t('Güvenlik doğrulaması (2FA)', 'Security verification (2FA)'), '', t('Authenticator uygulamanı bağla', 'Connect your authenticator app'), <Clock key="f" aria-hidden="true"/>],
+      [t('Ödeme', 'Payment'), '', t('Ödemen doğrulanınca üyelik açılır', 'Membership opens once payment is verified'), <Clock key="g" aria-hidden="true"/>],
+      [t('Üyelik aktif', 'Membership activated'), '', '', <Check key="h" aria-hidden="true"/>],
     ]
+    const steps = STAGES.map(([title, date, hint, icon], index) => {
+      const done = index < current && !(stalled && index === current)
+      const isCurrent = index === current
+      return {title, icon, done, current: isCurrent && !stalled, failed: isCurrent && stalled,
+        sub: done ? (date || t('Tamamlandı', 'Completed')) : isCurrent ? (hint || t('Devam ediyor', 'In progress')) : t('Bekliyor', 'Pending')}
+    })
     return <main className="fdSuccess fdStatus" aria-labelledby="fd-status-title">
       <div className="fdSuccessInner">
-        <div className={`fdStatusMark ${tone}`} aria-hidden="true">{view.status === 'approved' ? <Check/> : view.status === 'rejected' ? <TriangleAlert/> : <Clock/>}</div>
+        <div className={`fdStatusMark ${tone}`} aria-hidden="true">{tone === 'ok' ? <Check/> : tone === 'no' ? <TriangleAlert/> : <Clock/>}</div>
         <h1 id="fd-status-title">{view.first_name ? t(`Merhaba ${view.first_name}`, `Hi ${view.first_name}`) : t('Başvuru Durumu', 'Application status')}</h1>
-        <p className="fdSuccessLead">{t('Founding 30 başvurunun güncel durumu aşağıda.', 'Here is the latest status of your Founding 30 application.')}</p>
+        <p className="fdSuccessLead">{t('Başvurundan aktif üyeliğe kadar tüm aşamalar aşağıda.', 'Every step from application to active membership.')}</p>
         <dl className="fdSuccessCard">
           <div><dt><ClipboardList aria-hidden="true"/>{t('Başvuru Numarası', 'Application number')}</dt><dd className="mono">{view.reference}</dd></div>
           <div><dt><Layers aria-hidden="true"/>{t('Program', 'Program')}</dt><dd>Founding 30</dd></div>
           <div><dt><Clock aria-hidden="true"/>{t('Durum', 'Status')}</dt><dd><span className={`fdPill ${tone}`}>{label}</span></dd></div>
         </dl>
-        <ol className="fdTimeline">{steps.map(step => <li key={step.title} className={step.done ? 'done' : step.current ? 'current' : ''}>
+        <ol className="fdTimeline">{steps.map(step => <li key={step.title} className={step.done ? 'done' : step.current ? 'current' : step.failed ? 'failed' : ''}>
           <i>{step.done ? <Check aria-hidden="true"/> : step.icon}</i><span><strong>{step.title}</strong><small>{step.sub}</small></span></li>)}</ol>
         <div className="fdSuccessActions">
           <a className="fdPrimary" href="/"><Home aria-hidden="true"/>{t('Ana Sayfaya Dön', 'Back to home')}</a>

@@ -175,3 +175,17 @@
   .fdStatus .fdSuccessInner > :nth-child(5) { animation-delay: .2s; } .fdStatus .fdSuccessInner > :nth-child(6) { animation-delay: .25s; }
   .fdStatus .fdSuccessInner > :nth-child(7) { animation-delay: .3s; }
 }
+
+.fdTimeline li.failed i { border-color: #ff8d9a; color: #ff8d9a; }
+.fdTimeline li.failed strong { color: #ff8d9a !important; }
+.fdStatus .fdTimeline { gap: 0; }
+.fdStatus .fdTimeline li { min-height: 42px; }
+.fdStatus .fdTimeline li + li::before { top: -14px; height: 20px; }
+@media (max-width: 700px) {
+  .fdStatus .fdTimeline li { min-height: 36px; gap: 12px; }
+  .fdStatus .fdTimeline i { width: 28px; height: 28px; } .fdStatus .fdTimeline i svg { width: 14px; height: 14px; }
+  .fdStatus .fdTimeline li + li::before { left: 13px; top: -10px; height: 16px; }
+  .fdStatus .fdTimeline strong { font-size: 13px; } .fdStatus .fdTimeline small { font-size: 11px; }
+  .fdStatus .fdSuccessCard > div:nth-child(2) { display: none; }
+  .fdStatus .fdSuccessLead { display: none; }
+}

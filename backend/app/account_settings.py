@@ -775,6 +775,9 @@ async def enable_totp(payload: Code, request: Request, response: Response):
     await persist_projection(request)
     marker = refreshed_session_response(request, response, user, token)
     notification_sent = await notify_two_factor(request, user, active=True)
+    # Kapalı üyelik: davetle açılan hesap 2FA'yı tamamlayınca ödeme aşamasına geçer (yalnız ileri).
+    from .founding_invites import advance_member
+    await advance_member(request.app, user["id"], "payment_pending")
     return {"recovery_codes": codes, "reauthenticate": False, "token": marker, "notification_sent": notification_sent}
 
 

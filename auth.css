@@ -1059,3 +1059,15 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
 @media (prefers-reduced-motion: reduce) {
   #root .authCardLogin a.authInstagramFollow, #root .authCardLogin .authInstagramArrow { transition: none; animation: none; }
 }
+
+/* Kapalı üyelik: davet bandı ve davetsiz kayıt bildirimi */
+.authInviteOnly { display: grid; gap: 10px; margin: 6px 0 4px; padding: 18px; border: 1px solid rgba(46,229,157,.3); border-radius: 16px; background: rgba(46,229,157,.05); }
+.authInviteOnly b { font-size: 16px; }
+.authInviteOnly p { margin: 0; color: #a9b6b1; font-size: 14px; line-height: 1.5; }
+.authInviteOnly a.authSubmit { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.authInviteBanner { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; padding: 12px 14px; border: 1px solid rgba(46,229,157,.35); border-radius: 14px; background: rgba(46,229,157,.06); }
+.authInviteBanner svg { width: 22px; height: 22px; color: #2ee59d; flex: none; }
+.authInviteBanner span { display: grid; gap: 2px; min-width: 0; }
+.authInviteBanner small { color: #93a1b0; overflow-wrap: anywhere; }
+.authLinks a { color: inherit; }
+input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }

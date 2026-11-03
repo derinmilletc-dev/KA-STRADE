@@ -99,7 +99,7 @@ def test_existing_applicant_cannot_apply_again():
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
             patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
         with pytest.raises(HTTPException) as err:
-            run(founding.apply(body(), request(conn)))
+            run(founding.apply(body(country_code="TR"), request(conn)))
     assert err.value.status_code == 409 and "yalnızca bir kez" in err.value.detail
     assert sent == [] and conn.executed == []  # bilgiler değişmez, e-posta gitmez
 
@@ -114,7 +114,7 @@ def test_unconfirmed_applicant_gets_link_resent_but_data_kept():
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
             patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
         with pytest.raises(HTTPException) as err:
-            run(founding.apply(body(name="Yeni Ad"), request(conn)))
+            run(founding.apply(body(name="Yeni Ad", country_code="TR"), request(conn)))
     assert err.value.status_code == 409 and "yeniden gönderdik" in err.value.detail
     assert sent and sent[0][1] == "Eski Ad" and sent[0][4] == "KT-F30-ABCDE"
     assert not any("SET name" in sql for sql, _ in conn.executed)
@@ -223,3 +223,32 @@ def test_funnel_event_counts_without_personal_data():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
         founding.FunnelEvent(event="hack")
+
+
+def _reg_request(value=None, pool=True):
+    class RegConn(Conn):
+        async def fetchval(self, sql, *args):
+            assert "registration_open" in sql
+            return value
+    state = SimpleNamespace(db_pool=Pool(RegConn()) if pool else None)
+    return SimpleNamespace(app=SimpleNamespace(state=state))
+
+
+def test_registration_closed_by_default_setting(monkeypatch):
+    monkeypatch.delenv("FOUNDING_REGISTRATION", raising=False)
+    with patch.object(founding, "ensure_schema", noop_limit):
+        assert run(founding.registration_allowed(_reg_request(False))) is False
+        assert run(founding.registration_allowed(_reg_request(True))) is True
+        with pytest.raises(HTTPException) as err:
+            run(founding.require_registration_open(_reg_request(False)))
+    assert err.value.status_code == 403
+
+
+def test_registration_env_override_and_no_database(monkeypatch):
+    with patch.object(founding, "ensure_schema", noop_limit):
+        monkeypatch.setenv("FOUNDING_REGISTRATION", "open")
+        assert run(founding.registration_allowed(_reg_request(False))) is True
+        monkeypatch.setenv("FOUNDING_REGISTRATION", "closed")
+        assert run(founding.registration_allowed(_reg_request(True))) is False
+        monkeypatch.delenv("FOUNDING_REGISTRATION")
+        assert run(founding.registration_allowed(_reg_request(pool=False))) is True
