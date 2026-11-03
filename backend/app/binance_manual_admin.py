@@ -198,6 +198,9 @@ async def approve(body: ApprovePayment, request: Request, request_id: str = Path
         result = await decision(conn, actor, request_id, "approved")
     from .binance_notifications import wake
     wake(request.app)
+    # Kapalı üyelik: ödemesi sunucuda onaylanan davetli üye aktif olur (yalnız ileri; hata ödeme onayını bozmaz).
+    from .founding_invites import advance_member
+    await advance_member(request.app, result.user_id, "active")
     return result
 
 

@@ -202,3 +202,19 @@ def test_sweep_reminds_and_expires():
     out, sent = sweep(SweepConn(None, due=[5], expired=[6]), datetime.now(timezone.utc))
     assert out == {"invited": 0, "reminded": 1, "expired": 1}
     assert sent == ["reminder", "invite_expired"]
+
+
+def test_payment_approval_and_2fa_hooks_are_wired():
+    import inspect
+    from app import account_settings, binance_manual_admin
+    assert 'advance_member(request.app, result.user_id, "active")' in inspect.getsource(binance_manual_admin.approve)
+    assert 'advance_member(request.app, user["id"], "payment_pending")' in inspect.getsource(account_settings.enable_totp)
+
+
+def test_registration_paths_check_invites():
+    import inspect
+    from app import google_oauth, v22_commercial
+    assert "require_registration_open(request, normalize_email(payload.email), payload.invite_token)" in inspect.getsource(v22_commercial.register_password_user)
+    assert "consume_invite" in inspect.getsource(v22_commercial.register_password_user)
+    src = inspect.getsource(google_oauth.complete)
+    assert 'registration_allowed(request, attempt["identity"]["email"])' in src and "consume_invite" in src
