@@ -50,6 +50,8 @@ SCHEMA = (
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS futures_experience TEXT CHECK (futures_experience IN ('active','past','never'))""",
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS trading_experience TEXT CHECK (trading_experience IN ('new','lt6m','6to12m','gt1y'))""",
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reference TEXT""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_reference_key ON founding_applications (reference)""",
 )
 
 
@@ -90,6 +92,14 @@ class Apply(BaseModel):
     trading_experience: Literal["new", "lt6m", "6to12m", "gt1y"]
     reason: str = Field(min_length=10, max_length=600)
     website: str = Field(default="", max_length=200)  # bal tuzağı: dolu gelirse bot
+
+
+REF_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"  # karışan 0/O, 1/I yok
+
+
+def new_reference() -> str:
+    """Sıralı olmayan başvuru numarası (kaç başvuru olduğunu açığa çıkarmaz)."""
+    return "KT-F30-" + "".join(secrets.choice(REF_ALPHABET) for _ in range(5))
 
 
 def _app_base() -> str:
@@ -137,7 +147,8 @@ async def apply(body: Apply, request: Request):
     email = _clean(body.email, 254).lower()
     if not EMAIL_RE.match(email):
         raise HTTPException(422, "Geçerli bir e-posta adresi girin.")
-    ok = {"ok": True}
+    reference = new_reference()
+    ok = {"ok": True, "reference": reference}
     if body.website.strip():  # bot: sessizce başarılı görün
         return ok
     await auth.enforce_auth_limit(request, "founding-apply", email)
@@ -162,20 +173,21 @@ async def apply(body: Apply, request: Request):
             if row is None:
                 await conn.execute(
                     """INSERT INTO founding_applications (email, name, country, lang, email_token_hash, email_token_expires, ip_hash,
-                       futures_experience, trading_experience, reason)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+                       futures_experience, trading_experience, reason, reference)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
                     email, name, country, lang, _hash(token), now + EMAIL_TTL, _hash(client_ip(request)),
-                    body.futures_experience, body.trading_experience, reason,
+                    body.futures_experience, body.trading_experience, reason, reference,
                 )
                 send = True
             elif row["status"] == "pending_email":  # onay e-postası gelmediyse yeniden gönderilebilir
                 await conn.execute(
                     """UPDATE founding_applications SET name=$2, country=$3, lang=$4, email_token_hash=$5, email_token_expires=$6,
-                       futures_experience=$7, trading_experience=$8, reason=$9, updated_at=now()
+                       futures_experience=$7, trading_experience=$8, reason=$9, reference=COALESCE(reference, $10), updated_at=now()
                        WHERE id=$1""", row["id"], name, country, lang, _hash(token), now + EMAIL_TTL,
-                    body.futures_experience, body.trading_experience, reason,
+                    body.futures_experience, body.trading_experience, reason, reference,
                 )
                 send = True
+                ok["reference"] = await conn.fetchval("SELECT reference FROM founding_applications WHERE id=$1", row["id"]) or reference
     except UniqueViolationError:  # aynı anda iki istek: ikincisi sessizce başarılı sayılır
         return ok
     if send:
@@ -184,7 +196,32 @@ async def apply(body: Apply, request: Request):
         except Exception:  # noqa: BLE001 - kayıt yapıldı; e-posta hatası kullanıcıya sızdırılmaz
             logger.exception("Founding confirmation email failed")
             raise HTTPException(503, "Onay e-postası şu anda gönderilemedi. Lütfen biraz sonra tekrar deneyin.") from None
-    return ok  # kayıtlı e-posta olup olmadığı açığa çıkmaz
+    # Kayıtlı e-posta olup olmadığı açığa çıkmaz: onaylı eski başvuru için de (kaydedilmeyen) bir numara döner.
+    return ok
+
+
+class Track(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=5, max_length=254)
+    reference: str = Field(pattern=r"^KT-F30-[2-9A-HJ-NP-Z]{5}$")
+
+
+@public_router.post("/track")
+async def track(body: Track, request: Request):
+    """Başvuru numarası + e-posta ile durum. İkisi birlikte doğru değilse aynı 404 döner."""
+    from . import v22_commercial as auth
+
+    email = _clean(body.email, 254).lower()
+    await auth.enforce_auth_limit(request, "founding-track", email)
+    pool = _pool(request)
+    await ensure_schema(pool)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT status FROM founding_applications WHERE reference = $1 AND lower(email) = $2", body.reference, email,
+        )
+    if row is None:
+        raise HTTPException(404, "Başvuru bulunamadı.")
+    return {"status": row["status"]}
 
 
 @public_router.get("/confirm")
@@ -229,7 +266,7 @@ def _item(row: Any) -> dict:
         "id": int(row["id"]), "email": row["email"], "name": row["name"], "country": row["country"], "lang": row["lang"],
         "status": row["status"], "note": row["note"], "approved_seq": row["approved_seq"],
         "futures_experience": row["futures_experience"], "trading_experience": row["trading_experience"],
-        "reason": row["reason"] or "",
+        "reason": row["reason"] or "", "reference": row["reference"],
         "email_confirmed_at": row["email_confirmed_at"].isoformat() if row["email_confirmed_at"] else None,
         "decided_at": row["decided_at"].isoformat() if row["decided_at"] else None,
         "created_at": row["created_at"].isoformat(),
