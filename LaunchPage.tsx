@@ -72,7 +72,9 @@ export default function LaunchPage() {
     event.preventDefault()
     if (step === 1) { if (stepOne) goStep(2); return }
     if (!valid || phase === 'busy') return
-    setPhase('busy'); setMessage(''); setIntro('pending')
+    // "Hareketi azalt" açıksa geçiş hiç gösterilmez; yanıt gelince doğrudan onay ekranı açılır
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    setPhase('busy'); setMessage(''); if (!calm) setIntro('pending')
     const fail = (text: string) => { setIntro(current => current ? 'error' : current); setPhase('error'); setMessage(text) }
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 15000)
@@ -81,7 +83,9 @@ export default function LaunchPage() {
       if (response.ok) {
         let ref: string | null = null
         try { const body = await response.json(); ref = typeof body?.reference === 'string' && /^KT-F30-[A-Z0-9]{5}$/.test(body.reference) ? body.reference : null } catch { /* gövde yok */ }
-        setReference(ref); setIntro('ok'); return
+        setReference(ref)
+        if (calm) { setPhase('done'); try { window.scrollTo({top: 0}) } catch { /* eski tarayıcı */ } } else setIntro('ok')
+        return
       }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
