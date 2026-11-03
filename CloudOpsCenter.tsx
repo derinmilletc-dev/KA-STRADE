@@ -35,6 +35,9 @@ type Operations = {
   safety:{testnet_only:boolean;real_trading_locked:boolean;auto_resumes_after_restart:boolean;profit_guaranteed:boolean}
 }
 
+/** Sunucunun ham akış durum kodları ekranda Türkçe etiketle gösterilir (İngilizce modda sözlük çevirir). */
+const STREAM_LABEL:Record<string,string> = {CONNECTED:'Bağlı',CONNECTING:'Bağlanıyor',RECONNECTING:'Yeniden bağlanıyor',DISCONNECTED:'Bağlı değil',STOPPED:'Durdu',IDLE:'Boşta',ERROR:'Hata',NONE:'—',WEBSOCKET:'WebSocket',WS:'WebSocket',REST:'REST',POLLING:'Periyodik sorgu'}
+const streamLabel = (value?:string|null) => value ? (STREAM_LABEL[value.toUpperCase()] ?? value) : ''
 const money = (value?:number) => value == null ? '—' : value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:4})
 const date = (value?:string) => value ? new Date(value).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'
 const duration = (seconds:number) => {
@@ -118,7 +121,7 @@ export default function CloudOpsCenter() {
 
     <div className="v27KeyCards">
       <article className={data.testnet.configured ? 'ok' : 'wait'}><ShieldCheck/><small>Demo Anahtarı</small><b>{data.testnet.configured ? 'Şifreli Kasada' : 'Anahtar Bekliyor'}</b><span>Değerler bu ekranda ve veritabanında tutulmaz.</span></article>
-      <article className={data.testnet.connected ? 'ok' : 'wait'}><Activity/><small>Binance Testnet</small><b>{data.testnet.connected ? 'Bağlı' : 'Bağlantı Bekliyor'}</b><span>{data.testnet.stream.last_error || `${data.testnet.stream.status || 'Beklemede'} · ${data.testnet.stream.transport || '—'}`}</span></article>
+      <article className={data.testnet.connected ? 'ok' : 'wait'}><Activity/><small>Binance Testnet</small><b>{data.testnet.connected ? 'Bağlı' : 'Bağlantı Bekliyor'}</b><span>{data.testnet.stream.last_error || `${streamLabel(data.testnet.stream.status) || 'Beklemede'} · ${streamLabel(data.testnet.stream.transport) || '—'}`}</span></article>
       <article className={data.testnet.auto.enabled ? 'hot' : 'wait'}><Bot/><small>Otomatik Tarama</small><b>{data.testnet.auto.enabled ? 'Çalışıyor' : 'Kapalı'}</b><span>{data.testnet.auto.cycles || 0} tur · {date(data.testnet.auto.last_scan)}</span></article>
       <article className={data.evidence.persistent ? 'ok' : 'wait'}><Database/><small>Son Kanıt</small><b>{data.evidence.status}</b><span>{data.evidence.count} olay · {date(data.evidence.last_sync)}</span></article>
     </div>
@@ -136,7 +139,7 @@ export default function CloudOpsCenter() {
         <header><div><small className="v27Eyebrow">Bot neden işlem açtı / açmadı?</small><h3>Canlı Kanıt Monitörü</h3></div><span className={`v27MonitorStatus ${data.testnet.auto.enabled ? 'running' : 'waiting'}`}><i/>{data.testnet.auto.enabled ? 'Aktif' : 'Onay Bekliyor'}</span></header>
         <div className="v27MonitorGrid">
           <div className="v27MonitorItem v27MonitorItem--event"><small>Son Olay</small><b>{latestEvent ? `${latestEvent.kind || 'OLAY'}${latestEvent.symbol ? ` · ${latestEvent.symbol}` : ''}` : 'Henüz kanıt olayı yok'}</b><span>{latestEvent ? (latestEvent.message || latestEvent.reason || 'Testnet olayı kaydedildi.') : 'Bağlantı, tarama, emir ve koruma olayları burada görünecek.'}</span></div>
-          <div className="v27MonitorItem"><small>Testnet Durumu</small><b>{data.testnet.connected ? 'Bağlı' : 'Beklemede'}</b><span>{data.testnet.stream.status || 'Akış bekleniyor'} · {data.testnet.stream.transport || '—'}</span></div>
+          <div className="v27MonitorItem"><small>Testnet Durumu</small><b>{data.testnet.connected ? 'Bağlı' : 'Beklemede'}</b><span>{streamLabel(data.testnet.stream.status) || 'Akış bekleniyor'} · {streamLabel(data.testnet.stream.transport) || '—'}</span></div>
           <div className="v27MonitorItem"><small>Otomasyon</small><b>{data.testnet.auto.enabled ? 'Çalışıyor' : 'Kapalı'}</b><span>{data.testnet.auto.cycles || 0} tur · Son tarama {date(data.testnet.auto.last_scan)}</span></div>
           <div className="v27MonitorItem"><small>Son Kanıt</small><b>{data.evidence.status}</b><span>{date(data.evidence.last_sync)} · {data.evidence.count} kayıt</span></div>
           <div className="v27MonitorItem"><small>Mevcut Durum</small><b>{data.testnet.auto.last_decision || 'Henüz karar yok.'}</b><span>{data.testnet.auto.last_error ? `Son hata: ${data.testnet.auto.last_error}` : `Son ekran güncellemesi ${updated}.`}</span></div>

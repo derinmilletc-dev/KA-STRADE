@@ -43,6 +43,10 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
 const apo = (s: string) => s.replace(/[\u2018\u2019]/g, "'")
 const apoKeys = (o: Record<string, string>) => { const r: Record<string, string> = {}; for (const k of Object.keys(o)) { const n = apo(k); if (!(n in r) || n === k) r[n] = o[k] } return r }
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** Kalıplar en özgülden genele denenir: "{} bildirim türü açık" gibi uzun kalıp, "{} açık" gibi genel kalıptan önce gelmeli;
+ *  yoksa genel kalıp yarım çeviri üretir ("7 bildirim türü open"). Özgüllük = yer tutucular dışındaki harf sayısı. */
+const literalLength = (pattern: string) => pattern.replace(/\{#?\}/g, '').length
+const bySpecificity = <T,>(list: [string, T][]): [string, T][] => list.map((item, index) => ({item, index})).sort((a, b) => literalLength(b.item[0]) - literalLength(a.item[0]) || a.index - b.index).map(({item}) => item)
 
 let exact: Record<string, string> = {}
 let lowerMap: Record<string, string> = {}
@@ -326,7 +330,7 @@ export async function initI18n(): Promise<void> {
       const mod = await import('./i18n-tr.json')
       const trDict = (mod.default ?? mod) as unknown as { e: Record<string, string>; p?: [string, string][] }
       enToTr = apoKeys(trDict.e)
-      trPatterns = (trDict.p ?? []).map(([en, tr]) => ({ re: new RegExp('^' + esc(apo(en)).replace(/\\\{#\\\}/g, '(\\d[\\d.,]*)').replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$', 'i'), tr }))
+      trPatterns = bySpecificity(trDict.p ?? []).map(([en, tr]) => ({ re: new RegExp('^' + esc(apo(en)).replace(/\\\{#\\\}/g, '(\\d[\\d.,]*)').replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$', 'i'), tr }))
       trMode = true
     } catch { return }
     const startTr = () => {
@@ -343,7 +347,7 @@ export async function initI18n(): Promise<void> {
     exact = apoKeys(dict.e)
     lowerMap = {}
     for (const k of Object.keys(exact)) { const l = trLower(k); if (!(l in lowerMap)) lowerMap[l] = exact[k] }
-    patterns = dict.p.map(([tr, en]) => ({
+    patterns = bySpecificity(dict.p).map(([tr, en]) => ({
       re: new RegExp('^' + esc(apo(tr)).replace(/\\\{#\\\}/g, '(\\d[\\d.,]*)').replace(/\\\{\\\}/g, '(.+?)').replace(/\{\}/g, '(.+?)') + '$'),
       en,
     }))

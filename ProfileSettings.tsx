@@ -17,6 +17,9 @@ import {MARKETING_CONSENT_TEXT} from './compliance-content'
 import LanguagePicker from './LanguagePicker'
 import {currentLang, setLang, type Lang} from './i18n'
 
+/** Hesap hareketi türleri (sunucu kodu) → okunur etiket. */
+const ACTIVITY_LABEL:Record<string,string> = {LOGIN:'Oturum açma',SESSION_REVOKED:'Oturum kapatma',OTHER_SESSIONS_REVOKED:'Diğer oturumlar',PASSWORD_CHANGED:'Parola',EMAIL_CHANGED:'E-posta',EMAIL_CHANGE_REQUESTED:'E-posta değişikliği',PREFERENCES_CHANGED:'Tercihler',PROFILE_CHANGED:'Profil',TWO_FACTOR_ENABLED:'2FA açıldı',TWO_FACTOR_DISABLED:'2FA kapatıldı',ACCOUNT_CLOSED:'Hesap kapatma',LOGOUT:'Çıkış'}
+
 type DialogKind = 'profile' | 'email' | 'password' | 'two-factor' | 'sessions' | 'activity' | 'close' | 'delete'
 type Notice = {kind: 'success' | 'error'; text: string}
 const failureMessage = (error: unknown) => error instanceof Error ? error.message : 'Hesap işlemi tamamlanamadı.'
@@ -188,7 +191,7 @@ export default function ProfileSettings({onLogout, onSessionEnded, onEnrollmentC
     setSymbolInput('')
   }
   const titles: Record<DialogKind, string> = {profile: 'Profili düzenle', email: 'E-posta adresini değiştir', password: 'Parolayı değiştir', 'two-factor': 'İki aşamalı doğrulama', sessions: 'Aktif oturumlar', activity: 'Son aktiviteler', close: 'Hesabı kapat', delete: 'Hesabımı kalıcı olarak sil'}
-  const activity = (all = false) => <ol className="accountActivities">{(all ? data?.activity : data?.activity.slice(0, 5))?.map(item => <li key={item.id}><Activity/><div><b>{item.message}</b><small>{item.kind}</small></div><time dateTime={item.created_at}>{accountDate(item.created_at)}</time></li>)}</ol>
+  const activity = (all = false) => <ol className="accountActivities">{(all ? data?.activity : data?.activity.slice(0, 5))?.map(item => <li key={item.id}><Activity/><div><b>{item.message}</b><small>{ACTIVITY_LABEL[item.kind] ?? item.kind}</small></div><time dateTime={item.created_at}>{accountDate(item.created_at)}</time></li>)}</ol>
   const twoFactorStatus = dialog === 'two-factor' && Boolean(data?.security.two_factor_enabled) && recoveryCodes.length === 0
   return <main className="accountSettings">
     <header className="accountTopbar"><a href="/" className="accountBrand" translate="no" data-i18n-skip>kais<b>trade</b></a><button type="button" className="accountTopIdentity" aria-label="Profil bilgilerini düzenle" aria-haspopup="dialog" aria-expanded={dialog === 'profile'} disabled={busy || !data} onClick={() => openDialog('profile')}><i>{accountInitials(data?.user.display_name || '')}</i><span>{data?.user.display_name || '—'}</span><ChevronDown/></button><button type="button" onClick={onLogout} aria-label="Çıkış"><LogOut/></button></header>

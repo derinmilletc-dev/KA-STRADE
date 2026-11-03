@@ -1,7 +1,7 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent} from 'react'
 import {ArrowLeft, ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
 import {API_BASE} from './api'
-import {browserLang, currentLang as savedLang} from './i18n'
+import {browserLang, currentLang as savedLang, translateText} from './i18n'
 import KaisEye from './KaisEye'
 import OptionPicker from './OptionPicker'
 import FoundingIntro, {preloadIntro, type IntroOutcome} from './FoundingIntro'
@@ -136,7 +136,7 @@ export default function LaunchPage() {
       }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
-      fail(detail || t('Başvuru şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.', 'We could not take your application right now. Please try again shortly.'))
+      fail((detail && translateText(detail)) || t('Başvuru şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.', 'We could not take your application right now. Please try again shortly.'))
     } catch {
       fail(t('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.', 'Could not reach the server. Check your connection and try again.'))
     } finally { window.clearTimeout(timeout) }

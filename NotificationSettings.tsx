@@ -3,6 +3,10 @@ import {Bell, BellRing, Info, Smartphone, Volume2} from 'lucide-react'
 import {NOTIFY_KINDS, browserNotificationState, fireNotification, loadNotifyPrefs, saveNotifyPrefs, type NotifyKind, type NotifyPrefs} from './notification-prefs'
 import {disablePush, enablePush, pushState, sendTestPush, syncPushKinds, type PushState} from './push-client'
 import './notify-settings.css'
+import {currentLang} from './i18n'
+
+// Cümle içinde vurgulu kelime olan adımlar sözlükle parça parça çevrilemez; iki dilde ayrı yazılır.
+const en = currentLang() === 'en'
 
 function Switch({checked, onChange, label}: {checked: boolean; onChange: (value: boolean) => void; label: string}) {
   return <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`nsSwitch${checked ? ' on' : ''}`} onClick={() => onChange(!checked)}><i/></button>
@@ -60,9 +64,9 @@ export default function NotificationSettings() {
         <summary><Info/>iPhone'da nasıl açılır?</summary>
         <ol>
           <li>Siteyi iPhone'da <b>Safari</b> ile aç (Chrome olmaz).</li>
-          <li>Alttaki <b>Paylaş</b> düğmesine bas, <b>Ana Ekrana Ekle</b>'yi seç.</li>
+          <li translate="no">{en ? <>Tap <b>Share</b> at the bottom and choose <b>Add to Home Screen</b>.</> : <>Alttaki <b>Paylaş</b> düğmesine bas, <b>Ana Ekrana Ekle</b>'yi seç.</>}</li>
           <li>Ana ekrandaki <b>KaisTrade</b> simgesinden uygulamayı aç ve giriş yap.</li>
-          <li>Buraya gel, <b>Telefona bildirim</b>'i aç ve gelen soruda <b>İzin ver</b>'e bas.</li>
+          <li translate="no">{en ? <>Come back here, turn on <b>Phone notifications</b> and tap <b>Allow</b> when asked.</> : <>Buraya gel, <b>Telefona bildirim</b>'i aç ve gelen soruda <b>İzin ver</b>'e bas.</>}</li>
         </ol>
         <small>iPhone'un iOS 16.4 veya daha yeni olmalı. Samsung/Android'de ek bir şey gerekmez, Chrome'dan doğrudan açılır.</small>
       </details>
