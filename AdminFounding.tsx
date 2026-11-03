@@ -2,8 +2,8 @@ import {useCallback, useEffect, useState} from 'react'
 import {API_BASE} from './api'
 import './admin-founding.css'
 
-type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
-type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; reference: string | null; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
+type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected' | 'invited' | 'invite_expired' | 'account_created' | 'payment_pending' | 'active'
+type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; reference: string | null; heard_from?: string | null; source?: string; invite_sent_at?: string | null; invite_expires_at?: string | null; invite_accepted_at?: string | null; invite_count?: number; invite_open?: boolean; activated_at?: string | null; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
 type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string; registration_open?: boolean}
 type FunnelKey = 'view' | 'start' | 'step2' | 'submit' | 'success'
 type Funnel = Record<'d7' | 'd30' | 'total', Record<FunnelKey, number>>
@@ -25,10 +25,12 @@ function FunnelCard({funnel}: {funnel: Funnel}) {
   </div>
 }
 
-const LABEL: Record<Status, string> = {pending_email: 'E-posta bekliyor', new: 'Yeni', approved: 'Onaylı', waitlist: 'Bekleme listesi', rejected: 'Reddedildi'}
+const LABEL: Record<Status, string> = {pending_email: 'E-posta bekliyor', new: 'İnceleme bekliyor', approved: 'Onaylı · davet bekliyor', waitlist: 'Bekleme listesi', rejected: 'Reddedildi', invited: 'Davet gönderildi', invite_expired: 'Davet süresi doldu', account_created: 'Hesap açıldı', payment_pending: 'Ödeme bekleniyor', active: 'Aktif üye'}
+const HEARD: Record<string, string> = {instagram: 'Instagram', tiktok: 'TikTok', x: 'X', youtube: 'YouTube', google: 'Google', friend: 'Arkadaş', telegram: 'Telegram', other: 'Diğer'}
+const DECIDABLE: Status[] = ['new', 'approved', 'waitlist', 'rejected', 'invited', 'invite_expired']
 const FUTURES: Record<string, string> = {active: 'Aktif kullanıyor', past: 'Daha önce kullandı', never: 'Henüz kullanmadı'}
 const TRADING: Record<string, string> = {new: 'Yeni başlıyor', lt6m: '6 aydan az', '6to12m': '6–12 ay', gt1y: '1 yıldan fazla'}
-const ORDER: Status[] = ['new', 'approved', 'waitlist', 'rejected', 'pending_email']
+const ORDER: Status[] = ['new', 'approved', 'invited', 'account_created', 'payment_pending', 'active', 'waitlist', 'invite_expired', 'rejected', 'pending_email']
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
@@ -82,15 +84,49 @@ export default function AdminFounding() {
     setBusy(true); setError(''); setInfo('')
     try {
       const result = await call<Item & {email_sent: boolean}>(`/${item.id}/${action}`, {method: 'POST', body: JSON.stringify({note: notes[item.id] ?? ''})})
-      setInfo(action === 'approve' ? (result.email_sent ? `${item.name} onaylandı; onay e-postası gönderildi.` : `${item.name} onaylandı ama e-posta gönderilemedi; ayrıca yazın.`) : 'Güncellendi.')
+      setInfo(action === 'approve' ? (result.email_sent ? `${item.name} onaylandı; onay e-postası gönderildi. Davet lansmandan 7 gün önce otomatik gider.` : `${item.name} onaylandı ama e-posta gönderilemedi.`) : 'Güncellendi.')
+      await load()
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'İşlem yapılamadı'); setBusy(false) }
+  }
+
+  const invite = async (item: Item, action: 'invite' | 'revoke-invite' | 'extend-invite') => {
+    const ask = action === 'invite' ? (item.invite_count ? `${item.name} için yeni davet gönderilsin mi? Eski bağlantı geçersiz olur.` : `${item.name} adresine davet gönderilsin mi?`)
+      : action === 'revoke-invite' ? `${item.name} davetini iptal etmek istiyor musunuz?` : ''
+    if (ask && !window.confirm(ask)) return
+    setBusy(true); setError(''); setInfo('')
+    try {
+      const result = await call<Item & {email_sent: boolean}>(`/${item.id}/${action}`, {method: 'POST'})
+      setInfo(action === 'invite' ? (result.email_sent ? `Davet ${item.email} adresine gönderildi (48 saat geçerli).` : 'Davet oluşturuldu ama e-posta gönderilemedi; tekrar deneyin.') : action === 'revoke-invite' ? 'Davet iptal edildi.' : 'Davet 48 saat uzatıldı.')
+      await load()
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'İşlem yapılamadı'); setBusy(false) }
+  }
+  const [manual, setManual] = useState({email: '', name: '', country: ''})
+  const manualInvite = async () => {
+    if (!window.confirm(`${manual.email} adresine başvuru olmadan davet gönderilsin mi? Bir koltuk kullanılır.`)) return
+    setBusy(true); setError(''); setInfo('')
+    try {
+      const result = await call<Item & {email_sent: boolean}>('/invite', {method: 'POST', body: JSON.stringify({email: manual.email, name: manual.name, country: manual.country})})
+      setInfo(result.email_sent ? `Davet ${result.email} adresine gönderildi.` : 'Davet oluşturuldu ama e-posta gönderilemedi.'); setManual({email: '', name: '', country: ''})
       await load()
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'İşlem yapılamadı'); setBusy(false) }
   }
 
   const counts = data?.counts ?? {}
-  const taken = counts.approved ?? 0
+  const seats = data?.settings.seats ?? 30
+  const active = counts.active ?? 0
+  const inSetup = (counts.account_created ?? 0) + (counts.payment_pending ?? 0)
+  const invitedNow = counts.invited ?? 0
+  const approvedWaiting = counts.approved ?? 0
+  const taken = active + inSetup + invitedNow + approvedWaiting
   return <section className="adminFounding" aria-label="Founding 30 başvuruları">
-    <header><h2>Founding 30 başvuruları</h2><p>Kontenjan {taken} / {data?.settings.seats ?? 30} dolu. Başvuranlar e-postalarını onayladıktan sonra “Yeni” olarak görünür.</p></header>
+    <header><h2>Üyelik yönetimi · Founding 30</h2><p>KaisTrade yalnız davetle üye alır. Onaylılara davet lansmandan 7 gün önce otomatik gider; buradan elle de gönderebilirsiniz.</p></header>
+    <div className="afCapacity" aria-label="Kontenjan">
+      <div><b>{active}</b><span>Aktif üye</span></div>
+      <div><b>{inSetup}</b><span>Hesap / ödeme aşamasında</span></div>
+      <div><b>{invitedNow}</b><span>Açık davet</span></div>
+      <div><b>{approvedWaiting}</b><span>Onaylı · davet bekliyor</span></div>
+      <div className={seats - taken <= 0 ? 'full' : ''}><b>{Math.max(0, seats - taken)}</b><span>Boş koltuk / {seats}</span></div>
+    </div>
     {error && <p className="afError" role="alert">{error}</p>}
     {info && <p className="afInfo" role="status">{info}</p>}
 
@@ -100,9 +136,16 @@ export default function AdminFounding() {
       <label>Lansman tarihi ve saati<input type="datetime-local" value={form.launch} onChange={event => setForm({...form, launch: event.target.value})}/></label>
       <label>Kurucu fiyatı (görünen metin)<input maxLength={40} placeholder="örn. 29 USDT / ay" value={form.price} onChange={event => setForm({...form, price: event.target.value})}/></label>
       <label className="afToggle"><input type="checkbox" checked={form.open} onChange={event => setForm({...form, open: event.target.checked})}/> Başvurular açık</label>
-      <label className="afToggle" title="Kapalıyken kimse yeni hesap açamaz (e-posta veya Google). Mevcut hesapların girişi etkilenmez."><input type="checkbox" checked={form.register} onChange={event => { if (event.target.checked && !window.confirm('Yeni üye kaydını herkese açmak istiyor musunuz? Founding sırası atlanabilir.')) return; setForm({...form, register: event.target.checked}) }}/> Yeni üye kaydı açık</label>
+      <label className="afToggle" title="Normalde kapalı kalmalı: yeni hesap yalnız davetle açılır. Açıksa herkes davetsiz hesap açabilir."><input type="checkbox" checked={form.register} onChange={event => { if (event.target.checked && !window.confirm('Davetsiz kaydı herkese açmak istiyor musunuz? Kapalı üyelik devre dışı kalır.')) return; setForm({...form, register: event.target.checked}) }}/> Davetsiz kayıt (acil durum)</label>
       <button type="button" disabled={busy} onClick={() => void saveSettings()}>Ayarları kaydet</button>
     </div>
+
+    <details className="afManual"><summary>Başvurusu olmayan birine davet gönder</summary>
+      <div><input placeholder="Ad soyad" value={manual.name} onChange={event => setManual({...manual, name: event.target.value})}/>
+        <input type="email" placeholder="E-posta" value={manual.email} onChange={event => setManual({...manual, email: event.target.value})}/>
+        <input placeholder="Ülke (Türkiye ise Türkçe e-posta)" value={manual.country} onChange={event => setManual({...manual, country: event.target.value})}/>
+        <button type="button" className="ok" disabled={busy || manual.name.trim().length < 2 || !/^\S+@\S+\.\S+$/.test(manual.email)} onClick={() => void manualInvite()}>Davet gönder</button></div>
+    </details>
 
     <div className="afChips" role="tablist" aria-label="Durum">
       <button type="button" className={filter === '' ? 'on' : ''} onClick={() => setFilter('')}>Tümü</button>
@@ -114,13 +157,18 @@ export default function AdminFounding() {
     {data && data.items.length === 0 && <p className="afEmpty">Bu durumda başvuru yok.</p>}
     <ul className="afList">
       {data?.items.filter(item => { const q = search.trim().toLowerCase(); return !q || [item.name, item.email, item.reference ?? ''].some(value => value.toLowerCase().includes(q)) }).map(item => <li key={item.id} className={`afRow ${item.status}`}>
-        <div className="afWho"><b>{item.name}</b> <span className={`afBadge ${item.status}`}>{LABEL[item.status]}{item.approved_seq ? ` #${item.approved_seq}` : ''}</span>{item.reference && <code className="afRef">{item.reference}</code>}
+        <div className="afWho"><span className="afHead"><b>{item.name}</b><span className={`afBadge ${item.status}`}>{LABEL[item.status]}{item.approved_seq ? ` #${item.approved_seq}` : ''}</span>{item.reference && <code className="afRef">{item.reference}</code>}</span>
           <small>{item.email} · {item.country} · {item.lang.toUpperCase()} · {new Date(item.created_at).toLocaleString('tr-TR')}</small>
           {(item.futures_experience || item.trading_experience) && <span className="afTags">{item.futures_experience && <em className={item.futures_experience === 'active' ? 'yes' : ''}>Binance Futures: {FUTURES[item.futures_experience] ?? item.futures_experience}</em>}{item.trading_experience && <em className={item.trading_experience === 'gt1y' ? 'yes' : ''}>Trading: {TRADING[item.trading_experience] ?? item.trading_experience}</em>}</span>}
+          {item.heard_from && <span className="afTags"><em>Nereden: {HEARD[item.heard_from] ?? item.heard_from}</em>{item.source === 'admin' && <em>Yönetici daveti</em>}</span>}
+          {(item.invite_sent_at || item.invite_accepted_at) && <small className="afInvite">{item.invite_accepted_at ? `Davet kullanıldı · ${new Date(item.invite_accepted_at).toLocaleString('tr-TR')}` : item.invite_open && item.invite_expires_at ? `Davet açık · bitiş ${new Date(item.invite_expires_at).toLocaleString('tr-TR')}` : item.invite_sent_at ? `Son davet ${new Date(item.invite_sent_at).toLocaleString('tr-TR')} (kullanılmadı)` : ''}{item.invite_count ? ` · ${item.invite_count}. davet` : ''}</small>}
           {item.reason && <q className="afReason">{item.reason}</q>}</div>
-        {item.status !== 'pending_email' && <div className="afActs">
+        {DECIDABLE.includes(item.status) && <div className="afActs">
           <input aria-label="Not" placeholder="Not (isteğe bağlı)" maxLength={500} value={notes[item.id] ?? item.note} onChange={event => setNotes({...notes, [item.id]: event.target.value})}/>
-          {item.status !== 'approved' && <button type="button" className="ok" disabled={busy} onClick={() => void decide(item, 'approve')}>Onayla</button>}
+          {['new', 'waitlist', 'rejected'].includes(item.status) && <button type="button" className="ok" disabled={busy} onClick={() => void decide(item, 'approve')}>Onayla</button>}
+          {['approved', 'invited', 'invite_expired'].includes(item.status) && <button type="button" className="ok" disabled={busy} onClick={() => void invite(item, 'invite')}>{item.invite_count ? 'Daveti yeniden gönder' : 'Davet gönder'}</button>}
+          {item.status === 'invited' && <button type="button" disabled={busy} onClick={() => void invite(item, 'extend-invite')}>48 saat uzat</button>}
+          {item.status === 'invited' && <button type="button" className="no" disabled={busy} onClick={() => void invite(item, 'revoke-invite')}>Daveti iptal et</button>}
           {item.status !== 'waitlist' && <button type="button" disabled={busy} onClick={() => void decide(item, 'waitlist')}>Bekleme</button>}
           {item.status !== 'rejected' && <button type="button" className="no" disabled={busy} onClick={() => void decide(item, 'reject')}>Reddet</button>}
         </div>}

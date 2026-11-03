@@ -45,3 +45,22 @@
 .afFunnel li small { opacity: .7; text-align: right; }
 .afFunnel p { margin: 0; font-size: 12.5px; opacity: .8; }
 @media (max-width: 760px) { .afFunnel li { grid-template-columns: 1fr 40px 40px; } .afFunnelBar { grid-column: 1 / -1; grid-row: 2; } }
+.afCapacity { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.afCapacity > div { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; }
+.afCapacity b { font-size: 22px; } .afCapacity span { font-size: 12px; opacity: .75; }
+.afCapacity .full { border-color: #7a2c39; } .afCapacity .full b { color: #ff9aa6; }
+.afManual { border: 1px solid rgba(148,163,184,.2); border-radius: 12px; padding: 10px 14px; }
+.afManual summary { cursor: pointer; font-weight: 600; }
+.afManual > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.afManual input { min-height: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(148,163,184,.3); background: transparent; color: inherit; font: inherit; flex: 1 1 180px; }
+.afInvite { color: #7eecb2; opacity: .85; }
+.afBadge.invited, .afBadge.account_created, .afBadge.payment_pending { background: #10283a; color: #8cc8ff; }
+.afBadge.active { background: #0d2a20; color: #2ee59d; }
+.afBadge.invite_expired { background: #2a2410; color: #f4b63c; }
+@media (max-width: 760px) { .afCapacity { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.afRow { grid-template-columns: 1fr; }
+.afActs { justify-content: flex-start; }
+.afWho > .afBadge, .afWho > .afRef { justify-self: start; width: auto; }
+.afWho > b { font-size: 15px; }
+.afHead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.afHead .afBadge, .afHead .afRef { margin-left: 0; }
