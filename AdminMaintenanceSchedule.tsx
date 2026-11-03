@@ -3,12 +3,12 @@ import { CalendarClock, Timer } from 'lucide-react'
 import { countdownParts, remainingMs, startClock } from './maintenance-countdown'
 
 type Schedule = {scheduled_at: number | null; now?: number; mode: string}
-const PRESETS = [{value: 15, unit: 'min', minutes: 15}, {value: 30, unit: 'min', minutes: 30}, {value: 1, unit: 'hour', minutes: 60}, {value: 2, unit: 'hours', minutes: 120}, {value: 6, unit: 'hours', minutes: 360}]
+const PRESETS = [{value: 15, unit: 'dk', minutes: 15}, {value: 30, unit: 'dk', minutes: 30}, {value: 1, unit: 'saat', minutes: 60}, {value: 2, unit: 'saat', minutes: 120}, {value: 6, unit: 'saat', minutes: 360}]
 const pad = (value: number) => String(value).padStart(2, '0')
 
 function Clock({ms}: {ms: number}) {
   const parts = countdownParts(ms)
-  const units: Array<[string, number]> = [...(parts.days > 0 ? [['Days', parts.days] as [string, number]] : []), ['Hours', parts.hours], ['Min', parts.minutes], ['Sec', parts.seconds]]
+  const units: Array<[string, number]> = [...(parts.days > 0 ? [['Gün', parts.days] as [string, number]] : []), ['Saat', parts.hours], ['Dk', parts.minutes], ['Sn', parts.seconds]]
   return <div className="adminMaintClock" aria-hidden="true">{units.map(([label, value]) => <div key={label}><b>{pad(value)}</b><small>{label}</small></div>)}</div>
 }
 
@@ -40,39 +40,39 @@ export default function AdminMaintenanceSchedule({maintenance, busy, onSchedule,
   const minutes = preset === 'custom' ? customMinutes : preset
   const locked = busy || maintenance?.mode !== 'NORMAL'
   const canStart = !locked && !at && (preset !== 'custom' || customValid)
-  const previewStart = preset !== 'custom' || customValid ? startClock(now + offset + minutes * 60_000) : null
+  const previewStart = preset !== 'custom' || customValid ? startClock(now + offset + minutes * 60_000, 'tr-TR') : null
 
   return <div className="adminMaint">
     <div className="adminMaintHead">
-      <h4><Timer aria-hidden="true"/>Scheduled maintenance</h4>
-      <span className={`adminMaintChip${at ? ' live' : ''}`}><i/>{at ? 'Countdown running' : 'Not scheduled'}</span>
+      <h4><Timer aria-hidden="true"/>Planlı bakım</h4>
+      <span className={`adminMaintChip${at ? ' live' : ''}`}><i/>{at ? 'Geri sayım sürüyor' : 'Planlanmadı'}</span>
     </div>
     {at && left !== null ? <div className="adminMaintRun">
       <Clock ms={left}/>
       <div className="adminMaintRunInfo">
-        <p><CalendarClock aria-hidden="true"/><span>{left > 0 ? <>Maintenance starts automatically at <b>{startClock(at)}</b>.</> : <>Starting maintenance…</>}</span></p>
-        <small>Members see this countdown on the login screen and across the site. Open positions and protection keep running.</small>
+        <p><CalendarClock aria-hidden="true"/><span>{left > 0 ? <>Bakım <b>{startClock(at, 'tr-TR')}</b> saatinde otomatik başlar.</> : <>Bakım başlatılıyor…</>}</span></p>
+        <small>Üyeler bu geri sayımı giriş ekranında ve sitede görür. Açık pozisyonlar ve korumalar çalışmaya devam eder.</small>
       </div>
-      <button type="button" className="adminMaintCancel" disabled={busy} onClick={() => void onCancel()}>Cancel countdown</button>
+      <button type="button" className="adminMaintCancel" disabled={busy} onClick={() => void onCancel()}>Geri sayımı iptal et</button>
     </div> : <>
-      <p className="adminMaintLead">Warn members in advance. When the countdown ends, Maintenance mode turns on automatically. Open positions and protection keep running.</p>
-      <div className="adminMaintTiles" role="group" aria-label="Countdown length">
+      <p className="adminMaintLead">Üyeleri önceden uyar. Süre dolunca bakım modu kendiliğinden açılır; açık pozisyonlar ve korumalar çalışmaya devam eder.</p>
+      <div className="adminMaintTiles" role="group" aria-label="Geri sayım süresi">
         {PRESETS.map(item => <button type="button" key={item.minutes} aria-pressed={preset === item.minutes} onClick={() => setPreset(item.minutes)} disabled={locked}><b>{item.value}</b><small>{item.unit}</small></button>)}
-        <button type="button" aria-pressed={preset === 'custom'} onClick={() => setPreset('custom')} disabled={locked}><b>···</b><small>Custom</small></button>
+        <button type="button" aria-pressed={preset === 'custom'} onClick={() => setPreset('custom')} disabled={locked}><b>···</b><small>Özel</small></button>
       </div>
       {preset === 'custom' && <div className="adminMaintCustom">
-        <input type="number" inputMode="decimal" min="1" step="any" placeholder="e.g. 45" value={custom} onChange={event => setCustom(event.target.value)} aria-label="Custom length" aria-invalid={custom !== '' && !customValid} disabled={locked}/>
-        <div className="adminMaintUnit" role="group" aria-label="Unit">
-          <button type="button" aria-pressed={unit === 'min'} onClick={() => setUnit('min')} disabled={locked}>minutes</button>
-          <button type="button" aria-pressed={unit === 'hour'} onClick={() => setUnit('hour')} disabled={locked}>hours</button>
+        <input type="number" inputMode="decimal" min="1" step="any" placeholder="örn. 45" value={custom} onChange={event => setCustom(event.target.value)} aria-label="Özel süre" aria-invalid={custom !== '' && !customValid} disabled={locked}/>
+        <div className="adminMaintUnit" role="group" aria-label="Birim">
+          <button type="button" aria-pressed={unit === 'min'} onClick={() => setUnit('min')} disabled={locked}>dakika</button>
+          <button type="button" aria-pressed={unit === 'hour'} onClick={() => setUnit('hour')} disabled={locked}>saat</button>
         </div>
-        {custom !== '' && !customValid && <small role="alert">Enter 1 minute to 30 days.</small>}
+        {custom !== '' && !customValid && <small role="alert">1 dakika ile 30 gün arası gir.</small>}
       </div>}
       <div className="adminMaintFoot">
-        {previewStart && !locked ? <p className="adminMaintWhen"><CalendarClock aria-hidden="true"/><span>Maintenance would start at <b>{previewStart}</b></span></p> : <span/>}
-        <button type="button" className="adminMaintStart" disabled={!canStart} onClick={() => void onSchedule(minutes)}>{busy ? 'Starting…' : 'Start countdown'}</button>
+        {previewStart && !locked ? <p className="adminMaintWhen"><CalendarClock aria-hidden="true"/><span>Bakım <b>{previewStart}</b> saatinde başlar</span></p> : <span/>}
+        <button type="button" className="adminMaintStart" disabled={!canStart} onClick={() => void onSchedule(minutes)}>{busy ? 'Başlatılıyor…' : 'Geri sayımı başlat'}</button>
       </div>
-      {maintenance && maintenance.mode !== 'NORMAL' && <small className="adminMaintHint">Return to Normal first to schedule a new maintenance.</small>}
+      {maintenance && maintenance.mode !== 'NORMAL' && <small className="adminMaintHint">Yeni bakım planlamak için önce Normal moda dön.</small>}
     </>}
   </div>
 }

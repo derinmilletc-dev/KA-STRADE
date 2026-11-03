@@ -134,7 +134,7 @@ export default function AdminFounding() {
     <div className="afSettings">
       <label>Koltuk sayısı<input type="number" min={1} max={200} value={form.seats} onChange={event => setForm({...form, seats: event.target.value})}/></label>
       <label>Lansman tarihi ve saati<input type="datetime-local" value={form.launch} onChange={event => setForm({...form, launch: event.target.value})}/></label>
-      <label>Kurucu fiyatı (görünen metin)<input maxLength={40} placeholder="örn. 29 USDT / ay" value={form.price} onChange={event => setForm({...form, price: event.target.value})}/></label>
+      <label>Kurucu fiyatı (görünen metin)<input maxLength={40} placeholder="örn. 119.90 USDT / ay" value={form.price} onChange={event => setForm({...form, price: event.target.value})}/></label>
       <label className="afToggle"><input type="checkbox" checked={form.open} onChange={event => setForm({...form, open: event.target.checked})}/> Başvurular açık</label>
       <label className="afToggle" title="Normalde kapalı kalmalı: yeni hesap yalnız davetle açılır. Açıksa herkes davetsiz hesap açabilir."><input type="checkbox" checked={form.register} onChange={event => { if (event.target.checked && !window.confirm('Davetsiz kaydı herkese açmak istiyor musunuz? Kapalı üyelik devre dışı kalır.')) return; setForm({...form, register: event.target.checked}) }}/> Davetsiz kayıt (acil durum)</label>
       <button type="button" disabled={busy} onClick={() => void saveSettings()}>Ayarları kaydet</button>
