@@ -64,3 +64,8 @@
 .afWho > b { font-size: 15px; }
 .afHead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .afHead .afBadge, .afHead .afRef { margin-left: 0; }
+.afSuggest { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid rgba(46,229,157,.4); border-radius: 12px; background: rgba(46,229,157,.05); }
+.afSuggest ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.afSuggest li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.afSuggest li span { display: grid; min-width: 0; } .afSuggest li small { opacity: .7; overflow-wrap: anywhere; }
+.afSuggest > small { opacity: .7; }

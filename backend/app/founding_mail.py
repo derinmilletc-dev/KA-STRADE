@@ -56,13 +56,13 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
                            "cta": "Başvuru durumunu gör", "status": "Davet süresi doldu"},
         "account_created": {"subject": "KaisTrade hesabın oluşturuldu · {ref}", "title": "Hesabın oluşturuldu",
                             "body": "Hesabın başarıyla oluşturuldu. Son bir güvenlik adımı kaldı: hesabını korumak için iki aşamalı doğrulamayı (2FA) etkinleştir.",
-                            "cta": "Başvuru durumunu gör", "status": "Hesap oluşturuldu"},
+                            "cta": "Giriş yap ve 2FA'yı kur", "status": "Hesap oluşturuldu"},
         "payment_pending": {"subject": "Üyeliğini tamamla · {ref}", "title": "Üyeliğini tamamla",
                             "body": "Hesap kurulumun tamamlandı. Üyelik ödemen bekleniyor; ödemen doğrulandığında üyeliğin otomatik olarak açılır.",
-                            "cta": "Başvuru durumunu gör", "status": "Ödeme bekleniyor"},
+                            "cta": "Ödemeyi tamamla", "status": "Ödeme bekleniyor"},
         "active": {"subject": "KaisTrade'e hoş geldin · üyeliğin aktif", "title": "Üyeliğin aktif, hoş geldin",
                    "body": "Tebrikler! KaisTrade üyeliğin artık aktif. Hesabın hazır; platforma giriş yapabilirsin. Kurucu üyelerimizden biri olduğun için teşekkür ederiz.",
-                   "cta": "Başvuru durumunu gör", "status": "Aktif üye"},
+                   "cta": "KaisTrade'e giriş yap", "status": "Aktif üye"},
         "hello": "Merhaba {name},", "ref": "Başvuru numarası", "state": "Durum", "program": "Program",
         "foot": "Bu e-postayı KaisTrade Founding 30 başvurun nedeniyle aldın. Başvuruyu sen yapmadıysan bu e-postayı yok sayabilirsin.",
         "risk": "Kripto vadeli işlemler yüksek risk içerir; kâr garantisi verilmez.",
@@ -94,13 +94,13 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
                            "cta": "View application status", "status": "Invitation expired"},
         "account_created": {"subject": "Your KaisTrade account has been created · {ref}", "title": "Your account has been created",
                             "body": "Your account was created successfully. One important security step remains: please set up two-factor authentication (2FA) to secure your account.",
-                            "cta": "View application status", "status": "Account created"},
+                            "cta": "Sign in and set up 2FA", "status": "Account created"},
         "payment_pending": {"subject": "Complete your KaisTrade membership · {ref}", "title": "Complete your membership",
                             "body": "Your account setup is complete. Your membership payment is now awaiting completion; once it is verified your membership is activated automatically.",
-                            "cta": "View application status", "status": "Payment pending"},
+                            "cta": "Complete payment", "status": "Payment pending"},
         "active": {"subject": "Welcome to KaisTrade · your membership is active", "title": "Your membership is active",
                    "body": "Congratulations! Your KaisTrade membership is now active. Your account is ready and you can access the platform. Thank you for being one of our founding members.",
-                   "cta": "View application status", "status": "Active member"},
+                   "cta": "Sign in to KaisTrade", "status": "Active member"},
         "hello": "Hi {name},", "ref": "Application number", "state": "Status", "program": "Program",
         "foot": "You received this email because of your KaisTrade Founding 30 application. If you did not apply, you can ignore it.",
         "risk": "Crypto futures carry high risk; no profit is guaranteed.",
@@ -149,3 +149,23 @@ def send(kind: Kind, *, email: str, name: str, reference: str, lang: str, action
         email_service.validate_action_url(action_url)
     email_service.send_email_message(to_email=email, subject=subject, text=text, html=body_html,
                                      idempotency_key=idempotency, idempotency_prefix=f"founding-{kind}-")
+
+
+# Uygulamaya giden e-postalar durum sayfası yerine doğrudan ilgili ekranı açar.
+APP_PATHS = {"account_created": "/giris", "payment_pending": "/billing", "active": "/giris"}
+
+
+def owner_alert(*, to_email: str, subject: str, lines: list[tuple[str, str]], intro: str, action_url: str, idempotency: str) -> None:
+    """Sahibe kısa bildirim (yeni başvuru / boşalan koltuk)."""
+    e = html.escape
+    rows = "".join(f"<tr><td style='padding:7px 0;color:#93a1b0;font-size:13px;border-top:1px solid #1d2a35;width:38%'>{e(k)}</td>"
+                   f"<td style='padding:7px 0;font-size:13px;color:#e8eef4;border-top:1px solid #1d2a35'>{e(v)}</td></tr>" for k, v in lines)
+    body_html = f"""<!doctype html><html><body style="margin:0;background:#05090d"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px">
+<tr><td align="center"><table role="presentation" width="100%" style="max-width:520px;background:#0b1218;border:1px solid #1f4a3a;border-radius:18px;font-family:Arial,Helvetica,sans-serif;color:#e8eef4">
+<tr><td style="padding:22px 24px 4px"><span style="font-weight:800;font-size:18px">kais</span><span style="font-weight:800;font-size:18px;color:{GREEN}">trade</span> <span style="color:#93a1b0;font-size:12px">· yönetim</span></td></tr>
+<tr><td style="padding:10px 24px 4px"><p style="margin:0 0 12px;font-size:15px;line-height:1.5">{e(intro)}</p><table role="presentation" width="100%">{rows}</table></td></tr>
+<tr><td style="padding:16px 24px 24px"><a href="{e(action_url)}" style="display:inline-block;background:{GREEN};color:#04130c;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:10px">Admin'de aç</a></td></tr>
+</table></td></tr></table></body></html>"""
+    text = intro + "\n\n" + "\n".join(f"{k}: {v}" for k, v in lines) + f"\n\n{action_url}"
+    email_service.send_email_message(to_email=to_email, subject=subject, text=text, html=body_html,
+                                     idempotency_key=idempotency, idempotency_prefix="founding-owner-")
