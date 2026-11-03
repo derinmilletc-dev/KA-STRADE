@@ -816,6 +816,7 @@
 @media (min-width: 1001px) and (max-width: 1180px) {
   .fdHero { grid-template-columns: minmax(0, 1fr); }
   .fdHero .fdEyeStage { display: none; }
+}
 /* Alt bilgi: yalnız telif satırı; telefonda tek ekran düzeninin en altında ince bir satır */
 .fdFoot { padding: 22px 16px 26px; }
 .fdFoot small { color: var(--mute); font-size: 12.5px; letter-spacing: .01em; }
