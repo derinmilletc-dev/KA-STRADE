@@ -14,6 +14,7 @@ import InstallPrompt from './InstallPrompt'
 import UpdateBanner from './UpdateBanner'
 import LanguageToggle from './LanguageToggle'
 import { initI18n } from './i18n'
+import { installNoZoom } from './no-zoom'
 import { MemberAccessProvider } from './premium-access'
 import { installAuthorizedFetch, installErrorMonitoring } from './api'
 import './frontend/src/binance-demo.css'
@@ -32,6 +33,8 @@ import './back-to-top.css'
 import './market-picker-modern.css'
 
 import { reloadForNewVersion } from './error-visibility'
+
+installNoZoom()
 
 // Vercel dosya önceliği: admin.* alan adında "/" (ve "/index.html") istekleri yönlendirme kuralına ulaşmadan bu müşteri
 // sayfasını açar. Yönetim alanında müşteri uygulaması hiç çalışmaz; "/admin"e geçilir (orada admin.html sunulur).
