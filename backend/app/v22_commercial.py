@@ -1439,6 +1439,8 @@ async def v22_register(payload: RegisterRequest, request: Request, response: Res
 
 async def register_password_user(payload: RegisterRequest, request: Request, browser_response: Response = None):
     await enforce_auth_limit(request, "register", payload.email)
+    from .founding import require_registration_open
+    await require_registration_open(request)
     from .registration_consent import require_terms
     require_terms(payload.terms_accepted)
     if payload.password != payload.confirm_password:

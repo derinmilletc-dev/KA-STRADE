@@ -493,6 +493,9 @@ async def callback(request: Request):
         identity = await exchange_identity(request, query["code"], attempt)
         user = await resolve_identity(request, identity, create=False)
         if user is None:
+            from .founding import registration_allowed
+            if not await registration_allowed(request):
+                raise OAuthFailure("account_unavailable")  # lansmana kadar yeni hesap açılmaz
             binding = secrets.token_urlsafe(32)
             pending = await create_attempt(request, {"origin": origin, "remember": attempt["remember"],
                                                      "identity": identity}, binding, "consent")
@@ -543,6 +546,9 @@ async def complete(payload: CompleteRequest, request: Request, response: Respons
         if origin != attempt["origin"]:
             raise OAuthFailure("invalid_attempt")
         await auth.enforce_auth_limit(request, "register", attempt["identity"]["email"])
+        from .founding import registration_allowed
+        if not await registration_allowed(request) and await resolve_identity(request, attempt["identity"], create=False) is None:
+            raise OAuthFailure("account_unavailable")  # lansmana kadar yeni hesap açılmaz
         user = await resolve_identity(request, attempt["identity"], create=True, marketing_accepted=payload.marketing_accepted)
         if user is None:
             raise OAuthFailure("account_unavailable")
