@@ -1411,7 +1411,7 @@ MEMBER_PUBLIC_PATHS = frozenset({
     "/api/v22/auth/registration/exchange",
     "/api/v22/auth/registration/email",
     "/api/public/instagram/feed",
-    "/api/v22/founding/apply", "/api/v22/founding/confirm", "/api/v22/founding/status", "/api/v22/founding/track",
+    "/api/v22/founding/apply", "/api/v22/founding/confirm", "/api/v22/founding/status", "/api/v22/founding/track", "/api/v22/founding/track-link",
 })
 
 

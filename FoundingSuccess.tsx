@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {ClipboardList, Clock, FileText, Home, Info, Layers, ListChecks, LoaderCircle, Mail, Search, Tag} from 'lucide-react'
-import {API_BASE} from './api'
+import {TRACK_HANDOFF} from './FoundingStatus'
 import './founding-success.css'
 
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
@@ -18,10 +18,8 @@ function Laurel({flip}: {flip?: boolean}) {
 
 /** Başvuru sonrası ekran: tek ekrana sığar, durumu canlı sorgulayabilir. */
 export default function FoundingSuccess({reference, email, t, onHome}: Props) {
-  const [status, setStatus] = useState<Status>('pending_email')
+  const status: Status = 'pending_email'
   const [checking, setChecking] = useState(false)
-  const [checkedAt, setCheckedAt] = useState<string>('')
-  const [note, setNote] = useState('')
 
   const LABEL: Record<Status, [string, string]> = {
     pending_email: [t('E-posta onayı bekliyor', 'Awaiting email confirmation'), 'wait'],
@@ -31,21 +29,11 @@ export default function FoundingSuccess({reference, email, t, onHome}: Props) {
     rejected: [t('Olumsuz sonuçlandı', 'Not approved'), 'no'],
   }
 
-  const check = async () => {
+  const check = () => {
     if (!reference || checking) return
-    setChecking(true); setNote('')
-    try {
-      const response = await fetch(`${API_BASE}/v22/founding/track`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, reference})})
-      if (response.ok) {
-        const body = await response.json()
-        if (body && typeof body.status === 'string' && body.status in LABEL) setStatus(body.status as Status)
-        setCheckedAt(new Date().toLocaleTimeString(t('tr-TR', 'en-GB'), {hour: '2-digit', minute: '2-digit'}))
-      } else {
-        setNote(t('Durum şu an görüntülenemiyor. Güncellemeler e-postana gelecek.', 'Status is unavailable right now. Updates will arrive by email.'))
-      }
-    } catch {
-      setNote(t('Bağlantı kurulamadı. Biraz sonra tekrar dene.', 'Could not connect. Try again shortly.'))
-    } finally { setChecking(false) }
+    setChecking(true)
+    try { window.sessionStorage.setItem(TRACK_HANDOFF, JSON.stringify({email, reference})) } catch { /* depolama yok: sayfada elle girilir */ }
+    window.location.assign('/basvuru-durumu')
   }
 
   const [statusText, tone] = LABEL[status]
@@ -82,8 +70,7 @@ export default function FoundingSuccess({reference, email, t, onHome}: Props) {
 
       <div className="fdSuccessActions">
         <button type="button" className="fdPrimary" onClick={onHome}><Home aria-hidden="true"/>{t('Ana Sayfaya Dön', 'Back to home')}</button>
-        {reference && <button type="button" className="fdGhost" onClick={() => void check()} disabled={checking}>{checking ? <LoaderCircle className="spin" aria-hidden="true"/> : <ListChecks aria-hidden="true"/>}{t('Başvuru Durumunu Takip Et', 'Track application status')}</button>}
-        {(checkedAt || note) && <small className="fdTrackNote" role="status">{note || t(`Durum güncellendi · ${checkedAt}`, `Status updated · ${checkedAt}`)}</small>}
+        {reference && <button type="button" className="fdGhost" onClick={check} disabled={checking}>{checking ? <LoaderCircle className="spin" aria-hidden="true"/> : <ListChecks aria-hidden="true"/>}{t('Başvuru Durumunu Takip Et', 'Track application status')}</button>}
       </div>
       <p className="fdSuccessFoot"><Info aria-hidden="true"/>{t('Başvuru ücretsizdir. Bu aşamada herhangi bir ödeme alınmaz ve üyelik başlatılmaz.', 'Applying is free. No payment is taken and no membership starts at this stage.')}</p>
     </div>

@@ -3,7 +3,7 @@ import {API_BASE} from './api'
 import './admin-founding.css'
 
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
-type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
+type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; reference: string | null; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
 type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string}
 type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings}
 
@@ -40,6 +40,7 @@ export default function AdminFounding() {
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState<{seats: string; open: boolean; launch: string; price: string}>({seats: '30', open: true, launch: '', price: ''})
   const [notes, setNotes] = useState<Record<number, string>>({})
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async () => {
     setBusy(true); setError('')
@@ -88,11 +89,12 @@ export default function AdminFounding() {
       {ORDER.map(status => <button type="button" key={status} className={filter === status ? 'on' : ''} onClick={() => setFilter(status)}>{LABEL[status]} <b>{counts[status] ?? 0}</b></button>)}
     </div>
 
+    <input className="afSearch" type="search" placeholder="Ad, e-posta veya başvuru numarası ara" value={search} onChange={event => setSearch(event.target.value)} aria-label="Başvurularda ara"/>
     {busy && !data && <p>Yükleniyor...</p>}
     {data && data.items.length === 0 && <p className="afEmpty">Bu durumda başvuru yok.</p>}
     <ul className="afList">
-      {data?.items.map(item => <li key={item.id} className={`afRow ${item.status}`}>
-        <div className="afWho"><b>{item.name}</b> <span className={`afBadge ${item.status}`}>{LABEL[item.status]}{item.approved_seq ? ` #${item.approved_seq}` : ''}</span>
+      {data?.items.filter(item => { const q = search.trim().toLowerCase(); return !q || [item.name, item.email, item.reference ?? ''].some(value => value.toLowerCase().includes(q)) }).map(item => <li key={item.id} className={`afRow ${item.status}`}>
+        <div className="afWho"><b>{item.name}</b> <span className={`afBadge ${item.status}`}>{LABEL[item.status]}{item.approved_seq ? ` #${item.approved_seq}` : ''}</span>{item.reference && <code className="afRef">{item.reference}</code>}
           <small>{item.email} · {item.country} · {item.lang.toUpperCase()} · {new Date(item.created_at).toLocaleString('tr-TR')}</small>
           {(item.futures_experience || item.trading_experience) && <span className="afTags">{item.futures_experience && <em className={item.futures_experience === 'active' ? 'yes' : ''}>Binance Futures: {FUTURES[item.futures_experience] ?? item.futures_experience}</em>}{item.trading_experience && <em className={item.trading_experience === 'gt1y' ? 'yes' : ''}>Trading: {TRADING[item.trading_experience] ?? item.trading_experience}</em>}</span>}
           {item.reason && <q className="afReason">{item.reason}</q>}</div>

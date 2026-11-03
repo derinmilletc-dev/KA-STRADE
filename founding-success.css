@@ -138,3 +138,40 @@
   .fdNext i { width: 32px; height: 32px; } .fdNext i svg { width: 16px; height: 16px; } .fdNext::before { left: 15px; top: 20px; bottom: 20px; }
   .fdSuccess h2 { display: none; }
 }
+
+/* ---------- Başvuru durumu sayfası ---------- */
+.fdStatusMark { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; border: 2.5px solid var(--green); color: var(--green); background: radial-gradient(circle, rgba(46,229,157,.16), rgba(5,9,13,.9) 70%); box-shadow: 0 0 28px rgba(46,229,157,.4); }
+.fdStatusMark svg { width: 28px; height: 28px; }
+.fdStatusMark.wait { border-color: #f4b63c; color: #ffd36b; box-shadow: 0 0 28px rgba(244,182,60,.3); background: radial-gradient(circle, rgba(244,182,60,.12), rgba(5,9,13,.9) 70%); }
+.fdStatusMark.no { border-color: #ff8d9a; color: #ff8d9a; box-shadow: 0 0 24px rgba(255,141,154,.25); background: radial-gradient(circle, rgba(255,141,154,.1), rgba(5,9,13,.9) 70%); }
+.fdTimeline { position: relative; display: grid; gap: 4px; width: 100%; max-width: 440px; margin: 4px 0 0; padding: 0; list-style: none; text-align: left; }
+.fdTimeline li { position: relative; display: flex; align-items: center; gap: 14px; min-height: 52px; }
+.fdTimeline li + li::before { content: ""; position: absolute; left: 17px; top: -18px; height: 24px; width: 2px; background-color: #22313d; }
+.fdTimeline li.done + li::before { background-color: var(--green); }
+.fdTimeline i { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid #2a3846; background-color: #0a1118; color: #6f7f90; }
+.fdTimeline i svg { width: 17px; height: 17px; }
+.fdTimeline li.done i { border-color: var(--green); background-color: var(--green); color: #04130c; }
+.fdTimeline li.current i { border-color: #f4b63c; color: #ffd36b; box-shadow: 0 0 0 4px rgba(244,182,60,.12); }
+.fdTimeline strong { display: block; font-size: 14.5px; }
+.fdTimeline small { display: block; color: #93a1b0; font-size: 12.5px; }
+.fdTimeline li:not(.done):not(.current) strong { color: #93a1b0; }
+.fdSuccessActions a.fdPrimary { text-decoration: none; }
+.fdStatusForm { width: 100%; max-width: 440px; text-align: left; }
+.fdStatusForm input { letter-spacing: .02em; }
+.fdStatusBack { color: var(--mute); font-size: 13px; }
+.fdFine a { color: var(--green); }
+@media (prefers-reduced-motion: no-preference) {
+  .fdStatus { animation: fdRise .5s ease backwards; }
+  .fdTimeline li { animation: fdRise .5s backwards; }
+  .fdTimeline li:nth-child(2) { animation-delay: .1s; } .fdTimeline li:nth-child(3) { animation-delay: .2s; } .fdTimeline li:nth-child(4) { animation-delay: .3s; }
+  .fdTimeline li.current i { animation: fdCurrent 2s ease-in-out infinite; }
+  @keyframes fdCurrent { 0%, 100% { box-shadow: 0 0 0 4px rgba(244,182,60,.12); } 50% { box-shadow: 0 0 0 8px rgba(244,182,60,.04); } }
+}
+@media (max-width: 700px) { .fdTimeline li { min-height: 46px; } .fdStatusMark { width: 56px; height: 56px; } }
+@media (prefers-reduced-motion: no-preference) {
+  .fdStatus .fdSuccessInner > * { animation: fdRise .45s cubic-bezier(.2,.7,.2,1) backwards; }
+  .fdStatus .fdSuccessInner > :nth-child(1) { animation-delay: 0s; } .fdStatus .fdSuccessInner > :nth-child(2) { animation-delay: .05s; }
+  .fdStatus .fdSuccessInner > :nth-child(3) { animation-delay: .1s; } .fdStatus .fdSuccessInner > :nth-child(4) { animation-delay: .15s; }
+  .fdStatus .fdSuccessInner > :nth-child(5) { animation-delay: .2s; } .fdStatus .fdSuccessInner > :nth-child(6) { animation-delay: .25s; }
+  .fdStatus .fdSuccessInner > :nth-child(7) { animation-delay: .3s; }
+}
