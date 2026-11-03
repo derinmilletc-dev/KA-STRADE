@@ -172,6 +172,8 @@ def setup():
     application.include_router(audit_router)
     from app.admin_approvals import router as approvals_router
     application.include_router(approvals_router)
+    from app.founding import admin_router as founding_admin_router
+    application.include_router(founding_admin_router)
     from app.notification_admin import router as notification_router
     application.include_router(notification_router)
     from app.binance_manual_admin import router as binance_payments_router
