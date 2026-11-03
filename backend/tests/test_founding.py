@@ -212,3 +212,14 @@ def test_status_email_failure_does_not_break_flow():
     req = request(Conn())
     with patch.object(founding, "_app_base", lambda: "https://kaistrade.com"), patch("app.founding_mail.send", boom):
         assert founding._notify(req, "approved", row) is False
+
+
+def test_funnel_event_counts_without_personal_data():
+    conn = Conn()
+    with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit):
+        run(founding.funnel_event(founding.FunnelEvent(event="view"), request(conn)))
+    sql, args = conn.executed[-1]
+    assert "founding_funnel" in sql and args == ("view",)
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        founding.FunnelEvent(event="hack")

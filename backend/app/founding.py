@@ -58,6 +58,9 @@ SCHEMA = (
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''""",
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reference TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_reference_key ON founding_applications (reference)""",
+    """CREATE TABLE IF NOT EXISTS founding_funnel (
+        day DATE NOT NULL, event TEXT NOT NULL CHECK (event IN ('view','start','step2','submit','success')),
+        n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, event))""",
 )
 
 
@@ -240,6 +243,39 @@ async def apply(body: Apply, request: Request):
     return ok
 
 
+FUNNEL_EVENTS = ("view", "start", "step2", "submit", "success")
+
+
+class FunnelEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event: Literal["view", "start", "step2", "submit", "success"]
+
+
+@public_router.post("/event", status_code=204)
+async def funnel_event(body: FunnelEvent, request: Request):
+    """Anonim sayaç: yalnız gün + olay sayısı tutulur (IP, çerez, kimlik yok). Her tarayıcı oturumu bir kez gönderir."""
+    from . import v22_commercial as auth
+
+    await auth.enforce_auth_limit(request, "founding-event", None)
+    pool = _pool(request)
+    await ensure_schema(pool)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO founding_funnel (day, event, n) VALUES ((now() AT TIME ZONE 'UTC')::date, $1, 1)
+               ON CONFLICT (day, event) DO UPDATE SET n = founding_funnel.n + 1""", body.event,
+        )
+
+
+async def _funnel(conn: Any) -> dict:
+    rows = await conn.fetch(
+        """SELECT event, SUM(n) FILTER (WHERE day >= (now() AT TIME ZONE 'UTC')::date - 6) AS d7,
+                  SUM(n) FILTER (WHERE day >= (now() AT TIME ZONE 'UTC')::date - 29) AS d30, SUM(n) AS total
+           FROM founding_funnel GROUP BY event""")
+    found = {r["event"]: r for r in rows}
+    return {window: {event: int((found[event][window] if event in found else 0) or 0) for event in FUNNEL_EVENTS}
+            for window in ("d7", "d30", "total")}
+
+
 class Track(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: str = Field(min_length=5, max_length=254)
@@ -355,8 +391,9 @@ async def admin_list(request: Request, status: Status | None = None, limit: int 
         )
         counts = {r["status"]: int(r["n"]) for r in await conn.fetch("SELECT status, COUNT(*) AS n FROM founding_applications GROUP BY status")}
         settings = await _settings(conn)
+        funnel = await _funnel(conn)
     return {
-        "items": [_item(r) for r in rows], "counts": counts,
+        "items": [_item(r) for r in rows], "counts": counts, "funnel": funnel,
         "settings": {"seats": int(settings["seats"]), "applications_open": bool(settings["applications_open"]),
                      "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"]},
     }

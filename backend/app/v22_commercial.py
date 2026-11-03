@@ -97,7 +97,7 @@ AUTH_LIMITS = {
     "login": (8, 300), "register": (5, 900), "forgot": (5, 900),
     "reset": (8, 900), "verify": (12, 300), "verify-status": (120, 60),
     "verification-resend": (1, 60), "verification-resend-hour": (5, 3600),
-    "founding-apply": (6, 3600), "founding-track": (30, 3600),
+    "founding-apply": (6, 3600), "founding-track": (30, 3600), "founding-event": (120, 3600),
 }
 AUTH_SECURITY_FIELDS = ("password", "active", "role", "email_verified", "email", "display_name", "password_changed_at", "closed_at", "email_verified_at")
 STANDARD_SESSION_SECONDS = 8 * 60 * 60
