@@ -31,6 +31,12 @@ Status = Literal["pending_email", "new", "approved", "waitlist", "rejected"]
 EMAIL_TTL = timedelta(hours=48)
 DEFAULT_SEATS = 30
 MAX_SEATS = 200
+DUPLICATE_TR = "Bu e-posta adresiyle zaten bir başvuru yapılmış. Her e-posta adresi yalnızca bir kez başvurabilir."
+DUPLICATE_EN = "An application already exists for this email. Each email address can apply only once."
+RESENT_TR = ("Bu e-posta adresiyle zaten bir başvuru yapılmış ve henüz onaylanmamış. "
+             "Onay bağlantısını e-postana yeniden gönderdik; gelen kutunu ve gereksiz klasörünü kontrol et.")
+RESENT_EN = ("An application already exists for this email and is not confirmed yet. "
+             "We have re-sent the confirmation link; check your inbox and spam folder.")
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 
 SCHEMA = (
@@ -190,6 +196,7 @@ async def apply(body: Apply, request: Request):
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     send = False
+    existing = None
     try:
         async with pool.acquire() as conn, conn.transaction():
             settings = await _settings(conn)
@@ -205,24 +212,31 @@ async def apply(body: Apply, request: Request):
                     body.futures_experience, body.trading_experience, reason, reference,
                 )
                 send = True
-            elif row["status"] == "pending_email":  # onay e-postası gelmediyse yeniden gönderilebilir
-                await conn.execute(
-                    """UPDATE founding_applications SET name=$2, country=$3, lang=$4, email_token_hash=$5, email_token_expires=$6,
-                       futures_experience=$7, trading_experience=$8, reason=$9, reference=COALESCE(reference, $10), updated_at=now()
-                       WHERE id=$1""", row["id"], name, country, lang, _hash(token), now + EMAIL_TTL,
-                    body.futures_experience, body.trading_experience, reason, reference,
-                )
-                send = True
-                ok["reference"] = await conn.fetchval("SELECT reference FROM founding_applications WHERE id=$1", row["id"]) or reference
-    except UniqueViolationError:  # aynı anda iki istek: ikincisi sessizce başarılı sayılır
-        return ok
+            else:
+                existing = row
+    except UniqueViolationError:  # aynı anda iki istek: ikincisi aynı e-postayla başvuru sayılır
+        raise HTTPException(409, DUPLICATE_TR if lang == "tr" else DUPLICATE_EN) from None
+    if existing is not None:
+        # Her e-posta en fazla bir kez başvurabilir; bilgiler değiştirilmez.
+        if existing["status"] == "pending_email":
+            # E-posta henüz onaylanmadıysa yalnız onay bağlantısı yeniden gönderilir (aynı numara, aynı bilgiler).
+            async with pool.acquire() as conn, conn.transaction():
+                await conn.execute("UPDATE founding_applications SET email_token_hash=$2, email_token_expires=$3, updated_at=now() WHERE id=$1",
+                                   existing["id"], _hash(token), now + EMAIL_TTL)
+                await _ensure_reference(conn, existing["id"])
+                saved = await conn.fetchrow("SELECT name, lang, reference FROM founding_applications WHERE id=$1", existing["id"])
+            try:
+                _send_confirmation(email, saved["name"], token, saved["lang"], saved["reference"])
+            except Exception:  # noqa: BLE001
+                logger.exception("Founding confirmation resend failed")
+            raise HTTPException(409, RESENT_TR if lang == "tr" else RESENT_EN)
+        raise HTTPException(409, DUPLICATE_TR if lang == "tr" else DUPLICATE_EN)
     if send:
         try:
             _send_confirmation(email, name, token, lang, ok["reference"])
         except Exception:  # noqa: BLE001 - kayıt yapıldı; e-posta hatası kullanıcıya sızdırılmaz
             logger.exception("Founding confirmation email failed")
             raise HTTPException(503, "Onay e-postası şu anda gönderilemedi. Lütfen biraz sonra tekrar deneyin.") from None
-    # Kayıtlı e-posta olup olmadığı açığa çıkmaz: onaylı eski başvuru için de (kaydedilmeyen) bir numara döner.
     return ok
 
 

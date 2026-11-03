@@ -94,12 +94,30 @@ def test_new_application_stores_hashed_token_and_sends_confirmation():
     assert sent and sent[0][0] == "a@example.com" and sent[0][2] not in insert  # düz belirteç saklanmaz
 
 
-def test_existing_confirmed_applicant_gets_same_answer_and_no_mail():
+def test_existing_applicant_cannot_apply_again():
     conn, sent = Conn(existing={"id": 7, "status": "approved"}), []
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
             patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
-        result = run(founding.apply(body(), request(conn)))
-    assert result["ok"] is True and sent == [] and conn.executed == []  # numara kaydedilmez, e-posta gitmez
+        with pytest.raises(HTTPException) as err:
+            run(founding.apply(body(), request(conn)))
+    assert err.value.status_code == 409 and "yalnızca bir kez" in err.value.detail
+    assert sent == [] and conn.executed == []  # bilgiler değişmez, e-posta gitmez
+
+
+def test_unconfirmed_applicant_gets_link_resent_but_data_kept():
+    class Pending(Conn):
+        async def fetchrow(self, sql, *args):
+            if "SELECT name, lang, reference" in sql:
+                return {"name": "Eski Ad", "lang": "tr", "reference": "KT-F30-ABCDE"}
+            return await super().fetchrow(sql, *args)
+    conn, sent = Pending(existing={"id": 7, "status": "pending_email"}), []
+    with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
+            patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
+        with pytest.raises(HTTPException) as err:
+            run(founding.apply(body(name="Yeni Ad"), request(conn)))
+    assert err.value.status_code == 409 and "yeniden gönderdik" in err.value.detail
+    assert sent and sent[0][1] == "Eski Ad" and sent[0][4] == "KT-F30-ABCDE"
+    assert not any("SET name" in sql for sql, _ in conn.executed)
 
 
 def test_hash_is_stable_and_clean_strips_control_characters():
