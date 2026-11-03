@@ -134,6 +134,21 @@ class SimpleRequest:
         self.app = app
 
 
+@public_router.get("/me")
+async def my_membership(request: Request):
+    """Giriş yapmış üyenin kurucu üyelik aşaması (uygulamadaki 'kaldığın yerden devam et' bandı için)."""
+    from . import v22_commercial as auth
+
+    user = await auth.authenticated_user_async(request)
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        return {"status": None}
+    await ensure_schema(pool)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status, reference FROM founding_applications WHERE user_id=$1", user["id"])
+    return {"status": row["status"] if row else None, "reference": row["reference"] if row else None}
+
+
 # ------------------------------------------------------------------ yönetici
 
 class ManualInvite(BaseModel):
@@ -262,6 +277,10 @@ async def sweep(app: Any, now: datetime | None = None) -> dict[str, int]:
             """UPDATE founding_applications SET status='invite_expired', updated_at=now()
                WHERE status='invited' AND invite_expires_at <= $1 RETURNING *""", now):
             outbox.append(("invite_expired", row, None)); out["expired"] += 1
+    if out["expired"]:
+        from .founding import notify_owner_seat_freed
+        async with pool.acquire() as conn:
+            await notify_owner_seat_freed(conn, f"{out['expired']} davetin süresi doldu")
     request = SimpleRequest(app)
     for kind, row, token in outbox:
         if kind in ("invite", "reminder"):

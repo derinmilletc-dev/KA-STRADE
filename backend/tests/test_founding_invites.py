@@ -218,3 +218,63 @@ def test_registration_paths_check_invites():
     assert "consume_invite" in inspect.getsource(v22_commercial.register_password_user)
     src = inspect.getsource(google_oauth.complete)
     assert 'registration_allowed(request, attempt["identity"]["email"])' in src and "consume_invite" in src
+
+
+def test_app_bound_emails_open_the_right_screen():
+    from datetime import datetime, timezone
+    from app import founding_mail
+    captured = {}
+    row = {"reference": "KT-F30-ABCDE", "email": "a@example.com", "name": "Ada", "lang": "tr", "updated_at": datetime.now(timezone.utc)}
+    def fake_send(kind, **kw):
+        captured[kind] = kw["action_url"]
+    with patch.object(founding, "_app_base", lambda: "https://kaistrade.com"), patch("app.founding_mail.send", fake_send):
+        for kind in ("payment_pending", "account_created", "active", "approved"):
+            founding._notify(req(GateConn()), kind, row)
+    assert captured["payment_pending"] == "https://kaistrade.com/billing"
+    assert captured["account_created"] == "https://kaistrade.com/giris" and captured["active"] == "https://kaistrade.com/giris"
+    assert captured["approved"] is None or "/basvuru-durumu" in captured["approved"]
+
+
+def test_owner_gets_new_application_alert(monkeypatch):
+    sent = []
+    monkeypatch.setenv("FOUNDING_NOTIFY_EMAIL", "owner@example.com, bad-address")
+    row = {"name": "Ada", "email": "a@example.com", "country": "Türkiye", "reference": "KT-F30-ABCDE", "futures_experience": "active",
+           "trading_experience": "gt1y", "heard_from": "instagram", "reason": "Disiplinli işlem"}
+    with patch("app.founding_mail.owner_alert", lambda **kw: sent.append(kw)):
+        founding.notify_owner_new(row)
+    assert [s["to_email"] for s in sent] == ["owner@example.com"]
+    assert ("Binance Futures", "Aktif kullanıyor") in sent[0]["lines"]
+
+
+def test_owner_alert_failure_never_raises(monkeypatch):
+    monkeypatch.setenv("FOUNDING_NOTIFY_EMAIL", "owner@example.com")
+    def boom(**_k):
+        raise RuntimeError("mail down")
+    with patch("app.founding_mail.owner_alert", boom):
+        founding.notify_owner_new({"name": "A", "email": "a@x.co", "country": "-", "reference": None, "futures_experience": None,
+                                   "trading_experience": None, "heard_from": None, "reason": ""})
+
+
+class SeatConn:
+    def __init__(self, seats, taken, waiting):
+        self.seats, self.taken, self.waiting = seats, taken, waiting
+
+    async def fetchrow(self, sql, *args):
+        return {"seats": self.seats, "applications_open": True, "launch_at": None, "price_text": "", "registration_open": False}
+
+    async def fetchval(self, sql, *args):
+        return self.taken
+
+    async def fetch(self, sql, *args):
+        return self.waiting
+
+
+def test_seat_freed_alert_suggests_oldest_waitlist(monkeypatch):
+    sent = []
+    monkeypatch.setenv("FOUNDING_NOTIFY_EMAIL", "owner@example.com")
+    waiting = [{"name": "Lerato", "email": "l@example.com", "reference": "KT-F30-LLLLL"}]
+    with patch("app.founding_mail.owner_alert", lambda **kw: sent.append(kw)):
+        run(founding.notify_owner_seat_freed(SeatConn(30, 30, waiting), "test"))
+        assert sent == []  # boş koltuk yok
+        run(founding.notify_owner_seat_freed(SeatConn(30, 29, waiting), "test"))
+    assert sent and ("Öneri 1", "Lerato · l@example.com · KT-F30-LLLLL") in sent[0]["lines"]

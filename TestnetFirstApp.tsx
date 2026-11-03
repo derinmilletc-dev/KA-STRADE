@@ -31,6 +31,7 @@ import DemoMasterShell, {DemoTopBar, type DemoMasterTab} from './DemoMasterShell
 import './performance-live.css'
 import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
 import {useKaisScreenContext} from './useKaisScreenContext'
+import FoundingResume from './FoundingResume'
 
 const retryImport = async <T,>(load:() => Promise<T>,retry:() => Promise<T>):Promise<T> => {
   try {
@@ -1119,6 +1120,7 @@ export default function TestnetFirstApp() {
         <div className="v26HeaderProfileSlot" />
       </div>
     </header>
+    {view !== 'billing' && <FoundingResume onBilling={() => navigate('billing')}/>}
     {view !== 'dashboard' && <BackButton onClick={() => navigate('dashboard')}/>}
 
     {view !== 'dashboard' && view !== 'trading' && <section className="v26ModeBar">

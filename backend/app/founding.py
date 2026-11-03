@@ -215,13 +215,61 @@ def _send_confirmation(email: str, name: str, token: str, lang: str, reference: 
 def _notify(request: Request, kind: founding_mail.Kind, row: Any) -> bool:
     """Durum e-postası (incelemede/onay/bekleme/ret). Hata olursa kayıt etkilenmez, False döner."""
     try:
-        url = founding_mail.status_url(_app_base(), _secret(request), row["reference"])
+        app_path = founding_mail.APP_PATHS.get(kind)
+        url = _app_base() + app_path if app_path else founding_mail.status_url(_app_base(), _secret(request), row["reference"])
         founding_mail.send(kind, email=row["email"], name=row["name"], reference=row["reference"], lang=row["lang"],
                            action_url=url, idempotency=f"{row['reference']}:{kind}:{row['updated_at'].isoformat() if row['updated_at'] else ''}")
         return True
     except Exception:  # noqa: BLE001 - e-posta hatası akışı bozmaz
         logger.exception("Founding %s email failed", kind)
         return False
+
+
+FUTURES_TR = {"active": "Aktif kullanıyor", "past": "Daha önce kullandı", "never": "Henüz kullanmadı"}
+TRADING_TR = {"new": "Yeni başlıyor", "lt6m": "6 aydan az", "6to12m": "6–12 ay", "gt1y": "1 yıldan fazla"}
+
+
+def owner_emails() -> list[str]:
+    """Bildirim alacak yönetici adresleri: FOUNDING_NOTIFY_EMAIL (virgülle çoklu) yoksa kurucu sahip e-postası."""
+    from . import v22_commercial as auth
+    raw = os.getenv("FOUNDING_NOTIFY_EMAIL", "").strip() or auth.BOOTSTRAP_OWNER_EMAIL
+    return [item.strip() for item in raw.split(",") if EMAIL_RE.match(item.strip())]
+
+
+def notify_owner_new(row: Any) -> None:
+    """Başvuran e-postasını onaylayınca (gerçek başvuru) sahibe haber verilir."""
+    try:
+        lines = [("Ad", row["name"]), ("E-posta", row["email"]), ("Ülke", row["country"]), ("Numara", row["reference"] or "-"),
+                 ("Binance Futures", FUTURES_TR.get(row["futures_experience"] or "", "-")),
+                 ("Trading", TRADING_TR.get(row["trading_experience"] or "", "-")), ("Nereden", row["heard_from"] or "-"),
+                 ("Gerekçe", (row["reason"] or "-")[:300])]
+        for to in owner_emails():
+            founding_mail.owner_alert(to_email=to, subject=f"Yeni Founding 30 başvurusu · {row['name']}",
+                                      intro="Yeni bir üyelik başvurusu incelemeni bekliyor.", lines=lines,
+                                      action_url="https://admin.kaistrade.com/?section=founding", idempotency=f"new:{row['reference']}")
+    except Exception:  # noqa: BLE001 - bildirim hatası başvuru akışını bozmaz
+        logger.exception("Founding owner alert failed")
+
+
+async def notify_owner_seat_freed(conn: Any, reason: str) -> None:
+    """Koltuk boşalınca sahibe bekleme listesinden öneri gönderilir (otomatik onay yok)."""
+    try:
+        settings = await _settings(conn)
+        free = int(settings["seats"]) - await _taken(conn)
+        if free <= 0:
+            return
+        waiting = await conn.fetch("SELECT name, email, reference FROM founding_applications WHERE status='waitlist' ORDER BY created_at, id LIMIT 3")
+        lines = [("Boş koltuk", str(free)), ("Sebep", reason)] + [
+            (f"Öneri {i + 1}", f"{w['name']} · {w['email']} · {w['reference'] or '-'}") for i, w in enumerate(waiting)]
+        if not waiting:
+            lines.append(("Bekleme listesi", "boş"))
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+        for to in owner_emails():
+            founding_mail.owner_alert(to_email=to, subject=f"Founding 30: {free} koltuk boşaldı",
+                                      intro="Bir koltuk boşaldı. Bekleme listesinden onaylamak istersen öneriler aşağıda.", lines=lines,
+                                      action_url="https://admin.kaistrade.com/?section=founding", idempotency=f"free:{reason}:{stamp}")
+    except Exception:  # noqa: BLE001
+        logger.exception("Founding seat alert failed")
 
 
 async def _ensure_reference(conn: Any, app_id: int) -> None:
@@ -433,6 +481,7 @@ async def confirm(request: Request, token: str = Query(min_length=20, max_length
         confirmed = await conn.fetchrow("SELECT * FROM founding_applications WHERE id=$1", row["id"])
     if confirmed is not None:
         _notify(request, "review", confirmed)
+        notify_owner_new(confirmed)
     return RedirectResponse(f"{base}/?founding=confirmed", status_code=303)
 
 
@@ -483,8 +532,11 @@ async def admin_list(request: Request, status: Status | None = None, limit: int 
         counts = {r["status"]: int(r["n"]) for r in await conn.fetch("SELECT status, COUNT(*) AS n FROM founding_applications GROUP BY status")}
         settings = await _settings(conn)
         funnel = await _funnel(conn)
+        free = int(settings["seats"]) - await _taken(conn)
+        suggestions = [_item(r) for r in await conn.fetch(
+            "SELECT * FROM founding_applications WHERE status='waitlist' ORDER BY created_at, id LIMIT $1", max(0, min(free, 5)))] if free > 0 else []
     return {
-        "items": [_item(r) for r in rows], "counts": counts, "funnel": funnel,
+        "items": [_item(r) for r in rows], "counts": counts, "funnel": funnel, "suggestions": suggestions,
         "settings": {"seats": int(settings["seats"]), "applications_open": bool(settings["applications_open"]),
                      "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"],
                      "registration_open": bool(settings["registration_open"])},

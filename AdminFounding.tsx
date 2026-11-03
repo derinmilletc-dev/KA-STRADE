@@ -7,7 +7,7 @@ type Item = {id: number; email: string; name: string; country: string; lang: str
 type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string; registration_open?: boolean}
 type FunnelKey = 'view' | 'start' | 'step2' | 'submit' | 'success'
 type Funnel = Record<'d7' | 'd30' | 'total', Record<FunnelKey, number>>
-type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings; funnel?: Funnel}
+type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings; funnel?: Funnel; suggestions?: Item[]}
 const FUNNEL: [FunnelKey, string][] = [['view', 'Sayfayı açtı'], ['start', 'Forma yazmaya başladı'], ['step2', '2. adıma geçti'], ['submit', 'Gönder’e bastı'], ['success', 'Başvurusu kaydedildi']]
 
 function FunnelCard({funnel}: {funnel: Funnel}) {
@@ -140,6 +140,12 @@ export default function AdminFounding() {
       <button type="button" disabled={busy} onClick={() => void saveSettings()}>Ayarları kaydet</button>
     </div>
 
+    {data?.suggestions && data.suggestions.length > 0 && <div className="afSuggest">
+      <b>{Math.max(0, seats - taken)} boş koltuk var · bekleme listesinden öneri (en eski başvurular)</b>
+      <ul>{data.suggestions.map(item => <li key={item.id}><span><strong>{item.name}</strong><small>{item.email} · {item.country}{item.reference ? ` · ${item.reference}` : ''}</small></span>
+        <button type="button" className="ok" disabled={busy} onClick={() => void decide(item, 'approve')}>Onayla</button></li>)}</ul>
+      <small>Onaylanan kişiye onay e-postası gider; davet lansmandan 7 gün önce (ya da sen gönderince) gider.</small>
+    </div>}
     <details className="afManual"><summary>Başvurusu olmayan birine davet gönder</summary>
       <div><input placeholder="Ad soyad" value={manual.name} onChange={event => setManual({...manual, name: event.target.value})}/>
         <input type="email" placeholder="E-posta" value={manual.email} onChange={event => setManual({...manual, email: event.target.value})}/>

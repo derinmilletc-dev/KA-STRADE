@@ -1,0 +1,8 @@
+.fdResume { display: flex; align-items: center; gap: 14px; margin: 12px 16px; padding: 14px 16px; border: 1px solid rgba(46,229,157,.4); border-radius: 16px; background: linear-gradient(180deg, rgba(18,40,32,.85), rgba(8,16,13,.9)); color: #e8eef4; }
+.fdResume > svg { flex: none; width: 26px; height: 26px; color: #2ee59d; }
+.fdResume > span { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.fdResume b { font-size: 15px; }
+.fdResume small { color: #a9b6b1; font-size: 13px; line-height: 1.4; }
+.fdResume button { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 0; border-radius: 12px; background: linear-gradient(180deg, #34dd9c, #1fb57e); color: #03130c; font: 700 14px/1 inherit; cursor: pointer; }
+.fdResume button svg { width: 16px; height: 16px; }
+@media (max-width: 600px) { .fdResume { flex-wrap: wrap; } .fdResume button { width: 100%; justify-content: center; } }
