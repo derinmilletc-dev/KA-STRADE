@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type FormEvent} from 'react'
+import React, {useEffect, useMemo, useRef, useState, type FormEvent} from 'react'
 import {ArrowLeft, ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
@@ -65,6 +65,10 @@ export default function LaunchPage() {
 
   const [step, setStep] = useState<1 | 2>(1)
   const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
+  // 1. aşamadan 2. aşamaya giden çizgi, formun doluluğuna göre ilerler (gönderilince tamamlanır)
+  const filledOne = [form.name.trim().length >= 2, /^\S+@\S+\.\S+$/.test(form.email), form.country.length === 2].filter(Boolean).length
+  const filledTwo = [!!form.futures, !!form.trading, form.reason.trim().length >= REASON_MIN].filter(Boolean).length
+  const progress = phase === 'busy' || phase === 'done' ? 1 : step === 1 ? filledOne / 6 : 0.5 + filledTwo / 6
   const valid = stepOne && !!form.futures && !!form.trading && form.reason.trim().length >= REASON_MIN
   const goStep = (next: 1 | 2) => { setStep(next); setPhase(current => current === 'error' ? 'idle' : current); setMessage('') }
   const [intro, setIntro] = useState<IntroOutcome | null>(null)
@@ -136,11 +140,12 @@ export default function LaunchPage() {
         <div className="fdColA">
           <section className="fdBlock">
             <h2>{t('Nasıl Çalışır?', 'How it works')}</h2>
-            <ol className="fdSteps">
-              <li><i><BarChart3 aria-hidden="true"/></i><b>1. {t('Başvur', 'Apply')}</b><p>{t('Kısa formu doldur. Ücret ve ön ödeme yok.', 'Fill in the short form. No fee, no deposit.')}</p></li>
-              <li><i><Search aria-hidden="true"/></i><b>2. {t('İncele', 'Review')}</b><p>{t('72 saat içinde manuel değerlendirip dönüş yaparız.', 'We review manually and reply within 72 hours.')}</p></li>
-              <li><i><Check aria-hidden="true"/></i><b>3. {t('Onay', 'Approval')}</b><p>{t('Uygun görülürsen koltuğunu teyit edersin.', 'If approved, you confirm your seat.')}</p></li>
-              <li><i><Rocket aria-hidden="true"/></i><b>4. {t('Lansman', 'Launch')}</b><p>{t('Lansman günü 48 saat içinde ödeme yapınca üyeliğin açılır.', 'On launch day, pay within 48 hours and your membership opens.')}</p></li>
+            <ol className="fdSteps" style={{'--p': progress} as React.CSSProperties} aria-label={t(`Başvuru ilerlemesi: %${Math.round(progress * 100)}`, `Application progress: ${Math.round(progress * 100)}%`)}>
+              <span className="fdStepsFill" aria-hidden="true"/>
+              <li className="is-active" aria-current="step"><i><BarChart3 aria-hidden="true"/></i><b>1. {t('Başvur', 'Apply')}</b><p>{t('Kısa formu doldur. Ücret ve ön ödeme yok.', 'Fill in the short form. No fee, no deposit.')}</p></li>
+              <li className="is-todo"><i><Search aria-hidden="true"/></i><b>2. {t('İncele', 'Review')}</b><p>{t('72 saat içinde manuel değerlendirip dönüş yaparız.', 'We review manually and reply within 72 hours.')}</p></li>
+              <li className="is-todo"><i><Check aria-hidden="true"/></i><b>3. {t('Onay', 'Approval')}</b><p>{t('Uygun görülürsen koltuğunu teyit edersin.', 'If approved, you confirm your seat.')}</p></li>
+              <li className="is-todo"><i><Rocket aria-hidden="true"/></i><b>4. {t('Lansman', 'Launch')}</b><p>{t('Lansman günü 48 saat içinde ödeme yapınca üyeliğin açılır.', 'On launch day, pay within 48 hours and your membership opens.')}</p></li>
             </ol>
           </section>
 
