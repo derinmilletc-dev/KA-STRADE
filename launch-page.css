@@ -466,3 +466,8 @@ main { display: block; padding: 0 16px 24px; }
   .fdOnStep2 .fdReason textarea { min-height: 48px; }
   .fdOnStep2 .fdFine { display: none; }
 }
+/* Telefon: form tüm genişliği kaplar; çentik/durum çubuğu altına girmesin */
+@media (max-width: 700px) {
+  .fdFormWrap, .fdBlock, .fdFaqRow { align-self: stretch; width: 100%; }
+  .fdTop { padding-top: calc(6px + env(safe-area-inset-top)); }
+}
