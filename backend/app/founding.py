@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -58,6 +59,7 @@ SCHEMA = (
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''""",
     """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reference TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_reference_key ON founding_applications (reference)""",
+    """ALTER TABLE founding_settings ADD COLUMN IF NOT EXISTS registration_open BOOLEAN NOT NULL DEFAULT FALSE""",
 )
 
 
@@ -86,6 +88,36 @@ def _hash(value: str) -> str:
 
 def _clean(value: str, limit: int) -> str:
     return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:limit]
+
+
+REGISTRATION_CLOSED_MESSAGE = ("Yeni üyelik kaydı lansmana kadar kapalı. Founding 30 başvurusu için kaistrade.com adresini ziyaret et.")
+
+
+async def registration_allowed(request: Request) -> bool:
+    """Lansmana kadar yeni hesap açılmaz (Founding sırası atlanamasın).
+
+    Öncelik: FOUNDING_REGISTRATION ortam değişkeni (open/closed) > yönetici ayarı (founding_settings.registration_open,
+    varsayılan kapalı). Veritabanı yoksa (yerel geliştirme) açık kalır. Mevcut hesapların girişi etkilenmez.
+    """
+    forced = os.getenv("FOUNDING_REGISTRATION", "").strip().lower()
+    if forced in {"open", "closed"}:
+        return forced == "open"
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        return True
+    try:
+        await ensure_schema(pool)
+        async with pool.acquire() as conn:
+            value = await conn.fetchval("SELECT registration_open FROM founding_settings WHERE id = 1")
+    except Exception:  # noqa: BLE001 - ayar okunamazsa kayıt akışı kendi hatasını verir
+        logger.warning("Founding registration setting could not be read", exc_info=True)
+        return True
+    return value is not False
+
+
+async def require_registration_open(request: Request) -> None:
+    if not await registration_allowed(request):
+        raise HTTPException(403, REGISTRATION_CLOSED_MESSAGE)
 
 
 class Apply(BaseModel):
@@ -151,7 +183,7 @@ async def _ensure_reference(conn: Any, app_id: int) -> None:
 
 
 async def _settings(conn: Any) -> Any:
-    return await conn.fetchrow("SELECT seats, applications_open, launch_at, price_text FROM founding_settings WHERE id = 1")
+    return await conn.fetchrow("SELECT seats, applications_open, launch_at, price_text, registration_open FROM founding_settings WHERE id = 1")
 
 
 async def _taken(conn: Any) -> int:
@@ -326,6 +358,7 @@ class Settings(BaseModel):
     applications_open: bool
     launch_at: datetime | None = None
     price_text: str = Field(default="", max_length=40)
+    registration_open: bool = False
 
 
 class Decision(BaseModel):
@@ -358,7 +391,8 @@ async def admin_list(request: Request, status: Status | None = None, limit: int 
     return {
         "items": [_item(r) for r in rows], "counts": counts,
         "settings": {"seats": int(settings["seats"]), "applications_open": bool(settings["applications_open"]),
-                     "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"]},
+                     "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None, "price_text": settings["price_text"],
+                     "registration_open": bool(settings["registration_open"])},
     }
 
 
@@ -370,8 +404,9 @@ async def admin_settings(body: Settings, request: Request):
         if body.seats < taken:
             raise HTTPException(409, f"Zaten {taken} kişi onaylı; koltuk sayısı bunun altına düşürülemez.")
         await conn.execute(
-            """UPDATE founding_settings SET seats=$1, applications_open=$2, launch_at=$3, price_text=$4, updated_at=now() WHERE id=1""",
-            body.seats, body.applications_open, body.launch_at, _clean(body.price_text, 40),
+            """UPDATE founding_settings SET seats=$1, applications_open=$2, launch_at=$3, price_text=$4, registration_open=$5,
+               updated_at=now() WHERE id=1""",
+            body.seats, body.applications_open, body.launch_at, _clean(body.price_text, 40), body.registration_open,
         )
     return {"ok": True}
 

@@ -212,3 +212,32 @@ def test_status_email_failure_does_not_break_flow():
     req = request(Conn())
     with patch.object(founding, "_app_base", lambda: "https://kaistrade.com"), patch("app.founding_mail.send", boom):
         assert founding._notify(req, "approved", row) is False
+
+
+def _reg_request(value=None, pool=True):
+    class RegConn(Conn):
+        async def fetchval(self, sql, *args):
+            assert "registration_open" in sql
+            return value
+    state = SimpleNamespace(db_pool=Pool(RegConn()) if pool else None)
+    return SimpleNamespace(app=SimpleNamespace(state=state))
+
+
+def test_registration_closed_by_default_setting(monkeypatch):
+    monkeypatch.delenv("FOUNDING_REGISTRATION", raising=False)
+    with patch.object(founding, "ensure_schema", noop_limit):
+        assert run(founding.registration_allowed(_reg_request(False))) is False
+        assert run(founding.registration_allowed(_reg_request(True))) is True
+        with pytest.raises(HTTPException) as err:
+            run(founding.require_registration_open(_reg_request(False)))
+    assert err.value.status_code == 403
+
+
+def test_registration_env_override_and_no_database(monkeypatch):
+    with patch.object(founding, "ensure_schema", noop_limit):
+        monkeypatch.setenv("FOUNDING_REGISTRATION", "open")
+        assert run(founding.registration_allowed(_reg_request(False))) is True
+        monkeypatch.setenv("FOUNDING_REGISTRATION", "closed")
+        assert run(founding.registration_allowed(_reg_request(True))) is False
+        monkeypatch.delenv("FOUNDING_REGISTRATION")
+        assert run(founding.registration_allowed(_reg_request(pool=False))) is True

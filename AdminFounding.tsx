@@ -4,7 +4,7 @@ import './admin-founding.css'
 
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
 type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; reference: string | null; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
-type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string}
+type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string; registration_open?: boolean}
 type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings}
 
 const LABEL: Record<Status, string> = {pending_email: 'E-posta bekliyor', new: 'Yeni', approved: 'Onaylı', waitlist: 'Bekleme listesi', rejected: 'Reddedildi'}
@@ -38,7 +38,7 @@ export default function AdminFounding() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState<{seats: string; open: boolean; launch: string; price: string}>({seats: '30', open: true, launch: '', price: ''})
+  const [form, setForm] = useState<{seats: string; open: boolean; launch: string; price: string; register: boolean}>({seats: '30', open: true, launch: '', price: '', register: false})
   const [notes, setNotes] = useState<Record<number, string>>({})
   const [search, setSearch] = useState('')
 
@@ -47,7 +47,7 @@ export default function AdminFounding() {
     try {
       const value = await call<Payload>(filter ? `?status=${filter}` : '')
       setData(value)
-      setForm({seats: String(value.settings.seats), open: value.settings.applications_open, launch: toLocalInput(value.settings.launch_at), price: value.settings.price_text})
+      setForm({seats: String(value.settings.seats), open: value.settings.applications_open, launch: toLocalInput(value.settings.launch_at), price: value.settings.price_text, register: value.settings.registration_open === true})
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Yüklenemedi') } finally { setBusy(false) }
   }, [filter])
   useEffect(() => { void load() }, [load])
@@ -55,7 +55,7 @@ export default function AdminFounding() {
   const saveSettings = async () => {
     setBusy(true); setError(''); setInfo('')
     try {
-      await call('/settings', {method: 'PUT', body: JSON.stringify({seats: Number(form.seats), applications_open: form.open, launch_at: form.launch ? new Date(form.launch).toISOString() : null, price_text: form.price})})
+      await call('/settings', {method: 'PUT', body: JSON.stringify({seats: Number(form.seats), applications_open: form.open, launch_at: form.launch ? new Date(form.launch).toISOString() : null, price_text: form.price, registration_open: form.register})})
       setInfo('Ayarlar kaydedildi.'); await load()
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Kaydedilemedi'); setBusy(false) }
   }
@@ -81,6 +81,7 @@ export default function AdminFounding() {
       <label>Lansman tarihi ve saati<input type="datetime-local" value={form.launch} onChange={event => setForm({...form, launch: event.target.value})}/></label>
       <label>Kurucu fiyatı (görünen metin)<input maxLength={40} placeholder="örn. 29 USDT / ay" value={form.price} onChange={event => setForm({...form, price: event.target.value})}/></label>
       <label className="afToggle"><input type="checkbox" checked={form.open} onChange={event => setForm({...form, open: event.target.checked})}/> Başvurular açık</label>
+      <label className="afToggle" title="Kapalıyken kimse yeni hesap açamaz (e-posta veya Google). Mevcut hesapların girişi etkilenmez."><input type="checkbox" checked={form.register} onChange={event => { if (event.target.checked && !window.confirm('Yeni üye kaydını herkese açmak istiyor musunuz? Founding sırası atlanabilir.')) return; setForm({...form, register: event.target.checked}) }}/> Yeni üye kaydı açık</label>
       <button type="button" disabled={busy} onClick={() => void saveSettings()}>Ayarları kaydet</button>
     </div>
 
