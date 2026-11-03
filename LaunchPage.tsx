@@ -1,7 +1,7 @@
-import React, {useEffect, useMemo, useRef, useState, type FormEvent} from 'react'
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent} from 'react'
 import {ArrowLeft, ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
 import {API_BASE} from './api'
-import {currentLang} from './i18n'
+import {browserLang, currentLang as savedLang} from './i18n'
 import KaisEye from './KaisEye'
 import OptionPicker from './OptionPicker'
 import FoundingIntro, {preloadIntro, type IntroOutcome} from './FoundingIntro'
@@ -11,7 +11,10 @@ import CountryPicker, {countryName, guessCountry} from './CountryPicker'
 import './launch-page.css'
 
 /** Founding 30 – Erken Erişim lansman sayfası. Giriş ekranı dondurulduğunda herkese açık ana sayfadır. */
-const t = (tr: string, en: string) => (currentLang() === 'en' ? en : tr)
+/** Herkese açık lansman sayfaları ziyaretçinin tarayıcı dilinde açılır (Türkçe değilse İngilizce). */
+const PAGE_LANG = browserLang()
+const currentLang = () => PAGE_LANG
+const t = (tr: string, en: string) => (PAGE_LANG === 'en' ? en : tr)
 const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 /** Lansmana özel kurucu fiyatı (admin'den farklı bir metin girilirse o gösterilir). */
 const FOUNDER_PRICE = '$119.90'
@@ -50,12 +53,26 @@ function track(event: FunnelStep) {
 
 const STATUS_ROUTE = typeof window !== 'undefined' && /^\/basvuru-durumu\/?$/.test(window.location.pathname)
 
+/** Eski bir ziyaretten kalan dil tercihi tarayıcı dilinden farklıysa site çevirisi de tarayıcı diline eşitlenir (bir kez yenilenir). */
+function useBrowserLanguage() {
+  useLayoutEffect(() => {
+    if (savedLang() === PAGE_LANG) return
+    try {
+      if (window.sessionStorage.getItem('kt_lang_sync') === PAGE_LANG) return  // döngü koruması
+      window.sessionStorage.setItem('kt_lang_sync', PAGE_LANG)
+      window.localStorage.setItem('kt_lang', PAGE_LANG)
+      window.location.reload()
+    } catch { /* depolama yoksa sayfa yine tarayıcı dilinde gösterilir */ }
+  }, [])
+}
+
 export default function LaunchPage() {
+  useBrowserLanguage()
   const [form, setForm] = useState<Form>(EMPTY)
   const [phase, setPhase] = useState<Phase>('idle')
   const [message, setMessage] = useState('')
   const formRef = useRef<HTMLElement>(null)
-  useEffect(() => { if (!STATUS_ROUTE) track('view') }, [])
+  useEffect(() => { if (!STATUS_ROUTE) track('view'); try { document.documentElement.lang = PAGE_LANG } catch { /* yok */ } }, [])
   const [photo, setPhoto] = useState(false)
   const [live, setLive] = useState<{open: boolean; seats: number; taken: number; price: string | null}>({open: true, seats: SEATS, taken: 0, price: null})
   const [banner, setBanner] = useState<'confirmed' | 'expired' | 'invalid' | null>(null)
