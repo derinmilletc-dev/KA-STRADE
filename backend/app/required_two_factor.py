@@ -1,4 +1,4 @@
-"""Zorunlu iki aşamalı doğrulama (2FA) kapısı. Varsayılan KAPALI: REQUIRE_2FA=true ile açılır.
+"""Zorunlu iki aşamalı doğrulama (2FA) kapısı. Varsayılan AÇIK: yalnız REQUIRE_2FA=false (0/no/off) ile kapanır.
 
 Açıkken, 2FA'sı etkin olmayan bir hesap yalnızca kurulum için gereken uç noktalara erişebilir; geri kalan her
 korumalı istek 403 alır. 2FA'sı olan hesaplar zaten her girişte kod sorar (`login_challenge`); burada atlama yoktur.
@@ -24,8 +24,9 @@ SETUP_PATHS = frozenset({
 
 
 def required(environ: Any = None) -> bool:
-    value = (environ if environ is not None else os.environ).get(ENV, "")
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+    """Ayar yoksa ya da boşsa zorunlu (kapalı üyelik: her hesap 2FA ile korunur)."""
+    value = str((environ if environ is not None else os.environ).get(ENV, "")).strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def path_allowed(path: str) -> bool:

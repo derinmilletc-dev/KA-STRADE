@@ -6,6 +6,14 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def two_factor_gate_off_unless_test_enables(monkeypatch):
+    """Üretimde 2FA varsayılan olarak zorunlu; diğer modüllerin testleri kapıyı kendi açar (REQUIRE_2FA=true)."""
+    import os
+    if "REQUIRE_2FA" not in os.environ:
+        monkeypatch.setenv("REQUIRE_2FA", "false")
+
+
+@pytest.fixture(autouse=True)
 def isolate_binance_global_ban(tmp_path: Path):
     from app.binance_rate_limit import BINANCE_GLOBAL_BAN
 
