@@ -1111,6 +1111,7 @@ class RegisterRequest(BaseModel):
     terms_accepted: bool = Field(default=False, strict=True)
     marketing_accepted: bool = Field(default=False, strict=True)
     language: Literal["tr", "en"] = "tr"
+    invite_token: str | None = Field(default=None, min_length=30, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class EmailTokenRequest(BaseModel):
@@ -1440,7 +1441,7 @@ async def v22_register(payload: RegisterRequest, request: Request, response: Res
 async def register_password_user(payload: RegisterRequest, request: Request, browser_response: Response = None):
     await enforce_auth_limit(request, "register", payload.email)
     from .founding import require_registration_open
-    await require_registration_open(request)
+    await require_registration_open(request, normalize_email(payload.email), payload.invite_token)
     from .registration_consent import require_terms
     require_terms(payload.terms_accepted)
     if payload.password != payload.confirm_password:
@@ -1511,6 +1512,9 @@ async def register_password_user(payload: RegisterRequest, request: Request, bro
         if created_user is None:
             await email_verification.complete_registration(request, browser_response, synthetic)
         response["email_verification_v2_enabled"] = True
+    if created_user is not None:
+        from .founding_invites import consume_invite
+        await consume_invite(request, email, created_user["id"])  # davet tek kullanımlık: hesap açılınca kapanır
     return response
 
 

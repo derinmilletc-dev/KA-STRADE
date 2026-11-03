@@ -99,7 +99,7 @@ def test_existing_applicant_cannot_apply_again():
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
             patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
         with pytest.raises(HTTPException) as err:
-            run(founding.apply(body(), request(conn)))
+            run(founding.apply(body(country_code="TR"), request(conn)))
     assert err.value.status_code == 409 and "yalnızca bir kez" in err.value.detail
     assert sent == [] and conn.executed == []  # bilgiler değişmez, e-posta gitmez
 
@@ -114,7 +114,7 @@ def test_unconfirmed_applicant_gets_link_resent_but_data_kept():
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
             patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
         with pytest.raises(HTTPException) as err:
-            run(founding.apply(body(name="Yeni Ad"), request(conn)))
+            run(founding.apply(body(name="Yeni Ad", country_code="TR"), request(conn)))
     assert err.value.status_code == 409 and "yeniden gönderdik" in err.value.detail
     assert sent and sent[0][1] == "Eski Ad" and sent[0][4] == "KT-F30-ABCDE"
     assert not any("SET name" in sql for sql, _ in conn.executed)

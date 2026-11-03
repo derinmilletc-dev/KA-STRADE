@@ -12,7 +12,8 @@ from typing import Literal
 
 from . import email_service
 
-Kind = Literal["received", "review", "approved", "waitlist", "rejected"]
+Kind = Literal["received", "review", "approved", "waitlist", "rejected", "invite", "reminder", "invite_expired",
+               "account_created", "payment_pending", "active"]
 GREEN = "#2ee59d"
 
 
@@ -36,7 +37,7 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
                    "body": "E-posta adresin onaylandı. Başvurun ekibimiz tarafından manuel olarak değerlendirilecek; sonucu 72 saat içinde e-postayla bildireceğiz.",
                    "cta": "Başvuru durumunu gör", "status": "İnceleme bekliyor"},
         "approved": {"subject": "Founding 30: başvurun onaylandı · {ref}", "title": "Tebrikler, başvurun onaylandı",
-                     "body": "Sana bir kurucu koltuğu ayrıldı. Lansman tarihini ve özel davetini lansmandan kısa süre önce e-postayla göndereceğiz. Lansman günü ödeme için 48 saatin olacak; o güne kadar hiçbir ücret alınmaz.",
+                     "body": "Sana bir kurucu koltuğu ayrıldı. Kişiye özel davetini lansmandan bir hafta önce e-postayla göndereceğiz; davetle hesabını oluşturacaksın. Davet sana özeldir ve başkasına devredilemez. O aşamaya kadar hiçbir ücret alınmaz.",
                      "cta": "Başvuru durumunu gör", "status": "Onaylandı"},
         "waitlist": {"subject": "Founding 30: bekleme listesindesin · {ref}", "title": "Bekleme listesine alındın",
                      "body": "Başvurun için teşekkürler. Şu an tüm koltuklar ayrıldığı için seni bekleme listesine aldık. Bir koltuk boşalırsa sıradaki adaylara e-postayla haber vereceğiz.",
@@ -44,6 +45,24 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
         "rejected": {"subject": "Founding 30 başvurun hakkında · {ref}", "title": "Başvurun değerlendirildi",
                      "body": "Başvurun için teşekkürler. Bu dönem Founding 30 için başvurunu kabul edemiyoruz. KaisTrade genel kullanıma açıldığında seni e-postayla haberdar edeceğiz.",
                      "cta": "Başvuru durumunu gör", "status": "Olumsuz"},
+        "invite": {"subject": "KaisTrade davetin hazır · {ref}", "title": "Kişiye özel davetin hazır",
+                   "body": "KaisTrade Founding 30 üyeliğin için davetin hazır. Aşağıdaki düğmeyle hesabını oluştur. Davet yalnızca bu e-posta adresiyle kullanılabilir, tek kullanımlıktır ve 48 saat geçerlidir.",
+                   "cta": "Davetimi kabul et", "status": "Davet gönderildi"},
+        "reminder": {"subject": "Davetin seni bekliyor · {ref}", "title": "Davetin hâlâ seni bekliyor",
+                     "body": "KaisTrade davetin henüz kullanılmadı. Süresi dolmadan hesabını oluştur; aksi halde koltuğun sıradaki adaya geçebilir.",
+                     "cta": "Davetimi kabul et", "status": "Davet gönderildi"},
+        "invite_expired": {"subject": "Davetinin süresi doldu · {ref}", "title": "Davetinin süresi doldu",
+                           "body": "Davetin kullanılmadan süresi doldu. Hâlâ katılmak istiyorsan bu e-postayı yanıtlayarak destek ekibimize yazabilirsin.",
+                           "cta": "Başvuru durumunu gör", "status": "Davet süresi doldu"},
+        "account_created": {"subject": "KaisTrade hesabın oluşturuldu · {ref}", "title": "Hesabın oluşturuldu",
+                            "body": "Hesabın başarıyla oluşturuldu. Son bir güvenlik adımı kaldı: hesabını korumak için iki aşamalı doğrulamayı (2FA) etkinleştir.",
+                            "cta": "Başvuru durumunu gör", "status": "Hesap oluşturuldu"},
+        "payment_pending": {"subject": "Üyeliğini tamamla · {ref}", "title": "Üyeliğini tamamla",
+                            "body": "Hesap kurulumun tamamlandı. Üyelik ödemen bekleniyor; ödemen doğrulandığında üyeliğin otomatik olarak açılır.",
+                            "cta": "Başvuru durumunu gör", "status": "Ödeme bekleniyor"},
+        "active": {"subject": "KaisTrade'e hoş geldin · üyeliğin aktif", "title": "Üyeliğin aktif, hoş geldin",
+                   "body": "Tebrikler! KaisTrade üyeliğin artık aktif. Hesabın hazır; platforma giriş yapabilirsin. Kurucu üyelerimizden biri olduğun için teşekkür ederiz.",
+                   "cta": "Başvuru durumunu gör", "status": "Aktif üye"},
         "hello": "Merhaba {name},", "ref": "Başvuru numarası", "state": "Durum", "program": "Program",
         "foot": "Bu e-postayı KaisTrade Founding 30 başvurun nedeniyle aldın. Başvuruyu sen yapmadıysan bu e-postayı yok sayabilirsin.",
         "risk": "Kripto vadeli işlemler yüksek risk içerir; kâr garantisi verilmez.",
@@ -56,7 +75,7 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
                    "body": "Your email is confirmed. Our team reviews every application manually; we will email you the result within 72 hours.",
                    "cta": "View application status", "status": "Awaiting review"},
         "approved": {"subject": "Founding 30: you're approved · {ref}", "title": "Congratulations, you're approved",
-                     "body": "A founding seat is reserved for you. We will email you the launch date and your private invitation shortly before launch. On launch day you will have 48 hours to pay; nothing is charged before that.",
+                     "body": "A founding seat is reserved for you. We will email your personal invitation one week before launch; you will use it to create your account. The invitation is personal and cannot be transferred. Nothing is charged before then.",
                      "cta": "View application status", "status": "Approved"},
         "waitlist": {"subject": "Founding 30: you're on the waitlist · {ref}", "title": "You're on the waitlist",
                      "body": "Thanks for applying. All seats are currently reserved, so we have added you to the waitlist. If a seat opens up we will email the next applicants.",
@@ -64,6 +83,24 @@ COPY: dict[str, dict[str, dict[str, str]]] = {
         "rejected": {"subject": "About your Founding 30 application · {ref}", "title": "Your application was reviewed",
                      "body": "Thanks for applying. We can't accept your application for Founding 30 this round. We will let you know by email when KaisTrade opens to everyone.",
                      "cta": "View application status", "status": "Not approved"},
+        "invite": {"subject": "Your KaisTrade invitation is ready · {ref}", "title": "Your personal invitation is ready",
+                   "body": "Your invitation to KaisTrade Founding 30 is ready. Use the button below to create your account. It works only with this email address, can be used once and is valid for 48 hours.",
+                   "cta": "Accept your invitation", "status": "Invitation sent"},
+        "reminder": {"subject": "Your KaisTrade invitation is waiting · {ref}", "title": "Your invitation is still waiting",
+                     "body": "Your KaisTrade invitation has not been used yet. Create your account before it expires, otherwise your seat may pass to the next applicant.",
+                     "cta": "Accept your invitation", "status": "Invitation sent"},
+        "invite_expired": {"subject": "Your KaisTrade invitation has expired · {ref}", "title": "Your invitation has expired",
+                           "body": "Your invitation expired before it was used. If you are still interested in joining KaisTrade, reply to this email to contact our support team.",
+                           "cta": "View application status", "status": "Invitation expired"},
+        "account_created": {"subject": "Your KaisTrade account has been created · {ref}", "title": "Your account has been created",
+                            "body": "Your account was created successfully. One important security step remains: please set up two-factor authentication (2FA) to secure your account.",
+                            "cta": "View application status", "status": "Account created"},
+        "payment_pending": {"subject": "Complete your KaisTrade membership · {ref}", "title": "Complete your membership",
+                            "body": "Your account setup is complete. Your membership payment is now awaiting completion; once it is verified your membership is activated automatically.",
+                            "cta": "View application status", "status": "Payment pending"},
+        "active": {"subject": "Welcome to KaisTrade · your membership is active", "title": "Your membership is active",
+                   "body": "Congratulations! Your KaisTrade membership is now active. Your account is ready and you can access the platform. Thank you for being one of our founding members.",
+                   "cta": "View application status", "status": "Active member"},
         "hello": "Hi {name},", "ref": "Application number", "state": "Status", "program": "Program",
         "foot": "You received this email because of your KaisTrade Founding 30 application. If you did not apply, you can ignore it.",
         "risk": "Crypto futures carry high risk; no profit is guaranteed.",
@@ -89,7 +126,7 @@ def render(kind: Kind, *, name: str, reference: str, lang: str, action_url: str 
         f"<tr><td style='padding:9px 0;color:#93a1b0;font-size:13px;border-top:1px solid #1d2a35'>{e(label)}</td>"
         f"<td align='right' style='padding:9px 0;font-size:13px;font-weight:700;color:{color};border-top:1px solid #1d2a35'>{e(value)}</td></tr>"
         for label, value, color in ((words["ref"], reference, "#e8eef4"), (words["program"], "Founding 30", "#e8eef4"),
-                                    (words["state"], copy["status"], GREEN if kind == "approved" else "#ffd36b" if kind != "rejected" else "#ff8d9a"))
+                                    (words["state"], copy["status"], GREEN if kind in ("approved", "invite", "reminder", "account_created", "active") else "#ff8d9a" if kind in ("rejected", "invite_expired") else "#ffd36b"))
     )
     body_html = f"""<!doctype html><html><body style="margin:0;padding:0;background:#05090d">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05090d;padding:28px 12px"><tr><td align="center">
