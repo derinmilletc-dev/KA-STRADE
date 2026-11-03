@@ -115,7 +115,7 @@ export default function LaunchPage() {
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
-            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>{t('Dolu', 'Taken')}</em></> : <>{live.seats} <em>{t('koltuk · manuel onay', 'seats · manual approval')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
+            <div className="fdQuota"><Users aria-hidden="true"/><span><small>Founding Members</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>Taken</em></> : <>{live.seats} <em><span className="fdQLong">Founding Members · </span><span className="fdQShort">Members · </span>Application Only</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
           </div>
         </div>
         <div className="fdEyeStage" aria-hidden="true">
