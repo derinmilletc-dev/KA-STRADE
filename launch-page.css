@@ -734,3 +734,8 @@ main { display: block; padding: 0 16px 24px; }
 @media (max-width: 700px) and (max-height: 720px) { .fdOfferText { display: grid; } .fdOfferText em { display: none; } }
 
 @media (max-width: 700px) { .fdOnStep2 .fdHero p.fdOffer { display: none; } .fdOfferText .fdQShort { white-space: nowrap; } }
+
+@media (max-width: 700px) { .fdHeard .fdQLabel { display: none; } .fdHeard { gap: 0; } }
+
+.fdPair { display: grid; gap: 10px; }
+@media (max-width: 700px) { .fdPair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; } .fdPair .fdCountryBtn { padding: 0 12px; gap: 8px; } }

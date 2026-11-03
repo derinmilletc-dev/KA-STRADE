@@ -153,7 +153,7 @@ const LAUNCH_FROZEN = String(import.meta.env.VITE_LAUNCH_MODE ?? '').trim().toLo
 export default function AuthGate({children,surface='customer'}:{children:ReactNode;surface?:Surface}) {
   const [token,setToken] = useState(userSessionToken())
   const [session,setSession] = useState<Session|null>(null)
-  const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : surface === 'admin' ? 'login' : window.location.pathname === '/register' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
+  const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : surface === 'admin' ? 'login' : window.location.pathname === '/register' || window.location.pathname === '/davet' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
   const showcaseVisible = useShowcaseVisible() && surface === 'customer'
   useEffect(() => {
     // Yönetim yüzeyi müşteri sayfa başlıklarını/arama motoru etiketlerini almaz (admin.html noindex kalır).
@@ -162,6 +162,27 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   })
   const isRegistration = mode === 'register' || mode === 'bootstrap'
   const isGoogleConsent = mode === 'google-consent'
+  // Kapalı üyelik: yeni hesap yalnız /davet?t=... bağlantısıyla (davet e-postası kilitli)
+  const [inviteToken] = useState(() => window.location.pathname === '/davet' ? (new URLSearchParams(window.location.search).get('t') ?? '') : '')
+  const [invite,setInvite] = useState<{email:string;name:string;reference:string;expires_at:string}|null>(null)
+  const [inviteError,setInviteError] = useState('')
+  const [inviteLoading,setInviteLoading] = useState(Boolean(inviteToken))
+  useEffect(() => {
+    if (!inviteToken) return
+    const controller = new AbortController()
+    fetch(`${API_BASE}/v22/founding/invite?t=${encodeURIComponent(inviteToken)}`, {signal: controller.signal})
+      .then(async response => {
+        const body = await response.json().catch(() => null) as {email?:string;name?:string;reference?:string;expires_at?:string;detail?:string}|null
+        if (response.ok && body?.email) {
+          setInvite({email: body.email, name: body.name ?? '', reference: body.reference ?? '', expires_at: body.expires_at ?? ''})
+          setRegister(current => ({...current, email: body.email ?? '', display_name: current.display_name || (body.name ?? '')}))
+        } else setInviteError(typeof body?.detail === 'string' ? body.detail : 'Bu davet bağlantısı geçersiz.')
+      })
+      .catch(() => { if (!controller.signal.aborted) setInviteError('Davet doğrulanamadı. Bağlantını kontrol edip tekrar dene.') })
+      .finally(() => { if (!controller.signal.aborted) setInviteLoading(false) })
+    return () => controller.abort()
+  }, [inviteToken])
+  const inviteOnlyBlocked = mode === 'register' && (!inviteToken || Boolean(inviteError))
   const [ownerSetupAvailable,setOwnerSetupAvailable] = useState(false)
   const [busy,setBusy] = useState(true)
   const [sessionLoading,setSessionLoading] = useState(true)
@@ -534,7 +555,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         saveUserSessionToken(result.token,remember); setMemberMenuOpen(false); setToken(result.token); setSession({user:result.user,two_factor_setup_required:result.two_factor_setup_required}); setOwnerSetupAvailable(false)
         setRegister({...EMPTY_REGISTRATION})
       } else if (mode === 'register') {
-        const result = await request<{verification_status_token?:string;message:string;email_verification_v2_enabled?:boolean}>('/auth/register',{method:'POST',body:JSON.stringify({...register,language:currentLang()})})
+        const result = await request<{verification_status_token?:string;message:string;email_verification_v2_enabled?:boolean}>('/auth/register',{method:'POST',body:JSON.stringify({...register,language:currentLang(),...(inviteToken ? {invite_token: inviteToken, email: invite?.email ?? register.email} : {})})})
         if (result.email_verification_v2_enabled) {
           setRegister({...EMPTY_REGISTRATION})
           history.pushState(null,'','/verify-email')
@@ -661,7 +682,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     </main>
   }
   // Lansman modu: giriş ve kayıt ekranları dondurulur, ziyaretçiler Founding 30 sayfasını görür. Sahip/test girişi: /giris
-  if (!session && LAUNCH_FROZEN && surface === 'customer' && window.location.pathname !== '/giris' && !['reset','forgot','verify','mfa'].includes(mode)) return <LaunchPage/>
+  if (!session && LAUNCH_FROZEN && surface === 'customer' && !['/giris','/davet'].includes(window.location.pathname) && !['reset','forgot','verify','mfa'].includes(mode)) return <LaunchPage/>
+  if (!session && surface === 'customer' && /^\/(basvuru|basvuru-durumu)\/?$/.test(window.location.pathname)) return <LaunchPage/>
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {
     const registrationStrength = strength(register.password)
     return <LoginMarketShell>{market => <><MaintenanceCountdown variant="login"/><main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
@@ -671,13 +693,19 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
       <section className={`authCard ${mode === 'verify' ? 'authCardVerify' : ''}${isRegistration ? ' authCardRegister' : ''}${mode === 'login' ? ' authCardLogin' : ''}`}>
         <div className={`authLoginBrand${mode !== 'login' ? ' isLink' : ''}`} {...(mode !== 'login' ? {role:'link',tabIndex:0,'aria-label':'Giriş ekranına dön',onClick:() => setMode('login'),onKeyDown:(event:ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMode('login') } }} : {})}><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
         <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? 'HESAP OLUŞTUR' : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? 'Hesabını oluştur' : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
-        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.' : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
+        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? (invite ? 'Davetin onaylandı. Hesabını davet e-postanla oluştur; davet başka bir adresle kullanılamaz.' : 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.') : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
+        {inviteOnlyBlocked ? <div className="authInviteOnly" role="status">
+          <b>{inviteToken ? 'Davet kullanılamıyor' : 'KaisTrade yalnızca davetle üye kabul ediyor'}</b>
+          <p>{inviteToken ? inviteError : 'Yeni hesap açmak için sana özel bir davet gerekir. Davetin yoksa üyelik başvurusu yapabilirsin; başvurun onaylanırsa davetin e-postana gelir.'}</p>
+          <a className="authSubmit" href="/basvuru">Üyelik başvurusu yap<ArrowRight/></a>
+        </div> : inviteToken && inviteLoading ? <p className="authInviteOnly" role="status">Davet doğrulanıyor…</p> : <>
+        {invite && <div className="authInviteBanner"><ShieldCheck aria-hidden="true"/><span><b>Kişiye özel davet</b><small>{invite.email} için · {invite.reference}</small></span></div>}
         <form ref={registrationFormRef} onSubmit={submit} noValidate={mode === 'login'} aria-busy={busy}>
           {mode === 'register' && <div className="authLangField"><span translate="no">{currentLang() === 'tr' ? 'Dil' : 'Language'}</span><LanguagePicker value={currentLang()} onChange={setLang}/></div>}
           {mode === 'login' && <><label className={fieldErrors.email ? 'authFieldError' : ''}>E-posta<div className="authInputWithIcon"><Mail aria-hidden="true"/><input type="email" required autoComplete="email" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'login-email-error' : undefined} value={login.email} onChange={event => {setLogin({...login,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}} placeholder="siz@ornek.com"/></div>{fieldErrors.email && <em id="login-email-error" role="alert">{fieldErrors.email}</em>}</label><label className={fieldErrors.password ? 'authFieldError' : ''}>Parola<div className="authPassword authInputWithIcon"><LockKeyhole aria-hidden="true"/><input data-private="true" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'login-password-error' : undefined} placeholder="Parolanız" value={login.password} onChange={event => {setLogin({...login,password:event.target.value});setFieldErrors(current => ({...current,password:''}))}}/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword}>{showPassword ? <EyeOff/> : <Eye/>}</button></div>{fieldErrors.password && <em id="login-password-error" role="alert">{fieldErrors.password}</em>}</label><div className="authLoginOptions"><label className="authCheck"><input type="checkbox" aria-label="Oturumu açık tut" checked={remember} onChange={event => setRemember(event.target.checked)}/><span data-mobile-copy="Oturumu açık tut">Bu cihazda oturumu hatırla</span></label><button type="button" className="authLoginForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button></div></>}
           {isRegistration && <>
             <label>Ad soyad<input required autoComplete="name" value={register.display_name} onChange={event => setRegister({...register,display_name:event.target.value})} placeholder="Ada Yılmaz"/></label>
-            <label className={fieldErrors.email ? 'authFieldError' : ''}>E-posta<input type="email" autoComplete="email" value={register.email} onChange={event => {setRegister({...register,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}} placeholder="siz@ornek.com"/>{fieldErrors.email && <em role="alert">{fieldErrors.email}</em>}</label>
+            <label className={fieldErrors.email ? 'authFieldError' : ''}>E-posta<input type="email" autoComplete="email" readOnly={Boolean(invite)} aria-readonly={Boolean(invite)} value={register.email} onChange={event => {if (invite) return; setRegister({...register,email:event.target.value});setFieldErrors(current => ({...current,email:''}))}} placeholder="siz@ornek.com"/>{fieldErrors.email && <em role="alert">{fieldErrors.email}</em>}</label>
             <label className={fieldErrors.password ? 'authFieldError' : ''}>Parola<div className="authPassword"><input data-private="true" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={register.password} onChange={event => {setRegister({...register,password:event.target.value});setFieldErrors(current => ({...current,password:''}))}}/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label="Parolayı göster veya gizle">{showPassword ? <EyeOff/> : <Eye/>}</button></div><div className={`passwordMeter strength${registrationStrength.score}`}><i style={{width:`${registrationStrength.score * 20}%`}}/><span>{registrationStrength.label} · tüm şartlar sağlanmalı</span></div><div className="passwordRules">{passwordRules(register.password).map(([label,passed]) => <span className={passed ? 'passed' : 'missing'} key={label}>{passed ? '✓' : '•'} {label}</span>)}</div>{fieldErrors.password && <em role="alert">{fieldErrors.password}</em>}</label>
             <label className={fieldErrors.confirm_password ? 'authFieldError' : ''}>Parola tekrar<div className="authPassword"><input data-private="true" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" value={register.confirm_password} onChange={event => {setRegister({...register,confirm_password:event.target.value});setFieldErrors(current => ({...current,confirm_password:''}))}}/><button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label="Parola tekrarını göster veya gizle">{showConfirmPassword ? <EyeOff/> : <Eye/>}</button></div>{fieldErrors.confirm_password && <em role="alert">{fieldErrors.confirm_password}</em>}</label>
             <TermsConsent accepted={register.terms_accepted} marketingAccepted={register.marketing_accepted} error={termsError} onChange={value => {setRegister({...register,terms_accepted:value});setTermsError('')}} onMarketingChange={value => setRegister({...register,marketing_accepted:value})}/>
@@ -690,6 +718,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
           {mode === 'reset' && <label>2FA veya kurtarma kodu (etkinse)<input data-private="true" autoComplete="one-time-code" value={resetPassword.totp_code} onChange={event => setResetPassword({...resetPassword,totp_code:event.target.value})}/></label>}
           <button className="authSubmit" disabled={busy} aria-busy={busy}>{busy ? 'İŞLENİYOR…' : mode === 'mfa' ? 'DOĞRULA VE GİRİŞ YAP' : mode === 'login' ? 'Giriş yap' : mode === 'bootstrap' ? 'YÖNETİCİ HESABINI OLUŞTUR' : mode === 'register' || isGoogleConsent ? 'HESAP OLUŞTUR' : mode === 'forgot' ? 'YENİLEME BAĞLANTISI GÖNDER' : mode === 'reset' ? 'PAROLAYI GÜNCELLE' : 'E-POSTAYI DOĞRULA'}{busy ? <LoaderCircle className="spin"/> : <ArrowRight/>}</button>
         </form>
+        {invite && <div className="authSocial"><span>veya</span><button type="button" className="authGoogle" disabled={busy} aria-busy={busy} onClick={() => void startGoogle()}>Google ile devam et ({invite.email})</button></div>}
+        </>}
         {mode === 'login' && <div className="authSocial"><span>veya</span><button type="button" className="authGoogle" aria-label="Google ile devam et" disabled={busy} aria-busy={busy} onClick={() => void startGoogle()}><span className="authGoogleMark" aria-hidden="true">G</span>Google ile devam et</button></div>}
         {(mode === 'verify' || (mode === 'register' && verificationMailFailed)) && <div className="authVerificationPanel">
           <b>{verificationNotice && mode === 'verify' ? 'E-posta kayıt için uygunsa doğrulama bağlantısı gönderildi.' : verificationMailFailed ? 'Doğrulama maili gönderilemedi.' : 'E-posta doğrulaması bekleniyor.'}</b>
@@ -700,7 +730,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         </div>}
         {message && message !== 'Oturum doğrulanıyor…' && <p className={`authMessage${submitFailed ? ' authMessageError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
         {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
-        <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button><button onClick={() => setMode('register')}>Yeni hesap oluştur</button></>}{mode === 'register' ? <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></> : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
+        <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button><a href="/basvuru">Üyelik başvurusu yap</a></>}{mode === 'register' ? <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></> : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
         {mode === 'login' && LOCAL_OWNER_SETUP_PAGE && ownerSetupAvailable && <div className="authLinks"><button type="button" onClick={() => {setRegister(current => ({...current,email:login.email,password:'',confirm_password:''}));setMessage('');setFieldErrors({});setTermsError('');setMode('bootstrap')}}><ShieldCheck aria-hidden="true"/> İlk yönetici kurulumu</button></div>}
         {mode === 'login' && <a className="authInstagramFollow" href="https://www.instagram.com/kaistrade_/" target="_blank" rel="noopener noreferrer">
           <svg className="authInstagramGlyph" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="authIgGradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#feda75"/><stop offset=".3" stopColor="#fa7e1e"/><stop offset=".6" stopColor="#d62976"/><stop offset="1" stopColor="#4f5bd5"/></linearGradient></defs><g fill="none" stroke="url(#authIgGradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></g><circle cx="17.5" cy="6.5" r="1.1" fill="url(#authIgGradient)"/></svg>
