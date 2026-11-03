@@ -41,7 +41,8 @@ def request(conn):
 
 
 def body(**kw):
-    return founding.Apply(**{"email": "A@Example.com", "name": "Ada", "country": "ZA", **kw})
+    return founding.Apply(**{"email": "A@Example.com", "name": "Ada", "country": "ZA", "futures_experience": "past",
+                            "trading_experience": "6to12m", "reason": "Riskimi kontrol ederek işlem yapmak istiyorum.", **kw})
 
 
 async def noop_limit(*_a, **_k):
@@ -87,6 +88,7 @@ def test_new_application_stores_hashed_token_and_sends_confirmation():
         assert run(founding.apply(body(), request(conn))) == {"ok": True}
     insert = [args for sql, args in conn.executed if "INSERT INTO founding_applications" in sql][0]
     assert insert[0] == "a@example.com" and len(insert[4]) == 64
+    assert insert[7:10] == ("past", "6to12m", "Riskimi kontrol ederek işlem yapmak istiyorum.")
     assert sent and sent[0][0] == "a@example.com" and sent[0][2] not in insert  # düz belirteç saklanmaz
 
 
@@ -101,3 +103,17 @@ def test_existing_confirmed_applicant_gets_same_answer_and_no_mail():
 def test_hash_is_stable_and_clean_strips_control_characters():
     assert founding._hash("x") == founding._hash("x") and len(founding._hash("x")) == 64
     assert founding._clean("a\x00b\nc", 10) == "a b c"
+
+
+def test_reason_and_experience_answers_are_required():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        founding.Apply(email="a@example.com", name="Ada", country="ZA", futures_experience="active", trading_experience="new", reason="kısa")
+    with pytest.raises(ValidationError):
+        founding.Apply(email="a@example.com", name="Ada", country="ZA", reason="Yeterince uzun bir gerekçe")
+
+
+def test_unknown_experience_values_are_rejected():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        founding.Apply(email="a@example.com", name="Ada", country="ZA", futures_experience="yes", trading_experience="new", reason="Yeterince uzun bir gerekçe")
