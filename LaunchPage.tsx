@@ -72,6 +72,10 @@ export default function LaunchPage() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [message, setMessage] = useState('')
   const formRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    document.documentElement.classList.add('fdNoScroll')
+    return () => document.documentElement.classList.remove('fdNoScroll')
+  }, [])
   useEffect(() => { if (!STATUS_ROUTE) track('view'); try { document.documentElement.lang = PAGE_LANG } catch { /* yok */ } }, [])
   const [photo, setPhoto] = useState(false)
   const [live, setLive] = useState<{open: boolean; seats: number; taken: number; price: string | null}>({open: true, seats: SEATS, taken: 0, price: null})
