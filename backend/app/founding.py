@@ -515,6 +515,7 @@ def _item(row: Any) -> dict:
         "invite_accepted_at": iso(row["invite_accepted_at"]), "invite_count": int(row["invite_count"] or 0),
         "invite_open": bool(row["invite_token_hash"]) and row["status"] == "invited", "user_id": row["user_id"],
         "activated_at": iso(row["activated_at"]),
+        "price_locked_until": iso(row["activated_at"] + timedelta(days=365)) if row["activated_at"] else None,
         "email_confirmed_at": row["email_confirmed_at"].isoformat() if row["email_confirmed_at"] else None,
         "decided_at": row["decided_at"].isoformat() if row["decided_at"] else None,
         "created_at": row["created_at"].isoformat(),
