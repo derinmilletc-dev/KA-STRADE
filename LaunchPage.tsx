@@ -249,10 +249,6 @@ export default function LaunchPage() {
       <header><h2>{t('Sıkça Sorulan Sorular', 'Frequently asked questions')}</h2><button type="button" onClick={() => setSheet(false)} aria-label={t('Kapat', 'Close')}><X aria-hidden="true"/></button></header>
       {FAQ().map(([q, answer]) => <details key={q}><summary>{q}</summary><p>{answer}</p></details>)}
     </section></div>}
-    <footer className="fdFoot">
-      <p>{t('Kripto vadeli işlemler yüksek risk içerir. Kâr garantisi verilmez; bu sayfa yatırım tavsiyesi değildir.', 'Crypto futures carry high risk. No profit is guaranteed; this page is not investment advice.')}</p>
-      <nav><a href="/privacy">{t('Gizlilik', 'Privacy')}</a><a href="/terms">{t('Şartlar', 'Terms')}</a><a href="/risk">{t('Risk uyarısı', 'Risk notice')}</a></nav>
-      <small>© 2026 KaisTrade</small>
-    </footer>
+    <footer className="fdFoot"><small>© 2026 KaisTrade · {t('Tüm Hakları Saklıdır', 'All Rights Reserved')}</small></footer>
   </div>
 }
