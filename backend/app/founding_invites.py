@@ -144,9 +144,12 @@ async def my_membership(request: Request):
     if pool is None:
         return {"status": None}
     await ensure_schema(pool)
+    from .binance_manual_payments import FOUNDER_AMOUNT, founder_price_lock
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT status, reference FROM founding_applications WHERE user_id=$1", user["id"])
-    return {"status": row["status"] if row else None, "reference": row["reference"] if row else None}
+        lock = await founder_price_lock(conn, user["id"]) if row else None
+    return {"status": row["status"] if row else None, "reference": row["reference"] if row else None,
+            "founder_price": str(FOUNDER_AMOUNT) if lock else None, "price_locked_until": lock.isoformat() if lock else None}
 
 
 # ------------------------------------------------------------------ yönetici

@@ -21,6 +21,12 @@ AMOUNT = Decimal("119.90")  # Master Mode (geriye uyumlu ad)
 # Plan, ödenen tutardan çıkar: veritabanı yalnız bu iki tutara izin verir (migration 20261029_001).
 PLAN_AMOUNTS: dict[str, Decimal] = {"MASTER_MODE": Decimal("119.90"), "SMART_TRADE": Decimal("39.90")}
 PLAN_NAMES = {"MASTER_MODE": "MASTER MODE", "SMART_TRADE": "SMART TRADE"}
+# Founding 30 kurucu fiyatı: 12 ay kesintisiz abonelik boyunca Master Mode bu tutardan yenilenir.
+# Master Mode fiyatı ileride değişirse bu tutar, plan eşlemesinde ve veritabanı tutar kuralında
+# (binance_manual_amount_plans) izinli kalmalıdır; aksi halde kurucu üyelerin ödemesi reddedilir.
+FOUNDER_AMOUNT = Decimal("119.90")
+FOUNDER_LOCK_DAYS = 365
+FOUNDER_GRACE_DAYS = 7  # bir ödeme dönemi bittikten sonra kilidin korunduğu süre (kesintisizlik)
 PAID_PERIOD_DAYS = 30  # her onaylı ödeme bu kadar gün erişim verir
 PAYMENT_WINDOW_HOURS = 48  # işlem numarası için süre (migration 20261011_001 varsayılanıyla aynı)
 REFERENCE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -68,7 +74,40 @@ def plan_for_amount(amount: Any) -> str | None:
     for plan, expected in PLAN_AMOUNTS.items():
         if value == expected:
             return plan
+    if value == FOUNDER_AMOUNT:
+        return "MASTER_MODE"  # kurucu fiyatı Master Mode erişimi verir
     return None
+
+
+async def founder_price_lock(conn: PaymentConnection, user_id: str) -> datetime | None:
+    """Kurucu üyenin fiyat kilidi geçerliyse bitiş tarihini döner, değilse None.
+
+    Kilit: davetle gelen kurucu üye (ödeme aşamasında ya da aktif) için ilk aktivasyondan itibaren 365 gün;
+    üyelik arada {FOUNDER_GRACE_DAYS} günden uzun süre düşerse kilit sona erer. Kurucu kaydı yoksa None.
+    """
+    if not await conn.fetchval("SELECT to_regclass('public.founding_applications') IS NOT NULL"):
+        return None
+    row = await conn.fetchrow(
+        """SELECT status, activated_at FROM founding_applications
+           WHERE user_id=$1 AND status IN ('account_created','payment_pending','active')""", user_id,
+    )
+    if row is None:
+        return None
+    now = await conn.fetchval("SELECT clock_timestamp()")
+    if row["activated_at"] is None:  # ilk ödeme: kurucu fiyatıyla başlar
+        return now + timedelta(days=FOUNDER_LOCK_DAYS)
+    until = row["activated_at"] + timedelta(days=FOUNDER_LOCK_DAYS)
+    if now >= until:
+        return None
+    last_end = await conn.fetchval(
+        """SELECT MAX(p.period_end) FROM binance_manual_periods p
+           JOIN binance_manual_payment_requests r ON r.id=p.payment_request_id
+           WHERE p.user_id=$1 AND r.user_id=$1 AND r.status='approved' AND r.erased_at IS NULL AND p.revoked_at IS NULL""",
+        user_id,
+    )
+    if last_end is not None and now > last_end + timedelta(days=FOUNDER_GRACE_DAYS):
+        return None  # üyelik kesintiye uğradı
+    return until
 
 
 def new_reference() -> str:
@@ -189,6 +228,14 @@ async def create_request(conn: PaymentConnection, user_id: str, plan: str = "MAS
         )
         if existing is not None:
             return PaymentRequest.model_validate(dict(existing))
+        if plan == "MASTER_MODE" and amount != FOUNDER_AMOUNT:  # liste fiyatı yükselince kurucular eski fiyatta kalır
+            try:
+                if await founder_price_lock(conn, user_id) is not None:
+                    amount = FOUNDER_AMOUNT
+            except PostgresError:
+                raise
+            except Exception:  # noqa: BLE001 - kurucu kaydı okunamazsa normal fiyat uygulanır
+                logger.warning("Founder price lock could not be read", exc_info=True)
         for attempt in range(5):
             try:
                 async with conn.transaction():
