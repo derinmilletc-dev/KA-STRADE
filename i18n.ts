@@ -8,7 +8,8 @@ export const LANGUAGES: {code: Lang; native: string; en: string}[] = [
   {code: 'en', native: 'English', en: 'English'},
 ]
 
-function browserLang(): Lang {
+/** Tarayıcının dili (Türkçe değilse İngilizce). Kayıtlı tercih yok sayılır. */
+export function browserLang(): Lang {
   try {
     const list = navigator.languages?.length ? navigator.languages : [navigator.language]
     for (const l of list) {

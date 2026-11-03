@@ -48,7 +48,7 @@ export default function OptionPicker({value, onChange, options, mobile, label, p
     </button>
     {open && (mobile
       // Telefonda alt sayfa body'ye taşınır: form/kart katmanlarının (backdrop-filter, z-index) altında kalmaz
-      ? createPortal(<div className="fdCountry fdPortal"><div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div></div>, document.body)
+      ? createPortal(<div className="fdCountry fdPortal" data-i18n-skip translate="no"><div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div></div>, document.body)
       : panel)}
   </div>
 }
