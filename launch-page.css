@@ -383,3 +383,53 @@ main { display: block; padding: 0 16px 24px; }
   .fdFaq summary::after { transition: transform .2s ease; }
   .fdFaq details[open] summary::after { transform: rotate(180deg); }
 }
+
+/* İki adımlı başvuru formu */
+.fdProgress { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.fdProgress span { height: 4px; border-radius: 99px; background-color: #1c2833; transition: background-color .35s ease; }
+.fdProgress span.on { background-color: var(--green); box-shadow: 0 0 10px rgba(46,229,157,.45); }
+.fdProgress small { margin-left: 6px; color: var(--mute); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; }
+.fdStepPane { display: grid; gap: 10px; }
+.fdQ { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 7px; }
+.fdQ legend { padding: 0; margin-bottom: 7px; color: #cfd8e2; font-size: 13.5px; font-weight: 700; }
+.fdChoices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fdForm .fdChoices label { position: relative; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px solid #243242; border-radius: 12px; background-color: #070d12; color: var(--ink); font-size: 14.5px; font-weight: 600; cursor: pointer; transition: border-color .2s ease, background-color .2s ease; }
+.fdChoices input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.fdChoices i { flex: none; width: 20px; height: 20px; border: 1.5px solid #4b6074; border-radius: 50%; display: grid; place-items: center; transition: border-color .2s ease; }
+.fdChoices i::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background-color: var(--green); transform: scale(0); transition: transform .2s ease; }
+.fdForm .fdChoices label.on { border-color: var(--green); background-color: #0b1d16; }
+.fdForm .fdChoices label.on i { border-color: var(--green); }
+.fdForm .fdChoices label.on i::after { transform: scale(1); }
+.fdChoices input:focus-visible + i { outline: 2px solid var(--green); outline-offset: 2px; }
+.fdForm label.fdReason { display: grid; gap: 7px; color: #cfd8e2 !important; font-size: 13.5px !important; font-weight: 700; }
+.fdReason textarea { min-height: 84px; }
+.fdReason small { justify-self: end; color: var(--mute); font-size: 11px; font-weight: 500; }
+.fdNavBtns { display: flex; gap: 8px; }
+.fdNavBtns .fdSubmit { flex: 1; margin-top: 0; }
+.fdBack { display: inline-flex; align-items: center; gap: 6px; min-height: 50px; padding: 0 16px; border: 1px solid #2a3846; border-radius: 16px; background: transparent; color: var(--ink); font: 700 14px/1 inherit; cursor: pointer; }
+.fdBack svg { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fdSlide { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+  .fdStepPane { animation: fdSlide .35s ease both; }
+}
+@media (max-width: 700px) {
+  .fdOnStep2 .fdBlock { display: none; }
+  .fdQ legend { margin-bottom: 5px; font-size: 13px; }
+  .fdForm .fdChoices label { min-height: 40px; }
+  .fdForm label.fdReason { font-size: 13px !important; gap: 5px; }
+  .fdReason textarea { min-height: 64px; }
+  .fdBack { min-height: 46px; }
+}
+@media (max-width: 700px) and (max-height: 720px) {
+  .fdOnStep2 .fdStrip { display: none; }
+  .fdOnStep2 .fdHero h2 { display: none; }
+}
+@media (max-width: 700px) {
+  .fdOnStep2 .fdHero h2 { display: none; }
+  .fdReason small { margin-top: -2px; }
+}
+@media (max-width: 700px) and (max-height: 720px) {
+  .fdOnStep2 .fdHero { padding-top: 70px; }
+  .fdOnStep2 .fdEyeStage { top: -120px; }
+  .fdOnStep2 .fdReason textarea { min-height: 56px; }
+}

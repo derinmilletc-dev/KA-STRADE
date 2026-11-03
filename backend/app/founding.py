@@ -47,6 +47,9 @@ SCHEMA = (
         approved_seq INTEGER, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())""",
     """CREATE UNIQUE INDEX IF NOT EXISTS founding_applications_email_key ON founding_applications (lower(email))""",
     """CREATE INDEX IF NOT EXISTS founding_applications_status_idx ON founding_applications (status, created_at)""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS futures_experience BOOLEAN""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS trading_experience BOOLEAN""",
+    """ALTER TABLE founding_applications ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''""",
 )
 
 
@@ -83,6 +86,9 @@ class Apply(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     country: str = Field(min_length=2, max_length=80)
     lang: str = Field(default="tr", max_length=8)
+    futures_experience: bool
+    trading_experience: bool
+    reason: str = Field(min_length=10, max_length=600)
     website: str = Field(default="", max_length=200)  # bal tuzağı: dolu gelirse bot
 
 
@@ -138,8 +144,11 @@ async def apply(body: Apply, request: Request):
     pool = _pool(request)
     await ensure_schema(pool)
     name, country = _clean(body.name, 120), _clean(body.country, 80)
+    reason = _clean(body.reason, 600)
     if len(name) < 2 or len(country) < 2:
         raise HTTPException(422, "Ad ve ülke zorunludur.")
+    if len(reason) < 10:
+        raise HTTPException(422, "Lütfen KaisTrade'i neden kullanmak istediğini kısaca yaz.")
     lang = "en" if body.lang == "en" else "tr"
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
@@ -152,15 +161,19 @@ async def apply(body: Apply, request: Request):
             row = await conn.fetchrow("SELECT id, status FROM founding_applications WHERE lower(email) = $1 FOR UPDATE", email)
             if row is None:
                 await conn.execute(
-                    """INSERT INTO founding_applications (email, name, country, lang, email_token_hash, email_token_expires, ip_hash)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                    """INSERT INTO founding_applications (email, name, country, lang, email_token_hash, email_token_expires, ip_hash,
+                       futures_experience, trading_experience, reason)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
                     email, name, country, lang, _hash(token), now + EMAIL_TTL, _hash(client_ip(request)),
+                    body.futures_experience, body.trading_experience, reason,
                 )
                 send = True
             elif row["status"] == "pending_email":  # onay e-postası gelmediyse yeniden gönderilebilir
                 await conn.execute(
-                    """UPDATE founding_applications SET name=$2, country=$3, lang=$4, email_token_hash=$5, email_token_expires=$6, updated_at=now()
+                    """UPDATE founding_applications SET name=$2, country=$3, lang=$4, email_token_hash=$5, email_token_expires=$6,
+                       futures_experience=$7, trading_experience=$8, reason=$9, updated_at=now()
                        WHERE id=$1""", row["id"], name, country, lang, _hash(token), now + EMAIL_TTL,
+                    body.futures_experience, body.trading_experience, reason,
                 )
                 send = True
     except UniqueViolationError:  # aynı anda iki istek: ikincisi sessizce başarılı sayılır
@@ -215,6 +228,8 @@ def _item(row: Any) -> dict:
     return {
         "id": int(row["id"]), "email": row["email"], "name": row["name"], "country": row["country"], "lang": row["lang"],
         "status": row["status"], "note": row["note"], "approved_seq": row["approved_seq"],
+        "futures_experience": row["futures_experience"], "trading_experience": row["trading_experience"],
+        "reason": row["reason"] or "",
         "email_confirmed_at": row["email_confirmed_at"].isoformat() if row["email_confirmed_at"] else None,
         "decided_at": row["decided_at"].isoformat() if row["decided_at"] else None,
         "created_at": row["created_at"].isoformat(),

@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type FormEvent} from 'react'
-import {ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
+import {ArrowLeft, ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import KaisEye from './KaisEye'
@@ -12,8 +12,10 @@ const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 const SEATS = 30
 const EYE_PHOTO = '/founding-eye.webp'
 
-type Form = {email: string; name: string; country: string; experience: string; capital: string; reason: string; feedback: boolean; price: boolean; consent: boolean; website: string}
-const EMPTY: Form = {email: '', name: '', country: '', experience: '', capital: '', reason: '', feedback: true, price: false, consent: false, website: ''}
+type YesNo = '' | 'yes' | 'no'
+type Form = {email: string; name: string; country: string; futures: YesNo; trading: YesNo; reason: string; website: string}
+const EMPTY: Form = {email: '', name: '', country: '', futures: '', trading: '', reason: '', website: ''}
+const REASON_MIN = 10
 type Phase = 'idle' | 'busy' | 'done' | 'error'
 
 
@@ -54,13 +56,17 @@ export default function LaunchPage() {
   useEffect(() => { if (guess) setForm(current => current.country ? current : {...current, country: guess}) }, [guess])
   const goForm = () => formRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'})
 
-  const valid = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
+  const [step, setStep] = useState<1 | 2>(1)
+  const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
+  const valid = stepOne && !!form.futures && !!form.trading && form.reason.trim().length >= REASON_MIN
+  const goStep = (next: 1 | 2) => { setStep(next); setPhase(current => current === 'error' ? 'idle' : current); setMessage('') }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (step === 1) { if (stepOne) goStep(2); return }
     if (!valid || phase === 'busy') return
     setPhase('busy'); setMessage('')
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures === 'yes', trading_experience: form.trading === 'yes', reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
       if (response.ok) { setPhase('done'); return }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
@@ -70,7 +76,7 @@ export default function LaunchPage() {
     }
   }
 
-  return <div className="fdRoot" data-i18n-skip>
+  return <div className={`fdRoot ${step === 2 && phase !== 'done' ? 'fdOnStep2' : ''}`} data-i18n-skip>
     <header className="fdTop">
       <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
       <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>
@@ -133,14 +139,30 @@ export default function LaunchPage() {
           {phase === 'done' ? <div className="fdDone" role="status"><Check aria-hidden="true"/><h3>{t('Başvurun alındı', 'Application received')}</h3><p>{t('E-postanı kontrol et ve başvurunu onayla. 72 saat içinde sana dönüş yapacağım.', 'Check your email and confirm your application. I will get back to you within 72 hours.')}</p></div>
           : <form className="fdForm" onSubmit={submit} noValidate>
             <header><h2>{t('Kurucu Üyelik Başvurusu', 'Founding Member Application')}</h2><p>{t('Ücretsiz başvurunu şimdi yap. Onaylanan adaylara lansman daveti gönderilir.', 'Apply for free now. Approved applicants receive a launch invitation.')}</p></header>
+            <div className="fdProgress" aria-label={t(`Adım ${step} / 2`, `Step ${step} of 2`)}><span className="on"/><span className={step === 2 ? 'on' : ''}/><small>{t(`Adım ${step}/2`, `Step ${step}/2`)}</small></div>
+            {step === 1 ? <div className="fdStepPane" key="s1">
             <label>{t('Ad soyad', 'Full name')}<input placeholder={t('Ad Soyad', 'Full name')} autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
             <label>{t('E-posta adresi', 'Email address')}<input type="email" placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
             <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
+            </div> : <div className="fdStepPane" key="s2">
+              <fieldset className="fdQ"><legend>{t('Binance Futures deneyimin var mı?', 'Do you have Binance Futures experience?')}</legend>
+                <div className="fdChoices">{(['yes', 'no'] as const).map(value => <label key={value} className={form.futures === value ? 'on' : ''}><input type="radio" name="futures" value={value} checked={form.futures === value} onChange={() => set('futures', value)}/><i aria-hidden="true"/>{value === 'yes' ? t('Evet', 'Yes') : t('Hayır', 'No')}</label>)}</div></fieldset>
+              <fieldset className="fdQ"><legend>{t('Trading deneyimin var mı?', 'Do you have trading experience?')}</legend>
+                <div className="fdChoices">{(['yes', 'no'] as const).map(value => <label key={value} className={form.trading === value ? 'on' : ''}><input type="radio" name="trading" value={value} checked={form.trading === value} onChange={() => set('trading', value)}/><i aria-hidden="true"/>{value === 'yes' ? t('Evet', 'Yes') : t('Hayır', 'No')}</label>)}</div></fieldset>
+              <label className="fdReason">{t('Neden KaisTrade kullanmak istiyorsun?', 'Why do you want to use KaisTrade?')}<textarea rows={3} maxLength={600} placeholder={t('Beklentilerini kısaca anlat…', 'Briefly describe what you expect…')} value={form.reason} onChange={event => set('reason', event.target.value)}/>
+                <small>{form.reason.trim().length < REASON_MIN ? t(`En az ${REASON_MIN} karakter`, `At least ${REASON_MIN} characters`) : `${form.reason.length}/600`}</small></label>
+            </div>}
             <input className="fdHoney" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={event => set('website', event.target.value)}/>
             {phase === 'error' && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{message}</p>}
-            <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy' || !live.open}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
+            <div className="fdNavBtns">
+              {step === 2 && <button type="button" className="fdBack" onClick={() => goStep(1)} disabled={phase === 'busy'}><ArrowLeft aria-hidden="true"/>{t('Geri', 'Back')}</button>}
+              {step === 1
+                ? <button className="fdPrimary fdSubmit" type="submit" disabled={!stepOne || !live.open}>{t('Devam', 'Continue')}<ArrowRight aria-hidden="true"/></button>
+                : <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy' || !live.open}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>}
+            </div>
             {!live.open && <p className="fdError" role="status"><TriangleAlert aria-hidden="true"/>{t('Başvurular şu anda kapalı.', 'Applications are currently closed.')}</p>}
-            <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t('’nı, geri bildirim vermeyi ve kurucu fiyatının onayda bildirileceğini kabul edersin.', ', agree to give feedback, and understand the founder price is shared on approval.')}</p>
+            {step === 1 ? <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez.', 'Applying is free, no card details required.')}</p>
+  : <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t('’nı, geri bildirim vermeyi ve kurucu fiyatının onayda bildirileceğini kabul edersin.', ', agree to give feedback, and understand the founder price is shared on approval.')}</p>}
           </form>}
         </section>
 
