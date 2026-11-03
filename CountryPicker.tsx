@@ -1,3 +1,4 @@
+import {createPortal} from 'react-dom'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Check, ChevronDown, Search, X} from 'lucide-react'
 
@@ -62,7 +63,7 @@ export default function CountryPicker({value, onChange, lang, mobile, label, pla
   const onKey = (event: React.KeyboardEvent) => {
     if (event.key === 'ArrowDown') { event.preventDefault(); setActive(index => Math.min(rows.length - 1, index + 1)) }
     else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(index => Math.max(0, index - 1)) }
-    else if (event.key === 'Enter') { event.preventDefault(); if (rows[active]) pick(rows[active].code) }
+    else if (event.key === 'Enter') { event.preventDefault(); const row = rows[active] ?? rows[0]; if (row) pick(row.code) }
     else if (event.key === 'Escape') { setOpen(false) }
   }
 
@@ -83,6 +84,9 @@ export default function CountryPicker({value, onChange, lang, mobile, label, pla
       {value ? <><span className="fdFlag" aria-hidden="true">{flag(value)}</span><span>{countryName(value, lang)}</span></> : <span>{placeholder}</span>}
       <ChevronDown aria-hidden="true"/>
     </button>
-    {open && (mobile ? <div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div> : panel)}
+    {open && (mobile
+      // Telefonda alt sayfa body'ye taşınır: form/kart katmanlarının (backdrop-filter, z-index) altında kalmaz
+      ? createPortal(<div className="fdCountry fdPortal"><div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div></div>, document.body)
+      : panel)}
   </div>
 }
