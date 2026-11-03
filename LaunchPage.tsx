@@ -4,6 +4,8 @@ import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import KaisEye from './KaisEye'
 import OptionPicker from './OptionPicker'
+import FoundingIntro, {preloadIntro, type IntroOutcome} from './FoundingIntro'
+import FoundingSuccess from './FoundingSuccess'
 import CountryPicker, {countryName, guessCountry} from './CountryPicker'
 import './launch-page.css'
 
@@ -62,30 +64,41 @@ export default function LaunchPage() {
   const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
   const valid = stepOne && !!form.futures && !!form.trading && form.reason.trim().length >= REASON_MIN
   const goStep = (next: 1 | 2) => { setStep(next); setPhase(current => current === 'error' ? 'idle' : current); setMessage('') }
+  const [intro, setIntro] = useState<IntroOutcome | null>(null)
+  const [reference, setReference] = useState<string | null>(null)
+  useEffect(() => (step === 2 ? preloadIntro() : undefined), [step])
+  const goHome = () => { setForm(current => ({...EMPTY, country: guess || current.country})); setStep(1); setPhase('idle'); setReference(null); setMessage('') }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (step === 1) { if (stepOne) goStep(2); return }
     if (!valid || phase === 'busy') return
-    setPhase('busy'); setMessage('')
+    setPhase('busy'); setMessage(''); setIntro('pending')
+    const fail = (text: string) => { setIntro(current => current ? 'error' : current); setPhase('error'); setMessage(text) }
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15000)
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures, trading_experience: form.trading, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
-      if (response.ok) { setPhase('done'); return }
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), futures_experience: form.futures, trading_experience: form.trading, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      if (response.ok) {
+        let ref: string | null = null
+        try { const body = await response.json(); ref = typeof body?.reference === 'string' && /^KT-F30-[A-Z0-9]{5}$/.test(body.reference) ? body.reference : null } catch { /* gövde yok */ }
+        setReference(ref); setIntro('ok'); return
+      }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
-      setPhase('error'); setMessage(detail || t('Başvuru şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.', 'We could not take your application right now. Please try again shortly.'))
+      fail(detail || t('Başvuru şu anda alınamadı. Lütfen biraz sonra tekrar deneyin.', 'We could not take your application right now. Please try again shortly.'))
     } catch {
-      setPhase('error'); setMessage(t('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.', 'Could not reach the server. Check your connection and try again.'))
-    }
+      fail(t('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.', 'Could not reach the server. Check your connection and try again.'))
+    } finally { window.clearTimeout(timeout) }
   }
 
   return <div className={`fdRoot ${step === 2 && phase !== 'done' ? 'fdOnStep2' : ''}`} data-i18n-skip>
     <header className="fdTop">
       <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
-      <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>
-      <div className="fdTopRight"><button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button></div>
+      {phase !== 'done' && <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>}
+      <div className="fdTopRight">{phase !== 'done' && <button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button>}</div>
     </header>
 
-    <main>
+    {phase === 'done' ? <FoundingSuccess reference={reference} email={form.email} t={t} onHome={goHome}/> : <main>
       {banner && <p className={`fdBanner ${banner}`} role="status">{banner === 'confirmed' ? t('E-postan onaylandı. Başvurun incelemeye alındı; 72 saat içinde dönüş yapacağız.', 'Email confirmed. Your application is in review; we will reply within 72 hours.') : banner === 'expired' ? t('Onay bağlantısının süresi dolmuş. Formu yeniden gönderirsen yeni bağlantı yollarız.', 'This confirmation link has expired. Submit the form again and we will send a new one.') : t('Onay bağlantısı geçersiz.', 'This confirmation link is invalid.')}</p>}
       <section className="fdHero">
         <div className="fdHeroCopy">
@@ -172,7 +185,8 @@ export default function LaunchPage() {
           ? <button type="button" className="fdFaqRow" onClick={() => setSheet(true)}><span>{t('Sıkça Sorulan Sorular', 'FAQ')}</span><b>{t('Tümünü Gör', 'See all')}</b></button>
           : <section className="fdColB fdFaq" id="sss"><h2>{t('Sıkça Sorulan Sorular', 'Frequently asked questions')}</h2>{FAQ().map(([q, answer]) => <details key={q}><summary>{q}</summary><p>{answer}</p></details>)}</section>}
       </div>
-    </main>
+    </main>}
+    {intro && <FoundingIntro outcome={intro} holdText={t('Başvurun kaydediliyor…', 'Saving your application…')} onReveal={() => { setPhase('done'); try { window.scrollTo({top: 0}) } catch { /* eski tarayıcı */ } }} onClosed={() => setIntro(null)}/>}
 
     {mobile && sheet && <div className="fdSheetBack" onClick={() => setSheet(false)}><section className="fdSheet" role="dialog" aria-modal="true" aria-label={t('Sıkça Sorulan Sorular', 'FAQ')} onClick={event => event.stopPropagation()}>
       <header><h2>{t('Sıkça Sorulan Sorular', 'Frequently asked questions')}</h2><button type="button" onClick={() => setSheet(false)} aria-label={t('Kapat', 'Close')}><X aria-hidden="true"/></button></header>
