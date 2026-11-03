@@ -228,7 +228,7 @@ async def create_request(conn: PaymentConnection, user_id: str, plan: str = "MAS
         )
         if existing is not None:
             return PaymentRequest.model_validate(dict(existing))
-        if plan == "MASTER_MODE":
+        if plan == "MASTER_MODE" and amount != FOUNDER_AMOUNT:  # liste fiyatı yükselince kurucular eski fiyatta kalır
             try:
                 if await founder_price_lock(conn, user_id) is not None:
                     amount = FOUNDER_AMOUNT
