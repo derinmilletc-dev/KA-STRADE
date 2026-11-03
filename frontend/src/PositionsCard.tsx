@@ -28,6 +28,26 @@ const SMART_MODE: Record<string, string> = {NORMAL: 'Normal', KAR_KORUMA: 'Kâr 
 const VIEW_KEY = 'kais-positions-view'
 const readView = (): 'card' | 'table' => { try { return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'card' } catch { return 'card' } }
 
+// Coinin güncel güven puanı: sunucu her kapanmış 15 dk mumda botun giriş stratejisini yeniden çalıştırıp plana yazar (live_score).
+// Henüz yoksa Akıllı Kâr Koruma'nın son puanı kullanılır. Giriş puanı ve eşiği planın giriş kaydından okunur.
+type LiveScore = {score?: number | null; mismatch?: boolean; opposite_confidence?: number | null; candle?: number | null}
+type ScoreInfo = {now: number | null; entry: number | null; threshold: number; mismatch: boolean; opposite: number | null; candle: number | null; delta: number | null; tone: 'up' | 'warn' | 'down'}
+function scoreInfo(plan: RawRecord | undefined, smart: SmartPositionItem | undefined): ScoreInfo | null {
+  if (!plan) return null
+  const live = plan.live_score && typeof plan.live_score === 'object' ? plan.live_score as LiveScore : null
+  const record = plan.original_record as {entry?: {signal?: {confidence?: unknown}; policy?: {min_confidence?: unknown}}} | undefined
+  const entry = num(record?.entry?.signal?.confidence)
+  const threshold = num(record?.entry?.policy?.min_confidence) ?? 70
+  const mismatch = live ? live.mismatch === true : smart?.direction_state === 'MISMATCH'
+  let current = live && typeof live.score === 'number' ? live.score : null
+  if (!live && typeof smart?.last_score === 'number') current = smart.last_score
+  if (current === null && !mismatch) return null
+  const opposite = num(live ? live.opposite_confidence : smart?.opposite_confidence)
+  const delta = current !== null && entry !== null ? Math.round(current - entry) : null
+  const tone = mismatch || current === null ? 'down' : current >= threshold ? 'up' : current >= threshold - 10 ? 'warn' : 'down'
+  return {now: current, entry, threshold, mismatch, opposite, candle: live && typeof live.candle === 'number' ? live.candle : null, delta, tone}
+}
+
 const tone = (value: number | null) => value === null ? undefined : value < 0 ? 'down' : value > 0 ? 'up' : undefined
 
 function LadderView({ladder, metrics}: {ladder: Ladder; metrics: PositionMetrics}) {
@@ -114,6 +134,8 @@ export default function PositionsCard(props: Props) {
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
         // İnce çubuk: fiyatın stop (sol) ile TP1 (sağ) arasındaki yeri. TP1 sonrası / bilinmiyorsa çubuk yok.
         const tp1Left = metrics.toTp1Pct !== null && !breakeven ? metrics.toTp1Pct : null
+        const score = external ? null : scoreInfo(plan, smartFor(plan, String(position.symbol ?? '')))
+        const scoreTime = score?.candle ? new Date(score.candle * 1000).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : null
         const progress = external || metrics.toStopPct === null || tp1Left === null ? null
           : tp1Left <= 0 ? 100 : Math.max(0, Math.min(100, metrics.toStopPct / (metrics.toStopPct + tp1Left) * 100))
         const status = external ? 'Dış pozisyon' : metrics.level === 'danger' ? 'Stopa çok yakın' : metrics.level === 'warn' ? 'Stopa yakın' : breakeven ? 'Stop girişte' : protectedStop ? 'Korumalı' : 'Koruma doğrulanamadı'
@@ -130,8 +152,11 @@ export default function PositionsCard(props: Props) {
               <ChevronDown className="pvSlimChev" aria-hidden="true"/>
             </span>
             {progress !== null && <span className="pvThin" data-level={metrics.level} aria-hidden="true"><i style={{width: `${progress}%`}}/><em style={{left: `${progress}%`}}/></span>}
-            {!external && (metrics.toStopPct !== null || tp1Left !== null) && <span className="pvSlimFoot">
+            {!external && (metrics.toStopPct !== null || tp1Left !== null || score) && <span className="pvSlimFoot">
               <span>{metrics.toStopPct !== null ? (breakeven ? 'Stop girişte' : `Stop ${formatPct(metrics.toStopPct, 1)}`) : ''}</span>
+              {score && <span className="pvSlimScore" data-tone={score.tone} title="Güncel güven puanı (son kapanmış 15 dk mum)">{score.mismatch
+                ? 'Ters sinyal'
+                : <>Güven <b>{score.now}</b>{score.delta ? <em data-dir={score.delta > 0 ? 'up' : 'down'}>{score.delta > 0 ? '▲' : '▼'}{Math.abs(score.delta)}</em> : null}</>}</span>}
               <span>{tp1Left !== null ? (tp1Left > 0 ? `TP1 ${formatPct(tp1Left, 1)}` : 'TP1 geçildi') : ''}</span>
             </span>}
           </button>
@@ -144,6 +169,7 @@ export default function PositionsCard(props: Props) {
               {metrics.pnlOnMarginPct !== null && <span className="pvChip" data-tone={tone(metrics.pnlOnMarginPct)}>{`${metrics.pnlOnMarginPct < 0 ? '−' : ''}${formatPct(Math.abs(metrics.pnlOnMarginPct), 1)} teminata göre`}</span>}
             </div>
             <div className="pvVs">
+              {score && <Cell label="Güven puanı" value={score.mismatch ? 'Ters sinyal' : `${score.now}${score.entry !== null ? ` · girişte ${score.entry}` : ''}`} tone={score.tone === 'up' ? 'up' : score.tone === 'down' ? 'down' : 'warn'}/>}
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
               <Cell label="Teminat" value={metrics.margin !== null ? `${formatUsdt(metrics.margin)} USDT` : null}/>
               <Cell label="Stopa kalan" value={metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : null} tone={metrics.level === 'ok' ? undefined : 'warn'}/>
@@ -158,7 +184,12 @@ export default function PositionsCard(props: Props) {
               {flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
-            {(insights.length > 0 || smart) && <div className="pvIns">
+            {(insights.length > 0 || smart || score) && <div className="pvIns">
+              {score && <p data-tone={score.tone === 'up' ? 'info' : 'warn'}>{score.mismatch
+                ? `Strateji şu an ters yönü gösteriyor${score.opposite !== null ? ` (karşı yön güveni ${score.opposite})` : ''}.`
+                : score.now !== null && score.now < score.threshold
+                  ? `Güven puanı ${score.now}; giriş eşiği ${score.threshold}.${scoreTime ? ` Son ölçüm ${scoreTime} mumu.` : ''}`
+                  : `Güven puanı ${score.now}; giriş eşiğinin (${score.threshold}) üstünde.${scoreTime ? ` Son ölçüm ${scoreTime} mumu.` : ''}`}</p>}
               {insights.map(item => <p key={item.text} data-tone={item.tone}>{item.text}</p>)}
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
             </div>}

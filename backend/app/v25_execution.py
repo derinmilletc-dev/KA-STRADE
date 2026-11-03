@@ -7011,6 +7011,13 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
     except Exception as exc:
         logger.warning("SMART_GUARD_HOOK_FAILED error=%s", type(exc).__name__)
     try:
+        # Pozisyon kartı: coinin güncel güven puanı (yalnız okuma; emir yok, Akıllı Kâr Koruma'dan bağımsız).
+        from . import position_live_score, original_v2_live as _score_live
+        if await position_live_score.tick(state, snapshot, client, _score_live.guard_kline_fetch(application, client)):
+            persist_state(state)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LIVE_SCORE_HOOK_FAILED error=%s", type(exc).__name__)
+    try:
         # Akıllı çıkış GÖLGE MODU: yalnız kayıt; emir göndermez, bayrak kapalıyken hiçbir şey yapmaz.
         from . import original_exit_shadow
         await original_exit_shadow.tick(state, snapshot, client)
