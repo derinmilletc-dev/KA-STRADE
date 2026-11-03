@@ -19,10 +19,9 @@ type Phase = 'idle' | 'busy' | 'done' | 'error'
 
 const FAQ = (): [string, string][] => [
   [t('Başvuru ücretsiz mi?', 'Is applying free?'), t('Evet. Başvuru ücretsizdir ve kart bilgisi istenmez. Onaylanırsan ödemeyi yalnızca lansman gününde, 48 saatlik pencerede yaparsın.', 'Yes. Applying is free and no card details are requested. If approved you pay only on launch day within a 48-hour window.')],
-  [t('Başvurum ne zaman onaylanır?', 'When is my application approved?'), t('Her başvuru elle incelenir; 72 saat içinde e-postayla dönüş yaparız. Onay sonrası kısa bir tanışma anketi göndeririz.', 'Every application is reviewed by hand; we reply by email within 72 hours. After approval we send a short intro survey.')],
+  [t('Başvurum ne zaman onaylanır?', 'When is my application approved?'), t('Her başvuru manuel olarak incelenir ve onaylanır; 72 saat içinde e-postayla dönüş yaparız.', 'Every application is reviewed and approved manually; we reply by email within 72 hours.')],
   [t('Ödeme ne zaman yapılır?', 'When do I pay?'), t('Yalnızca lansman gününde, onaylı kurucular için açılan 48 saatlik pencerede. Süre dolarsa koltuk sıradaki adaya geçer.', 'Only on launch day, in a 48-hour window for approved founders. If it expires the seat moves to the next applicant.')],
   [t('12 aylık fiyat garantisi nasıl çalışır?', 'How does the 12-month price lock work?'), t('Aboneliğin kesintisiz sürdüğü sürece seçtiğin plan için aynı fiyatı 12 ay ödersin. İptal edersen kilit biter. Ömür boyu vaadi yoktur.', 'While your subscription stays active you pay the same price for your plan for 12 months. Cancelling ends the lock. No lifetime promise.')],
-  [t('KaisTrade kâr garantisi veriyor mu?', 'Does KaisTrade guarantee profit?'), t('Hayır. Vadeli işlemler yüksek risk taşır ve sermayenin tamamını kaybedebilirsin. Geçmiş sonuçlar geleceği garanti etmez.', 'No. Futures trading is high risk and you can lose all of your capital. Past results do not guarantee future results.')],
   [t('Binance API güvenliği nasıl sağlanıyor?', 'How is Binance API security handled?'), t('Paran Binance hesabında kalır. Yalnızca işlem yetkili, para çekme yetkisiz API anahtarı kullanırız.', 'Your funds stay on your Binance account. We only use trade-enabled API keys without withdrawal permission.')],
 ]
 
@@ -88,7 +87,7 @@ export default function LaunchPage() {
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
-            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>{t('Dolu', 'Taken')}</em></> : <>{live.seats} <em>{t('koltuk · elle onay', 'seats · hand-picked')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
+            <div className="fdQuota"><Users aria-hidden="true"/><span><small>{t('Kontenjan', 'Quota')}</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>{t('Dolu', 'Taken')}</em></> : <>{live.seats} <em>{t('koltuk · manuel onay', 'seats · manual approval')}</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
           </div>
         </div>
         <div className="fdEyeStage" aria-hidden="true">
@@ -111,7 +110,7 @@ export default function LaunchPage() {
             <h2>{t('Nasıl Çalışır?', 'How it works')}</h2>
             <ol className="fdSteps">
               <li><i><BarChart3 aria-hidden="true"/></i><b>1. {t('Başvur', 'Apply')}</b><p>{t('Kısa formu doldur. Ücret ve ön ödeme yok.', 'Fill in the short form. No fee, no deposit.')}</p></li>
-              <li><i><Search aria-hidden="true"/></i><b>2. {t('İncele', 'Review')}</b><p>{t('72 saat içinde elle değerlendirip dönüş yaparız.', 'We review by hand and reply within 72 hours.')}</p></li>
+              <li><i><Search aria-hidden="true"/></i><b>2. {t('İncele', 'Review')}</b><p>{t('72 saat içinde manuel değerlendirip dönüş yaparız.', 'We review manually and reply within 72 hours.')}</p></li>
               <li><i><Check aria-hidden="true"/></i><b>3. {t('Onay', 'Approval')}</b><p>{t('Uygun görülürsen koltuğunu teyit edersin.', 'If approved, you confirm your seat.')}</p></li>
               <li><i><Rocket aria-hidden="true"/></i><b>4. {t('Lansman', 'Launch')}</b><p>{t('Lansman günü 48 saat içinde ödeme yapınca üyeliğin açılır.', 'On launch day, pay within 48 hours and your membership opens.')}</p></li>
             </ol>
