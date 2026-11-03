@@ -1,9 +1,9 @@
-import {useEffect, useRef, useState, type FormEvent} from 'react'
+import {useEffect, useMemo, useRef, useState, type FormEvent} from 'react'
 import {ArrowRight, Users, BarChart3, Check, Crown, Eye, Gauge, Headphones, Lock, Rocket, Search, ShieldCheck, Tag, TriangleAlert, X, Zap} from 'lucide-react'
 import {API_BASE} from './api'
-import {currentLang, setLang} from './i18n'
+import {currentLang} from './i18n'
 import KaisEye from './KaisEye'
-import LanguagePicker from './LanguagePicker'
+import CountryPicker, {countryName, guessCountry} from './CountryPicker'
 import './launch-page.css'
 
 /** Founding 30 – Erken Erişim lansman sayfası. Giriş ekranı dondurulduğunda herkese açık ana sayfadır. */
@@ -29,7 +29,6 @@ const FAQ = (): [string, string][] => [
 ]
 
 export default function LaunchPage() {
-  const [, force] = useState(0)
   const [form, setForm] = useState<Form>(EMPTY)
   const [phase, setPhase] = useState<Phase>('idle')
   const [message, setMessage] = useState('')
@@ -41,16 +40,17 @@ export default function LaunchPage() {
   useEffect(() => { const img = new Image(); img.onload = () => setPhoto(true); img.src = EYE_PHOTO }, [])
   useEffect(() => { document.title = t('KaisTrade · Founding 30 Erken Erişim', 'KaisTrade · Founding 30 Early Access') }, [])
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(current => ({...current, [key]: value}))
-  const changeLang = (lang: 'tr' | 'en') => { setLang(lang); force(n => n + 1) }
+  const guess = useMemo(guessCountry, [])
+  useEffect(() => { if (guess) setForm(current => current.country ? current : {...current, country: guess}) }, [guess])
   const goForm = () => formRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'})
 
-  const valid = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.trim().length >= 2
+  const valid = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!valid || phase === 'busy') return
     setPhase('busy'); setMessage('')
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: form.country, website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
       if (response.ok) { setPhase('done'); return }
       let detail = ''
       try { const body = await response.json(); detail = typeof body?.detail === 'string' ? body.detail : '' } catch { /* gövde yok */ }
@@ -64,7 +64,7 @@ export default function LaunchPage() {
     <header className="fdTop">
       <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
       <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>
-      <div className="fdTopRight"><LanguagePicker value={currentLang()} onChange={changeLang}/><button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button></div>
+      <div className="fdTopRight"><button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button></div>
     </header>
 
     <main>
@@ -124,7 +124,7 @@ export default function LaunchPage() {
             <header><h2>{t('Kurucu Üyelik Başvurusu', 'Founding Member Application')}</h2><p>{t('Ücretsiz başvurunu şimdi yap. Onaylanan adaylara lansman daveti gönderilir.', 'Apply for free now. Approved applicants receive a launch invitation.')}</p></header>
             <label>{t('Ad soyad', 'Full name')}<input placeholder={t('Ad Soyad', 'Full name')} autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
             <label>{t('E-posta adresi', 'Email address')}<input type="email" placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
-            <label>{t('Ülke', 'Country')}<input placeholder={t('Ülke', 'Country')} autoComplete="country-name" value={form.country} onChange={event => set('country', event.target.value)} required/></label>
+            <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
             <input className="fdHoney" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={event => set('website', event.target.value)}/>
             {phase === 'error' && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{message}</p>}
             <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy'}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>
