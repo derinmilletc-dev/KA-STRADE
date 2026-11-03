@@ -684,3 +684,13 @@ main { display: block; padding: 0 16px 24px; }
     mask-image: linear-gradient(to bottom, #000 58%, transparent 98%), linear-gradient(to right, transparent 0, #000 10%, #000 90%, transparent 100%);
     -webkit-mask-composite: source-in; mask-composite: intersect; }
 }
+/* Telefon: gözün tamamı rozet satırının üstünde görünsün (genişliğe göre ölçek, merkez gözbebeği) */
+@media (max-width: 700px) {
+  .fdEyeStage { overflow: hidden; }
+  .fdEyePhoto { position: absolute; inset: auto; left: 50%; top: var(--eye-top, 0px); width: 128%; height: auto; max-width: none; aspect-ratio: 16 / 9; object-fit: cover; transform: translateX(-50%); }
+  .fdEyePhoto { animation: none !important; }
+}
+@media (max-width: 700px) { .fdEyePhoto { width: 118%; } .fdEyeStage { --eye-top: 4px; } }
+@media (max-width: 700px) and (min-width: 415px) { .fdEyeStage { --eye-top: -14px; } }
+@media (max-width: 370px) { .fdEyeStage { --eye-top: 15px; } }
+@media (max-width: 700px) and (max-height: 720px) { .fdEyeStage { --eye-top: 3px; } }
