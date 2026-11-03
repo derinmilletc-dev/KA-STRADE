@@ -1,3 +1,4 @@
+import {createPortal} from 'react-dom'
 import {useEffect, useRef, useState} from 'react'
 import {Check, ChevronDown, X} from 'lucide-react'
 
@@ -45,6 +46,9 @@ export default function OptionPicker({value, onChange, options, mobile, label, p
     <button type="button" className={`fdCountryBtn ${selected ? '' : 'empty'}`} aria-haspopup="listbox" aria-expanded={open} aria-label={label} onClick={() => setOpen(current => !current)}>
       <span>{selected ? selected.label : placeholder}</span><ChevronDown aria-hidden="true"/>
     </button>
-    {open && (mobile ? <div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div> : panel)}
+    {open && (mobile
+      // Telefonda alt sayfa body'ye taşınır: form/kart katmanlarının (backdrop-filter, z-index) altında kalmaz
+      ? createPortal(<div className="fdCountry fdPortal"><div className="fdSheetBack" onClick={() => setOpen(false)}>{panel}</div></div>, document.body)
+      : panel)}
   </div>
 }

@@ -14,7 +14,7 @@ import './launch-page.css'
 const t = (tr: string, en: string) => (currentLang() === 'en' ? en : tr)
 const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
 /** Lansmana özel kurucu fiyatı (admin'den farklı bir metin girilirse o gösterilir). */
-const FOUNDER_PRICE = '$139.90'
+const FOUNDER_PRICE = '$119.90'
 const LIST_PRICE = '$399.90'
 const PRICE_PERIOD = (): string => t('/ay', '/mo')
 const SEATS = 30
