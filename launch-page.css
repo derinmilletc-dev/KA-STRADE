@@ -339,3 +339,5 @@ main { display: block; padding: 0 16px 24px; }
   .fdEyeStage { top: -84px; height: 270px; }
 }
 @media (max-width: 700px) and (max-height: 720px) { .fdHero { padding-top: 98px; } .fdEyeStage { top: -96px; } .fdForm { gap: 6px; } }
+.fdBanner { max-width: 1180px; margin: 12px auto 0; padding: 12px 16px; border-radius: 12px; font-size: 14px; border: 1px solid rgba(46,229,157,.4); background-color: #0d2a20; color: #7eecb2; }
+.fdBanner.expired, .fdBanner.invalid { border-color: #5a2430; background-color: #1a1015; color: #ff8d9a; }
