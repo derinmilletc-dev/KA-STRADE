@@ -420,3 +420,18 @@ html body main.akShell.akShell .adminConfirmModal { border: 1px solid var(--ak-l
 @media (prefers-reduced-motion: reduce) {
   html body main.akShell.akShell *, html body main.akShell.akShell *::before { animation: none !important; transition: none !important; }
 }
+
+/* ── Abonelikler tablosu: sütunlar içeriğe göre, rozet ve tarih taşmaz ── */
+html body main.akShell.akShell .adminTableWrap:has(.subscriptionRow) { overflow-x: auto; }
+html body main.akShell.akShell .adminDataTable:has(.subscriptionRow) { min-width: 900px; overflow: visible; }
+html body main.akShell.akShell .adminDataTable:has(.subscriptionRow) :is(.adminDataHead, .adminDataRow) {
+  min-width: 0 !important; grid-template-columns: minmax(180px, 2fr) 96px 140px 128px 128px 140px !important; gap: 12px !important; padding: 12px 18px !important;
+}
+html body main.akShell.akShell .adminDataTable:has(.subscriptionRow) .adminDataHead { color: var(--ak-muted) !important; font: 700 11px var(--ak-font) !important; letter-spacing: .06em !important; }
+html body main.akShell.akShell .subscriptionRow > * { min-width: 0; }
+html body main.akShell.akShell .subscriptionRow .adminBadge,
+html body main.akShell.akShell .subscriptionRow .adminStatus { justify-self: start; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html body main.akShell.akShell .subscriptionRow time { color: var(--ak-soft) !important; font-size: 12.5px !important; white-space: nowrap; }
+html body main.akShell.akShell .subscriptionRow .adminTextButton { justify-self: end; }
+html body main.akShell.akShell .subscriptionRow .adminIdentity span:last-child { min-width: 0; }
+html body main.akShell.akShell .subscriptionRow .adminIdentity :is(b, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
