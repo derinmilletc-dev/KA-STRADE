@@ -32,15 +32,18 @@ def run(path, *, has_two_factor, required=True):
         return has_two_factor
     fake.enabled = enabled
     req = request(path)
-    env = {"REQUIRE_2FA": "true" if required else ""}
+    env = {"REQUIRE_2FA": "true" if required else "false"}
     with mock.patch.dict(sys.modules, {"app.account_settings": fake}), mock.patch.dict("os.environ", env):
         result = asyncio.run(gate.enforce(req, {"id": "u1"}))
     return result, req
 
 
 class RequiredTwoFactorTests(unittest.TestCase):
-    def test_off_by_default(self):
-        self.assertFalse(gate.required({}))
+    def test_on_by_default_and_only_explicit_false_turns_it_off(self):
+        self.assertTrue(gate.required({}))
+        self.assertTrue(gate.required({"REQUIRE_2FA": ""}))
+        for value in ("false", "0", "no", "off", " FALSE "):
+            self.assertFalse(gate.required({"REQUIRE_2FA": value}))
         result, req = run("/api/v22/anything", has_two_factor=False, required=False)
         self.assertFalse(result)
         self.assertFalse(getattr(req.state, "two_factor_setup_required", False))
