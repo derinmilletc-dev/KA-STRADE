@@ -30,3 +30,5 @@
 .afTags em { font-style: normal; font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: rgba(148,163,184,.15); }
 .afTags em.yes { background: #0d2a20; color: #7eecb2; }
 .afReason { display: block; margin-top: 6px; padding: 8px 10px; border-left: 2px solid #2ee59d; background: rgba(46,229,157,.05); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; quotes: none; }
+.afSearch { width: 100%; max-width: 420px; min-height: 40px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(148,163,184,.3); background: transparent; color: inherit; font: inherit; }
+.afRef { margin-left: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(148,163,184,.12); font-size: 11.5px; letter-spacing: .04em; }

@@ -7,7 +7,7 @@ Kontenjan sunucuda sayılır; sayaç sahte değildir.
 from __future__ import annotations
 
 import hashlib
-import html
+import hmac
 import logging
 import re
 import secrets
@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import email_service
+from . import email_service, founding_mail
 from .approval_service import owner_connection
 from .web_security import client_ip
 
@@ -106,16 +106,42 @@ def _app_base() -> str:
     return email_service.validate_app_base_url().rstrip("/")
 
 
-def _send_confirmation(email: str, name: str, token: str, lang: str) -> None:
+def _secret(request: Request) -> str | None:
+    state = getattr(request.app.state, "v22_commercial", None)
+    try:
+        value = state["secret"] if state else None
+    except (KeyError, TypeError):
+        value = None
+    return value if isinstance(value, str) and len(value) >= 16 else None
+
+
+def _send_confirmation(email: str, name: str, token: str, lang: str, reference: str) -> None:
+    """Başvuru alındı e-postası: numara + e-posta onay düğmesi."""
     url = f"{_app_base()}/api/v22/founding/confirm?token={token}"
-    en = lang == "en"
-    email_service.send_auth_email(
-        to_email=email, display_name=name,
-        subject="Confirm your Founding 30 application" if en else "Founding 30 başvurunu onayla",
-        title="Confirm your application" if en else "Başvurunu onayla",
-        action_url=url, action_label="Confirm my application" if en else "Başvurumu onayla",
-        expiry="48 saat", language="en" if en else "tr",
-    )
+    founding_mail.send("received", email=email, name=name, reference=reference, lang=lang, action_url=url,
+                       idempotency=f"{reference}:{_hash(token)[:16]}")
+
+
+def _notify(request: Request, kind: founding_mail.Kind, row: Any) -> bool:
+    """Durum e-postası (incelemede/onay/bekleme/ret). Hata olursa kayıt etkilenmez, False döner."""
+    try:
+        url = founding_mail.status_url(_app_base(), _secret(request), row["reference"])
+        founding_mail.send(kind, email=row["email"], name=row["name"], reference=row["reference"], lang=row["lang"],
+                           action_url=url, idempotency=f"{row['reference']}:{kind}:{row['updated_at'].isoformat() if row['updated_at'] else ''}")
+        return True
+    except Exception:  # noqa: BLE001 - e-posta hatası akışı bozmaz
+        logger.exception("Founding %s email failed", kind)
+        return False
+
+
+async def _ensure_reference(conn: Any, app_id: int) -> None:
+    """Numarasız eski kayıtlara bir kez numara verir."""
+    for _ in range(5):
+        try:
+            await conn.execute("UPDATE founding_applications SET reference=$2 WHERE id=$1 AND reference IS NULL", app_id, new_reference())
+            return
+        except UniqueViolationError:
+            continue
 
 
 async def _settings(conn: Any) -> Any:
@@ -192,7 +218,7 @@ async def apply(body: Apply, request: Request):
         return ok
     if send:
         try:
-            _send_confirmation(email, name, token, lang)
+            _send_confirmation(email, name, token, lang, ok["reference"])
         except Exception:  # noqa: BLE001 - kayıt yapıldı; e-posta hatası kullanıcıya sızdırılmaz
             logger.exception("Founding confirmation email failed")
             raise HTTPException(503, "Onay e-postası şu anda gönderilemedi. Lütfen biraz sonra tekrar deneyin.") from None
@@ -206,6 +232,15 @@ class Track(BaseModel):
     reference: str = Field(pattern=r"^KT-F30-[2-9A-HJ-NP-Z]{5}$")
 
 
+TRACK_COLUMNS = "reference, name, status, created_at, email_confirmed_at, decided_at"
+
+
+def _track_view(row: Any) -> dict:
+    iso = lambda value: value.isoformat() if value else None  # noqa: E731
+    return {"reference": row["reference"], "first_name": (row["name"] or "").strip().split(" ")[0], "status": row["status"],
+            "created_at": iso(row["created_at"]), "email_confirmed_at": iso(row["email_confirmed_at"]), "decided_at": iso(row["decided_at"])}
+
+
 @public_router.post("/track")
 async def track(body: Track, request: Request):
     """Başvuru numarası + e-posta ile durum. İkisi birlikte doğru değilse aynı 404 döner."""
@@ -217,11 +252,29 @@ async def track(body: Track, request: Request):
     await ensure_schema(pool)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT status FROM founding_applications WHERE reference = $1 AND lower(email) = $2", body.reference, email,
+            f"SELECT {TRACK_COLUMNS} FROM founding_applications WHERE reference = $1 AND lower(email) = $2", body.reference, email,
         )
     if row is None:
         raise HTTPException(404, "Başvuru bulunamadı.")
-    return {"status": row["status"]}
+    return _track_view(row)
+
+
+@public_router.get("/track-link")
+async def track_link(request: Request, r: str = Query(pattern=r"^KT-F30-[2-9A-HJ-NP-Z]{5}$"), k: str = Query(pattern=r"^[0-9a-f]{32}$")):
+    """E-postadaki kişiye özel bağlantı: imza doğruysa e-posta sormadan durumu gösterir."""
+    from . import v22_commercial as auth
+
+    secret = _secret(request)
+    if not secret or not hmac.compare_digest(founding_mail.status_key(secret, r), k):
+        raise HTTPException(404, "Başvuru bulunamadı.")
+    await auth.enforce_auth_limit(request, "founding-track", None)
+    pool = _pool(request)
+    await ensure_schema(pool)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(f"SELECT {TRACK_COLUMNS} FROM founding_applications WHERE reference = $1", r)
+    if row is None:
+        raise HTTPException(404, "Başvuru bulunamadı.")
+    return _track_view(row)
 
 
 @public_router.get("/confirm")
@@ -233,6 +286,7 @@ async def confirm(request: Request, token: str = Query(min_length=20, max_length
         row = await conn.fetchrow(
             "SELECT id, status, email_token_expires FROM founding_applications WHERE email_token_hash = $1 FOR UPDATE", _hash(token),
         )
+        confirmed = None
         if row is None:
             return RedirectResponse(f"{base}/?founding=invalid", status_code=303)
         if row["status"] != "pending_email":
@@ -243,6 +297,10 @@ async def confirm(request: Request, token: str = Query(min_length=20, max_length
             """UPDATE founding_applications SET status='new', email_confirmed_at=now(), email_token_hash=NULL,
                email_token_expires=NULL, updated_at=now() WHERE id=$1""", row["id"],
         )
+        await _ensure_reference(conn, row["id"])
+        confirmed = await conn.fetchrow("SELECT * FROM founding_applications WHERE id=$1", row["id"])
+    if confirmed is not None:
+        _notify(request, "review", confirmed)
     return RedirectResponse(f"{base}/?founding=confirmed", status_code=303)
 
 
@@ -305,7 +363,7 @@ async def admin_settings(body: Settings, request: Request):
 
 
 async def _decide(request: Request, app_id: int, new_status: str, note: str) -> dict:
-    mail: tuple[str, str, str] | None = None
+    changed = False
     async with owner_connection(request) as (conn, actor):
         await ensure_schema(request.app.state.db_pool)
         row = await conn.fetchrow("SELECT * FROM founding_applications WHERE id = $1 FOR UPDATE", app_id)
@@ -321,42 +379,18 @@ async def _decide(request: Request, app_id: int, new_status: str, note: str) -> 
             if taken >= int(settings["seats"]):
                 raise HTTPException(409, "Tüm koltuklar dolu. Önce kontenjanı artırın veya başka bir onayı geri alın.")
             seq = int(await conn.fetchval("SELECT COALESCE(MAX(approved_seq),0)+1 FROM founding_applications"))
-            mail = (row["email"], row["name"], row["lang"])
         if new_status != "approved":
             seq = None
+        changed = row["status"] != new_status
+        await _ensure_reference(conn, app_id)
         await conn.execute(
             """UPDATE founding_applications SET status=$2, note=CASE WHEN $3 <> '' THEN $3 ELSE note END, approved_seq=$4,
                decided_at=now(), decided_by=$5, updated_at=now() WHERE id=$1""",
             app_id, new_status, _clean(note, 500), seq, actor.user_id,
         )
         updated = await conn.fetchrow("SELECT * FROM founding_applications WHERE id = $1", app_id)
-    if mail:
-        try:
-            _send_approval(*mail)
-        except Exception:  # noqa: BLE001 - onay kaydedildi; e-posta hatası yöneticiye bildirilir
-            logger.exception("Founding approval email failed")
-            return {**_item(updated), "email_sent": False}
-    return {**_item(updated), "email_sent": bool(mail)}
-
-
-def _send_approval(email: str, name: str, lang: str) -> None:
-    en = lang == "en"
-    safe = html.escape(name)
-    subject = "You're in: KaisTrade Founding 30" if en else "KaisTrade Founding 30: başvurun onaylandı"
-    body = (f"Hi {name},\n\nYour Founding 30 application is approved. You have a founding seat reserved. "
-            "We will email you the launch date and your private invitation shortly before launch. "
-            "On launch day you will have 48 hours to complete payment; nothing is charged before that.\n\n— KaisTrade"
-            if en else
-            f"Merhaba {name},\n\nFounding 30 başvurun onaylandı; sana bir kurucu koltuğu ayrıldı. "
-            "Lansman tarihini ve özel davetini lansmandan kısa süre önce e-postayla göndereceğiz. "
-            "Lansman günü ödeme için 48 saatin olacak; o güne kadar hiçbir ücret alınmaz.\n\n— KaisTrade")
-    paragraphs = "".join(f"<p style='margin:0 0 14px'>{html.escape(p)}</p>" for p in body.replace(name, "\u0000").split("\n\n"))
-    paragraphs = paragraphs.replace("\u0000", safe)
-    email_service.send_email_message(
-        to_email=email, subject=subject, text=body, idempotency_prefix="founding-approved-",
-        idempotency_key=_hash(email)[:32],
-        html=f"<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#111'>{paragraphs}</div>",
-    )
+    sent = _notify(request, {"approved": "approved", "waitlist": "waitlist", "rejected": "rejected"}[new_status], updated) if changed else False
+    return {**_item(updated), "email_sent": sent}
 
 
 @admin_router.post("/{app_id}/approve")

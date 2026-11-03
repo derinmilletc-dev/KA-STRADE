@@ -6,6 +6,7 @@ import KaisEye from './KaisEye'
 import OptionPicker from './OptionPicker'
 import FoundingIntro, {preloadIntro, type IntroOutcome} from './FoundingIntro'
 import FoundingSuccess from './FoundingSuccess'
+import FoundingStatus from './FoundingStatus'
 import CountryPicker, {countryName, guessCountry} from './CountryPicker'
 import './launch-page.css'
 
@@ -30,6 +31,8 @@ const FAQ = (): [string, string][] => [
   [t('12 aylık fiyat garantisi nasıl çalışır?', 'How does the 12-month price lock work?'), t('Aboneliğin kesintisiz sürdüğü sürece seçtiğin plan için aynı fiyatı 12 ay ödersin. İptal edersen kilit biter. Ömür boyu vaadi yoktur.', 'While your subscription stays active you pay the same price for your plan for 12 months. Cancelling ends the lock. No lifetime promise.')],
   [t('Binance API güvenliği nasıl sağlanıyor?', 'How is Binance API security handled?'), t('Paran Binance hesabında kalır. Yalnızca işlem yetkili, para çekme yetkisiz API anahtarı kullanırız.', 'Your funds stay on your Binance account. We only use trade-enabled API keys without withdrawal permission.')],
 ]
+
+const STATUS_ROUTE = typeof window !== 'undefined' && /^\/basvuru-durumu\/?$/.test(window.location.pathname)
 
 export default function LaunchPage() {
   const [form, setForm] = useState<Form>(EMPTY)
@@ -98,11 +101,11 @@ export default function LaunchPage() {
   return <div className={`fdRoot ${step === 2 && phase !== 'done' ? 'fdOnStep2' : ''}`} data-i18n-skip>
     <header className="fdTop">
       <a className="fdBrand" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
-      {phase !== 'done' && <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>}
-      <div className="fdTopRight">{phase !== 'done' && <button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button>}</div>
+      {phase !== 'done' && !STATUS_ROUTE && <nav className="fdNav" aria-label={t('Sayfa bölümleri', 'Page sections')}><a href="#ozellikler">{t('Özellikler', 'Features')}</a><a href="#basvuru">Founding 30</a><a href="#sss">{t('Sıkça Sorulan Sorular', 'FAQ')}</a></nav>}
+      <div className="fdTopRight">{phase !== 'done' && !STATUS_ROUTE && <button type="button" className="fdTopCta" onClick={goForm}>{t('Başvur', 'Apply')}</button>}</div>
     </header>
 
-    {phase === 'done' ? <FoundingSuccess reference={reference} email={form.email} t={t} onHome={goHome}/> : <main>
+    {STATUS_ROUTE ? <FoundingStatus t={t}/> : phase === 'done' ? <FoundingSuccess reference={reference} email={form.email} t={t} onHome={goHome}/> : <main>
       {banner && <p className={`fdBanner ${banner}`} role="status">{banner === 'confirmed' ? t('E-postan onaylandı. Başvurun incelemeye alındı; 72 saat içinde dönüş yapacağız.', 'Email confirmed. Your application is in review; we will reply within 72 hours.') : banner === 'expired' ? t('Onay bağlantısının süresi dolmuş. Formu yeniden gönderirsen yeni bağlantı yollarız.', 'This confirmation link has expired. Submit the form again and we will send a new one.') : t('Onay bağlantısı geçersiz.', 'This confirmation link is invalid.')}</p>}
       <section className="fdHero">
         <div className="fdHeroCopy">
@@ -180,7 +183,7 @@ export default function LaunchPage() {
                 : <button className="fdPrimary fdSubmit" type="submit" disabled={!valid || phase === 'busy' || !live.open}>{phase === 'busy' ? t('Gönderiliyor…', 'Sending…') : t('Başvuruyu Gönder', 'Submit application')}<ArrowRight aria-hidden="true"/></button>}
             </div>
             {!live.open && <p className="fdError" role="status"><TriangleAlert aria-hidden="true"/>{t('Başvurular şu anda kapalı.', 'Applications are currently closed.')}</p>}
-            {step === 1 ? <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez.', 'Applying is free, no card details required.')}</p>
+            {step === 1 ? <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez.', 'Applying is free, no card details required.')} <a href="/basvuru-durumu">{t('Başvurunu sorgula', 'Track your application')}</a></p>
   : <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t('’nı, geri bildirim vermeyi ve kurucu fiyatının onayda bildirileceğini kabul edersin.', ', agree to give feedback, and understand the founder price is shared on approval.')}</p>}
           </form>}
         </section>

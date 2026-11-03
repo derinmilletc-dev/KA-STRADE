@@ -131,10 +131,66 @@ def test_track_requires_matching_email_and_reference():
     class TrackConn(Conn):
         async def fetchrow(self, sql, *args):
             if "WHERE reference" in sql:
-                return {"status": "new"} if args == ("KT-F30-ABCDE", "a@example.com") else None
+                return {"reference": "KT-F30-ABCDE", "name": "Ada", "status": "new", "created_at": None, "email_confirmed_at": None,
+                        "decided_at": None} if args == ("KT-F30-ABCDE", "a@example.com") else None
             return await super().fetchrow(sql, *args)
     with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit):
-        assert run(founding.track(founding.Track(email="A@example.com", reference="KT-F30-ABCDE"), request(TrackConn()))) == {"status": "new"}
+        assert run(founding.track(founding.Track(email="A@example.com", reference="KT-F30-ABCDE"), request(TrackConn())))["status"] == "new"
         with pytest.raises(HTTPException) as err:
             run(founding.track(founding.Track(email="b@example.com", reference="KT-F30-ABCDE"), request(TrackConn())))
     assert err.value.status_code == 404
+
+
+def test_status_link_is_signed_and_stable():
+    from app import founding_mail
+    key = founding_mail.status_key("s" * 32, "KT-F30-ABCDE")
+    assert key == founding_mail.status_key("s" * 32, "KT-F30-ABCDE") and len(key) == 32
+    assert key != founding_mail.status_key("t" * 32, "KT-F30-ABCDE")
+    assert founding_mail.status_url("https://kaistrade.com", "s" * 32, "KT-F30-ABCDE") == f"https://kaistrade.com/basvuru-durumu?r=KT-F30-ABCDE&k={key}"
+    assert founding_mail.status_url("https://kaistrade.com", None, "KT-F30-ABCDE") is None
+
+
+def test_emails_carry_reference_and_escape_name():
+    from app import founding_mail
+    for kind in ("received", "review", "approved", "waitlist", "rejected"):
+        for lang in ("tr", "en"):
+            subject, text, body = founding_mail.render(kind, name="<b>Ada</b> L", reference="KT-F30-ABCDE", lang=lang, action_url="https://kaistrade.com/x?a=1&b=2")
+            assert "KT-F30-ABCDE" in subject and "KT-F30-ABCDE" in text and "KT-F30-ABCDE" in body
+            assert "<b>Ada</b>" not in body and "&lt;b&gt;Ada&lt;/b&gt;" in body
+            assert "https://kaistrade.com/x?a=1&amp;b=2" in body
+
+
+def test_track_link_rejects_wrong_signature():
+    state = SimpleNamespace(db_pool=Pool(Conn()), v22_commercial={"secret": "s" * 32})
+    req = SimpleNamespace(app=SimpleNamespace(state=state), client=SimpleNamespace(host="203.0.113.5"), headers={}, state=SimpleNamespace())
+    with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit):
+        with pytest.raises(HTTPException) as err:
+            run(founding.track_link(req, r="KT-F30-ABCDE", k="0" * 32))
+    assert err.value.status_code == 404
+
+
+def test_track_link_returns_status_for_valid_signature():
+    from datetime import datetime, timezone
+    from app import founding_mail
+
+    class Row(Conn):
+        async def fetchrow(self, sql, *args):
+            if "WHERE reference" in sql:
+                now = datetime(2026, 11, 3, tzinfo=timezone.utc)
+                return {"reference": args[0], "name": "Ada Lovelace", "status": "new", "created_at": now, "email_confirmed_at": now, "decided_at": None}
+            return await super().fetchrow(sql, *args)
+    state = SimpleNamespace(db_pool=Pool(Row()), v22_commercial={"secret": "s" * 32})
+    req = SimpleNamespace(app=SimpleNamespace(state=state), client=SimpleNamespace(host="203.0.113.5"), headers={}, state=SimpleNamespace())
+    with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit):
+        view = run(founding.track_link(req, r="KT-F30-ABCDE", k=founding_mail.status_key("s" * 32, "KT-F30-ABCDE")))
+    assert view["status"] == "new" and view["first_name"] == "Ada" and "email" not in view
+
+
+def test_status_email_failure_does_not_break_flow():
+    from datetime import datetime, timezone
+    row = {"reference": "KT-F30-ABCDE", "email": "a@example.com", "name": "Ada", "lang": "tr", "updated_at": datetime.now(timezone.utc)}
+    def boom(*_a, **_k):
+        raise RuntimeError("smtp down")
+    req = request(Conn())
+    with patch.object(founding, "_app_base", lambda: "https://kaistrade.com"), patch("app.founding_mail.send", boom):
+        assert founding._notify(req, "approved", row) is False
