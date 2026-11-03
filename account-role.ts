@@ -6,6 +6,8 @@ export function accountRoleLabel(role: string): string {
 
 export function authenticatedPath(role: string, path: string): string {
   const landing = role === 'OWNER' ? '/admin' : role === 'MODERATOR' ? '/moderator' : '/dashboard'
+  // Lansman döneminde sitenin gizli giriş/davet kapıları: giriş yapan herkes (yönetici dahil) uygulamaya girer.
+  if (path === '/giris' || path === '/davet') return '/dashboard'
   if (['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'].includes(path)) return landing
   // Moderators land on their panel after login but may open the normal site (/, /dashboard) like any member.
   if (role === 'MODERATOR' && path.startsWith('/admin')) return '/moderator'

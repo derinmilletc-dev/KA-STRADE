@@ -10,6 +10,13 @@ test('Authenticated landing routes follow the canonical session role', () => {
   }
 })
 
+test('Launch login and invite doors open the app for every role', () => {
+  for (const role of ['OWNER', 'MODERATOR', 'CUSTOMER']) {
+    assert.equal(authenticatedPath(role, '/giris'), '/dashboard')
+    assert.equal(authenticatedPath(role, '/davet'), '/dashboard')
+  }
+})
+
 test('Moderator cannot render admin; customer cannot render moderator', () => {
   assert.equal(authenticatedPath('MODERATOR', '/admin/users'), '/moderator')
   assert.equal(authenticatedPath('CUSTOMER', '/moderator'), '/dashboard')

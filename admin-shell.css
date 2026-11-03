@@ -435,3 +435,18 @@ html body main.akShell.akShell .subscriptionRow time { color: var(--ak-soft) !im
 html body main.akShell.akShell .subscriptionRow .adminTextButton { justify-self: end; }
 html body main.akShell.akShell .subscriptionRow .adminIdentity span:last-child { min-width: 0; }
 html body main.akShell.akShell .subscriptionRow .adminIdentity :is(b, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ── Siteye gir: lansman kilidindeyken yönetici ana siteyi açar ── */
+html body main.akShell.akShell .akSiteBtn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid rgba(46, 229, 157, .3); border-radius: 12px; background: linear-gradient(160deg, rgba(46, 229, 157, .12), rgba(46, 229, 157, .04)); color: var(--ak-text) !important; text-decoration: none; transition: border-color .15s, background .15s; }
+html body main.akShell.akShell .akSiteBtn:hover { border-color: rgba(46, 229, 157, .6); background: rgba(46, 229, 157, .14); }
+html body main.akShell.akShell .akSiteBtn > svg:first-child { flex: none; width: 18px; height: 18px; color: var(--ak-accent); }
+html body main.akShell.akShell .akSiteBtn > span { display: grid; flex: 1; min-width: 0; }
+html body main.akShell.akShell .akSiteBtn b { color: var(--ak-text) !important; font-size: 13.5px; font-weight: 700; }
+html body main.akShell.akShell .akSiteBtn small { color: var(--ak-muted) !important; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body main.akShell.akShell .akSiteBtn .akNavExt { width: 14px; height: 14px; color: var(--ak-muted); }
+html body main.akShell.akShell .akSiteTop { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; box-sizing: border-box; border-radius: 11px; background: var(--ak-accent); color: #04140d !important; font-size: 13.5px; font-weight: 750; text-decoration: none; white-space: nowrap; transition: background .15s; }
+html body main.akShell.akShell .akSiteTop:hover { background: #5cf0b4; }
+html body main.akShell.akShell .akSiteTop svg { width: 16px; height: 16px; }
+@media (max-width: 720px) {
+  html body main.akShell.akShell .akSiteTop { flex: none; width: 40px; padding: 0; justify-content: center; }
+  html body main.akShell.akShell .akSiteTop span { display: none; }
+}

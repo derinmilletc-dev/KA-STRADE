@@ -40,8 +40,9 @@ function LiveTradingErrorsPanel() {
   </SectionCard>
 }
 import { useEffect, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowUpRight, CalendarClock, CheckCircle2, ChevronRight, CreditCard, Crown, Database, ExternalLink, Gauge, Inbox, LayoutDashboard, LogOut, Menu, RefreshCw, Search, ShieldAlert, ShieldCheck, SlidersHorizontal, UserPlus, UserRound, Users, X } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, CalendarClock, CheckCircle2, ChevronRight, CreditCard, Crown, Database, ExternalLink, Gauge, Globe, Inbox, LayoutDashboard, LogOut, Menu, RefreshCw, Search, ShieldAlert, ShieldCheck, SlidersHorizontal, UserPlus, UserRound, Users, X } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
+import { CUSTOMER_ORIGIN } from './account-surface'
 import './admin.css'
 import './admin-modern.css'
 import './admin-shell.css'
@@ -135,11 +136,16 @@ export default function AdminPanel({token,onBack}:{token:string;onBack:()=>void}
   const [title,subtitle] = SECTION_META[section]
   const groupOf = NAV_GROUPS.find(([,items]) => items.some(item => item[0] === section))?.[0] ?? 'Genel'
   const onAdminHost = typeof window !== 'undefined' && window.location.hostname.startsWith('admin.')
+  // Lansman kilidi ziyaretçiye açılış sayfasını gösterir; yönetici ana siteye gizli /giris kapısından girer.
+  // Oturum çerezleri alan adına özel olduğundan ayrı yönetim alanındaysak ana sitenin giriş kapısını açarız.
+  const siteUrl = window.location.origin === CUSTOMER_ORIGIN || !onAdminHost ? '/dashboard' : `${CUSTOMER_ORIGIN}/giris`
+  // Aynı alan adında oturum sekmeye özel olabilir (sessionStorage); bu yüzden yeni sekme yalnız ayrı alan adında açılır.
+  const siteTarget = siteUrl.startsWith('http') ? {target:'_blank', rel:'noopener'} : {}
   return <main className="adminShell akShell">
     <aside className={`akSide ${mobileOpen ? 'open' : ''}`} aria-label="Yönetim menüsü">
       <div className="akBrand"><span className="akLogo" aria-hidden="true"><img src="/favicon-96x96.png" alt=""/></span><span><b>KaisTrade</b><small>Yönetim paneli</small></span><button type="button" className="akSideClose" aria-label="Menüyü kapat" onClick={() => setMobileOpen(false)}><X/></button></div>
       <nav>{NAV_GROUPS.map(([group,items]) => <div className="akNavGroup" key={group}><span className="akNavLabel">{group}</span>{items.map(([key,label,Icon]) => { const count = badge(key); return <button type="button" key={key} className={section === key ? 'active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => go(key)}><Icon aria-hidden="true"/><span>{label}</span>{key === 'moderator' ? <ExternalLink className="akNavExt" aria-hidden="true"/> : count > 0 && <em className={key === 'incidents' ? 'bad' : ''}>{count}</em>}</button> })}</div>)}</nav>
-      <div className="akSideFoot"><span className={`akLive ${overview ? 'on' : ''}`}><i/>{overview ? 'Canlı veri' : 'Bağlanıyor…'}</span><button type="button" onClick={onBack}><LogOut aria-hidden="true"/>{onAdminHost ? 'Çıkış yap' : 'Uygulamaya dön'}</button></div>
+      <div className="akSideFoot"><span className={`akLive ${overview ? 'on' : ''}`}><i/>{overview ? 'Canlı veri' : 'Bağlanıyor…'}</span><a className="akSiteBtn" href={siteUrl} {...siteTarget} title="Ana siteyi aç. Ana sitede ilk seferde bir kez giriş yaparsın; sonra doğrudan uygulamaya geçersin."><Globe aria-hidden="true"/><span><b>Siteye gir</b><small>{siteUrl.startsWith('http') ? 'kaistrade.com · yeni sekmede açılır' : 'Uygulamayı aç'}</small></span><ExternalLink className="akNavExt" aria-hidden="true"/></a><button type="button" onClick={onBack}><LogOut aria-hidden="true"/>{onAdminHost ? 'Çıkış yap' : 'Uygulamaya dön'}</button></div>
     </aside>
     {mobileOpen && <button type="button" className="akBackdrop" aria-label="Menüyü kapat" onClick={() => setMobileOpen(false)}/>}
     <section className="akMain">
@@ -148,6 +154,7 @@ export default function AdminPanel({token,onBack}:{token:string;onBack:()=>void}
         <div className="akTitle"><span className="akCrumb">{groupOf}<ChevronRight aria-hidden="true"/>{title}</span><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
         <div className="akTools">
           <label className="akSearch"><Search aria-hidden="true"/><input ref={searchRef} value={query} onChange={event => {setQuery(event.target.value);setSection('users');setPage(1)}} placeholder="Kullanıcı ara…" aria-label="Kullanıcı ara"/><kbd>/</kbd></label>
+          <a className="akSiteTop" href={siteUrl} {...siteTarget} title="Ana siteyi aç"><Globe aria-hidden="true"/><span>Siteye gir</span></a>
           <button type="button" className="akIconBtn" onClick={() => void refresh()} disabled={busy} aria-label="Yenile" title="Yenile"><RefreshCw className={busy ? 'spin' : ''}/></button>
         </div>
       </header>
