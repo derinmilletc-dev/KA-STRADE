@@ -1264,6 +1264,13 @@ html body #root > main.v26App .masterTradePage[data-layout-tab="canli"] .lcRoot.
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvThin[data-level="danger"] i{background:var(--lc-bad)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot{display:flex;justify-content:space-between;gap:8px;font-size:11px!important;font-weight:500!important;line-height:1.2!important;color:var(--lc-mute)!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot span{font-size:11px!important}
+/* Güncel güven puanı: kartın alt satırının ortasında */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore{display:inline-flex;align-items:baseline;gap:4px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--lc-ink)!important;font-weight:600!important;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore b{font-size:12px!important;font-weight:800!important;color:inherit}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore em{font-style:normal;font-size:10.5px!important;font-weight:700!important;opacity:.85}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore[data-tone="up"]{background:rgba(61,220,151,.12);color:var(--lc-go)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore[data-tone="warn"]{background:rgba(242,196,109,.13);color:var(--lc-warn)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot .pvSlimScore[data-tone="down"]{background:rgba(241,122,122,.13);color:var(--lc-bad)!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail{padding:4px 12px 12px;border-top:1px solid #243444}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail>.pvLadder{margin-top:8px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvDetail .pvToggle{min-height:40px;background:transparent!important;color:var(--lc-mute)!important;font-weight:600}
