@@ -32,3 +32,16 @@
 .afReason { display: block; margin-top: 6px; padding: 8px 10px; border-left: 2px solid #2ee59d; background: rgba(46,229,157,.05); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; quotes: none; }
 .afSearch { width: 100%; max-width: 420px; min-height: 40px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(148,163,184,.3); background: transparent; color: inherit; font: inherit; }
 .afRef { margin-left: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(148,163,184,.12); font-size: 11.5px; letter-spacing: .04em; }
+.afFunnel { padding: 16px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; display: grid; gap: 10px; }
+.afFunnelHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.afFunnelHead span { display: flex; gap: 6px; }
+.afFunnelHead button { min-height: 30px !important; padding: 0 10px !important; font-size: 12px; }
+.afFunnelHead button.on { border-color: #2ee59d; color: #2ee59d; }
+.afFunnel ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.afFunnel li { display: grid; grid-template-columns: 170px 1fr 48px 44px; gap: 10px; align-items: center; font-size: 13px; }
+.afFunnelBar { height: 10px; border-radius: 99px; background: rgba(148,163,184,.12); overflow: hidden; }
+.afFunnelBar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #149a68, #2ee59d); }
+.afFunnel li b { text-align: right; }
+.afFunnel li small { opacity: .7; text-align: right; }
+.afFunnel p { margin: 0; font-size: 12.5px; opacity: .8; }
+@media (max-width: 760px) { .afFunnel li { grid-template-columns: 1fr 40px 40px; } .afFunnelBar { grid-column: 1 / -1; grid-row: 2; } }

@@ -5,7 +5,25 @@ import './admin-founding.css'
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected'
 type Item = {id: number; email: string; name: string; country: string; lang: string; status: Status; note: string; approved_seq: number | null; futures_experience: string | null; trading_experience: string | null; reason: string; reference: string | null; email_confirmed_at: string | null; decided_at: string | null; created_at: string}
 type Settings = {seats: number; applications_open: boolean; launch_at: string | null; price_text: string}
-type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings}
+type FunnelKey = 'view' | 'start' | 'step2' | 'submit' | 'success'
+type Funnel = Record<'d7' | 'd30' | 'total', Record<FunnelKey, number>>
+type Payload = {items: Item[]; counts: Partial<Record<Status, number>>; settings: Settings; funnel?: Funnel}
+const FUNNEL: [FunnelKey, string][] = [['view', 'Sayfayı açtı'], ['start', 'Forma yazmaya başladı'], ['step2', '2. adıma geçti'], ['submit', 'Gönder’e bastı'], ['success', 'Başvurusu kaydedildi']]
+
+function FunnelCard({funnel}: {funnel: Funnel}) {
+  const [win, setWin] = useState<'d7' | 'd30' | 'total'>('d7')
+  const data = funnel[win]
+  const top = Math.max(1, data.view)
+  return <div className="afFunnel">
+    <div className="afFunnelHead"><b>Dönüşüm hunisi</b><span>{(['d7', 'd30', 'total'] as const).map(key => <button type="button" key={key} className={win === key ? 'on' : ''} onClick={() => setWin(key)}>{key === 'd7' ? '7 gün' : key === 'd30' ? '30 gün' : 'Tümü'}</button>)}</span></div>
+    <ol>{FUNNEL.map(([key, label], index) => {
+      const value = data[key]; const prev = index ? data[FUNNEL[index - 1][0]] : 0
+      return <li key={key}><span className="afFunnelLabel">{label}</span><span className="afFunnelBar"><i style={{width: `${Math.round(value / top * 100)}%`}}/></span>
+        <b>{value}</b><small>{index === 0 ? '' : prev ? `%${Math.round(value / prev * 100)}` : '–'}</small></li>
+    })}</ol>
+    <p>Genel dönüşüm: <b>{data.view ? `%${(data.success / data.view * 100).toFixed(1)}` : '–'}</b> · Her tarayıcı oturumu bir kez sayılır; kişisel veri tutulmaz.</p>
+  </div>
+}
 
 const LABEL: Record<Status, string> = {pending_email: 'E-posta bekliyor', new: 'Yeni', approved: 'Onaylı', waitlist: 'Bekleme listesi', rejected: 'Reddedildi'}
 const FUTURES: Record<string, string> = {active: 'Aktif kullanıyor', past: 'Daha önce kullandı', never: 'Henüz kullanmadı'}
@@ -76,6 +94,7 @@ export default function AdminFounding() {
     {error && <p className="afError" role="alert">{error}</p>}
     {info && <p className="afInfo" role="status">{info}</p>}
 
+    {data?.funnel && <FunnelCard funnel={data.funnel}/>}
     <div className="afSettings">
       <label>Koltuk sayısı<input type="number" min={1} max={200} value={form.seats} onChange={event => setForm({...form, seats: event.target.value})}/></label>
       <label>Lansman tarihi ve saati<input type="datetime-local" value={form.launch} onChange={event => setForm({...form, launch: event.target.value})}/></label>

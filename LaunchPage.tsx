@@ -13,6 +13,10 @@ import './launch-page.css'
 /** Founding 30 – Erken Erişim lansman sayfası. Giriş ekranı dondurulduğunda herkese açık ana sayfadır. */
 const t = (tr: string, en: string) => (currentLang() === 'en' ? en : tr)
 const ENV_PRICE = String(import.meta.env.VITE_FOUNDING_PRICE ?? '').trim()
+/** Lansmana özel kurucu fiyatı (admin'den farklı bir metin girilirse o gösterilir). */
+const FOUNDER_PRICE = '$100'
+const LIST_PRICE = '$200'
+const PRICE_PERIOD = (): string => t('/ay', '/mo')
 const SEATS = 30
 const EYE_PHOTO = '/founding-eye.webp'
 
@@ -32,6 +36,17 @@ const FAQ = (): [string, string][] => [
   [t('Binance API güvenliği nasıl sağlanıyor?', 'How is Binance API security handled?'), t('Paran Binance hesabında kalır. Yalnızca işlem yetkili, para çekme yetkisiz API anahtarı kullanırız.', 'Your funds stay on your Binance account. We only use trade-enabled API keys without withdrawal permission.')],
 ]
 
+type FunnelStep = 'view' | 'start' | 'step2' | 'submit' | 'success'
+/** Anonim dönüşüm sayacı: her olay tarayıcı oturumu başına bir kez gönderilir (kimlik/çerez yok). */
+function track(event: FunnelStep) {
+  try {
+    const key = `fdFunnel:${event}`
+    if (window.sessionStorage.getItem(key)) return
+    window.sessionStorage.setItem(key, '1')
+  } catch { /* depolama yoksa yine de bir kez gönderilir */ }
+  try { void fetch(`${API_BASE}/v22/founding/event`, {method: 'POST', keepalive: true, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({event})}).catch(() => undefined) } catch { /* sessiz */ }
+}
+
 const STATUS_ROUTE = typeof window !== 'undefined' && /^\/basvuru-durumu\/?$/.test(window.location.pathname)
 
 export default function LaunchPage() {
@@ -39,6 +54,7 @@ export default function LaunchPage() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [message, setMessage] = useState('')
   const formRef = useRef<HTMLElement>(null)
+  useEffect(() => { if (!STATUS_ROUTE) track('view') }, [])
   const [photo, setPhoto] = useState(false)
   const [live, setLive] = useState<{open: boolean; seats: number; taken: number; price: string | null}>({open: true, seats: SEATS, taken: 0, price: null})
   const [banner, setBanner] = useState<'confirmed' | 'expired' | 'invalid' | null>(null)
@@ -51,14 +67,15 @@ export default function LaunchPage() {
     }).catch(() => { /* durum alınamazsa varsayılanlarla devam */ })
     return () => controller.abort()
   }, [])
-  const PRICE = live.price || ENV_PRICE
+  const PRICE = live.price || ENV_PRICE || FOUNDER_PRICE
+  const discounted = PRICE === FOUNDER_PRICE
   const TAKEN = live.taken
   const [sheet, setSheet] = useState(false)
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches)
   useEffect(() => { const q = window.matchMedia('(max-width: 700px)'); const on = () => setMobile(q.matches); q.addEventListener('change', on); return () => q.removeEventListener('change', on) }, [])
   useEffect(() => { const img = new Image(); img.onload = () => setPhoto(true); img.src = EYE_PHOTO }, [])
   useEffect(() => { document.title = t('KaisTrade · Founding 30 Erken Erişim', 'KaisTrade · Founding 30 Early Access') }, [])
-  const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(current => ({...current, [key]: value}))
+  const set = <K extends keyof Form>(key: K, value: Form[K]) => { if (key !== 'country' && key !== 'website') track('start'); setForm(current => ({...current, [key]: value})) }
   const guess = useMemo(guessCountry, [])
   useEffect(() => { if (guess) setForm(current => current.country ? current : {...current, country: guess}) }, [guess])
   const goForm = () => formRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'})
@@ -77,10 +94,11 @@ export default function LaunchPage() {
   const goHome = () => { setForm(current => ({...EMPTY, country: guess || current.country})); setStep(1); setPhase('idle'); setReference(null); setMessage('') }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (step === 1) { if (stepOne) goStep(2); return }
+    if (step === 1) { if (stepOne) { track('step2'); goStep(2) } return }
     if (!valid || phase === 'busy') return
     // "Hareketi azalt" açıksa geçiş hiç gösterilmez; yanıt gelince doğrudan onay ekranı açılır
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    track('submit')
     setPhase('busy'); setMessage(''); if (!calm) setIntro('pending')
     const fail = (text: string) => { setIntro(current => current ? 'error' : current); setPhase('error'); setMessage(text) }
     const controller = new AbortController()
@@ -90,7 +108,7 @@ export default function LaunchPage() {
       if (response.ok) {
         let ref: string | null = null
         try { const body = await response.json(); ref = typeof body?.reference === 'string' && /^KT-F30-[A-Z0-9]{5}$/.test(body.reference) ? body.reference : null } catch { /* gövde yok */ }
-        setReference(ref)
+        setReference(ref); track('success')
         if (calm) { setPhase('done'); try { window.scrollTo({top: 0}) } catch { /* eski tarayıcı */ } } else setIntro('ok')
         return
       }
@@ -116,6 +134,7 @@ export default function LaunchPage() {
           <span className="fdBadge">EARLY ACCESS</span>
           <h1>Founding <b>30</b></h1>
           <h2>{t('İlk 30 kurucu üyeden biri ol.', 'Be one of the first 30 founding members.')}</h2>
+          <p className="fdOffer"><span className="fdOfferPrice">{discounted && <s>{LIST_PRICE}</s>}<b>{PRICE}</b>{discounted && <small>{PRICE_PERIOD()}</small>}</span><span className="fdOfferText"><em>{t('Lansmana özel', 'Launch offer')}</em><span className="fdQLong">{t('Master Trade · sınırsız, tüm özelliklere erişim', 'Master Trade · unlimited, full access')}</span><span className="fdQShort">{t('Master Trade · sınırsız erişim', 'Master Trade · unlimited')}</span></span></p>
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
@@ -151,8 +170,8 @@ export default function LaunchPage() {
 
           <section className="fdBenefit">
             <Tag aria-hidden="true"/>
-            <div><h3>{t('Kurucu Üyelik Avantajı', 'Founding membership perk')}</h3><p>{t('Onaylanan ilk 30 kişiye seçilen üyelik planında 12 ay boyunca sabit fiyat garantisi sunulur.', 'The first 30 approved members get a 12-month locked price on their chosen plan.')}</p></div>
-            <div className="fdPriceTag"><small>{t('KURUCU FİYATI', 'FOUNDER PRICE')}</small><strong>{PRICE || t('Yakında', 'Soon')}</strong></div>
+            <div><h3>{t('Kurucu Üyelik Avantajı', 'Founding membership perk')}</h3><p>{t('Lansmana özel Master Trade: sınırsız, tüm özelliklere erişim. Onaylanan ilk 30 kişiye bu fiyat 12 ay boyunca sabit kalır.', 'Launch offer Master Trade: unlimited, full access. The first 30 approved members keep this price for 12 months.')}</p></div>
+            <div className="fdPriceTag"><small>{t('KURUCU FİYATI', 'FOUNDER PRICE')}</small><strong>{discounted && <s>{LIST_PRICE}</s>}{PRICE}{discounted && <small>{PRICE_PERIOD()}</small>}</strong></div>
           </section>
 
           <section className="fdTrust" aria-label={t('Güven', 'Trust')}>
@@ -189,7 +208,7 @@ export default function LaunchPage() {
             </div>
             {!live.open && <p className="fdError" role="status"><TriangleAlert aria-hidden="true"/>{t('Başvurular şu anda kapalı.', 'Applications are currently closed.')}</p>}
             {step === 1 ? <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez.', 'Applying is free, no card details required.')} <a href="/basvuru-durumu">{t('Başvurunu sorgula', 'Track your application')}</a></p>
-  : <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t('’nı, geri bildirim vermeyi ve kurucu fiyatının onayda bildirileceğini kabul edersin.', ', agree to give feedback, and understand the founder price is shared on approval.')}</p>}
+  : <p className="fdFine">{t('Başvuru ücretsizdir, kart bilgisi istenmez. Göndererek ', 'Applying is free, no card details. By submitting you accept the ')}<a href="/privacy">{t('Gizlilik Politikası', 'Privacy Policy')}</a>{t(`’nı, geri bildirim vermeyi ve onaylanırsan lansmanda kurucu fiyatıyla (${PRICE}${discounted ? PRICE_PERIOD() : ''}) ödeme yapacağını kabul edersin.`, `, agree to give feedback, and accept paying the founder price (${PRICE}${discounted ? PRICE_PERIOD() : ''}) at launch if approved.`)}</p>}
           </form>}
         </section>
 
