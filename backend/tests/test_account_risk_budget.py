@@ -78,12 +78,16 @@ class BudgetComposition(unittest.TestCase):
         got = self.budget(realized=-2.0, grid=3.0, positions=[pos("ETHUSDT")])
         self.assertEqual((got["budget_left"], got["committed"], "strict" in got), (98.0, 3.0, False))
 
-    def test_flag_on_adds_open_risk_and_caps_the_limit_at_100(self):
+    def test_flag_on_adds_open_risk_and_uses_the_users_own_limit_without_a_fixed_cap(self):
         got = self.budget(ON, realized=-12.0, limit=250.0, grid=5.0, positions=[pos("ETHUSDT", qty=2)], plans=[plan("ETHUSDT", "LONG", 97)])
         self.assertTrue(got["strict"])
-        self.assertEqual(got["budget_left"], 100.0 - 12.0 - 6.0)                  # limit 250 → 100; kalan = 100 - zarar - açık risk
+        self.assertEqual(got["budget_left"], 250.0 - 12.0 - 6.0)                  # limit 250 aynen; kalan = 250 - zarar - açık risk
         self.assertEqual(got["committed"], 5.0)
-        self.assertEqual(got["breakdown"]["limit"], 100.0)
+        self.assertEqual(got["breakdown"]["limit"], 250.0)
+
+    def test_large_account_limit_is_not_clipped_to_100(self):
+        got = self.budget(ON, realized=-4000.0, limit=100000.0)
+        self.assertEqual((got["budget_left"], got["breakdown"]["limit"]), (96000.0, 100000.0))
 
     def test_profit_never_increases_the_budget(self):
         self.assertEqual(self.budget(ON, realized=40.0, limit=20.0)["budget_left"], 20.0)
@@ -203,10 +207,12 @@ class EntryGate(unittest.TestCase):
         no = self.run_entry(ON, ledger_net=-5.0, **kw)
         self.assertEqual((no[0].status_code, no[1].await_count), (409, 0))
 
-    def test_hundred_usdt_ceiling_is_applied_even_if_policy_allows_more(self):
-        ok = self.run_entry(ON, daily_limit=250.0, ledger_net=-98.0)               # 98 + 2 = 100 → sınırda sığar
+    def test_no_fixed_hundred_usdt_ceiling_the_users_own_limit_decides(self):
+        ok = self.run_entry(ON, daily_limit=250.0, ledger_net=-148.5)              # 148.5 + 2 = 150.5 ≤ 250 → eskiden 100'de dururdu
         self.assertEqual(ok[1].await_count, 1)
-        no = self.run_entry(ON, daily_limit=250.0, ledger_net=-98.5)               # 98.5 + 2 > 100
+        edge = self.run_entry(ON, daily_limit=250.0, ledger_net=-248.0)            # 248 + 2 = 250 → sınırda sığar
+        self.assertEqual(edge[1].await_count, 1)
+        no = self.run_entry(ON, daily_limit=250.0, ledger_net=-248.5)              # 248.5 + 2 > 250 → kullanıcının kendi limiti reddeder
         self.assertEqual((no[0].status_code, no[1].await_count), (409, 0))
 
     def test_grid_position_is_not_counted_twice_end_to_end(self):

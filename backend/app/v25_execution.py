@@ -727,7 +727,7 @@ class PolicyUpdate(BaseModel):
     max_same_direction_positions: int | None = Field(default=None, ge=1, le=5)
     max_direction_exposure_usdt: float | None = Field(default=None, gt=0, le=HARD_MAX_TOTAL_EXPOSURE_USDT, allow_inf_nan=False)
     max_total_exposure_usdt: float | None = Field(default=None, ge=25, le=HARD_MAX_TOTAL_EXPOSURE_USDT)
-    daily_loss_limit: float | None = Field(default=None, ge=5, le=100)
+    daily_loss_limit: float | None = Field(default=None, ge=5, le=HARD_MAX_DAILY_LOSS_USDT)
     daily_trade_limit: int | None = Field(default=None, ge=1, le=12)
     consecutive_loss_limit: int | None = Field(default=None, ge=1, le=10)
     min_confidence: int | None = Field(default=None, ge=70, le=95)
@@ -8211,7 +8211,7 @@ def grid_start_account_open_risk(state: dict[str, Any], snapshot: dict[str, Any]
 
 def shared_daily_budget(application: Any, state: dict[str, Any], request: Request | None, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Ortak günlük zarar bütçesi. Eski davranış (bayrak kapalı): bugün kalan hak + Grid'in ayırdığı risk. Bayrak açıkken ek olarak
-    açık pozisyon riski düşülür, kontrol tek başına işlem için de yapılır (strict) ve limit HARD_MAX_DAILY_LOSS_USDT ile sınırlanır.
+    açık pozisyon riski düşülür, kontrol tek başına işlem için de yapılır (strict). Limit kullanıcının/stratejinin kendi günlük zarar limitidir (sabit 100 tavanı yok).
     Limit yoksa budget_left None (kontrol yok)."""
     try:
         limit = float((state.get("policy") or {}).get("daily_loss_limit"))
@@ -8221,7 +8221,7 @@ def shared_daily_budget(application: Any, state: dict[str, Any], request: Reques
         return {"budget_left": None, "committed": 0.0}
     strict = account_risk_budget_enabled()
     if strict:
-        limit = min(limit, HARD_MAX_DAILY_LOSS_USDT)
+        limit = min(limit, HARD_MAX_DAILY_LOSS_USDT)   # yalnız sonlu-değer koruması; gerçek tavan değil
     realized = float(live_daily_metrics(state).get("realized_pnl") or 0)
     reserved, grid_symbols = 0.0, set()
     runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
