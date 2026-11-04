@@ -44,7 +44,7 @@ const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
   const score = v2.analyst_score ?? 0
   const lean = v2.analyst_lean ?? 'LONG'
   const signed = (lean === 'LONG' ? 1 : -1) * score / 100
-  const position = Math.min(97, Math.max(3, 50 + signed * 50))
+  const position = Math.min(95, Math.max(5, 50 + signed * 50))
   const waiting = v2.analyst_direction === 'BEKLE'
   const h = v2.history
   const up = h?.direction === 'LONG'
@@ -473,8 +473,10 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
             <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>{activeV2 ? activeV2.analyst_direction : active?.direction || analystCopy.waitingResult}</strong></header>
             {loading ? <div className="analystLoadingState" aria-label={analystCopy.loading}><i/><i/><i/><i/></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{analystCopy.dataUnavailableHint}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : active ? <>
               {activeV2 ? <>
+              <div id="kaisAv2">
               <AnalystV2Panel v2={activeV2}/>
               {activeV2.analyst_direction !== active.direction && <p className="av2PlanNote">Aşağıdaki giriş ve stop seviyeleri eski taramanın {active.direction} görünümüne göredir; analist görüşüyle uyuşmuyor.</p>}
+              </div>
               </> : <>
               <div className="analystDetailHero"><strong className={tone(active.direction)}>{active.direction}</strong><span>{pctTr(active.confidence)} {analystCopy.confidence}</span></div>
               <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,active.confidence))}%`} as CSSProperties} aria-hidden="true"><b>{pctTr(active.confidence)}</b></div>
