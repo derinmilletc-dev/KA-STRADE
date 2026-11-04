@@ -6839,12 +6839,52 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
         persist_state(state)
 
 
-async def reconcile(application: Any, credentials: tuple[str, str] | None = None) -> None:
+def _reconcile_protected(state: dict[str, Any]) -> bool:
+    return bool((state.get("snapshot") or {}).get("positions")) or any(live_plan_is_active(plan) for plan in state.get("plans", {}).values() if isinstance(plan, dict))
+
+
+# Kilit dışında çekilen hesap görüntüsü, kilit alındığında bu süreden eskiyse kullanılmaz (kilit beklenirken
+# başka bir işlem pozisyonu değiştirmiş olabilir); reconcile kendi taze görüntüsünü çeker.
+PREFETCH_MAX_AGE_SECONDS = 1.0
+LOCK_HOLD_WARN_SECONDS = 0.5
+
+
+async def reconcile_with_prefetch(application: Any, credentials: tuple[str, str] | None = None) -> None:
+    """Periyodik koruma uzlaştırması: yavaş Binance hesap sorgusu state kilidinin DIŞINDA yapılır.
+
+    Eskiden sorgu kilit altındaydı; kapatma/iptal/giriş istekleri her 10 sn'de bir sorgunun bitmesini bekliyordu.
+    Karar mantığı (reconcile) değişmedi: aynı snapshot'la, aynı kilit altında çalışır. Ön sorgu hata verirse ya da
+    bayatlarsa reconcile eskisi gibi kendi sorgusunu yapar ve hatayı aynı şekilde işler.
+    """
+    state = application.state.v25_execution
+    prefetched: dict[str, Any] | None = None
+    fetched_at = 0.0
+    try:
+        prefetch_client = client_for_with_credentials(application, credentials)
+        prefetched = await account_snapshot(prefetch_client, cached=not _reconcile_protected(state), source="protection_prefetch")
+        fetched_at = time.monotonic()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        prefetched = None
+    async with state["lock"]:
+        acquired = time.monotonic()
+        usable = prefetched if prefetched is not None and acquired - fetched_at <= PREFETCH_MAX_AGE_SECONDS else None
+        try:
+            await reconcile(application, credentials=credentials, snapshot=usable)
+        finally:
+            held = time.monotonic() - acquired
+            if held > LOCK_HOLD_WARN_SECONDS:
+                logger.warning("LIVE_RECONCILE_LOCK_HOLD held_ms=%s prefetched=%s", round(held * 1000), usable is not None)
+
+
+async def reconcile(application: Any, credentials: tuple[str, str] | None = None, snapshot: dict[str, Any] | None = None) -> None:
     state = application.state.v25_execution
     client = client_for_with_credentials(application, credentials)
-    protected = bool((state.get("snapshot") or {}).get("positions")) or any(live_plan_is_active(plan) for plan in state.get("plans", {}).values() if isinstance(plan, dict))
+    protected = _reconcile_protected(state)
     try:
-        snapshot = await account_snapshot(client, cached=not protected, source="protection_reconciliation")
+        if snapshot is None:
+            snapshot = await account_snapshot(client, cached=not protected, source="protection_reconciliation")
     except LiveRateLimitError as exc:
         state["connection"].update({"last_checked": now_iso(), "last_error": str(exc)[:240]})
         state["auto"].update({"last_skip_reason": "rate_limited", "last_error": str(exc)[:240]})
@@ -7240,8 +7280,7 @@ async def execution_loop(application: Any) -> None:
             reconciliation_stage = "account_reconciliation"
             state["last_credential_resolution_failure"] = None
             application.state.v25_execution["monitoring_credentials_stale_since"] = None
-            async with application.state.v25_execution["lock"]:
-                await reconcile(application, credentials=credentials)
+            await reconcile_with_prefetch(application, credentials=credentials)
             reconciliation_stage = "automatic_cycle"
             await automatic_cycle(application, credentials=credentials)
             state = application.state.v25_execution
