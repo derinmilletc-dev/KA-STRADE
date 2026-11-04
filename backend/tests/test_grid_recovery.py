@@ -160,6 +160,8 @@ class TestStartupRecovery(RecoveryBase):
         self.assertEqual(len(self.live_stops()), 1)
         open_entries = [o for o in self.ex.orders.values() if o.type == "LIMIT" and not o.reduce_only and o.status == NEW]
         self.assertEqual(open_entries, [])                  # bekleyen giriş iptal edildi
+        # Açılışta ARM yokluğundan duraklayan grid, ARM dolması (#495) ile aynı nedeni taşır: yeniden ARM + Devam ettir açar.
+        self.assertTrue(runner.arm_paused(gid))
 
     def test_interrupted_emergency_is_completed(self):
         gid = self.start_grid()

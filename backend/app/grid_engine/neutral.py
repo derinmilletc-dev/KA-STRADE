@@ -59,6 +59,12 @@ class NeutralGridEngine(GridEngine):
     def _protect_side(self, net: float) -> str:
         return SELL if net > 0 else BUY
 
+    def _entry_still_valid(self, level: int, price: float) -> bool:
+        lv = self.spec.levels[level - 1]
+        if lv.side == LONG:
+            return self.spec.stop_price < lv.entry < price
+        return price < lv.entry < self.spec.stop_price_upper
+
     # ---------- koruma ----------
     def _ensure_protection(self) -> None:
         if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, BLOCKED, INTERVENTION_REQUIRED):

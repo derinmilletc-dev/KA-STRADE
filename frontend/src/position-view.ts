@@ -69,24 +69,25 @@ export function buildLadder(long: boolean, mark: number | null, levels: {stop: n
 
 const planOf = (plan: RawRecord | undefined) => plan ?? {}
 
-/** Tek pozisyonun tüm türev değerleri. */
-export function positionMetrics(position: RawRecord, plan: RawRecord | undefined, nowMs: number): PositionMetrics {
+/** Tek pozisyonun tüm türev değerleri. `live` verilirse (Binance'in anlık kapanış fiyatı ve ona göre K/Z),
+ *  sunucunun geriden gelen mark fiyatı ve K/Z'si yerine o kullanılır; bütün mesafeler de ona göre hesaplanır. */
+export function positionMetrics(position: RawRecord, plan: RawRecord | undefined, nowMs: number, live?: {price: number; pnl: number} | null): PositionMetrics {
   const p = planOf(plan)
   const direction = String(position.direction ?? '').toUpperCase()
   const long = direction !== 'SHORT'
   const symbol = String(position.symbol ?? '')
   const entry = positive(position.entry_price) ?? positive(p.entry_price)
-  const mark = positive(position.mark_price)
+  const mark = live ? live.price : positive(position.mark_price)
   const stop = positive(p.stop_loss)
   const targets = Array.isArray(p.targets) ? p.targets : []
   const tp1 = positive(targets[0]), tp2 = positive(targets[1]), tp3 = positive(targets[2])
   const quantity = positive(position.quantity)
-  const notional = positive(position.notional) ?? (quantity !== null && mark !== null ? quantity * mark : null)
+  const notional = (live ? null : positive(position.notional)) ?? (quantity !== null && mark !== null ? quantity * mark : null)
   const leverage = positive(position.leverage) ?? positive(p.leverage)
   const marginType = typeof position.margin_type === 'string' && position.margin_type ? position.margin_type.toLowerCase() : null
   const margin = notional !== null && leverage !== null ? notional / leverage : positive(p.margin_usdt)
   const liquidation = positive(position.liquidation_price)
-  const pnl = num(position.unrealized_pnl)
+  const pnl = live ? live.pnl : num(position.unrealized_pnl)
   const side = long ? 1 : -1
   // Zarar tarafında kalan mesafe: +  = henüz ulaşılmadı. Mark stopu geçtiyse 0'a sabitlenir.
   const toStopPct = stop !== null && mark !== null ? Math.max(0, (mark - stop) * side / mark * 100) : null
