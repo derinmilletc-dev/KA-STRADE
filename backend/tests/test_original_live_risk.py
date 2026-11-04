@@ -404,7 +404,8 @@ def test_demo_and_backtest_layers_do_not_use_the_live_breakdown():
 
 def _daily_budget_state(realized_loss):
     request, state, _ = context()
-    save(request, state, high_choice())
+    # Sabit 100 tavanı kaldırıldı: günlük limit doğrudan 1000 USDT x %10 = 100 olacak şekilde seçilir.
+    save(request, state, high_choice(daily_loss_percent=10))
     state["original_v2_live"]["daily"] = {
         "day": datetime.now(timezone.utc).date().isoformat(),
         "opening_wallet": 1000.0, "locked": False, "realized_loss": realized_loss, "loss": realized_loss, "limit": 100.0,

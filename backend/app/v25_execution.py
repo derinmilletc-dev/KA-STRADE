@@ -68,7 +68,10 @@ from .maintenance import (
     is_maintenance_rejection,
     maintenance_blocks_automation,
 )
+from . import account_reservations
+from . import daily_ledger
 from .execution_core import (
+    HARD_MAX_DAILY_LOSS_USDT,
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
@@ -724,7 +727,7 @@ class PolicyUpdate(BaseModel):
     max_same_direction_positions: int | None = Field(default=None, ge=1, le=5)
     max_direction_exposure_usdt: float | None = Field(default=None, gt=0, le=HARD_MAX_TOTAL_EXPOSURE_USDT, allow_inf_nan=False)
     max_total_exposure_usdt: float | None = Field(default=None, ge=25, le=HARD_MAX_TOTAL_EXPOSURE_USDT)
-    daily_loss_limit: float | None = Field(default=None, ge=5, le=100)
+    daily_loss_limit: float | None = Field(default=None, ge=5, le=HARD_MAX_DAILY_LOSS_USDT)
     daily_trade_limit: int | None = Field(default=None, ge=1, le=12)
     consecutive_loss_limit: int | None = Field(default=None, ge=1, le=10)
     min_confidence: int | None = Field(default=None, ge=70, le=95)
@@ -2565,7 +2568,8 @@ async def build_live_spec(
         tp1_fraction, tp2_fraction = MANUAL_TP_SPLITS.get(order.tp_split, MANUAL_TP_SPLITS["60-20-20"])
         manual_extra = {"tp1_fraction": decimal_text(tp1_fraction), "tp2_fraction": decimal_text(tp2_fraction)}
         if order.order_type == "LIMIT" and order.limit_expiry_minutes:
-            manual_extra["good_till_ms"] = int((time.time() + int(order.limit_expiry_minutes) * 60) * 1000)
+            # Süre Binance sunucu saatine göre hesaplanır (yerel saat kaymış olsa da emir doğru anda iptal olur).
+            manual_extra["good_till_ms"] = live_server_time_ms(client) + int(order.limit_expiry_minutes) * 60_000
             manual_extra["limit_expiry_minutes"] = int(order.limit_expiry_minutes)
         targets_ok, tp2_on_exchange = manual_target_sizes_ok(quantity, entry, rules, tp1_fraction, tp2_fraction)
         if not targets_ok:
@@ -2596,6 +2600,7 @@ async def build_live_spec(
         "estimated_stop_loss_usdt": risk["estimated_stop_loss_usdt"],
         **({"tp2_on_exchange": tp2_on_exchange} if tp2_on_exchange is not None else {}),
         **manual_extra,
+        **({"time_in_force": "GTD" if manual_extra.get("good_till_ms") else "GTC"} if order.order_type == "LIMIT" else {}),
     }
 
 
@@ -2662,6 +2667,27 @@ async def find_order(client: BinanceLiveClient, symbol: str, client_id: str) -> 
         raise
 
 
+# Binance GTD kuralı: goodTillDate, gönderim anından en az 600 sn sonra olmalı. Gönderim gecikirse (yeniden deneme,
+# kurtarma) kalan süre bu payın altına düşebilir; o durumda emir hiç gönderilmez.
+GTD_MIN_LEAD_MS = 600_000 + 60_000
+
+
+def live_server_time_ms(client: Any) -> int:
+    """Binance sunucu saati tahmini (ms): yerel saat + istemcinin ölçtüğü saat farkı."""
+    try:
+        offset = int(getattr(client, "time_offset_ms", 0) or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    return int(time.time() * 1000) + offset
+
+
+def limit_time_in_force(spec: dict[str, Any]) -> str | None:
+    """LIMIT girişin süre tipi: süreli ise GTD, süresiz ise GTC. LIMIT değilse None."""
+    if str(spec.get("order_type") or "").upper() != "LIMIT":
+        return None
+    return "GTD" if spec.get("good_till_ms") else "GTC"
+
+
 def order_matches_spec(order: dict[str, Any], spec: dict[str, Any], client_id: str) -> bool:
     response_client_id = str(order.get("clientOrderId") or order.get("origClientOrderId") or "")
     if response_client_id != client_id:
@@ -2674,6 +2700,19 @@ def order_matches_spec(order: dict[str, Any], spec: dict[str, Any], client_id: s
         return False
     if str(order.get("type") or "").upper() != str(spec["order_type"]).upper():
         return False
+    # Süre tipi yalnız spec bunu açıkça söylüyorsa doğrulanır (yeni emirde build_live_spec yazar; plandan yeniden
+    # kurulan eski specler süre bilgisi taşımıyorsa kontrol atlanır, eski davranış korunur).
+    expected_tif = (str(spec.get("time_in_force") or "").upper() or ("GTD" if spec.get("good_till_ms") else None)) \
+        if limit_time_in_force(spec) is not None else None
+    reported_tif = str(order.get("timeInForce") or "").upper()
+    if expected_tif is not None and reported_tif and reported_tif != expected_tif:
+        return False  # aynı kimlikli ama farklı süre tipli emir bu plana ait sayılmaz
+    if expected_tif == "GTD" and order.get("goodTillDate") not in (None, "", 0, "0"):
+        try:
+            if abs(int(order["goodTillDate"]) - int(spec["good_till_ms"])) > 1000:  # Binance saniyeye yuvarlayabilir
+                return False
+        except (TypeError, ValueError):
+            return False
     try:
         return Decimal(str(order.get("origQty"))) == Decimal(str(spec["quantity"]))
     except (TypeError, ValueError, ArithmeticError):
@@ -2715,6 +2754,7 @@ async def cancel_pending_owned_limit_entries(client: BinanceLiveClient, state: d
                 "side": "BUY" if str(plan.get("direction") or "").upper() == "LONG" else "SELL",
                 "order_type": "LIMIT",
                 "quantity": str(plan.get("requested_quantity", plan.get("quantity")) or ""),
+                **({"good_till_ms": plan["good_till_ms"]} if plan.get("good_till_ms") else {}),
             }
             if not order_matches_spec(order, spec, client_id):
                 unresolved.append(f"{symbol}:{client_id[-8:]}")
@@ -2755,10 +2795,10 @@ async def submit_entry(
         "quantity": spec["quantity"], "newClientOrderId": client_id, "newOrderRespType": "RESULT",
     }
     if spec["order_type"] == "LIMIT":
-        params.update({"price": spec["entry_price"], "timeInForce": "GTC"})
+        # Süresiz LIMIT: GTC (iptal edilene kadar). Süreli LIMIT: GTD; Binance süre dolunca emri kendisi iptal eder.
+        params.update({"price": spec["entry_price"], "timeInForce": limit_time_in_force(spec)})
         if spec.get("good_till_ms"):
-            # Manuel LIMIT süre seçeneği: Binance süre dolunca emri kendisi iptal eder (GTD).
-            params.update({"timeInForce": "GTD", "goodTillDate": int(spec["good_till_ms"])})
+            params["goodTillDate"] = int(spec["good_till_ms"])
     path = "/fapi/v1/order/test" if test_only else "/fapi/v1/order"
     if not test_only:
         existing = await find_order(client, spec["symbol"], client_id)
@@ -2768,6 +2808,11 @@ async def submit_entry(
             if on_submission_started is not None:
                 on_submission_started()
             return {**existing, "recovered": True}
+    if spec.get("good_till_ms") and int(spec["good_till_ms"]) - live_server_time_ms(client) < GTD_MIN_LEAD_MS:
+        raise LiveExchangeError(
+            "LIMIT emrin süresi gönderimden önce doldu veya 11 dakikadan az kaldı; emir gönderilmedi.",
+            http_status=409, check_key="limit_expiry",
+        )
     if before_submit is not None:
         before_submit()
     if not test_only and on_submission_started is not None:
@@ -2836,6 +2881,18 @@ async def post_algo(client: BinanceLiveClient, params: dict[str, Any]) -> dict[s
             if attempt == len(ORDER_RECONCILIATION_DELAYS_SECONDS):
                 break
         raise
+
+
+def close_fill_price(result: dict[str, Any] | None) -> float | None:
+    """Piyasa kapanış emrinin ortalama dolum fiyatı (newOrderRespType=RESULT); dolmadıysa/okunamazsa None."""
+    if not isinstance(result, dict):
+        return None
+    try:
+        price = float(result.get("avgPrice") or 0)
+        executed = float(result.get("executedQty") or 0)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 and executed > 0 else None
 
 
 async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: str) -> dict[str, Any] | None:
@@ -2955,6 +3012,7 @@ async def settle_live_entry_remainder(client: BinanceLiveClient, state: dict[str
         "side": "BUY" if plan["direction"] == "LONG" else "SELL",
         "order_type": plan["order_type"],
         "quantity": plan.get("requested_quantity", plan["quantity"]),
+        **({"good_till_ms": plan["good_till_ms"]} if plan.get("good_till_ms") else {}),
     }
 
     def matches(order: dict[str, Any] | None) -> bool:
@@ -5398,8 +5456,24 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
     return True, "Tüm LIVE otomasyon kapıları geçti."
 
 
+async def refresh_account_daily_ledger(client: Any, state: dict[str, Any]) -> dict[str, Any]:
+    """Hesap geneli günlük defteri (Binance gelir geçmişi) tazeler. Okunamazsa LiveExchangeError(503): çağıran yeni girişi kapatır."""
+    try:
+        return await daily_ledger.refresh(client, state)
+    except daily_ledger.LedgerUnavailable as exc:
+        raise LiveExchangeError(f"Günlük zarar defteri doğrulanamadı; yeni giriş durdu ({exc}).", http_status=503,
+                                transient_read_failure=True, check_key="daily_ledger") from exc
+
+
 def live_daily_metrics(state: dict[str, Any]) -> dict[str, Any]:
     metrics = daily_execution_metrics(state.get("events", []))
+    ledger = daily_ledger.cached(state)
+    if ledger is not None:
+        # Hesap geneli doğruluk kaynağı: manuel + Grid + KAIS, stop/acil kapanış, komisyon ve fonlama dahil.
+        metrics["event_realized_pnl"] = metrics.get("realized_pnl")
+        metrics["realized_pnl"] = ledger["totals"]["net"]
+        metrics["pnl_source"] = "BINANCE_INCOME"
+        metrics["income"] = daily_ledger.public(ledger)
     plan_blocks = sum(
         1 for plan in state.get("plans", {}).values()
         if plan.get("status") == "PNL DOĞRULANIYOR" or plan.get("pnl_verified") is False
@@ -5740,6 +5814,9 @@ async def execute_live_order(
         raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; emir gönderilmedi.")
     submission_started = False
     recorded_intent_id: str | None = None
+    reservation_token: str | None = None
+    reservation_plan: dict[str, Any] | None = None
+    reservation_filled = False
     observation_stage = "SIGNED_ACCOUNT_ACCESS"
     async with state["lock"]:
         try:
@@ -5791,6 +5868,7 @@ async def execute_live_order(
                 raise LiveExchangeError("Canlı hesap Multi-Assets modunda olmamalı.", http_status=409, check_key="multi_assets_mode")
             validate_live_isolated_snapshot(snapshot, state["policy"])
             symbol = normalize_symbol(body.symbol)
+            await refresh_account_daily_ledger(client, state)
             daily = live_daily_metrics(state)
             manual_signal = {"direction": body.direction, "confidence": 100, "radar": {"trap_score": 0}}
             current_spread = await spread_bps(client, symbol)
@@ -5889,6 +5967,27 @@ async def execute_live_order(
                 detail = f"{normalize_symbol(spec['symbol'])} üzerinde çalışan bir grid var; aynı coinde ayrıca işlem açılmaz."
                 record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
                 raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
+            observation_stage = "ACCOUNT_RESERVATION"
+            breakdown = None
+            reservation_owner_id = live_reservation_owner(state, request)
+            try:
+                await reconcile_account_reservations(client, state, reservation_owner_id, snapshot)
+                budget = shared_daily_budget(application, state, request, snapshot)
+                breakdown = budget.pop("breakdown", None)
+                reservation_token = account_reservations.reserve(
+                    reservation_owner_id, source, spec["symbol"], float(spec["estimated_stop_loss_usdt"]),
+                    strict=bool(budget.pop("strict", False)), **budget)
+            except (account_reservations.ReservationConflict, account_reservations.ReservationUnavailable, AccountRiskUnknown) as exc:
+                text = str(exc)
+                if breakdown and getattr(exc, "kind", "") == "risk":
+                    text = (f"Hesap risk bütçesi yetmiyor: bugünkü zarar {breakdown['loss_today']:.2f} + açık pozisyon riski "
+                            f"{breakdown['open_position_risk']:.2f} + Grid {breakdown['grid_risk']:.2f} USDT, limit {breakdown['limit']:.2f}. {text}")
+                record_live_entry_check(entry_checks, "account_reservation", False, text, symbol=symbol)
+                blocked = isinstance(exc, (account_reservations.ReservationUnavailable, AccountRiskUnknown)) or getattr(exc, "kind", "") == "reconcile"
+                check_key = "account_risk" if isinstance(exc, AccountRiskUnknown) or getattr(exc, "kind", "") == "risk" else "account_reservation"
+                raise LiveExchangeError(text, http_status=503 if blocked else 409, check_key=check_key) from exc
+            record_live_entry_check(entry_checks, "account_reservation", True, "Coin ve ortak risk rezervasyonu alındı.", symbol=symbol)
+            observation_stage = "SYMBOL_OCCUPANCY"
             if automatic_entry:
                 observation_stage = "FRESH_CREDENTIALS"
                 fresh_credentials = await fresh_auto_submission_credentials(application, state, check_results=entry_checks)
@@ -6079,6 +6178,14 @@ async def execute_live_order(
                 persist_state(state)
             def mark_submission_started() -> None:
                 nonlocal submission_started
+                # Rezervasyon emirden ÖNCE SUBMITTED yazılır: çökme olursa satır durur, yeniden başlatmada Binance ile doğrulanır.
+                try:
+                    recorded = account_reservations.mark_submitted(reservation_token, client_id)
+                except account_reservations.ReservationUnavailable as exc:
+                    raise LiveExchangeError(str(exc), http_status=503, check_key="account_reservation") from exc
+                if not recorded:
+                    raise LiveExchangeError("Rezervasyon artık geçerli değil (süresi doldu); emir gönderilmedi.", http_status=409,
+                                            check_key="account_reservation")
                 submission_started = True
 
             if automatic_entry:
@@ -6158,6 +6265,8 @@ async def execute_live_order(
                     )
                 except Exception:  # noqa: BLE001
                     pass
+            reservation_plan = plan
+            reservation_filled = str(result.get("status") or "").upper() == "FILLED"
             state["plans"] = {plan_id: plan, **state.get("plans", {})}
             add_event(state, "LIVE_ENTRY_RECOVERED" if result.get("recovered") else "LIVE_ENTRY", f"{spec['symbol']} {spec['direction']} {spec['order_type']} canlı emir gönderildi ({source}).", symbol=spec["symbol"], direction=spec["direction"], client_order_id=client_id)
             # Persist exchange acceptance before any later API call. If the process
@@ -6230,7 +6339,8 @@ async def execute_live_order(
                     "AVAILABLE_BALANCE": "available_collateral",
                     "SIZING": "minimum_quantity",
                     "PROTECTION_READINESS": "protection_readiness",
-                    "SYMBOL_OCCUPANCY": "symbol_occupancy",
+                    "ACCOUNT_RESERVATION": "account_reservation",
+                "SYMBOL_OCCUPANCY": "symbol_occupancy",
                     "FRESH_CREDENTIALS": "fresh_live_credentials",
                     "FRESH_ACCOUNT_SNAPSHOT": "signed_account_access",
                     "FRESH_ORIGINAL_GATES": "owner_entry_authorization",
@@ -6285,6 +6395,7 @@ async def execute_live_order(
                 "AVAILABLE_BALANCE": "available_collateral",
                 "SIZING": "minimum_quantity",
                 "PROTECTION_READINESS": "protection_readiness",
+                "ACCOUNT_RESERVATION": "account_reservation",
                 "SYMBOL_OCCUPANCY": "symbol_occupancy",
                 "FRESH_CREDENTIALS": "fresh_live_credentials",
                 "FRESH_ACCOUNT_SNAPSHOT": "signed_account_access",
@@ -6326,6 +6437,8 @@ async def execute_live_order(
             )
             persist_state(state)
             raise HTTPException(502, "Canlı emir akışı güvenli şekilde kilitlendi; manuel inceleme gerekli.") from exc
+        finally:
+            _finish_reservation(reservation_token, reservation_plan, reservation_filled)
 
 
 async def automatic_cycle(application: Any, credentials: tuple[str, str] | None = None) -> None:
@@ -6403,6 +6516,7 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
     try:
         client = client_for_with_credentials(application, credentials)
         snapshot = await account_snapshot(client, cached=True, source="strategy_scan")
+        await refresh_account_daily_ledger(client, state)
         daily = live_daily_metrics(state)
         observation_token = observation.start_round(state["policy"], snapshot, daily, state.get("plans", {}))
         state["auto"]["last_skip_reason"] = None
@@ -6768,12 +6882,52 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
         persist_state(state)
 
 
-async def reconcile(application: Any, credentials: tuple[str, str] | None = None) -> None:
+def _reconcile_protected(state: dict[str, Any]) -> bool:
+    return bool((state.get("snapshot") or {}).get("positions")) or any(live_plan_is_active(plan) for plan in state.get("plans", {}).values() if isinstance(plan, dict))
+
+
+# Kilit dışında çekilen hesap görüntüsü, kilit alındığında bu süreden eskiyse kullanılmaz (kilit beklenirken
+# başka bir işlem pozisyonu değiştirmiş olabilir); reconcile kendi taze görüntüsünü çeker.
+PREFETCH_MAX_AGE_SECONDS = 1.0
+LOCK_HOLD_WARN_SECONDS = 0.5
+
+
+async def reconcile_with_prefetch(application: Any, credentials: tuple[str, str] | None = None) -> None:
+    """Periyodik koruma uzlaştırması: yavaş Binance hesap sorgusu state kilidinin DIŞINDA yapılır.
+
+    Eskiden sorgu kilit altındaydı; kapatma/iptal/giriş istekleri her 10 sn'de bir sorgunun bitmesini bekliyordu.
+    Karar mantığı (reconcile) değişmedi: aynı snapshot'la, aynı kilit altında çalışır. Ön sorgu hata verirse ya da
+    bayatlarsa reconcile eskisi gibi kendi sorgusunu yapar ve hatayı aynı şekilde işler.
+    """
+    state = application.state.v25_execution
+    prefetched: dict[str, Any] | None = None
+    fetched_at = 0.0
+    try:
+        prefetch_client = client_for_with_credentials(application, credentials)
+        prefetched = await account_snapshot(prefetch_client, cached=not _reconcile_protected(state), source="protection_prefetch")
+        fetched_at = time.monotonic()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        prefetched = None
+    async with state["lock"]:
+        acquired = time.monotonic()
+        usable = prefetched if prefetched is not None and acquired - fetched_at <= PREFETCH_MAX_AGE_SECONDS else None
+        try:
+            await reconcile(application, credentials=credentials, snapshot=usable)
+        finally:
+            held = time.monotonic() - acquired
+            if held > LOCK_HOLD_WARN_SECONDS:
+                logger.warning("LIVE_RECONCILE_LOCK_HOLD held_ms=%s prefetched=%s", round(held * 1000), usable is not None)
+
+
+async def reconcile(application: Any, credentials: tuple[str, str] | None = None, snapshot: dict[str, Any] | None = None) -> None:
     state = application.state.v25_execution
     client = client_for_with_credentials(application, credentials)
-    protected = bool((state.get("snapshot") or {}).get("positions")) or any(live_plan_is_active(plan) for plan in state.get("plans", {}).values() if isinstance(plan, dict))
+    protected = _reconcile_protected(state)
     try:
-        snapshot = await account_snapshot(client, cached=not protected, source="protection_reconciliation")
+        if snapshot is None:
+            snapshot = await account_snapshot(client, cached=not protected, source="protection_reconciliation")
     except LiveRateLimitError as exc:
         state["connection"].update({"last_checked": now_iso(), "last_error": str(exc)[:240]})
         state["auto"].update({"last_skip_reason": "rate_limited", "last_error": str(exc)[:240]})
@@ -7169,8 +7323,7 @@ async def execution_loop(application: Any) -> None:
             reconciliation_stage = "account_reconciliation"
             state["last_credential_resolution_failure"] = None
             application.state.v25_execution["monitoring_credentials_stale_since"] = None
-            async with application.state.v25_execution["lock"]:
-                await reconcile(application, credentials=credentials)
+            await reconcile_with_prefetch(application, credentials=credentials)
             reconciliation_stage = "automatic_cycle"
             await automatic_cycle(application, credentials=credentials)
             state = application.state.v25_execution
@@ -7962,6 +8115,180 @@ def grid_actor(user: dict[str, Any]) -> tuple[str, bool]:
     return str(user.get("id") or ""), user.get("role") == "OWNER"
 
 
+def live_reservation_owner(state: dict[str, Any], request: Request | None) -> str:
+    """Rezervasyonun sahibi: isteği yapan kullanıcı (istek yoksa otomatik oturumun sahibi). Tek kullanıcıda boş metin."""
+    if request is not None:
+        return current_user_id(request)
+    return str(((state.get("live_session_authorization") or {}).get("user_id")) or ((state.get("auto_authorization") or {}).get("user_id")) or "")
+
+
+def _finish_reservation(token: str | None, plan: dict[str, Any] | None, filled: bool = False) -> None:
+    """Giriş akışı biterken: emir hiç gitmediyse serbest; emir doldu ya da plan ilerlediyse CONSUMED (risk artık açık pozisyon);
+    bekleyen LIMIT ve belirsiz sonuçlar SUBMITTED kalır (sweep / Binance mutabakatı çözer)."""
+    status = "FILLED" if filled else (str(plan.get("status")) if isinstance(plan, dict) and plan.get("status") else None)
+    try:
+        account_reservations.settle_by_plan_status(token, status)
+    except account_reservations.ReservationUnavailable:
+        logger.warning("RESERVATION_FINISH_FAILED")
+
+
+_EXCHANGE_GONE_STATUSES = frozenset({"CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"})
+
+
+async def reconcile_account_reservations(client: Any, state: dict[str, Any], owner: str, snapshot: dict[str, Any] | None = None) -> None:
+    """Önceki rezervasyonları plan durumu ve (gerekirse) Binance ile mutabakat eder. Yalnız KESİN kanıtla serbest bırakır:
+    erişim hatası, zaman aşımı, tanınmayan emir durumu ya da hesapta aynı coinde pozisyon/emir görünmesi satırı olduğu gibi bırakır
+    ve `reserve` yeni girişi reddeder (fail-closed). Hiçbir hata girişi 'canlı yürütme kilidine' çevirmez."""
+    plans = {str(p.get("entry_client_order_id")): p for p in state.get("plans", {}).values() if isinstance(p, dict) and p.get("entry_client_order_id")}
+
+    def plan_status(client_id: str) -> str | None:
+        plan = plans.get(client_id)
+        return str(plan.get("status")) if plan and plan.get("status") else None
+
+    open_order_ids = {str(o.get("client_order_id")) for o in (snapshot or {}).get("open_orders", []) if isinstance(o, dict)}
+    busy_symbols = {normalize_symbol(str(x.get("symbol") or "")) for key in ("positions", "open_orders")
+                    for x in (snapshot or {}).get(key, []) if isinstance(x, dict)}
+    for row in account_reservations.sweep(owner, plan_status):
+        outcome = "UNKNOWN"
+        try:
+            order = await find_order(client, row["symbol"], row["client_order_id"])
+        except Exception:  # noqa: BLE001 - ağ, zaman aşımı, hız sınırı, beklenmeyen yanıt: hepsi "doğrulanamadı"
+            logger.warning("RESERVATION_RECONCILE_UNVERIFIED symbol=%s", row["symbol"])
+            continue
+        if order is None:
+            # Binance emri bilmiyor. Ama hesapta o coinde açık emir/pozisyon görünüyorsa 'yok' demek güvenli değil.
+            if row["client_order_id"] in open_order_ids:
+                outcome = "PENDING"
+            elif normalize_symbol(row["symbol"]) in busy_symbols:
+                outcome = "UNKNOWN"
+            else:
+                outcome = "GONE"
+        else:
+            status = str(order.get("status") or "").upper()
+            try:
+                executed = float(order.get("executedQty") or 0)
+            except (TypeError, ValueError):
+                executed = None
+            if status in {"NEW", "PARTIALLY_FILLED"}:
+                outcome = "PENDING"
+            elif status == "FILLED" or (executed is not None and executed > 0 and status in _EXCHANGE_GONE_STATUSES):
+                outcome = "FILLED"
+            elif status in _EXCHANGE_GONE_STATUSES and executed == 0:
+                outcome = "GONE"
+        account_reservations.resolve(row["token"], outcome)
+
+
+ACCOUNT_RISK_BUDGET_FLAG = "KAISTRADE_ACCOUNT_RISK_BUDGET"
+
+
+class AccountRiskUnknown(RuntimeError):
+    """Açık pozisyonun riski hesaplanamadı: yeni giriş reddedilir (fail-closed)."""
+
+
+def account_risk_budget_enabled() -> bool:
+    """Hesap seviyesi sıkı risk bütçesi kapısı. Varsayılan AÇIK (sahibinin kararı). Geri alma: ortama
+    KAISTRADE_ACCOUNT_RISK_BUDGET=0 yazıp servisi yeniden başlatmak yeter; kod değişikliği gerekmez."""
+    return env_flag(ACCOUNT_RISK_BUDGET_FLAG, default=True)
+
+
+def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], skip_symbols: set[str]) -> tuple[float, list[dict[str, Any]]]:
+    """Açık pozisyonların stopa kadar kalan zararı (giriş→stop, 0'a tabanlı: kilitlenmiş kâr kredi sayılmaz). Grid'e ait coinler
+    atlanır (Grid riski ayrıca sayılır, çift sayım olmaz). Stopu bilinmeyen pozisyon için isolated marjin üst sınırı kullanılır;
+    o da bilinmiyorsa AccountRiskUnknown."""
+    plans = [p for p in state.get("plans", {}).values() if isinstance(p, dict) and live_plan_is_active(p)]
+    total, detail = 0.0, []
+    for position in snapshot.get("positions", []) or []:
+        if not isinstance(position, dict):
+            continue
+        symbol = normalize_symbol(str(position.get("symbol") or ""))
+        try:
+            quantity = abs(float(position.get("quantity") if position.get("quantity") is not None else position.get("positionAmt") or 0))
+        except (TypeError, ValueError) as exc:
+            raise AccountRiskUnknown(f"{symbol} pozisyon miktarı okunamadı.") from exc
+        if quantity == 0 or symbol in skip_symbols:
+            continue
+        direction = str(position.get("direction") or ("LONG" if float(position.get("positionAmt") or 0) > 0 else "SHORT")).upper()
+        try:
+            entry = float(position.get("entry_price") if position.get("entry_price") is not None else position.get("entryPrice"))
+        except (TypeError, ValueError) as exc:
+            raise AccountRiskUnknown(f"{symbol} giriş fiyatı okunamadı.") from exc
+        plan = next((p for p in plans if normalize_symbol(str(p.get("symbol") or "")) == symbol
+                     and str(p.get("direction") or "").upper() == direction), None)
+        risk, basis = None, ""
+        try:
+            stop = float(plan.get("stop_loss")) if plan else None
+        except (TypeError, ValueError):
+            stop = None
+        if stop is not None and math.isfinite(stop) and stop > 0 and math.isfinite(entry) and entry > 0:
+            risk, basis = max(0.0, quantity * ((entry - stop) if direction == "LONG" else (stop - entry))), "STOP"
+        else:
+            leverage = position.get("leverage") or position.get("applied_leverage")
+            try:
+                mark = float(position.get("mark_price") or entry)
+                if str(position.get("margin_type") or "").lower() == "isolated" and leverage and float(leverage) > 0 and mark > 0:
+                    risk, basis = quantity * mark / float(leverage), "ISOLATED_MARGIN"
+            except (TypeError, ValueError):
+                risk = None
+        if risk is None or not math.isfinite(risk):
+            raise AccountRiskUnknown(f"{symbol} açık pozisyonunun riski hesaplanamadı (stop ve marjin bilinmiyor).")
+        try:                                  # fiyat stopu aşmışsa (gecikme/boşluk) gerçek gerçekleşmemiş zarar stop mesafesinden büyük olabilir
+            unrealized_loss = max(0.0, -float(position.get("unrealized_pnl") or 0.0))
+        except (TypeError, ValueError):
+            unrealized_loss = 0.0
+        if math.isfinite(unrealized_loss) and unrealized_loss > risk:
+            risk, basis = unrealized_loss, f"{basis}+UNREALIZED"
+        total += risk
+        detail.append({"symbol": symbol, "risk_usdt": round(risk, 6), "basis": basis})
+    return round(total, 6), detail
+
+
+def grid_start_account_open_risk(state: dict[str, Any], snapshot: dict[str, Any], grid_symbols: Any) -> float:
+    """Grid başlatmada (bayrak açıkken) Grid dışı açık pozisyonların stopa kadar riski; kapalıyken 0. Doğrulanamazsa 503."""
+    if not account_risk_budget_enabled():
+        return 0.0
+    try:
+        return open_position_risk_usdt(state, snapshot, {normalize_symbol(str(item)) for item in grid_symbols})[0]
+    except AccountRiskUnknown as exc:
+        raise HTTPException(503, f"Açık pozisyon riski doğrulanamadı; grid başlatılmadı ({exc}).") from exc
+
+
+def shared_daily_budget(application: Any, state: dict[str, Any], request: Request | None, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ortak günlük zarar bütçesi. Eski davranış (bayrak kapalı): bugün kalan hak + Grid'in ayırdığı risk. Bayrak açıkken ek olarak
+    açık pozisyon riski düşülür, kontrol tek başına işlem için de yapılır (strict). Limit kullanıcının/stratejinin kendi günlük zarar limitidir (sabit 100 tavanı yok).
+    Limit yoksa budget_left None (kontrol yok)."""
+    try:
+        limit = float((state.get("policy") or {}).get("daily_loss_limit"))
+    except (TypeError, ValueError):
+        return {"budget_left": None, "committed": 0.0}
+    if limit <= 0:
+        return {"budget_left": None, "committed": 0.0}
+    strict = account_risk_budget_enabled()
+    if strict:
+        limit = min(limit, HARD_MAX_DAILY_LOSS_USDT)   # yalnız sonlu-değer koruması; gerçek tavan değil
+    realized = float(live_daily_metrics(state).get("realized_pnl") or 0)
+    reserved, grid_symbols = 0.0, set()
+    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
+    if runner is not None:
+        owner_id = live_reservation_owner(state, request)
+        try:
+            info = runner.reserved_risk(owner_id, owner=True)
+            reserved = float(info.get("worst_loss_usdt") or 0.0)
+            grid_symbols = {normalize_symbol(str(item)) for item in info.get("symbols") or []}
+        except Exception as exc:  # noqa: BLE001
+            if strict:
+                raise AccountRiskUnknown("Çalışan Grid riski okunamadı.") from exc
+            logger.warning("GRID_RESERVED_RISK_READ_FAILED")
+    out: dict[str, Any] = {"budget_left": limit + min(0.0, realized), "committed": reserved}
+    if strict:
+        if snapshot is None:
+            raise AccountRiskUnknown("Hesap anlık görüntüsü olmadan açık pozisyon riski hesaplanamaz.")
+        open_risk, detail = open_position_risk_usdt(state, snapshot, grid_symbols)
+        out.update({"budget_left": out["budget_left"] - open_risk, "strict": True})
+        out["breakdown"] = {"limit": limit, "loss_today": round(max(0.0, -realized), 6), "open_position_risk": open_risk,
+                            "grid_risk": round(reserved, 6), "positions": detail}
+    return out
+
+
 def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request | None, symbol: str) -> bool:
     """Bu kullanıcının bu coinde bitmemiş canlı grid'i var mı? Varsa manuel/otomatik emir o coine girmez (aynı pozisyon karışmasın)."""
     runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
@@ -7989,7 +8316,32 @@ async def v25_grid_live_status(request: Request, history: int = Query(default=6,
 
 @router.post("/grid/live/start")
 async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> dict[str, Any]:
-    """Canlı grid (ilk test: en fazla 2 kademe / 10 USDT). Varsayılan KAPALI; her risk kapısı geçilmeden tek emir gitmez."""
+    """Canlı grid (ilk test: en fazla 2 kademe / 10 USDT). Varsayılan KAPALI; her risk kapısı geçilmeden tek emir gitmez.
+    Gerçek başlatmada coin ve risk, plan hesabından grid defteri kaydına kadar rezerve edilir (eşzamanlı istekler çift kullanamaz)."""
+    execution_owner(request)
+    if body.preview:
+        return await _grid_live_start(request, body, None)
+    state = request.app.state.v25_execution
+    owner_id = live_reservation_owner(state, request)
+    try:
+        if account_reservations.unreconciled(owner_id):
+            await reconcile_account_reservations(client_for(request.app, request), state, owner_id)
+        token = account_reservations.reserve(owner_id, "GRID", normalize_symbol(body.symbol), ttl=account_reservations.GRID_TTL)
+    except account_reservations.ReservationConflict as exc:
+        raise HTTPException(503 if exc.kind == "reconcile" else 409, str(exc)) from exc
+    except account_reservations.ReservationUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    consumed = False
+    try:
+        result = await _grid_live_start(request, body, token)
+        consumed = account_reservations.consume(token, "GRID_STARTED")
+        return result
+    finally:
+        if not consumed:
+            account_reservations.release(token, "GRID_START_ABORTED")
+
+
+async def _grid_live_start(request: Request, body: GridLiveStartRequest, reservation: str | None) -> dict[str, Any]:
     user = execution_owner(request)
     from . import grid_live, original_v2_live
     application, state = request.app, request.app.state.v25_execution
@@ -8036,15 +8388,17 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 raise HTTPException(409, f"{symbol} için etkin bir işlem planı var; aynı coinde grid açılmaz.")
             rules = await live_symbol_rules(client, symbol, "LIMIT")
             price = await ticker_price(client, symbol)
+            await refresh_account_daily_ledger(client, state)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
             reserved = runner.reserved_risk(user_id, owner=owner)
+            account_open_risk = grid_start_account_open_risk(state, snapshot, reserved["symbols"])
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
             common = dict(
                 lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt, leverage=body.leverage,
                 price=float(price), rules=rules, policy=state["policy"],
                 realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
                 existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
-                reserved_worst_loss=reserved["worst_loss_usdt"], reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_worst_loss=reserved["worst_loss_usdt"] + account_open_risk + account_reservations.others_worst_loss(live_reservation_owner(state, request), exclude=reservation), reserved_pending_notional=reserved["pending_entry_notional_usdt"],
                 reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
             if body.direction == "NEUTRAL":
                 if body.stop_upper is None:
@@ -8052,6 +8406,8 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
             else:
                 plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
+            if reservation:
+                account_reservations.update(reservation, float(plan.get("worst_loss_usdt") or 0.0))
             grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt, profit_lock_usdt=body.profit_lock_usdt, close_on_target=body.close_on_target)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
@@ -8755,9 +9111,12 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
     if body.confirmation.strip().upper() != "CANLI POZİSYONU KAPAT":
         raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
     state = request.app.state.v25_execution
+    # Süre ölçümü: kullanıcı "bastığım an ile dolduğu an" farkını görebilsin (kilit beklemesi + borsa süresi).
+    started = time.monotonic()
     # Kapatma, uzlaştırma/koruma döngüsüyle aynı kilit altında çalışır: aynı sembolde kapanış, stop ve
     # yeniden giriş olayları iç içe geçip çift emir ya da çelişen plan durumu üretemez.
     async with state["lock"]:
+        lock_wait_ms = int((time.monotonic() - started) * 1000)
         plan = state.get("plans", {}).get(body.plan_id)
         if not plan:
             raise HTTPException(404, "Tracked canlı plan bulunamadı.")
@@ -8778,9 +9137,13 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                     known.append(order_id)
             plan["close_reason"] = close_reason_for_intent(close_intent)
             plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
-            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"])
+            total_ms = int((time.monotonic() - started) * 1000)
+            fill_price = close_fill_price(result)
+            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"],
+                      fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
-            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan}
+            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
+                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms}
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
 

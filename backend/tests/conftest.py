@@ -68,3 +68,40 @@ def isolate_shared_strategy_cache():
     clear()
     yield
     clear()
+
+
+@pytest.fixture(autouse=True)
+def daily_ledger_offline_unless_tested(request, monkeypatch):
+    """Eski testlerin sahte Binance istemcilerinde /fapi/v1/income yok. Hesap geneli günlük defter (fail-closed) yalnız
+    kendi test dosyasında gerçek çalışır; diğerlerinde boş defter döner (olay tabanlı eski hesap aynen geçerli)."""
+    if request.module.__name__.endswith("test_daily_loss_account_wide"):
+        return
+    import importlib
+
+    async def empty(client, state, **kwargs):
+        return {"day": None, "fetched_at": 0.0, "totals": {"net": 0.0}, "rows": [], "source": "TEST_OFFLINE"}
+
+    # Testler modülü hem `app.` hem `backend.app.` yoluyla içe aktarabilir (iki ayrı modül nesnesi): ikisini de çevrimdışı yap.
+    for name in ("app.daily_ledger", "backend.app.daily_ledger"):
+        try:
+            module = importlib.import_module(name)
+        except ImportError:
+            continue
+        monkeypatch.setattr(module, "refresh", empty)
+
+
+@pytest.fixture(autouse=True)
+def reservations_in_memory():
+    """Rezervasyon defteri testlerde bellek içi ve teste özel: gerçek data/ dosyasına yazılmaz, testler birbirine sızmaz."""
+    import importlib
+    modules = []
+    for name in ("app.account_reservations", "backend.app.account_reservations"):
+        try:
+            module = importlib.import_module(name)
+        except ImportError:
+            continue
+        module.use_store(module.ReservationStore(":memory:"))
+        modules.append(module)
+    yield
+    for module in modules:
+        module.use_store(None)
