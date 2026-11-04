@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
@@ -61,6 +62,26 @@ RECOVERY_READY_WAIT_SECONDS = 600.0 # canlı durum kurtarması (hesap okuma) bu 
 # ARM (24 saatlik canlı giriş izni) dolunca çalışan canlı grid duraklatılır: yeni giriş ve tur durur, bekleyen girişler iptal,
 # açık pozisyon stop ve hedefleriyle korunur. Pozisyon kapansa da grid bitmez; yeniden ARM verilince "Devam ettir" ile sürer.
 ARM_PAUSE_REASON = "ARM süresi doldu; yeni giriş durdu, bekleyen girişler iptal edildi, korumalar sürüyor"
+
+
+GRID_CLIENT_ID = re.compile(r"^kg-([A-Za-z0-9]{1,16})-[LS]\d{2}[ETSC]\d+$")
+
+
+def grid_stream_client_id(payload: Any) -> str | None:
+    """Binance kullanıcı akışı olayı bir grid emrinin dolumu ya da stop tetiği mi? Öyleyse grid emir kimliği, değilse None.
+    ORDER_TRADE_UPDATE: x=TRADE (kısmi/tam dolum). ALGO_UPDATE: stop tetiklendi/bitti."""
+    if not isinstance(payload, dict):
+        return None
+    event = payload.get("e")
+    order = payload.get("o") if isinstance(payload.get("o"), dict) else {}
+    if event == "ORDER_TRADE_UPDATE":
+        client_id = str(order.get("c") or "")
+        return client_id if str(order.get("x") or "") == "TRADE" and GRID_CLIENT_ID.match(client_id) else None
+    if event == "ALGO_UPDATE":
+        client_id = str(order.get("caid") or order.get("clientAlgoId") or "")
+        status = str(order.get("X") or order.get("algoStatus") or "").upper()
+        return client_id if status in {"TRIGGERED", "TRIGGERING", "FINISHED", "EXECUTED", "FILLED"} and GRID_CLIENT_ID.match(client_id) else None
+    return None
 
 
 class LiveGridError(Exception):
@@ -397,6 +418,8 @@ class LiveGridRunner:
         self._liq_checked: dict[str, float] = {}
         self._liq_alerted: dict[str, str] = {}
         self._daily_checked: dict[str, float] = {}
+        self._protect_queued: set[str] = set()                    # akıştan gelen anlık koruma isteği bekleyen grid'ler
+        self._last_instant_protect: dict[str, dict[str, Any]] = {}
         self._recovery: dict[str, dict[str, Any]] = {}  # grid_id -> son açılış kurtarması sonucu (panel/teşhis)
         self._ledger_failed_since: dict[str, float] = {}
 
@@ -938,6 +961,38 @@ class LiveGridRunner:
             self.store.set_grid(engine.gid, status=STOPPED, halt_reason=self._stop_reasons.pop(engine.gid, "") or "Duraklatıldı; açık pozisyon ve bekleyen giriş yok")
             status = STOPPED
         return status
+
+    def grid_for_client_id(self, client_id: str) -> str | None:
+        """Akıştaki emir kimliğinden (kg-<grid>-...) bu süreçte çalışan grid'i bulur; yoksa None."""
+        match = GRID_CLIENT_ID.match(str(client_id or ""))
+        if match is None:
+            return None
+        prefix = f"kg-{match.group(1)}-"
+        return next((gid for gid, engine in self._engines.items() if engine.prefix == prefix and self.loop_running(gid)), None)
+
+    async def protect_from_stream(self, client_id: str) -> bool:
+        """Dolum/tetik bildirimi geldiğinde korumayı hemen günceller. Aynı grid için kuyrukta en fazla bir istek bekler
+        (art arda dolumlar tek eşitlemede toplanır); grid kilidi normal turla çakışmayı önler."""
+        gid = self.grid_for_client_id(client_id)
+        if gid is None or gid in self._protect_queued:
+            return False
+        self._protect_queued.add(gid)
+        try:
+            async with self.grid_lock(gid):
+                self._protect_queued.discard(gid)
+                engine = self._engines.get(gid)
+                if engine is None:
+                    return False
+                started = time.monotonic()
+                done = await asyncio.to_thread(engine.protect_now)
+                self._last_instant_protect[gid] = {"at": time.time(), "ok": bool(done),
+                                                   "ms": round((time.monotonic() - started) * 1000, 1)}
+                return bool(done)
+        except Exception as exc:  # bildirim yolu hata verirse normal 5 sn döngüsü korumayı yine kurar
+            logger.warning("LIVE_GRID_INSTANT_PROTECT_FAILED grid=%s type=%s", gid, type(exc).__name__)
+            return False
+        finally:
+            self._protect_queued.discard(gid)
 
     @staticmethod
     def _flat_and_entries_done(engine: GridEngine) -> bool:

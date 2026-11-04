@@ -277,6 +277,21 @@ class GridEngine:
             return
         self._ensure_protection()
 
+    def protect_now(self) -> bool:
+        """Akıştan (Binance kullanıcı akışı) gelen dolum/tetik bildirimi: normal turu beklemeden borsayla eşitle ve
+        korumayı (stop + hedef) güncelle. Yeni giriş ve tur AÇMAZ; onları normal döngü yapar. Eşitleme başarısızsa
+        hiçbir emir göndermez (normal döngü tekrar dener)."""
+        if self.status not in (RUNNING, PAUSED):
+            return False
+        if not self.sync():
+            return False
+        self._protect_only = True
+        try:
+            self._ensure_protection()
+        finally:
+            self._protect_only = False
+        return True
+
     def sync(self) -> bool:
         """Defter ↔ borsa eşitlemesi. Tutarsızlık varsa False döner ve grid durur."""
         try:
