@@ -8143,9 +8143,9 @@ class AccountRiskUnknown(RuntimeError):
 
 
 def account_risk_budget_enabled() -> bool:
-    """Hesap seviyesi sıkı risk bütçesi kapısı. Varsayılan KAPALI; dağıtım ve mutabakat kontrolleri bitince ortamdan açılır,
-    sorun olursa bayrak kaldırılıp servis yeniden başlatılarak geri alınır."""
-    return env_flag(ACCOUNT_RISK_BUDGET_FLAG, default=False)
+    """Hesap seviyesi sıkı risk bütçesi kapısı. Varsayılan AÇIK (sahibinin kararı). Geri alma: ortama
+    KAISTRADE_ACCOUNT_RISK_BUDGET=0 yazıp servisi yeniden başlatmak yeter; kod değişikliği gerekmez."""
+    return env_flag(ACCOUNT_RISK_BUDGET_FLAG, default=True)
 
 
 def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], skip_symbols: set[str]) -> tuple[float, list[dict[str, Any]]]:
