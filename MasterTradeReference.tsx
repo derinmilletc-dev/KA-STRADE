@@ -17,6 +17,7 @@ import type {MasterMarketFeed} from './useMasterMarketQuotes'
 import {TRADING_TIMEFRAMES} from './account-settings-api'
 import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
+import {useFuturesBook} from './useFuturesBook'
 import {AnalysisDrawer, RotateOverlay, useExitTransition, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
 import {DrawingRail} from './MasterTradeDrawingRail'
 import StudioQuickTrade, {StudioPositionTabs} from './StudioQuickTrade'
@@ -403,6 +404,8 @@ export default function MasterTradeReference(props: Props) {
   const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
   const [downloading, setDownloading] = useState(false)
   const liveChart = useLiveCandles(props.symbol, props.interval, props.candles)
+  // Gerçek hesapta açık işlem varken kapanış fiyatı (en iyi alış/satış) anlık izlenir; demo hesap ayrı bir piyasa olduğu için kullanılmaz.
+  const liveBook = useFuturesBook(props.symbol, !demo && (props.positions ?? []).some(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0))
   const [drawMode, setDrawMode] = useState<DrawMode>('none')
   const [gridLines, setGridLines] = useState<GridChartLine[]>([])
   const [chartTools, setChartTools] = useState<ChartTools>({})
@@ -671,7 +674,7 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
-            <ReferenceChart {...props} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
+            <ReferenceChart {...props} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
               drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
@@ -679,7 +682,7 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
               <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
             </AnalysisDrawer>}
-            {terminal && <StudioQuickTrade symbol={props.symbol} price={liveChart.price ?? props.price} demo={demo} premium={premium} onUpgrade={() => openUpgrade('Manuel emir')} live={live}
+            {terminal && <StudioQuickTrade symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} demo={demo} premium={premium} onUpgrade={() => openUpgrade('Manuel emir')} live={live}
               analysis={analysis} decision={{direction: decision.direction, confidenceScore: decision.confidenceScore, mtfScore: decision.mtfScore, mtfConfirmed: decision.mtfConfirmed ?? 0, mtfTotal: decision.mtfTotal, status: decision.status}}
               positions={props.positions ?? []} onSelect={selectOpenPosition} drawerOpen={drawerOpen} candles={liveChart.candles} onGridLines={setGridLines} onChartTools={setChartTools} dataReady={available && liveChart.candles.length >= 2 && !props.dataIssue && !props.refreshing}/>}
           </div>

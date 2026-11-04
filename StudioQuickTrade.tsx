@@ -16,6 +16,7 @@ import {HoldButton, useHold} from './studio-hold'
 import StudioGrid from './StudioGrid'
 import {ConsentRenew} from './StudioConsent'
 import type {Candle, ChartTools, GridChartLine} from './studio-grid'
+import {bookState, freshClosePrice, type BookState, type FuturesBook} from './futures-book'
 import './studio-quick-trade.css'
 import './studio-modern.css'
 
@@ -79,17 +80,24 @@ function CloseDock({position, demo, disabled, onDone}: {position: StudioPosition
   </div>
 }
 
+/** Fiyatın ne kadar taze olduğunu gösterir: yeşil = canlı, sarı = birkaç sn gecikme, kırmızı = fiyat eski. */
+function LiveMark({state, age, compact = false}: {state: BookState; age: number; compact?: boolean}) {
+  const secs = Math.max(1, Math.round(age / 1000))
+  const label = state === 'live' ? tx('Canlı fiyat', 'Live price') : state === 'late' ? tx(`Fiyat ${secs} sn gecikti`, `Price ${secs}s late`) : tx(`Fiyat güncel değil (${secs > 99 ? '99+' : secs} sn)`, `Price is stale (${secs > 99 ? '99+' : secs}s)`)
+  return <span className="sqtLive" data-state={state} role="status" aria-label={label} title={label}><i aria-hidden="true"/>{state !== 'live' && !compact && <small>{state === 'late' ? `${secs} sn` : tx('eski', 'stale')}</small>}</span>
+}
+
 type Toast = {kind: 'ok' | 'warn' | 'error'; title: string; detail?: string}
 
 /** Üst çubuktaki (OHLC satırı) açık pozisyon sekmeleri: yalnız açık işlemleri gösterir, dokununca grafik o coine geçer. */
-export function StudioPositionTabs({positions, symbol, price, onSelect}: {positions: readonly StudioPosition[]; symbol: string; price: number | null; onSelect: (symbol: string) => void}) {
+export function StudioPositionTabs({positions, symbol, price, book = null, onSelect}: {positions: readonly StudioPosition[]; symbol: string; price: number | null; book?: FuturesBook | null; onSelect: (symbol: string) => void}) {
   const open = positions.filter(isOpen)
   const viewing = open.some(position => position.symbol === symbol)
   // Tek işlem ve zaten onun grafiğindeyken sekme gereksizdir; başka coine bakarken ya da 2+ işlemde görünür.
   if (!open.length || (open.length === 1 && viewing)) return null
   return <div className="sqtTabs" role="tablist" aria-label={tx('Açık işlemler', 'Open trades')}>
     {open.map(position => {
-      const {pnl} = positionPnl(position, position.symbol === symbol ? price : null)
+      const {pnl} = positionPnl(position, position.symbol === symbol ? freshClosePrice(sideOf(position), book, symbol, Date.now()) ?? price : null)
       const selected = position.symbol === symbol
       return <button key={position.symbol} type="button" role="tab" aria-selected={selected} className="sqtTab" data-on={selected} data-side={sideOf(position)} title={`${position.symbol} · ${sideOf(position)}`} onClick={() => onSelect(position.symbol)}>
         <i aria-hidden="true"/><b>{short(position.symbol)}</b>{pnl !== null && <span data-tone={pnl >= 0 ? 'up' : 'down'}>{signed(pnl)}</span>}
@@ -103,9 +111,11 @@ type Props = {
   live: SharedLiveStatus | null; analysis: AnalysisLevels; decision: StudioDecision
   positions: readonly StudioPosition[]; onSelect: (symbol: string) => void; drawerOpen: boolean; dataReady: boolean
   candles?: readonly Candle[]; onGridLines?: (lines: GridChartLine[]) => void; onChartTools?: (tools: ChartTools) => void
+  /** Gerçek hesapta açık coinin canlı en iyi alış/satış fiyatı; kâr/zarar kapanış fiyatından hesaplanır. */
+  book?: FuturesBook | null
 }
 
-export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines, onChartTools}: Props) {
+export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrade, live, analysis, decision, positions, onSelect, drawerOpen, dataReady, candles, onGridLines, onChartTools, book = null}: Props) {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [side, setSide] = useState<Side | null>(null)
   const [frozen, setFrozen] = useState<{price: number; levels: Levels} | null>(null)
@@ -381,7 +391,12 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const dockDisabled = !dataReady || sending || lockLeft > 0
   const aligned = (target: Side) => decision.direction === target ? 'with' : decision.direction === 'LONG' || decision.direction === 'SHORT' ? 'against' : 'none'
   const confidenceText = tx(`${aligned(side ?? 'LONG') === 'with' ? 'Analiz seninle' : 'Analiz ters'} · ${decision.direction}${decision.confidenceScore !== null ? ` · güven %${Math.round(decision.confidenceScore)}` : ''}`, `${aligned(side ?? 'LONG') === 'with' ? 'Analysis agrees' : 'Analysis is opposite'} · ${decision.direction}${decision.confidenceScore !== null ? ` · confidence ${Math.round(decision.confidenceScore)}%` : ''}`)
-  const pnl = current ? positionPnl(current, price) : null
+  // Gerçek hesapta: kapatınca dolacak fiyat (LONG → en iyi alış, SHORT → en iyi satış). Yayın yoksa eski kaynağa düşer.
+  const closeNow = (position: StudioPosition) => position.symbol === symbol ? freshClosePrice(sideOf(position), book, symbol, Date.now()) ?? price : null
+  const liveState: BookState | null = book || (!demo && current) ? bookState(book, Math.max(now, book?.at ?? 0)) : null
+  const liveAge = book ? Math.max(0, now - book.at) : 0
+  const currentClose = current ? closeNow(current) : null
+  const pnl = current ? positionPnl(current, currentClose) : null
 
   return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || journalOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
@@ -409,15 +424,15 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       {!card
         ? <button type="button" className="sqtChip" onClick={() => setCard(true)} aria-expanded="false" aria-label={tx(`${current.symbol} açık pozisyon detayı`, `${current.symbol} open position details`)}>
             <i aria-hidden="true"/><b>{sideOf(current)}{positive(current.leverage ?? undefined) ? ` ${current.leverage}x` : ''}</b><span className="sqtSep" aria-hidden="true"/>
-            <strong>{pnl.pnl === null ? '—' : `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`}</strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}<ChevronUp aria-hidden="true"/>
+            <strong>{pnl.pnl === null ? '—' : `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`}</strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}{liveState && <LiveMark state={liveState} age={liveAge} compact/>}<ChevronUp aria-hidden="true"/>
           </button>
-        : <PositionCard position={current} price={price} pnl={pnl} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
+        : <PositionCard position={current} price={currentClose} pnl={pnl} live={liveState ? {state: liveState, age: liveAge} : undefined} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
-            manage={canManage ? {mark: positive(price) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop), trail: {pct: activeTrail, error: trailError, onSet: pct => void setTrail(pct)}} : undefined} demoManageNote={demo && !canManage}/>}
+            manage={canManage ? {mark: positive(currentClose) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop), trail: {pct: activeTrail, error: trailError, onSet: pct => void setTrail(pct)}} : undefined} demoManageNote={demo && !canManage}/>}
       {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
-        <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, item.symbol === symbol ? price : null).pnl ?? 0), 0))} USDT</strong></span></header>
-        {open.map(item => { const value = positionPnl(item, item.symbol === symbol ? price : null); return <button key={item.symbol} type="button" className="sqtTrayRow" data-on={item.symbol === symbol} onClick={() => { onSelect(item.symbol); setTray(false) }}>
+        <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0))} USDT</strong></span></header>
+        {open.map(item => { const value = positionPnl(item, closeNow(item)); return <button key={item.symbol} type="button" className="sqtTrayRow" data-on={item.symbol === symbol} onClick={() => { onSelect(item.symbol); setTray(false) }}>
           <i data-tone={(value.pnl ?? 0) >= 0 ? 'up' : 'down'} aria-hidden="true"/><b>{item.symbol}</b><em data-side={sideOf(item)}>{sideOf(item)}{positive(item.leverage ?? undefined) ? ` ${item.leverage}x` : ''}</em>
           <span data-tone={(value.pnl ?? 0) >= 0 ? 'up' : 'down'}>{value.pnl === null ? '—' : signed(value.pnl)}</span><small>{value.pct === null ? '' : `${signed(value.pct)}%`}</small>
         </button> })}
@@ -557,8 +572,8 @@ function StopManager({position, manage, sending, busy}: {position: StudioPositio
   </div>
 }
 
-function PositionCard({position, price, pnl, rights, demo, busy, action, actionError, onCollapse, onAsk, onCancelAsk, onRun, onTray, manage, demoManageNote}: {
-  position: StudioPosition; price: number | null; pnl: {pnl: number | null; pct: number | null}
+function PositionCard({position, price, pnl, live, rights, demo, busy, action, actionError, onCollapse, onAsk, onCancelAsk, onRun, onTray, manage, demoManageNote}: {
+  position: StudioPosition; price: number | null; pnl: {pnl: number | null; pct: number | null}; live?: {state: BookState; age: number}
   rights: {id: string; close: boolean; reduce: boolean}; demo: boolean; busy: string | null; action: 'half' | 'close' | null; actionError: string
   onCollapse: () => void; onAsk: (kind: 'half' | 'close') => void; onCancelAsk: () => void; onRun: (kind: 'half' | 'close') => void; onTray?: () => void; manage?: Manage; demoManageNote?: boolean
 }) {
@@ -569,7 +584,8 @@ function PositionCard({position, price, pnl, rights, demo, busy, action, actionE
     <div className="sqtCardTop"><i aria-hidden="true"/><b>{position.symbol}</b><span data-side={side}>{side}{positive(position.leverage ?? undefined) ? ` ${position.leverage}x` : ''}</span>
       {onTray && <button type="button" className="sqtLink" onClick={onTray}>{tx('Tümü', 'All')}</button>}
       <button type="button" className="sqtRound" aria-label={tx('Küçült', 'Collapse')} onClick={onCollapse}><ChevronDown/></button></div>
-    <div className="sqtPnl"><strong>{pnl.pnl === null ? '—' : signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} <u>USDT</u></strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}</div>
+    <div className="sqtPnl"><strong>{pnl.pnl === null ? '—' : signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} <u>USDT</u></strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}{live && <LiveMark state={live.state} age={live.age}/>}</div>
+    {live && positive(price) && <p className="sqtCloseAt">{tx('Şimdi kapatırsan yaklaşık', 'If you close now, about')} <b>{analysisPrice(positive(price))}</b>{live.state === 'stale' && <em>{tx(' · fiyat güncel değil, dikkat', ' · price is stale, careful')}</em>}</p>}
     <div className="sqtMeta">{entry && <span>{tx('Giriş', 'Entry')} <b>{analysisPrice(entry)}</b></span>}{stop && <span>Stop <b data-tone="down">{analysisPrice(stop)}</b></span>}{tp1 && <span>TP1 <b data-tone="up">{analysisPrice(tp1)}</b></span>}{!stop && !tp1 && <span>{tx('Anlık', 'Now')} <b>{analysisPrice(positive(price) ?? positive(position.mark_price))}</b></span>}</div>
     {action === null && <div className="sqtActs">
       {rights.reduce && <button type="button" className="sqtBtn" disabled={sending} onClick={() => onAsk('half')}>{tx('Yarısını kapat', 'Close half')}</button>}
