@@ -27,8 +27,9 @@ def synthetic(n=520, seed=7, start=1_700_000_000 - 1_700_000_000 % M15):
 
 
 def test_pure_python_features_match_pandas_reference():
-    import numpy as np
-    import pandas as pd
+    import pytest
+    np = pytest.importorskip("numpy")
+    pd = pytest.importorskip("pandas")
     import analyst_v2_features_ref as ref
     for seed in (1, 2, 3):
         rows = synthetic(seed=seed)

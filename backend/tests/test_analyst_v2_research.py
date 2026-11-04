@@ -2,8 +2,10 @@
 import sys
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
+import pytest
+
+np = pytest.importorskip("numpy")      # araştırma aracı; üretim bağımlılığı değil
+pd = pytest.importorskip("pandas")
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
