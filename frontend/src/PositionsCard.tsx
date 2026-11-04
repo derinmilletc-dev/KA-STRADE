@@ -1,13 +1,15 @@
 import {useMemo, useState, type CSSProperties} from 'react'
 import {ChevronDown, X} from 'lucide-react'
 import {duration} from './live-guide'
+import {closeEstimate, type QuoteMap} from './live-quote'
 import {
   formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, sortPositions, summarize,
   type Ladder, type PositionMetrics, type PositionSort, type RawRecord,
 } from './position-view'
 
 // Kapatma / düzenleme hedefleri LiveCockpit'teki türlerle birebir aynıdır (orada onay penceresi açılır; bu dosya emir göndermez).
-export type PositionCloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null}
+// long/entryPrice/quantity: onay penceresi açıkken K/Z'yi canlı fiyattan yeniden hesaplamak için.
+export type PositionCloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null}
 export type PositionManualTarget = PositionCloseTarget & {stop: string; targets: [string, string, string]; mark: string}
 export type SmartPositionItem = {plan_id?: string; symbol?: string; mode?: string; last_score?: number | null; timer_end?: number | null; direction_state?: string; opposite_confidence?: number | null}
 
@@ -21,6 +23,8 @@ type Props = {
   onClose: (target: PositionCloseTarget) => void
   onEdit: (target: PositionManualTarget) => void
   onReduce: (target: PositionManualTarget, percent: 25 | 50 | 75) => void
+  /** Binance'ten canlı en iyi alış/satış (useLiveQuotes). Taze değilse sunucu verisi gösterilir ve uyarı çıkar. */
+  quotes?: QuoteMap; quoteNow?: number
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -76,18 +80,23 @@ export default function PositionsCard(props: Props) {
     const confirmed = !external && plan?.provenance_state === 'CONFIRMED'
     const protection = confirmed ? (plan?.exchange_protection as {stop?: boolean; tp1?: boolean; tp2?: boolean; tp3?: boolean} | undefined) : undefined
     // Dış pozisyonda plan yoktur: stop/hedef bilinmez, yalnız Binance verisi gösterilir.
-    const metrics = positionMetrics(position, external ? undefined : plan, now)
-    return {key: `${String(position.symbol)}-${index}`, position, plan, external, confirmed, protection, metrics, protectedStop: confirmed && protection?.stop === true}
-  }), [positions, findPlan, now])
+    const base = positionMetrics(position, external ? undefined : plan, now)
+    // Ekrandaki K/Z: Binance'in anlık kapanış fiyatından (LONG → alış, SHORT → satış). Taze fiyat yoksa sunucu verisi.
+    const estimate = closeEstimate({long: base.long, entry: base.entry, quantity: base.quantity, quote: props.quotes?.[base.symbol.toUpperCase()], nowMs: props.quoteNow ?? Date.now()})
+    const metrics = estimate ? positionMetrics(position, external ? undefined : plan, now, {price: estimate.exitPrice, pnl: estimate.pnl}) : base
+    return {key: `${String(position.symbol)}-${index}`, position, plan, external, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: confirmed && protection?.stop === true}
+  }), [positions, findPlan, now, props.quotes, props.quoteNow])
   const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
   const summary = useMemo(() => summarize(items, {wallet: props.wallet, dailyLoss: props.dailyLoss, dailyLimit: props.dailyLimit, exposureLimit: props.exposureLimit}), [items, props.wallet, props.dailyLoss, props.dailyLimit, props.exposureLimit])
 
   const title = `Açık pozisyonlar${live ? ` · ${positions.length}${props.maxPositions !== null ? ` / ${props.maxPositions}` : ''}` : ''}`
-  const freshness = live ? stale ? `${duration(staleAge)} önce` : 'Binance verisi' : 'Doğrulama bekleniyor'
+  const allLive = items.length > 0 && items.every(item => item.livePrice)
+  const freshness = live ? stale ? `${duration(staleAge)} önce` : positions.length === 0 ? 'Binance verisi' : allLive ? '● Canlı fiyat' : '⚠ Fiyat gecikmeli olabilir' : 'Doğrulama bekleniyor'
   const smartFor = (plan: RawRecord | undefined, symbol: string) => props.smartItems.find(item => (item.plan_id && item.plan_id === plan?.id) || item.symbol === symbol)
 
   return <section className="lcCard pvRoot" aria-label="Açık pozisyonlar" data-view={view}>
-    <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>{title}</h3></div><small>{freshness}</small></header>
+    <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>{title}</h3></div><small data-tone={live && !stale && positions.length > 0 ? allLive ? 'up' : 'warn' : undefined}>{freshness}</small></header>
+    {live && positions.length > 0 && !allLive && <p className="lcStaleNote" role="status">Canlı fiyat alınamadı: kâr/zarar 10–30 sn geriden gelebilir. Kapatmadan önce Binance uygulamasından kontrol et.</p>}
     {positions.length === 0 ? <p className="lcEmpty">{live ? running ? 'Şu an açık pozisyon yok. Uygun fırsat çıkınca stop ve hedefleriyle burada görünür.' : 'Açık pozisyon yok.' : 'Güncel pozisyonlar doğrulanamadı.'}</p> : <div className="pvInner">
       <div className="pvTools">
         <div className="pvSeg pvViewSeg" role="group" aria-label="Görünüm">
@@ -113,7 +122,7 @@ export default function PositionsCard(props: Props) {
           <em>{summary.protectedCount === summary.count ? 'Stop ve hedefler Binance’te' : 'Doğrulanamayan pozisyon var'}</em></div>
       </div>
 
-      <div className="pvCards">{sorted.map(({key, position, plan, external, confirmed, protection, metrics, protectedStop}) => {
+      <div className="pvCards">{sorted.map(({key, position, plan, external, confirmed, protection, metrics, livePrice, protectedStop}) => {
         const pnl = metrics.pnl
         const planId = plan && typeof plan.id === 'string' ? plan.id : ''
         // Yalnız sahipliği doğrulanmış bot pozisyonu kapatılabilir (sunucu da aynısını ister); dış pozisyona dokunulmaz.
@@ -128,7 +137,7 @@ export default function PositionsCard(props: Props) {
         const flag = (ok: boolean | undefined, name: string, withBinance = false) => <span className="pvFlag" data-ok={ok === true || undefined}>{ok === true ? `${name} ✓${withBinance ? ' Binance’te' : ''}` : `${name} doğrulanamadı`}</span>
         const levels = Array.isArray(plan?.targets) ? (plan?.targets as unknown[]).map(value => String(value ?? '')) : []
         const manualTarget: PositionManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
-          stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: String(position.mark_price ?? '—')}
+          stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: metrics.mark !== null ? formatPrice(metrics.mark) : String(position.mark_price ?? '—')}
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
@@ -148,7 +157,7 @@ export default function PositionsCard(props: Props) {
                 <span className="pvSlimName"><b>{metrics.coin || '—'}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
                 <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span></small>
               </span>
-              <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT · ${formatR(metrics.rMultiple)}` : 'USDT'}</small></span>
+              <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT · ${formatR(metrics.rMultiple)}` : 'USDT'}{livePrice ? '' : ' · gecikmeli'}</small></span>
               <ChevronDown className="pvSlimChev" aria-hidden="true"/>
             </span>
             {progress !== null && <span className="pvThin" data-level={metrics.level} aria-hidden="true"><i style={{width: `${progress}%`}}/><em style={{left: `${progress}%`}}/></span>}
@@ -204,7 +213,8 @@ export default function PositionsCard(props: Props) {
                   <button type="button" key={percent} className="lcBtn" disabled={busy || protection?.stop !== true} aria-label={`Pozisyonun %${percent}’ini kapat`} onClick={() => props.onReduce(manualTarget, percent)}>{`%${percent}`}</button>)}</span>
               </>}
               <button type="button" className="pvClose" disabled={busy}
-                onClick={() => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl})}>
+                onClick={() => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
+                  long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity})}>
                 <X aria-hidden="true"/>Pozisyonu kapat</button>
             </div>}
             <button type="button" className="pvToggle" aria-expanded={isOpen} onClick={toggle}>Gizle<ChevronDown aria-hidden="true"/></button>

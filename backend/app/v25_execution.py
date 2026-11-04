@@ -2838,6 +2838,18 @@ async def post_algo(client: BinanceLiveClient, params: dict[str, Any]) -> dict[s
         raise
 
 
+def close_fill_price(result: dict[str, Any] | None) -> float | None:
+    """Piyasa kapanış emrinin ortalama dolum fiyatı (newOrderRespType=RESULT); dolmadıysa/okunamazsa None."""
+    if not isinstance(result, dict):
+        return None
+    try:
+        price = float(result.get("avgPrice") or 0)
+        executed = float(result.get("executedQty") or 0)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 and executed > 0 else None
+
+
 async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: str) -> dict[str, Any] | None:
     rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
     row = next((item for item in rows if Decimal(str(item.get("positionAmt", "0"))) != 0), None)
@@ -8746,9 +8758,12 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
     if body.confirmation.strip().upper() != "CANLI POZİSYONU KAPAT":
         raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
     state = request.app.state.v25_execution
+    # Süre ölçümü: kullanıcı "bastığım an ile dolduğu an" farkını görebilsin (kilit beklemesi + borsa süresi).
+    started = time.monotonic()
     # Kapatma, uzlaştırma/koruma döngüsüyle aynı kilit altında çalışır: aynı sembolde kapanış, stop ve
     # yeniden giriş olayları iç içe geçip çift emir ya da çelişen plan durumu üretemez.
     async with state["lock"]:
+        lock_wait_ms = int((time.monotonic() - started) * 1000)
         plan = state.get("plans", {}).get(body.plan_id)
         if not plan:
             raise HTTPException(404, "Tracked canlı plan bulunamadı.")
@@ -8769,9 +8784,13 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                     known.append(order_id)
             plan["close_reason"] = close_reason_for_intent(close_intent)
             plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
-            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"])
+            total_ms = int((time.monotonic() - started) * 1000)
+            fill_price = close_fill_price(result)
+            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"],
+                      fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
-            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan}
+            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
+                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms}
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
 
