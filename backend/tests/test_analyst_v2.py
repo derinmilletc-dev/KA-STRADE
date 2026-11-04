@@ -78,6 +78,11 @@ def test_output_contract_and_thresholds():
         assert sum(c["weight_pct"] for c in out["components"]) in range(98, 103)
         assert out["movement"]["level"] in ("YUKSEK", "ORTA", "DUSUK")
         assert "olasılık değildir" in out["note"]
+        lv = out["levels"]
+        assert lv["down"] < out["price"] < lv["up"] and lv["low_20h"] <= out["price"] <= lv["high_20h"]
+        assert all(c["insight"] for c in out["components"]) and out["meaning"]
+        assert [m["label"] for m in out["market"]] == ["Trend", "RSI", "Oynaklık", "Hacim"]
+        assert out["as_of"] == rows[-1]["time"] + M15
 
 
 def test_model_file_matches_code():

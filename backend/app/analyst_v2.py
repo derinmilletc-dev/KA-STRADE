@@ -296,6 +296,92 @@ def _details(f: dict[str, float]) -> dict[str, str]:
             "hacim": " · ".join(hacim), "volatilite": " · ".join(vol)}
 
 
+def _price(x: float) -> str:
+    """Fiyatı büyüklüğüne göre okunur basamakla yazar (Türkçe ondalık)."""
+    digits = 2 if x >= 100 else 4 if x >= 1 else 6
+    whole, _, frac = f"{x:,.{digits}f}".partition(".")
+    return whole.replace(",", ".") + ("," + frac if frac else "")
+
+
+def _facts(f: dict[str, float]) -> dict[str, tuple[str, int]]:
+    """Her bileşen için teknik terimsiz tek cümle ve bu durumun 'ilk bakıştaki' yönü (+1 yukarı, -1 aşağı, 0 yok)."""
+    out = {}
+    ext, stack = f["c_e20"], _sign(f["e20_e50"]) + _sign(f["e50_e200"])
+    side = "üstünde" if ext >= 0 else "altında"
+    bias = 1 if stack >= 1 and f["structure"] >= 0 else -1 if stack <= -1 and f["structure"] <= 0 else 0
+    if abs(ext) >= 2:
+        out["trend"] = (f"Fiyat kısa sürede ortalamasından çok {'yukarı' if ext > 0 else 'aşağı'} uzaklaştı.", _sign(ext))
+    elif bias:
+        out["trend"] = (f"Fiyat ortalamalarının {side}; genel gidişat {'yükseliş' if bias > 0 else 'düşüş'} yönünde, trend "
+                        f"{'güçlü' if f['adx'] >= 25 else 'zayıf'}.", bias)
+    else:
+        out["trend"] = (f"Fiyat ortalamalarının {side}, ancak genel gidişat net değil.", _sign(ext))
+    rsi = round(f["rsi"] + 50)
+    if rsi >= 70:
+        out["momentum"] = (f"Alım tarafı aşırı ısınmış (RSI {rsi}).", 1)
+    elif rsi <= 30:
+        out["momentum"] = (f"Satış tarafı aşırı ısınmış (RSI {rsi}).", -1)
+    elif abs(f["ret4"]) >= 1.5:
+        out["momentum"] = (f"Son 1 saatte fiyat normalden hızlı {'yükseldi' if f['ret4'] > 0 else 'düştü'} (RSI {rsi}).", _sign(f["ret4"]))
+    else:
+        out["momentum"] = (f"Fiyatın hızı dengeli, belirgin bir ivme yok (RSI {rsi}).", 0)
+    if f["false_breakout"]:
+        out["yapi"] = ("Fiyat son 20 saatin dibinin altına sarktı ama geri döndü; alıcılar bu seviyeyi savundu." if f["false_breakout"] > 0
+                       else "Fiyat son 20 saatin tepesini aştı ama geri düştü; satıcılar bu seviyeyi savundu.", _sign(f["false_breakout"]))
+    elif f["breakout"]:
+        out["yapi"] = ("Fiyat son 20 saatin " + ("tepesini yukarı kırdı." if f["breakout"] > 0 else "dibini aşağı kırdı."), _sign(f["breakout"]))
+    elif f["dist_hi"] < 0.75:
+        out["yapi"] = ("Fiyat son 20 saatin tepesine çok yakın; bu bölge direnç olabilir.", -1)
+    elif f["dist_lo"] < 0.75:
+        out["yapi"] = ("Fiyat son 20 saatin dibine çok yakın; bu bölge destek olabilir.", 1)
+    else:
+        out["yapi"] = ("Fiyat son 20 saatin tepesi ile dibi arasında, belirgin bir kırılım yok.", 0)
+    rv = f["rvol"]
+    if rv >= 1.5:
+        out["hacim"] = (f"Son 15 dakikada işlem hacmi normalin {_fmt(rv, 1)} katına çıktı.", _sign(f["ret4"]))
+    elif rv <= 0.6:
+        out["hacim"] = ("İşlem hacmi normalin altında; harekete katılım zayıf.", 0)
+    else:
+        out["hacim"] = ("İşlem hacmi normal seviyede.", 0)
+    vp = f["atr_pct"]
+    calm = "hareketli" if vp >= 0.67 else "sakin" if vp <= 0.33 else "normal"
+    out["volatilite"] = (f"Fiyat son 3 güne göre {calm}" + ("; büyük bir hareket ihtimali artıyor." if calm == "hareketli"
+                         else "; yatay kalma ihtimali artıyor." if calm == "sakin" else "."), 0)
+    return out
+
+
+def _insight(group: str, fact: tuple[str, int], push: str) -> str:
+    """Olguyu, modelin bu bileşeni hangi yöne okuduğuyla birleştirir."""
+    text, naive = fact
+    if push == "NÖTR":
+        return text
+    want = 1 if push == "LONG" else -1
+    if naive == want:
+        return text + (" Yükselişi destekliyor." if want > 0 else " Düşüşü destekliyor.")
+    if naive == -want:
+        return text + (" Geçmişte bunun ardından fiyat çoğu zaman toparlandı." if want > 0
+                       else " Geçmişte bunun ardından fiyat çoğu zaman geri çekildi.")
+    return text + (" Diğer bulgularla birlikte yükselişe hafif katkı." if want > 0 else " Diğer bulgularla birlikte düşüşe hafif katkı.")
+
+
+def _market(f: dict[str, float]) -> list[dict[str, str]]:
+    """Kısa piyasa durumu: etiket, değer, ton (positive/negative/neutral)."""
+    stack = _sign(f["e20_e50"]) + _sign(f["e50_e200"])
+    trend = ("Yükseliş", "positive") if stack >= 1 and f["structure"] >= 0 else \
+            ("Düşüş", "negative") if stack <= -1 and f["structure"] <= 0 else ("Kararsız", "neutral")
+    rsi = f["rsi"] + 50
+    rsi_t = ("Aşırı alım", "negative") if rsi >= 70 else ("Aşırı satım", "positive") if rsi <= 30 else ("Dengeli", "neutral")
+    vp = f["atr_pct"]
+    vol_t = "Yüksek" if vp >= 0.67 else "Düşük" if vp <= 0.33 else "Normal"
+    return [
+        {"label": "Trend", "value": trend[0], "hint": f"Güç: {'güçlü' if f['adx'] >= 25 else 'zayıf'} (ADX {round(f['adx'])})", "tone": trend[1]},
+        {"label": "RSI", "value": str(round(rsi)), "hint": rsi_t[0], "tone": rsi_t[1]},
+        {"label": "Oynaklık", "value": vol_t, "hint": f"1 saatte tipik hareket ±%{_fmt(f['atr_rel'] * 200)}", "tone": "neutral"},
+        {"label": "Hacim", "value": "Yüksek" if f["rvol"] >= 1.5 else "Düşük" if f["rvol"] <= 0.6 else "Normal",
+         "hint": f"Son 15 dk: normalin {_fmt(f['rvol'], 1)} katı", "tone": "neutral"},
+    ]
+
+
 # ------------------------------------------------------------------ değerlendirme
 def evaluate(candles: list[dict], now: float | None = None, model: dict | None = None) -> dict[str, Any]:
     """Tek coin için analist sonucu. `candles` = Binance 15m mumları (açık mum otomatik atılır)."""
@@ -342,6 +428,22 @@ def evaluate(candles: list[dict], now: float | None = None, model: dict | None =
                        " aşırı uzadı; geçmişte bu durum çoğunlukla geri dönüşle sonuçlandı")
         components.append({"group": g, "label": GROUP_LABELS[g], "push": push, "weight_pct": round(abs(val) / total * 100),
                            "contribution": round(val, 4), "detail": detail})
+    facts = _facts(f)
+    for comp in components:
+        comp["insight"] = _insight(comp["group"], facts[comp["group"]], comp["push"])
+    # "Belirgin hareket" eşiği: etiketteki kuralla aynı (maliyet + k·σ, σ = ATR/fiyat·√4).
+    price = rows[-1]["close"]
+    thr = model["cost"] + model["k"] * f["atr_rel"] * 2
+    up_level, down_level = price * math.exp(thr), price * math.exp(-thr)
+    if direction == "BEKLE":
+        meaning = (f"Önümüzdeki 1 saat için iki yön de benzer görünüyor. Fiyatın {_price(up_level)} üstüne çıkma ya da "
+                   f"{_price(down_level)} altına inme ihtimali birbirine yakın; en olası sonuç yatay seyir.")
+    elif direction == "SHORT":
+        meaning = (f"1 saat içinde fiyatın {_price(down_level)} altına inme ihtimali, {_price(up_level)} üstüne çıkma "
+                   f"ihtimalinden daha yüksek görünüyor.")
+    else:
+        meaning = (f"1 saat içinde fiyatın {_price(up_level)} üstüne çıkma ihtimali, {_price(down_level)} altına inme "
+                   f"ihtimalinden daha yüksek görünüyor.")
     move_text = {"YUKSEK": "yüksek", "ORTA": "orta", "DUSUK": "düşük"}[move_level]
     if direction == "BEKLE":
         summary = (f"Belirgin bir 1 saatlik yön eğilimi yok (puan {score}/100, hafif {lean} eğilimli). "
@@ -365,5 +467,10 @@ def evaluate(candles: list[dict], now: float | None = None, model: dict | None =
                     "opposite_rate": round(hist["opposite"], 4), "flat_rate": round(hist["flat"], 4), "base_rate": round(hist["base"], 4),
                     "avg_net_bp": round(hist["net_bp"], 1)} if hist else None,
         "components": components, "summary": summary,
+        "as_of": rows[-1]["time"] + M15, "price": price,
+        "levels": {"up": round(up_level, 10), "down": round(down_level, 10), "move_pct": round(thr * 100, 3),
+                   "high_20h": max(r["high"] for r in rows[-80:]), "low_20h": min(r["low"] for r in rows[-80:])},
+        "meaning": meaning,
+        "market": _market(f),
         "data_quality": {"closed_bars": len(rows), "status": "IYI"},
     }

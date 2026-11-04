@@ -12,8 +12,8 @@ import './analyst-v2.css'
 import ScrollHintStrip from './ScrollHintStrip'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
-type AnalystV2Component = {group:string;label:string;push:'LONG'|'SHORT'|'NÖTR';weight_pct:number;contribution:number;detail:string}
-type AnalystV2 = {status:'OK'|'VERI_YETERSIZ';model_version:string;horizon:string;note:string;analyst_direction:Direction;analyst_lean?:'LONG'|'SHORT';analyst_score:number|null;analyst_strength?:string;probabilities?:{LONG:number;SHORT:number;BEKLE:number};movement?:{level:'YUKSEK'|'ORTA'|'DUSUK';percentile:number;historical_share_moved:number|null};history?:{band:string;direction:string;samples:number;hit_rate:number;opposite_rate:number;base_rate:number;avg_net_bp:number}|null;components?:AnalystV2Component[];summary?:string}
+type AnalystV2Component = {group:string;label:string;push:'LONG'|'SHORT'|'NÖTR';weight_pct:number;contribution:number;detail:string;insight?:string}
+type AnalystV2 = {status:'OK'|'VERI_YETERSIZ';model_version:string;horizon:string;note:string;analyst_direction:Direction;analyst_lean?:'LONG'|'SHORT';analyst_score:number|null;analyst_strength?:string;probabilities?:{LONG:number;SHORT:number;BEKLE:number};movement?:{level:'YUKSEK'|'ORTA'|'DUSUK';percentile:number;historical_share_moved:number|null};history?:{band:string;direction:string;samples:number;hit_rate:number;opposite_rate:number;base_rate:number;avg_net_bp:number}|null;components?:AnalystV2Component[];summary?:string;as_of?:number;price?:number;levels?:{up:number;down:number;move_pct:number;high_20h:number;low_20h:number};meaning?:string;market?:{label:string;value:string;hint:string;tone:'positive'|'negative'|'neutral'}[]}
 type Row = {analyst_v2?:AnalystV2|null;symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
 type Consensus = {direction:string;alignment:number;timeframes:{timeframe:string;direction:string;confidence:number}[]}
 type SignalHistoryItem = {id:string;symbol:string;timestamp:string;signal:Direction;score:number;entry:number;stop:number;tp1:number;tp2:number;tp3:number;timeframe:string;mtf:string;risk_reward:number;status:string}
@@ -33,6 +33,8 @@ const scoreLabel = (score:number) => score >= 90 ? 'Çok güçlü' : score >= 75
 const pct0 = (value:number) => `%${Math.round(value * 100)}`
 const MOVE_TEXT:Record<string,string> = {YUKSEK:'Yüksek',ORTA:'Orta',DUSUK:'Düşük'}
 const analystV2Of = (row?:Row|null) => row?.analyst_v2?.status === 'OK' && row.analyst_v2.analyst_score !== null ? row.analyst_v2 : null
+const priceTr = (value:number) => value.toLocaleString('tr-TR',{maximumFractionDigits:value >= 100 ? 2 : value >= 1 ? 4 : 6})
+const timeTr = (epoch:number) => new Date(epoch * 1000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})
 const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
   const score = v2.analyst_score ?? 0
   const lean = v2.analyst_lean ?? 'LONG'
@@ -41,6 +43,8 @@ const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
   const waiting = v2.analyst_direction === 'BEKLE'
   const h = v2.history
   const up = h?.direction === 'LONG'
+  const p = v2.probabilities
+  const lv = v2.levels
   const components = v2.components || []
   const maxWeight = Math.max(1, ...components.map(item => item.weight_pct))
   return <section className={`av2 av2-${tone(v2.analyst_direction)}`} aria-label="Analist görüşü">
@@ -55,27 +59,60 @@ const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
       <div className="av2Track"><i className="av2Zone"/><i className="av2Needle" style={{left:`${position}%`}}/></div>
       <div className="av2Ends"><span>SHORT</span><span>BEKLE</span><span>LONG</span></div>
     </div>
+    {v2.meaning && <p className="av2Meaning">{v2.meaning}</p>}
+    {p && <div className="av2Odds" aria-label="Önümüzdeki 1 saat için tahmin">
+      <div className="av2OddsBar" aria-hidden="true">
+        <i className="negative" style={{flexGrow:p.SHORT}}/><i className="neutral" style={{flexGrow:p.BEKLE}}/><i className="positive" style={{flexGrow:p.LONG}}/>
+      </div>
+      <div className="av2OddsLabels">
+        <span className="negative">Düşüş <b>{pct0(p.SHORT)}</b></span>
+        <span>Yatay <b>{pct0(p.BEKLE)}</b></span>
+        <span className="positive">Yükseliş <b>{pct0(p.LONG)}</b></span>
+      </div>
+    </div>}
     {h && !waiting && <p className="av2History">Geçmişte bu güçteki sinyallerden 1 saat içinde <b>{pct0(h.hit_rate)} {up ? 'yükseldi' : 'düştü'}</b>, {pct0(h.opposite_rate)} ters yöne gitti, kalanı yatay kaldı. Rastgele seçimde bu oran {pct0(h.base_rate)}.</p>}
-    <div className="av2Why">
-      <h4>Neden?</h4>
-      <ul>{components.map(item => {
+    <div className="av2Block">
+      <h4>Neden bu sonuç?</h4>
+      <ul className="av2Why">{components.map(item => {
         const width = item.weight_pct / maxWeight * 50
         const side = item.push === 'LONG' ? 'right' : item.push === 'SHORT' ? 'left' : 'none'
-        return <li key={item.group}><details>
-          <summary>
+        return <li key={item.group}>
+          <div className="av2Row">
             <span className="av2Label">{item.label}</span>
-            <span className="av2Bar"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
+            <span className="av2Bar" aria-hidden="true"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
             <span className={`av2Push ${item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}`}>{item.push === 'NÖTR' ? 'Nötr' : item.push}</span>
-          </summary>
-          <p>{item.detail}</p>
-        </details></li>
+          </div>
+          {item.insight && <p className="av2Insight">{item.insight}</p>}
+          <details className="av2Tech"><summary>Teknik değerler</summary><p>{item.detail}</p></details>
+        </li>
       })}</ul>
     </div>
+    {v2.market && <div className="av2Block">
+      <h4>Piyasa durumu</h4>
+      <dl className="av2Market">{v2.market.map(item => <div key={item.label}>
+        <dt>{item.label}</dt><dd className={item.tone}>{item.value}</dd><small>{item.hint}</small>
+      </div>)}</dl>
+    </div>}
+    {lv && <div className="av2Block">
+      <h4>Takip edilecek seviyeler</h4>
+      <ul className="av2Levels">{[
+        {key:'hi', label:'20 saatin tepesi', value:lv.high_20h, cls:''},
+        {key:'up', label:'Belirgin yükseliş sınırı', value:lv.up, cls:'positive'},
+        ...(v2.price !== undefined ? [{key:'now', label:'Şu anki fiyat', value:v2.price, cls:'now'}] : []),
+        {key:'dn', label:'Belirgin düşüş sınırı', value:lv.down, cls:'negative'},
+        {key:'lo', label:'20 saatin dibi', value:lv.low_20h, cls:''},
+      ].sort((x, y) => y.value - x.value).map(item => <li key={item.key} className={item.cls === 'now' ? 'av2Now' : undefined}><span>{item.label}</span><b className={item.cls === 'now' ? undefined : item.cls || undefined}>{priceTr(item.value)}</b></li>)}</ul>
+      <p className="av2Hint">1 saat sonra fiyat ±%{lv.move_pct.toLocaleString('tr-TR',{maximumFractionDigits:2})} dışına çıkarsa hareket belirgin sayılır; içinde kalırsa yatay.</p>
+    </div>}
     <dl className="av2Facts">
       {v2.movement && <div><dt>Hareket beklentisi</dt><dd>{MOVE_TEXT[v2.movement.level]}</dd></div>}
       {h && <div><dt>Masraf sonrası geçmiş ortalama</dt><dd className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : '−'}{Math.abs(h.avg_net_bp).toLocaleString('tr-TR')} bp</dd></div>}
+      {v2.as_of && <div><dt>Veri</dt><dd>{timeTr(v2.as_of)} itibarıyla</dd></div>}
     </dl>
-    <p className="av2Note">Puan olasılık değildir ve işlem sinyali değildir; 2022–2026 geçmiş verisiyle ölçüldü.</p>
+    <details className="av2Help">
+      <summary>Puan nasıl okunur?</summary>
+      <p>Puan, bu saatteki yön eğiliminin geçmişteki tüm saatlerle karşılaştırmasıdır: {score} puan, geçmişteki her 100 saatin yaklaşık {score} tanesinden daha net bir eğilim demektir. 60'ın altında yön verilmez, 80 ve üstü güçlü sayılır. Yukarıdaki düşüş/yatay/yükseliş yüzdeleri 2022–2026 verisinde ölçülmüş olasılıklardır; masraflar düşüldüğünde geçmişte ortalama kâr çıkmadı, bu yüzden tek başına işlem sinyali olarak kullanılmamalı.</p>
+    </details>
   </section>
 }
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
