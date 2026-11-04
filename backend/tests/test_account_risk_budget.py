@@ -12,6 +12,14 @@ from app import v25_execution as live
 import test_account_reservations as reservation_tests
 
 ON = {live.ACCOUNT_RISK_BUDGET_FLAG: "1"}
+OFF = {live.ACCOUNT_RISK_BUDGET_FLAG: "0"}
+
+
+def _off(case):
+    """Bayrak varsayılan AÇIK; 'kapalı' davranışı sınayan testler bayrağı açıkça 0 yapar (test bitince geri alınır)."""
+    patcher = patch.dict(os.environ, OFF)
+    patcher.start()
+    case.addCleanup(patcher.stop)
 
 
 def pos(symbol, direction="LONG", qty=1.0, entry=100.0, mark=100.0, leverage=10, margin_type="isolated"):
@@ -74,7 +82,7 @@ class BudgetComposition(unittest.TestCase):
             return live.shared_daily_budget(app, state, None, {"positions": list(positions)} if snapshot else None)
 
     def test_flag_off_keeps_the_previous_behaviour(self):
-        os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+        _off(self)
         got = self.budget(realized=-2.0, grid=3.0, positions=[pos("ETHUSDT")])
         self.assertEqual((got["budget_left"], got["committed"], "strict" in got), (98.0, 3.0, False))
 
@@ -108,7 +116,7 @@ class GridStartRisk(unittest.TestCase):
             return live.grid_start_account_open_risk(state, {"positions": positions}, grid_symbols)
 
     def test_flag_off_adds_nothing(self):
-        os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+        _off(self)
         self.assertEqual(self.call({}, [pos("ETHUSDT", margin_type="cross")]), 0.0)
 
     def test_flag_on_adds_non_grid_open_risk_only(self):
@@ -155,7 +163,7 @@ class GridStartCallSite(unittest.TestCase):
                 return exc
 
     def test_flag_off_the_preview_plan_ignores_open_positions(self):
-        os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+        _off(self)
         result = self.start({}, [pos("ETHUSDT", qty=2)], {"p": plan("ETHUSDT", "LONG", 90)})     # açık risk 20 USDT, limit 10
         self.assertTrue(isinstance(result, dict) and result.get("preview"), result)
 
@@ -182,7 +190,7 @@ class EntryGate(unittest.TestCase):
             return self.h._execute(**kwargs)
 
     def setUp(self):
-        os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+        _off(self)
 
     def test_flag_off_a_lone_trade_passes_exactly_as_before(self):
         result, submit, *_ = self.run_entry(daily_limit=1.0)                       # risk 2 > limit 1 ama bayrak kapalı
@@ -304,3 +312,15 @@ class EntryGate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DefaultIsOn(unittest.TestCase):
+    def test_unset_flag_means_the_gate_is_on(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+            self.assertTrue(live.account_risk_budget_enabled())
+
+    def test_zero_turns_it_off_and_one_keeps_it_on(self):
+        for value, expected in (("0", False), ("false", False), ("off", False), ("1", True), ("true", True)):
+            with patch.dict(os.environ, {live.ACCOUNT_RISK_BUDGET_FLAG: value}):
+                self.assertIs(live.account_risk_budget_enabled(), expected, value)

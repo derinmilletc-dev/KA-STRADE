@@ -460,6 +460,10 @@ class ReconcileSafety(unittest.TestCase):
 
 class SharedBudget(unittest.TestCase):
     def test_budget_and_committed_grid_risk(self):
+        # Eski (sıkı kapı öncesi) bileşimi sınar; bayrak varsayılan AÇIK olduğundan burada açıkça kapatılır.
+        env = patch.dict(os.environ, {live.ACCOUNT_RISK_BUDGET_FLAG: "0"})
+        env.start()
+        self.addCleanup(env.stop)
         runner = SimpleNamespace(reserved_risk=lambda uid, owner=True: {"worst_loss_usdt": 4.0})
         app = SimpleNamespace(state=SimpleNamespace(live_grid_runner=runner))
         state = {"policy": {"daily_loss_limit": 10.0}, "events": [], "plans": {}}
