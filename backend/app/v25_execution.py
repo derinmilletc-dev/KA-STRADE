@@ -71,6 +71,7 @@ from .maintenance import (
 from . import account_reservations
 from . import daily_ledger
 from .execution_core import (
+    HARD_MAX_DAILY_LOSS_USDT,
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
@@ -5924,16 +5925,24 @@ async def execute_live_order(
                 record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
                 raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
             observation_stage = "ACCOUNT_RESERVATION"
+            breakdown = None
             reservation_owner_id = live_reservation_owner(state, request)
             try:
                 await reconcile_account_reservations(client, state, reservation_owner_id, snapshot)
+                budget = shared_daily_budget(application, state, request, snapshot)
+                breakdown = budget.pop("breakdown", None)
                 reservation_token = account_reservations.reserve(
                     reservation_owner_id, source, spec["symbol"], float(spec["estimated_stop_loss_usdt"]),
-                    **shared_daily_budget(application, state, request))
-            except (account_reservations.ReservationConflict, account_reservations.ReservationUnavailable) as exc:
-                record_live_entry_check(entry_checks, "account_reservation", False, str(exc), symbol=symbol)
-                blocked = isinstance(exc, account_reservations.ReservationUnavailable) or getattr(exc, "kind", "") == "reconcile"
-                raise LiveExchangeError(str(exc), http_status=503 if blocked else 409, check_key="account_reservation") from exc
+                    strict=bool(budget.pop("strict", False)), **budget)
+            except (account_reservations.ReservationConflict, account_reservations.ReservationUnavailable, AccountRiskUnknown) as exc:
+                text = str(exc)
+                if breakdown and getattr(exc, "kind", "") == "risk":
+                    text = (f"Hesap risk bütçesi yetmiyor: bugünkü zarar {breakdown['loss_today']:.2f} + açık pozisyon riski "
+                            f"{breakdown['open_position_risk']:.2f} + Grid {breakdown['grid_risk']:.2f} USDT, limit {breakdown['limit']:.2f}. {text}")
+                record_live_entry_check(entry_checks, "account_reservation", False, text, symbol=symbol)
+                blocked = isinstance(exc, (account_reservations.ReservationUnavailable, AccountRiskUnknown)) or getattr(exc, "kind", "") == "reconcile"
+                check_key = "account_risk" if isinstance(exc, AccountRiskUnknown) or getattr(exc, "kind", "") == "risk" else "account_reservation"
+                raise LiveExchangeError(text, http_status=503 if blocked else 409, check_key=check_key) from exc
             record_live_entry_check(entry_checks, "account_reservation", True, "Coin ve ortak risk rezervasyonu alındı.", symbol=symbol)
             observation_stage = "SYMBOL_OCCUPANCY"
             if automatic_entry:
@@ -8087,8 +8096,83 @@ async def reconcile_account_reservations(client: Any, state: dict[str, Any], own
         account_reservations.resolve(row["token"], outcome)
 
 
-def shared_daily_budget(application: Any, state: dict[str, Any], request: Request | None) -> dict[str, Any]:
-    """Ortak günlük zarar bütçesi: bugün kalan hak (gerçekleşen zarar düşülmüş) ve çalışan Grid'lerin ayırdığı en kötü zarar.
+ACCOUNT_RISK_BUDGET_FLAG = "KAISTRADE_ACCOUNT_RISK_BUDGET"
+
+
+class AccountRiskUnknown(RuntimeError):
+    """Açık pozisyonun riski hesaplanamadı: yeni giriş reddedilir (fail-closed)."""
+
+
+def account_risk_budget_enabled() -> bool:
+    """Hesap seviyesi sıkı risk bütçesi kapısı. Varsayılan KAPALI; dağıtım ve mutabakat kontrolleri bitince ortamdan açılır,
+    sorun olursa bayrak kaldırılıp servis yeniden başlatılarak geri alınır."""
+    return env_flag(ACCOUNT_RISK_BUDGET_FLAG, default=False)
+
+
+def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], skip_symbols: set[str]) -> tuple[float, list[dict[str, Any]]]:
+    """Açık pozisyonların stopa kadar kalan zararı (giriş→stop, 0'a tabanlı: kilitlenmiş kâr kredi sayılmaz). Grid'e ait coinler
+    atlanır (Grid riski ayrıca sayılır, çift sayım olmaz). Stopu bilinmeyen pozisyon için isolated marjin üst sınırı kullanılır;
+    o da bilinmiyorsa AccountRiskUnknown."""
+    plans = [p for p in state.get("plans", {}).values() if isinstance(p, dict) and live_plan_is_active(p)]
+    total, detail = 0.0, []
+    for position in snapshot.get("positions", []) or []:
+        if not isinstance(position, dict):
+            continue
+        symbol = normalize_symbol(str(position.get("symbol") or ""))
+        try:
+            quantity = abs(float(position.get("quantity") if position.get("quantity") is not None else position.get("positionAmt") or 0))
+        except (TypeError, ValueError) as exc:
+            raise AccountRiskUnknown(f"{symbol} pozisyon miktarı okunamadı.") from exc
+        if quantity == 0 or symbol in skip_symbols:
+            continue
+        direction = str(position.get("direction") or ("LONG" if float(position.get("positionAmt") or 0) > 0 else "SHORT")).upper()
+        try:
+            entry = float(position.get("entry_price") if position.get("entry_price") is not None else position.get("entryPrice"))
+        except (TypeError, ValueError) as exc:
+            raise AccountRiskUnknown(f"{symbol} giriş fiyatı okunamadı.") from exc
+        plan = next((p for p in plans if normalize_symbol(str(p.get("symbol") or "")) == symbol
+                     and str(p.get("direction") or "").upper() == direction), None)
+        risk, basis = None, ""
+        try:
+            stop = float(plan.get("stop_loss")) if plan else None
+        except (TypeError, ValueError):
+            stop = None
+        if stop is not None and math.isfinite(stop) and stop > 0 and math.isfinite(entry) and entry > 0:
+            risk, basis = max(0.0, quantity * ((entry - stop) if direction == "LONG" else (stop - entry))), "STOP"
+        else:
+            leverage = position.get("leverage") or position.get("applied_leverage")
+            try:
+                mark = float(position.get("mark_price") or entry)
+                if str(position.get("margin_type") or "").lower() == "isolated" and leverage and float(leverage) > 0 and mark > 0:
+                    risk, basis = quantity * mark / float(leverage), "ISOLATED_MARGIN"
+            except (TypeError, ValueError):
+                risk = None
+        if risk is None or not math.isfinite(risk):
+            raise AccountRiskUnknown(f"{symbol} açık pozisyonunun riski hesaplanamadı (stop ve marjin bilinmiyor).")
+        try:                                  # fiyat stopu aşmışsa (gecikme/boşluk) gerçek gerçekleşmemiş zarar stop mesafesinden büyük olabilir
+            unrealized_loss = max(0.0, -float(position.get("unrealized_pnl") or 0.0))
+        except (TypeError, ValueError):
+            unrealized_loss = 0.0
+        if math.isfinite(unrealized_loss) and unrealized_loss > risk:
+            risk, basis = unrealized_loss, f"{basis}+UNREALIZED"
+        total += risk
+        detail.append({"symbol": symbol, "risk_usdt": round(risk, 6), "basis": basis})
+    return round(total, 6), detail
+
+
+def grid_start_account_open_risk(state: dict[str, Any], snapshot: dict[str, Any], grid_symbols: Any) -> float:
+    """Grid başlatmada (bayrak açıkken) Grid dışı açık pozisyonların stopa kadar riski; kapalıyken 0. Doğrulanamazsa 503."""
+    if not account_risk_budget_enabled():
+        return 0.0
+    try:
+        return open_position_risk_usdt(state, snapshot, {normalize_symbol(str(item)) for item in grid_symbols})[0]
+    except AccountRiskUnknown as exc:
+        raise HTTPException(503, f"Açık pozisyon riski doğrulanamadı; grid başlatılmadı ({exc}).") from exc
+
+
+def shared_daily_budget(application: Any, state: dict[str, Any], request: Request | None, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ortak günlük zarar bütçesi. Eski davranış (bayrak kapalı): bugün kalan hak + Grid'in ayırdığı risk. Bayrak açıkken ek olarak
+    açık pozisyon riski düşülür, kontrol tek başına işlem için de yapılır (strict) ve limit HARD_MAX_DAILY_LOSS_USDT ile sınırlanır.
     Limit yoksa budget_left None (kontrol yok)."""
     try:
         limit = float((state.get("policy") or {}).get("daily_loss_limit"))
@@ -8096,17 +8180,31 @@ def shared_daily_budget(application: Any, state: dict[str, Any], request: Reques
         return {"budget_left": None, "committed": 0.0}
     if limit <= 0:
         return {"budget_left": None, "committed": 0.0}
+    strict = account_risk_budget_enabled()
+    if strict:
+        limit = min(limit, HARD_MAX_DAILY_LOSS_USDT)
     realized = float(live_daily_metrics(state).get("realized_pnl") or 0)
-    reserved = 0.0
+    reserved, grid_symbols = 0.0, set()
     runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
     if runner is not None:
-        user_id = current_user_id(request) if request is not None else str(
-            ((state.get("live_session_authorization") or {}).get("user_id")) or ((state.get("auto_authorization") or {}).get("user_id")) or "")
+        owner_id = live_reservation_owner(state, request)
         try:
-            reserved = float(runner.reserved_risk(user_id, owner=True).get("worst_loss_usdt") or 0.0)
-        except Exception:  # defter okunamazsa güvenli taraf: bütçe kontrolü yapılmaz, diğer kapılar aynen geçerli
+            info = runner.reserved_risk(owner_id, owner=True)
+            reserved = float(info.get("worst_loss_usdt") or 0.0)
+            grid_symbols = {normalize_symbol(str(item)) for item in info.get("symbols") or []}
+        except Exception as exc:  # noqa: BLE001
+            if strict:
+                raise AccountRiskUnknown("Çalışan Grid riski okunamadı.") from exc
             logger.warning("GRID_RESERVED_RISK_READ_FAILED")
-    return {"budget_left": limit + min(0.0, realized), "committed": reserved}
+    out: dict[str, Any] = {"budget_left": limit + min(0.0, realized), "committed": reserved}
+    if strict:
+        if snapshot is None:
+            raise AccountRiskUnknown("Hesap anlık görüntüsü olmadan açık pozisyon riski hesaplanamaz.")
+        open_risk, detail = open_position_risk_usdt(state, snapshot, grid_symbols)
+        out.update({"budget_left": out["budget_left"] - open_risk, "strict": True})
+        out["breakdown"] = {"limit": limit, "loss_today": round(max(0.0, -realized), 6), "open_position_risk": open_risk,
+                            "grid_risk": round(reserved, 6), "positions": detail}
+    return out
 
 
 def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request | None, symbol: str) -> bool:
@@ -8211,13 +8309,14 @@ async def _grid_live_start(request: Request, body: GridLiveStartRequest, reserva
             await refresh_account_daily_ledger(client, state)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
             reserved = runner.reserved_risk(user_id, owner=owner)
+            account_open_risk = grid_start_account_open_risk(state, snapshot, reserved["symbols"])
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
             common = dict(
                 lower=body.lower, upper=body.upper, count=body.count, margin_usdt=body.margin_usdt, leverage=body.leverage,
                 price=float(price), rules=rules, policy=state["policy"],
                 realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
                 existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
-                reserved_worst_loss=reserved["worst_loss_usdt"] + account_reservations.others_worst_loss(live_reservation_owner(state, request), exclude=reservation), reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_worst_loss=reserved["worst_loss_usdt"] + account_open_risk + account_reservations.others_worst_loss(live_reservation_owner(state, request), exclude=reservation), reserved_pending_notional=reserved["pending_entry_notional_usdt"],
                 reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
             if body.direction == "NEUTRAL":
                 if body.stop_upper is None:
