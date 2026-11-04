@@ -260,9 +260,20 @@ class ManualEntry(gate_tests.LiquidationGateTests):
     test_entry_with_unsafe_liquidation_buffer_never_reaches_submit = None
     test_safe_entry_records_liquidation_proof_without_rewriting_initial_risk = None
 
-    def _execute(self, submit_effect=None, seed=None, budget=None):
+    def _execute(self, submit_effect=None, seed=None, budget=None, positions=None, daily_limit=None, ledger_net=None, plans=None, runner=None, source="V25_AUTO", extra_patches=None, strategy_result=None, original_patches=None):
         application, state = scope_tests.application_for(["BTCUSDT"])
         state["policy"]["max_leverage"] = 50
+        if daily_limit is not None:
+            state["policy"]["daily_loss_limit"] = daily_limit
+        if plans:
+            state["plans"] = plans
+        if runner is not None:
+            application.state.live_grid_runner = runner
+        if ledger_net is not None:
+            from datetime import datetime, timezone
+            from app import daily_ledger
+            state[daily_ledger.KEY] = {"day": datetime.now(timezone.utc).date().isoformat(), "fetched_at": time.time(), "rows": [],
+                                       "totals": {"net": ledger_net}, "source": "BINANCE_INCOME"}
         spec = {**scope_tests.spec_for("BTCUSDT"), "quantity": "2.5", "notional_usdt": 250, "margin_usdt": 5, "leverage": 50,
                 "stop_loss": "99.2", "estimated_stop_loss_usdt": 2}
         client = SimpleNamespace(signed=AsyncMock(return_value=gate_tests.maintenance_brackets()))
@@ -281,16 +292,22 @@ class ManualEntry(gate_tests.LiquidationGateTests):
         body = live.LiveOrderRequest(symbol="BTCUSDT", direction="LONG", margin_usdt=5, leverage=50, stop_loss=99.2, tp1=102, tp2=104, tp3=106)
         patches = dict(
             readiness_for=lambda *a, **k: {"ready": True}, client_for_with_credentials=lambda *a, **k: client,
-            account_snapshot=AsyncMock(return_value=gate_tests.snapshot(multi_assets_mode=False)), spread_bps=AsyncMock(return_value=1),
+            account_snapshot=AsyncMock(return_value=gate_tests.snapshot(multi_assets_mode=False, positions=positions or [])), spread_bps=AsyncMock(return_value=1),
             build_live_spec=AsyncMock(return_value=spec), set_live_isolated_margin=AsyncMock(return_value="ISOLATED"),
             apply_live_verified_leverage=AsyncMock(return_value={"applied_leverage": 50, "margin_type": "isolated"}),
             fresh_auto_submission_credentials=AsyncMock(return_value=scope_tests.CREDENTIALS), submit_entry=submit,
             install_protection=AsyncMock(), persist_state=lambda *a: None)
         if budget is not None:
             patches["shared_daily_budget"] = lambda *a, **k: budget
-        with patch.multiple(live, **patches):
+        patches.update(extra_patches or {})
+        from app import original_v2_live as _o
+        import contextlib
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.multiple(live, **patches))
+            if original_patches:
+                stack.enter_context(patch.multiple(_o, **original_patches))
             try:
-                result = asyncio.run(live.execute_live_order(application, body, source="V25_AUTO", credentials=scope_tests.CREDENTIALS))
+                result = asyncio.run(live.execute_live_order(application, body, source=source, credentials=scope_tests.CREDENTIALS, strategy_result=strategy_result))
             except live.HTTPException as exc:
                 result = exc
         return result, submit, state, owner, seen
@@ -360,6 +377,85 @@ class ManualEntry(gate_tests.LiquidationGateTests):
         with patch.object(ar, "get_store", side_effect=ar.ReservationUnavailable("açılamadı")):
             result, submit, *_ = self._execute()
         self.assertEqual((result.status_code, submit.await_count), (503, 0))
+
+
+class ReconcileSafety(unittest.TestCase):
+    """Yeniden başlatma sonrası mutabakat: yalnız KESİN kanıtla serbest bırakır; belirsizlikte satır kalır ve giriş durur."""
+
+    def submitted_row(self, client_id="kt-1", symbol="BTCUSDT"):
+        token = ar.reserve("u1", "MANUAL", symbol, 2.0)
+        ar.mark_submitted(token, client_id)
+        return token
+
+    def reconcile(self, token, order=None, error=None, snapshot=None, plans=None):
+        async def fake_find_order(client, symbol, client_id):
+            if error is not None:
+                raise error
+            return order
+        state = {"plans": plans or {}}
+        with patch.object(ar, "EPOCH", "restarted"), patch.object(live, "find_order", fake_find_order):
+            asyncio.run(live.reconcile_account_reservations(SimpleNamespace(), state, "u1", snapshot))
+            return ar.get(token)["state"], bool(ar.unreconciled("u1"))
+
+    def test_exchange_errors_never_release_and_never_raise(self):
+        for error in (live.LiveExchangeError("502", http_status=502), live.LiveExchangeError("t", timed_out=True),
+                      live.LiveExchangeError("?", unknown_execution=True), asyncio.TimeoutError(), ConnectionError("down"), RuntimeError("x")):
+            with self.subTest(error=type(error).__name__):
+                token = self.submitted_row(client_id=f"kt-{type(error).__name__}")
+                self.assertEqual(self.reconcile(token, error=error), (ar.SUBMITTED, True))
+                ar.release(token)
+
+    def test_ambiguous_order_states_keep_the_row(self):
+        for order in ({"status": "PENDING_CANCEL", "executedQty": "0"}, {"status": "SOMETHING_NEW", "executedQty": "0"},
+                      {"status": "CANCELED", "executedQty": "garbage"}, {"status": "", "executedQty": "0"}, {}):
+            with self.subTest(order=order):
+                token = self.submitted_row()
+                self.assertEqual(self.reconcile(token, order=order), (ar.SUBMITTED, True))
+                ar.release(token)
+
+    def test_definite_exchange_answers(self):
+        cases = [({"status": "NEW", "executedQty": "0"}, ar.SUBMITTED, False), ({"status": "PARTIALLY_FILLED", "executedQty": "1"}, ar.SUBMITTED, False),
+                 ({"status": "FILLED", "executedQty": "2"}, ar.CONSUMED, False), ({"status": "CANCELED", "executedQty": "0"}, ar.RELEASED, False),
+                 ({"status": "EXPIRED", "executedQty": "0"}, ar.RELEASED, False), ({"status": "REJECTED", "executedQty": "0"}, ar.RELEASED, False),
+                 ({"status": "CANCELED", "executedQty": "0.5"}, ar.CONSUMED, False)]
+        for order, state, blocked in cases:
+            with self.subTest(order=order):
+                token = self.submitted_row()
+                self.assertEqual(self.reconcile(token, order=order), (state, blocked))
+                ar.release(token)
+
+    def test_unknown_to_exchange_is_released_only_when_the_account_shows_nothing_on_that_coin(self):
+        token = self.submitted_row()
+        self.assertEqual(self.reconcile(token, order=None, snapshot={"positions": [], "open_orders": []}), (ar.RELEASED, False))
+        for snap in ({"positions": [{"symbol": "BTCUSDT"}], "open_orders": []}, {"positions": [], "open_orders": [{"symbol": "BTCUSDT", "client_order_id": "x"}]}):
+            with self.subTest(snap=snap):
+                token = self.submitted_row()
+                self.assertEqual(self.reconcile(token, order=None, snapshot=snap), (ar.SUBMITTED, True))
+                ar.release(token)
+        token = self.submitted_row(client_id="kt-live")                           # hesapta bu kimlikle açık emir var → bekliyor, doğrulandı
+        snap = {"positions": [], "open_orders": [{"symbol": "BTCUSDT", "client_order_id": "kt-live"}]}
+        self.assertEqual(self.reconcile(token, order=None, snapshot=snap), (ar.SUBMITTED, False))
+
+    def test_unrecognised_plan_status_is_never_treated_as_finished(self):
+        for status, expected in [("BİLİNMEYEN DURUM", ar.SUBMITTED), ("DOLUM BEKLİYOR", ar.SUBMITTED), ("KORUMA AKTİF", ar.CONSUMED), ("İPTAL", ar.RELEASED)]:
+            with self.subTest(status=status):
+                token = self.submitted_row()
+                plans = {"p": {"entry_client_order_id": "kt-1", "status": status}}
+                state, _ = self.reconcile(token, error=RuntimeError("Binance'e gerek olmamalı") if expected != ar.SUBMITTED else None, plans=plans, order={"status": "NEW"})
+                self.assertEqual(state, expected)
+                ar.release(token)
+
+    def test_a_failing_reconciliation_blocks_entry_but_does_not_lock_live_execution(self):
+        manual = ManualEntry("test_concurrent_entry_on_same_coin_is_refused_before_submit")
+        application, state = scope_tests.application_for(["BTCUSDT"])
+        owner = live.live_reservation_owner(state, None)
+        token = ar.reserve(owner, "MANUAL", "SOLUSDT", 2.0)
+        ar.mark_submitted(token, "kt-old")
+        with patch.object(ar, "EPOCH", "new-process"), patch.object(live, "find_order", AsyncMock(side_effect=asyncio.TimeoutError())):
+            result, submit, st, _, _ = manual._execute()
+        self.assertEqual((result.status_code, submit.await_count), (503, 0))
+        self.assertFalse(live.live_execution_blocked(st))                          # zaman aşımı yürütmeyi kilitlemedi
+        self.assertEqual(ar.get(token)["state"], ar.SUBMITTED)
 
 
 class SharedBudget(unittest.TestCase):

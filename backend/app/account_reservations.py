@@ -186,9 +186,17 @@ def verify(token: str | None) -> bool:
     return _transition(token, (SUBMITTED,), SUBMITTED, "VERIFIED", epoch=EPOCH)
 
 
+# Planın girişi dolmuş / korumaya geçmiş / kapanmış demektir: rezervasyonun işi bitti, risk artık açık pozisyon olarak görülür.
+FILLED_PLAN_STATUSES = frozenset({
+    "KORUMA AKTİF", "KAPANDI", "CLOSED", "STOP AKTİF · TP KORUMASIZ (İZLEME)", "KAPATMA EMRİ GÖNDERİLDİ", "ACİL DURDURULDU",
+    "YÖN UYUŞMAZLIĞI", "STOP BAŞARISIZ · KAPATILIYOR", "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR", "KURTARILDI · KORUMA KONTROLÜ",
+    "PNL DOĞRULANIYOR", "CLOSED_FOR_SECURITY", "FILLED"})
+CANCELLED_PLAN_STATUSES = frozenset({CANCELLED_PLAN_STATUS, "CANCELLED"})
+
+
 def settle_by_plan_status(token: str | None, plan_status: str | None) -> str:
-    """Plan durumuna göre kapanış: bekleyen LIMIT → SUBMITTED kalır; iptal → RELEASED; diğer (dolum/koruma/kapanış) → CONSUMED.
-    Plan yoksa (None) SUBMITTED kalır: emir gitmiş olabilir, mutabakat çözer."""
+    """Plan durumuna göre kapanış: bekleyen LIMIT → SUBMITTED kalır; iptal → RELEASED; bilinen dolum/koruma/kapanış durumları → CONSUMED.
+    Plan yoksa ya da durum TANINMIYORSA SUBMITTED kalır: emir gitmiş olabilir, yanlışlıkla serbest bırakmak çift kullanıma yol açar."""
     if not token:
         return "NONE"
     row = get(token)
@@ -199,11 +207,13 @@ def settle_by_plan_status(token: str | None, plan_status: str | None) -> str:
         return RELEASED
     if row["state"] != SUBMITTED or plan_status is None or plan_status == PENDING_PLAN_STATUS:
         return row["state"]
-    if plan_status == CANCELLED_PLAN_STATUS:
+    if plan_status in CANCELLED_PLAN_STATUSES:
         release(token, "PLAN_CANCELLED")
         return RELEASED
-    consume(token, f"PLAN:{plan_status}")
-    return CONSUMED
+    if plan_status in FILLED_PLAN_STATUSES:
+        consume(token, f"PLAN:{plan_status}")
+        return CONSUMED
+    return SUBMITTED
 
 
 def get(token: str) -> dict[str, Any] | None:
