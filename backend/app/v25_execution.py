@@ -2568,7 +2568,8 @@ async def build_live_spec(
         tp1_fraction, tp2_fraction = MANUAL_TP_SPLITS.get(order.tp_split, MANUAL_TP_SPLITS["60-20-20"])
         manual_extra = {"tp1_fraction": decimal_text(tp1_fraction), "tp2_fraction": decimal_text(tp2_fraction)}
         if order.order_type == "LIMIT" and order.limit_expiry_minutes:
-            manual_extra["good_till_ms"] = int((time.time() + int(order.limit_expiry_minutes) * 60) * 1000)
+            # Süre Binance sunucu saatine göre hesaplanır (yerel saat kaymış olsa da emir doğru anda iptal olur).
+            manual_extra["good_till_ms"] = live_server_time_ms(client) + int(order.limit_expiry_minutes) * 60_000
             manual_extra["limit_expiry_minutes"] = int(order.limit_expiry_minutes)
         targets_ok, tp2_on_exchange = manual_target_sizes_ok(quantity, entry, rules, tp1_fraction, tp2_fraction)
         if not targets_ok:
@@ -2599,6 +2600,7 @@ async def build_live_spec(
         "estimated_stop_loss_usdt": risk["estimated_stop_loss_usdt"],
         **({"tp2_on_exchange": tp2_on_exchange} if tp2_on_exchange is not None else {}),
         **manual_extra,
+        **({"time_in_force": "GTD" if manual_extra.get("good_till_ms") else "GTC"} if order.order_type == "LIMIT" else {}),
     }
 
 
@@ -2665,6 +2667,27 @@ async def find_order(client: BinanceLiveClient, symbol: str, client_id: str) -> 
         raise
 
 
+# Binance GTD kuralı: goodTillDate, gönderim anından en az 600 sn sonra olmalı. Gönderim gecikirse (yeniden deneme,
+# kurtarma) kalan süre bu payın altına düşebilir; o durumda emir hiç gönderilmez.
+GTD_MIN_LEAD_MS = 600_000 + 60_000
+
+
+def live_server_time_ms(client: Any) -> int:
+    """Binance sunucu saati tahmini (ms): yerel saat + istemcinin ölçtüğü saat farkı."""
+    try:
+        offset = int(getattr(client, "time_offset_ms", 0) or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    return int(time.time() * 1000) + offset
+
+
+def limit_time_in_force(spec: dict[str, Any]) -> str | None:
+    """LIMIT girişin süre tipi: süreli ise GTD, süresiz ise GTC. LIMIT değilse None."""
+    if str(spec.get("order_type") or "").upper() != "LIMIT":
+        return None
+    return "GTD" if spec.get("good_till_ms") else "GTC"
+
+
 def order_matches_spec(order: dict[str, Any], spec: dict[str, Any], client_id: str) -> bool:
     response_client_id = str(order.get("clientOrderId") or order.get("origClientOrderId") or "")
     if response_client_id != client_id:
@@ -2677,6 +2700,19 @@ def order_matches_spec(order: dict[str, Any], spec: dict[str, Any], client_id: s
         return False
     if str(order.get("type") or "").upper() != str(spec["order_type"]).upper():
         return False
+    # Süre tipi yalnız spec bunu açıkça söylüyorsa doğrulanır (yeni emirde build_live_spec yazar; plandan yeniden
+    # kurulan eski specler süre bilgisi taşımıyorsa kontrol atlanır, eski davranış korunur).
+    expected_tif = (str(spec.get("time_in_force") or "").upper() or ("GTD" if spec.get("good_till_ms") else None)) \
+        if limit_time_in_force(spec) is not None else None
+    reported_tif = str(order.get("timeInForce") or "").upper()
+    if expected_tif is not None and reported_tif and reported_tif != expected_tif:
+        return False  # aynı kimlikli ama farklı süre tipli emir bu plana ait sayılmaz
+    if expected_tif == "GTD" and order.get("goodTillDate") not in (None, "", 0, "0"):
+        try:
+            if abs(int(order["goodTillDate"]) - int(spec["good_till_ms"])) > 1000:  # Binance saniyeye yuvarlayabilir
+                return False
+        except (TypeError, ValueError):
+            return False
     try:
         return Decimal(str(order.get("origQty"))) == Decimal(str(spec["quantity"]))
     except (TypeError, ValueError, ArithmeticError):
@@ -2718,6 +2754,7 @@ async def cancel_pending_owned_limit_entries(client: BinanceLiveClient, state: d
                 "side": "BUY" if str(plan.get("direction") or "").upper() == "LONG" else "SELL",
                 "order_type": "LIMIT",
                 "quantity": str(plan.get("requested_quantity", plan.get("quantity")) or ""),
+                **({"good_till_ms": plan["good_till_ms"]} if plan.get("good_till_ms") else {}),
             }
             if not order_matches_spec(order, spec, client_id):
                 unresolved.append(f"{symbol}:{client_id[-8:]}")
@@ -2758,10 +2795,10 @@ async def submit_entry(
         "quantity": spec["quantity"], "newClientOrderId": client_id, "newOrderRespType": "RESULT",
     }
     if spec["order_type"] == "LIMIT":
-        params.update({"price": spec["entry_price"], "timeInForce": "GTC"})
+        # Süresiz LIMIT: GTC (iptal edilene kadar). Süreli LIMIT: GTD; Binance süre dolunca emri kendisi iptal eder.
+        params.update({"price": spec["entry_price"], "timeInForce": limit_time_in_force(spec)})
         if spec.get("good_till_ms"):
-            # Manuel LIMIT süre seçeneği: Binance süre dolunca emri kendisi iptal eder (GTD).
-            params.update({"timeInForce": "GTD", "goodTillDate": int(spec["good_till_ms"])})
+            params["goodTillDate"] = int(spec["good_till_ms"])
     path = "/fapi/v1/order/test" if test_only else "/fapi/v1/order"
     if not test_only:
         existing = await find_order(client, spec["symbol"], client_id)
@@ -2771,6 +2808,11 @@ async def submit_entry(
             if on_submission_started is not None:
                 on_submission_started()
             return {**existing, "recovered": True}
+    if spec.get("good_till_ms") and int(spec["good_till_ms"]) - live_server_time_ms(client) < GTD_MIN_LEAD_MS:
+        raise LiveExchangeError(
+            "LIMIT emrin süresi gönderimden önce doldu veya 11 dakikadan az kaldı; emir gönderilmedi.",
+            http_status=409, check_key="limit_expiry",
+        )
     if before_submit is not None:
         before_submit()
     if not test_only and on_submission_started is not None:
@@ -2970,6 +3012,7 @@ async def settle_live_entry_remainder(client: BinanceLiveClient, state: dict[str
         "side": "BUY" if plan["direction"] == "LONG" else "SELL",
         "order_type": plan["order_type"],
         "quantity": plan.get("requested_quantity", plan["quantity"]),
+        **({"good_till_ms": plan["good_till_ms"]} if plan.get("good_till_ms") else {}),
     }
 
     def matches(order: dict[str, Any] | None) -> bool:
