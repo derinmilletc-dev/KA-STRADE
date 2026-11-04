@@ -68,6 +68,7 @@ from .maintenance import (
     is_maintenance_rejection,
     maintenance_blocks_automation,
 )
+from . import account_reservations
 from . import daily_ledger
 from .execution_core import (
     DEFAULT_EXECUTION_POLICY,
@@ -5769,6 +5770,7 @@ async def execute_live_order(
         raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; emir gönderilmedi.")
     submission_started = False
     recorded_intent_id: str | None = None
+    reservation_token: str | None = None
     observation_stage = "SIGNED_ACCOUNT_ACCESS"
     async with state["lock"]:
         try:
@@ -5919,6 +5921,16 @@ async def execute_live_order(
                 detail = f"{normalize_symbol(spec['symbol'])} üzerinde çalışan bir grid var; aynı coinde ayrıca işlem açılmaz."
                 record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
                 raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
+            observation_stage = "ACCOUNT_RESERVATION"
+            try:
+                reservation_token = account_reservations.reserve(
+                    state, source, spec["symbol"], float(spec["estimated_stop_loss_usdt"]),
+                    **shared_daily_budget(application, state, request))
+            except account_reservations.ReservationConflict as exc:
+                record_live_entry_check(entry_checks, "account_reservation", False, str(exc), symbol=symbol)
+                raise LiveExchangeError(str(exc), http_status=409, check_key="account_reservation") from exc
+            record_live_entry_check(entry_checks, "account_reservation", True, "Coin ve ortak risk rezervasyonu alındı.", symbol=symbol)
+            observation_stage = "SYMBOL_OCCUPANCY"
             if automatic_entry:
                 observation_stage = "FRESH_CREDENTIALS"
                 fresh_credentials = await fresh_auto_submission_credentials(application, state, check_results=entry_checks)
@@ -6260,7 +6272,8 @@ async def execute_live_order(
                     "AVAILABLE_BALANCE": "available_collateral",
                     "SIZING": "minimum_quantity",
                     "PROTECTION_READINESS": "protection_readiness",
-                    "SYMBOL_OCCUPANCY": "symbol_occupancy",
+                    "ACCOUNT_RESERVATION": "account_reservation",
+                "SYMBOL_OCCUPANCY": "symbol_occupancy",
                     "FRESH_CREDENTIALS": "fresh_live_credentials",
                     "FRESH_ACCOUNT_SNAPSHOT": "signed_account_access",
                     "FRESH_ORIGINAL_GATES": "owner_entry_authorization",
@@ -6315,6 +6328,7 @@ async def execute_live_order(
                 "AVAILABLE_BALANCE": "available_collateral",
                 "SIZING": "minimum_quantity",
                 "PROTECTION_READINESS": "protection_readiness",
+                "ACCOUNT_RESERVATION": "account_reservation",
                 "SYMBOL_OCCUPANCY": "symbol_occupancy",
                 "FRESH_CREDENTIALS": "fresh_live_credentials",
                 "FRESH_ACCOUNT_SNAPSHOT": "signed_account_access",
@@ -6356,6 +6370,8 @@ async def execute_live_order(
             )
             persist_state(state)
             raise HTTPException(502, "Canlı emir akışı güvenli şekilde kilitlendi; manuel inceleme gerekli.") from exc
+        finally:
+            account_reservations.release(state, reservation_token)   # coin + risk rezervasyonu her çıkışta serbest
 
 
 async def automatic_cycle(application: Any, credentials: tuple[str, str] | None = None) -> None:
@@ -7993,6 +8009,28 @@ def grid_actor(user: dict[str, Any]) -> tuple[str, bool]:
     return str(user.get("id") or ""), user.get("role") == "OWNER"
 
 
+def shared_daily_budget(application: Any, state: dict[str, Any], request: Request | None) -> dict[str, Any]:
+    """Ortak günlük zarar bütçesi: bugün kalan hak (gerçekleşen zarar düşülmüş) ve çalışan Grid'lerin ayırdığı en kötü zarar.
+    Limit yoksa budget_left None (kontrol yok)."""
+    try:
+        limit = float((state.get("policy") or {}).get("daily_loss_limit"))
+    except (TypeError, ValueError):
+        return {"budget_left": None, "committed": 0.0}
+    if limit <= 0:
+        return {"budget_left": None, "committed": 0.0}
+    realized = float(live_daily_metrics(state).get("realized_pnl") or 0)
+    reserved = 0.0
+    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
+    if runner is not None:
+        user_id = current_user_id(request) if request is not None else str(
+            ((state.get("live_session_authorization") or {}).get("user_id")) or ((state.get("auto_authorization") or {}).get("user_id")) or "")
+        try:
+            reserved = float(runner.reserved_risk(user_id, owner=True).get("worst_loss_usdt") or 0.0)
+        except Exception:  # defter okunamazsa güvenli taraf: bütçe kontrolü yapılmaz, diğer kapılar aynen geçerli
+            logger.warning("GRID_RESERVED_RISK_READ_FAILED")
+    return {"budget_left": limit + min(0.0, realized), "committed": reserved}
+
+
 def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request | None, symbol: str) -> bool:
     """Bu kullanıcının bu coinde bitmemiş canlı grid'i var mı? Varsa manuel/otomatik emir o coine girmez (aynı pozisyon karışmasın)."""
     runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
@@ -8020,7 +8058,23 @@ async def v25_grid_live_status(request: Request, history: int = Query(default=6,
 
 @router.post("/grid/live/start")
 async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> dict[str, Any]:
-    """Canlı grid (ilk test: en fazla 2 kademe / 10 USDT). Varsayılan KAPALI; her risk kapısı geçilmeden tek emir gitmez."""
+    """Canlı grid (ilk test: en fazla 2 kademe / 10 USDT). Varsayılan KAPALI; her risk kapısı geçilmeden tek emir gitmez.
+    Gerçek başlatmada coin ve risk, plan hesabından grid defteri kaydına kadar rezerve edilir (eşzamanlı istekler çift kullanamaz)."""
+    execution_owner(request)
+    if body.preview:
+        return await _grid_live_start(request, body, None)
+    state = request.app.state.v25_execution
+    try:
+        token = account_reservations.reserve(state, "GRID", normalize_symbol(body.symbol))
+    except account_reservations.ReservationConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    try:
+        return await _grid_live_start(request, body, token)
+    finally:
+        account_reservations.release(state, token)
+
+
+async def _grid_live_start(request: Request, body: GridLiveStartRequest, reservation: str | None) -> dict[str, Any]:
     user = execution_owner(request)
     from . import grid_live, original_v2_live
     application, state = request.app, request.app.state.v25_execution
@@ -8076,7 +8130,7 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 price=float(price), rules=rules, policy=state["policy"],
                 realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
                 existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
-                reserved_worst_loss=reserved["worst_loss_usdt"], reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                reserved_worst_loss=reserved["worst_loss_usdt"] + account_reservations.others_worst_loss(state, exclude=reservation), reserved_pending_notional=reserved["pending_entry_notional_usdt"],
                 reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
             if body.direction == "NEUTRAL":
                 if body.stop_upper is None:
@@ -8084,6 +8138,8 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 plan = grid_live.prepare_live_neutral_grid(stop_lower=body.stop, stop_upper=body.stop_upper, **common)
             else:
                 plan = grid_live.prepare_live_grid(direction=body.direction, stop=body.stop, recycle=body.recycle, **common)
+            if reservation:
+                account_reservations.update(state, reservation, float(plan.get("worst_loss_usdt") or 0.0))
             grid_live.apply_protection(plan, body.take_profit_usdt, body.loss_limit_usdt, profit_lock_usdt=body.profit_lock_usdt, close_on_target=body.close_on_target)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
