@@ -53,3 +53,18 @@ def isolate_protected_market_lane():
     finally:
         PROTECTED_LANE.fetch, PROTECTED_LANE.clock = previous
         PROTECTED_LANE.paused_until, PROTECTED_LANE.window = 0.0, []
+
+
+@pytest.fixture(autouse=True)
+def isolate_shared_strategy_cache():
+    """Paylaşılan strateji sonucu önbelleği testler arasında taşınmasın (monkeypatch'li stratejiler)."""
+    import sys
+
+    def clear():
+        module = sys.modules.get("app.original_v2_demo_execution")
+        if module is not None:
+            module._STRATEGY_CACHE.clear()
+
+    clear()
+    yield
+    clear()

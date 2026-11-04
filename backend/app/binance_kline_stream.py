@@ -62,6 +62,9 @@ class BinanceKlineStream:
         self.last_kline_at: float | None = None
         self.last_disconnect_reason: str | None = None
         self._subscribed: frozenset[tuple[str, str]] = frozenset()
+        # Aynı coin/aralık için aynı anda gelen eksik-mum isteklerini tek REST çağrısında birleştirir
+        # (çok üyeli canlıda her üyenin motoru aynı anda aynı mumu isteyebilir).
+        self._backfills: dict[tuple[str, str, int], asyncio.Task[Any]] = {}
 
     def is_subscribed(self, symbol: str, interval: str) -> bool:
         return (symbol.upper(), interval) in self._subscribed
@@ -190,13 +193,31 @@ class BinanceKlineStream:
                 reason,
                 limit,
             )
-            self.rest_backfills += 1
-            fetched = await rest_fetch({"symbol": symbol, "interval": interval, "limit": limit})
-            if not isinstance(fetched, list):
-                raise ValueError("Binance kline backfill returned an invalid payload")
-            self._merge_rows(symbol, interval, fetched)
+            key = (symbol, interval, expected_open_time)
+            task = self._backfills.get(key)
+            joined = task is not None
+            if task is None:
+                self.rest_backfills += 1
+                task = asyncio.ensure_future(self._backfill(symbol, interval, limit, rest_fetch))
+                self._backfills[key] = task
+                task.add_done_callback(lambda done, name=key: self._backfills.pop(name, None) if self._backfills.get(name) is done else None)
+            # shield: bekleyenlerden biri iptal edilirse ortak indirme diğerleri için yarıda kalmaz
+            await asyncio.shield(task)
             rows = self.candles(symbol, interval)
+            if joined and len(rows) < limit:
+                # Başkasının başlattığı indirme daha kısa bir pencere içindi: bu çağrı için tam pencere istenir.
+                self.rest_backfills += 1
+                await self._backfill(symbol, interval, limit, rest_fetch)
+                rows = self.candles(symbol, interval)
         return rows[-limit:]
+
+    async def _backfill(
+        self, symbol: str, interval: str, limit: int, rest_fetch: Callable[[dict[str, Any]], Awaitable[Any]],
+    ) -> None:
+        fetched = await rest_fetch({"symbol": symbol, "interval": interval, "limit": limit})
+        if not isinstance(fetched, list):
+            raise ValueError("Binance kline backfill returned an invalid payload")
+        self._merge_rows(symbol, interval, fetched)
 
     def _merge_rows(self, symbol: str, interval: str, rows: list[list[Any]]) -> None:
         key = (symbol, interval)

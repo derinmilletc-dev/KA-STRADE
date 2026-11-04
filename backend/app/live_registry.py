@@ -45,6 +45,9 @@ class LiveRegistry:
         self._run_engine = run_engine
         self.states: dict[str, dict[str, Any]] = {}
         self.engines: dict[str, asyncio.Task[None]] = {}
+        # Account-snapshot cache per member: one shared slot (and one shared lock) made every member's
+        # account read wait behind the others and overwrote each other's entry.
+        self.account_caches: dict[str, dict[str, Any]] = {}
         # Used when no member is bound (health checks, startup): never belongs to any member.
         self.system: dict[str, Any] = new_state(application, "")
 
@@ -60,6 +63,12 @@ class LiveRegistry:
 
     def current(self) -> dict[str, Any]:
         return self.state_for(CURRENT_USER.get())
+
+    def account_cache(self) -> dict[str, Any] | None:
+        return self.account_caches.get(str(CURRENT_USER.get() or ""))
+
+    def set_account_cache(self, value: dict[str, Any]) -> None:
+        self.account_caches[str(CURRENT_USER.get() or "")] = value
 
     def ensure_engine(self, user_id: str | None) -> bool:
         """Start this member's own control loops once. Safe to call repeatedly."""
@@ -93,14 +102,26 @@ class LiveRegistry:
 
 
 class UserAwareState(State):
-    """app.state whose ``v25_execution`` is the bound member's own state."""
+    """app.state whose ``v25_execution`` and ``live_account_cache`` belong to the bound member."""
 
     def __getattr__(self, key: str) -> Any:
-        if key == "v25_execution":
-            registry = self._state.get("live_registry")
-            if registry is not None:
+        registry = self._state.get("live_registry")
+        if registry is not None:
+            if key == "v25_execution":
                 return registry.current()
+            if key == "live_account_cache":
+                cache = registry.account_cache()
+                if cache is None:
+                    raise AttributeError(key)
+                return cache
         return super().__getattr__(key)
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        registry = self._state.get("live_registry") if key == "live_account_cache" else None
+        if registry is not None:
+            registry.set_account_cache(value)
+            return
+        super().__setattr__(key, value)
 
 
 def registry_of(application: Any) -> LiveRegistry | None:

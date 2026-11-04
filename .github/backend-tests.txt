@@ -75,6 +75,10 @@ tests/test_emergency_close_verification.py
 tests/test_error_exposure.py
 tests/test_exchange_connection_failures.py
 tests/test_exchange_connections_server_time.py
+tests/test_founder_price_lock.py
+tests/test_founding.py
+tests/test_founding_invites.py
+tests/test_founding_public_paths.py
 tests/test_google_oauth.py
 tests/test_grid_day1_script.py
 tests/test_grid_engine_fake.py
@@ -84,7 +88,9 @@ tests/test_grid_testnet_adapter.py
 tests/test_guarded_process.py
 tests/test_holdout_gap_study.py
 tests/test_holdout_study.py
+tests/test_instagram_showcase.py
 tests/test_kais2_live_gate.py
+tests/test_kais_access.py
 tests/test_legacy_close_orders.py
 tests/test_legacy_demo_results.py
 tests/test_legacy_loss_guard.py
@@ -118,6 +124,7 @@ tests/test_moderator_role.py
 tests/test_moderator_role_consistency.py
 tests/test_moderator_support.py
 tests/test_multi_symbol_scanner.py
+tests/test_multi_user_live_perf.py
 tests/test_notification_email.py
 tests/test_notification_migration.py
 tests/test_notification_outbox.py
@@ -149,6 +156,7 @@ tests/test_original_v2_report_normalization.py
 tests/test_owner_moderator_events.py
 tests/test_p0_b33_provenance_wiring.py
 tests/test_p0_p2_protection_ownership.py
+tests/test_position_live_score.py
 tests/test_position_provenance_observer.py
 tests/test_premium_requests.py
 tests/test_prescreen_original_v2.py
@@ -168,6 +176,7 @@ tests/test_secret_environment.py
 tests/test_security_core_hardening.py
 tests/test_security_demo_authority.py
 tests/test_selected_symbol_analysis.py
+tests/test_server_i18n.py
 tests/test_shared_mtf_decision.py
 tests/test_smart_trade.py
 tests/test_stale_protection_entry_guard.py
@@ -212,11 +221,3 @@ tests/test_v8_logic.py
 tests/test_v9_logic.py
 tests/test_web_push.py
 tests/test_web_security.py
-tests/test_instagram_showcase.py
-tests/test_kais_access.py
-tests/test_server_i18n.py
-tests/test_founding.py
-tests/test_founding_invites.py
-tests/test_founder_price_lock.py
-tests/test_founding_public_paths.py
-tests/test_position_live_score.py

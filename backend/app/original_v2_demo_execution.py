@@ -7,6 +7,9 @@ Neither flag changes legacy Demo defaults or authorizes an owner/session.
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import logging
 import math
 import os
@@ -30,6 +33,44 @@ IDENTITY_FIELDS = (
     "decision_time", "signal_timestamp", "plan_id", "model_version",
 )
 logger = logging.getLogger(__name__)
+
+
+# Strateji kararı yalnız mum verisine ve sunucu ayarlarına bağlıdır; üyeye özgü hiçbir şey okumaz.
+# Aynı coin + aynı mum + aynı veri için hesap bir kez yapılır, diğer üyeler kopyasını alır.
+# Anahtar verinin özetini de içerdiği için farklı veri gören motor asla başkasının sonucunu almaz.
+_STRATEGY_CACHE: dict[tuple[Any, ...], tuple[int, Any]] = {}
+_STRATEGY_CACHE_LIMIT = 4000
+STRATEGY_CACHE_STATS = {"hits": 0, "misses": 0}
+
+
+def _frames_digest(frames: dict[str, Any]) -> str:
+    payload = json.dumps(
+        {interval: frames[interval] for interval in sorted(frames)}, sort_keys=True, default=str, separators=(",", ":"),
+    )
+    return hashlib.blake2b(payload.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def shared_strategy_result(
+    kind: str, signal_interval: str, symbol: str, at: int, frames: dict[str, Any], allowed: bool,
+    compute: Callable[[], Any],
+) -> Any:
+    key = (
+        kind, signal_interval, symbol, int(at), bool(allowed),
+        strategy.configured_min_confidence(), _frames_digest(frames),
+    )
+    cached = _STRATEGY_CACHE.get(key)
+    if cached is not None:
+        STRATEGY_CACHE_STATS["hits"] += 1
+        return copy.deepcopy(cached[1])
+    STRATEGY_CACHE_STATS["misses"] += 1
+    result = compute()  # hata önbelleğe girmez; çağırana aynen yükselir
+    if len(_STRATEGY_CACHE) >= 500:  # bir saatten eski mumların sonuçları artık kimseye lazım değil
+        for name in [name for name, (stamp, _) in _STRATEGY_CACHE.items() if stamp < int(at) - 3600]:
+            _STRATEGY_CACHE.pop(name, None)
+        if len(_STRATEGY_CACHE) >= _STRATEGY_CACHE_LIMIT:
+            _STRATEGY_CACHE.clear()
+    _STRATEGY_CACHE[key] = (int(at), copy.deepcopy(result))
+    return result
 
 
 class OriginalMarketClient(Protocol):
@@ -722,10 +763,14 @@ async def _candidates(
         try:
             strategy_frames = frames if signal_interval == "15m" else strategy.live_strategy_frames(frames, signal_interval)
             decision = StrategyInput(symbol, at, strategy_frames)
-            results[symbol] = (
-                pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
-                else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
-                if live_universe else strategy.evaluate(decision, enabled=True)
+            kind = "pullback" if pullback_model else "universe" if live_universe else "demo"
+            results[symbol] = shared_strategy_result(
+                kind, signal_interval, symbol, at, strategy_frames, symbol in symbols,
+                lambda decision=decision: (
+                    pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
+                    else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
+                    if live_universe else strategy.evaluate(decision, enabled=True)
+                ),
             )
         except Exception:
             if diagnostics is not None:
