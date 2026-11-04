@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import os
+import pickle
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Awaitable, Callable, NoReturn, Protocol
@@ -51,17 +52,25 @@ def _frames_digest(frames: dict[str, Any]) -> str:
 
 
 def shared_strategy_result(
-    kind: str, signal_interval: str, symbol: str, at: int, frames: dict[str, Any], allowed: bool,
+    kind: str, signal_interval: str, symbol: str, at: int, frames: dict[str, Any], allowed: Any,
     compute: Callable[[], Any],
 ) -> Any:
+    from .execution_core import MIN_CONFIDENCE_ENV, MTF_ALLOW_EITHER_TIMEFRAME_ENV
+
+    # Sonucu etkileyen her girdi anahtardadır: model türü, sinyal dilimi, coin, karar anı, evren geçerliliği,
+    # sunucu ayarları (PROTREBOT_MIN_CONFIDENCE, KAIS2 kapısı, MTF esnekliği) ve mum verisinin özeti.
+    # Hesap verisi (bakiye, pozisyon, emir) bu adımda hiç kullanılmaz; üye kapıları (account_gates) sonra, üye başına çalışır.
     key = (
-        kind, signal_interval, symbol, int(at), bool(allowed),
-        strategy.configured_min_confidence(), _frames_digest(frames),
+        kind, signal_interval, symbol, int(at), allowed,
+        # Ayarların ham metni: yorumlanmış değerden daha ince ayrım yapar ve hiçbir zaman hata fırlatmaz
+        # (geçersiz ayar, eskisi gibi yalnız onu okuyan strateji adımında hata verir).
+        tuple(os.getenv(name) for name in (MIN_CONFIDENCE_ENV, strategy.KAIS2_GATE_FLAG, MTF_ALLOW_EITHER_TIMEFRAME_ENV)),
+        _frames_digest(frames),
     )
     cached = _STRATEGY_CACHE.get(key)
     if cached is not None:
         STRATEGY_CACHE_STATS["hits"] += 1
-        return copy.deepcopy(cached[1])
+        return _thaw(cached[1])
     STRATEGY_CACHE_STATS["misses"] += 1
     result = compute()  # hata önbelleğe girmez; çağırana aynen yükselir
     if len(_STRATEGY_CACHE) >= 500:  # bir saatten eski mumların sonuçları artık kimseye lazım değil
@@ -69,8 +78,21 @@ def shared_strategy_result(
             _STRATEGY_CACHE.pop(name, None)
         if len(_STRATEGY_CACHE) >= _STRATEGY_CACHE_LIMIT:
             _STRATEGY_CACHE.clear()
-    _STRATEGY_CACHE[key] = (int(at), copy.deepcopy(result))
+    _STRATEGY_CACHE[key] = (int(at), _freeze(result))
     return result
+
+
+def _freeze(result: Any) -> tuple[str, Any]:
+    """Önbellekteki kopya: değiştirilemez bayt dizisi (kimse yerinde bozamaz). Serileşmezse derin kopya."""
+    try:
+        return "pickle", pickle.dumps(result, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        return "copy", copy.deepcopy(result)
+
+
+def _thaw(frozen: tuple[str, Any]) -> Any:
+    kind, payload = frozen
+    return pickle.loads(payload) if kind == "pickle" else copy.deepcopy(payload)  # her üyeye bağımsız yeni nesne
 
 
 class OriginalMarketClient(Protocol):
@@ -765,7 +787,7 @@ async def _candidates(
             decision = StrategyInput(symbol, at, strategy_frames)
             kind = "pullback" if pullback_model else "universe" if live_universe else "demo"
             results[symbol] = shared_strategy_result(
-                kind, signal_interval, symbol, at, strategy_frames, symbol in symbols,
+                kind, signal_interval, symbol, at, strategy_frames, (isinstance(symbols, list), symbol in symbols),
                 lambda decision=decision: (
                     pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
                     else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
