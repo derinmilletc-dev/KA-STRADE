@@ -191,6 +191,8 @@ def simulate(direction: str, entry: float, stop: float, bars: list[dict], fee_bp
     target = entry + sign * risk
     rate = (fee_bps + slip_bps) / 10_000
     for offset, bar in enumerate(bars[:HORIZON]):
+        if bar["time"] != bars[0]["time"] + offset * M15:
+            return None  # veri boşluğu: 96 mum artık 24 saat değil; sonuç bilinmiyor, sayılmaz
         adverse = bar["low"] if sign == 1 else bar["high"]
         favorable = bar["high"] if sign == 1 else bar["low"]
         hit_stop = (adverse - stop) * sign <= 0

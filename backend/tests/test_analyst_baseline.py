@@ -45,6 +45,14 @@ def test_incomplete_horizon_is_not_counted():
     assert tool.simulate("LONG", 100, 98, bars, 0, 0) is None
 
 
+def test_gap_inside_horizon_is_not_counted():
+    bars = [bar(BAR * i, 100, 100.5, 99.5, 100.2) for i in range(10)]
+    bars += [bar(BAR * (i + 106), 100, 100.5, 99.5, 100.2) for i in range(tool.HORIZON)]  # 24 saatlik boşluk
+    assert tool.simulate("LONG", 100, 98, bars, 0, 0) is None
+    resolved = bars[:5] + [bar(BAR * 5, 100, 103, 99.5, 102)] + bars[10:]
+    assert tool.simulate("LONG", 100, 98, resolved, 0, 0)["outcome"] == "KAZANC"  # boşluktan önce sonuçlanan sayılır
+
+
 def test_invalid_stop_side_is_rejected():
     assert tool.simulate("LONG", 100, 101, [bar(0, 100, 100, 100, 100)] * 100, 0, 0) is None
 
