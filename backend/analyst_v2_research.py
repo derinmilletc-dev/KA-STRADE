@@ -787,19 +787,30 @@ def cmd_models(out: Path, only: str | None = None) -> None:
                                "mean_sigma": float((net[take] / sig[take]).mean()), "edge": bool(pt > 0 and lo2 > 0)}
         # Grup ablation ve MTF merdiveni (betimleyici). Hesap süresi nedeniyle S1 düzeni kullanılır:
         # LR, C = 0,1, tüm eğitim penceresi, kalibrasyonsuz; tam küme de aynı düzenle ölçülür (karşılaştırılabilir).
-        p_all, _ = oos(d, name, k, "S1", FEATURES)
+        report[name] = res
+        target.write_text(json.dumps(report, indent=1, default=float))   # ablation öncesi ana sonuçlar
+
+        def cached_s1(tag, cols):
+            path = out / f"oos_{name}_S1_{tag}.npy"
+            if path.exists():
+                return np.load(path)
+            pg_, _ = oos(d, name, k, "S1", cols)
+            np.save(path, pg_)
+            return pg_
+
+        p_all = cached_s1("tum", FEATURES)
         ll_all = logloss_rows(p_all[test], y[test])
         abl = {}
         for g in GROUPS:
             cols = [c for c in FEATURES if c not in GROUPS[g]]
-            pg, _ = oos(d, name, k, "S1", cols)
+            pg = cached_s1(f"eksi_{g}", cols)
             point, lo, hi, _ = boot.mean(logloss_rows(pg[test], y[test]) - ll_all)
             abl[f"-{g}"] = [point, lo, hi]
             log(f"{name} ablation -{g}: {point:+.5f} [{lo:+.5f}, {hi:+.5f}]")
         base15 = [c for c in FEATURES if c not in GROUPS["mtf"]]
         ladder = {}
         for label, cols in (("15m", base15), ("15m+1h", base15 + [c for c in GROUPS["mtf"] if c.startswith("h1")])):
-            pg, _ = oos(d, name, k, "S1", cols)
+            pg = cached_s1(label.replace("+", "_"), cols)
             point, lo, hi, _ = boot.mean(ll["B0"] - logloss_rows(pg[test], y[test]))
             ladder[label] = [point, lo, hi]
         point, lo, hi, _ = boot.mean(ll["B0"] - ll_all)
