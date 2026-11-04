@@ -57,7 +57,41 @@ PLAN_RECONCILIATION_GRACE_SECONDS = 15
 _PROTECTION_INSTALL_LOCKS: dict[str, asyncio.Lock] = {}
 _PROTECTION_CLEANUP_LOCKS: dict[str, asyncio.Lock] = {}
 logger = logging.getLogger(__name__)
-DEMO_SNAPSHOT_LOCK = asyncio.Lock()
+class _MemberSnapshotLock:
+    """Hesap okuma kilidi, üye başına.
+
+    Eskiden tüm üyeler tek kilidi paylaşıyordu: bir üyenin hesap okuması bitmeden diğerlerininki başlamıyordu.
+    Artık her üye (live_registry.CURRENT_USER) kendi kilidini alır; aynı üyenin okumaları yine sırayla yapılır.
+    Üye bağlı değilse (tek kullanıcı modu, sistem işleri) eskisi gibi tek ortak kilit kullanılır.
+    account_snapshot kodu değişmez (dondurulmuş); yalnız bu nesne acquire/release'i doğru kilide yönlendirir.
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def _lock(self) -> asyncio.Lock:
+        from .live_registry import CURRENT_USER
+
+        member = str(CURRENT_USER.get() or "")
+        lock = self._locks.get(member)
+        if lock is None:
+            if len(self._locks) > 5000:  # boştaki eski kilitler atılır
+                for name in [name for name, item in self._locks.items() if not item.locked()]:
+                    self._locks.pop(name, None)
+            lock = self._locks[member] = asyncio.Lock()
+        return lock
+
+    async def acquire(self) -> bool:
+        return await self._lock().acquire()
+
+    def release(self) -> None:
+        self._lock().release()
+
+    def locked(self) -> bool:
+        return self._lock().locked()
+
+
+DEMO_SNAPSHOT_LOCK = _MemberSnapshotLock()
 DEMO_CLOCK_LOCK = asyncio.Lock()
 DEMO_CLOCK_OFFSET_MS = 0
 DEMO_CLOCK_SYNCED_AT = 0.0

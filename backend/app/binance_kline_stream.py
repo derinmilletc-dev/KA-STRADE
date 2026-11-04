@@ -22,6 +22,9 @@ KLINE_STREAM_URL = "wss://fstream.binance.com/market/ws"
 IDLE_TIMEOUT_SECONDS = 45
 MAX_RECONNECT_DELAY_SECONDS = 60
 MAX_CACHED_CANDLES = 1500
+# Ortak eksik-mum indirmesine katılma süresi sınırı. HTTP istemcisinin okuma zaman aşımı 30 sn; bundan uzun süren
+# (takılmış) bir indirmeye yeni çağrılar katılmaz, kendi indirmesini başlatır (bu PR öncesi davranış).
+BACKFILL_JOIN_MAX_SECONDS = 45
 # 30m: Kais Long canlı sinyali 30 dk kapanmış mumlardan okur (bkz. original_v2_demo.LIVE_KLINE_INTERVALS).
 ALLOWED_INTERVALS = frozenset(ORIGINAL_INTERVALS) | {"30m"}
 INTERVAL_MILLISECONDS = {
@@ -62,6 +65,10 @@ class BinanceKlineStream:
         self.last_kline_at: float | None = None
         self.last_disconnect_reason: str | None = None
         self._subscribed: frozenset[tuple[str, str]] = frozenset()
+        # Aynı coin/aralık için aynı anda gelen eksik-mum isteklerini tek REST çağrısında birleştirir
+        # (çok üyeli canlıda her üyenin motoru aynı anda aynı mumu isteyebilir).
+        self._backfills: dict[tuple[str, str, int], asyncio.Task[Any]] = {}
+        self._backfill_started: dict[tuple[str, str, int], float] = {}
 
     def is_subscribed(self, symbol: str, interval: str) -> bool:
         return (symbol.upper(), interval) in self._subscribed
@@ -190,13 +197,41 @@ class BinanceKlineStream:
                 reason,
                 limit,
             )
-            self.rest_backfills += 1
-            fetched = await rest_fetch({"symbol": symbol, "interval": interval, "limit": limit})
-            if not isinstance(fetched, list):
-                raise ValueError("Binance kline backfill returned an invalid payload")
-            self._merge_rows(symbol, interval, fetched)
+            key = (symbol, interval, expected_open_time)
+            task = self._backfills.get(key)
+            if task is not None and time.monotonic() - self._backfill_started.get(key, 0.0) > BACKFILL_JOIN_MAX_SECONDS:
+                task = None  # takılmış indirmeye katılma; yenisi başlar, eskisi bitince kendini temizler
+            joined = task is not None
+            if task is None:
+                self.rest_backfills += 1
+                task = asyncio.ensure_future(self._backfill(symbol, interval, limit, rest_fetch))
+                self._backfills[key] = task
+                self._backfill_started[key] = time.monotonic()
+                task.add_done_callback(lambda done, name=key: self._backfill_done(name, done))
+            # shield: bekleyenlerden biri iptal edilirse ortak indirme diğerleri için yarıda kalmaz
+            await asyncio.shield(task)
             rows = self.candles(symbol, interval)
+            if joined and len(rows) < limit:
+                # Başkasının başlattığı indirme daha kısa bir pencere içindi: bu çağrı için tam pencere istenir.
+                self.rest_backfills += 1
+                await self._backfill(symbol, interval, limit, rest_fetch)
+                rows = self.candles(symbol, interval)
         return rows[-limit:]
+
+    def _backfill_done(self, key: tuple[str, str, int], done: asyncio.Task[Any]) -> None:
+        if not done.cancelled():
+            done.exception()  # hata bekleyenlere zaten iletildi; bekleyen kalmadıysa "retrieved" uyarısı çıkmasın
+        if self._backfills.get(key) is done:
+            self._backfills.pop(key, None)
+            self._backfill_started.pop(key, None)
+
+    async def _backfill(
+        self, symbol: str, interval: str, limit: int, rest_fetch: Callable[[dict[str, Any]], Awaitable[Any]],
+    ) -> None:
+        fetched = await rest_fetch({"symbol": symbol, "interval": interval, "limit": limit})
+        if not isinstance(fetched, list):
+            raise ValueError("Binance kline backfill returned an invalid payload")
+        self._merge_rows(symbol, interval, fetched)
 
     def _merge_rows(self, symbol: str, interval: str, rows: list[list[Any]]) -> None:
         key = (symbol, interval)

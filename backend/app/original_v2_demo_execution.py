@@ -7,9 +7,13 @@ Neither flag changes legacy Demo defaults or authorizes an owner/session.
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import logging
 import math
 import os
+import pickle
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Awaitable, Callable, NoReturn, Protocol
@@ -30,6 +34,65 @@ IDENTITY_FIELDS = (
     "decision_time", "signal_timestamp", "plan_id", "model_version",
 )
 logger = logging.getLogger(__name__)
+
+
+# Strateji kararı yalnız mum verisine ve sunucu ayarlarına bağlıdır; üyeye özgü hiçbir şey okumaz.
+# Aynı coin + aynı mum + aynı veri için hesap bir kez yapılır, diğer üyeler kopyasını alır.
+# Anahtar verinin özetini de içerdiği için farklı veri gören motor asla başkasının sonucunu almaz.
+_STRATEGY_CACHE: dict[tuple[Any, ...], tuple[int, Any]] = {}
+_STRATEGY_CACHE_LIMIT = 4000
+STRATEGY_CACHE_STATS = {"hits": 0, "misses": 0}
+
+
+def _frames_digest(frames: dict[str, Any]) -> str:
+    payload = json.dumps(
+        {interval: frames[interval] for interval in sorted(frames)}, sort_keys=True, default=str, separators=(",", ":"),
+    )
+    return hashlib.blake2b(payload.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def shared_strategy_result(
+    kind: str, signal_interval: str, symbol: str, at: int, frames: dict[str, Any], allowed: Any,
+    compute: Callable[[], Any],
+) -> Any:
+    from .execution_core import MIN_CONFIDENCE_ENV, MTF_ALLOW_EITHER_TIMEFRAME_ENV
+
+    # Sonucu etkileyen her girdi anahtardadır: model türü, sinyal dilimi, coin, karar anı, evren geçerliliği,
+    # sunucu ayarları (PROTREBOT_MIN_CONFIDENCE, KAIS2 kapısı, MTF esnekliği) ve mum verisinin özeti.
+    # Hesap verisi (bakiye, pozisyon, emir) bu adımda hiç kullanılmaz; üye kapıları (account_gates) sonra, üye başına çalışır.
+    key = (
+        kind, signal_interval, symbol, int(at), allowed,
+        # Ayarların ham metni: yorumlanmış değerden daha ince ayrım yapar ve hiçbir zaman hata fırlatmaz
+        # (geçersiz ayar, eskisi gibi yalnız onu okuyan strateji adımında hata verir).
+        tuple(os.getenv(name) for name in (MIN_CONFIDENCE_ENV, strategy.KAIS2_GATE_FLAG, MTF_ALLOW_EITHER_TIMEFRAME_ENV)),
+        _frames_digest(frames),
+    )
+    cached = _STRATEGY_CACHE.get(key)
+    if cached is not None:
+        STRATEGY_CACHE_STATS["hits"] += 1
+        return _thaw(cached[1])
+    STRATEGY_CACHE_STATS["misses"] += 1
+    result = compute()  # hata önbelleğe girmez; çağırana aynen yükselir
+    if len(_STRATEGY_CACHE) >= 500:  # bir saatten eski mumların sonuçları artık kimseye lazım değil
+        for name in [name for name, (stamp, _) in _STRATEGY_CACHE.items() if stamp < int(at) - 3600]:
+            _STRATEGY_CACHE.pop(name, None)
+        if len(_STRATEGY_CACHE) >= _STRATEGY_CACHE_LIMIT:
+            _STRATEGY_CACHE.clear()
+    _STRATEGY_CACHE[key] = (int(at), _freeze(result))
+    return result
+
+
+def _freeze(result: Any) -> tuple[str, Any]:
+    """Önbellekteki kopya: değiştirilemez bayt dizisi (kimse yerinde bozamaz). Serileşmezse derin kopya."""
+    try:
+        return "pickle", pickle.dumps(result, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        return "copy", copy.deepcopy(result)
+
+
+def _thaw(frozen: tuple[str, Any]) -> Any:
+    kind, payload = frozen
+    return pickle.loads(payload) if kind == "pickle" else copy.deepcopy(payload)  # her üyeye bağımsız yeni nesne
 
 
 class OriginalMarketClient(Protocol):
@@ -722,10 +785,14 @@ async def _candidates(
         try:
             strategy_frames = frames if signal_interval == "15m" else strategy.live_strategy_frames(frames, signal_interval)
             decision = StrategyInput(symbol, at, strategy_frames)
-            results[symbol] = (
-                pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
-                else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
-                if live_universe else strategy.evaluate(decision, enabled=True)
+            kind = "pullback" if pullback_model else "universe" if live_universe else "demo"
+            results[symbol] = shared_strategy_result(
+                kind, signal_interval, symbol, at, strategy_frames, (isinstance(symbols, list), symbol in symbols),
+                lambda decision=decision: (
+                    pullback.evaluate_live_pullback(decision, allowed_symbols=symbols, enabled=True) if pullback_model
+                    else strategy.evaluate_live_universe(decision, allowed_symbols=symbols, enabled=True, kais2_gate=True)
+                    if live_universe else strategy.evaluate(decision, enabled=True)
+                ),
             )
         except Exception:
             if diagnostics is not None:

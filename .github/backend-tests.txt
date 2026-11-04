@@ -220,3 +220,5 @@ tests/test_founding_invites.py
 tests/test_founder_price_lock.py
 tests/test_founding_public_paths.py
 tests/test_position_live_score.py
+tests/test_multi_user_live_perf.py
+tests/test_multi_user_live_30.py
