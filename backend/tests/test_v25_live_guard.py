@@ -1294,7 +1294,7 @@ class V25LiveGuardCoreTests(unittest.TestCase):
         self.assertEqual(policy["max_margin_per_trade"], HARD_MAX_MARGIN_USDT)
         self.assertEqual(policy["max_leverage"], HARD_MAX_LEVERAGE)
         self.assertEqual(policy["max_positions"], HARD_MAX_POSITIONS)
-        self.assertEqual(policy["daily_loss_limit"], HARD_MAX_DAILY_LOSS_USDT)
+        self.assertEqual(policy["daily_loss_limit"], 9999)   # sabit 100 tavanı kaldırıldı; değer olduğu gibi kalır
         self.assertEqual(policy["allowed_symbols"], ["BTCUSDT", "ETHUSDT"])
 
     def test_policy_digest_changes_when_risk_changes(self):
