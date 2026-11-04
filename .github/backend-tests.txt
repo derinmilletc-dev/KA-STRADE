@@ -225,3 +225,4 @@ tests/test_multi_user_live_30.py
 tests/test_account_reservations.py
 tests/test_daily_loss_account_wide.py
 tests/test_account_risk_budget.py
+tests/test_reconcile_prefetch.py
