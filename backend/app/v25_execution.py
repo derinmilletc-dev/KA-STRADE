@@ -8112,9 +8112,18 @@ async def v25_grid_live_resume(request: Request, grid_id: str | None = Query(def
     grid_live.require_enabled()
     user_id, owner = grid_actor(user)
     try:
-        result = await grid_live.runner_for(request.app).resume(request.app, request.app.state.v25_execution,
+        state = request.app.state.v25_execution
+        # ARM dolduğu için duraklatılmış grid'lerin girişleri yalnız canlı giriş yetkisi yeniden açıkken açılır;
+        # yetki yoksa yalnız koruma döngüsü sürdürülür (grid duraklatılmış kalır).
+        reopen = bool(is_armed(state) and not live_execution_blocked(state) and state.get("real_trading_locked") is False)
+        price_client = client_for(request.app, request)
+
+        async def price_lookup(symbol: str) -> float:
+            return float(await ticker_price(price_client, symbol))
+
+        result = await grid_live.runner_for(request.app).resume(request.app, state,
                                                                 grid_live.build_adapter(request.app, request), user_id=user_id,
-                                                                grid_id=grid_id, owner=owner)
+                                                                grid_id=grid_id, owner=owner, reopen=reopen, price_lookup=price_lookup)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     return {"ok": True, **result}
