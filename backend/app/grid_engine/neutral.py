@@ -56,6 +56,9 @@ class NeutralGridEngine(GridEngine):
     def _position_delta(self) -> float:
         return self.grid_net()
 
+    def _protect_side(self, net: float) -> str:
+        return SELL if net > 0 else BUY
+
     # ---------- koruma ----------
     def _ensure_protection(self) -> None:
         if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, BLOCKED, INTERVENTION_REQUIRED):
