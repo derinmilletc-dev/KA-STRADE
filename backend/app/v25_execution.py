@@ -1275,6 +1275,16 @@ def _member_state_has_activity(state: dict[str, Any]) -> bool:
     return bool(authorization.get("user_id") or state.get("plans") or (state.get("auto") or {}).get("enabled"))
 
 
+def _member_has_active_live_grid(application: Any, user_id: str) -> bool:
+    """Bitmemiş canlı grid'i olan üyenin motoru açılışta başlamalı (grid kurtarması onun içinde çalışır)."""
+    try:
+        from . import grid_live
+        return bool(grid_live.runner_for(application).occupying_rows(user_id))
+    except Exception:  # noqa: BLE001 - defter okunamazsa güvenli taraf: motoru başlat
+        logger.warning("GRID_ACTIVITY_READ_FAILED")
+        return True
+
+
 async def restore_member_states(application: Any, registry: Any) -> bool:
     """Multi-user LIVE: load every member's own snapshot (and move the old shared one to its owner)."""
     from . import live_registry
@@ -1325,7 +1335,7 @@ async def restore_member_states(application: Any, registry: Any) -> bool:
                 persist_state(state)  # from now on the owner's own row is used
         system.update(_app=application, recovery_loaded=True, recovery_ready=False, recovery_error=None)
         for user_id in restored:
-            if _member_state_has_activity(registry.state_for(user_id)):
+            if _member_state_has_activity(registry.state_for(user_id)) or _member_has_active_live_grid(application, user_id):
                 registry.ensure_engine(user_id)
         return True
     except Exception:
@@ -7465,14 +7475,46 @@ def new_member_state(application: Any, user_id: str) -> dict[str, Any]:
     return state
 
 
+def grid_recovery_task(application: Any) -> asyncio.Task:
+    """Açılışta bu hesabın (çok üyelide: bağlı üyenin) döngüsü durmuş canlı grid'lerini kurtarır: canlı durum hazır olunca
+    grid sahibinin kasadaki anahtarıyla borsayla eşitler, korumaları doğrular, ancak sonra döngüyü başlatır."""
+    from . import grid_live, live_registry
+    state = application.state.v25_execution
+    member = str(state.get("_live_user_id") or "") if live_registry.registry_of(application) is not None else ""
+    if member:
+        try:
+            owner_id = str(observation.OWNER_ID_PROVIDER() or "") if observation.OWNER_ID_PROVIDER else ""
+        except Exception:  # noqa: BLE001 - sahip bilinmiyorsa sahipsiz eski kayıtlara dokunulmaz
+            owner_id = ""
+        user_id, owner = member, member == owner_id
+    else:
+        user_id, owner = None, True   # tek kullanıcı modu: defterdeki tüm canlı grid'ler bu hesabındır
+
+    async def recover() -> None:
+        try:
+            await grid_live.startup_recovery(
+                application, state, user_id=user_id, owner=owner,
+                credentials=lambda: auto_session_credentials(application, state),
+                entry_authority=lambda: live_entry_authority_open(state),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - kurtarma hatası canlı döngüyü durdurmaz; korumalar borsada
+            logger.warning("LIVE_GRID_STARTUP_RECOVERY_FAILED type=%s", type(exc).__name__)
+
+    return asyncio.create_task(recover(), name="live-grid-startup-recovery")
+
+
 async def member_engine(application: Any) -> None:
     """One member's own control loop and Binance stream. Runs inside a task bound to that member."""
     stream = asyncio.create_task(live_user_stream_loop(application))
+    grids = grid_recovery_task(application)
     try:
         await execution_supervisor(application)
     finally:
         stream.cancel()
-        await asyncio.gather(stream, return_exceptions=True)
+        grids.cancel()
+        await asyncio.gather(stream, grids, return_exceptions=True)
 
 
 def init_v25_execution(application: Any) -> None:
@@ -7496,6 +7538,7 @@ def init_v25_execution(application: Any) -> None:
     application.state.v25_execution_stopping = False
     application.state.v25_execution_task = asyncio.create_task(execution_supervisor(application))
     application.state.v25_live_stream_task = asyncio.create_task(live_user_stream_loop(application))
+    application.state.v25_grid_recovery_task = grid_recovery_task(application)
 
 
 async def shutdown_v25_execution(application: Any) -> None:

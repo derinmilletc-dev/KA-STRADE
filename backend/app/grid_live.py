@@ -55,6 +55,9 @@ LIQ_CHECK_SECONDS = 15.0
 DAILY_CHECK_SECONDS = 60.0
 HIGH_LEVERAGE_ACK_ABOVE = 20          # bu kaldıracın üstünde canlı başlatma ek onay ister
 LOCK_KEEP_DEFAULT_PCT = 70.0        # kâr kilidi: zirve kârın en az bu kadarı korunur
+RECOVERY_RETRY_SECONDS = 30.0       # açılış kurtarması: başarısız grid'ler bu aralıkla yeniden denenir
+RECOVERY_MAX_ATTEMPTS = 20          # ~10 dk; sonra kullanıcı "Devam ettir" ile elle dener (korumalar borsada kalır)
+RECOVERY_READY_WAIT_SECONDS = 600.0 # canlı durum kurtarması (hesap okuma) bu süre içinde hazır olmazsa grid'e dokunulmaz
 # ARM (24 saatlik canlı giriş izni) dolunca çalışan canlı grid duraklatılır: yeni giriş ve tur durur, bekleyen girişler iptal,
 # açık pozisyon stop ve hedefleriyle korunur. Pozisyon kapansa da grid bitmez; yeniden ARM verilince "Devam ettir" ile sürer.
 ARM_PAUSE_REASON = "ARM süresi doldu; yeni giriş durdu, bekleyen girişler iptal edildi, korumalar sürüyor"
@@ -394,6 +397,7 @@ class LiveGridRunner:
         self._liq_checked: dict[str, float] = {}
         self._liq_alerted: dict[str, str] = {}
         self._daily_checked: dict[str, float] = {}
+        self._recovery: dict[str, dict[str, Any]] = {}  # grid_id -> son açılış kurtarması sonucu (panel/teşhis)
         self._ledger_failed_since: dict[str, float] = {}
 
     # ---- geriye uyum (tek grid dönemi alanları)
@@ -488,6 +492,7 @@ class LiveGridRunner:
                        for o in orders if o["status"] not in ("CANCELED", "REJECTED") or o["filled"] > EPS],
             "alerts": [{"level": level, "text": text} for level, text in self.store.alerts(gid)[-12:]],
             "liq": self._liq.get(gid), "peak_pnl": round(float(row["peak_pnl"] or 0.0), 6),
+            "recovery": self._recovery.get(gid),
         }
 
     def day_summary(self, user_id: str, *, owner: bool = False, limit: float | None = None, now: float | None = None) -> dict[str, Any]:
@@ -702,6 +707,54 @@ class LiveGridRunner:
                 self._ensure_loop(app, state, gid)
         return self.status_payload(user_id, owner=owner)
 
+    def recoverable_rows(self, user_id: str | None, *, owner: bool = True) -> list[Any]:
+        """Döngüsü çalışmayan, bitmemiş ve kullanıcı müdahalesi beklemeyen grid'ler (açılışta kurtarılacaklar)."""
+        if user_id is None:
+            rows = self.store.grids(exclude_statuses=FINAL_STATUSES)
+        else:
+            rows = self.user_rows(user_id, owner=owner, active_only=True)
+        return [r for r in rows if r["status"] not in NEEDS_USER and not self.loop_running(r["grid_id"])
+                and not (self._recovery.get(r["grid_id"]) or {}).get("loop_started")]
+
+    async def recover_after_restart(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, *,
+                                    user_id: str | None, owner: bool = True, entry_authority: bool = True) -> list[dict[str, Any]]:
+        """Sunucu yeniden başladıktan sonra her grid için: eşitle → yalnız koruma kur → doğrula → ANCAK ONDAN SONRA döngü.
+        Eşitleme ya da koruma doğrulanamazsa döngü başlamaz, yeni emir gönderilmez; sonraki denemede tekrar bakılır.
+        Yeni giriş yetkisi (ARM / gözetimli oturum) yoksa grid duraklatılır: bekleyen girişler iptal, korumalar sürer."""
+        results: list[dict[str, Any]] = []
+        for row in self.recoverable_rows(user_id, owner=owner):
+            gid, symbol = row["grid_id"], row["symbol"]
+            async with self.grid_lock(gid):
+                if self.loop_running(gid):
+                    continue
+                engine = self.build_engine(row, adapter, state)
+                try:
+                    verified, detail = await asyncio.to_thread(engine.recover)
+                except Exception as exc:   # ağ/ayrıştırma: emir gönderilmedi; sonraki denemede tekrar
+                    verified, detail = False, f"kurtarma hatası ({type(exc).__name__})"
+                status = engine.status
+                if verified and status not in FINAL_STATUSES and status not in NEEDS_USER and not entry_authority and status == RUNNING:
+                    self._stop_reasons[gid] = ARM_PAUSE_REASON   # #495 ile aynı neden: yeniden ARM + "Devam ettir" bunu açar
+                    status = await asyncio.to_thread(engine.pause)
+                    self.store.set_grid(gid, halt_reason=ARM_PAUSE_REASON)
+                started = bool(verified and status not in FINAL_STATUSES and status not in NEEDS_USER)
+                self._recovery[gid] = {"verified": bool(verified), "detail": detail, "status": status, "loop_started": started,
+                                       "at": time.time()}
+                if started:
+                    self._engines[gid] = engine
+                    self._adapters[gid] = adapter
+                    self._errors[gid] = 0
+                    self._paused_for_block.discard(gid)
+                    self._ensure_loop(app, state, gid)
+                    self._record(state, "LIVE_GRID_RECOVERED", f"{symbol} grid yeniden başlatma sonrası borsayla eşitlendi, "
+                                 f"korumalar doğrulandı ({detail}); döngü sürüyor (durum {status}).", grid_id=gid, status=status)
+                elif status in FINAL_STATUSES:
+                    self._record(state, "LIVE_GRID_RECOVERED", f"{symbol} grid kapalıyken bitmiş: {status} ({detail}).", grid_id=gid, status=status)
+                else:
+                    self._record(state, "LIVE_GRID_RECOVERY_PENDING", f"{symbol} grid kurtarılamadı: {detail}. Yeni emir gönderilmedi; "
+                                 "borsadaki korumalar yerinde. Tekrar denenecek.", grid_id=gid, status=status)
+                results.append({"grid_id": gid, "symbol": symbol, **self._recovery[gid]})
+        return results
     async def _reopen_after_arm(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any], price_lookup: Any = None) -> None:
         """ARM yenilendi: grid'i yeniden RUNNING yapar, iptal edilen girişleri güncel fiyata göre geçerliyse yeniden açar."""
         gid = row["grid_id"]
@@ -971,6 +1024,54 @@ def build_adapter(app: Any, request: Any) -> BinanceLiveGridAdapter:
     client = v25.BinanceLiveClient(app.state.http, api_key, secret_key, diagnostic_state=getattr(app.state, "v25_execution", None),
                                    application=app, background_session=False)
     return BinanceLiveGridAdapter(client, asyncio.get_running_loop())
+
+
+def build_background_adapter(app: Any, credentials: tuple[str, str]) -> BinanceLiveGridAdapter:
+    """İstek olmadan (açılış kurtarması): grid sahibinin kasadan çözülen anahtarıyla arka plan istemcisi.
+    Arka plan istemcisi reduce-only olmayan girişleri yalnız canlı giriş yetkisi açıkken gönderir."""
+    from . import v25_execution as v25
+    return BinanceLiveGridAdapter(v25.client_for_with_credentials(app, credentials), asyncio.get_running_loop())
+
+
+async def startup_recovery(app: Any, state: dict[str, Any], *, user_id: str | None, owner: bool,
+                           credentials: Any, adapter_factory: Any = build_background_adapter,
+                           entry_authority: Any = None, sleep: Any = asyncio.sleep,
+                           retry_seconds: float = RECOVERY_RETRY_SECONDS, max_attempts: int = RECOVERY_MAX_ATTEMPTS,
+                           ready_wait_seconds: float = RECOVERY_READY_WAIT_SECONDS) -> list[dict[str, Any]]:
+    """Açılışta bir kez: canlı durum kurtarması (hesap okuması) hazır olana kadar bekler, sonra bu kullanıcının
+    döngüsü durmuş grid'lerini kurtarır. Anahtar çözülemezse ya da kurtarma doğrulanamazsa aralıklarla yeniden dener;
+    hiçbir koşulda eşitleme olmadan emir göndermez. Sonunda kurtarılamayanlar "Devam ettir" ile elle sürdürülebilir."""
+    runner = runner_for(app)
+    if not runner.recoverable_rows(user_id, owner=owner):
+        return []
+    waited = 0.0
+    while not state.get("recovery_ready"):
+        if getattr(getattr(app, "state", None), "v25_execution_stopping", False) or waited >= ready_wait_seconds:
+            runner._record(state, "LIVE_GRID_RECOVERY_PENDING", "Canlı durum kurtarması hazır olmadı; grid'lere dokunulmadı, "
+                           "borsadaki korumalar yerinde. Devam ettir ile elle sürdürülebilir.")
+            return []
+        await sleep(5.0)
+        waited += 5.0
+    results: list[dict[str, Any]] = []
+    for attempt in range(max_attempts):
+        if getattr(getattr(app, "state", None), "v25_execution_stopping", False):
+            break
+        pending = runner.recoverable_rows(user_id, owner=owner)
+        if not pending:
+            break
+        keys = await credentials()
+        if not (isinstance(keys, tuple) and len(keys) == 2 and all(isinstance(k, str) and len(k) >= 10 for k in keys)):
+            if attempt == 0:
+                runner._record(state, "LIVE_GRID_RECOVERY_PENDING", "Grid kurtarması için canlı anahtar çözülemedi; yeni emir gönderilmedi, "
+                               "borsadaki korumalar yerinde. Tekrar denenecek.")
+        else:
+            authority = True if entry_authority is None else bool(entry_authority())
+            results = await runner.recover_after_restart(app, state, adapter_factory(app, keys), user_id=user_id, owner=owner,
+                                                         entry_authority=authority)
+            if not runner.recoverable_rows(user_id, owner=owner):
+                break
+        await sleep(retry_seconds)
+    return results
 
 
 def require_enabled() -> None:

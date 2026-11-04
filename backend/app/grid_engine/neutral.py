@@ -56,6 +56,9 @@ class NeutralGridEngine(GridEngine):
     def _position_delta(self) -> float:
         return self.grid_net()
 
+    def _protect_side(self, net: float) -> str:
+        return SELL if net > 0 else BUY
+
     def _entry_still_valid(self, level: int, price: float) -> bool:
         lv = self.spec.levels[level - 1]
         if lv.side == LONG:
