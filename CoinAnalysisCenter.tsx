@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { BarChart3, Check, ChevronDown, ChevronUp, Filter, LockKeyhole, RefreshCw, Search, X } from 'lucide-react'
 import { API_BASE } from './api'
 import { analystCopy, marketCopy } from './ui-copy'
@@ -8,10 +8,13 @@ import './analyst-clean.css'
 import './analyst-desktop.css'
 import './analyst-mobile.css'
 import './analyst-mobile-minimal.css'
+import './analyst-v2.css'
 import ScrollHintStrip from './ScrollHintStrip'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
-type Row = {symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
+type AnalystV2Component = {group:string;label:string;push:'LONG'|'SHORT'|'NÖTR';weight_pct:number;contribution:number;detail:string;insight?:string}
+type AnalystV2 = {status:'OK'|'VERI_YETERSIZ';model_version:string;horizon:string;note:string;analyst_direction:Direction;analyst_lean?:'LONG'|'SHORT';analyst_score:number|null;analyst_strength?:string;probabilities?:{LONG:number;SHORT:number;BEKLE:number};movement?:{level:'YUKSEK'|'ORTA'|'DUSUK';percentile:number;historical_share_moved:number|null};history?:{band:string;direction:string;samples:number;hit_rate:number;opposite_rate:number;base_rate:number;avg_net_bp:number}|null;components?:AnalystV2Component[];summary?:string;as_of?:number;price?:number;levels?:{up:number;down:number;move_pct:number;high_20h:number;low_20h:number};meaning?:string;market?:{label:string;value:string;hint:string;tone:'positive'|'negative'|'neutral'}[]}
+type Row = {analyst_v2?:AnalystV2|null;symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
 type Consensus = {direction:string;alignment:number;timeframes:{timeframe:string;direction:string;confidence:number}[]}
 type SignalHistoryItem = {id:string;symbol:string;timestamp:string;signal:Direction;score:number;entry:number;stop:number;tp1:number;tp2:number;tp3:number;timeframe:string;mtf:string;risk_reward:number;status:string}
 type SignalPerformance = {available:boolean;message?:string;total_signals?:number;tp1_hit_rate?:number;tp2_hit_rate?:number;tp3_hit_rate?:number;stop_rate?:number;average_risk_reward?:number}
@@ -27,6 +30,95 @@ const pctTr = (value?:number, signed=false) => value === undefined || !Number.is
 const volumeNote = (ratio:number, short=false) => ratio < 0.5 ? `${ratio.toLocaleString('tr-TR',{maximumFractionDigits:2})}x · mum yeni açılmış olabilir` : `${ratio >= 1 ? '+' : ''}${pctTr((ratio - 1) * 100)}${short ? '' : ' ortalamaya göre'}`
 const pct = (value:number) => Number.isFinite(value) ? value.toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}) : '—'
 const scoreLabel = (score:number) => score >= 90 ? 'Çok güçlü' : score >= 75 ? 'Güçlü' : score >= 60 ? 'Orta' : score >= 40 ? 'Nötr' : 'Zayıf'
+const pct0 = (value:number) => `%${Math.round(value * 100)}`
+const MOVE_TEXT:Record<string,string> = {YUKSEK:'Yüksek',ORTA:'Orta',DUSUK:'Düşük'}
+const analystV2Of = (row?:Row|null) => row?.analyst_v2?.status === 'OK' && row.analyst_v2.analyst_score !== null ? row.analyst_v2 : null
+const priceTr = (value:number) => value.toLocaleString('tr-TR',{maximumFractionDigits:value >= 100 ? 2 : value >= 1 ? 4 : 6})
+const timeTr = (epoch:number) => new Date(epoch * 1000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})
+type AnalystV2Tab = 'why'|'market'|'levels'|'history'
+const AV2_TABS:{id:AnalystV2Tab;label:string}[] = [{id:'why',label:'Neden'},{id:'market',label:'Piyasa'},{id:'levels',label:'Seviyeler'},{id:'history',label:'Geçmiş'}]
+const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
+  const [tab, setTab] = useState<AnalystV2Tab>('why')
+  const [showAll, setShowAll] = useState(false)
+  const uid = useId()
+  const score = v2.analyst_score ?? 0
+  const lean = v2.analyst_lean ?? 'LONG'
+  const signed = (lean === 'LONG' ? 1 : -1) * score / 100
+  const position = Math.min(97, Math.max(3, 50 + signed * 50))
+  const waiting = v2.analyst_direction === 'BEKLE'
+  const h = v2.history
+  const up = h?.direction === 'LONG'
+  const p = v2.probabilities
+  const lv = v2.levels
+  const components = v2.components || []
+  const maxWeight = Math.max(1, ...components.map(item => item.weight_pct))
+  return <section className={`av2 av2-${tone(v2.analyst_direction)}`} aria-label="Analist görüşü">
+    <div className="av2Head">
+      <div className="av2Call">
+        <strong>{waiting ? 'Belirgin yön yok' : `${v2.analyst_direction} eğilimi`}</strong>
+        <span>{waiting ? `Hafif ${lean} tarafında, yön için yeterli değil` : `${v2.analyst_strength === 'GÜÇLÜ' ? 'Güçlü' : 'Orta'} sinyal, önümüzdeki 1 saat için`}{v2.as_of ? ` · ${timeTr(v2.as_of)} verisi` : ''}</span>
+      </div>
+      <div className="av2Score" aria-label={`Analist puanı ${score} / 100`}><b>{score}</b><small>/100</small></div>
+    </div>
+    <div className="av2Scale" role="img" aria-label={`Eğilim terazisi: ${waiting ? 'BEKLE' : v2.analyst_direction}, puan ${score}`}>
+      <div className="av2Track"><i className="av2Zone"/><i className="av2Needle" style={{left:`${position}%`}}/></div>
+      <div className="av2Ends"><span>SHORT</span><span>BEKLE</span><span>LONG</span></div>
+    </div>
+    {v2.meaning && <p className="av2Meaning">{v2.meaning}</p>}
+    {p && <div className="av2Odds" aria-label="Önümüzdeki 1 saat için tahmin">
+      <div className="av2OddsBar" aria-hidden="true">
+        <i className="negative" style={{flexGrow:p.SHORT}}/><i className="neutral" style={{flexGrow:p.BEKLE}}/><i className="positive" style={{flexGrow:p.LONG}}/>
+      </div>
+      <div className="av2OddsLabels">
+        <span className="negative">Düşüş <b>{pct0(p.SHORT)}</b></span>
+        <span>Yatay <b>{pct0(p.BEKLE)}</b></span>
+        <span className="positive">Yükseliş <b>{pct0(p.LONG)}</b></span>
+      </div>
+    </div>}
+    <div className="av2Tabs" role="tablist" aria-label="Analiz ayrıntıları">
+      {AV2_TABS.map(item => <button key={item.id} type="button" role="tab" id={`${uid}-tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`${uid}-panel`} className={tab === item.id ? 'active' : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
+    </div>
+    <div className="av2TabPanel" role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-tab-${tab}`}>
+      {tab === 'why' && <>
+        <ul className="av2Why">{(showAll ? components : components.slice(0, 3)).map(item => {
+          const width = item.weight_pct / maxWeight * 50
+          const side = item.push === 'LONG' ? 'right' : item.push === 'SHORT' ? 'left' : 'none'
+          return <li key={item.group}>
+            <div className="av2Row">
+              <span className="av2Label">{item.label}</span>
+              <span className="av2Bar" aria-hidden="true"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
+              <span className={`av2Push ${item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}`}>{item.push === 'NÖTR' ? 'Nötr' : item.push}</span>
+            </div>
+            {item.insight && <p className="av2Insight">{item.insight}</p>}
+            <details className="av2Tech"><summary>Teknik değerler</summary><p>{item.detail}</p></details>
+          </li>
+        })}</ul>
+        {components.length > 3 && <button type="button" className="av2More" onClick={() => setShowAll(!showAll)}>{showAll ? 'Daha az göster' : `Diğer ${components.length - 3} etkeni göster`}</button>}
+      </>}
+      {tab === 'market' && v2.market && <dl className="av2Market">{v2.market.map(item => <div key={item.label}>
+        <dt>{item.label}</dt><dd className={item.tone}>{item.value}</dd><small>{item.hint}</small>
+      </div>)}</dl>}
+      {tab === 'levels' && lv && <>
+        <ul className="av2Levels">{[
+          {key:'hi', label:'20 saatin tepesi', value:lv.high_20h, cls:''},
+          {key:'up', label:'Belirgin yükseliş sınırı', value:lv.up, cls:'positive'},
+          ...(v2.price !== undefined ? [{key:'now', label:'Şu anki fiyat', value:v2.price, cls:'now'}] : []),
+          {key:'dn', label:'Belirgin düşüş sınırı', value:lv.down, cls:'negative'},
+          {key:'lo', label:'20 saatin dibi', value:lv.low_20h, cls:''},
+        ].sort((x, y) => y.value - x.value).map(item => <li key={item.key} className={item.cls === 'now' ? 'av2Now' : undefined}><span>{item.label}</span><b className={item.cls === 'now' ? undefined : item.cls || undefined}>{priceTr(item.value)}</b></li>)}</ul>
+        <p className="av2Hint">1 saat sonra fiyat ±%{lv.move_pct.toLocaleString('tr-TR',{maximumFractionDigits:2})} dışına çıkarsa hareket belirgin sayılır; içinde kalırsa yatay.</p>
+      </>}
+      {tab === 'history' && <>
+        {h && !waiting && <p className="av2History">Geçmişte bu güçteki sinyallerden 1 saat içinde <b>{pct0(h.hit_rate)} {up ? 'yükseldi' : 'düştü'}</b>, {pct0(h.opposite_rate)} ters yöne gitti, kalanı yatay kaldı. Rastgele seçimde bu oran {pct0(h.base_rate)}.</p>}
+        <dl className="av2Facts">
+          {v2.movement && <div><dt>Hareket beklentisi</dt><dd>{MOVE_TEXT[v2.movement.level]}</dd></div>}
+          {h && <div><dt>Masraf sonrası geçmiş ortalama</dt><dd className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : '−'}{Math.abs(h.avg_net_bp).toLocaleString('tr-TR')} bp</dd></div>}
+        </dl>
+        <p className="av2Hint">Puan, bu saatteki yön eğiliminin geçmişteki tüm saatlerle karşılaştırmasıdır: {score} puan, geçmişteki her 100 saatin yaklaşık {score} tanesinden daha net bir eğilim demektir. 60'ın altında yön verilmez, 80 ve üstü güçlü sayılır. Masraflar düşüldüğünde geçmişte ortalama kâr çıkmadı; tek başına işlem sinyali olarak kullanılmamalı.</p>
+      </>}
+    </div>
+  </section>
+}
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
 type SignalFact = {text:string;level:'good'|'warn'|'bad'}
 const signalFacts = (row:Row):SignalFact[] => {
@@ -173,6 +265,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
   }),[rows,debouncedQuery,filters,sort,ascending])
   const authorizedDetail = !credits.exhausted && detail?.userId === userId && detail?.row.symbol === selected && detail.timeframe === interval && detail.expiresAt > credits.now ? detail : null
   const active = authorizedDetail?.row || rows.find(row => row.symbol === selected) || visible[0]
+  const activeV2 = analystV2Of(active)
   const analystAnswer = premium || authorizedDetail ? storedAnalystAnswer : ''
   const activeSymbol = active?.symbol || ''
   const consensus = active ? {direction:active.mtf_direction,alignment:active.mtf_alignment,timeframes:active.mtf_timeframes} : null
@@ -376,26 +469,31 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         {loading ? <div className="analystSelectorSkeleton" aria-label="Tarama verileri yükleniyor"><i/><i/><i/><i/></div> : error ? <p className="analystSelectorEmpty">{analystCopy.dataUnavailable}</p> : <div className="analystSelectorList">{selectorRows.map(row => <button type="button" key={row.symbol} className={row.symbol === selected ? 'selected' : ''} onClick={() => selectAnalystCoin(row.symbol)} aria-pressed={row.symbol === selected}><span className="analystSelectorIdentity"><b>{row.symbol}</b><small>{row.display}</small></span><span className={`analystSelectorSignal ${tone(row.direction)}`}><strong>{selectorSignal(row.direction)}</strong><small>{pctTr(row.confidence)} {analystCopy.confidence}</small></span><span className="analystSelectorSnapshot"><b>{fmt(row.price)}</b><small>{row.trend}</small></span></button>)}{!selectorRows.length && <p className="analystSelectorEmpty">{analystCopy.noMatch}</p>}</div>}
         </section>
         <div className="analystDetailColumn">
-          <section className="analystLegacyResultWorkspace" aria-live="polite" data-tone={active ? tone(active.direction) : 'neutral'}>
-            <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(active.direction) : 'neutral'}>{active?.direction || analystCopy.waitingResult}</strong></header>
+          <section className="analystLegacyResultWorkspace" aria-live="polite" data-tone={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>
+            <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>{activeV2 ? activeV2.analyst_direction : active?.direction || analystCopy.waitingResult}</strong></header>
             {loading ? <div className="analystLoadingState" aria-label={analystCopy.loading}><i/><i/><i/><i/></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{analystCopy.dataUnavailableHint}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : active ? <>
+              {activeV2 ? <>
+              <AnalystV2Panel v2={activeV2}/>
+              {activeV2.analyst_direction !== active.direction && <p className="av2PlanNote">Aşağıdaki giriş ve stop seviyeleri eski taramanın {active.direction} görünümüne göredir; analist görüşüyle uyuşmuyor.</p>}
+              </> : <>
               <div className="analystDetailHero"><strong className={tone(active.direction)}>{active.direction}</strong><span>{pctTr(active.confidence)} {analystCopy.confidence}</span></div>
               <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,active.confidence))}%`} as CSSProperties} aria-hidden="true"><b>{pctTr(active.confidence)}</b></div>
               <p className="analystVerdict">{signalVerdict(active)}</p>
               <div className="analystFacts">{signalFacts(active).map(fact => <i key={fact.text} data-level={fact.level}>{fact.text}</i>)}</div>
+              </>}
               {(() => { const plan = pricePlan(active); if (!plan) return null; const entryLeft = plan.find(point => point.key === 'entry')?.left ?? 50; const stopLeft = plan.find(point => point.key === 'stop')?.left ?? 0; const line = stopLeft < entryLeft ? `linear-gradient(90deg,#ff7b7b ${entryLeft}%,#3ddc97 ${entryLeft}%)` : `linear-gradient(90deg,#3ddc97 ${entryLeft}%,#ff7b7b ${entryLeft}%)`; return <div className="analystPriceLadder" aria-label="Fiyat planı"><div className="analystLadderLine" style={{background:line}}/>{plan.map(point => <div className={`analystLadderPoint ${point.key}`} key={point.key} style={{left:`${point.left}%`}}>{point.label}<b>{fmt(point.value)}</b></div>)}</div> })()}
-              <div className="analystPlanStats"><div><small>Risk/Ödül</small><b>{lockedOr(active.risk_reward, () => `1 : ${fmt(active.risk_reward)}`)}</b></div><div><small>Stop mesafesi</small><b>{lockedOr(active.risk_pct, () => `-${pctTr(active.risk_pct)}`)}</b></div><div><small>{analystCopy.signalConfidence}</small><b>{pctTr(active.confidence)}</b></div></div>
+              <div className="analystPlanStats"><div><small>Risk/Ödül</small><b>{lockedOr(active.risk_reward, () => `1 : ${fmt(active.risk_reward)}`)}</b></div><div><small>Stop mesafesi</small><b>{lockedOr(active.risk_pct, () => `-${pctTr(active.risk_pct)}`)}</b></div><div><small>{activeV2 ? 'Analist puanı' : analystCopy.signalConfidence}</small><b>{activeV2 ? `${activeV2.analyst_score}/100` : pctTr(active.confidence)}</b></div></div>
               <div className="analystMetricCards">
                 <span><small>{analystCopy.regime}</small><b>{active.trend}</b></span>
                 <span><small>{analystCopy.entry}</small><b>{lockedOr(active.entry, () => fmt(active.entry))}</b></span>
                 <span><small>{analystCopy.exit}</small><b>{lockedOr(active.tp1, () => `TP1 ${fmt(active.tp1)} · TP2 ${fmt(active.tp2)} · TP3 ${fmt(active.tp3)}`)}</b></span>
                 <span><small>{analystCopy.risk}</small><b>{lockedOr(active.risk_reward, () => `R/R ${fmt(active.risk_reward)} · -${pctTr(active.risk_pct)}`)}</b></span>
-                <span><small>{analystCopy.signalConfidence}</small><b>{pctTr(active.confidence)}</b></span>
+                <span><small>{activeV2 ? 'Analist puanı' : analystCopy.signalConfidence}</small><b>{activeV2 ? `${activeV2.analyst_score}/100` : pctTr(active.confidence)}</b></span>
                 <span><small>{analystCopy.mtfAlignment}</small><b>{fmt(active.mtf_alignment)}</b></span>
                 <span><small>{analystCopy.momentum}</small><b>RSI {fmt(active.rsi)}</b></span>
                 <span><small>{analystCopy.volume}</small><b>{volumeNote(active.volume_ratio, true)}</b></span>
               </div>
-              <div className={`analystWhyResult${analystAnswer ? '' : ' isGeneric'}`}><span>{analystCopy.whyResult}</span><p>{analystAnswer || `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${pctTr(active.confidence)}. İşlem öncesi yapı ve risk metriklerini inceleyin.`}</p></div>
+              <div className={`analystWhyResult${analystAnswer ? '' : ' isGeneric'}`}><span>{analystCopy.whyResult}</span><p>{analystAnswer || (activeV2?.summary ?? `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${pctTr(active.confidence)}. İşlem öncesi yapı ve risk metriklerini inceleyin.`)}</p></div>
             </> : <p className="analystEmpty">{analystCopy.resultEmpty}</p>}
           </section>
           <section className="analystAskBar">

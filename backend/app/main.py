@@ -23,6 +23,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 from pydantic import BaseModel, Field
 from .analysis import analyze
+from .analyst_v2 import evaluate as evaluate_analyst_v2
 from .analyst_credits import router as analyst_credits_router
 from .assistant_api import router as assistant_router, shutdown_assistant
 from .chart_ai_api import router as chart_ai_router, shutdown_chart_ai
@@ -4836,6 +4837,14 @@ async def analysis_universe(interval: str = "15m", limit: int = Query(100, ge=1,
         return await _analysis_universe(interval, limit)
 
 
+def _analyst_v2_snapshot(candles: list[dict]) -> dict | None:
+    """Analist V2 (yalnız analist ekranı). Hata olursa None döner; mevcut alanları ve satırı asla etkilemez."""
+    try:
+        return evaluate_analyst_v2(candles)
+    except Exception:
+        return None
+
+
 async def _analysis_universe(interval: str, limit: int):
     """Return cached, read-only technical snapshots for eligible USDT pairs."""
     analysis_started = time.monotonic()
@@ -4911,6 +4920,7 @@ async def _analysis_universe(interval: str, limit: int):
                 1,
             )
             timing["scoring_total"] += time.monotonic() - scoring_started
+            analyst_v2 = await asyncio.to_thread(_analyst_v2_snapshot, candles) if interval == "15m" else None
             risk_pct = abs(result["entry"] - result["stop_loss"]) / result["entry"] * 100
             potential_tp3_pct = abs(result["tp3"] - result["entry"]) / result["entry"] * 100
             previous_volume = sum(candle["volume"] for candle in candles[-21:-1]) / max(1, len(candles[-21:-1]))
@@ -4941,6 +4951,7 @@ async def _analysis_universe(interval: str, limit: int):
                 "mtf_timeframes": mtf["timeframes"], "anomaly": anomaly,
                 "volatility_pct": round(volatility_pct, 3),
                 "volume_change_pct": round((candles[-1]["volume"] - previous_volume) / max(previous_volume, 1e-9) * 100, 2),
+                "analyst_v2": analyst_v2,
             }
         except Exception:
             return None
