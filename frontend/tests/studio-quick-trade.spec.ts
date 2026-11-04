@@ -31,7 +31,7 @@ function position(symbol: string, direction: 'LONG' | 'SHORT', leverage = 2): Po
 }
 const planFor = (symbol: string, direction: 'LONG' | 'SHORT', source = 'MANUAL') => ({id: `plan-${symbol}-1`, symbol, direction, status: 'OPEN', source, provenance_state: 'CONFIRMED', stop_loss: 1, targets: [1, 2, 3]})
 
-async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844, height: 390}) {
+async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844, height: 390}, routes?: (page: Page) => Promise<void>) {
   const mock: Mock = {positions: [], plans: [], tests: [], orders: [], closes: [], reduces: [], orderStatus: 200, orderBody: null, armed: true, ...seed}
   await page.addInitScript(() => {
     try { localStorage.setItem('kais-site-tour:v1:studio-member', `never|${Date.now()}`); for (const id of ['market', 'risk']) localStorage.setItem(`kais-page-tips:v1:studio-member:${id}`, 'seen') } catch { /* yok */ }
@@ -79,6 +79,7 @@ async function prepare(page: Page, seed: Partial<Mock> = {}, size = {width: 844,
     if (pos) pos.quantity = pos.quantity / 2
     return route.fulfill({json: {ok: true}})
   })
+  if (routes) await routes(page)
   await page.goto('/master-trade?tab=analiz', {waitUntil: 'domcontentloaded'})
   await expect(root(page).locator('.refReportSymbol')).toContainText(/\d+%/, {timeout: 20000})
   await root(page).locator('.kfsStudioBtn').click()
@@ -576,4 +577,26 @@ test('Bot/dış pozisyonda stop çizgisi sürüklenemez', async ({page}) => {
   await prepare(page, {positions: [profitable()], plans: [planFor('BTCUSDT', 'LONG', 'BOT')]})
   await expect(chartLines(page).locator('xpath=self::*[@data-kind="stop"]')).toHaveCount(1, {timeout: 15000})
   await expect(terminal(page).locator('.refGridDrag .refGridHit')).toHaveCount(0)
+})
+
+test('Canlı kapanış fiyatı: LONG kâr/zararı en iyi alıştan hesaplanır; yayın susunca fiyat "eski" diye işaretlenir', async ({page}) => {
+  const entry = price('BTCUSDT'), bid = entry + 50, ask = entry + 51
+  let sending = true
+  await prepare(page, {positions: [position('BTCUSDT', 'LONG')], plans: [planFor('BTCUSDT', 'LONG')]}, undefined, async target => {
+    await target.routeWebSocket(/fstream\.binance\.com\/(public|market)\/ws\/btcusdt@bookTicker/, socket => {
+      const timer = setInterval(() => { if (sending) socket.send(JSON.stringify({e: 'bookTicker', s: 'BTCUSDT', b: String(bid), a: String(ask)})) }, 200)
+      socket.onClose(() => clearInterval(timer))
+    })
+  })
+  const chip = layer(page).locator('.sqtChip')
+  await expect(chip.locator('.sqtLive[data-state="live"]')).toBeVisible({timeout: 15000})
+  await expect(chip).toContainText('+0,5000 USDT')
+  await chip.click()
+  const card = layer(page).locator('.sqtCard')
+  await expect(card.locator('.sqtCloseAt')).toContainText('Şimdi kapatırsan yaklaşık')
+  await page.screenshot({path: 'test-results/studio-live-close-price.png'})
+  sending = false
+  await expect(card.locator('.sqtLive[data-state="stale"]')).toBeVisible({timeout: 8000})
+  await expect(card.locator('.sqtCloseAt')).toContainText('fiyat güncel değil')
+  await page.screenshot({path: 'test-results/studio-live-close-price-stale.png'})
 })
