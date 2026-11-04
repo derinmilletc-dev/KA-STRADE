@@ -362,7 +362,7 @@ def evaluate(candles: list[dict], now: float | None = None, model: dict | None =
         "movement": {"level": move_level, "percentile": move_pct,
                      "historical_share_moved": round(move_hist["share_moved"], 4) if move_hist else None},
         "history": {"band": band, "direction": lean, "samples": hist["n"], "hit_rate": round(hist["hit"], 4),
-                    "opposite_rate": round(hist["opposite"], 4), "base_rate": round(hist["base"], 4),
+                    "opposite_rate": round(hist["opposite"], 4), "flat_rate": round(hist["flat"], 4), "base_rate": round(hist["base"], 4),
                     "avg_net_bp": round(hist["net_bp"], 1)} if hist else None,
         "components": components, "summary": summary,
         "data_quality": {"closed_bars": len(rows), "status": "IYI"},

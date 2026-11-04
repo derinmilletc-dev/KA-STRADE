@@ -34,26 +34,48 @@ const pct0 = (value:number) => `%${Math.round(value * 100)}`
 const MOVE_TEXT:Record<string,string> = {YUKSEK:'Yüksek',ORTA:'Orta',DUSUK:'Düşük'}
 const analystV2Of = (row?:Row|null) => row?.analyst_v2?.status === 'OK' && row.analyst_v2.analyst_score !== null ? row.analyst_v2 : null
 const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
-  const p = v2.probabilities
+  const score = v2.analyst_score ?? 0
+  const lean = v2.analyst_lean ?? 'LONG'
+  const signed = (lean === 'LONG' ? 1 : -1) * score / 100
+  const position = Math.min(97, Math.max(3, 50 + signed * 50))
+  const waiting = v2.analyst_direction === 'BEKLE'
   const h = v2.history
-  return <section className="analystV2Panel" aria-label="Analist V2 ayrıntıları">
-    <header><b>Analist görüşü · {v2.horizon}</b><small>Puan olasılık değildir</small></header>
-    {p && <div className="analystV2Probs" role="img" aria-label={`LONG ${pct0(p.LONG)}, BEKLE ${pct0(p.BEKLE)}, SHORT ${pct0(p.SHORT)}`}>
-      <span className="positive" style={{flexGrow:p.LONG}}>LONG {pct0(p.LONG)}</span>
-      <span className="neutral" style={{flexGrow:p.BEKLE}}>BEKLE {pct0(p.BEKLE)}</span>
-      <span className="negative" style={{flexGrow:p.SHORT}}>SHORT {pct0(p.SHORT)}</span>
-    </div>}
-    <div className="analystV2Stats">
-      {h && <div><small>Geçmişte bu güçte ({h.band} · {h.direction})</small><b>{pct0(h.hit_rate)} {h.direction === 'LONG' ? 'yükseldi' : 'düştü'} · {pct0(h.opposite_rate)} ters</b><em>rastgele {pct0(h.base_rate)} · {h.samples.toLocaleString('tr-TR')} örnek</em></div>}
-      {v2.movement && <div><small>Hareket beklentisi (1 saat)</small><b>{MOVE_TEXT[v2.movement.level]}</b><em>{v2.movement.historical_share_moved !== null ? `geçmişte bu seviyede ${pct0(v2.movement.historical_share_moved)} belirgin hareket` : ''}</em></div>}
-      {h && <div><small>Maliyet sonrası geçmiş ortalama</small><b className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : ''}{h.avg_net_bp.toLocaleString('tr-TR')} bp</b><em>işlem sinyali değildir</em></div>}
+  const up = h?.direction === 'LONG'
+  const components = v2.components || []
+  const maxWeight = Math.max(1, ...components.map(item => item.weight_pct))
+  return <section className={`av2 av2-${tone(v2.analyst_direction)}`} aria-label="Analist görüşü">
+    <div className="av2Head">
+      <div className="av2Call">
+        <strong>{waiting ? 'Belirgin yön yok' : `${v2.analyst_direction} eğilimi`}</strong>
+        <span>{waiting ? `Hafif ${lean} tarafında, yön için yeterli değil` : `${v2.analyst_strength === 'GÜÇLÜ' ? 'Güçlü' : 'Orta'} sinyal, önümüzdeki 1 saat için`}</span>
+      </div>
+      <div className="av2Score" aria-label={`Analist puanı ${score} / 100`}><b>{score}</b><small>/100</small></div>
     </div>
-    <ul className="analystV2Components">{(v2.components || []).map(item => <li key={item.group}>
-      <div><b>{item.label}</b><strong className={item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}>{item.push === 'NÖTR' ? 'Nötr' : `${item.push} yönüne`} · {item.weight_pct}%</strong></div>
-      <i className={item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'} style={{width:`${Math.max(4,item.weight_pct)}%`}}/>
-      <p>{item.detail}</p>
-    </li>)}</ul>
-    <p className="analystV2Note">{v2.note} Model {v2.model_version}; 2022–2026 geçmiş verisinde doğrulandı.</p>
+    <div className="av2Scale" role="img" aria-label={`Eğilim terazisi: ${waiting ? 'BEKLE' : v2.analyst_direction}, puan ${score}`}>
+      <div className="av2Track"><i className="av2Zone"/><i className="av2Needle" style={{left:`${position}%`}}/></div>
+      <div className="av2Ends"><span>SHORT</span><span>BEKLE</span><span>LONG</span></div>
+    </div>
+    {h && !waiting && <p className="av2History">Geçmişte bu güçteki sinyallerden 1 saat içinde <b>{pct0(h.hit_rate)} {up ? 'yükseldi' : 'düştü'}</b>, {pct0(h.opposite_rate)} ters yöne gitti, kalanı yatay kaldı. Rastgele seçimde bu oran {pct0(h.base_rate)}.</p>}
+    <div className="av2Why">
+      <h4>Neden?</h4>
+      <ul>{components.map(item => {
+        const width = item.weight_pct / maxWeight * 50
+        const side = item.push === 'LONG' ? 'right' : item.push === 'SHORT' ? 'left' : 'none'
+        return <li key={item.group}><details>
+          <summary>
+            <span className="av2Label">{item.label}</span>
+            <span className="av2Bar"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
+            <span className={`av2Push ${item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}`}>{item.push === 'NÖTR' ? 'Nötr' : item.push}</span>
+          </summary>
+          <p>{item.detail}</p>
+        </details></li>
+      })}</ul>
+    </div>
+    <dl className="av2Facts">
+      {v2.movement && <div><dt>Hareket beklentisi</dt><dd>{MOVE_TEXT[v2.movement.level]}</dd></div>}
+      {h && <div><dt>Masraf sonrası geçmiş ortalama</dt><dd className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : '−'}{Math.abs(h.avg_net_bp).toLocaleString('tr-TR')} bp</dd></div>}
+    </dl>
+    <p className="av2Note">Puan olasılık değildir ve işlem sinyali değildir; 2022–2026 geçmiş verisiyle ölçüldü.</p>
   </section>
 }
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
@@ -410,11 +432,8 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
             <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>{activeV2 ? activeV2.analyst_direction : active?.direction || analystCopy.waitingResult}</strong></header>
             {loading ? <div className="analystLoadingState" aria-label={analystCopy.loading}><i/><i/><i/><i/></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{analystCopy.dataUnavailableHint}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : active ? <>
               {activeV2 ? <>
-              <div className="analystDetailHero"><strong className={tone(activeV2.analyst_direction)}>{activeV2.analyst_direction}</strong><span>Analist puanı {activeV2.analyst_score}/100 · {activeV2.analyst_strength}</span></div>
-              <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,activeV2.analyst_score ?? 0))}%`} as CSSProperties} aria-hidden="true"><b>{activeV2.analyst_score}</b></div>
-              <p className="analystVerdict">{activeV2.summary}</p>
               <AnalystV2Panel v2={activeV2}/>
-              {activeV2.analyst_direction !== active.direction && <p className="analystV2PlanNote">Aşağıdaki teknik plan eski taramanın yönüne ({active.direction}) göredir ve analist görüşüyle ({activeV2.analyst_direction}) uyuşmuyor; bilgi amaçlıdır.</p>}
+              {activeV2.analyst_direction !== active.direction && <p className="av2PlanNote">Aşağıdaki giriş ve stop seviyeleri eski taramanın {active.direction} görünümüne göredir; analist görüşüyle uyuşmuyor.</p>}
               </> : <>
               <div className="analystDetailHero"><strong className={tone(active.direction)}>{active.direction}</strong><span>{pctTr(active.confidence)} {analystCopy.confidence}</span></div>
               <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,active.confidence))}%`} as CSSProperties} aria-hidden="true"><b>{pctTr(active.confidence)}</b></div>
