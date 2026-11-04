@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { BarChart3, Check, ChevronDown, ChevronUp, Filter, LockKeyhole, RefreshCw, Search, X } from 'lucide-react'
 import { API_BASE } from './api'
 import { analystCopy, marketCopy } from './ui-copy'
@@ -35,7 +35,12 @@ const MOVE_TEXT:Record<string,string> = {YUKSEK:'Yüksek',ORTA:'Orta',DUSUK:'Dü
 const analystV2Of = (row?:Row|null) => row?.analyst_v2?.status === 'OK' && row.analyst_v2.analyst_score !== null ? row.analyst_v2 : null
 const priceTr = (value:number) => value.toLocaleString('tr-TR',{maximumFractionDigits:value >= 100 ? 2 : value >= 1 ? 4 : 6})
 const timeTr = (epoch:number) => new Date(epoch * 1000).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})
+type AnalystV2Tab = 'why'|'market'|'levels'|'history'
+const AV2_TABS:{id:AnalystV2Tab;label:string}[] = [{id:'why',label:'Neden'},{id:'market',label:'Piyasa'},{id:'levels',label:'Seviyeler'},{id:'history',label:'Geçmiş'}]
 const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
+  const [tab, setTab] = useState<AnalystV2Tab>('why')
+  const [showAll, setShowAll] = useState(false)
+  const uid = useId()
   const score = v2.analyst_score ?? 0
   const lean = v2.analyst_lean ?? 'LONG'
   const signed = (lean === 'LONG' ? 1 : -1) * score / 100
@@ -51,7 +56,7 @@ const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
     <div className="av2Head">
       <div className="av2Call">
         <strong>{waiting ? 'Belirgin yön yok' : `${v2.analyst_direction} eğilimi`}</strong>
-        <span>{waiting ? `Hafif ${lean} tarafında, yön için yeterli değil` : `${v2.analyst_strength === 'GÜÇLÜ' ? 'Güçlü' : 'Orta'} sinyal, önümüzdeki 1 saat için`}</span>
+        <span>{waiting ? `Hafif ${lean} tarafında, yön için yeterli değil` : `${v2.analyst_strength === 'GÜÇLÜ' ? 'Güçlü' : 'Orta'} sinyal, önümüzdeki 1 saat için`}{v2.as_of ? ` · ${timeTr(v2.as_of)} verisi` : ''}</span>
       </div>
       <div className="av2Score" aria-label={`Analist puanı ${score} / 100`}><b>{score}</b><small>/100</small></div>
     </div>
@@ -70,49 +75,48 @@ const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
         <span className="positive">Yükseliş <b>{pct0(p.LONG)}</b></span>
       </div>
     </div>}
-    {h && !waiting && <p className="av2History">Geçmişte bu güçteki sinyallerden 1 saat içinde <b>{pct0(h.hit_rate)} {up ? 'yükseldi' : 'düştü'}</b>, {pct0(h.opposite_rate)} ters yöne gitti, kalanı yatay kaldı. Rastgele seçimde bu oran {pct0(h.base_rate)}.</p>}
-    <div className="av2Block">
-      <h4>Neden bu sonuç?</h4>
-      <ul className="av2Why">{components.map(item => {
-        const width = item.weight_pct / maxWeight * 50
-        const side = item.push === 'LONG' ? 'right' : item.push === 'SHORT' ? 'left' : 'none'
-        return <li key={item.group}>
-          <div className="av2Row">
-            <span className="av2Label">{item.label}</span>
-            <span className="av2Bar" aria-hidden="true"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
-            <span className={`av2Push ${item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}`}>{item.push === 'NÖTR' ? 'Nötr' : item.push}</span>
-          </div>
-          {item.insight && <p className="av2Insight">{item.insight}</p>}
-          <details className="av2Tech"><summary>Teknik değerler</summary><p>{item.detail}</p></details>
-        </li>
-      })}</ul>
+    <div className="av2Tabs" role="tablist" aria-label="Analiz ayrıntıları">
+      {AV2_TABS.map(item => <button key={item.id} type="button" role="tab" id={`${uid}-tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`${uid}-panel`} className={tab === item.id ? 'active' : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
     </div>
-    {v2.market && <div className="av2Block">
-      <h4>Piyasa durumu</h4>
-      <dl className="av2Market">{v2.market.map(item => <div key={item.label}>
+    <div className="av2TabPanel" role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-tab-${tab}`}>
+      {tab === 'why' && <>
+        <ul className="av2Why">{(showAll ? components : components.slice(0, 3)).map(item => {
+          const width = item.weight_pct / maxWeight * 50
+          const side = item.push === 'LONG' ? 'right' : item.push === 'SHORT' ? 'left' : 'none'
+          return <li key={item.group}>
+            <div className="av2Row">
+              <span className="av2Label">{item.label}</span>
+              <span className="av2Bar" aria-hidden="true"><i className={`av2Fill av2-${side}`} style={side === 'none' ? undefined : {width:`${Math.max(3,width)}%`}}/></span>
+              <span className={`av2Push ${item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}`}>{item.push === 'NÖTR' ? 'Nötr' : item.push}</span>
+            </div>
+            {item.insight && <p className="av2Insight">{item.insight}</p>}
+            <details className="av2Tech"><summary>Teknik değerler</summary><p>{item.detail}</p></details>
+          </li>
+        })}</ul>
+        {components.length > 3 && <button type="button" className="av2More" onClick={() => setShowAll(!showAll)}>{showAll ? 'Daha az göster' : `Diğer ${components.length - 3} etkeni göster`}</button>}
+      </>}
+      {tab === 'market' && v2.market && <dl className="av2Market">{v2.market.map(item => <div key={item.label}>
         <dt>{item.label}</dt><dd className={item.tone}>{item.value}</dd><small>{item.hint}</small>
-      </div>)}</dl>
-    </div>}
-    {lv && <div className="av2Block">
-      <h4>Takip edilecek seviyeler</h4>
-      <ul className="av2Levels">{[
-        {key:'hi', label:'20 saatin tepesi', value:lv.high_20h, cls:''},
-        {key:'up', label:'Belirgin yükseliş sınırı', value:lv.up, cls:'positive'},
-        ...(v2.price !== undefined ? [{key:'now', label:'Şu anki fiyat', value:v2.price, cls:'now'}] : []),
-        {key:'dn', label:'Belirgin düşüş sınırı', value:lv.down, cls:'negative'},
-        {key:'lo', label:'20 saatin dibi', value:lv.low_20h, cls:''},
-      ].sort((x, y) => y.value - x.value).map(item => <li key={item.key} className={item.cls === 'now' ? 'av2Now' : undefined}><span>{item.label}</span><b className={item.cls === 'now' ? undefined : item.cls || undefined}>{priceTr(item.value)}</b></li>)}</ul>
-      <p className="av2Hint">1 saat sonra fiyat ±%{lv.move_pct.toLocaleString('tr-TR',{maximumFractionDigits:2})} dışına çıkarsa hareket belirgin sayılır; içinde kalırsa yatay.</p>
-    </div>}
-    <dl className="av2Facts">
-      {v2.movement && <div><dt>Hareket beklentisi</dt><dd>{MOVE_TEXT[v2.movement.level]}</dd></div>}
-      {h && <div><dt>Masraf sonrası geçmiş ortalama</dt><dd className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : '−'}{Math.abs(h.avg_net_bp).toLocaleString('tr-TR')} bp</dd></div>}
-      {v2.as_of && <div><dt>Veri</dt><dd>{timeTr(v2.as_of)} itibarıyla</dd></div>}
-    </dl>
-    <details className="av2Help">
-      <summary>Puan nasıl okunur?</summary>
-      <p>Puan, bu saatteki yön eğiliminin geçmişteki tüm saatlerle karşılaştırmasıdır: {score} puan, geçmişteki her 100 saatin yaklaşık {score} tanesinden daha net bir eğilim demektir. 60'ın altında yön verilmez, 80 ve üstü güçlü sayılır. Yukarıdaki düşüş/yatay/yükseliş yüzdeleri 2022–2026 verisinde ölçülmüş olasılıklardır; masraflar düşüldüğünde geçmişte ortalama kâr çıkmadı, bu yüzden tek başına işlem sinyali olarak kullanılmamalı.</p>
-    </details>
+      </div>)}</dl>}
+      {tab === 'levels' && lv && <>
+        <ul className="av2Levels">{[
+          {key:'hi', label:'20 saatin tepesi', value:lv.high_20h, cls:''},
+          {key:'up', label:'Belirgin yükseliş sınırı', value:lv.up, cls:'positive'},
+          ...(v2.price !== undefined ? [{key:'now', label:'Şu anki fiyat', value:v2.price, cls:'now'}] : []),
+          {key:'dn', label:'Belirgin düşüş sınırı', value:lv.down, cls:'negative'},
+          {key:'lo', label:'20 saatin dibi', value:lv.low_20h, cls:''},
+        ].sort((x, y) => y.value - x.value).map(item => <li key={item.key} className={item.cls === 'now' ? 'av2Now' : undefined}><span>{item.label}</span><b className={item.cls === 'now' ? undefined : item.cls || undefined}>{priceTr(item.value)}</b></li>)}</ul>
+        <p className="av2Hint">1 saat sonra fiyat ±%{lv.move_pct.toLocaleString('tr-TR',{maximumFractionDigits:2})} dışına çıkarsa hareket belirgin sayılır; içinde kalırsa yatay.</p>
+      </>}
+      {tab === 'history' && <>
+        {h && !waiting && <p className="av2History">Geçmişte bu güçteki sinyallerden 1 saat içinde <b>{pct0(h.hit_rate)} {up ? 'yükseldi' : 'düştü'}</b>, {pct0(h.opposite_rate)} ters yöne gitti, kalanı yatay kaldı. Rastgele seçimde bu oran {pct0(h.base_rate)}.</p>}
+        <dl className="av2Facts">
+          {v2.movement && <div><dt>Hareket beklentisi</dt><dd>{MOVE_TEXT[v2.movement.level]}</dd></div>}
+          {h && <div><dt>Masraf sonrası geçmiş ortalama</dt><dd className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : '−'}{Math.abs(h.avg_net_bp).toLocaleString('tr-TR')} bp</dd></div>}
+        </dl>
+        <p className="av2Hint">Puan, bu saatteki yön eğiliminin geçmişteki tüm saatlerle karşılaştırmasıdır: {score} puan, geçmişteki her 100 saatin yaklaşık {score} tanesinden daha net bir eğilim demektir. 60'ın altında yön verilmez, 80 ve üstü güçlü sayılır. Masraflar düşüldüğünde geçmişte ortalama kâr çıkmadı; tek başına işlem sinyali olarak kullanılmamalı.</p>
+      </>}
+    </div>
   </section>
 }
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'

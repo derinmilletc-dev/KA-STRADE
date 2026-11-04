@@ -65,8 +65,6 @@
 .av2OddsLabels .negative b { color: var(--av2-short); }
 .av2OddsLabels .positive b { color: var(--av2-long); }
 
-.av2Block { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--av2-line); }
-.av2Block h4 { margin: 0; font-size: 14px; font-weight: 650; color: var(--av2-text); }
 
 .av2Why { list-style: none; margin: 0; padding: 0; display: grid; }
 .av2Why li { padding: 10px 0; }
@@ -107,12 +105,16 @@
 .av2Levels li.av2Now { margin: 2px -8px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, .05); color: var(--av2-text); }
 .av2Hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--av2-muted); }
 
-.av2Help { border-top: 1px solid var(--av2-line); padding-top: 12px; }
-.av2Help summary { font-size: 12.5px; color: #b9c4c9; cursor: pointer; border-radius: 4px; }
-.av2Help summary:hover { color: var(--av2-text); }
-.av2Help p { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--av2-muted); max-width: 66ch; }
 .av2 summary:focus-visible { outline: 2px solid var(--av2-accent); outline-offset: 2px; }
 
+.av2Tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, .045); }
+.av2Tabs button { appearance: none; border: 0; padding: 8px 4px; border-radius: 8px; background: transparent; color: var(--av2-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.av2Tabs button:hover { color: var(--av2-text); }
+.av2Tabs button.active { background: rgba(255, 255, 255, .1); color: var(--av2-text); }
+.av2Tabs button:focus-visible, .av2More:focus-visible { outline: 2px solid var(--av2-accent); outline-offset: 1px; }
+.av2TabPanel { display: grid; gap: 12px; min-height: 120px; margin-top: -6px; }
+.av2More { justify-self: start; appearance: none; border: 1px solid var(--av2-line); background: transparent; color: #b9c4c9; font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.av2More:hover { color: var(--av2-text); border-color: rgba(255, 255, 255, .18); }
 .av2Facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
 .av2Facts div { display: grid; gap: 2px; }
 .av2Facts dt { font-size: 12px; color: var(--av2-muted); }
@@ -130,5 +132,5 @@
   .av2Market { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .av2Needle { transition: none; }
+  .av2Needle, .av2Tabs button { transition: none; }
 }
