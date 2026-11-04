@@ -823,9 +823,82 @@ def cmd_models(out: Path, only: str | None = None) -> None:
     target.write_text(json.dumps(report, indent=1, default=float))
 
 
+# ------------------------------------------------------------------ canlı analist modeli (1 saat, 15m özellikleri, LR)
+def cmd_final(out: Path) -> None:
+    from analyst_v2_features_ref import FEATURES_15M, GROUPS_15M
+    df = load_full(out)
+    k = json.loads((out / "k_fixed.json").read_text())["1s"]["k"]
+    name = "1s"
+    d = horizon_frame(df, name, k)
+    test = (d["t"] >= folds()[0][0]).to_numpy()
+    y = d["y"].to_numpy()
+    log = lambda s: print(s, flush=True)  # noqa: E731
+    cache = out / "final_oos_1s.npy"
+    if cache.exists():
+        p = np.load(cache)
+    else:
+        p, _ = oos(d, name, k, "M1", FEATURES_15M, log)
+        np.save(cache, p)
+    p0 = np.load(out / "oos_1s_B0.npy")
+    pt, yt = p[test], y[test]
+    boot = TwoWay(d.loc[test, "day"].to_numpy(), d.loc[test, "symbol"].to_numpy())
+    dll = boot.mean(logloss_rows(p0[test], yt) - logloss_rows(pt, yt))[:3]
+    r = d.loc[test, "r_1s"].to_numpy()
+    strength = pt[:, 0] - pt[:, 1]
+    move = 1 - pt[:, 2]
+    s_q = np.quantile(np.abs(strength), np.linspace(0, 1, 101))
+    m_q = np.quantile(move, np.linspace(0, 1, 101))
+    score = np.clip(np.searchsorted(s_q, np.abs(strength), side="right") - 1, 0, 100)
+    base = class_freq(yt)
+    bands = []
+    for lo in range(0, 100, 10):
+        hi = 100 if lo == 90 else lo + 9
+        for sign, label, cls in ((1, "LONG", 0), (-1, "SHORT", 1)):
+            m = (score >= lo) & (score <= hi) & (np.sign(strength) == sign)
+            if not m.any():
+                continue
+            net = sign * r[m] - COST
+            bands.append({"band": f"{lo}-{hi}", "direction": label, "n": int(m.sum()), "days": int(d.loc[test].loc[m, "day"].nunique()),
+                          "hit": float((yt[m] == cls).mean()), "opposite": float((yt[m] == 1 - cls).mean()),
+                          "flat": float((yt[m] == 2).mean()), "base": float(base[cls]), "net_bp": float(net.mean() * 1e4)})
+    mterc = np.digitize(move, np.quantile(move, [1 / 3, 2 / 3]))
+    move_table = [{"level": lab, "share_moved": float((yt[mterc == i] != 2).mean()),
+                   "mean_abs_r_bp": float(np.abs(r[mterc == i]).mean() * 1e4)} for i, lab in enumerate(("DUSUK", "ORTA", "YUKSEK"))]
+    metrics = {"n": int(test.sum()), "days": int(d.loc[test, "day"].nunique()), "delta_ll_vs_B0": list(dll), "auc_ls": auc_ls(pt, yt),
+               "ece": [ece(pt, yt, i) for i in range(3)], "slope": [cal_slope(pt, yt, i) for i in range(3)],
+               "class_share": base.tolist()}
+    log(json.dumps(metrics))
+    # Son model: tüm geliştirme verisi, ön kayıttaki 70/15/15 düzeni.
+    x = d[FEATURES_15M].to_numpy(np.float64)
+    allidx = np.arange(len(d))
+    fit, hp, cal = split_slices(allidx, d, name)
+    best = None
+    for c in C_GRID:
+        m = fit_lr(x[fit], y[fit], c)
+        ll = logloss_rows(m.predict_proba(x[hp]), y[hp]).mean()
+        if best is None or ll < best[0]:
+            best = (ll, c, m)
+    model = best[2]
+    calm = vector_scaling(model.predict_proba(x[cal]), y[cal])
+    scaler, lr = model[0], model[-1]
+    export = {
+        "version": "analist-v2-1s-lr-1", "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "horizon": "1 saat", "k": k, "cost": COST, "classes": list(CLASSES), "features": FEATURES_15M, "groups": GROUPS_15M,
+        "scaler_mean": scaler.mean_.tolist(), "scaler_scale": scaler.scale_.tolist(), "C": best[1],
+        "coef": lr.coef_.tolist(), "intercept": lr.intercept_.tolist(), "lr_classes": lr.classes_.tolist(),
+        "cal_coef": calm.coef_.tolist(), "cal_intercept": calm.intercept_.tolist(),
+        "strength_quantiles": s_q.tolist(), "move_quantiles": m_q.tolist(),
+        "band_table": bands, "move_table": move_table, "validation": metrics,
+        "training": {"from": "2020-10-01", "to": "2026-04-30", "rows": int(len(d)), "coins": int(d["symbol"].nunique()),
+                     "integrity_sha256": (out / "integrity.sha256").read_text().strip()},
+    }
+    (out / "analyst_v2_model.json").write_text(json.dumps(export, indent=1))
+    log(f"son model C={best[1]} yazıldı")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["integrity", "build", "kfix", "scan", "models"])
+    ap.add_argument("command", choices=["integrity", "build", "kfix", "scan", "models", "final"])
     ap.add_argument("--data", type=Path, default=Path.home() / "kais-data" / "analyst")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--horizon", choices=list(HORIZONS), default=None)
@@ -834,7 +907,7 @@ def main() -> None:
     if a.out.resolve().is_relative_to(repo):
         ap.error("Çıktı klasörü repo dışında olmalı.")
     {"integrity": lambda: cmd_integrity(a.data, a.out), "build": lambda: cmd_build(a.data, a.out),
-     "kfix": lambda: cmd_kfix(a.out), "scan": lambda: cmd_scan(a.out), "models": lambda: cmd_models(a.out, a.horizon)}[a.command]()
+     "kfix": lambda: cmd_kfix(a.out), "scan": lambda: cmd_scan(a.out), "models": lambda: cmd_models(a.out, a.horizon), "final": lambda: cmd_final(a.out)}[a.command]()
 
 
 if __name__ == "__main__":
