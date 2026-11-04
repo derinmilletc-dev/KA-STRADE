@@ -449,6 +449,8 @@ class JournalAckTests(unittest.TestCase):
             self.assertEqual(stack.disk(), {})
             gate.set()
             self.assertTrue(wait_for(lambda: journal_module.receipt_state(token) == "persisted"))
+            # Bölümleri arka plan işçisi sırayla yazar: 'path' kalıcı olunca diğerleri henüz yazılmamış olabilir (yarış). Beklenir.
+            self.assertTrue(wait_for(lambda: sorted(stack.disk()) == ["context", "fill", "path", "schema"]))
             self.assertEqual(sorted(stack.disk()), ["context", "fill", "path", "schema"])
             self.observe(stack, plan, 1020)  # sonraki turda durum 'persisted' olarak plana işlenir
             self.assertEqual(plan["original_record"]["journal_sent"]["context"]["state"], "persisted")
