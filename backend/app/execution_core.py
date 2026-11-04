@@ -22,7 +22,9 @@ LIVE_CLIENT_PREFIX = "PTBLV_"
 HARD_MAX_MARGIN_USDT = 300.0
 HARD_MAX_LEVERAGE = 50
 HARD_MAX_POSITIONS = 5
-HARD_MAX_DAILY_LOSS_USDT = 100.0
+# Günlük zarar için sabit 100 USDT tavanı KALDIRILDI: limit kullanıcının/stratejinin kendi ayarıdır (hesap büyüklüğüne göre).
+# Bu değer artık bir risk tavanı değil; yalnız saçma/sonsuz girdiyi sonlu tutan koruma (1 milyar USDT).
+HARD_MAX_DAILY_LOSS_USDT = 1_000_000_000.0
 HARD_MAX_DAILY_TRADES = 12
 HARD_MAX_CONSECUTIVE_LOSSES = 10
 HARD_MAX_TOTAL_EXPOSURE_USDT = 1000.0
