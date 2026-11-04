@@ -68,3 +68,17 @@ def isolate_shared_strategy_cache():
     clear()
     yield
     clear()
+
+
+@pytest.fixture(autouse=True)
+def daily_ledger_offline_unless_tested(request, monkeypatch):
+    """Eski testlerin sahte Binance istemcilerinde /fapi/v1/income yok. Hesap geneli günlük defter (fail-closed) yalnız
+    kendi test dosyasında gerçek çalışır; diğerlerinde boş defter döner (olay tabanlı eski hesap aynen geçerli)."""
+    if request.module.__name__.endswith("test_daily_loss_account_wide"):
+        return
+    from app import daily_ledger
+
+    async def empty(client, state, **kwargs):
+        return {"day": None, "fetched_at": 0.0, "totals": {"net": 0.0}, "rows": [], "source": "TEST_OFFLINE"}
+
+    monkeypatch.setattr(daily_ledger, "refresh", empty)
