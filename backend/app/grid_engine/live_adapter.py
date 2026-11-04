@@ -82,6 +82,11 @@ class BinanceLiveGridAdapter:
     def __repr__(self) -> str:
         return "BinanceLiveGridAdapter(canlı, anahtar gizli)"
 
+    @property
+    def client(self) -> LiveClientLike:
+        """Günlük zarar defteri gibi hesap geneli okumalar için (olay döngüsünde await edilir)."""
+        return self._client
+
     # ---------- köprü ----------
     def _call(self, make: Awaitable[Any], *, read: bool) -> Any:
         try:
