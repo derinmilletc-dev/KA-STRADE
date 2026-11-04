@@ -290,7 +290,7 @@ def _details(f: dict[str, float]) -> dict[str, str]:
              f"son 5 saatin hacmi, 25 saatlik ortalamanın {_fmt(math.exp(f['vol_chg']), 2)} katı",
              "hacim mum yönüyle uyumlu" if f["vol_dir_corr"] > 0.2 else
              "hacim mum yönüyle uyumsuz" if f["vol_dir_corr"] < -0.2 else "hacim–yön ilişkisi zayıf"]
-    vol = [f"ATR fiyatın %{_fmt(f['atr_rel'] * 100)}'i", f"ATR son 75 saatin %{_fmt(f['atr_pct'] * 100, 0)}'inden yüksek",
+    vol = [f"ATR / fiyat: %{_fmt(f['atr_rel'] * 100)}", f"ATR yüzdeliği (son 75 saat): %{_fmt(f['atr_pct'] * 100, 0)}",
            "volatilite genişliyor" if f["expansion"] > 1.2 else "volatilite daralıyor" if f["expansion"] < 0.8 else "volatilite dengeli"]
     return {"trend": " · ".join(trend), "momentum": " · ".join(mom), "yapi": " · ".join(yapi),
             "hacim": " · ".join(hacim), "volatilite": " · ".join(vol)}
@@ -331,9 +331,17 @@ def evaluate(candles: list[dict], now: float | None = None, model: dict | None =
     contrib = {g: sum(diff[FEATURES_15M.index(name)] for name in cols) for g, cols in model["groups"].items()}
     total = sum(abs(val) for val in contrib.values()) or 1.0
     details = _details(f)
-    components = [{"group": g, "label": GROUP_LABELS[g], "push": "LONG" if val > 0.02 else "SHORT" if val < -0.02 else "NÖTR",
-                   "weight_pct": round(abs(val) / total * 100), "contribution": round(val, 4), "detail": details[g]}
-                  for g, val in sorted(contrib.items(), key=lambda kv: -abs(kv[1]))]
+    # Ortalamaya dönüş: bileşen, göstergenin ham yönünün tersine itiyorsa bunu açıkça yaz.
+    raw_sign = {"trend": _sign(f["c_e20"]), "momentum": _sign(f["ret4"])}
+    components = []
+    for g, val in sorted(contrib.items(), key=lambda kv: -abs(kv[1])):
+        push = "LONG" if val > 0.02 else "SHORT" if val < -0.02 else "NÖTR"
+        detail = details[g]
+        if push != "NÖTR" and g in raw_sign and raw_sign[g] and raw_sign[g] != (1 if push == "LONG" else -1):
+            detail += (" → fiyat kısa vadede " + ("yukarı" if raw_sign[g] > 0 else "aşağı") +
+                       " aşırı uzadı; geçmişte bu durum çoğunlukla geri dönüşle sonuçlandı")
+        components.append({"group": g, "label": GROUP_LABELS[g], "push": push, "weight_pct": round(abs(val) / total * 100),
+                           "contribution": round(val, 4), "detail": detail})
     move_text = {"YUKSEK": "yüksek", "ORTA": "orta", "DUSUK": "düşük"}[move_level]
     if direction == "BEKLE":
         summary = (f"Belirgin bir 1 saatlik yön eğilimi yok (puan {score}/100, hafif {lean} eğilimli). "
@@ -343,9 +351,9 @@ def evaluate(candles: list[dict], now: float | None = None, model: dict | None =
         summary = f"1 saatlik eğilim {direction} ({strength_label.lower()}, puan {score}/100)"
         summary += f"; öne çıkan: {', '.join(drivers)}." if drivers else "."
         if hist:
-            summary += (f" Geçmişte bu güçteki {direction} eğilimlerinin %{round(hist['hit'] * 100)}'i 1 saat içinde "
-                        f"belirgin biçimde {direction} yönünde, %{round(hist['opposite'] * 100)}'i ters yönde sonuçlandı "
-                        f"(rastgele %{round(hist['base'] * 100)}).")
+            up, down = ("yükseliş", "düşüş") if direction == "LONG" else ("düşüş", "yükseliş")
+            summary += (f" Geçmişte bu güçteki {direction} eğilimlerinden 1 saat içinde: %{round(hist['hit'] * 100)} belirgin {up}, "
+                        f"%{round(hist['opposite'] * 100)} belirgin {down}, kalanı yatay (rastgele %{round(hist['base'] * 100)} {up}).")
         summary += f" Hareket beklentisi {move_text}."
     return {
         **base, "status": "OK",

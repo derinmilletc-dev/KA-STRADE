@@ -1,0 +1,29 @@
+/* Analist V2 – analist sonuç alanındaki ayrıntı bloğu. */
+.analystV2Panel { display: grid; gap: 10px; margin: 12px 0 0; padding: 12px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 10px; background: rgba(255, 255, 255, .025); }
+.analystV2Panel > header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.analystV2Panel > header b { font-size: 13px; }
+.analystV2Panel > header small { opacity: .65; font-size: 11px; }
+.analystV2Probs { display: flex; height: 26px; border-radius: 6px; overflow: hidden; font-size: 11px; font-weight: 700; }
+.analystV2Probs span { display: flex; align-items: center; justify-content: center; min-width: 58px; white-space: nowrap; flex-basis: 0; }
+.analystV2Probs .positive { background: rgba(61, 220, 151, .18); color: #3ddc97; }
+.analystV2Probs .neutral { background: rgba(255, 255, 255, .07); color: #b9c4c9; }
+.analystV2Probs .negative { background: rgba(255, 123, 123, .18); color: #ff7b7b; }
+.analystV2Stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.analystV2Stats > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.analystV2Stats small { opacity: .7; font-size: 11px; }
+.analystV2Stats b { font-size: 14px; }
+.analystV2Stats em { font-style: normal; opacity: .6; font-size: 11px; }
+.analystV2Components { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.analystV2Components li { display: grid; gap: 4px; }
+.analystV2Components li > div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.analystV2Components li > i { display: block; height: 4px; border-radius: 2px; background: currentColor; opacity: .75; }
+.analystV2Components li > i.positive { color: #3ddc97; }
+.analystV2Components li > i.negative { color: #ff7b7b; }
+.analystV2Components li > i.neutral { color: #8a979c; }
+.analystV2Components li > p { margin: 0; font-size: 11px; opacity: .72; line-height: 1.4; }
+.analystV2Note, .analystV2PlanNote { margin: 0; font-size: 11px; opacity: .65; line-height: 1.4; }
+.analystV2PlanNote { margin-top: 10px; padding: 8px 10px; border-left: 2px solid #e0b05a; background: rgba(224, 176, 90, .08); opacity: .9; }
+@media (max-width: 640px) {
+  .analystV2Probs span { min-width: 0; font-size: 10px; }
+  .analystV2Stats { grid-template-columns: 1fr; }
+}

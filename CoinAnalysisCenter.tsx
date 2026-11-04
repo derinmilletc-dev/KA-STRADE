@@ -8,10 +8,13 @@ import './analyst-clean.css'
 import './analyst-desktop.css'
 import './analyst-mobile.css'
 import './analyst-mobile-minimal.css'
+import './analyst-v2.css'
 import ScrollHintStrip from './ScrollHintStrip'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
-type Row = {symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
+type AnalystV2Component = {group:string;label:string;push:'LONG'|'SHORT'|'NÖTR';weight_pct:number;contribution:number;detail:string}
+type AnalystV2 = {status:'OK'|'VERI_YETERSIZ';model_version:string;horizon:string;note:string;analyst_direction:Direction;analyst_lean?:'LONG'|'SHORT';analyst_score:number|null;analyst_strength?:string;probabilities?:{LONG:number;SHORT:number;BEKLE:number};movement?:{level:'YUKSEK'|'ORTA'|'DUSUK';percentile:number;historical_share_moved:number|null};history?:{band:string;direction:string;samples:number;hit_rate:number;opposite_rate:number;base_rate:number;avg_net_bp:number}|null;components?:AnalystV2Component[];summary?:string}
+type Row = {analyst_v2?:AnalystV2|null;symbol:string;display:string;price:number;change:number;volume:number;volume_ratio:number;volume_change_pct:number;volatility_pct:number;rsi:number;ema20:number;ema50:number;ema200:number;trend:string;direction:Direction;confidence:number;smart_score:number;opportunity_score:number;final_decision_score:number;entry?:number;stop_loss?:number;tp1?:number;tp2?:number;tp3?:number;support?:number;resistance?:number;risk_reward?:number;risk_pct?:number;potential_tp3_pct?:number;mtf_direction:string;mtf_alignment:number;mtf_timeframes:{timeframe:string;direction:string;confidence:number}[];anomaly:{kind:string;label:string;strength:number}|null}
 type Consensus = {direction:string;alignment:number;timeframes:{timeframe:string;direction:string;confidence:number}[]}
 type SignalHistoryItem = {id:string;symbol:string;timestamp:string;signal:Direction;score:number;entry:number;stop:number;tp1:number;tp2:number;tp3:number;timeframe:string;mtf:string;risk_reward:number;status:string}
 type SignalPerformance = {available:boolean;message?:string;total_signals?:number;tp1_hit_rate?:number;tp2_hit_rate?:number;tp3_hit_rate?:number;stop_rate?:number;average_risk_reward?:number}
@@ -27,6 +30,32 @@ const pctTr = (value?:number, signed=false) => value === undefined || !Number.is
 const volumeNote = (ratio:number, short=false) => ratio < 0.5 ? `${ratio.toLocaleString('tr-TR',{maximumFractionDigits:2})}x · mum yeni açılmış olabilir` : `${ratio >= 1 ? '+' : ''}${pctTr((ratio - 1) * 100)}${short ? '' : ' ortalamaya göre'}`
 const pct = (value:number) => Number.isFinite(value) ? value.toLocaleString('tr-TR',{minimumFractionDigits:0,maximumFractionDigits:2}) : '—'
 const scoreLabel = (score:number) => score >= 90 ? 'Çok güçlü' : score >= 75 ? 'Güçlü' : score >= 60 ? 'Orta' : score >= 40 ? 'Nötr' : 'Zayıf'
+const pct0 = (value:number) => `%${Math.round(value * 100)}`
+const MOVE_TEXT:Record<string,string> = {YUKSEK:'Yüksek',ORTA:'Orta',DUSUK:'Düşük'}
+const analystV2Of = (row?:Row|null) => row?.analyst_v2?.status === 'OK' && row.analyst_v2.analyst_score !== null ? row.analyst_v2 : null
+const AnalystV2Panel = ({v2}:{v2:AnalystV2}) => {
+  const p = v2.probabilities
+  const h = v2.history
+  return <section className="analystV2Panel" aria-label="Analist V2 ayrıntıları">
+    <header><b>Analist görüşü · {v2.horizon}</b><small>Puan olasılık değildir</small></header>
+    {p && <div className="analystV2Probs" role="img" aria-label={`LONG ${pct0(p.LONG)}, BEKLE ${pct0(p.BEKLE)}, SHORT ${pct0(p.SHORT)}`}>
+      <span className="positive" style={{flexGrow:p.LONG}}>LONG {pct0(p.LONG)}</span>
+      <span className="neutral" style={{flexGrow:p.BEKLE}}>BEKLE {pct0(p.BEKLE)}</span>
+      <span className="negative" style={{flexGrow:p.SHORT}}>SHORT {pct0(p.SHORT)}</span>
+    </div>}
+    <div className="analystV2Stats">
+      {h && <div><small>Geçmişte bu güçte ({h.band} · {h.direction})</small><b>{pct0(h.hit_rate)} {h.direction === 'LONG' ? 'yükseldi' : 'düştü'} · {pct0(h.opposite_rate)} ters</b><em>rastgele {pct0(h.base_rate)} · {h.samples.toLocaleString('tr-TR')} örnek</em></div>}
+      {v2.movement && <div><small>Hareket beklentisi (1 saat)</small><b>{MOVE_TEXT[v2.movement.level]}</b><em>{v2.movement.historical_share_moved !== null ? `geçmişte bu seviyede ${pct0(v2.movement.historical_share_moved)} belirgin hareket` : ''}</em></div>}
+      {h && <div><small>Maliyet sonrası geçmiş ortalama</small><b className={h.avg_net_bp >= 0 ? 'positive' : 'negative'}>{h.avg_net_bp >= 0 ? '+' : ''}{h.avg_net_bp.toLocaleString('tr-TR')} bp</b><em>işlem sinyali değildir</em></div>}
+    </div>
+    <ul className="analystV2Components">{(v2.components || []).map(item => <li key={item.group}>
+      <div><b>{item.label}</b><strong className={item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'}>{item.push === 'NÖTR' ? 'Nötr' : `${item.push} yönüne`} · {item.weight_pct}%</strong></div>
+      <i className={item.push === 'LONG' ? 'positive' : item.push === 'SHORT' ? 'negative' : 'neutral'} style={{width:`${Math.max(4,item.weight_pct)}%`}}/>
+      <p>{item.detail}</p>
+    </li>)}</ul>
+    <p className="analystV2Note">{v2.note} Model {v2.model_version}; 2022–2026 geçmiş verisinde doğrulandı.</p>
+  </section>
+}
 const tone = (direction:Direction) => direction === 'LONG' ? 'positive' : direction === 'SHORT' ? 'negative' : 'neutral'
 type SignalFact = {text:string;level:'good'|'warn'|'bad'}
 const signalFacts = (row:Row):SignalFact[] => {
@@ -173,6 +202,7 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
   }),[rows,debouncedQuery,filters,sort,ascending])
   const authorizedDetail = !credits.exhausted && detail?.userId === userId && detail?.row.symbol === selected && detail.timeframe === interval && detail.expiresAt > credits.now ? detail : null
   const active = authorizedDetail?.row || rows.find(row => row.symbol === selected) || visible[0]
+  const activeV2 = analystV2Of(active)
   const analystAnswer = premium || authorizedDetail ? storedAnalystAnswer : ''
   const activeSymbol = active?.symbol || ''
   const consensus = active ? {direction:active.mtf_direction,alignment:active.mtf_alignment,timeframes:active.mtf_timeframes} : null
@@ -376,26 +406,34 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
         {loading ? <div className="analystSelectorSkeleton" aria-label="Tarama verileri yükleniyor"><i/><i/><i/><i/></div> : error ? <p className="analystSelectorEmpty">{analystCopy.dataUnavailable}</p> : <div className="analystSelectorList">{selectorRows.map(row => <button type="button" key={row.symbol} className={row.symbol === selected ? 'selected' : ''} onClick={() => selectAnalystCoin(row.symbol)} aria-pressed={row.symbol === selected}><span className="analystSelectorIdentity"><b>{row.symbol}</b><small>{row.display}</small></span><span className={`analystSelectorSignal ${tone(row.direction)}`}><strong>{selectorSignal(row.direction)}</strong><small>{pctTr(row.confidence)} {analystCopy.confidence}</small></span><span className="analystSelectorSnapshot"><b>{fmt(row.price)}</b><small>{row.trend}</small></span></button>)}{!selectorRows.length && <p className="analystSelectorEmpty">{analystCopy.noMatch}</p>}</div>}
         </section>
         <div className="analystDetailColumn">
-          <section className="analystLegacyResultWorkspace" aria-live="polite" data-tone={active ? tone(active.direction) : 'neutral'}>
-            <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(active.direction) : 'neutral'}>{active?.direction || analystCopy.waitingResult}</strong></header>
+          <section className="analystLegacyResultWorkspace" aria-live="polite" data-tone={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>
+            <header><div><span>{analystCopy.analysisResult}</span><h3>{active?.display || analystCopy.waiting}</h3></div><strong className={active ? tone(activeV2 ? activeV2.analyst_direction : active.direction) : 'neutral'}>{activeV2 ? activeV2.analyst_direction : active?.direction || analystCopy.waitingResult}</strong></header>
             {loading ? <div className="analystLoadingState" aria-label={analystCopy.loading}><i/><i/><i/><i/></div> : error ? <div className="analystDataError" role="alert"><strong>{analystCopy.dataUnavailable}</strong><p>{analystCopy.dataUnavailableHint}</p><button type="button" onClick={() => void load()}>{analystCopy.retry}</button></div> : active ? <>
+              {activeV2 ? <>
+              <div className="analystDetailHero"><strong className={tone(activeV2.analyst_direction)}>{activeV2.analyst_direction}</strong><span>Analist puanı {activeV2.analyst_score}/100 · {activeV2.analyst_strength}</span></div>
+              <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,activeV2.analyst_score ?? 0))}%`} as CSSProperties} aria-hidden="true"><b>{activeV2.analyst_score}</b></div>
+              <p className="analystVerdict">{activeV2.summary}</p>
+              <AnalystV2Panel v2={activeV2}/>
+              {activeV2.analyst_direction !== active.direction && <p className="analystV2PlanNote">Aşağıdaki teknik plan eski taramanın yönüne ({active.direction}) göredir ve analist görüşüyle ({activeV2.analyst_direction}) uyuşmuyor; bilgi amaçlıdır.</p>}
+              </> : <>
               <div className="analystDetailHero"><strong className={tone(active.direction)}>{active.direction}</strong><span>{pctTr(active.confidence)} {analystCopy.confidence}</span></div>
               <div className="analystRing" style={{'--p':`${Math.max(0,Math.min(100,active.confidence))}%`} as CSSProperties} aria-hidden="true"><b>{pctTr(active.confidence)}</b></div>
               <p className="analystVerdict">{signalVerdict(active)}</p>
               <div className="analystFacts">{signalFacts(active).map(fact => <i key={fact.text} data-level={fact.level}>{fact.text}</i>)}</div>
+              </>}
               {(() => { const plan = pricePlan(active); if (!plan) return null; const entryLeft = plan.find(point => point.key === 'entry')?.left ?? 50; const stopLeft = plan.find(point => point.key === 'stop')?.left ?? 0; const line = stopLeft < entryLeft ? `linear-gradient(90deg,#ff7b7b ${entryLeft}%,#3ddc97 ${entryLeft}%)` : `linear-gradient(90deg,#3ddc97 ${entryLeft}%,#ff7b7b ${entryLeft}%)`; return <div className="analystPriceLadder" aria-label="Fiyat planı"><div className="analystLadderLine" style={{background:line}}/>{plan.map(point => <div className={`analystLadderPoint ${point.key}`} key={point.key} style={{left:`${point.left}%`}}>{point.label}<b>{fmt(point.value)}</b></div>)}</div> })()}
-              <div className="analystPlanStats"><div><small>Risk/Ödül</small><b>{lockedOr(active.risk_reward, () => `1 : ${fmt(active.risk_reward)}`)}</b></div><div><small>Stop mesafesi</small><b>{lockedOr(active.risk_pct, () => `-${pctTr(active.risk_pct)}`)}</b></div><div><small>{analystCopy.signalConfidence}</small><b>{pctTr(active.confidence)}</b></div></div>
+              <div className="analystPlanStats"><div><small>Risk/Ödül</small><b>{lockedOr(active.risk_reward, () => `1 : ${fmt(active.risk_reward)}`)}</b></div><div><small>Stop mesafesi</small><b>{lockedOr(active.risk_pct, () => `-${pctTr(active.risk_pct)}`)}</b></div><div><small>{activeV2 ? 'Analist puanı' : analystCopy.signalConfidence}</small><b>{activeV2 ? `${activeV2.analyst_score}/100` : pctTr(active.confidence)}</b></div></div>
               <div className="analystMetricCards">
                 <span><small>{analystCopy.regime}</small><b>{active.trend}</b></span>
                 <span><small>{analystCopy.entry}</small><b>{lockedOr(active.entry, () => fmt(active.entry))}</b></span>
                 <span><small>{analystCopy.exit}</small><b>{lockedOr(active.tp1, () => `TP1 ${fmt(active.tp1)} · TP2 ${fmt(active.tp2)} · TP3 ${fmt(active.tp3)}`)}</b></span>
                 <span><small>{analystCopy.risk}</small><b>{lockedOr(active.risk_reward, () => `R/R ${fmt(active.risk_reward)} · -${pctTr(active.risk_pct)}`)}</b></span>
-                <span><small>{analystCopy.signalConfidence}</small><b>{pctTr(active.confidence)}</b></span>
+                <span><small>{activeV2 ? 'Analist puanı' : analystCopy.signalConfidence}</small><b>{activeV2 ? `${activeV2.analyst_score}/100` : pctTr(active.confidence)}</b></span>
                 <span><small>{analystCopy.mtfAlignment}</small><b>{fmt(active.mtf_alignment)}</b></span>
                 <span><small>{analystCopy.momentum}</small><b>RSI {fmt(active.rsi)}</b></span>
                 <span><small>{analystCopy.volume}</small><b>{volumeNote(active.volume_ratio, true)}</b></span>
               </div>
-              <div className={`analystWhyResult${analystAnswer ? '' : ' isGeneric'}`}><span>{analystCopy.whyResult}</span><p>{analystAnswer || `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${pctTr(active.confidence)}. İşlem öncesi yapı ve risk metriklerini inceleyin.`}</p></div>
+              <div className={`analystWhyResult${analystAnswer ? '' : ' isGeneric'}`}><span>{analystCopy.whyResult}</span><p>{analystAnswer || (activeV2?.summary ?? `${active.display} şu anda ${active.direction}; güncel tarama görünümünde güven seviyesi ${pctTr(active.confidence)}. İşlem öncesi yapı ve risk metriklerini inceleyin.`)}</p></div>
             </> : <p className="analystEmpty">{analystCopy.resultEmpty}</p>}
           </section>
           <section className="analystAskBar">
