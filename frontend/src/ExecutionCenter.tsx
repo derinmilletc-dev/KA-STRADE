@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries } from 'lightweight-charts'
 import { Activity, AlertTriangle, Bot, CheckCircle2, CircleDollarSign, KeyRound, LockKeyhole, Play, Power, RefreshCw, Save, Send, ShieldCheck, Square, TestTube2, TrendingUp, WalletCards, XCircle } from 'lucide-react'
 import { API_BASE } from './api'
+import { closeEstimate } from './live-quote'
+import { useLiveQuotes } from './useLiveQuotes'
 
 const API = `${API_BASE}/v25`
 
@@ -114,6 +116,10 @@ export default function ExecutionCenter({token=''}:{token?:string}) {
   const [liveVault,setLiveVault] = useState<LiveVaultStatus|null>(null)
   const [liveCredentials,setLiveCredentials] = useState({apiKey:'',secretKey:''})
   const [liveVaultBusy,setLiveVaultBusy] = useState('')
+
+  // Sunucu özeti 10–30 sn geriden gelebilir; ekrandaki K/Z Binance'in anlık kapanış fiyatından hesaplanır (yalnız okuma).
+  const liveQuotes = useLiveQuotes((status?.account?.positions ?? []).map(item => item.symbol), true)
+  const livePnlFor = (position:Position) => closeEstimate({long:String(position.direction).toUpperCase()==='LONG',entry:Number(position.entry_price),quantity:Math.abs(Number(position.quantity)),quote:liveQuotes.quotes[String(position.symbol).toUpperCase()],nowMs:liveQuotes.now})
 
   const call = async <T,>(path:string,options:RequestInit={}):Promise<T> => {
     const headers = new Headers(options.headers)
@@ -319,6 +325,9 @@ export default function ExecutionCenter({token=''}:{token?:string}) {
   const activePlans = useMemo(() => status?.plans.filter(item => !['KAPANDI','İPTAL'].includes(item.status)) ?? [],[status])
   const chartPlan = useMemo(() => activePlans.find(item => item.id === chartPlanId) || activePlans.find(item => item.symbol === chartSymbol) || null,[activePlans,chartPlanId,chartSymbol])
   if (!status || !policy) return <div className="executionLoading"><RefreshCw className="spin"/><b>V25 LIVE GUARD BAĞLANIYOR</b><span>{notice}</span></div>
+  const livePnls = status.account.positions.map(livePnlFor)
+  const allPositionsLive = livePnls.length > 0 && livePnls.every(item => item !== null)
+  const accountPnl = allPositionsLive ? livePnls.reduce((total,item) => total + (item?.pnl ?? 0),0) : status.account.unrealized_pnl
 
   return <div className="executionV25">
     <header className="executionHero">
@@ -394,10 +403,12 @@ export default function ExecutionCenter({token=''}:{token?:string}) {
 
       <section className="executionCard accountCard">
         <div className="executionHead"><div><small>SALT OKUNUR CANLI HESAP</small><h3>Bakiye & Pozisyonlar</h3></div><WalletCards/></div>
-        <div className="accountMetrics"><span><small>Cüzdan</small><b>{money(status.account.wallet_balance)} USDT</b></span><span><small>Kullanılabilir</small><b>{money(status.account.available_balance)} USDT</b></span><span><small>Açık PnL</small><b className={(status.account.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status.account.unrealized_pnl)} USDT</b></span><span><small>Pozisyon</small><b>{status.account.positions.length} / {policy.max_positions}</b></span><span><small>Mod</small><b>{status.account.hedge_mode === false ? 'ONE-WAY' : status.account.hedge_mode === true ? 'HEDGE · UYGUN DEĞİL' : '—'}</b></span></div>
+        <div className="accountMetrics"><span><small>Cüzdan</small><b>{money(status.account.wallet_balance)} USDT</b></span><span><small>Kullanılabilir</small><b>{money(status.account.available_balance)} USDT</b></span><span><small>Açık PnL</small><b className={(accountPnl ?? 0) >= 0 ? 'positive' : 'negative'}>{money(accountPnl)} USDT</b><em>{allPositionsLive ? '● Canlı fiyat' : status.account.positions.length ? '⚠ 10–30 sn gecikmeli olabilir' : ''}</em></span><span><small>Pozisyon</small><b>{status.account.positions.length} / {policy.max_positions}</b></span><span><small>Mod</small><b>{status.account.hedge_mode === false ? 'ONE-WAY' : status.account.hedge_mode === true ? 'HEDGE · UYGUN DEĞİL' : '—'}</b></span></div>
         <div className="positionRows">{status.account.positions.length ? status.account.positions.map(position => {
           const plan = status.plans.find(item => item.symbol === position.symbol && !['KAPANDI','İPTAL','ACİL DURDURULDU'].includes(item.status))
-          return <article key={position.symbol} className={chartSymbol === position.symbol ? 'selected' : ''}><CircleDollarSign/><div><b>{position.symbol} · {position.direction}</b><span>Giriş {money(position.entry_price)} · Mark {money(position.mark_price)} · {position.leverage ?? '—'}x {position.margin_type || '—'}</span></div><strong className={position.unrealized_pnl >= 0 ? 'positive' : 'negative'}>{position.unrealized_pnl >= 0 ? '+' : ''}{money(position.unrealized_pnl)} USDT</strong><div className="positionActions"><button className="chartButton" onClick={() => {setChartSymbol(position.symbol);setChartPlanId(plan?.id || null)}}>GRAFİK + SEVİYELER</button>{plan ? <button onClick={() => closePlan(plan)} disabled={!!busy}>REDUCE-ONLY KAPAT</button> : <em>ProTreBot dışı · dokunulmaz</em>}</div></article>
+          const estimate = livePnlFor(position)
+          const rowPnl = estimate ? estimate.pnl : position.unrealized_pnl
+          return <article key={position.symbol} className={chartSymbol === position.symbol ? 'selected' : ''}><CircleDollarSign/><div><b>{position.symbol} · {position.direction}</b><span>Giriş {money(position.entry_price)} · Mark {money(position.mark_price)} · {position.leverage ?? '—'}x {position.margin_type || '—'}</span></div><strong className={rowPnl >= 0 ? 'positive' : 'negative'} title={estimate ? 'Binance anlık kapanış fiyatından' : 'Sunucu özeti; 10–30 sn geriden gelebilir'}>{rowPnl >= 0 ? '+' : ''}{money(rowPnl)} USDT</strong><div className="positionActions"><button className="chartButton" onClick={() => {setChartSymbol(position.symbol);setChartPlanId(plan?.id || null)}}>GRAFİK + SEVİYELER</button>{plan ? <button onClick={() => closePlan(plan)} disabled={!!busy}>REDUCE-ONLY KAPAT</button> : <em>ProTreBot dışı · dokunulmaz</em>}</div></article>
         }) : <div className="emptyLive"><WalletCards/><b>Açık canlı pozisyon yok</b><span>V25 yalnızca kendi client ID’siyle açtığı pozisyonları yönetir.</span></div>}</div>
       </section>
     </div>
