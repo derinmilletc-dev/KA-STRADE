@@ -223,6 +223,7 @@ tests/test_position_live_score.py
 tests/test_multi_user_live_perf.py
 tests/test_multi_user_live_30.py
 tests/test_grid_instant_protection.py
+tests/test_grid_recovery.py
 tests/test_grid_arm_expiry.py
 tests/test_manual_limit_tif.py
 tests/test_account_reservations.py

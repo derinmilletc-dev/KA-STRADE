@@ -393,6 +393,50 @@ class GridEngine:
         if self.spec.recycle and self.status == RUNNING and not self._protect_only:
             self._recycle()
 
+    # ---------- yeniden başlatma sonrası kurtarma ----------
+    def protection_report(self) -> tuple[bool, str]:
+        """Salt okuma: açık miktarın tamamı borsada doğrulanmış (NEW/PARTIAL) stopla korunuyor mu? Emir göndermez."""
+        net = self.grid_net()
+        if abs(net) <= EPS:
+            return True, "açık pozisyon yok"
+        live = [s for s in self.store.orders(self.gid, "S") if s["status"] in (NEW, PARTIAL) and s["side"] == self._protect_side(net)]
+        covered = round(sum(s["qty"] - s["filled"] for s in live), 8)
+        if abs(covered - abs(net)) <= 1e-8:
+            return True, f"açık {abs(net):g}, stop {covered:g}"
+        return False, f"açık {abs(net):g}, doğrulanmış stop {covered:g}"
+
+    def _protect_side(self, net: float) -> str:
+        return self.exit_side
+
+    def recover(self) -> tuple[bool, str]:
+        """Sunucu yeniden başladıktan sonra, normal döngüden ÖNCE çalışır:
+        1) defteri borsayla eşitle (başarısızsa hiçbir emir gönderilmez),
+        2) yalnız koruma kur: dolan miktarın stopu ve hedefleri (yeni giriş, tur YOK),
+        3) yeniden eşitle ve korumanın borsada doğrulandığını kontrol et.
+        Yarıda kalmış ACİL DURDUR tamamlanır. Dönüş: (doğrulandı mı, açıklama)."""
+        status = self.status
+        if status in (CREATED, EMERGENCY_CLOSED, COMPLETED, STOPPED):
+            return True, f"durum {status}; kurtarılacak bir şey yok"
+        if status == EMERGENCY:
+            final = self.emergency_stop()
+            return final == EMERGENCY_CLOSED, f"yarıda kalan acil durdurma tamamlandı: {final}"
+        if status in (BLOCKED, INTERVENTION_REQUIRED):
+            return False, f"durum {status}; kullanıcı müdahalesi bekleniyor"
+        if not self.sync():
+            return False, "borsa ile defter eşitlenemedi; emir gönderilmedi"
+        self._protect_only = True
+        try:
+            self._ensure_protection()
+        finally:
+            self._protect_only = False
+        if self.status in (STOPPED, COMPLETED, EMERGENCY_CLOSED):
+            return True, f"eşitleme sonrası grid bitti: {self.status}"
+        if self.status in (BLOCKED, INTERVENTION_REQUIRED):
+            return False, f"koruma kurulurken durum {self.status} oldu"
+        if not self.sync():
+            return False, "koruma sonrası eşitleme yapılamadı"
+        return self.protection_report()
+
     # ---------- iptal ----------
     def _cancel(self, cid: str) -> bool:
         try:
