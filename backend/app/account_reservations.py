@@ -119,10 +119,10 @@ def _expire(db: sqlite3.Connection, now: float) -> None:
 
 
 def reserve(owner: str, kind: str, symbol: str, worst_loss: float = 0.0, *, budget_left: float | None = None,
-            committed: float = 0.0, ttl: float = RESERVE_TTL) -> str:
+            committed: float = 0.0, ttl: float = RESERVE_TTL, strict: bool = False) -> str:
     """Coini ve (varsa) en kötü zararı ayırır. budget_left: bugün kalan günlük zarar bütçesi; committed: çalışan Grid'lerin zaten
     ayırdığı en kötü zarar. Başkasının ayırdığı (eşzamanlı ya da Grid) risk varsa bütçe kontrolü yapılır; yoksa tek işlemin mevcut
-    kapıları aynen geçerlidir."""
+    kapıları aynen geçerlidir. strict=True (hesap risk bütçesi kapısı açıkken): başkası olmasa da bütçe kontrolü yapılır."""
     owner, symbol = str(owner or ""), str(symbol or "").upper()
     worst = max(0.0, float(worst_loss or 0.0))
 
@@ -144,7 +144,7 @@ def reserve(owner: str, kind: str, symbol: str, worst_loss: float = 0.0, *, budg
                                               kind="symbol")
             others = float(db.execute("SELECT COALESCE(SUM(worst_loss),0) FROM reservations WHERE owner=? AND account=? AND state IN (?,?)",
                                       (owner, ACCOUNT, RESERVED, SUBMITTED)).fetchone()[0]) + max(0.0, float(committed or 0.0))
-            if budget_left is not None and others > 0 and worst > float(budget_left) - others + 1e-9:
+            if budget_left is not None and (strict or others > 0) and worst > float(budget_left) - others + 1e-9:
                 raise ReservationConflict(
                     f"Ortak günlük risk bütçesi yetmiyor: bu giriş {worst:.2f} USDT, kalan {max(float(budget_left) - others, 0):.2f} USDT "
                     f"(eşzamanlı girişler {others:.2f} USDT ayırdı).", kind="risk")

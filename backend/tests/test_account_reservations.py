@@ -260,9 +260,20 @@ class ManualEntry(gate_tests.LiquidationGateTests):
     test_entry_with_unsafe_liquidation_buffer_never_reaches_submit = None
     test_safe_entry_records_liquidation_proof_without_rewriting_initial_risk = None
 
-    def _execute(self, submit_effect=None, seed=None, budget=None):
+    def _execute(self, submit_effect=None, seed=None, budget=None, positions=None, daily_limit=None, ledger_net=None, plans=None, runner=None, source="V25_AUTO", extra_patches=None):
         application, state = scope_tests.application_for(["BTCUSDT"])
         state["policy"]["max_leverage"] = 50
+        if daily_limit is not None:
+            state["policy"]["daily_loss_limit"] = daily_limit
+        if plans:
+            state["plans"] = plans
+        if runner is not None:
+            application.state.live_grid_runner = runner
+        if ledger_net is not None:
+            from datetime import datetime, timezone
+            from app import daily_ledger
+            state[daily_ledger.KEY] = {"day": datetime.now(timezone.utc).date().isoformat(), "fetched_at": time.time(), "rows": [],
+                                       "totals": {"net": ledger_net}, "source": "BINANCE_INCOME"}
         spec = {**scope_tests.spec_for("BTCUSDT"), "quantity": "2.5", "notional_usdt": 250, "margin_usdt": 5, "leverage": 50,
                 "stop_loss": "99.2", "estimated_stop_loss_usdt": 2}
         client = SimpleNamespace(signed=AsyncMock(return_value=gate_tests.maintenance_brackets()))
@@ -281,16 +292,17 @@ class ManualEntry(gate_tests.LiquidationGateTests):
         body = live.LiveOrderRequest(symbol="BTCUSDT", direction="LONG", margin_usdt=5, leverage=50, stop_loss=99.2, tp1=102, tp2=104, tp3=106)
         patches = dict(
             readiness_for=lambda *a, **k: {"ready": True}, client_for_with_credentials=lambda *a, **k: client,
-            account_snapshot=AsyncMock(return_value=gate_tests.snapshot(multi_assets_mode=False)), spread_bps=AsyncMock(return_value=1),
+            account_snapshot=AsyncMock(return_value=gate_tests.snapshot(multi_assets_mode=False, positions=positions or [])), spread_bps=AsyncMock(return_value=1),
             build_live_spec=AsyncMock(return_value=spec), set_live_isolated_margin=AsyncMock(return_value="ISOLATED"),
             apply_live_verified_leverage=AsyncMock(return_value={"applied_leverage": 50, "margin_type": "isolated"}),
             fresh_auto_submission_credentials=AsyncMock(return_value=scope_tests.CREDENTIALS), submit_entry=submit,
             install_protection=AsyncMock(), persist_state=lambda *a: None)
         if budget is not None:
             patches["shared_daily_budget"] = lambda *a, **k: budget
+        patches.update(extra_patches or {})
         with patch.multiple(live, **patches):
             try:
-                result = asyncio.run(live.execute_live_order(application, body, source="V25_AUTO", credentials=scope_tests.CREDENTIALS))
+                result = asyncio.run(live.execute_live_order(application, body, source=source, credentials=scope_tests.CREDENTIALS))
             except live.HTTPException as exc:
                 result = exc
         return result, submit, state, owner, seen
