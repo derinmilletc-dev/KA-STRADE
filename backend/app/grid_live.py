@@ -22,6 +22,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from . import daily_ledger
 from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
@@ -55,6 +56,9 @@ LIQ_CHECK_SECONDS = 15.0
 DAILY_CHECK_SECONDS = 60.0
 HIGH_LEVERAGE_ACK_ABOVE = 20          # bu kaldıracın üstünde canlı başlatma ek onay ister
 LOCK_KEEP_DEFAULT_PCT = 70.0        # kâr kilidi: zirve kârın en az bu kadarı korunur
+# ARM (24 saatlik canlı giriş izni) dolunca çalışan canlı grid duraklatılır: yeni giriş ve tur durur, bekleyen girişler iptal,
+# açık pozisyon stop ve hedefleriyle korunur. Pozisyon kapansa da grid bitmez; yeniden ARM verilince "Devam ettir" ile sürer.
+ARM_PAUSE_REASON = "ARM süresi doldu; yeni giriş durdu, bekleyen girişler iptal edildi, korumalar sürüyor"
 
 
 GRID_CLIENT_ID = re.compile(r"^kg-([A-Za-z0-9]{1,16})-[LS]\d{2}[ETSC]\d+$")
@@ -413,6 +417,7 @@ class LiveGridRunner:
         self._daily_checked: dict[str, float] = {}
         self._protect_queued: set[str] = set()                    # akıştan gelen anlık koruma isteği bekleyen grid'ler
         self._last_instant_protect: dict[str, dict[str, Any]] = {}
+        self._ledger_failed_since: dict[str, float] = {}
 
     # ---- geriye uyum (tek grid dönemi alanları)
     @property
@@ -557,9 +562,26 @@ class LiveGridRunner:
             return ""
         row = self.store.grid(engine.gid)
         day = self.day_summary(str(row["user_id"] or ""), owner=False, limit=limit)
+        ledger = daily_ledger.cached(state)
+        if ledger is None:
+            since = self._ledger_failed_since.get(engine.gid)
+            if since is not None and now - since >= daily_ledger.STALE_OK_SECONDS and not day["reached"]:
+                # Defter uzun süredir okunamıyor: hesap geneli zarar doğrulanamaz → yeni giriş durur (stoplar kalır).
+                return self._pause_daily(engine, state, "Günlük zarar defteri doğrulanamıyor; yeni giriş durdu, stoplar korunuyor")
+        elif -float(ledger["totals"]["net"]) >= limit:
+            net = float(ledger["totals"]["net"])
+            return self._pause_daily(engine, state, f"Hesap geneli günlük zarar limitine ulaşıldı ({net:.2f} / -{limit:.2f} USDT; "
+                                     f"stop, acil kapanış, komisyon ve fonlama dahil); yeni giriş durdu, stoplar korunuyor")
         if not day["reached"]:
             return ""
         reason = f"Günlük zarar limitine ulaşıldı ({day['realized_usdt']:.2f} / -{limit:.2f} USDT); yeni giriş durdu, stoplar korunuyor"
+        self._stop_reasons[engine.gid] = reason
+        engine.pause()
+        self.store.set_grid(engine.gid, halt_reason=reason)
+        self._record(state, "LIVE_GRID_DAILY_LIMIT", f"{engine.sym} grid {reason}.", grid_id=engine.gid)
+        return "DAILY_LIMIT"
+
+    def _pause_daily(self, engine: GridEngine, state: dict[str, Any], reason: str) -> str:
         self._stop_reasons[engine.gid] = reason
         engine.pause()
         self.store.set_grid(engine.gid, halt_reason=reason)
@@ -602,6 +624,23 @@ class LiveGridRunner:
             return False
         from . import v25_execution as v25
         return bool(v25.live_execution_blocked(state))
+
+    def entry_authority(self, state: dict[str, Any]) -> bool:
+        """Canlı yeni giriş yetkisi açık mı (ARM ya da gözetimli otomatik oturum)? Demo'da ARM yoktur. Testlerde değiştirilebilir."""
+        if self.account == "DEMO":
+            return True
+        from . import v25_execution as v25
+        return bool(v25.live_entry_authority_open(state))
+
+    def arm_paused(self, grid_id: str) -> bool:
+        row = self.store.grid(grid_id)
+        return row is not None and row["status"] == PAUSED and (row["halt_reason"] or "") == ARM_PAUSE_REASON
+
+    async def _pause_for_arm(self, engine: GridEngine, state: dict[str, Any]) -> None:
+        await asyncio.to_thread(engine.pause)
+        self.store.set_grid(engine.gid, halt_reason=ARM_PAUSE_REASON)
+        self._record(state, "LIVE_GRID_ARM_PAUSED", f"{engine.sym} grid: {ARM_PAUSE_REASON}. Yeniden ARM verip Devam ettir ile sürdürülebilir.",
+                     grid_id=engine.gid)
 
     def _new_engine(self, spec: GridSpec, adapter: BinanceLiveGridAdapter, state: dict[str, Any], *, user_id: str = "") -> GridEngine:
         def risk_gate() -> tuple[bool, str]:
@@ -660,8 +699,10 @@ class LiveGridRunner:
         self._tasks[gid] = asyncio.get_running_loop().create_task(self._run(app, state, gid), name=f"live-grid-{gid}")
 
     async def resume(self, app: Any, state: dict[str, Any], adapter: BinanceLiveGridAdapter, *, user_id: str | None = None,
-                     grid_id: str | None = None, owner: bool = True) -> dict[str, Any]:
-        """Döngüsü durmuş (ör. sunucu yeniden başladı) grid'leri devam ettirir. grid_id yoksa kullanıcının tüm uygun grid'leri."""
+                     grid_id: str | None = None, owner: bool = True, reopen: bool = False,
+                     price_lookup: Any = None) -> dict[str, Any]:
+        """Döngüsü durmuş (ör. sunucu yeniden başladı) grid'leri devam ettirir. grid_id yoksa kullanıcının tüm uygun grid'leri.
+        reopen=True (canlı giriş yetkisi yeniden açık): ARM dolduğu için duraklatılmış grid'lerin iptal edilen girişleri yeniden açılır."""
         rows = [self.find_row(user_id, grid_id, owner=owner)] if grid_id else (
             self.occupying_rows(user_id, owner=owner) if user_id is not None else [r for r in [self.occupying_row()] if r is not None])
         rows = [r for r in rows if r is not None]
@@ -673,6 +714,8 @@ class LiveGridRunner:
         for row in resumable:
             gid = row["grid_id"]
             async with self.grid_lock(gid):
+                if reopen and self.arm_paused(gid):
+                    await self._reopen_after_arm(row, adapter, state, price_lookup)
                 if self.loop_running(gid):
                     continue
                 self._engines[gid] = self.build_engine(row, adapter, state)
@@ -681,6 +724,24 @@ class LiveGridRunner:
                 self._errors[gid] = 0
                 self._ensure_loop(app, state, gid)
         return self.status_payload(user_id, owner=owner)
+
+    async def _reopen_after_arm(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any], price_lookup: Any = None) -> None:
+        """ARM yenilendi: grid'i yeniden RUNNING yapar, iptal edilen girişleri güncel fiyata göre geçerliyse yeniden açar."""
+        gid = row["grid_id"]
+        engine = self._engines.get(gid) if self.loop_running(gid) else None
+        engine = engine or self.build_engine(row, adapter, state)
+        try:
+            price = float(await price_lookup(engine.sym)) if price_lookup is not None else 0.0
+        except Exception:  # noqa: BLE001 - fiyat yoksa açılmaz (aşağıda)
+            price = 0.0
+        if not price > 0:
+            raise LiveGridError("Güncel fiyat okunamadı; grid girişleri yeniden açılmadı (korumalar sürüyor).", 503)
+        opened, skipped = await asyncio.to_thread(engine.reopen_entries, price)
+        self.store.set_grid(gid, halt_reason="")
+        self._engines[gid] = engine
+        note = f", fiyatın yanlış tarafında kalan {skipped} kademe açılmadı" if skipped else ""
+        self._record(state, "LIVE_GRID_ARM_RESUMED", f"{engine.sym} grid ARM yenilendiği için sürüyor: {opened} giriş yeniden açıldı{note}.",
+                     grid_id=gid)
 
     async def _run(self, app: Any, state: dict[str, Any], grid_id: str | None = None) -> None:
         gid = grid_id or next(iter(self._engines), "")
@@ -694,6 +755,8 @@ class LiveGridRunner:
                 async with self.grid_lock(gid):
                     if engine is not self._engines.get(gid):
                         return
+                    if engine.status == RUNNING and not self.entry_authority(state):
+                        await self._pause_for_arm(engine, state)
                     if gid not in self._paused_for_block and self.blocked_check(state) and engine.status == RUNNING:
                         self._paused_for_block.add(gid)        # kilit/acil durum: yeni giriş yok; pozisyon korunur
                         await asyncio.to_thread(engine.pause)
@@ -724,10 +787,26 @@ class LiveGridRunner:
     async def _guard_limits(self, engine: GridEngine, state: dict[str, Any]) -> str:
         """Hedef kâr / zarar sınırı. Hata olursa grid'in kendi stopu zaten korur; bu kontrol sessizce sonraki tura kalır."""
         try:
+            await self._refresh_daily_ledger(engine, state)
             return await asyncio.to_thread(self._guard_once, engine, state)
         except Exception as exc:
             logger.warning("LIVE_GRID_LIMIT_CHECK_FAILED grid=%s type=%s", engine.gid, type(exc).__name__)
             return ""
+
+    async def _refresh_daily_ledger(self, engine: GridEngine, state: dict[str, Any]) -> None:
+        """Hesap geneli günlük defteri (Binance gelir geçmişi) en çok DAILY_CHECK_SECONDS'ta bir tazeler. Okunamazsa sessiz kalır;
+        `_check_daily_limit` eski defteri yaşı sınırı içinde kullanır, sınır aşılınca yeni girişi durdurur."""
+        if engine.status != RUNNING:
+            return
+        client = getattr(self._adapters.get(engine.gid), "client", None)
+        if client is None:
+            return
+        try:
+            await daily_ledger.refresh(client, state, max_age=DAILY_CHECK_SECONDS / 2)
+            self._ledger_failed_since.pop(engine.gid, None)
+        except daily_ledger.LedgerUnavailable:
+            self._ledger_failed_since.setdefault(engine.gid, time.monotonic())
+            logger.warning("LIVE_GRID_DAILY_LEDGER_UNAVAILABLE grid=%s", engine.gid)
 
     def _check_liquidation(self, engine: GridEngine, state: dict[str, Any]) -> str:
         """Açık pozisyonun likidasyon fiyatına yaklaşmasını izler (en çok her LIQ_CHECK_SECONDS'ta bir borsaya sorar).
@@ -825,7 +904,7 @@ class LiveGridRunner:
             if engine.status == PAUSED:     # kullanıcı görsün: durum BLOCKED kalır, döngü biter, müdahale beklenir
                 self.store.set_grid(engine.gid, status=BLOCKED)
             status = engine.status
-        if status == PAUSED and self._flat_and_entries_done(engine):
+        if status == PAUSED and self._flat_and_entries_done(engine) and not self.arm_paused(engine.gid):
             self.store.set_grid(engine.gid, status=STOPPED, halt_reason=self._stop_reasons.pop(engine.gid, "") or "Duraklatıldı; açık pozisyon ve bekleyen giriş yok")
             status = STOPPED
         return status

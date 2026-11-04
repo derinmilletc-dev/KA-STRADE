@@ -434,6 +434,37 @@ class GridEngine:
         self._ensure_protection_paused()
         return self.status
 
+    def reopen_entries(self, price: float) -> tuple[int, int]:
+        """Duraklatılmış grid'i yeniden çalıştırır (yalnız ARM süresi dolduğu için duraklatılmış grid'te çağrılır):
+        girişi hiç dolmadan iptal edilmiş kademelere AYNI turda yeni giriş niyeti yazar; gönderimi normal tur yapar.
+        Güncel fiyatın yanlış tarafına (limit emir hemen dolar) ya da stopun ötesine düşen kademe açılmaz.
+        Dönüş: (açılan, atlanan)."""
+        if self.status != PAUSED or not price > 0:
+            return 0, 0
+        opened = skipped = 0
+        entries = self.store.orders(self.gid, "E")
+        for index, lv in enumerate(self.spec.levels, 1):
+            mine = [e for e in entries if e["level"] == index]
+            if not mine:
+                continue
+            last = max(mine, key=lambda e: (e["cycle"], e["rev"]))
+            if last["status"] != CANCELED or last["filled"] > EPS:
+                continue
+            if not self._entry_still_valid(index, price):
+                skipped += 1
+                continue
+            self._intent(role="E", level=index, rev=max(e["rev"] for e in mine) + 1, cycle=last["cycle"], side=self._entry_side(index),
+                         type=LIMIT, price=lv.entry, stop_price=0.0, qty=lv.qty, reduce_only=0, tag=self._level_tag(index))
+            opened += 1
+        self._set(RUNNING)
+        return opened, skipped
+
+    def _entry_still_valid(self, level: int, price: float) -> bool:
+        entry = self.spec.levels[level - 1].entry
+        if self.spec.side == LONG:
+            return self.spec.stop_price < entry < price
+        return price < entry < self.spec.stop_price
+
     def _ensure_protection_paused(self) -> None:
         """Durdurulmuş grid'te de (iptal yarışında) dolan miktar korunmalı."""
         saved = self.status
