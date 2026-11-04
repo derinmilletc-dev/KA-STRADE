@@ -68,6 +68,7 @@ from .maintenance import (
     is_maintenance_rejection,
     maintenance_blocks_automation,
 )
+from . import daily_ledger
 from .execution_core import (
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
@@ -5410,8 +5411,24 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
     return True, "Tüm LIVE otomasyon kapıları geçti."
 
 
+async def refresh_account_daily_ledger(client: Any, state: dict[str, Any]) -> dict[str, Any]:
+    """Hesap geneli günlük defteri (Binance gelir geçmişi) tazeler. Okunamazsa LiveExchangeError(503): çağıran yeni girişi kapatır."""
+    try:
+        return await daily_ledger.refresh(client, state)
+    except daily_ledger.LedgerUnavailable as exc:
+        raise LiveExchangeError(f"Günlük zarar defteri doğrulanamadı; yeni giriş durdu ({exc}).", http_status=503,
+                                transient_read_failure=True, check_key="daily_ledger") from exc
+
+
 def live_daily_metrics(state: dict[str, Any]) -> dict[str, Any]:
     metrics = daily_execution_metrics(state.get("events", []))
+    ledger = daily_ledger.cached(state)
+    if ledger is not None:
+        # Hesap geneli doğruluk kaynağı: manuel + Grid + KAIS, stop/acil kapanış, komisyon ve fonlama dahil.
+        metrics["event_realized_pnl"] = metrics.get("realized_pnl")
+        metrics["realized_pnl"] = ledger["totals"]["net"]
+        metrics["pnl_source"] = "BINANCE_INCOME"
+        metrics["income"] = daily_ledger.public(ledger)
     plan_blocks = sum(
         1 for plan in state.get("plans", {}).values()
         if plan.get("status") == "PNL DOĞRULANIYOR" or plan.get("pnl_verified") is False
@@ -5803,6 +5820,7 @@ async def execute_live_order(
                 raise LiveExchangeError("Canlı hesap Multi-Assets modunda olmamalı.", http_status=409, check_key="multi_assets_mode")
             validate_live_isolated_snapshot(snapshot, state["policy"])
             symbol = normalize_symbol(body.symbol)
+            await refresh_account_daily_ledger(client, state)
             daily = live_daily_metrics(state)
             manual_signal = {"direction": body.direction, "confidence": 100, "radar": {"trap_score": 0}}
             current_spread = await spread_bps(client, symbol)
@@ -6415,6 +6433,7 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
     try:
         client = client_for_with_credentials(application, credentials)
         snapshot = await account_snapshot(client, cached=True, source="strategy_scan")
+        await refresh_account_daily_ledger(client, state)
         daily = live_daily_metrics(state)
         observation_token = observation.start_round(state["policy"], snapshot, daily, state.get("plans", {}))
         state["auto"]["last_skip_reason"] = None
@@ -8048,6 +8067,7 @@ async def v25_grid_live_start(request: Request, body: GridLiveStartRequest) -> d
                 raise HTTPException(409, f"{symbol} için etkin bir işlem planı var; aynı coinde grid açılmaz.")
             rules = await live_symbol_rules(client, symbol, "LIMIT")
             price = await ticker_price(client, symbol)
+            await refresh_account_daily_ledger(client, state)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
             reserved = runner.reserved_risk(user_id, owner=owner)
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}

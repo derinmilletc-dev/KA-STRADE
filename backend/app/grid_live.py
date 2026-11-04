@@ -21,6 +21,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from . import daily_ledger
 from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
@@ -390,6 +391,7 @@ class LiveGridRunner:
         self._liq_checked: dict[str, float] = {}
         self._liq_alerted: dict[str, str] = {}
         self._daily_checked: dict[str, float] = {}
+        self._ledger_failed_since: dict[str, float] = {}
 
     # ---- geriye uyum (tek grid dönemi alanları)
     @property
@@ -534,9 +536,26 @@ class LiveGridRunner:
             return ""
         row = self.store.grid(engine.gid)
         day = self.day_summary(str(row["user_id"] or ""), owner=False, limit=limit)
+        ledger = daily_ledger.cached(state)
+        if ledger is None:
+            since = self._ledger_failed_since.get(engine.gid)
+            if since is not None and now - since >= daily_ledger.STALE_OK_SECONDS and not day["reached"]:
+                # Defter uzun süredir okunamıyor: hesap geneli zarar doğrulanamaz → yeni giriş durur (stoplar kalır).
+                return self._pause_daily(engine, state, "Günlük zarar defteri doğrulanamıyor; yeni giriş durdu, stoplar korunuyor")
+        elif -float(ledger["totals"]["net"]) >= limit:
+            net = float(ledger["totals"]["net"])
+            return self._pause_daily(engine, state, f"Hesap geneli günlük zarar limitine ulaşıldı ({net:.2f} / -{limit:.2f} USDT; "
+                                     f"stop, acil kapanış, komisyon ve fonlama dahil); yeni giriş durdu, stoplar korunuyor")
         if not day["reached"]:
             return ""
         reason = f"Günlük zarar limitine ulaşıldı ({day['realized_usdt']:.2f} / -{limit:.2f} USDT); yeni giriş durdu, stoplar korunuyor"
+        self._stop_reasons[engine.gid] = reason
+        engine.pause()
+        self.store.set_grid(engine.gid, halt_reason=reason)
+        self._record(state, "LIVE_GRID_DAILY_LIMIT", f"{engine.sym} grid {reason}.", grid_id=engine.gid)
+        return "DAILY_LIMIT"
+
+    def _pause_daily(self, engine: GridEngine, state: dict[str, Any], reason: str) -> str:
         self._stop_reasons[engine.gid] = reason
         engine.pause()
         self.store.set_grid(engine.gid, halt_reason=reason)
@@ -701,10 +720,26 @@ class LiveGridRunner:
     async def _guard_limits(self, engine: GridEngine, state: dict[str, Any]) -> str:
         """Hedef kâr / zarar sınırı. Hata olursa grid'in kendi stopu zaten korur; bu kontrol sessizce sonraki tura kalır."""
         try:
+            await self._refresh_daily_ledger(engine, state)
             return await asyncio.to_thread(self._guard_once, engine, state)
         except Exception as exc:
             logger.warning("LIVE_GRID_LIMIT_CHECK_FAILED grid=%s type=%s", engine.gid, type(exc).__name__)
             return ""
+
+    async def _refresh_daily_ledger(self, engine: GridEngine, state: dict[str, Any]) -> None:
+        """Hesap geneli günlük defteri (Binance gelir geçmişi) en çok DAILY_CHECK_SECONDS'ta bir tazeler. Okunamazsa sessiz kalır;
+        `_check_daily_limit` eski defteri yaşı sınırı içinde kullanır, sınır aşılınca yeni girişi durdurur."""
+        if engine.status != RUNNING:
+            return
+        client = getattr(self._adapters.get(engine.gid), "client", None)
+        if client is None:
+            return
+        try:
+            await daily_ledger.refresh(client, state, max_age=DAILY_CHECK_SECONDS / 2)
+            self._ledger_failed_since.pop(engine.gid, None)
+        except daily_ledger.LedgerUnavailable:
+            self._ledger_failed_since.setdefault(engine.gid, time.monotonic())
+            logger.warning("LIVE_GRID_DAILY_LEDGER_UNAVAILABLE grid=%s", engine.gid)
 
     def _check_liquidation(self, engine: GridEngine, state: dict[str, Any]) -> str:
         """Açık pozisyonun likidasyon fiyatına yaklaşmasını izler (en çok her LIQ_CHECK_SECONDS'ta bir borsaya sorar).
