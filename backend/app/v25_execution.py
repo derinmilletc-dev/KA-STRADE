@@ -4089,6 +4089,20 @@ def manual_limit_entry_filled(state: dict[str, Any], payload: dict[str, Any]) ->
     return None
 
 
+def schedule_grid_instant_protection(application: Any, payload: Any) -> asyncio.Task | None:
+    """Kullanıcı akışında grid dolumu/stop tetiği: grid korumasını 5 sn'lik turu beklemeden günceller (ayrı görev; akışı
+    bekletmez). Grid çalıştırıcısı yoksa ya da olay grid'e ait değilse hiçbir şey yapmaz."""
+    from . import grid_live
+    client_id = grid_live.grid_stream_client_id(payload)
+    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
+    if client_id is None or runner is None:
+        return None
+    task = asyncio.create_task(runner.protect_from_stream(client_id))
+    _EARLY_PROTECTION_TASKS.add(task)
+    task.add_done_callback(_EARLY_PROTECTION_TASKS.discard)
+    return task
+
+
 EARLY_PROTECTION_POSITION_CHECKS = 4
 _EARLY_PROTECTION_TASKS: set[asyncio.Task[Any]] = set()
 EARLY_PROTECTION_CHECK_DELAY_SECONDS = 1.0
@@ -4160,6 +4174,7 @@ async def live_user_stream_loop(application: Any) -> None:
                                 changed = process_live_stream_event(state, payload)
                                 if changed:
                                     persist_state(state)
+                            schedule_grid_instant_protection(application, payload)
                             if filled_symbol:
                                 # Manuel LIMIT doldu: korumayı 10 sn beklemeden kur (ayrı görev; akışı bekletmez).
                                 early = asyncio.create_task(early_protection_reconcile(application, credentials, filled_symbol))
