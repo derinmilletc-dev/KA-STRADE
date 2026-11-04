@@ -1302,3 +1302,13 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 @media (min-width: 1101px) {
   html body #root:not(#a) .binanceDemoDeck .lcGrid .lcStrategy { grid-row: auto !important; align-self: start !important; }
 }
+/* Kart altında hızlı kapat: küçük hap tuş, solunda anlık kapanış fiyatı (kart kapalıyken de görünür) */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;padding:2px 12px 11px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick>span{min-width:0!important;font-size:12.5px!important;color:var(--lc-mute)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick>span b{color:var(--lc-ink)!important;font-weight:650!important;font-variant-numeric:tabular-nums!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick>span em{font-style:normal!important;color:var(--lc-warn)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose{flex:none!important;display:inline-flex!important;align-items:center!important;gap:6px!important;height:34px!important;padding:0 14px!important;border:0!important;border-radius:999px!important;background:rgba(255,107,107,.13)!important;color:#ff8f8f!important;font:inherit!important;font-size:13.5px!important;font-weight:650!important;cursor:pointer!important;transition:background-color .15s!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose svg{width:15px!important;height:15px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:hover{background:rgba(255,107,107,.2)!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:focus-visible{outline:2px solid var(--lc-go)!important;outline-offset:2px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:disabled{opacity:.45!important;cursor:not-allowed!important}

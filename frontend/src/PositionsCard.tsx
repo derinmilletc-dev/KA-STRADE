@@ -141,6 +141,8 @@ export default function PositionsCard(props: Props) {
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
+        const askClose = () => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
+          long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity})
         // İnce çubuk: fiyatın stop (sol) ile TP1 (sağ) arasındaki yeri. TP1 sonrası / bilinmiyorsa çubuk yok.
         const tp1Left = metrics.toTp1Pct !== null && !breakeven ? metrics.toTp1Pct : null
         const score = external ? null : scoreInfo(plan, smartFor(plan, String(position.symbol ?? '')))
@@ -169,6 +171,12 @@ export default function PositionsCard(props: Props) {
               <span>{tp1Left !== null ? (tp1Left > 0 ? `TP1 ${formatPct(tp1Left, 1)}` : 'TP1 geçildi') : ''}</span>
             </span>}
           </button>
+
+          {/* Kapat tuşu kart kapalıyken de görünür; dokununca her zamanki onay penceresi açılır. */}
+          {closable && <div className="pvQuick">
+            <span>{metrics.mark !== null ? <>Kapanış ≈ <b>{formatPrice(metrics.mark)}</b>{livePrice ? null : <em> · gecikmeli</em>}</> : null}</span>
+            <button type="button" className="pvQuickClose" disabled={busy} aria-label={`${metrics.coin || 'Pozisyonu'} kapat`} onClick={askClose}><X aria-hidden="true"/>Kapat</button>
+          </div>}
 
           <div className="pvDetail">
             {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
@@ -206,16 +214,12 @@ export default function PositionsCard(props: Props) {
             {external && <p className="pvNote">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
 
-            {closable && <div className="pvActs">
-              {manual && <>
+            {closable && manual && <div className="pvActs">
+              <>
                 <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => props.onEdit(manualTarget)}>Stop / hedef değiştir</button>
                 <span className="pvPct" role="group" aria-label="Kısmi kapat">{([25, 50, 75] as const).map(percent =>
                   <button type="button" key={percent} className="lcBtn" disabled={busy || protection?.stop !== true} aria-label={`Pozisyonun %${percent}’ini kapat`} onClick={() => props.onReduce(manualTarget, percent)}>{`%${percent}`}</button>)}</span>
-              </>}
-              <button type="button" className="pvClose" disabled={busy}
-                onClick={() => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
-                  long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity})}>
-                <X aria-hidden="true"/>Pozisyonu kapat</button>
+              </>
             </div>}
             <button type="button" className="pvToggle" aria-expanded={isOpen} onClick={toggle}>Gizle<ChevronDown aria-hidden="true"/></button>
           </div>
