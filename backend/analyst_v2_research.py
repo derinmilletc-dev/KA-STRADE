@@ -521,7 +521,7 @@ def cal_slope(p: np.ndarray, y: np.ndarray, k: int) -> float:
     from sklearn.linear_model import LogisticRegression
     pk = np.clip(p[:, k], 1e-6, 1 - 1e-6)
     x = np.log(pk / (1 - pk))[:, None]
-    m = LogisticRegression(penalty=None, max_iter=1000).fit(x, (y == k).astype(int))
+    m = LogisticRegression(C=1e12, max_iter=1000).fit(x, (y == k).astype(int))
     return float(m.coef_[0, 0])
 
 
@@ -698,13 +698,16 @@ def cmd_scan(out: Path) -> None:
     (out / "scan.json").write_text(json.dumps(report, indent=1))
 
 
-def cmd_models(out: Path) -> None:
+def cmd_models(out: Path, only: str | None = None) -> None:
     df = load_full(out)
     kfix = json.loads((out / "k_fixed.json").read_text())
     scan = json.loads((out / "scan.json").read_text())
     log = lambda s: print(s, flush=True)  # noqa: E731
     report = {}
+    target = out / (f"models_{only}.json" if only else "models.json")
     for name in HORIZONS:
+        if only and name != only:
+            continue
         if scan[name]["S1_stop"]:
             report[name] = {"status": "S1: OHLCV ile tahmin edilebilir yön bulunamadı; modellenmedi"}
             log(f"{name}: S1 durdurdu")
@@ -716,15 +719,24 @@ def cmd_models(out: Path) -> None:
         boot = TwoWay(d.loc[test, "day"].to_numpy(), d.loc[test, "symbol"].to_numpy())
         probs, infos = {}, {}
         for which in ("B0", "B1", "B2", "M1", "M2"):
+            cache = out / f"oos_{name}_{which}.npy"
+            meta = out / f"oos_{name}_{which}.json"
+            if cache.exists() and meta.exists():
+                probs[which], infos[which] = np.load(cache), json.loads(meta.read_text())
+                log(f"  {which} {name}: önbellekten yüklendi")
+                continue
             probs[which], infos[which] = oos(d, name, k, which, FEATURES if which in ("M1", "M2") else None, log)
+            np.save(cache, probs[which])
+            meta.write_text(json.dumps(infos[which]))
         ll = {w: logloss_rows(p[test], y[test]) for w, p in probs.items()}
         res = {"k": k, "n_test": int(test.sum()), "days": int(d.loc[test, "day"].nunique()),
                "class_share_test": class_freq(y[test]).tolist(), "models": {}}
+        yt = y[test]
         for w in probs:
             p = probs[w][test]
             pred = p.argmax(1)
-            prec = {c: float((y[pred == i] == i).mean()) if (pred == i).any() else None for i, c in enumerate(CLASSES)}
-            rec = {c: float((pred[y == i] == i).mean()) for i, c in enumerate(CLASSES)}
+            prec = {c: float((yt[pred == i] == i).mean()) if (pred == i).any() else None for i, c in enumerate(CLASSES)}
+            rec = {c: float((pred[yt == i] == i).mean()) for i, c in enumerate(CLASSES)}
             from sklearn.metrics import balanced_accuracy_score, f1_score
             fold_ll = per_fold_ll(d, probs[w], folds())
             fold_b0 = per_fold_ll(d, probs["B0"], folds())
@@ -795,9 +807,9 @@ def cmd_models(out: Path) -> None:
         res["ablation"] = abl
         res["mtf_ladder"] = ladder
         report[name] = res
-        (out / "models.json").write_text(json.dumps(report, indent=1, default=float))
+        target.write_text(json.dumps(report, indent=1, default=float))
         log(f"{name}: seçilen {sel}")
-    (out / "models.json").write_text(json.dumps(report, indent=1, default=float))
+    target.write_text(json.dumps(report, indent=1, default=float))
 
 
 def main() -> None:
@@ -805,12 +817,13 @@ def main() -> None:
     ap.add_argument("command", choices=["integrity", "build", "kfix", "scan", "models"])
     ap.add_argument("--data", type=Path, default=Path.home() / "kais-data" / "analyst")
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--horizon", choices=list(HORIZONS), default=None)
     a = ap.parse_args()
     repo = Path(__file__).resolve().parents[1]
     if a.out.resolve().is_relative_to(repo):
         ap.error("Çıktı klasörü repo dışında olmalı.")
     {"integrity": lambda: cmd_integrity(a.data, a.out), "build": lambda: cmd_build(a.data, a.out),
-     "kfix": lambda: cmd_kfix(a.out), "scan": lambda: cmd_scan(a.out), "models": lambda: cmd_models(a.out)}[a.command]()
+     "kfix": lambda: cmd_kfix(a.out), "scan": lambda: cmd_scan(a.out), "models": lambda: cmd_models(a.out, a.horizon)}[a.command]()
 
 
 if __name__ == "__main__":
