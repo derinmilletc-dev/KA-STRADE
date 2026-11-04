@@ -773,21 +773,25 @@ def cmd_models(out: Path) -> None:
             pt, lo2, hi2, _ = b2.mean(net[take] * 1e4)
             res["economic"] = {"model": best, "tau": tau, "n": int(take.sum()), "mean_bp": pt, "ci_bp": [lo2, hi2],
                                "mean_sigma": float((net[take] / sig[take]).mean()), "edge": bool(pt > 0 and lo2 > 0)}
-        # Grup ablation ve MTF merdiveni (yalnız M1, betimleyici)
+        # Grup ablation ve MTF merdiveni (betimleyici). Hesap süresi nedeniyle S1 düzeni kullanılır:
+        # LR, C = 0,1, tüm eğitim penceresi, kalibrasyonsuz; tam küme de aynı düzenle ölçülür (karşılaştırılabilir).
+        p_all, _ = oos(d, name, k, "S1", FEATURES)
+        ll_all = logloss_rows(p_all[test], y[test])
         abl = {}
         for g in GROUPS:
             cols = [c for c in FEATURES if c not in GROUPS[g]]
-            pg, _ = oos(d, name, k, "M1", cols)
-            point, lo, hi, _ = boot.mean(logloss_rows(pg[test], y[test]) - ll["M1"])
+            pg, _ = oos(d, name, k, "S1", cols)
+            point, lo, hi, _ = boot.mean(logloss_rows(pg[test], y[test]) - ll_all)
             abl[f"-{g}"] = [point, lo, hi]
             log(f"{name} ablation -{g}: {point:+.5f} [{lo:+.5f}, {hi:+.5f}]")
         base15 = [c for c in FEATURES if c not in GROUPS["mtf"]]
         ladder = {}
         for label, cols in (("15m", base15), ("15m+1h", base15 + [c for c in GROUPS["mtf"] if c.startswith("h1")])):
-            pg, _ = oos(d, name, k, "M1", cols)
+            pg, _ = oos(d, name, k, "S1", cols)
             point, lo, hi, _ = boot.mean(ll["B0"] - logloss_rows(pg[test], y[test]))
             ladder[label] = [point, lo, hi]
-        ladder["15m+1h+4h"] = res["models"]["M1"]["dLL_vs_B0"]
+        point, lo, hi, _ = boot.mean(ll["B0"] - ll_all)
+        ladder["15m+1h+4h"] = [point, lo, hi]
         res["ablation"] = abl
         res["mtf_ladder"] = ladder
         report[name] = res
