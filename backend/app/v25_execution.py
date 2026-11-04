@@ -69,6 +69,7 @@ from .maintenance import (
     maintenance_blocks_automation,
 )
 from . import account_reservations
+from . import daily_ledger
 from .execution_core import (
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
@@ -2839,6 +2840,18 @@ async def post_algo(client: BinanceLiveClient, params: dict[str, Any]) -> dict[s
         raise
 
 
+def close_fill_price(result: dict[str, Any] | None) -> float | None:
+    """Piyasa kapanış emrinin ortalama dolum fiyatı (newOrderRespType=RESULT); dolmadıysa/okunamazsa None."""
+    if not isinstance(result, dict):
+        return None
+    try:
+        price = float(result.get("avgPrice") or 0)
+        executed = float(result.get("executedQty") or 0)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 and executed > 0 else None
+
+
 async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: str) -> dict[str, Any] | None:
     rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
     row = next((item for item in rows if Decimal(str(item.get("positionAmt", "0"))) != 0), None)
@@ -5399,8 +5412,24 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
     return True, "Tüm LIVE otomasyon kapıları geçti."
 
 
+async def refresh_account_daily_ledger(client: Any, state: dict[str, Any]) -> dict[str, Any]:
+    """Hesap geneli günlük defteri (Binance gelir geçmişi) tazeler. Okunamazsa LiveExchangeError(503): çağıran yeni girişi kapatır."""
+    try:
+        return await daily_ledger.refresh(client, state)
+    except daily_ledger.LedgerUnavailable as exc:
+        raise LiveExchangeError(f"Günlük zarar defteri doğrulanamadı; yeni giriş durdu ({exc}).", http_status=503,
+                                transient_read_failure=True, check_key="daily_ledger") from exc
+
+
 def live_daily_metrics(state: dict[str, Any]) -> dict[str, Any]:
     metrics = daily_execution_metrics(state.get("events", []))
+    ledger = daily_ledger.cached(state)
+    if ledger is not None:
+        # Hesap geneli doğruluk kaynağı: manuel + Grid + KAIS, stop/acil kapanış, komisyon ve fonlama dahil.
+        metrics["event_realized_pnl"] = metrics.get("realized_pnl")
+        metrics["realized_pnl"] = ledger["totals"]["net"]
+        metrics["pnl_source"] = "BINANCE_INCOME"
+        metrics["income"] = daily_ledger.public(ledger)
     plan_blocks = sum(
         1 for plan in state.get("plans", {}).values()
         if plan.get("status") == "PNL DOĞRULANIYOR" or plan.get("pnl_verified") is False
@@ -5793,6 +5822,7 @@ async def execute_live_order(
                 raise LiveExchangeError("Canlı hesap Multi-Assets modunda olmamalı.", http_status=409, check_key="multi_assets_mode")
             validate_live_isolated_snapshot(snapshot, state["policy"])
             symbol = normalize_symbol(body.symbol)
+            await refresh_account_daily_ledger(client, state)
             daily = live_daily_metrics(state)
             manual_signal = {"direction": body.direction, "confidence": 100, "radar": {"trap_score": 0}}
             current_spread = await spread_bps(client, symbol)
@@ -6419,6 +6449,7 @@ async def automatic_cycle(application: Any, credentials: tuple[str, str] | None 
     try:
         client = client_for_with_credentials(application, credentials)
         snapshot = await account_snapshot(client, cached=True, source="strategy_scan")
+        await refresh_account_daily_ledger(client, state)
         daily = live_daily_metrics(state)
         observation_token = observation.start_round(state["policy"], snapshot, daily, state.get("plans", {}))
         state["auto"]["last_skip_reason"] = None
@@ -8090,6 +8121,7 @@ async def _grid_live_start(request: Request, body: GridLiveStartRequest, reserva
                 raise HTTPException(409, f"{symbol} için etkin bir işlem planı var; aynı coinde grid açılmaz.")
             rules = await live_symbol_rules(client, symbol, "LIMIT")
             price = await ticker_price(client, symbol)
+            await refresh_account_daily_ledger(client, state)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
             reserved = runner.reserved_risk(user_id, owner=owner)
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
@@ -8802,9 +8834,12 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
     if body.confirmation.strip().upper() != "CANLI POZİSYONU KAPAT":
         raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
     state = request.app.state.v25_execution
+    # Süre ölçümü: kullanıcı "bastığım an ile dolduğu an" farkını görebilsin (kilit beklemesi + borsa süresi).
+    started = time.monotonic()
     # Kapatma, uzlaştırma/koruma döngüsüyle aynı kilit altında çalışır: aynı sembolde kapanış, stop ve
     # yeniden giriş olayları iç içe geçip çift emir ya da çelişen plan durumu üretemez.
     async with state["lock"]:
+        lock_wait_ms = int((time.monotonic() - started) * 1000)
         plan = state.get("plans", {}).get(body.plan_id)
         if not plan:
             raise HTTPException(404, "Tracked canlı plan bulunamadı.")
@@ -8825,9 +8860,13 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                     known.append(order_id)
             plan["close_reason"] = close_reason_for_intent(close_intent)
             plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
-            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"])
+            total_ms = int((time.monotonic() - started) * 1000)
+            fill_price = close_fill_price(result)
+            add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"],
+                      fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
-            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan}
+            return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
+                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms}
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
 

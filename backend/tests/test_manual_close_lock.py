@@ -67,3 +67,32 @@ def test_two_simultaneous_closes_never_overlap():
 
     asyncio.run(scenario())
     assert peak == 1
+
+
+def test_close_reports_fill_price_and_timing():
+    """Kapanış yanıtı gerçek dolum fiyatını ve süreyi döner: kullanıcı ekranda neye kapandığını görür."""
+    plan = {"id": "plan-123456", "provenance_state": "CONFIRMED", "symbol": "BTCUSDT", "status": "KORUMA AKTİF",
+            "close_client_order_ids": []}
+    state = v25_execution.initial_state()
+    state["lock"] = asyncio.Lock()
+    state["plans"] = {plan["id"]: plan}
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(v25_execution=state)))
+    body = v25_execution.CloseRequest(plan_id=plan["id"], confirmation="CANLI POZİSYONU KAPAT")
+    close = AsyncMock(return_value={"orderId": 3, "avgPrice": "0.4912", "executedQty": "1000"})
+
+    async def scenario():
+        with patch.object(v25_execution, "execution_owner", return_value={"id": "owner"}), \
+                patch.object(v25_execution, "client_for", return_value=object()), \
+                patch.object(v25_execution, "close_tracked_symbol", new=close), \
+                patch.object(v25_execution, "persist_state"):
+            return await v25_execution.v25_close(request, body)
+
+    result = asyncio.run(scenario())
+    assert result["fill_price"] == 0.4912
+    assert result["lock_wait_ms"] >= 0 and result["total_ms"] >= result["lock_wait_ms"]
+
+
+def test_close_fill_price_ignores_unfilled_or_bad_rows():
+    assert v25_execution.close_fill_price({"avgPrice": "0", "executedQty": "0"}) is None
+    assert v25_execution.close_fill_price({"avgPrice": "abc", "executedQty": "1"}) is None
+    assert v25_execution.close_fill_price(None) is None
