@@ -88,3 +88,20 @@ def daily_ledger_offline_unless_tested(request, monkeypatch):
         except ImportError:
             continue
         monkeypatch.setattr(module, "refresh", empty)
+
+
+@pytest.fixture(autouse=True)
+def reservations_in_memory():
+    """Rezervasyon defteri testlerde bellek içi ve teste özel: gerçek data/ dosyasına yazılmaz, testler birbirine sızmaz."""
+    import importlib
+    modules = []
+    for name in ("app.account_reservations", "backend.app.account_reservations"):
+        try:
+            module = importlib.import_module(name)
+        except ImportError:
+            continue
+        module.use_store(module.ReservationStore(":memory:"))
+        modules.append(module)
+    yield
+    for module in modules:
+        module.use_store(None)
