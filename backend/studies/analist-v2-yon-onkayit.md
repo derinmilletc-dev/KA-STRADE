@@ -339,3 +339,9 @@ Belgenin önceki araştırma planına göre değişen ve kendi içinde kontrol e
   hiçbir test katına girmez (4).
 - Kalan bilinçli gerilim: B1 ve B2 de eğitimdeki koşullu frekanslarla olasılık üretir; bu yüzden P2,
   "trend sürer" varsayımının kalibre edilmiş halini geçmeyi ister (6.2).
+
+## 13. Onay kaydı
+
+- 2026-11-04 13:43 (UTC+2): Kullanıcı `onkayit-v1`'i (commit c13053e) onayladı.
+- U6 kapandı: BTCUSDT OHLCV piyasa bağlamı grubu kapsamda kalır.
+- Bu kayıt kuralları değiştirmez. Model geliştirme ayrı bir "başla" onayı gerektirir.
