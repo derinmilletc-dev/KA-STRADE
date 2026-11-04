@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 from app import account_reservations as ar
 from app import v25_execution as live
-from test_account_reservations import ManualEntry as Harness
+import test_account_reservations as reservation_tests
 
 ON = {live.ACCOUNT_RISK_BUDGET_FLAG: "1"}
 
@@ -51,6 +51,15 @@ class OpenPositionRisk(unittest.TestCase):
                     {**pos("ETHUSDT"), "entry_price": "x"}, {**pos("ETHUSDT"), "quantity": "x"}):
             with self.subTest(bad=bad), self.assertRaises(live.AccountRiskUnknown):
                 self.risk([bad])
+
+    def test_price_beyond_the_stop_counts_the_real_unrealized_loss(self):
+        beyond = {**pos("ETHUSDT", qty=1, entry=100, mark=95), "unrealized_pnl": -5.0}
+        total, detail = self.risk([beyond], [plan("ETHUSDT", "LONG", 99)])
+        self.assertEqual((total, detail[0]["basis"]), (5.0, "STOP+UNREALIZED"))
+        inside = {**pos("ETHUSDT", qty=1, entry=100, mark=99.5), "unrealized_pnl": -0.5}      # stop mesafesi daha büyük → o kullanılır
+        self.assertEqual(self.risk([inside], [plan("ETHUSDT", "LONG", 99)])[0], 1.0)
+        profit = {**pos("ETHUSDT", qty=1, entry=100, mark=110), "unrealized_pnl": 10.0}       # kâr riski düşürmez
+        self.assertEqual(self.risk([profit], [plan("ETHUSDT", "LONG", 99)])[0], 1.0)
 
     def test_zero_quantity_is_ignored(self):
         self.assertEqual(self.risk([pos("ETHUSDT", qty=0, margin_type="cross")])[0], 0.0)
@@ -110,9 +119,59 @@ class GridStartRisk(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 503)
 
 
+class GridStartCallSite(unittest.TestCase):
+    """GERÇEK /grid/live/start uç noktası (önizleme modu: marjin/kaldıraç ayarı, emir ve kayıt YOK): çağrı noktası açık pozisyon
+    riskini gerçekten hesaplayıp Grid planının günlük hakkından düşüyor mu?"""
+
+    def start(self, env, positions, plans=None, limit=10.0, grid_rows=()):
+        import asyncio
+        import test_v25_auto_symbol_scope as scope_tests
+        from app import grid_live
+        from app.grid_engine.store import GridStore
+        application, state = scope_tests.application_for(["BTCUSDT"])
+        state["policy"].update({"max_leverage": 10, "max_loss_per_trade": 3.0, "daily_loss_limit": limit, "max_total_exposure_usdt": 350.0,
+                                "max_positions": 5, "max_stop_distance_pct": 5.0})
+        state["plans"] = plans or {}
+        application.state.live_grid_runner = grid_live.LiveGridRunner(GridStore(":memory:", check_same_thread=False))
+        snapshot = {"wallet_balance": 100, "available_balance": 100, "positions": positions, "open_orders": [], "open_algo_orders": [],
+                    "open_algo_orders_available": True, "algo_orders_quality": "VALID_EMPTY", "hedge_mode": False, "multi_assets_mode": False}
+        body = live.GridLiveStartRequest(symbol="BTCUSDT", direction="LONG", lower=98.0, upper=99.0, count=2, margin_usdt=10.0, leverage=2,
+                                         stop=97.0, preview=True)
+        request = SimpleNamespace(app=application, state=SimpleNamespace(member={"id": "u1"}))
+        rules = {"tick": 0.1, "step": 0.001, "min_qty": 0.001, "min_notional": 5.0, "max_qty": 1000}
+        with patch.dict(os.environ, env, clear=False), patch.object(live, "execution_owner", lambda r: {"id": "u1", "role": "OWNER"}), \
+                patch.object(live, "client_for", lambda *a, **k: SimpleNamespace()), \
+                patch.object(live, "account_snapshot", AsyncMock(return_value=snapshot)), \
+                patch.object(live, "live_symbol_rules", AsyncMock(return_value=rules)), \
+                patch.object(live, "ticker_price", AsyncMock(return_value=100.0)), \
+                patch.object(live, "validate_live_isolated_snapshot", lambda *a, **k: None):
+            try:
+                return asyncio.run(live._grid_live_start(request, body, None))
+            except live.HTTPException as exc:
+                return exc
+
+    def test_flag_off_the_preview_plan_ignores_open_positions(self):
+        os.environ.pop(live.ACCOUNT_RISK_BUDGET_FLAG, None)
+        result = self.start({}, [pos("ETHUSDT", qty=2)], {"p": plan("ETHUSDT", "LONG", 90)})     # açık risk 20 USDT, limit 10
+        self.assertTrue(isinstance(result, dict) and result.get("preview"), result)
+
+    def test_flag_on_open_position_risk_is_taken_from_the_grid_daily_allowance(self):
+        result = self.start(ON, [pos("ETHUSDT", qty=2)], {"p": plan("ETHUSDT", "LONG", 90)})
+        self.assertIsInstance(result, live.HTTPException)
+        self.assertIn("kalan zarar hakkı", str(result.detail))
+
+    def test_flag_on_small_open_risk_still_leaves_room(self):
+        result = self.start(ON, [pos("ETHUSDT", qty=1)], {"p": plan("ETHUSDT", "LONG", 99.9)})   # açık risk 0.1
+        self.assertTrue(isinstance(result, dict) and result.get("preview"), result)
+
+    def test_flag_on_unreadable_open_position_refuses_with_503(self):
+        result = self.start(ON, [pos("ETHUSDT", margin_type="cross")])
+        self.assertEqual((result.status_code), 503)
+
+
 class EntryGate(unittest.TestCase):
     """execute_live_order: spec riski 2 USDT (estimated_stop_loss_usdt)."""
-    h = Harness("test_concurrent_entry_on_same_coin_is_refused_before_submit")
+    h = reservation_tests.ManualEntry("test_concurrent_entry_on_same_coin_is_refused_before_submit")
 
     def run_entry(self, env=None, **kwargs):
         with patch.dict(os.environ, env or {}, clear=False):
@@ -144,6 +203,20 @@ class EntryGate(unittest.TestCase):
         no = self.run_entry(ON, ledger_net=-5.0, **kw)
         self.assertEqual((no[0].status_code, no[1].await_count), (409, 0))
 
+    def test_hundred_usdt_ceiling_is_applied_even_if_policy_allows_more(self):
+        ok = self.run_entry(ON, daily_limit=250.0, ledger_net=-98.0)               # 98 + 2 = 100 → sınırda sığar
+        self.assertEqual(ok[1].await_count, 1)
+        no = self.run_entry(ON, daily_limit=250.0, ledger_net=-98.5)               # 98.5 + 2 > 100
+        self.assertEqual((no[0].status_code, no[1].await_count), (409, 0))
+
+    def test_grid_position_is_not_counted_twice_end_to_end(self):
+        runner = SimpleNamespace(reserved_risk=lambda uid, owner=True: {"worst_loss_usdt": 4.0, "symbols": ["ETHUSDT"]}, symbol_busy=lambda *a, **k: False)
+        kw = dict(daily_limit=10.0, positions=[pos("ETHUSDT", qty=1, entry=100)], plans={"p": plan("ETHUSDT", "LONG", 90)}, runner=runner)
+        self.assertEqual(self.run_entry(ON, **kw)[1].await_count, 1)               # 4 (Grid) + 2 = 6; pozisyonun 10'u ayrıca sayılsaydı reddedilirdi
+
+    def test_profit_does_not_buy_extra_room_end_to_end(self):
+        self.assertEqual(self.run_entry(ON, daily_limit=1.0, ledger_net=500.0)[0].status_code, 409)
+
     def test_concurrent_reservation_counts_too(self):
         result, submit, state, owner, _ = self.run_entry(ON, daily_limit=10.0, seed=("AUTO", "SOLUSDT", 9.0))
         self.assertEqual((result.status_code, submit.await_count), (409, 0))
@@ -166,16 +239,48 @@ class EntryGate(unittest.TestCase):
                 self.assertEqual((result.status_code, submit.await_count), (409, 0))
                 self.assertIn("Hesap risk bütçesi yetmiyor", result.detail)
 
+    def original_v2_entry(self, limit, env=ON, **kwargs):
+        """Original V2 / KAIS'in GERÇEK giriş akışı (execute_live_order'ın original_entry dalları: sinyal ve mum doğrulaması, politika,
+        Original risk kapıları, plan alanları) çalışır. Yalnız Binance'e dokunan/strateji hesaplayan üç parça yerine konur:
+        check_entry (daily_guard Binance gelir okur), execution_policy ve build_spec (Original boyutlandırma çıktısı sabit verilir)."""
+        import time as _time
+        import test_v25_auto_symbol_scope as scope_tests
+        from app import original_v2_live
+        strategy_result = SimpleNamespace(signal=SimpleNamespace(symbol="BTCUSDT", decision_time=int(_time.time()) // 900 * 900))
+        spec = {**scope_tests.spec_for("BTCUSDT"), "quantity": "2.5", "notional_usdt": 250, "margin_usdt": 5, "leverage": 50,
+                "stop_loss": "99.2", "estimated_stop_loss_usdt": 2, "initial_stop_loss": "99.2", "initial_quantity": "2.5",
+                "original_risk_budget": "2", "original_cost_bps": "0"}
+        original_patches = {"check_entry": AsyncMock(return_value=None), "build_spec": AsyncMock(return_value=spec),
+                            "execution_policy": lambda state, snap: {**state["policy"], "allowed_symbols": ["BTCUSDT"]}}
+        gate_signal = {"direction": "LONG", "confidence": 100, "radar": {"trap_score": 0}}
+        with patch.object(live.original_v2_pullback, "gate_signal", lambda r: gate_signal):
+            return self.run_entry(env, daily_limit=limit, source=original_v2_live.SOURCE, strategy_result=strategy_result,
+                                  original_patches=original_patches, **kwargs)
+
+    def test_original_v2_real_entry_flow_is_stopped_by_the_gate_before_any_order(self):
+        result, submit, state, owner, _ = self.original_v2_entry(1.0)
+        self.assertEqual((result.status_code, submit.await_count), (409, 0))
+        self.assertIn("Hesap risk bütçesi yetmiyor", result.detail)
+        self.assertEqual(ar.snapshot(owner), [])
+
+    def test_original_v2_real_entry_flow_passes_when_budget_allows_and_flag_off_is_unchanged(self):
+        ok, submit, state, owner, _ = self.original_v2_entry(10.0)
+        self.assertEqual(submit.await_count, 1)
+        self.assertEqual(next(iter(state["plans"].values()))["source"], "ORIGINAL_V2_LIVE")
+        _, submit_off, *_ = self.original_v2_entry(1.0, env={})                        # bayrak kapalı: aynı limitte emir gider
+        self.assertEqual(submit_off.await_count, 1)
+
+    def test_original_v2_sees_manual_open_risk_and_grid_risk(self):
+        runner = SimpleNamespace(reserved_risk=lambda uid, owner=True: {"worst_loss_usdt": 6.0, "symbols": []}, symbol_busy=lambda *a, **k: False)
+        result, submit, *_ = self.original_v2_entry(7.0, runner=runner, positions=[pos("ETHUSDT")], plans={"p": plan("ETHUSDT", "LONG", 99)})
+        self.assertEqual((result.status_code, submit.await_count), (409, 0))           # 6 + 1 + 2 > 7
+
     def test_gate_is_not_conditional_on_the_entry_source(self):
-        """Original V2 / KAIS girişleri aynı execute_live_order içinden geçer; bu test kapının source/original_entry koşuluna
-        bağlı OLMADIĞINI kaynak ağacından doğrular (Original V2 sinyal hattı bu donanımla uçtan uca çalıştırılamaz)."""
+        """Ek güvence: kapı çağrısı hiçbir source/original_entry koşuluna bağlı değil (kaynak ağacı)."""
         import ast
         tree = ast.parse(Path(live.__file__).read_text(encoding="utf-8"))
         func = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "execute_live_order")
-        parents = {}
-        for node in ast.walk(func):
-            for child in ast.iter_child_nodes(node):
-                parents[child] = node
+        parents = {child: node for node in ast.walk(func) for child in ast.iter_child_nodes(node)}
         calls = [n for n in ast.walk(func) if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "reserve"
                  and getattr(getattr(n.func, "value", None), "id", "") == "account_reservations"]
         self.assertEqual(len(calls), 1)

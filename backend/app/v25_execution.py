@@ -5928,7 +5928,7 @@ async def execute_live_order(
             breakdown = None
             reservation_owner_id = live_reservation_owner(state, request)
             try:
-                await reconcile_account_reservations(client, state, reservation_owner_id)
+                await reconcile_account_reservations(client, state, reservation_owner_id, snapshot)
                 budget = shared_daily_budget(application, state, request, snapshot)
                 breakdown = budget.pop("breakdown", None)
                 reservation_token = account_reservations.reserve(
@@ -8050,26 +8050,49 @@ def _finish_reservation(token: str | None, plan: dict[str, Any] | None, filled: 
         logger.warning("RESERVATION_FINISH_FAILED")
 
 
-async def reconcile_account_reservations(client: Any, state: dict[str, Any], owner: str) -> None:
-    """Önceki rezervasyonları plan durumu ve (gerekirse) Binance ile mutabakat eder. Çözülemeyen satır kalırsa `reserve` yeni girişi reddeder."""
+_EXCHANGE_GONE_STATUSES = frozenset({"CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"})
+
+
+async def reconcile_account_reservations(client: Any, state: dict[str, Any], owner: str, snapshot: dict[str, Any] | None = None) -> None:
+    """Önceki rezervasyonları plan durumu ve (gerekirse) Binance ile mutabakat eder. Yalnız KESİN kanıtla serbest bırakır:
+    erişim hatası, zaman aşımı, tanınmayan emir durumu ya da hesapta aynı coinde pozisyon/emir görünmesi satırı olduğu gibi bırakır
+    ve `reserve` yeni girişi reddeder (fail-closed). Hiçbir hata girişi 'canlı yürütme kilidine' çevirmez."""
     plans = {str(p.get("entry_client_order_id")): p for p in state.get("plans", {}).values() if isinstance(p, dict) and p.get("entry_client_order_id")}
 
     def plan_status(client_id: str) -> str | None:
         plan = plans.get(client_id)
         return str(plan.get("status")) if plan and plan.get("status") else None
 
+    open_order_ids = {str(o.get("client_order_id")) for o in (snapshot or {}).get("open_orders", []) if isinstance(o, dict)}
+    busy_symbols = {normalize_symbol(str(x.get("symbol") or "")) for key in ("positions", "open_orders")
+                    for x in (snapshot or {}).get(key, []) if isinstance(x, dict)}
     for row in account_reservations.sweep(owner, plan_status):
         outcome = "UNKNOWN"
         try:
             order = await find_order(client, row["symbol"], row["client_order_id"])
-        except (LiveExchangeError, BinanceDemoError):
-            order = False                      # erişilemedi: satır kalır, yeni giriş durur
+        except Exception:  # noqa: BLE001 - ağ, zaman aşımı, hız sınırı, beklenmeyen yanıt: hepsi "doğrulanamadı"
+            logger.warning("RESERVATION_RECONCILE_UNVERIFIED symbol=%s", row["symbol"])
+            continue
         if order is None:
-            outcome = "GONE"
-        elif order:
+            # Binance emri bilmiyor. Ama hesapta o coinde açık emir/pozisyon görünüyorsa 'yok' demek güvenli değil.
+            if row["client_order_id"] in open_order_ids:
+                outcome = "PENDING"
+            elif normalize_symbol(row["symbol"]) in busy_symbols:
+                outcome = "UNKNOWN"
+            else:
+                outcome = "GONE"
+        else:
             status = str(order.get("status") or "").upper()
-            executed = float(order.get("executedQty") or 0)
-            outcome = "PENDING" if status in {"NEW", "PARTIALLY_FILLED"} else "FILLED" if status == "FILLED" or executed > 0 else "GONE"
+            try:
+                executed = float(order.get("executedQty") or 0)
+            except (TypeError, ValueError):
+                executed = None
+            if status in {"NEW", "PARTIALLY_FILLED"}:
+                outcome = "PENDING"
+            elif status == "FILLED" or (executed is not None and executed > 0 and status in _EXCHANGE_GONE_STATUSES):
+                outcome = "FILLED"
+            elif status in _EXCHANGE_GONE_STATUSES and executed == 0:
+                outcome = "GONE"
         account_reservations.resolve(row["token"], outcome)
 
 
@@ -8126,6 +8149,12 @@ def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], ski
                 risk = None
         if risk is None or not math.isfinite(risk):
             raise AccountRiskUnknown(f"{symbol} açık pozisyonunun riski hesaplanamadı (stop ve marjin bilinmiyor).")
+        try:                                  # fiyat stopu aşmışsa (gecikme/boşluk) gerçek gerçekleşmemiş zarar stop mesafesinden büyük olabilir
+            unrealized_loss = max(0.0, -float(position.get("unrealized_pnl") or 0.0))
+        except (TypeError, ValueError):
+            unrealized_loss = 0.0
+        if math.isfinite(unrealized_loss) and unrealized_loss > risk:
+            risk, basis = unrealized_loss, f"{basis}+UNREALIZED"
         total += risk
         detail.append({"symbol": symbol, "risk_usdt": round(risk, 6), "basis": basis})
     return round(total, 6), detail
