@@ -1,7 +1,8 @@
 import {useEffect, useState, type FormEvent} from 'react'
-import {ArrowRight, Check, ClipboardList, Clock, Home, Layers, LoaderCircle, Mail, Search, TriangleAlert} from 'lucide-react'
+import {ArrowRight, Check, ClipboardList, Clock, FileSearch, Home, Layers, LoaderCircle, Lock, Mail, Search, ShieldCheck, Ticket, TriangleAlert, Zap} from 'lucide-react'
 import {API_BASE} from './api'
 import './founding-success.css'
+import './founding-track.css'
 
 type Status = 'pending_email' | 'new' | 'approved' | 'waitlist' | 'rejected' | 'invited' | 'invite_expired' | 'account_created' | 'payment_pending' | 'active'
 type View = {reference: string; first_name: string; status: Status; created_at: string | null; email_confirmed_at: string | null; decided_at: string | null}
@@ -111,19 +112,51 @@ export default function FoundingStatus({t}: Props) {
     </main>
   }
 
-  return <main className="fdSuccess fdStatus" aria-labelledby="fd-status-title">
-    <div className="fdSuccessInner">
-      <div className="fdStatusMark wait" aria-hidden="true">{busy ? <LoaderCircle className="spin"/> : <Search/>}</div>
-      <h1 id="fd-status-title">{t('Başvurunu Sorgula', 'Track your application')}</h1>
-      <p className="fdSuccessLead">{t('Başvuru numaranı ve başvururken kullandığın e-postayı gir. Numara, başvuru e-postanda yazıyor.', 'Enter your application number and the email you applied with. The number is in your application email.')}</p>
-      <form className="fdForm fdStatusForm" onSubmit={submit} noValidate>
-        <input aria-label={t('Başvuru numarası', 'Application number')} placeholder="KT-F30-XXXXX" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={12}
-          value={reference} onChange={event => setReference(event.target.value.toUpperCase())}/>
-        <input type="email" aria-label={t('E-posta adresi', 'Email address')} placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={email} onChange={event => setEmail(event.target.value)}/>
-        {error && <p className="fdError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
-        <button className="fdPrimary fdSubmit" type="submit" disabled={!formValid || busy}>{busy ? t('Sorgulanıyor…', 'Checking…') : t('Durumu Göster', 'Show status')}<ArrowRight aria-hidden="true"/></button>
+  return <main className="fdTrack" aria-labelledby="fd-status-title">
+    <TrackBackdrop/>
+    <div className="fdTrackInner">
+      <a className="fdTrackLogo" href="/" aria-label="KaisTrade"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/></a>
+      <div className="fdTrackIcon" aria-hidden="true">{busy ? <LoaderCircle className="spin"/> : <FileSearch/>}</div>
+      <h1 id="fd-status-title">{t('Başvuru Durumu', 'Application Status')}</h1>
+      <p className="fdTrackLead">{t('Başvurunuzun güncel durumunu güvenle takip edin.', 'Track the current status of your application securely.')}</p>
+      <form className="fdTrackCard" onSubmit={submit} noValidate>
+        <label className="fdTrackField"><Ticket aria-hidden="true"/>
+          <input aria-label={t('Başvuru numarası', 'Application number')} placeholder="KT-F30-XXXXX" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={12}
+            value={reference} onChange={event => setReference(event.target.value.toUpperCase())}/></label>
+        <label className="fdTrackField"><Mail aria-hidden="true"/>
+          <input type="email" inputMode="email" autoCapitalize="none" spellCheck={false} aria-label={t('E-posta adresi', 'Email address')} placeholder={t('E-posta adresiniz', 'Your email address')} autoComplete="email" value={email} onChange={event => setEmail(event.target.value)}/></label>
+        {error && <p className="fdTrackError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
+        <button className="fdTrackSubmit" type="submit" disabled={!formValid || busy}>{busy ? t('Sorgulanıyor…', 'Checking…') : t('Durumu Sorgula', 'Check Status')}<ArrowRight aria-hidden="true"/></button>
       </form>
-      <a className="fdStatusBack" href="/">{t('Ana sayfaya dön', 'Back to home')}</a>
+      <a className="fdTrackHome" href="/"><Home aria-hidden="true"/><span>{t('Ana Sayfaya Dön', 'Back to Home')}</span></a>
+      <ul className="fdTrackFeatures">
+        <li><ShieldCheck aria-hidden="true"/><span>{t('Güvenli Sorgulama', 'Secure Lookup')}</span></li>
+        <li><Zap aria-hidden="true"/><span>{t('Hızlı Sonuç', 'Instant Result')}</span></li>
+        <li><Lock aria-hidden="true"/><span>{t('Kişisel Veri Koruması', 'Personal Data Protection')}</span></li>
+      </ul>
     </div>
   </main>
+}
+
+/** Arka plan: yeşil ışık dalgaları ve köşelerde silik mum grafikleri (yalnız süs). */
+function TrackBackdrop() {
+  const candles = (seed: number, count: number, rising: boolean) => Array.from({length: count}, (_, i) => {
+    const wave = Math.sin(i * 1.7 + seed) * 10 + Math.cos(i * .9 + seed) * 6
+    const base = rising ? 150 - i * 9 + wave : 60 + wave
+    const body = 14 + Math.abs(Math.sin(i * 2.3 + seed)) * 26
+    return {x: 8 + i * 16, y: base, h: body, wick: body + 16 + Math.abs(Math.cos(i + seed)) * 18, up: Math.sin(i * 1.3 + seed) > -.35}
+  })
+  const draw = (items: ReturnType<typeof candles>) => items.map((c, i) => <g key={i} opacity={.35 + (i / items.length) * .65}>
+    <line x1={c.x + 4} x2={c.x + 4} y1={c.y - (c.wick - c.h) / 2} y2={c.y + c.h + (c.wick - c.h) / 2} stroke="#2ee59d" strokeWidth="1.2"/>
+    <rect x={c.x} y={c.y} width="8" height={c.h} rx="1" fill={c.up ? '#22c983' : '#127a52'}/></g>)
+  return <div className="fdTrackBg" aria-hidden="true">
+    <i className="glow g1"/><i className="glow g2"/><i className="glow g3"/>
+    <svg className="waves" viewBox="0 0 400 900" preserveAspectRatio="none">
+      <defs><linearGradient id="fdWave" x1="0" x2="1"><stop offset="0" stopColor="#2ee59d" stopOpacity="0"/><stop offset=".5" stopColor="#2ee59d" stopOpacity=".7"/><stop offset="1" stopColor="#2ee59d" stopOpacity="0"/></linearGradient></defs>
+      {[0, 8, 16, 24].map(d => <path key={`a${d}`} d={`M-40 ${210 + d} C 60 ${120 + d}, 120 ${40 + d}, 260 ${-40 + d}`} stroke="url(#fdWave)" strokeWidth={d ? .6 : 1.4} fill="none"/>)}
+      {[0, 8, 16, 24].map(d => <path key={`b${d}`} d={`M120 ${960 - d} C 230 ${860 - d}, 300 ${760 - d}, 440 ${700 - d}`} stroke="url(#fdWave)" strokeWidth={d ? .6 : 1.4} fill="none"/>)}
+    </svg>
+    <svg className="candles tr" viewBox="0 0 240 200">{draw(candles(1, 14, true))}</svg>
+    <svg className="candles bl" viewBox="0 0 160 160">{draw(candles(4, 9, true))}</svg>
+  </div>
 }
