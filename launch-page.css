@@ -827,3 +827,14 @@
   .fdRoot .fdForm { gap: 6px; }
   .fdRoot .fdLayout { gap: 4px; }
 }
+/* E-posta uyarısı: alanın hemen altında, kısa; varsa "Düzelt" tek dokunuşla öneriyi yazar. */
+.fdEmailHint { display: grid; gap: 8px; margin: -4px 0 2px; padding: 10px 12px; border: 1px solid #5a2430; border-radius: 12px; background-color: #1a1015; color: #ff9aa6; font-size: 13px; line-height: 1.45; }
+.fdEmailHint.soft { border-color: #5a4a24; background-color: #19150d; color: #f2c46b; }
+.fdEmailHint p { display: flex; gap: 8px; align-items: flex-start; margin: 0; }
+.fdEmailHint p svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.fdEmailHint b { color: #fff; font-weight: 650; overflow-wrap: anywhere; }
+.fdEmailActions { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 24px; }
+.fdEmailActions button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: #27d6a0; color: #052118; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.fdEmailActions button.ghost { background: transparent; color: inherit; border: 1px solid currentColor; font-weight: 600; }
+.fdEmailActions button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.fdForm input[aria-invalid="true"] { border-color: #a8414f !important; }

@@ -8,6 +8,7 @@ import FoundingIntro, {preloadIntro, type IntroOutcome} from './FoundingIntro'
 import FoundingSuccess from './FoundingSuccess'
 import FoundingStatus from './FoundingStatus'
 import CountryPicker, {countryName, guessCountry} from './CountryPicker'
+import {checkEmail, emailAccepted, type EmailResult} from './email-check'
 import './launch-page.css'
 
 /** Founding 30 – Erken Erişim lansman sayfası. Giriş ekranı dondurulduğunda herkese açık ana sayfadır. */
@@ -103,9 +104,15 @@ export default function LaunchPage() {
   const goForm = () => formRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'})
 
   const [step, setStep] = useState<1 | 2>(1)
-  const stepOne = /^\S+@\S+\.\S+$/.test(form.email) && form.name.trim().length >= 2 && form.country.length === 2 && !!form.heard
+  // E-posta denetimi: hata yazarken değil, alandan çıkınca (ya da Devam'a basınca) gösterilir; sonra yazdıkça güncellenir.
+  const emailCheck = useMemo(() => checkEmail(form.email), [form.email])
+  const [emailTouched, setEmailTouched] = useState(false)
+  const [emailConfirmed, setEmailConfirmed] = useState('')
+  const emailOk = emailAccepted(emailCheck, emailConfirmed !== '' && emailConfirmed === emailCheck.email)
+  const showEmailHint = emailTouched && !emailOk && emailCheck.status !== 'empty'
+  const stepOne = emailOk && form.name.trim().length >= 2 && form.country.length === 2 && !!form.heard
   // 1. aşamadan 2. aşamaya giden çizgi, formun doluluğuna göre ilerler (gönderilince tamamlanır)
-  const filledOne = [form.name.trim().length >= 2, /^\S+@\S+\.\S+$/.test(form.email), form.country.length === 2, !!form.heard].filter(Boolean).length
+  const filledOne = [form.name.trim().length >= 2, emailOk, form.country.length === 2, !!form.heard].filter(Boolean).length
   const filledTwo = [!!form.futures, !!form.trading, form.reason.trim().length >= REASON_MIN].filter(Boolean).length
   const progress = phase === 'busy' || phase === 'done' ? 1 : step === 1 ? filledOne / 8 : 0.5 + filledTwo / 6
   const valid = stepOne && !!form.futures && !!form.trading && form.reason.trim().length >= REASON_MIN
@@ -116,7 +123,7 @@ export default function LaunchPage() {
   const goHome = () => { setForm(current => ({...EMPTY, country: guess || current.country})); setStep(1); setPhase('idle'); setReference(null); setMessage('') }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (step === 1) { if (stepOne) { track('step2'); goStep(2) } return }
+    if (step === 1) { setEmailTouched(true); if (stepOne) { track('step2'); goStep(2) } return }
     if (!valid || phase === 'busy') return
     // "Hareketi azalt" açıksa geçiş hiç gösterilmez; yanıt gelince doğrudan onay ekranı açılır
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -126,7 +133,7 @@ export default function LaunchPage() {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 15000)
     try {
-      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: form.email, name: form.name, country: countryName(form.country, 'en'), country_code: form.country || undefined, futures_experience: form.futures, trading_experience: form.trading, heard_from: form.heard, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
+      const response = await fetch(`${API_BASE}/v22/founding/apply`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: emailCheck.email, email_typo_ok: emailCheck.status === 'maybe' && emailOk, name: form.name, country: countryName(form.country, 'en'), country_code: form.country || undefined, futures_experience: form.futures, trading_experience: form.trading, heard_from: form.heard, reason: form.reason.trim(), website: form.website, feedback: true, price: true, consent: true, lang: currentLang()})})
       if (response.ok) {
         let ref: string | null = null
         try { const body = await response.json(); ref = typeof body?.reference === 'string' && /^KT-F30-[A-Z0-9]{5}$/.test(body.reference) ? body.reference : null } catch { /* gövde yok */ }
@@ -210,7 +217,10 @@ export default function LaunchPage() {
             <div className="fdProgress" aria-label={t(`Adım ${step} / 2`, `Step ${step} of 2`)}><span className="on"/><span className={step === 2 ? 'on' : ''}/><small>{t(`Adım ${step}/2`, `Step ${step}/2`)}</small></div>
             {step === 1 ? <div className="fdStepPane" key="s1">
             <label>{t('Ad soyad', 'Full name')}<input placeholder={t('Ad Soyad', 'Full name')} autoComplete="name" value={form.name} onChange={event => set('name', event.target.value)} required/></label>
-            <label>{t('E-posta adresi', 'Email address')}<input type="email" placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email} onChange={event => set('email', event.target.value)} required/></label>
+            <label>{t('E-posta adresi', 'Email address')}<input type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={t('E-posta Adresi', 'Email address')} autoComplete="email" value={form.email}
+              onChange={event => set('email', event.target.value)} onBlur={() => setEmailTouched(true)} aria-invalid={showEmailHint} aria-describedby={showEmailHint ? 'fdEmailHint' : undefined} required/></label>
+            {showEmailHint && <EmailHint result={emailCheck} t={t}
+              onFix={value => { set('email', value); setEmailConfirmed('') }} onConfirm={() => setEmailConfirmed(emailCheck.email)}/>}
             <div className="fdPair">
             <CountryPicker value={form.country} onChange={code => set('country', code)} lang={currentLang()} mobile={mobile} label={t('Ülke', 'Country')} placeholder={t('Ülke seç', 'Select country')} searchPlaceholder={t('Ülke ara…', 'Search country…')} emptyText={t('Sonuç yok', 'No results')}/>
               <div className="fdQ fdHeard"><span className="fdQLabel">{t('KaisTrade’i nereden duydun?', 'How did you hear about KaisTrade?')}</span>
@@ -250,5 +260,24 @@ export default function LaunchPage() {
       {FAQ().map(([q, answer]) => <details key={q}><summary>{q}</summary><p>{answer}</p></details>)}
     </section></div>}
     <footer className="fdFoot"><small>© 2026 KaisTrade · {t('Tüm Hakları Saklıdır', 'All Rights Reserved')}</small></footer>
+  </div>
+}
+
+/** E-posta uyarısı: ne yanlış, (varsa) tek dokunuşla düzeltme; olası yazım hatasında "adresim doğru" seçeneği. */
+function EmailHint({result, t, onFix, onConfirm}: {result: EmailResult; t: (tr: string, en: string) => string; onFix: (value: string) => void; onConfirm: () => void}) {
+  const text = {
+    invalid: t('Bu e-posta adresi geçerli değil.', 'This email address is not valid.'),
+    tld: t('E-posta adresinin sonu hatalı görünüyor.', 'The end of this email address looks wrong.'),
+    typo: t('E-posta adresinde yazım hatası var.', 'This email address has a typo.'),
+    maybe: t('E-posta adresinde yazım hatası olabilir.', 'This email address may have a typo.'),
+    disposable: t('Geçici (tek kullanımlık) e-posta adresleri kabul edilmiyor. Kalıcı bir adres gir.', 'Temporary (disposable) email addresses are not accepted. Use a permanent address.'),
+    ok: '', empty: '',
+  }[result.status]
+  return <div className={`fdEmailHint ${result.status === 'maybe' ? 'soft' : ''}`} id="fdEmailHint" role="alert">
+    <p><TriangleAlert aria-hidden="true"/><span>{text}{result.suggestion && <> {t('Bunu mu demek istedin:', 'Did you mean:')} <b>{result.suggestion}</b></>}</span></p>
+    {(result.suggestion || result.status === 'maybe') && <div className="fdEmailActions">
+      {result.suggestion && <button type="button" onClick={() => onFix(result.suggestion!)}>{t('Düzelt', 'Fix it')}</button>}
+      {result.status === 'maybe' && <button type="button" className="ghost" onClick={onConfirm}>{t('Adresim doğru', 'My address is correct')}</button>}
+    </div>}
   </div>
 }

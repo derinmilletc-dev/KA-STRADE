@@ -14,6 +14,7 @@ import {authenticatedPath, type AccountRole} from './account-role'
 import ProfileSettings, {AccountRecoveryScreen} from './ProfileSettings'
 import { AUTH_PANEL_MARKETS, LIVE_MARKET_CONFIG } from './live-market-config'
 import LaunchPage from './LaunchPage'
+import {checkEmail} from './email-check'
 import TickerTape from './TickerTape'
 import { useShowcaseVisible } from './instagram-showcase-visibility'
 import TopMovers from './TopMovers'
@@ -482,6 +483,11 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     if (mode === 'login' || isRegistration || mode === 'forgot') {
       if (!emailValue.trim()) errors.email = 'E-posta girin.'
       else if (!/^\S+@\S+\.\S+$/.test(emailValue)) errors.email = 'E-posta geçersiz.'
+      else if (isRegistration) {
+        // Kayıtta yazım hatalı adresi (ör. gmail.con, ıcloud.com) baştan reddet: doğrulama maili hiç ulaşmaz.
+        const check = checkEmail(emailValue)
+        if (check.status !== 'ok' && check.status !== 'maybe') errors.email = check.status === 'disposable' ? 'Geçici e-posta adresleri kabul edilmiyor.' : check.suggestion ? `E-posta hatalı görünüyor. Bunu mu demek istedin: ${check.suggestion}` : 'E-posta geçersiz.'
+      }
     }
     if (mode === 'login' && !login.password) errors.password = 'Parola girin.'
     if (mode === 'mfa' && !mfaCode.trim()) errors.mfa = 'Authenticator veya kurtarma kodunu girin.'

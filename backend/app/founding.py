@@ -21,6 +21,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import email_service, founding_mail
+from .email_check import HARD as HARD_EMAIL, check_email, rejection_message
 from .approval_service import owner_connection
 from .web_security import client_ip
 
@@ -175,6 +176,7 @@ class Apply(BaseModel):
     country_code: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     heard_from: Literal["instagram", "tiktok", "x", "youtube", "google", "friend", "telegram", "other"] | None = None
     website: str = Field(default="", max_length=200)  # bal tuzağı: dolu gelirse bot
+    email_typo_ok: bool = False  # kullanıcı "olası yazım hatası" uyarısında "adresim doğru" dedi
 
 
 REF_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"  # karışan 0/O, 1/I yok
@@ -310,8 +312,9 @@ async def apply(body: Apply, request: Request):
     from . import v22_commercial as auth
 
     email = _clean(body.email, 254).lower()
-    if not EMAIL_RE.match(email):
-        raise HTTPException(422, "Geçerli bir e-posta adresi girin.")
+    checked = check_email(email)
+    if not EMAIL_RE.match(email) or checked["status"] in HARD_EMAIL or (checked["status"] == "maybe" and not body.email_typo_ok):
+        raise HTTPException(422, rejection_message(checked) if checked["status"] != "ok" else "Geçerli bir e-posta adresi girin.")
     reference = new_reference()
     ok = {"ok": True, "reference": reference}
     if body.website.strip():  # bot: sessizce başarılı görün

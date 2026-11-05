@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from . import account_store as store
 from . import v22_commercial as auth
+from .email_check import HARD as HARD_EMAIL, check_email, rejection_message
 from .browser_security import clear_browser_cookie
 from .commercial_core import hash_password, issue_token, normalize_email, verify_password, verify_token
 from .member_entitlements import admin_target_subscription, subscription_for_request
@@ -627,6 +628,9 @@ def pending_response(pending):
 async def request_new_email(request, user, email):
     if email == user["email"]:
         raise HTTPException(422, "Yeni e-posta mevcut adresle aynı")
+    checked = check_email(email)
+    if checked["status"] in HARD_EMAIL:  # yazım hatalı adrese doğrulama maili hiç ulaşmaz
+        raise HTTPException(422, rejection_message(checked))
     async with store.edit(request, user["id"]) as doc:
         token, row = new_challenge(doc, user, "email-change", seconds=1800, new_email=email)
         doc["pending_email"] = {"email": email, "expires": row["expires"], "token_hash": digest(token)}

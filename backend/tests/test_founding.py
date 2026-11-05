@@ -252,3 +252,22 @@ def test_registration_env_override_and_no_database(monkeypatch):
         assert run(founding.registration_allowed(_reg_request(True))) is False
         monkeypatch.delenv("FOUNDING_REGISTRATION")
         assert run(founding.registration_allowed(_reg_request(pool=False))) is True
+
+
+def test_apply_rejects_mistyped_or_disposable_email_with_suggestion():
+    from fastapi import HTTPException
+    for email, needle in (("ada@gmail.con", "ada@gmail.com"), ("ada@firma.cmo", "ada@firma.com"), ("ada@yopmail.com", "Geçici"),
+                          ("ada@gmial.com", "ada@gmail.com")):
+        conn = Conn()
+        with pytest.raises(HTTPException) as caught:
+            run(founding.apply(body(email=email), request(conn)))
+        assert caught.value.status_code == 422 and needle in caught.value.detail
+        assert conn.executed == []
+
+
+def test_apply_accepts_possible_typo_when_user_confirmed():
+    conn, sent = Conn(), []
+    with patch("app.v22_commercial.enforce_auth_limit", noop_limit), patch.object(founding, "ensure_schema", noop_limit), \
+            patch.object(founding, "_send_confirmation", lambda *a: sent.append(a)):
+        result = run(founding.apply(body(email="Ada@Gmial.com", email_typo_ok=True), request(conn)))
+    assert result["ok"] is True and sent and sent[0][0] == "ada@gmial.com"
