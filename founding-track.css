@@ -1,0 +1,91 @@
+/* Başvuru Durumu (sorgulama) ekranı: koyu zemin, yeşil ışık dalgaları, ortada cam kart. */
+.fdRoot.fdRoot:has(> .fdTrack) { height: auto !important; min-height: 100vh; min-height: 100dvh; display: block !important; overflow: visible !important; background: #030606; }
+.fdRoot.fdRoot:has(> .fdTrack) > :is(.fdTop, .fdFoot) { display: none !important; }
+.fdRoot.fdRoot > main.fdTrack { display: block; flex: none; padding: 0; gap: 0; }
+
+.fdTrack {
+  --tk-green: #2ee59d;
+  --tk-green-2: #18b877;
+  --tk-ink: #f2f7f5;
+  --tk-mute: #b8c6c2;
+  --tk-line: rgba(46, 229, 157, .22);
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(120% 70% at 50% 38%, #0a1d16 0%, #050b0a 55%, #030606 100%);
+  color: var(--tk-ink);
+  isolation: isolate;
+}
+
+/* Kutuların genişliği kenarlık ve iç boşluk dahil (genel sıfırlama bu sayfaya ulaşmıyor). */
+.fdTrack, .fdTrack *, .fdTrack *::before, .fdTrack *::after { box-sizing: border-box; }
+
+/* ---- arka plan ---- */
+.fdTrackBg { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.fdTrackBg .glow { position: absolute; border-radius: 50%; filter: blur(60px); }
+.fdTrackBg .g1 { width: 70vmax; height: 40vmax; left: -30vmax; top: -14vmax; background: radial-gradient(closest-side, rgba(46, 229, 157, .32), transparent); transform: rotate(-28deg); }
+.fdTrackBg .g2 { width: 60vmax; height: 36vmax; right: -28vmax; bottom: -12vmax; background: radial-gradient(closest-side, rgba(46, 229, 157, .3), transparent); transform: rotate(-28deg); }
+.fdTrackBg .g3 { width: 50vmax; height: 30vmax; left: 50%; top: 40%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgba(24, 120, 84, .22), transparent); }
+.fdTrackBg .waves { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 6px rgba(46, 229, 157, .55)); }
+.fdTrackBg .candles { position: absolute; opacity: .55; }
+.fdTrackBg .candles.tr { right: 0; top: 0; width: min(240px, 34vw); -webkit-mask-image: linear-gradient(to left, #000 40%, transparent); mask-image: linear-gradient(to left, #000 40%, transparent); }
+.fdTrackBg .candles.bl { left: 0; bottom: 8%; width: min(160px, 24vw); opacity: .4; -webkit-mask-image: linear-gradient(to right, #000 30%, transparent); mask-image: linear-gradient(to right, #000 30%, transparent); }
+
+/* ---- içerik ---- */
+.fdTrackInner { display: flex; flex-direction: column; align-items: center; width: min(100%, 560px); margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom)); text-align: center; }
+.fdTrackLogo { display: block; }
+.fdTrackLogo img { display: block; height: 44px; width: auto; }
+.fdTrackIcon {
+  display: grid; place-items: center; width: 116px; height: 116px; margin-top: clamp(28px, 6vh, 52px); border-radius: 30px;
+  border: 1.5px solid rgba(46, 229, 157, .75); color: #8ff5c8;
+  background: radial-gradient(circle at 50% 30%, rgba(46, 229, 157, .32), rgba(10, 40, 28, .9) 70%);
+  box-shadow: 0 0 34px rgba(46, 229, 157, .45), inset 0 0 18px rgba(46, 229, 157, .25);
+}
+.fdTrackIcon svg { width: 54px; height: 54px; stroke-width: 1.6; filter: drop-shadow(0 0 6px rgba(143, 245, 200, .7)); }
+.fdTrack h1 { margin: 26px 0 0; font-size: clamp(34px, 9vw, 46px); line-height: 1.05; font-weight: 800; letter-spacing: -.02em;
+  background: linear-gradient(180deg, #ffffff 30%, #cfd8d5); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fdTrackLead { margin: 12px 0 0; font-size: clamp(15px, 3.9vw, 17px); color: var(--tk-mute); }
+
+.fdTrackCard {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; width: 100%; margin-top: 30px; padding: 20px 18px 22px; border-radius: 22px; text-align: left;
+  border: 1px solid rgba(255, 255, 255, .09); background: linear-gradient(180deg, rgba(20, 34, 30, .62), rgba(8, 16, 14, .72));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(46, 229, 157, .18);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.fdTrackField { position: relative; display: flex; align-items: center; height: 58px; padding: 0 18px; gap: 16px; border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .12); background: rgba(5, 12, 11, .55); transition: border-color .15s, box-shadow .15s; }
+.fdTrackField:focus-within { border-color: rgba(46, 229, 157, .65); box-shadow: 0 0 0 3px rgba(46, 229, 157, .14); }
+.fdTrackField svg { flex: none; width: 24px; height: 24px; color: #9ff2cb; stroke-width: 1.7; }
+.fdTrackField input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--tk-ink); font: inherit; font-size: 17px; letter-spacing: .02em; }
+.fdTrackField input::placeholder { color: #8d9b97; }
+.fdTrackError { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid #5a2430; background: #1a1015; color: #ff9aa6; font-size: 13px; line-height: 1.45; }
+.fdTrackError svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.fdTrackSubmit {
+  display: flex; align-items: center; justify-content: center; gap: 14px; height: 60px; margin-top: 4px; border: 1px solid rgba(143, 245, 200, .55); border-radius: 16px;
+  background: linear-gradient(180deg, #2fd88f 0%, #14a36a 55%, #0d8a58 100%); color: #fff; font: inherit; font-size: 19px; font-weight: 750; cursor: pointer;
+  box-shadow: 0 10px 34px rgba(46, 229, 157, .32), inset 0 1px 0 rgba(255, 255, 255, .35); transition: filter .15s, transform .15s, opacity .15s;
+}
+.fdTrackSubmit svg { width: 24px; height: 24px; }
+.fdTrackSubmit:hover:not(:disabled) { filter: brightness(1.08); }
+.fdTrackSubmit:active:not(:disabled) { transform: translateY(1px); }
+.fdTrackSubmit:disabled { opacity: .55; cursor: not-allowed; }
+.fdTrackSubmit:focus-visible, .fdTrackHome:focus-visible, .fdTrackLogo:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+.fdTrackHome { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; color: var(--tk-ink); font-size: 16px; text-decoration: none; }
+.fdTrackHome span { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.fdTrackHome svg { width: 22px; height: 22px; stroke-width: 1.6; color: var(--tk-mute); }
+
+.fdTrackFeatures { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; margin: clamp(36px, 7vh, 64px) 0 0; padding: 0; list-style: none; }
+.fdTrackFeatures li { display: grid; justify-items: center; align-content: start; gap: 12px; padding: 4px 8px; font-size: 14.5px; line-height: 1.3; color: var(--tk-ink); }
+.fdTrackFeatures li + li { border-left: 1px solid; border-image: linear-gradient(180deg, transparent, rgba(46, 229, 157, .35), transparent) 1; }
+.fdTrackFeatures svg { width: 40px; height: 40px; stroke-width: 1.4; color: #8ff5c8; filter: drop-shadow(0 0 6px rgba(46, 229, 157, .55)); }
+.fdTrackFeatures span { max-width: 11ch; }
+
+@media (min-width: 720px) {
+  .fdTrackInner { padding-top: 56px; }
+  .fdTrackCard { padding: 26px 26px 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fdTrackSubmit, .fdTrackField { transition: none; }
+}
