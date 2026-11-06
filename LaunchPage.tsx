@@ -79,20 +79,19 @@ export default function LaunchPage() {
   }, [])
   useEffect(() => { if (!STATUS_ROUTE) track('view'); try { document.documentElement.lang = PAGE_LANG } catch { /* yok */ } }, [])
   const [photo, setPhoto] = useState(false)
-  const [live, setLive] = useState<{open: boolean; seats: number; taken: number; price: string | null}>({open: true, seats: SEATS, taken: 0, price: null})
+  const [live, setLive] = useState<{open: boolean; seats: number; price: string | null}>({open: true, seats: SEATS, price: null})
   const [banner, setBanner] = useState<'confirmed' | 'expired' | 'invalid' | null>(null)
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get('founding')
     if (value === 'confirmed' || value === 'expired' || value === 'invalid') { setBanner(value); window.history.replaceState(null, '', window.location.pathname) }
     const controller = new AbortController()
     fetch(`${API_BASE}/v22/founding/status`, {signal: controller.signal}).then(r => r.ok ? r.json() : null).then(body => {
-      if (body && typeof body.seats === 'number') setLive({open: body.open !== false, seats: body.seats, taken: Number(body.taken) || 0, price: typeof body.price === 'string' ? body.price : null})
+      if (body && typeof body.seats === 'number') setLive({open: body.open !== false, seats: body.seats, price: typeof body.price === 'string' ? body.price : null})
     }).catch(() => { /* durum alınamazsa varsayılanlarla devam */ })
     return () => controller.abort()
   }, [])
   const PRICE = live.price || ENV_PRICE || FOUNDER_PRICE
   const discounted = PRICE === FOUNDER_PRICE
-  const TAKEN = live.taken
   const [sheet, setSheet] = useState(false)
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches)
   useEffect(() => { const q = window.matchMedia('(max-width: 700px)'); const on = () => setMobile(q.matches); q.addEventListener('change', on); return () => q.removeEventListener('change', on) }, [])
@@ -167,7 +166,7 @@ export default function LaunchPage() {
           <p>{t('Lansmana özel 12 ay sabit üyelik fiyatı avantajıyla KaisTrade’e erken katıl.', 'Join KaisTrade early with a 12-month locked membership price.')}</p>
           <div className="fdActions">
             <button type="button" className="fdPrimary" onClick={goForm}>{t('Ücretsiz Başvur', 'Apply for free')}<ArrowRight aria-hidden="true"/></button>
-            <div className="fdQuota"><Users aria-hidden="true"/><span><small lang="en">Founding Members</small><strong>{TAKEN ? <>{String(TAKEN).padStart(2, '0')} / {live.seats} <em>Taken</em></> : <>{live.seats} <em><span className="fdQLong">Founding Members · </span><span className="fdQShort">Members · </span>Application Only</em></>}</strong></span>{TAKEN > 0 && <i className="fdMeter" aria-hidden="true"><b style={{width: `${TAKEN / live.seats * 100}%`}}/></i>}</div>
+            <div className="fdQuota"><Users aria-hidden="true"/><span><small lang="en">Founding Members</small><strong>{live.seats} <em><span className="fdQLong">Founding Members · </span><span className="fdQShort">Members · </span>Application Only</em></strong></span></div>
           </div>
         </div>
         <div className="fdEyeStage" aria-hidden="true">
