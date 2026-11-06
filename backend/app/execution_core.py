@@ -227,13 +227,24 @@ def dynamic_stop_distance_pct(entry: float, atr: float | None, policy: dict[str,
     return min(configured_cap, 5.0, max(1.0, atr_pct * float(settings["atr_stop_multiplier"])))
 
 
-def risk_sized_order(entry: float, stop: float, policy: dict[str, Any], *, atr: float | None = None) -> dict[str, Any]:
+# Manuel emirde Stop mesafesi politika sınırına (%5) takılmaz; tek sınır tasfiye güvenliğidir: Stop, tasfiye fiyatından önce
+# çalışabilmeli. Tasfiye ≈ 100/kaldıraç %; bakım marjini payı için %90'ı alınır.
+MANUAL_LIQUIDATION_SAFETY = 0.9
+
+
+def manual_stop_cap_pct(leverage: float) -> float:
+    return min(MANUAL_LIQUIDATION_SAFETY * 100 / max(float(leverage), 1.0), 90.0)
+
+
+def risk_sized_order(entry: float, stop: float, policy: dict[str, Any], *, atr: float | None = None, manual: bool = False) -> dict[str, Any]:
     settings = sanitize_execution_policy(policy)
     if entry <= 0 or stop <= 0 or entry == stop:
         raise ValueError("Giriş ve Stop sıfırdan büyük ve birbirinden farklı olmalı")
     stop_pct = abs(entry - stop) / entry * 100
-    stop_cap = dynamic_stop_distance_pct(entry, atr, settings)
+    stop_cap = manual_stop_cap_pct(settings["max_leverage"]) if manual else dynamic_stop_distance_pct(entry, atr, settings)
     if stop_pct > stop_cap + 1e-9:
+        if manual:
+            raise ValueError(f"Stop mesafesi %{stop_pct:.2f}; {int(settings['max_leverage'])}x kaldıraçta tasfiye fiyatından önce çalışması için en fazla %{stop_cap:.2f} olabilir. Kaldıracı düşürürsen daha uzak Stop koyabilirsin")
         raise ValueError(f"Stop mesafesi %{stop_pct:.2f}; izin verilen üst sınır %{stop_cap:.2f}")
     risk_fraction = stop_pct / 100
     risk_notional = float(settings["max_loss_per_trade"]) / risk_fraction
