@@ -69,6 +69,7 @@ export function ElapsedSeconds() {
 
 /** Kaydırarak onay: tutamacı sona sürükleyince onConfirm çağrılır (yanlışlıkla dokunmaya karşı). Klavye: Enter/Boşluk da onaylar.
  *  onConfirm Promise<boolean> dönerse: bekleme sırasında dönen simge, başarıda animasyonlu tik, başarısızlıkta geri dönüş gösterilir. */
+// 'mxtSlideBackdrop' sınıf adı bilinçlidir: Canlı İşlem sekmesindeki genel 'arka planı sil' kuralı adında backdrop geçen öğelere dokunmaz.
 export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, disabled}: {label: string; hint?: string; doneLabel?: string; onConfirm: () => Promise<boolean | void> | boolean | void; disabled?: boolean}) {
   const track = useRef<HTMLDivElement | null>(null)
   const drag = useRef<{startX: number; max: number} | null>(null)
@@ -76,8 +77,8 @@ export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, dis
   const [dragging, setDragging] = useState(false)
   const [nudge, setNudge] = useState(false)
   const [stage, setStage] = useState<'idle' | 'working' | 'done'>('idle')
-  const HANDLE = 56
-  const maxOffset = () => Math.max(1, (track.current?.clientWidth ?? 0) - HANDLE - 8)
+  const HANDLE = 52
+  const maxOffset = () => Math.max(1, (track.current?.clientWidth ?? 0) - HANDLE - 12)
   const reset = () => { setDragging(false); setOffset(0); drag.current = null }
   const fire = async () => {
     setStage('working')
@@ -96,7 +97,7 @@ export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, dis
     else { setOffset(0); setNudge(true); window.setTimeout(() => setNudge(false), 500) }
   }
   const locked = disabled || stage !== 'idle'
-  return <div className="mxtSlide" data-stage={stage} data-disabled={disabled && stage === 'idle' ? 'yes' : undefined} data-nudge={nudge || undefined} ref={track}
+  return <div className="mxtSlide mxtSlideBackdrop" data-stage={stage} data-disabled={disabled && stage === 'idle' ? 'yes' : undefined} data-nudge={nudge || undefined} ref={track}
     style={{'--slide-progress': stage === 'idle' ? `${Math.round(offset / maxOffset() * 100)}%` : '100%'} as React.CSSProperties} aria-live="polite">
     <span className="mxtSlideLabel"><b>{stage === 'done' ? doneLabel : stage === 'working' ? 'Onaylanıyor…' : label}</b>{hint && stage === 'idle' && <small>{hint}</small>}</span>
     <button type="button" className="mxtSlideHandle" data-dragging={dragging || undefined} disabled={locked}
