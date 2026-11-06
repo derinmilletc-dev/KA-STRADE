@@ -71,7 +71,7 @@ const Cell = ({label, value, tone: cellTone}: {label: string; value: string | nu
 
 export default function PositionsCard(props: Props) {
   const {live, stale, staleAge, running, busy, now, positions, findPlan} = props
-  const [sort, setSort] = useState<PositionSort>('risk')
+  const [sort, setSort] = useState<PositionSort>('time')
   const [view, setView] = useState<'card' | 'table'>(readView)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const changeView = (next: 'card' | 'table') => { setView(next); try { localStorage.setItem(VIEW_KEY, next) } catch { /* tercih bu sayfada kalır */ } }
@@ -136,7 +136,7 @@ export default function PositionsCard(props: Props) {
         const manual = plan?.source === 'MANUAL'
         const source = external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
         // İnce kart: varsayılan kapalı; yalnız stopa çok yakın pozisyon kendiliğinden açılır.
-        const isOpen = open[key] ?? metrics.level === 'danger'
+        const isOpen = open[key] ?? false
         const insights = external ? [] : positionInsights(metrics, plan, protectedStop)
         const breakeven = plan?.breakeven_done === true || plan?.original_tp1_complete === true
         const smart = !external && props.smartEnabled ? smartFor(plan, String(position.symbol ?? '')) : undefined
