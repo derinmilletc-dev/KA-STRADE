@@ -1823,10 +1823,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <button type="button" className="mxtBtn ghost" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); goPositions(symbol) }}>Pozisyonlarıma git</button>
       <button type="button" className="mxtDoneNew" onClick={() => setOrderDone(null)}>Yeni emir</button>
     </div> : null
+    // Günlük zarar limiti %90'a gelince (ya da dolunca) emir ekranında uyarı + limiti düzenleme; açık pozisyon gerekmez.
+    const dayLimitValue = numericPolicy('daily_loss_limit', NaN)
+    const dayUsedLoss = Math.max(0, -Number(status?.daily?.realized_pnl ?? 0), -Number(status?.account?.unrealized_pnl ?? 0))
+    const dayUsedPct = Number.isFinite(dayLimitValue) && dayLimitValue > 0 ? dayUsedLoss / dayLimitValue * 100 : 0
+    const dayLimitCard = !orderDone && dayUsedPct >= 90 ? <div className="mxtDayLimit" role="alert" data-full={dayUsedPct >= 100 ? 'yes' : undefined}>
+      <b>{dayUsedPct >= 100 ? '⛔ Günlük zarar limiti doldu' : '⚠ Günlük zarar limitin dolmak üzere'} · {money(dayUsedLoss)} / {money(dayLimitValue)} USDT</b>
+      <span>{dayUsedPct >= 100 ? 'Limit dolduğu için yeni emir açılamaz. Devam etmek istiyorsan limiti yükselt.' : `Limitin %${Math.floor(dayUsedPct)}'ine ulaştın. Yeni emirden önce limiti gözden geçirebilirsin.`}</span>
+      <button type="button" onClick={openRiskEdit}>Limiti düzenle</button>
+    </div> : null
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
       {permissionCard}
+      {dayLimitCard}
+      {!orderDone && <button type="button" className="mxtRiskLink" onClick={openRiskEdit}>Risk limitlerini düzenle</button>}
       {progressEl}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}

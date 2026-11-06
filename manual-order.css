@@ -76,3 +76,10 @@ html body .liveConfirm.mxRiskEdit .mxRiskEditField input:not([type="checkbox"]){
 html body .liveConfirm.mxRiskEdit > .mxRiskEditGrid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;gap:14px!important;margin:14px 0!important}
 html body .liveConfirm.mxRiskEdit .mxRiskEditGrid label{display:grid!important;gap:6px!important;margin:0!important;font-size:13px!important;font-weight:600!important;color:#c3d0de!important}
 html body .liveConfirm.mxRiskEdit .mxRiskEditGrid small{font-size:11.5px!important;font-weight:400!important;opacity:.65}
+
+.mxtDayLimit{display:grid;gap:6px;margin:0 0 10px;padding:14px 16px;border-radius:16px;border:1px solid rgba(245,192,74,.5);background:rgba(245,192,74,.1);color:#f5d98b}
+.mxtDayLimit[data-full]{border-color:rgba(255,143,143,.55);background:rgba(255,143,143,.1);color:#ffb4b4}
+.mxtDayLimit b{font-size:15px}.mxtDayLimit span{font-size:14px;line-height:1.4;color:#c9d6e4}
+.mxtDayLimit button{justify-self:start;min-height:40px;padding:0 18px;border-radius:999px;border:0;font-weight:800;background:#f5c04a;color:#241a00}
+.mxtDayLimit[data-full] button{background:#ff8f8f;color:#2a0a0a}
+.mxtRiskLink{display:block;margin:0 0 6px auto;background:none;border:0;padding:6px 2px;color:#9fb2c8;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
