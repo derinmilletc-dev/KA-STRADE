@@ -440,6 +440,8 @@ def unresolved_execution_evidence(
 def reconciliation_blockers(state: dict[str, Any]) -> list[str]:
     """Uzlaştırmanın neden temiz çıkmadığını kullanıcıya gösterilecek kısa maddeler olarak döndürür (yalnız okur)."""
     out: list[str] = []
+    if state.get("clean_reconciliation_block"):
+        out.append(str(state["clean_reconciliation_block"]))
     emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
     if emergency.get("reason"):
         out.append(f"kilit sebebi: {emergency.get('reason')}")
@@ -450,6 +452,8 @@ def reconciliation_blockers(state: dict[str, Any]) -> list[str]:
         kind = str(event.get("kind") or "")
         if kind == "UNKNOWN_ORDER_RECONCILED":
             break
+        if kind == "LIVE_UNKNOWN_EXECUTION" and event.get("reason") == "RECONCILIATION_FAILURE" and not event.get("symbol"):
+            continue  # temiz uzlaştırmada engel sayılmaz (unresolved_execution_evidence ile aynı kural)
         if kind in {"UNKNOWN_ORDER_STATE", "LIVE_EXCEPTION_UNKNOWN", "LIVE_UNKNOWN_EXECUTION"}:
             out.append(f"çözülmemiş olay: {kind}" + (f" ({event.get('symbol')})" if event.get("symbol") else ""))
             break
@@ -531,11 +535,16 @@ def lock_reconciliation_failure(state: dict[str, Any]) -> None:
 
 def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
     """Clear only a stale technical UNKNOWN after a complete clean snapshot."""
+    def blocked(reason: str) -> bool:
+        # Kullanıcıya gösterilecek: temiz uzlaştırmanın hangi adımda durduğu (yalnız teşhis; karar değişmez).
+        state["clean_reconciliation_block"] = reason[:400]
+        return False
+    state.pop("clean_reconciliation_block", None)
     emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
     if emergency.get("reason") not in {"RECONCILIATION_FAILURE", "LIVE_EXCEPTION"}:
-        return False
+        return blocked(f"kilit türü otomatik temizlenemez ({emergency.get('reason') or 'bilinmiyor'})")
     if state.get("execution_state") not in {"UNKNOWN", "LOCKED"} or (not state.get("reconciliation_required") and emergency.get("reason") != "LIVE_EXCEPTION"):
-        return False
+        return blocked("yürütme durumu temizlemeye uygun değil")
     required_snapshot_keys = {
         "wallet_balance",
         "available_balance",
@@ -546,15 +555,15 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         "algo_orders_quality",
     }
     if not isinstance(snapshot, dict) or not required_snapshot_keys.issubset(snapshot):
-        return False
+        return blocked("Binance hesap görüntüsü eksik geldi")
     if any(not isinstance(snapshot.get(key), list) for key in ("positions", "open_orders", "open_algo_orders")):
-        return False
+        return blocked("Binance hesap görüntüsü eksik geldi")
     for balance_key in ("wallet_balance", "available_balance"):
         balance = snapshot.get(balance_key)
         if isinstance(balance, bool) or not isinstance(balance, (int, float, Decimal)) or not math.isfinite(float(balance)):
-            return False
+            return blocked("Binance bakiye bilgisi okunamadı")
     if snapshot.get("open_algo_orders_available") is not True or snapshot.get("algo_orders_quality") not in {"VALID_EMPTY", "VALID_ORDERS"}:
-        return False
+        return blocked("Binance koşullu (stop/hedef) emir listesi okunamadı")
     collection_fields = {
         "positions": {"symbol", "position_side", "direction", "quantity"},
         "open_orders": {"symbol", "order_id", "client_order_id", "side", "type", "status"},
@@ -563,17 +572,17 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
     for collection, required_fields in collection_fields.items():
         for row in snapshot[collection]:
             if not isinstance(row, dict) or not required_fields.issubset(row):
-                return False
-    accounted = emergency.get("reason") == "RECONCILIATION_FAILURE" and positions_fully_accounted_by_confirmed_plans(state, snapshot)
-    for row in [*snapshot["open_orders"], *snapshot["open_algo_orders"]]:
-        if any(
-            str(row.get(key) or "").startswith(LIVE_CLIENT_PREFIX)
-            for key in ("clientOrderId", "client_order_id", "clientAlgoId", "client_algo_id")
-        ) and not accounted:
-            return False
+                return blocked("Binance emir/pozisyon satırı eksik alanla geldi")
     position_symbols = {
         normalize_symbol(str(row.get("symbol") or ""))
         for row in snapshot["positions"]
+        if normalize_symbol(str(row.get("symbol") or ""))
+    }
+    # Emir gönderilemeden kalan niyetler: o coinde ne pozisyon ne açık emir ne plan varsa kesin olarak sonuçsuzdur.
+    # Bu temizlik hesabın geri kalanından bağımsızdır; aksi halde başka bir uyumsuzluk varken de sonsuza dek takılı kalırlar.
+    order_symbols = {
+        normalize_symbol(str(row.get("symbol") or ""))
+        for row in [*snapshot["open_orders"], *snapshot["open_algo_orders"]]
         if normalize_symbol(str(row.get("symbol") or ""))
     }
     plans = state.get("plans") if isinstance(state.get("plans"), dict) else {}
@@ -584,6 +593,7 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         if isinstance(intent, dict)
         and normalize_symbol(str(intent.get("symbol") or ""))
         and normalize_symbol(str(intent.get("symbol") or "")) not in position_symbols
+        and normalize_symbol(str(intent.get("symbol") or "")) not in order_symbols
         and not any(
             isinstance(plan, dict) and (
                 str(plan.get("intent_id") or "") == str(intent_id)
@@ -601,6 +611,21 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
             "Temiz Binance snapshotında pozisyon, emir veya plan karşılığı olmayan giriş niyetleri temizlendi.",
             count=len(stale_intent_ids),
         )
+    accounted = emergency.get("reason") == "RECONCILIATION_FAILURE" and positions_fully_accounted_by_confirmed_plans(state, snapshot)
+    unaccounted = sorted({
+        normalize_symbol(str(row.get("symbol") or "")) or "?"
+        for row in [*snapshot["open_orders"], *snapshot["open_algo_orders"]]
+        if any(
+            str(row.get(key) or "").startswith(LIVE_CLIENT_PREFIX)
+            for key in ("clientOrderId", "client_order_id", "clientAlgoId", "client_algo_id")
+        )
+    }) if not accounted else []
+    if unaccounted:
+        position_list = sorted(position_symbols)
+        return blocked(
+            "sistemin açtığı stop/hedef emirleri açık işlemlerle birebir eşleşmedi"
+            f" (emir: {', '.join(unaccounted[:5])}; Binance pozisyonları: {', '.join(position_list[:5]) or 'yok'})"
+        )
     diagnostic = latest_reconciliation_diagnostic(state) or {}
     clean_credential_precondition_failure = bool(
         diagnostic.get("reconciliation_stage") == "automatic_cycle"
@@ -614,7 +639,7 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
     if unresolved_execution_evidence(
         state, clean_reconciliation_snapshot=True, allow_confirmed_active_plans=accounted,
     ) and not clean_credential_precondition_failure:
-        return False
+        return blocked("çözülmemiş yürütme kaydı veya doğrulanmamış plan var")
     if stale_intent_ids:
         add_event(
             state,
