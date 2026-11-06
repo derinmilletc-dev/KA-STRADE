@@ -394,7 +394,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (![entry, stop, margin, leverage].every(value => Number.isFinite(value) && value > 0) || entry === stop || margin < 5 || margin > 300 || !Number.isInteger(leverage) || leverage < 1 || leverage > 50) { setRiskPrev(null); return }
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      void fetchWithTimeout(`${V25}/risk/preview`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({entry, stop_loss: stop, margin_usdt: margin, leverage}), signal: controller.signal}).then(async response => {
+      void fetchWithTimeout(`${V25}/risk/preview`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({entry, stop_loss: stop, margin_usdt: margin, leverage, manual: true}), signal: controller.signal}).then(async response => {
         const payload: any = await response.json().catch(() => null)
         if (!response.ok) { setRiskPrev({error: errorMessage(payload, 'Risk hesabı yapılamadı.')}); return }
         setRiskPrev({notional: Number(payload.notional_usdt), margin: Number(payload.margin_usdt), loss: Number(payload.estimated_stop_loss_usdt), stopPct: Number(payload.stop_distance_pct), maxStopPct: Number(payload.max_stop_distance_pct), capped: Boolean(payload.capped)})

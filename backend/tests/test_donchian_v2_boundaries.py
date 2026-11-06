@@ -273,3 +273,19 @@ def test_liquidation_buffer_below_equal_above(side, offset):
         result = isolated_liquidation_risk(spec, brackets, policy)
         assert Decimal(result["available_buffer"]) == available
         assert result["verified"] is True
+
+
+def test_manual_stop_not_limited_by_policy_cap_but_by_liquidation():
+    policy = core.sanitize_execution_policy({"max_leverage": 5})
+    wide = core.risk_sized_order(100, 86.13, policy, manual=True)  # %13,87 < 0,9*100/5=%18
+    assert wide["stop_distance_pct"] == 13.87
+    try:
+        core.risk_sized_order(100, 86.13, policy)
+        raise AssertionError("auto yol %5 sınırında kalmalı")
+    except ValueError as exc:
+        assert "izin verilen üst sınır" in str(exc)
+    try:
+        core.risk_sized_order(100, 86.13, {**policy, "max_leverage": 10}, manual=True)  # tavan %9
+        raise AssertionError("tasfiyeden uzak stop reddedilmeli")
+    except ValueError as exc:
+        assert "tasfiye" in str(exc)

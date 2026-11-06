@@ -776,6 +776,7 @@ class RiskPreviewRequest(BaseModel):
     margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
     leverage: int = Field(ge=1, le=50)
     atr: float | None = Field(default=None, gt=0)
+    manual: bool = False
 
 
 class AdoptExternalPositionPreviewRequest(BaseModel):
@@ -2547,6 +2548,7 @@ async def build_live_spec(
             float(stop),
             {**settings, "max_margin_per_trade": order.margin_usdt, "max_leverage": order.leverage},
             atr=order.atr,
+            manual=manual_targets,
         )
     except ValueError as exc:
         raise LiveExchangeError(f"Canlı Stop riski geçersiz: {exc}", http_status=422) from exc
@@ -8598,7 +8600,7 @@ async def v25_risk_preview(request: Request, body: RiskPreviewRequest) -> dict[s
         "max_leverage": body.leverage,
     })
     try:
-        risk = risk_sized_order(body.entry, body.stop_loss, policy, atr=body.atr)
+        risk = risk_sized_order(body.entry, body.stop_loss, policy, atr=body.atr, manual=body.manual)
     except ValueError as exc:
         raise HTTPException(422, f"Risk preview reddedildi: {exc}") from exc
     return {
