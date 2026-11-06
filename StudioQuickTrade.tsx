@@ -8,7 +8,7 @@ import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTrad
 import {
   DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, DEMO_STOP_PHRASE, DEMO_TRAIL_PHRASE, LIVE_TRAIL_PHRASE, TRAIL_CHOICES, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
   activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, isOpen, levelsFor, limitIssue, limitPresets, nearestChoice, newIntentId, parseJournal, planRights, postJson, riskSummary,
-  setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx,
+  setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx, netOfFees,
   type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
 } from './studio-quick-trade'
 import {JournalChip, JournalPanel} from './StudioJournal'
@@ -51,7 +51,7 @@ const readPrefs = (): Prefs => {
 const savePrefs = (prefs: Prefs) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)) } catch { /* tarayıcı kaydı kapalı olabilir */ } }
 
 /** Anlık kâr/zarar: açık pozisyonun coini için canlı fiyattan, diğerleri için hesabın son değerinden. */
-export function positionPnl(position: StudioPosition, livePrice: number | null): {pnl: number | null; pct: number | null} {
+export function positionPnl(position: StudioPosition, livePrice: number | null): {pnl: number | null; pct: number | null; net: number | null} {
   const qty = Math.abs(Number(position.quantity) || 0)
   const entry = positive(position.entry_price)
   const now = positive(livePrice) ?? positive(position.mark_price)
@@ -59,7 +59,8 @@ export function positionPnl(position: StudioPosition, livePrice: number | null):
   const pnl = entry && now && qty > 0 ? (now - entry) * qty * sign : typeof position.unrealized_pnl === 'number' && Number.isFinite(position.unrealized_pnl) ? position.unrealized_pnl : null
   const lev = positive(position.leverage ?? undefined)
   const margin = entry && qty > 0 && lev ? entry * qty / lev : null
-  return {pnl, pct: pnl !== null && margin ? pnl / margin * 100 : null}
+  // `net`: giriş+çıkış komisyonu düşülmüş tahmin. `pnl` (brüt) değişmez; net ayrı gösterilir.
+  return {pnl, pct: pnl !== null && margin ? pnl / margin * 100 : null, net: netOfFees(pnl, entry, now ?? entry, qty)}
 }
 
 /** Açık işlem varken sağ altta: pozisyonu kapatan tek tuş (LONG → SAT, SHORT → AL). Basılı tutarak çalışır; yeni işlem açmaz. */
@@ -424,7 +425,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       {!card
         ? <button type="button" className="sqtChip" onClick={() => setCard(true)} aria-expanded="false" aria-label={tx(`${current.symbol} açık pozisyon detayı`, `${current.symbol} open position details`)}>
             <i aria-hidden="true"/><b>{sideOf(current)}{positive(current.leverage ?? undefined) ? ` ${current.leverage}x` : ''}</b><span className="sqtSep" aria-hidden="true"/>
-            <strong>{pnl.pnl === null ? '—' : `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`}</strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}{liveState && <LiveMark state={liveState} age={liveAge} compact/>}<ChevronUp aria-hidden="true"/>
+            <strong>{pnl.pnl === null ? '—' : `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`}</strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}{!demo && pnl.net !== null && <small className="sqtNet" data-tone={pnl.net >= 0 ? 'up' : 'down'}>{tx('net', 'net')} {signed(pnl.net, Math.abs(pnl.net) < 1 ? 3 : 2)}</small>}{liveState && <LiveMark state={liveState} age={liveAge} compact/>}<ChevronUp aria-hidden="true"/>
           </button>
         : <PositionCard position={current} price={currentClose} pnl={pnl} live={liveState ? {state: liveState, age: liveAge} : undefined} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
@@ -573,7 +574,7 @@ function StopManager({position, manage, sending, busy}: {position: StudioPositio
 }
 
 function PositionCard({position, price, pnl, live, rights, demo, busy, action, actionError, onCollapse, onAsk, onCancelAsk, onRun, onTray, manage, demoManageNote}: {
-  position: StudioPosition; price: number | null; pnl: {pnl: number | null; pct: number | null}; live?: {state: BookState; age: number}
+  position: StudioPosition; price: number | null; pnl: {pnl: number | null; pct: number | null; net?: number | null}; live?: {state: BookState; age: number}
   rights: {id: string; close: boolean; reduce: boolean}; demo: boolean; busy: string | null; action: 'half' | 'close' | null; actionError: string
   onCollapse: () => void; onAsk: (kind: 'half' | 'close') => void; onCancelAsk: () => void; onRun: (kind: 'half' | 'close') => void; onTray?: () => void; manage?: Manage; demoManageNote?: boolean
 }) {
@@ -585,6 +586,7 @@ function PositionCard({position, price, pnl, live, rights, demo, busy, action, a
       {onTray && <button type="button" className="sqtLink" onClick={onTray}>{tx('Tümü', 'All')}</button>}
       <button type="button" className="sqtRound" aria-label={tx('Küçült', 'Collapse')} onClick={onCollapse}><ChevronDown/></button></div>
     <div className="sqtPnl"><strong>{pnl.pnl === null ? '—' : signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} <u>USDT</u></strong>{pnl.pct !== null && <em>{signed(pnl.pct)}%</em>}{live && <LiveMark state={live.state} age={live.age}/>}</div>
+    {!demo && typeof pnl.net === 'number' && <p className="sqtNetLine" data-tone={pnl.net >= 0 ? 'up' : 'down'}>{tx('Komisyon dahil net (tahmin)', 'Net after fees (estimate)')} <b>{signed(pnl.net, Math.abs(pnl.net) < 1 ? 4 : 2)} USDT</b></p>}
     {live && positive(price) && <p className="sqtCloseAt">{tx('Şimdi kapatırsan yaklaşık', 'If you close now, about')} <b>{analysisPrice(positive(price))}</b>{live.state === 'stale' && <em>{tx(' · fiyat güncel değil, dikkat', ' · price is stale, careful')}</em>}</p>}
     <div className="sqtMeta">{entry && <span>{tx('Giriş', 'Entry')} <b>{analysisPrice(entry)}</b></span>}{stop && <span>Stop <b data-tone="down">{analysisPrice(stop)}</b></span>}{tp1 && <span>TP1 <b data-tone="up">{analysisPrice(tp1)}</b></span>}{!stop && !tp1 && <span>{tx('Anlık', 'Now')} <b>{analysisPrice(positive(price) ?? positive(position.mark_price))}</b></span>}</div>
     {action === null && <div className="sqtActs">

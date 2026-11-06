@@ -212,6 +212,21 @@ export function sizeByRisk(opts: {balance: number | null | undefined; riskPct: n
   return {margin, riskUsdt, actualRisk: margin * leverage * stopFraction, capped, tooSmall: margin < minMargin}
 }
 
+// ---------------------------------------------------------------- komisyon dahil net kâr/zarar
+/** Binance USDⓈ-M standart taker komisyonu (taraf başına). Gerçek oran hesaba göre değişir (VIP, BNB indirimi); bu bir tahmindir. */
+export const TAKER_FEE_RATE = 0.0005
+
+/**
+ * Komisyon dahil net tahmin: brüt kâr/zarardan giriş ve çıkış komisyonu düşülür. Ekrandaki brüt sayı "kapatırsam ne olur"
+ * sorusunu yanıtlamaz, çünkü Binance kapanışta iki taraf komisyonunu da keser. Veri eksikse null (tahmin uydurulmaz).
+ */
+export function netOfFees(gross: number | null | undefined, entry: number | null | undefined, exit: number | null | undefined, quantity: number | null | undefined, rate = TAKER_FEE_RATE): number | null {
+  if (typeof gross !== 'number' || !Number.isFinite(gross)) return null // brüt zarar negatif olabilir; finite() yalnız pozitif kabul eder
+  if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity === 0) return null
+  if (!finite(entry) || !finite(exit)) return null
+  return gross - Math.abs(quantity) * (entry + exit) * rate
+}
+
 // ---------------------------------------------------------------- açık pozisyonda stop yönetimi
 /** Başa baş: girişin biraz ötesi (iki yön komisyon + kayma payı). Fiyat henüz oraya gelmediyse null. */
 export function breakEvenStop(side: Side, entry: number | null | undefined, mark: number | null | undefined, feePct = .12): number | null {
