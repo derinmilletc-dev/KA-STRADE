@@ -289,3 +289,15 @@ def test_manual_stop_not_limited_by_policy_cap_but_by_liquidation():
         raise AssertionError("tasfiyeden uzak stop reddedilmeli")
     except ValueError as exc:
         assert "tasfiye" in str(exc)
+
+
+def test_reconciliation_blockers_name_the_cause():
+    from app import v25_execution as live
+    state = {"emergency": {"reason": "USER_REQUEST"},
+             "events": [{"kind": "LIVE_EXCEPTION_UNKNOWN", "symbol": "ONEUSDT"}],
+             "plans": {"p1": {"symbol": "ONEUSDT", "status": "AÇIK", "provenance_state": "CONFIRMED", "protection_state": "UNKNOWN"}},
+             "intents": {}}
+    blockers = live.reconciliation_blockers(state)
+    assert any("USER_REQUEST" in item for item in blockers)
+    assert any("LIVE_EXCEPTION_UNKNOWN" in item and "ONEUSDT" in item for item in blockers)
+    assert live.reconciliation_blockers({"emergency": {}, "events": [], "plans": {}, "intents": {}}) == []
