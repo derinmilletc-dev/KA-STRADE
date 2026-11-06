@@ -1496,7 +1496,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       marginValue >= 5 && leverageValue >= 1 && (order.order_type !== 'LIMIT' || Number(order.limit_price) > 0),
       stopValue > 0 && tp1Value > 0, true]
     const wzStep = Math.min(manualStep, stepNames.length - 1)
-    const wzHint = [needPermission ? 'Devam etmek için aşağıdaki kaydırıcıyla izni ver.' : !stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
+    const wzHint = [needPermission ? 'Devam etmek için aşağıdaki kaydırıcıyı sağa kaydır. Kaydırarak gerçek para riskini ve 24 saatlik izni onaylamış olursun.' : !stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
     const sign = order.direction === 'LONG' ? 1 : -1
     const suggest = [1, 2, 3].map(pct => ({pct, stop: entryRef > 0 ? presetPrice(entryRef * (1 - sign * pct / 100)) : null, tp1: entryRef > 0 ? presetPrice(entryRef * (1 + sign * pct / 100)) : null}))
     const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
@@ -1880,7 +1880,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
-              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Kaydırarak gerçek para riskini ve 24 saatlik izni onaylıyorum" disabled={Boolean(busy)} onConfirm={slidePermission}/>
+              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Sağa kaydır" disabled={Boolean(busy)} onConfirm={slidePermission}/>
               : wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep] || limitFull} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
           {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}
