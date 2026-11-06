@@ -91,3 +91,15 @@ html body .liveConfirm.mxRiskEdit .mxRiskEditGrid small{font-size:11.5px!importa
 .mxtDayLimit .mxtDayBtns button{min-height:42px;padding:0 18px;border-radius:999px;border:0;font-weight:800;font-size:14px;background:var(--c);color:#1b1300}
 .mxtDayLimit .mxtDayBtns button[data-k=alt]{background:transparent;color:#dbe6f2;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.22)}
 .mxtRiskLink{display:block;margin:0 0 6px auto;background:none;border:0;padding:6px 2px;color:#9fb2c8;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* Kaydırarak izin ver (Devam butonunun yerinde) */
+.mxtSlide{--slide-progress:0%;position:relative;flex:1;min-width:0;height:56px;border-radius:18px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg,rgba(61,220,151,.45) var(--slide-progress),rgba(61,220,151,.14) var(--slide-progress));box-shadow:inset 0 0 0 1.5px rgba(61,220,151,.5);user-select:none;-webkit-user-select:none}
+.mxtSlide[data-disabled]{opacity:.5}
+.mxtSlide .mxtSlideLabel{display:grid;gap:1px;text-align:center;padding:0 12px 0 64px;pointer-events:none}
+.mxtSlide .mxtSlideLabel b{font-size:16px;font-weight:800;color:#eafff5}
+.mxtSlide .mxtSlideLabel small{font-size:11px;color:#9fd9bd;white-space:nowrap}
+.mxtSlide .mxtSlideHandle{position:absolute;left:4px;top:4px;width:56px;height:48px;border:0;border-radius:14px;background:#3ddc97;color:#06281a;font-size:22px;font-weight:800;display:grid;place-items:center;touch-action:none;cursor:grab;box-shadow:0 6px 16px rgba(0,0,0,.35);transition:transform .22s ease}
+.mxtSlide .mxtSlideHandle[data-dragging]{transition:none;cursor:grabbing}
+.mxtSlide[data-nudge] .mxtSlideHandle{animation:mxtNudge .5s ease}
+@keyframes mxtNudge{0%,100%{transform:translateX(0)}40%{transform:translateX(14px)}70%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.mxtSlide .mxtSlideHandle,.mxtSlide[data-nudge] .mxtSlideHandle{transition:none;animation:none}}
