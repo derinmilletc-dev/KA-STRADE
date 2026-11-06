@@ -383,8 +383,19 @@ def clear_transient_emergency_after_clean_snapshot(state: dict[str, Any]) -> boo
 def unresolved_execution_evidence(
     state: dict[str, Any], *, clean_reconciliation_snapshot: bool = False,
     allow_confirmed_active_plans: bool = False,
+    settled_symbols: set[str] | None = None,
+    reasons: list[str] | None = None,
 ) -> bool:
-    """Return whether state contains evidence of an unresolved LIVE execution."""
+    """Return whether state contains evidence of an unresolved LIVE execution.
+
+    settled_symbols: tam ve temiz Binance görüntüsünde pozisyonu da açık emri de olmayan coinler. Bu coinlerdeki
+    KAPANMIŞ planların eski koruma/sahiplik etiketi artık bir riski temsil etmez; yalnız bu durumda yok sayılır.
+    reasons: verilirse, True dönmeden önce kullanıcıya gösterilecek kısa sebep eklenir."""
+    def found(reason: str) -> bool:
+        if reasons is not None:
+            reasons.append(reason)
+        return True
+    closed_statuses = {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED", "CLOSED_CONFIRMED"}
     events = state.get("events") if isinstance(state.get("events"), list) else []
     for event in events:
         if not isinstance(event, dict):
@@ -393,7 +404,7 @@ def unresolved_execution_evidence(
         if kind == "UNKNOWN_ORDER_RECONCILED":
             break
         if kind in {"UNKNOWN_ORDER_STATE", "LIVE_EXCEPTION_UNKNOWN"}:
-            return True
+            return found(f"çözülmemiş olay {kind}" + (f" ({event.get('symbol')})" if event.get("symbol") else ""))
         if kind == "LIVE_UNKNOWN_EXECUTION":
             if (
                 clean_reconciliation_snapshot
@@ -402,7 +413,7 @@ def unresolved_execution_evidence(
             ):
                 continue
             if event.get("unknown_execution") is True or event.get("reason") != "RECONCILIATION_FAILURE":
-                return True
+                return found(f"çözülmemiş olay LIVE_UNKNOWN_EXECUTION ({event.get('symbol') or event.get('reason') or '?'})")
 
     plans = state.get("plans") if isinstance(state.get("plans"), dict) else {}
     active_plan_ids: set[str] = set()
@@ -410,14 +421,19 @@ def unresolved_execution_evidence(
         if not isinstance(plan, dict):
             continue
         status = str(plan.get("status") or "").upper()
-        if status not in {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED", "CLOSED_CONFIRMED"}:
+        symbol = normalize_symbol(str(plan.get("symbol") or ""))
+        closed = status in closed_statuses
+        if not closed:
             active_plan_ids.add(str(plan_id))
+        if closed and settled_symbols is not None and symbol and symbol in settled_symbols:
+            continue
         if plan.get("provenance_state") not in {None, "CONFIRMED"} or plan.get("protection_state") == "UNKNOWN":
-            return True
+            return found(f"{symbol or '?'} planı ({status or 'durum yok'}): sahiplik/koruma doğrulanmadı")
         if plan.get("protection_cleanup_state") in {"UNKNOWN", "RETRY_REQUIRED"}:
-            return True
+            return found(f"{symbol or '?'} planı ({status or 'durum yok'}): koruma emri temizliği bekliyor")
     if active_plan_ids and not allow_confirmed_active_plans:
-        return True
+        symbols = sorted({str(plans[i].get("symbol") or "?") for i in active_plan_ids if isinstance(plans.get(i), dict)})
+        return found(f"açık plan Binance ile birebir eşleşmedi ({', '.join(symbols[:5])})")
 
     intents = state.get("intents") if isinstance(state.get("intents"), dict) else {}
     for intent_id, intent in intents.items():
@@ -433,7 +449,7 @@ def unresolved_execution_evidence(
             if isinstance(plan, dict)
         )
         if not resolved or (active_plan_ids and not allow_confirmed_active_plans):
-            return True
+            return found(f"{str(intent.get('symbol') or '?').upper()}: sonucu belli olmayan emir niyeti")
     return False
 
 
@@ -595,9 +611,11 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         and normalize_symbol(str(intent.get("symbol") or "")) not in position_symbols
         and normalize_symbol(str(intent.get("symbol") or "")) not in order_symbols
         and not any(
-            isinstance(plan, dict) and (
+            isinstance(plan, dict)
+            and str(plan.get("status") or "").upper() not in {"KAPANDI", "İPTAL", "CLOSED", "CANCELLED", "CLOSED_CONFIRMED"}
+            and (
                 str(plan.get("intent_id") or "") == str(intent_id)
-                or str(plan.get("entry_client_order_id") or "") == str(intent.get("client_order_id") or "")
+                or (intent.get("client_order_id") and str(plan.get("entry_client_order_id") or "") == str(intent.get("client_order_id") or ""))
             )
             for plan in plans.values()
         )
@@ -636,10 +654,16 @@ def clear_clean_reconciliation_state(state: dict[str, Any], snapshot: dict[str, 
         and not state.get("plans")
         and not state.get("intents")
     )
+    evidence_reasons: list[str] = []
     if unresolved_execution_evidence(
         state, clean_reconciliation_snapshot=True, allow_confirmed_active_plans=accounted,
+        settled_symbols={
+            normalize_symbol(str(plan.get("symbol") or ""))
+            for plan in plans.values() if isinstance(plan, dict)
+        } - position_symbols - order_symbols,
+        reasons=evidence_reasons,
     ) and not clean_credential_precondition_failure:
-        return blocked("çözülmemiş yürütme kaydı veya doğrulanmamış plan var")
+        return blocked(evidence_reasons[0] if evidence_reasons else "çözülmemiş yürütme kaydı veya doğrulanmamış plan var")
     if stale_intent_ids:
         add_event(
             state,
