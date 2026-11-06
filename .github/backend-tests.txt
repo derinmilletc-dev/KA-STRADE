@@ -232,3 +232,4 @@ tests/test_account_risk_budget.py
 tests/test_reconcile_prefetch.py
 tests/test_daily_loss_no_fixed_ceiling.py
 tests/test_ledger_warmup.py
+tests/test_kais_shadow_score.py

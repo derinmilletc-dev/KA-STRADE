@@ -22,6 +22,7 @@ from fastapi import HTTPException
 
 from . import binance_demo as demo
 from .maintenance import is_maintenance_rejection
+from .kais_shadow_score import shadow_score
 from .strategies import original_v2_demo as strategy
 from .strategies import original_v2_pullback as pullback
 from .strategies.contracts import StrategyInput, StrategyResult
@@ -807,6 +808,19 @@ async def _candidates(
         ticker = series_by_interval["15m"].ticker(at, symbol)
         if ticker is not None:
             tickers.append(ticker)
+    if live_universe:
+        try:  # yalnız raporlama: Kais Long gölge puanı; karara etkisi yok
+            for symbol, result in results.items():
+                analysis = (result.legacy or {}).get("analysis")
+                if isinstance(analysis, dict) and analysis.get("direction") == "LONG" and (analysis.get("confidence") or 0) >= 80:
+                    shadow = shadow_score(analysis)
+                    if shadow is not None:
+                        logger.info(
+                            "KAIS_SHADOW_SCORE symbol=%s old=%s old_pass=%s new=%s new_pass=%s penalty=%s ext_atr=%s",
+                            symbol, analysis.get("confidence"), (analysis.get("confidence") or 0) >= 86,
+                            shadow["score"], shadow["would_pass"], shadow["penalty"], shadow["extension_atr"])
+        except Exception:  # noqa: BLE001
+            pass
     if live_universe:
         try:  # yalnız raporlama: SHORT filtre kararları ve sayaçları; karara etkisi yok
             for symbol, result in results.items():
