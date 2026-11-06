@@ -74,7 +74,7 @@ def isolate_shared_strategy_cache():
 def daily_ledger_offline_unless_tested(request, monkeypatch):
     """Eski testlerin sahte Binance istemcilerinde /fapi/v1/income yok. Hesap geneli günlük defter (fail-closed) yalnız
     kendi test dosyasında gerçek çalışır; diğerlerinde boş defter döner (olay tabanlı eski hesap aynen geçerli)."""
-    if request.module.__name__.endswith("test_daily_loss_account_wide"):
+    if request.module.__name__.endswith(("test_daily_loss_account_wide", "test_ledger_warmup")):
         return
     import importlib
 
