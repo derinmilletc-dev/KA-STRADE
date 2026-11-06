@@ -25,7 +25,7 @@ type Props = {
   onReduce: (target: PositionManualTarget, percent: 25 | 50 | 75) => void
   /** Binance'ten canlı en iyi alış/satış (useLiveQuotes). Taze değilse sunucu verisi gösterilir ve uyarı çıkar. */
   quotes?: QuoteMap; quoteNow?: number
-  /** Risk kutusundaki "Düzenle" butonu: risk / günlük kayıp ayarlarını açar. Ayar yoksa verilmez, buton görünmez. */
+  /** Risk kutusundaki "Düzenle" butonu: manuel işlem risk limitleri penceresini açar. Ayar yoksa verilmez, buton görünmez. */
   onRiskSettings?: () => void
 }
 
@@ -119,7 +119,7 @@ export default function PositionsCard(props: Props) {
         <div className="pvTile pvRiskTile"><small>Stopta toplam risk</small><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
           <em>{summary.riskOfRemainingDailyPct !== null ? `Kalan günlük sınırın ${formatPct(summary.riskOfRemainingDailyPct, 0)}'i` : summary.riskUnknown > 0 ? `${summary.riskUnknown} pozisyon için hesaplanamadı` : 'Tüm stoplar çalışırsa'}</em>
           {summary.riskOfRemainingDailyPct !== null && <span className="pvBar" data-high={summary.riskOfRemainingDailyPct >= 80 || undefined}><i style={{width: `${Math.min(100, summary.riskOfRemainingDailyPct)}%`}}/></span>}
-          {props.onRiskSettings && <button type="button" className="pvEditBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını düzenle"><SlidersHorizontal aria-hidden="true"/>Düzenle</button>}</div>
+          {props.onRiskSettings && <button type="button" className="pvEditBtn" onClick={props.onRiskSettings} aria-label="Manuel işlem risk limitlerini düzenle" title="Manuel işlem risk limitleri"><SlidersHorizontal aria-hidden="true"/>Düzenle</button>}</div>
         <div className="pvTile"><small>{summary.exposureLimit !== null ? 'Büyüklük / sistem sınırı' : 'Toplam büyüklük'}</small>
           <b>{summary.notional === null ? '—' : summary.exposureLimit !== null ? `${formatUsdt(summary.notional)} / ${formatUsdt(summary.exposureLimit)}` : `${formatUsdt(summary.notional)} USDT`}</b>
           <em>{summary.margin !== null ? `Teminat ${formatUsdt(summary.margin)} USDT` : 'Teminat bilgisi yok'}</em>
