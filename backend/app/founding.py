@@ -299,9 +299,9 @@ async def public_status(request: Request):
     await ensure_schema(pool)
     async with pool.acquire() as conn:
         settings = await _settings(conn)
-        taken = await _taken(conn)
+    # Kaç kişinin başvurduğu/onaylandığı herkese açık yanıtta YOKTUR (yalnız yönetici ekranında görünür).
     return {
-        "open": bool(settings["applications_open"]), "seats": int(settings["seats"]), "taken": taken,
+        "open": bool(settings["applications_open"]), "seats": int(settings["seats"]),
         "launch_at": settings["launch_at"].isoformat() if settings["launch_at"] else None,
         "price": settings["price_text"] or None,
     }

@@ -278,3 +278,12 @@ def test_seat_freed_alert_suggests_oldest_waitlist(monkeypatch):
         assert sent == []  # boş koltuk yok
         run(founding.notify_owner_seat_freed(SeatConn(30, 29, waiting), "test"))
     assert sent and ("Öneri 1", "Lerato · l@example.com · KT-F30-LLLLL") in sent[0]["lines"]
+
+
+def test_public_status_never_exposes_how_many_seats_are_taken():
+    """Lansman sayfası herkese açık: kaç kişinin başvurduğu/onay aldığı (taken) yanıtta bulunmaz; koltuk sayısı ve açık/kapalı kalır."""
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(db_pool=Pool(SeatConn(30, 7, [])))))
+    with patch("app.founding.ensure_schema", noop):
+        body = run(founding.public_status(request))
+    assert "taken" not in body
+    assert body["seats"] == 30 and body["open"] is True and set(body) == {"open", "seats", "launch_at", "price"}
