@@ -783,10 +783,25 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     {key: 'max_leverage', label: 'En yüksek kaldıraç', unit: 'x', min: 1, max: 50, int: true, hint: '1 – 50'},
     {key: 'max_positions', label: 'Aynı anda en fazla pozisyon', unit: 'adet', min: 1, max: 5, int: true, hint: '1 – 5'},
   ] as const
-  const openRiskEdit = () => {
+  const openRiskEdit = (suggest?: Partial<Record<string, number>>) => {
     if (!status?.policy) { setNotice({kind: 'error', text: 'Risk limitleri henüz okunamadı; durumu yenileyip tekrar dene.'}); return }
-    setRiskEdit(Object.fromEntries(RISK_FIELDS.map(field => [field.key, String(status.policy?.[field.key] ?? '')])))
+    setRiskEdit(Object.fromEntries(RISK_FIELDS.map(field => [field.key, String(suggest?.[field.key] ?? status.policy?.[field.key] ?? '')])))
   }
+  // Günlük zarar limiti %90'a gelince (ya da dolunca) uyarı kartı; manuel emir ekranında ve otomatik işlem ekranında ortak.
+  const dayLimitValue = numericPolicy('daily_loss_limit', NaN)
+  const dayUsedLoss = Math.max(0, -Number(status?.daily?.realized_pnl ?? 0), -Number(status?.account?.unrealized_pnl ?? 0))
+  const dayUsedPct = Number.isFinite(dayLimitValue) && dayLimitValue > 0 ? dayUsedLoss / dayLimitValue * 100 : 0
+  const suggestedDayLimit = Number.isFinite(dayLimitValue) ? Math.min(1000, Math.max(5, Math.ceil(dayLimitValue * 1.5 / 5) * 5)) : null
+  const renderDayLimitCard = (onSuggest: () => void, onEdit: () => void, note?: string) => dayUsedPct >= 90 ? <div className="mxtDayLimit" role="alert" data-full={dayUsedPct >= 100 ? 'yes' : undefined}>
+    <div className="mxtDayHead"><b>{dayUsedPct >= 100 ? 'Günlük zarar limiti doldu' : 'Günlük limitin dolmak üzere'}</b><em>%{Math.min(999, Math.floor(dayUsedPct))}</em></div>
+    <div className="mxtDayMeter" aria-hidden="true"><i style={{width: `${Math.min(100, dayUsedPct)}%`}}/></div>
+    <div className="mxtDayNums"><span>Kullanılan <b>{money(dayUsedLoss)}</b></span><span>Limit <b>{money(dayLimitValue)}</b></span><span>Kalan <b>{money(Math.max(0, dayLimitValue - dayUsedLoss))}</b></span></div>
+    <p>{dayUsedPct >= 100 ? 'Limit dolduğu için yeni emir açılamaz.' : 'Yeni emir bu limiti doldurabilir.'} Tutarlar USDT. Limiti istersen yükseltebilirsin.{note ? ` ${note}` : ''}</p>
+    <div className="mxtDayBtns">
+      {suggestedDayLimit !== null && suggestedDayLimit > dayLimitValue && <button type="button" onClick={onSuggest}>Limiti {suggestedDayLimit} USDT yap</button>}
+      <button type="button" data-k="alt" onClick={onEdit}>Düzenle</button>
+    </div>
+  </div> : null
   const riskEditProblem = (form: Record<string, string>) => {
     for (const field of RISK_FIELDS) {
       const value = Number(form[field.key])
@@ -1827,6 +1842,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {doneView}
       {statusStrip}
       {permissionCard}
+      {!orderDone && renderDayLimitCard(() => openRiskEdit({daily_loss_limit: suggestedDayLimit ?? undefined}), () => openRiskEdit())}
+      {!orderDone && <button type="button" className="mxtRiskLink" onClick={() => openRiskEdit()}>Risk limitlerini düzenle</button>}
       {progressEl}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}
@@ -2291,7 +2308,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                   <label>En düşük güven<div className="masterTradeLiveUnitField"><input type="number" min="70" max="95" value={numericPolicy('min_confidence', 85)} onChange={event => setPolicy('min_confidence', Number(event.target.value))}/><span>%</span></div></label>
                   <label>En yüksek kaldıraç<input type="number" min="1" max="50" value={numericPolicy('max_leverage', 2)} onChange={event => setPolicy('max_leverage', Number(event.target.value))}/></label>
                   <label>Tasfiye tamponu<div className="masterTradeLiveUnitField"><input type="number" min="0.05" max="5" step="0.05" value={numericPolicy('liquidation_buffer_pct', 0.5)} onChange={event => setPolicy('liquidation_buffer_pct', Number(event.target.value))}/><span>% giriş</span></div></label>
-                  <label>Günlük zarar limiti<div className="masterTradeLiveUnitField"><input type="number" min="5" max="100" value={numericPolicy('daily_loss_limit', 20)} onChange={event => setPolicy('daily_loss_limit', Number(event.target.value))}/><span>USDT</span></div></label>
+                  <label>Günlük zarar limiti<div className="masterTradeLiveUnitField"><input type="number" min="5" max="1000" value={numericPolicy('daily_loss_limit', 20)} onChange={event => setPolicy('daily_loss_limit', Number(event.target.value))}/><span>USDT</span></div></label>
                   <label>Üst üste zarar<input type="number" min="1" max="10" value={numericPolicy('consecutive_loss_limit', 3)} onChange={event => setPolicy('consecutive_loss_limit', Number(event.target.value))}/></label>
                   <label>Tarama aralığı (sn)<input type="number" min="30" max="300" value={numericPolicy('scan_seconds', 60)} onChange={event => setPolicy('scan_seconds', Number(event.target.value))}/></label>
                   <div className="masterTradeLiveSide"><span>YÖN</span><button type="button" className={policy.allow_long !== false ? 'selected' : ''} onClick={() => setPolicy('allow_long', policy.allow_long === false)}>LONG</button><button type="button" className={policy.allow_short !== false ? 'selected' : ''} onClick={() => setPolicy('allow_short', policy.allow_short === false)}>SHORT</button></div>
@@ -2299,6 +2316,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
                 <div className="liveWsRow"><button type="button" className="liveWsGhost" onClick={updatePolicy} disabled={Boolean(busy)}>Ayarları kaydet</button></div>
                 <p className="liveWsHint">Ayarlar sunucuda doğrulanır. Ayar değiştirirsen limit onayını yenilemen gerekebilir.</p>
               </div>
+              {renderDayLimitCard(() => { if (suggestedDayLimit !== null) setPolicy('daily_loss_limit', suggestedDayLimit); setAdvancedOpen(true) }, () => setAdvancedOpen(true), 'Gelişmiş ayarlardan değiştirip "Ayarları kaydet"e bas.')}
               <div className="liveWsLaunch">
                 <div className="liveWsLaunchRow"><span><small>CANLI EMİR İZNİ (ARM)</small><b>{liveArmed ? 'Açık' : 'Kapalı'}</b></span><button type="button" className="liveWsGhost" onClick={liveArmed ? disarmLive : armLive} disabled={Boolean(busy) || (!liveArmed && (!authorizationValid || !configured || !connected || emergency || recoveryRequired || !readinessReady))}>{liveArmed ? 'ARM\'ı kapat' : 'ARM\'ı aç'}</button></div>
                 <div className="masterTradeLiveAssistantActions" aria-label="Auto Trade controls">

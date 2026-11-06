@@ -76,3 +76,18 @@ html body .liveConfirm.mxRiskEdit .mxRiskEditField input:not([type="checkbox"]){
 html body .liveConfirm.mxRiskEdit > .mxRiskEditGrid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;gap:14px!important;margin:14px 0!important}
 html body .liveConfirm.mxRiskEdit .mxRiskEditGrid label{display:grid!important;gap:6px!important;margin:0!important;font-size:13px!important;font-weight:600!important;color:#c3d0de!important}
 html body .liveConfirm.mxRiskEdit .mxRiskEditGrid small{font-size:11.5px!important;font-weight:400!important;opacity:.65}
+
+.mxtDayLimit{--c:#f5c04a;display:grid;gap:10px;margin:0 0 12px;padding:16px;border-radius:20px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:linear-gradient(180deg,color-mix(in srgb,var(--c) 14%,transparent),color-mix(in srgb,var(--c) 4%,transparent));color:#e6eef7}
+.mxtDayLimit[data-full]{--c:#ff8f8f}
+.mxtDayLimit .mxtDayHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mxtDayLimit .mxtDayHead b{font-size:16px;color:var(--c)}
+.mxtDayLimit .mxtDayHead em{font-style:normal;font-weight:800;font-size:13px;padding:3px 10px;border-radius:999px;background:var(--c);color:#1b1300}
+.mxtDayLimit .mxtDayMeter{height:8px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.mxtDayLimit .mxtDayMeter i{display:block;height:100%;border-radius:999px;background:var(--c)}
+.mxtDayLimit .mxtDayNums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;font-size:12px;color:#9fb2c8}
+.mxtDayLimit .mxtDayNums span{display:grid;gap:2px}.mxtDayLimit .mxtDayNums b{font-size:15px;color:#f0f6fb}
+.mxtDayLimit p{margin:0;font-size:13px;line-height:1.45;color:#b4c3d4}
+.mxtDayLimit .mxtDayBtns{display:flex;flex-wrap:wrap;gap:8px}
+.mxtDayLimit .mxtDayBtns button{min-height:42px;padding:0 18px;border-radius:999px;border:0;font-weight:800;font-size:14px;background:var(--c);color:#1b1300}
+.mxtDayLimit .mxtDayBtns button[data-k=alt]{background:transparent;color:#dbe6f2;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.22)}
+.mxtRiskLink{display:block;margin:0 0 6px auto;background:none;border:0;padding:6px 2px;color:#9fb2c8;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
