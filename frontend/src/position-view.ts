@@ -142,11 +142,11 @@ export function positionInsights(metrics: PositionMetrics, plan: RawRecord | und
 export type PositionSort = 'risk' | 'pnl' | 'time'
 export function sortPositions<T extends {metrics: PositionMetrics}>(items: T[], sort: PositionSort): T[] {
   const cmpNullLast = (a: number | null, b: number | null, dir: 1 | -1) => a === null ? (b === null ? 0 : 1) : b === null ? -1 : (a - b) * dir
-  const copy = [...items]
-  if (sort === 'risk') copy.sort((a, b) => cmpNullLast(a.metrics.toStopPct, b.metrics.toStopPct, 1))
-  else if (sort === 'pnl') copy.sort((a, b) => cmpNullLast(a.metrics.pnl, b.metrics.pnl, -1))
-  else copy.sort((a, b) => cmpNullLast(a.metrics.openedMs, b.metrics.openedMs, -1))
-  return copy
+  const primary = (a: T, b: T) => sort === 'risk' ? cmpNullLast(a.metrics.toStopPct, b.metrics.toStopPct, 1)
+    : sort === 'pnl' ? cmpNullLast(a.metrics.pnl, b.metrics.pnl, -1)
+    : cmpNullLast(a.metrics.openedMs, b.metrics.openedMs, -1)
+  // Eşitlikte sembole göre sırala: canlı fiyat her değiştiğinde kartlar yer değiştirmesin.
+  return [...items].sort((a, b) => primary(a, b) || String(a.metrics.symbol).localeCompare(String(b.metrics.symbol)))
 }
 
 export type PortfolioSummary = {
