@@ -89,3 +89,20 @@ def test_stale_intents_with_accounted_position_clear_lock():
     state["intents"]["i-q"] = {"symbol": "QUSDT", "client_order_id": v25_execution.client_id_for("ENTRY", "i-q")}
     assert v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT"])) is True
     assert state["emergency"]["active"] is False and not state["intents"]
+
+
+def test_closed_plan_with_stale_protection_label_and_no_exposure_does_not_block():
+    state = locked_state()
+    state["plans"]["old"] = {"symbol": "PYTHUSDT", "status": "KAPANDI", "provenance_state": "UNKNOWN", "protection_state": "UNKNOWN", "intent_id": "i-p"}
+    state["intents"]["i-p"] = {"symbol": "PYTHUSDT", "client_order_id": v25_execution.client_id_for("ENTRY", "i-p")}
+    assert v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT"])) is True
+    assert not state["intents"]
+
+
+def test_closed_plan_with_unknown_protection_but_open_order_keeps_lock():
+    state = locked_state()
+    state["plans"]["old"] = {"symbol": "UNIUSDT", "status": "KAPANDI", "protection_state": "UNKNOWN"}
+    snap = snapshot(["FILUSDT"], ["FILUSDT"])
+    snap["open_orders"].append({"symbol": "UNIUSDT", "order_id": 9, "client_order_id": "manual-x", "side": "SELL", "type": "LIMIT", "status": "NEW"})
+    assert v25_execution.clear_clean_reconciliation_state(state, snap) is False
+    assert "UNIUSDT" in state["clean_reconciliation_block"]
