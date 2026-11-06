@@ -7,7 +7,7 @@ import {
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
-import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {MasterOnlyGate} from '../../premium-access'
@@ -730,6 +730,18 @@ export default function LiveCockpit(props: Props) {
     const sheets: Record<string, Sheet> = {approve: 'approvals', start: 'start', stop: 'stop', 'clear-emergency': 'emergency-clear', recovery: 'recovery', 'review-fill-lock': 'fill-lock'}
     if (action && sheets[action]) { setApprovalState({}); setApprovalAccepted(false); setSheetError(''); setSheet(sheets[action]) }
   }
+
+  // Manuel emir ekranındaki "neden devam edemiyorum" kartından gelen istek: ilgili pencereyi aç.
+  const actRef = useRef(act)
+  actRef.current = act
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const action = (event as CustomEvent<{action?: string}>).detail?.action
+      if (action === 'clear-emergency' || action === 'recovery') actRef.current(action)
+    }
+    window.addEventListener(OPEN_LIVE_SHEET_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_LIVE_SHEET_EVENT, onOpen)
+  }, [])
 
   // ---- Görünen veriler.
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
