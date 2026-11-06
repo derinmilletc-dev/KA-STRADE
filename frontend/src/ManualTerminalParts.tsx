@@ -1,6 +1,6 @@
 // Manuel emir sihirbazının sunum bileşenleri. Yalnız görünüm: ağ, emir ve hesap mantığı yoktur.
 // Tüm değerler üst bileşenden gelir; gelmeyen değer uydurulmaz ("Henüz hesaplanmadı" gösterilir).
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import type {ReactNode} from 'react'
 import {TrendingDown, TrendingUp} from 'lucide-react'
 import type {CheckRow, PriceMapResult} from './manual-order-state'
@@ -65,4 +65,36 @@ export function ElapsedSeconds() {
     return () => window.clearInterval(timer)
   }, [])
   return <span className="mxtElapsed">{seconds} sn</span>
+}
+
+/** Kaydırarak onay: tutamacı sona sürükleyince onConfirm çağrılır (yanlışlıkla dokunmaya karşı). Klavye: Enter/Boşluk da onaylar. */
+export function SlideToConfirm({label, hint, onConfirm, disabled}: {label: string; hint?: string; onConfirm: () => void; disabled?: boolean}) {
+  const track = useRef<HTMLDivElement | null>(null)
+  const drag = useRef<{startX: number; max: number} | null>(null)
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const [nudge, setNudge] = useState(false)
+  const HANDLE = 56
+  const maxOffset = () => Math.max(1, (track.current?.clientWidth ?? 0) - HANDLE - 8)
+  const reset = () => { setDragging(false); setOffset(0); drag.current = null }
+  const finish = () => {
+    const state = drag.current
+    if (!state) return
+    const reached = offset >= state.max * 0.85
+    reset()
+    if (reached) onConfirm()
+    else { setNudge(true); window.setTimeout(() => setNudge(false), 500) }
+  }
+  return <div className="mxtSlide" data-disabled={disabled || undefined} data-nudge={nudge || undefined} ref={track}
+    style={{'--slide-progress': `${Math.round(offset / maxOffset() * 100)}%`} as React.CSSProperties}>
+    <span className="mxtSlideLabel"><b>{label}</b>{hint && <small>{hint}</small>}</span>
+    <button type="button" className="mxtSlideHandle" data-dragging={dragging || undefined} disabled={disabled}
+      style={{transform: `translateX(${offset}px)`}} aria-label={`${label}. Kaydırarak onayla veya Enter'a bas`}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onConfirm() } }}
+      onPointerDown={event => { if (disabled) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = {startX: event.clientX, max: maxOffset()}; setDragging(true) }}
+      onPointerMove={event => { const state = drag.current; if (state) setOffset(Math.min(state.max, Math.max(0, event.clientX - state.startX))) }}
+      onPointerUp={finish} onPointerCancel={reset}>
+      <span aria-hidden="true">→</span>
+    </button>
+  </div>
 }
