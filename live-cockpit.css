@@ -1318,3 +1318,9 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn:hover{background:rgba(255,255,255,.12)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn:active{transform:scale(.96)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn svg{width:13px;height:13px;flex:none}
+
+/* "Pozisyonlarıma git": hedef kart başlığın altında kalmasın, kısa süre vurgulansın */
+#root .masterTradePage .lcRoot .pvRoot .pvCard{scroll-margin-top:96px}
+#root .masterTradePage .lcRoot .pvRoot{scroll-margin-top:84px}
+#root .masterTradePage .lcRoot .pvRoot .pvCard[data-pos-flash]{animation:pvFlash 2.2s ease-out}
+@keyframes pvFlash{0%,35%{box-shadow:0 0 0 2px #59d99b,0 0 22px rgba(89,217,155,.35)}100%{box-shadow:0 0 0 0 transparent}}

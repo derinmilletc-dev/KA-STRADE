@@ -157,7 +157,7 @@ export default function PositionsCard(props: Props) {
           : tp1Left <= 0 ? 100 : Math.max(0, Math.min(100, metrics.toStopPct / (metrics.toStopPct + tp1Left) * 100))
         const status = external ? 'Dış pozisyon' : metrics.level === 'danger' ? 'Stopa çok yakın' : metrics.level === 'warn' ? 'Stopa yakın' : breakeven ? 'Stop girişte' : protectedStop ? 'Korumalı' : 'Koruma doğrulanamadı'
         const statusTone = external ? undefined : metrics.level === 'danger' ? 'down' : metrics.level === 'warn' || !protectedStop ? 'warn' : undefined
-        return <article className="pvCard" key={key} data-level={metrics.level} data-open={isOpen || undefined} data-external={external || undefined}>
+        return <article className="pvCard" key={key} data-pos-symbol={metrics.symbol.toUpperCase()} data-level={metrics.level} data-open={isOpen || undefined} data-external={external || undefined}>
           <button type="button" className="pvSlim" aria-expanded={isOpen} aria-label={`${metrics.coin || 'Pozisyon'} ${isOpen ? 'detayını gizle' : 'detayını göster'}`} onClick={toggle}>
             <span className="pvSlimRow">
               <span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>

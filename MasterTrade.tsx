@@ -25,7 +25,7 @@ import {useTradingPreferences} from './useTradingPreferences'
 import {MarketDataFailure, isNetworkFailure, marketDataFailure, marketDataResponseError} from './master-trade-data-error'
 import {parseRequiredMarketQuotes} from './master-market-data'
 import ChartAiPanel from './ChartAiPanel'
-import {FOLLOW_SYMBOL_EVENT, POSITIONS_REFRESH_EVENT} from './trade-intent'
+import {FOLLOW_SYMBOL_EVENT, POSITIONS_REFRESH_EVENT, scrollToPositions} from './trade-intent'
 import {chartSnapshot} from './chart-ai-client'
 import {useKaisScreenContext} from './useKaisScreenContext'
 
@@ -765,11 +765,13 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   selectMarketRef.current = selectMarket
   useEffect(() => {
     const onFollow = (event: Event) => {
-      const detail = (event as CustomEvent<{symbol?: string | null; tab?: MasterTradeTab}>).detail || {}
+      const detail = (event as CustomEvent<{symbol?: string | null; tab?: MasterTradeTab; focus?: string | null}>).detail || {}
       if (detail.symbol) selectMarketRef.current(detail.symbol)
       if (embedDemo) return
       navigateTab(detail.tab === 'pozisyonlar' ? 'pozisyonlar' : 'analiz')
-      window.scrollTo({top: 0})
+      // Pozisyonlara giderken en üste değil, açık pozisyonun olduğu yere kaydır.
+      if (detail.tab === 'pozisyonlar') scrollToPositions(detail.focus)
+      else window.scrollTo({top: 0})
     }
     window.addEventListener(FOLLOW_SYMBOL_EVENT, onFollow)
     return () => window.removeEventListener(FOLLOW_SYMBOL_EVENT, onFollow)
