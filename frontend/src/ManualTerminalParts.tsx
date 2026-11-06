@@ -1,5 +1,6 @@
 // Manuel emir sihirbazının sunum bileşenleri. Yalnız görünüm: ağ, emir ve hesap mantığı yoktur.
 // Tüm değerler üst bileşenden gelir; gelmeyen değer uydurulmaz ("Henüz hesaplanmadı" gösterilir).
+import {useEffect, useState} from 'react'
 import type {ReactNode} from 'react'
 import {TrendingDown, TrendingUp} from 'lucide-react'
 import type {CheckRow, PriceMapResult} from './manual-order-state'
@@ -53,4 +54,15 @@ export function DirectionCards({value, onChange}: {value: 'LONG' | 'SHORT'; onCh
       <TrendingDown aria-hidden="true"/><strong>SHORT</strong><span>Fiyat düşerse kazanırsın.</span>
     </button>
   </div>
+}
+
+/** Bekleme sayacı: işlem sürerken "12 sn" gibi geçen süreyi gösterir ki ekran donmuş sanılmasın. */
+export function ElapsedSeconds() {
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const started = Date.now()
+    const timer = window.setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return <span className="mxtElapsed">{seconds} sn</span>
 }

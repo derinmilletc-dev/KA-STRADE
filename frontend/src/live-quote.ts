@@ -57,6 +57,20 @@ export function streamSymbols(symbols: ReadonlyArray<unknown>): string[] {
   return [...set].sort()
 }
 
+/** Ekranda gösterilecek canlı fiyat: en iyi alış/satışın ortası. Fiyat taze değilse null (eski değer "canlı" gösterilmez). */
+export function midPrice(quote: Quote | undefined, nowMs: number): number | null {
+  if (!quote || nowMs - quote.at > QUOTE_FRESH_MS) return null
+  const mid = (quote.bid + quote.ask) / 2
+  return finitePositive(mid) ? mid : null
+}
+
+/** Listedeki 24 sa değişimden açılış fiyatını türetip canlı fiyatla yeniden hesaplar (yüzde). Veri eksikse null. */
+export function liveChangePercent(listedPrice: number, listedChangePct: number, livePrice: number | null): number | null {
+  if (livePrice === null || !finitePositive(listedPrice) || !Number.isFinite(listedChangePct) || listedChangePct <= -100) return null
+  const open = listedPrice / (1 + listedChangePct / 100)
+  return finitePositive(open) ? (livePrice / open - 1) * 100 : null
+}
+
 /** Binance USDⓈ-M public akış adresi (bookTicker /public yolunda yayınlanır). */
 export function bookTickerUrl(symbols: ReadonlyArray<string>): string | null {
   if (symbols.length === 0) return null
