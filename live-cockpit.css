@@ -1312,3 +1312,9 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:hover{background:rgba(255,107,107,.2)!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:focus-visible{outline:2px solid var(--lc-go)!important;outline-offset:2px!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:disabled{opacity:.45!important;cursor:not-allowed!important}
+
+/* Risk kutusu: küçük "Düzenle" butonu */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn{display:inline-flex;align-items:center;gap:6px;justify-self:start;margin-top:8px;height:28px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn:hover{background:rgba(255,255,255,.12)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn:active{transform:scale(.96)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvEditBtn svg{width:13px;height:13px;flex:none}
