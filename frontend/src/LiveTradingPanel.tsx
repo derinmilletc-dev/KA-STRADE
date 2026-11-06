@@ -27,7 +27,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
-import {MANUAL_INTENT_EVENT, followSymbol, goPositions, takeIntentForOrder} from '../../trade-intent'
+import {MANUAL_INTENT_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -954,11 +954,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
 
   // Kaydırarak izin: kaydırma, açıkça yazılı onaydır (onay penceresi yok). İzin yoksa önce 24 saatlik risk izni, ardından ARM; sunucu kapıları aynen geçerli.
   const [permDone, setPermDone] = useState(false)
+  const [permError, setPermError] = useState('')
   const slidePermission = async (): Promise<boolean> => {
     if (freeTrial) { setNotice({kind: 'error', text: 'LIVE işlem MASTER MODE ile açılır'}); return false }
+    setPermError('')
     const ok = await run('permission', async () => {
-      if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
-      await call(V25, '/arm', {method: 'POST', body: JSON.stringify({understood: true})})
+      try {
+        if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
+        await call(V25, '/arm', {method: 'POST', body: JSON.stringify({understood: true})})
+      } catch (error) {
+        setPermError(error instanceof Error ? error.message : 'İzin verilemedi.')
+        throw error
+      }
       setArmPendingSync(true)
     }, 'İzin verildi; gerçek emir için hazırsın.')
     if (ok) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
@@ -1852,6 +1859,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <button type="button" className="mxtBtn ghost" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); goPositions(symbol) }}>Pozisyonlarıma git</button>
       <button type="button" className="mxtDoneNew" onClick={() => setOrderDone(null)}>Yeni emir</button>
     </div> : null
+    // İzin verilemiyorsa nedenini ve ne yapılacağını açıkça göster (müşteri "buton çalışmıyor" sanmasın).
+    const failedGates = (status?.readiness?.gates ?? []).filter(gate => gate.passed === false)
+    const permBlockers: Array<{key: string; title: string; text: string; action?: {label: string; run: () => void}}> = []
+    if (needPermission && !orderDone) {
+      if (freeTrial) permBlockers.push({key: 'trial', title: 'Canlı işlem Master Mode ile açılır', text: 'Deneme üyeliğinde gerçek emir verilemez.'})
+      else if (emergency) permBlockers.push({key: 'emergency', title: 'Acil durdurma açık', text: 'Yeni işlemler kapalı olduğu için izin verilemez. Önce acil durdurmayı kaldırman gerekiyor.', action: {label: 'Acil durdurmayı kaldır', run: () => openLiveSheet('clear-emergency')}})
+      else if (recoveryRequired) permBlockers.push({key: 'recovery', title: 'Hesap kontrolü gerekiyor', text: 'Binance hesabın ile sistem kaydı eşleşmiyor. Kontrol yapılana kadar yeni işlem açılamaz.', action: {label: 'Kontrolü yap', run: () => openLiveSheet('recovery')}})
+      else if (!connected) permBlockers.push({key: 'connection', title: 'Binance hesabına ulaşılamıyor', text: 'Bağlantı kurulamadı. Birkaç saniye sonra tekrar dene; sürerse Bağlantı sekmesinden anahtarını kontrol et.'})
+      else if (authorizationValid && !readinessReady && failedGates.length) permBlockers.push({key: 'gates', title: 'Güvenlik kontrolleri tamamlanmadı', text: failedGates.slice(0, 3).map(gate => gate.detail || gate.label || gate.key).filter(Boolean).join(' · ') || 'Sunucunun güvenlik kapılarından biri geçmedi.'})
+    }
+    const permBlockCard = (permBlockers.length > 0 || (permError && needPermission && !orderDone)) ? <div className="mxtBlockPopup" role="alert">
+      <div className="mxtBlockHead"><span className="mxtBlockIcon" aria-hidden="true"><TriangleAlert/></span><small>İZİN VERİLEMİYOR</small></div>
+      {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}><em>{item.action.label}</em><i aria-hidden="true">→</i></button>}</div>)}
+      {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
+    </div> : null
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
@@ -1876,11 +1898,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {wzStep === 2 && amountStep}
           {wzStep === 3 && stopStep}
           {wzStep === 4 && reviewStep}
+          {permBlockCard}
           {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
-              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Sağa kaydır" disabled={Boolean(busy)} onConfirm={slidePermission}/>
+              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Sağa kaydır" disabled={Boolean(busy) || permBlockers.some(item => item.key === 'emergency' || item.key === 'trial')} onConfirm={slidePermission}/>
               : wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep] || limitFull} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
           {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}

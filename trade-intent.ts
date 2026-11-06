@@ -109,3 +109,10 @@ export function requestPositionsRefresh() {
   // Borsa kaydı birkaç saniye geç yansıyabilir; kısa aralıklarla üç kez istenir.
   for (const delay of [0, 1500, 4500]) window.setTimeout(() => window.dispatchEvent(new CustomEvent(POSITIONS_REFRESH_EVENT)), delay)
 }
+
+/** Manuel emir ekranından Canlı İşlem kokpitindeki bir pencereyi açar (acil durdurmayı kaldır / kurtarma kontrolü). Önce manuel panel kapanır. */
+export const OPEN_LIVE_SHEET_EVENT = 'kt:open-live-sheet'
+export function openLiveSheet(action: 'clear-emergency' | 'recovery') {
+  window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
+  window.setTimeout(() => window.dispatchEvent(new CustomEvent(OPEN_LIVE_SHEET_EVENT, {detail: {action}})), 150)
+}
