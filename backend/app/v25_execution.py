@@ -5490,6 +5490,50 @@ async def refresh_account_daily_ledger(client: Any, state: dict[str, Any]) -> di
                                 transient_read_failure=True, check_key="daily_ledger") from exc
 
 
+# Defter ısıtma: giriş kapısı defteri en fazla FRESH_SECONDS (30 sn) eski kabul eder; daha eskiyse emir anında Binance'ten
+# sıralı okunur ve emir bekler. Durum sorgusu (arayüz ~15 sn'de bir çağırır) defter bu yaşı geçmeden arka planda yeniler.
+# Kapı, tazelik şartı ve hata davranışı değişmez: ısıtma yalnız önbelleği önceden doldurur.
+LEDGER_WARM_AGE_SECONDS = 10.0      # defter bu yaştan eskiyse arka planda yenile (FRESH_SECONDS'tan küçük olmalı)
+LEDGER_WARM_BACKOFF_SECONDS = 60.0  # okuma hatasında (ör. hız sınırı) bu süre yeniden denenmez
+
+
+def schedule_ledger_warmup(application: Any, credentials: tuple[str, str]) -> bool:
+    """Defter eskidiyse arka planda tek bir yenileme başlatır. Aynı anda en fazla bir görev; hatada geri çekilir.
+    Asla istisna fırlatmaz ve durum yanıtını beklemez. Başlattıysa True."""
+    try:
+        state = application.state.v25_execution
+        if not state.get("connected") or not usable_live_credentials(credentials):
+            return False
+        warm = getattr(application.state, "v25_ledger_warm", None)
+        if warm is None:
+            warm = application.state.v25_ledger_warm = {"task": None, "next_at": 0.0}
+        now = time.monotonic()
+        task = warm.get("task")
+        if (task is not None and not task.done()) or now < warm["next_at"]:
+            return False
+        if daily_ledger.cached(state, max_age=LEDGER_WARM_AGE_SECONDS) is not None:
+            return False
+        warm["next_at"] = now + LEDGER_WARM_AGE_SECONDS  # sıkı döngü koruması
+        warm["task"] = asyncio.get_running_loop().create_task(_warm_daily_ledger(application, credentials, warm))
+        return True
+    except Exception:  # noqa: BLE001 - ısıtma en iyi çabadır; durum yanıtını asla bozmaz
+        logger.info("LIVE daily ledger warm-up could not be scheduled")
+        return False
+
+
+async def _warm_daily_ledger(application: Any, credentials: tuple[str, str], warm: dict[str, Any]) -> None:
+    try:
+        client = client_for_with_credentials(application, credentials)
+        result = await daily_ledger.refresh(client, application.state.v25_execution, max_age=LEDGER_WARM_AGE_SECONDS)
+        if isinstance(result, dict) and result.get("stale"):  # okuma başarısız, eski defter döndü: Binance'i zorlama
+            warm["next_at"] = time.monotonic() + LEDGER_WARM_BACKOFF_SECONDS
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 - emir anında kapı defteri kendi okur; burada yalnız geri çekil
+        warm["next_at"] = time.monotonic() + LEDGER_WARM_BACKOFF_SECONDS
+        logger.info("LIVE daily ledger warm-up read failed; backing off")
+
+
 def live_daily_metrics(state: dict[str, Any]) -> dict[str, Any]:
     metrics = daily_execution_metrics(state.get("events", []))
     ledger = daily_ledger.cached(state)
@@ -7620,6 +7664,7 @@ async def v25_status(request: Request) -> dict[str, Any]:
             raise HTTPException(403, "LIVE hesap bağlantısı için önce 2FA'yı etkinleştirin.")
         guard_execution_ownership(request, claim=True)
         return await connect_read_only_for_request(request.app, request)
+    schedule_ledger_warmup(request.app, (api_key, secret_key))
     return public_status(request.app, request)
 
 
