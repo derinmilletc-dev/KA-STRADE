@@ -297,13 +297,25 @@ def observe(guard: dict[str, Any], *, score: int | None, candle: int, now: float
     return [*events, "SCORE_LOW_CONTINUES"]
 
 
-def exit_decision(guard: dict[str, Any], net: Decimal | None, *, smart_exit: bool) -> str:
-    """CLOSE | WAIT_PROFIT | NONE. Zarar veya bilinmeyen net kârda asla CLOSE."""
+def exit_margin(view: dict[str, Any], slippage_bps: Any) -> Decimal:
+    """Çıkış için ek güvenlik payı (USDT): tahmini kaymanın bir katı daha.
+
+    Net kâr modeli sabit bps'e dayanır; gerçek market dolumu modelden kötü olabilir. Net kâr bu payı
+    aşmadan akıllı çıkış yapılmaz. Veri okunamazsa payı büyük sayar (kapatmaz)."""
+    slip = _d(slippage_bps)
+    if slip is None or slip < 0:
+        return Decimal("Infinity")
+    return view["mark"] * view["quantity"] * slip / Decimal(10000)
+
+
+def exit_decision(guard: dict[str, Any], net: Decimal | None, *, smart_exit: bool,
+                  margin: Decimal = Decimal(0)) -> str:
+    """CLOSE | WAIT_PROFIT | NONE. Zarar, bilinmeyen veya marjın altındaki net kârda asla CLOSE."""
     if not smart_exit or not guard.get("exit_ready") or guard.get("mode") != MODE_EXIT_READY:
         return "NONE"
     if net is None:
         return "NONE"
-    return "CLOSE" if net > 0 else "WAIT_PROFIT"
+    return "CLOSE" if net > max(Decimal(0), margin) else "WAIT_PROFIT"
 
 
 def checks_due(guard: dict[str, Any], now: float, interval: int) -> bool:
@@ -447,6 +459,19 @@ def _note_once(guard: dict[str, Any], key: str, value: str) -> bool:
     if guard.get(key) == value:
         return False
     guard[key] = value
+    return True
+
+
+async def _persist_before_order(state: dict[str, Any]) -> bool:
+    """Emirden önce kalıcı kayıt GERÇEKTEN yazıldı mı? Yazılamadıysa (hata veya SKIPPED) emir gönderilmez.
+
+    `persist_state_awaited` yazılmadan da dönebilir (SKIPPED); sonucu doğrulayan `persist_required` kullanılır."""
+    from . import original_v2_live as original
+    try:
+        await original.persist_required(state)
+    except Exception as exc:  # DB hatası dahil: emir gitmesin
+        logger.warning("SMART_GUARD_PERSIST_FAILED error=%s", type(exc).__name__)
+        return False
     return True
 
 
@@ -611,7 +636,11 @@ async def ensure_temp_stop(client: Any, state: dict[str, Any], config: dict[str,
               "triggerPrice": live.decimal_text(price), "quantity": live.decimal_text(view["quantity"]),
               "reduceOnly": "true", "clientAlgoId": client_id}
     guard["temp_stop"] = {"pending": True, "price": entry["price"], "quantity": entry["quantity"], "client_id": client_id}
-    await live.persist_state_awaited(state)  # emri göndermeden önce kaydet: yeniden başlatmada çift emir olmaz
+    if not await _persist_before_order(state):  # emri göndermeden önce kayıt doğrulanır: yeniden başlatmada çift emir olmaz
+        entry["status"] = "REJECTED"
+        guard["temp_stop"] = None
+        guard["last_error"] = "kalıcı kayıt doğrulanamadı; geçici stop gönderilmedi"
+        return
     try:
         await live.post_entry_protection_algo(client, params, rows)
         entry["status"] = "SENT"
@@ -695,8 +724,8 @@ async def _exit(client: Any, state: dict[str, Any], config: dict[str, Any], plan
     fee, slip = _fee_slippage(state)
     funding = await _funding_paid(client, plan, guard, now, force=True)
     pnl = net_pnl(view, fee_bps=fee, slippage_bps=slip, funding_paid=funding) if funding is not None else None
-    if pnl is None or exit_decision(guard, pnl["net"], smart_exit=True) != "CLOSE":
-        guard["last_error"] = "net kâr doğrulanamadı veya pozitif değil; kapatılmadı"
+    if pnl is None or exit_decision(guard, pnl["net"], smart_exit=True, margin=exit_margin(view, slip)) != "CLOSE":
+        guard["last_error"] = "net kâr doğrulanamadı veya güvenlik payının üstünde değil; kapatılmadı"
         return
     close_intent = f"{CLOSE_INTENT_PREFIX}{plan['id']}"
     close_client_id = live.client_id_for("CLOSE", close_intent)  # STOP kimliğinden (SGP) bağımsız, tek ve sabit kimlik
@@ -705,7 +734,11 @@ async def _exit(client: Any, state: dict[str, Any], config: dict[str, Any], plan
     if close_client_id not in ids:
         ids.append(close_client_id)
     guard["close_net_pnl"] = str(pnl["net"])
-    await live.persist_state_awaited(state)  # emirden önce kaydet: yeniden başlatmada çift kapatma olmaz
+    if not await _persist_before_order(state):  # emirden önce kayıt doğrulanır: yeniden başlatmada çift kapatma olmaz
+        entry["status"] = "REJECTED"
+        guard["last_error"] = "kalıcı kayıt doğrulanamadı; kapatma emri gönderilmedi"
+        guard["exit_retry_at"] = now + ORDER_RETRY_SECONDS
+        return
     try:
         result = await live.close_tracked_symbol(client, symbol, close_intent)  # kendi içinde clientOrderId ile de tekrarsız
     except Exception as exc:
@@ -884,7 +917,7 @@ async def _tick_plan(client: Any, state: dict[str, Any], config: dict[str, Any],
     if pnl["net"] > 0 and cfg["protect_stop_enabled"]:
         await ensure_temp_stop(client, state, config, plan, guard, view, pnl)
     if guard["mode"] == MODE_EXIT_READY:
-        decision = exit_decision(guard, pnl["net"], smart_exit=cfg["smart_exit_enabled"])
+        decision = exit_decision(guard, pnl["net"], smart_exit=cfg["smart_exit_enabled"], margin=exit_margin(view, slip))
         if decision == "CLOSE":
             if guard.get("waiting_profit"):
                 guard["waiting_profit"] = False
