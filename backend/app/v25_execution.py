@@ -437,6 +437,40 @@ def unresolved_execution_evidence(
     return False
 
 
+def reconciliation_blockers(state: dict[str, Any]) -> list[str]:
+    """Uzlaştırmanın neden temiz çıkmadığını kullanıcıya gösterilecek kısa maddeler olarak döndürür (yalnız okur)."""
+    out: list[str] = []
+    emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
+    if emergency.get("reason"):
+        out.append(f"kilit sebebi: {emergency.get('reason')}")
+    events = state.get("events") if isinstance(state.get("events"), list) else []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        kind = str(event.get("kind") or "")
+        if kind == "UNKNOWN_ORDER_RECONCILED":
+            break
+        if kind in {"UNKNOWN_ORDER_STATE", "LIVE_EXCEPTION_UNKNOWN", "LIVE_UNKNOWN_EXECUTION"}:
+            out.append(f"çözülmemiş olay: {kind}" + (f" ({event.get('symbol')})" if event.get("symbol") else ""))
+            break
+    plans = state.get("plans") if isinstance(state.get("plans"), dict) else {}
+    for plan in plans.values():
+        if not isinstance(plan, dict) or not live_plan_is_active(plan):
+            continue
+        symbol = str(plan.get("symbol") or "?").upper()
+        if plan.get("provenance_state") not in {None, "CONFIRMED"}:
+            out.append(f"{symbol}: pozisyonun sahibi doğrulanamadı")
+        elif plan.get("protection_state") != "MATCHED" or plan.get("protection_match_reason") != "EXACT_IDENTITY":
+            out.append(f"{symbol}: stop/hedef emirleri Binance'te birebir eşleşmedi ({plan.get('protection_state') or 'bilinmiyor'})")
+        elif plan.get("mutation_policy") == "READ_ONLY_EXTERNAL":
+            out.append(f"{symbol}: dışarıdan açılmış pozisyon (sistem yönetmiyor)")
+    intents = state.get("intents") if isinstance(state.get("intents"), dict) else {}
+    for intent in intents.values():
+        if isinstance(intent, dict) and str(intent.get("client_order_id") or "").startswith(LIVE_CLIENT_PREFIX):
+            out.append(f"{str(intent.get('symbol') or '?').upper()}: sonucu belli olmayan emir niyeti")
+    return out[:6]
+
+
 def positions_fully_accounted_by_confirmed_plans(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
     """True only when every open position AND every bot-owned order belongs to a live, fully
     confirmed, exactly-protected plan. Anything unexplained keeps the lock."""
@@ -9499,13 +9533,8 @@ async def _clear_emergency_locked(
         if emergency.get("active") is not True:
             return {"ok": True, "emergency": False, "execution_state": state.get("execution_state"), "armed": False}
         if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN":
-            unresolved = sorted({
-                str(plan.get("symbol") or "").upper() for plan in state.get("plans", {}).values()
-                if isinstance(plan, dict) and plan.get("status") not in {"KAPANDI", "İPTAL"} and plan.get("symbol")
-                and (not live_plan_can_mutate(plan) or str(plan.get("protection_state") or "").upper() in {"UNKNOWN", "MISSING"})
-            })
-            lock_reason = str((state.get("emergency") or {}).get("reason") or "").strip()
-            detail = (f" Kilit sebebi: {lock_reason}." if lock_reason else "") + (f" Kontrol edilmesi gereken coin: {', '.join(unresolved[:5])}." if unresolved else "")
+            blockers = reconciliation_blockers(state)
+            detail = (" Sebep: " + "; ".join(blockers) + ".") if blockers else ""
             raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin." + detail)
     active_plans = [
         plan for plan in state.get("plans", {}).values()
