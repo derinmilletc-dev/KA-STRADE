@@ -124,13 +124,13 @@ export default function PositionsCard(props: Props) {
       <div className="pvSum" aria-label="Portföy özeti">
         <div className="pvTile"><small>Toplam kâr / zarar · net</small><b data-tone={tone(summary.pnl)}>{summary.pnl === null ? '—' : `${formatUsdt(summary.pnl, true)} USDT`}</b>
           <em>{summary.pnlOfBalancePct !== null ? `${formatPct(summary.pnlOfBalancePct, 1)} hesap` : `${summary.count} açık pozisyon`} · komisyon dahil</em></div>
-        <div className="pvTile pvRiskTile"><span className="pvTileHead"><small>Stopta toplam risk</small>
-          <span className="pvTileActs">
-            {props.onRefresh && <button type="button" className="pvIconBtn" data-busy={refreshing || undefined} onClick={refreshNow} disabled={refreshing} aria-label="Risk ve pozisyonları yenile" title="Yenile"><RefreshCw aria-hidden="true"/></button>}
-            {props.onRiskSettings && <button type="button" className="pvIconBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını aç" title="Risk ayarı"><SlidersHorizontal aria-hidden="true"/></button>}
-          </span></span><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
+        <div className="pvTile pvRiskTile"><small>Stopta toplam risk</small><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
           <em>{summary.riskOfRemainingDailyPct !== null ? `Kalan günlük sınırın ${formatPct(summary.riskOfRemainingDailyPct, 0)}'i` : summary.riskUnknown > 0 ? `${summary.riskUnknown} pozisyon için hesaplanamadı` : 'Tüm stoplar çalışırsa'}</em>
-          {summary.riskOfRemainingDailyPct !== null && <span className="pvBar" data-high={summary.riskOfRemainingDailyPct >= 80 || undefined}><i style={{width: `${Math.min(100, summary.riskOfRemainingDailyPct)}%`}}/></span>}</div>
+          {summary.riskOfRemainingDailyPct !== null && <span className="pvBar" data-high={summary.riskOfRemainingDailyPct >= 80 || undefined}><i style={{width: `${Math.min(100, summary.riskOfRemainingDailyPct)}%`}}/></span>}
+          {(props.onRefresh || props.onRiskSettings) && <span className="pvTileActs">
+            {props.onRefresh && <button type="button" className="pvIconBtn" data-busy={refreshing || undefined} onClick={refreshNow} disabled={refreshing} aria-label="Risk ve pozisyonları yenile"><RefreshCw aria-hidden="true"/>{refreshing ? 'Yenileniyor' : 'Yenile'}</button>}
+            {props.onRiskSettings && <button type="button" className="pvIconBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını aç"><SlidersHorizontal aria-hidden="true"/>Ayar</button>}
+          </span>}</div>
         <div className="pvTile"><small>{summary.exposureLimit !== null ? 'Büyüklük / sistem sınırı' : 'Toplam büyüklük'}</small>
           <b>{summary.notional === null ? '—' : summary.exposureLimit !== null ? `${formatUsdt(summary.notional)} / ${formatUsdt(summary.exposureLimit)}` : `${formatUsdt(summary.notional)} USDT`}</b>
           <em>{summary.margin !== null ? `Teminat ${formatUsdt(summary.margin)} USDT` : 'Teminat bilgisi yok'}</em>
