@@ -783,9 +783,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     {key: 'max_leverage', label: 'En yüksek kaldıraç', unit: 'x', min: 1, max: 50, int: true, hint: '1 – 50'},
     {key: 'max_positions', label: 'Aynı anda en fazla pozisyon', unit: 'adet', min: 1, max: 5, int: true, hint: '1 – 5'},
   ] as const
-  const openRiskEdit = () => {
+  const openRiskEdit = (suggest?: Partial<Record<string, number>>) => {
     if (!status?.policy) { setNotice({kind: 'error', text: 'Risk limitleri henüz okunamadı; durumu yenileyip tekrar dene.'}); return }
-    setRiskEdit(Object.fromEntries(RISK_FIELDS.map(field => [field.key, String(status.policy?.[field.key] ?? '')])))
+    setRiskEdit(Object.fromEntries(RISK_FIELDS.map(field => [field.key, String(suggest?.[field.key] ?? status.policy?.[field.key] ?? '')])))
   }
   const riskEditProblem = (form: Record<string, string>) => {
     for (const field of RISK_FIELDS) {
@@ -1827,17 +1827,23 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const dayLimitValue = numericPolicy('daily_loss_limit', NaN)
     const dayUsedLoss = Math.max(0, -Number(status?.daily?.realized_pnl ?? 0), -Number(status?.account?.unrealized_pnl ?? 0))
     const dayUsedPct = Number.isFinite(dayLimitValue) && dayLimitValue > 0 ? dayUsedLoss / dayLimitValue * 100 : 0
+    const suggestedDayLimit = Number.isFinite(dayLimitValue) ? Math.min(1000, Math.max(5, Math.ceil(dayLimitValue * 1.5 / 5) * 5)) : null
     const dayLimitCard = !orderDone && dayUsedPct >= 90 ? <div className="mxtDayLimit" role="alert" data-full={dayUsedPct >= 100 ? 'yes' : undefined}>
-      <b>{dayUsedPct >= 100 ? '⛔ Günlük zarar limiti doldu' : '⚠ Günlük zarar limitin dolmak üzere'} · {money(dayUsedLoss)} / {money(dayLimitValue)} USDT</b>
-      <span>{dayUsedPct >= 100 ? 'Limit dolduğu için yeni emir açılamaz. Devam etmek istiyorsan limiti yükselt.' : `Limitin %${Math.floor(dayUsedPct)}'ine ulaştın. Yeni emirden önce limiti gözden geçirebilirsin.`}</span>
-      <button type="button" onClick={openRiskEdit}>Limiti düzenle</button>
+      <div className="mxtDayHead"><b>{dayUsedPct >= 100 ? 'Günlük zarar limiti doldu' : 'Günlük limitin dolmak üzere'}</b><em>%{Math.min(999, Math.floor(dayUsedPct))}</em></div>
+      <div className="mxtDayMeter" aria-hidden="true"><i style={{width: `${Math.min(100, dayUsedPct)}%`}}/></div>
+      <div className="mxtDayNums"><span>Kullanılan <b>{money(dayUsedLoss)}</b></span><span>Limit <b>{money(dayLimitValue)}</b></span><span>Kalan <b>{money(Math.max(0, dayLimitValue - dayUsedLoss))}</b></span></div>
+      <p>{dayUsedPct >= 100 ? 'Limit dolduğu için yeni emir açılamaz.' : 'Yeni emir bu limiti doldurabilir.'} Tutarlar USDT. Limiti istersen yükseltebilirsin.</p>
+      <div className="mxtDayBtns">
+        {suggestedDayLimit !== null && suggestedDayLimit > dayLimitValue && <button type="button" onClick={() => openRiskEdit({daily_loss_limit: suggestedDayLimit})}>Limiti {suggestedDayLimit} USDT yap</button>}
+        <button type="button" data-k="alt" onClick={() => openRiskEdit()}>Düzenle</button>
+      </div>
     </div> : null
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
       {permissionCard}
       {dayLimitCard}
-      {!orderDone && <button type="button" className="mxtRiskLink" onClick={openRiskEdit}>Risk limitlerini düzenle</button>}
+      {!orderDone && <button type="button" className="mxtRiskLink" onClick={() => openRiskEdit()}>Risk limitlerini düzenle</button>}
       {progressEl}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}
