@@ -103,6 +103,7 @@ def make_live(fx: FakeExchange):
 
     async def persist_awaited(state):
         state["persisted"] = state.get("persisted", 0) + 1
+        return state.get("persist_result", "UPDATED")  # gerçek fonksiyon gibi: yazılmadıysa "SKIPPED" döner
 
     live.persist_state_awaited = persist_awaited
     live.persist_state = lambda state: None
@@ -174,6 +175,13 @@ def make_original():
     original.SOURCE = "ORIGINAL_V2_LIVE"
     original.settings = lambda state: state["original_v2_live"]
     original.plan_is_original = lambda plan: plan.get("source") == "ORIGINAL_V2_LIVE"
+
+    async def persist_required(state):  # gerçek `original_v2_live.persist_required` ile aynı sözleşme
+        result = await sys.modules["app.v25_execution"].persist_state_awaited(state)
+        if result not in {"INSERTED", "UPDATED"}:
+            raise RuntimeError("Original V2 kalıcı işlem kaydı doğrulanamadı.")
+
+    original.persist_required = persist_required
     return original
 
 
@@ -961,3 +969,35 @@ if __name__ == "__main__":  # pytest olmadan çalıştırma
             traceback.print_exc()
     print(f"\n{len(names) - failures}/{len(names)} geçti")
     sys.exit(1 if failures else 0)
+
+
+# ------------------------------------------------------------------ audit düzeltmeleri (M1, M2)
+def test_m2_exit_needs_net_profit_above_safety_margin():
+    guard = g.new_guard()
+    g.observe(guard, score=60, candle=100, now=0.0, threshold=70, wait_seconds=1)
+    g.observe(guard, score=60, candle=101, now=900.0, threshold=70, wait_seconds=1)
+    view = {"mark": Decimal("98"), "quantity": Decimal("10")}
+    margin = g.exit_margin(view, 3)  # 98 * 10 * 3 / 10000
+    assert margin == Decimal("0.294")
+    assert g.exit_decision(guard, Decimal("0.20"), smart_exit=True, margin=margin) == "WAIT_PROFIT"
+    assert g.exit_decision(guard, Decimal("0.294"), smart_exit=True, margin=margin) == "WAIT_PROFIT"
+    assert g.exit_decision(guard, Decimal("0.30"), smart_exit=True, margin=margin) == "CLOSE"
+    assert g.exit_decision(guard, Decimal("0.01"), smart_exit=True) == "CLOSE"  # eski çağrı biçimi bozulmadı
+    unreadable = g.exit_margin(view, None)  # kayma okunamazsa asla kapatma
+    assert g.exit_decision(guard, Decimal("1000000"), smart_exit=True, margin=unreadable) == "WAIT_PROFIT"
+
+
+def test_m1_unverified_persist_blocks_temp_stop_and_close_then_recovers():
+    with env() as e:
+        e.state["persist_result"] = "SKIPPED"  # kayıt yazılmadı
+        e.script(("SHORT", 62))
+        e.tick(at(0))
+        assert e.temp_stops() == [] and e.fx.orders == {}
+        e.tick(at(1))  # çıkışa hazır ve kârda, ama kayıt doğrulanamıyor
+        assert e.guard["exit_ready"] is True and e.fx.orders == {}
+        assert "kalıcı kayıt" in str(e.guard["last_error"])
+        assert original_untouched(e)
+        e.state["persist_result"] = "UPDATED"  # kayıt yeniden çalışıyor
+        e.tick(at(2))
+        assert len(e.fx.orders) == 1  # tek, reduce-only kapatma
+        assert next(iter(e.fx.orders.values()))["reduceOnly"] is True
