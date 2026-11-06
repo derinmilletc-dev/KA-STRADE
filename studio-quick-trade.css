@@ -187,6 +187,12 @@
 .masterReferenceAnalysis .sqtChip strong, .masterReferenceAnalysis .sqtPnl strong { color: #3ee0a0; }
 .masterReferenceAnalysis .sqtPos[data-tone="down"] :is(.sqtChip strong, .sqtPnl strong, .sqtChip em, .sqtPnl em) { color: #ff8d9a; }
 .masterReferenceAnalysis .sqtChip em, .masterReferenceAnalysis .sqtPnl em { font-style: normal; font-size: 11px; color: #3ee0a0; }
+/* Komisyon dahil net tahmin: brüt sayı yeşilken bile net zararsa kırmızı görünür (kendi data-tone'u; üst .sqtPos tonundan bağımsız). */
+.masterReferenceAnalysis .sqtChip small.sqtNet { font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 1px 6px; border-radius: 6px; background: #17232e; }
+.masterReferenceAnalysis .sqtNet[data-tone="up"], .masterReferenceAnalysis .sqtNetLine[data-tone="up"] b { color: #3ee0a0; }
+.masterReferenceAnalysis .sqtNet[data-tone="down"], .masterReferenceAnalysis .sqtNetLine[data-tone="down"] b { color: #ff8d9a; }
+.masterReferenceAnalysis .sqtNetLine { margin: 0; font-size: 11px; color: #7f94a0; }
+.masterReferenceAnalysis .sqtNetLine b { font-weight: 700; font-variant-numeric: tabular-nums; }
 .masterReferenceAnalysis .sqtChip > svg { width: 24px; height: 24px; padding: 5px; border-radius: 50%; background: #17232e; color: #9fb4b8; }
 .masterReferenceAnalysis .sqtCard {
   width: 272px; max-width: 100%; display: grid; gap: 6px; padding: 10px 12px; border-radius: 18px; background: rgba(12, 19, 27, .86); border: 1px solid rgba(255, 255, 255, .1);

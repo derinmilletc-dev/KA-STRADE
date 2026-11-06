@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {activePlan, allowedLeverages, allowedMargins, errorText, levelsFor, nearestChoice, planRights, postJson, riskSummary} from '../studio-quick-trade.ts'
+import {activePlan, allowedLeverages, allowedMargins, errorText, levelsFor, nearestChoice, netOfFees, planRights, postJson, riskSummary, TAKER_FEE_RATE} from '../studio-quick-trade.ts'
+
+test('Komisyon dahil net: brüt kârdan giriş+çıkış komisyonu düşülür ("+ görünüp eksi kapanma" farkı)', () => {
+  // 50 USDT'lik pozisyon (0,001 BTC @ 50.000): iki yön ≈ 0,05 USDT komisyon. Brüt +0,20 → net ≈ +0,15.
+  assert.equal(TAKER_FEE_RATE, 0.0005)
+  assert.ok(Math.abs(netOfFees(0.2, 50000, 50000, 0.001) - 0.15) < 1e-9)
+  // Küçük brüt kâr komisyonla zarara döner.
+  assert.ok(netOfFees(0.03, 50000, 50200, 0.001) < 0)
+})
+
+test('Komisyon dahil net: brüt zarar ve sıfır geçerlidir, eksik veri null döner', () => {
+  assert.ok(netOfFees(-0.1, 100, 99, 1) < -0.1)
+  assert.ok(netOfFees(0, 100, 100, 1) < 0)
+  assert.equal(netOfFees(null, 100, 100, 1), null)
+  assert.equal(netOfFees(1, null, 100, 1), null)
+  assert.equal(netOfFees(1, 100, 100, 0), null)
+  assert.equal(netOfFees(Number.NaN, 100, 100, 1), null)
+})
 
 const analysis = {direction: 'LONG', entry: 100, stop_loss: 98, tp1: 103, tp2: 106, tp3: 110}
 
