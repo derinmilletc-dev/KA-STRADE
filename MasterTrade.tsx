@@ -768,9 +768,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
       const detail = (event as CustomEvent<{symbol?: string | null; tab?: MasterTradeTab; focus?: string | null}>).detail || {}
       if (detail.symbol) selectMarketRef.current(detail.symbol)
       if (embedDemo) return
-      navigateTab(detail.tab === 'pozisyonlar' ? 'pozisyonlar' : 'analiz')
+      navigateTab(detail.tab === 'canli' ? 'canli' : detail.tab === 'pozisyonlar' ? 'pozisyonlar' : 'analiz')
       // Pozisyonlara giderken en üste değil, açık pozisyonun olduğu yere kaydır.
-      if (detail.tab === 'pozisyonlar') scrollToPositions(detail.focus)
+      if (detail.tab === 'canli' || detail.tab === 'pozisyonlar') scrollToPositions(detail.focus)
       else window.scrollTo({top: 0})
     }
     window.addEventListener(FOLLOW_SYMBOL_EVENT, onFollow)
