@@ -71,3 +71,8 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
 .mxRiskEditField em{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-style:normal;opacity:.65;font-size:12px;pointer-events:none}
 html body .liveConfirm.mxRiskEdit .mxRiskEditField input:not([type="checkbox"]){margin-top:0!important;padding:12px 56px 12px 14px!important}
 .mxRiskEditError{color:#ff8a7a;font-size:12.5px;margin:0 0 8px}
+
+/* Düzen düzeltmesi: .liveConfirm > div {display:flex} kuralı ızgarayı yatay yapıyordu; özgüllük yükseltildi. */
+html body .liveConfirm.mxRiskEdit > .mxRiskEditGrid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;gap:14px!important;margin:14px 0!important}
+html body .liveConfirm.mxRiskEdit .mxRiskEditGrid label{display:grid!important;gap:6px!important;margin:0!important;font-size:13px!important;font-weight:600!important;color:#c3d0de!important}
+html body .liveConfirm.mxRiskEdit .mxRiskEditGrid small{font-size:11.5px!important;font-weight:400!important;opacity:.65}
