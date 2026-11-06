@@ -45,6 +45,8 @@ type Props = {
   refresh: () => Promise<unknown>
   findPlan: (position: Position) => Plan | undefined
   extras?: ReactNode
+  /** Pozisyonlar kartındaki "Düzenle": MANUEL işlem risk limitlerini (işlem başı marjin/kayıp, günlük limit…) düzenleme penceresini açar. */
+  onManualRiskEdit?: () => void
   /** Demo ikizi: aynı kokpit, Binance Futures Demo motoruna bağlı; gerçek para yok. */
   demo?: boolean
   /** Demo'da sekme değişimi URL yerine üst bileşene bildirilir. */
@@ -1980,11 +1982,7 @@ export default function LiveCockpit(props: Props) {
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
           onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now}
-          onRiskSettings={verified && original && guideInput.connected ? () => {
-            // Telefonda ayarlar gizli çekmecede kalıyordu: orada, alttaki "Ayarların > Düzenle" ile aynı risk sihirbazı açılır.
-            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) { openWizard(); return }
-            setSettingsOpen(true); window.setTimeout(() => (document.querySelector('#lc-strategy .lcStrategyEdit') || document.getElementById('lc-strategy') || document.getElementById('lc-drawer'))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 120)
-          } : undefined}/>
+          onRiskSettings={props.onManualRiskEdit}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>
 

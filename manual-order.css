@@ -61,3 +61,13 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute.masterTradeRoute
 .mxtProgress{position:sticky;top:0;z-index:5;border-color:#3b82f6;background:rgba(59,130,246,.14);backdrop-filter:blur(6px)}
 .mxtProgress svg{flex:none;width:20px;height:20px}
 .mxtElapsed{font-variant-numeric:tabular-nums;font-weight:700}
+
+/* Manuel işlem risk limitleri penceresi */
+.mxRiskEdit{max-height:calc(100dvh - 32px);overflow:auto}
+.mxRiskEditGrid{display:grid;gap:8px;margin:14px 0;text-align:left}
+.mxRiskEditGrid label{display:grid;gap:4px;font-size:13px;font-weight:600}
+.mxRiskEditGrid small{font-weight:400;opacity:.65;font-size:11.5px}
+.mxRiskEditField{position:relative;display:block}
+.mxRiskEditField em{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-style:normal;opacity:.65;font-size:12px;pointer-events:none}
+html body .liveConfirm.mxRiskEdit .mxRiskEditField input:not([type="checkbox"]){margin-top:0!important;padding:12px 56px 12px 14px!important}
+.mxRiskEditError{color:#ff8a7a;font-size:12.5px;margin:0 0 8px}

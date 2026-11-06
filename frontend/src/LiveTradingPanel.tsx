@@ -257,6 +257,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [policyDraft, setPolicyDraft] = useState<LivePolicy | null>(null)
   const [confirm, setConfirm] = useState<{title: string;message: string;expected?: string;simple?: boolean;understanding?: boolean;mfa?: boolean;busyKey?: string;action: (code?: string) => Promise<void>} | null>(null)
   const [confirmUnderstood, setConfirmUnderstood] = useState(false)
+  // Manuel işlem risk limitleri düzenleme penceresi (Pozisyonlar > Risk kutusu > Düzenle).
+  const [riskEdit, setRiskEdit] = useState<Record<string, string> | null>(null)
   useEffect(() => setConfirmUnderstood(false), [confirm])
   const [confirmText, setConfirmText] = useState('')
   const [confirmCode, setConfirmCode] = useState('')
@@ -774,6 +776,41 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const manualOrderReady = Boolean(!freeTrial && statusVerified && status && connected && authorizationValid && liveArmed && readinessReady && !recoveryRequired && !emergency)
   const setPolicy = (key: string, value: unknown) => setPolicyDraft(current => ({...(current || {}), [key]: value}))
   const numericPolicy = (key: string, fallback: number) => Number(policy[key] ?? fallback)
+  const RISK_FIELDS = [
+    {key: 'max_margin_per_trade', label: 'İşlem başı en fazla marjin', unit: 'USDT', min: 5, max: 300, int: false, hint: '5 – 300'},
+    {key: 'max_loss_per_trade', label: 'İşlem başı en fazla kayıp (stopta)', unit: 'USDT', min: 0.5, max: 25, int: false, hint: '0,5 – 25'},
+    {key: 'daily_loss_limit', label: 'Günlük zarar limiti', unit: 'USDT', min: 5, max: 1000, int: false, hint: 'en az 5'},
+    {key: 'max_leverage', label: 'En yüksek kaldıraç', unit: 'x', min: 1, max: 50, int: true, hint: '1 – 50'},
+    {key: 'max_positions', label: 'Aynı anda en fazla pozisyon', unit: 'adet', min: 1, max: 5, int: true, hint: '1 – 5'},
+  ] as const
+  const openRiskEdit = () => {
+    if (!status?.policy) { setNotice({kind: 'error', text: 'Risk limitleri henüz okunamadı; durumu yenileyip tekrar dene.'}); return }
+    setRiskEdit(Object.fromEntries(RISK_FIELDS.map(field => [field.key, String(status.policy?.[field.key] ?? '')])))
+  }
+  const riskEditProblem = (form: Record<string, string>) => {
+    for (const field of RISK_FIELDS) {
+      const value = Number(form[field.key])
+      if (form[field.key].trim() === '' || !Number.isFinite(value) || value < field.min || value > field.max || (field.int && !Number.isInteger(value))) return `${field.label}: ${field.hint}${field.int ? ' arası tam sayı' : ' arası bir sayı'} olmalı.`
+    }
+    return ''
+  }
+  const saveRiskEdit = () => {
+    if (!riskEdit || riskEditProblem(riskEdit)) return
+    const values = Object.fromEntries(RISK_FIELDS.map(field => [field.key, Number(riskEdit[field.key])]))
+    setRiskEdit(null)
+    setConfirm({
+      title: 'Manuel işlem risk limitlerini kaydet',
+      message: `Yeni limitler: marjin ${values.max_margin_per_trade} USDT, işlem başı kayıp ${values.max_loss_per_trade} USDT, günlük limit ${values.daily_loss_limit} USDT, kaldıraç ${values.max_leverage}x, en fazla ${values.max_positions} pozisyon. Kaydedince varsa otomatik işlem durur; yeni limitleri sen onaylamış olursun ve manuel emirler bu limitlerle devam eder.`,
+      simple: true, understanding: true, busyKey: 'policy',
+      action: async () => {
+        await call<LiveStatus>(V25, '/policy', {method: 'PUT', body: JSON.stringify({...(status?.policy ?? {}), ...values, understood: true})})
+        await call<LiveStatus>(V25, '/policy/acknowledge', {method: 'POST', body: JSON.stringify({understood: true})})
+      },
+    })
+    setConfirmText('')
+    setConfirmCode('')
+  }
+
   const updatePolicy = () => {
     setConfirm({
       title: 'LIVE risk politikasını kaydet',
@@ -1142,6 +1179,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="liveConfirmBtns"><button type="button" className="liveConfirmNo" onClick={() => {setConfirm(null);setConfirmText('');setConfirmCode('')}}>{activeConfirm.simple ? 'HAYIR' : 'CANCEL'}</button>
         <button type="button" className="liveConfirmYes" disabled={(activeConfirm.understanding && !confirmUnderstood) || (!activeConfirm.simple && confirmText.trim().toUpperCase() !== activeConfirm.expected) || (activeConfirm.mfa && confirmCode.length < 6)} onClick={confirmAction}>{activeConfirm.simple ? 'EVET' : 'CONFIRM'}</button>
       </div>
+    </section></div>,
+    document.body,
+  ) : null
+  const riskEditProblemText = riskEdit ? riskEditProblem(riskEdit) : ''
+  const riskEditModal = riskEdit && typeof document !== 'undefined' ? createPortal(
+    <div className="liveConfirmBackdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) setRiskEdit(null) }}><section className="liveConfirm mxRiskEdit" role="dialog" aria-modal="true" aria-labelledby="mx-risk-edit-title" data-tone="warn">
+      <span className="liveConfirmGrab" aria-hidden="true"/>
+      <h2 id="mx-risk-edit-title">Manuel işlem risk limitleri</h2>
+      <p>Manuel emir verirken geçerli üst sınırlar. Sunucu bu sınırları aşan emri reddeder.</p>
+      <div className="mxRiskEditGrid">{RISK_FIELDS.map(field => <label key={field.key}>{field.label}
+        <span className="mxRiskEditField"><input type="number" inputMode="decimal" min={field.min} max={field.max} step={field.int ? 1 : 'any'} value={riskEdit[field.key]} onChange={event => setRiskEdit(current => current ? {...current, [field.key]: event.target.value} : current)}/><em>{field.unit}</em></span>
+        <small>{field.hint}</small></label>)}</div>
+      {riskEditProblemText && <p className="mxRiskEditError" role="alert">{riskEditProblemText}</p>}
+      <div className="liveConfirmBtns"><button type="button" className="liveConfirmNo" onClick={() => setRiskEdit(null)}>VAZGEÇ</button>
+        <button type="button" className="liveConfirmYes" disabled={Boolean(riskEditProblemText)} onClick={saveRiskEdit}>KAYDET</button></div>
     </section></div>,
     document.body,
   ) : null
@@ -2023,7 +2075,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       wallet={snapshotVerified ? status.account.wallet_balance : null} availableBalance={snapshotVerified && Number.isFinite(available) ? available : null}
       marketBanSeconds={globalBanActive ? banCountdown : 0} externalBusy={Boolean(busy)} userId={userId}
       request={(path, body) => call(V25, path, {method: 'POST', timeoutMs: 60000, ...(body ? {body: JSON.stringify(body)} : {})})}
-      refresh={() => refresh(true)} findPlan={findActivePlanForPosition}
+      refresh={() => refresh(true)} findPlan={findActivePlanForPosition} onManualRiskEdit={openRiskEdit}
       extras={<>
         {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}
         {status && <details className="originalSurface originalManualOrder advRow" onToggle={event => setManualPanelOpen((event.currentTarget as HTMLDetailsElement).open)}><summary className="advHead">
@@ -2081,7 +2133,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             </details>}
           </details>
         })()}
-        {confirmationModal}
+        {confirmationModal}{riskEditModal}
       </>}
     /></TrialLiveGate></PremiumWorkspace>
   }
@@ -2316,7 +2368,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         </>}
       </section>
       </TrialLiveGate>
-      {confirmationModal}
+      {confirmationModal}{riskEditModal}
     </PremiumWorkspace>
   }
   return null
