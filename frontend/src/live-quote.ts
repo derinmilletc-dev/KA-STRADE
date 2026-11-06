@@ -18,6 +18,8 @@ export type CloseEstimate = {
   pnl: number
   /** Kapanış komisyonu düşülmüş tahmini net sonuç. */
   pnlAfterFee: number
+  /** Giriş + kapanış komisyonunun ikisi de düşülmüş gerçek net sonuç (cüzdana yansıyacak tutar). */
+  netPnl: number
   /** Fiyatın yaşı (ms). */
   ageMs: number
 }
@@ -44,7 +46,13 @@ export function closeEstimate(input: {long: boolean; entry: number | null; quant
   if (!finitePositive(exitPrice)) return null
   const pnl = (exitPrice - entry) * (long ? 1 : -1) * quantity
   const pnlAfterFee = pnl - exitPrice * quantity * TAKER_FEE_RATE
-  return {exitPrice, pnl, pnlAfterFee, ageMs}
+  return {exitPrice, pnl, pnlAfterFee, netPnl: netOfFees(pnl, entry, exitPrice, quantity) ?? pnl, ageMs}
+}
+
+/** Komisyon sonrası net: kâr/zarardan giriş ve çıkış taker komisyonu düşülür. Veri eksikse null (uydurma yok). */
+export function netOfFees(pnl: number | null, entry: number | null, exit: number | null, quantity: number | null): number | null {
+  if (pnl === null || !Number.isFinite(pnl) || !finitePositive(entry) || !finitePositive(exit) || !finitePositive(quantity)) return null
+  return pnl - (entry + exit) * quantity * TAKER_FEE_RATE
 }
 
 /** Akış için sembol listesi: tekrarsız, sıralı, yalnız geçerli USDⓈ-M sembolleri. */

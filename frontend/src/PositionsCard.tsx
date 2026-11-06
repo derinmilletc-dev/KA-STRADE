@@ -1,7 +1,7 @@
 import {useMemo, useState, type CSSProperties} from 'react'
-import {ChevronDown, X} from 'lucide-react'
+import {ChevronDown, RefreshCw, SlidersHorizontal, X} from 'lucide-react'
 import {duration} from './live-guide'
-import {closeEstimate, type QuoteMap} from './live-quote'
+import {closeEstimate, netOfFees, type QuoteMap} from './live-quote'
 import {
   formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, sortPositions, summarize,
   type Ladder, type PositionMetrics, type PositionSort, type RawRecord,
@@ -25,6 +25,10 @@ type Props = {
   onReduce: (target: PositionManualTarget, percent: 25 | 50 | 75) => void
   /** Binance'ten canlı en iyi alış/satış (useLiveQuotes). Taze değilse sunucu verisi gösterilir ve uyarı çıkar. */
   quotes?: QuoteMap; quoteNow?: number
+  /** Risk kutusundaki yenile tuşu: sunucu durumunu (günlük limit, pozisyonlar) hemen yeniden okur. */
+  onRefresh?: () => Promise<unknown> | void
+  /** Risk kutusundaki ayar tuşu: risk / günlük kayıp ayarlarını açar. Ayar yoksa verilmez, tuş görünmez. */
+  onRiskSettings?: () => void
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -72,6 +76,12 @@ export default function PositionsCard(props: Props) {
   const [sort, setSort] = useState<PositionSort>('risk')
   const [view, setView] = useState<'card' | 'table'>(readView)
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshNow = () => {
+    if (refreshing || !props.onRefresh) return
+    setRefreshing(true)
+    void Promise.resolve().then(() => props.onRefresh?.()).catch(() => undefined).finally(() => setRefreshing(false))
+  }
   const changeView = (next: 'card' | 'table') => { setView(next); try { localStorage.setItem(VIEW_KEY, next) } catch { /* tercih bu sayfada kalır */ } }
 
   const items = useMemo(() => positions.map((position, index) => {
@@ -83,7 +93,10 @@ export default function PositionsCard(props: Props) {
     const base = positionMetrics(position, external ? undefined : plan, now)
     // Ekrandaki K/Z: Binance'in anlık kapanış fiyatından (LONG → alış, SHORT → satış). Taze fiyat yoksa sunucu verisi.
     const estimate = closeEstimate({long: base.long, entry: base.entry, quantity: base.quantity, quote: props.quotes?.[base.symbol.toUpperCase()], nowMs: props.quoteNow ?? Date.now()})
-    const metrics = estimate ? positionMetrics(position, external ? undefined : plan, now, {price: estimate.exitPrice, pnl: estimate.pnl}) : base
+    // Gösterilen K/Z komisyon sonrası nettir (giriş + çıkış taker komisyonu düşülür); Binance'in ham "unrealized" değeri komisyonsuzdur.
+    const net = estimate ? estimate.netPnl : netOfFees(base.pnl, base.entry, base.mark, base.quantity)
+    const metrics = estimate ? positionMetrics(position, external ? undefined : plan, now, {price: estimate.exitPrice, pnl: estimate.netPnl})
+      : net !== null && base.mark !== null ? positionMetrics(position, external ? undefined : plan, now, {price: base.mark, pnl: net}) : base
     return {key: `${String(position.symbol)}-${index}`, position, plan, external, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: confirmed && protection?.stop === true}
   }), [positions, findPlan, now, props.quotes, props.quoteNow])
   const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
@@ -109,9 +122,13 @@ export default function PositionsCard(props: Props) {
       </div>
 
       <div className="pvSum" aria-label="Portföy özeti">
-        <div className="pvTile"><small>Toplam kâr / zarar</small><b data-tone={tone(summary.pnl)}>{summary.pnl === null ? '—' : `${formatUsdt(summary.pnl, true)} USDT`}</b>
-          <em>{summary.pnlOfBalancePct !== null ? `${formatPct(summary.pnlOfBalancePct, 1)} hesap` : `${summary.count} açık pozisyon`}</em></div>
-        <div className="pvTile"><small>Stopta toplam risk</small><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
+        <div className="pvTile"><small>Toplam kâr / zarar · net</small><b data-tone={tone(summary.pnl)}>{summary.pnl === null ? '—' : `${formatUsdt(summary.pnl, true)} USDT`}</b>
+          <em>{summary.pnlOfBalancePct !== null ? `${formatPct(summary.pnlOfBalancePct, 1)} hesap` : `${summary.count} açık pozisyon`} · komisyon dahil</em></div>
+        <div className="pvTile pvRiskTile"><span className="pvTileHead"><small>Stopta toplam risk</small>
+          <span className="pvTileActs">
+            {props.onRefresh && <button type="button" className="pvIconBtn" data-busy={refreshing || undefined} onClick={refreshNow} disabled={refreshing} aria-label="Risk ve pozisyonları yenile" title="Yenile"><RefreshCw aria-hidden="true"/></button>}
+            {props.onRiskSettings && <button type="button" className="pvIconBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını aç" title="Risk ayarı"><SlidersHorizontal aria-hidden="true"/></button>}
+          </span></span><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
           <em>{summary.riskOfRemainingDailyPct !== null ? `Kalan günlük sınırın ${formatPct(summary.riskOfRemainingDailyPct, 0)}'i` : summary.riskUnknown > 0 ? `${summary.riskUnknown} pozisyon için hesaplanamadı` : 'Tüm stoplar çalışırsa'}</em>
           {summary.riskOfRemainingDailyPct !== null && <span className="pvBar" data-high={summary.riskOfRemainingDailyPct >= 80 || undefined}><i style={{width: `${Math.min(100, summary.riskOfRemainingDailyPct)}%`}}/></span>}</div>
         <div className="pvTile"><small>{summary.exposureLimit !== null ? 'Büyüklük / sistem sınırı' : 'Toplam büyüklük'}</small>
@@ -159,7 +176,7 @@ export default function PositionsCard(props: Props) {
                 <span className="pvSlimName"><b>{metrics.coin || '—'}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
                 <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span></small>
               </span>
-              <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT · ${formatR(metrics.rMultiple)}` : 'USDT'}{livePrice ? '' : ' · gecikmeli'}</small></span>
+              <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT net · ${formatR(metrics.rMultiple)}` : 'USDT net'}{livePrice ? '' : ' · gecikmeli'}</small></span>
               <ChevronDown className="pvSlimChev" aria-hidden="true"/>
             </span>
             {progress !== null && <span className="pvThin" data-level={metrics.level} aria-hidden="true"><i style={{width: `${progress}%`}}/><em style={{left: `${progress}%`}}/></span>}
@@ -227,7 +244,7 @@ export default function PositionsCard(props: Props) {
       })}</div>
 
       <div className="pvTable" role="table" aria-label="Pozisyon tablosu">
-        <div className="pvRow pvRowHead" role="row">{['COIN', 'YÖN', 'BÜYÜKLÜK', 'GİRİŞ', 'FİYAT', 'STOPA', 'TP1’E', 'K/Z', 'R'].map(label => <span key={label} role="columnheader">{label}</span>)}</div>
+        <div className="pvRow pvRowHead" role="row">{['COIN', 'YÖN', 'BÜYÜKLÜK', 'GİRİŞ', 'FİYAT', 'STOPA', 'TP1’E', 'NET K/Z', 'R'].map(label => <span key={label} role="columnheader">{label}</span>)}</div>
         {sorted.map(({key, position, metrics}) => <div className="pvRow" role="row" key={key} data-level={metrics.level}>
           <b role="cell">{metrics.coin}</b>
           <span role="cell" data-tone={metrics.long ? 'up' : 'down'}>{metrics.direction}</span>

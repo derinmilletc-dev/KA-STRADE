@@ -1,6 +1,6 @@
 // Çalıştırma: node frontend/src/live-quote.test.mts   (Node 22.18+; ek paket gerekmez)
 import assert from 'node:assert'
-import {bookTickerUrl, closeEstimate, liveChangePercent, midPrice, parseBookTicker, streamSymbols, QUOTE_FRESH_MS} from './live-quote.ts'
+import {bookTickerUrl, closeEstimate, netOfFees, liveChangePercent, midPrice, parseBookTicker, streamSymbols, QUOTE_FRESH_MS} from './live-quote.ts'
 
 // bookTicker mesajı: hem birleşik akış ({stream, data}) hem tekil biçim okunur.
 const parsed = parseBookTicker({stream: 'btcusdt@bookTicker', data: {e: 'bookTicker', s: 'BTCUSDT', b: '100.5', a: '100.6'}}, 1000)
@@ -43,4 +43,12 @@ assert.strictEqual(liveChangePercent(0.16883, 3.23, null), null, 'canlı fiyat y
 assert.strictEqual(liveChangePercent(0, 3.23, 1), null)
 assert.strictEqual(liveChangePercent(1, -100, 1), null, 'açılış fiyatı türetilemez')
 assert.strictEqual(liveChangePercent(1, Number.NaN, 1), null)
+// Net K/Z: giriş + çıkış komisyonu (her biri %0,05) düşülür.
+const netLong = closeEstimate({long: true, entry: 0.5, quantity: 1000, quote, nowMs: 10_500})!
+assert.ok(Math.abs(netLong.netPnl - (netLong.pnl - (0.5 + netLong.exitPrice) * 1000 * 0.0005)) < 1e-12, 'net = K/Z − giriş ve çıkış komisyonu')
+assert.ok(netLong.netPnl < netLong.pnlAfterFee, 'net, yalnız çıkış komisyonlu değerden de düşüktür')
+assert.strictEqual(netOfFees(1, 0.5, 0.6, 100), 1 - 1.1 * 100 * 0.0005)
+assert.strictEqual(netOfFees(null, 0.5, 0.6, 100), null)
+assert.strictEqual(netOfFees(1, 0, 0.6, 100), null)
+assert.strictEqual(netOfFees(1, 0.5, 0.6, null), null)
 console.log('live-quote testleri geçti')

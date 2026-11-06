@@ -1312,3 +1312,13 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:hover{background:rgba(255,107,107,.2)!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:focus-visible{outline:2px solid var(--lc-go)!important;outline-offset:2px!important}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuickClose:disabled{opacity:.45!important;cursor:not-allowed!important}
+
+/* Risk kutusu: başlık satırında yenile ve risk ayarı tuşları */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTileHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvTileActs{display:inline-flex;gap:6px;flex:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIconBtn{display:grid;place-items:center;width:30px;height:30px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:inherit;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIconBtn:active{transform:scale(.94)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIconBtn:disabled{opacity:.7;cursor:default}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIconBtn svg{width:15px;height:15px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvIconBtn[data-busy] svg{animation:pvSpin .8s linear infinite}
+@keyframes pvSpin{to{transform:rotate(360deg)}}

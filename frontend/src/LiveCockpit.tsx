@@ -1664,7 +1664,7 @@ export default function LiveCockpit(props: Props) {
     <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
     <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon <b>piyasa fiyatından, reduce-only</b> emirle hemen kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
     <ul className="lcStopList">
-      {closeLive ? <li data-tone={closeLive.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa ≈ {usdt(closeLive.pnl, true)} USDT</b> · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}. Komisyon sonrası ≈ {usdt(closeLive.pnlAfterFee, true)} USDT. Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
+      {closeLive ? <li data-tone={closeLive.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa ≈ {usdt(closeLive.pnl, true)} USDT</b> · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}. Giriş ve çıkış komisyonu dahil net ≈ {usdt(closeLive.netPnl, true)} USDT. Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
         : <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} USDT ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></li>}
       <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Pozisyon kapanınca bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.</span></li>
     </ul>
@@ -1979,7 +1979,9 @@ export default function LiveCockpit(props: Props) {
         <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
-          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now}/>
+          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now}
+          onRefresh={() => refresh()}
+          onRiskSettings={verified && original && guideInput.connected ? () => { setSettingsOpen(true); window.setTimeout(() => (document.querySelector('#lc-strategy .lcStrategyEdit') || document.getElementById('lc-strategy') || document.getElementById('lc-drawer'))?.scrollIntoView({behavior: 'smooth', block: 'start'}), 120) } : undefined}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>
 
