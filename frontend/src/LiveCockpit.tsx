@@ -104,7 +104,7 @@ const dateTime = (value: number) => new Date(value).toLocaleString('tr-TR', {day
 const errorText = (error: unknown, fallback: string) => {
   const raw = error instanceof Error ? error.message : fallback
   // Sunucunun teknik ön ekini ("LIVE KİLİTLİ / GATE BLOCKED: ...") müşteriye göstermeyiz; açıklamanın kendisi kalır.
-  return raw.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '') || fallback
+  return raw.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '') || fallback
 }
 const goTabUrl = (tab: string) => {
   const url = new URL(window.location.href)
@@ -1709,12 +1709,21 @@ export default function LiveCockpit(props: Props) {
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || Boolean(working)} onClick={() => void secure('fill-lock')}>{working === 'fill-lock' ? 'Kaldırılıyor…' : 'Kilidi kaldır'}</button></div>
   </> : sheet === 'emergency-clear' || sheet === 'recovery' ? <>
-    <h2 id="lc-sheet-title">{sheet === 'recovery' ? 'Kurtarma kontrolü' : 'Acil durdurmayı kaldır'}</h2>
+    <div className="lcEmHead"><span className="lcEmIcon" data-k={sheet} aria-hidden="true"><ShieldCheck/></span>
+      <div><h2 id="lc-sheet-title">{sheet === 'recovery' ? 'Kurtarma kontrolü' : 'Acil durdurmayı kaldır'}</h2>
+        <small>{sheet === 'recovery' ? 'Hesap ve sistem kaydı karşılaştırılır' : 'Yeni işlemler şu an kapalı'}</small></div></div>
     <p className="lcSheetLead">{sheet === 'recovery'
       ? 'Binance’teki emir ve pozisyonların sistem kaydıyla eşleştiği yeniden doğrulanır. Emir gönderilmez.'
       : 'Kilit kalkar ama işlem kendiliğinden başlamaz; rehber seni onay ve başlatma adımlarına götürür. Açık pozisyonların korumaları değişmez.'}</p>
+    {sheet === 'emergency-clear' && <>
+      {guideInput.emergencyText && <div className="lcEmReason"><small>KİLİT SEBEBİ</small><span>{guideInput.emergencyText}</span></div>}
+      <ol className="lcEmSteps">
+        <li><b>1</b><span>2FA ile kimliğini doğrularsın</span></li>
+        <li><b>2</b><span>Sistem Binance hesabını taze doğrular</span></li>
+        <li><b>3</b><span>Hesap temizse kilit kalkar; işlem yine sen başlatana kadar başlamaz</span></li>
+      </ol></>}
     <label className="lcCheck"><input type="checkbox" checked={secureAccepted} onChange={event => setSecureAccepted(event.target.checked)}/><span>{sheet === 'recovery' ? 'Kontrolün yapılmasını onaylıyorum.' : 'Acil durdurma kilidinin kaldırılmasını onaylıyorum.'}</span></label>
-    <label className="lcField">2FA kodu<input type="password" inputMode="numeric" autoComplete="one-time-code" data-private="true" maxLength={32} value={code} onChange={event => setCode(event.target.value.trim())}/></label>
+    <label className="lcField lcEmCode">2FA kodu<input type="password" inputMode="numeric" autoComplete="one-time-code" data-private="true" maxLength={32} placeholder="6 haneli kod" value={code} onChange={event => setCode(event.target.value.trim())}/></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || code.length < 6 || Boolean(working)} onClick={() => void secure(sheet)}>{working === sheet ? 'Doğrulanıyor…' : sheet === 'recovery' ? 'Kontrolü yap' : 'Kilidi kaldır'}</button></div>
   </> : null
@@ -2022,7 +2031,7 @@ export default function LiveCockpit(props: Props) {
       <section className="lcSheet" role="dialog" aria-modal="true" aria-labelledby="lc-sheet-title" onKeyDown={event => { if (event.key === 'Escape') closeSheet() }}>
         <button type="button" className="lcSheetClose" aria-label="Kapat" onClick={closeSheet} disabled={Boolean(working)}><X aria-hidden="true"/></button>
         {sheetView}
-        {sheetError && sheet !== 'approvals' && <p className="lcHint stop" role="alert" data-testid="live-sheet-error">İşlem tamamlanamadı: {sheetError}</p>}
+        {sheetError && sheet !== 'approvals' && <div className="lcHint stop lcEmErr" role="alert" data-testid="live-sheet-error"><b>İşlem tamamlanamadı</b><span>{sheetError}</span>{sheet === 'emergency-clear' && /temiz çıkmadı/i.test(sheetError) && <small>Binance’te açık pozisyon ve emirleri kontrol et. Sorun yoksa birkaç dakika sonra tekrar dene; her denemede hesap yeniden doğrulanır.</small>}</div>}
       </section>
     </div>}
   </section>

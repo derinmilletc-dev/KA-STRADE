@@ -1324,3 +1324,21 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage .lcRoot .pvRoot{scroll-margin-top:84px}
 #root .masterTradePage .lcRoot .pvRoot .pvCard[data-pos-flash]{animation:pvFlash 2.2s ease-out}
 @keyframes pvFlash{0%,35%{box-shadow:0 0 0 2px #59d99b,0 0 22px rgba(89,217,155,.35)}100%{box-shadow:0 0 0 0 transparent}}
+
+/* Acil durdurma / kurtarma penceresi */
+.lcRoot .lcEmHead{display:flex;align-items:center;gap:14px}
+.lcRoot .lcEmHead h2{margin:0!important;padding-right:36px}
+.lcRoot .lcEmHead small{display:block;margin-top:2px;color:var(--lc-mute);font-size:12.5px}
+.lcRoot .lcEmIcon{flex:none;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,143,143,.14);color:#ff9d9d}
+.lcRoot .lcEmIcon[data-k=recovery]{background:rgba(61,220,151,.14);color:#3ddc97}
+.lcRoot .lcEmIcon svg{width:24px;height:24px}
+.lcRoot .lcEmReason{display:grid;gap:4px;padding:12px 14px;border-radius:14px;background:rgba(245,192,74,.1);box-shadow:inset 0 0 0 1px rgba(245,192,74,.35)}
+.lcRoot .lcEmReason small{font-size:11px;font-weight:800;letter-spacing:.12em;color:#f5c04a}
+.lcRoot .lcEmReason span{font-size:13.5px;line-height:1.5;color:#e6eef7}
+.lcRoot .lcEmSteps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.lcRoot .lcEmSteps li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04);font-size:13.5px;line-height:1.4;color:#d7e3eb}
+.lcRoot .lcEmSteps b{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:rgba(61,220,151,.16);color:#3ddc97}
+.lcRoot .lcEmCode input{text-align:center;letter-spacing:.35em;font-size:20px!important;font-weight:700;min-height:52px!important}
+.lcRoot .lcEmCode input::placeholder{letter-spacing:.02em;font-size:14px;font-weight:500}
+.lcRoot .lcEmErr{display:grid!important;gap:4px;padding:12px 14px;border-radius:14px;background:rgba(255,143,143,.1);box-shadow:inset 0 0 0 1px rgba(255,143,143,.4)}
+.lcRoot .lcEmErr b{color:#ff9d9d;font-size:14px}.lcRoot .lcEmErr span{font-size:13.5px;line-height:1.5;color:#f1d4d4}.lcRoot .lcEmErr small{font-size:12.5px;line-height:1.5;color:#c9d6e1}
