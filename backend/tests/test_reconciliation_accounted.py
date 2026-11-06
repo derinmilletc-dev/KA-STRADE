@@ -64,3 +64,28 @@ def test_other_emergency_reason_unchanged():
     state = locked_state()
     state["emergency"]["reason"] = "Kullanıcı canlı acil durdurma komutu"
     assert v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT"])) is False
+
+
+def test_stale_intents_cleared_even_when_other_mismatch_keeps_lock():
+    state = locked_state()
+    for coin in ("PYTHUSDT", "APRUSDT"):
+        state["intents"][f"i-{coin}"] = {"symbol": coin, "client_order_id": v25_execution.client_id_for("ENTRY", f"i-{coin}")}
+    # UNIUSDT'de planı olmayan, sisteme ait emir: kilit kalmalı, ama sonuçsuz niyetler temizlenmeli ve sebep yazılmalı.
+    assert v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT", "UNIUSDT"])) is False
+    assert not state["intents"]
+    assert "UNIUSDT" in state["clean_reconciliation_block"]
+    assert any("UNIUSDT" in item for item in v25_execution.reconciliation_blockers(state))
+
+
+def test_intent_with_open_order_on_symbol_is_not_stale():
+    state = locked_state()
+    state["intents"]["i-uni"] = {"symbol": "UNIUSDT", "client_order_id": v25_execution.client_id_for("ENTRY", "i-uni")}
+    v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT", "UNIUSDT"]))
+    assert "i-uni" in state["intents"]
+
+
+def test_stale_intents_with_accounted_position_clear_lock():
+    state = locked_state()
+    state["intents"]["i-q"] = {"symbol": "QUSDT", "client_order_id": v25_execution.client_id_for("ENTRY", "i-q")}
+    assert v25_execution.clear_clean_reconciliation_state(state, snapshot(["FILUSDT"], ["FILUSDT"])) is True
+    assert state["emergency"]["active"] is False and not state["intents"]
