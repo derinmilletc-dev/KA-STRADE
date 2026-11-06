@@ -5,8 +5,10 @@ import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Searc
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
+import { useLiveQuotes } from './useLiveQuotes'
+import { liveChangePercent, midPrice } from './live-quote'
 import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
-import { CheckList, DirectionCards, PriceMapView, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
+import { CheckList, DirectionCards, ElapsedSeconds, PriceMapView, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
 import { AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
@@ -253,12 +255,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     return draft ? {...base, symbol: draft.symbol, direction: draft.direction, margin_usdt: draft.margin_usdt, leverage: draft.leverage} : base
   })
   const [policyDraft, setPolicyDraft] = useState<LivePolicy | null>(null)
-  const [confirm, setConfirm] = useState<{title: string;message: string;expected?: string;simple?: boolean;understanding?: boolean;mfa?: boolean;action: (code?: string) => Promise<void>} | null>(null)
+  const [confirm, setConfirm] = useState<{title: string;message: string;expected?: string;simple?: boolean;understanding?: boolean;mfa?: boolean;busyKey?: string;action: (code?: string) => Promise<void>} | null>(null)
   const [confirmUnderstood, setConfirmUnderstood] = useState(false)
   useEffect(() => setConfirmUnderstood(false), [confirm])
   const [confirmText, setConfirmText] = useState('')
   const [confirmCode, setConfirmCode] = useState('')
   const [busy, setBusy] = useState('')
+  // Seçili coinin fiyatı Binance bookTicker akışından anlık gelir (liste ≤90 sn geriden gelir). Akış yoksa/bayatsa liste fiyatına dönülür.
+  const liveFeed = useLiveQuotes(order.symbol ? [order.symbol] : [], Boolean(order.symbol) && active)
+  const liveMidFor = (sym: string) => midPrice(liveFeed.quotes[String(sym || '').toUpperCase()], liveFeed.now)
   const [armPendingSync, setArmPendingSync] = useState(false)
   const [rateLimitSeconds, setRateLimitSeconds] = useState<number | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -1039,8 +1044,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // (Eskiden her zaman grafikteki coinin analizi kullanılıyordu; başka coin seçilince yersiz "Stop yanlış tarafta" hatası çıkıyordu.)
     const listedPrice = Number((universe ?? []).find(row => row.symbol === nextOrder.symbol)?.price)
     const referencePrice = nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price)
-      : nextOrder.symbol === symbol && Number.isFinite(Number(analysis?.entry)) && Number(analysis?.entry) > 0 ? Number(analysis?.entry)
-      : listedPrice
+      : liveMidFor(nextOrder.symbol) ?? (nextOrder.symbol === symbol && Number.isFinite(Number(analysis?.entry)) && Number(analysis?.entry) > 0 ? Number(analysis?.entry)
+      : listedPrice)
     const stop = Number(nextOrder.stop_loss)
     const targets = [Number(nextOrder.tp1), Number(nextOrder.tp2), Number(nextOrder.tp3)]
     if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
@@ -1073,7 +1078,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const action = confirm.action
     const code = confirmCode
     setConfirm(null); setConfirmText(''); setConfirmCode('')
-    void run('confirmed', () => action(code), 'LIVE backend safety zinciri işlemi tamamlandı.')
+    void run(confirm.busyKey || 'confirmed', () => action(code), 'LIVE backend safety zinciri işlemi tamamlandı.')
   }
 
   const stateRows = [
@@ -1207,6 +1212,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const q = coinQuery.trim().toUpperCase().replace('/', '')
     const rows = universe ?? []
     const selectedRow = rows.find(row => row.symbol === order.symbol)
+    const livePrice = liveMidFor(order.symbol)
+    const shownPrice = livePrice ?? (selectedRow ? Number(selectedRow.price) : NaN)
+    const shownChange = selectedRow ? (liveChangePercent(Number(selectedRow.price), Number(selectedRow.change), livePrice) ?? Number(selectedRow.change)) : NaN
+    const signedPct = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+    const liveBadge = livePrice !== null ? <em className="mxtMLive" title="Binance anlık fiyatı"><i aria-hidden="true"/>CANLI</em> : null
     const filteredRows = filterBySignal(rows, signals, coinFilter)
     const rankedRows = sortCoins(filteredRows, signals, coinSort)
     const matches = (q ? rankedRows.filter(row => row.symbol.includes(q) || String(row.display || '').toUpperCase().replace('/', '').includes(q)) : rankedRows)
@@ -1218,7 +1228,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 300 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
     const policyMarginMax = Number(status?.policy?.max_margin_per_trade)
     const marginMax = Number.isFinite(policyMarginMax) && policyMarginMax >= 5 ? Math.min(300, Math.floor(policyMarginMax)) : 300
-    const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price)
+    const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : livePrice ?? (order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price))
     const notional = marginValue * leverageValue
     const stopValue = Number(order.stop_loss)
     const tp1Value = Number(order.tp1)
@@ -1245,7 +1255,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
-      setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', action: async () => {
+      setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
         setReviewedKey(''); setReviewResult(null); setManualStep(0); writeDraft(null)
         setOrderDone(done)
@@ -1254,6 +1264,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }
     const set = (key: keyof OrderDraft, value: string) => { if (key === 'stop_loss' || key === 'tp1' || key === 'tp2' || key === 'tp3') { setLevelsFromAnalysis(false); setStopPick(null) } setOrder(current => ({...current, [key]: value})) }
     const armable = authorizationValid && readinessReady && !liveArmed && !freeTrial
+    // İzin (24 sa risk izni + ARM) işlemin en başında zorunludur: düzeltilebilir durumdaysa ilk adımdan ileri gidilemez.
+    const needPermission = !freeTrial && !(authorizationValid && liveArmed) && (!authorizationValid || armable)
     const wallet = Number(status?.account?.wallet_balance)
     const walletShare = wallet > 0 && marginValue > 0 ? marginValue / wallet * 100 : null
     const presetPrice = (value: number) => String(Number(value.toPrecision(6)))
@@ -1334,7 +1346,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span className="liveWsLabel">1 · Coin</span>
           <button type="button" className="liveWsCoinBtn cpkHero" data-lean={selectedSignal?.lean ?? 'NONE'} aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
             <span className="cpkHeroMain"><b>{selectedRow?.display || order.symbol || 'Coin seç'}</b>
-              <span className="cpkTick">{selectedRow ? <><span>{coinPrice(selectedRow.price)} USDT</span><em className={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : <span>{universeError ? 'Liste alınamadı' : 'Listeden seç'}</span>}</span>
+              <span className="cpkTick">{selectedRow ? <><span>{coinPrice(shownPrice)} USDT</span><em className={shownChange >= 0 ? 'up' : 'down'}>{signedPct(shownChange)}</em>{liveBadge}</> : <span>{universeError ? 'Liste alınamadı' : 'Listeden seç'}</span>}</span>
               {selectedSignal && <span className="cpkLeanLine">{leanText(selectedSignal)}</span>}</span>
             {duo(selectedSignal)}
             <ChevronDown/>
@@ -1399,11 +1411,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const limitMax = numericPolicy('max_positions', NaN)
     const limitFull = Number.isFinite(limitMax) && limitMax > 0 && positions.length >= limitMax
     const limitCoins = Array.from(new Set(positions.map(item => String(item.symbol || '').replace(/USDT$/, '')).filter(Boolean))).join(', ')
-    const stepOk = [Boolean(order.symbol), true,
+    const stepOk = [Boolean(order.symbol) && !needPermission, true,
       marginValue >= 5 && leverageValue >= 1 && (order.order_type !== 'LIMIT' || Number(order.limit_price) > 0),
       stopValue > 0 && tp1Value > 0, true]
     const wzStep = Math.min(manualStep, stepNames.length - 1)
-    const wzHint = [!stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
+    const wzHint = [needPermission ? 'Devam etmek için önce yukarıdaki izni ver.' : !stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
     const sign = order.direction === 'LONG' ? 1 : -1
     const suggest = [1, 2, 3].map(pct => ({pct, stop: entryRef > 0 ? presetPrice(entryRef * (1 - sign * pct / 100)) : null, tp1: entryRef > 0 ? presetPrice(entryRef * (1 + sign * pct / 100)) : null}))
     const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
@@ -1436,7 +1448,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const priceOrNull = (value: number) => Number.isFinite(value) && value > 0 ? coinPrice(value) : null
     const summaryRows: SummaryItem[] = [
       {label: 'Coin', value: order.symbol ? (selectedRow?.display || order.symbol) : null},
-      {label: 'Anlık fiyat', value: selectedRow && Number.isFinite(Number(selectedRow.price)) ? `${coinPrice(selectedRow.price)} USDT` : null},
+      {label: 'Anlık fiyat', value: Number.isFinite(shownPrice) && shownPrice > 0 ? `${coinPrice(shownPrice)} USDT${livePrice !== null ? ' · canlı' : ''}` : null},
       {label: 'Yön', value: order.direction, tone: dirSide === 'LONG' ? 'up' : 'down'},
       {label: 'Emir tipi', value: order.order_type === 'LIMIT' ? 'Limit' : 'Piyasa'},
       {label: 'Marjin', value: marginValue > 0 ? `${marginValue} USDT` : null},
@@ -1465,6 +1477,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const noticeEl = notice.kind !== 'info' && notice.text
       ? <p className={`mxtNotice ${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} data-testid="mwz-notice">{notice.text}</p>
       : null
+    const permissionLabel = !authorizationValid ? (authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver') : 'İzni aç'
+    const permissionCard = needPermission && !orderDone ? <div className="mxtPerm" role="alert">
+      <span><b>Önce izni aç</b><small>Gerçek emir için 24 saatlik risk izni ve ARM şart. Şimdi aç; son adımda kilitli çıkıp geri dönmeyesin.</small></span>
+      <button type="button" className="mxtBtn primary" onClick={authorizationValid ? armLive : grantConsent} disabled={Boolean(busy)}>{permissionLabel}</button>
+    </div> : null
+    const progressEl = busy === 'review' || busy === 'send' ? <div className="mxtProgress" role="status" aria-live="polite" key={busy}>
+      <RefreshCw className="spin" aria-hidden="true"/>
+      <span><b>{busy === 'review' ? 'Dry-run kontrol ediliyor…' : 'Emir Binance\'e gönderiliyor, onay bekleniyor…'}</b>
+        <small>{busy === 'review' ? 'Gerçek emir gitmez; borsa kurallarına göre doğrulanıyor.' : 'Ekranı kapatma, tekrar basma; sonuç gelince burada görünür.'} <ElapsedSeconds/></small></span>
+    </div> : null
     const feeNote = `Tahminlere giriş ve çıkış komisyonu (taraf başı %${(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir.`
     const statusStrip = <div className="mxtStatus" aria-label="Bağlantı ve güvenlik durumu">
       <span className="mxtBrand">KAISTRADE MANUAL EXECUTION<small>Manuel emir · gerçek para</small></span>
@@ -1715,8 +1737,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       {reviewResult && reviewed && <p className="mxtOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
       <div className="mxtActions">
-        <button type="button" className="mxtBtn ghost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
-        <button type="button" className="mxtBtn danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Gerçek emri gönder</button>
+        <button type="button" className="mxtBtn ghost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'review' ? 'Kontrol ediliyor…' : 'Dry-run ile kontrol et'}</button>
+        <button type="button" className="mxtBtn danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}>{busy === 'send' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'send' ? 'Gönderiliyor…' : 'Gerçek emri gönder'}</button>
       </div>
       {noticeEl}
       {sendBlock && sendBlock !== riskError && <p className="mxtHint">{sendBlock}</p>}
@@ -1752,12 +1774,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
+      {permissionCard}
+      {progressEl}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}
       {fromStudio && fromStudio === order.symbol && !orderDone && <p className="mxtFrom" role="status">✓ <b>{fromStudio}</b> analiz stüdyosundan seçildi{hasAnalysis ? ' · Kais analizi hazır' : ''}</p>}
       <div className="mxtM mxtMHead">
         <div className="mxtMLabel"><span>ADIM {wzStep + 1} / {stepNames.length} · <em>{stepNames[wzStep]}</em></span><button type="button" className="mxtMAsk" onClick={() => askKais(askText)}>✦ Kais’e sor</button></div>
-        {selectedRow && Number.isFinite(Number(selectedRow.price)) && <div className="mxtMPrice"><i aria-hidden="true"/><b>{selectedRow.display || order.symbol}</b><span>{coinPrice(Number(selectedRow.price))}</span>{Number.isFinite(Number(selectedRow.change)) && <span className="mxtMChg" data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</span>}</div>}
+        {selectedRow && Number.isFinite(Number(selectedRow.price)) && <div className="mxtMPrice"><i aria-hidden="true"/><b>{selectedRow.display || order.symbol}</b><span>{coinPrice(shownPrice)}</span>{Number.isFinite(shownChange) && <span className="mxtMChg" data-tone={shownChange >= 0 ? 'up' : 'down'}>{signedPct(shownChange)}</span>}{liveBadge}</div>}
       </div>
       <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
         <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
@@ -1913,7 +1937,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
     </div>
     return <div className="liveWsOrder liveUxOrderGrid">
-      {!manualOrderReady && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{!authorizationValid && !freeTrial ? <button type="button" className="liveWsPrimary manualRenewBtn" onClick={grantConsent} disabled={Boolean(busy)}><RefreshCw aria-hidden="true"/>{authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver'}</button> : armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      {!wizard && progressEl}
+      {!manualOrderReady && !(wizard && needPermission && !orderDone) && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{!authorizationValid && !freeTrial ? <button type="button" className="liveWsPrimary manualRenewBtn" onClick={grantConsent} disabled={Boolean(busy)}><RefreshCw aria-hidden="true"/>{authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver'}</button> : armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
@@ -1942,7 +1967,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <small className="liveWsHint">Tahminlere giriş ve çıkış komisyonu (taraf başı %{(feeRate * 100).toFixed(2)}) dahildir; kayma ve fonlama ücreti dahil değildir. Hedefler: TP1 %{order.tp_split.split('-')[0]}, TP2 %{order.tp_split.split('-')[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</small>
         {reviewResult && reviewed && <p className="liveWsOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
         <div className="liveWsSendRow">
-          <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} Dry-run ile kontrol et</button>
+          <button type="button" className="liveWsGhost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'review' ? 'Kontrol ediliyor…' : 'Dry-run ile kontrol et'}</button>
           <button type="button" className="liveWsPrimary danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}><Send/> Emri gönder</button>
         </div>
         {sendBlock && sendBlock !== riskError && <small className="liveWsHint">{sendBlock}</small>}
