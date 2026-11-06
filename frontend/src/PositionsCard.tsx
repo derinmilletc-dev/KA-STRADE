@@ -1,5 +1,5 @@
 import {useMemo, useState, type CSSProperties} from 'react'
-import {ChevronDown, RefreshCw, SlidersHorizontal, X} from 'lucide-react'
+import {ChevronDown, SlidersHorizontal, X} from 'lucide-react'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, type QuoteMap} from './live-quote'
 import {
@@ -25,9 +25,7 @@ type Props = {
   onReduce: (target: PositionManualTarget, percent: 25 | 50 | 75) => void
   /** Binance'ten canlı en iyi alış/satış (useLiveQuotes). Taze değilse sunucu verisi gösterilir ve uyarı çıkar. */
   quotes?: QuoteMap; quoteNow?: number
-  /** Risk kutusundaki yenile tuşu: sunucu durumunu (günlük limit, pozisyonlar) hemen yeniden okur. */
-  onRefresh?: () => Promise<unknown> | void
-  /** Risk kutusundaki ayar tuşu: risk / günlük kayıp ayarlarını açar. Ayar yoksa verilmez, tuş görünmez. */
+  /** Risk kutusundaki "Düzenle" butonu: risk / günlük kayıp ayarlarını açar. Ayar yoksa verilmez, buton görünmez. */
   onRiskSettings?: () => void
 }
 
@@ -76,12 +74,6 @@ export default function PositionsCard(props: Props) {
   const [sort, setSort] = useState<PositionSort>('risk')
   const [view, setView] = useState<'card' | 'table'>(readView)
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const [refreshing, setRefreshing] = useState(false)
-  const refreshNow = () => {
-    if (refreshing || !props.onRefresh) return
-    setRefreshing(true)
-    void Promise.resolve().then(() => props.onRefresh?.()).catch(() => undefined).finally(() => setRefreshing(false))
-  }
   const changeView = (next: 'card' | 'table') => { setView(next); try { localStorage.setItem(VIEW_KEY, next) } catch { /* tercih bu sayfada kalır */ } }
 
   const items = useMemo(() => positions.map((position, index) => {
@@ -127,10 +119,7 @@ export default function PositionsCard(props: Props) {
         <div className="pvTile pvRiskTile"><small>Stopta toplam risk</small><b>{summary.riskAtStop === null ? '—' : `${formatUsdt(summary.riskAtStop)} USDT`}</b>
           <em>{summary.riskOfRemainingDailyPct !== null ? `Kalan günlük sınırın ${formatPct(summary.riskOfRemainingDailyPct, 0)}'i` : summary.riskUnknown > 0 ? `${summary.riskUnknown} pozisyon için hesaplanamadı` : 'Tüm stoplar çalışırsa'}</em>
           {summary.riskOfRemainingDailyPct !== null && <span className="pvBar" data-high={summary.riskOfRemainingDailyPct >= 80 || undefined}><i style={{width: `${Math.min(100, summary.riskOfRemainingDailyPct)}%`}}/></span>}
-          {(props.onRefresh || props.onRiskSettings) && <span className="pvTileActs">
-            {props.onRefresh && <button type="button" className="pvIconBtn" data-busy={refreshing || undefined} onClick={refreshNow} disabled={refreshing} aria-label="Risk ve pozisyonları yenile"><RefreshCw aria-hidden="true"/>{refreshing ? 'Yenileniyor' : 'Yenile'}</button>}
-            {props.onRiskSettings && <button type="button" className="pvIconBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını aç"><SlidersHorizontal aria-hidden="true"/>Ayar</button>}
-          </span>}</div>
+          {props.onRiskSettings && <button type="button" className="pvEditBtn" onClick={props.onRiskSettings} aria-label="Risk ayarlarını düzenle"><SlidersHorizontal aria-hidden="true"/>Düzenle</button>}</div>
         <div className="pvTile"><small>{summary.exposureLimit !== null ? 'Büyüklük / sistem sınırı' : 'Toplam büyüklük'}</small>
           <b>{summary.notional === null ? '—' : summary.exposureLimit !== null ? `${formatUsdt(summary.notional)} / ${formatUsdt(summary.exposureLimit)}` : `${formatUsdt(summary.notional)} USDT`}</b>
           <em>{summary.margin !== null ? `Teminat ${formatUsdt(summary.margin)} USDT` : 'Teminat bilgisi yok'}</em>
