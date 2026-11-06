@@ -551,8 +551,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     return () => { if (timer !== undefined) clearVisibleInterval(timer) }
   }, [active, symbol, Boolean(onRefreshStatus)])
 
-  const run = async (key: string, action: () => Promise<void>, success: string) => {
-    if (actionInFlight.current) return
+  const run = async (key: string, action: () => Promise<void>, success: string): Promise<boolean> => {
+    if (actionInFlight.current) return false
     actionInFlight.current = true
     setBusy(key)
     const connectionAction = ['test', 'save', 'connect', 'connect-save'].includes(key)
@@ -562,6 +562,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (!await refresh()) throw new Error('İşlem sonrasında LIVE durumu doğrulanamadı; tekrar göndermeden önce durumu kontrol edin.')
       setNotice({kind: 'ok', text: success})
       if (connectionAction) setConnectionNotice({kind: 'ok', text: success})
+      return true
     }
     catch (error) {
       const message = connectionAction ? connectionFailureMessage(error, [credentials.apiKey, credentials.secretKey])
@@ -570,6 +571,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (connectionAction) setConnectionNotice({kind: 'error', text: message})
       await refresh()
       setNotice({kind: 'error', text: message})
+      return false
     }
     finally { actionInFlight.current = false; setBusy('') }
   }
@@ -950,6 +952,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     setConfirmText('')
   }
 
+  // Kaydırarak izin: kaydırma, açıkça yazılı onaydır (onay penceresi yok). İzin yoksa önce 24 saatlik risk izni, ardından ARM; sunucu kapıları aynen geçerli.
+  const [permDone, setPermDone] = useState(false)
+  const slidePermission = async (): Promise<boolean> => {
+    if (freeTrial) { setNotice({kind: 'error', text: 'LIVE işlem MASTER MODE ile açılır'}); return false }
+    const ok = await run('permission', async () => {
+      if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
+      await call(V25, '/arm', {method: 'POST', body: JSON.stringify({understood: true})})
+      setArmPendingSync(true)
+    }, 'İzin verildi; gerçek emir için hazırsın.')
+    if (ok) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
+    return ok
+  }
   const revokeConsent = () => {
     setConfirm({title: 'LIVE consent kaldırma', message: '24 saatlik LIVE risk izni, ARM penceresi ve Auto Trade yetkisi kaldırılacak. Binance pozisyonlarına veya emirlerine dokunulmaz.', expected: '24 SAATLİK CONSENTİ KALDIR', action: async () => {
       await call(V25, '/consent/revoke', {method: 'POST', body: JSON.stringify({confirmation: '24 SAATLİK CONSENTİ KALDIR'})})
@@ -1865,8 +1879,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
-            {needPermission && !orderDone
-              ? <SlideToConfirm label={permissionLabel} hint="Kaydır → 24 saatlik risk izni + ARM" disabled={Boolean(busy)} onConfirm={authorizationValid ? armLive : grantConsent}/>
+            {(needPermission || permDone) && !orderDone
+              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Kaydırarak gerçek para riskini ve 24 saatlik izni onaylıyorum" disabled={Boolean(busy)} onConfirm={slidePermission}/>
               : wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep] || limitFull} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
           {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}

@@ -67,34 +67,47 @@ export function ElapsedSeconds() {
   return <span className="mxtElapsed">{seconds} sn</span>
 }
 
-/** Kaydırarak onay: tutamacı sona sürükleyince onConfirm çağrılır (yanlışlıkla dokunmaya karşı). Klavye: Enter/Boşluk da onaylar. */
-export function SlideToConfirm({label, hint, onConfirm, disabled}: {label: string; hint?: string; onConfirm: () => void; disabled?: boolean}) {
+/** Kaydırarak onay: tutamacı sona sürükleyince onConfirm çağrılır (yanlışlıkla dokunmaya karşı). Klavye: Enter/Boşluk da onaylar.
+ *  onConfirm Promise<boolean> dönerse: bekleme sırasında dönen simge, başarıda animasyonlu tik, başarısızlıkta geri dönüş gösterilir. */
+export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, disabled}: {label: string; hint?: string; doneLabel?: string; onConfirm: () => Promise<boolean | void> | boolean | void; disabled?: boolean}) {
   const track = useRef<HTMLDivElement | null>(null)
   const drag = useRef<{startX: number; max: number} | null>(null)
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [nudge, setNudge] = useState(false)
+  const [stage, setStage] = useState<'idle' | 'working' | 'done'>('idle')
   const HANDLE = 56
   const maxOffset = () => Math.max(1, (track.current?.clientWidth ?? 0) - HANDLE - 8)
   const reset = () => { setDragging(false); setOffset(0); drag.current = null }
+  const fire = async () => {
+    setStage('working')
+    setOffset(maxOffset())
+    let ok: boolean | void = false
+    try { ok = await onConfirm() } catch { ok = false }
+    if (ok === false) { setStage('idle'); setOffset(0); setNudge(true); window.setTimeout(() => setNudge(false), 500); return }
+    setStage('done')
+  }
   const finish = () => {
     const state = drag.current
     if (!state) return
     const reached = offset >= state.max * 0.85
-    reset()
-    if (reached) onConfirm()
-    else { setNudge(true); window.setTimeout(() => setNudge(false), 500) }
+    drag.current = null; setDragging(false)
+    if (reached) void fire()
+    else { setOffset(0); setNudge(true); window.setTimeout(() => setNudge(false), 500) }
   }
-  return <div className="mxtSlide" data-disabled={disabled || undefined} data-nudge={nudge || undefined} ref={track}
-    style={{'--slide-progress': `${Math.round(offset / maxOffset() * 100)}%`} as React.CSSProperties}>
-    <span className="mxtSlideLabel"><b>{label}</b>{hint && <small>{hint}</small>}</span>
-    <button type="button" className="mxtSlideHandle" data-dragging={dragging || undefined} disabled={disabled}
+  const locked = disabled || stage !== 'idle'
+  return <div className="mxtSlide" data-stage={stage} data-disabled={disabled && stage === 'idle' ? 'yes' : undefined} data-nudge={nudge || undefined} ref={track}
+    style={{'--slide-progress': stage === 'idle' ? `${Math.round(offset / maxOffset() * 100)}%` : '100%'} as React.CSSProperties} aria-live="polite">
+    <span className="mxtSlideLabel"><b>{stage === 'done' ? doneLabel : stage === 'working' ? 'Onaylanıyor…' : label}</b>{hint && stage === 'idle' && <small>{hint}</small>}</span>
+    <button type="button" className="mxtSlideHandle" data-dragging={dragging || undefined} disabled={locked}
       style={{transform: `translateX(${offset}px)`}} aria-label={`${label}. Kaydırarak onayla veya Enter'a bas`}
-      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onConfirm() } }}
-      onPointerDown={event => { if (disabled) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = {startX: event.clientX, max: maxOffset()}; setDragging(true) }}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!locked) void fire() } }}
+      onPointerDown={event => { if (locked) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = {startX: event.clientX, max: maxOffset()}; setDragging(true) }}
       onPointerMove={event => { const state = drag.current; if (state) setOffset(Math.min(state.max, Math.max(0, event.clientX - state.startX))) }}
-      onPointerUp={finish} onPointerCancel={reset}>
-      <span aria-hidden="true">→</span>
+      onPointerUp={finish} onPointerCancel={() => { reset() }}>
+      {stage === 'done'
+        ? <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path className="mxtSlideTick" d="M5 12.5l4.6 4.6L19 7.5"/></svg>
+        : stage === 'working' ? <span className="mxtSlideSpin" aria-hidden="true"/> : <span aria-hidden="true">→</span>}
     </button>
   </div>
 }
