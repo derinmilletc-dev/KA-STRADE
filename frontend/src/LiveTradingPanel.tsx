@@ -1870,11 +1870,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       else if (authorizationValid && !readinessReady && failedGates.length) permBlockers.push({key: 'gates', title: 'Güvenlik kontrolleri tamamlanmadı', text: failedGates.slice(0, 3).map(gate => gate.detail || gate.label || gate.key).filter(Boolean).join(' · ') || 'Sunucunun güvenlik kapılarından biri geçmedi.'})
     }
     const permBlockCard = (permBlockers.length > 0 || (permError && needPermission && !orderDone)) ? <div className="mxtBlockPopup" role="alert">
-      <span className="mxtBlockIcon" aria-hidden="true">!</span>
-      <div className="mxtBlockBody">
-        {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}>{item.action.label} →</button>}</div>)}
-        {permError && <div className="mxtBlockItem"><b>İzin verilemedi</b><span>Sunucu şunu söyledi: {permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
-      </div>
+      <div className="mxtBlockHead"><span className="mxtBlockIcon" aria-hidden="true"><TriangleAlert/></span><small>İZİN VERİLEMİYOR</small></div>
+      {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}><em>{item.action.label}</em><i aria-hidden="true">→</i></button>}</div>)}
+      {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
     </div> : null
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
