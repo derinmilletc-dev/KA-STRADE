@@ -79,10 +79,10 @@ export function followSymbol(symbol: string) {
   window.dispatchEvent(new CustomEvent(OPEN_STUDIO_EVENT))
 }
 
-/** "Pozisyonlarıma git": paneli kapatır, Pozisyonlar sekmesini açar. `focus` verilirse o coinin pozisyonuna kaydırılır (grafik coini değişmez). */
+/** "Pozisyonlarıma git": paneli kapatır, Canlı İşlem sekmesindeki "Açık pozisyonlar" kartına götürür (Pozisyonlar sekmesine değil). `focus` verilirse o coinin pozisyonuna kaydırılır (grafik coini değişmez). */
 export function goPositions(focus?: string) {
   window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
-  window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol: null, tab: 'pozisyonlar', focus: focus || null}}))
+  window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol: null, tab: 'canli', focus: focus || null}}))
   if (focus) requestPositionsRefresh()
 }
 
