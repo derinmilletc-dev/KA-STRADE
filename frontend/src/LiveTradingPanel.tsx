@@ -1820,7 +1820,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         </div>
       })()}
       <button type="button" className="mxtBtn primary" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); followSymbol(symbol) }}>Grafikte canlı takip et</button>
-      <button type="button" className="mxtBtn ghost" onClick={() => { setOrderDone(null); goPositions() }}>Pozisyonlarıma git</button>
+      <button type="button" className="mxtBtn ghost" onClick={() => { const symbol = orderDone.symbol; setOrderDone(null); goPositions(symbol) }}>Pozisyonlarıma git</button>
       <button type="button" className="mxtDoneNew" onClick={() => setOrderDone(null)}>Yeni emir</button>
     </div> : null
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>

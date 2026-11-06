@@ -79,10 +79,28 @@ export function followSymbol(symbol: string) {
   window.dispatchEvent(new CustomEvent(OPEN_STUDIO_EVENT))
 }
 
-/** "Pozisyonlarıma git": paneli kapatır, Pozisyonlar sekmesini açar. */
-export function goPositions() {
+/** "Pozisyonlarıma git": paneli kapatır, Pozisyonlar sekmesini açar. `focus` verilirse o coinin pozisyonuna kaydırılır (grafik coini değişmez). */
+export function goPositions(focus?: string) {
   window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
-  window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol: null, tab: 'pozisyonlar'}}))
+  window.dispatchEvent(new CustomEvent(FOLLOW_SYMBOL_EVENT, {detail: {symbol: null, tab: 'pozisyonlar', focus: focus || null}}))
+  if (focus) requestPositionsRefresh()
+}
+
+const isShown = (element: Element | null): element is HTMLElement => element instanceof HTMLElement && element.getClientRects().length > 0
+
+/** Sekme açıldıktan sonra açık pozisyonun bulunduğu yere kaydırır: önce o coinin kartı, yoksa pozisyon listesi.
+ *  Yeni emir borsadan birkaç sn geç göründüğü için kısa süre beklenir; kart gelmezse liste başına gidilir. Hata vermez. */
+export function scrollToPositions(focus?: string | null, tries = 0) {
+  const symbol = String(focus || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const card = symbol ? document.querySelector(`[data-pos-symbol="${symbol}"]`) : null
+  const list = Array.from(document.querySelectorAll('.pvRoot, .positionsPanel')).find(isShown) ?? null
+  const target = isShown(card) ? card : tries >= 12 ? list : null
+  if (target) {
+    target.scrollIntoView({behavior: 'smooth', block: 'start'})
+    if (target === card) { target.setAttribute('data-pos-flash', ''); window.setTimeout(() => target.removeAttribute('data-pos-flash'), 2200) }
+    return
+  }
+  if (tries < 24) window.setTimeout(() => scrollToPositions(focus, tries + 1), 250)
 }
 
 /** Hızlı AL/SAT, kapatma ve azaltma sonrası: açık pozisyon listesinin hemen yenilenmesini ister (Demo ve Canlı dinler). */
