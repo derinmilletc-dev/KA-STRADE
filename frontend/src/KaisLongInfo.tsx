@@ -4,7 +4,7 @@ import {Check, TrendingUp, X, Zap} from 'lucide-react'
 import './kais-long.css'
 
 /** KAIS LONG: strateji adı ve kuralları. İki görünüm: Rehber şeridinde yeşil düğme ('chip'), canlı kartta küçük bağlantı ('link'). */
-export const KAIS_LONG_RULES = {direction: 'Yalnız LONG', confidence: '84+', protection: 'Stop + Hedef'} as const
+export const KAIS_LONG_RULES = {direction: 'Yalnız LONG', confidence: '86+', protection: 'Stop + Hedef'} as const
 
 export type KaisLongAction = {label: string; run: () => void; disabled?: boolean}
 
