@@ -9499,7 +9499,14 @@ async def _clear_emergency_locked(
         if emergency.get("active") is not True:
             return {"ok": True, "emergency": False, "execution_state": state.get("execution_state"), "armed": False}
         if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN":
-            raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin.")
+            unresolved = sorted({
+                str(plan.get("symbol") or "").upper() for plan in state.get("plans", {}).values()
+                if isinstance(plan, dict) and plan.get("status") not in {"KAPANDI", "İPTAL"} and plan.get("symbol")
+                and (not live_plan_can_mutate(plan) or str(plan.get("protection_state") or "").upper() in {"UNKNOWN", "MISSING"})
+            })
+            lock_reason = str((state.get("emergency") or {}).get("reason") or "").strip()
+            detail = (f" Kilit sebebi: {lock_reason}." if lock_reason else "") + (f" Kontrol edilmesi gereken coin: {', '.join(unresolved[:5])}." if unresolved else "")
+            raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin." + detail)
     active_plans = [
         plan for plan in state.get("plans", {}).values()
         if isinstance(plan, dict) and live_plan_can_mutate(plan)

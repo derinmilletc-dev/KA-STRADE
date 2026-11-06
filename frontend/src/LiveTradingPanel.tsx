@@ -491,7 +491,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const statusLabel = response.status === 423
         ? 'LIVE KİLİTLİ / GATE BLOCKED'
         : response.status === 502
-          ? 'BELİRSİZ YÜRÜTME / MANUEL İNCELEME GEREKLİ'
+          ? (/belirsiz|kilitlendi|uzlaştır/i.test(errorMessage(payload, '')) ? 'BELİRSİZ YÜRÜTME / MANUEL İNCELEME GEREKLİ' : 'BORSA REDDETTİ')
           : response.status === 503
             ? 'BAKIM MODU / YENİ GİRİŞLER KAPALI'
             : `LIVE HTTP ${response.status}`

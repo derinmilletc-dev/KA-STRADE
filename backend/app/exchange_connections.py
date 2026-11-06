@@ -921,6 +921,7 @@ def exchange_rejection_message(code: Any) -> str:
         -2022: "Binance reduce-only emrini reddetti; pozisyon miktarını ve açık emirleri kontrol edin.",
         -1111: "Binance miktar veya fiyat hassasiyetini reddetti; borsa adım kuralları kontrol edilmeli.",
         -1013: "Binance minimum miktar, tutar veya fiyat kuralı karşılanmadı.",
+        -4028: "Bu coin için seçtiğin kaldıraç Binance'in izin verdiği en yüksek kaldıracı aşıyor; kaldıracı düşürüp tekrar dene. Emir gönderilmedi.",
         -2011: "Binance emir kimliğini doğrulayamadı; emir ve pozisyon durumu uzlaştırılmalı.",
         -2013: "Binance emir kaydını bulamadı; emir ve pozisyon durumu uzlaştırılmalı.",
     }
