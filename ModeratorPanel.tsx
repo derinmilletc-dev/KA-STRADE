@@ -17,6 +17,7 @@ import {ModeratorPremiumRequests, PremiumRequestForm} from './ModeratorPremiumRe
 import CustomerEvents, {OwnerApprovalNotice} from './CustomerEvents'
 import ModeratorCampaigns from './ModeratorCampaigns'
 import ModeratorPaymentRequests from './ModeratorPaymentRequests'
+import BrandLogo from './BrandLogo'
 
 const icons = {overview: Home, customers: Users, subscriptions: Wallet, payments: CreditCard, 'payment-requests': Banknote, support: MessageCircle, activity: Activity, approvals: ShieldCheck, campaigns: Mail}
 type Navigate = (section: ModeratorSection, userId?: string) => void
@@ -147,7 +148,7 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
   return <div className="mod-shell">
     <a className="mod-skip" href="#mod-main">İçeriğe geç</a>
     <aside className="mod-sidebar">
-      <a className="mod-brand" href="/dashboard" aria-label="KaisTrade ana sayfasına dön"><strong>KaisTrade</strong><span>Moderatör paneli</span></a>
+      <a className="mod-brand" href="/dashboard" aria-label="KaisTrade ana sayfasına dön"><BrandLogo height={26}/><span>Moderatör paneli</span></a>
       <button className="mod-menu-toggle" aria-expanded={menuOpen} aria-controls="mod-navigation" onClick={() => setMenuOpen(value => !value)}><Menu aria-hidden="true"/>Menü</button>
       <nav id="mod-navigation" aria-label="Moderatör menüsü" className={menuOpen ? 'mod-navigation mod-navigation-open' : 'mod-navigation'}>
         {sections.map(item => {const Icon = icons[item.id]; return <button key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon aria-hidden="true"/><span className="mod-nav-label">{item.label}</span>{item.id === 'support' && waiting ? <span className="mod-nav-count" aria-label={`${waiting} cevap bekleyen talep`}>{waiting}</span> : null}</button>})}

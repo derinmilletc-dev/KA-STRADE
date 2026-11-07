@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react'
 import {Activity, X} from 'lucide-react'
 import {createLandscapeController, type LandscapeController, type LandscapeSnapshot} from './master-trade-fullscreen'
+import BrandLogo from './BrandLogo'
 
 const SERVER_SNAPSHOT: LandscapeSnapshot = {open: false, landscape: false, fullscreen: false, lock: 'none'}
 
@@ -63,7 +64,7 @@ export function RotateOverlay({onCancel, canAutoRotate, studio = false, leaving 
   useEffect(() => { cancel.current?.focus() }, [])
   return <div className="kfsOverlay" data-leaving={leaving ? 'true' : undefined} aria-hidden={leaving || undefined} role="dialog" aria-modal="true" aria-labelledby="kfsRotateTitle" aria-describedby="kfsRotateText">
     <div className="kfsOverlayCard">
-      <span className="kfsBrand" translate="no" data-i18n-skip><Activity aria-hidden="true"/>kais<b>trade</b></span>
+      <span className="kfsBrand"><BrandLogo height={24}/></span>
       <div className="kfsPhoneStage" aria-hidden="true"><div className="kfsPhone"><i/></div></div>
       <h2 id="kfsRotateTitle">Turn your phone sideways</h2>
       <p id="kfsRotateText">{studio ? 'Rotate your device to open Analysis Studio.' : 'Switch to landscape for a wider trading chart.'}</p>

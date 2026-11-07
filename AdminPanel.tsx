@@ -54,6 +54,7 @@ import AdminFounding from './AdminFounding'
 import AdminOriginalRisk from './AdminOriginalRisk'
 import AdminMaintenanceSchedule from './AdminMaintenanceSchedule'
 import {useKaisErrorReaction} from './useKaisPageReactions'
+import BrandLogo from './BrandLogo'
 
 type Customer = {id:string;email:string;display_name:string;role:string;active:boolean;created_at:string;last_activity?:string;email_verified?:boolean;license?:{plan:string;expires_at:string;status:string;starts_at?:string}|null;subscription?:{plan?:string;status?:string;currentPeriodStart?:string;currentPeriodEnd?:string}|null}
 type Audit = {id:string;kind:string;message:string;actor:string;subject?:string;created_at:string}
@@ -143,7 +144,7 @@ export default function AdminPanel({token,onBack}:{token:string;onBack:()=>void}
   const siteTarget = siteUrl.startsWith('http') ? {target:'_blank', rel:'noopener'} : {}
   return <main className="adminShell akShell">
     <aside className={`akSide ${mobileOpen ? 'open' : ''}`} aria-label="Yönetim menüsü">
-      <div className="akBrand"><span className="akLogo" aria-hidden="true"><img src="/favicon-96x96.png" alt=""/></span><span><b>KaisTrade</b><small>Yönetim paneli</small></span><button type="button" className="akSideClose" aria-label="Menüyü kapat" onClick={() => setMobileOpen(false)}><X/></button></div>
+      <div className="akBrand"><span className="akBrandText"><BrandLogo height={26}/><small>Yönetim paneli</small></span><button type="button" className="akSideClose" aria-label="Menüyü kapat" onClick={() => setMobileOpen(false)}><X/></button></div>
       <nav>{NAV_GROUPS.map(([group,items]) => <div className="akNavGroup" key={group}><span className="akNavLabel">{group}</span>{items.map(([key,label,Icon]) => { const count = badge(key); return <button type="button" key={key} className={section === key ? 'active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => go(key)}><Icon aria-hidden="true"/><span>{label}</span>{key === 'moderator' ? <ExternalLink className="akNavExt" aria-hidden="true"/> : count > 0 && <em className={key === 'incidents' ? 'bad' : ''}>{count}</em>}</button> })}</div>)}</nav>
       <div className="akSideFoot"><span className={`akLive ${overview ? 'on' : ''}`}><i/>{overview ? 'Canlı veri' : 'Bağlanıyor…'}</span><a className="akSiteBtn" href={siteUrl} {...siteTarget} title="Ana siteyi aç. Ana sitede ilk seferde bir kez giriş yaparsın; sonra doğrudan uygulamaya geçersin."><Globe aria-hidden="true"/><span><b>Siteye gir</b><small>{siteUrl.startsWith('http') ? 'kaistrade.com · yeni sekmede açılır' : 'Uygulamayı aç'}</small></span><ExternalLink className="akNavExt" aria-hidden="true"/></a><button type="button" onClick={onBack}><LogOut aria-hidden="true"/>{onAdminHost ? 'Çıkış yap' : 'Uygulamaya dön'}</button></div>
     </aside>

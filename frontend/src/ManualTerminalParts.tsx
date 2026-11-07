@@ -112,3 +112,42 @@ export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, dis
     </button>
   </div>
 }
+
+/** Yerel saatle bir sonraki UTC gece yarısı (günlük kayıp sayacı UTC gününe göre sıfırlanır). */
+function nextUtcMidnight(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+}
+
+/** Günlük zarar limiti kartı: %90'da sarı uyarı, dolunca kırmızı kilit. Manuel emir, otomatik işlem ve canlı kokpitte ortak.
+ *  Sınıf adındaki "Popup", Canlı İşlem sekmesindeki genel "arka planı sil" kuralından muaf tutar. */
+export function DayLimitCard({used, limit, locked = false, suggested, onSuggest, onEdit, note}: {used: number; limit: number; locked?: boolean; suggested?: number | null; onSuggest?: () => void; onEdit?: () => void; note?: string}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer) }, [])
+  if (!(limit > 0)) return null
+  const pct = used / limit * 100
+  if (pct < 90 && !locked) return null
+  const full = locked || pct >= 100
+  const reset = nextUtcMidnight(new Date(now))
+  const leftMin = Math.max(0, Math.round((reset.getTime() - now) / 60_000))
+  const resetText = `${reset.toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'})} · ${Math.floor(leftMin / 60)} sa ${leftMin % 60} dk sonra`
+  const fmt = (value: number) => value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+  return <section className="ktDayPopup" data-full={full || undefined} role={full ? 'alert' : 'status'}>
+    <header>
+      <span className="ktDayIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>{full ? <path d="M9.5 12h5"/> : <path d="M12 8.5v4M12 15.5h.01"/>}</svg></span>
+      <div><small>GÜNLÜK ZARAR LİMİTİ</small><b>{full ? 'Bugünlük limit doldu' : 'Limit dolmak üzere'}</b></div>
+      <em>%{Math.min(999, Math.floor(pct))}</em>
+    </header>
+    <div className="ktDayMeter" aria-hidden="true"><i style={{width: `${Math.min(100, pct)}%`}}/></div>
+    <dl>
+      <div><dt>Zarar</dt><dd>{fmt(used)}</dd></div>
+      <div><dt>Limit</dt><dd>{fmt(limit)}</dd></div>
+      <div><dt>Kalan</dt><dd>{fmt(Math.max(0, limit - used))}</dd></div>
+    </dl>
+    <p>{full ? 'Yeni işlem açılmaz. Açık pozisyonların stop ve hedefleri çalışmaya devam eder.' : 'Bir sonraki zararlı işlem limiti doldurabilir.'} Tutarlar USDT.{note ? ` ${note}` : ''}</p>
+    <div className="ktDayReset"><span aria-hidden="true">↻</span>Sayaç sıfırlanır: <b>{resetText}</b></div>
+    {(onSuggest || onEdit) && <div className="ktDayBtns">
+      {onSuggest && suggested && suggested > limit && <button type="button" onClick={onSuggest}>Limiti {suggested} USDT yap</button>}
+      {onEdit && <button type="button" data-k="alt" onClick={onEdit}>Düzenle</button>}
+    </div>}
+  </section>
+}

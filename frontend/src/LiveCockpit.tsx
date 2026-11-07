@@ -7,6 +7,8 @@ import {
   smartAlerts, whyNoTrade, rejectionBreakdown, statusHelp, nextScan, reconnectingGuide, capacityPreview, marginModePreview, marginSimulation, openMarginTotal, clampCustomPercent, CUSTOM_MARGIN_MIN_PERCENT, type GuideInput, type GuideNotice,
 } from './live-guide'
 import {askKais} from '../../kais-ask'
+import {showToast} from '../../toast-center'
+import {DayLimitCard} from './ManualTerminalParts'
 import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
@@ -46,7 +48,7 @@ type Props = {
   findPlan: (position: Position) => Plan | undefined
   extras?: ReactNode
   /** Pozisyonlar kartındaki "Düzenle": MANUEL işlem risk limitlerini (işlem başı marjin/kayıp, günlük limit…) düzenleme penceresini açar. */
-  onManualRiskEdit?: () => void
+  onManualRiskEdit?: (suggest?: Partial<Record<string, number>>) => void
   /** Demo ikizi: aynı kokpit, Binance Futures Demo motoruna bağlı; gerçek para yok. */
   demo?: boolean
   /** Demo'da sekme değişimi URL yerine üst bileşene bildirilir. */
@@ -715,10 +717,11 @@ export default function LiveCockpit(props: Props) {
       setFlash({tone: 'ok', text: `${prev.step}. adım tamamlandı · Sıradaki: ${GUIDE_STEPS[guide.step - 1]}`})
     }
   }, [guide.phase, guide.step])
+  // Kısa bildirimler sitenin ortak bildirim merkezinde gösterilir (üstte; alt menüyle çakışmaz, kaydırınca kapanır).
   useEffect(() => {
     if (!flash) return
-    const timer = window.setTimeout(() => setFlash(null), flash.tone === 'stop' ? 9000 : 5000)
-    return () => window.clearTimeout(timer)
+    showToast({body: flash.text, tone: flash.tone === 'stop' ? 'bad' : flash.tone === 'warn' ? 'warn' : 'ok'})
+    setFlash(null)
   }, [flash])
 
   useEffect(() => { if (guide.action === 'choose-risk') setSettingsOpen(true) }, [guide.action])
@@ -763,6 +766,9 @@ export default function LiveCockpit(props: Props) {
     const plan = findPlan(position)
     return plan?.provenance_state === 'CONFIRMED' && plan.exchange_protection?.stop === true
   }).length
+  // Günlük kayıp %90'a gelince (ya da dolunca) düz uyarı satırı yerine akıllı kart gösterilir; aynı bilgi iki kez yazılmaz.
+  const dayCardShown = !demo && dailyLoss !== null && dailyLimit !== null && dailyLimit > 0 && (guideInput.dailyLocked || dailyLoss / dailyLimit >= 0.9)
+  const daySuggested = dailyLimit !== null ? Math.min(1000, Math.max(5, Math.ceil(dailyLimit * 1.5 / 5) * 5)) : null
   const alerts: GuideNotice[] = [...guide.notices, ...(live ? smartAlerts({
     dailyLoss, dailyLimit, dailyLocked: guideInput.dailyLocked, availableBalance, minMargin: caps?.min_margin_usdt ?? null,
     marketBanSeconds, openPositions: positions.length, protectedPositions: protectedCount,
@@ -785,6 +791,7 @@ export default function LiveCockpit(props: Props) {
   const kaisQuestion = running && why ? dt('Canlı stratejim son taramada neden işlem açmadı? Kısaca açıkla.')
     : running ? dt('Canlı stratejim şu an ne yapıyor? Kısaca özetle.')
     : `${dt('Canlı işlem')} kurulumunda şu adımdayım: "${guide.title}". Ne yapmam gerektiğini kısaca anlatır mısın?`
+  const visibleAlerts = dayCardShown ? alerts.filter(item => !/kayıp sınır/i.test(item.text)) : alerts
 
   const actionIcon = guide.action === 'stop' ? <Power aria-hidden="true"/> : guide.action === 'retry' ? <RefreshCw aria-hidden="true" className={working === 'retry' ? 'lcSpin' : ''}/> : null
   const presetCards = <div className="lcPresets" role="radiogroup" aria-label="Risk seçeneği">
@@ -1972,7 +1979,10 @@ export default function LiveCockpit(props: Props) {
           {retryIn !== null && <p className="lcRetry" role="status"><RefreshCw aria-hidden="true" className="lcSpin"/>{retryIn > 0 ? `${retryIn} sn sonra kendiliğinden tekrar denenecek` : 'Tekrar deneniyor…'}{retry.attempt > 0 ? ` · ${retry.attempt + 1}. deneme` : ''}</p>}
         </section>
 
-        {alerts.length > 0 && <div className="lcAlerts">{alerts.map((item, index) => <p key={index} className="lcAlert" data-tone={item.tone}>{item.tone === 'ok' ? <ShieldCheck aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{item.text}</p>)}</div>}
+        {dayCardShown && <DayLimitCard used={dailyLoss ?? 0} limit={dailyLimit ?? 0} locked={guideInput.dailyLocked} suggested={daySuggested}
+          onSuggest={props.onManualRiskEdit && daySuggested ? () => props.onManualRiskEdit?.({daily_loss_limit: daySuggested}) : undefined}
+          onEdit={props.onManualRiskEdit ? () => props.onManualRiskEdit?.() : undefined}/>}
+        {visibleAlerts.length > 0 && <div className="lcAlerts">{visibleAlerts.map((item, index) => <p key={index} className="lcAlert" data-tone={item.tone}>{item.tone === 'ok' ? <ShieldCheck aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{item.text}</p>)}</div>}
 
         {(running || scanner?.last_scan_at) && <section className="lcCard lcScan" aria-label="Canlı tarama">
           <header className="lcCardHead"><div><small>{dt('CANLI TARAMA')}</small><h3>{scanStage[scanner?.stage || ''] || (running ? 'İlk tarama bekleniyor' : 'Strateji durdu')}</h3></div>
@@ -2003,7 +2013,7 @@ export default function LiveCockpit(props: Props) {
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
           onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now}
-          onRiskSettings={props.onManualRiskEdit}/>
+          onRiskSettings={() => props.onManualRiskEdit?.()}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>
 
@@ -2038,7 +2048,6 @@ export default function LiveCockpit(props: Props) {
       </div>
     </details>
 
-    {flash && <div className="lcToast" data-tone={flash.tone} role="status"><i aria-hidden="true"/><span>{flash.text}</span><button type="button" aria-label="Kapat" onClick={() => setFlash(null)}><X aria-hidden="true"/></button></div>}
     {sheetView && <div className="lcBackdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) closeSheet() }}>
       <section className="lcSheet" role="dialog" aria-modal="true" aria-labelledby="lc-sheet-title" onKeyDown={event => { if (event.key === 'Escape') closeSheet() }}>
         <button type="button" className="lcSheetClose" aria-label="Kapat" onClick={closeSheet} disabled={Boolean(working)}><X aria-hidden="true"/></button>

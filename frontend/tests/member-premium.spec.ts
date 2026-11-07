@@ -111,7 +111,7 @@ for (const width of [1440, 390]) {
     await expect(modal).not.toBeVisible()
     await expect(locked).toBeFocused()
     await locked.click()
-    await expect(page.locator('.premiumToast')).toContainText('Premium üyelik gerekli.')
+    await expect(page.locator('#kt-toasts .ktT')).toContainText('Premium üyelik gerekli.')
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(page.locator('.liveUxManual input')).toHaveCount(0)
     await expect(page.locator('.triggerMonitor')).toHaveCount(0)

@@ -10,6 +10,7 @@ import './live-ws.css'
 import './live-cockpit.css'
 import './live-cockpit-mobile.css'
 import './demo-master.css'
+import BrandLogo from './BrandLogo'
 
 // Demo İşlem Masası, Master Trade sayfasının görünümünü kullanır. Yalnız görünüm: demo motoru ve
 // demo emir akışı (BinanceDemo) aynen kalır; canlı motora hiçbir istek buradan gitmez.
@@ -67,7 +68,7 @@ export function DemoTopBar({tab, onTab, connected, assistantSlotRef}: {
 }) {
   return <section className="masterReferenceAnalysis demoTopBarOnly" data-layout-tab="analiz" aria-label="Demo İşlem üst çubuğu">
     <header className="refHeader masterTradeTerminalHeader">
-      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><Activity/><span translate="no">kais<b>trade</b></span></a>
+      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><BrandLogo height={24}/></a>
       <nav role="tablist" aria-label="Demo İşlem Masası">{DEMO_MASTER_TABS.map(({id, label, icon: Icon}) =>
         <button key={id} id={`demo-tab-${id}`} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)}><Icon/>{label}</button>)}
       </nav>
