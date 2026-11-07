@@ -187,3 +187,6 @@ html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg:last-child { width: 14px; h
 html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle { will-change: transform; }
 html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle[data-dragging] { transition: none !important; }
 html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle[data-dragging] span { animation: none !important; }
+/* Kilit sebebi: izin geri kapanınca neden kapandığını açıkça gösterir. */
+html body #root:not(#wl1):not(#wl2) .mxtWhyLocked { margin: 8px 0 0 !important; padding: 10px 12px !important; border-radius: 12px !important; background: rgba(255,184,77,.1) !important; border: 1px solid rgba(255,184,77,.28) !important; color: #f3d9a8 !important; font-size: 13px !important; line-height: 1.5 !important; }
+html body #root:not(#wl1):not(#wl2) .mxtWhyLocked b { color: #ffc062 !important; }
