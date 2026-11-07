@@ -4143,6 +4143,35 @@ def _stream_event_seen(state: dict[str, Any], exchange_event_id: str) -> bool:
     return any(item.get("exchange_event_id") == exchange_event_id for item in state.get("events", []))
 
 
+def retire_superseded_plan(state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any] | None) -> bool:
+    """Eski, kapanmamış görünen plan aynı sembolde ters yönlü yeni pozisyona takılı kalmasın.
+
+    Borsadaki pozisyonun yönü bu planla tutmuyor VE aynı sembolde yönü pozisyonla tutan başka aktif plan varsa, bu plan
+    eski bir işlemden kalmıştır: KAPANDI işaretlenir (borsaya emir gönderilmez). Eşleşen başka plan yoksa hiçbir şey
+    yapılmaz; yön uyuşmazlığı korumada görünür kalır (uydurma yok)."""
+    if position is None:
+        return False
+    position_direction = str(position.get("direction") or "").upper()
+    plan_direction = str(plan.get("direction") or "").upper()
+    if position_direction not in {"LONG", "SHORT"} or plan_direction == position_direction:
+        return False
+    symbol = str(plan.get("symbol") or "").upper()
+    successor = next((
+        other for other in state.get("plans", {}).values()
+        if isinstance(other, dict) and other is not plan and other.get("status") not in {"KAPANDI", "İPTAL"}
+        and str(other.get("symbol") or "").upper() == symbol and str(other.get("direction") or "").upper() == position_direction
+    ), None)
+    if successor is None:
+        return False
+    plan["status"] = "KAPANDI"
+    plan["close_reason"] = "SUPERSEDED"
+    plan["protection_state"] = "UNKNOWN"
+    plan["closed_at"] = now_iso()
+    add_event(state, "LIVE_PLAN_SUPERSEDED", f"{symbol} eski {plan_direction} planı kapandı sayıldı; borsadaki {position_direction} pozisyon yeni plana ait.",
+              symbol=symbol, plan_id=plan.get("id"), successor_plan_id=successor.get("id"))
+    return True
+
+
 def _active_plan_for_symbol(state: dict[str, Any], symbol: str) -> dict[str, Any] | None:
     terminal = {"KAPANDI", "İPTAL"}
     return next(
@@ -7260,6 +7289,8 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
             continue
         symbol = plan.get("symbol")
         position = positions.get(symbol)
+        if retire_superseded_plan(state, plan, position):
+            continue
         if not live_plan_can_mutate(plan) and position is not None and confirm_live_plan_provenance(plan, position):
             add_event(
                 state,

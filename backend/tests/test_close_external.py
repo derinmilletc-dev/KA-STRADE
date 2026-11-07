@@ -95,3 +95,28 @@ class CloseRetryTests(unittest.TestCase):
         result = asyncio.run(live.close_tracked_symbol(client, "PUMPUSDT", "manual-close-plan-1"))
         self.assertEqual(result["orderId"], 1)
         self.assertFalse([c for c in calls if c[0] == "POST"])
+
+
+class SupersededPlanTests(unittest.TestCase):
+    def _state(self, *plans):
+        return {**live.initial_state(), "plans": {plan["id"]: plan for plan in plans}}
+
+    def test_old_opposite_plan_is_retired_when_new_matching_plan_exists(self):
+        old = {"id": "plan-old", "symbol": "PUMPUSDT", "direction": "LONG", "status": "KORUMA AKTİF"}
+        new = {"id": "plan-new", "symbol": "PUMPUSDT", "direction": "SHORT", "status": "KORUMA AKTİF"}
+        state = self._state(old, new)
+        self.assertTrue(live.retire_superseded_plan(state, old, {"symbol": "PUMPUSDT", "direction": "SHORT", "quantity": "26001"}))
+        self.assertEqual(old["status"], "KAPANDI")
+        self.assertEqual(new["status"], "KORUMA AKTİF")
+
+    def test_mismatch_without_successor_is_left_alone(self):
+        old = {"id": "plan-old", "symbol": "PUMPUSDT", "direction": "LONG", "status": "KORUMA AKTİF"}
+        state = self._state(old)
+        self.assertFalse(live.retire_superseded_plan(state, old, {"symbol": "PUMPUSDT", "direction": "SHORT"}))
+        self.assertEqual(old["status"], "KORUMA AKTİF")
+
+    def test_matching_plan_and_missing_position_untouched(self):
+        plan = {"id": "plan-a", "symbol": "PUMPUSDT", "direction": "SHORT", "status": "KORUMA AKTİF"}
+        state = self._state(plan)
+        self.assertFalse(live.retire_superseded_plan(state, plan, {"symbol": "PUMPUSDT", "direction": "SHORT"}))
+        self.assertFalse(live.retire_superseded_plan(state, plan, None))
