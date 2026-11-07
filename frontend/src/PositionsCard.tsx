@@ -203,6 +203,7 @@ export default function PositionsCard(props: Props) {
         const planId = plan && typeof plan.id === 'string' ? plan.id : ''
         // Yalnız sahipliği doğrulanmış bot pozisyonu kapatılabilir (sunucu da aynısını ister); dış pozisyona dokunulmaz.
         const closable = !external && confirmed && planId.length >= 6 && live
+        const closableExternal = external && live && Boolean(position.symbol)
         const manual = plan?.source === 'MANUAL'
         const source = external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
         // İnce kart: varsayılan kapalı; yalnız stopa çok yakın pozisyon kendiliğinden açılır.
@@ -217,7 +218,7 @@ export default function PositionsCard(props: Props) {
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
-        const askClose = () => props.onClose({planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
+        const askClose = () => props.onClose({planId: external ? '' : planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
           long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity})
         // İnce çubuk: fiyatın stop (sol) ile TP1 (sağ) arasındaki yeri. TP1 sonrası / bilinmiyorsa çubuk yok.
         const tp1Left = metrics.toTp1Pct !== null && !breakeven ? metrics.toTp1Pct : null
@@ -249,7 +250,7 @@ export default function PositionsCard(props: Props) {
           </button>
 
           {/* Kapat tuşu kart kapalıyken de görünür; dokununca her zamanki onay penceresi açılır. */}
-          {closable && <div className="pvQuick">
+          {(closable || closableExternal) && <div className="pvQuick">
             <span>{metrics.mark !== null ? <>Kapanış ≈ <b>{formatPrice(metrics.mark)}</b>{livePrice ? null : <em> · gecikmeli</em>}</> : null}</span>
             <button type="button" className="pvQuickClose" disabled={busy} aria-label={`${metrics.coin || 'Pozisyonu'} kapat`} onClick={askClose}><X aria-hidden="true"/>Kapat</button>
           </div>}
@@ -257,11 +258,11 @@ export default function PositionsCard(props: Props) {
           <div className="pvDetail">
             {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
             {closable && manual && props.onCloseTarget && <CloseTargetBox planId={planId} metrics={metrics} plan={plan} busy={busy} onSet={props.onCloseTarget}/>}
-            <div className="pvKeys">
+            {!external && <div className="pvKeys">
               <div data-tone={metrics.level === 'ok' ? 'down' : 'warn'}><small>Stopa kalan</small><b>{metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : '—'}</b></div>
               <div data-tone="up"><small>{breakeven ? 'Sonraki hedef' : 'TP1’e kalan'}</small><b>{metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : '—'}</b></div>
               <div data-tone={metrics.toLiqPct !== null && metrics.toLiqPct < 15 ? 'warn' : undefined}><small>Likidasyon</small><b>{metrics.toLiqPct !== null ? formatPct(metrics.toLiqPct, 0) : '—'}</b></div>
-            </div>
+            </div>}
             <div className="pvMeta">
               <Cell label="Giriş" value={metrics.entry !== null ? formatPrice(metrics.entry) : null}/>
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
@@ -282,7 +283,7 @@ export default function PositionsCard(props: Props) {
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
             </details>}
 
-            {external && <p className="pvNote">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
+            {external && <p className="pvNote">Bu pozisyonun sistemde planı yok: stop ve hedef takip edilmiyor. Kapat ile hemen kapatabilirsin; Binance'taki kendi stop/TP emirlerin varsa onları kendin iptal et.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
 
             {closable && manual && <div className="pvActs">
