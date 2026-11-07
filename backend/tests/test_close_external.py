@@ -120,3 +120,21 @@ class SupersededPlanTests(unittest.TestCase):
         state = self._state(plan)
         self.assertFalse(live.retire_superseded_plan(state, plan, {"symbol": "PUMPUSDT", "direction": "SHORT"}))
         self.assertFalse(live.retire_superseded_plan(state, plan, None))
+
+
+class OrphanBrokenPlanTests(unittest.TestCase):
+    def test_broken_plan_without_position_is_retired(self):
+        plan = {"id": "p1", "symbol": "PUMPUSDT", "direction": "LONG", "status": "YÖN UYUŞMAZLIĞI", "provenance_state": "BROKEN"}
+        state = {**live.initial_state(), "plans": {"p1": plan}}
+        self.assertTrue(live.retire_orphan_broken_plan(state, plan, None))
+        self.assertEqual(plan["status"], "KAPANDI")
+
+    def test_position_pending_fill_and_confirmed_plans_untouched(self):
+        state = {**live.initial_state(), "plans": {}}
+        broken = {"id": "p1", "symbol": "PUMPUSDT", "status": "KORUMA AKTİF", "provenance_state": "BROKEN"}
+        self.assertFalse(live.retire_orphan_broken_plan(state, broken, {"symbol": "PUMPUSDT"}))
+        pending = {"id": "p2", "symbol": "PUMPUSDT", "status": "DOLUM BEKLİYOR", "provenance_state": "BROKEN"}
+        self.assertFalse(live.retire_orphan_broken_plan(state, pending, None))
+        ok = {"id": "p3", "symbol": "PUMPUSDT", "status": "KORUMA AKTİF", "provenance_state": "CONFIRMED"}
+        self.assertFalse(live.retire_orphan_broken_plan(state, ok, None))
+        self.assertEqual(ok["status"], "KORUMA AKTİF")

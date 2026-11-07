@@ -4172,6 +4172,28 @@ def retire_superseded_plan(state: dict[str, Any], plan: dict[str, Any], position
     return True
 
 
+def retire_orphan_broken_plan(state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any] | None) -> bool:
+    """Sahipliği doğrulanamayan (BROKEN) ve borsada pozisyonu OLMAYAN plan, canlı kilidi sürekli kapatmasın.
+
+    Her koruma turunda böyle bir plan lock_live_execution çağırıp izni (armed_until) sıfırlıyordu; kullanıcı izin verse bile
+    ~10 sn içinde "24 saatlik kilit kapalı" oluyordu. Korunacak pozisyon yoksa plan KAPANDI sayılır (borsaya emir gitmez).
+    Dolum bekleyen ya da kalan girişi süren planlara dokunulmaz."""
+    if position is not None:
+        return False
+    if plan.get("provenance_state") not in {"BROKEN", "NO_PROVENANCE"}:
+        return False
+    if plan.get("status") == "DOLUM BEKLİYOR" or plan.get("entry_remainder_pending"):
+        return False
+    symbol = str(plan.get("symbol") or "").upper()
+    plan["status"] = "KAPANDI"
+    plan["close_reason"] = "STALE_NO_POSITION"
+    plan["protection_state"] = "UNKNOWN"
+    plan["closed_at"] = now_iso()
+    add_event(state, "LIVE_PLAN_STALE_RETIRED", f"{symbol} planı sahipliği doğrulanamıyordu ve borsada pozisyonu yok; kapandı sayıldı (izin kilidi artık bu plan yüzünden kapanmaz).",
+              symbol=symbol, plan_id=plan.get("id"))
+    return True
+
+
 def _active_plan_for_symbol(state: dict[str, Any], symbol: str) -> dict[str, Any] | None:
     terminal = {"KAPANDI", "İPTAL"}
     return next(
@@ -7290,6 +7312,8 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
         symbol = plan.get("symbol")
         position = positions.get(symbol)
         if retire_superseded_plan(state, plan, position):
+            continue
+        if retire_orphan_broken_plan(state, plan, position):
             continue
         if not live_plan_can_mutate(plan) and position is not None and confirm_live_plan_provenance(plan, position):
             add_event(

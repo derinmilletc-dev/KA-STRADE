@@ -73,7 +73,10 @@ export function ElapsedSeconds() {
 export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, disabled}: {label: string; hint?: string; doneLabel?: string; onConfirm: () => Promise<boolean | void> | boolean | void; disabled?: boolean}) {
   const track = useRef<HTMLDivElement | null>(null)
   const drag = useRef<{startX: number; max: number} | null>(null)
+  const pending = useRef<number | null>(null)
+  const frame = useRef<number | null>(null)
   const [offset, setOffset] = useState(0)
+  useEffect(() => () => { if (frame.current !== null) window.cancelAnimationFrame(frame.current) }, [])
   const [dragging, setDragging] = useState(false)
   const [nudge, setNudge] = useState(false)
   const [stage, setStage] = useState<'idle' | 'working' | 'done'>('idle')
@@ -91,7 +94,9 @@ export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, dis
   const finish = () => {
     const state = drag.current
     if (!state) return
-    const reached = offset >= state.max * 0.85
+    const latest = pending.current ?? offset
+    pending.current = null
+    const reached = latest >= state.max * 0.85
     drag.current = null; setDragging(false)
     if (reached) void fire()
     else { setOffset(0); setNudge(true); window.setTimeout(() => setNudge(false), 500) }
@@ -104,7 +109,13 @@ export function SlideToConfirm({label, hint, doneLabel = 'Tamam', onConfirm, dis
       style={{transform: `translateX(${offset}px)`}} aria-label={`${label}. Kaydırarak onayla veya Enter'a bas`}
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!locked) void fire() } }}
       onPointerDown={event => { if (locked) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = {startX: event.clientX, max: maxOffset()}; setDragging(true) }}
-      onPointerMove={event => { const state = drag.current; if (state) setOffset(Math.min(state.max, Math.max(0, event.clientX - state.startX))) }}
+      onPointerMove={event => {
+        const state = drag.current
+        if (!state) return
+        // Her harekette değil, ekran karesinde bir kez güncelle (telefonda takılmayı önler).
+        pending.current = Math.min(state.max, Math.max(0, event.clientX - state.startX))
+        if (frame.current === null) frame.current = window.requestAnimationFrame(() => { frame.current = null; if (pending.current !== null) setOffset(pending.current) })
+      }}
       onPointerUp={finish} onPointerCancel={() => { reset() }}>
       {stage === 'done'
         ? <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path className="mxtSlideTick" d="M5 12.5l4.6 4.6L19 7.5"/></svg>
