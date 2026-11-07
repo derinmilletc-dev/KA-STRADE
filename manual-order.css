@@ -191,7 +191,7 @@ html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle[data-draggin
 html body #root:not(#wl1):not(#wl2) .mxtWhyLocked { margin: 8px 0 0 !important; padding: 10px 12px !important; border-radius: 12px !important; background: rgba(255,184,77,.1) !important; border: 1px solid rgba(255,184,77,.28) !important; color: #f3d9a8 !important; font-size: 13px !important; line-height: 1.5 !important; }
 html body #root:not(#wl1):not(#wl2) .mxtWhyLocked b { color: #ffc062 !important; }
 /* İzin durumu: kaydırıcı geri gelirse nedenini tek bakışta gösteren küçük döküm. */
-html body #root:not(#ps1):not(#ps2) .mxtPermState { display: flex !important; flex-wrap: wrap; gap: 4px 10px; margin: 8px 0 0 !important; padding: 10px 12px !important; border-radius: 12px !important; background: rgba(255,255,255,.04) !important; color: #aebccb !important; font-size: 12px !important; line-height: 1.45 !important; }
+html body #root:not(#ps1):not(#ps2) .mxtPermState { display: flex !important; flex-wrap: wrap; gap: 4px 10px; margin: 8px 0 110px !important; scroll-margin-bottom: 110px; padding: 10px 12px !important; border-radius: 12px !important; background: rgba(255,255,255,.04) !important; color: #aebccb !important; font-size: 12px !important; line-height: 1.45 !important; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState b { flex: 0 0 100%; color: #e6eef7 !important; font-size: 12.5px !important; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState span { white-space: nowrap; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState span:last-child { white-space: normal; }
