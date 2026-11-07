@@ -1793,6 +1793,26 @@ def is_armed(state: dict[str, Any]) -> bool:
     return active
 
 
+def live_lock_detail(state: dict[str, Any]) -> str:
+    """Emir yolda iken kilidin neden kapandığını hata metnine yazar; "kilit kapandı" tek başına teşhis koydurmaz."""
+    parts: list[str] = []
+    reason = state.get("live_lock_reason") if isinstance(state.get("live_lock_reason"), dict) else {}
+    if reason.get("message"):
+        parts.append(f"{reason.get('code')}: {reason['message']}")
+    emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
+    if emergency.get("active"):
+        parts.append(f"acil durdurma: {emergency.get('reason') or '—'}")
+    if state.get("execution_state") in {"UNKNOWN", "LOCKED"}:
+        parts.append(f"yürütme: {state.get('execution_state')}")
+    if state.get("reconciliation_required"):
+        parts.append("uzlaştırma gerekli")
+    bad = sorted({f"{plan.get('symbol')} {plan.get('status')}" for plan in (state.get("plans") or {}).values()
+                  if isinstance(plan, dict) and (plan.get("provenance_state") == "BROKEN" or plan.get("status") == "YÖN UYUŞMAZLIĞI")})
+    if bad:
+        parts.append("sorunlu plan: " + ", ".join(bad[:3]))
+    return f" ({'; '.join(parts)})" if parts else ""
+
+
 def live_entry_authority_open(state: dict[str, Any]) -> bool:
     """Yeni giriş yetkisi: elle girişte ARM; otomatik girişte etkin gözetimli oturum.
 
@@ -2038,7 +2058,7 @@ class BinanceLiveClient:
                     if self.background_session and not await background_authorization_active(self.application, self.diagnostic_state):
                         raise LiveExchangeError("Canlı oturum yetkisi doğrulanamadı; yeni giriş gönderilmedi.", http_status=423)
                     if isinstance(self.diagnostic_state, dict) and (not live_entry_authority_open(self.diagnostic_state) or live_execution_blocked(self.diagnostic_state) or self.diagnostic_state.get("real_trading_locked") is not False):
-                        raise LiveExchangeError("Kuyruk beklemesinden sonra LIVE giriş yetkisi kapalı; emir gönderilmedi.", http_status=423)
+                        raise LiveExchangeError(f"Kuyruk beklemesinden sonra LIVE giriş yetkisi kapalı; emir gönderilmedi.{live_lock_detail(self.diagnostic_state)}", http_status=423)
                 self._require_global_ban_clear(method, path)
                 if method != "GET" and self.application is not None:
                     store = getattr(self.application.state, "live_account_cache", None)
