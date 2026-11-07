@@ -68,7 +68,7 @@ export function DemoTopBar({tab, onTab, connected, assistantSlotRef}: {
 }) {
   return <section className="masterReferenceAnalysis demoTopBarOnly" data-layout-tab="analiz" aria-label="Demo İşlem üst çubuğu">
     <header className="refHeader masterTradeTerminalHeader">
-      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><BrandLogo height={24}/></a>
+      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><BrandLogo height={31}/></a>
       <nav role="tablist" aria-label="Demo İşlem Masası">{DEMO_MASTER_TABS.map(({id, label, icon: Icon}) =>
         <button key={id} id={`demo-tab-${id}`} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)}><Icon/>{label}</button>)}
       </nav>
