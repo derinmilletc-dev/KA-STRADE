@@ -219,7 +219,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
 
       <article className={`ktBillPlan isSmart${activePlan === 1 ? ' isActive' : ''}${canPay ? ' isPay' : ''}`} onClick={event => onCardTap(1, event)}>
         <header>
-          <div className="ktBillPlanIcon"><img src="/smart-trade-icon.png" alt="" width={46} height={46}/><BarChart3 className="ktBillIconMobile" aria-hidden="true"/></div>
+          <div className="ktBillPlanIcon"><img src="/icon-192.png" alt="" width={46} height={46} style={{borderRadius: 14}}/><BarChart3 className="ktBillIconMobile" aria-hidden="true"/></div>
           <div><span className="ktBillTag">AKILLI MANUEL İŞLEMLER</span><h3>SMART TRADE</h3></div>
         </header>
         <p className="ktBillPlanLead">Kendi kararınla işlem aç. Analiz, Grid ve stop/hedef araçları dahil.</p>
