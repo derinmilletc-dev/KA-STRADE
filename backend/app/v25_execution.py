@@ -946,11 +946,27 @@ def summarize_mtf_relaxation(records: Any, *, min_confidence: float = 80.0) -> d
     }
 
 
+class _ArmWatch(dict):
+    """ARM süresi dolmadan sıfırlanırsa sıfırlayan kod yerini `arm_trace` alanına yazar (teşhis; davranış değişmez)."""
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        if key == "armed_until" and not value:
+            try:
+                before = float(self.get("armed_until") or 0)
+            except (TypeError, ValueError):
+                before = 0.0
+            if before > time.time():
+                import traceback
+                frames = traceback.extract_stack(limit=5)[:-1]
+                dict.__setitem__(self, "arm_trace", " < ".join(f"{frame.name}:{frame.lineno}" for frame in reversed(frames)))
+        dict.__setitem__(self, key, value)
+
+
 def initial_state() -> dict[str, Any]:
     default_policy = dict(DEFAULT_EXECUTION_POLICY)
     default_policy["min_confidence"] = configured_min_confidence()
     default_policy["mtf_allow_either_timeframe"] = configured_mtf_allow_either_timeframe()
-    return {
+    return _ArmWatch({
         "version": V25_VERSION,
         "policy": default_policy,
         "policy_ack_digest": None,
@@ -998,7 +1014,7 @@ def initial_state() -> dict[str, Any]:
         "last_order_error": None,
         "monitoring_credentials_stale_since": None,
         "trade_review": None,
-    }
+    })
 
 
 def sanitized_state(payload: Any) -> dict[str, Any]:
@@ -1813,6 +1829,8 @@ def live_lock_detail(state: dict[str, Any]) -> str:
     remaining = float(state.get("armed_until") or 0) - time.time()
     parts.append(f"ARM kalan: {int(remaining)} sn" if remaining > 0 else "ARM süresi yok")
     parts.append(f"gerçek işlem kilidi: {state.get('real_trading_locked')}")
+    if state.get("arm_trace"):
+        parts.append(f"ARM'ı sıfırlayan: {state['arm_trace']}")
     parts.append(f"otomasyon: {bool((state.get('auto') or {}).get('enabled'))}")
     recent = [f"{item.get('kind')}@{str(item.get('created_at'))[11:19]}" for item in (state.get("events") or [])[:4] if isinstance(item, dict)]
     if recent:
