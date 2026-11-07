@@ -9,7 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {showToast} from '../../toast-center'
 import {DayLimitCard} from './ManualTerminalParts'
-import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {MasterOnlyGate} from '../../premium-access'
@@ -524,6 +524,7 @@ export default function LiveCockpit(props: Props) {
     if (drawer) drawer.open = true
     manual.open = true
     setManualModal(true)
+    window.dispatchEvent(new CustomEvent(MANUAL_OPENED_EVENT))
   }
   const closeManual = useCallback(() => {
     setManualModal(false)

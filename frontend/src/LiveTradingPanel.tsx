@@ -27,7 +27,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
-import {MANUAL_INTENT_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
+import {MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -288,6 +288,23 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }, [order.symbol, order.direction, order.margin_usdt, order.leverage, manualStep])
   // Canlı kokpitteki "Manuel emir" bölümü açık mı: coin listesi ve risk önizlemesi bu bölüm açıkken de yüklenir.
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
+  // Emir gönderildikten sonra manuel işlem ekranı bir sonraki açılışta en baştan, boş başlar (eski coin/stop/hedef kalmaz).
+  const orderSentRef = useRef(false)
+  const resetManualForm = () => {
+    orderSentRef.current = false
+    setOrder(initialOrder(symbol)); setManualStep(0); setOrderDone(null)
+    setReviewedKey(''); setReviewResult(null); setLevelsFromAnalysis(false); setStopPick(null)
+    setFromStudio(''); setRiskLossInput(''); setAutoFill(false); setManualMode('single'); setGridAutoPct(null)
+    setNotice({kind: 'info', text: ''}); writeDraft(null)
+  }
+  const resetManualFormRef = useRef(resetManualForm)
+  resetManualFormRef.current = resetManualForm
+  useEffect(() => { if (manualPanelOpen && orderSentRef.current) resetManualFormRef.current() }, [manualPanelOpen])
+  useEffect(() => {
+    const onOpened = () => { if (orderSentRef.current) resetManualFormRef.current() }
+    window.addEventListener(MANUAL_OPENED_EVENT, onOpened)
+    return () => window.removeEventListener(MANUAL_OPENED_EVENT, onOpened)
+  }, [])
   // Manuel emir "Dalgaya göre" stop önerisi: yalnız form alanlarını doldurur, emir göndermez.
   const [volStopBusy, setVolStopBusy] = useState(false)
   const [volStopNote, setVolStopNote] = useState<{symbol: string; text: string; tone: 'ok' | 'warn'} | null>(null)
@@ -314,6 +331,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const intent = takeIntentForOrder()
       if (!intent) return
       setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
+      orderSentRef.current = false
       setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
       setAutoFill(!intent.mode); setLevelsFromAnalysis(false)
       if (intent.mode === 'grid') { setManualMode('grid'); setGridAutoPct(intent.pct ?? 5) } else setManualMode('single')
@@ -1338,7 +1356,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
         await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
-        setReviewedKey(''); setReviewResult(null); setManualStep(0); writeDraft(null)
+        setReviewedKey(''); setReviewResult(null); setManualStep(0)
+        setOrder(initialOrder(symbol)); setLevelsFromAnalysis(false); setStopPick(null); setFromStudio(''); setRiskLossInput('')
+        writeDraft(null)
+        orderSentRef.current = true
         setOrderDone(done)
       }})
       setConfirmText('')
@@ -1817,11 +1838,16 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
       {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       {reviewResult && reviewed && <p className="mxtOk" role="status">{reviewResult.message} Gerçek emir gönderilmedi.</p>}
+      {progressEl}
       <div className="mxtActions">
         <button type="button" className="mxtBtn ghost" onClick={() => reviewOrder()} disabled={Boolean(busy)}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'review' ? 'Kontrol ediliyor…' : 'Dry-run ile kontrol et'}</button>
-        <button type="button" className="mxtBtn danger" onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)}>{busy === 'send' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'send' ? 'Gönderiliyor…' : 'Gerçek emri gönder'}</button>
+        <button type="button" className="mxtBtn danger mxtSendPop" data-sending={busy === 'send' || undefined} onClick={sendOrder} disabled={Boolean(busy) || Boolean(sendBlock)} aria-busy={busy === 'send'}>
+          {busy === 'send'
+            ? <><svg className="mxtSendSpin" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeOpacity=".25" strokeWidth="3"/><path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg><span className="mxtSendText"><b>Binance'e gönderiliyor</b><small>Onay bekleniyor · <ElapsedSeconds/></small></span></>
+            : <><Send/> Gerçek emri gönder</>}
+        </button>
       </div>
-      {noticeEl}
+      {busy !== 'send' && noticeEl}
       {sendBlock && sendBlock !== riskError && <p className="mxtHint">{sendBlock}</p>}
       <p className="mxtHint">{feeNote} Hedefler: TP1 %{splitParts[0]}, TP2 %{splitParts[1]}, TP3 kalanı kapatır.{order.order_type === 'LIMIT' ? ` Limit emir: ${LIMIT_EXPIRY_OPTIONS.find(item => item.value === order.limit_expiry_minutes)?.label ?? 'Süresiz'}.` : ''}</p>
     </>
@@ -1872,7 +1898,6 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {statusStrip}
       {!orderDone && renderDayLimitCard(() => openRiskEdit({daily_loss_limit: suggestedDayLimit ?? undefined}), () => openRiskEdit())}
       {!orderDone && <button type="button" className="mxtRiskLink" onClick={() => openRiskEdit()}>Risk limitlerini düzenle</button>}
-      {progressEl}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}
       {fromStudio && fromStudio === order.symbol && !orderDone && <p className="mxtFrom" role="status">✓ <b>{fromStudio}</b> analiz stüdyosundan seçildi{hasAnalysis ? ' · Kais analizi hazır' : ''}</p>}

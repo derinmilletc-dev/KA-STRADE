@@ -116,3 +116,6 @@ export function openLiveSheet(action: 'clear-emergency' | 'recovery') {
   window.dispatchEvent(new CustomEvent(MANUAL_CLOSE_EVENT))
   window.setTimeout(() => window.dispatchEvent(new CustomEvent(OPEN_LIVE_SHEET_EVENT, {detail: {action}})), 150)
 }
+
+/** Manuel işlem paneli (modal) açıldı: form, önceki emir gönderildiyse sıfırlanır. */
+export const MANUAL_OPENED_EVENT = 'kt:manual-opened'
