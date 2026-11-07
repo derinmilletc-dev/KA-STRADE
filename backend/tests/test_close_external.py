@@ -52,3 +52,15 @@ class CloseExternalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CloseUnverifiedPlanTests(unittest.TestCase):
+    def test_unverified_plan_is_closed_by_symbol(self):
+        plan = {"id": "plan-pump-1", "symbol": "PUMPUSDT", "direction": "LONG", "provenance_state": "BROKEN"}
+        state = {**live.initial_state(), "lock": asyncio.Lock(), "plans": {"plan-pump-1": plan}}
+        close = AsyncMock(return_value={"orderId": 9, "avgPrice": "0.0038", "status": "FILLED"})
+        with patch.object(live, "execution_owner", return_value={"id": "owner"}), patch.object(live, "client_for", return_value=object()), \
+                patch.object(live, "persist_state", lambda s: None), patch.object(live, "close_tracked_symbol", close):
+            result = asyncio.run(live.v25_close(_request(state), live.CloseRequest(plan_id="plan-pump-1", confirmation="CANLI POZİSYONU KAPAT")))
+        self.assertTrue(result["ok"])
+        self.assertEqual(close.await_args.args[1], "PUMPUSDT")
