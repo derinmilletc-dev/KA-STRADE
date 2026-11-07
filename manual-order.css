@@ -177,3 +177,9 @@ html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendTex
 html body #root .mxtProgress:not(#p1):not(#p2):not(#p3){display:flex!important;align-items:center!important;gap:12px!important;margin:0 0 12px!important;padding:14px 16px!important;border-radius:16px!important;background:rgba(255,184,77,.12)!important;box-shadow:inset 0 0 0 1px rgba(255,184,77,.45)!important}
 html body #root .mxtProgress:not(#p1):not(#p2):not(#p3) b{color:#ffd27a!important}
 html body #root .mxtProgress:not(#p1):not(#p2):not(#p3) svg{flex:none;color:#ffb84d!important}
+/* Risk limitleri: sade, ikonlu hap buton (eski altı çizili yazı yerine). */
+html body #root:not(#rl1):not(#rl2) .mxtRiskLink { display: flex !important; width: max-content; align-items: center; gap: 8px; margin: 0 0 10px auto !important; padding: 8px 12px 8px 10px !important; border-radius: 999px !important; border: 1px solid rgba(255,255,255,.09) !important; background: rgba(255,255,255,.04) !important; color: #cfdae6 !important; font-size: 13px !important; font-weight: 700 !important; text-decoration: none !important; line-height: 1 !important; cursor: pointer; transition: background .15s, border-color .15s; }
+html body #root:not(#rl1):not(#rl2) .mxtRiskLink:hover, html body #root:not(#rl1):not(#rl2) .mxtRiskLink:focus-visible { background: rgba(61,220,151,.1) !important; border-color: rgba(61,220,151,.35) !important; color: #fff !important; }
+html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg { width: 16px; height: 16px; flex: none; }
+html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg:first-child { color: #3ddc97; }
+html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg:last-child { width: 14px; height: 14px; color: #7f91a5; }
