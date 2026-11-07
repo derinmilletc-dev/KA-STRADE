@@ -9389,6 +9389,37 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             raise safe_exchange_error(exc) from exc
 
 
+class CloseExternalRequest(BaseModel):
+    symbol: str = Field(min_length=6, max_length=24, pattern=r"^[A-Z0-9]{2,20}USDT$")
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/position/close-external")
+async def v25_close_external(request: Request, body: CloseExternalRequest) -> dict[str, Any]:
+    """Planı olmayan (dış) açık pozisyonu kullanıcının isteğiyle kapatır: borsada gerçekten açık olan miktar,
+    reduce-only piyasa emriyle kapanır (ters yönde yeni pozisyon açılmaz). Başka emre dokunulmaz."""
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "CANLI POZİSYONU KAPAT":
+        raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
+    state = request.app.state.v25_execution
+    started = time.monotonic()
+    async with state["lock"]:
+        symbol = body.symbol.upper()
+        try:
+            intent = f"manual-close-ext-{symbol}-{int(time.time())}"
+            result = await close_tracked_symbol(client_for(request.app, request), symbol, intent)
+        except LiveExchangeError as exc:
+            raise safe_exchange_error(exc) from exc
+        if result is None:
+            raise HTTPException(409, f"{symbol} için Binance'ta açık pozisyon bulunamadı; zaten kapanmış olabilir.")
+        fill_price = close_fill_price(result)
+        total_ms = int((time.monotonic() - started) * 1000)
+        add_event(state, "LIVE_CLOSE", f"{symbol} dış pozisyon kullanıcı isteğiyle reduce-only kapatıldı.", actor=user["id"], symbol=symbol,
+                  fill_price=fill_price, total_ms=total_ms)
+        persist_state(state)
+        return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms}
+
+
 class ManualProtectionRequest(BaseModel):
     plan_id: str = Field(min_length=6, max_length=64)
     stop_loss: float | None = Field(default=None, gt=0)

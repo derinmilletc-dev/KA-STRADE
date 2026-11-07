@@ -601,7 +601,9 @@ export default function LiveCockpit(props: Props) {
     if (!target) return Promise.resolve(false)
     const clickedAt = Date.now()
     return perform('close-position', async () => {
-      const result = await request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE}) as {fill_price?: unknown} | undefined
+      const result = await (target.planId.length >= 6
+        ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE})
+        : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE})) as {fill_price?: unknown} | undefined
       setSheet(null); setCloseTarget(null)
       // Gerçek dolum fiyatı ve süre: "bastığım an" ile "dolduğu an" arasındaki farkı görünür kılar.
       const coin = target.symbol.replace('USDT', '')
