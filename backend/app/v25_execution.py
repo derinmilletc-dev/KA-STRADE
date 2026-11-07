@@ -1810,7 +1810,14 @@ def live_lock_detail(state: dict[str, Any]) -> str:
                   if isinstance(plan, dict) and (plan.get("provenance_state") == "BROKEN" or plan.get("status") == "YÖN UYUŞMAZLIĞI")})
     if bad:
         parts.append("sorunlu plan: " + ", ".join(bad[:3]))
-    return f" ({'; '.join(parts)})" if parts else ""
+    remaining = float(state.get("armed_until") or 0) - time.time()
+    parts.append(f"ARM kalan: {int(remaining)} sn" if remaining > 0 else "ARM süresi yok")
+    parts.append(f"gerçek işlem kilidi: {state.get('real_trading_locked')}")
+    parts.append(f"otomasyon: {bool((state.get('auto') or {}).get('enabled'))}")
+    recent = [f"{item.get('kind')}@{str(item.get('created_at'))[11:19]}" for item in (state.get("events") or [])[:4] if isinstance(item, dict)]
+    if recent:
+        parts.append("son olaylar: " + ", ".join(recent))
+    return f" ({'; '.join(parts)})"
 
 
 def live_entry_authority_open(state: dict[str, Any]) -> bool:
