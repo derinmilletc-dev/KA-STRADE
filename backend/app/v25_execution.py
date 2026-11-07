@@ -4529,7 +4529,7 @@ def _iso_epoch_ms(value: Any) -> int:
         return int(time.time() * 1000) - 24 * 60 * 60 * 1000
 
 
-async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> dict[str, Any]:
+async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any], *, symbol_fallback: bool = False) -> dict[str, Any]:
     """Rebuild a closed plan's trade PnL from official account trades.
 
     Funding payments are intentionally reported separately by Binance and are
@@ -4595,6 +4595,15 @@ async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> 
     close_side = "SELL" if plan.get("direction") == "LONG" else "BUY"
     selected = [item for item in rows if int(item.get("orderId") or 0) in known_ids]
     close_rows = [item for item in selected if str(item.get("side") or "").upper() == close_side]
+    attribution = "ORDER_IDS"
+    if not close_rows and symbol_fallback:
+        # Kapanış, planın kendi emir kimliğiyle değil dışarıdan (Binance uygulaması, "dış pozisyonu kapat") yapılmış olabilir.
+        # Bu sembolde başka plan yokken, planın açıldığından beri kapanış yönündeki hesap işlemleri kapanış sayılır.
+        since = _iso_epoch_ms(plan.get("created_at")) - 60_000
+        window = [item for item in rows if str(item.get("time") or "").isdigit() and int(item["time"]) >= since]
+        window_close = [item for item in window if str(item.get("side") or "").upper() == close_side]
+        if window_close:
+            selected, close_rows, attribution = window, window_close, "SYMBOL_WINDOW"
     if not close_rows:
         raise LiveExchangeError("Binance işlem geçmişi V25'e ait kapanış dolumunu henüz kimlikle doğrulamadı.")
     entry_side = "BUY" if plan.get("direction") == "LONG" else "SELL"
@@ -4648,6 +4657,7 @@ async def verified_plan_pnl(client: BinanceLiveClient, plan: dict[str, Any]) -> 
         "opened_at": opened_at,
         "non_usdt_commission_assets": non_usdt_commission,
         "funding_included": False,
+        "attribution": attribution,
     }
 
 
@@ -4715,8 +4725,17 @@ async def settle_closed_plan(client: BinanceLiveClient, state: dict[str, Any], p
         if review:
             add_event(state, "TRADE_REVIEW_GENERATED", "4USDT ve MUBARAKUSDT için doğrulanmış canlı işlem inceleme raporu oluşturuldu.", **review)
         return
+    sole_plan_for_symbol = not any(
+        other is not plan and isinstance(other, dict) and other.get("symbol") == plan.get("symbol")
+        and other.get("status") not in {"KAPANDI", "İPTAL"}
+        for other in state.get("plans", {}).values()
+    )
+    old_enough = time.time() * 1000 - _iso_epoch_ms(plan.get("created_at")) > 120_000
     try:
-        result = await verified_plan_pnl(client, plan)
+        if sole_plan_for_symbol and old_enough and plan.get("pnl_verified") is False:
+            result = await verified_plan_pnl(client, plan, symbol_fallback=True)
+        else:
+            result = await verified_plan_pnl(client, plan)
     except LiveExchangeError as exc:
         plan.update({"status": "PNL DOĞRULANIYOR", "pnl_verified": False, "pnl_verification_error": str(exc)[:220], "r_multiple": None})
         state["armed_until"] = 0.0
