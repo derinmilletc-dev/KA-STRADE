@@ -256,32 +256,23 @@ export default function PositionsCard(props: Props) {
 
           <div className="pvDetail">
             {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
-            <div className="pvChips">
-              <span className="pvChip" data-kind={manual ? 'manual' : external ? 'external' : 'bot'}>{source}</span>
-              {metrics.marginType && <span className="pvChip">{metrics.marginType === 'cross' ? 'Çapraz' : 'İzole'}</span>}
-              {metrics.pnlOnMarginPct !== null && <span className="pvChip" data-tone={tone(metrics.pnlOnMarginPct)}>{`${metrics.pnlOnMarginPct < 0 ? '−' : ''}${formatPct(Math.abs(metrics.pnlOnMarginPct), 1)} teminata göre`}</span>}
-            </div>
+            {closable && manual && props.onCloseTarget && <CloseTargetBox planId={planId} metrics={metrics} plan={plan} busy={busy} onSet={props.onCloseTarget}/>}
             <div className="pvKeys">
-              <div data-tone={metrics.level === 'ok' ? 'down' : 'warn'}><small>Stopa kalan</small><b>{metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : '—'}</b>
-                <em>{risk !== null ? (Math.abs(risk) <= 0.005 ? 'Stopta 0,00' : risk > 0 ? `Stopta −${formatUsdt(Math.abs(risk))}` : `Stopta +${formatUsdt(Math.abs(risk))}`) : 'Stopta —'}</em></div>
-              <div data-tone="up"><small>{breakeven ? 'Sonraki hedef' : 'TP1’e kalan'}</small><b>{metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : '—'}</b>
-                <em>{metrics.rewardAtTp1 !== null && metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? `TP1’de ${formatUsdt(metrics.rewardAtTp1, true)}` : 'TP1’de —'}</em></div>
-              <div data-tone={metrics.toLiqPct !== null && metrics.toLiqPct < 15 ? 'warn' : undefined}><small>Likidasyon</small><b>{metrics.toLiqPct !== null ? formatPct(metrics.toLiqPct, 0) : '—'}</b>
-                <em>{metrics.liquidation !== null ? formatPrice(metrics.liquidation) : '—'}</em></div>
+              <div data-tone={metrics.level === 'ok' ? 'down' : 'warn'}><small>Stopa kalan</small><b>{metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : '—'}</b></div>
+              <div data-tone="up"><small>{breakeven ? 'Sonraki hedef' : 'TP1’e kalan'}</small><b>{metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : '—'}</b></div>
+              <div data-tone={metrics.toLiqPct !== null && metrics.toLiqPct < 15 ? 'warn' : undefined}><small>Likidasyon</small><b>{metrics.toLiqPct !== null ? formatPct(metrics.toLiqPct, 0) : '—'}</b></div>
             </div>
             <div className="pvMeta">
               <Cell label="Giriş" value={metrics.entry !== null ? formatPrice(metrics.entry) : null}/>
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
               <Cell label="Teminat" value={metrics.margin !== null ? `${formatUsdt(metrics.margin)} USDT` : null}/>
-              {score && <Cell label="Güven" value={score.mismatch ? 'Ters sinyal' : `${score.now}${score.entry !== null ? ` · girişte ${score.entry}` : ''}`} tone={score.tone === 'up' ? 'up' : score.tone === 'down' ? 'down' : 'warn'}/>}
             </div>
 
             {!external && <div className="pvProt" aria-label="Koruma emirleri">
-              {flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
+              <span className="pvChip" data-kind={manual ? 'manual' : 'bot'}>{source}</span>{flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
-            {closable && manual && props.onCloseTarget && <CloseTargetBox planId={planId} metrics={metrics} plan={plan} busy={busy} onSet={props.onCloseTarget}/>}
-            {(insights.length > 0 || smart || score) && <div className="pvIns">
+            {(insights.length > 0 || smart || score) && <details className="pvIns"><summary>Akıllı notlar<em>{insights.length + (smart ? 1 : 0) + (score ? 1 : 0)}</em><ChevronDown aria-hidden="true"/></summary>
               {score && <p data-tone={score.tone === 'up' ? 'info' : 'warn'}>{score.mismatch
                 ? `Strateji şu an ters yönü gösteriyor${score.opposite !== null ? ` (karşı yön güveni ${score.opposite})` : ''}.`
                 : score.now !== null && score.now < score.threshold
@@ -289,7 +280,7 @@ export default function PositionsCard(props: Props) {
                   : `Güven puanı ${score.now}; giriş eşiğinin (${score.threshold}) üstünde.${scoreTime ? ` Son ölçüm ${scoreTime} mumu.` : ''}`}</p>}
               {insights.map(item => <p key={item.text} data-tone={item.tone}>{item.text}</p>)}
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
-            </div>}
+            </details>}
 
             {external && <p className="pvNote">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}

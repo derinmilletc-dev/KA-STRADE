@@ -1395,3 +1395,18 @@ html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button { flex: 1; min-
 html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button[data-k="main"] { flex: 2; background: #3ddc97 !important; color: #06281a !important; }
 html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button[data-k="off"] { color: #ff9d9d !important; }
 html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button:disabled { opacity: .5 !important; }
+/* Sade kart detayı: hedef üstte, üç özet kutusu tek satırda, notlar katlanır. */
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys > div { padding: 8px 10px !important; border-radius: 12px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys b { font-size: 16px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; margin: 8px 0 0 !important; padding: 0 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta > div { display: grid !important; gap: 2px !important; border: 0 !important; padding: 0 2px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta small { font-size: 11px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta b { text-align: left; font-size: 13px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTarget, html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen { margin: 0 0 10px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns { display: block !important; border-radius: 12px !important; background: rgba(255,255,255,.04) !important; padding: 0 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary { list-style: none; display: flex !important; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12.5px; font-weight: 700; color: #c9d5e2; cursor: pointer; }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary::-webkit-details-marker { display: none; }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary em { font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: rgba(255,255,255,.08); }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary svg { width: 16px; height: 16px; margin-left: auto; transition: transform .2s; }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns[open] > summary svg { transform: rotate(180deg); }
+html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > p { margin: 0 8px 8px !important; }
