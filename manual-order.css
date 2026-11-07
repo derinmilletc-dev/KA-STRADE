@@ -196,5 +196,9 @@ html body #root:not(#ps1):not(#ps2) .mxtPermState b { flex: 0 0 100%; color: #e6
 html body #root:not(#ps1):not(#ps2) .mxtPermState span { white-space: nowrap; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState span:last-child { white-space: normal; }
 /* Coin sekmeleri sinyaller yüklenirken de görünür (soluk); not satırı sade. */
-html body #root:not(#cs1):not(#cs2) .mxtMTabs button:disabled { opacity: .45; cursor: default; }
+html body #root:not(#cs1):not(#cs2) .mxtMTabs button:disabled { opacity: .8; cursor: progress; }
 html body #root:not(#cs1):not(#cs2) .mxtMSigNote { margin: 4px 0 6px !important; color: #93a3b5 !important; font-size: 12px !important; }
+/* Sinyaller taranırken sekme sayısının yerinde küçük dönen halka (yazısız). */
+html body #root:not(#cs1):not(#cs2) .mxtMTabs .mxtMSpin { display: inline-block; width: 12px; height: 12px; border-radius: 50% !important; border: 2px solid rgba(61,220,151,.25) !important; border-top-color: #3ddc97 !important; background: none !important; animation: mxtMSpin .8s linear infinite !important; vertical-align: middle; }
+@keyframes mxtMSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { html body #root:not(#cs1):not(#cs2) .mxtMTabs .mxtMSpin { animation-duration: 2.4s; } }
