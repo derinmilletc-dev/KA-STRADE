@@ -27,7 +27,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
-import {MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
+import {MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -302,8 +302,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   useEffect(() => { if (manualPanelOpen && orderSentRef.current) resetManualFormRef.current() }, [manualPanelOpen])
   useEffect(() => {
     const onOpened = () => { if (orderSentRef.current) resetManualFormRef.current() }
+    // Panel kapanınca (çarpı, dış alan, Esc) form sıfırlanır: bir sonraki açılış ilk adımdan, güncel fiyat ve skorlarla başlar.
+    const onClosed = () => resetManualFormRef.current()
     window.addEventListener(MANUAL_OPENED_EVENT, onOpened)
-    return () => window.removeEventListener(MANUAL_OPENED_EVENT, onOpened)
+    window.addEventListener(MANUAL_CLOSED_EVENT, onClosed)
+    return () => { window.removeEventListener(MANUAL_OPENED_EVENT, onOpened); window.removeEventListener(MANUAL_CLOSED_EVENT, onClosed) }
   }, [])
   // Manuel emir "Dalgaya göre" stop önerisi: yalnız form alanlarını doldurur, emir göndermez.
   const [volStopBusy, setVolStopBusy] = useState(false)

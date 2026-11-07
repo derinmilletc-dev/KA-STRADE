@@ -9,7 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {showToast} from '../../toast-center'
 import {DayLimitCard} from './ManualTerminalParts'
-import {MANUAL_CLOSE_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {MasterOnlyGate} from '../../premium-access'
@@ -531,6 +531,7 @@ export default function LiveCockpit(props: Props) {
     const prev = manualPrev.current
     manualPrev.current = null
     if (!prev) return
+    window.dispatchEvent(new CustomEvent(MANUAL_CLOSED_EVENT))
     const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
     const manual = document.querySelector<HTMLDetailsElement>('.originalManualOrder')
     if (manual) manual.open = prev.manual

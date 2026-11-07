@@ -9,6 +9,8 @@ const KEY = 'kt-manual-intent-v1'
 const TTL_MS = 2 * 60 * 1000
 export const MANUAL_INTENT_EVENT = 'kt:manual-intent'
 export const MANUAL_CLOSE_EVENT = 'kt:manual-close'
+/** Manuel işlem paneli kapandı (çarpı, dış alan, Esc): form bir sonraki açılışta en baştan, güncel fiyatlarla başlasın. */
+export const MANUAL_CLOSED_EVENT = 'kt:manual-closed'
 export const FOLLOW_SYMBOL_EVENT = 'kt:follow-symbol'
 
 const read = (): Intent | null => {
