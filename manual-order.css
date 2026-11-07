@@ -183,3 +183,7 @@ html body #root:not(#rl1):not(#rl2) .mxtRiskLink:hover, html body #root:not(#rl1
 html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg { width: 16px; height: 16px; flex: none; }
 html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg:first-child { color: #3ddc97; }
 html body #root:not(#rl1):not(#rl2) .mxtRiskLink svg:last-child { width: 14px; height: 14px; color: #7f91a5; }
+/* Kaydırma tutamacı: GPU katmanı; sürüklerken geçiş yok, kare başına tek güncelleme. */
+html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle { will-change: transform; }
+html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle[data-dragging] { transition: none !important; }
+html body #root:not(#sl1):not(#sl2) .mxtSlide button.mxtSlideHandle[data-dragging] span { animation: none !important; }
