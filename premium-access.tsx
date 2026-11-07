@@ -7,6 +7,7 @@ import {clearKaisChatHistory, resumeKaisChatHistory} from './frontend/src/kais-c
 import {setStaffView} from './error-visibility'
 import {PAID_PLAN_AMOUNT} from './smart-trade-plans'
 import './premium-access.css'
+import {showToast} from './toast-center'
 
 type MemberAccess = {premium: boolean; ready: boolean; userId: string | null; displayName?: string; owner: boolean; error: string; assistantAllowed:boolean; freeTrial:boolean; liveAllowed:boolean; automationAllowed?:boolean; openUpgrade: (label: string, kind?: 'master') => void}
 const missingProvider = () => { throw new Error('MemberAccessProvider is required for premium interactions.') }
@@ -84,6 +85,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
     const seenKey = `protrebot-premium-card-seen:${access.userId}`
     if (!access.freeTrial && sessionStorage.getItem(seenKey)) {
       setToast(`${label} için Premium üyelik gerekli.`)
+      showToast({title: 'Premium gerekli', body: `${label} için Premium üyelik gerekli.`, tone: 'warn', action: {label: "Premium'a geç", href: '/pricing'}})
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current)
       toastTimer.current = window.setTimeout(() => setToast(''), 4500)
     } else {
@@ -132,7 +134,6 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
           <p className="premiumFoot">Otomatik ücret yok. Ödeme Binance Pay ile, manuel doğrulanır.</p>
         </div>
       </dialog>}
-      {toast && <aside className="premiumToast" role="status"><LockKeyhole aria-hidden="true"/><span>{toast}</span><a href="/pricing">Premium'a geç</a><button type="button" aria-label="Bildirimi kapat" onClick={() => setToast('')}><X aria-hidden="true"/></button></aside>}
     </>, document.body)}
   </AccessContext.Provider>
 }

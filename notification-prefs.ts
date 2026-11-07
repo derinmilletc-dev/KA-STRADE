@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react'
+import {humanizeLiveEvent, showToast} from './toast-center'
 
 export type NotifyKind = 'entry' | 'close' | 'protection' | 'connection' | 'arm' | 'emergency' | 'grid'
 export type NotifyPrefs = {enabled: Record<NotifyKind, boolean>; browser: boolean; sound: boolean}
@@ -62,19 +63,7 @@ function beep() {
 }
 
 function toast(title: string, body: string, tone: 'ok' | 'warn' | 'bad') {
-  const color = tone === 'bad' ? '#f87171' : tone === 'warn' ? '#f5b942' : '#34d399'
-  const element = document.createElement('div')
-  element.setAttribute('role', 'status')
-  element.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483000;max-width:min(380px,calc(100vw - 32px));padding:14px 16px;border-radius:16px;background:#141d28;color:#edf2f8;font:600 14px/1.45 system-ui,sans-serif;box-shadow:0 12px 32px rgba(0,0,0,.45);display:grid;gap:3px;'
-  const head = document.createElement('b')
-  head.textContent = title
-  head.style.color = color
-  const text = document.createElement('span')
-  text.textContent = body
-  text.style.cssText = 'font-weight:500;color:#cbd5e1;overflow-wrap:anywhere'
-  element.append(head, text)
-  document.body.appendChild(element)
-  window.setTimeout(() => element.remove(), 8000)
+  showToast({title, body, tone})
 }
 
 export function fireNotification(title: string, body: string, tone: 'ok' | 'warn' | 'bad', prefs = loadNotifyPrefs(), tag?: string) {
@@ -103,7 +92,7 @@ export function useLiveEventNotifications(events: unknown) {
       const kind = String(event.kind ?? '')
       const match = NOTIFY_KINDS.find(item => item.pattern.test(kind))
       if (!match || !prefs.enabled[match.id]) continue
-      fireNotification(match.title, String(event.message || kind).replaceAll('_', ' '), match.tone, prefs, key)
+      fireNotification(match.title, humanizeLiveEvent(kind, String(event.message || kind)), match.tone, prefs, key)
     }
   }, [events])
 }

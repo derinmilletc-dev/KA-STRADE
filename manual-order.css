@@ -139,6 +139,30 @@ html body #root .mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBloc
 @keyframes mxtBlockIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){html body #root .mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup{animation:none}}
 
+/* Günlük zarar limiti kartı (ortak). ID'li :not, Canlı İşlem sekmesindeki çok özgül kuralları yener; ad 'Popup' arka plan silmeden muaf. */
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3){--c:#ffb84d;position:relative;display:grid!important;gap:12px!important;margin:0 0 14px!important;padding:16px 16px 16px 20px!important;border-radius:22px!important;overflow:hidden;color:#eef4fa!important;background:linear-gradient(160deg,rgba(32,38,52,.97),rgba(16,22,32,.97))!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 14px 34px rgba(0,0,0,.35)!important;text-align:left!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3)[data-full]{--c:#ff7a7a}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3)::before{content:""!important;position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) header{display:flex!important;align-items:center;gap:12px;margin:0!important;padding:0!important;background:none!important;border:0!important;position:static!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) header>div{display:grid;gap:1px;flex:1;min-width:0;background:none!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) header small{font-size:10.5px!important;font-weight:800!important;letter-spacing:.14em;color:var(--c)!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) header b{font-size:17px!important;font-weight:800!important;color:#fff!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) header em{font-style:normal;font-size:13px!important;font-weight:900!important;padding:5px 11px;border-radius:999px;background:var(--c)!important;color:#1b1100!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayIcon{flex:none;width:40px;height:40px;border-radius:13px;display:grid!important;place-items:center;background:color-mix(in srgb,var(--c) 18%,transparent)!important;color:var(--c)!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayIcon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayMeter{height:8px!important;border-radius:999px!important;background:rgba(255,255,255,.1)!important;overflow:hidden;padding:0!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayMeter i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ffd27a,var(--c))!important;transition:width .4s ease}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) dl{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0!important;padding:0!important;background:none!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) dl>div{display:grid;gap:2px;padding:10px 12px!important;border-radius:14px!important;background:rgba(255,255,255,.05)!important;border:0!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) dt{font-size:11.5px!important;color:#93a3b5!important;margin:0}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) dd{margin:0!important;font-size:16px!important;font-weight:800!important;color:#fff!important;font-variant-numeric:tabular-nums}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) p{margin:0!important;font-size:13.5px!important;line-height:1.5!important;color:#b9c6d4!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayReset{display:flex!important;align-items:center;gap:8px;font-size:12.5px!important;color:#93a3b5!important;background:none!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayReset b{color:#dbe6f2!important;font-weight:700!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayReset span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.07)!important;color:#dbe6f2!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayBtns{display:flex!important;flex-wrap:wrap;gap:8px;background:none!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayBtns button{flex:1 1 auto;min-height:44px!important;padding:0 18px!important;border:0!important;border-radius:999px!important;font-size:14px!important;font-weight:800!important;background:var(--c)!important;color:#1b1100!important;box-shadow:none!important;opacity:1!important}
+html body .ktDayPopup:not(#d1):not(#d2):not(#d3) .ktDayBtns button[data-k=alt]{flex:0 0 auto;background:rgba(255,255,255,.07)!important;color:#eef4fa!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)!important}
 /* Gerçek emir gönderilirken: hareketli, belirgin buton (sitedeki çok özgül buton kurallarını yenmek için ID'li :not) */
 html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending]{position:relative!important;overflow:hidden!important;min-height:64px!important;opacity:1!important;cursor:progress!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:12px!important;color:#2a1600!important;background:linear-gradient(110deg,#ffb84d 0%,#ffd27a 25%,#ff9a4d 50%,#ffd27a 75%,#ffb84d 100%)!important;background-size:250% 100%!important;animation:mxtSendFlow 1.6s linear infinite,mxtSendGlow 1.6s ease-in-out infinite!important}
 html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending]::after{content:""!important;position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-100%);animation:mxtSendShine 1.4s ease-in-out infinite;pointer-events:none}

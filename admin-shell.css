@@ -450,3 +450,6 @@ html body main.akShell.akShell .akSiteTop svg { width: 16px; height: 16px; }
   html body main.akShell.akShell .akSiteTop { flex: none; width: 40px; padding: 0; justify-content: center; }
   html body main.akShell.akShell .akSiteTop span { display: none; }
 }
+
+.akBrand .akBrandText{display:grid;gap:4px;min-width:0}
+.akBrand .akBrandText small{padding-left:2px}

@@ -8,7 +8,7 @@ import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
 import { liveChangePercent, midPrice } from './live-quote'
 import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
-import { CheckList, DirectionCards, ElapsedSeconds, PriceMapView, SlideToConfirm, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
+import { CheckList, DirectionCards, DayLimitCard, ElapsedSeconds, PriceMapView, SlideToConfirm, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
 import { AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
@@ -812,16 +812,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const dayUsedLoss = Math.max(0, -Number(status?.daily?.realized_pnl ?? 0), -Number(status?.account?.unrealized_pnl ?? 0))
   const dayUsedPct = Number.isFinite(dayLimitValue) && dayLimitValue > 0 ? dayUsedLoss / dayLimitValue * 100 : 0
   const suggestedDayLimit = Number.isFinite(dayLimitValue) ? Math.min(1000, Math.max(5, Math.ceil(dayLimitValue * 1.5 / 5) * 5)) : null
-  const renderDayLimitCard = (onSuggest: () => void, onEdit: () => void, note?: string) => dayUsedPct >= 90 ? <div className="mxtDayLimit" role="alert" data-full={dayUsedPct >= 100 ? 'yes' : undefined}>
-    <div className="mxtDayHead"><b>{dayUsedPct >= 100 ? 'Günlük zarar limiti doldu' : 'Günlük limitin dolmak üzere'}</b><em>%{Math.min(999, Math.floor(dayUsedPct))}</em></div>
-    <div className="mxtDayMeter" aria-hidden="true"><i style={{width: `${Math.min(100, dayUsedPct)}%`}}/></div>
-    <div className="mxtDayNums"><span>Kullanılan <b>{money(dayUsedLoss)}</b></span><span>Limit <b>{money(dayLimitValue)}</b></span><span>Kalan <b>{money(Math.max(0, dayLimitValue - dayUsedLoss))}</b></span></div>
-    <p>{dayUsedPct >= 100 ? 'Limit dolduğu için yeni emir açılamaz.' : 'Yeni emir bu limiti doldurabilir.'} Tutarlar USDT. Limiti istersen yükseltebilirsin.{note ? ` ${note}` : ''}</p>
-    <div className="mxtDayBtns">
-      {suggestedDayLimit !== null && suggestedDayLimit > dayLimitValue && <button type="button" onClick={onSuggest}>Limiti {suggestedDayLimit} USDT yap</button>}
-      <button type="button" data-k="alt" onClick={onEdit}>Düzenle</button>
-    </div>
-  </div> : null
+  const renderDayLimitCard = (onSuggest: () => void, onEdit: () => void, note?: string) => dayUsedPct >= 90
+    ? <DayLimitCard used={dayUsedLoss} limit={dayLimitValue} suggested={suggestedDayLimit} onSuggest={onSuggest} onEdit={onEdit} note={note}/>
+    : null
   const riskEditProblem = (form: Record<string, string>) => {
     for (const field of RISK_FIELDS) {
       const value = Number(form[field.key])
