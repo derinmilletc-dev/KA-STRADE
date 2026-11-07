@@ -1940,6 +1940,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {permBlockCard}
           {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
           {needPermission && !orderDone && status?.live_lock_reason?.message && <p className="mxtWhyLocked" role="status"><b>İzin neden kapandı?</b> {status.live_lock_reason.message}</p>}
+          {needPermission && !orderDone && <p className="mxtPermState" role="status" aria-label="İzin durumu">
+            <b>İzin durumu</b>
+            <span>izin: {authorizationValid ? 'geçerli' : (status?.authorization?.reason || 'yok')}</span>
+            <span>kilit: {liveArmed ? 'açık' : 'kapalı'}</span>
+            <span>yürütme: {status?.execution_state || '—'}</span>
+            <span>uzlaştırma: {status?.reconciliation_required ? 'gerekli' : 'yok'}</span>
+            <span>acil durdurma: {emergency ? 'açık' : 'yok'}</span>
+            <span>kurtarma: {status?.recovery_ready === false ? 'bekliyor' : 'hazır'}</span>
+            {!readinessReady && <span>eksik kapı: {(status?.readiness?.gates ?? []).filter(gate => gate.passed === false).map(gate => gate.label || gate.key).join(', ') || '—'}</span>}
+            {permError && <span>son hata: {permError}</span>}
+          </p>}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
