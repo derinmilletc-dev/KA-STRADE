@@ -796,7 +796,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     addCheck('readiness', 'Genel LIVE hazırlık kapıları', readinessPassed, readinessPassed ? 'Sunucunun LIVE hazırlık kapıları tamam.' : 'Bir veya daha fazla LIVE hazırlık kapısı tamam değil.')
     addCheck('ui_request', 'Devam eden ekran işlemi', !busy, busy ? 'Başka bir ekran işlemi sürüyor; tamamlanmasını bekleyin.' : 'Bekleyen ekran işlemi yok.')
   }
-  const manualOrderReady = Boolean(!freeTrial && statusVerified && status && connected && authorizationValid && liveArmed && readinessReady && !recoveryRequired && !emergency)
+  // İzin (24 sa risk izni + ARM) ayrı adım değil: emir gönderilirken sunucu kendisi açar (auto_authorize_manual).
+  const manualOrderReady = Boolean(!freeTrial && statusVerified && status && connected && !recoveryRequired && !emergency)
   const setPolicy = (key: string, value: unknown) => setPolicyDraft(current => ({...(current || {}), [key]: value}))
   const numericPolicy = (key: string, fallback: number) => Number(policy[key] ?? fallback)
   const RISK_FIELDS = [
@@ -1388,7 +1389,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const set = (key: keyof OrderDraft, value: string) => { if (key === 'stop_loss' || key === 'tp1' || key === 'tp2' || key === 'tp3') { setLevelsFromAnalysis(false); setStopPick(null) } setOrder(current => ({...current, [key]: value})) }
     const armable = authorizationValid && readinessReady && !liveArmed && !freeTrial
     // İzin (24 sa risk izni + ARM) işlemin en başında zorunludur: düzeltilebilir durumdaysa ilk adımdan ileri gidilemez.
-    const needPermission = !freeTrial && !(authorizationValid && liveArmed) && (!authorizationValid || armable)
+    // Kaydırarak izin adımı kaldırıldı: izin arka planda otomatik verilir (panel açılınca ve emir gönderilirken sunucuda).
+    const needPermission = false as boolean
     const wallet = Number(status?.account?.wallet_balance)
     const walletShare = wallet > 0 && marginValue > 0 ? marginValue / wallet * 100 : null
     const presetPrice = (value: number) => String(Number(value.toPrecision(6)))
