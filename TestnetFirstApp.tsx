@@ -573,6 +573,15 @@ export default function TestnetFirstApp() {
   const [view,setView] = useState<View>(initialView)
   const [perfMode,setPerfMode] = useState<'live'|'demo'>('live')
   useEffect(() => {applyPageMetadataForPath(`/${view}`,window.location.pathname)},[view])
+  // Master Trade kodu ilk girişte indiriliyordu; o sırada araya genel üst çubuk ve "Ana sayfa" butonu giriyordu.
+  // Uygulama açılınca boşta kaldığı ilk anda önceden indirilir; geçiş anında bekleme olmaz.
+  useEffect(() => {
+    const warm = () => { void import('./MasterTrade').catch(() => undefined) }
+    const idle = (window as Window & {requestIdleCallback?: (cb: () => void, opts?: {timeout: number}) => number}).requestIdleCallback
+    if (idle) { const id = idle(warm, {timeout: 4000}); return () => (window as Window & {cancelIdleCallback?: (id: number) => void}).cancelIdleCallback?.(id) }
+    const timer = window.setTimeout(warm, 1500)
+    return () => window.clearTimeout(timer)
+  }, [])
   const [masterTradeAccess,setMasterTradeAccess] = useState<'loading'|'granted'|'locked'|'unauthenticated'|'unavailable'>('loading')
   const [accessAttempt,setAccessAttempt] = useState(0)
   const [accessError,setAccessError] = useState('')

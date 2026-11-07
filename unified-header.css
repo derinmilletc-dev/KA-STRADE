@@ -39,3 +39,11 @@
   html body #root:not(#uh1):not(#uh2) > main.v26App.workspaceRoute .masterReferenceAnalysis .masterTradeProfileSlot .authMemberTrigger { width: 44px !important; height: 44px !important; min-width: 44px !important; flex: 0 0 44px !important; }
   html body #root:not(#uh1):not(#uh2) > main.v26App.workspaceRoute .masterReferenceAnalysis .masterTradeProfileSlot .authProfileGlyph { width: 19px !important; height: 19px !important; min-width: 19px !important; max-width: 19px !important; flex: 0 0 19px !important; }
 }
+
+@media (max-width: 700px) {
+  /* Master/Demo yüklenirken araya giren "Ana sayfa" butonu gösterilmez (yeni üst çubuğa geçerken eski menü görünmesin). */
+  html body #root:not(#uh1):not(#uh2) > main.v26App.masterTradeRoute:has(.v26Loading) > :is(.homeBackButton, .v26ModeBar, .v26OfflineNotice.online) { display: none !important; }
+  /* Master Analiz/Demo üst çubuğu, genel üst çubukla aynı hizada: logo, zil ve profil geçişte kaymaz. */
+  html body #root:not(#uh1):not(#uh2) > main.v26App.masterTradeRoute .masterReferenceAnalysis > .refHeader { padding-top: 1px !important; }
+  html body #root:not(#uh1):not(#uh2) > main.v26App.workspaceRoute.masterTradeRoute:has(.masterReferenceAnalysis) { --uh-top: 5px; }
+}
