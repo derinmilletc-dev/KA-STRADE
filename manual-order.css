@@ -138,3 +138,18 @@ html body #root .mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBloc
 html body #root .mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup .mxtBlockItem button i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;background:rgba(42,23,0,.14)}
 @keyframes mxtBlockIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){html body #root .mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup.mxtBlockPopup{animation:none}}
+
+/* Gerçek emir gönderilirken: hareketli, belirgin buton (sitedeki çok özgül buton kurallarını yenmek için ID'li :not) */
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending]{position:relative!important;overflow:hidden!important;min-height:64px!important;opacity:1!important;cursor:progress!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:12px!important;color:#2a1600!important;background:linear-gradient(110deg,#ffb84d 0%,#ffd27a 25%,#ff9a4d 50%,#ffd27a 75%,#ffb84d 100%)!important;background-size:250% 100%!important;animation:mxtSendFlow 1.6s linear infinite,mxtSendGlow 1.6s ease-in-out infinite!important}
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending]::after{content:""!important;position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-100%);animation:mxtSendShine 1.4s ease-in-out infinite;pointer-events:none}
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendSpin{flex:none;display:block!important;width:26px!important;height:26px!important;color:#2a1600!important;animation:mxtSpin .75s linear infinite!important}
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendText{display:grid;gap:1px;text-align:left;line-height:1.15}
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendText b{font-size:17px;font-weight:900}
+html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendText small,html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendText .mxtElapsed{font-size:12px;font-weight:700;color:rgba(42,22,0,.75)!important}
+@keyframes mxtSendFlow{to{background-position:-250% 0}}
+@keyframes mxtSendGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,170,70,.55),0 10px 26px rgba(255,150,60,.35)}50%{box-shadow:0 0 0 10px rgba(255,170,70,0),0 10px 30px rgba(255,150,60,.5)}}
+@keyframes mxtSendShine{to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending],html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending]::after,html body #root .mxtSendPop:not(#s1):not(#s2):not(#s3)[data-sending] .mxtSendSpin{animation:none!important}}
+html body #root .mxtProgress:not(#p1):not(#p2):not(#p3){display:flex!important;align-items:center!important;gap:12px!important;margin:0 0 12px!important;padding:14px 16px!important;border-radius:16px!important;background:rgba(255,184,77,.12)!important;box-shadow:inset 0 0 0 1px rgba(255,184,77,.45)!important}
+html body #root .mxtProgress:not(#p1):not(#p2):not(#p3) b{color:#ffd27a!important}
+html body #root .mxtProgress:not(#p1):not(#p2):not(#p3) svg{flex:none;color:#ffb84d!important}
