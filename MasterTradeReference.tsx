@@ -618,7 +618,7 @@ export default function MasterTradeReference(props: Props) {
   const tabs = [{id: 'analiz', label: 'Analiz', Icon: BarChart3}, {id: 'canli', label: demo ? 'Demo İşlem' : 'Canlı İşlem', Icon: Activity}, {id: 'pozisyonlar', label: 'Pozisyonlar', Icon: Wallet}, {id: 'baglanti', label: 'Bağlantı', Icon: Cable}] as const
   return <section className="masterReferenceAnalysis" data-layout-tab="analiz">
     <header className="refHeader masterTradeTerminalHeader">
-      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><BrandLogo height={24}/></a>
+      <a className="refBrand" href="/" aria-label="Kaistrade ana sayfa"><BrandLogo height={26}/></a>
       <nav role="tablist" aria-label="Master Trade sections">{tabs.map(({id, label, Icon}) => <button key={id} id={`masterTradeTab-${id}`} type="button" role="tab" aria-selected={id === 'analiz'} aria-controls={`masterTradePanel-${id}`} onClick={() => props.onNavigate(id)}><Icon/>{label}</button>)}</nav>
       {demo
         ? <span className="refConnection" data-connected={props.demoConnected === true}><i/>{props.demoConnected === null || props.demoConnected === undefined ? 'DEMO OKUNUYOR' : props.demoConnected ? 'DEMO BAĞLI' : 'DEMO BAĞLANTI YOK'}</span>
