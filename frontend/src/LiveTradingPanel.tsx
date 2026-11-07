@@ -969,7 +969,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Kaydırarak izin: kaydırma, açıkça yazılı onaydır (onay penceresi yok). İzin yoksa önce 24 saatlik risk izni, ardından ARM; sunucu kapıları aynen geçerli.
   const [permDone, setPermDone] = useState(false)
   const [permError, setPermError] = useState('')
-  const slidePermission = async (): Promise<boolean> => {
+  const slidePermission = async (silent = false): Promise<boolean> => {
     if (freeTrial) { setNotice({kind: 'error', text: 'LIVE işlem MASTER MODE ile açılır'}); return false }
     setPermError('')
     const ok = await run('permission', async () => {
@@ -982,9 +982,22 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }
       setArmPendingSync(true)
     }, 'İzin verildi; gerçek emir için hazırsın.')
-    if (ok) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
+    if (ok && !silent) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
     return ok
   }
+  // Otomatik izin: Manuel işlem paneli açıkken izin (24 sa risk izni + ARM) yoksa ve hesap sağlıklıysa sistem, sahibin kendi hesabı için
+  // aynı kaydırma akışını kendisi çalıştırır. Sunucu kapıları (günlük zarar, pozisyon limiti, acil durdurma, uzlaştırma) aynen geçerlidir.
+  // Hata olursa kaydırıcı yedek olarak görünür; en sık 30 sn'de bir denenir (kilit açılıp kapanırsa döngüye girmesin).
+  const autoPermissionAt = useRef(0)
+  const autoPermissionWanted = Boolean(manualPanelOpen && !freeTrial && statusVerified && status && connected && readinessReady && !emergency && !recoveryRequired
+    && !(authorizationValid && liveArmed))
+  useEffect(() => {
+    if (!autoPermissionWanted || busy) return
+    const wait = autoPermissionAt.current + 30_000 - Date.now()
+    const timer = window.setTimeout(() => { autoPermissionAt.current = Date.now(); void slidePermission(true) }, Math.max(300, wait))
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPermissionWanted, busy, authorizationValid, liveArmed])
   const revokeConsent = () => {
     setConfirm({title: 'LIVE consent kaldırma', message: '24 saatlik LIVE risk izni, ARM penceresi ve Auto Trade yetkisi kaldırılacak. Binance pozisyonlarına veya emirlerine dokunulmaz.', expected: '24 SAATLİK CONSENTİ KALDIR', action: async () => {
       await call(V25, '/consent/revoke', {method: 'POST', body: JSON.stringify({confirmation: '24 SAATLİK CONSENTİ KALDIR'})})
@@ -1930,7 +1943,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
-              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Sağa kaydır" disabled={Boolean(busy) || permBlockers.some(item => item.key === 'emergency' || item.key === 'trial')} onConfirm={slidePermission}/>
+              ? <SlideToConfirm label={permissionLabel} doneLabel="İzin verildi" hint="Sağa kaydır" disabled={Boolean(busy) || permBlockers.some(item => item.key === 'emergency' || item.key === 'trial')} onConfirm={() => slidePermission()}/>
               : wzStep < stepNames.length - 1 && <button type="button" className="mxtBtn primary" disabled={!stepOk[wzStep] || limitFull} onClick={() => goStep(wzStep + 1)}>Devam →</button>}
           </div>
           {order.symbol && <p className="mxtM mxtMDraft"><i aria-hidden="true">●</i> Taslak kaydedildi: coin, yön ve tutar. Stop ve hedefler güncel fiyata göre yeniden girilir.</p>}
