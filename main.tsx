@@ -31,6 +31,7 @@ import './branding-overrides.css'
 import './site-background.css'
 import './back-to-top.css'
 import './market-picker-modern.css'
+import './unified-header.css'
 
 import { reloadForNewVersion } from './error-visibility'
 
