@@ -3650,20 +3650,25 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     if close_client_id not in close_ids:
         close_ids.append(close_client_id)
     persist_state(state)
-    try:
-        result = await close_tracked_symbol(client, symbol, intent)
-    except LiveExchangeError as exc:
+    def register_failure(reason: str) -> bool:
         target["failures"] = int(target.get("failures") or 0) + 1
-        target["last_error"] = sanitized_exception_message(exc)[:200]
+        target["last_error"] = reason[:200]
         if target["failures"] >= 3:
             plan.pop("close_target", None)
             add_event(state, "MANUAL_TARGET_DISABLED", f"{symbol} kapanış hedefi üst üste kapatılamadı; hedef kaldırıldı. Stop ve hedefler yerinde.", symbol=symbol, plan_id=plan.get("id"))
         persist_state(state)
         return False
-    if result and result.get("orderId"):
-        known = plan.setdefault("exchange_order_ids", [])
-        if int(result["orderId"]) not in known:
-            known.append(int(result["orderId"]))
+
+    try:
+        result = await close_tracked_symbol(client, symbol, intent)
+    except LiveExchangeError as exc:
+        return register_failure(sanitized_exception_message(exc))
+    # Emir gönderildi diye kapandı sayılmaz: dolmadıysa ve borsada pozisyon hâlâ açıksa hedef yerinde kalır, bildirim gitmez.
+    order_status = str((result or {}).get("status") or "").upper()
+    if order_status != "FILLED":
+        flat = await verify_symbol_flat(client, symbol)
+        if flat is not True:
+            return register_failure(f"Kapanış emri doğrulanamadı (emir durumu: {order_status or 'yok'}); pozisyon hâlâ açık.")
     plan["close_reason"] = "TARGET"
     plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
     plan["close_target_hit"] = {**target, "hit_mark": str(position.get("mark_price"))}

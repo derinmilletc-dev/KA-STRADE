@@ -92,6 +92,37 @@ class CloseTargetStepTests(unittest.TestCase):
         self.assertNotIn("close_target", plan)
         self.assertTrue(any(event["kind"] == "MANUAL_TARGET_DISABLED" for event in state["events"]))
 
+    def test_unfilled_close_with_open_position_keeps_target_and_sends_no_closed_event(self):
+        state = live.initial_state()
+        plan = self._plan()
+        close = AsyncMock(return_value={"orderId": 5, "status": "NEW"})
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "verify_symbol_flat", AsyncMock(return_value=False)), patch.object(live, "persist_state", lambda s: None):
+            hit = asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertFalse(hit)
+        self.assertIn("close_target", plan)
+        self.assertEqual(plan["status"], "KORUMA AKTİF")
+        self.assertFalse(any(event["kind"] == "LIVE_CLOSE" for event in state["events"]))
+        self.assertEqual(plan["close_target"]["failures"], 1)
+
+    def test_no_order_but_position_open_is_not_reported_closed(self):
+        state = live.initial_state()
+        plan = self._plan()
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", AsyncMock(return_value=None)), \
+                patch.object(live, "verify_symbol_flat", AsyncMock(return_value=False)), patch.object(live, "persist_state", lambda s: None):
+            hit = asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertFalse(hit)
+        self.assertFalse(any(event["kind"] == "LIVE_CLOSE" for event in state["events"]))
+
+    def test_unfilled_status_but_flat_account_counts_as_closed(self):
+        state = live.initial_state()
+        plan = self._plan()
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", AsyncMock(return_value={"orderId": 5, "status": "NEW"})), \
+                patch.object(live, "verify_symbol_flat", AsyncMock(return_value=True)), patch.object(live, "persist_state", lambda s: None):
+            hit = asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertTrue(hit)
+        self.assertTrue(any(event["kind"] == "LIVE_CLOSE" for event in state["events"]))
+
 
 if __name__ == "__main__":
     unittest.main()
