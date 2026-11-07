@@ -195,3 +195,6 @@ html body #root:not(#ps1):not(#ps2) .mxtPermState { display: flex !important; fl
 html body #root:not(#ps1):not(#ps2) .mxtPermState b { flex: 0 0 100%; color: #e6eef7 !important; font-size: 12.5px !important; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState span { white-space: nowrap; }
 html body #root:not(#ps1):not(#ps2) .mxtPermState span:last-child { white-space: normal; }
+/* Coin sekmeleri sinyaller yüklenirken de görünür (soluk); not satırı sade. */
+html body #root:not(#cs1):not(#cs2) .mxtMTabs button:disabled { opacity: .45; cursor: default; }
+html body #root:not(#cs1):not(#cs2) .mxtMSigNote { margin: 4px 0 6px !important; color: #93a3b5 !important; font-size: 12px !important; }
