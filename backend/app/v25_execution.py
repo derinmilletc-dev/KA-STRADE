@@ -9303,11 +9303,56 @@ async def v25_recovery_check(request: Request, body: Confirmation) -> dict[str, 
     return public_status(request.app, request)
 
 
+async def auto_authorize_manual(request: Request) -> None:
+    """Sahibin isteğiyle ayrı "izin ver" adımı yok: manuel emir gönderilirken izin (24 sa risk izni) ya da ARM kapalıysa
+    sunucu bunları sahibin hesabı için kendisi açar. Emri gönderen kişi "CANLI EMİR GÖNDER" onayını zaten vermiştir.
+
+    Güvenlik kapıları atlanmaz: 2FA zorunlu, acil durdurma / belirsiz uzlaştırma / kurtarma varsa ARM açılmaz,
+    hazırlık kapıları geçmezse hangi kapının beklendiği yazılır. Günlük zarar, pozisyon ve maruziyet sınırları emirde aynen denetlenir."""
+    user = execution_owner(request)
+    state = request.app.state.v25_execution
+    if is_armed(state) and state.get("real_trading_locked") is False and consent_status(state, request).get("active"):
+        return
+    await require_live_understanding(request, user, True)
+    async with state["lock"]:
+        if live_execution_blocked(state) or not state.get("recovery_ready", False):
+            return  # execute_live_order kesin sebebi yazar
+        if not consent_status(state, request).get("active"):
+            api_key, secret_key, fingerprint = live_credentials_status(request)
+            if not api_key or len(secret_key) < 10 or not fingerprint:
+                raise HTTPException(412, "Önce Borsa Bağlantıları bölümünden canlı Binance API anahtarını kaydedip aktifleştirin.")
+            trading_account_id = current_trading_account_id(state, request, fingerprint)
+            current_policy_digest = policy_digest(state["policy"])
+            state["live_session_authorization"] = {
+                "session_id": live_owner_binding(request), "user_id": str(user["id"]), "fingerprint": fingerprint,
+                "trading_account_id": trading_account_id, "policy_digest": current_policy_digest,
+                "auth_version": user.get("auth_version"), "auth_expires_at_epoch": None,
+            }
+            state["web_consent"] = {
+                "accepted_at": now_iso(), "expires_at_epoch": time.time() + float(LIVE_CONSENT_SECONDS),
+                "key_fingerprint": fingerprint, "user_id": str(user["id"]),
+                "trading_account_id": trading_account_id, "policy_digest": current_policy_digest,
+            }
+            add_event(state, "LIVE_AUTO_CONSENT", "Manuel emirle birlikte 24 saatlik canlı risk izni otomatik verildi.", actor=user["id"])
+        if not is_armed(state) or state.get("real_trading_locked") is not False:
+            release = readiness(request.app, state, request)
+            if not release["ready"]:
+                pending = next((item["label"] for item in release["gates"] if not item["passed"]), "hazırlık kapısı")
+                persist_state(state)
+                raise HTTPException(423, f"Canlı kilit açılamadı: {pending} bekleniyor.")
+            state["armed_until"] = time.time() + LIVE_ARM_SECONDS
+            state["live_lock_reason"] = None
+            state["real_trading_locked"] = False
+            add_event(state, "LIVE_AUTO_ARM", "Manuel emirle birlikte canlı giriş izni 24 saat için otomatik açıldı.", actor=user["id"])
+        persist_state(state)
+
+
 @router.post("/order")
 async def v25_order(request: Request, body: ManualLiveOrderRequest) -> dict[str, Any]:
     execution_owner(request)
     if body.confirmation.strip().upper() != "CANLI EMİR GÖNDER":
         raise HTTPException(422, "Canlı manuel emir için CANLI EMİR GÖNDER yazın.")
+    await auto_authorize_manual(request)
     payload = body.model_dump(exclude={"confirmation"})
     return await execute_live_order(request.app, LiveOrderRequest(**payload), source="MANUAL", request=request)
 
