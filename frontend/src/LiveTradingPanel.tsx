@@ -1926,6 +1926,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {wzStep === 4 && reviewStep}
           {permBlockCard}
           {wzHint && <p className="mxtWarn" role="status">{wzHint}</p>}
+          {needPermission && !orderDone && status?.live_lock_reason?.message && <p className="mxtWhyLocked" role="status"><b>İzin neden kapandı?</b> {status.live_lock_reason.message}</p>}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
