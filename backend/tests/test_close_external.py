@@ -64,3 +64,34 @@ class CloseUnverifiedPlanTests(unittest.TestCase):
             result = asyncio.run(live.v25_close(_request(state), live.CloseRequest(plan_id="plan-pump-1", confirmation="CANLI POZİSYONU KAPAT")))
         self.assertTrue(result["ok"])
         self.assertEqual(close.await_args.args[1], "PUMPUSDT")
+
+
+class CloseRetryTests(unittest.TestCase):
+    def _client(self, existing_status):
+        calls = []
+
+        class Client:
+            async def signed(self, method, path, params):
+                calls.append((method, path, dict(params)))
+                if path == "/fapi/v3/positionRisk":
+                    return [{"symbol": "PUMPUSDT", "positionAmt": "-26001"}]
+                if method == "GET" and path == "/fapi/v1/order":
+                    return {"orderId": 1, "status": existing_status}
+                return {"orderId": 2, "status": "FILLED", "avgPrice": "0.0038"}
+        return Client(), calls
+
+    def test_stale_previous_close_order_is_not_reused(self):
+        for status in ("FILLED", "CANCELED", "EXPIRED", "REJECTED"):
+            client, calls = self._client(status)
+            result = asyncio.run(live.close_tracked_symbol(client, "PUMPUSDT", "manual-close-plan-1"))
+            self.assertEqual(result["orderId"], 2, status)
+            post = [c for c in calls if c[0] == "POST"][0][2]
+            self.assertEqual(post["side"], "BUY")
+            self.assertEqual(post["reduceOnly"], "true")
+            self.assertEqual(post["quantity"], "26001")
+
+    def test_in_flight_close_order_is_reused(self):
+        client, calls = self._client("NEW")
+        result = asyncio.run(live.close_tracked_symbol(client, "PUMPUSDT", "manual-close-plan-1"))
+        self.assertEqual(result["orderId"], 1)
+        self.assertFalse([c for c in calls if c[0] == "POST"])
