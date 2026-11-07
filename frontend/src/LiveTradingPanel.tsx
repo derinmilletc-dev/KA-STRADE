@@ -109,6 +109,8 @@ type Props = {active: boolean; symbol: string; analysis?: {direction?: string | 
 const V25 = `${API_BASE}/v25`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
 // Taslak: yalnız coin, yön, marjin ve kaldıraç kaydedilir (30 dk). Fiyata bağlı stop/hedef kaydedilmez; eski fiyatla emir hazırlanmasın.
+// Kais AI sinyalleri sayfa içinde önbellekte tutulur: panel yeniden açılınca LONG/SHORT/Güçlü sekmeleri hemen görünür, arka planda tazelenir.
+let signalsCache: SignalMap | null = null
 const DRAFT_KEY = 'kt-manual-draft-v1'
 const DRAFT_TTL_MS = 30 * 60 * 1000
 type ManualDraft = {t: number; symbol: string; direction: 'LONG' | 'SHORT'; margin_usdt: string; leverage: string; step: number}
@@ -275,7 +277,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [coinQuery, setCoinQuery] = useState('')
   const [coinOpen, setCoinOpen] = useState(false)
   // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
-  const [signals, setSignals] = useState<SignalMap | null>(null)
+  const [signals, setSignals] = useState<SignalMap | null>(() => signalsCache)
   const [signalsError, setSignalsError] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
@@ -386,10 +388,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     return () => controller.abort()
   }, [active, masterTrade, openStep, manualPanelOpen, universe])
   useEffect(() => {
-    if (!active || !(openStep === 3 || manualPanelOpen || !masterTrade)) return
+    // Canlı İşlem sekmesi açıkken sinyaller önceden yüklenir (panel açılınca beklemesin); hata olursa 8 sn sonra yeniden denenir.
+    if (!active) return
     let cancelled = false
     let controller: AbortController | null = null
+    let retry = 0
     const load = () => {
+      window.clearTimeout(retry)
       controller?.abort()
       controller = new AbortController()
       void fetchWithTimeout(`${API_BASE}/analysis-universe?interval=15m&limit=100`, {signal: controller.signal}, 60000).then(async response => {
@@ -397,13 +402,18 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         const map = buildSignalMap(await response.json())
         if (cancelled) return
         if (Object.keys(map).length === 0) throw new Error('empty')
+        signalsCache = map
         setSignals(map); setSignalsError(false)
-      }).catch(error => { if (!cancelled && error?.name !== 'AbortError') setSignalsError(true) })
+      }).catch(error => {
+        if (cancelled || error?.name === 'AbortError') return
+        setSignalsError(true)
+        retry = window.setTimeout(load, 8000)
+      })
     }
     load()
     const timer = visibleInterval(load, 90000)
-    return () => { cancelled = true; controller?.abort(); clearVisibleInterval(timer) }
-  }, [active, masterTrade, openStep, manualPanelOpen])
+    return () => { cancelled = true; controller?.abort(); window.clearTimeout(retry); clearVisibleInterval(timer) }
+  }, [active])
   const [riskPrev, setRiskPrev] = useState<{notional: number; margin: number; loss: number; stopPct: number; maxStopPct: number; capped: boolean} | {error: string} | null>(null)
   useEffect(() => {
     if (!active || !masterTrade || (openStep !== 3 && !manualPanelOpen)) { setRiskPrev(null); return }
@@ -1693,7 +1703,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {order.symbol && <div className="mxtMSel">{coinMark(selectedRow, order.symbol)}<span className="mxtMSelN"><b>{selectedRow?.display || order.symbol}</b><small>{selectedRow ? <>{coinPrice(Number(selectedRow.price))} · <em data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
       <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && q && !rows.some(row => row.symbol === q) && /^[A-Z0-9]{2,20}$/.test(q)) chooseCoin(q.endsWith('USDT') ? q : `${q}USDT`) }}/></label>
       {recentRows.length > 0 && <div className="mxtMRecent"><span>Son:</span>{recentRows.slice(0, 5).map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{String(row.display || row.symbol).replace('/USDT', '')}</button>)}</div>}
-      {signals !== null && <div className="mxtMTabs" role="group" aria-label="Filtre">{filterChips.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signalCount(key)}</em></button>)}</div>}
+      <div className="mxtMTabs" role="group" aria-label="Filtre" data-loading={signals === null || undefined}>{filterChips.map(([key, label]) => <button type="button" key={key} disabled={signals === null && key !== 'all'} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signals === null ? '…' : signalCount(key)}</em></button>)}</div>
+      {signals === null && <p className="mxtMSigNote" role="status">{signalsError ? 'Kais AI sinyalleri alınamadı; birkaç saniye içinde yeniden deneniyor.' : 'Kais AI sinyalleri yükleniyor…'}</p>}
       <div className="mxtMMeta"><span><b>{matches.length} coin</b>{matches.length > 5 ? ' · kaydır' : ''}</span>{signals !== null && <label className="mxtMSort">Sırala:<select value={coinSort} aria-label="Sıralama" onChange={event => setCoinSort(event.target.value as CoinSort)}>{sortChips.map(([key, label]) => <option key={key} value={key}>{label.replace(' göre', '').replace('Güvene', 'Güven').replace('Hacme', 'Hacim').replace('Değişime', 'Değişim')}</option>)}</select></label>}</div>
       {universe === null && !universeError && <p className="mxtMEmpty">Coin listesi yükleniyor…</p>}
       {universeError && <p className="mxtMEmpty">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
