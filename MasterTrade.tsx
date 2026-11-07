@@ -630,7 +630,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
       const token = userSessionToken()
       const headers = new Headers({ 'Content-Type': 'application/json' })
       if (token) headers.set('Authorization', `Bearer ${token}`)
-      const livePlan = accountRef.current?.plans?.find(plan => plan.symbol === targetSymbol) as (AccountPlan & { id?: string }) | undefined
+      const symbolPlans = (accountRef.current?.plans ?? []).filter(plan => plan.symbol === targetSymbol) as (AccountPlan & { id?: string; direction?: string; status?: string })[]
+      const livePlan = symbolPlans.find(plan => plan.direction === positionAction.position.direction && !['KAPANDI', 'İPTAL'].includes(String(plan.status || ''))) ?? symbolPlans[0]
       if (!livePlan?.id) throw new Error('LIVE tracked plan is unavailable for this position.')
       const response = await fetchWithTimeout(`${API_BASE}/v25/position/close`, {
         method: 'POST',

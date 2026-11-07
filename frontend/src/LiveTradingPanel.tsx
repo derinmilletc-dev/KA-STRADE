@@ -1179,7 +1179,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const liveExposure = positions.reduce((sum, position) => sum + Math.abs(Number(position.quantity || 0) * Number(position.mark_price || 0)), 0)
   const positionLeverage = (position: Record<string, unknown>) => position.leverage === null || position.leverage === undefined ? '—' : `${text(position.leverage)}x`
   const terminalPlanStatuses = ['CLOSED', 'CANCELLED', 'KAPANDI', 'İPTAL']
-  const findActivePlanForPosition = (position: Record<string, unknown>) => status?.plans?.find(plan => String(plan.symbol || '').toUpperCase() === String(position.symbol || '').toUpperCase() && !terminalPlanStatuses.includes(String(plan.status || '').toUpperCase()))
+  // Aynı sembolde birden fazla açık plan varsa (eski işlemden kalan), yönü pozisyonla tutan plan seçilir.
+  const findActivePlanForPosition = (position: Record<string, unknown>) => {
+    const candidates = (status?.plans ?? []).filter(plan => String(plan.symbol || '').toUpperCase() === String(position.symbol || '').toUpperCase() && !terminalPlanStatuses.includes(String(plan.status || '').toUpperCase()))
+    const direction = String(position.direction || '').toUpperCase()
+    return candidates.find(plan => String(plan.direction || '').toUpperCase() === direction) ?? candidates[0]
+  }
   const recentOrder = status?.events?.find(event => ['LIVE_ENTRY', 'LIVE_ENTRY_RECOVERED', 'LIVE_ORDER_UPDATE'].includes(String(event.kind)))
   const protectionLabelForPlan = (plan: Record<string, unknown> | undefined) => {
     const protectionStatus = String(plan?.protection_status || plan?.protection_state || 'UNKNOWN').toUpperCase()
