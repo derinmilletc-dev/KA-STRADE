@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
@@ -1902,7 +1902,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {doneView}
       {statusStrip}
       {!orderDone && renderDayLimitCard(() => openRiskEdit({daily_loss_limit: suggestedDayLimit ?? undefined}), () => openRiskEdit())}
-      {!orderDone && <button type="button" className="mxtRiskLink" onClick={() => openRiskEdit()}>Risk limitlerini düzenle</button>}
+      {!orderDone && <button type="button" className="mxtRiskLink" onClick={() => openRiskEdit()} aria-label="Risk limitlerini düzenle"><SlidersHorizontal aria-hidden="true"/><span>Risk limitleri</span><ChevronRight aria-hidden="true"/></button>}
       {limitFull && !orderDone && <div className="mxtLimit" role="alert"><b>⚠ Pozisyon sınırı dolu · {positions.length} / {limitMax}</b><span>Yeni işlem açmak için önce bir pozisyonu kapat.{limitCoins ? ` Açık işlemlerin: ${limitCoins}.` : ''}</span><button type="button" onClick={() => { goPositions() }}>Pozisyonlarıma git →</button></div>}
       {levelsFromAnalysis && fromStudio === order.symbol && !orderDone && <p className="mxtFrom mxtLevels" role="status">✓ Giriş, stop ve hedefler Kais analizinden geldi; değiştirebilirsin. <button type="button" onClick={() => { setOrder(current => ({...current, stop_loss: '', tp1: '', tp2: '', tp3: '', limit_price: current.order_type === 'LIMIT' ? '' : current.limit_price})); setLevelsFromAnalysis(false); setStopPick(null) }}>Kendim gireceğim</button></p>}
       {fromStudio && fromStudio === order.symbol && !orderDone && <p className="mxtFrom" role="status">✓ <b>{fromStudio}</b> analiz stüdyosundan seçildi{hasAnalysis ? ' · Kais analizi hazır' : ''}</p>}
@@ -2030,7 +2030,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     </div> : null
     const gridBody = <div className="mwz mgp">
       <div className="mwzCard">
-        <small className="mwzKicker">GRID · ÖNİZLEME</small>
+        <small className="mwzKicker">{liveGrid?.enabled ? 'GRID · CANLI' : 'GRID · ÖNİZLEME'}</small>
         <h4>Kademeli alım planı</h4>
         {liveGrid?.enabled ? <p><b>Canlı grid AÇIK.</b> En fazla {liveGrid.max_levels ?? 20} kademe. Planın en kötü zararı tek işlem ve günlük zarar sınırını, toplam büyüklüğü de maruziyet sınırını aşıyorsa grid başlamaz. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid sunucuda kapalı; açıldığında bu plan, aynı kontrollerden geçerek canlı başlatılabilir.</p>}
         <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
@@ -2060,7 +2060,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {gridWhatIf}
           <div className="mgpTable" role="table" aria-label="Kademeler (USDT)"><div role="row" className="mgpHead"><span>#</span><span>Giriş</span><span>Hedef</span><span>Boyut</span><span>Zarar</span></div>
             {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{presetPrice(level.entry)}</span><span>{presetPrice(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
-          <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? 'Hesap mevcut limitlerin içinde. Yine de emir gönderilmez: gerçek grid henüz kapalı.' : 'Bir ya da daha fazla limit aşılıyor; bu plan gerçek grid için uygun olmazdı.'}</p>
+          <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? (liveGrid?.enabled ? 'Plan limitlerin içinde. Aşağıdan canlı grid olarak başlatabilirsin; başlatmadan emir gitmez.' : 'Hesap mevcut limitlerin içinde. Canlı grid sunucuda kapalı olduğu için emir gönderilmez.') : 'Bir ya da daha fazla limit aşılıyor; bu planla canlı grid başlamaz.'}</p>
         </>}
         {gridLiveBlock}
         <p className="liveWsHint">Hepsi tahmindir: funding ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil; gerçek sonuç farklı olabilir. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
@@ -2072,7 +2072,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
-        {wizard && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid <em>ÖNİZLEME</em></button></div>}
+        {wizard && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button></div>}
         {wizard ? (manualMode === 'grid' ? gridBody : wizardBody) : <>
           {coinBlock}
           {dirBlock}
