@@ -1342,3 +1342,56 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 .lcRoot .lcEmCode input::placeholder{letter-spacing:.02em;font-size:14px;font-weight:500}
 .lcRoot .lcEmErr{display:grid!important;gap:4px;padding:12px 14px;border-radius:14px;background:rgba(255,143,143,.1);box-shadow:inset 0 0 0 1px rgba(255,143,143,.4)}
 .lcRoot .lcEmErr b{color:#ff9d9d;font-size:14px}.lcRoot .lcEmErr span{font-size:13.5px;line-height:1.5;color:#f1d4d4}.lcRoot .lcEmErr small{font-size:12.5px;line-height:1.5;color:#c9d6e1}
+
+/* ---- Pozisyon kartı: düzenli detay + kapanış hedefi (ID'li :not, Canlı İşlem sekmesindeki genel kuralları yener) ---- */
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; margin: 4px 0 0 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys > div { --t: #93a3b5; display: grid !important; gap: 2px !important; padding: 10px 12px !important; border-radius: 14px !important; background: rgba(255,255,255,.045) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06) !important; min-width: 0; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys > div[data-tone="down"] { --t: #ff8f8f; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys > div[data-tone="warn"] { --t: #ffc062; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys > div[data-tone="up"] { --t: #3ddc97; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys small { font-size: 11px !important; color: #93a3b5 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys b { font-size: 18px !important; font-weight: 800 !important; color: var(--t) !important; font-variant-numeric: tabular-nums; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvKeys em { font-style: normal !important; font-size: 11.5px !important; color: #b9c6d4 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px 14px !important; margin: 10px 0 0 !important; padding: 0 2px !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta > div { display: flex !important; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 0 !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; background: none !important; min-width: 0; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta small { font-size: 12px !important; color: #93a3b5 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta b { font-size: 13px !important; font-weight: 700 !important; color: #e6eef7 !important; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta b[data-tone="up"] { color: #3ddc97 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta b[data-tone="down"] { color: #ff8f8f !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvMeta b[data-tone="warn"] { color: #ffc062 !important; }
+
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen { display: flex !important; align-items: center !important; gap: 12px !important; width: 100% !important; margin: 12px 0 0 !important; padding: 12px 14px !important; border: 1.5px dashed rgba(61,220,151,.45) !important; border-radius: 16px !important; background: rgba(61,220,151,.06) !important; color: #e6eef7 !important; text-align: left !important; cursor: pointer; min-height: 0 !important; box-shadow: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen > svg { flex: none; width: 22px; height: 22px; color: #3ddc97; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen span { display: grid; gap: 2px; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen b { font-size: 14.5px !important; color: #fff !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetOpen small { font-size: 12px !important; color: #93a3b5 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTarget { display: grid !important; gap: 10px !important; margin: 12px 0 0 !important; padding: 14px !important; border-radius: 16px !important; background: linear-gradient(160deg, rgba(61,220,151,.11), rgba(61,220,151,.03)) !important; box-shadow: inset 0 0 0 1px rgba(61,220,151,.35) !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTarget[data-active] { grid-template-columns: 40px minmax(0, 1fr) !important; align-items: center !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetIcon { width: 40px; height: 40px; border-radius: 13px; display: grid !important; place-items: center; background: rgba(61,220,151,.18) !important; color: #3ddc97 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetIcon svg { width: 22px; height: 22px; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetText { display: grid !important; gap: 2px; min-width: 0; background: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetText small { font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: .12em; color: #3ddc97 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetText b { font-size: 15px !important; color: #fff !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetText em { font-style: normal !important; font-size: 12.5px !important; color: #b9c6d4 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTarget[data-active] .pvTargetBtns { grid-column: 1 / -1; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetHead { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px; background: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetHead > b { display: flex; align-items: center; gap: 8px; font-size: 15px !important; white-space: nowrap; flex-shrink: 0; color: #fff !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetHead > b svg { width: 18px; height: 18px; color: #3ddc97; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvSeg { display: inline-flex !important; padding: 3px !important; border-radius: 999px !important; background: rgba(255,255,255,.07) !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvSeg button { min-height: 32px !important; padding: 0 12px !important; border: 0 !important; border-radius: 999px !important; background: transparent !important; color: #b9c6d4 !important; font-size: 12.5px !important; font-weight: 800 !important; box-shadow: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvSeg button[aria-pressed="true"] { background: #3ddc97 !important; color: #06281a !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetField { display: grid !important; gap: 6px; font-size: 12px !important; color: #93a3b5 !important; background: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetInput { display: flex !important; align-items: center; gap: 8px; padding: 0 14px !important; border-radius: 14px !important; background: rgba(0,0,0,.28) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12) !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetInput input { flex: 1; min-width: 0; height: 48px !important; border: 0 !important; background: transparent !important; color: #fff !important; font-size: 20px !important; font-weight: 800 !important; outline: none; box-shadow: none !important; padding: 0 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetInput em { font-style: normal !important; font-size: 12px !important; color: #93a3b5 !important; white-space: nowrap; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetChips { display: flex !important; flex-wrap: wrap; gap: 6px; background: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetChips button { min-height: 34px !important; padding: 0 12px !important; border: 0 !important; border-radius: 999px !important; background: rgba(255,255,255,.07) !important; color: #dbe6f2 !important; font-size: 12.5px !important; font-weight: 700 !important; box-shadow: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetChips button[aria-pressed="true"] { background: rgba(61,220,151,.22) !important; color: #3ddc97 !important; box-shadow: inset 0 0 0 1px rgba(61,220,151,.5) !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetPreview { margin: 0 !important; padding: 10px 12px !important; border-radius: 12px !important; background: rgba(255,255,255,.05) !important; color: #e6eef7 !important; font-size: 13px !important; line-height: 1.45 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetPreview[data-warn] { background: rgba(255,192,98,.12) !important; color: #ffd98a !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetNote { margin: 0 !important; font-size: 11.5px !important; line-height: 1.45 !important; color: #8394a8 !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns { display: flex !important; gap: 8px; background: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button { flex: 1; min-height: 42px !important; border: 0 !important; border-radius: 999px !important; font-size: 14px !important; font-weight: 800 !important; background: rgba(255,255,255,.08) !important; color: #e6eef7 !important; box-shadow: none !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button[data-k="main"] { flex: 2; background: #3ddc97 !important; color: #06281a !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button[data-k="off"] { color: #ff9d9d !important; }
+html body #root:not(#pv1):not(#pv2) .pvCard .pvTargetBtns button:disabled { opacity: .5 !important; }
