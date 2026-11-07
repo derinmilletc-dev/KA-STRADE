@@ -3578,6 +3578,53 @@ async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any],
     return True
 
 
+async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
+    """Manuel plan için kapanış hedefi ("fiyat X olunca" ya da "net Y USDT kârda"): ulaşıldıysa reduce-only piyasa emriyle kapatır.
+
+    Koruma döngüsüyle aynı kilit altında, ~10 sn'de bir çalışır. Veri eksikse hiçbir şey yapmaz; stop ve hedefler yerinde kalır."""
+    from . import manual_close_target
+
+    target = plan.get("close_target")
+    if not isinstance(target, dict) or plan.get("source") != "MANUAL" or not live_plan_can_mutate(plan):
+        return False
+    if plan.get("status") in {"KAPANDI", "KAPATMA EMRİ GÖNDERİLDİ"} or live_execution_blocked(state):
+        return False
+    direction = str(plan.get("direction") or "").upper()
+    fee_rate = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["fee_bps_per_side"])) / Decimal(10_000)
+    entry = position.get("entry_price") or plan.get("entry_price")
+    if not manual_close_target.reached(target, direction, position.get("mark_price"), entry, position.get("quantity"), fee_rate):
+        return False
+    symbol = plan["symbol"]
+    intent = f"manual-target-{plan['id']}-{target.get('set_at') or ''}"
+    close_client_id = client_id_for("CLOSE", intent)
+    close_ids = plan.setdefault("close_client_order_ids", [])
+    if close_client_id not in close_ids:
+        close_ids.append(close_client_id)
+    persist_state(state)
+    try:
+        result = await close_tracked_symbol(client, symbol, intent)
+    except LiveExchangeError as exc:
+        target["failures"] = int(target.get("failures") or 0) + 1
+        target["last_error"] = sanitized_exception_message(exc)[:200]
+        if target["failures"] >= 3:
+            plan.pop("close_target", None)
+            add_event(state, "MANUAL_TARGET_DISABLED", f"{symbol} kapanış hedefi üst üste kapatılamadı; hedef kaldırıldı. Stop ve hedefler yerinde.", symbol=symbol, plan_id=plan.get("id"))
+        persist_state(state)
+        return False
+    if result and result.get("orderId"):
+        known = plan.setdefault("exchange_order_ids", [])
+        if int(result["orderId"]) not in known:
+            known.append(int(result["orderId"]))
+    plan["close_reason"] = "TARGET"
+    plan["status"] = "KAPATMA EMRİ GÖNDERİLDİ" if result else "KAPANDI"
+    plan["close_target_hit"] = {**target, "hit_mark": str(position.get("mark_price"))}
+    plan.pop("close_target", None)
+    add_event(state, "LIVE_CLOSE", f"{symbol} kapanış hedefine ulaştı ({manual_close_target.describe(target)}); pozisyon kapatıldı.",
+              symbol=symbol, plan_id=plan.get("id"), fill_price=close_fill_price(result))
+    persist_state(state)
+    return True
+
+
 async def _install_stop_bridge(
     client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], quantity: Decimal, price: str, sequence: int | str,
 ) -> int | None:
@@ -4520,6 +4567,8 @@ def close_reason_for_intent(intent: str) -> str:
     value = str(intent or "").lower()
     if value.startswith("manual-close-"):
         return "MANUAL"
+    if value.startswith("manual-target-"):
+        return "TARGET"
     if value.startswith("smartexit-"):
         return "SMART_EXIT"
     if value.startswith("protection-"):
@@ -7311,6 +7360,10 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                 await manual_trailing_step(client, state, plan, position)
             except Exception as exc:  # noqa: BLE001 - iz süren hata ana koruma döngüsünü asla durdurmaz
                 logger.warning("MANUAL_TRAIL_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
+            try:
+                await manual_close_target_step(client, state, plan, position)
+            except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
+                logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
     try:
         # Akıllı Kâr Koruma: yalnız Original V2 Live planları; hata ana korumayı asla durdurmaz.
         from . import original_profit_guard, original_v2_live as _original_live
@@ -9411,6 +9464,52 @@ async def v25_manual_trail(request: Request, body: ManualTrailRequest) -> dict[s
             add_event(state, "MANUAL_TRAIL_ON", f"{plan['symbol']} iz süren stop %{pct} mesafeyle açıldı.", actor=user["id"], plan_id=body.plan_id)
         persist_state(state)
     return {"ok": True, "trail_pct": float(pct) if pct is not None else None, "plan": plan}
+
+
+class ManualCloseTargetRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    mode: Literal["price", "profit", "off"]
+    value: float | None = Field(default=None, gt=0)
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/position/close-target")
+async def v25_manual_close_target(request: Request, body: ManualCloseTargetRequest) -> dict[str, Any]:
+    """Manuel pozisyon için kapanış hedefi kur/kaldır: "fiyat X olunca kapat" ya da "net Y USDT kârda kapat" (yalnız MANUEL planlar)."""
+    from . import manual_close_target
+
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "KAPANIŞ HEDEFİ":
+        raise HTTPException(422, "Kapanış hedefi için KAPANIŞ HEDEFİ yazın.")
+    state = request.app.state.v25_execution
+    async with state["lock"]:
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            _manual_plan_guard(state, plan)
+        except ManualPlanActionError as exc:
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        if body.mode == "off":
+            plan.pop("close_target", None)
+            add_event(state, "MANUAL_TARGET_OFF", f"{plan['symbol']} kapanış hedefi kaldırıldı.", actor=user["id"], plan_id=body.plan_id)
+            persist_state(state)
+            return {"ok": True, "close_target": None, "plan": plan}
+        mark = None
+        if body.mode == "price":
+            try:
+                position = await live_plan_position(client_for(request.app, request), plan["symbol"])
+            except LiveExchangeError as exc:
+                raise safe_exchange_error(exc) from exc
+            if position is None or position["direction"] != plan.get("direction"):
+                raise HTTPException(409, "Borsada bu plana ait açık pozisyon doğrulanamadı.")
+            mark = position.get("mark_price")
+        try:
+            target = manual_close_target.build_target(body.mode, body.value, mark, now_iso())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        plan["close_target"] = target
+        add_event(state, "MANUAL_TARGET_ON", f"{plan['symbol']} kapanış hedefi kuruldu: {manual_close_target.describe(target)}.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, "close_target": target, "plan": plan}
 
 
 @router.post("/position/reduce")

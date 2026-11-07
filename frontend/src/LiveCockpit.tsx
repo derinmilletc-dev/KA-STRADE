@@ -650,6 +650,17 @@ export default function LiveCockpit(props: Props) {
       setSheet(null); setManualTarget(null)
     }, `${target.symbol.replace('USDT', '')} pozisyonun %${percent}'i kapatıldı; kalan kısım stopla korunuyor.`, setSheetError)
   }
+  // Kapanış hedefi: "net X USDT kârda" ya da "fiyat Y olunca" otomatik kapat. Emri sunucu verir (~10 sn kontrol).
+  const saveCloseTarget = (planId: string, mode: 'profit' | 'price' | 'off', value: number | null) => {
+    const plan = (status?.plans ?? []).find(item => item.id === planId)
+    const coin = String(plan?.symbol ?? '').replace('USDT', '')
+    const text = mode === 'off' ? `${coin} kapanış hedefi kaldırıldı.`
+      : mode === 'profit' ? `${coin} net +${(value ?? 0).toLocaleString('tr-TR', {maximumFractionDigits: 2})} USDT kârda otomatik kapanacak.`
+      : `${coin} fiyat ${(value ?? 0).toLocaleString('tr-TR', {maximumFractionDigits: 8})} olunca otomatik kapanacak.`
+    return perform('close-target', async () => {
+      await request('/position/close-target', {plan_id: planId, mode, value, confirmation: 'KAPANIŞ HEDEFİ'})
+    }, text)
+  }
   const closeAll = () => perform('close-all', async () => {
     await request('/emergency', {confirmation: CLOSE_ALL_PHRASE, close_tracked_positions: true})
     setSheet(null); setClosePhrase('')
@@ -2013,7 +2024,7 @@ export default function LiveCockpit(props: Props) {
         <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
-          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now}
+          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
           onRiskSettings={() => props.onManualRiskEdit?.()}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>

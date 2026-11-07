@@ -1,7 +1,8 @@
 import {useMemo, useState, type CSSProperties} from 'react'
-import {ChevronDown, SlidersHorizontal, X} from 'lucide-react'
+import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import {duration} from './live-guide'
-import {closeEstimate, netOfFees, type QuoteMap} from './live-quote'
+import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
+import {activeCloseTarget, netAtPrice, parseAmount, priceForNetProfit, type CloseTargetMode} from './close-target'
 import {
   formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, sortPositions, summarize,
   type Ladder, type PositionMetrics, type PositionSort, type RawRecord,
@@ -27,6 +28,8 @@ type Props = {
   quotes?: QuoteMap; quoteNow?: number
   /** Risk kutusundaki "Düzenle" butonu: manuel işlem risk limitleri penceresini açar. Ayar yoksa verilmez, buton görünmez. */
   onRiskSettings?: () => void
+  /** Manuel pozisyon kapanış hedefi kur/kaldır ("fiyat X olunca" / "net Y USDT kârda"). Sunucu ~10 sn'de bir bakar. */
+  onCloseTarget?: (planId: string, mode: CloseTargetMode | 'off', value: number | null) => Promise<boolean>
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -63,6 +66,73 @@ function LadderView({ladder, metrics}: {ladder: Ladder; metrics: PositionMetrics
     {ladder.markers.map(marker => <span key={marker.key} className="pvMk" data-row={marker.row} data-key={marker.key} style={{left: `${marker.pos}%`}}><small>{marker.label}</small><b>{formatPrice(marker.price)}</b></span>)}
     <i className="pvDot" data-level={metrics.level} style={{left: `${ladder.markPos}%`}} aria-hidden="true"/>
     <span className="pvMk pvNow" data-level={metrics.level} style={{left: `${ladder.markPos}%`}}><b>{formatPrice(metrics.mark)}</b><small>şu an</small></span>
+  </div>
+}
+
+// Kapanış hedefi kutusu: "net X USDT kârda kapat" ya da "fiyat Y olunca kapat". Önizleme canlı fiyattan hesaplanır;
+// emri sunucu verir (koruma döngüsü ~10 sn). Stop ve hedefler olduğu gibi kalır.
+const PROFIT_CHIPS = [0.5, 1, 2, 5]
+function CloseTargetBox({planId, metrics, plan, busy, onSet}: {planId: string; metrics: PositionMetrics; plan: RawRecord | undefined; busy: boolean; onSet: NonNullable<Props['onCloseTarget']>}) {
+  const active = activeCloseTarget(plan?.close_target)
+  const [editing, setEditing] = useState(false)
+  const [mode, setMode] = useState<CloseTargetMode>('profit')
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const long = metrics.long === true
+  const entry = metrics.entry, quantity = metrics.quantity, mark = metrics.mark
+  const value = parseAmount(text)
+  const coinPrice = (price: number | null) => price === null ? '—' : formatPrice(price)
+  const pctFrom = (price: number | null) => price !== null && mark !== null && mark > 0 ? (price - mark) / mark * 100 : null
+  const signedPct = (pct: number | null) => pct === null ? '' : ` (${pct >= 0 ? '+' : '−'}${formatPct(Math.abs(pct), 2)})`
+  const levels = Array.isArray(plan?.targets) ? (plan?.targets as unknown[]).map(item => Number(item)).filter(item => Number.isFinite(item) && item > 0) : []
+  const breakeven = priceForNetProfit(long, entry, quantity, 0, TAKER_FEE_RATE)
+  const neededPrice = mode === 'profit' && value !== null ? priceForNetProfit(long, entry, quantity, value, TAKER_FEE_RATE) : null
+  const netThere = mode === 'price' && value !== null ? netAtPrice(long, entry, quantity, value, TAKER_FEE_RATE) : null
+  const nowNet = netAtPrice(long, entry, quantity, mark, TAKER_FEE_RATE)
+  const instant = mode === 'profit' ? value !== null && nowNet !== null && nowNet >= value : false
+  const preview = value === null ? null : mode === 'profit'
+    ? (neededPrice === null ? 'Bu kâr için fiyat hesaplanamadı.' : `Fiyat ≈ ${coinPrice(neededPrice)}${signedPct(pctFrom(neededPrice))} olunca kapanır.`)
+    : `${mark !== null && value > mark ? 'Fiyat çıkıp' : 'Fiyat inip'} ${coinPrice(value)}${signedPct(pctFrom(value))} olunca kapanır · o fiyatta net ${netThere === null ? '—' : `${formatUsdt(netThere, true)} USDT`}.`
+  const submit = async () => {
+    if (value === null || saving) return
+    setSaving(true)
+    const done = await onSet(planId, mode, value).catch(() => false)
+    setSaving(false)
+    if (done) { setEditing(false); setText('') }
+  }
+  const clear = async () => { setSaving(true); await onSet(planId, 'off', null).catch(() => false); setSaving(false) }
+  if (active && !editing) {
+    const activePrice = active.mode === 'profit' ? priceForNetProfit(long, entry, quantity, active.value, TAKER_FEE_RATE) : active.value
+    return <div className="pvTarget" data-active="yes">
+      <span className="pvTargetIcon" aria-hidden="true"><Target/></span>
+      <span className="pvTargetText"><small>KAPANIŞ HEDEFİ AKTİF</small>
+        <b>{active.mode === 'profit' ? `Net +${formatUsdt(active.value)} USDT kârda kapanır` : `Fiyat ${coinPrice(active.value)} olunca kapanır`}</b>
+        <em>{active.mode === 'profit' ? `Fiyat ≈ ${coinPrice(activePrice)}${signedPct(pctFrom(activePrice))}` : `${active.side === 'ABOVE' ? 'Yukarı' : 'Aşağı'} yönde${signedPct(pctFrom(activePrice))}`}{nowNet !== null ? ` · şu an net ${formatUsdt(nowNet, true)}` : ''}</em></span>
+      <span className="pvTargetBtns"><button type="button" disabled={busy || saving} onClick={() => { setMode(active.mode); setText(String(active.value).replace('.', ',')); setEditing(true) }}>Değiştir</button>
+        <button type="button" data-k="off" disabled={busy || saving} onClick={() => void clear()}>Kaldır</button></span>
+    </div>
+  }
+  if (!editing) return <button type="button" className="pvTargetOpen" disabled={busy} onClick={() => setEditing(true)}>
+    <Target aria-hidden="true"/><span><b>Kapanış hedefi ekle</b><small>Örn. net 1 USDT kârda ya da belli bir fiyatta otomatik kapat</small></span>
+  </button>
+  return <div className="pvTarget" data-editing="yes">
+    <div className="pvTargetHead"><b><Target aria-hidden="true"/>Kapanış hedefi</b>
+      <span className="pvSeg" role="group" aria-label="Hedef türü">
+        <button type="button" aria-pressed={mode === 'profit'} onClick={() => { setMode('profit'); setText('') }}>Kâr ile</button>
+        <button type="button" aria-pressed={mode === 'price'} onClick={() => { setMode('price'); setText('') }}>Fiyat ile</button>
+      </span></div>
+    <label className="pvTargetField"><span>{mode === 'profit' ? 'Net kâr (komisyon sonrası)' : 'Kapanış fiyatı'}</span>
+      <span className="pvTargetInput"><input inputMode="decimal" autoComplete="off" placeholder={mode === 'profit' ? '1,00' : coinPrice(mark)} value={text} onChange={event => setText(event.target.value)}/><em>{mode === 'profit' ? 'USDT' : 'USDT fiyat'}</em></span></label>
+    <div className="pvTargetChips">
+      {mode === 'profit'
+        ? PROFIT_CHIPS.map(chip => <button type="button" key={chip} aria-pressed={value === chip} onClick={() => setText(String(chip).replace('.', ','))}>{`+${String(chip).replace('.', ',')} USDT`}</button>)
+        : <>{levels[0] ? <button type="button" onClick={() => setText(String(levels[0]))}>TP1 · {coinPrice(levels[0])}</button> : null}
+          {breakeven !== null ? <button type="button" onClick={() => setText(String(Number(breakeven.toPrecision(6))))}>Başa baş · {coinPrice(breakeven)}</button> : null}</>}
+    </div>
+    {preview && <p className="pvTargetPreview" data-warn={instant || undefined}>{instant ? 'Şu anki kâr bu hedefin üstünde: kurarsan ilk kontrolde (~10 sn) kapanır.' : preview}</p>}
+    <p className="pvTargetNote">Sunucu fiyatı ~10 sn'de bir kontrol eder; hedefe ulaşınca piyasa emriyle kapatır, kapanış fiyatı hedeften biraz farklı olabilir. Stop ve hedeflerin yerinde kalır.</p>
+    <div className="pvTargetBtns"><button type="button" data-k="ghost" disabled={saving} onClick={() => { setEditing(false); setText('') }}>Vazgeç</button>
+      <button type="button" data-k="main" disabled={busy || saving || value === null} onClick={() => void submit()}>{saving ? 'Kuruluyor…' : 'Hedefi kur'}</button></div>
   </div>
 }
 
@@ -186,28 +256,23 @@ export default function PositionsCard(props: Props) {
 
           <div className="pvDetail">
             {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
-            <div className="pvChips">
-              <span className="pvChip" data-kind={manual ? 'manual' : external ? 'external' : 'bot'}>{source}</span>
-              {metrics.marginType && <span className="pvChip">{metrics.marginType === 'cross' ? 'Çapraz' : 'İzole'}</span>}
-              {metrics.pnlOnMarginPct !== null && <span className="pvChip" data-tone={tone(metrics.pnlOnMarginPct)}>{`${metrics.pnlOnMarginPct < 0 ? '−' : ''}${formatPct(Math.abs(metrics.pnlOnMarginPct), 1)} teminata göre`}</span>}
+            {closable && manual && props.onCloseTarget && <CloseTargetBox planId={planId} metrics={metrics} plan={plan} busy={busy} onSet={props.onCloseTarget}/>}
+            <div className="pvKeys">
+              <div data-tone={metrics.level === 'ok' ? 'down' : 'warn'}><small>Stopa kalan</small><b>{metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : '—'}</b></div>
+              <div data-tone="up"><small>{breakeven ? 'Sonraki hedef' : 'TP1’e kalan'}</small><b>{metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : '—'}</b></div>
+              <div data-tone={metrics.toLiqPct !== null && metrics.toLiqPct < 15 ? 'warn' : undefined}><small>Likidasyon</small><b>{metrics.toLiqPct !== null ? formatPct(metrics.toLiqPct, 0) : '—'}</b></div>
             </div>
-            <div className="pvVs">
-              {score && <Cell label="Güven puanı" value={score.mismatch ? 'Ters sinyal' : `${score.now}${score.entry !== null ? ` · girişte ${score.entry}` : ''}`} tone={score.tone === 'up' ? 'up' : score.tone === 'down' ? 'down' : 'warn'}/>}
+            <div className="pvMeta">
+              <Cell label="Giriş" value={metrics.entry !== null ? formatPrice(metrics.entry) : null}/>
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
               <Cell label="Teminat" value={metrics.margin !== null ? `${formatUsdt(metrics.margin)} USDT` : null}/>
-              <Cell label="Stopa kalan" value={metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : null} tone={metrics.level === 'ok' ? undefined : 'warn'}/>
-              <Cell label="TP1’e kalan" value={metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : null}/>
-              <Cell label={risk !== null && risk < -0.005 ? 'Stopta kâr' : 'Stopta zarar'} value={risk !== null ? (Math.abs(risk) <= 0.005 ? '0,00 USDT' : `${risk > 0 ? '−' : '+'}${formatUsdt(Math.abs(risk))} USDT`) : null} tone={risk === null ? undefined : risk > 0.005 ? 'down' : risk < -0.005 ? 'up' : undefined}/>
-              <Cell label="TP1’de kâr" value={metrics.rewardAtTp1 !== null && metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? `${formatUsdt(metrics.rewardAtTp1, true)} USDT` : null} tone="up"/>
-              <Cell label="Likidasyon" value={metrics.liquidation !== null ? `${formatPrice(metrics.liquidation)}${metrics.toLiqPct !== null ? ` · ${formatPct(metrics.toLiqPct, 0)}` : ''}` : null} tone={metrics.toLiqPct !== null && metrics.toLiqPct < 15 ? 'warn' : undefined}/>
-              <Cell label="Giriş" value={metrics.entry !== null ? formatPrice(metrics.entry) : null}/>
             </div>
 
             {!external && <div className="pvProt" aria-label="Koruma emirleri">
-              {flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
+              <span className="pvChip" data-kind={manual ? 'manual' : 'bot'}>{source}</span>{flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
-            {(insights.length > 0 || smart || score) && <div className="pvIns">
+            {(insights.length > 0 || smart || score) && <details className="pvIns"><summary>Akıllı notlar<em>{insights.length + (smart ? 1 : 0) + (score ? 1 : 0)}</em><ChevronDown aria-hidden="true"/></summary>
               {score && <p data-tone={score.tone === 'up' ? 'info' : 'warn'}>{score.mismatch
                 ? `Strateji şu an ters yönü gösteriyor${score.opposite !== null ? ` (karşı yön güveni ${score.opposite})` : ''}.`
                 : score.now !== null && score.now < score.threshold
@@ -215,7 +280,7 @@ export default function PositionsCard(props: Props) {
                   : `Güven puanı ${score.now}; giriş eşiğinin (${score.threshold}) üstünde.${scoreTime ? ` Son ölçüm ${scoreTime} mumu.` : ''}`}</p>}
               {insights.map(item => <p key={item.text} data-tone={item.tone}>{item.text}</p>)}
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
-            </div>}
+            </details>}
 
             {external && <p className="pvNote">Dış pozisyon · bot tarafından yönetilmiyor.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
