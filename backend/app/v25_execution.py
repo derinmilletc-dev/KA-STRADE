@@ -2999,7 +2999,11 @@ async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: s
     client_id = client_id_for("CLOSE", intent)
     existing = await find_order(client, symbol, client_id)
     if existing is not None:
-        return existing
+        if str(existing.get("status") or "").upper() in {"NEW", "PARTIALLY_FILLED"}:
+            return existing
+        # Aynı niyetle gönderilmiş eski emir dolmuş/iptal/red olmuş ama pozisyon hâlâ açık: eski emri geri döndürmek
+        # pozisyonu açık bırakır. Yeni, benzersiz kimlikle yeniden kapatma emri gönderilir (miktar borsadan okundu).
+        client_id = client_id_for("CLOSE", f"{intent}-retry-{int(time.time() * 1000)}")
     params = {
         "symbol": symbol, "side": "SELL" if amount > 0 else "BUY", "type": "MARKET",
         "quantity": decimal_text(abs(amount)), "reduceOnly": "true",
