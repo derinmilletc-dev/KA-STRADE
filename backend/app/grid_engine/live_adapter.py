@@ -19,7 +19,7 @@ import re
 from decimal import Decimal
 from typing import Any, Awaitable, Protocol
 
-from .ports import (CANCELED, FILLED, LIMIT, MARKET, NEW, PARTIAL, REJECTED, STOP_MARKET, UNKNOWN_ORDER, ExchangeRejected,
+from .ports import (TAKE_PROFIT_MARKET, CANCELED, FILLED, LIMIT, MARKET, NEW, PARTIAL, REJECTED, STOP_MARKET, UNKNOWN_ORDER, ExchangeRejected,
                     ExchangeTimeout, ExchangeUnreachable, OrderInfo)
 
 ROLE_PATTERN = re.compile(r"-[LS]\d{2}([ETSC])\d+$")
@@ -42,6 +42,13 @@ def _num(value: float) -> str:
 def order_role(client_id: str) -> str:
     match = ROLE_PATTERN.search(client_id or "")
     return match.group(1) if match else ""
+
+
+def is_algo_order(client_id: str) -> bool:
+    """Koşullu (algo) uçtan yönetilen emir mi? Stop (rol S) her zaman; Farmer hedefi (kf- öneki + rol T) TAKE_PROFIT_MARKET olduğu için de.
+    Grid/DCA hedefleri (kg-/kd- + T) LIMIT'tir ve normal uçtan gitmeye devam eder."""
+    role = order_role(client_id)
+    return role == "S" or (role == "T" and (client_id or "").startswith("kf-"))
 
 
 def _rows(payload: Any) -> list[dict[str, Any]]:
@@ -128,7 +135,8 @@ class BinanceLiveGridAdapter:
     def _algo_open_info(row: dict[str, Any]) -> OrderInfo:
         return OrderInfo(
             client_id=str(row.get("clientAlgoId") or ""), symbol=str(row.get("symbol") or ""), side=str(row.get("side") or ""),
-            type=STOP_MARKET, price=0.0, stop_price=_float(row.get("triggerPrice", row.get("stopPrice"))),
+            type=TAKE_PROFIT_MARKET if str(row.get("orderType") or row.get("type") or "").upper() == TAKE_PROFIT_MARKET else STOP_MARKET,
+            price=0.0, stop_price=_float(row.get("triggerPrice", row.get("stopPrice"))),
             qty=_float(row.get("quantity", row.get("origQty"))), filled=0.0, status=NEW,
             reduce_only=str(row.get("reduceOnly")).lower() == "true")
 
@@ -178,8 +186,8 @@ class BinanceLiveGridAdapter:
     # ---------- ExchangePort ----------
     def place_order(self, *, client_id: str, symbol: str, side: str, type: str, qty: float,
                     price: float = 0.0, stop_price: float = 0.0, reduce_only: bool = False) -> OrderInfo:
-        if type == STOP_MARKET:
-            params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": side, "type": "STOP_MARKET", "quantity": _num(qty),
+        if type in (STOP_MARKET, TAKE_PROFIT_MARKET):
+            params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": side, "type": type, "quantity": _num(qty),
                       "triggerPrice": _num(stop_price), "workingType": "MARK_PRICE", "priceProtect": "TRUE",
                       "reduceOnly": "true", "clientAlgoId": client_id}
             body = self._signed("POST", "/fapi/v1/algoOrder", params, read=False)
@@ -188,7 +196,7 @@ class BinanceLiveGridAdapter:
             state = str(body.get("algoStatus", body.get("status")) or "NEW").upper()
             if state in _ALGO_DEAD or state == "REJECTED":
                 raise ExchangeRejected(0, f"koşullu emir kabul edilmedi ({state})")
-            return OrderInfo(client_id=client_id, symbol=symbol, side=side, type=STOP_MARKET, price=0.0, stop_price=float(stop_price),
+            return OrderInfo(client_id=client_id, symbol=symbol, side=side, type=type, price=0.0, stop_price=float(stop_price),
                              qty=float(qty), filled=0.0, status=NEW, reduce_only=True)
         if type not in (LIMIT, MARKET):
             raise ExchangeRejected(0, f"desteklenmeyen emir türü: {type}")
@@ -204,7 +212,7 @@ class BinanceLiveGridAdapter:
         return self._info(body)
 
     def get_order(self, symbol: str, client_id: str) -> OrderInfo | None:
-        if order_role(client_id) == "S":
+        if is_algo_order(client_id):
             return self._algo_lookup(symbol, client_id)
         try:
             body = self._signed("GET", "/fapi/v1/order", {"symbol": symbol, "origClientOrderId": client_id}, read=True)
@@ -227,7 +235,7 @@ class BinanceLiveGridAdapter:
 
     def cancel_order(self, symbol: str, client_id: str) -> OrderInfo:
         try:
-            if order_role(client_id) == "S":
+            if is_algo_order(client_id):
                 self._signed("DELETE", "/fapi/v1/algoOrder", {"symbol": symbol, "clientAlgoId": client_id}, read=False)
                 info = self._algo_lookup(symbol, client_id)
                 if info is None:

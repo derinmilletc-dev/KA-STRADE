@@ -96,8 +96,8 @@ class GridEngine:
                  sleep: Callable[[float], None] = lambda s: None, user_id: str = "", account: str = "LIVE") -> None:
         if spec.side not in self.SIDES:
             raise ValueError(f"yön {'/'.join(self.SIDES)} olmalı")
-        if not 2 <= len(spec.levels) <= MAX_LEVELS:
-            raise ValueError(f"kademe sayısı 2-{MAX_LEVELS} arasında olmalı")
+        if not self.MIN_LEVELS <= len(spec.levels) <= MAX_LEVELS:
+            raise ValueError(f"kademe sayısı {self.MIN_LEVELS}-{MAX_LEVELS} arasında olmalı")
         self.ex, self.store, self.spec = exchange, store, spec
         self.gid, self.sym, self.risk_gate = spec.grid_id, spec.symbol, risk_gate
         self.max_close_attempts, self.sleep = max_close_attempts, sleep
@@ -129,6 +129,7 @@ class GridEngine:
         self._alert("kritik", reason)
 
     SIDES: tuple[str, ...] = (LONG, SHORT)
+    MIN_LEVELS = 2
 
     def _entry_side(self, level: int) -> str:
         return self.entry_side
