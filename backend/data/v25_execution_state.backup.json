@@ -72,10 +72,36 @@
   },
   "events": [
     {
-      "id": "c58eb73d95db4618b1686ec804fa60d2",
-      "kind": "CREDENTIAL_REFRESH_RETRY_SUCCEEDED",
-      "message": "İlk credential çözümlemesi boş döndü; tek zorunlu yenileme denemesi tamamlandı.",
-      "created_at": "2026-11-08T13:36:08.235359+00:00"
+      "id": "7f493c0b565c4e15b1ce8fcc434b3ea2",
+      "kind": "LIVE_EMERGENCY_AUTO_CLEARED",
+      "message": "Geçici kilit nedeni düzeldi ve Binance hesabı yeniden doğrulandı; acil durdurma kalktı. Canlı işlem için ARM yeniden onaylanmalı.",
+      "created_at": "2026-11-02T17:21:37.314394+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED"
+    },
+    {
+      "id": "730b060cfb92490a905dd5fbbdfbca77",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_RECOVERED",
+      "message": "Binance hesap bilgileri yeniden doğrulandı; önceki ARM süresi uzatılmadı.",
+      "created_at": "2026-11-02T17:21:37.314366+00:00"
+    },
+    {
+      "id": "496281e1413645169b8095cfd2328969",
+      "kind": "LIVE_FAIL_CLOSED",
+      "message": "Canlı yürütme güvenlik nedeniyle kilitlendi.",
+      "created_at": "2026-11-02T17:21:37.314337+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED",
+      "execution_state": "LOCKED",
+      "symbol": null,
+      "client_order_id_suffix": null,
+      "reconciliation_required": false,
+      "unknown_execution": false
+    },
+    {
+      "id": "682950ccb8d449dea3dbada785f02bb7",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_WAIT",
+      "message": "Binance hesap sorgusu hız sınırında; ARM süresi korunuyor, yeni girişler hesap yeniden doğrulanana kadar kapalı.",
+      "created_at": "2026-11-02T17:21:37.313746+00:00",
+      "retry_after_seconds": 180
     }
   ],
   "mtf_decision_history": [],
@@ -108,8 +134,8 @@
   "live_auto_trade": false,
   "emergency": {
     "active": false,
-    "triggered_at": null,
-    "reason": null
+    "triggered_at": "2026-11-02T17:21:37.314316+00:00",
+    "reason": "BINANCE_ACCOUNT_RATE_LIMITED_RECOVERED"
   },
   "web_consent": {
     "accepted_at": null,
