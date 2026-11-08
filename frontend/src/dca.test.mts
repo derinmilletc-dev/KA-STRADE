@@ -60,6 +60,13 @@ for (const preset of DCA_PRESETS) {
   assert.strictEqual(planFit(btc, 500).state, 'ok')
   assert.strictEqual(fitToCap(btc, 10), null, 'BTC 10 USDT toplam marja hiçbir şekilde sığmaz')
   assert.strictEqual(planFit({...base, filters: undefined}, 10).state, 'invalid')
+  // tek işlem zarar sınırı: plan sınıra sığacak kadar küçülür
+  const bigLoss = {...base, baseMargin: 40}
+  assert.ok(computeDca(bigLoss).worstLoss > 3)
+  const limited = planFit(bigLoss, 300, 3)
+  assert.strictEqual(limited.state, 'ok')
+  assert.ok(limited.margin! < 40)
+  assert.ok(computeDca({...bigLoss, baseMargin: limited.margin!}).worstLoss <= 3 + 1e-9)
   // ucuz coin: varsayılan ayar sınıra sığmaz ama otomatik sığdırma çözer ve sonuç gerçekten geçerli + sınır içinde
   assert.strictEqual(planFit(base, 10).state, 'over-cap')
   const fix = fitToCap(base, 10)

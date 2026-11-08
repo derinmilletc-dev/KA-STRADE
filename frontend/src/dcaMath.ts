@@ -163,7 +163,7 @@ export function maxBaseMargin(input: DcaInput, cap: number, ceiling = 500): {mar
 export type DcaFit = {state: 'ok' | 'over-cap' | 'invalid'; margin: number | null; total: number | null}
 /** Taban marjini limite göre uyarlar, ASLA gereğinden fazla harcatmaz: plan zaten geçerli ve limit içindeyse marj aynen kalır;
  *  limiti aşıyorsa sığan en büyük marja İNER; borsa minimumunun altındaysa geçerli olan en küçük marja ÇIKAR. */
-export function planFit(input: DcaInput, cap: number): DcaFit {
+function planFitCap(input: DcaInput, cap: number): DcaFit {
   const current = computeDca(input)
   if (current.valid && current.totalMargin <= cap + 1e-9) return {state: 'ok', margin: input.baseMargin, total: current.totalMargin}
   if (current.stages.length && current.totalMargin > cap + 1e-9) {
@@ -177,13 +177,31 @@ export function planFit(input: DcaInput, cap: number): DcaFit {
   return {state: result.totalMargin <= cap + 1e-9 ? 'ok' : 'over-cap', margin: need.margin, total: result.totalMargin}
 }
 
+/** Toplam marj sınırına VE tek işlem en kötü zarar sınırına (maxLoss > 0 ise) sığan en yüksek yatırımı bulur; sığmazsa 'over-cap'. */
+export function planFit(input: DcaInput, cap: number, maxLoss = 0): DcaFit {
+  const base = planFitCap(input, cap)
+  if (!(maxLoss > 0) || base.state !== 'ok' || !base.margin) return base
+  let margin = base.margin
+  for (let i = 0; i < 12; i++) {
+    const r = computeDca({...input, baseMargin: margin})
+    if (r.valid && r.worstLoss <= maxLoss + 1e-9) return {state: 'ok', margin, total: r.totalMargin}
+    if (!r.valid || r.worstLoss <= 0) break
+    const next = Math.floor(margin * Math.min(0.98, maxLoss / r.worstLoss) * 100) / 100
+    if (!(next > 0) || next >= margin) break
+    margin = next
+  }
+  const need = minBaseMargin(input)
+  const probe = need ? computeDca({...input, baseMargin: need.margin}) : null
+  return {state: 'over-cap', margin: need?.margin ?? null, total: probe?.totalMargin ?? null}
+}
+
 export type DcaCapFix = {safety: number; volume: number; margin: number; total: number}
 /** Sınıra sığmayan planı en az değişiklikle sığdırır: önce çarpanı, sonra ek emir sayısını azaltır (kaldıracı artırmaz). Mümkün değilse null. */
-export function fitToCap(input: DcaInput, cap: number): DcaCapFix | null {
+export function fitToCap(input: DcaInput, cap: number, maxLoss = 0): DcaCapFix | null {
   for (let safety = input.safetyOrders; safety >= 1; safety--) {
     for (let tenths = Math.round(input.volumeMultiplier * 10); tenths >= 10; tenths--) {
       const volume = tenths / 10
-      const fit = planFit({...input, safetyOrders: safety, volumeMultiplier: volume}, cap)
+      const fit = planFit({...input, safetyOrders: safety, volumeMultiplier: volume}, cap, maxLoss)
       if (fit.state === 'ok' && fit.margin && fit.total) return {safety, volume, margin: fit.margin, total: fit.total}
     }
   }
