@@ -30,7 +30,15 @@ class DcaPlanMathTests(unittest.TestCase):
         self.assertAlmostEqual(plan["total_margin_usdt"], 236.446 / 3, places=4)
         raw = 0.3 * 5.94 + 0.45 * 4.44 + 0.675 * 2.94 + 1.012 * 1.44
         fees = 236.446 * dca.TAKER_FEE + 2.437 * 94.06 * dca.TAKER_FEE
-        self.assertAlmostEqual(plan["worst_loss_usdt"], raw + fees, places=4)
+        slippage = (0.3 * 100.0) * dca.SLIPPAGE_MARKET_PCT / 100 + 2.437 * 94.06 * dca.SLIPPAGE_MARKET_PCT / 100   # taban piyasa girişi + piyasa stop
+        funding = 236.446 * dca.FUNDING_ALLOWANCE_PCT / 100
+        self.assertAlmostEqual(plan["worst_loss_usdt"], raw + fees + slippage + funding, places=4)
+        breakdown = plan["worst_loss_breakdown"]
+        self.assertAlmostEqual(breakdown["price_loss_usdt"], raw, places=4)
+        self.assertAlmostEqual(breakdown["fees_usdt"], fees, places=4)
+        self.assertAlmostEqual(breakdown["slippage_allowance_usdt"], slippage, places=4)
+        self.assertAlmostEqual(breakdown["funding_allowance_usdt"], funding, places=4)
+        self.assertAlmostEqual(sum(breakdown.values()), plan["worst_loss_usdt"], places=4)   # hiçbir kalem iki kere sayılmaz, eksik de kalmaz
 
     def test_tp_moves_down_as_average_drops_and_profit_is_positive(self):
         stages = make()["stages"]
@@ -53,6 +61,30 @@ class DcaPlanMathTests(unittest.TestCase):
     def test_liquidation_is_beyond_stop_for_long(self):
         plan = make()
         self.assertLess(plan["liquidation_estimate"], plan["stop_price"])
+        self.assertTrue(plan["liquidation_is_estimate"])          # borsanın gerçek likidasyon fiyatı gibi sunulmaz
+
+    def test_worst_case_assumes_all_safeties_fill_then_stop(self):
+        plan = make()
+        stop = plan["stop_price"]
+        raw = sum(s["qty"] * (s["entry"] - stop) for s in plan["stages"])      # BASE + TÜM ek emirler dolmuş, stop çalışmış
+        self.assertEqual(len(plan["stages"]), 4)
+        self.assertAlmostEqual(plan["worst_loss_breakdown"]["price_loss_usdt"], raw, places=4)
+
+    def test_buffers_are_central_and_adjustable(self):
+        with patch.object(dca, "SLIPPAGE_MARKET_PCT", 0.0), patch.object(dca, "FUNDING_ALLOWANCE_PCT", 0.0):
+            plan = make()
+        self.assertAlmostEqual(plan["worst_loss_usdt"], plan["worst_loss_breakdown"]["price_loss_usdt"] + plan["worst_loss_breakdown"]["fees_usdt"], places=4)
+        self.assertEqual(plan["worst_loss_breakdown"]["slippage_allowance_usdt"], 0.0)
+        self.assertGreater(make()["worst_loss_usdt"], plan["worst_loss_usdt"])      # varsayılan paylar zararı artırır
+
+    def test_realistic_tp_profit_is_below_fee_only_profit(self):
+        for stage in make()["stages"]:
+            self.assertLess(stage["tp_net_profit_after_costs_usdt"], stage["tp_net_profit_usdt"])
+            self.assertGreater(stage["tp_net_profit_after_costs_usdt"], 0)
+
+    def test_minimum_allowed_take_profit_is_still_usable(self):
+        plan = make(take_profit_pct=dca.MIN_TP_PCT)                 # paylar stratejiyi kullanılmaz hale getirmemeli
+        self.assertTrue(all(s["tp_net_profit_after_costs_usdt"] > 0 for s in plan["stages"]))
 
 
 class DcaPlanRejectionTests(unittest.TestCase):
@@ -89,6 +121,32 @@ class DcaPlanRejectionTests(unittest.TestCase):
     def test_take_profit_must_cover_fees(self):
         with patch.object(dca, "MIN_TP_PCT", 0.01):     # alt sınır normalde bunu zaten engeller; ücret kontrolü ayrıca çalışmalı
             self.reject("işlem ücretini karşılamıyor", take_profit_pct=0.05)
+
+    def test_take_profit_rejected_when_slippage_and_funding_eat_it(self):
+        # Teorik olarak ücretten sonra pozitif ama gerçekçi maliyetlerden sonra anlamsız: plan reddedilir.
+        self.assertGreater(make(take_profit_pct=0.5)["stages"][0]["tp_net_profit_usdt"], 0)
+        with patch.object(dca, "FUNDING_ALLOWANCE_PCT", 1.0):
+            self.reject("yeterli net kâr bırakmıyor", take_profit_pct=0.5)
+        with patch.object(dca, "SLIPPAGE_MARKET_PCT", 0.5):
+            self.reject("yeterli net kâr bırakmıyor", take_profit_pct=0.5)
+
+    def test_take_profit_rejected_below_minimum_net_profit_buffer(self):
+        with patch.object(dca, "MIN_NET_PROFIT_USDT", 5.0):
+            self.reject("yeterli net kâr bırakmıyor")
+        with patch.object(dca, "MIN_NET_PROFIT_PCT", 0.9):
+            self.reject("yeterli net kâr bırakmıyor")
+
+    def test_take_profit_pct_is_never_silently_changed(self):
+        plan = make(take_profit_pct=0.4)
+        self.assertEqual(plan["take_profit_pct"], 0.4)
+        self.assertAlmostEqual(plan["stages"][0]["tp_price"], 100.4, places=2)
+
+    def test_worst_loss_over_limit_only_because_of_slippage_and_funding(self):
+        ideal = make()["worst_loss_breakdown"]
+        ideal_only = ideal["price_loss_usdt"] + ideal["fees_usdt"]
+        self.assertLess(ideal_only, 7.5)                              # kayma/funding olmadan 7,5 USDT sınırına sığardı...
+        self.assertGreater(make()["worst_loss_usdt"], 7.5)
+        self.reject("tek işlem sınırı", policy={**POLICY, "max_loss_per_trade": 7.5})   # ...paylarla sığmaz
 
     def test_risk_policy_limits(self):
         self.reject("tek işlem sınırı", policy={**POLICY, "max_loss_per_trade": 1})

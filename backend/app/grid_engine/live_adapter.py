@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any, Awaitable, Protocol
 
 from .ports import (CANCELED, FILLED, LIMIT, MARKET, NEW, PARTIAL, REJECTED, STOP_MARKET, UNKNOWN_ORDER, ExchangeRejected,
-                    ExchangeTimeout, ExchangeUnreachable, OrderInfo)
+                    ExchangeTimeout, ExchangeUnreachable, OrderInfo, PositionInfo)
 
 ROLE_PATTERN = re.compile(r"-[LS]\d{2}([ETSC])\d+$")
 ORDER_NOT_FOUND = (-2011, -2013)
@@ -282,3 +282,22 @@ class BinanceLiveGridAdapter:
                 raise ExchangeUnreachable("hesap tek yönlü (one-way) modda değil")
             total += Decimal(str(row.get("positionAmt", "0")))
         return float(round(total, 8))
+
+    def position_info(self, symbol: str) -> PositionInfo:
+        """Borsanın gerçek pozisyonu: miktar, ortalama giriş (entryPrice), likidasyon ve işaret fiyatı. Okunamazsa hata fırlatır."""
+        payload = self._signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}, read=True)
+        if not isinstance(payload, list):
+            raise ExchangeUnreachable("pozisyon yanıtı doğrulanamadı")
+        amount, entry, liq, mark = Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
+        for row in _rows(payload):
+            if row.get("symbol") != symbol:
+                continue
+            if str(row.get("positionSide", "BOTH")).upper() != "BOTH":
+                raise ExchangeUnreachable("hesap tek yönlü (one-way) modda değil")
+            row_amt = Decimal(str(row.get("positionAmt", "0") or "0"))
+            if row_amt != 0:
+                amount += row_amt
+                entry = Decimal(str(row.get("entryPrice", "0") or "0"))
+                liq = Decimal(str(row.get("liquidationPrice", "0") or "0"))
+                mark = Decimal(str(row.get("markPrice", "0") or "0"))
+        return PositionInfo(float(round(amount, 8)), float(entry), float(liq), float(mark))
