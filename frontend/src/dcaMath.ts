@@ -135,3 +135,51 @@ export const DCA_PRESETS: DcaPreset[] = [
   {id: 'balanced', name: 'Dengeli', hint: 'Çoğu durum için', form: {margin: '10', safety: 3, step: '1.5', volume: '1.5', tp: '1', gap: '1.5', leverage: 3, recycle: false}},
   {id: 'bold', name: 'Atak', hint: 'Sık ek emir, hızlı hedef', form: {margin: '10', safety: 4, step: '1', volume: '1.6', tp: '0.8', gap: '1', leverage: 4, recycle: false}},
 ]
+
+const NOTIONAL_ERROR = 'en düşük emir değerinin altında'
+const NEXT_MARGIN = (m: number) => (m < 10 ? m + 0.5 : m < 50 ? m + 1 : m + 5)
+
+/** Borsanın en düşük emir değerini geçen en küçük taban marjini bulur (diğer ayarlar sabit). Bulunamazsa null. */
+export function minBaseMargin(input: DcaInput, ceiling = 500): {margin: number; total: number} | null {
+  for (let margin = 0.5; margin <= ceiling + 1e-9; margin = NEXT_MARGIN(margin)) {
+    const result = computeDca({...input, baseMargin: margin})
+    if (!result.stages.length) return null
+    if (!result.errors.some(error => error.includes(NOTIONAL_ERROR))) return {margin, total: result.totalMargin}
+  }
+  return null
+}
+
+/** Toplam marj sınırına (`cap`) sığan, geçerli plan veren EN BÜYÜK taban marjini bulur (diğer ayarlar sabit). Yoksa null. */
+export function maxBaseMargin(input: DcaInput, cap: number, ceiling = 500): {margin: number; total: number} | null {
+  let best: {margin: number; total: number} | null = null
+  for (let margin = 0.5; margin <= ceiling + 1e-9; margin = NEXT_MARGIN(margin)) {
+    const result = computeDca({...input, baseMargin: margin})
+    if (!result.stages.length || result.totalMargin > cap + 1e-9) break
+    if (result.valid) best = {margin, total: result.totalMargin}
+  }
+  return best
+}
+
+export type DcaFit = {state: 'ok' | 'over-cap' | 'invalid'; margin: number | null; total: number | null}
+/** Bu coin ve bu ayarlarla plan toplam marj sınırına sığar mı? `ok`: sığar (margin = sığan en büyük taban marj), `over-cap`: yalnız sınırı aşarak geçerli olur, `invalid`: başka bir kural bozuyor. */
+export function planFit(input: DcaInput, cap: number): DcaFit {
+  const within = maxBaseMargin(input, cap)
+  if (within) return {state: 'ok', margin: within.margin, total: within.total}
+  const need = minBaseMargin(input)
+  if (!need) return {state: 'invalid', margin: null, total: null}
+  const result = computeDca({...input, baseMargin: need.margin})
+  return {state: result.valid ? 'over-cap' : 'invalid', margin: need.margin, total: result.totalMargin}
+}
+
+export type DcaCapFix = {safety: number; volume: number; margin: number; total: number}
+/** Sınıra sığmayan planı en az değişiklikle sığdırır: önce çarpanı, sonra ek emir sayısını azaltır (kaldıracı artırmaz). Mümkün değilse null. */
+export function fitToCap(input: DcaInput, cap: number): DcaCapFix | null {
+  for (let safety = input.safetyOrders; safety >= 1; safety--) {
+    for (let tenths = Math.round(input.volumeMultiplier * 10); tenths >= 10; tenths--) {
+      const volume = tenths / 10
+      const within = maxBaseMargin({...input, safetyOrders: safety, volumeMultiplier: volume}, cap)
+      if (within) return {safety, volume, margin: within.margin, total: within.total}
+    }
+  }
+  return null
+}

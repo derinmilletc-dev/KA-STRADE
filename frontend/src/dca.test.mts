@@ -1,7 +1,7 @@
 // Çalıştırma: node frontend/src/dca.test.mts   (Node 22.18+; ek paket gerekmez)
 // backend/tests/test_dca_plan.py ile aynı örnek: iki hesap aynı sayıları vermeli.
 import assert from 'node:assert'
-import {DCA_PRESETS, computeDca} from './dcaMath.ts'
+import {DCA_PRESETS, computeDca, fitToCap, maxBaseMargin, minBaseMargin, planFit} from './dcaMath.ts'
 
 const F = {tickSize: 0.01, stepSize: 0.001, minNotional: 5}
 const base: any = {side: 'LONG', price: 100, baseMargin: 10, safetyOrders: 3, stepPct: 1.5, volumeMultiplier: 1.5, takeProfitPct: 1, stopGapPct: 1.5, leverage: 3, filters: F}
@@ -48,5 +48,26 @@ for (const preset of DCA_PRESETS) {
       assert.ok(x.valid, `${preset.id} ${side} @${price}: ${x.errors.join(' | ')}`)
     }
   }
+}
+// akıllı marj önerisi: BTC benzeri (min emir 100 USDT) coin 10 USDT limitine sığmaz, ucuz coin sığar
+{
+  const btc: any = {...base, price: 75806.2, filters: {tickSize: 0.1, stepSize: 0.001, minNotional: 100}}
+  const need = minBaseMargin(btc)
+  assert.ok(need && need.margin > 10, `BTC taban marj: ${JSON.stringify(need)}`)
+  assert.ok(computeDca({...btc, baseMargin: need.margin}).errors.every(e => !e.includes('en düşük emir')), 'önerilen marj minimumu geçmeli')
+  assert.ok(computeDca({...btc, baseMargin: need.margin - (need.margin <= 10 ? 0.5 : need.margin <= 50 ? 1 : 5)}).errors.some(e => e.includes('en düşük emir')), 'bir adım azı yetmemeli')
+  assert.strictEqual(planFit(btc, 10).state, 'over-cap')
+  assert.strictEqual(planFit(btc, 500).state, 'ok')
+  assert.strictEqual(fitToCap(btc, 10), null, 'BTC 10 USDT toplam marja hiçbir şekilde sığmaz')
+  assert.strictEqual(planFit({...base, filters: undefined}, 10).state, 'invalid')
+  // ucuz coin: varsayılan ayar sınıra sığmaz ama otomatik sığdırma çözer ve sonuç gerçekten geçerli + sınır içinde
+  assert.strictEqual(planFit(base, 10).state, 'over-cap')
+  const fix = fitToCap(base, 10)
+  assert.ok(fix && fix.total <= 10 + 1e-9, JSON.stringify(fix))
+  const check = computeDca({...base, baseMargin: fix.margin, safetyOrders: fix.safety, volumeMultiplier: fix.volume})
+  assert.ok(check.valid && check.totalMargin <= 10 + 1e-9, check.errors.join(' '))
+  assert.ok(fix.safety <= base.safetyOrders && fix.volume <= base.volumeMultiplier, 'yalnız azaltır')
+  const big = maxBaseMargin(base, 100)
+  assert.ok(big && big.total <= 100 && big.margin >= 10, JSON.stringify(big))
 }
 console.log('dca.test.mts: tamam')
