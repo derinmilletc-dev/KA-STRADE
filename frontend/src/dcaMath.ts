@@ -161,14 +161,20 @@ export function maxBaseMargin(input: DcaInput, cap: number, ceiling = 500): {mar
 }
 
 export type DcaFit = {state: 'ok' | 'over-cap' | 'invalid'; margin: number | null; total: number | null}
-/** Bu coin ve bu ayarlarla plan toplam marj sınırına sığar mı? `ok`: sığar (margin = sığan en büyük taban marj), `over-cap`: yalnız sınırı aşarak geçerli olur, `invalid`: başka bir kural bozuyor. */
+/** Taban marjini limite göre uyarlar, ASLA gereğinden fazla harcatmaz: plan zaten geçerli ve limit içindeyse marj aynen kalır;
+ *  limiti aşıyorsa sığan en büyük marja İNER; borsa minimumunun altındaysa geçerli olan en küçük marja ÇIKAR. */
 export function planFit(input: DcaInput, cap: number): DcaFit {
-  const within = maxBaseMargin(input, cap)
-  if (within) return {state: 'ok', margin: within.margin, total: within.total}
+  const current = computeDca(input)
+  if (current.valid && current.totalMargin <= cap + 1e-9) return {state: 'ok', margin: input.baseMargin, total: current.totalMargin}
+  if (current.stages.length && current.totalMargin > cap + 1e-9) {
+    const within = maxBaseMargin(input, cap)
+    if (within) return {state: 'ok', margin: within.margin, total: within.total}
+  }
   const need = minBaseMargin(input)
   if (!need) return {state: 'invalid', margin: null, total: null}
   const result = computeDca({...input, baseMargin: need.margin})
-  return {state: result.valid ? 'over-cap' : 'invalid', margin: need.margin, total: result.totalMargin}
+  if (!result.valid) return {state: 'invalid', margin: need.margin, total: result.totalMargin}
+  return {state: result.totalMargin <= cap + 1e-9 ? 'ok' : 'over-cap', margin: need.margin, total: result.totalMargin}
 }
 
 export type DcaCapFix = {safety: number; volume: number; margin: number; total: number}
@@ -177,8 +183,8 @@ export function fitToCap(input: DcaInput, cap: number): DcaCapFix | null {
   for (let safety = input.safetyOrders; safety >= 1; safety--) {
     for (let tenths = Math.round(input.volumeMultiplier * 10); tenths >= 10; tenths--) {
       const volume = tenths / 10
-      const within = maxBaseMargin({...input, safetyOrders: safety, volumeMultiplier: volume}, cap)
-      if (within) return {safety, volume, margin: within.margin, total: within.total}
+      const fit = planFit({...input, safetyOrders: safety, volumeMultiplier: volume}, cap)
+      if (fit.state === 'ok' && fit.margin && fit.total) return {safety, volume, margin: fit.margin, total: fit.total}
     }
   }
   return null

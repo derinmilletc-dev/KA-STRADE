@@ -888,6 +888,9 @@ class EmergencyRequest(BaseModel):
 class EmergencyClearRequest(BaseModel):
     confirmation: str = Field(min_length=1, max_length=64)
     totp_code: str | None = Field(default=None, min_length=6, max_length=32, repr=False)
+    # İkinci adım: hesap doğrulaması temiz çıkmayınca kullanıcıya engeller gösterilir; "buna rağmen kaldır" onayı bu bayrakla gelir.
+    # Yalnız aynı kullanıcının az önce 2FA ile başlattığı (bekleyen) bir kaldırma isteğine devam eder; 2FA tekrar istenmez.
+    force_after_warning: bool = False
 
 
 def now_iso() -> str:
@@ -10150,17 +10153,30 @@ async def _emergency_stop_locked(
 @router.post("/emergency/clear")
 async def v25_emergency_clear(request: Request, body: EmergencyClearRequest) -> dict[str, Any]:
     user = execution_owner(request)
-    from .exchange_connections import _require_live_mfa
-    await _require_live_mfa(request, user, body.totp_code)
+    state = request.app.state.v25_execution
+    pending = state.get("emergency_clear_pending")
+    continuing = bool(
+        body.force_after_warning
+        and isinstance(pending, dict)
+        and pending.get("user_id") == user["id"]
+        and float(pending.get("expires") or 0) > time.time()
+    )
+    if body.force_after_warning and not continuing:
+        raise HTTPException(409, "Onay süresi doldu. Kilidi kaldırmayı 2FA koduyla yeniden başlat.")
+    if not continuing:
+        from .exchange_connections import _require_live_mfa
+        await _require_live_mfa(request, user, body.totp_code)
     if body.confirmation.strip().upper() != "ACİL DURDURMAYI KALDIRIYORUM":
         raise HTTPException(422, "Emergency kaldırma için ACİL DURDURMAYI KALDIRIYORUM yazın.")
-    state = request.app.state.v25_execution
     async with state["lock"]:
-        return await _clear_emergency_locked(request, user, state)
+        return await _clear_emergency_locked(request, user, state, force=continuing)
+
+
+EMERGENCY_CLEAR_PENDING_SECONDS = 120
 
 
 async def _clear_emergency_locked(
-    request: Request, user: dict[str, Any], state: dict[str, Any],
+    request: Request, user: dict[str, Any], state: dict[str, Any], force: bool = False,
 ) -> dict[str, Any]:
     emergency = state.get("emergency") if isinstance(state.get("emergency"), dict) else {}
     if emergency.get("active") is not True:
@@ -10177,8 +10193,15 @@ async def _clear_emergency_locked(
             return {"ok": True, "emergency": False, "execution_state": state.get("execution_state"), "armed": False}
         if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN":
             blockers = reconciliation_blockers(state)
-            detail = (" Sebep: " + "; ".join(blockers) + ".") if blockers else ""
-            raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin." + detail)
+            if force:
+                # Kullanıcı engelleri gördü ve açıkça onayladı. Pozisyonlara/emirlere dokunulmaz; yalnız acil durdurma bayrağı kalkar,
+                # canlı yürütme kilitli kalır (yeniden ARM gerekir). Denetim için olay yazılır.
+                add_event(state, "LIVE_EMERGENCY_FORCE_CLEARED", "Kullanıcı uyarılara rağmen acil durdurmayı kaldırdı. Engeller: " + ("; ".join(blockers) or "belirtilmedi"), actor=user["id"], blockers=blockers[:12])
+                state.pop("emergency_clear_pending", None)
+            else:
+                state["emergency_clear_pending"] = {"user_id": user["id"], "expires": time.time() + EMERGENCY_CLEAR_PENDING_SECONDS, "blockers": blockers[:12]}
+                detail = (" Sebep: " + "; ".join(blockers) + ".") if blockers else ""
+                raise HTTPException(409, "Hesap doğrulaması temiz çıkmadı; açık pozisyon/emir ya da belirsiz işlem var. Önce onları kontrol edin." + detail)
     active_plans = [
         plan for plan in state.get("plans", {}).values()
         if isinstance(plan, dict) and live_plan_can_mutate(plan)
@@ -10204,5 +10227,6 @@ async def _clear_emergency_locked(
     state["live_auto_trade"] = False
     state.setdefault("auto", {}).update({"enabled": False, "session_until": 0.0})
     add_event(state, "LIVE_EMERGENCY_CLEARED", "Emergency temizlendi; canlı yürütme kilidi korunuyor.", actor=user["id"])
+    state.pop("emergency_clear_pending", None)
     persist_state(state)
-    return {"ok": True, "emergency": False, "execution_state": "LOCKED", "armed": False}
+    return {"ok": True, "emergency": False, "execution_state": "LOCKED", "armed": False, "forced": bool(force)}

@@ -209,15 +209,23 @@ class TestFlags(unittest.TestCase):
             self.assertFalse(dca_live.demo_enabled())
 
     def test_live_margin_cap(self):
+        from app.execution_core import HARD_MAX_MARGIN_USDT
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop(dca_live.MAX_MARGIN_ENV, None)
+            # DCA'ya özel 10 USDT tavanı yok: varsayılan platform sert tavanıdır
+            self.assertEqual(dca_live.live_max_margin_usdt(), HARD_MAX_MARGIN_USDT)
+            dca_live.check_live_margin({"total_margin_usdt": 150})
+            with self.assertRaises(DcaPlanError):
+                dca_live.check_live_margin({"total_margin_usdt": HARD_MAX_MARGIN_USDT + 1})
+        # isteğe bağlı düşürme çalışır; platform tavanının üstüne çıkamaz
+        with mock.patch.dict(os.environ, {dca_live.MAX_MARGIN_ENV: "10"}):
             self.assertEqual(dca_live.live_max_margin_usdt(), 10.0)
-            dca_live.check_live_margin({"total_margin_usdt": 9.9})
             with self.assertRaises(DcaPlanError):
                 dca_live.check_live_margin({"total_margin_usdt": 10.5})
+        with mock.patch.dict(os.environ, {dca_live.MAX_MARGIN_ENV: "99999"}):
+            self.assertEqual(dca_live.live_max_margin_usdt(), HARD_MAX_MARGIN_USDT)
         with mock.patch.dict(os.environ, {dca_live.MAX_MARGIN_ENV: "abc"}):
-            self.assertEqual(dca_live.live_max_margin_usdt(), 10.0)
-
+            self.assertEqual(dca_live.live_max_margin_usdt(), HARD_MAX_MARGIN_USDT)
 
 
 class TestEndpointWiring(unittest.TestCase):

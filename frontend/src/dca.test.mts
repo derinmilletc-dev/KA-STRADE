@@ -67,6 +67,13 @@ for (const preset of DCA_PRESETS) {
   const check = computeDca({...base, baseMargin: fix.margin, safetyOrders: fix.safety, volumeMultiplier: fix.volume})
   assert.ok(check.valid && check.totalMargin <= 10 + 1e-9, check.errors.join(' '))
   assert.ok(fix.safety <= base.safetyOrders && fix.volume <= base.volumeMultiplier, 'yalnız azaltır')
+  // limit büyükse plan marjini AYNEN kalır (limiti doldurmaz); minimumun altındaysa en küçük geçerli marja çıkar
+  const keep = planFit(base, 500)
+  assert.ok(keep.state === 'ok' && keep.margin === base.baseMargin, `marj korunmalı: ${JSON.stringify(keep)}`)
+  const raise = planFit({...btc, baseMargin: 10}, 500)
+  assert.ok(raise.state === 'ok' && raise.margin! > 10 && raise.margin! < 100, `minimuma çıkmalı: ${JSON.stringify(raise)}`)
+  const fix500 = fitToCap({...base, baseMargin: 10}, 500)
+  assert.ok(fix500 && fix500.margin === 10 && fix500.safety === 3 && fix500.volume === 1.5, `değişiklik gerekmez: ${JSON.stringify(fix500)}`)
   const big = maxBaseMargin(base, 100)
   assert.ok(big && big.total <= 100 && big.margin >= 10, JSON.stringify(big))
 }
