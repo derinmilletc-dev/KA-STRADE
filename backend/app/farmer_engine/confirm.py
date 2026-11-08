@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ..dca_engine.plan import TAKER_FEE
-from .store import CLAIMED, DUPLICATE, OVER_CAP, FarmerStore
+from .store import CLAIMED, DUPLICATE, NO_SLOT, OVER_CAP, FarmerStore
 
 CONFIDENCE, STRATEGY_QUALITY = "CONFIDENCE", "STRATEGY_QUALITY"
 VARIANTS = (CONFIDENCE, STRATEGY_QUALITY)
@@ -215,7 +215,7 @@ class EntryDecision:
 
 
 def decide_entry(store: FarmerStore, account_key: str, candidate: FarmerCandidate, p: ConfirmParams, risk: RiskView, *,
-                 grid_id: str, cap_usdt: float) -> EntryDecision:
+                 grid_id: str, cap_usdt: float, max_slots: int | None = None) -> EntryDecision:
     """Onay → risk/doluluk → atomik kilit+marjin. Emir yalnız `status == CONFIRMED` ise gönderilir; kilit EMİRDEN ÖNCE alınır.
     Reddedilen aday kilit tüketmez (yalnız gerçek deneme mumu kilitler)."""
     conf = confirm(candidate, p)
@@ -235,10 +235,11 @@ def decide_entry(store: FarmerStore, account_key: str, candidate: FarmerCandidat
         if items:
             snapshot["blockers"] = list(items)
             return reject(reason)
-    claim = store.claim_entry(account_key, candidate.symbol, candidate.interval, candidate.candle_open_ms, grid_id, p.margin_usdt, cap_usdt=cap_usdt)
+    claim = store.claim_entry(account_key, candidate.symbol, candidate.interval, candidate.candle_open_ms, grid_id, p.margin_usdt, cap_usdt=cap_usdt,
+                              max_slots=max_slots)
     if claim == DUPLICATE:
         return reject(ENTRY_LOCKED)
-    if claim == OVER_CAP:
+    if claim in (OVER_CAP, NO_SLOT):
         return reject(MARGIN_CAP)
     assert claim == CLAIMED
     store.save_candidate(account_key, candidate.symbol, candidate.candle_open_ms, candidate.direction, score, snapshot, status="CONFIRMING")

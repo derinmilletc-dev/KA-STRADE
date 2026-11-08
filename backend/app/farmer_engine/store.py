@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS farmer_dead_watch(
   grid_id TEXT PRIMARY KEY, last_candle_ms INTEGER NOT NULL DEFAULT 0, consecutive INTEGER NOT NULL DEFAULT 0);
 """
 
-HOLD_ACTIVE = ("HELD", "OPEN")
-CLAIMED, DUPLICATE, OVER_CAP = "CLAIMED", "DUPLICATE", "OVER_CAP"
+HOLD_ACTIVE = ("HELD", "OPEN", "CLOSING")      # CLOSING: kapanış başladı, flat doğrulanana kadar slot+marjin tutulur (C6)
+CLAIMED, DUPLICATE, OVER_CAP, NO_SLOT = "CLAIMED", "DUPLICATE", "OVER_CAP", "NO_SLOT"
 CLOSE_REASONS = {"OPEN", "TARGET", "STOP", "MARKET_CLOSE", "DEAD_CLOSE", "EMERGENCY"}
 PNL_STATES = {"PENDING", "VERIFIED", "UNVERIFIED"}
 
@@ -72,16 +72,20 @@ class FarmerStore(GridStore):
 
     # ---------- giriş kilidi + marjin rezervasyonu (TEK işlem) ----------
     def claim_entry(self, account_key: str, symbol: str, interval: str, candle_open_ms: int, grid_id: str, margin_usdt: float,
-                    *, cap_usdt: float) -> str:
+                    *, cap_usdt: float, max_slots: int | None = None) -> str:
         """Emir göndermeden ÖNCE çağrılır. CLAIMED dönmezse emir GÖNDERİLMEZ.
         DUPLICATE: aynı hesap+sembol+aralık+mum için daha önce deneme yazılmış (geçici ret dahil; satır silinmez).
-        OVER_CAP: mevcut aktif rezervasyon + bu marjin > tavan (satır YAZILMAZ)."""
+        OVER_CAP: mevcut aktif rezervasyon + bu marjin > tavan (satır YAZILMAZ).
+        NO_SLOT: `max_slots` verilmişse aktif (HELD+OPEN+CLOSING) slot sayısı doldu (satır YAZILMAZ)."""
         if margin_usdt <= 0 or cap_usdt <= 0:
             raise ValueError("marjin ve tavan pozitif olmalı")
         with self.lock:
             self.db.commit()
             self.db.execute("BEGIN IMMEDIATE")
             try:
+                if max_slots is not None and self._active_count(account_key) >= int(max_slots):
+                    self.db.rollback()
+                    return NO_SLOT
                 held = self._held(account_key)
                 if held + margin_usdt > cap_usdt + 1e-9:
                     self.db.rollback()
@@ -102,9 +106,21 @@ class FarmerStore(GridStore):
                 raise
 
     def _held(self, account_key: str) -> float:
-        row = self.db.execute("SELECT COALESCE(SUM(margin_usdt),0) AS m FROM farmer_margin_hold WHERE account_key=? AND state IN ('HELD','OPEN')",
+        row = self.db.execute("SELECT COALESCE(SUM(margin_usdt),0) AS m FROM farmer_margin_hold WHERE account_key=? AND state IN ('HELD','OPEN','CLOSING')",
                               (account_key,)).fetchone()
         return float(row["m"])
+
+    def _active_count(self, account_key: str) -> int:
+        return int(self.db.execute("SELECT COUNT(*) AS n FROM farmer_margin_hold WHERE account_key=? AND state IN ('HELD','OPEN','CLOSING')",
+                                   (account_key,)).fetchone()["n"])
+
+    def slot_counts(self, account_key: str) -> dict[str, int]:
+        with self.lock:
+            rows = self.db.execute("SELECT state, COUNT(*) AS n FROM farmer_margin_hold WHERE account_key=? AND state IN ('HELD','OPEN','CLOSING') GROUP BY state",
+                                   (account_key,)).fetchall()
+        counts = {"HELD": 0, "OPEN": 0, "CLOSING": 0}
+        counts.update({row["state"]: int(row["n"]) for row in rows})
+        return counts
 
     def held_margin(self, account_key: str) -> float:
         with self.lock:
@@ -126,16 +142,23 @@ class FarmerStore(GridStore):
             self.db.execute("UPDATE farmer_margin_hold SET state='OPEN' WHERE grid_id=? AND state='HELD'", (grid_id,))
             self.db.commit()
 
+    def mark_hold_closing(self, grid_id: str) -> bool:
+        """OPEN/HELD -> CLOSING (slot ve marjin flat doğrulanana kadar tutulur)."""
+        with self.lock:
+            cur = self.db.execute("UPDATE farmer_margin_hold SET state='CLOSING' WHERE grid_id=? AND state IN ('HELD','OPEN')", (grid_id,))
+            self.db.commit()
+            return cur.rowcount == 1
+
     def release_hold(self, grid_id: str) -> bool:
         """Yalnızca aktif rezervasyonu bırakır; tekrar çağrı zararsız (False)."""
         with self.lock:
-            cur = self.db.execute("UPDATE farmer_margin_hold SET state='RELEASED', released_at=? WHERE grid_id=? AND state IN ('HELD','OPEN')",
+            cur = self.db.execute("UPDATE farmer_margin_hold SET state='RELEASED', released_at=? WHERE grid_id=? AND state IN ('HELD','OPEN','CLOSING')",
                                   (time.time(), grid_id))
             self.db.commit()
             return cur.rowcount == 1
 
     def holds(self, account_key: str, *, active_only: bool = True) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM farmer_margin_hold WHERE account_key=?" + (" AND state IN ('HELD','OPEN')" if active_only else "") + " ORDER BY at"
+        sql = "SELECT * FROM farmer_margin_hold WHERE account_key=?" + (" AND state IN ('HELD','OPEN','CLOSING')" if active_only else "") + " ORDER BY at"
         with self.lock:
             return [dict(row) for row in self.db.execute(sql, (account_key,))]
 
