@@ -8623,9 +8623,11 @@ def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], ski
 
 
 def live_bot_runners(application: Any) -> list[Any]:
-    """Bu süreçte kurulu canlı bot çalıştırıcıları (Grid + DCA). Risk ve coin doluluğu hepsi üzerinden hesaplanır."""
+    """Bu süreçte kurulu canlı bot çalıştırıcıları (Grid + DCA + KAIS FARMER görünümü). Risk ve coin doluluğu hepsi üzerinden hesaplanır.
+    `live_farmer_runner` yalnız KAIS FARMER açıkken kurulur; kurulu değilse liste eskisiyle birebir aynıdır."""
     state = getattr(application, "state", None)
-    return [r for r in (getattr(state, "live_grid_runner", None), getattr(state, "live_dca_runner", None)) if r is not None]
+    return [r for r in (getattr(state, "live_grid_runner", None), getattr(state, "live_dca_runner", None),
+                        getattr(state, "live_farmer_runner", None)) if r is not None]
 
 
 def combined_reserved_risk(application: Any, user_id: str, *, owner: bool, exclude: str | None = None) -> dict[str, Any]:
