@@ -674,6 +674,7 @@ for (const options of [{owner: false}, {available: false}]) {
 }
 
 test('strategy picker switches Kais Rehber between Kais Long and DCA and remembers the choice', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844})
   await fixture(page)
   await page.addStyleTag({content: '.ktTour{display:none !important}'})
   const picker = page.getByTestId('strategy-picker').first()
@@ -685,6 +686,9 @@ test('strategy picker switches Kais Rehber between Kais Long and DCA and remembe
   await expect(page.getByTestId('live-guide')).toHaveCount(0)
   await expect(page.getByTestId('strategy-name')).toContainText('DCA')
   await expect(page.getByTestId('dca-open')).toBeEnabled()
+  await expect(page.getByTestId('dca-manual')).toBeVisible()
+  await page.getByTestId('dca-guide').scrollIntoViewIfNeeded()
+  await page.screenshot({path: '/tmp/dca-guide.png'})
   await page.getByTestId('dca-guide').scrollIntoViewIfNeeded()
   await page.reload()
   await page.addStyleTag({content: '.ktTour{display:none !important}'})
