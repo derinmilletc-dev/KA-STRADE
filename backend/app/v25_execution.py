@@ -1378,8 +1378,8 @@ def _member_state_has_activity(state: dict[str, Any]) -> bool:
 def _member_has_active_live_grid(application: Any, user_id: str) -> bool:
     """Bitmemiş canlı grid'i olan üyenin motoru açılışta başlamalı (grid kurtarması onun içinde çalışır)."""
     try:
-        from . import grid_live
-        return bool(grid_live.runner_for(application).occupying_rows(user_id))
+        from . import dca_live, grid_live
+        return bool(grid_live.runner_for(application).occupying_rows(user_id) or dca_live.runner_for(application).occupying_rows(user_id))
     except Exception:  # noqa: BLE001 - defter okunamazsa güvenli taraf: motoru başlat
         logger.warning("GRID_ACTIVITY_READ_FAILED")
         return True
@@ -1787,7 +1787,8 @@ def execution_owner(request: Request) -> dict[str, Any]:
             raise HTTPException(403, "Master Trade aboneliğiniz bu özelliğe erişim vermiyor")
         if request.method != "GET" and request.url.path in {
             "/api/v25/order", "/api/v25/order/test", "/api/v25/auto/start", "/api/v25/arm",
-            "/api/v25/grid/live/start", "/api/v25/grid/live/resume", "/api/v25/adopt-external-position",
+            "/api/v25/grid/live/start", "/api/v25/grid/live/resume", "/api/v25/dca/live/start", "/api/v25/dca/live/resume",
+            "/api/v25/adopt-external-position",
         } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
             raise HTTPException(403, LIVE_MESSAGE)
@@ -7816,16 +7817,23 @@ def grid_recovery_task(application: Any) -> asyncio.Task:
         user_id, owner = None, True   # tek kullanıcı modu: defterdeki tüm canlı grid'ler bu hesabındır
 
     async def recover() -> None:
-        try:
-            await grid_live.startup_recovery(
-                application, state, user_id=user_id, owner=owner,
-                credentials=lambda: auto_session_credentials(application, state),
-                entry_authority=lambda: live_entry_authority_open(state),
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - kurtarma hatası canlı döngüyü durdurmaz; korumalar borsada
-            logger.warning("LIVE_GRID_STARTUP_RECOVERY_FAILED type=%s", type(exc).__name__)
+        from . import dca_live
+        dca_runner = dca_live.runner_for(application)         # DCA botları da açılışta aynı kurallarla kurtarılır (eşitle → koru → döngü)
+        dca_runner.cycle_planner = dca_live_cycle_planner(application, dca_runner)
+        async def one(runner: Any) -> None:
+            try:
+                await grid_live.startup_recovery(
+                    application, state, user_id=user_id, owner=owner,
+                    credentials=lambda: auto_session_credentials(application, state),
+                    entry_authority=lambda: live_entry_authority_open(state),
+                    **({} if runner is None else {"runner": runner}),
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - kurtarma hatası canlı döngüyü durdurmaz; korumalar borsada
+                logger.warning("LIVE_GRID_STARTUP_RECOVERY_FAILED type=%s", type(exc).__name__)
+
+        await asyncio.gather(one(None), one(dca_runner))      # biri takılsa diğeri beklemez
 
     return asyncio.create_task(recover(), name="live-grid-startup-recovery")
 
@@ -8611,6 +8619,23 @@ def open_position_risk_usdt(state: dict[str, Any], snapshot: dict[str, Any], ski
     return round(total, 6), detail
 
 
+def live_bot_runners(application: Any) -> list[Any]:
+    """Bu süreçte kurulu canlı bot çalıştırıcıları (Grid + DCA). Risk ve coin doluluğu hepsi üzerinden hesaplanır."""
+    state = getattr(application, "state", None)
+    return [r for r in (getattr(state, "live_grid_runner", None), getattr(state, "live_dca_runner", None)) if r is not None]
+
+
+def combined_reserved_risk(application: Any, user_id: str, *, owner: bool, exclude: str | None = None) -> dict[str, Any]:
+    """Grid + DCA çalıştırıcılarının ayırdığı risk toplamı (aynı alanlar). Okunamayan çalıştırıcı hata fırlatır (çağıran güvenli tarafı seçer)."""
+    worst, pending, symbols = 0.0, 0.0, []
+    for runner in live_bot_runners(application):
+        info = runner.reserved_risk(user_id, owner=owner, exclude=exclude)
+        worst += float(info.get("worst_loss_usdt") or 0.0)
+        pending += float(info.get("pending_entry_notional_usdt") or 0.0)
+        symbols.extend(info.get("symbols") or [])
+    return {"worst_loss_usdt": round(worst, 8), "pending_entry_notional_usdt": round(pending, 8), "symbols": symbols, "count": len(symbols)}
+
+
 def grid_start_account_open_risk(state: dict[str, Any], snapshot: dict[str, Any], grid_symbols: Any) -> float:
     """Grid başlatmada (bayrak açıkken) Grid dışı açık pozisyonların stopa kadar riski; kapalıyken 0. Doğrulanamazsa 503."""
     if not account_risk_budget_enabled():
@@ -8636,11 +8661,10 @@ def shared_daily_budget(application: Any, state: dict[str, Any], request: Reques
         limit = min(limit, HARD_MAX_DAILY_LOSS_USDT)   # yalnız sonlu-değer koruması; gerçek tavan değil
     realized = float(live_daily_metrics(state).get("realized_pnl") or 0)
     reserved, grid_symbols = 0.0, set()
-    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
-    if runner is not None:
+    if live_bot_runners(application):
         owner_id = live_reservation_owner(state, request)
         try:
-            info = runner.reserved_risk(owner_id, owner=True)
+            info = combined_reserved_risk(application, owner_id, owner=True)
             reserved = float(info.get("worst_loss_usdt") or 0.0)
             grid_symbols = {normalize_symbol(str(item)) for item in info.get("symbols") or []}
         except Exception as exc:  # noqa: BLE001
@@ -8660,14 +8684,14 @@ def shared_daily_budget(application: Any, state: dict[str, Any], request: Reques
 
 def grid_symbol_busy(application: Any, state: dict[str, Any], request: Request | None, symbol: str) -> bool:
     """Bu kullanıcının bu coinde bitmemiş canlı grid'i var mı? Varsa manuel/otomatik emir o coine girmez (aynı pozisyon karışmasın)."""
-    runner = getattr(getattr(application, "state", None), "live_grid_runner", None)
-    if runner is None:
+    runners = live_bot_runners(application)
+    if not runners:
         return False
     user_id = current_user_id(request) if request is not None else str(
         ((state.get("live_session_authorization") or {}).get("user_id")) or ((state.get("auto_authorization") or {}).get("user_id")) or "")
     try:
         # owner=True: sahipsiz (çoklu grid öncesi) kayıtlar da sayılır; emin olunamayan durumda engellemek güvenli taraftır.
-        return bool(runner.symbol_busy(normalize_symbol(symbol), user_id, owner=True))
+        return any(bool(r.symbol_busy(normalize_symbol(symbol), user_id, owner=True)) for r in runners)
     except Exception:  # defter okunamazsa güvenli taraf: meşgul say
         logger.warning("GRID_OCCUPANCY_READ_FAILED symbol=%s", symbol)
         return True
@@ -8742,6 +8766,8 @@ async def _grid_live_start(request: Request, body: GridLiveStartRequest, reserva
         raise HTTPException(409, f"{symbol} için zaten bir canlı grid var (çalışıyor ya da müdahale bekliyor).")
     if len(runner.occupying_rows(user_id, owner=owner)) >= grid_live.MAX_GRIDS_PER_USER:
         raise HTTPException(409, f"Aynı anda en fazla {grid_live.MAX_GRIDS_PER_USER} grid çalışabilir. Önce birini durdur.")
+    if any(r is not runner and r.symbol_busy(symbol, user_id, owner=owner) for r in live_bot_runners(application)):
+        raise HTTPException(409, f"{symbol} için çalışan bir DCA botu var; aynı coinde grid açılmaz.")
     try:
         async with state["lock"]:
             client = client_for(application, request)
@@ -8759,7 +8785,7 @@ async def _grid_live_start(request: Request, body: GridLiveStartRequest, reserva
             price = await ticker_price(client, symbol)
             await refresh_account_daily_ledger(client, state)
             positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
-            reserved = runner.reserved_risk(user_id, owner=owner)
+            reserved = combined_reserved_risk(application, user_id, owner=owner)
             account_open_risk = grid_start_account_open_risk(state, snapshot, reserved["symbols"])
             position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
             common = dict(
@@ -8849,6 +8875,255 @@ async def v25_grid_live_resume(request: Request, grid_id: str | None = Query(def
         result = await grid_live.runner_for(request.app).resume(request.app, state,
                                                                 grid_live.build_adapter(request.app, request), user_id=user_id,
                                                                 grid_id=grid_id, owner=owner, reopen=reopen, price_lookup=price_lookup)
+    except grid_live.LiveGridError as exc:
+        raise grid_live.http_error(exc) from exc
+    return {"ok": True, **result}
+
+
+class DcaLiveStartRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=20)
+    direction: Literal["LONG", "SHORT"]
+    base_margin_usdt: float = Field(gt=0)
+    safety_orders: int = Field(ge=1, le=5)
+    step_pct: float = Field(gt=0)
+    volume_multiplier: float = Field(ge=1, le=2)
+    take_profit_pct: float = Field(gt=0)
+    stop_gap_pct: float = Field(gt=0)
+    leverage: int = Field(ge=1, le=125)
+    recycle: bool = False          # True: kâr hedefi dolunca yeni tur (her tur risk kapılarından yeniden geçer)
+    preview: bool = False
+    confirmation: str = ""
+
+
+def dca_plan_kwargs(params: dict[str, Any]) -> dict[str, Any]:
+    return {key: params[key] for key in ("base_margin_usdt", "safety_orders", "step_pct", "volume_multiplier", "take_profit_pct",
+                                         "stop_gap_pct", "leverage")}
+
+
+async def dca_live_inputs(application: Any, state: dict[str, Any], request: Request | None, client: Any, runner: Any, symbol: str,
+                          user_id: str, owner: bool, *, reservation: str | None = None, exclude: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Canlı DCA plan girdileri (başlatma ve yeni tur aynı hesabı kullanır): güncel fiyat ve borsa kuralları, bugünkü gerçekleşen zarar,
+    açık pozisyon/ayrılmış risk (Grid + DCA toplamı). Dönüş: (prepare_dca_plan kwargs, hesap anlık görüntüsü)."""
+    snapshot = await account_snapshot(client)
+    if snapshot.get("hedge_mode"):
+        raise HTTPException(409, "Canlı hesap One-way / Tek Yön modunda olmalı.")
+    validate_live_isolated_snapshot(snapshot, state["policy"])
+    rules = await live_symbol_rules(client, symbol, "LIMIT")
+    price = await ticker_price(client, symbol)
+    await refresh_account_daily_ledger(client, state)
+    positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
+    reserved = combined_reserved_risk(application, user_id, owner=owner, exclude=exclude)
+    account_open_risk = grid_start_account_open_risk(state, snapshot, reserved["symbols"])
+    position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
+    others = account_reservations.others_worst_loss(live_reservation_owner(state, request), exclude=reservation)
+    kwargs = dict(
+        price=float(price), rules=rules, policy=state["policy"], realized_pnl_today=float(live_daily_metrics(state).get("realized_pnl") or 0),
+        existing_exposure=sum(position_notional_usdt(p) for p in positions), open_positions=len(positions),
+        reserved_worst_loss=reserved["worst_loss_usdt"] + account_open_risk + others,
+        reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+        reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
+    return kwargs, snapshot
+
+
+def attach_dca_extras(plan: dict[str, Any], params: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
+    plan["tick"] = float(rules["tick"])
+    plan["params"] = dict(params)
+    return plan
+
+
+def dca_live_cycle_planner(application: Any, runner: Any) -> Any:
+    """Yeni tur için çalıştırıcıya verilen planlayıcı: güncel fiyat/kural/risk ile baştan hesaplar; kapılardan geçmezse hata fırlatır.
+    Borsa istemcisi botun kendi bağdaştırıcısından alınır (istek içinde de açılış kurtarmasında da aynı yol). Rezerve risk geniş (owner=True) sayılır."""
+    from . import dca_live
+    from .dca_engine.plan import prepare_dca_plan
+
+    async def planner(engine: Any, state: dict[str, Any]) -> dict[str, Any]:
+        params = (engine.spec.meta or {}).get("params") or {}
+        adapter = runner._adapters.get(engine.gid)
+        if not params or adapter is None:
+            raise HTTPException(409, "Bot parametreleri ya da borsa bağlantısı hazır değil.")
+        user_id = str(runner.store.grid(engine.gid)["user_id"] or "")
+        async with state["lock"]:
+            kwargs, snapshot = await dca_live_inputs(application, state, None, adapter.client, runner, engine.sym, user_id, True, exclude=engine.gid)
+            plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, **dca_plan_kwargs(params), **kwargs)
+            dca_live.check_live_margin(plan)
+            if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
+                raise HTTPException(409, "Kullanılabilir bakiye yeni tur marjininden düşük.")
+            return attach_dca_extras(plan, params, kwargs["rules"])
+    return planner
+
+
+@router.get("/dca/live/status")
+async def v25_dca_live_status(request: Request, history: int = Query(default=6, ge=1, le=50)) -> dict[str, Any]:
+    user = execution_owner(request)
+    from . import dca_live
+    user_id, owner = grid_actor(user)
+    runner = dca_live.runner_for(request.app)
+    day = runner.day_summary(user_id, owner=owner, limit=runner.daily_limit_of(request.app.state.v25_execution))
+    from .dca_engine import plan as dca_plan
+    return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": day, "enabled": dca_live.live_enabled(),
+            "dca_limits": dca_plan.limits_payload(), "live_max_margin_usdt": dca_live.live_max_margin_usdt()}
+
+
+@router.post("/dca/live/start")
+async def v25_dca_live_start(request: Request, body: DcaLiveStartRequest) -> dict[str, Any]:
+    """Canlı DCA botu. Varsayılan KAPALI (KAISTRADE_DCA_LIVE); ilk testte toplam marjin sınırlıdır. Grid ile aynı kapılar + rezervasyon."""
+    execution_owner(request)
+    if body.preview:
+        return await _dca_live_start(request, body, None)
+    state = request.app.state.v25_execution
+    owner_id = live_reservation_owner(state, request)
+    try:
+        if account_reservations.unreconciled(owner_id):
+            await reconcile_account_reservations(client_for(request.app, request), state, owner_id)
+        token = account_reservations.reserve(owner_id, "GRID", normalize_symbol(body.symbol), ttl=account_reservations.GRID_TTL)
+    except account_reservations.ReservationConflict as exc:
+        raise HTTPException(503 if exc.kind == "reconcile" else 409, str(exc)) from exc
+    except account_reservations.ReservationUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    consumed = False
+    try:
+        result = await _dca_live_start(request, body, token)
+        consumed = account_reservations.consume(token, "GRID_STARTED")
+        return result
+    finally:
+        if not consumed:
+            account_reservations.release(token, "GRID_START_ABORTED")
+
+
+async def _dca_live_start(request: Request, body: DcaLiveStartRequest, reservation: str | None) -> dict[str, Any]:
+    user = execution_owner(request)
+    from . import dca_live, original_v2_live
+    from .dca_engine.plan import DcaPlanError, prepare_dca_plan
+    application, state = request.app, request.app.state.v25_execution
+    runner = dca_live.runner_for(application)
+    user_id, owner = grid_actor(user)
+    if not body.preview:
+        dca_live.require_enabled()
+        if body.confirmation.strip().upper() != dca_live.CONFIRM_START:
+            raise HTTPException(422, f"Canlı DCA için {dca_live.CONFIRM_START} yazın.")
+        original_v2_live.require_fill_unlocked(state)
+        guard_new_entry(getattr(application.state, "maintenance", None))
+        if not state.get("recovery_ready", False):
+            raise HTTPException(503, "Canlı durum kurtarma tamamlanmadı; DCA başlatılmadı.")
+        if not is_armed(state):
+            raise HTTPException(423, "24 saatlik canlı emir kilidi kapalı veya süresi doldu.")
+        if live_execution_blocked(state):
+            raise HTTPException(423, "Canlı yürütme kilitli; acil durum veya belirsiz emir uzlaştırması tamamlanmadı.")
+        if state.get("real_trading_locked") is not False:
+            raise HTTPException(423, "Gerçek işlem kilidi kapalı; DCA başlatılmadı.")
+        if not readiness_for(application, state, request, None)["ready"]:
+            raise HTTPException(423, "Canlı yayın kapıları tamamlanmadı; DCA başlatılmadı.")
+    symbol = normalize_symbol(body.symbol)
+    day_limit = dca_live.DcaRunner.daily_limit_of(state)
+    if day_limit is not None and runner.day_summary(user_id, owner=owner, limit=day_limit)["reached"]:
+        raise HTTPException(409, f"Günlük zarar limitine ulaşıldı (-{day_limit:.2f} USDT). Yeni bot yarın (UTC) başlatılabilir.")
+    if any(r.symbol_busy(symbol, user_id, owner=owner) for r in live_bot_runners(application)):
+        raise HTTPException(409, f"{symbol} için zaten çalışan bir bot (Grid/DCA) var.")
+    if len(runner.occupying_rows(user_id, owner=owner)) >= dca_live.MAX_BOTS_PER_USER:
+        raise HTTPException(409, f"Aynı anda en fazla {dca_live.MAX_BOTS_PER_USER} DCA botu çalışabilir. Önce birini durdur.")
+    params = dca_live.plan_params(body)
+    try:
+        async with state["lock"]:
+            client = client_for(application, request)
+            kwargs, snapshot = await dca_live_inputs(application, state, request, client, runner, symbol, user_id, owner, reservation=reservation)
+            verified, occupied, detail = symbol_occupancy_status(snapshot, symbol)
+            if not verified or occupied:
+                raise HTTPException(409, detail)
+            if any(isinstance(p, dict) and live_plan_is_active(p) and normalize_symbol(str(p.get("symbol") or "")) == symbol
+                   for p in state.get("plans", {}).values()):
+                raise HTTPException(409, f"{symbol} için etkin bir işlem planı var; aynı coinde DCA açılmaz.")
+            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, **dca_plan_kwargs(params), **kwargs)
+            dca_live.check_live_margin(plan)
+            attach_dca_extras(plan, params, kwargs["rules"])
+            if reservation:
+                account_reservations.update(reservation, float(plan.get("worst_loss_usdt") or 0.0))
+            if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
+                raise HTTPException(409, "Kullanılabilir bakiye DCA marjininden düşük.")
+            if body.preview:
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0)}
+            if await set_live_isolated_margin(client, symbol) != "ISOLATED":
+                raise HTTPException(409, "Isolated marjin uygulanamadı; DCA başlatılmadı.")
+            audit = await apply_live_verified_leverage(client, symbol, plan["leverage"], expected_margin_type="ISOLATED")
+            if float(audit.get("applied_leverage") or 0) != float(plan["leverage"]):
+                raise HTTPException(409, "Borsa kaldıracı doğrulanamadı; DCA başlatılmadı.")
+    except (grid_live_error_types()) as exc:
+        raise _dca_http_error(exc) from exc
+    except (LiveExchangeError, BinanceDemoError) as exc:
+        raise safe_exchange_error(exc) from exc
+    runner.cycle_planner = dca_live_cycle_planner(application, runner)
+    try:
+        result = await runner.start(application, state, grid_live_adapter(application, request), plan, symbol, user_id=user_id, owner=owner)
+    except grid_live_error_types() as exc:
+        raise _dca_http_error(exc) from exc
+    add_event(state, "LIVE_GRID_ACCEPTED", f"{symbol} canlı DCA botu kabul edildi.", actor=user["id"], symbol=symbol)
+    persist_state(state)
+    return {"ok": True, "plan": plan, **result}
+
+
+def grid_live_error_types() -> tuple[type[Exception], ...]:
+    from . import grid_live
+    from .dca_engine.plan import DcaPlanError
+    return (grid_live.LiveGridError, DcaPlanError)
+
+
+def grid_live_adapter(application: Any, request: Request) -> Any:
+    from . import grid_live
+    return grid_live.build_adapter(application, request)
+
+
+def _dca_http_error(exc: Exception) -> HTTPException:
+    return HTTPException(getattr(exc, "status", 422), str(exc))
+
+
+@router.post("/dca/live/stop")
+async def v25_dca_live_stop(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
+    """Yeni giriş yok, bekleyen girişler iptal; açık pozisyon stop ve hedefle kalır. Bayrak kapalı olsa da çalışır."""
+    user = execution_owner(request)
+    from . import dca_live, grid_live
+    user_id, owner = grid_actor(user)
+    try:
+        result = await dca_live.runner_for(request.app).pause(request.app.state.v25_execution, grid_live.build_adapter(request.app, request),
+                                                              user_id=user_id, grid_id=grid_id, owner=owner)
+    except grid_live.LiveGridError as exc:
+        raise grid_live.http_error(exc) from exc
+    return {"ok": True, **result}
+
+
+@router.post("/dca/live/emergency")
+async def v25_dca_live_emergency(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
+    """DCA ACİL DURDUR: girişleri iptal, piyasadan kapat, borsadan doğrula. Bayrak kapalı olsa da çalışır."""
+    user = execution_owner(request)
+    from . import dca_live, grid_live
+    user_id, owner = grid_actor(user)
+    try:
+        result = await dca_live.runner_for(request.app).emergency(request.app, request.app.state.v25_execution,
+                                                                  grid_live.build_adapter(request.app, request), user_id=user_id,
+                                                                  grid_id=grid_id, owner=owner)
+    except grid_live.LiveGridError as exc:
+        raise grid_live.http_error(exc) from exc
+    return {"ok": True, **result}
+
+
+@router.post("/dca/live/resume")
+async def v25_dca_live_resume(request: Request, grid_id: str | None = Query(default=None, max_length=40)) -> dict[str, Any]:
+    """Sunucu yeniden başladıktan ya da ARM dolduktan sonra botu devam ettirir (borsadaki stoplar zaten yerinde kalır)."""
+    user = execution_owner(request)
+    from . import dca_live, grid_live
+    dca_live.require_enabled()
+    user_id, owner = grid_actor(user)
+    try:
+        state = request.app.state.v25_execution
+        reopen = bool(is_armed(state) and not live_execution_blocked(state) and state.get("real_trading_locked") is False)
+        price_client = client_for(request.app, request)
+
+        async def price_lookup(symbol: str) -> float:
+            return float(await ticker_price(price_client, symbol))
+
+        runner = dca_live.runner_for(request.app)
+        runner.cycle_planner = dca_live_cycle_planner(request.app, runner)
+        result = await runner.resume(request.app, state, grid_live.build_adapter(request.app, request), user_id=user_id,
+                                     grid_id=grid_id, owner=owner, reopen=reopen, price_lookup=price_lookup)
     except grid_live.LiveGridError as exc:
         raise grid_live.http_error(exc) from exc
     return {"ok": True, **result}
