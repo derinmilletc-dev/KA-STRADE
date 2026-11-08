@@ -764,6 +764,15 @@ export default function LiveCockpit(props: Props) {
       setFlash({tone: 'ok', text: `${prev.step}. adım tamamlandı · Sıradaki: ${GUIDE_STEPS[guide.step - 1]}`})
     }
   }, [guide.phase, guide.step])
+  // Telefonda klavye açılınca görünür alan küçülür; açık manuel panel tam bu alana oturur, arkadaki sayfa görünmez.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const apply = () => { root.style.setProperty('--kt-vvh', `${Math.round(vv.height)}px`); root.style.setProperty('--kt-vvt', `${Math.round(vv.offsetTop)}px`) }
+    apply(); vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply)
+    return () => { vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply); root.style.removeProperty('--kt-vvh'); root.style.removeProperty('--kt-vvt') }
+  }, [])
   // Kısa bildirimler sitenin ortak bildirim merkezinde gösterilir (üstte; alt menüyle çakışmaz, kaydırınca kapanır).
   useEffect(() => {
     if (!flash) return

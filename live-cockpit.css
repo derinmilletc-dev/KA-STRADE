@@ -879,8 +879,9 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterTradePage
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose svg{width:17px;height:17px}
 @keyframes lcManualIn{from{opacity:0;transform:translateX(-50%) translateY(14px) scale(.98)}to{opacity:1;transform:translateX(-50%)}}
 @media (max-width:760px){
-  #root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{top:4vh;width:96vw!important;max-height:92vh;border-radius:20px!important}
-  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose{top:calc(4vh + 12px);left:auto;right:calc(2vw + 12px)}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{top:calc(var(--kt-vvt,0px) + env(safe-area-inset-top,0px) + 6px);width:100vw!important;max-width:100vw;height:calc(var(--kt-vvh,100dvh) - env(safe-area-inset-top,0px) - 6px);max-height:none;border-radius:20px 20px 0 0!important;padding-bottom:env(safe-area-inset-bottom,0px)}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .lcManualBackdrop{background:#070d14;backdrop-filter:none}
+  #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualClose{top:calc(var(--kt-vvt,0px) + env(safe-area-inset-top,0px) + 14px);left:auto;right:14px}
 }
 @media (prefers-reduced-motion:reduce){#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcManualBackdrop,#root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder{animation:none!important}}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot[data-manual-modal] .originalManualOrder>summary{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;flex-wrap:nowrap!important}
