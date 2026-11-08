@@ -5,7 +5,7 @@ sonra döngü), ARM süresi dolunca duraklatma, günlük zarar sınırı, likida
 DCA'ya özel: (1) plan → motor ayarı `spec_from_plan`; plan parametreleri (`params`) ayara yazılır, böylece yeni tur aynı parametrelerle
 yeniden hesaplanabilir; (2) tur bitince (CYCLE_DONE) yeni tur ANCAK tüm kapılar yeniden geçilirse başlar: canlı giriş yetkisi, kilitler,
 günlük zarar hakkı ve çağıranın verdiği `cycle_planner` (güncel fiyat/kural/risk ile `prepare_dca_plan`) — herhangi biri geçmezse bot DURUR;
-(3) canlı DCA ayrı bayrakla (`KAISTRADE_DCA_LIVE`) ve varsayılan KAPALI; ilk canlı testte toplam marjin sınırı `KAISTRADE_DCA_LIVE_MAX_MARGIN` (varsayılan 10 USDT)."""
+(3) canlı DCA ayrı bayrakla (`KAISTRADE_DCA_LIVE`, varsayılan AÇIK; KAISTRADE_DCA_LIVE=0 ile kapanır); ilk canlı testte toplam marjin sınırı `KAISTRADE_DCA_LIVE_MAX_MARGIN` (varsayılan 10 USDT)."""
 from __future__ import annotations
 
 import logging
@@ -41,8 +41,8 @@ def _truthy(value: str) -> bool:
 
 
 def live_enabled() -> bool:
-    """Canlı DCA varsayılan KAPALI: sunucuda KAISTRADE_DCA_LIVE=1 gerekir."""
-    return _truthy(os.getenv(ENV_FLAG, "0"))
+    """Canlı DCA varsayılan AÇIK (başlatmak yine ARM, yazılı onay ve toplam marjin sınırı ister); kapatmak için KAISTRADE_DCA_LIVE=0."""
+    return str(os.getenv(ENV_FLAG, "1")).strip().lower() not in {"0", "false", "no", "off"}
 
 
 def demo_enabled() -> bool:
@@ -60,7 +60,7 @@ def live_max_margin_usdt() -> float:
 
 def require_enabled() -> None:
     if not live_enabled():
-        raise HTTPException(403, f"Canlı DCA kapalı. Açmak için sunucuda {ENV_FLAG}=1 yapılmalı (ilk testte toplam marjin en çok "
+        raise HTTPException(403, f"Canlı DCA kapalı (sunucuda {ENV_FLAG}=0). Açmak için {ENV_FLAG} değerini kaldır ya da 1 yap (ilk testte toplam marjin en çok "
                                  f"{live_max_margin_usdt():g} USDT).")
 
 

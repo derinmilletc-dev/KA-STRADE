@@ -8967,7 +8967,7 @@ async def v25_dca_live_status(request: Request, history: int = Query(default=6, 
 
 @router.post("/dca/live/start")
 async def v25_dca_live_start(request: Request, body: DcaLiveStartRequest) -> dict[str, Any]:
-    """Canlı DCA botu. Varsayılan KAPALI (KAISTRADE_DCA_LIVE); ilk testte toplam marjin sınırlıdır. Grid ile aynı kapılar + rezervasyon."""
+    """Canlı DCA botu. Varsayılan AÇIK (KAISTRADE_DCA_LIVE=0 ile kapanır); ilk testte toplam marjin sınırlıdır. Grid ile aynı kapılar + rezervasyon."""
     execution_owner(request)
     if body.preview:
         return await _dca_live_start(request, body, None)

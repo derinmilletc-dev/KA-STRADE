@@ -186,9 +186,11 @@ class TestNextCycle(Env):
 
 
 class TestFlags(unittest.TestCase):
-    def test_live_off_by_default(self):
+    def test_live_on_by_default_but_can_be_switched_off(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop(dca_live.ENV_FLAG, None)
+            self.assertTrue(dca_live.live_enabled())
+        with mock.patch.dict(os.environ, {dca_live.ENV_FLAG: "0"}):
             self.assertFalse(dca_live.live_enabled())
             with self.assertRaises(HTTPException) as ctx:
                 dca_live.require_enabled()
