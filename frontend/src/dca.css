@@ -244,3 +244,100 @@
 #root .dca .dcaPresets button[aria-pressed="true"][data-fit="no"] .dcaPresetFit{color:#ff8a8a!important}
 #root .dca .dcaPresets button[aria-pressed="true"] .dcaPresetFit{color:var(--g)!important}
 #root .dca .dcaPresets button[aria-pressed="true"][data-fit="fix"] .dcaPresetFit{color:var(--a)!important}
+
+/* ================= DCA sihirbazı (v3): sade, tek seferde bir adım ================= */
+.dw{gap:16px}
+.dwSteps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dwSteps li button{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:0;border-radius:14px;background:var(--card);color:var(--mut);font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.dwSteps li button:disabled{cursor:default;opacity:.55}
+.dwSteps li i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;background:#14233a;color:#7f93a9}
+.dwSteps li[data-state="current"] button{color:#fff;background:linear-gradient(160deg,rgba(61,220,151,.2),var(--card))}
+.dwSteps li[data-state="current"] i{background:var(--g);color:#06281a}
+.dwSteps li[data-state="done"] button{color:var(--g)}
+.dwSteps li[data-state="done"] i{background:rgba(61,220,151,.25);color:var(--g)}
+.dwPane{display:grid;gap:14px}
+.dwH{margin:0;font-size:21px;line-height:1.25;letter-spacing:-.02em}
+.dwLead{margin:-4px 0 0;font-size:14px;line-height:1.55;color:#a3b3c4}
+.dwHint{margin:0;font-size:12.5px;line-height:1.5;color:#7f93a9}
+.dwSide{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#root .dca .dwSide button{display:grid;gap:4px;justify-items:start;text-align:left;min-height:76px;padding:14px 16px;border:2px solid transparent;border-radius:18px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
+#root .dca .dwSide button b{font-size:19px;letter-spacing:.02em}
+#root .dca .dwSide button small{font-size:12.5px;color:#8ea0b4;line-height:1.35}
+#root .dca .dwSide button[data-side="long"][data-on]{border-color:var(--g);background:linear-gradient(160deg,rgba(61,220,151,.18),var(--card))}
+#root .dca .dwSide button[data-side="long"][data-on] b{color:var(--g)}
+#root .dca .dwSide button[data-side="short"][data-on]{border-color:#ff8a8a;background:linear-gradient(160deg,rgba(255,107,107,.17),var(--card))}
+#root .dca .dwSide button[data-side="short"][data-on] b{color:#ff8a8a}
+.dwSecHead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px}
+.dwSecHead b{font-size:16px}.dwSecHead small{font-size:12px;color:var(--mut)}
+.dwCoins{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+#root .dca .dwCoins li button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:64px;padding:12px 16px;border:0;border-radius:18px;background:var(--card);color:var(--ink);font:inherit;text-align:left;cursor:pointer;transition:transform .15s,background .15s}
+#root .dca .dwCoins li button:active{transform:scale(.985);background:#142234}
+.dwCoinMain{display:grid;gap:2px;min-width:0}
+.dwCoinMain b{font-size:17px}
+.dwCoinMain small{font-size:12.5px;color:#8ea0b4}
+.dwCoinMain small em{font-style:normal;font-weight:700}
+.dwCoinSide{display:grid;gap:4px;justify-items:end;text-align:right}
+.dwBadge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:800;white-space:nowrap}
+.dwBadge.ok{color:var(--g);background:rgba(61,220,151,.13)}
+.dwBadge.warn{color:var(--a);background:rgba(245,192,74,.13)}
+.dwFit{font-size:12px;font-weight:700;color:var(--g);white-space:nowrap}
+.dwFit[data-state="unk"]{color:#7f93a9}
+.dwSkel{height:64px;border-radius:18px;background:linear-gradient(90deg,#0f1824,#16263a,#0f1824);background-size:200% 100%;animation:dcaShimmer 1.6s linear infinite}
+.dwSearch{display:grid;gap:7px;font-size:13px;font-weight:700;color:#b9c8d8}
+#root .dca .dwSearch input{min-height:50px;padding:0 16px;border:0!important;border-radius:16px;background:var(--card)!important;color:var(--ink);font-size:16px;box-shadow:none!important;outline:0}
+#root .dca .dwSearch input:focus{box-shadow:0 0 0 2px rgba(61,220,151,.5)!important}
+.dwWarn{display:grid;gap:6px;margin:0;padding:14px 16px;border-radius:18px;background:rgba(245,192,74,.1);color:#f3d9a0;font-size:13.5px;line-height:1.5}
+.dwWarn b{font-size:15px;color:#ffd17a}
+#root .dca .dwWarn button{justify-self:start;min-height:42px;padding:0 16px;border:0;border-radius:12px;font-weight:800;background:linear-gradient(135deg,var(--g),var(--g2));color:#06281a;cursor:pointer}
+.dwSummary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;padding:12px 16px;border:0;border-radius:16px;background:var(--card);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.dwSummary b{font-size:16px}.dwSummary span{font-size:13px;font-weight:800}.dwSummary span:nth-of-type(2){font-weight:600;color:#8ea0b4}
+.dwSummary em{margin-left:auto;font-style:normal;font-size:12.5px;font-weight:800;color:var(--g)}
+.dwPlans{display:grid;gap:12px}
+#root .dca .dwPlans button{display:grid;gap:7px;justify-items:start;text-align:left;padding:16px;border:2px solid transparent;border-radius:20px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
+#root .dca .dwPlans button[data-on]{border-color:var(--g);background:linear-gradient(160deg,rgba(61,220,151,.16),var(--card) 70%)}
+#root .dca .dwPlans button:disabled{opacity:.5;cursor:not-allowed}
+.dwPlanHead{display:flex;align-items:center;gap:10px}.dwPlanHead b{font-size:18px}
+.dwPlanHead em{font-style:normal;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:800;color:var(--g);background:rgba(61,220,151,.14)}
+.dwPlans button>small{font-size:12.5px;color:#8ea0b4}
+.dwPlanLine{font-size:13.5px;color:#c4d1de;line-height:1.45}
+.dwPlanNo{font-size:13px;font-weight:700;color:#ff8a8a}
+.dwPlanNums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.dwPlanNums span{display:grid;gap:2px;padding:9px 10px;border-radius:12px;background:rgba(255,255,255,.04)}
+.dwPlanNums small{font-size:10.5px;color:#7f93a9}.dwPlanNums b{font-size:13.5px;font-variant-numeric:tabular-nums}
+.dwAdv{border-radius:16px;background:var(--card);padding:0 14px}
+.dwAdv>summary{min-height:48px;display:flex;align-items:center;font-weight:800;font-size:14px;color:#9fb2c8;cursor:pointer;list-style:none}
+.dwAdv>summary::-webkit-details-marker{display:none}
+.dwAdv>summary::after{content:"＋";margin-left:auto;color:var(--g)}
+.dwAdv[open]>summary::after{content:"−"}
+.dwAdv .dcaGrid{padding-bottom:14px}
+.dwStory{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.dwStory li{position:relative;display:flex;gap:14px;padding:0 0 18px;font-size:14.5px;line-height:1.5;color:#c4d1de}
+.dwStory li::before{content:"";position:absolute;left:13px;top:28px;bottom:2px;width:2px;background:#1d2e44}
+.dwStory li:last-child{padding-bottom:0}.dwStory li:last-child::before{display:none}
+.dwStory li i{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;background:#14233a;color:#9fb2c8}
+.dwStory li.win i{background:rgba(61,220,151,.2);color:var(--g)}
+.dwStory li.loss i{background:rgba(255,107,107,.18);color:#ff8a8a}
+.dwStory li b{color:#fff}.dwStory li b.up{color:var(--g)}.dwStory li b.down{color:#ff8a8a}
+.dwRisk{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dwRisk span{display:grid;gap:3px;padding:12px;border-radius:14px;background:var(--card)}
+.dwRisk small{font-size:11px;color:#7f93a9}.dwRisk b{font-size:15px;font-variant-numeric:tabular-nums}
+.dwVerify{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-radius:16px;background:var(--card);font-size:13.5px;line-height:1.5;color:#a3b3c4}
+.dwVerify i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;font-size:12px;background:#14233a}
+.dwVerify[data-state="ok"]{background:rgba(61,220,151,.1);color:#bfeedd}.dwVerify[data-state="ok"] i{background:var(--g);color:#06281a}
+.dwVerify[data-state="error"]{background:rgba(255,107,107,.1);color:#ffb7b7}.dwVerify[data-state="error"] i{background:rgba(255,107,107,.3);color:#ff8a8a}
+.dwVerify button{margin-left:6px;padding:0;border:0;background:none;color:var(--g);font:inherit;font-weight:800;text-decoration:underline;cursor:pointer}
+.dwSpin{border:2px solid #2a4260;border-top-color:var(--g);animation:dwSpin .8s linear infinite}
+@keyframes dwSpin{to{transform:rotate(360deg)}}
+.dwFine{margin:0;font-size:12px;line-height:1.5;color:#6f8399}
+.dwBar{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:#0a121c;box-shadow:0 -16px 18px -4px #0a121c}
+.dwBar:empty{display:none}
+#root .dca .dwBar button{min-height:54px;border:0;border-radius:16px;font:inherit;font-size:15.5px;font-weight:800;cursor:pointer}
+#root .dca .dwBack{background:#162334;color:#bfd0e2}
+#root .dca .dwGo{background:linear-gradient(135deg,var(--g),var(--g2));color:#06281a;box-shadow:0 10px 28px rgba(61,220,151,.2)}
+#root .dca .dwGo.live{background:linear-gradient(135deg,#ffb35c,#ff6b6b);color:#2a0d0d}
+#root .dca .dwBar button:disabled{opacity:.45;cursor:not-allowed}
+@media (max-width:520px){.dwCoinSide{max-width:48%}.dwPlanNums b{font-size:12.5px}}
+#root .dca .dwCoins li button{align-items:center}
+.dwCoinSide{flex:none;max-width:52%}
+.dwFitSub{font-size:11px;color:#7f93a9}
+.dwFit{font-size:13.5px}
