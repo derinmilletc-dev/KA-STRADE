@@ -481,11 +481,13 @@ class LiveGridRunner:
         task = self._tasks.get(grid_id)
         return task is not None and not task.done()
 
-    def reserved_risk(self, user_id: str, *, owner: bool = False) -> dict[str, Any]:
+    def reserved_risk(self, user_id: str, *, owner: bool = False, exclude: str | None = None) -> dict[str, Any]:
         """Kullanıcının çalışan grid'lerinin ayırdığı risk: en kötü zarar toplamı ve henüz dolmamış giriş emirlerinin değeri
         (dolmuş kısım zaten borsa pozisyonu olarak sayılır; çift sayılmaz)."""
         worst, pending, symbols = 0.0, 0.0, []
         for row in self.occupying_rows(user_id, owner=owner):
+            if exclude is not None and row["grid_id"] == exclude:
+                continue
             spec = json.loads(row["spec"])
             worst += float((spec.get("meta") or {}).get("worst_loss_usdt") or 0.0)
             for o in self.store.orders(row["grid_id"], "E"):
@@ -623,6 +625,19 @@ class LiveGridRunner:
     def build_engine(self, row: Any, adapter: BinanceLiveGridAdapter, state: dict[str, Any]) -> GridEngine:
         return self._new_engine(grid_spec_from_row(row), adapter, state, user_id=str(row["user_id"] or ""))
 
+    # ---- alt sınıfların (DCA) değiştirdiği küçük kancalar; grid davranışı aynı kalır
+    kind_label = "grid"
+
+    def _spec_for_plan(self, grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
+        return grid_spec_from_plan(grid_id, symbol, plan)
+
+    def _start_note(self, symbol: str, plan: dict[str, Any]) -> str:
+        return (f"{symbol} canlı grid başlatılıyor ({plan['direction']}, {len(plan['levels'])} kademe, "
+                f"marjin {plan['total_margin_usdt']} USDT{', tur açık' if plan.get('recycle') else ''}).")
+
+    async def _after_tick(self, engine: GridEngine, state: dict[str, Any], status: str) -> str:
+        return status
+
     def blocked_check(self, state: dict[str, Any]) -> bool:
         """Canlı yürütme kilitli mi (acil durum, belirsiz emir, hız sınırı)? Demo'da canlı kilitleri yoktur. Testlerde değiştirilebilir."""
         if self.account == "DEMO":
@@ -682,13 +697,12 @@ class LiveGridRunner:
             if len(self.occupying_rows(user_id, owner=owner)) >= MAX_GRIDS_PER_USER:
                 raise LiveGridError(f"Aynı anda en fazla {MAX_GRIDS_PER_USER} grid çalışabilir. Önce birini durdur.", 409)
             grid_id = "g" + uuid.uuid4().hex[:12]
-            engine = self._new_engine(grid_spec_from_plan(grid_id, symbol, plan), adapter, state, user_id=user_id)
+            engine = self._new_engine(self._spec_for_plan(grid_id, symbol, plan), adapter, state, user_id=user_id)
             self._engines[grid_id] = engine
             self._paused_for_block.discard(grid_id)
             self._errors[grid_id] = 0
             self._adapters[grid_id] = adapter
-            self._record(state, "LIVE_GRID_START", f"{symbol} canlı grid başlatılıyor ({plan['direction']}, {len(plan['levels'])} kademe, "
-                         f"marjin {plan['total_margin_usdt']} USDT{', tur açık' if plan.get('recycle') else ''}).", symbol=symbol, grid_id=grid_id)
+            self._record(state, "LIVE_GRID_START", self._start_note(symbol, plan), symbol=symbol, grid_id=grid_id)
         async with self.grid_lock(grid_id):
             status = await asyncio.to_thread(engine.start)
         if status == BLOCKED:
@@ -815,6 +829,7 @@ class LiveGridRunner:
                         await asyncio.to_thread(engine.pause)
                         self._record(state, "LIVE_GRID_PAUSED", f"{engine.sym} canlı yürütme kilitlendi; grid duraklatıldı, korumalar sürüyor.", grid_id=gid)
                     status = await asyncio.to_thread(self._tick_once, engine)
+                    status = await self._after_tick(engine, state, status)
                     limit = await self._guard_limits(engine, state)
                     if limit:
                         status = engine.status
@@ -1092,11 +1107,11 @@ async def startup_recovery(app: Any, state: dict[str, Any], *, user_id: str | No
                            credentials: Any, adapter_factory: Any = build_background_adapter,
                            entry_authority: Any = None, sleep: Any = asyncio.sleep,
                            retry_seconds: float = RECOVERY_RETRY_SECONDS, max_attempts: int = RECOVERY_MAX_ATTEMPTS,
-                           ready_wait_seconds: float = RECOVERY_READY_WAIT_SECONDS) -> list[dict[str, Any]]:
+                           ready_wait_seconds: float = RECOVERY_READY_WAIT_SECONDS, runner: Any = None) -> list[dict[str, Any]]:
     """Açılışta bir kez: canlı durum kurtarması (hesap okuması) hazır olana kadar bekler, sonra bu kullanıcının
     döngüsü durmuş grid'lerini kurtarır. Anahtar çözülemezse ya da kurtarma doğrulanamazsa aralıklarla yeniden dener;
     hiçbir koşulda eşitleme olmadan emir göndermez. Sonunda kurtarılamayanlar "Devam ettir" ile elle sürdürülebilir."""
-    runner = runner_for(app)
+    runner = runner if runner is not None else runner_for(app)
     if not runner.recoverable_rows(user_id, owner=owner):
         return []
     waited = 0.0
