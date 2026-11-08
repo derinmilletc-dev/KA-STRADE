@@ -369,28 +369,29 @@ export default function DcaPanel(props: DcaPanelProps) {
         <div className="dwSecHead"><b>{dir ? 'LONG' : 'SHORT'} için sana uygun coinler</b>
           <small>{scan.state === 'busy' ? `Taranıyor ${scan.checked}/${scan.total}` : scan.state === 'done' ? `${scan.items.length} uygun coin bulundu` : ''}</small></div>
         <p className="dwHint">“Uygun”: bu coin, canlı toplam {cap} USDT limitine sığan bir DCA planı kuruyor. {signals ? 'Kais AI aynı yönü gösteriyorsa en üstte.' : 'Kais AI sinyali şu an alınamadı; hacme göre sıralı.'}</p>
-        {scan.state === 'busy' && suggestions.length === 0 && <ul className="dwCoins" aria-hidden="true">{[0, 1, 2].map(i => <li key={i} className="dwSkel"/>)}</ul>}
-        {suggestions.length > 0 && <ul className="dwCoins" data-testid="dca-suggestions">{suggestions.map(item => {
+        <label className="dwFind"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Coin ara: BTC, SOL, XRP…" inputMode="search" autoCapitalize="characters" aria-label="Coin ara"/>
+          {query && <button type="button" className="dwFindX" aria-label="Aramayı temizle" onClick={() => setQuery('')}>×</button>}</label>
+        {scan.state === 'busy' && suggestions.length === 0 && !query && <ul className="dwCoins" aria-hidden="true">{[0, 1, 2].map(i => <li key={i} className="dwSkel"/>)}</ul>}
+        {!query && suggestions.length > 0 && <ul className="dwCoins dwScroll" data-testid="dca-suggestions">{suggestions.map(item => {
           const sig = signals?.[item.symbol]
           return <li key={item.symbol}><button type="button" onClick={() => pickCoin(item.symbol)}>
-            <span className="dwCoinMain"><b>{item.display}</b><small>{fmtPrice(item.price)} USDT{Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}> {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%</em> : null}</small></span>
+            <span className="dwCoinMain"><b>{item.display}</b><small>{fmtPrice(item.price)}{Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}> {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%</em> : null}</small></span>
             <span className="dwCoinSide">
-              {sig && sig.lean !== 'NEUTRAL' && !item.against && <span className="dwBadge ok">Kais AI {side} · %{Math.round(sig.confidence)}</span>}
-              {item.against && <span className="dwBadge warn">Kais AI ters yönde</span>}
-              <span className="dwFit">≈{fmtUsd(item.total)}</span><span className="dwFitSub">{item.fixed ? 'plan küçültülür' : 'plan uygun'}</span>
+              {sig && sig.lean !== 'NEUTRAL' && !item.against && <span className="dwBadge ok">AI {side} %{Math.round(sig.confidence)}</span>}
+              {item.against && <span className="dwBadge warn">AI ters yön</span>}
+              <span className="dwFit">≈{fmtUsd(item.total)}</span>
             </span>
           </button></li>
         })}</ul>}
-        {scan.state === 'done' && suggestions.length === 0 && <p className="dwWarn">Şu an {cap} USDT limite sığan coin bulunamadı. Aşağıdan başka bir coin arayabilirsin.</p>}
-
-        <label className="dwSearch"><span>Başka coin ara</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="BTC, SOL, XRP…" inputMode="search" autoCapitalize="characters" aria-label="Coin ara"/></label>
-        {searchRows.length > 0 && <ul className="dwCoins dwSearchRes">{searchRows.map(coin => {
+        {!query && scan.state === 'done' && suggestions.length === 0 && <p className="dwWarn">Şu an {cap} USDT limite sığan coin bulunamadı. Yukarıdan başka bir coin arayabilirsin.</p>}
+        {query && <ul className="dwCoins dwScroll dwSearchRes">{searchRows.map(coin => {
           const item = known.get(coin.symbol)
           return <li key={coin.symbol}><button type="button" onClick={() => pickCoin(coin.symbol)}>
-            <span className="dwCoinMain"><b>{coin.display || coin.symbol}</b><small>{fmtPrice(coin.price)} USDT</small></span>
-            <span className="dwCoinSide"><span className="dwFit" data-state={item ? 'ok' : 'unk'}>{item ? `≈${fmtUsd(item.total)}` : 'Seçince kontrol edilir'}</span>{item && <span className="dwFitSub">{item.fixed ? 'plan küçültülür' : 'plan uygun'}</span>}</span>
+            <span className="dwCoinMain"><b>{coin.display || coin.symbol}</b><small>{fmtPrice(coin.price)}</small></span>
+            <span className="dwCoinSide"><span className="dwFit" data-state={item ? 'ok' : 'unk'}>{item ? `≈${fmtUsd(item.total)}` : 'Seçince kontrol edilir'}</span></span>
           </button></li>
-        })}</ul>}
+        })}{searchRows.length === 0 && <li className="dwEmpty">Sonuç yok.</li>}</ul>}
       </div>}
 
       {step === 2 && <div className="dwPane" data-testid="dca-step-2">
@@ -561,7 +562,7 @@ function BotCard({bot, busy, onAct}: {bot: any; busy: boolean; onAct: (kind: 'st
       <div className="dcaBotActions">
         {bot.status === 'PAUSED' && <button type="button" disabled={busy} onClick={() => onAct('resume', bot.grid_id)}>Devam ettir</button>}
         {bot.status !== 'PAUSED' && !bot.needs_user && <button type="button" onClick={() => onAct('stop', bot.grid_id)}>Durdur</button>}
-        <button type="button" className="danger" onClick={() => onAct('emergency', bot.grid_id)}>Acil durdur</button>
+        <button type="button" className="danger" onClick={() => onAct('emergency', bot.grid_id)}>{bot.status === 'PAUSED' && !hasPos ? 'Botu sonlandır' : 'Acil durdur'}</button>
       </div>
     </article>
   )
