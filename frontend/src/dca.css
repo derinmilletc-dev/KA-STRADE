@@ -172,3 +172,53 @@
 .dcaPresets{grid-template-columns:1fr}
 .dcaPresets button{grid-template-columns:1fr;padding:12px}
 }
+
+/* ---- adımlar, akıllı öneri, paket uygunluğu, yapışkan düğmeler (v2) */
+.dcaSteps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dcaSteps li{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:14px;background:var(--card);border:1px solid var(--line);color:var(--mut);font-size:13px;font-weight:700}
+.dcaSteps li i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;background:#14233a;border:1.5px solid #2a4260;color:#7f93a9}
+.dcaSteps li[data-state="current"]{color:var(--ink);border-color:rgba(61,220,151,.5);background:linear-gradient(160deg,rgba(61,220,151,.12),var(--card))}
+.dcaSteps li[data-state="current"] i{border-color:var(--g);color:var(--g)}
+.dcaSteps li[data-state="done"]{color:var(--g)}
+.dcaSteps li[data-state="done"] i{background:var(--g);border-color:var(--g);color:#06281a}
+.dcaAdvice{display:grid;gap:6px;padding:14px 16px;border-radius:18px;border:1px solid var(--line);background:var(--card);font-size:13px;line-height:1.5;color:var(--mut)}
+.dcaAdvice b{font-size:15px;color:var(--ink)}
+.dcaAdvice[data-tone="ok"]{border-color:rgba(61,220,151,.4);background:linear-gradient(160deg,rgba(61,220,151,.1),var(--card))}
+.dcaAdvice[data-tone="ok"] b{color:var(--g)}
+.dcaAdvice[data-tone="warn"]{border-color:rgba(245,192,74,.4);background:linear-gradient(160deg,rgba(245,192,74,.09),var(--card))}
+.dcaAdvice[data-tone="warn"] b{color:var(--a)}
+.dcaAdvice[data-tone="bad"]{border-color:rgba(255,107,107,.4);background:linear-gradient(160deg,rgba(255,107,107,.1),var(--card))}
+.dcaAdvice[data-tone="bad"] b{color:#ff8a8a}
+.dcaAdvice button{justify-self:start;margin-top:4px;min-height:42px;padding:0 16px;border:0;border-radius:12px;font-weight:800;font-size:13.5px;cursor:pointer;background:linear-gradient(135deg,var(--g),var(--g2));color:#06281a}
+.dcaNote2{margin:-4px 0 0;padding:10px 14px;border-radius:14px;background:rgba(143,180,255,.1);color:#c3d6ff;font-size:12.5px;line-height:1.45}
+.dcaPresetFit{font-style:normal;margin-top:6px;font-size:11.5px;font-weight:800;color:var(--mut)}
+.dcaPresets button[data-fit="ok"] .dcaPresetFit{color:var(--g)}
+.dcaPresets button[data-fit="fix"] .dcaPresetFit{color:var(--a)}
+.dcaPresets button[data-fit="no"]{opacity:.62}
+.dcaPresets button[data-fit="no"] .dcaPresetFit{color:#ff8a8a}
+.dca .dcaActions{position:sticky;bottom:0;z-index:5;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,#0a121c 28%)}
+
+/* Manuel işlem penceresinin genel düğme/kaydırıcı stillerinden korun */
+#root .dca .dcaPresets button{color:var(--ink);background:var(--card);text-align:left;font:inherit;display:grid;justify-items:start}
+#root .dca .dcaPresets button b{color:var(--ink);font-size:15px}
+#root .dca .dcaPresets button.on{background:linear-gradient(160deg,rgba(61,220,151,.16),#0f1824 70%);border-color:var(--g)}
+#root .dca .dcaPresets button.on b{color:#fff}
+#root .dca .dcaSeg button{color:var(--mut);background:var(--card2);min-height:44px}
+#root .dca .dcaSeg button.on{color:#06281a;background:linear-gradient(135deg,var(--g),var(--g2))}
+#root .dca .dcaSlider input[type=range]{height:8px;padding:0;margin:8px 0;border:0;background:linear-gradient(90deg,var(--g) var(--p,0%),#1b2b40 var(--p,0%));-webkit-appearance:none;appearance:none;box-shadow:none}
+#root .dca .dcaSlider input[type=range]::-webkit-slider-runnable-track{height:8px;background:transparent;border:0}
+#root .dca .dcaRange{height:8px;padding:0;border:0;-webkit-appearance:none;appearance:none}
+#root .dca .dcaTable{font-size:12px}
+#root .dca .dcaTable>div{grid-template-columns:26px repeat(4,minmax(0,1fr));min-width:0;gap:6px;padding:9px 12px}
+#root .dca .dcaTHead span{font-size:9.5px;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:760px){.dcaSteps li{padding:8px 9px;font-size:12.5px;gap:7px}.dcaAdvice button{width:100%;justify-self:stretch}}
+#root .dca .dcaHero{display:block}
+#root .dca .dcaHeroTop,#root .dca .dcaChips{width:auto;max-width:none}
+#root .dca .dcaActions{background:linear-gradient(180deg,rgba(10,18,28,0),#0a121c 30%)}
+#root .dca .dcaActions button:disabled{opacity:.55}
+#root .dca .dcaActions{background:#0a121c;border-top:1px solid rgba(255,255,255,.06);box-shadow:0 -16px 18px -4px #0a121c;margin:0 -2px;padding-left:2px;padding-right:2px}
+#root .dca input[type=range]{height:8px!important;min-height:0!important;padding:0!important;margin:8px 0!important;border:0!important;border-radius:99px!important;-webkit-appearance:none!important;appearance:none!important;box-shadow:none!important}
+#root .dca .dcaSlider input[type=range]{background:linear-gradient(90deg,var(--g) var(--p,0%),#1b2b40 var(--p,0%))!important}
+#root .dca .dcaRange{background:linear-gradient(90deg,#3ddc97,#f5c04a 55%,#ff6b6b)!important}
+#root .dca .dcaToggle input[type=checkbox]{flex:none;width:20px!important;height:20px!important;min-height:0!important;padding:0!important;margin:2px 0 0!important;border-radius:5px!important;-webkit-appearance:checkbox!important;appearance:auto!important;accent-color:var(--g)}
+#root .dca .dcaInput input{min-height:0!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:13px 0!important}

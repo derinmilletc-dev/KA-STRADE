@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from 'react'
-import {computeDca, DCA_LIMITS, DCA_PRESETS, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
+import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import './dca.css'
 
 type Call = <T = any>(base: string, path: string, options?: RequestInit & {timeoutMs?: number}) => Promise<T>
@@ -132,10 +132,12 @@ function scenarioAt(result: DcaResult, price: number, side: DcaSide, scrub: numb
 }
 
 export default function DcaPanel(props: DcaPanelProps) {
-  const {symbol, price, side, liveArmed, call, v25Base, demoBase, askConfirm} = props
-  const [account, setAccount] = useState<Account>('DEMO')
+  const {symbol, price, side, liveArmed, call, v25Base, askConfirm} = props
+  // Canlı İşlem bölümünde yalnız gerçek hesap vardır; Demo ayrı sekmededir.
+  const account: Account = 'LIVE'
+  const [note, setNote] = useState('')
   const [form, setForm] = useState<Form>(DCA_PRESETS[1].form)
-  const [presetId, setPresetId] = useState('balanced')
+  const [presetId, setPresetId] = useState('')
   const [filters, setFilters] = useState<{tickSize: number; stepSize: number; minNotional: number} | null>(null)
   const [filtersError, setFiltersError] = useState('')
   const [scrub, setScrub] = useState(0.55)
@@ -144,8 +146,8 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
 
-  const base = account === 'LIVE' ? `${v25Base}/dca/live` : `${demoBase}/dca`
-  const filtersPath = account === 'LIVE' ? `${v25Base}/grid/filters` : `${demoBase}/grid/filters`
+  const base = `${v25Base}/dca/live`
+  const filtersPath = `${v25Base}/grid/filters`
 
   useEffect(() => {
     if (!symbol) return
@@ -168,7 +170,8 @@ export default function DcaPanel(props: DcaPanelProps) {
     const timer = window.setInterval(tick, 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [base])
-  useEffect(() => { setServer({state: 'idle', text: ''}) }, [account, symbol, side, form])
+  useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
+  useEffect(() => { setNote('') }, [symbol, side])
 
   const input = useMemo(() => ({
     side, price, baseMargin: num(form.margin), safetyOrders: form.safety, stepPct: num(form.step), volumeMultiplier: num(form.volume),
@@ -178,7 +181,36 @@ export default function DcaPanel(props: DcaPanelProps) {
   const ready = price > 0 && filters !== null
   const scenario = result.valid ? scenarioAt(result, price, side, scrub) : null
   const set = <K extends keyof Form>(key: K, value: Form[K]) => { setPresetId(''); setForm(current => ({...current, [key]: value})) }
-  const pick = (preset: Preset) => { setPresetId(preset.id); setForm(preset.form) }
+  const cap = Number(status?.live_max_margin_usdt) > 0 ? Number(status.live_max_margin_usdt) : 10
+  const inputOf = (f: Form) => ({...input, baseMargin: num(f.margin), safetyOrders: f.safety, stepPct: num(f.step), volumeMultiplier: num(f.volume), takeProfitPct: num(f.tp), stopGapPct: num(f.gap), leverage: f.leverage})
+  // Hazır paketlerin bu coinde ve canlı toplam marj sınırında geçerli olup olmadığı (gerçek hesapla).
+  const presetFits = useMemo(() => ready ? DCA_PRESETS.map(preset => ({id: preset.id, fit: planFit({...inputOf(preset.form)}, cap), fix: null as ReturnType<typeof fitToCap>})).map(item => {
+    if (item.fit.state === 'over-cap') item.fix = fitToCap(inputOf(DCA_PRESETS.find(p => p.id === item.id)!.form), cap)
+    return item
+  }) : [], [input, ready, cap])
+  const fitNow = useMemo(() => ready ? planFit(input, cap) : null, [input, ready, cap])
+  const fixNow = useMemo(() => ready && fitNow?.state === 'over-cap' ? fitToCap(input, cap) : null, [input, ready, cap, fitNow])
+  const fmtMargin = (value: number) => String(Number(value.toFixed(2)))
+  // Paketi seçer; bu coinde sınıra sığmıyorsa en az değişiklikle (önce çarpan, sonra ek emir) sığdırır ve ne yaptığını söyler.
+  const pick = (preset: Preset) => {
+    setPresetId(preset.id); setNote('')
+    const item = presetFits.find(entry => entry.id === preset.id)
+    if (!item || !ready) { setForm(preset.form); return }
+    if (item.fit.state === 'ok' && item.fit.margin) { setForm({...preset.form, margin: fmtMargin(item.fit.margin)}); setNote(`${preset.name}: taban marj bu coin ve ${cap} USDT limit için ${fmtMargin(item.fit.margin)} USDT yapıldı.`); return }
+    if (item.fix) {
+      setForm({...preset.form, margin: fmtMargin(item.fix.margin), safety: item.fix.safety, volume: item.fix.volume.toFixed(1)})
+      setNote(`${preset.name}: ${cap} USDT limite sığması için ek emir ${item.fix.safety}, hacim çarpanı ${item.fix.volume.toFixed(1)}x, taban marj ${fmtMargin(item.fix.margin)} USDT yapıldı.`)
+      return
+    }
+    setForm(preset.form)
+  }
+  const fixNowApply = () => {
+    if (!fixNow) return
+    setPresetId('')
+    setForm(current => ({...current, margin: fmtMargin(fixNow.margin), safety: fixNow.safety, volume: fixNow.volume.toFixed(1)}))
+    setNote(`Limite sığdırıldı: ek emir ${fixNow.safety}, hacim çarpanı ${fixNow.volume.toFixed(1)}x, taban marj ${fmtMargin(fixNow.margin)} USDT.`)
+  }
+  const marginApply = () => { if (fitNow?.state === 'ok' && fitNow.margin) { setPresetId(''); setForm(current => ({...current, margin: fmtMargin(fitNow.margin!)})); setNote('') } }
 
   const body = (preview: boolean, confirmation = '') => JSON.stringify({
     symbol, direction: side, base_margin_usdt: input.baseMargin, safety_orders: input.safetyOrders, step_pct: input.stepPct, volume_multiplier: input.volumeMultiplier,
@@ -192,23 +224,22 @@ export default function DcaPanel(props: DcaPanelProps) {
     } catch (error: any) { setServer({state: 'error', text: error?.message || 'Sunucu planı reddetti.'}) }
   }
 
-  const liveEnabled = account === 'LIVE' ? status?.enabled !== false && status?.enabled !== undefined : true
+  const liveEnabled = status?.enabled !== false && status?.enabled !== undefined
   const whyBlocked = !ready ? (filtersError || 'Borsa kuralları yükleniyor…')
     : !result.valid ? 'Önce planı düzelt (aşağıdaki uyarılar).'
-    : account === 'LIVE' && !liveEnabled ? 'Canlı DCA sunucuda kapalı. İlk testte kapalı gelir; bilinçli olarak açılması gerekir.'
-    : account === 'LIVE' && !liveArmed ? 'Canlı emir kilidi (ARM) kapalı.'
-    : account === 'LIVE' && result.totalMargin > (status?.live_max_margin_usdt ?? 10) + 1e-9 ? `Canlı DCA şu an en çok ${status?.live_max_margin_usdt ?? 10} USDT toplam marjinle çalışır.`
+    : !liveEnabled ? 'Canlı DCA sunucuda kapalı. İlk testte kapalı gelir; bilinçli olarak açılması gerekir.'
+    : !liveArmed ? 'Canlı emir kilidi (ARM) kapalı.'
+    : result.totalMargin > cap + 1e-9 ? `Canlı DCA şu an en çok ${cap} USDT toplam marjinle çalışır.`
     : ''
 
   const start = () => {
-    const live = account === 'LIVE'
     askConfirm({
-      title: live ? 'CANLI DCA BAŞLAT' : 'DEMO DCA BAŞLAT',
-      message: `${live ? 'GERÇEK PARA. ' : 'Demo hesap, gerçek para yok. '}${symbol} ${side}: taban + ${form.safety} ek emir, toplam marjin ${fmtUsd(result.totalMargin)}, kaldıraç ${form.leverage}x. `
+      title: 'CANLI DCA BAŞLAT',
+      message: `GERÇEK PARA. ${symbol} ${side}: taban + ${form.safety} ek emir, toplam marjin ${fmtUsd(result.totalMargin)}, kaldıraç ${form.leverage}x. `
         + `Tüm emirler dolup stop çalışırsa tahmini en kötü zarar ${fmtUsd(result.worstLoss)}. Taban emir hemen piyasadan girer; ek emirler limit olarak bekler, stop dolan her miktar için kurulur.`,
-      expected: live ? 'CANLI DCA BAŞLAT' : undefined, simple: !live,
+      expected: 'CANLI DCA BAŞLAT',
       action: async () => {
-        await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, live ? 'CANLI DCA BAŞLAT' : 'DEMO DCA BAŞLAT')})
+        await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, 'CANLI DCA BAŞLAT')})
         await loadStatus()
       },
     })
@@ -232,36 +263,69 @@ export default function DcaPanel(props: DcaPanelProps) {
 
   return (
     <section className="dca" aria-label="DCA botu">
-      <header className="dcaHero">
+      <div className="dcaHero">
         <div className="dcaHeroGlow" aria-hidden="true" />
         <div className="dcaHeroTop">
           <div>
-            <small>OTOMATİK ORTALAMA</small>
+            <small>OTOMATİK ORTALAMA · CANLI</small>
             <h3>DCA Botu</h3>
-            <p>Taban emir girer, fiyat aleyhine giderse ek emirlerle ortalamayı düşürür; ortalamanın biraz üstünde tek hedefle çıkar. Hep stoplu.</p>
-          </div>
-          <div className="dcaAccount" role="group" aria-label="Hesap">
-            <button type="button" aria-pressed={account === 'DEMO'} className={account === 'DEMO' ? 'on' : ''} onClick={() => setAccount('DEMO')}>Demo</button>
-            <button type="button" aria-pressed={account === 'LIVE'} className={account === 'LIVE' ? 'on live' : 'live'} onClick={() => setAccount('LIVE')}>Canlı</button>
+            <p>Taban emir girer, fiyat aleyhine giderse ek emirlerle ortalamayı düşürür, ortalamanın biraz üstünde tek hedefle çıkar. Hep stoplu.</p>
           </div>
         </div>
         <div className="dcaChips">
           <span className="dcaChip coin">{symbol || 'Coin seç'}</span>
           <span className={`dcaChip ${dir ? 'up' : 'down'}`}>{dir ? 'LONG ▲' : 'SHORT ▼'}</span>
           <span className="dcaChip">Fiyat {fmtPrice(price)}</span>
-          {account === 'LIVE' && <span className={`dcaChip ${liveEnabled && liveArmed ? 'up' : 'warn'}`}>{!liveEnabled ? 'Sunucuda kapalı' : liveArmed ? 'ARM açık' : 'ARM kapalı'}</span>}
+          <span className="dcaChip">Limit {cap} USDT</span>
+          <span className={`dcaChip ${liveEnabled && liveArmed ? 'up' : 'warn'}`}>{!liveEnabled ? 'Sunucuda kapalı' : liveArmed ? 'ARM açık' : 'ARM kapalı'}</span>
         </div>
-      </header>
+      </div>
+
+      <ol className="dcaSteps" aria-label="DCA adımları">
+        {[{label: 'Plan', done: result.valid && ready}, {label: 'Doğrula', done: server.state === 'ok'}, {label: 'Başlat', done: active.length > 0}].map((step, index, all) => {
+          const current = !step.done && all.slice(0, index).every(item => item.done)
+          return <li key={step.label} data-state={step.done ? 'done' : current ? 'current' : 'todo'} aria-current={current ? 'step' : undefined}><i>{step.done ? '✓' : index + 1}</i><span>{step.label}</span></li>
+        })}
+      </ol>
+
+      {ready && fitNow && <div className="dcaAdvice" data-tone={fitNow.state === 'ok' && result.valid && result.totalMargin <= cap + 1e-9 ? 'ok' : fitNow.state === 'over-cap' && !fixNow ? 'bad' : 'warn'} role="status" data-testid="dca-advice">
+        {fitNow.state === 'ok' && result.totalMargin <= cap + 1e-9 && <>
+          <b>{result.valid ? 'Plan limite sığıyor' : 'Plan neredeyse hazır'}</b>
+          <span>{result.valid ? `Toplam marj ${fmtUsd(result.totalMargin)} (limit ${cap} USDT), en kötü zarar ${fmtUsd(-result.worstLoss)}.` : 'Aşağıdaki uyarıları düzelt.'}</span>
+        </>}
+        {fitNow.state === 'ok' && result.totalMargin > cap + 1e-9 && <>
+          <b>Toplam marj limiti aşıyor</b>
+          <span>Şu an {fmtUsd(result.totalMargin)}, canlı limit {cap} USDT. Taban marjı {fmtMargin(fitNow.margin ?? 0)} USDT yaparsan sığar.</span>
+          <button type="button" onClick={marginApply}>Taban marjı {fmtMargin(fitNow.margin ?? 0)} USDT yap</button>
+        </>}
+        {fitNow.state === 'over-cap' && fixNow && <>
+          <b>Bu plan {cap} USDT limite sığmıyor</b>
+          <span>Bu coinde borsa minimumu yüzünden en az {fmtUsd(fitNow.total ?? 0)} toplam marj gerekir. Ek emir ve çarpanı azaltarak sığdırabilirim.</span>
+          <button type="button" onClick={fixNowApply}>Limite sığdır · {fixNow.safety} ek emir, {fixNow.volume.toFixed(1)}x</button>
+        </>}
+        {fitNow.state === 'over-cap' && !fixNow && <>
+          <b>{symbol} bu limitle çalışmaz</b>
+          <span>Borsanın en düşük emir değeri yüzünden bu coin en az {fmtUsd(fitNow.total ?? 0)} toplam marj ister; canlı limit {cap} USDT. Daha düşük fiyatlı ya da daha düşük minimumlu bir coin seç.</span>
+        </>}
+        {fitNow.state === 'invalid' && <>
+          <b>Plan bu coinde geçerli değil</b>
+          <span>Aşağıdaki uyarılara bak: kaldıraç, aralık ya da stop ayarını değiştirmen gerekebilir.</span>
+        </>}
+      </div>}
+      {note && <p className="dcaNote2" role="status">{note}</p>}
 
       {active.length > 0 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} />)}</div>}
 
       <div className="dcaPresets" role="group" aria-label="Hazır ayarlar">
-        {DCA_PRESETS.map(preset => (
-          <button key={preset.id} type="button" className={presetId === preset.id ? 'on' : ''} aria-pressed={presetId === preset.id} onClick={() => pick(preset)}>
+        {DCA_PRESETS.map(preset => {
+          const item = presetFits.find(entry => entry.id === preset.id)
+          const state = !item ? '' : item.fit.state === 'ok' ? 'ok' : item.fix ? 'fix' : 'no'
+          return <button key={preset.id} type="button" className={presetId === preset.id ? 'on' : ''} aria-pressed={presetId === preset.id} data-fit={state || undefined} onClick={() => pick(preset)}>
             <b>{preset.name}</b><small>{preset.hint}</small>
             <span className="dcaPresetMeta">{preset.form.safety} ek · %{preset.form.step} aralık · {preset.form.leverage}x</span>
+            {state && <em className="dcaPresetFit">{state === 'ok' ? '✓ Limite sığar' : state === 'fix' ? 'Otomatik sığdırılır' : 'Bu coinde uygun değil'}</em>}
           </button>
-        ))}
+        })}
       </div>
 
       <div className="dcaGrid">
@@ -319,7 +383,7 @@ export default function DcaPanel(props: DcaPanelProps) {
 
       <div className="dcaTable" role="table" aria-label="Aşamalar">
         {result.stages.length > 0 && <>
-          <div role="row" className="dcaTHead"><span>#</span><span>Giriş</span><span>Büyüklük</span><span>Ortalama</span><span>Hedef</span></div>
+          <div role="row" className="dcaTHead"><span>#</span><span>Giriş</span><span>Boyut</span><span>Ort.</span><span>Hedef</span></div>
           {result.stages.map(s => <div role="row" key={s.index}><span>{s.index === 0 ? 'T' : s.index}</span><span>{fmtPrice(s.entry)}</span><span>{s.notional.toFixed(1)}</span><span>{fmtPrice(s.avgEntry)}</span><span className="up">{fmtPrice(s.tpPrice)}</span></div>)}
         </>}
       </div>
@@ -333,7 +397,7 @@ export default function DcaPanel(props: DcaPanelProps) {
 
       <div className="dcaActions">
         <button type="button" className="dcaGhost" disabled={!result.valid || !ready || server.state === 'busy'} onClick={checkOnServer}>Sunucuyla doğrula</button>
-        <button type="button" className={`dcaGo ${account === 'LIVE' ? 'live' : ''}`} disabled={Boolean(whyBlocked)} onClick={start}>{account === 'LIVE' ? 'Canlı başlat' : 'Demo başlat'}</button>
+        <button type="button" className="dcaGo live" disabled={Boolean(whyBlocked)} onClick={start}>Canlı başlat</button>
       </div>
       {whyBlocked && <p className="dcaWhy">{whyBlocked}</p>}
       {statusError && <p className="dcaWhy bad">{statusError}</p>}
