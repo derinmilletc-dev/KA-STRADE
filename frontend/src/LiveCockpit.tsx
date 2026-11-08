@@ -1542,6 +1542,7 @@ export default function LiveCockpit(props: Props) {
       <div>
         <h2 id="lc-sheet-title">{dt('Canlıya hazırlık')}</h2>
         <p className="lcSheetLead">{launchActive === 'final' ? 'Son adım: güvenlik onayı' : `Adım ${activeIndex} / ${launchTotal} · ${activeMeta?.title}`}</p>
+        <p className="lcStrat lcStratSheet">Çalışan strateji: Kais Long</p>
       </div>
     </header>
     <div className="lcMobileOnly lcWzSeg" aria-hidden="true"><span><i style={{width: `${Math.round(launchDoneCount / launchTotal * 100)}%`}}/></span><small>{`${Math.min(activeIndex, launchTotal)} / ${launchTotal}`}</small></div>
@@ -1919,7 +1920,7 @@ export default function LiveCockpit(props: Props) {
         <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
-            <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small></div>
+            <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small><em className="lcStrat" data-testid="strategy-name">Çalışan strateji: Kais Long</em></div>
             {!coach && guide.phase !== 'loading' && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`Adım ${guide.step} / ${GUIDE_STEPS.length}`} style={{'--p': `${Math.round(guide.step / GUIDE_STEPS.length * 100)}%`} as CSSProperties}><b aria-hidden="true">{guide.step}/{GUIDE_STEPS.length}</b></span>}
             {coach && !stale && <span className="lcMobileOnly lcKoPill">ÇALIŞIYOR</span>}
             <span className="lcHeadBtns">
