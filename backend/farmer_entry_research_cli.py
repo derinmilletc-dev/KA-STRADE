@@ -321,17 +321,67 @@ def check(blocks: dict) -> dict:
     return {"protocol_hash": er.protocol_hash(), "oos_prices_loaded": False, "periods": rep, "invariants": dict(inv), "label_counts": dict(labels)}
 
 
+def train_only(a: argparse.Namespace) -> None:
+    """End-to-end run of the real pipeline on TRAIN only. Only the 2025 archives are read; VALID and OOS data are never loaded.
+    The pipeline computes its full statistics in memory to prove it executes, but NOTHING performance-related is written or printed."""
+    if a.protocol_hash != er.protocol_hash():
+        raise SystemExit("protocol hash mismatch: the frozen protocol is not the one you are running")
+    out_dir = outside_repo(a.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    blocks = {"2025": load_block(a.data_2025, "2025")}
+    rng = np.random.default_rng(SEED)
+    errors: list[str] = []
+    rows, funnel = signals(blocks)
+    if any(r["period"] != "TRAIN" for r in rows):
+        raise SystemExit("a non-TRAIN signal reached the TRAIN-only run")
+    steps = {"signals": True}
+    try:
+        summarize(rows, rng)
+        for s_ in ("LONG", "SHORT"):
+            summarize([r for r in rows if r["side"] == s_], rng)
+        for sym in SYMBOLS:
+            summarize([r for r in rows if r["symbol"] == sym], rng)
+        baselines(rows)
+        steps["statistics_executed_in_memory_not_reported"] = True
+    except Exception as exc:                                  # noqa: BLE001 - reported as a technical failure
+        errors.append(f"statistics: {exc!r}")
+        steps["statistics_executed_in_memory_not_reported"] = False
+    guards = check(blocks)
+    inv = guards["invariants"]
+    sides = Counter(r["side"] for r in rows)
+    result = {
+        "mode": "TRAIN_ONLY", "protocol_hash": er.protocol_hash(), "protocol_hash_expected": a.protocol_hash, "split": {"train": er.PROTOCOL.train},
+        "data_loaded": {"blocks": list(blocks), "valid_data_loaded": False, "oos_data_loaded": False},
+        "pipeline_completed": not errors, "steps": steps, "errors": errors,
+        "entries_total": len(rows), "entries_LONG": sides["LONG"], "entries_SHORT": sides["SHORT"],
+        "entries_by_symbol": dict(Counter(r["symbol"] for r in rows)),
+        "funnel_TRAIN": funnel["TRAIN"],
+        "labeling": {"signals_labeled": len(rows), "all_labels_resolved": all(isinstance(r["success"], bool) for r in rows),
+                     "unresolved_excluded": funnel["TRAIN"].get("unresolved_excluded", 0)},
+        "guards": {"lookahead_signal_changed_with_prefix": inv["lookahead_signal_changed_with_prefix"],
+                   "lookahead_entry_known_before_confirmation": inv["lookahead_entry_known_before_confirmation"], "atr_not_causal": inv["atr_not_causal"],
+                   "independence_structures_closer_than_21": inv["structures_closer_than_21_candles"], "duplicate_candles_suppressed": inv["duplicate_candles_suppressed"],
+                   "rule_violations": inv["rule_violations"], "chain_mismatch_vs_reference": inv["chain_mismatch_vs_reference"],
+                   "entry_not_at_open_after_confirmation": inv["entry_not_at_open_after_confirmation"], "label_mismatch_vs_reference": inv["label_mismatch_vs_reference"]},
+        "baseline_B_run": False}
+    (out_dir / "c14_train_run_technical.json").write_text(json.dumps(result, indent=1, default=float), encoding="utf-8")
+    print(json.dumps(result, indent=1, default=float))
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("command", choices=["frequency", "check", "run"])
     p.add_argument("--data-2025", type=Path, required=True)
-    p.add_argument("--data-2026", type=Path, required=True)
+    p.add_argument("--data-2026", type=Path)
+    p.add_argument("--train-only", action="store_true", help="run: TRAIN only, 2025 archives only, technical report only")
     p.add_argument("--output", type=Path)
     p.add_argument("--protocol-hash")
     p.add_argument("--cache-2025", type=Path)
     p.add_argument("--cache-2026", type=Path)
     a = p.parse_args()
     if a.command == "check":
+        if not a.data_2026:
+            raise SystemExit("--data-2026 is required")
         blocks = {"2025": load_block(a.data_2025, "2025"), "2026": load_block(a.data_2026, "2026", end_override=day(er.PROTOCOL.oos[0]))}
         result = check(blocks)
         if a.output:
@@ -340,6 +390,13 @@ def main() -> None:
             (out_dir / "c14_implementation_check.json").write_text(json.dumps(result, indent=1, default=float), encoding="utf-8")
         print(json.dumps(result, indent=1, default=float))
         return
+    if a.command == "run" and a.train_only:
+        if not a.output:
+            raise SystemExit("--output is required")
+        train_only(a)
+        return
+    if not a.data_2026:
+        raise SystemExit("--data-2026 is required")
     blocks = {"2025": load_block(a.data_2025, "2025"), "2026": load_block(a.data_2026, "2026")}
     if a.command == "frequency":
         print(json.dumps({"counts_only": True, "protocol_hash": er.protocol_hash(), "per_period": frequency(blocks)}, indent=1))
