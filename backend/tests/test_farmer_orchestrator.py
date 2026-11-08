@@ -571,6 +571,7 @@ class TestUiSnapshot(unittest.TestCase):
 
 class TestOffDoesNotChangeExistingSystem(unittest.TestCase):
     ALLOWED = {"original_v2_live.py"}                                # C4: yalnız talep birleştirme (talep yoksa aynı liste nesnesi)
+    FARMER_OWNED = {"farmer_view.py", "farmer_api.py"}               # C10: Farmer'a ait YENİ dosyalar (mevcut modül değil); main.py yalnız farmer_api'yi içe aktarır
 
     def test_no_existing_module_imports_orchestrator(self):
         app = Path(__file__).parents[1] / "app"
@@ -579,12 +580,12 @@ class TestOffDoesNotChangeExistingSystem(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             if re.search(r"farmer_engine\.(orchestrator|margin)|import orchestrator", text):
                 offenders.append(path.name)
-        self.assertEqual(offenders, [])
+        self.assertEqual([name for name in offenders if name not in self.FARMER_OWNED], [])
 
     def test_existing_modules_referencing_farmer_are_known(self):
         app = Path(__file__).parents[1] / "app"
         refs = {p.name for p in app.glob("*.py") if "farmer_engine" in p.read_text(encoding="utf-8")}
-        self.assertLessEqual(refs, self.ALLOWED | {"farmer_live.py"})
+        self.assertLessEqual(refs, self.ALLOWED | self.FARMER_OWNED | {"farmer_live.py"})
 
     def test_off_orchestrator_touches_nothing(self):
         r = Rig()

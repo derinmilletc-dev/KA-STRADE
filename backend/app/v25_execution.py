@@ -1785,13 +1785,14 @@ def execution_owner(request: Request) -> dict[str, Any]:
         safety_action = subscription.get("mode") == "FREE_TRIAL" and request.url.path in {
             "/api/v25/auto/stop", "/api/v25/disarm", "/api/v25/emergency", "/api/v25/position/close",
             "/api/v25/recovery/check", "/api/v25/consent/revoke",
+            "/api/v25/farmer/stop-bot", "/api/v25/farmer/emergency-close",
         }
         if not subscription.get("master_trade_access") and request.method != "GET" and not safety_action:
             raise HTTPException(403, "Master Trade aboneliğiniz bu özelliğe erişim vermiyor")
         if request.method != "GET" and request.url.path in {
             "/api/v25/order", "/api/v25/order/test", "/api/v25/auto/start", "/api/v25/arm",
             "/api/v25/grid/live/start", "/api/v25/grid/live/resume", "/api/v25/dca/live/start", "/api/v25/dca/live/resume",
-            "/api/v25/adopt-external-position",
+            "/api/v25/adopt-external-position", "/api/v25/farmer/start", "/api/v25/farmer/settings",
         } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
             raise HTTPException(403, LIVE_MESSAGE)

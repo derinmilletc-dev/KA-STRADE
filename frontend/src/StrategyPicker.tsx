@@ -1,12 +1,16 @@
 import {Check, MessageCircle, Zap} from 'lucide-react'
 import {GUIDE_STEPS, type GuideInput} from './live-guide'
+import './farmer.css'
 
-export type LiveStrategy = 'long' | 'dca'
-export const STRATEGY_LABEL: Record<LiveStrategy, string> = {long: 'Kais Long', dca: 'DCA'}
+export type LiveStrategy = 'long' | 'dca' | 'farmer'
+export const STRATEGY_LABEL: Record<LiveStrategy, string> = {long: 'Kais Long', dca: 'DCA', farmer: 'KAIS FARMER'}
 const STORAGE_KEY = 'kt-live-strategy-v1'
 
 export function readStrategy(): LiveStrategy {
-  try { return window.localStorage.getItem(STORAGE_KEY) === 'dca' ? 'dca' : 'long' } catch { return 'long' }
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+    return saved === 'dca' || saved === 'farmer' ? saved : 'long'
+  } catch { return 'long' }
 }
 export function writeStrategy(value: LiveStrategy) {
   try { window.localStorage.setItem(STORAGE_KEY, value) } catch { /* depolama kapalıysa seçim yalnız bu oturumda kalır */ }
@@ -17,8 +21,9 @@ export function StrategyPicker({value, onChange}: {value: LiveStrategy; onChange
   const items: Array<{id: LiveStrategy; label: string; sub: string}> = [
     {id: 'long', label: 'Kais Long', sub: 'Otomatik tarama ve işlem'},
     {id: 'dca', label: 'DCA', sub: 'Kademeli alım botu'},
+    {id: 'farmer', label: 'KAIS FARMER', sub: 'Küçük, kontrollü işlemler'},
   ]
-  return <div className="lcPicker" role="radiogroup" aria-label="Strateji seç" data-testid="strategy-picker">
+  return <div className="lcPicker" role="radiogroup" aria-label="Strateji seç" data-testid="strategy-picker" data-count={items.length}>
     {items.map(item => <button key={item.id} type="button" role="radio" aria-checked={value === item.id} data-on={value === item.id || undefined} data-testid={`strategy-${item.id}`} onClick={() => onChange(item.id)}>
       <b>{item.label}</b><small>{item.sub}</small>
     </button>)}

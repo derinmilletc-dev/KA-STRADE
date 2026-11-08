@@ -676,6 +676,28 @@ class Orchestrator:
             return True                                             # okunamadı ya da emir var: 'yok' denemez
         return False
 
+    def scanner_view(self, now_ms: int | None = None) -> list[dict[str, Any]]:
+        """Arayüz için aday listesi (YALNIZ OKUMA; önbellek ve ret kayıtları aynen yansıtılır, yeni hesap/uydurma durum yok).
+        status: QUALIFIED (pozisyon açık/korumalı) | WAITING_CONFIRMATION | REJECTED | COOLING_DOWN (bu mumda deneme zaten yapıldı)."""
+        now_ms = int(self.clock() * 1000) if now_ms is None else int(now_ms)
+        held = {engine.sym for engine in self.engines.values() if engine.status not in _ENDED}
+        rows: list[dict[str, Any]] = []
+        for item in self.feed.cache.entry_candidates():
+            tried = self._tried.get(item.symbol)
+            attempted = self.store.attempt(self.account_key, item.symbol, item.interval, item.candle_open_ms) is not None
+            if item.symbol in held:
+                status, reason = "QUALIFIED", None
+            elif item.confidence is None or item.confidence < self.settings.confirm.min_score:
+                status, reason = "REJECTED", "SCORE_TOO_LOW"
+            elif tried is not None and tried not in _TRANSIENT_REJECTS:
+                status, reason = "REJECTED", tried
+            elif attempted:
+                status, reason = "COOLING_DOWN", "ENTRY_LOCKED"
+            else:
+                status, reason = "WAITING_CONFIRMATION", tried
+            rows.append({"symbol": item.symbol, "direction": item.direction, "score": item.confidence, "status": status, "reason": reason})
+        return rows
+
     # ---------- arayüz görüntüsü ----------
     def ui_snapshot(self, now_ms: int | None = None) -> dict[str, Any]:
         now_ms = int(self.clock() * 1000) if now_ms is None else int(now_ms)
@@ -686,6 +708,8 @@ class Orchestrator:
             feas = meta.get("feasibility") or {}
             result = self.store.result(gid) or {}
             est_cost, target = float(spec.get("est_cost_usdt") or 0.0), float(spec.get("target_usdt") or 0.0)
+            mark = self.snapshot.mark_prices.get(engine.sym) if self.snapshot is not None and self.snapshot.ok else None
+            live = engine.snapshot() if engine.status not in _ENDED else {}
             rows.append({
                 "grid_id": gid, "symbol": engine.sym, "side": engine.spec.side, "engine_status": engine.status,
                 "slot_state": (holds.get(gid) or {}).get("state"), "age_s": round((now_ms - int(meta.get("opened_ms", now_ms))) / 1000, 1),
@@ -695,7 +719,11 @@ class Orchestrator:
                 "margin_usdt": spec.get("margin_usdt"), "notional_usdt": spec.get("notional"), "est_cost_usdt": est_cost,
                 "target_pct": spec.get("target_pct"), "stop_pct": spec.get("stop_pct"), "target_over_atr": feas.get("target_over_atr"),
                 "cost_over_target": round(est_cost / target, 6) if target > 0 else None, "close_reason": engine.close_reason(),
-                "pnl_state": result.get("pnl_state", "PENDING"), "verified_net_pnl": result.get("verified_net_pnl")})
+                "pnl_state": result.get("pnl_state", "PENDING"), "verified_net_pnl": result.get("verified_net_pnl"),
+                # C10 (EKLEMELİ, yalnız okuma): ekran için gerçek giriş/hedef/stop fiyatı ve tahmini anlık net. Veri yoksa None (uydurma yok).
+                "entry_price": live.get("avg_entry"), "tp_price": live.get("tp_price"), "stop_price": live.get("stop_price"),
+                "mark_price": mark if mark and mark > 0 else None,
+                "unrealized_net_usdt": (engine.unrealized_net(float(mark)) if mark and mark > 0 and engine.status not in _ENDED else None)})
         return {"name": DISPLAY_NAME, "state": self.state, "reason": self.reason, "slots": self.guard.slots().as_dict(),
                 "effective_capacity": self.guard.capacity, "positions": rows, "demand": list(self._demand),
                 "snapshot_ok": not self._snapshot_bad(), "shared_reads": {"served": self.shared.served, "passthrough": self.shared.passthrough},

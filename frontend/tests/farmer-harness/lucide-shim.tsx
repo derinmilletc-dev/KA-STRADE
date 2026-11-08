@@ -1,0 +1,17 @@
+import React from 'react'
+const mk = (d: string) => (props: any) => <svg viewBox="0 0 24 24" width={props.size ?? 24} height={props.size ?? 24} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className} aria-hidden={props['aria-hidden']}><path d={d}/></svg>
+export const BookOpen = mk('M2 4h7a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H2z M22 4h-7a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h8z')
+export const ChevronDown = mk('m6 9 6 6 6-6')
+export const Clock = mk('M12 6v6l4 2 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20')
+export const Loader2 = mk('M21 12a9 9 0 1 1-6.2-8.55')
+export const MessageCircle = mk('M7.9 20A9 9 0 1 0 4 16.1L2 22z')
+export const Pause = mk('M6 4h4v16H6z M14 4h4v16h-4z')
+export const Play = mk('M6 3l14 9-14 9z')
+export const Power = mk('M12 2v10 M18.4 6.6a9 9 0 1 1-12.8 0')
+export const RefreshCw = mk('M3 12a9 9 0 0 1 15-6.7L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-15 6.7L3 16 M3 21v-5h5')
+export const ShieldCheck = mk('M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z m-11 0 2 2 4-4')
+export const Square = mk('M5 5h14v14H5z')
+export const TriangleAlert = mk('m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3 M12 9v4 M12 17h.01')
+export const WifiOff = mk('M12 20h.01 M8.5 16.4a5 5 0 0 1 7 0 M2 2l20 20')
+export const X = mk('M18 6 6 18 M6 6l12 12')
+export const Zap = mk('M13 2 3 14h9l-1 8 10-12h-9z')
