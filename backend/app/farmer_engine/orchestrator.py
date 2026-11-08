@@ -29,6 +29,9 @@ OFF, RUNNING, ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY, STOPPING, INTERVENTION = (
 STATES = (OFF, RUNNING, ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY, STOPPING, INTERVENTION)
 CANDLE_MS = 15 * 60 * 1000
 _ENDED = (COMPLETED, STOPPED, EMERGENCY_CLOSED)
+# PnL yeniden deneme aralıkları (sn): mevcut v25_execution.ADOPTION_PERSISTENCE_RETRY_BACKOFF_SECONDS ile aynı standart. Tükenince UNVERIFIED kalır.
+PNL_RETRY_BACKOFF_SECONDS = (5, 15, 60, 300, 900)
+PNL_MAX_ATTEMPTS = len(PNL_RETRY_BACKOFF_SECONDS) + 1
 _TRANSIENT_REJECTS = {ARM_BLOCKED, SAFETY_GATE, MARGIN_CAP, OCCUPIED}     # yalnız bunlar aynı mumda yeniden denenebilir
 
 
@@ -196,6 +199,7 @@ class Orchestrator:
         self._tried: dict[str, str] = {}           # sembol -> bu mumda verilen kalıcı ret (yeniden onaylanmaz)
         self._tried_candle = 0
         self._demand: list[str] = []
+        self._pnl_due: dict[str, float] = {}
         self.recovered = False
         self.events: list[str] = []
 
@@ -267,10 +271,12 @@ class Orchestrator:
     def tick(self, now_ms: int | None = None) -> dict[str, Any]:
         now_ms = int(self.clock() * 1000) if now_ms is None else int(now_ms)
         if self.base == OFF and not self.engines:
+            self.retry_pnl()                                        # yalnız bekleyen PnL doğrulaması (varsa); başka okuma yok
             return {"state": OFF, "idle": True}                    # Farmer kapalı ve pozisyon yok: hiçbir borsa/akış okuması yok
         self.snapshot = self._read_snapshot()
         self.shared.use(self.snapshot)
         self._service_engines()
+        self.retry_pnl()
         if self.base == STOPPING and not self.engines:
             self.base = OFF
             self._persist()
@@ -343,14 +349,38 @@ class Orchestrator:
         return any(o["status"] not in TERMINAL for o in self.store.orders(gid))
 
     def _verify_pnl(self, gid: str) -> None:
+        """Slot ZATEN bırakılmıştır. VERIFIED asla yeniden yazılmaz (idempotent); hata UNVERIFIED bırakır, 0/tahmin yazılmaz."""
         result = self.store.result(gid)
-        if result is None:
+        if result is None or result["pnl_state"] == "VERIFIED" or int(result["verify_attempts"]) >= PNL_MAX_ATTEMPTS:
             return
         try:
             out = self.pnl.verify(result)
-            self.store.set_pnl(gid, state=out.state, gross=out.gross, commission=out.commission, funding=out.funding, net=out.net, error=out.error)
+            if out.state == "VERIFIED":
+                self.store.set_pnl(gid, state="VERIFIED", gross=out.gross, commission=out.commission, funding=out.funding, net=out.net)
+            else:
+                self.store.set_pnl(gid, state=out.state, error=out.error)        # UNVERIFIED/PENDING: sayısal alanlar NULL kalır
         except Exception as exc:                                    # noqa: BLE001 — doğrulama hatası UNVERIFIED bırakır; slot zaten bırakıldı
             self.store.set_pnl(gid, state="UNVERIFIED", error=f"VERIFY_ERROR:{exc.__class__.__name__}")
+        attempts = int(self.store.result(gid)["verify_attempts"])
+        if self.store.result(gid)["pnl_state"] != "VERIFIED" and attempts < PNL_MAX_ATTEMPTS:
+            self._pnl_due[gid] = self.clock() + PNL_RETRY_BACKOFF_SECONDS[attempts - 1]
+        else:
+            self._pnl_due.pop(gid, None)
+
+    def retry_pnl(self) -> list[str]:
+        """Vadesi gelen UNVERIFIED sonuçları yeniden dener (kısa aralıklar, sınırlı deneme). Yeniden başlatma sonrası da çalışır."""
+        now, done = self.clock(), []
+        for row in self.store.unresolved_pnl(self.account_key):
+            gid = row["grid_id"]
+            if int(row["verify_attempts"]) >= PNL_MAX_ATTEMPTS:
+                continue
+            due = self._pnl_due.get(gid)
+            if due is None:
+                self._pnl_due[gid] = due = now                          # süreç yeniden başladı: hemen
+            if due <= now:
+                self._verify_pnl(gid)
+                done.append(gid)
+        return done
 
     def _intervene(self, why: str) -> None:
         if self.base != INTERVENTION:

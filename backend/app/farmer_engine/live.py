@@ -230,3 +230,51 @@ class FarmerRunnerView:
         engines = [e for e in self._rows() if exclude is None or e.gid != exclude]
         worst = sum(float(e.spec.meta.get("max_loss_usdt") or 0.0) for e in engines)
         return {"worst_loss_usdt": round(worst, 8), "pending_entry_notional_usdt": 0.0, "symbols": [e.sym for e in engines], "count": len(engines)}
+
+
+# ------------------------------------------------------------------ PnL kaynağı (C8): mevcut verified_plan_pnl + /fapi/v1/income
+class LivePnlSource:
+    """`pnl.ExecutionSource` canlı uygulaması. gross+commission: MEVCUT `verified_plan_pnl` (symbol_fallback KAPALI). Gelir kayıtları:
+    `/fapi/v1/income` (symbol + incomeType + zaman penceresi). Sayfa sınırına varan yanıt tamamlanmış sayılmaz (PnlUnavailable)."""
+
+    def __init__(self, bridge: LoopBridge, client_factory: Callable[[], Any], live: Any, application: Any = None) -> None:
+        from .pnl import PnlUnavailable  # tembel: pnl → orchestrator zinciri
+        self._unavailable = PnlUnavailable
+        self.bridge, self.client_factory, self.live, self.application = bridge, client_factory, live, application
+
+    def plan_pnl(self, plan: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return self.bridge(self.live.verified_plan_pnl(self.client_factory(), plan))
+        except self.live.LiveExchangeError as exc:
+            raise self._unavailable("TRADES_NOT_PROVEN") from exc
+        except Exception as exc:                                     # noqa: BLE001 — istek içeriği/anahtar sızmasın: yalnız sınıf adı
+            raise self._unavailable(f"TRADES_READ_FAILED:{exc.__class__.__name__}") from exc
+
+    def income_rows(self, symbol: str, income_type: str, start_ms: int, end_ms: int) -> list[dict[str, Any]]:
+        from .pnl import INCOME_PAGE_LIMIT
+        try:
+            rows = self.bridge(self.client_factory().signed("GET", "/fapi/v1/income", {
+                "symbol": symbol, "incomeType": income_type, "startTime": int(start_ms), "endTime": int(end_ms), "limit": INCOME_PAGE_LIMIT}))
+        except Exception as exc:                                     # noqa: BLE001
+            raise self._unavailable(f"INCOME_READ_FAILED:{exc.__class__.__name__}") from exc
+        if not isinstance(rows, list):
+            raise self._unavailable("INCOME_RESPONSE_INVALID")
+        if len(rows) >= INCOME_PAGE_LIMIT:
+            raise self._unavailable("INCOME_PAGE_LIMIT")
+        return rows
+
+    def foreign_overlaps(self, symbol: str, start_ms: int, end_ms: int) -> list[str]:
+        """V25 (Original V2/Manuel) planları: aynı sembol + zaman penceresi çakışması. Grid/DCA çalıştırıcılarının geçmiş penceresi bu katmanda
+        okunamaz; eş zamanlı çakışma giriş kapısındaki sembol doluluğu ile engellenir (bkz. rapor: kalan risk)."""
+        if self.application is None:
+            return []
+        out: list[str] = []
+        for plan in (self.application.state.v25_execution.get("plans") or {}).values():
+            if not isinstance(plan, dict) or str(plan.get("symbol") or "").upper() != symbol:
+                continue
+            start = self.live._iso_epoch_ms(plan.get("created_at"))
+            closed = plan.get("closed_at")
+            end = self.live._iso_epoch_ms(closed) if closed else float("inf")
+            if start <= end_ms and start_ms <= end:
+                out.append("V25_PLAN")
+        return out

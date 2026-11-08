@@ -226,6 +226,12 @@ class FarmerStore(GridStore):
             row = self.db.execute("SELECT * FROM farmer_result WHERE grid_id=?", (grid_id,)).fetchone()
         return dict(row) if row else None
 
+    def unresolved_pnl(self, account_key: str) -> list[dict[str, Any]]:
+        """Kapanmış (closed_at>0) ama VERIFIED olmayan sonuçlar."""
+        with self.lock:
+            return [dict(r) for r in self.db.execute(
+                "SELECT * FROM farmer_result WHERE account_key=? AND closed_at>0 AND pnl_state<>'VERIFIED' ORDER BY closed_at", (account_key,))]
+
     def results(self, account_key: str) -> list[dict[str, Any]]:
         with self.lock:
             return [dict(row) for row in self.db.execute("SELECT * FROM farmer_result WHERE account_key=? ORDER BY opened_at", (account_key,))]
