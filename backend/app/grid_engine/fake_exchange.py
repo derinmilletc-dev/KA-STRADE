@@ -134,6 +134,7 @@ class FakeExchange:
         qty = round(min(qty, order.qty - order.filled), 8)
         if qty <= EPS:
             return
+        order.avg_price = round((order.avg_price * order.filled + price * qty) / (order.filled + qty), 8) if price else order.avg_price
         order.filled = round(order.filled + qty, 8)
         order.status = FILLED if order.qty - order.filled <= EPS else PARTIAL
         signed = qty if order.side == BUY else -qty

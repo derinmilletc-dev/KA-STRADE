@@ -32,6 +32,7 @@ MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     ],
     "orders": [
         ("cycle", "INTEGER NOT NULL DEFAULT 0"),      # kademenin kaçıncı turu (giriş + hedefleri aynı turu taşır)
+        ("avg_price", "REAL NOT NULL DEFAULT 0"),     # ortalama dolum fiyatı (borsa bildirirse; DCA ortalama giriş hesabı)
     ],
     "alerts": [
         ("at", "REAL NOT NULL DEFAULT 0"),

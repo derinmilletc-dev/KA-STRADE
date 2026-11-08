@@ -127,3 +127,11 @@ export function computeDca(input: DcaInput): DcaResult {
   if (liquidationGapPct < L.liqBufferPct) errors.push('Stop, tahmini likidasyona çok yakın ya da ötesinde; kaldıracı düşür, aralığı kısalt ya da stopu yakınlaştır.')
   return {valid: errors.length === 0, errors: [...new Set(errors)], stages, stopPrice, stopDistancePct, spanPct, totalMargin: totalNotional / leverage, totalNotional, worstLoss, avgEntryFull, liquidation, liquidationGapPct}
 }
+
+export type DcaPresetForm = {margin: string; safety: number; step: string; volume: string; tp: string; gap: string; leverage: number; recycle: boolean}
+export type DcaPreset = {id: string; name: string; hint: string; form: DcaPresetForm}
+export const DCA_PRESETS: DcaPreset[] = [
+  {id: 'calm', name: 'Sakin', hint: 'Geniş aralık, düşük kaldıraç', form: {margin: '10', safety: 3, step: '2', volume: '1.2', tp: '1', gap: '2', leverage: 2, recycle: false}},
+  {id: 'balanced', name: 'Dengeli', hint: 'Çoğu durum için', form: {margin: '10', safety: 3, step: '1.5', volume: '1.5', tp: '1', gap: '1.5', leverage: 3, recycle: false}},
+  {id: 'bold', name: 'Atak', hint: 'Sık ek emir, hızlı hedef', form: {margin: '10', safety: 4, step: '1', volume: '1.6', tp: '0.8', gap: '1', leverage: 4, recycle: false}},
+]

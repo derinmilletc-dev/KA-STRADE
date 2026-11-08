@@ -209,7 +209,10 @@ class GridEngine:
         # borsada yok → UNKNOWN kalır; sonraki turda aynı kimlikle tekrar gönderilir (çift emir olamaz)
 
     def _apply(self, cid: str, info: OrderInfo) -> None:
-        self.store.set_order(cid, status=info.status, filled=info.filled)
+        if getattr(info, "avg_price", 0.0) > 0:
+            self.store.set_order(cid, status=info.status, filled=info.filled, avg_price=info.avg_price)
+        else:
+            self.store.set_order(cid, status=info.status, filled=info.filled)
 
     def _send_pending(self) -> None:
         for row in self.store.orders(self.gid):

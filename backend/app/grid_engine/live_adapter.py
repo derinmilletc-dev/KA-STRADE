@@ -122,7 +122,7 @@ class BinanceLiveGridAdapter:
             client_id=str(order.get("clientOrderId") or order.get("origClientOrderId") or ""), symbol=str(order.get("symbol") or ""),
             side=str(order.get("side") or ""), type=str(order.get("type") or order.get("origType") or ""), price=_float(order.get("price")),
             stop_price=_float(order.get("stopPrice")), qty=_float(order.get("origQty")), filled=_float(order.get("executedQty")),
-            status=status, reduce_only=bool(order.get("reduceOnly")))
+            status=status, reduce_only=bool(order.get("reduceOnly")), avg_price=_float(order.get("avgPrice")))
 
     @staticmethod
     def _algo_open_info(row: dict[str, Any]) -> OrderInfo:

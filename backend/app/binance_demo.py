@@ -4833,12 +4833,13 @@ def _grid_actor(request: Request) -> tuple[str, bool]:
 
 def demo_grid_busy(application: Any, state: dict[str, Any], symbol: str) -> bool:
     """Bu kullanıcının bu coinde bitmemiş Demo grid'i var mı? Varsa manuel/otomatik Demo emri o coine girmez."""
-    runner = getattr(getattr(application, "state", None), "demo_grid_runner", None)
-    if runner is None:
+    runners = [r for r in (getattr(getattr(application, "state", None), "demo_grid_runner", None),
+                           getattr(getattr(application, "state", None), "demo_dca_runner", None)) if r is not None]
+    if not runners:
         return False
     user_id = str(state.get("_user_id") or "").strip()
     try:
-        return bool(runner.symbol_busy(normalize_symbol(symbol), user_id, owner=not user_id))
+        return any(bool(r.symbol_busy(normalize_symbol(symbol), user_id, owner=not user_id)) for r in runners)
     except Exception:
         logger.warning("DEMO_GRID_OCCUPANCY_READ_FAILED symbol=%s", symbol)
         return True
@@ -4909,6 +4910,8 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
             symbol = await resolve_demo_symbol(client, body.symbol)
             if runner.occupying_row(user_id, symbol, owner=owner) is not None:
                 raise HTTPException(409, f"{symbol} için zaten bir Demo grid var.")
+            if demo_grid_busy(application, state, symbol):
+                raise HTTPException(409, f"{symbol} için çalışan bir Demo botu (DCA) var; aynı coinde grid açılmaz.")
             reason = stale_protection_entry_reason(snapshot, state, symbol)
             if reason or any(_symbol_matches(item.get("symbol"), symbol) for item in snapshot.get("open_algo_orders", [])):
                 raise HTTPException(409, f"{symbol} üzerinde açık pozisyon veya emir var; aynı coinde grid açılmaz.")
@@ -4989,6 +4992,187 @@ async def demo_grid_resume(request: Request, grid_id: str | None = None) -> dict
     try:
         result = await grid_live.demo_runner_for(request.app).resume(request.app, state_for(request), _demo_grid_adapter(request),
                                                                      user_id=user_id, grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
+
+
+
+class DemoDcaStartRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=20)
+    direction: Literal["LONG", "SHORT"]
+    base_margin_usdt: float = Field(gt=0)
+    safety_orders: int = Field(ge=1, le=5)
+    step_pct: float = Field(gt=0)
+    volume_multiplier: float = Field(ge=1, le=2)
+    take_profit_pct: float = Field(gt=0)
+    stop_gap_pct: float = Field(gt=0)
+    leverage: int = Field(ge=1, le=125)
+    recycle: bool = False
+    preview: bool = False
+    confirmation: str = ""
+
+
+def _demo_dca_http_error(exc: Exception) -> HTTPException:
+    from .dca_engine.plan import DcaPlanError
+    if isinstance(exc, DcaPlanError):
+        return HTTPException(exc.status, str(exc))
+    return _demo_grid_error(exc)
+
+
+async def _demo_dca_inputs(v21_state: dict[str, Any], client: Any, runner: Any, symbol: str, user_id: str, owner: bool,
+                           *, exclude: str | None = None) -> tuple[dict[str, Any], dict[str, Any], Any]:
+    """Demo DCA plan girdileri (başlatma ve yeni tur aynı hesabı kullanır)."""
+    from . import grid_live
+    from .grid_engine.filters import GridFilterError, extract_symbol_filters
+    snapshot = await account_snapshot(client)
+    try:
+        raw = extract_symbol_filters(await client.public_get("/fapi/v1/exchangeInfo"), symbol)
+    except GridFilterError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    rules = {"tick": raw["tickSize"], "step": raw["stepSize"], "min_qty": raw["minQty"], "min_notional": raw["minNotional"]}
+    ticker = await client.public_get("/fapi/v1/ticker/price", {"symbol": symbol})
+    price = float((ticker or {}).get("price") or 0)
+    if price <= 0:
+        raise HTTPException(503, "Demo fiyatı okunamadı; DCA başlatılmadı.")
+    policy = grid_live.demo_policy(v21_state.get("settings"))
+    positions = [p for p in snapshot.get("positions", []) if isinstance(p, dict)]
+    reserved = runner.reserved_risk(user_id, owner=owner, exclude=exclude)
+    position_symbols = {normalize_symbol(str(p.get("symbol") or "")) for p in positions}
+    kwargs = dict(price=price, rules=rules, policy=policy, realized_pnl_today=verified_realized_pnl(v21_state),
+                  existing_exposure=sum(float(p.get("notional") or 0) for p in positions), open_positions=len(positions),
+                  reserved_worst_loss=reserved["worst_loss_usdt"], reserved_pending_notional=reserved["pending_entry_notional_usdt"],
+                  reserved_symbols=len([s for s in reserved["symbols"] if s not in position_symbols]))
+    return kwargs, snapshot, rules
+
+
+def _demo_dca_planner(runner: Any) -> Any:
+    """Yeni tur planlayıcısı. Kullanıcının Demo risk durumu başlatma/devam sırasında kaydedilir; yoksa tur AÇILMAZ (tahmin yok)."""
+    from .dca_engine.plan import prepare_dca_plan
+    from . import dca_live
+
+    async def planner(engine: Any, state: dict[str, Any]) -> dict[str, Any]:
+        params = (engine.spec.meta or {}).get("params") or {}
+        adapter = runner._adapters.get(engine.gid)
+        user_id = str(runner.store.grid(engine.gid)["user_id"] or "")
+        v21_state = getattr(runner, "v21_states", {}).get(user_id)
+        if not params or adapter is None or v21_state is None:
+            raise HTTPException(409, "Bot parametreleri, borsa bağlantısı ya da Demo risk durumu hazır değil.")
+        kwargs, snapshot, rules = await _demo_dca_inputs(v21_state, adapter.client, runner, engine.sym, user_id, True, exclude=engine.gid)
+        plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
+        if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
+            raise HTTPException(409, "Demo bakiyesi yeni tur marjini için yeterli değil.")
+        plan["tick"], plan["params"] = float(rules["tick"]), dict(params)
+        return plan
+    return planner
+
+
+def _remember_v21_state(request: Request, runner: Any, user_id: str) -> None:
+    from .v21_demo import state_for as v21_state_for
+    if not hasattr(runner, "v21_states"):
+        runner.v21_states = {}
+    runner.v21_states[user_id] = v21_state_for(request)
+    runner.cycle_planner = _demo_dca_planner(runner)
+
+
+@router.get("/dca/status")
+async def demo_dca_status(request: Request, history: int = Query(default=6, ge=1, le=50)) -> dict[str, Any]:
+    from . import dca_live
+    from .dca_engine import plan as dca_plan
+    user_id, owner = _grid_actor(request)
+    runner = dca_live.demo_runner_for(request.app)
+    return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": runner.day_summary(user_id, owner=owner),
+            "enabled": dca_live.demo_enabled(), "account": "DEMO", "dca_limits": dca_plan.limits_payload()}
+
+
+@router.post("/dca/start")
+async def demo_dca_start(request: Request, body: DemoDcaStartRequest) -> dict[str, Any]:
+    """Demo DCA: canlıyla aynı plan ve risk kuralları, gerçek para yok. Demo'da ARM gerekmez."""
+    from . import dca_live
+    from .dca_engine.plan import DcaPlanError, prepare_dca_plan
+    from .v21_demo import state_for as v21_state_for
+    if not dca_live.demo_enabled():
+        raise HTTPException(403, "Demo DCA şu an kapalı.")
+    if not body.preview:
+        if body.confirmation.strip().upper() != dca_live.CONFIRM_DEMO_START:
+            raise HTTPException(422, f"Demo DCA için {dca_live.CONFIRM_DEMO_START} yazın.")
+        guard_new_entry(getattr(request.app.state, "maintenance", None))
+    application = request.app
+    user_id, owner = _grid_actor(request)
+    state = state_for(request)
+    runner = dca_live.demo_runner_for(application)
+    if len(runner.occupying_rows(user_id, owner=owner)) >= dca_live.MAX_BOTS_PER_USER:
+        raise HTTPException(409, f"Aynı anda en fazla {dca_live.MAX_BOTS_PER_USER} DCA botu çalışabilir. Önce birini durdur.")
+    params = dca_live.plan_params(body)
+    try:
+        async with state["lock"]:
+            client = client_for(request)
+            if not body.preview:
+                await ensure_one_way_position_mode(client)
+            symbol = await resolve_demo_symbol(client, body.symbol)
+            if demo_grid_busy(application, state, symbol):
+                raise HTTPException(409, f"{symbol} için zaten çalışan bir Demo botu var.")
+            kwargs, snapshot, rules = await _demo_dca_inputs(v21_state_for(request), client, runner, symbol, user_id, owner)
+            reason = stale_protection_entry_reason(snapshot, state, symbol)
+            if reason or any(_symbol_matches(item.get("symbol"), symbol) for item in snapshot.get("open_algo_orders", [])):
+                raise HTTPException(409, f"{symbol} üzerinde açık pozisyon veya emir var; aynı coinde DCA açılmaz.")
+            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
+            plan["tick"], plan["params"] = float(rules["tick"]), dict(params)
+            if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
+                raise HTTPException(409, "Demo hesabında DCA marjini için yeterli kullanılabilir bakiye yok.")
+            if body.preview:
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO"}
+            await set_isolated_margin(client, symbol)
+            audit = await apply_verified_leverage(client, symbol, plan["leverage"])
+            if not audit.get("leverage_verified"):
+                raise HTTPException(409, "Demo kaldıracı doğrulanamadı; DCA başlatılmadı.")
+        _remember_v21_state(request, runner, user_id)
+        result = await runner.start(application, state, _demo_grid_adapter(request), plan, symbol, user_id=user_id, owner=owner)
+    except HTTPException:
+        raise
+    except (BinanceDemoError, DcaPlanError) as exc:
+        raise _demo_dca_http_error(exc) from exc
+    except Exception as exc:  # noqa: BLE001 - LiveGridError vb.
+        raise _demo_dca_http_error(exc) from exc
+    add_event(state, "DEMO_GRID_ACCEPTED", f"{symbol} Demo DCA botu kabul edildi.")
+    persist_runtime(state)
+    return {"ok": True, "plan": plan, **result, "account": "DEMO"}
+
+
+@router.post("/dca/stop")
+async def demo_dca_stop(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import dca_live, grid_live
+    user_id, owner = _grid_actor(request)
+    try:
+        result = await dca_live.demo_runner_for(request.app).pause(state_for(request), _demo_grid_adapter(request), user_id=user_id,
+                                                                   grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
+
+
+@router.post("/dca/emergency")
+async def demo_dca_emergency(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import dca_live, grid_live
+    user_id, owner = _grid_actor(request)
+    try:
+        result = await dca_live.demo_runner_for(request.app).emergency(request.app, state_for(request), _demo_grid_adapter(request),
+                                                                       user_id=user_id, grid_id=grid_id, owner=owner)
+    except (grid_live.LiveGridError, BinanceDemoError) as exc:
+        raise _demo_grid_error(exc) from exc
+    return {"ok": True, **result, "account": "DEMO"}
+
+
+@router.post("/dca/resume")
+async def demo_dca_resume(request: Request, grid_id: str | None = None) -> dict[str, Any]:
+    from . import dca_live, grid_live
+    if not dca_live.demo_enabled():
+        raise HTTPException(403, "Demo DCA şu an kapalı.")
+    user_id, owner = _grid_actor(request)
+    runner = dca_live.demo_runner_for(request.app)
+    _remember_v21_state(request, runner, user_id)
+    try:
+        result = await runner.resume(request.app, state_for(request), _demo_grid_adapter(request), user_id=user_id, grid_id=grid_id, owner=owner)
     except (grid_live.LiveGridError, BinanceDemoError) as exc:
         raise _demo_grid_error(exc) from exc
     return {"ok": True, **result, "account": "DEMO"}
