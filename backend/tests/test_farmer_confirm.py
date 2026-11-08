@@ -233,6 +233,28 @@ class TestDecideEntry(unittest.TestCase):
         d = self.decide(cand("LONG", symbol="SOLUSDT"), grid="F3", cap=100)
         self.assertEqual((d.status, d.reason), (c.REJECTED, c.MARGIN_CAP))
 
+    def test_no_confirmation_rejection_ever_claims_the_candle(self):
+        bad = {c.SCORE_TOO_LOW: dict(analysis={"confidence": 1}), c.MOMENTUM_MISMATCH: dict(analysis={"momentum": "Negatif"}),
+               c.MTF_NOT_CONFIRMED: dict(mtf={"entry_permission": False}), c.INVALID_DIRECTION: dict(analysis={"direction": "BEKLE"}),
+               c.TRAP_REJECTED: dict(analysis={"radar": {"trap_score": 99, "breakout_quality": 90}}),
+               c.BREAKOUT_QUALITY_REJECTED: dict(analysis={"radar": {"trap_score": 1, "breakout_quality": 1}}),
+               c.ATR_INFEASIBLE: dict(analysis={"atr": None})}
+        for reason, over in bad.items():
+            d = self.decide(cand("LONG", **over), p=params(variant=c.STRATEGY_QUALITY), grid=f"F{reason[:6]}")
+            self.assertEqual((d.status, d.reason), (c.REJECTED, reason), reason)
+        d = self.decide(cand("SHORT", mtf={"short_filter_v2": {"accepted": False}}), p=params(variant=c.STRATEGY_QUALITY), grid="Fsf")
+        self.assertEqual(d.reason, c.SHORT_FILTER_REJECTED)
+        d = self.decide(cand("LONG"), p=params(max_loss_usdt=0.1), grid="Fcost")
+        self.assertEqual(d.reason, c.COST_INFEASIBLE)
+        self.assertEqual(self.s.db.execute("SELECT COUNT(*) FROM farmer_entry_attempt").fetchone()[0], 0)
+        self.assertEqual(self.s.db.execute("SELECT COUNT(*) FROM farmer_margin_hold").fetchone()[0], 0)
+        self.assertEqual(self.decide(cand("LONG"), grid="Fok").status, c.CONFIRMED)    # aynı mum hâlâ serbestti
+
+    def test_claim_failure_means_no_order_signal(self):
+        self.assertEqual(self.decide(grid="F1").status, c.CONFIRMED)
+        for grid in ("F2", "F3"):
+            self.assertEqual(self.decide(grid=grid).status, c.REJECTED)
+
     def test_confirmation_runs_before_risk_so_reason_is_strategy(self):
         d = self.decide(cand("LONG", analysis={"momentum": "Negatif"}), risk=c.RiskView(occupied=("x",)))
         self.assertEqual(d.reason, c.MOMENTUM_MISMATCH)

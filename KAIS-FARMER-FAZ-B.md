@@ -351,7 +351,7 @@ Zorunlu test matrisi (biri kırılırsa ilerleme yok):
 | **Regresyon** | Mevcut Grid/DCA/nötr/filtre/testnet testleri (yamalı kopyada 114/114) + `test_grid_live`, `test_dca_live_runner` (fastapi gerektirir; bu ortamda koşulamadı → CI'da) |
 
 ### Backtest planı (karar 3 ve 6)
-Mevcut `backtest_execution.py` / `backtest_data.py` / `backtest_baseline.py` altyapısı üzerine **aynı veri + aynı yürütme modeli** ile A/B varyantı ve ızgara: marjin {25,50,75,100,150} × kaldıraç 3 × hedef {0,5/1/2} × maks. zarar {1/1,5/2} × min skor {90/92/94/96} × dead {70/75/80/KAPALI} (= 5·3·3·4·4 = **720 kombinasyon × 2 varyant**). Karar kriterleri kararda listelenen 13 metrik; seçim "en yüksek win rate" değil, **yeterli işlem örneğiyle risk-ayarlı net kârlılık**. Hesap hedefi: aynı kombinasyon için gerçek TAKE_PROFIT_MARKET kayması modellenir (sabit + ATR oranlı iki senaryo).
+Mevcut `backtest_execution.py` / `backtest_data.py` / `backtest_baseline.py` altyapısı üzerine **aynı veri + aynı yürütme modeli** ile A/B varyantı ve ızgara: marjin {25,50,75,100,150} × kaldıraç 3 × hedef {0,5/1/2} × maks. zarar {1/1,5/2} × min skor {90/92/94/95} × dead {70/75/80/KAPALI} (= 5·3·3·4·4 = **720 kombinasyon × 2 varyant**). Karar kriterleri kararda listelenen 13 metrik; seçim "en yüksek win rate" değil, **yeterli işlem örneğiyle risk-ayarlı net kârlılık**. Hesap hedefi: aynı kombinasyon için gerçek TAKE_PROFIT_MARKET kayması modellenir (sabit + ATR oranlı iki senaryo).
 
 Ön ulaşılabilirlik tablosu (3x, taker 0,05%/yön + 0,05 USDT tampon; `Feasibility` formülüyle):
 
