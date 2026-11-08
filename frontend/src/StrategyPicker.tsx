@@ -26,7 +26,7 @@ export function StrategyPicker({value, onChange}: {value: LiveStrategy; onChange
 }
 
 /** DCA seçilince Kais Rehber'in yerine geçen kart. Yalnız doğrulanabilen şeyleri (bağlantı, ARM, acil durum) tik olarak gösterir. */
-export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual}: {input: GuideInput; stale: boolean; onOpen: () => void; onAsk: () => void; onConnect: () => void; onManual?: () => void}) {
+export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual, onClearEmergency}: {input: GuideInput; stale: boolean; onOpen: () => void; onAsk: () => void; onConnect: () => void; onManual?: () => void; onClearEmergency?: () => void}) {
   const verified = input.statusVerified && !stale
   const blocked = verified && input.emergency
   const needsAccount = verified && !input.connected
@@ -37,7 +37,7 @@ export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual}:
     : 'Coin ve yönü seç, hazır paketle planı kur, sunucuyla doğrula ve başlat. Canlıda toplam marj varsayılan olarak en çok 10 USDT.'
   const checks: Array<{text: string; ok: boolean}> = [
     {text: 'Hesap bağlı', ok: input.connected},
-    {text: input.armed ? 'ARM açık' : 'ARM kapalı', ok: input.armed},
+    {text: input.armed ? 'ARM açık' : 'ARM kapalı · DCA ekranında tek dokunuşla verilir', ok: input.armed},
     {text: input.emergency ? 'Acil durum var' : 'Acil durum yok', ok: !input.emergency},
   ]
   const steps = ['Hesap', 'Plan', 'Doğrula', 'Başlat']
@@ -56,7 +56,8 @@ export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual}:
     {verified && <ul className="lcDcaPills" aria-label="Durum">{checks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '○'}</i>{item.text}</li>)}</ul>}
     <div className="lcGuideActions">
       {needsAccount ? <button type="button" className="lcBtn lcPrimary" onClick={onConnect}>Bağlantıyı aç</button> : null}
-      <button type="button" className={needsAccount ? 'lcBtn lcGhost' : 'lcBtn lcPrimary'} data-testid="dca-open" disabled={blocked} onClick={onOpen}><Zap aria-hidden="true"/>DCA ekranını aç</button>
+      {blocked && onClearEmergency ? <button type="button" className="lcBtn lcPrimary" data-testid="dca-clear-emergency" onClick={onClearEmergency}>Acil durdurmayı kaldır</button> : null}
+      <button type="button" className={needsAccount || blocked ? 'lcBtn lcGhost' : 'lcBtn lcPrimary'} data-testid="dca-open" disabled={blocked} onClick={onOpen}><Zap aria-hidden="true"/>DCA ekranını aç</button>
     </div>
   </section>
 }

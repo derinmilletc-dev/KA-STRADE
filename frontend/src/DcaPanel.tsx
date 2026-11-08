@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
+import {goPositions} from '../../trade-intent'
 import './dca.css'
 
 type Call = <T = any>(base: string, path: string, options?: RequestInit & {timeoutMs?: number}) => Promise<T>
@@ -20,6 +21,14 @@ export type DcaPanelProps = {
   onPickSide?: (side: DcaSide) => void
   /** Kais AI sinyalleri (coin → yön eğilimi ve güven); varsa öneriler buna göre sıralanır. */
   signals?: Record<string, {lean: string; confidence: number}> | null
+  /** Canlı izin durumu: 24 saatlik risk izni geçerli mi, acil durdurma açık mı. */
+  authorizationValid?: boolean
+  emergency?: boolean
+  permBusy?: boolean
+  permError?: string
+  /** 24 saatlik risk izni (gerekirse) + ARM'ı tek seferde verir. */
+  onGrant?: () => Promise<boolean> | Promise<void> | void
+  onClearEmergency?: () => void
 }
 
 type Account = 'DEMO' | 'LIVE'
@@ -143,9 +152,10 @@ const FILTER_CACHE = new Map<string, {tickSize: number; stepSize: number; minNot
 const fitLabel = (state: 'ok' | 'fix' | 'no') => state === 'ok' ? 'Sana uygun' : state === 'fix' ? 'Küçültülerek uygun' : 'Bu coinde uygun değil'
 
 export default function DcaPanel(props: DcaPanelProps) {
-  const {symbol, price, side, liveArmed, call, v25Base, askConfirm, coins = [], signals, onPickSymbol, onPickSide} = props
+  const {symbol, price, side, liveArmed, call, v25Base, askConfirm, coins = [], signals, onPickSymbol, onPickSide, authorizationValid = true, emergency = false, permBusy = false, permError = '', onGrant, onClearEmergency} = props
   const account: Account = 'LIVE'
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [started, setStarted] = useState<{symbol: string; side: DcaSide; at: number} | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [note, setNote] = useState('')
@@ -187,9 +197,9 @@ export default function DcaPanel(props: DcaPanelProps) {
     let cancelled = false
     const tick = () => { if (!cancelled) void loadStatus() }
     tick()
-    const timer = window.setInterval(tick, 5000)
+    const timer = window.setInterval(tick, started ? 2000 : 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [base])
+  }, [base, started !== null])
   useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
   useEffect(() => { setNote('') }, [symbol, side])
 
@@ -297,7 +307,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const whyBlocked = !ready ? (filtersError || 'Borsa kuralları yükleniyor…')
     : !result.valid ? 'Önce planı düzelt.'
     : !liveEnabled ? 'Canlı DCA sunucuda kapalı.'
-    : !liveArmed ? 'Canlı emir kilidi (ARM) kapalı. Rehberden açabilirsin.'
+    : !liveArmed || !authorizationValid ? 'Önce yukarıdaki "İzni ver" düğmesine bas.'
     : result.totalMargin > cap + 1e-9 ? `Canlı DCA şu an en çok ${cap} USDT toplam marjinle çalışır.`
     : server.state === 'busy' ? 'Sunucu kontrol ediyor…'
     : server.state !== 'ok' ? 'Sunucu onayı bekleniyor.'
@@ -311,13 +321,15 @@ export default function DcaPanel(props: DcaPanelProps) {
       expected: 'CANLI DCA BAŞLAT',
       action: async () => {
         await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, 'CANLI DCA BAŞLAT')})
+        setStarted({symbol, side, at: Date.now()})
+        setStep(4)
         await loadStatus()
       },
     })
   }
   const act = (kind: 'stop' | 'emergency' | 'resume', gridId: string) => {
     const query = `?grid_id=${encodeURIComponent(gridId)}`
-    if (kind === 'resume') { setBusy(gridId); void call(base, `/resume${query}`, {method: 'POST', timeoutMs: 60000}).then(loadStatus).catch(error => setStatusError(error?.message || 'Devam ettirilemedi.')).finally(() => setBusy('')); return }
+    if (kind === 'resume') { setBusy(gridId); void Promise.resolve(!liveArmed && onGrant ? onGrant() : true).then(() => call(base, `/resume${query}`, {method: 'POST', timeoutMs: 60000})).then(loadStatus).catch(error => setStatusError(error?.message || 'Devam ettirilemedi.')).finally(() => setBusy('')); return }
     askConfirm({
       title: kind === 'stop' ? 'DCA botunu durdur' : 'DCA ACİL DURDUR',
       message: kind === 'stop' ? 'Bekleyen ek emirler iptal edilir. Açık pozisyon varsa stop ve kâr hedefiyle yerinde kalır.'
@@ -332,17 +344,17 @@ export default function DcaPanel(props: DcaPanelProps) {
   const finished = bots.filter(g => FINAL.includes(g.status)).slice(0, 3)
   const dir = side === 'LONG'
   const display = coins.find(coin => coin.symbol === symbol)?.display || symbol
-  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 3, label: 'Başlat'}] as const
-  const canStep = (n: number) => n === 1 || (n === 2 && picked !== null) || (n === 3 && picked !== null && result.valid && ready)
+  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 3, label: 'Başlat'}, {n: 4, label: 'Takip'}] as const
+  const canStep = (n: number) => step !== 4 && started === null ? (n === 1 || (n === 2 && picked !== null) || (n === 3 && picked !== null && result.valid && ready)) : n === 4 || n === 1
   const lastStage = result.stages[result.stages.length - 1]
 
   return (
     <section className="dca dw" aria-label="DCA botu" data-step={step}>
-      {active.length > 0 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} />)}</div>}
+      {active.length > 0 && step !== 4 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} />)}</div>}
 
       <ol className="dwSteps" aria-label="Adımlar">
         {stepsMeta.map(item => <li key={item.n} data-state={step === item.n ? 'current' : step > item.n ? 'done' : 'todo'}>
-          <button type="button" disabled={!canStep(item.n)} aria-current={step === item.n ? 'step' : undefined} onClick={() => setStep(item.n)}><i>{step > item.n ? '✓' : item.n}</i><span>{item.label}</span></button>
+          <button type="button" disabled={!canStep(item.n)} aria-current={step === item.n ? 'step' : undefined} onClick={() => { if (item.n === 1 && started) { setStarted(null); setPicked(null); setPresetId('') } setStep(item.n as 1 | 2 | 3 | 4) }}><i>{step > item.n ? '✓' : item.n}</i><span>{item.label}</span></button>
         </li>)}
       </ol>
 
@@ -454,6 +466,16 @@ export default function DcaPanel(props: DcaPanelProps) {
           <div className="dwRisk"><span><small>Toplam yatırım (marj)</small><b>{fmtUsd(result.totalMargin)}</b></span><span><small>Kaldıraç</small><b>{form.leverage}x</b></span><span><small>Canlı limit</small><b>{cap} USDT</b></span></div>
         </> : <p className="dwWarn">Plan geçerli değil. Geri dönüp başka bir plan ya da coin seç.</p>}
 
+        {(!liveArmed || !authorizationValid || emergency) && <div className="dwPerm" data-testid="dca-perm" data-tone={emergency ? 'bad' : 'warn'}>
+          {emergency ? <>
+            <b>Acil durdurma açık</b><span>Yeni işlem açılamaz. Önce acil durdurmayı kaldırman gerekir (2FA kodu ister).</span>
+            <button type="button" onClick={() => onClearEmergency?.()}>Acil durdurmayı kaldır</button>
+          </> : <>
+            <b>Canlı işlem izni gerekli</b><span>24 saatlik risk izni ve ARM tek dokunuşla verilir. Gerçek para kullanılacağını onaylamış olursun.</span>
+            <button type="button" disabled={permBusy} onClick={() => void onGrant?.()}>{permBusy ? 'Veriliyor…' : 'İzni ver'}</button>
+            {permError && <em>{permError}</em>}
+          </>}
+        </div>}
         <div className="dwVerify" data-state={server.state} role="status">
           {server.state === 'busy' && <><i className="dwSpin" aria-hidden="true"/><span>Sunucu planı kontrol ediyor…</span></>}
           {server.state === 'ok' && <><i aria-hidden="true">✓</i><span><b>Sunucu onayladı.</b> En kötü zarar {fmtUsd(-Number(server.plan?.worst_loss_usdt))}, toplam marj {fmtUsd(Number(server.plan?.total_margin_usdt))}.</span></>}
@@ -462,6 +484,20 @@ export default function DcaPanel(props: DcaPanelProps) {
         </div>
         <p className="dwFine">Gerçek para kullanılır. Başlatınca bir kez daha yazı onayı istenir. Hesaplar tahmindir: funding, kayma ve borsanın gerçek teminat tablosu dahil değil.</p>
       </div>}
+
+      {step === 4 && started && (() => {
+        const mine = bots.filter(bot => bot.symbol === started.symbol).sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0))[0]
+        const waited = Date.now() - started.at
+        return <div className="dwPane" data-testid="dca-step-4">
+          <div className="dwDone"><i aria-hidden="true">✓</i><div><b>DCA botu başlatıldı</b><span>{started.symbol} · {started.side}. Taban emir piyasadan girer, ek emirler limit olarak beklemeye alınır, stop ve kâr hedefi kurulur.</span></div></div>
+          {mine ? <BotCard key={mine.grid_id} bot={mine} busy={busy === mine.grid_id} onAct={act} /> : <div className="dwVerify" data-state="busy" role="status"><i className="dwSpin" aria-hidden="true"/><span>{waited > 20000 ? 'Bot durumu henüz görünmedi. Açık pozisyonlarından kontrol et.' : 'Bot kuruluyor, durum birazdan burada görünür…'}</span></div>}
+          <p className="dwFine">Bu kart kendiliğinden güncellenir. İşlemin Binance&apos;te açıldığını “Açık pozisyonlar” bölümünde de görürsün.</p>
+          <div className="dwBar dwBar2">
+            <button type="button" className="dwBack" onClick={() => { setStarted(null); setPicked(null); setPresetId(''); setStep(1) }}>Yeni DCA</button>
+            <button type="button" className="dwGo" data-testid="dca-goto-positions" onClick={() => goPositions(started.symbol)}>Açık pozisyonlarıma git</button>
+          </div>
+        </div>
+      })()}
 
       <div className="dwBar">
         {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId} onClick={() => setStep(3)}>Devam · kontrol et</button></>}

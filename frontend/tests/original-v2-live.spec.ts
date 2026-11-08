@@ -711,8 +711,13 @@ test('DCA wizard: coin suggestions fit the live limit, plan is auto-picked, stor
     const symbol = new URL(route.request().url()).searchParams.get('symbol')
     return route.fulfill({json: symbol === 'BTCUSDT' ? {tickSize: 0.1, stepSize: 0.001, minNotional: 100} : {tickSize: 0.0001, stepSize: 0.1, minNotional: 5}})
   })
-  await page.route('**/api/v25/dca/live/status', route => route.fulfill({json: {enabled: true, live_max_margin_usdt: 10, grids: []}}))
-  await page.route('**/api/v25/dca/live/start', route => route.fulfill({json: {plan: {worst_loss_usdt: '0.9', total_margin_usdt: '9.0'}}}))
+  let started = false
+  await page.route('**/api/v25/dca/live/status', route => route.fulfill({json: {enabled: true, live_max_margin_usdt: 10, grids: started ? [{grid_id: 'g1', kind: 'DCA', symbol: 'XRPUSDT', side: 'LONG', status: 'RUNNING', position_qty: '2.4', stats: {stages_total: 4, stages_filled: 1, avg_entry: '2.5', tp_price: '2.53', stop_price: '2.35', cycle: 1, realized_usdt: '0'}}] : []}}))
+  await page.route('**/api/v25/dca/live/start', route => {
+    const body = route.request().postDataJSON() as {preview?: boolean}
+    if (!body.preview) started = true
+    return route.fulfill({json: {plan: {worst_loss_usdt: '0.9', total_margin_usdt: '9.0'}}})
+  })
   await page.addStyleTag({content: '.ktTour{display:none !important}'})
   await page.getByTestId('strategy-dca').first().click()
   await page.getByTestId('dca-open').click()
@@ -738,4 +743,14 @@ test('DCA wizard: coin suggestions fit the live limit, plan is auto-picked, stor
   await expect(step3).toContainText('Sunucu onayladı')
   await expect(panel.getByTestId('dca-start')).toBeEnabled()
   await page.screenshot({path: '/tmp/dcaw-3.png'})
+  await panel.getByTestId('dca-start').click()
+  await page.screenshot({path: '/tmp/dcaw-confirm.png'})
+  const phrase = page.getByRole('textbox').last()
+  await phrase.fill('CANLI DCA BAŞLAT')
+  await page.getByRole('button', {name: /CANLI DCA BAŞLAT|Onayla|Confirm|Başlat/i}).last().click()
+  const step4 = panel.getByTestId('dca-step-4')
+  await expect(step4).toContainText('DCA botu başlatıldı')
+  await expect(step4).toContainText('XRPUSDT')
+  await expect(step4.getByTestId('dca-goto-positions')).toBeVisible()
+  await page.screenshot({path: '/tmp/dcaw-4.png'})
 })
