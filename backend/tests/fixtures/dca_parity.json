@@ -1,0 +1,330 @@
+{
+ "costs": {
+  "taker_fee": 0.0005,
+  "slippage_market_pct": 0.03,
+  "slippage_limit_entry_pct": 0.0,
+  "slippage_tp_exit_pct": 0.0,
+  "funding_allowance_pct": 0.03,
+  "min_net_profit_usdt": 0.01,
+  "min_net_profit_pct": 0.02,
+  "maintenance_rate_estimate": 0.005,
+  "liq_buffer_pct": 1.0
+ },
+ "rules": {
+  "tick": 0.01,
+  "step": 0.001,
+  "min_qty": 0.001,
+  "min_notional": 5
+ },
+ "cases": [
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 1.0,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    101.0,
+    100.1,
+    99.09,
+    98.0
+   ],
+   "tp_net_after_costs": [
+    0.25185,
+    0.6440025,
+    1.21180838,
+    2.0624302
+   ],
+   "tp_net_fee_only": [
+    0.26985,
+    0.6753,
+    1.26274838,
+    2.142364
+   ],
+   "worst_loss": 7.603316
+  },
+  {
+   "args": {
+    "direction": "SHORT",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 1.0,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    99.0,
+    99.89,
+    100.87,
+    101.94
+   ],
+   "tp_net_after_costs": [
+    0.25215,
+    0.65050125,
+    1.26322013,
+    2.19224291
+   ],
+   "tp_net_fee_only": [
+    0.27015,
+    0.68220375,
+    1.31578013,
+    2.27652911
+   ],
+   "worst_loss": 7.955147
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 5,
+    "step_pct": 1.0,
+    "volume_multiplier": 1.2,
+    "take_profit_pct": 1.0,
+    "stop_gap_pct": 1.0,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    101.0,
+    100.45,
+    99.87,
+    99.26,
+    98.62,
+    97.95
+   ],
+   "tp_net_after_costs": [
+    0.25185,
+    0.5623395,
+    0.93213018,
+    1.3711181,
+    1.89243288,
+    2.50520925
+   ],
+   "tp_net_fee_only": [
+    0.26985,
+    0.5910315,
+    0.97352298,
+    1.4275847,
+    1.96681308,
+    2.60085045
+   ],
+   "worst_loss": 9.187208
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 0.5,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    100.5,
+    99.6,
+    98.6,
+    97.51
+   ],
+   "tp_net_after_costs": [
+    0.101925,
+    0.26919,
+    0.5139075,
+    0.86889727
+   ],
+   "tp_net_fee_only": [
+    0.119925,
+    0.3004875,
+    0.5648475,
+    0.94883107
+   ],
+   "worst_loss": 7.603316
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 0.2,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    100.2,
+    99.3,
+    98.31,
+    97.22
+   ],
+   "tp_net_after_costs": [
+    0.01197,
+    0.0443025,
+    0.10086412,
+    0.16252063
+   ],
+   "tp_net_fee_only": [
+    0.02997,
+    0.0756,
+    0.15180412,
+    0.24245443
+   ],
+   "worst_loss": 7.603316
+  },
+  {
+   "args": {
+    "direction": "SHORT",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 0.2,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    99.8,
+    100.69,
+    101.69,
+    102.77
+   ],
+   "tp_net_after_costs": [
+    0.01203,
+    0.05020125,
+    0.09413588,
+    0.16852155
+   ],
+   "tp_net_fee_only": [
+    0.03003,
+    0.08190375,
+    0.14669588,
+    0.25280775
+   ],
+   "worst_loss": 7.955147
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 0.25,
+    "stop_gap_pct": 1.5,
+    "leverage": 5
+   },
+   "ok": true,
+   "tp_prices": [
+    100.25,
+    99.35,
+    98.36,
+    97.27
+   ],
+   "tp_net_after_costs": [
+    0.0449375,
+    0.13630625,
+    0.2867975,
+    0.47439783
+   ],
+   "tp_net_fee_only": [
+    0.0749375,
+    0.18846875,
+    0.3716975,
+    0.60763038
+   ],
+   "worst_loss": 12.672724
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 0.5,
+    "base_margin_usdt": 20.0,
+    "safety_orders": 3,
+    "step_pct": 1.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 1.0,
+    "stop_gap_pct": 1.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    0.51,
+    0.5,
+    0.5,
+    0.49
+   ],
+   "tp_net_after_costs": [
+    1.1034,
+    1.58844,
+    6.81726,
+    8.968605
+   ],
+   "tp_net_fee_only": [
+    1.1394,
+    1.6509,
+    6.9186,
+    9.12705
+   ],
+   "worst_loss": 20.40132
+  },
+  {
+   "args": {
+    "direction": "LONG",
+    "price": 100.0,
+    "base_margin_usdt": 10.0,
+    "safety_orders": 5,
+    "step_pct": 0.5,
+    "volume_multiplier": 1.5,
+    "take_profit_pct": 0.3,
+    "stop_gap_pct": 0.5,
+    "leverage": 3
+   },
+   "ok": true,
+   "tp_prices": [
+    100.3,
+    100.0,
+    99.67,
+    99.31,
+    98.92,
+    98.51
+   ],
+   "tp_net_after_costs": [
+    0.041955,
+    0.11868,
+    0.23645512,
+    0.41343517,
+    0.6659489,
+    1.05610279
+   ],
+   "tp_net_fee_only": [
+    0.059955,
+    0.1501125,
+    0.28793512,
+    0.49481977,
+    0.7919627,
+    1.24874809
+   ],
+   "worst_loss": 8.470121
+  }
+ ]
+}

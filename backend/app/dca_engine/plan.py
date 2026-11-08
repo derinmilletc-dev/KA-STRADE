@@ -2,13 +2,16 @@
 
 Plan başlamadan en kötü zararı hesaplar: bütün ek emirler dolar, sonra stop çalışır. Sınırlara (tek işlem zararı, günlük zarar hakkı,
 maruziyet, pozisyon sayısı, stop mesafesi, likidasyon tamponu) sığmayan plan reddedilir (DcaPlanError). Grid'in `prepare_live_grid` kuralıyla aynı çizgi.
-Funding ve kayma dahil DEĞİLDİR; likidasyon bakım teminatı oranı varsayımla (%0,5) tahmin edilir."""
+En kötü zarar: ideal dolum fiyatlarına EK olarak piyasa girişi/stop kayma payı ve funding payı içerir (değerler `risk_config.py`'de, hepsi tahmin/güvenlik payıdır,
+kesin değer değildir). Likidasyon fiyatı da TAHMİNDİR: bakım teminatı oranı varsayımdır (`MAINTENANCE_RATE_ESTIMATE`), borsanın gerçek likidasyon fiyatı değildir."""
 from __future__ import annotations
 
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
 from ..execution_core import HARD_MAX_MARGIN_USDT
+from .risk_config import (FUNDING_ALLOWANCE_PCT, LIQ_BUFFER_PCT, MAINTENANCE_RATE_ESTIMATE, MAKER_FEE, MIN_NET_PROFIT_PCT,  # noqa: F401
+                          MIN_NET_PROFIT_USDT, SLIPPAGE_LIMIT_ENTRY_PCT, SLIPPAGE_MARKET_PCT, SLIPPAGE_TP_EXIT_PCT, TAKER_FEE)
 
 LONG, SHORT = "LONG", "SHORT"
 MAX_SAFETY_ORDERS = 5            # grid'deki kademe sınırıyla aynı
@@ -18,9 +21,7 @@ MIN_STEP_PCT, MAX_STEP_PCT = 0.3, 10.0
 MIN_TP_PCT, MAX_TP_PCT = 0.2, 20.0
 MIN_STOP_GAP_PCT, MAX_STOP_GAP_PCT = 0.3, 10.0
 MAX_SPAN_PCT = 20.0              # taban fiyattan stopa en çok bu kadar uzak
-MAINTENANCE_RATE = 0.005         # tahmin: gerçek bakım teminatı tablosu okunmuyor
-LIQ_BUFFER_PCT = 1.0             # stop, tahmini likidasyondan en az bu kadar (ortalamaya göre %) önde olmalı
-MAKER_FEE, TAKER_FEE = 0.0002, 0.0005
+MAINTENANCE_RATE = MAINTENANCE_RATE_ESTIMATE   # TAHMİN (risk_config.py): gerçek bakım teminatı tablosu okunmuyor
 DEFAULT_POLICY_LEVERAGE = 20
 MIN_ORDER_USDT = 5.0
 
@@ -46,7 +47,11 @@ def _positive(*values: Any) -> bool:
 def limits_payload() -> dict[str, Any]:
     return {"max_safety_orders": MAX_SAFETY_ORDERS, "max_volume_multiplier": MAX_VOLUME_MULTIPLIER, "max_leverage": MAX_LEVERAGE,
             "step_pct": [MIN_STEP_PCT, MAX_STEP_PCT], "take_profit_pct": [MIN_TP_PCT, MAX_TP_PCT], "stop_gap_pct": [MIN_STOP_GAP_PCT, MAX_STOP_GAP_PCT],
-            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": HARD_MAX_MARGIN_USDT}
+            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": HARD_MAX_MARGIN_USDT,
+            "costs": {"taker_fee": TAKER_FEE, "slippage_market_pct": SLIPPAGE_MARKET_PCT, "slippage_limit_entry_pct": SLIPPAGE_LIMIT_ENTRY_PCT,
+                      "slippage_tp_exit_pct": SLIPPAGE_TP_EXIT_PCT, "funding_allowance_pct": FUNDING_ALLOWANCE_PCT,
+                      "min_net_profit_usdt": MIN_NET_PROFIT_USDT, "min_net_profit_pct": MIN_NET_PROFIT_PCT,
+                      "maintenance_rate_estimate": MAINTENANCE_RATE_ESTIMATE, "liq_buffer_pct": LIQ_BUFFER_PCT}}
 
 
 def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, safety_orders: int, step_pct: float, volume_multiplier: float,
@@ -115,23 +120,39 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
         beyond = r["entry"] <= stop_price if direction == LONG else r["entry"] >= stop_price
         if beyond:
             problems.append(f"{label} stopun ötesinde.")
+    slip_market, slip_limit, slip_tp = SLIPPAGE_MARKET_PCT / 100, SLIPPAGE_LIMIT_ENTRY_PCT / 100, SLIPPAGE_TP_EXIT_PCT / 100
+    cum_notional = entry_slippage = 0.0
     for r in rows:
+        cum_notional += r["notional"]
+        entry_slippage += r["notional"] * (slip_market if r["index"] == 0 else slip_limit)    # taban piyasadan girer, ek emirler limit
         net = (abs(r["tp_price"] - r["avg_entry"]) * r["cum_qty"]) - (r["avg_entry"] + r["tp_price"]) * r["cum_qty"] * TAKER_FEE
-        r["tp_net_profit_usdt"] = round(net, 8)
+        r["tp_net_profit_usdt"] = round(net, 8)                       # yalnız ücret düşülmüş (eski alan, anlamı değişmedi)
+        realistic = net - entry_slippage - r["tp_price"] * r["cum_qty"] * slip_tp - cum_notional * FUNDING_ALLOWANCE_PCT / 100
+        needed = max(MIN_NET_PROFIT_USDT, cum_notional * MIN_NET_PROFIT_PCT / 100)
+        r["tp_net_profit_after_costs_usdt"] = round(realistic, 8)      # ücret + kayma + funding payı düşülmüş (tahmin)
         if net <= 1e-12:
             problems.append("Kâr hedefi işlem ücretini karşılamıyor; hedefi artır.")
+            break
+        if realistic < needed - 1e-12:
+            problems.append(f"Kâr hedefi, ücret + kayma + funding payı düşülünce yeterli net kâr bırakmıyor (en az {needed:.4f} USDT gerekir, "
+                            f"kalan {realistic:.4f} USDT); hedefi artır.")
             break
 
     total_qty = rows[-1]["cum_qty"]
     total_notional = sum(r["notional"] for r in rows)
     total_margin = total_notional / leverage
     avg_full = rows[-1]["avg_entry"]
+    # En kötü senaryo: taban + TÜM ek emirler dolar, sonra stop çalışır. Her aşama tam bir kez sayılır:
+    # fiyat farkı zararı (raw) + giriş/çıkış komisyonu (fees) + kayma payı (taban piyasa girişi + piyasa stop + limit girişler) + funding payı.
     raw_loss = sum(r["qty"] * sign * (r["entry"] - stop_price) for r in rows)
-    worst_loss = raw_loss + total_notional * TAKER_FEE + total_qty * stop_price * TAKER_FEE
+    fees = total_notional * TAKER_FEE + total_qty * stop_price * TAKER_FEE
+    slippage = (sum(r["notional"] * (slip_market if r["index"] == 0 else slip_limit) for r in rows) + total_qty * stop_price * slip_market)
+    funding = total_notional * FUNDING_ALLOWANCE_PCT / 100
+    worst_loss = raw_loss + fees + slippage + funding
     span_pct = abs(price - stop_price) / price * 100
     stop_distance_pct = abs(last_entry - stop_price) / last_entry * 100
-    liq_price = avg_full * (1 - sign / leverage + sign * MAINTENANCE_RATE)
-    liq_gap_pct = sign * (stop_price - liq_price) / avg_full * 100   # + : stop likidasyondan önce çalışır
+    liq_price = avg_full * (1 - sign / leverage + sign * MAINTENANCE_RATE)    # TAHMİN (sabit bakım teminatı varsayımı), borsa fiyatı değil
+    liq_gap_pct = sign * (stop_price - liq_price) / avg_full * 100   # + : stop (tahmini) likidasyondan önce çalışır
 
     if span_pct > MAX_SPAN_PCT + 1e-9:
         problems.append(f"Taban fiyattan stopa uzaklık %{span_pct:.2f}, sınır %{MAX_SPAN_PCT:g}; aralığı ya da ek emir sayısını azalt.")
@@ -161,6 +182,8 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
             "stop_price": stop_price, "stop_distance_pct": round(stop_distance_pct, 4), "span_pct": round(span_pct, 4),
             "total_margin_usdt": round(total_margin, 6), "total_notional_usdt": round(total_notional, 6),
             "worst_loss_usdt": round(worst_loss, 6), "avg_entry_full": round(avg_full, 8),
-            "liquidation_estimate": round(liq_price, 8), "liquidation_gap_pct": round(liq_gap_pct, 4),
+            "worst_loss_breakdown": {"price_loss_usdt": round(raw_loss, 6), "fees_usdt": round(fees, 6),
+                                     "slippage_allowance_usdt": round(slippage, 6), "funding_allowance_usdt": round(funding, 6)},
+            "liquidation_estimate": round(liq_price, 8), "liquidation_is_estimate": True, "liquidation_gap_pct": round(liq_gap_pct, 4),
             "safety_orders": count, "step_pct": float(step_pct), "volume_multiplier": float(volume_multiplier),
             "take_profit_pct": float(take_profit_pct), "stop_gap_pct": float(stop_gap_pct)}

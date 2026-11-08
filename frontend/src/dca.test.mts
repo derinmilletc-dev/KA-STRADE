@@ -1,7 +1,8 @@
 // Çalıştırma: node frontend/src/dca.test.mts   (Node 22.18+; ek paket gerekmez)
 // backend/tests/test_dca_plan.py ile aynı örnek: iki hesap aynı sayıları vermeli.
 import assert from 'node:assert'
-import {DCA_PRESETS, computeDca, fitToCap, maxBaseMargin, minBaseMargin, planFit} from './dcaMath.ts'
+import {readFileSync} from 'node:fs'
+import {DCA_LIMITS, DCA_PRESETS, computeDca, fitToCap, maxBaseMargin, minBaseMargin, planFit} from './dcaMath.ts'
 
 const F = {tickSize: 0.01, stepSize: 0.001, minNotional: 5}
 const base: any = {side: 'LONG', price: 100, baseMargin: 10, safetyOrders: 3, stepPct: 1.5, volumeMultiplier: 1.5, takeProfitPct: 1, stopGapPct: 1.5, leverage: 3, filters: F}
@@ -17,7 +18,8 @@ assert.strictEqual(r.stopPrice, 94.06)
 near(r.totalNotional, 236.446, 1e-4)
 near(r.totalMargin, 236.446 / 3, 1e-4)
 const raw = 0.3 * 5.94 + 0.45 * 4.44 + 0.675 * 2.94 + 1.012 * 1.44
-near(r.worstLoss, raw + 236.446 * 0.0005 + 2.437 * 94.06 * 0.0005, 1e-4)
+const slip = 0.3 * 100 * 0.0003 + 2.437 * 94.06 * 0.0003            // taban piyasa girişi + piyasa stop (limit girişlerde kayma 0)
+near(r.worstLoss, raw + 236.446 * 0.0005 + 2.437 * 94.06 * 0.0005 + slip + 236.446 * 0.0003, 1e-4)
 assert.ok(r.stages.every((s, i, a) => i === 0 || a[i - 1].tpPrice > s.tpPrice), 'ortalama düştükçe hedef düşer')
 assert.ok(r.liquidation < r.stopPrice && r.liquidationGapPct > 1)
 
@@ -85,3 +87,34 @@ for (const preset of DCA_PRESETS) {
   assert.ok(big && big.total <= 100 && big.margin >= 10, JSON.stringify(big))
 }
 console.log('dca.test.mts: tamam')
+
+// ---- backend ile eşlik (parity): backend/tests/fixtures/dca_parity.json backend planından üretilir (python tests/make_dca_parity_fixture.py) ----
+{
+  const fx = JSON.parse(readFileSync(new URL('../../backend/tests/fixtures/dca_parity.json', import.meta.url), 'utf8'))
+  const c = fx.costs
+  assert.strictEqual(DCA_LIMITS.takerFee, c.taker_fee)
+  assert.strictEqual(DCA_LIMITS.slippageMarketPct, c.slippage_market_pct)
+  assert.strictEqual(DCA_LIMITS.slippageLimitEntryPct, c.slippage_limit_entry_pct)
+  assert.strictEqual(DCA_LIMITS.slippageTpExitPct, c.slippage_tp_exit_pct)
+  assert.strictEqual(DCA_LIMITS.fundingAllowancePct, c.funding_allowance_pct)
+  assert.strictEqual(DCA_LIMITS.minNetProfitUsdt, c.min_net_profit_usdt)
+  assert.strictEqual(DCA_LIMITS.minNetProfitPct, c.min_net_profit_pct)
+  assert.strictEqual(DCA_LIMITS.maintenanceRate, c.maintenance_rate_estimate)
+  assert.strictEqual(DCA_LIMITS.liqBufferPct, c.liq_buffer_pct)
+  for (const k of fx.cases) {
+    const a = k.args
+    const res = computeDca({side: a.direction, price: a.price, baseMargin: a.base_margin_usdt, safetyOrders: a.safety_orders, stepPct: a.step_pct,
+      volumeMultiplier: a.volume_multiplier, takeProfitPct: a.take_profit_pct, stopGapPct: a.stop_gap_pct, leverage: a.leverage,
+      filters: {tickSize: fx.rules.tick, stepSize: fx.rules.step, minNotional: fx.rules.min_notional}})
+    const tpRejected = res.errors.some(e => e.includes('net kâr bırakmıyor') || e.includes('işlem ücretini'))
+    if (k.ok) {
+      assert.ok(!tpRejected, `backend kabul etti, frontend TP reddetti: ${JSON.stringify(a)}`)
+      assert.deepStrictEqual(res.stages.map(s => s.tpPrice), k.tp_prices)
+      res.stages.forEach((s, i) => { near(s.tpNetProfitAfterCosts, k.tp_net_after_costs[i], 1e-6); near(s.tpNetProfit, k.tp_net_fee_only[i], 1e-6) })
+      near(res.worstLoss, k.worst_loss, 1e-5)
+    } else if (k.tp_rejected) {
+      assert.ok(tpRejected, `backend TP reddetti, frontend kabul etti: ${JSON.stringify(a)}`)
+    }
+  }
+  console.log(`parity: ${fx.cases.length} durum backend ile aynı`)
+}

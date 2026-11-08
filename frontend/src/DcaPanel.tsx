@@ -419,7 +419,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         {ready && <div className="dwPlans" role="radiogroup" aria-label="Plan">{presetPlans.map(plan => {
           const r = plan.result
           const disabled = plan.state === 'no'
-          const tp = r.stages.length ? r.stages[r.stages.length - 1].tpNetProfit : 0
+          const tp = r.stages.length ? r.stages[r.stages.length - 1].tpNetProfitAfterCosts : 0
           return <button key={plan.preset.id} type="button" role="radio" aria-checked={presetId === plan.preset.id} data-on={presetId === plan.preset.id || undefined} data-state={plan.state} disabled={disabled} onClick={() => choosePlan(plan)}>
             <span className="dwPlanHead"><b>{plan.preset.name}</b>{plan.preset.id === 'balanced' && <em>Önerilen</em>}</span>
             <small>{plan.preset.hint}</small>
@@ -485,9 +485,10 @@ export default function DcaPanel(props: DcaPanelProps) {
                 ? <><b>Şimdi:</b> {fmtPrice(stage.entry)} fiyattan {fmtUsd(stage.notional)} değerinde ilk işlemi açar.</>
                 : <><b>Fiyat {fmtPrice(stage.entry)}’e {falls}:</b> {fmtUsd(stage.notional)} ek işlem açar, ortalama giriş {fmtPrice(stage.avgEntry)} olur.</>}</span>
             </li>)}
-            <li className="win"><i>✓</i><span><b>Kâr:</b> fiyat ortalama girişin %{form.tp} ötesine gelince hepsini kapatır. Tüm kademeler dolmuşsa net kâr ≈ <b className="up">{fmtUsd(lastStage?.tpNetProfit ?? 0, true)}</b>.</span></li>
-            <li className="loss"><i>!</i><span><b>Koruma:</b> fiyat {fmtPrice(result.stopPrice)}’e ulaşırsa stop çalışır ve çıkar. En kötü kayıp ≈ <b className="down">{fmtUsd(-result.worstLoss)}</b>.</span></li>
+            <li className="win"><i>✓</i><span><b>Kâr:</b> fiyat ortalama girişin %{form.tp} ötesine gelince hepsini kapatır. Tüm kademeler dolmuşsa net kâr ≈ <b className="up">{fmtUsd(lastStage?.tpNetProfitAfterCosts ?? 0, true)}</b> (ücret, kayma ve funding payı düşülmüş tahmin).</span></li>
+            <li className="loss"><i>!</i><span><b>Koruma:</b> fiyat {fmtPrice(result.stopPrice)}’e ulaşırsa stop çalışır ve çıkar. En kötü kayıp ≈ <b className="down">{fmtUsd(-result.worstLoss)}</b> (ücret, kayma ve funding payı dahil).</span></li>
           </ol>
+          <p className="dwHint" data-testid="dca-approx-note">Bu rakamlar yaklaşık önizlemedir; geçerli plan kararını ve gerçek hesabı sunucu verir. Sunucu planı reddederse başlatılamaz.</p>
           <div className="dwRisk"><span><small>Toplam yatırım (marj)</small><b>{fmtUsd(result.totalMargin)}</b></span><span><small>Kaldıraç</small><b>{form.leverage}x</b></span><span><small>Canlı limit</small><b>{cap} USDT</b></span></div>
         </> : <p className="dwWarn">Plan geçerli değil. Geri dönüp başka bir plan ya da coin seç.</p>}
 

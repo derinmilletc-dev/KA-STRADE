@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, Callable, Mapping
 
 from .ports import (CANCELED, FILLED, LIMIT, NEW, PARTIAL, REJECTED, STOP_MARKET, UNKNOWN_ORDER, ExchangeRejected,
-                    ExchangeTimeout, ExchangeUnreachable, OrderInfo)
+                    ExchangeTimeout, ExchangeUnreachable, OrderInfo, PositionInfo)
 
 TESTNET_HOST = "testnet.binancefuture.com"
 TESTNET_BASE_URL = "https://testnet.binancefuture.com"
@@ -172,6 +172,14 @@ class BinanceTestnetAdapter:
     def position(self, symbol):
         rows = self._request("GET", "/fapi/v2/positionRisk", {"symbol": symbol})
         return round(sum(float(r["positionAmt"]) for r in rows if r.get("symbol") == symbol and r.get("positionSide", "BOTH") == "BOTH"), 8)
+
+    def position_info(self, symbol):
+        rows = [r for r in self._request("GET", "/fapi/v2/positionRisk", {"symbol": symbol})
+                if r.get("symbol") == symbol and r.get("positionSide", "BOTH") == "BOTH"]
+        live = [r for r in rows if float(r.get("positionAmt", 0) or 0) != 0]
+        amount = round(sum(float(r["positionAmt"]) for r in rows), 8)
+        row = live[0] if live else {}
+        return PositionInfo(amount, float(row.get("entryPrice", 0) or 0), float(row.get("liquidationPrice", 0) or 0), float(row.get("markPrice", 0) or 0))
 
     def mark_price(self, symbol: str) -> float:
         body = self._request("GET", "/fapi/v1/ticker/price", {"symbol": symbol}, signed=False)
