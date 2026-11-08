@@ -25,3 +25,19 @@ html[data-kt-guide-open] body #root#root > main.v26App > .v26MobileBottomNav.v26
 /* Canlı kurulum ekranlarında çalışan stratejinin adı */
 .lcStrat{display:block;margin:3px 0 0;font-style:normal;font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#3ddc97}
 .lcStratSheet{margin:2px 0 0}
+
+/* Strateji seçici (Kais Long | DCA) */
+.lcPicker{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:0 0 12px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.lcPicker button{display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:10px 12px;border:1px solid transparent;border-radius:12px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;min-height:44px;transition:background .18s,border-color .18s}
+.lcPicker button b{font-size:15px;font-weight:700}
+.lcPicker button small{font-size:11.5px;opacity:.62;line-height:1.25}
+.lcPicker button[data-on]{background:rgba(94,234,212,.13);border-color:rgba(94,234,212,.5)}
+.lcPicker button[data-on] b{color:#5eead4}
+.lcPicker button:focus-visible{outline:2px solid #5eead4;outline-offset:2px}
+.lcDcaChecks{margin:12px 0 0}
+.lcDcaHow{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:6px;font-size:13px;opacity:.82;line-height:1.4}
+.lcDcaHow li{padding-left:2px}
+#root .lcRoot .lcPicker{width:100%!important;max-width:none!important;box-sizing:border-box;justify-self:stretch!important;grid-column:1/-1}
+#root .lcRoot .lcPicker button{width:100%;min-width:0}
+@media (prefers-reduced-motion:reduce){.lcPicker button{transition:none}}
+#root .lcRoot .lcPicker button[data-on]{background:rgba(94,234,212,.16);border-color:rgba(94,234,212,.65);box-shadow:inset 0 0 0 1px rgba(94,234,212,.2)}
