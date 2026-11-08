@@ -516,6 +516,8 @@ export default function LiveCockpit(props: Props) {
   // Manuel işlem: yeni bir emir yolu açmaz. Mevcut "Manuel emir · gerçek para" formunu (tek örnek, aynı durum) yarı saydam bir panel olarak gösterir.
   // Dry-run kontrolü, ARM, kilitler ve son onay o formda aynen geçerlidir; kapatınca bölümler önceki hâline döner.
   const [manualModal, setManualModal] = useState(false)
+  // DCA rehberinden açılan panel kendi ekranıdır: başlık "DCA botu" olur, Tek işlem/Grid sekmeleri gizlenir.
+  const [manualKind, setManualKind] = useState<'dca' | null>(null)
   const manualPrev = useRef<{drawer: boolean; manual: boolean} | null>(null)
   const openManual = () => {
     const drawer = document.getElementById('lc-drawer') as HTMLDetailsElement | null
@@ -529,6 +531,7 @@ export default function LiveCockpit(props: Props) {
   }
   const closeManual = useCallback(() => {
     setManualModal(false)
+    setManualKind(null)
     const prev = manualPrev.current
     manualPrev.current = null
     if (!prev) return
@@ -727,7 +730,7 @@ export default function LiveCockpit(props: Props) {
   const [strategy, setStrategyState] = useState<LiveStrategy>(() => demo ? 'long' : readStrategy())
   const pickStrategy = (next: LiveStrategy) => { setStrategyState(next); writeStrategy(next) }
   const showDca = !demo && strategy === 'dca'
-  const openDca = () => { openManual(); requestManualMode('dca') }
+  const openDca = () => { setManualKind('dca'); openManual(); requestManualMode('dca', {lock: true}) }
   useEffect(() => {
     const prev = previousStep.current
     previousStep.current = {phase: guide.phase, step: guide.step}
@@ -1860,7 +1863,7 @@ export default function LiveCockpit(props: Props) {
     }
   }, [guideOpen])
 
-  return <section className="lcRoot originalLiveWorkspace" aria-label={dt('Canlı İşlem')} data-demo={demo || undefined} data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
+  return <section className="lcRoot originalLiveWorkspace" aria-label={dt('Canlı İşlem')} data-demo={demo || undefined} data-manual-kind={manualKind || undefined} data-phase={guide.phase} data-stale={stale || undefined} data-manual-modal={manualModal || undefined}>
     <SpotHint id="launch-start" active={readyToStart && !manualModal} targets={LAUNCH_TARGETS} title="Buradan başla." text="Bu buton risk, günlük sınır ve izinleri senin için adım adım hazırlar. Her adımı sen onaylarsın."/>
     {manualModal && <><div className="lcManualBackdrop" role="presentation" onClick={closeManual}/><button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={closeManual}><X aria-hidden="true"/></button></>}
     <header className="lcStatusBar" data-tone={barState.tone} data-ready={readyToStart || undefined}>

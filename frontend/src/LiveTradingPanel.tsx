@@ -300,7 +300,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     orderSentRef.current = false
     setOrder(initialOrder(symbol)); setManualStep(0); setOrderDone(null)
     setReviewedKey(''); setReviewResult(null); setLevelsFromAnalysis(false); setStopPick(null)
-    setFromStudio(''); setRiskLossInput(''); setAutoFill(false); setManualMode('single'); setGridAutoPct(null)
+    setFromStudio(''); setRiskLossInput(''); setAutoFill(false); setManualMode('single'); setModeLocked(false); setGridAutoPct(null)
     setNotice({kind: 'info', text: ''}); writeDraft(null)
   }
   const resetManualFormRef = useRef(resetManualForm)
@@ -318,7 +318,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   useEffect(() => {
     const onMode = (event: Event) => {
       const mode = (event as CustomEvent<{mode?: string}>).detail?.mode
-      if (mode === 'dca' || mode === 'grid' || mode === 'single') setManualMode(mode)
+      if (mode === 'dca' || mode === 'grid' || mode === 'single') { setManualMode(mode); setModeLocked((event as CustomEvent<{lock?: boolean}>).detail?.lock === true) }
     }
     window.addEventListener(MANUAL_MODE_EVENT, onMode)
     return () => window.removeEventListener(MANUAL_MODE_EVENT, onMode)
@@ -327,6 +327,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [volStopBusy, setVolStopBusy] = useState(false)
   const [volStopNote, setVolStopNote] = useState<{symbol: string; text: string; tone: 'ok' | 'warn'} | null>(null)
   const [manualMode, setManualMode] = useState<'single' | 'grid' | 'dca'>('single')
+  // Kais Rehber DCA seçiliyken panel doğrudan DCA ekranıdır: emir türü sekmeleri gizlenir.
+  const [modeLocked, setModeLocked] = useState(false)
   const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
   const [liveGrid, setLiveGrid] = useState<LiveGridStatus | null>(null)
@@ -2184,8 +2186,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
-        {wizard && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button><button type="button" aria-pressed={manualMode === 'dca'} className={manualMode === 'dca' ? 'on' : ''} onClick={() => setManualMode('dca')}>DCA <em>YENİ</em></button></div>}
-        {wizard ? (manualMode === 'dca' ? <DcaPanel symbol={order.symbol} price={Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN} side={order.direction === 'SHORT' ? 'SHORT' : 'LONG'} liveArmed={liveArmed} call={call} v25Base={V25} demoBase={`${API_BASE}/binance-demo`} askConfirm={config => { setConfirm(config); setConfirmText(''); setConfirmCode('') }} /> : manualMode === 'grid' ? gridBody : wizardBody) : <>
+        {wizard && !modeLocked && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button><button type="button" aria-pressed={manualMode === 'dca'} className={manualMode === 'dca' ? 'on' : ''} onClick={() => setManualMode('dca')}>DCA <em>YENİ</em></button></div>}
+        {wizard ? (manualMode === 'dca' ? <>{coinBlock}{dirBlock}<DcaPanel coins={rows} onPickSymbol={chooseCoin} symbol={order.symbol} price={Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN} side={order.direction === 'SHORT' ? 'SHORT' : 'LONG'} liveArmed={liveArmed} call={call} v25Base={V25} demoBase={`${API_BASE}/binance-demo`} askConfirm={config => { setConfirm(config); setConfirmText(''); setConfirmCode('') }} /></> : manualMode === 'grid' ? gridBody : wizardBody) : <>
           {coinBlock}
           {dirBlock}
           {amountBlock}

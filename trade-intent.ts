@@ -125,6 +125,6 @@ export const MANUAL_OPENED_EVENT = 'kt:manual-opened'
 /** Kais Rehber'deki strateji seçici: Manuel işlem panelini istenen emir türünde (DCA gibi) açtırır. Emir göndermez. */
 export const MANUAL_MODE_EVENT = 'kt:manual-mode'
 export type ManualMode = 'single' | 'grid' | 'dca'
-export function requestManualMode(mode: ManualMode, delayMs = 120) {
-  window.setTimeout(() => window.dispatchEvent(new CustomEvent(MANUAL_MODE_EVENT, {detail: {mode}})), delayMs)
+export function requestManualMode(mode: ManualMode, options: {delayMs?: number; lock?: boolean} = {}) {
+  window.setTimeout(() => window.dispatchEvent(new CustomEvent(MANUAL_MODE_EVENT, {detail: {mode, lock: options.lock === true}})), options.delayMs ?? 120)
 }
