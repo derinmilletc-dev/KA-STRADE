@@ -9,9 +9,10 @@ import {
 import {askKais} from '../../kais-ask'
 import {showToast} from '../../toast-center'
 import {DayLimitCard} from './ManualTerminalParts'
-import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, requestManualMode, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
+import {DcaGuideCard, StrategyPicker, readStrategy, writeStrategy, type LiveStrategy} from './StrategyPicker'
 import {MasterOnlyGate} from '../../premium-access'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import {closeEstimate} from './live-quote'
@@ -722,6 +723,11 @@ export default function LiveCockpit(props: Props) {
   // ---- Adım geçişi: biten adımı ve sıradakini söyler.
   const previousStep = useRef<{phase: string; step: number} | null>(null)
   const [advanced, setAdvanced] = useState(0)
+  // Strateji seçici (yalnız Canlı): Kais Long ya da DCA. Demo ikizinde seçici yok, her zaman Kais Long.
+  const [strategy, setStrategyState] = useState<LiveStrategy>(() => demo ? 'long' : readStrategy())
+  const pickStrategy = (next: LiveStrategy) => { setStrategyState(next); writeStrategy(next) }
+  const showDca = !demo && strategy === 'dca'
+  const openDca = () => { openManual(); requestManualMode('dca') }
   useEffect(() => {
     const prev = previousStep.current
     previousStep.current = {phase: guide.phase, step: guide.step}
@@ -1917,7 +1923,9 @@ export default function LiveCockpit(props: Props) {
 
     <div className="lcGrid" data-coach={coach || undefined} data-noscan={!(running || scanner?.last_scan_at) || undefined}>
       <div className="lcMain">
-        <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
+        {!demo && <StrategyPicker value={strategy} onChange={pickStrategy}/>}
+        {showDca && <DcaGuideCard input={guideInput} stale={stale} onOpen={openDca} onAsk={() => askKais('DCA botunu nasıl kurmalıyım? Önce Demo’da denemek için adımları kısaca anlat.')} onConnect={() => goTab('baglanti')}/>}
+        {!showDca && <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small><em className="lcStrat" data-testid="strategy-name">Çalışan strateji: Kais Long</em></div>
@@ -1993,7 +2001,7 @@ export default function LiveCockpit(props: Props) {
           </div>
           {whyOpen && guide.why && <p className="lcWhy">{guide.why}</p>}
           {retryIn !== null && <p className="lcRetry" role="status"><RefreshCw aria-hidden="true" className="lcSpin"/>{retryIn > 0 ? `${retryIn} sn sonra kendiliğinden tekrar denenecek` : 'Tekrar deneniyor…'}{retry.attempt > 0 ? ` · ${retry.attempt + 1}. deneme` : ''}</p>}
-        </section>
+        </section>}
 
         {dayCardShown && <DayLimitCard used={dailyLoss ?? 0} limit={dailyLimit ?? 0} locked={guideInput.dailyLocked} suggested={daySuggested}
           onSuggest={props.onManualRiskEdit && daySuggested ? () => props.onManualRiskEdit?.({daily_loss_limit: daySuggested}) : undefined}

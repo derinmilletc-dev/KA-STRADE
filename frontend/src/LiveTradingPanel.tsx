@@ -29,7 +29,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
-import {MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
+import {MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -313,6 +313,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     window.addEventListener(MANUAL_OPENED_EVENT, onOpened)
     window.addEventListener(MANUAL_CLOSED_EVENT, onClosed)
     return () => { window.removeEventListener(MANUAL_OPENED_EVENT, onOpened); window.removeEventListener(MANUAL_CLOSED_EVENT, onClosed) }
+  }, [])
+  // Kais Rehber strateji seçicisi: paneli doğrudan DCA (ya da istenen emir türü) sekmesinde açar.
+  useEffect(() => {
+    const onMode = (event: Event) => {
+      const mode = (event as CustomEvent<{mode?: string}>).detail?.mode
+      if (mode === 'dca' || mode === 'grid' || mode === 'single') setManualMode(mode)
+    }
+    window.addEventListener(MANUAL_MODE_EVENT, onMode)
+    return () => window.removeEventListener(MANUAL_MODE_EVENT, onMode)
   }, [])
   // Manuel emir "Dalgaya göre" stop önerisi: yalnız form alanlarını doldurur, emir göndermez.
   const [volStopBusy, setVolStopBusy] = useState(false)

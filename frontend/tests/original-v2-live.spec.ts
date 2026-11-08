@@ -188,7 +188,7 @@ async function fixture(page: Page, {owner = true, available = true, armed = true
   })
   await page.goto('/master-trade?tab=canli', {waitUntil: 'domcontentloaded'})
   await expect(page.locator('.masterTradePage').first()).toBeVisible()
-  if (owner && available && !statusFingerprintMismatch && !statusUnavailable && !vaultStatusUnavailable) await expect(page.getByRole('region', {name: 'KAIS LONG LIVE'})).toBeVisible()
+  if (owner && available && !statusFingerprintMismatch && !statusUnavailable && !vaultStatusUnavailable) await expect(page.getByRole('region', {name: /KAIS LONG LIVE|Canlı İşlem|Live Trading/})).toBeVisible()
   return writes
 }
 
@@ -672,3 +672,24 @@ for (const options of [{owner: false}, {available: false}]) {
     expect(writes).toEqual([])
   })
 }
+
+test('strategy picker switches Kais Rehber between Kais Long and DCA and remembers the choice', async ({page}) => {
+  await fixture(page)
+  await page.addStyleTag({content: '.ktTour{display:none !important}'})
+  const picker = page.getByTestId('strategy-picker').first()
+  await expect(picker).toBeVisible()
+  await expect(page.getByTestId('live-guide')).toBeVisible()
+  await expect(page.getByTestId('strategy-name')).toContainText('Kais Long')
+  await page.getByTestId('strategy-dca').first().click()
+  await expect(page.getByTestId('dca-guide')).toBeVisible()
+  await expect(page.getByTestId('live-guide')).toHaveCount(0)
+  await expect(page.getByTestId('strategy-name')).toContainText('DCA')
+  await expect(page.getByTestId('dca-open')).toBeEnabled()
+  await page.getByTestId('dca-guide').scrollIntoViewIfNeeded()
+  await page.reload()
+  await page.addStyleTag({content: '.ktTour{display:none !important}'})
+  await expect(page.getByTestId('dca-guide')).toBeVisible()
+  await page.getByTestId('strategy-long').first().click()
+  await expect(page.getByTestId('live-guide')).toBeVisible()
+  await expect(page.getByTestId('dca-guide')).toHaveCount(0)
+})
