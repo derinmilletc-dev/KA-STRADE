@@ -84,7 +84,11 @@ class TestApi(unittest.TestCase):
         original = api.live_entry_blockers
         api.live_entry_blockers = lambda: []
         try:
-            self.assertEqual(run(api.farmer_start(req(rt)))["state"], o.INTERVENTION)
+            with self.assertRaises(HTTPException) as caught:
+                run(api.farmer_start(req(rt)))
+            self.assertEqual(caught.exception.status_code, 409)
+            self.assertEqual(caught.exception.detail["code"], "FARMER_NOT_STARTED")
+            self.assertEqual(rt.orchestrator.base, o.INTERVENTION)
         finally:
             api.live_entry_blockers = original
 

@@ -44,6 +44,11 @@ await test('onboarding: recommended shown, activation saves settings then starts
   const c = await calls(p); const i = c.findIndex(x => x.startsWith('POST /farmer/settings')), j = c.indexOf('POST /farmer/start')
   assert.ok(i >= 0 && j > i, JSON.stringify(c)); assert.strictEqual(c.some(x => x.includes('NaN')), false); await p.ctx.close()
 })
+await test('rejected start shows no false success (backend refusal is not "active")', async () => {
+  const p = await open('onboarding', {q: '&start=reject'})
+  await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(200)
+  const body = await p.innerText('body'); assert.ok(!/KAIS FARMER is active/.test(body), body); assert.match(body, /could not be started/); assert.ok(!/FARMER_NOT_STARTED/.test(body)); await p.ctx.close()
+})
 await test('custom values flip chip to Custom, preview comes from server, reset works', async () => {
   const p = await open('onboarding'); const input = p.getByRole('textbox', {name: 'Profit Target'})
   await input.fill('0.2'); await p.waitForTimeout(600)

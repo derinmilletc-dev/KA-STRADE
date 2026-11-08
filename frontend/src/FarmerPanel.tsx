@@ -129,7 +129,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
       await postRef.current('/farmer/settings', body)
       dirty.current = false
     }
-    await postRef.current('/farmer/start')
+    const started = await postRef.current('/farmer/start') as {state?: string} | null | undefined
+    if (!started || started.state !== 'RUNNING') throw new Error('FARMER_NOT_STARTED')   // HTTP 200 tek başına başarı sayılmaz
     setFlash({tone: 'ok', text: L('KAIS FARMER etkinleştirildi.', 'KAIS FARMER is active.')})
   })
   const stopBot = () => run('stop', async () => { await postRef.current('/farmer/stop-bot'); setFlash({tone: 'ok', text: L('Yeni girişler durduruldu. Açık pozisyonlar korunuyor.', 'New entries stopped. Existing positions stay protected.')}) })

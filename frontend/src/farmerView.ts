@@ -206,6 +206,9 @@ export function friendlyError(error: unknown, lang: Lang): string {
   const known: Array<[RegExp, Pair]> = [
     [/FARMER_UNAVAILABLE/, {tr: 'KAIS FARMER bu hesapta henüz kullanılabilir değil.', en: 'KAIS FARMER is not available for this account yet.'}],
     [/FARMER_GATES_CLOSED/, {tr: 'Canlı KAIS FARMER şu an açık değil.', en: 'Live KAIS FARMER is not turned on right now.'}],
+    [/FARMER_NOT_STARTED/, {tr: 'KAIS FARMER başlatılamadı. Durum ekranındaki uyarıyı kontrol et.', en: 'KAIS FARMER could not be started. Check the notice on the status screen.'}],
+    [/FARMER_NOT_CONFIGURED/, {tr: 'Önce KAIS FARMER ayarlarını kaydet.', en: 'Save your KAIS FARMER settings first.'}],
+    [/FARMER_NOT_YOUR_ACCOUNT/, {tr: 'Bu KAIS FARMER başka bir hesaba ait.', en: 'This KAIS FARMER belongs to a different account.'}],
     [/SETTINGS_LOCKED_WHILE_ACTIVE/, {tr: 'Ayarlar KAIS FARMER çalışırken değiştirilemez. Önce durdur ve pozisyonların kapanmasını bekle.', en: 'Settings cannot be changed while KAIS FARMER is active. Stop it first and wait for positions to close.'}],
     [/OUT_OF_RANGE|NOT_ALLOWED|INVALID_NUMBER|NOT_INTEGER|MARGIN_ABOVE_CAP/, {tr: 'Bu ayar izin verilen aralığın dışında.', en: 'This setting is outside the allowed range.'}],
   ]

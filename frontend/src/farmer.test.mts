@@ -89,4 +89,18 @@ const all = JSON.stringify(COPY).toLowerCase()
 for (const banned of ['apf', 'farmer v1', 'v1 ', 'c9', 'c10', 'orchestrator', 'engine']) assert.ok(!all.includes(banned), banned)
 for (const [key, pair] of Object.entries(COPY)) assert.ok((pair as any).tr && (pair as any).en, key)
 
+// --- C10.1: gerçek arka uç reddi yanlış başarı üretmez; yeni kodlar bilinen metne çevrilir ---
+assert.match(friendlyError(new Error('{"code":"FARMER_NOT_STARTED"}'), 'en'), /could not be started/)
+assert.match(friendlyError(new Error('{"code":"FARMER_NOT_CONFIGURED"}'), 'en'), /Save your KAIS FARMER settings/)
+assert.match(friendlyError(new Error('{"code":"FARMER_NOT_YOUR_ACCOUNT"}'), 'tr'), /başka bir hesaba/)
+assert.strictEqual(emergencyOutcome({complete: false, closed: 0, failed: 0, unowned: 1}), 'failure')   // HTTP 200 + complete:false başarı sayılmaz
+
+// --- C10.1: üretim kodu test düzeneğini içe aktarmaz ---
+import {readdirSync, readFileSync} from 'node:fs'
+for (const name of readdirSync(new URL('.', import.meta.url))) {
+  if (!/\.(ts|tsx)$/.test(name) || /\.test\./.test(name)) continue
+  const text = readFileSync(new URL(name, import.meta.url), 'utf8')
+  assert.ok(!/farmer-harness|lucide-shim/.test(text), name)
+}
+
 console.log('farmer.test.mts OK')

@@ -36,5 +36,6 @@ const calls: string[] = ((window as any).__calls = [])
 const get = async (path: string) => { calls.push('GET ' + path); if (sc === 'loading') return new Promise(() => {}); if (sc === 'down') throw new Error('x'); return sc }
 const post = async (path: string, body?: any) => { calls.push('POST ' + path + (body ? ' ' + JSON.stringify(body) : '')); if (path === '/farmer/preview') return {preview: prev({verdict: body?.target_usdt < 0.4 ? 'TIGHT' : 'GOOD', warnings: body?.target_usdt < 0.4 ? ['TARGET_TOO_SMALL'] : []})}
   if (path === '/farmer/emergency-close') { if (emergency === 'fail') return {complete: false, closed: 0, failed: 1}; if (emergency === 'partial') return {complete: false, closed: 1, failed: 1}; return {complete: true, closed: 2, failed: 0} }
+  if (path === '/farmer/start') { if (new URLSearchParams(location.search).get('start') === 'reject') throw new Error('{"code":"FARMER_NOT_STARTED"}'); return {ok: true, state: 'RUNNING'} }
   return {ok: true} }
 createRoot(document.getElementById('root')!).render(<FarmerPanel get={get} post={post} accountConnected={name !== 'account'} onAsk={q => calls.push('ASK ' + q)} onConnect={() => calls.push('CONNECT')} nowSeconds={() => Date.now() / 1000}/>)

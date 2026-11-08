@@ -571,7 +571,7 @@ class TestUiSnapshot(unittest.TestCase):
 
 class TestOffDoesNotChangeExistingSystem(unittest.TestCase):
     ALLOWED = {"original_v2_live.py"}                                # C4: yalnız talep birleştirme (talep yoksa aynı liste nesnesi)
-    FARMER_OWNED = {"farmer_view.py", "farmer_api.py"}               # C10: Farmer'a ait YENİ dosyalar (mevcut modül değil); main.py yalnız farmer_api'yi içe aktarır
+    FARMER_OWNED = {"farmer_view.py", "farmer_api.py", "farmer_runtime.py"}               # C10: Farmer'a ait YENİ dosyalar (mevcut modül değil); main.py yalnız farmer_api'yi içe aktarır
 
     def test_no_existing_module_imports_orchestrator(self):
         app = Path(__file__).parents[1] / "app"

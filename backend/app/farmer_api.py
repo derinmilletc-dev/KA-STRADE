@@ -30,10 +30,18 @@ def _runtime(request: Request) -> Any | None:
     return getattr(request.app.state, "live_farmer_runner", None)
 
 
-def _require_runtime(request: Request) -> Any:
+def _authorized(runtime: Any, owner: dict[str, Any]) -> bool:
+    """Hesap yalıtımı (C10.1): çalışma zamanı kendi hesabına bağlıdır; başka hesap onu göremez ve yönetemez. `authorize` yoksa (eski sözleşme) serbest."""
+    check = getattr(runtime, "authorize", None)
+    return True if check is None else bool(check(str(owner.get("id") or "")))
+
+
+def _require_runtime(request: Request, owner: dict[str, Any] | None = None) -> Any:
     runtime = _runtime(request)
     if runtime is None:
         raise HTTPException(409, {"code": "FARMER_UNAVAILABLE"})
+    if owner is not None and not _authorized(runtime, owner):
+        raise HTTPException(403, {"code": "FARMER_NOT_YOUR_ACCOUNT"})
     return runtime
 
 
@@ -53,8 +61,10 @@ def _daily_loss(runtime: Any) -> tuple[str, ...]:
 
 @router.get("/status")
 async def farmer_status(request: Request) -> dict[str, Any]:
-    _owner(request)
+    owner = _owner(request)
     runtime = _runtime(request)
+    if runtime is not None and not _authorized(runtime, owner):
+        runtime = None                                              # başka hesabın durumu sızmaz
     return farmer_view.build_status(runtime, arm=_arm(request), now=time.time(), daily_loss=_daily_loss(runtime) if runtime is not None else ())
 
 
@@ -70,8 +80,7 @@ async def farmer_preview(request: Request, body: dict[str, Any]) -> dict[str, An
 
 @router.post("/settings")
 async def farmer_settings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
-    _owner(request)
-    runtime = _require_runtime(request)
+    runtime = _require_runtime(request, _owner(request))
     orch = runtime.orchestrator
     if orch.base != OFF or orch.engines:
         raise HTTPException(409, {"code": "SETTINGS_LOCKED_WHILE_ACTIVE"})
@@ -88,28 +97,32 @@ async def farmer_settings(request: Request, body: dict[str, Any]) -> dict[str, A
 
 @router.post("/start")
 async def farmer_start(request: Request) -> dict[str, Any]:
-    _owner(request)
-    runtime = _require_runtime(request)
+    runtime = _require_runtime(request, _owner(request))
     blockers = live_entry_blockers()
     if blockers:
         raise HTTPException(423, {"code": "FARMER_GATES_CLOSED", "blockers": farmer_view.entry_blockers_public()})
+    if getattr(runtime, "configured", True) is not True:
+        raise HTTPException(409, {"code": "FARMER_NOT_CONFIGURED"})
+    prepare = getattr(runtime, "prepare_start", None)
+    if prepare is not None:                                         # kapalıyken açılışta borsa okunmaz; kurtarma kullanıcı başlatınca yapılır
+        await asyncio.to_thread(prepare)
     state = await asyncio.to_thread(runtime.orchestrator.start)
+    if state != "RUNNING":
+        raise HTTPException(409, {"code": "FARMER_NOT_STARTED", "state": state})
     return {"ok": True, "state": state}
 
 
 @router.post("/stop-bot")
 async def farmer_stop_bot(request: Request) -> dict[str, Any]:
     """Yalnız YENİ girişleri durdurur; açık pozisyonlar ve korumalar aynen kalır."""
-    _owner(request)
-    runtime = _require_runtime(request)
+    runtime = _require_runtime(request, _owner(request))
     return {"ok": True, "state": await asyncio.to_thread(runtime.orchestrator.stop_bot)}
 
 
 @router.post("/emergency-close")
 async def farmer_emergency_close(request: Request) -> dict[str, Any]:
     """Yalnız Farmer'a ait pozisyonları reduce-only kapatır; sonuç doğrulanmış/başarısız ayrımıyla döner."""
-    _owner(request)
-    runtime = _require_runtime(request)
+    runtime = _require_runtime(request, _owner(request))
     report = await asyncio.to_thread(runtime.orchestrator.emergency_close)
     failed, unowned = list(report.get("failed") or []), list(report.get("unowned") or [])
     return {"ok": True, "state": runtime.orchestrator.state, "closed": len(report.get("closed") or []), "failed": len(failed), "unowned": len(unowned),
@@ -119,6 +132,5 @@ async def farmer_emergency_close(request: Request) -> dict[str, Any]:
 @router.post("/acknowledge")
 async def farmer_acknowledge(request: Request) -> dict[str, Any]:
     """Müdahale sonrası temiz uzlaştırma → OFF (kendiliğinden RUNNING'e dönmez)."""
-    _owner(request)
-    runtime = _require_runtime(request)
+    runtime = _require_runtime(request, _owner(request))
     return {"ok": True, "state": await asyncio.to_thread(runtime.orchestrator.acknowledge_intervention)}

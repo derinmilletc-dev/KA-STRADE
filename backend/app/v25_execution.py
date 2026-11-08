@@ -8516,11 +8516,14 @@ def _finish_reservation(token: str | None, plan: dict[str, Any] | None, filled: 
 _EXCHANGE_GONE_STATUSES = frozenset({"CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"})
 
 
-async def reconcile_account_reservations(client: Any, state: dict[str, Any], owner: str, snapshot: dict[str, Any] | None = None) -> None:
+async def reconcile_account_reservations(client: Any, state: dict[str, Any], owner: str, snapshot: dict[str, Any] | None = None,
+                                         kinds: frozenset[str] | None = None) -> None:
     """Önceki rezervasyonları plan durumu ve (gerekirse) Binance ile mutabakat eder. Yalnız KESİN kanıtla serbest bırakır:
     erişim hatası, zaman aşımı, tanınmayan emir durumu ya da hesapta aynı coinde pozisyon/emir görünmesi satırı olduğu gibi bırakır
     ve `reserve` yeni girişi reddeder (fail-closed). Hiçbir hata girişi 'canlı yürütme kilidine' çevirmez."""
     plans = {str(p.get("entry_client_order_id")): p for p in state.get("plans", {}).values() if isinstance(p, dict) and p.get("entry_client_order_id")}
+    if kinds:
+        plans = {}    # EKLEMELİ: tür kapsamlı çağrı (KAIS FARMER) V25 planlarına dayalı kapanışa dokunmaz; yalnız verilen türün satırları çözülür
 
     def plan_status(client_id: str) -> str | None:
         plan = plans.get(client_id)
@@ -8530,6 +8533,8 @@ async def reconcile_account_reservations(client: Any, state: dict[str, Any], own
     busy_symbols = {normalize_symbol(str(x.get("symbol") or "")) for key in ("positions", "open_orders")
                     for x in (snapshot or {}).get(key, []) if isinstance(x, dict)}
     for row in account_reservations.sweep(owner, plan_status):
+        if kinds and row.get("kind") not in kinds:
+            continue      # başka türün (Grid/DCA/Original V2/Manuel) rezervasyonuna dokunulmaz
         outcome = "UNKNOWN"
         try:
             order = await find_order(client, row["symbol"], row["client_order_id"])
