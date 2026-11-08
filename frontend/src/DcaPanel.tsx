@@ -562,7 +562,7 @@ function BotCard({bot, busy, onAct}: {bot: any; busy: boolean; onAct: (kind: 'st
       <div className="dcaBotActions">
         {bot.status === 'PAUSED' && <button type="button" disabled={busy} onClick={() => onAct('resume', bot.grid_id)}>Devam ettir</button>}
         {bot.status !== 'PAUSED' && !bot.needs_user && <button type="button" onClick={() => onAct('stop', bot.grid_id)}>Durdur</button>}
-        <button type="button" className="danger" onClick={() => onAct('emergency', bot.grid_id)}>{bot.status === 'PAUSED' && !hasPos ? 'Botu sonlandır' : 'Acil durdur'}</button>
+        <button type="button" className="danger" onClick={() => onAct('emergency', bot.grid_id)}>{bot.status === 'PAUSED' && !hasPos ? 'Botu sonlandır' : bot.needs_user ? 'Kapat ve borsayla eşitle' : 'Acil durdur'}</button>
       </div>
     </article>
   )
