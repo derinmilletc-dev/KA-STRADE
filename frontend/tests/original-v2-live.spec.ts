@@ -732,3 +732,40 @@ test('DCA advice offers to fit the plan into the live margin limit on a coin wit
   await panel.locator('.dcaTable').scrollIntoViewIfNeeded()
   await page.screenshot({path: '/tmp/dca-ok3.png'})
 })
+
+test('DCA opened from the guide is its own screen: no order-type tabs, own title, coin picker and finder', async ({page}) => {
+  test.setTimeout(150000)
+  await page.setViewportSize({width: 390, height: 844})
+  await fixture(page)
+  await page.route('**/api/markets?all=true', route => route.fulfill({json: [
+    {symbol: 'BTCUSDT', display: 'BTC/USDT', price: 90000, change: 1, volume: 9e9},
+    {symbol: 'XRPUSDT', display: 'XRP/USDT', price: 2.5, change: 0.5, volume: 5e9},
+    {symbol: 'DOGEUSDT', display: 'DOGE/USDT', price: 0.2, change: -0.4, volume: 4e9},
+  ]}))
+  await page.route('**/api/v25/grid/filters**', route => {
+    const symbol = new URL(route.request().url()).searchParams.get('symbol')
+    return route.fulfill({json: symbol === 'BTCUSDT' ? {tickSize: 0.1, stepSize: 0.001, minNotional: 100} : {tickSize: 0.0001, stepSize: 0.1, minNotional: 5}})
+  })
+  await page.route('**/api/v25/dca/live/status', route => route.fulfill({json: {enabled: true, live_max_margin_usdt: 10, grids: []}}))
+  await page.addStyleTag({content: '.ktTour{display:none !important}'})
+  await page.getByTestId('strategy-dca').first().click()
+  await page.getByTestId('dca-open').click()
+  const panel = page.getByRole('region', {name: 'DCA botu'})
+  await expect(panel).toBeVisible()
+  await expect(page.getByRole('group', {name: 'Emir türü'})).toHaveCount(0)
+  await expect(page.locator('.liveWsCoin').first()).toBeVisible()
+  await expect(page.locator('.originalManualOrder > summary .advHeadText b').first()).toBeVisible()
+  const title = await page.locator('.originalManualOrder > summary .advHeadText b').first().evaluate(el => getComputedStyle(el, '::after').content)
+  expect(title).toContain('DCA botu')
+  const finder = panel.getByTestId('dca-finder')
+  await expect(finder).toBeVisible()
+  await expect(panel.getByTestId('dca-advice')).toContainText('çalışmaz')
+  await finder.getByRole('button', {name: 'Tara'}).click()
+  const pick = finder.getByRole('listitem').first()
+  await expect(pick).toBeVisible()
+  await expect(finder).not.toContainText('BTC/USDT')
+  await finder.scrollIntoViewIfNeeded()
+  await page.screenshot({path: '/tmp/dca-own2.png'})
+  await pick.getByRole('button').click()
+  await expect(panel.getByTestId('dca-advice')).not.toContainText('çalışmaz')
+})
