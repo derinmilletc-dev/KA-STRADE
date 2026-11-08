@@ -293,4 +293,5 @@ class TestStartupWiring(unittest.TestCase):
             from app.live_registry import LiveRegistry
             registry = LiveRegistry.__new__(LiveRegistry)
             asyncio.run(run(self.make_app(GridStore(":memory:"), state=member_state, registry=registry)))
-        self.assertEqual(captured, [(None, True, False), ("u5", False, False)])
+        # Her kapsam için Grid ve DCA çalıştırıcıları ayrı ayrı kurtarılır (Faz 3): kapsam başına iki çağrı.
+        self.assertEqual(captured, [(None, True, False)] * 2 + [("u5", False, False)] * 2)

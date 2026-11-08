@@ -6,6 +6,7 @@ import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
+import DcaPanel from './DcaPanel'
 import { liveChangePercent, midPrice } from './live-quote'
 import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
 import { CheckList, DirectionCards, DayLimitCard, ElapsedSeconds, PriceMapView, SlideToConfirm, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
@@ -316,7 +317,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Manuel emir "Dalgaya göre" stop önerisi: yalnız form alanlarını doldurur, emir göndermez.
   const [volStopBusy, setVolStopBusy] = useState(false)
   const [volStopNote, setVolStopNote] = useState<{symbol: string; text: string; tone: 'ok' | 'warn'} | null>(null)
-  const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
+  const [manualMode, setManualMode] = useState<'single' | 'grid' | 'dca'>('single')
   const [gridFilters, setGridFilters] = useState<{state: FiltersState; data: GridFilters | null; error: string}>({state: 'idle', data: null, error: ''})
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
   const [liveGrid, setLiveGrid] = useState<LiveGridStatus | null>(null)
@@ -2174,8 +2175,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
-        {wizard && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button></div>}
-        {wizard ? (manualMode === 'grid' ? gridBody : wizardBody) : <>
+        {wizard && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button><button type="button" aria-pressed={manualMode === 'dca'} className={manualMode === 'dca' ? 'on' : ''} onClick={() => setManualMode('dca')}>DCA <em>YENİ</em></button></div>}
+        {wizard ? (manualMode === 'dca' ? <DcaPanel symbol={order.symbol} price={Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN} side={order.direction === 'SHORT' ? 'SHORT' : 'LONG'} liveArmed={liveArmed} call={call} v25Base={V25} demoBase={`${API_BASE}/binance-demo`} askConfirm={config => { setConfirm(config); setConfirmText(''); setConfirmCode('') }} /> : manualMode === 'grid' ? gridBody : wizardBody) : <>
           {coinBlock}
           {dirBlock}
           {amountBlock}

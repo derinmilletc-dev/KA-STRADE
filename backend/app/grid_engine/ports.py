@@ -50,6 +50,7 @@ class OrderInfo:
     filled: float
     status: str
     reduce_only: bool
+    avg_price: float = 0.0     # ortalama dolum fiyatı (borsa bildirirse); 0 = bilinmiyor
 
 
 class ExchangePort(Protocol):
