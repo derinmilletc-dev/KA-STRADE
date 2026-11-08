@@ -341,3 +341,15 @@
 .dwCoinSide{flex:none;max-width:52%}
 .dwFitSub{font-size:11px;color:#7f93a9}
 .dwFit{font-size:13.5px}
+.dwSteps{grid-template-columns:repeat(4,1fr)}
+.dwSteps li button{gap:6px;padding:0 6px;font-size:13px}
+.dwPerm{display:grid;gap:8px;padding:14px 16px;border-radius:18px;font-size:13.5px;line-height:1.5;background:rgba(245,192,74,.1);color:#f3d9a0}
+.dwPerm b{font-size:15px;color:#ffd17a}
+.dwPerm[data-tone="bad"]{background:rgba(255,107,107,.1);color:#ffb7b7}.dwPerm[data-tone="bad"] b{color:#ff9b9b}
+.dwPerm em{font-style:normal;color:#ff9b9b;font-size:12.5px}
+#root .dca .dwPerm button{justify-self:start;min-height:46px;padding:0 20px;border:0;border-radius:14px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;background:linear-gradient(135deg,var(--g),var(--g2));color:#06281a}
+#root .dca .dwPerm button:disabled{opacity:.6}
+.dwDone{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:20px;background:linear-gradient(160deg,rgba(61,220,151,.18),var(--card));font-size:13.5px;line-height:1.5;color:#bfeedd}
+.dwDone i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;background:var(--g);color:#06281a}
+.dwDone b{display:block;font-size:17px;color:#fff;margin-bottom:2px}
+.dwBar2{position:static;box-shadow:none;background:transparent;padding:0}

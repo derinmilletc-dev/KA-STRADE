@@ -1927,7 +1927,7 @@ export default function LiveCockpit(props: Props) {
     <div className="lcGrid" data-coach={coach || undefined} data-noscan={!(running || scanner?.last_scan_at) || undefined}>
       <div className="lcMain">
         {!demo && <StrategyPicker value={strategy} onChange={pickStrategy}/>}
-        {showDca && <DcaGuideCard input={guideInput} stale={stale} onOpen={openDca} onAsk={() => askKais('DCA botunu nasıl kurmalıyım? Önce Demo’da denemek için adımları kısaca anlat.')} onConnect={() => goTab('baglanti')} onManual={openManual}/>}
+        {showDca && <DcaGuideCard input={guideInput} stale={stale} onOpen={openDca} onAsk={() => askKais('DCA botunu nasıl kurmalıyım? Önce Demo’da denemek için adımları kısaca anlat.')} onConnect={() => goTab('baglanti')} onManual={openManual} onClearEmergency={() => act('clear-emergency')}/>}
         {!showDca && <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
