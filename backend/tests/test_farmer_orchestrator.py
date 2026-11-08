@@ -16,7 +16,7 @@ from app.farmer_engine.feed import FarmerFeed  # noqa: E402
 from app.farmer_engine.store import FarmerStore  # noqa: E402
 from app.grid_engine.engine import GridLevelSpec, GridSpec  # noqa: E402
 from app.grid_engine.fake_exchange import FakeExchange  # noqa: E402
-from app.grid_engine.ports import EPS, NEW, PARTIAL, ExchangeRejected  # noqa: E402
+from app.grid_engine.ports import EPS, NEW, PARTIAL, ExchangeRejected, ExchangeTimeout, ExchangeUnreachable  # noqa: E402
 from app.farmer_engine.feed import INTERVALS  # noqa: E402
 from tests.test_farmer_feed import NOW, STEP, Evaluator, FakeStream  # noqa: E402
 
@@ -30,21 +30,39 @@ class CountingExchange(FakeExchange):
         self.reads = {"position": 0, "open_orders": 0, "get_order": 0}
         self.reject_market_once = False
         self.placed = []
+        self.placed_ro = []
+        self.cancelled = []
+        self.fail_reads = False
+        self.drop_entry_before = False          # giriş emri borsaya ULAŞMADAN yanıt kaybı (zaman aşımı)
 
     def position(self, symbol):
         self.reads["position"] += 1
+        if self.fail_reads:
+            raise ExchangeUnreachable("down")
         return super().position(symbol)
 
     def open_orders(self, symbol):
         self.reads["open_orders"] += 1
+        if self.fail_reads:
+            raise ExchangeUnreachable("down")
         return super().open_orders(symbol)
 
     def get_order(self, symbol, client_id):
         self.reads["get_order"] += 1
+        if self.fail_reads:
+            raise ExchangeUnreachable("down")
         return super().get_order(symbol, client_id)
+
+    def cancel_order(self, symbol, client_id):
+        self.cancelled.append(client_id)
+        return super().cancel_order(symbol, client_id)
 
     def place_order(self, **kw):
         self.placed.append((kw["symbol"], kw["type"], kw["client_id"]))
+        self.placed_ro.append((kw["client_id"], kw["type"], bool(kw.get("reduce_only"))))
+        if self.drop_entry_before and kw["type"] == "MARKET" and not kw.get("reduce_only"):
+            self.drop_entry_before = False
+            raise ExchangeTimeout("lost")
         if self.reject_market_once and kw["type"] == "MARKET" and not kw.get("reduce_only"):
             self.reject_market_once = False
             raise ExchangeRejected(-1013, "temporary")

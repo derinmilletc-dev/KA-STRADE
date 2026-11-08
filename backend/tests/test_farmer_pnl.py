@@ -292,7 +292,7 @@ class TestIdempotency(unittest.TestCase):
         src = Source(gross=1.2, commission=0.2, funding=[(-0.05, 2000, "f1")])
         r, gid = closed_rig(src)
         res = r.store.result(gid)
-        v = p.FarmerPnlVerifier(r.store, src)
+        v = p.FarmerPnlVerifier(r.store, src, clock=r.clock)
         a, b = v.verify(res), v.verify(res)
         self.assertEqual(a, b)
         self.assertAlmostEqual(a.net, 0.95)
@@ -309,7 +309,7 @@ class TestIdempotency(unittest.TestCase):
         src = Source(funding=[(-0.05, 2000, "f1")])
         r, gid = closed_rig(src)
         net = r.store.result(gid)["verified_net_pnl"]
-        v = p.FarmerPnlVerifier(r.store, src)
+        v = p.FarmerPnlVerifier(r.store, src, clock=r.clock)
         for _ in range(3):
             self.assertAlmostEqual(v.verify(r.store.result(gid)).net, net)
 

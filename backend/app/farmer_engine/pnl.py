@@ -26,6 +26,10 @@ VERIFIED, UNVERIFIED = "VERIFIED", "UNVERIFIED"
 FUNDING, REALIZED, COMMISSION = "FUNDING_FEE", "REALIZED_PNL", "COMMISSION"
 INCOME_PAGE_LIMIT = 1000
 TOLERANCE = Decimal("0.00000001")          # Binance değerleri 8 ondalık; kaynaklar arası fark bundan büyükse çelişki
+# Funding finalliği (C9): borsa funding gelirini kapanıştan sonra geç yazabilir; "kayıt yok" kanıt DEĞİLDİR. Kapanıştan bu kadar süre geçmeden funding
+# okunmaz → UNVERIFIED (FUNDING_NOT_FINAL). 60 sn mevcut yeniden deneme aralıklarının (5,15,60,...) üçüncüsüdür; Binance'in gerçek gecikmesi için
+# DOĞRULANMIŞ bir değer DEĞİL (Testnet/canlı ölçümü gerekir) — bu yüzden ayarlanabilir ve rapora doğrulanmamış olarak yazılır.
+FUNDING_SETTLE_SECONDS = 60.0
 END_SKEW_MS = 5000                         # yalnız BİTİŞ tarafı: yerel saat ↔ borsa saati (kapanıştan sonra pozisyon düz → funding doğamaz)
 
 
@@ -99,8 +103,8 @@ def sum_income(rows: Sequence[Mapping[str, Any]], income_type: str, symbol: str,
 class FarmerPnlVerifier:
     """`orchestrator.PnlVerifier` uygulaması. Slot bırakmadan BAĞIMSIZDIR (orkestratör flat doğrulanınca slotu zaten bırakmıştır)."""
 
-    def __init__(self, store: FarmerStore, source: ExecutionSource, *, clock=time.time) -> None:
-        self.store, self.source, self.clock = store, source, clock
+    def __init__(self, store: FarmerStore, source: ExecutionSource, *, clock=time.time, funding_settle_s: float = FUNDING_SETTLE_SECONDS) -> None:
+        self.store, self.source, self.clock, self.funding_settle_s = store, source, clock, funding_settle_s
 
     def verify(self, result: Mapping[str, Any]) -> PnlOutcome:
         try:
@@ -139,6 +143,10 @@ class FarmerPnlVerifier:
             raise PnlUnavailable("GROSS_SOURCES_DISAGREE")
         if abs(paid - commission) > TOLERANCE:
             raise PnlUnavailable("COMMISSION_SOURCES_DISAGREE")
+
+        # funding finalliği: gross + commission hazır olsa bile funding henüz kesinleşmediyse funding=0 YAZILMAZ
+        if self.clock() < float(result["closed_at"]) + self.funding_settle_s:
+            raise PnlUnavailable("FUNDING_NOT_FINAL")
 
         # funding atfı: yalnız bu sembol + bu pozisyonun penceresi; pencere başka Farmer/strateji ile çakışıyorsa belirsiz
         for other in self.store.results(result["account_key"]):

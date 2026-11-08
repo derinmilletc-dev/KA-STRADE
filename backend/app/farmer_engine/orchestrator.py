@@ -15,12 +15,12 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from ..grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, RUNNING as ENGINE_RUNNING, STOPPED)
-from ..grid_engine.ports import EPS, ExchangeError, OrderInfo
+from ..grid_engine.ports import EPS, LONG, SHORT, ExchangeError, OrderInfo
 from ..grid_engine.store import TERMINAL
 from . import DISPLAY_NAME
 from .confirm import (ARM_BLOCKED, CONFIRMED, ENTRY_LOCKED, MARGIN_CAP, OCCUPIED, SAFETY_GATE, ConfirmParams, RiskView)
 from .feed import FarmerFeed
-from .ids import is_farmer_client_id
+from .ids import farmer_client_order_id, farmer_grid_prefix, is_farmer_client_id
 from .margin import MarginGuard
 from .store import FarmerStore
 
@@ -257,10 +257,13 @@ class Orchestrator:
         return self.base
 
     def acknowledge_intervention(self) -> str:
-        """Kullanıcı müdahalesi sonrası: engelleyen motor/emir kalmadıysa OFF'a döner (otomatik çalışmaz)."""
-        if self.base == INTERVENTION and not any(self._engine_blocking(e) for e in self.engines.values()):
-            self.base, self.reason = OFF, ""
-            self._persist()
+        """Kullanıcı müdahalesi sonrası: uzlaştırma TEMİZ çıkarsa OFF'a döner (RUNNING'e KENDİLİĞİNDEN dönmez; start() ayrıca gerekir)."""
+        if self.base == INTERVENTION:
+            self.shared.use(None)
+            self.snapshot = self._read_snapshot()
+            if not self._audit(self.snapshot):
+                self.base, self.reason, self.recovered = OFF, "", True
+                self._persist()
         return self.base
 
     @staticmethod
@@ -488,54 +491,151 @@ class Orchestrator:
         self._settle(gid, engine)
         return True
 
+    # ---------- denetim (kurtarma + müdahale onayı ortak) ----------
+    def _audit(self, snapshot: ExchangeSnapshot) -> list[str]:
+        """Belirsizlik listesi. Boş = ledger ↔ borsa tutarlı. Sahipsiz `kf-` emri OTOMATİK silinmez/benimsenmez."""
+        problems: list[str] = []
+        if not snapshot.ok:
+            return ["borsa görüntüsü okunamadı"]
+        prefixes = {e.prefix for e in self.engines.values()}
+        strays = sorted({o.client_id for o in snapshot.open_orders if is_farmer_client_id(o.client_id)
+                         and not any(o.client_id.startswith(p) for p in prefixes)})
+        if strays:
+            problems.append(f"sahipsiz Farmer emri (sahiplik kanıtlanamadı): {strays}")
+        try:
+            for gid in self.reservations.orphans():
+                if gid not in self.engines:
+                    problems.append(f"yetim SUBMITTED rezervasyon: {gid}")
+        except Exception as exc:                                    # noqa: BLE001 — rezervasyon okunamadı → fail-closed
+            problems.append(f"rezervasyon okunamadı: {exc.__class__.__name__}")
+        for engine in self.engines.values():
+            if self._engine_blocking(engine):
+                problems.append(f"{engine.sym}: motor {engine.status}")
+        return problems
+
     # ---------- acil kapanış (yalnız Farmer) ----------
     def emergency_close(self) -> dict[str, Any]:
+        """CLOSE REQUESTED ≠ FLAT VERIFIED. Yalnız ledger'da kimliği kanıtlı (`kf-<grid>` öneki) pozisyonlar/emirler. Tüm okumalar DOĞRUDAN
+        (paylaşımlı görüntü kapalı). Flat doğrulanamazsa ya da sahiplik belirsizse INTERVENTION_REQUIRED; çocuk sembole/emre dokunulmaz."""
         self.base = STOPPING
-        report: dict[str, Any] = {"closed": [], "failed": []}
+        self.shared.use(None)
+        report: dict[str, Any] = {"closed": [], "failed": [], "unowned": []}
         for gid, engine in list(self.engines.items()):
             engine.emergency_stop()
             flat, why = engine.verify_flat()
             if not flat:
                 report["failed"].append({"grid_id": gid, "symbol": engine.sym, "why": why})
                 continue
-            self._cleanup_owned(engine.sym)
+            if not self._cleanup_owned(engine):
+                report["failed"].append({"grid_id": gid, "symbol": engine.sym, "why": "koruma emri temizliği doğrulanamadı"})
+                continue
             hold = next((h for h in self.store.holds(self.account_key) if h["grid_id"] == gid), None)
             if hold is not None and hold["state"] != "HELD":
                 self.guard.closing_started(gid)
                 self.store.close_result(gid, "EMERGENCY")
-                self.guard.release_when_flat(gid, True)
+                self.guard.release_when_flat(gid, True)             # flat DOĞRULANDI → slot; PnL ayrı
                 self._verify_pnl(gid)
             elif hold is not None:
                 self.guard.entry_failed(gid, "EMERGENCY_NO_FILL")
                 self.reservations.release(gid)
             self.engines.pop(gid, None)
             report["closed"].append(gid)
-        if report["failed"]:
-            self._intervene("EMERGENCY_CLOSE_NOT_FLAT")
+        try:                                                        # sahiplik: ledger'da karşılığı olmayan `kf-` emri varsa DOKUNMA
+            known = {e.prefix for e in self.engines.values()} | {farmer_grid_prefix(g["grid_id"]) for g in self.store.holds(self.account_key, active_only=False)}
+            for symbol in {e.sym for e in self.engines.values()} | {self.guard_symbol(h) for h in report["closed"]}:
+                if symbol:
+                    for order in self.shared.real.open_orders(symbol):
+                        if is_farmer_client_id(order.client_id) and not any(order.client_id.startswith(p) for p in known):
+                            report["unowned"].append(order.client_id)
+        except ExchangeError:
+            report["unowned"].append("OPEN_ORDERS_UNREADABLE")
+        if report["failed"] or report["unowned"]:
+            self._intervene("EMERGENCY_CLOSE: " + ("flat/temizlik doğrulanamadı" if report["failed"] else "sahiplik belirsiz"))
         else:
             self.base = OFF
             self._persist()
         return report
 
-    def _cleanup_owned(self, symbol: str) -> None:
+    def guard_symbol(self, gid: str) -> str:
+        row = self.store.grid(gid)
+        return str(row["symbol"]) if row is not None else ""
+
+    def _cleanup_owned(self, engine: Any) -> bool:
+        """YALNIZ bu motorun (`kf-<grid>-`) kalan emirleri. Okunamazsa / iptal edilemezse False (flat olsa bile temizlik kanıtsız bırakılmaz)."""
         try:
-            for order in self.shared.real.open_orders(symbol):
-                if is_farmer_client_id(order.client_id):
-                    self.shared.cancel_order(symbol, order.client_id)
+            leftovers = [o for o in self.shared.real.open_orders(engine.sym) if o.client_id.startswith(engine.prefix)]
+            for order in leftovers:
+                self.shared.cancel_order(engine.sym, order.client_id)
+            return not [o for o in self.shared.real.open_orders(engine.sym) if o.client_id.startswith(engine.prefix)]
         except ExchangeError as exc:
-            self._event(f"{symbol}: Farmer emri temizliği tamamlanamadı ({exc.__class__.__name__})")
+            self._event(f"{engine.sym}: Farmer emri temizliği tamamlanamadı ({exc.__class__.__name__})")
+            return False
 
     # ---------- kurtarma ----------
+    def _entry_client_ids(self, gid: str) -> list[str]:
+        return [farmer_client_order_id(gid, side, 1, "E", 0) for side in (LONG, SHORT)]
+
+    def _resolve_pending_entry(self, gid: str, engine: Any, report: dict[str, Any]) -> bool:
+        """Giriş emri borsada DOLMAMIŞ/gönderilmemiş olabilir (çökme anı). Yeniden başlatmada ESKİ giriş ASLA yeniden gönderilmez.
+        Kimlikle sorulur: varsa benimsenir; yoksa YALNIZ borsada pozisyon yok + bu grid'e ait emir yok ise 'hiç gitmedi' kanıtlanmış sayılır.
+        Okunamaz / belirsizse False → INTERVENTION. True → çözüldü (motor devam edebilir ya da kaldırıldı)."""
+        entries = [r for r in self.store.orders(gid, "E")]
+        if not entries or all(r["status"] not in ("PENDING_SEND", "UNKNOWN") for r in entries):
+            return True
+        try:
+            for row in entries:
+                if row["status"] in ("PENDING_SEND", "UNKNOWN"):
+                    info = engine.ex.get_order(engine.sym, row["client_id"])
+                    if info is not None:
+                        engine._apply(row["client_id"], info)       # borsada VAR: benimse (yeniden gönderme yok)
+            if any(r["status"] in ("PENDING_SEND", "UNKNOWN") for r in self.store.orders(gid, "E")):
+                baseline = float(self.store.grid(gid)["baseline"])
+                if abs(engine.ex.position(engine.sym) - baseline) > 1e-6 or [o for o in engine.ex.open_orders(engine.sym) if o.client_id.startswith(engine.prefix)]:
+                    return False                                    # emir bulunamadı ama pozisyon/emir var: belirsiz
+                for row in self.store.orders(gid, "E"):
+                    if row["status"] in ("PENDING_SEND", "UNKNOWN"):
+                        self.store.set_order(row["client_id"], status="CANCELED")
+                engine._set(STOPPED, "KAIS FARMER: giriş emri borsada bulunamadı (yeniden başlatma); gönderilmedi")
+        except ExchangeError:
+            return False
+        return True
+
+    def _finalize_external_flat(self, gid: str, engine: Any) -> bool:
+        """Ledger'da pozisyon var ama borsa DÜZ (ve motor tutarsızlık yüzünden durdu): düz borsadan doğrulanır, kalan Farmer emirleri
+        (ledger'da kimliği kanıtlı) temizlenir, motor kapatılır; slot flat'ten sonra bırakılır, PnL C8 hattında (kimlikle kanıtlanamazsa UNVERIFIED)."""
+        try:
+            baseline = float(self.store.grid(gid)["baseline"])
+            if abs(engine.ex.position(engine.sym) - baseline) > 1e-6:
+                return False
+            engine._cancel_all(roles=("E", "T", "S"))
+            flat, _why = engine.verify_flat()
+            if not flat:
+                return False
+        except ExchangeError:
+            return False
+        engine._set(STOPPED, "KAIS FARMER: pozisyon borsada düz doğrulandı (kapanış defterde yok); kapanış nedeni kanıtlanamadı")
+        return True
+
     def recover(self) -> dict[str, Any]:
-        """Yeniden başlatma: aktif rezervasyonları defter+borsadan yeniden kur. Defteri olmayan HELD → emir hiç gitmedi (serbest bırak).
-        Çözülemeyen SUBMITTED rezervasyon veya sahipsiz `kf-` emri → INTERVENTION_REQUIRED (fail-closed)."""
+        """Yeniden başlatma. Sıra: rezervasyon mutabakatı → ledger → borsa → uzlaştırma. Hiçbir giriş yeniden gönderilmez.
+        Belirsiz her durum INTERVENTION_REQUIRED (otomatik RUNNING'e dönülmez; kayıtlı INTERVENTION korunur)."""
         report: dict[str, Any] = {"rebuilt": [], "released": [], "problems": []}
+        reconcile = getattr(self.reservations, "reconcile", None)
+        if callable(reconcile):
+            try:
+                reconcile()
+            except Exception as exc:                                  # noqa: BLE001 — mutabakat yapılamadı → fail-closed
+                report["problems"].append(f"rezervasyon mutabakatı yapılamadı: {exc.__class__.__name__}")
         self.snapshot = self._read_snapshot()
-        self.shared.use(self.snapshot)
+        self.shared.use(None)                                       # motor/uzlaştırma okumaları DOĞRUDAN (bayat görüntü yok)
+        saved = self.store.bot(self.account_key)
         for hold in self.store.holds(self.account_key):
             gid = hold["grid_id"]
             row = self.store.grid(gid)
             if row is None:
+                if self._entry_exists_on_exchange(gid, self.snapshot):
+                    report["problems"].append(f"ledger'sız giriş emri borsada: {gid}")
+                    continue
                 self.store.set_attempt_outcome(gid, "NO_ORDER_SENT")
                 self.store.release_hold(gid)
                 self.reservations.release(gid)
@@ -543,33 +643,38 @@ class Orchestrator:
                 continue
             engine = self.factory.rebuild(row, self.shared)
             self.engines[gid] = engine
-            ok, why = engine.recover()
+            if not self._resolve_pending_entry(gid, engine, report):
+                report["problems"].append(f"{engine.sym}: giriş emri durumu kanıtlanamadı")
+                report["rebuilt"].append({"grid_id": gid, "symbol": engine.sym, "ok": False, "why": "entry unresolved"})
+                continue
+            ok, why = (True, "giriş gönderilmedi") if engine.status in (STOPPED, COMPLETED, EMERGENCY_CLOSED) and abs(engine.grid_net()) <= EPS else engine.recover()
+            if not ok and engine.status in (BLOCKED, INTERVENTION_REQUIRED) and abs(engine.grid_net()) > EPS and self._finalize_external_flat(gid, engine):
+                ok, why = True, "borsa düz; defter kapatıldı"
             report["rebuilt"].append({"grid_id": gid, "symbol": engine.sym, "ok": ok, "why": why})
-            if abs(engine.grid_net()) > EPS:
-                self.reservations.consume(gid)                       # dolum kanıtlı: ESKİ süreçten kalan SUBMITTED satırı kapat (idempotent)
-            if not ok and engine.status in (BLOCKED, INTERVENTION_REQUIRED):
+            if not ok:
                 report["problems"].append(f"{engine.sym}: {why}")
+            elif abs(engine.grid_net()) > EPS and engine.status not in _ENDED:
+                self.reservations.consume(gid)                       # dolum kanıtlı: ESKİ süreçten kalan SUBMITTED satırı kapat (idempotent)
             self._settle(gid, engine)
-        known = {e.prefix for e in self.engines.values()}
-        if self.snapshot.ok:
-            strays = sorted({o.client_id for o in self.snapshot.open_orders
-                             if is_farmer_client_id(o.client_id) and not any(o.client_id.startswith(p) for p in known)})
-            if strays:
-                report["problems"].append(f"sahipsiz Farmer emri: {strays}")
-        else:
-            report["problems"].append("borsa görüntüsü okunamadı")
-        for gid in self.reservations.orphans():
-            if gid not in self.engines:
-                report["problems"].append(f"yetim SUBMITTED rezervasyon: {gid}")
+        if report["rebuilt"]:
+            self.snapshot = self._read_snapshot()                    # kurtarma emir iptal etmiş olabilir: denetim GÜNCEL borsa durumuna karşı
+        report["problems"].extend(self._audit(self.snapshot))
         self.recovered = not report["problems"]
-        if report["problems"]:
+        if saved and saved["state"] == INTERVENTION:                 # önceki müdahale durumu kendiliğinden kalkmaz
+            self.base, self.reason = INTERVENTION, saved.get("pause_reason") or "RECOVERY: önceki müdahale durumu"
+        elif report["problems"]:
             self._intervene("RECOVERY: " + "; ".join(report["problems"]))
-        saved = self.store.bot(self.account_key)
-        if self.recovered and saved and saved["state"] in (RUNNING, ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY) and self.base == OFF:
+        elif saved and saved["state"] in (RUNNING, ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY) and self.base == OFF:
             self.base = RUNNING
-        elif self.recovered and saved and saved["state"] == STOPPING and self.engines:
+        elif saved and saved["state"] == STOPPING and self.engines:
             self.base = STOPPING
         return report
+
+    def _entry_exists_on_exchange(self, gid: str, snapshot: ExchangeSnapshot) -> bool:
+        prefix = farmer_grid_prefix(gid)
+        if not snapshot.ok or any(o.client_id.startswith(prefix) for o in snapshot.open_orders):
+            return True                                             # okunamadı ya da emir var: 'yok' denemez
+        return False
 
     # ---------- arayüz görüntüsü ----------
     def ui_snapshot(self, now_ms: int | None = None) -> dict[str, Any]:

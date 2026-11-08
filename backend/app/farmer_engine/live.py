@@ -132,9 +132,15 @@ def daily_loss_blockers(state: Mapping[str, Any], daily_ledger: Any, *, now: flo
 
 # ------------------------------------------------------------------ rezervasyon (mevcut account_reservations)
 class LiveReservations:
-    def __init__(self, reservations: Any, owner_of: Callable[[], str]) -> None:
-        self.r, self.owner_of = reservations, owner_of
+    def __init__(self, reservations: Any, owner_of: Callable[[], str], reconcile: Callable[[], None] | None = None) -> None:
+        self.r, self.owner_of, self._reconcile = reservations, owner_of, reconcile
         self._tokens: dict[str, str] = {}
+
+    def reconcile(self) -> None:
+        """Mevcut `reconcile_account_reservations` (borsaya clientOrderId ile sorar; yalnız KESİN kanıtla bırakır). Verilmediyse atlanır;
+        çözülemeyen satır `orphans()`'ta kalır → orkestratör fail-closed."""
+        if self._reconcile is not None:
+            self._reconcile()
 
     def reserve(self, symbol: str, grid_id: str) -> bool:
         try:
