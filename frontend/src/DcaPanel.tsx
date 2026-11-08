@@ -192,6 +192,15 @@ export default function DcaPanel(props: DcaPanelProps) {
     return () => { cancelled = true }
   }, [symbol, picked, filtersPath])
 
+  const [lossEdit, setLossEdit] = useState<{open: boolean; value: string; ok: boolean; busy: boolean; error: string}>({open: false, value: '', ok: false, busy: false, error: ''})
+  const saveLoss = () => {
+    const value = Number(lossEdit.value.replace(',', '.'))
+    if (!(value >= 0.5 && value <= 25)) { setLossEdit(c => ({...c, error: 'Sınır 0,5 ile 25 USDT arasında olmalı.'})); return }
+    setLossEdit(c => ({...c, busy: true, error: ''}))
+    void call(v25Base, '/policy', {method: 'PUT', timeoutMs: 30000, body: JSON.stringify({max_loss_per_trade: value, understood: true})})
+      .then(() => loadStatus()).then(() => setLossEdit({open: false, value: '', ok: false, busy: false, error: ''}))
+      .catch(error => setLossEdit(c => ({...c, busy: false, error: error?.message || 'Kaydedilemedi.'})))
+  }
   const loadStatus = () => call<any>(base, '/status').then(data => { setStatus(data); setStatusError('') }).catch(error => { setStatus(null); setStatusError(error?.message || 'Durum okunamadı.') })
   useEffect(() => {
     let cancelled = false
@@ -420,6 +429,18 @@ export default function DcaPanel(props: DcaPanelProps) {
             </>}
           </button>
         })}</div>}
+        {rl?.max_loss_per_trade > 0 && <div className="dwLoss" data-testid="dca-loss-limit">
+          <div><small>Tek işlem zarar sınırın (canlı risk ayarı)</small><b>{rl.max_loss_per_trade} USDT</b></div>
+          <button type="button" onClick={() => setLossEdit(c => ({...c, open: !c.open, value: String(rl.max_loss_per_trade)}))}>{lossEdit.open ? 'Kapat' : 'Değiştir'}</button>
+          {lossEdit.open && <div className="dwLossEdit">
+            <p>Planlar bu sınıra göre otomatik küçültülür. Yükseltirsen daha büyük plan kurulur ama bir işlemde kaybedebileceğin tutar da artar.</p>
+            <input type="text" inputMode="decimal" value={lossEdit.value} onChange={event => setLossEdit(c => ({...c, value: event.target.value}))} aria-label="Tek işlem zarar sınırı (USDT)"/>
+            <label><input type="checkbox" checked={lossEdit.ok} onChange={event => setLossEdit(c => ({...c, ok: event.target.checked}))}/> Gerçek para kaybı riskini anladım.</label>
+            <p className="dwHint">Kaydedince otomasyon durur ve risk onayını yeniden vermen gerekebilir.</p>
+            {lossEdit.error && <p className="dwWarn" role="alert">{lossEdit.error}</p>}
+            <button type="button" disabled={!lossEdit.ok || lossEdit.busy} onClick={saveLoss}>{lossEdit.busy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+          </div>}
+        </div>}
         {note && <p className="dcaNote2" role="status">{note}</p>}
         {ready && result.errors.length > 0 && presetId === '' && <ul className="dcaErrors" role="alert">{result.errors.map(text => <li key={text}><i>!</i><span>{text}</span></li>)}</ul>}
 

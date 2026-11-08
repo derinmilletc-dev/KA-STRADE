@@ -373,3 +373,15 @@
 #root .dca .dwSide button{border:2px solid rgba(255,255,255,.07)!important;transition:border-color .15s,background .15s}
 #root .dca .dwSide button[data-side="long"][aria-checked="true"]{border-color:#3ddc97!important;background:linear-gradient(160deg,rgba(61,220,151,.24),#0f1824 75%)!important}
 #root .dca .dwSide button[data-side="short"][aria-checked="true"]{border-color:#ff6b6b!important;background:linear-gradient(160deg,rgba(255,107,107,.22),#0f1824 75%)!important}
+
+/* v6: zarar sınırı kartı */
+#root .dca .dwLoss{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwLoss small{display:block;color:#8ea0b4;font-size:12px}#root .dca .dwLoss b{font-size:16px}
+#root .dca .dwLoss>button{min-height:38px;padding:0 14px;border-radius:12px;border:1px solid #3ddc97;background:transparent;color:#3ddc97;font-weight:700}
+#root .dca .dwLossEdit{grid-column:1/-1;display:grid;gap:8px}
+#root .dca .dwLossEdit p{margin:0;font-size:13px;color:#b9c8d8}
+#root .dca .dwLossEdit input[type=text]{min-height:46px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:#0b1522;color:var(--ink);font-size:16px}
+#root .dca .dwLossEdit label{display:flex;gap:8px;align-items:center;font-size:13px}
+#root .dca .dwLossEdit label input{width:18px;height:18px}
+#root .dca .dwLossEdit>button{min-height:44px;border-radius:12px;border:0;background:#3ddc97;color:#06210f;font-weight:800}
+#root .dca .dwLossEdit>button:disabled{opacity:.45}
