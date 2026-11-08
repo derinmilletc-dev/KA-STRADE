@@ -1,7 +1,7 @@
 // Çalıştırma: node frontend/src/dca.test.mts   (Node 22.18+; ek paket gerekmez)
 // backend/tests/test_dca_plan.py ile aynı örnek: iki hesap aynı sayıları vermeli.
 import assert from 'node:assert'
-import {computeDca} from './dcaMath.ts'
+import {DCA_PRESETS, computeDca} from './dcaMath.ts'
 
 const F = {tickSize: 0.01, stepSize: 0.001, minNotional: 5}
 const base: any = {side: 'LONG', price: 100, baseMargin: 10, safetyOrders: 3, stepPct: 1.5, volumeMultiplier: 1.5, takeProfitPct: 1, stopGapPct: 1.5, leverage: 3, filters: F}
@@ -36,5 +36,17 @@ for (const [patch, text] of [
 ] as [any, string][]) {
   const x = computeDca({...base, ...patch})
   assert.ok(!x.valid && x.errors.some(e => e.includes(text)), `${JSON.stringify(patch)} → ${x.errors.join(' | ')}`)
+}
+// hazır ayarlar: her fiyat düzeyinde ve iki yönde geçerli plan vermeli (arayüzde boş ekran çıkmasın)
+for (const preset of DCA_PRESETS) {
+  for (const price of [0.5, 2.5, 100, 2450]) {
+    for (const side of ['LONG', 'SHORT'] as const) {
+      const f = {tickSize: price / 10000, stepSize: price > 1000 ? 0.001 : price > 1 ? 0.01 : 1, minNotional: 5}
+      const p = preset.form
+      const x = computeDca({side, price, baseMargin: Number(p.margin), safetyOrders: p.safety, stepPct: Number(p.step), volumeMultiplier: Number(p.volume),
+        takeProfitPct: Number(p.tp), stopGapPct: Number(p.gap), leverage: p.leverage, filters: f})
+      assert.ok(x.valid, `${preset.id} ${side} @${price}: ${x.errors.join(' | ')}`)
+    }
+  }
 }
 console.log('dca.test.mts: tamam')
