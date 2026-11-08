@@ -279,7 +279,7 @@ export default function DcaPanel(props: DcaPanelProps) {
       return sig.lean === side ? 2000 + sig.confidence : -1
     }
     const ranked = scan.items.map(item => ({item, r: rank(item)}))
-    const good = ranked.filter(entry => entry.r >= 0).sort((a, b) => b.r - a.r || Number(a.item.fixed) - Number(b.item.fixed) || a.item.idx - b.item.idx)
+    const good = ranked.filter(entry => entry.r >= 0).sort((a, b) => b.r - a.r || Number(a.item.fixed) - Number(b.item.fixed) || a.item.total - b.item.total || a.item.idx - b.item.idx)
     const against = ranked.filter(entry => entry.r < 0).sort((a, b) => a.item.idx - b.item.idx)
     return [...good, ...(good.length < 4 ? against.slice(0, 4 - good.length) : [])].slice(0, 6).map(entry => ({...entry.item, against: entry.r < 0}))
   }, [scan.items, signals, side])
@@ -381,7 +381,7 @@ export default function DcaPanel(props: DcaPanelProps) {
             </span>
           </button></li>
         })}</ul>}
-        {scan.state === 'done' && suggestions.length === 0 && <p className="dwWarn">Şu an {cap} USDT limite sığan coin bulunamadı. Aşağıdan başka bir coin arayabilirsin; limit sunucuda KAISTRADE_DCA_LIVE_MAX_MARGIN ile yükseltilebilir.</p>}
+        {scan.state === 'done' && suggestions.length === 0 && <p className="dwWarn">Şu an {cap} USDT limite sığan coin bulunamadı. Aşağıdan başka bir coin arayabilirsin.</p>}
 
         <label className="dwSearch"><span>Başka coin ara</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="BTC, SOL, XRP…" inputMode="search" autoCapitalize="characters" aria-label="Coin ara"/></label>
         {searchRows.length > 0 && <ul className="dwCoins dwSearchRes">{searchRows.map(coin => {

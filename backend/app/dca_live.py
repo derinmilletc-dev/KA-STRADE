@@ -5,7 +5,7 @@ sonra döngü), ARM süresi dolunca duraklatma, günlük zarar sınırı, likida
 DCA'ya özel: (1) plan → motor ayarı `spec_from_plan`; plan parametreleri (`params`) ayara yazılır, böylece yeni tur aynı parametrelerle
 yeniden hesaplanabilir; (2) tur bitince (CYCLE_DONE) yeni tur ANCAK tüm kapılar yeniden geçilirse başlar: canlı giriş yetkisi, kilitler,
 günlük zarar hakkı ve çağıranın verdiği `cycle_planner` (güncel fiyat/kural/risk ile `prepare_dca_plan`) — herhangi biri geçmezse bot DURUR;
-(3) canlı DCA ayrı bayrakla (`KAISTRADE_DCA_LIVE`, varsayılan AÇIK; KAISTRADE_DCA_LIVE=0 ile kapanır); ilk canlı testte toplam marjin sınırı `KAISTRADE_DCA_LIVE_MAX_MARGIN` (varsayılan 10 USDT)."""
+(3) canlı DCA ayrı bayrakla (`KAISTRADE_DCA_LIVE`, varsayılan AÇIK; KAISTRADE_DCA_LIVE=0 ile kapanır); canlı toplam marjin sınırı: varsayılan platform sert tavanı (HARD_MAX_MARGIN_USDT); istenirse `KAISTRADE_DCA_LIVE_MAX_MARGIN` ile düşürülür (eskiden 10 USDT)."""
 from __future__ import annotations
 
 import logging
@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 from .dca_engine.engine import CYCLE_DONE, DcaEngine, spec_from_plan
 from .dca_engine.plan import DcaPlanError
+from .execution_core import HARD_MAX_MARGIN_USDT
 from .grid_engine.engine import GridSpec, STOPPED
 from .grid_engine.store import GridStore
 from .grid_live import LiveGridError, LiveGridRunner, grid_spec_from_row
@@ -28,7 +29,9 @@ logger = logging.getLogger(__name__)
 ENV_FLAG = "KAISTRADE_DCA_LIVE"
 DEMO_ENV_FLAG = "KAISTRADE_DCA_DEMO"
 MAX_MARGIN_ENV = "KAISTRADE_DCA_LIVE_MAX_MARGIN"
-DEFAULT_LIVE_MAX_MARGIN_USDT = 10.0
+# Canlı DCA'ya özel ayrı bir tavan yok: varsayılan, platformun tüm stratejiler için sert tavanıdır (HARD_MAX_MARGIN_USDT).
+# Hesap bazlı risk kapıları (günlük zarar, rezervasyon, bakiye) ayrıca geçerlidir. İstenirse KAISTRADE_DCA_LIVE_MAX_MARGIN ile daha düşük bir tavan konabilir.
+DEFAULT_LIVE_MAX_MARGIN_USDT = HARD_MAX_MARGIN_USDT
 CONFIRM_START = "CANLI DCA BAŞLAT"
 CONFIRM_DEMO_START = "DEMO DCA BAŞLAT"
 CONFIRM_EMERGENCY = "DCA ACİL DURDUR"
@@ -55,12 +58,12 @@ def live_max_margin_usdt() -> float:
         value = float(os.getenv(MAX_MARGIN_ENV, DEFAULT_LIVE_MAX_MARGIN_USDT))
     except (TypeError, ValueError):
         return DEFAULT_LIVE_MAX_MARGIN_USDT
-    return value if value > 0 else DEFAULT_LIVE_MAX_MARGIN_USDT
+    return min(value, HARD_MAX_MARGIN_USDT) if value > 0 else DEFAULT_LIVE_MAX_MARGIN_USDT
 
 
 def require_enabled() -> None:
     if not live_enabled():
-        raise HTTPException(403, f"Canlı DCA kapalı (sunucuda {ENV_FLAG}=0). Açmak için {ENV_FLAG} değerini kaldır ya da 1 yap (ilk testte toplam marjin en çok "
+        raise HTTPException(403, f"Canlı DCA kapalı (sunucuda {ENV_FLAG}=0). Açmak için {ENV_FLAG} değerini kaldır ya da 1 yap (toplam marjin en çok "
                                  f"{live_max_margin_usdt():g} USDT).")
 
 

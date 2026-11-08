@@ -676,23 +676,46 @@ export default function LiveCockpit(props: Props) {
   // ---- 2FA isteyen işlemler.
   const [code, setCode] = useState('')
   const [secureAccepted, setSecureAccepted] = useState(false)
-  const closeSheet = () => { if (!flight.current) { setSheet(null); setCode(''); setSecureAccepted(false); setClosePhrase(''); setCloseTarget(null) } }
-  const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => perform(key, async () => {
-    if (key === 'emergency-clear') {
-      try { await request('/emergency/clear', {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code}) }
-      catch (error) {
-        // Sunucu kilidi zaten kendiliğinden kaldırmış olabilir (geçici kilitler hesap doğrulanınca düşer); ekran eski kalmış demektir.
-        if (!/Aktif emergency kilidi yok/i.test(errorText(error, ''))) throw error
+  const closeSheet = () => { if (!flight.current) { setForceWarn(null); setSheet(null); setCode(''); setSecureAccepted(false); setClosePhrase(''); setCloseTarget(null) } }
+  // Acil durdurma: önce 2FA ile normal deneme; hesap temiz çıkmazsa sebepler gösterilir, "Evet" ile aynı pencerede (2FA'sız) zorla kaldırılır.
+  const [forceWarn, setForceWarn] = useState<string[] | null>(null)
+  const blockerText = (raw: string) => {
+    const symbols = (text: string) => (text.match(/[A-Z0-9]{2,}USDT/g) ?? []).map(item => item.replace('USDT', '')).join(', ')
+    if (/PROTECTION_PARAMETERS_UNKNOWN/.test(raw)) return 'Bir pozisyonun koruma (stop/hedef) ayarı doğrulanamadı.'
+    if (/LIVE_UNKNOWN_EXECUTION/.test(raw)) return `${symbols(raw) || 'Bir coin'} için emrin sonucu bilinmiyor; Binance'te açık pozisyon kalmış olabilir.`
+    if (/sonucu belli olmayan emir niyeti/i.test(raw)) return `${symbols(raw) || 'Bir coin'}: gönderilen emrin sonucu belli değil.`
+    if (/kilit türü otomatik temizlenemez/i.test(raw)) return 'Kilit türü kendiliğinden temizlenemiyor.'
+    if (/kilit sebebi/i.test(raw)) return ''
+    return raw
+  }
+  const clearEmergency = (force: boolean) => perform('emergency-clear', async () => {
+    try {
+      await request('/emergency/clear', force
+        ? {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', force_after_warning: true}
+        : {confirmation: 'ACİL DURDURMAYI KALDIRIYORUM', totp_code: code})
+    } catch (error) {
+      const message = errorText(error, '')
+      // Sunucu kilidi zaten kendiliğinden kaldırmış olabilir (geçici kilitler hesap doğrulanınca düşer); ekran eski kalmış demektir.
+      if (/Aktif emergency kilidi yok/i.test(message)) { /* kilit zaten yok */ }
+      else if (!force && /Hesap doğrulaması temiz çıkmadı/i.test(message)) {
+        const list = (message.split(/Sebep:/i)[1] ?? '').replace(/\.\s*$/, '').split(';').map(item => blockerText(item.trim())).filter(Boolean)
+        setForceWarn(Array.from(new Set(list.length ? list : ['Hesap doğrulaması temiz çıkmadı.'])))
+        setFlash(null)
+        return
       }
+      else { if (force && /Onay süresi doldu/i.test(message)) setForceWarn(null); throw error }
     }
-    else if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
+    setForceWarn(null); setSheet(null); setCode(''); setSecureAccepted(false)
+    setFlash({tone: 'ok', text: force ? 'Acil durdurma uyarılara rağmen kaldırıldı. İşlem kilitli kalır: yeniden izin ver ve Binance\'teki pozisyonlarını kontrol et.' : 'Acil durdurma kaldırıldı. Yeniden başlatmak için rehberdeki adımı izle.'})
+  }, undefined, setSheetError)
+  const secure = (key: 'emergency-clear' | 'recovery' | 'fill-lock') => key === 'emergency-clear' ? clearEmergency(false) : perform(key, async () => {
+    if (key === 'recovery') await request('/recovery/check', {confirmation: 'LIVE RECOVERY CHECK', totp_code: code})
     else {
       const payload = await request('/original-v2/fill-lock/approve', {lock_id: original?.fill_lock?.id, confirmation: FILL_LOCK_PHRASE}) as {fill_lock?: {active?: unknown}} | null
       if (payload?.fill_lock?.active !== false) throw new Error('Dolum kilidi onayı doğrulanamadı; güncel durumu kontrol et.')
     }
     setSheet(null); setCode(''); setSecureAccepted(false)
-  }, key === 'emergency-clear' ? 'Acil durdurma kaldırıldı. Yeniden başlatmak için rehberdeki adımı izle.'
-    : key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.', setSheetError)
+  }, key === 'recovery' ? 'Kurtarma kontrolü tamamlandı.' : 'Dolum kilidi kaldırıldı; otomasyon kendiliğinden başlamaz.', setSheetError)
 
   // ---- Kendiliğinden düzelme: yalnız durum okuması, artan aralıklarla.
   const [retry, setRetry] = useState({attempt: 0, at: 0})
@@ -1766,10 +1789,19 @@ export default function LiveCockpit(props: Props) {
         <li><b>2</b><span>Sistem Binance hesabını taze doğrular</span></li>
         <li><b>3</b><span>Hesap temizse kilit kalkar; işlem yine sen başlatana kadar başlamaz</span></li>
       </ol></>}
+    {sheet === 'emergency-clear' && forceWarn ? <>
+      <div className="lcEmWarn" role="alert" data-testid="em-force-warn" style={{border: '1px solid #f59e0b', background: 'rgba(245,158,11,.1)', borderRadius: 14, padding: 14, margin: '10px 0'}}>
+        <b>Dikkat: hesap temiz doğrulanamadı</b>
+        <ul style={{margin: '8px 0 0', paddingLeft: 18}}>{forceWarn.map(item => <li key={item}>{item}</li>)}</ul>
+        <p style={{margin: '10px 0 0', opacity: .85}}>Yine de kaldırırsan pozisyonlar ve emirler olduğu gibi kalır, değişmez. İşlem kilitli kalır; yeniden izin vermen gerekir. Binance'te açık pozisyon ve emirlerini kendin kontrol etmelisin.</p></div>
+      <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+        <button type="button" className="lcBtn lcPrimary" data-testid="em-force-confirm" disabled={Boolean(working)} onClick={() => void clearEmergency(true)}>{working === 'emergency-clear' ? 'Kaldırılıyor…' : 'Evet, riskleri anladım, kaldır'}</button></div>
+    </> : <>
     <label className="lcCheck"><input type="checkbox" checked={secureAccepted} onChange={event => setSecureAccepted(event.target.checked)}/><span>{sheet === 'recovery' ? 'Kontrolün yapılmasını onaylıyorum.' : 'Acil durdurma kilidinin kaldırılmasını onaylıyorum.'}</span></label>
     <label className="lcField lcEmCode">2FA kodu<input type="password" inputMode="numeric" autoComplete="one-time-code" data-private="true" maxLength={32} placeholder="6 haneli kod" value={code} onChange={event => setCode(event.target.value.trim())}/></label>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
       <button type="button" className="lcBtn lcPrimary" disabled={!secureAccepted || code.length < 6 || Boolean(working)} onClick={() => void secure(sheet)}>{working === sheet ? 'Doğrulanıyor…' : sheet === 'recovery' ? 'Kontrolü yap' : 'Kilidi kaldır'}</button></div>
+    </>}
   </> : null
 
   // ---- Durum çubuğu, tarama kartı ve akış için türetilen değerler.

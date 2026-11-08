@@ -34,7 +34,7 @@ export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual, 
   const title = !verified ? 'Durum okunuyor' : blocked ? 'Önce acil durumu çözelim' : needsAccount ? 'Önce Binance hesabını bağla' : 'DCA planını kur'
   const message = blocked ? (input.emergencyText || 'Acil durum açık. Çözülene kadar yeni DCA başlatılmaz.')
     : needsAccount ? 'Canlı DCA için bağlı bir Binance hesabı gerekir.'
-    : 'Coin ve yönü seç, hazır paketle planı kur, sunucuyla doğrula ve başlat. Canlıda toplam marj varsayılan olarak en çok 10 USDT.'
+    : 'Coin ve yönü seç, hazır paketle planı kur, sunucuyla doğrula ve başlat. DCA için ayrı bir marj sınırı yok; yalnız platformun genel güvenlik tavanı ve hesap risk kontrolleri geçerli.'
   const checks: Array<{text: string; ok: boolean}> = [
     {text: 'Hesap bağlı', ok: input.connected},
     {text: input.armed ? 'ARM açık' : 'ARM kapalı · DCA ekranında tek dokunuşla verilir', ok: input.armed},
