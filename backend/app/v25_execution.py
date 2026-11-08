@@ -8965,7 +8965,9 @@ async def v25_dca_live_status(request: Request, history: int = Query(default=6, 
     day = runner.day_summary(user_id, owner=owner, limit=runner.daily_limit_of(request.app.state.v25_execution))
     from .dca_engine import plan as dca_plan
     return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": day, "enabled": dca_live.live_enabled(),
-            "dca_limits": dca_plan.limits_payload(), "live_max_margin_usdt": dca_live.live_max_margin_usdt()}
+            "dca_limits": dca_plan.limits_payload(), "live_max_margin_usdt": dca_live.live_max_margin_usdt(),
+            "risk_limits": {"max_loss_per_trade": float((state_policy := sanitize_execution_policy(request.app.state.v25_execution.get("policy") or {})).get("max_loss_per_trade") or 0),
+                            "daily_loss_limit": float(state_policy.get("daily_loss_limit") or 0)}}
 
 
 @router.post("/dca/live/start")

@@ -212,25 +212,28 @@ export default function DcaPanel(props: DcaPanelProps) {
   const scenario = result.valid ? scenarioAt(result, price, side, scrub) : null
   const set = <K extends keyof Form>(key: K, value: Form[K]) => { setPresetId(''); setForm(current => ({...current, [key]: value})) }
   const cap = Number(status?.live_max_margin_usdt) > 0 ? Number(status.live_max_margin_usdt) : 10
+  const rl = status?.risk_limits
+  const maxLoss = Math.min(...[Number(rl?.max_loss_per_trade), Number(rl?.daily_loss_left)].filter(v => Number.isFinite(v) && v > 0), Infinity)
+  const lossCap = Number.isFinite(maxLoss) ? maxLoss : 0
   const inputOf = (f: Form, over?: {price: number; filters: NonNullable<DcaInputFilters>}) => ({...input, ...over, baseMargin: num(f.margin), safetyOrders: f.safety, stepPct: num(f.step), volumeMultiplier: num(f.volume), takeProfitPct: num(f.tp), stopGapPct: num(f.gap), leverage: f.leverage})
   const fmtMargin = (value: number) => String(Number(value.toFixed(2)))
   const falls = side === 'LONG' ? 'düşerse' : 'yükselirse'
 
   // Üç hazır plan, bu coin ve canlı toplam marj limiti için gerçek hesapla: gerekirse otomatik küçültülür.
   const presetPlans = useMemo(() => ready ? DCA_PRESETS.map(preset => {
-    const fit = planFit(inputOf(preset.form), cap)
-    const fix = fit.state === 'over-cap' ? fitToCap(inputOf(preset.form), cap) : null
+    const fit = planFit(inputOf(preset.form), cap, lossCap)
+    const fix = fit.state === 'over-cap' ? fitToCap(inputOf(preset.form), cap, lossCap) : null
     const state: 'ok' | 'fix' | 'no' = fit.state === 'ok' ? 'ok' : fix ? 'fix' : 'no'
     const adjusted: Form = fit.state === 'ok' && fit.margin ? {...preset.form, margin: fmtMargin(fit.margin)} : fix ? {...preset.form, margin: fmtMargin(fix.margin), safety: fix.safety, volume: fix.volume.toFixed(1)} : preset.form
     return {preset, state, form: adjusted, result: computeDca(inputOf(adjusted)), shrunk: state === 'fix'}
-  }) : [], [input, ready, cap])
-  const fitNow = useMemo(() => ready ? planFit(input, cap) : null, [input, ready, cap])
-  const fixNow = useMemo(() => ready && fitNow?.state === 'over-cap' ? fitToCap(input, cap) : null, [input, ready, cap, fitNow])
+  }) : [], [input, ready, cap, lossCap])
+  const fitNow = useMemo(() => ready ? planFit(input, cap, lossCap) : null, [input, ready, cap, lossCap])
+  const fixNow = useMemo(() => ready && fitNow?.state === 'over-cap' ? fitToCap(input, cap, lossCap) : null, [input, ready, cap, lossCap, fitNow])
 
   const choosePlan = (plan: NonNullable<typeof presetPlans>[number]) => {
     setPresetId(plan.preset.id)
     setForm(plan.form)
-    setNote(plan.shrunk ? `Plan ${cap} USDT limitine sığsın diye otomatik küçültüldü (daha az ek alım, daha yavaş büyüme).` : plan.state === 'ok' ? `Yatırım tutarı ${cap} USDT limitine göre ayarlandı.` : '')
+    setNote(lossCap > 0 && plan.state !== 'no' ? `Plan tek işlem zarar sınırın olan ${lossCap} USDT'ye göre ayarlandı (en kötü kayıp bunun altında).` : plan.shrunk ? `Plan ${cap} USDT limitine sığsın diye otomatik küçültüldü (daha az ek alım, daha yavaş büyüme).` : plan.state === 'ok' ? `Yatırım tutarı ${cap} USDT limitine göre ayarlandı.` : '')
   }
   const autoRef = useRef('')
   useEffect(() => {
@@ -244,7 +247,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   // Uygun coin tarayıcı: açılınca kendiliğinden çalışır; en hacimli coinlerin borsa kurallarını okur, Dengeli planı gerçek hesapla dener.
   const [scan, setScan] = useState<{state: 'idle' | 'busy' | 'done'; checked: number; total: number; items: ScanItem[]}>({state: 'idle', checked: 0, total: 0, items: []})
   const scanToken = useRef(0)
-  const scanKey = `${coins.length}|${cap}|${status === null ? 0 : 1}`
+  const scanKey = `${coins.length}|${cap}|${lossCap}|${status === null ? 0 : 1}`
   useEffect(() => {
     if (!coins.length || (status === null && !statusError)) return
     const token = ++scanToken.current
@@ -260,9 +263,9 @@ export default function DcaPanel(props: DcaPanelProps) {
         try {
           const f = await readFilters(coin.symbol)
           const trial = inputOf(DCA_PRESETS[1].form, {price: coin.price, filters: f})
-          const fit = planFit(trial, cap)
+          const fit = planFit(trial, cap, lossCap)
           if (fit.state === 'ok' && fit.total) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fit.total, fixed: false, idx})
-          else if (fit.state === 'over-cap') { const fix = fitToCap(trial, cap); if (fix) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fix.total, fixed: true, idx}) }
+          else if (fit.state === 'over-cap') { const fix = fitToCap(trial, cap, lossCap); if (fix) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fix.total, fixed: true, idx}) }
         } catch { /* bu coin atlanır */ }
         checked += 1
         if (token === scanToken.current) setScan({state: 'busy', checked, total: pool.length, items: [...found]})
