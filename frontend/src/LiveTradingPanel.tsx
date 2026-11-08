@@ -1716,6 +1716,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
     const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
     const anaLeanTitle = !anaSig ? '' : anaSig.lean === 'LONG' ? 'Yükseliş yönü ağır basıyor' : anaSig.lean === 'SHORT' ? 'Düşüş yönü ağır basıyor' : 'Belirgin yön yok'
+    const anaPos = anaSig && anaSig.long !== null && anaSig.short !== null && anaSig.long + anaSig.short > 0 ? anaSig.long / (anaSig.long + anaSig.short) * 100 : 50
+    const anaRead = !anaSig ? '' : anaSig.lean === 'NEUTRAL' ? 'LONG ve SHORT tarafları birbirine yakın. Net bir yön yok.'
+      : `${anaSig.lean === 'SHORT' ? 'Düşüş' : 'Yükseliş'} tarafı ${strengthLabel(anaSig.confidence) === 'Güçlü' ? 'belirgin şekilde' : strengthLabel(anaSig.confidence) === 'Orta' ? 'kısmen' : 'hafifçe'} ağır basıyor.${strengthLabel(anaSig.confidence) === 'Zayıf' ? ' Tek başına yön için yeterli değil.' : ''}`
     const anaSheet = anaRow && anaSig && typeof document !== 'undefined' ? createPortal(<div className="mxsaRoot" data-open="1">
       <button type="button" className="mxsaScrim" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}/>
       <section className="mxsaSheet" role="dialog" aria-modal="true" aria-label={`${anaRow.display || anaRow.symbol} analizi`} data-lean={anaSig.lean}
@@ -1728,8 +1731,24 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <button type="button" className="mxsaIcon" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}><X aria-hidden="true"/></button>
         </header>
         <div className="mxsaBody">
-          <div className="mxsaVerdict"><span><b data-lean={anaSig.lean}>{anaLeanTitle}</b><small>{coinPrice(Number(anaRow.price))}{Number.isFinite(Number(anaRow.change)) ? ` · ${signedChange(anaRow)}` : ''}</small></span><span className="mxsaConf"><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span></div>
-          {duo(anaSig)}
+          <section className="mxsaHero" aria-label="Analiz özeti">
+            <div className="mxsaHeroTxt">
+              <span className="mxsaPrice">{coinPrice(Number(anaRow.price))}{Number.isFinite(Number(anaRow.change)) && <em data-tone={Number(anaRow.change) >= 0 ? 'up' : 'down'}>{signedChange(anaRow)}</em>}</span>
+              <b className="mxsaVerdictT" data-lean={anaSig.lean}>{anaLeanTitle}</b>
+              <p className="mxsaRead">{anaRead}</p>
+            </div>
+            <div className="mxsaRing" data-lean={anaSig.lean} style={{'--mxsa-p': `${anaSig.confidence}%`}} role="img" aria-label={`Güven yüzde ${anaSig.confidence}, ${strengthLabel(anaSig.confidence)}`}>
+              <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
+            </div>
+          </section>
+          <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
+            <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
+            <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
+          </section>
+          <div className="mxsaPair">
+            <div className="mxsaTile" data-side="SHORT" data-lead={anaSig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{anaSig.short === null ? '–' : `%${anaSig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.short ?? 0}%`}}/></span></div>
+            <div className="mxsaTile" data-side="LONG" data-lead={anaSig.lean === 'LONG' || undefined}><span>LONG</span><strong>{anaSig.long === null ? '–' : `%${anaSig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.long ?? 0}%`}}/></span></div>
+          </div>
           <p className="mxsaNote">{AI_DISCLAIMER}</p>
         </div>
         <footer className="mxsaFoot">
