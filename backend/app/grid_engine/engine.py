@@ -530,6 +530,7 @@ class GridEngine:
             return self.status
         self._set(EMERGENCY)
         base = self.store.grid(self.gid)["baseline"]
+        externally_closed = False
         for attempt in range(self.max_close_attempts):
             # yeni dolum yarışına karşı her turda girişleri yeniden iptal et ve defteri yeniden eşitle
             self._cancel_all(roles=("E",))
@@ -542,6 +543,13 @@ class GridEngine:
             if abs(net) <= EPS and not entries_open:
                 break
             if abs(net) > EPS:
+                # Borsada pozisyon zaten yok (kullanıcı elle kapatmış): reduce-only emir -2022 ile reddedilir; defter borsaya göre kapatılır.
+                try:
+                    if abs(self.ex.position(self.sym) - base) <= 1e-6:
+                        externally_closed = True
+                        break
+                except ExchangeError:
+                    pass
                 self._close(net)
             self.sleep(0.5 * (attempt + 1))
         verified = False
@@ -549,9 +557,14 @@ class GridEngine:
             self._sync_for_emergency()
             actual = self.ex.position(self.sym)
             entries_open = [e for e in self.store.orders(self.gid, "E") if e["status"] not in TERMINAL]
-            verified = abs(self.grid_net()) <= EPS and not entries_open and abs(actual - base) <= 1e-6
+            if externally_closed:
+                verified = not entries_open and abs(actual - base) <= 1e-6
+            else:
+                verified = abs(self.grid_net()) <= EPS and not entries_open and abs(actual - base) <= 1e-6
         except ExchangeError:
             verified = False
+        if verified and externally_closed:
+            self._alert("uyarı", "Pozisyon borsada zaten kapalıydı (elle kapatılmış); defter borsaya göre kapatıldı.")
         if verified:
             stops_ok = self._cancel_all(roles=("S", "T"))
             self._set(EMERGENCY_CLOSED)

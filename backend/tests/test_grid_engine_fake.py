@@ -225,6 +225,15 @@ class TestScenario6Emergency(Base):
         self.assertTrue(stop_cancel)
         self.assertFalse(any(m == "cancel_order" and c.endswith("S0") for m, c in names[:close_idx]))
 
+    def test_position_closed_by_user_on_exchange_closes_ledger_without_close_order(self):
+        eng = self.engine(); eng.start()
+        self.ex.set_price(SYM, 96.0); eng.tick()
+        self.assertGreater(self.ex.positions[SYM], 0.9)
+        self.ex.set_position(SYM, 0.0)                              # kullanıcı Binance'te elle kapattı
+        self.assertEqual(eng.emergency_stop(), EMERGENCY_CLOSED)
+        self.assertEqual([o for o in self.ex.orders.values() if o.type == "MARKET"], [])
+        self.assertEqual(self.ex.open_orders(SYM), [])
+
     def test_fill_during_cancel_race_is_included(self):
         eng = self.engine(); eng.start()
         self.ex.set_price(SYM, 98.0); eng.tick()

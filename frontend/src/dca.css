@@ -365,3 +365,11 @@
 #root .dca .dwScroll .dwCoinMain small{font-size:12px}
 #root .dca .dwScroll .dwFit{font-size:14px}
 #root .dca .dwEmpty{padding:18px;text-align:center;color:#8fa3b8}
+
+/* v5: seçili kart net görünsün */
+#root .dca .dwPlans button{border:2px solid rgba(255,255,255,.07)!important;background:var(--card)!important;position:relative;transition:border-color .15s,background .15s,box-shadow .15s}
+#root .dca .dwPlans button[aria-checked="true"],#root .dca .dwPlans button[data-on]{border-color:#3ddc97!important;background:linear-gradient(160deg,rgba(61,220,151,.24),#0f1824 75%)!important;box-shadow:0 0 0 1px #3ddc97,0 10px 30px rgba(61,220,151,.18)!important}
+#root .dca .dwPlans button[aria-checked="true"]::after,#root .dca .dwPlans button[data-on]::after{content:"✓";position:absolute;top:12px;right:14px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#3ddc97;color:#06210f;font-weight:900;font-size:15px}
+#root .dca .dwSide button{border:2px solid rgba(255,255,255,.07)!important;transition:border-color .15s,background .15s}
+#root .dca .dwSide button[data-side="long"][aria-checked="true"]{border-color:#3ddc97!important;background:linear-gradient(160deg,rgba(61,220,151,.24),#0f1824 75%)!important}
+#root .dca .dwSide button[data-side="short"][aria-checked="true"]{border-color:#ff6b6b!important;background:linear-gradient(160deg,rgba(255,107,107,.22),#0f1824 75%)!important}
