@@ -107,6 +107,36 @@ class DetectionTests(unittest.TestCase):
         self.assertTrue(all(e["state"] != er.ENTRY for e in part))
 
 
+class ReferenceTests(unittest.TestCase):
+    def test_reference_detector_agrees_on_random_walk(self):
+        rng = np.random.default_rng(11)
+        n = 20000
+        steps = rng.normal(0, 0.03, n) + np.where(rng.random(n) < 0.04, rng.normal(0, 0.5, n), 0.0)      # quiet noise with occasional bursts
+        price = 100 + np.cumsum(steps)
+        o = np.concatenate([[100.0], price[:-1]])
+        c = price
+        h = np.maximum(o, c) + np.abs(rng.normal(0, 0.03, n))
+        lo = np.minimum(o, c) - np.abs(rng.normal(0, 0.03, n))
+        atr = er.wilder_atr(h, lo, c)
+        main, ref = er.detect_setups(o, h, lo, c, atr), er.reference_detect(o, h, lo, c, atr)
+        self.assertGreater(len(main), 20)
+        self.assertGreater(sum(e['state'] == er.ENTRY for e in main), 3)
+        keys = ("breakout_idx", "side", "state", "entry_idx")
+        self.assertEqual([{k: e.get(k) for k in keys} for e in main], [{k: e.get(k) for k in keys} for e in ref])
+        for e in main:
+            if e["state"] == er.ENTRY:
+                self.assertEqual(er.verify_entry_event(e, o, h, lo, c, atr), [])
+        self.assertTrue(any(e["state"] == er.ENTRY for e in main))
+
+    def test_reference_label_agrees(self):
+        rng = np.random.default_rng(5)
+        mid = 100 + np.cumsum(rng.normal(0, 0.3, 500))
+        hi, lo = mid + np.abs(rng.normal(0, 0.2, 500)), mid - np.abs(rng.normal(0, 0.2, 500))
+        for side in ("LONG", "SHORT"):
+            for start in range(0, 400, 7):
+                self.assertEqual(er.label_outcome(hi, lo, start, float(mid[start]), 0.5, side), er.reference_label(hi, lo, start, float(mid[start]), 0.5, side))
+
+
 class OutcomeTests(unittest.TestCase):
     def test_target_stop_and_stop_first(self):
         hi = np.array([100.5, 100.9, 102.1, 100.0])

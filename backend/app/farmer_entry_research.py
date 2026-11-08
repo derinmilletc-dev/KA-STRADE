@@ -236,3 +236,118 @@ def day_bootstrap_ci(outcomes: list[bool], days: list[int], rng: np.random.Gener
     rate = wins[pick].sum(1) / cnt[pick].sum(1)
     a = (1 - confidence) / 2
     return float(np.quantile(rate, a)), float(np.quantile(rate, 1 - a))
+
+
+# ------------------------------------------------------------------------------------------------ independent reference checks
+# Written straight from the protocol text with a different structure than `detect_setups` / `label_outcome`. They only verify the main code.
+def reference_detect(o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, atr: np.ndarray, cfg: Protocol = PROTOCOL,
+                     suppressed: list[int] | None = None) -> list[dict[str, Any]]:
+    w, n = cfg.range_window, len(c)
+    first = max(cfg.atr_warmup_bars, w + cfg.atr_period + 1)
+
+    def breakout_at(k: int) -> tuple[str, float, float] | None:
+        a = atr[k - 1]
+        if not np.isfinite(a) or a <= 0:
+            return None
+        prior_high, prior_low = max(h[i] for i in range(k - w, k)), min(low[i] for i in range(k - w, k))
+        if (prior_high - prior_low) / a > cfg.compression_max_atr:
+            return None
+        rng_ = h[k] - low[k]
+        close_loc = (c[k] - low[k]) / rng_ if rng_ > 0 else 0.5
+        if c[k] > prior_high and (c[k] - o[k]) / a >= cfg.breakout_body_atr and close_loc >= cfg.long_close_location:
+            return "LONG", prior_high, a
+        if c[k] < prior_low and (o[k] - c[k]) / a >= cfg.breakout_body_atr and close_loc <= cfg.short_close_location:
+            return "SHORT", prior_low, a
+        return None
+
+    candidates = [k for k in range(first, n) if breakout_at(k)]
+    kept: list[int] = []
+    for k in candidates:                                   # independence: a new structure needs k >= previous + range_window + 1
+        if not kept or k >= kept[-1] + w + 1:
+            kept.append(k)
+    if suppressed is not None:
+        suppressed.append(len(candidates) - len(kept))
+    out = []
+    for k in kept:
+        side, level, a = breakout_at(k)                    # type: ignore[misc]
+        tol = cfg.retest_tolerance_atr * a
+        state, retest = EXPIRED, None
+        for j in range(k + 1, k + cfg.retest_window + 1):
+            if j >= n:
+                break
+            if (side == "LONG" and c[j] < level) or (side == "SHORT" and c[j] > level):
+                state = INVALIDATED
+                break
+            near = (low[j] <= level + tol) if side == "LONG" else (h[j] >= level - tol)
+            if near:
+                retest = j
+                break
+        item = {"breakout_idx": k, "side": side, "state": state}
+        if retest is not None:
+            m = retest + 1
+            if m >= n:
+                item["state"] = "PENDING_END_OF_DATA"
+            else:
+                ok_close = c[m] > h[retest] if side == "LONG" else c[m] < low[retest]
+                ok_body = abs(c[m] - o[m]) >= cfg.confirmation_body_atr * a
+                item.update(state=ENTRY if (ok_close and ok_body) else FAILED_CONFIRMATION, retest_idx=retest)
+                if item["state"] == ENTRY:
+                    item.update(confirm_idx=m, entry_idx=m + 1)
+        out.append(item)
+    return out
+
+
+def verify_entry_event(e: dict[str, Any], o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, atr: np.ndarray, cfg: Protocol = PROTOCOL) -> list[str]:
+    """Re-derive every rule of one ENTRY event from the raw candles. Returns the list of violated rules (empty = correct)."""
+    bad: list[str] = []
+    k, j, m, i, side = e["breakout_idx"], e["retest_idx"], e["confirm_idx"], e["entry_idx"], e["side"]
+    w, a = cfg.range_window, float(atr[k - 1])
+    hi, lo = float(h[k - w:k].max()), float(low[k - w:k].min())
+    if abs(a - e["setup_atr"]) > 1e-12:
+        bad.append("setup_atr is not ATR of the candle before the breakout")
+    if (hi - lo) / a > cfg.compression_max_atr:
+        bad.append("not compressed")
+    loc = (c[k] - low[k]) / (h[k] - low[k])
+    if side == "LONG":
+        if not (c[k] > hi and (c[k] - o[k]) / a >= cfg.breakout_body_atr and loc >= cfg.long_close_location):
+            bad.append("long breakout rule")
+        if not (low[j] <= hi + cfg.retest_tolerance_atr * a and c[j] >= hi):
+            bad.append("long retest rule")
+        if not (c[m] > h[j]):
+            bad.append("long confirmation close")
+        if any(c[x] < hi for x in range(k + 1, j + 1)):
+            bad.append("close back inside before retest")
+    else:
+        if not (c[k] < lo and (o[k] - c[k]) / a >= cfg.breakout_body_atr and loc <= cfg.short_close_location):
+            bad.append("short breakout rule")
+        if not (h[j] >= lo - cfg.retest_tolerance_atr * a and c[j] <= lo):
+            bad.append("short retest rule")
+        if not (c[m] < low[j]):
+            bad.append("short confirmation close")
+        if any(c[x] > lo for x in range(k + 1, j + 1)):
+            bad.append("close back inside before retest")
+    if not (k < j <= k + cfg.retest_window):
+        bad.append("retest outside window")
+    if abs(c[m] - o[m]) / a < cfg.confirmation_body_atr:
+        bad.append("confirmation body too small")
+    if m != j + 1:
+        bad.append("confirmation is not the candle right after the retest")
+    if i != m + 1:
+        bad.append("entry is not the candle after confirmation")
+    if abs(float(atr[m]) - e["entry_atr"]) > 1e-12:
+        bad.append("entry ATR is not ATR through the confirmation candle")
+    return bad
+
+
+def reference_label(mark_high: np.ndarray, mark_low: np.ndarray, entry_idx: int, entry: float, atr_entry: float, side: str,
+                    target_atr: float = PROTOCOL.target_atr, stop_atr: float = PROTOCOL.stop_atr) -> dict[str, Any]:
+    sign = 1 if side == "LONG" else -1
+    target, stop = entry + sign * target_atr * atr_entry, entry - sign * stop_atr * atr_entry
+    for i in range(entry_idx, len(mark_high)):
+        hit_target = mark_high[i] >= target if sign == 1 else mark_low[i] <= target
+        hit_stop = mark_low[i] <= stop if sign == 1 else mark_high[i] >= stop
+        if hit_stop:
+            return {"result": "STOP", "exit_idx": i, "ambiguous": bool(hit_target)}
+        if hit_target:
+            return {"result": "TARGET", "exit_idx": i, "ambiguous": False}
+    return {"result": "UNRESOLVED", "exit_idx": None, "ambiguous": False}
