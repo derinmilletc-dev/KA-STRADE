@@ -166,3 +166,20 @@ class DcaPlanRejectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFrontendParityFixture(unittest.TestCase):
+    """frontend/src/dca.test.mts aynı JSON'u okur; dosya güncel değilse (sabitler/formül değişti) burada kırılır → yeniden üret."""
+
+    def test_fixture_matches_current_backend(self):
+        import json
+        sys.path.insert(0, str(Path(__file__).parent))
+        from make_dca_parity_fixture import fixture
+        stored = json.loads((Path(__file__).parent / "fixtures" / "dca_parity.json").read_text())
+        self.assertEqual(stored, json.loads(json.dumps(fixture())), "dca_parity.json eski: python tests/make_dca_parity_fixture.py çalıştır")
+
+    def test_limits_payload_exposes_cost_constants(self):
+        costs = dca.limits_payload()["costs"]
+        self.assertEqual(costs["slippage_market_pct"], 0.03)
+        self.assertEqual(costs["funding_allowance_pct"], 0.03)
+        self.assertIn("min_net_profit_usdt", costs)

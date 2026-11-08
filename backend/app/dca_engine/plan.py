@@ -47,7 +47,11 @@ def _positive(*values: Any) -> bool:
 def limits_payload() -> dict[str, Any]:
     return {"max_safety_orders": MAX_SAFETY_ORDERS, "max_volume_multiplier": MAX_VOLUME_MULTIPLIER, "max_leverage": MAX_LEVERAGE,
             "step_pct": [MIN_STEP_PCT, MAX_STEP_PCT], "take_profit_pct": [MIN_TP_PCT, MAX_TP_PCT], "stop_gap_pct": [MIN_STOP_GAP_PCT, MAX_STOP_GAP_PCT],
-            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": HARD_MAX_MARGIN_USDT}
+            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": HARD_MAX_MARGIN_USDT,
+            "costs": {"taker_fee": TAKER_FEE, "slippage_market_pct": SLIPPAGE_MARKET_PCT, "slippage_limit_entry_pct": SLIPPAGE_LIMIT_ENTRY_PCT,
+                      "slippage_tp_exit_pct": SLIPPAGE_TP_EXIT_PCT, "funding_allowance_pct": FUNDING_ALLOWANCE_PCT,
+                      "min_net_profit_usdt": MIN_NET_PROFIT_USDT, "min_net_profit_pct": MIN_NET_PROFIT_PCT,
+                      "maintenance_rate_estimate": MAINTENANCE_RATE_ESTIMATE, "liq_buffer_pct": LIQ_BUFFER_PCT}}
 
 
 def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, safety_orders: int, step_pct: float, volume_multiplier: float,

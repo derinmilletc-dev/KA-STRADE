@@ -30,4 +30,10 @@ LIQ_BUFFER_PCT = 1.0                # stop, (tahmini ya da borsanın bildirdiği
 # --- motor: borsa ↔ defter ortalama giriş uyuşmazlığı ---
 AVG_MISMATCH_TOLERANCE_PCT = 0.5    # kısmi hedef dolumu yokken borsa ortalaması defter ortalamasından en çok bu kadar (%) sapabilir
 AVG_RANGE_TOLERANCE_PCT = 0.5       # kısmi çıkış varsa: borsa ortalaması turun dolum fiyat aralığının (en düşük..en yüksek) bu kadar dışına çıkamaz
-STOP_UNVERIFIED_TICK_LIMIT = 3      # pozisyon açıkken doğrulanmış stop art arda bu kadar TUR (tick) görünmezse INTERVENTION_REQUIRED
+
+# --- motor: doğrulanmış stop yokken pozisyonun büyümesini engelle ---
+# Pozisyon açıkken doğrulanmış koruyucu stop TAMAMEN kapsamıyorsa: (1) yeni ek emir gönderilmez, (2) borsada bekleyen ek emirler iptal edilir ve
+# iptal borsada DOĞRULANIR, (3) stop her kontrolde yeniden kurulmayı dener. Bu kadar art arda TUR (tick) kurulamazsa pozisyon piyasadan kapatılır
+# (INTERVENTION_REQUIRED yalnız kapatma da doğrulanamazsa son güvenlik durumudur).
+STOP_RETRY_TICKS = 3
+CANCEL_VERIFY_ATTEMPTS = 3          # bekleyen ek emir iptali için aynı kontrolde en çok bu kadar iptal + durum sorgusu; sonra kapatmaya geçilir

@@ -20,6 +20,7 @@ class FakeExchange:
         self.connected = True
         self.lose_response_for: set[str] = set()      # emir işlenir, yanıt kaybolur (Timeout)
         self.lose_response_always = False
+        self.lose_cancel_response_for: set[str] = set()   # iptal işlenir, yanıt kaybolur (Timeout)
         self.percent_down = 0.0                        # >0: limit alış fiyatı mark*percent_down'dan düşük olamaz (PERCENT_PRICE)
         self.dup_never_rejected = False                # kimlik tekrarını HİÇ reddetmeyen (kötü senaryo) borsa
         self.reuse_final_ids = False                   # biten (dolu/iptal) emrin kimliği yeniden kullanılabilir
@@ -103,6 +104,9 @@ class FakeExchange:
         if order.status not in (NEW, PARTIAL):
             raise ExchangeRejected(UNKNOWN_ORDER, "Order does not exist (dolmuş ya da iptal)")
         order.status = CANCELED
+        if client_id in self.lose_cancel_response_for:        # iptal işlendi, yanıt kayboldu (Timeout): durum sorulmadan bilinemez
+            self.lose_cancel_response_for.discard(client_id)
+            raise ExchangeTimeout("iptal yanıtı alınamadı")
         return self._copy(order)
 
     def position(self, symbol):

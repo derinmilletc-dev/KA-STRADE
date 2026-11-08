@@ -15,9 +15,10 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from app.dca_engine.engine import CYCLE_DONE, DcaEngine, dca_client_order_id, spec_from_plan  # noqa: E402
 from app.dca_engine.plan import prepare_dca_plan  # noqa: E402
-from app.grid_engine.engine import BLOCKED, COMPLETED, INTERVENTION_REQUIRED, RUNNING, STOPPED  # noqa: E402
+from app.grid_engine.engine import BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, RUNNING, STOPPED  # noqa: E402
 from app.grid_engine.fake_exchange import FakeExchange  # noqa: E402
-from app.grid_engine.ports import CANCELED, EPS, LONG, NEW, PARTIAL, SHORT, ExchangeTimeout, ExchangeUnreachable  # noqa: E402
+from app.grid_engine.ports import (CANCELED, EPS, LONG, NEW, PARTIAL, SHORT, ExchangeRejected, ExchangeTimeout,  # noqa: E402
+                                   ExchangeUnreachable)
 from app.grid_engine.store import GridStore  # noqa: E402
 
 SYM = "ETHUSDT"
@@ -93,6 +94,24 @@ class Base(unittest.TestCase):
         if self.direction == LONG:
             return math.ceil(avg * 1.01 / 0.01 - 1e-9) * 0.01
         return math.floor(avg * 0.99 / 0.01 + 1e-9) * 0.01
+
+    def block(self, pattern, error=lambda: ExchangeTimeout("test: yol kapalı"), methods=("place_order",)):
+        """Kimliği `pattern`'e uyan emirlerin `methods` çağrılarını hata ile düşürür. Dönen sözlükte on=False yapılınca yol açılır."""
+        flag = {"on": True}
+
+        def hook(method, info):
+            if flag["on"] and method in methods and re.search(pattern, info.get("client_id", "")):
+                raise error()
+        self.ex.hooks.append(hook)
+        return flag
+
+    def grow_to_first_safety(self, eng):
+        """Taban + 1. ek emir dolu pozisyon (3. ve 4. kademe hâlâ bekliyor)."""
+        eng.start()
+        self.ex.set_price(SYM, self.stage_price(1))
+        eng.tick()
+        self.assertEqual(len(self.live("E")), 2)
+        return abs(self.ex.positions[SYM])
 
 
 # ---------------------------------------------------------------------------------------------------------------------------
@@ -227,7 +246,7 @@ class TestProtectionOrder(Base):
         self.assertEqual(len(self.live("E")), 3)
         self.assert_consistent("stop-sonrasi-ek-emirler")
 
-    def test_stop_never_verifiable_requires_intervention_and_opens_nothing(self):
+    def test_stop_never_verifiable_closes_position_instead_of_waiting_for_user(self):
         def hook(method, info):
             if method == "place_order" and re.search(r"S\d+$", info.get("client_id", "")):
                 raise ExchangeTimeout("stop yolu kapalı")
@@ -236,10 +255,12 @@ class TestProtectionOrder(Base):
         eng.start()
         for _ in range(6):
             eng.tick()
-        self.assertEqual(eng.status, INTERVENTION_REQUIRED)               # açık pozisyon + doğrulanmış stop yok
-        self.assertEqual(len(self.live("E")), 0)
+        self.assertEqual(eng.status, EMERGENCY_CLOSED)                    # kullanıcıyı beklemedi: pozisyon güvenle kapatıldı
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
+        self.assertEqual(len(self.live()), 0)
         for level in (2, 3, 4):
-            self.assertEqual(self.ex.placed_count.get(self.cid(level, "E"), 0), 0)
+            self.assertEqual(self.ex.placed_count.get(self.cid(level, "E"), 0), 0)     # bu sürede hiçbir ek emir açılmadı
+        self.assertEqual(self.ex.placed_count[self.cid(0, "C")], 1)       # tek kapanış emri
 
     def test_single_slow_tick_does_not_lock_the_bot(self):
         down = {"on": True}
@@ -257,16 +278,23 @@ class TestProtectionOrder(Base):
 
 
 class TestStopUpdateSafety(Base):
-    def test_stop_update_rejected_after_dca_fill_requires_intervention_and_keeps_old_stop(self):
+    def test_stop_update_rejected_after_dca_fill_cancels_dca_keeps_old_stop_then_recovers(self):
         eng = self.engine()
         eng.start()
         (old,) = self.live("S")
         self.ex.set_price(SYM, self.stage_price(1))                        # DCA doldu: stop büyümeli
-        self.ex.reject_next = [(-4164, "ret")]                             # ama yeni stop reddedilir
+        self.ex.reject_next = [(-4164, "ret")] * 3                         # ama yeni stop bu kontrolde reddedilir (yeniden denemeler dahil)
         eng.tick()
-        self.assertEqual(eng.status, INTERVENTION_REQUIRED)
-        self.assertEqual(len(self.live("E")), 0)                           # yeni ek emir yok
-        self.assertEqual([o.client_id for o in self.live("S")], [old.client_id])   # eski stop İPTAL EDİLMEDİ
+        self.assertEqual(eng.status, RUNNING)                              # kullanıcıyı beklemiyor: yeniden deniyor
+        self.assertEqual(len(self.live("E")), 0)                           # korumasızken bekleyen ek emirler iptal edildi
+        self.assertEqual([o.client_id for o in self.live("S")][:1], [old.client_id])   # eski stop İPTAL EDİLMEDİ
+        for _ in range(3):                                                 # stop bu sefer kurulur → ek emirler geri kurulur
+            eng.tick()
+        self.assertEqual(eng.status, RUNNING)
+        net = abs(self.ex.positions[SYM])
+        self.assertAlmostEqual(self.stop_cover(), net)
+        self.assertEqual(len(self.live("E")), 2)                           # 3. ve 4. kademe yeniden kuruldu
+        self.assert_consistent("stop-reddi-sonrasi")
 
     def test_old_stop_not_cancelled_until_new_stop_is_verified(self):
         eng = self.engine()
@@ -311,6 +339,211 @@ class TestStopUpdateSafety(Base):
         self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
         self.assertEqual(len(self.live()), 0)
         self.assertLessEqual(self.place_calls() - before, 2)               # yalnız yeni stop denemesi + kapanış; yeni ek emir yok
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# 2b) Doğrulanmış stop yokken HİÇBİR (mevcut ya da yeni) DCA emri pozisyonu büyütemez
+# ---------------------------------------------------------------------------------------------------------------------------
+class TestNoGrowthWithoutVerifiedStop(Base):
+    def test_stop_update_fails_pending_dca_orders_are_cancelled_and_verified(self):
+        eng = self.engine()
+        net = self.grow_to_first_safety(eng)
+        (old,) = self.live("S")
+        self.block(r"S[1-9]\d*$")                                          # yeni (büyütülmüş) stop kurulamıyor
+        self.ex.set_price(SYM, self.stage_price(1) + 0.4)                  # fiyat dolum seviyesinin biraz üstünde; tetik yok
+        self.ex.partial_fill(self.cid(3, "E"), 0.0) if False else None
+        # bir kademe daha doldur ki stop güncellemesi gereksin: 2. ek emir
+        self.ex.set_price(SYM, self.stage_price(2))
+        eng.tick()
+        self.assertEqual(len(self.live("E")), 0)                           # kalan ek emirler iptal edildi...
+        for level in (3, 4):
+            self.assertIn(self.store.order(self.cid(level, "E"))["status"], (CANCELED, "FILLED"))   # ...ve defter de borsayla aynı
+        open_rows = [o for o in self.ex.orders.values() if o.status in (NEW, PARTIAL) and not o.reduce_only and o.type == "LIMIT"]
+        self.assertEqual(open_rows, [])                                    # borsada hiçbiri aktif değil
+        self.assertEqual(self.ex.orders[old.client_id].status, NEW)        # eski stop yerinde
+        self.assertEqual(eng.status, RUNNING)
+
+    def test_cancel_response_lost_status_is_queried_from_exchange(self):
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        self.ex.lose_cancel_response_for |= {self.cid(3, "E"), self.cid(4, "E")}   # iptal işlendi ama yanıt kayboldu
+        self.block(r"S[1-9]\d*$")
+        self.ex.set_price(SYM, self.stage_price(1) + 0.3)
+        self.ex.set_position(SYM, self.ex.positions[SYM])                  # (no-op) pozisyon değişmedi
+        # stop güncellemesinin gerekmesi için pozisyonu büyüt: 2. ek emir dolsun, sonra yalnız 4. kademe bekler
+        self.ex.set_price(SYM, self.stage_price(2))
+        self.ex.lose_cancel_response_for = {self.cid(4, "E")}
+        calls_before = len(self.ex.calls)
+        eng.tick()
+        asked = [cid for method, cid in self.ex.calls[calls_before:] if method == "get_order"]
+        self.assertIn(self.cid(4, "E"), asked)                             # iptal yanıtı kayıp → emrin durumu borsadan sorulur
+        self.assertEqual(self.store.order(self.cid(4, "E"))["status"], CANCELED)
+        self.assertEqual(len(self.live("E")), 0)
+        self.assertEqual(eng.status, RUNNING)                              # doğrulandığı için kapatmaya/müdahaleye gerek yok
+        self.assert_consistent_orders_only()
+
+    def test_dca_price_reached_without_stop_does_not_grow_position(self):
+        """STOP UPDATE başarısız → mevcut DCA limit emri açık → fiyat DCA seviyesine geliyor → DCA fill olmamalı."""
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        self.block(r"S[1-9]\d*$")
+        self.ex.set_price(SYM, self.stage_price(2))                        # 2. ek emir dolar: stop güncellemesi başarısız
+        eng.tick()
+        net_after_fill = abs(self.ex.positions[SYM])
+        self.assertEqual(len(self.live("E")), 0)                           # 4. kademe artık bekleyen emir değil
+        self.ex.set_price(SYM, self.stage_price(3))                        # fiyat bir sonraki DCA seviyesine kadar iner
+        eng.tick()
+        self.assertAlmostEqual(abs(self.ex.positions[SYM]), net_after_fill)    # pozisyon BÜYÜMEDİ
+        self.assertNotEqual(self.store.order(self.cid(4, "E"))["status"], "FILLED")
+
+    def test_no_stop_and_dca_cancel_fails_closes_position_and_ends_in_intervention(self):
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        self.block(r"S[1-9]\d*$")                                          # stop kurulamıyor
+        self.block(r"E\d+$", error=lambda: ExchangeRejected(-1000, "iptal edilemiyor"), methods=("cancel_order",))   # ek emir iptal edilemiyor
+        self.ex.set_price(SYM, self.stage_price(2))
+        eng.tick()
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.0)                # pozisyon piyasadan kapatıldı (daha fazla büyümesin)
+        self.assertEqual(eng.status, INTERVENTION_REQUIRED)                # iptal edilemeyen emir kaldı → son güvenlik durumu
+        self.assertTrue(any("iptal" in text for _, text in self.store.alerts("d1")))
+        self.assertEqual(self.ex.placed_count[self.cid(0, "C")], 1)
+
+    def test_intervention_is_last_resort_when_close_also_fails(self):
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        (old,) = self.live("S")
+        self.block(r"S[1-9]\d*$")
+        self.block(r"C\d+$", error=lambda: ExchangeRejected(-1000, "kapatılamıyor"))
+        self.block(r"E\d+$", error=lambda: ExchangeRejected(-1000, "iptal edilemiyor"), methods=("cancel_order",))
+        self.ex.set_price(SYM, self.stage_price(2))
+        eng.tick()
+        self.assertEqual(eng.status, INTERVENTION_REQUIRED)
+        self.assertEqual(self.ex.orders[old.client_id].status, NEW)        # koruyucu stoplar iptal EDİLMEDİ
+        self.assertGreater(abs(self.ex.positions[SYM]), 0)
+
+    def test_stop_unverifiable_for_several_ticks_closes_without_duplicate_close_order(self):
+        close_id = self.cid(0, "C")
+        self.ex.lose_response_for.add(close_id)                            # piyasa kapanış emri işlenir ama yanıt kaybolur
+        self.block(r"S\d+$")
+        eng = self.engine()
+        eng.start()
+        for _ in range(8):
+            eng.tick()
+        self.assertEqual(eng.status, EMERGENCY_CLOSED)
+        self.assertAlmostEqual(self.ex.positions[SYM], 0.0)
+        self.assertEqual(self.ex.placed_count[close_id], 1)                # kapanış emri borsaya TEK kez kabul edildi
+        self.assertEqual(len(self.store.orders("d1", "C")), 1)             # defterde de tek kapanış satırı
+
+    def test_close_response_lost_and_status_unreadable_never_resends(self):
+        close_id = self.cid(0, "C")
+        self.ex.lose_response_for.add(close_id)
+        self.block(r"S\d+$")
+        flag = self.block(rf"^{re.escape(close_id)}$", error=lambda: ExchangeUnreachable("sorgu yok"), methods=("get_order",))
+        eng = self.engine()
+        eng.start()
+        for _ in range(8):
+            eng.tick()
+        self.assertEqual(self.ex.placed_count[close_id], 1)                # durum sorulamadığı için tekrar GÖNDERİLMEDİ
+        self.assertEqual(len(self.store.orders("d1", "C")), 1)
+        self.assertEqual(eng.status, INTERVENTION_REQUIRED)                # doğrulanamadı → son güvenlik durumu (stoplar iptal edilmedi)
+        flag["on"] = False
+        self.assertEqual(self.ex.placed_count[close_id], 1)
+
+    def test_normal_dca_flow_is_not_disturbed_by_the_guard(self):
+        eng = self.engine()
+        eng.start()
+        for i in (1, 2, 3):
+            self.ex.set_price(SYM, self.stage_price(i))
+            eng.tick()
+            self.assertEqual(eng.status, RUNNING)
+            self.assertAlmostEqual(self.stop_cover(), abs(self.ex.positions[SYM]))
+        self.assertEqual(self.store.order(self.cid(4, "E"))["status"], "FILLED")
+        self.assert_consistent("normal-akis")
+
+    def assert_consistent_orders_only(self):
+        for key, count in self.ex.placed_count.items():
+            self.assertLessEqual(count, 1, key)
+
+
+class TestRestartWithOpenDcaAndStop(Base):
+    def test_restart_with_unverified_stop_cancels_resting_dca_then_rearms_after_stop(self):
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        flag = self.block(r"S[1-9]\d*$")
+        self.ex.set_price(SYM, self.stage_price(2))
+        eng.tick()                                                         # stop güncellenemedi; kalan DCA iptal edildi
+        net = abs(self.ex.positions[SYM])
+        self.assertEqual(len(self.live("E")), 0)
+        fresh = self.engine()                                              # süreç öldü: aynı defter, yeni motor
+        ok, why = fresh.recover()
+        self.assertFalse(ok, why)                                          # koruma doğrulanamadı → sistem bunu biliyor
+        self.assertEqual(len(self.live("E")), 0)                           # yeniden başlatma bekleyen DCA'yı geri GETİRMEDİ
+        self.ex.set_price(SYM, self.stage_price(3))
+        fresh.tick()
+        self.assertAlmostEqual(abs(self.ex.positions[SYM]), net)           # fiyat DCA'ya değse de pozisyon büyümedi
+        flag["on"] = False
+        self.ex.set_price(SYM, self.stage_price(1))                        # fiyat tekrar uygun tarafa döndü
+        for _ in range(4):
+            fresh.tick()
+        self.assertEqual(fresh.status, RUNNING)
+        self.assertAlmostEqual(self.stop_cover(), abs(self.ex.positions[SYM]))
+        self.assertGreaterEqual(len(self.live("E")), 1)                    # stop doğrulandı → ek emirler geri kuruldu
+        self.assert_consistent("yeniden-baslatma-sonrasi")
+
+    def test_restart_after_stop_vanished_reinstates_stop_and_keeps_single_dca_set(self):
+        eng = self.engine()
+        self.grow_to_first_safety(eng)
+        (stop,) = self.live("S")
+        self.ex.cancel_order(SYM, stop.client_id)                          # stop borsada kayboldu (elle iptal), süreç de öldü
+        fresh = self.engine()
+        ok, why = fresh.recover()
+        self.assertTrue(ok, why)
+        self.assertAlmostEqual(self.stop_cover(), abs(self.ex.positions[SYM]))
+        for _ in range(3):
+            fresh.tick()
+        self.assertEqual(len(self.live("E")), 2)                           # DCA emirleri iki kez kurulmadı
+        self.assert_consistent("stop-kaybi-yeniden-baslatma")
+
+
+class TestProtectiveOrdersGateCycle(Base):
+    def recycle_spec(self, **kw):
+        return spec_from_plan("d1", SYM, plan_for(recycle=True, **kw), tick=0.01)
+
+    def test_safeties_wait_for_target_verification_in_new_cycle(self):
+        spec = self.recycle_spec()
+        eng = self.engine(spec)
+        eng.start()
+        tp = self.live("T")[0].price
+        self.ex.set_price(SYM, tp)
+        eng.tick()
+        self.assertEqual(eng.status, CYCLE_DONE)
+        flag = self.block(r"T\d+$")                                        # yeni turun hedefi doğrulanamıyor
+        self.assertTrue(eng.begin_cycle(self.recycle_spec(price=tp)))
+        for _ in range(3):
+            eng.tick()
+        self.assertGreater(abs(self.ex.positions[SYM]), 0)                 # yeni tur tabanı doldu
+        self.assertEqual(len(self.live("S")), 1)                           # stop doğrulandı
+        self.assertEqual(len(self.live("T")), 0)
+        self.assertEqual(len(self.live("E")), 0)                           # ama hedef doğrulanmadan ek emir yok
+        flag["on"] = False
+        for _ in range(3):
+            eng.tick()
+        self.assertEqual(len(self.live("T")), 1)
+        self.assertEqual(len(self.live("E")), 3)                           # tüm koruyucu emirler doğrulandı → tur devam etti
+        self.assert_consistent("yeni-tur-koruma")
+
+    def test_new_cycle_refused_while_old_protective_order_is_still_live(self):
+        spec = self.recycle_spec()
+        eng = self.engine(spec)
+        eng.start()
+        tp = self.live("T")[0].price
+        self.block(r"S\d+$", error=lambda: ExchangeUnreachable("iptal yolu kapalı"), methods=("cancel_order",))
+        self.ex.set_price(SYM, tp)
+        eng.tick()
+        self.assertEqual(eng.status, CYCLE_DONE)
+        self.assertEqual(len(self.live("S")), 1)                           # eski stop borsada iptal edilemedi
+        self.assertFalse(eng.begin_cycle(self.recycle_spec(price=tp)))     # → yeni tur BAŞLAMAZ
+        self.assertEqual(eng.status, CYCLE_DONE)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------
