@@ -8629,7 +8629,7 @@ def combined_reserved_risk(application: Any, user_id: str, *, owner: bool, exclu
     """Grid + DCA çalıştırıcılarının ayırdığı risk toplamı (aynı alanlar). Okunamayan çalıştırıcı hata fırlatır (çağıran güvenli tarafı seçer)."""
     worst, pending, symbols = 0.0, 0.0, []
     for runner in live_bot_runners(application):
-        info = runner.reserved_risk(user_id, owner=owner, exclude=exclude)
+        info = runner.reserved_risk(user_id, owner=owner) if exclude is None else runner.reserved_risk(user_id, owner=owner, exclude=exclude)
         worst += float(info.get("worst_loss_usdt") or 0.0)
         pending += float(info.get("pending_entry_notional_usdt") or 0.0)
         symbols.extend(info.get("symbols") or [])
