@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, X, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
@@ -9,13 +9,14 @@ import { useLiveQuotes } from './useLiveQuotes'
 import { liveChangePercent, midPrice } from './live-quote'
 import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
 import { CheckList, DirectionCards, DayLimitCard, ElapsedSeconds, PriceMapView, SlideToConfirm, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
-import { AI_DISCLAIMER, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
+import { AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
 import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
+import '../../manual-analysis-sheet.css'
 import {askKais} from '../../kais-ask'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
@@ -275,6 +276,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [universe, setUniverse] = useState<CoinRow[] | null>(null)
   const [universeError, setUniverseError] = useState(false)
   const [coinQuery, setCoinQuery] = useState('')
+  // Telefon coin listesi: satırdaki analiz ikonundan açılan alttan sheet. Yalnız bu sembolü gösterir; seçimi ve listeyi bozmaz.
+  const [anaSym, setAnaSym] = useState<string | null>(null)
   const [coinOpen, setCoinOpen] = useState(false)
   // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
   const [signals, setSignals] = useState<SignalMap | null>(() => signalsCache)
@@ -1690,7 +1693,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <div><span>Sinyal gücü</span><b>{strengthLabel(selectedSignal.confidence)} · %{selectedSignal.confidence}</b></div>
           <div><span>Seçtiğinle uyum</span><b data-tone={align === 'aligned' ? 'up' : align === 'opposed' ? 'warn' : undefined}>{align === 'aligned' ? 'Uyumlu' : align === 'opposed' ? 'Ters yönde' : 'Karşılaştırılamaz'}</b></div>
         </div>
-        {align === 'opposed' && <p className="mxtWarn">Seçtiğin yön ({dirSide}), analizin ağır bastığı yönün tersi. Bu yalnızca bilgidir; kararı sen verirsin.</p>}
+        {align === 'opposed' && <div className="mxsaAlert" role="alert" data-strong={selectedSignal.confidence >= STRONG_CONFIDENCE || undefined}>
+          <TriangleAlert aria-hidden="true"/>
+          <div>
+            <b>{selectedSignal.confidence >= STRONG_CONFIDENCE ? 'Güçlü analizin tersine gidiyorsun' : 'Yön analizle uyuşmuyor'}</b>
+            <p>Kais AI bu coinde <strong>{selectedSignal.lean} %{selectedSignal.confidence}</strong> diyor, sen <strong>{dirSide}</strong> seçtin. Bu yalnızca bilgidir; kararı sen verirsin.</p>
+            <div className="mxsaAlertActs"><button type="button" onClick={() => set('direction', selectedSignal.lean)}>{selectedSignal.lean} yap</button></div>
+          </div>
+        </div>}
         <p className="mxtHint">{AI_DISCLAIMER}</p>
       </div> : <p className="mxtHint">{signals === null && !signalsError ? 'Kais AI analizi yükleniyor…' : 'Bu coin için Kais AI analizi yok. Yön seçimi tamamen sana ait.'}</p>}
       {posStat}
@@ -1699,6 +1709,37 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
     const coinMark = (row: CoinRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={row?.symbol || fallback} size={40}/></span>
     const mobileList = matches.slice(0, 120)
+    // Analiz sheet'i: listedeki sinyalden (yön, LONG/SHORT oranı, güç) beslenir; yeni istek atmaz. Önceki/sonraki mevcut filtreye göre gezer.
+    const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
+    const anaRow = anaIdx >= 0 ? matches[anaIdx] : undefined
+    const anaSig = anaRow ? signals?.[anaRow.symbol] : undefined
+    const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
+    const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
+    const anaLeanTitle = !anaSig ? '' : anaSig.lean === 'LONG' ? 'Yükseliş yönü ağır basıyor' : anaSig.lean === 'SHORT' ? 'Düşüş yönü ağır basıyor' : 'Belirgin yön yok'
+    const anaSheet = anaRow && anaSig && typeof document !== 'undefined' ? createPortal(<div className="mxsaRoot" data-open="1">
+      <button type="button" className="mxsaScrim" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}/>
+      <section className="mxsaSheet" role="dialog" aria-modal="true" aria-label={`${anaRow.display || anaRow.symbol} analizi`} data-lean={anaSig.lean}
+        onKeyDown={event => { if (event.key === 'Escape') setAnaSym(null); if (event.key === 'ArrowRight') anaStep(1); if (event.key === 'ArrowLeft') anaStep(-1) }}>
+        <span className="mxsaGrab" aria-hidden="true"/>
+        <header className="mxsaHead">
+          <button type="button" className="mxsaIcon" aria-label="Önceki coin" disabled={anaIdx <= 0} onClick={() => anaStep(-1)}><ChevronLeft aria-hidden="true"/></button>
+          <span className="mxsaTitle"><small>ANALİZ SONUCU · {anaIdx + 1} / {matches.length}</small><b>{anaRow.display || anaRow.symbol}</b></span>
+          <button type="button" className="mxsaIcon" aria-label="Sonraki coin" disabled={anaIdx >= matches.length - 1 || !signals?.[matches[anaIdx + 1]?.symbol]} onClick={() => anaStep(1)}><ChevronRight aria-hidden="true"/></button>
+          <button type="button" className="mxsaIcon" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}><X aria-hidden="true"/></button>
+        </header>
+        <div className="mxsaBody">
+          <div className="mxsaVerdict"><span><b data-lean={anaSig.lean}>{anaLeanTitle}</b><small>{coinPrice(Number(anaRow.price))}{Number.isFinite(Number(anaRow.change)) ? ` · ${signedChange(anaRow)}` : ''}</small></span><span className="mxsaConf"><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span></div>
+          {duo(anaSig)}
+          <p className="mxsaNote">{AI_DISCLAIMER}</p>
+        </div>
+        <footer className="mxsaFoot">
+          {anaSig.lean === 'NEUTRAL'
+            ? <button type="button" className="mxsaCta" data-lean="NEUTRAL" onClick={anaPick}>{anaRow.display || anaRow.symbol} seç</button>
+            : <button type="button" className="mxsaCta" data-lean={anaSig.lean} onClick={anaPick}>{anaRow.display || anaRow.symbol} seç · analiz {anaSig.lean}</button>}
+          <button type="button" className="mxsaBack" onClick={() => setAnaSym(null)}>Listeye dön</button>
+        </footer>
+      </section>
+    </div>, document.body) : null
     const coinMobile = <div className="mxtM mxtMCoin">
       {order.symbol && <div className="mxtMSel">{coinMark(selectedRow, order.symbol)}<span className="mxtMSelN"><b>{selectedRow?.display || order.symbol}</b><small>{selectedRow ? <>{coinPrice(Number(selectedRow.price))} · <em data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
       <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && q && !rows.some(row => row.symbol === q) && /^[A-Z0-9]{2,20}$/.test(q)) chooseCoin(q.endsWith('USDT') ? q : `${q}USDT`) }}/></label>
@@ -1709,11 +1750,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {universe === null && !universeError && <p className="mxtMEmpty">Coin listesi yükleniyor…</p>}
       {universeError && <p className="mxtMEmpty">Liste alınamadı. Coin kodunu yazıp Enter'a bas (ör. BTCUSDT).</p>}
       {universe !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede coin yok.</p>}
-      {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${q}`} role="listbox" aria-label="Coin listesi">{mobileList.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === order.symbol} data-on={row.symbol === order.symbol || undefined} onClick={() => chooseCoin(row.symbol)}>
+      {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${q}`} role="listbox" aria-label="Coin listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={row.symbol === order.symbol} data-on={row.symbol === order.symbol || undefined} onClick={() => chooseCoin(row.symbol)}>
         {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display || row.symbol}</b><small>{coinPrice(Number(row.price))}</small></span>
         <span className="mxtMRowR">{Number.isFinite(Number(row.change)) && <em data-tone={Number(row.change) >= 0 ? 'up' : 'down'}>{signedChange(row)}</em>}{leanBadge(signals?.[row.symbol])}</span>
         {row.symbol === order.symbol && <i className="mxtMTick" aria-hidden="true">✓</i>}
-      </button></li>)}</ul>}
+      </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display || row.symbol} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}
+      {anaSheet}
       {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} coinden ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
       {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
     </div>
