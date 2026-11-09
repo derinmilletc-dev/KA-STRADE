@@ -353,7 +353,15 @@ class AssistantTools:
         try:
             rows = await read_market_movers(self.request, self.config.request_timeout_seconds)
             pick = lambda row: {"symbol": row["symbol"], "change_24h_percent": round(row["change"], 2), "price": row["price"]}
-            data["movers"] = {"status": "fresh", "min_volume_usdt": MIN_MOVER_VOLUME_USDT,
+            changes = sorted(row["change"] for row in rows)
+            by_symbol = {row["symbol"]: round(row["change"], 2) for row in rows}
+            breadth = None if not changes else {
+                "coins": len(changes), "up": sum(1 for value in changes if value > 0), "down": sum(1 for value in changes if value < 0),
+                "up_percent": round(100 * sum(1 for value in changes if value > 0) / len(changes), 1),
+                "median_change_24h_percent": round(changes[len(changes) // 2] if len(changes) % 2 else (changes[len(changes) // 2 - 1] + changes[len(changes) // 2]) / 2, 2),
+                "btc_change_24h_percent": by_symbol.get("BTCUSDT"), "eth_change_24h_percent": by_symbol.get("ETHUSDT"),
+            }
+            data["movers"] = {"status": "fresh", "min_volume_usdt": MIN_MOVER_VOLUME_USDT, "breadth": breadth,
                               "top_gainers": [pick(r) for r in sorted((r for r in rows if r["change"] > 0), key=lambda r: r["change"], reverse=True)[:3]],
                               "top_losers": [pick(r) for r in sorted((r for r in rows if r["change"] < 0), key=lambda r: r["change"])[:3]]}
         except Exception:
