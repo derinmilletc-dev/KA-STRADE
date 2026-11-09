@@ -143,6 +143,19 @@ function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string
   return matching.sort((a, b) => score(b) - score(a))[0]
 }
 
+/** iPhone Safari, sesli okumayı yalnız kullanıcı dokunuşuyla başlatılmış bir konuşmadan sonra serbest bırakır. Cevap ağdan geç geldiği için
+ *  o dokunuşta sessiz bir okuma başlatıp tarayıcının ses kilidini açarız; yoksa Kais "konuşuyor" görünür ama ses gelmez. */
+export function unlockSpeech() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    const synth = window.speechSynthesis
+    synth.resume()
+    const silent = new SpeechSynthesisUtterance(' ')
+    silent.volume = 0
+    synth.speak(silent)
+  } catch { /* ses kilidi açılamazsa normal akış sürer */ }
+}
+
 const coarsePointer = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
 
 /** Sohbetten bağımsız basit okuma (site turu anlatımı). Dönen fonksiyon okumayı keser; bitince ya da kesilince onDone bir kez çağrılır. */
@@ -438,6 +451,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (startingRef.current) return
     if (!recognitionConstructor()) { setMessage(copy.unsupported); return }
     stopSpeaking()
+    unlockSpeech()  // dokunuş anında (await öncesi): iPhone Safari'de cevabın sesli okunması için
     startingRef.current = true; setStarting(true); setMessage('')
     try {
       // İzin penceresini doğrudan tıklamayla açmak için mikrofonu önce isteriz.
