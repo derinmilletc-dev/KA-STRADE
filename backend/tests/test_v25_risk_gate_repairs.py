@@ -422,7 +422,7 @@ class ProtectionStatusRepairTests(unittest.TestCase):
         self.assertTrue(plan["monitoring_targets_exchange_backed"])
         for overrides in [
             {"status": "CANCELED"}, {"trigger_price": "52000"},
-            {"close_position": False}, {"side": "BUY"}, {"working_type": "CONTRACT_PRICE"},
+            {"close_position": False}, {"side": "BUY"}, {"working_type": "MARK_PRICE"},
         ]:
             with self.subTest(overrides=overrides):
                 live.reconcile_monitoring_targets(live.initial_state(), plan, [{**row, **overrides}])
