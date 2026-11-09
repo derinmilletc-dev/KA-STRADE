@@ -606,16 +606,20 @@ export default function LiveCockpit(props: Props) {
     if (!target) return Promise.resolve(false)
     const clickedAt = Date.now()
     return perform('close-position', async () => {
+      // Ekranda görünen canlı fiyat gönderilir: sunucu önce bu fiyattan limit dener, 4 sn dolmazsa piyasadan kapatır.
+      const seen = closeLive?.exitPrice
+      const limitPrice = typeof seen === 'number' && Number.isFinite(seen) && seen > 0 ? {limit_price: seen} : {}
       const result = await (target.planId.length >= 6
-        ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE})
-        : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE})) as {fill_price?: unknown} | undefined
+        ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})
+        : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})) as {fill_price?: unknown; close_mode?: unknown} | undefined
       setSheet(null); setCloseTarget(null)
       // Gerçek dolum fiyatı ve süre: "bastığım an" ile "dolduğu an" arasındaki farkı görünür kılar.
       const coin = target.symbol.replace('USDT', '')
       const fill = finite(result?.fill_price)
       const seconds = ((Date.now() - clickedAt) / 1000).toLocaleString('tr-TR', {maximumFractionDigits: 1})
+      const modeNote = result?.close_mode === 'LIMIT' ? ' Gördüğün fiyattan limitle doldu.' : result?.close_mode === 'LIMIT_SONRA_PIYASA' ? ' Limit 4 sn içinde dolmadı, kalanı piyasadan kapandı.' : ''
       setFlash({tone: 'ok', text: fill !== null
-        ? `${coin} kapandı · dolum fiyatı ${fill.toLocaleString('tr-TR', {maximumFractionDigits: 8})} · ${seconds} sn sürdü. Stop/TP emirleri otomatik temizlenir.`
+        ? `${coin} kapandı · dolum fiyatı ${fill.toLocaleString('tr-TR', {maximumFractionDigits: 8})} · ${seconds} sn sürdü. Stop/TP emirleri otomatik temizlenir.${modeNote}`
         : `${coin} kapanış emri gönderildi (${seconds} sn). Pozisyon kapanınca Stop/TP emirleri otomatik temizlenir.`})
     }, undefined, setSheetError)
   }
@@ -1740,7 +1744,7 @@ export default function LiveCockpit(props: Props) {
       <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
   </> : sheet === 'close-position' && closeTarget ? <>
     <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
-    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon <b>piyasa fiyatından, reduce-only</b> emirle hemen kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
+    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon, gördüğün canlı fiyattan <b>reduce-only limit</b> emirle kapatılmaya çalışılır; <b>4 saniyede dolmazsa</b> kalanı piyasadan kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
     <ul className="lcStopList">
       {closeLive ? <li data-tone={closeLive.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa ≈ {usdt(closeLive.pnl, true)} USDT</b> · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}. Giriş ve çıkış komisyonu dahil net ≈ {usdt(closeLive.netPnl, true)} USDT. Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
         : <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} USDT ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></li>}
