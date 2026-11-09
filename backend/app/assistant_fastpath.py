@@ -187,7 +187,7 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
     """Plan özeti: yalnız get_plans verisinden; müşteriye net, eksiksiz ve kısa."""
     plans = {row["id"]: row for row in data["plans"]}
     trial, smart, master = plans["TRIAL"], plans["SMART_TRADE"], plans["MASTER_MODE"]
-    tl, pl = trial["daily_limits"], master["daily_limits"]
+    tl, sl, pl = trial["daily_limits"], smart["daily_limits"], master["daily_limits"]
     if language == "tr":
         return (
             "Üç seçenek var:\n"
@@ -198,8 +198,9 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
             "pozisyon koruması, AI Analist ve Scanner. Canlıda KAIS stratejileri ve Auto Trade yok; Demo hesapta hepsi açık.\n"
             f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} gün. Smart Trade'deki her şey, "
             "ek olarak canlıda KAIS stratejileri, canlı Auto Trade ve öncelikli destek.\n"
-            f"Ücretli iki planda da KAIS AI günde {pl['kais_ai_messages_per_day']} mesaj, Grafik AI günde {pl['chart_ai_per_day']}, "
-            f"AI Analist günde {pl['ai_analyst_per_day']} analiz.\n"
+            f"Günlük haklar: Smart Trade'de KAIS AI {sl['kais_ai_messages_per_day']} mesaj, Grafik AI {sl['chart_ai_per_day']}, "
+            f"AI Analist {sl['ai_analyst_per_day']} analiz; Master Mode'da KAIS AI {pl['kais_ai_messages_per_day']} mesaj, Grafik AI "
+            f"{pl['chart_ai_per_day']}, AI Analist {pl['ai_analyst_per_day']} analiz.\n"
             f"Ödeme {data['payment']['method']} ile {data['payment']['currency']} olarak yapılır; otomatik yenileme olmadığı için iptal "
             "gerekmez. Planı Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranından seçebilirsin."
         )
@@ -212,8 +213,9 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
         "position protection, AI Analyst and Scanner. No KAIS strategies or Auto Trade on live; all of them work on Demo.\n"
         f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} days. Everything in Smart Trade plus "
         "KAIS strategies and Auto Trade on live, and priority support.\n"
-        f"Both paid plans include KAIS AI {pl['kais_ai_messages_per_day']} messages, Chart AI {pl['chart_ai_per_day']} and "
-        f"AI Analyst {pl['ai_analyst_per_day']} analyses a day.\n"
+        f"Daily allowances: Smart Trade KAIS AI {sl['kais_ai_messages_per_day']} messages, Chart AI {sl['chart_ai_per_day']}, "
+        f"AI Analyst {sl['ai_analyst_per_day']} analyses; Master Mode KAIS AI {pl['kais_ai_messages_per_day']} messages, Chart AI "
+        f"{pl['chart_ai_per_day']}, AI Analyst {pl['ai_analyst_per_day']} analyses.\n"
         f"Payment is made with {data['payment']['method']} in {data['payment']['currency']}; there is no automatic renewal, so nothing "
         "to cancel. Choose a plan under Home → ABONELİK (Subscription)."
     )

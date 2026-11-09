@@ -36,8 +36,8 @@ class AnalystCreditTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict("os.environ", {}, clear=True):
             config = CreditConfig.from_environment()
             self.assertEqual(config.cost, ANALYSIS_COST)
-            self.assertEqual(config.total, 70)
-            self.assertEqual(config.total // config.cost, 7)
+            self.assertEqual(config.total, 50)
+            self.assertEqual(config.total // config.cost, 5)
             with patch.dict("os.environ", {"ANALYST_COST": "7"}):
                 self.assertEqual(CreditConfig.from_environment().cost, 7)
 

@@ -414,11 +414,15 @@ def limited_config(request: Request, user: dict[str, Any], config: AssistantConf
         # Site sahibi test ederken günlük/dakikalık sınıra takılmaz (aylık bütçe sınırı yine geçerli).
         return config.model_copy(update={"daily_limit": max(config.daily_limit, 1_000_000), "per_minute_limit": max(config.per_minute_limit, 1_000)})
     try:
-        trial = subscription_for_request(request, user).get("mode") == "FREE_TRIAL"
+        subscription = subscription_for_request(request, user)
     except HTTPException:
-        trial = False
+        subscription = {}
+    trial = subscription.get("mode") == "FREE_TRIAL"
+    smart = subscription.get("plan") == "SMART_TRADE" and not trial
     if trial and config.trial_daily_limit < config.daily_limit:
         return config.model_copy(update={"daily_limit": config.trial_daily_limit})
+    if smart and config.smart_trade_daily_limit < config.daily_limit:
+        return config.model_copy(update={"daily_limit": config.smart_trade_daily_limit})
     return config
 
 

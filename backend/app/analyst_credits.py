@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/analyst", tags=["Analyst credits"])
 
 ANALYSIS_COST = 10
 # Ücretsiz deneme / premium olmayan üye: günde 7 analiz (7 x ANALYSIS_COST kredi).
-DAILY_ANALYSES = 7
+DAILY_ANALYSES = 5
 # Premium olmayan üyenin asistandaki piyasa özeti kullanımları analyst_requests'e bu sembol + UTC gün ile yazılır (günlük sayaç).
 MARKET_OVERVIEW_SYMBOL = "MARKET_OVERVIEW"
 

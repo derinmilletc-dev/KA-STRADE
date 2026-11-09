@@ -83,7 +83,9 @@ services:
       - key: ASSISTANT_DAILY_LIMIT
         value: "40"
       - key: ASSISTANT_TRIAL_DAILY_LIMIT
-        value: "15"
+        value: "11"
+      - key: ASSISTANT_SMART_TRADE_DAILY_LIMIT
+        value: "30"
       - key: ASSISTANT_FREE_MARKET_DAILY_LIMIT
         value: "3"
       - key: ASSISTANT_MONTHLY_BUDGET_USD
