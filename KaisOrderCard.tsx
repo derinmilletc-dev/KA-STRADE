@@ -13,7 +13,7 @@ type Stage = 'edit' | 'testing' | 'tested' | 'sending' | 'sent'
 const FIELDS: [keyof OrderDraft, string][] = [['symbol', 'Parite'], ['margin', 'Marjin (USDT)'], ['leverage', 'Kaldıraç (x)'], ['stop', 'Stop'], ['tp1', 'TP1'], ['tp2', 'TP2'], ['tp3', 'TP3']]
 
 /** Aşama 2–3: taslak → sunucu testi (emir oluşmaz) → yazılı ONAYLA → yalnızca Binance Futures Demo'ya gönderim. Sesle onay yoktur. */
-export default function KaisOrderCard({initial, onClose, onResult}: {initial: OrderDraft; onClose: () => void; onResult: (text: string) => void}) {
+export default function KaisOrderCard({initial, onClose, onResult, onSent}: {initial: OrderDraft; onClose: () => void; onResult: (text: string) => void; onSent?: (order: {symbol: string; direction: 'LONG' | 'SHORT'; stop_loss: number; tp1: number}) => void}) {
   const [draft, setDraft] = useState(initial)
   const [stage, setStage] = useState<Stage>('edit')
   const [word, setWord] = useState('')
@@ -33,7 +33,7 @@ export default function KaisOrderCard({initial, onClose, onResult}: {initial: Or
   const send = async () => {
     if (!built.body || stage !== 'tested' || word.trim() !== WORD) return
     setStage('sending'); setFailed(false)
-    try { await post('/order', {...built.body, confirmation: 'DEMO'}); setStage('sent'); const text = `${built.body.symbol} ${built.body.direction} Demo emri gönderildi (yalnızca Binance Futures Demo).`; setMessage(text); onResult(text) }
+    try { await post('/order', {...built.body, confirmation: 'DEMO'}); setStage('sent'); const text = `${built.body.symbol} ${built.body.direction} Demo emri gönderildi (yalnızca Binance Futures Demo).`; setMessage(text); onResult(text); onSent?.({symbol: built.body.symbol, direction: built.body.direction, stop_loss: built.body.stop_loss, tp1: built.body.tp1}) }
     catch (error) { setStage('tested'); setFailed(true); setMessage(error instanceof Error ? error.message : 'Emir gönderilemedi.') }
   }
 
