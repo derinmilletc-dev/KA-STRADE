@@ -9,8 +9,11 @@ export type PlanStep = {kind: PlanStepKind; params: Record<string, number | stri
 export type CommandPlan = {
   steps: PlanStep[]
   account: PlanAccount
+  /** Net kâr hedefini fiyata çevirmek için gereken büyüklük bilgisi; söylenmediyse null (varsayılan uydurulmaz). */
+  marginUsdt: number | null
+  leverage: number | null
   /** Kais'in eksik bilgi olarak sorması gerekenler (kod). Eksik varken plan çalıştırılamaz. */
-  missing: Array<'account' | 'count' | 'confidence' | 'target_profit'>
+  missing: Array<'account' | 'count' | 'confidence' | 'target_profit' | 'margin' | 'leverage'>
   /** Anlaşılamayan ya da geçersiz değerler (ör. %250, 0 dolar); varsayılan uydurulmaz. */
   invalid: string[]
   /** Sabit güvenlik işaretleri: bu aşama hiçbir şeyi çalıştırmaz ve her emir ekranda onay ister. */
@@ -38,6 +41,31 @@ function count(text: string): {value: number | null; invalid: boolean} {
   return Number.isInteger(value) && value >= 1 && value <= MAX_PLAN_TRADES ? {value, invalid: false} : {value: null, invalid: true}
 }
 
+export const MIN_PLAN_MARGIN_USDT = 5
+export const MAX_PLAN_MARGIN_USDT = 100
+export const MAX_PLAN_LEVERAGE = 125
+
+function margin(text: string): {value: number | null; invalid: boolean} {
+  // Üç söyleniş biçimi: "20 dolar marjin", "30 teminat", "marjin 25". Biçimler farklı sayı veriyorsa belirsizdir: tahmin edilmez, geçersiz sayılır.
+  const found = [
+    text.match(/(\d+(?:\.\d+)?)\s*(?:dolar|usdt|\$)\s*(?:marjin|teminat)/)?.[1],
+    text.match(/(\d+(?:\.\d+)?)\s*(?:marjin|teminat)/)?.[1],
+    text.match(/\b(?:marjin|teminat)\w*\s*(\d+(?:\.\d+)?)(?!\d|\s*(?:x\b|kat\b))/)?.[1],
+  ].filter((entry): entry is string => entry !== undefined).map(Number)
+  const distinct = [...new Set(found)]
+  if (distinct.length === 0) return {value: null, invalid: false}
+  const value = distinct[0]
+  return distinct.length === 1 && value >= MIN_PLAN_MARGIN_USDT && value <= MAX_PLAN_MARGIN_USDT ? {value, invalid: false} : {value: null, invalid: true}
+}
+
+function leverage(text: string): {value: number | null; invalid: boolean} {
+  // "kaldıraç 5" (sayı sözcükten sonra) önce denenir: "marjin 25 kaldıraç 5" cümlesinde 25 marjindir, kaldıraç değil.
+  const hit = text.match(/\bkaldirac\s*(\d{1,3})\b/) ?? text.match(/(\d{1,3})\s*(?:x\b|kat\b|kaldirac)/)
+  if (!hit) return {value: null, invalid: false}
+  const value = Number(hit[1])
+  return Number.isInteger(value) && value >= 1 && value <= MAX_PLAN_LEVERAGE ? {value, invalid: false} : {value: null, invalid: true}
+}
+
 function targetProfit(text: string): {value: number | null; invalid: boolean; present: boolean} {
   const hit = text.match(/\bkar\w*\s+(\d+(?:\.\d+)?)\s*(?:dolar|usdt|\$)/) ?? text.match(/\b(\d+(?:\.\d+)?)\s*(?:dolar|usdt|\$)\s+(?:kar|hedef)/)
   const wanted = /\bkar\w*\b/.test(text) && /\b(olsun|ayarla|hedef\w*|koy|yap)\b/.test(text)
@@ -59,6 +87,8 @@ export function parseCommandPlan(message: string): CommandPlan | null {
   const wantsScan = /\b(bul|sec|tara|listele|getir)\w*/.test(text) && (conf.value !== null || cnt.value !== null || conf.invalid || cnt.invalid)
   const wantsPrepare = /\b(hazirla\w*|hazir et\w*|taslak\w*)\b/.test(text)
   const target = targetProfit(text)
+  const sizeMargin = margin(text)
+  const sizeLeverage = leverage(text)
   const wantsFollow = /\b(takip et\w*|izle\w*|haber ver\w*|bildir\w*)\b/.test(text)
 
   if (analysis) steps.push({kind: 'analysis', params: {}})
@@ -73,6 +103,8 @@ export function parseCommandPlan(message: string): CommandPlan | null {
     if (target.invalid) invalid.push('target_profit')
   }
   if (wantsFollow) steps.push({kind: 'follow', params: {}})
+  if (sizeMargin.invalid) invalid.push('margin')
+  if (sizeLeverage.invalid) invalid.push('leverage')
 
   // Plan olması için en az iki farklı adım gerekir; tek komutlar mevcut yerel çözümleyicilere kalır.
   if (steps.length < 2) return null
@@ -85,7 +117,10 @@ export function parseCommandPlan(message: string): CommandPlan | null {
   if (has('scan') && cnt.value === null && !cnt.invalid) missing.push('count')
   if (has('scan') && conf.value === null && !conf.invalid) missing.push('confidence')
   if (has('target_profit') && target.value === null && !target.invalid) missing.push('target_profit')
-  return {steps, account, missing, invalid, executes: false, requiresScreenConfirmation: true}
+  // Net kâr hedefi fiyata çevrilecekse marjin ve kaldıraç şart: Kais bunları uydurmaz, sorar.
+  if (has('target_profit') && target.value !== null && sizeMargin.value === null && !sizeMargin.invalid) missing.push('margin')
+  if (has('target_profit') && target.value !== null && sizeLeverage.value === null && !sizeLeverage.invalid) missing.push('leverage')
+  return {steps, account, marginUsdt: sizeMargin.value, leverage: sizeLeverage.value, missing, invalid, executes: false, requiresScreenConfirmation: true}
 }
 
 const STEP_TEXT = {
@@ -106,13 +141,15 @@ const STEP_TEXT = {
 } as const
 
 const ASK = {
-  tr: {account: 'Demo mu Canlı mı?', count: 'Kaç işlem hazırlayayım?', confidence: 'Hangi güven oranının üstü?', target_profit: 'Hedef kâr kaç dolar?'},
-  en: {account: 'Demo or Live?', count: 'How many trades?', confidence: 'What minimum confidence?', target_profit: 'How many dollars of profit?'},
+  tr: {account: 'Demo mu Canlı mı?', count: 'Kaç işlem hazırlayayım?', confidence: 'Hangi güven oranının üstü?', target_profit: 'Hedef kâr kaç dolar?', margin: 'Marjin kaç dolar?', leverage: 'Kaç kat kaldıraç?'},
+  en: {account: 'Demo or Live?', count: 'How many trades?', confidence: 'What minimum confidence?', target_profit: 'How many dollars of profit?', margin: 'How many dollars of margin?', leverage: 'Which leverage?'},
 } as const
 
 const INVALID = {
-  tr: {confidence: 'Güven oranı %50–%100 arasında olmalı.', count: `İşlem sayısı 1–${MAX_PLAN_TRADES} arasında olmalı.`, target_profit: `Hedef kâr 0'dan büyük, en fazla ${MAX_TARGET_PROFIT_USDT} dolar olmalı.`},
-  en: {confidence: 'Confidence must be 50–100%.', count: `Trade count must be 1–${MAX_PLAN_TRADES}.`, target_profit: `Target profit must be above 0 and at most ${MAX_TARGET_PROFIT_USDT} USD.`},
+  tr: {confidence: 'Güven oranı %50–%100 arasında olmalı.', count: `İşlem sayısı 1–${MAX_PLAN_TRADES} arasında olmalı.`, target_profit: `Hedef kâr 0'dan büyük, en fazla ${MAX_TARGET_PROFIT_USDT} dolar olmalı.`,
+    margin: `Marjin ${MIN_PLAN_MARGIN_USDT}–${MAX_PLAN_MARGIN_USDT} dolar arasında olmalı.`, leverage: `Kaldıraç 1–${MAX_PLAN_LEVERAGE} arasında tam sayı olmalı.`},
+  en: {confidence: 'Confidence must be 50–100%.', count: `Trade count must be 1–${MAX_PLAN_TRADES}.`, target_profit: `Target profit must be above 0 and at most ${MAX_TARGET_PROFIT_USDT} USD.`,
+    margin: `Margin must be ${MIN_PLAN_MARGIN_USDT}–${MAX_PLAN_MARGIN_USDT} USD.`, leverage: `Leverage must be a whole number 1–${MAX_PLAN_LEVERAGE}.`},
 } as const
 
 /** Kullanıcıya söylenecek/gösterilecek plan metni. Hiçbir şey çalıştırılmadığını ve onayın ekranda olduğunu her zaman söyler. */

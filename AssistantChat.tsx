@@ -15,6 +15,7 @@ import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
 import { parseNavigation, type AgentView } from './kais-agent-intents'
 import { describePlan, parseCommandPlan } from './kais-plan-intents'
+import { buildPlanDraft, parsePlanPicks } from './kais-plan-calc'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
@@ -209,6 +210,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   // Sayfa açma geçişi: göz bebeğine dalış (yazılı ve sesli komutta aynı).
   const [dive, setDive] = useState<PupilDive | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
+  const orderQueue = useRef<OrderDraft[]>([])  // plan taramasından gelen sıradaki Demo taslakları; her biri ayrı test + yazılı ONAYLA ister
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
   const [greetingVisible, setGreetingVisible] = useState(false)
@@ -577,9 +579,63 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     }
     const commandPlan = parseCommandPlan(message)
     if (commandPlan) {
-      // Aşama 3 / adım 1: çok adımlı komut yalnızca PLAN olarak söylenir. Hiçbir adım çalıştırılmaz, veri okunmaz, emir gitmez;
-      // her emir ekranda onay ister (sesle onay yok). Model/ağ isteği yok.
-      return localReply(describePlan(commandPlan, language), language === 'en' ? 'Plan' : 'Plan')
+      const scanStep = commandPlan.steps.find(step => step.kind === 'scan')
+      const wantsDrafts = scanStep && commandPlan.steps.some(step => step.kind === 'prepare')
+      // Eksik ya da geçersiz bilgi varsa yalnızca plan söylenir ve eksik sorulur; hiçbir veri okunmaz, emir gitmez.
+      if (!wantsDrafts || commandPlan.missing.length > 0 || commandPlan.invalid.length > 0) {
+        return localReply(describePlan(commandPlan, language), 'Plan')
+      }
+      // Aşama 3 / adım 2: plan eksiksiz. Yalnızca SALT-OKUNUR tarama okunur (sunucu premium kapısı + taze tarama şartı), taslak hazırlanır.
+      // Emir hiçbir koşulda gönderilmez: Demo taslağı kartta sunucu testi + yazılı ONAYLA ister; Canlı emir kendi ekranının izin/ARM zincirinden geçer.
+      const targetNet = Number(commandPlan.steps.find(step => step.kind === 'target_profit')?.params.usdt) || null
+      const wantsFollow = commandPlan.steps.some(step => step.kind === 'follow')
+      working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
+      try {
+        const response = await request('plan/scan', new AbortController().signal, {min_confidence: scanStep.params.min_confidence, count: scanStep.params.count})
+        const data = object(response.data) ? response.data : {}
+        const en = language === 'en'
+        let reply: string
+        let drafts: OrderDraft[] = []
+        if (data.reason === 'PREMIUM_REQUIRED') {
+          reply = en ? 'Plans with entry and stop levels are available to premium members only.' : 'Seviyeli plan taraması yalnızca premium üyeler için.'
+        } else if (data.status !== 'fresh') {
+          reply = en ? 'The last scan is missing or too old, so I will not guess levels. Run a scan first.' : 'Son tarama yok ya da çok eski; seviye uydurmam. Önce taramayı çalıştır.'
+        } else {
+          const picks = parsePlanPicks(data.picks)
+          if (picks.length === 0) {
+            reply = en ? `No setup at ${scanStep.params.min_confidence}% or above right now.` : `Şu an %${scanStep.params.min_confidence} ve üstü uygun fırsat yok.`
+          } else {
+            const plans = picks.map(pick => buildPlanDraft(pick, {marginUsdt: commandPlan.marginUsdt, leverage: commandPlan.leverage, targetNet}))
+            drafts = plans.map(plan => plan.draft)
+            const lines = plans.map((plan, index) => `${index + 1}) ${plan.pick.symbol.replace('USDT', '')} ${plan.pick.direction}, ${en ? 'confidence' : 'güven'} %${Math.round(plan.pick.confidence_value)}, ${en ? 'entry' : 'giriş'} ${plan.pick.entry}, stop ${plan.pick.stop_loss}`
+              + (plan.targetPrice !== null ? `, ${en ? 'target' : 'hedef'} ${Number(plan.targetPrice.toPrecision(6))}${plan.movePercent !== null ? ` (%${plan.movePercent.toFixed(2)})` : ''}` : `, TP1 ${plan.pick.tp1}`)
+              + (plan.warning ? ` — ${plan.warning}` : ''))
+            const netNote = targetNet !== null ? (en ? ` Targets are for about ${targetNet} USD net after fees; slippage and funding are not included.` : ` Hedefler komisyon sonrası yaklaşık ${targetNet} dolar net kâr içindir; kayma ve fonlama dahil değil.`) : ''
+            const followNote = wantsFollow ? (en ? ' Trade follow-up is not ready yet.' : ' İşlem takibi henüz hazır değil.') : ''
+            reply = commandPlan.account === 'live'
+              ? (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote} For Live I only prepared these levels: you place the order on the Live trading screen with your 24-hour permission, ARM and confirmation.${followNote}`
+                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote} Canlı için yalnızca bu seviyeleri hazırladım: emri Canlı işlem ekranında 24 saatlik izin, ARM ve onayınla sen verirsin.${followNote}`)
+              : (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote} The first Demo draft is open: run the server test, then type ONAYLA to send. Voice cannot confirm.${followNote}`
+                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote} İlk Demo taslağı açık: sunucuda test et, göndermek için ONAYLA yaz. Sesle onay yok.${followNote}`)
+          }
+        }
+        setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
+        append(reply, language)
+        setAgentActions(previous => [...previous.slice(-3), en ? 'Plan scan' : 'Plan taraması'])
+        if (drafts.length > 0 && commandPlan.account === 'demo') {
+          orderQueue.current = drafts.slice(1)
+          setOpen(false); setHoloOpen(false); setOrderDraft(drafts[0])
+          window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+        }
+        return reply
+      } catch (error) {
+        const next = issueFor(error)
+        setIssue(next)
+        if (next.kind === 'session') { expire(); voice.stop() }
+        return null
+      } finally {
+        working.current = false; setBusy(false)
+      }
     }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
@@ -756,7 +812,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   return <>
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
-    {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
+    {orderDraft && <KaisOrderCard key={`${orderDraft.symbol}-${orderDraft.direction}`} initial={orderDraft}
+      onClose={() => { const next = orderQueue.current.shift() ?? null; setOrderDraft(next); if (next) append(language === 'en' ? `Next draft: ${next.symbol} ${next.direction}. Test it, then type ONAYLA.` : `Sıradaki taslak: ${next.symbol} ${next.direction}. Test et, sonra ONAYLA yaz.`, language) }}
+      onResult={text => append(text, language)}/>}
     {dive && <KaisPupilDive dive={dive}/>}
     {holoVisible && <KaisAgentHolo onSendText={text => { void sendMessage(text) }} onStopListening={() => { setWaking(false); if (voice.active) voice.stop(); else setHoloOpen(false) }} busy={busy} recent={messages.filter(row => !row.proactive && typeof row.content === 'string' && row.content.trim()).slice(-3).map(row => ({role: row.role === 'user' ? 'user' as const : 'assistant' as const, text: String(row.content)}))}
       io={{micState: !voice.inputSupported ? 'unsupported' : voice.starting ? 'starting' : voice.failed ? 'failed' : voice.listening ? 'listening' : 'on', outputSupported: voice.outputSupported, repliesOn: voice.replies, onToggleReplies: voice.toggleReplies}} timing={timingLine} alarm={alarm} confirm={(() => {

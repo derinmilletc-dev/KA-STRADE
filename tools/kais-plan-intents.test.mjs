@@ -9,7 +9,7 @@ test('Spec command becomes a four-step plan with the right numbers', () => {
   assert.deepEqual(kinds(plan), ['analysis', 'scan', 'prepare', 'target_profit'])
   assert.deepEqual(plan.steps[1].params, {min_confidence: 95, count: 3})
   assert.deepEqual(plan.steps[3].params, {usdt: 1})
-  assert.deepEqual(plan.missing, ['account'])  // Demo mu Canlı mı denmedi: Kais sorar, varsayılan uydurmaz
+  assert.deepEqual(plan.missing, ['account', 'margin', 'leverage'])  // Demo/Canlı, marjin, kaldıraç denmedi: Kais sorar, uydurmaz
   assert.deepEqual(plan.invalid, [])
 })
 
@@ -68,4 +68,30 @@ test('Number words, decimals and speech variants', () => {
 
 test('Very long input is not parsed as a plan', () => {
   assert.equal(parseCommandPlan('analize gir '.repeat(40)), null)
+})
+
+test('Margin and leverage are read when spoken and never guessed otherwise', () => {
+  const plan = parseCommandPlan('demo hesapta %95 üstü üç işlem bul, hazırla, 20 dolar marjinle 10x kaldıraçla kârı 1 dolar olsun')
+  assert.equal(plan.marginUsdt, 20)
+  assert.equal(plan.leverage, 10)
+  assert.deepEqual(plan.missing, [])
+  const bare = parseCommandPlan('demo %95 üstü üç işlem bul ve hazırla')
+  assert.equal(bare.marginUsdt, null)
+  assert.equal(bare.leverage, null)
+  assert.deepEqual(bare.missing, [])  // kâr hedefi yoksa marjin/kaldıraç zorunlu değil; kartta kullanıcı doldurur
+  assert.equal(parseCommandPlan('demo %95 üstü üç işlem bul, hazırla, marjin 25 kaldıraç 5 kârı 2 dolar olsun').leverage, 5)
+  assert.equal(parseCommandPlan('demo %95 üstü üç işlem bul, hazırla, 30 teminat 3 kat kârı 1 dolar olsun').marginUsdt, 30)
+})
+
+test('Out-of-range margin or leverage are reported invalid', () => {
+  const plan = parseCommandPlan('demo %95 üstü üç işlem bul, hazırla, 500 dolar marjin 200x kaldıraç kârı 1 dolar olsun')
+  assert.deepEqual(plan.invalid.sort(), ['leverage', 'margin'])
+  assert.equal(plan.marginUsdt, null)
+  assert.match(describePlan(plan), /Marjin 5–100/)
+})
+
+test('Ambiguous margin wording is reported invalid, not guessed', () => {
+  const plan = parseCommandPlan('demo %95 üstü üç işlem bul, hazırla, kaldıraç 5 marjin 30 kârı 1 dolar olsun')
+  assert.equal(plan.marginUsdt, null)
+  assert.ok(plan.invalid.includes('margin'))
 })
