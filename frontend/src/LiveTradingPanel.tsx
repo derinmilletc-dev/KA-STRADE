@@ -29,6 +29,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
+import {accountNetPnl, positionNetPnl} from '../../net-pnl'
 import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
@@ -2418,7 +2419,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <div className="masterTradeLiveAccountMetrics">
               <span><small>CÜZDAN</small><b>{money(status?.account?.wallet_balance)}</b><em>USDT</em></span>
               <span><small>KULLANILABİLİR</small><b>{money(status?.account?.available_balance)}</b><em>USDT</em></span>
-              <span><small>AÇIK KÂR/ZARAR</small><b className={Number(status?.account?.unrealized_pnl || 0) >= 0 ? 'positive' : 'negative'}>{money(status?.account?.unrealized_pnl)}</b><em>Açık pozisyonlar</em></span>
+              {(() => { const open = accountNetPnl(status?.account?.positions, status?.account?.unrealized_pnl); return <span><small>AÇIK KÂR/ZARAR · {open.net ? 'NET' : 'BRÜT'}</small><b className={Number(open.value || 0) >= 0 ? 'positive' : 'negative'}>{money(open.value)}</b><em>{open.net ? 'Komisyon dahil (tahmini)' : 'Komisyon dahil değil'}</em></span> })()}
               <span><small>TOPLAM MARUZİYET</small><b>{money(liveExposure)}</b><em>Pozisyon değeri</em></span>
               <span><small>AÇIK POZİSYON</small><b>{positions.length}</b><em>Anlık</em></span>
               <span><small>AÇIK EMİR</small><b>{openOrders.length}</b><em>Anlık</em></span>
@@ -2450,8 +2451,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           </header>
           <section className="liveWsSection liveWsPositions" aria-label="Açık pozisyonlar">
             <div className="liveWsPosHead"><h3>Açık pozisyonlar <em>{positions.length}</em></h3><small>En fazla 5</small></div>
-            {positions.length ? <div className="liveWsPosScroll"><table className="liveWsPosTable"><thead><tr><th>Sembol</th><th>Yön</th><th>Miktar</th><th>Giriş</th><th>Mark</th><th>K/Z (USDT)</th><th>Kaldıraç</th></tr></thead><tbody>{positions.map((position, index) => {
-              const pnl = Number(position.unrealized_pnl || 0)
+            {positions.length ? <div className="liveWsPosScroll"><table className="liveWsPosTable"><thead><tr><th>Sembol</th><th>Yön</th><th>Miktar</th><th>Giriş</th><th>Mark</th><th>Net K/Z (USDT)</th><th>Kaldıraç</th></tr></thead><tbody>{positions.map((position, index) => {
+              const pnl = positionNetPnl(position) ?? Number(position.unrealized_pnl || 0)  // komisyon sonrası net (veri eksikse brüt)
               const direction = String(position.direction || '')
               return <tr key={`${text(position.symbol)}-${index}`}><td><b>{text(position.symbol)}</b></td><td><span className={`liveWsDir ${direction === 'LONG' ? 'up' : direction === 'SHORT' ? 'down' : ''}`}>{direction || '—'}</span></td><td>{text(position.quantity)}</td><td>{text(position.entry_price)}</td><td>{text(position.mark_price)}</td><td className={pnl >= 0 ? 'up' : 'down'}>{money(pnl)}</td><td>{positionLeverage(position)}</td></tr>
             })}</tbody></table></div> : <div className="liveWsPosEmpty" role="status"><b>Açık pozisyon bulunmuyor</b><small>Uygun sinyal bulunduğunda işlemler burada görünür.</small></div>}
