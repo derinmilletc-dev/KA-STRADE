@@ -124,5 +124,33 @@ class CloseTargetStepTests(unittest.TestCase):
         self.assertTrue(any(event["kind"] == "LIVE_CLOSE" for event in state["events"]))
 
 
+    def test_runner_checks_target_regardless_of_protection_state(self):
+        state = live.initial_state()
+        plan = self._plan()
+        plan["protection_state"] = "MISSING"
+        state["plans"][plan["id"]] = plan
+        close = AsyncMock(return_value={"orderId": 9, "avgPrice": "0.79", "status": "FILLED"})
+        positions = {"FILUSDT": {"mark_price": "0.79", "entry_price": "0.8013", "quantity": "124.7"}}
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "persist_state", lambda s: None):
+            asyncio.run(live.run_manual_close_targets(object(), state, positions))
+        close.assert_awaited_once()
+        self.assertEqual(plan["close_reason"], "TARGET")
+
+    def test_runner_skips_plans_without_position_or_target(self):
+        state = live.initial_state()
+        plan = self._plan()
+        state["plans"][plan["id"]] = plan
+        other = {**self._plan(), "id": "plan-other"}
+        other.pop("close_target")
+        state["plans"]["plan-other"] = other
+        close = AsyncMock()
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "persist_state", lambda s: None):
+            asyncio.run(live.run_manual_close_targets(object(), state, {}))
+            asyncio.run(live.run_manual_close_targets(object(), state, {"FILUSDT": {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}}))
+        self.assertEqual(close.await_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

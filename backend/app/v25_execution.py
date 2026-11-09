@@ -3794,6 +3794,24 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     return True
 
 
+async def run_manual_close_targets(client: BinanceLiveClient, state: dict[str, Any], positions: dict[str, Any]) -> None:
+    """Kapanış hedefi (fiyat / net kâr) koruma durumundan BAĞIMSIZ kontrol edilir.
+
+    Eskiden yalnız koruma "eşleşti" turunda bakılıyordu; koruma onarılırken, TP1 sonrası emirler değişirken ya da
+    eşleşme geçici belirsizken hedefe ulaşılsa bile pozisyon kapanmıyordu. Kapatma reduce-only piyasa emridir ve
+    yalnız sahipliği doğrulanmış (live_plan_can_mutate) MANUAL planlar için çalışır."""
+    for plan in list(state.get("plans", {}).values()):
+        if not isinstance(plan.get("close_target"), dict) or plan.get("status") in {"KAPANDI", "İPTAL"}:
+            continue
+        position = positions.get(plan.get("symbol"))
+        if position is None:
+            continue
+        try:
+            await manual_close_target_step(client, state, plan, position)
+        except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
+            logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", plan.get("symbol"), type(exc).__name__)
+
+
 async def _install_stop_bridge(
     client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], quantity: Decimal, price: str, sequence: int | str,
 ) -> int | None:
@@ -7603,10 +7621,7 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                 await manual_trailing_step(client, state, plan, position)
             except Exception as exc:  # noqa: BLE001 - iz süren hata ana koruma döngüsünü asla durdurmaz
                 logger.warning("MANUAL_TRAIL_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
-            try:
-                await manual_close_target_step(client, state, plan, position)
-            except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
-                logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
+    await run_manual_close_targets(client, state, positions)
     try:
         # Akıllı Kâr Koruma: yalnız Original V2 Live planları; hata ana korumayı asla durdurmaz.
         from . import original_profit_guard, original_v2_live as _original_live
