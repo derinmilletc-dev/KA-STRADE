@@ -415,7 +415,7 @@ class ProtectionStatusRepairTests(unittest.TestCase):
         row = {
             "symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET",
             "status": "NEW", "algo_id": 104, "close_position": True,
-            "working_type": "MARK_PRICE", "trigger_price": "53000",
+            "working_type": "CONTRACT_PRICE", "trigger_price": "53000",
             "client_algo_id": live.client_id_for("TP3", plan["intent_id"]),
         }
         live.reconcile_monitoring_targets(live.initial_state(), plan, [row])
@@ -446,7 +446,7 @@ class ProtectionStatusRepairTests(unittest.TestCase):
         row = {
             "symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET",
             "status": "NEW", "algo_id": 103, "close_position": False,
-            "working_type": "MARK_PRICE", "trigger_price": "51000",
+            "working_type": "CONTRACT_PRICE", "trigger_price": "51000",
             "quantity": "0.006", "reduce_only": True,
             "client_algo_id": live.client_id_for("TP12", plan["intent_id"]),
         }
