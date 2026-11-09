@@ -17,7 +17,7 @@ class AssistantConfig(BaseSettings):
     )
 
     enabled: bool = True
-    model: str = Field(default="claude-haiku-5-5", min_length=1)
+    model: str = Field(default="claude-sonnet-5-5", min_length=1)
     api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias="ANTHROPIC_API_KEY",
@@ -58,10 +58,10 @@ class AssistantConfig(BaseSettings):
     max_llm_calls_per_message: int = Field(default=3, gt=0, le=3)
     max_total_input_tokens_per_message: int = Field(default=40000, gt=0)
     max_total_output_tokens_per_message: int = Field(default=3600, gt=0)
-    input_price_usd_per_million: Decimal = Field(default=Decimal("0.10"), ge=0, allow_inf_nan=False)
-    output_price_usd_per_million: Decimal = Field(default=Decimal("0.50"), ge=0, allow_inf_nan=False)
-    cache_write_price_usd_per_million: Decimal = Field(default=Decimal("0.125"), ge=0, allow_inf_nan=False)
-    cache_read_price_usd_per_million: Decimal = Field(default=Decimal("0.01"), ge=0, allow_inf_nan=False)
+    input_price_usd_per_million: Decimal = Field(default=Decimal("2"), ge=0, allow_inf_nan=False)
+    output_price_usd_per_million: Decimal = Field(default=Decimal("10"), ge=0, allow_inf_nan=False)
+    cache_write_price_usd_per_million: Decimal = Field(default=Decimal("2.50"), ge=0, allow_inf_nan=False)
+    cache_read_price_usd_per_million: Decimal = Field(default=Decimal("0.20"), ge=0, allow_inf_nan=False)
 
     @field_validator("api_key", mode="before")
     @classmethod

@@ -51,7 +51,7 @@ class AssistantApiTests(unittest.IsolatedAsyncioTestCase):
         self.now = datetime(2026, 1, 15, 12, tzinfo=timezone.utc).timestamp()
         self.config = AssistantConfig(ANTHROPIC_API_KEY="assistant-api-test-key-not-real")
         # Bu testlerdeki maliyet/bütçe beklentileri (ör. 100 girdi + 20 çıktı = 0.0002 USD) bu sabit test fiyatlarıyla yazıldı.
-        # Üretim varsayılanları (Haiku 5.5: 0.10/0.50/0.125/0.01) test_assistant_config'te ayrıca doğrulanır; burada
+        # Üretim varsayılanları (Sonnet 5.5: 2/10/2.50/0.20) test_assistant_config'te ayrıca doğrulanır; burada
         # fiyatı sabitlemek, varsayılan fiyat değişince hesaplama/bütçe davranışı testlerinin anlamsızca kırılmasını önler.
         self.config = self.config.model_copy(update={"input_price_usd_per_million": Decimal("1"), "output_price_usd_per_million": Decimal("5"),
                                                      "cache_write_price_usd_per_million": Decimal("1.25"), "cache_read_price_usd_per_million": Decimal("0.10")})

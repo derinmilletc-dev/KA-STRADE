@@ -19,7 +19,7 @@ class ConfigDefaultsTests(unittest.TestCase):
         self.assertEqual(config.history_messages, 8)
         self.assertEqual(config.daily_limit, 40)
         self.assertEqual(config.monthly_budget_usd, 50)
-        self.assertEqual(config.model, "claude-haiku-5-5")
+        self.assertEqual(config.model, "claude-sonnet-5-5")
         self.assertEqual(config.voice_max_input_chars, 800)
         self.assertEqual(config.max_input_chars, 500)
 
@@ -84,14 +84,14 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
         config = AssistantConfig()
         simple = build_request(config, "tr", ChatInput(message="merhaba"))
         deep = build_request(config, "tr", ChatInput(message="BTC için riskleri değerlendir"))
-        self.assertEqual((simple.model, simple.deep, simple.max_tokens), ("claude-haiku-5-5", False, config.max_output_tokens))
+        self.assertEqual((simple.model, simple.deep, simple.max_tokens), ("claude-sonnet-5-5", False, config.max_output_tokens))
         self.assertEqual((deep.model, deep.deep, deep.max_tokens), ("claude-opus-5-5", True, config.deep_max_output_tokens))
         single = AssistantConfig(deep_model="")
-        self.assertEqual(build_request(single, "tr", ChatInput(message="BTC için riskleri değerlendir")).model, "claude-haiku-5-5")
+        self.assertEqual(build_request(single, "tr", ChatInput(message="BTC için riskleri değerlendir")).model, "claude-sonnet-5-5")
 
     def test_cost_uses_prices_of_the_model_actually_called(self):
         config = AssistantConfig()
-        self.assertEqual(config.prices_for("claude-haiku-5-5")[1], config.output_price_usd_per_million)
+        self.assertEqual(config.prices_for("claude-sonnet-5-5")[1], config.output_price_usd_per_million)
         self.assertEqual(config.prices_for("claude-opus-5-5"), (
             config.deep_input_price_usd_per_million, config.deep_output_price_usd_per_million,
             config.deep_cache_write_price_usd_per_million, config.deep_cache_read_price_usd_per_million))
@@ -136,7 +136,7 @@ class EffortTests(unittest.IsolatedAsyncioTestCase):
         rejection = anthropic.BadRequestError("bad", response=httpx.Response(400, request=httpx.Request("POST", "http://x")), body=None)
         create, result = await self._transport([rejection, ok], "medium")
         self.assertEqual([c.kwargs["output_config"]["effort"] for c in create.await_args_list], ["medium", "low"])
-        self.assertEqual({c.kwargs["model"] for c in create.await_args_list}, {"claude-haiku-5-5"})
+        self.assertEqual({c.kwargs["model"] for c in create.await_args_list}, {"claude-sonnet-5-5"})
         self.assertEqual(result.reply, "tamam")
 
 

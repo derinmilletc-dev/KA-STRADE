@@ -2338,7 +2338,7 @@ okunur; diğer modüller model, limit veya fiyat değerlerini tekrar sabitlememe
 | Ortam değişkeni | Varsayılan | Amaç |
 | --- | --- | --- |
 | `ASSISTANT_ENABLED` | `true` | Özelliği açma/kapatma |
-| `ASSISTANT_MODEL` | `claude-haiku-4-5-20251001` | Kullanılacak model kimliği |
+| `ASSISTANT_MODEL` | `claude-sonnet-5-5` | Kullanılacak model kimliği |
 | `ANTHROPIC_API_KEY` | boş | Yalnız backend secret store |
 | `ASSISTANT_MAX_INPUT_CHARS` | `500` | Tek mesaj karakter sınırı |
 | `ASSISTANT_VOICE_MAX_INPUT_CHARS` | `800` | Sesli girişte mesaj karakter sınırı |
