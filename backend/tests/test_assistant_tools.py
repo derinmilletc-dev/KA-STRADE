@@ -190,8 +190,10 @@ class AssistantToolsTests(AssistantToolsTestCase):
             self.assertTrue(plans["MASTER_MODE"]["live_strategies_and_auto_trade"])
             self.assertEqual(plans["MASTER_MODE"]["daily_limits"], {
                 "kais_ai_messages_per_day": self.config.daily_limit, "chart_ai_per_day": 15, "ai_analyst_per_day": 40})
-            self.assertEqual(plans["SMART_TRADE"]["daily_limits"], plans["MASTER_MODE"]["daily_limits"])
-            self.assertEqual(plans["TRIAL"]["daily_limits"]["chart_ai_per_day"], 7)
+            self.assertEqual(plans["SMART_TRADE"]["daily_limits"], {
+                "kais_ai_messages_per_day": 30, "chart_ai_per_day": 10, "ai_analyst_per_day": 25})
+            self.assertEqual(plans["TRIAL"]["daily_limits"], {
+                "kais_ai_messages_per_day": 11, "chart_ai_per_day": 5, "ai_analyst_per_day": 5})
             self.assertEqual(data["payment"]["method"], "Binance Pay")
             self.assertFalse(data["renewal"]["automatic_renewal"])
             text = json.dumps(data, ensure_ascii=False)
