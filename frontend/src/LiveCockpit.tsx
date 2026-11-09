@@ -1748,6 +1748,7 @@ export default function LiveCockpit(props: Props) {
     <ul className="lcStopList">
       {closeLive ? <li data-tone={closeLive.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa ≈ {usdt(closeLive.pnl, true)} USDT</b> · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}. Giriş ve çıkış komisyonu dahil net ≈ {usdt(closeLive.netPnl, true)} USDT. Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
         : <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} USDT ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></li>}
+      <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Fiyat garantisi yok.</b> Önce gördüğün fiyattan kapatmayı deneriz. Fiyat 4 saniye içinde sana dönmezse kalan miktar piyasadan kapanır ve fiyat farklı olabilir.</span></li>
       <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Pozisyon kapanınca bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.</span></li>
     </ul>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
