@@ -281,7 +281,7 @@ class AssistantContractsTests(AssistantToolsTestCase):
         path = Path(assistant_api.__file__).parent / "readonly_demo_service.py"
         tree = ast.parse(path.read_text(encoding="utf-8-sig"))
         functions = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        self.assertEqual(functions, {"read_demo_positions", "read_scanner_candidates", "read_market_movers", "read_plan_candidates"})
+        self.assertEqual(functions, {"read_demo_positions", "read_scanner_candidates", "read_market_movers", "read_plan_candidates", "_scan_time", "_freshest_scanner"})
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.level:
                 self.assertEqual(node.module, "", f"line {node.lineno}: relative import from .{node.module} is not audited")
