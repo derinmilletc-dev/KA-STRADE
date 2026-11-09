@@ -24,7 +24,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Literal
@@ -878,6 +878,8 @@ class ManualLiveOrderRequest(LiveOrderRequest):
 class CloseRequest(BaseModel):
     plan_id: str = Field(min_length=6, max_length=64)
     confirmation: str = Field(min_length=1, max_length=64)
+    # Kullanıcının kapat'a bastığında ekranda gördüğü canlı fiyat. Varsa önce bu fiyattan limit (reduce-only) gider.
+    limit_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 class EmergencyRequest(BaseModel):
@@ -3077,6 +3079,101 @@ async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: s
             if recovered is not None:
                 return recovered
         raise
+
+
+MANUAL_CLOSE_LIMIT_WAIT_SECONDS = 4.0
+MANUAL_CLOSE_LIMIT_POLL_SECONDS = 0.4
+
+
+def _close_result(order: dict[str, Any], mode: str) -> dict[str, Any]:
+    return {**order, "close_mode": mode}
+
+
+async def close_symbol_limit_then_market(client: BinanceLiveClient, symbol: str, intent: str, limit_price: float | Decimal,
+                                         wait_seconds: float = MANUAL_CLOSE_LIMIT_WAIT_SECONDS,
+                                         poll_seconds: float = MANUAL_CLOSE_LIMIT_POLL_SECONDS) -> dict[str, Any] | None:
+    """Manuel kapatma: önce kullanıcının gördüğü fiyattan reduce-only LIMIT; wait_seconds içinde dolmazsa iptal edilir,
+    kalan miktar (borsadan yeniden okunur) reduce-only piyasa emriyle kapanır. Limit reddedilirse doğrudan piyasa.
+    Sonuçta close_mode: LIMIT | LIMIT_SONRA_PIYASA | PIYASA. Pozisyon yoksa None."""
+    rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
+    row = next((item for item in rows if Decimal(str(item.get("positionAmt", "0"))) != 0), None)
+    if row is None:
+        return None
+    amount = Decimal(str(row["positionAmt"]))
+    try:
+        tick = (await live_symbol_rules(client, symbol, "LIMIT"))["tick"]
+        price = (Decimal(str(limit_price)) / tick).to_integral_value(rounding=ROUND_HALF_UP) * tick
+    except (LiveExchangeError, ArithmeticError, ValueError, KeyError):
+        price = Decimal("0")
+    if price <= 0:
+        result = await close_tracked_symbol(client, symbol, intent)
+        return _close_result(result, "PIYASA") if result else None
+    client_id = client_id_for("CLOSE", f"{intent}-lmt-{int(time.time() * 1000)}")
+    params = {
+        "symbol": symbol, "side": "SELL" if amount > 0 else "BUY", "type": "LIMIT", "timeInForce": "GTC",
+        "price": decimal_text(price), "quantity": decimal_text(abs(amount)), "reduceOnly": "true",
+        "newClientOrderId": client_id, "newOrderRespType": "RESULT",
+    }
+    try:
+        order = await client.signed("POST", "/fapi/v1/order", params)
+    except LiveExchangeError as exc:
+        if not exc.unknown_execution:
+            # Borsa limit emri reddetti (fiyat aralığı vb.): hiçbir emir yok, doğrudan piyasadan kapat.
+            result = await close_tracked_symbol(client, symbol, intent)
+            return _close_result(result, "PIYASA") if result else None
+        order = await find_order(client, symbol, client_id)
+        if order is None:
+            raise
+    open_states = {"NEW", "PARTIALLY_FILLED"}
+    status = str(order.get("status") or "").upper()
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while status in open_states and time.monotonic() < deadline:
+        await asyncio.sleep(poll_seconds)
+        try:
+            latest = await find_order(client, symbol, client_id)
+        except LiveExchangeError:
+            break
+        if latest is not None:
+            order = latest
+            status = str(order.get("status") or "").upper()
+    if status in open_states:
+        try:
+            await client.signed("DELETE", "/fapi/v1/order", {"symbol": symbol, "orderId": order.get("orderId")})
+        except LiveExchangeError as exc:
+            if exc.exchange_code != -2011:  # -2011: emir zaten dolmuş/iptal olmuş
+                raise
+        latest = await find_order(client, symbol, client_id)
+        if latest is not None:
+            order = latest
+            status = str(order.get("status") or "").upper()
+    if status == "FILLED":
+        return _close_result(order, "LIMIT")
+    remainder = await close_tracked_symbol(client, symbol, f"{intent}-mkt")
+    try:
+        limit_qty = Decimal(str(order.get("executedQty") or "0"))
+        limit_avg = Decimal(str(order.get("avgPrice") or "0"))
+    except ArithmeticError:
+        limit_qty, limit_avg = Decimal("0"), Decimal("0")
+    if remainder is None:
+        return _close_result(order, "LIMIT") if limit_qty > 0 else None
+    if limit_qty <= 0:
+        return _close_result(remainder, "LIMIT_SONRA_PIYASA")
+    try:
+        market_qty = Decimal(str(remainder.get("executedQty") or "0"))
+        market_avg = Decimal(str(remainder.get("avgPrice") or "0"))
+    except ArithmeticError:
+        market_qty, market_avg = Decimal("0"), Decimal("0")
+    total = limit_qty + market_qty
+    merged = {**remainder, "executedQty": decimal_text(total)}
+    if total > 0 and limit_avg > 0 and market_avg > 0:
+        merged["avgPrice"] = decimal_text((limit_qty * limit_avg + market_qty * market_avg) / total)
+    return _close_result(merged, "LIMIT_SONRA_PIYASA")
+
+
+async def close_manual_symbol(client: BinanceLiveClient, symbol: str, intent: str, limit_price: float | None) -> dict[str, Any] | None:
+    if limit_price is None:
+        return await close_tracked_symbol(client, symbol, intent)
+    return await close_symbol_limit_then_market(client, symbol, intent, limit_price)
 
 
 EMERGENCY_VERIFY_ATTEMPTS = 3
@@ -9835,7 +9932,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             if not symbol:
                 raise HTTPException(423, "Canlı plan provenance doğrulanmadı; pozisyon sahiplenilmedi.")
             try:
-                result = await close_tracked_symbol(client_for(request.app, request), symbol, f"manual-close-ext-{symbol}-{int(time.time())}")
+                result = await close_manual_symbol(client_for(request.app, request), symbol, f"manual-close-ext-{symbol}-{int(time.time())}", body.limit_price)
             except LiveExchangeError as exc:
                 raise safe_exchange_error(exc) from exc
             if result is None:
@@ -9845,7 +9942,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                       fill_price=fill_price, total_ms=int((time.monotonic() - started) * 1000))
             persist_state(state)
             return {"ok": True, "order_id": result.get("orderId"), "plan": plan, "fill_price": fill_price,
-                    "lock_wait_ms": lock_wait_ms, "total_ms": int((time.monotonic() - started) * 1000)}
+                    "lock_wait_ms": lock_wait_ms, "total_ms": int((time.monotonic() - started) * 1000), "close_mode": result.get("close_mode")}
         try:
             close_intent = f"manual-close-{plan['id']}"
             close_client_id = client_id_for("CLOSE", close_intent)
@@ -9853,7 +9950,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             if close_client_id not in close_ids:
                 close_ids.append(close_client_id)
             persist_state(state)
-            result = await close_tracked_symbol(client_for(request.app, request), plan["symbol"], close_intent)
+            result = await close_manual_symbol(client_for(request.app, request), plan["symbol"], close_intent, body.limit_price)
             if result and result.get("orderId"):
                 order_id = int(result["orderId"])
                 known = plan.setdefault("exchange_order_ids", [])
@@ -9867,7 +9964,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                       fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
             return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
-                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms}
+                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms, "close_mode": (result or {}).get("close_mode")}
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
 
@@ -9875,6 +9972,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
 class CloseExternalRequest(BaseModel):
     symbol: str = Field(min_length=6, max_length=24, pattern=r"^[A-Z0-9]{2,20}USDT$")
     confirmation: str = Field(min_length=1, max_length=64)
+    limit_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 @router.post("/position/close-external")
@@ -9890,7 +9988,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         symbol = body.symbol.upper()
         try:
             intent = f"manual-close-ext-{symbol}-{int(time.time())}"
-            result = await close_tracked_symbol(client_for(request.app, request), symbol, intent)
+            result = await close_manual_symbol(client_for(request.app, request), symbol, intent, body.limit_price)
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
         if result is None:
@@ -9900,7 +9998,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         add_event(state, "LIVE_CLOSE", f"{symbol} dış pozisyon kullanıcı isteğiyle reduce-only kapatıldı.", actor=user["id"], symbol=symbol,
                   fill_price=fill_price, total_ms=total_ms)
         persist_state(state)
-        return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms}
+        return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms, "close_mode": result.get("close_mode")}
 
 
 class ManualProtectionRequest(BaseModel):
