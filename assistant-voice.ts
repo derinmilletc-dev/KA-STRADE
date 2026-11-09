@@ -194,6 +194,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   callback.current = onTranscript
   const active = useRef(false)
   const failures = useRef(0)
+  // Tanıyıcının verdiği son hata kodu (audio-capture, network, language-not-supported …): hata iletisine eklenir, sorunun nedeni görülsün.
+  const lastErrorCode = useRef('')
+  const withCode = (text: string) => lastErrorCode.current ? `${text} (kod: ${lastErrorCode.current})` : text
   const noAnswers = useRef(0)
   const lastSpeech = useRef(0)
   const speakToken = useRef(0)
@@ -380,7 +383,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     }
     instance.onerror = event => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { fatal = true; end(copy.denied) }
-      else if (event.error !== 'no-speech' && event.error !== 'aborted') failures.current += 1
+      else if (event.error !== 'no-speech' && event.error !== 'aborted') { failures.current += 1; lastErrorCode.current = event.error ?? '' }
     }
     instance.onend = () => {
       clearSilence()
@@ -396,7 +399,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const question = stripWakeWord(transcript)
       if (!transcript || !question) {
         setHeard('')
-        if (failures.current > 5) { end(copy.failed); return }
+        if (failures.current > 5) { end(withCode(copy.failed)); return }
         window.setTimeout(() => listenRef.current(false), failures.current ? 600 : 150)
         return
       }
@@ -416,7 +419,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       failures.current += 1
       if (bargeIn) return
       // start() her seferinde hata verirse (bazı tarayıcılarda) sessizce sonsuza dek denemek yerine nedeni göster ve bitir.
-      if (failures.current > 3) { end(copy.failed); return }
+      if (failures.current > 3) { end(withCode(copy.failed)); return }
       window.setTimeout(() => listenRef.current(false), 800)
     }
   }, [answer, copy, end, stopSpeaking])
@@ -442,6 +445,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       }
       active.current = true
       failures.current = 0
+      lastErrorCode.current = ''
       lastSpeech.current = Date.now()
       setMessage('')
       listen()

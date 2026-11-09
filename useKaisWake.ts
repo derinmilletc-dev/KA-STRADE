@@ -68,6 +68,7 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
     let current: Recognition | null = null
     let timer = 0
     let failures = 0
+    let lastError = ''
     let heard = false
     let question = ''
     let deadline = 0
@@ -106,13 +107,13 @@ export function useKaisWake(active: boolean, language: string, onWake: (question
           stopped = true
           setBlocked('Mikrofon izni yok. Tarayıcı ayarlarından KaisTrade için mikrofona izin ver.')
         }
-        if (event.error && event.error !== 'no-speech' && event.error !== 'aborted') failures += 1
+        if (event.error && event.error !== 'no-speech' && event.error !== 'aborted') { failures += 1; lastError = event.error }
       }
       instance.onend = () => {
         current = null
         setListening(false)
         if (stopped) return
-        if (failures >= 5) { setBlocked('Dinleme tekrar tekrar kesildi; "Hey Kais" durduruldu.'); return }
+        if (failures >= 5) { setBlocked(`Dinleme tekrar tekrar kesildi; "Hey Kais" durduruldu.${lastError ? ` (kod: ${lastError})` : ''}`); return }
         if (heard) { fire(); return }  // ad duyulmuştu ama tanıma kapandı: eldeki soruyla uyan
         timer = window.setTimeout(begin, 120)  // telefon tarayıcıları sessizlikte dinlemeyi bitirir; hemen yeniden başlat
       }
