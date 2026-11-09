@@ -136,6 +136,8 @@ def main(argv=None):
     ap.add_argument("--probe", action="store_true")
     ap.add_argument("--streams", default="fundingRate,metrics,liquidationSnapshot")
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="Aynı klasörde yalnız ağ hatası (ERROR_*) alan dosyaları yeniden dener")
     a = ap.parse_args(argv)
     streams = set(a.streams.split(","))
     items = plan(streams)
@@ -150,6 +152,22 @@ def main(argv=None):
             print(d, st)
         return 0
     out = Path(a.out)
+    if a.retry_failed:
+        mf = out / "c18_download_manifest.json"
+        old = json.loads(mf.read_text(encoding="utf-8"))
+        redo = {r["file"] for r in old["files"] if str(r["status"]).startswith("ERROR_")}
+        jobs = [(k, sy, rel, out) for k, sy, rel in items if Path(rel).name in redo]
+        with ThreadPoolExecutor(2) as ex:
+            new = {r["file"]: r for r in ex.map(get_one, jobs)}
+        old["files"] = [new.get(r["file"], r) for r in old["files"]]
+        summary = {}
+        for r in old["files"]:
+            summary.setdefault(r["kind"], {}).setdefault(r["status"], 0)
+            summary[r["kind"]][r["status"]] += 1
+        old["summary"] = summary
+        mf.write_text(json.dumps(old, indent=1), encoding="utf-8")
+        print(json.dumps(summary, indent=1))
+        return 0
     if out.exists() and any(out.iterdir()):
         raise SystemExit("Çıktı klasörü yeni ve boş olmalı.")
     out.mkdir(parents=True, exist_ok=True)
