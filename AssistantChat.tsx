@@ -14,6 +14,7 @@ import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
 import { parseNavigation, type AgentView } from './kais-agent-intents'
+import { describePlan, parseCommandPlan } from './kais-plan-intents'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
@@ -573,6 +574,12 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       setOpen(false); setHoloOpen(false); setOrderDraft(draftOrder)
       window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
       return reply
+    }
+    const commandPlan = parseCommandPlan(message)
+    if (commandPlan) {
+      // Aşama 3 / adım 1: çok adımlı komut yalnızca PLAN olarak söylenir. Hiçbir adım çalıştırılmaz, veri okunmaz, emir gitmez;
+      // her emir ekranda onay ister (sesle onay yok). Model/ağ isteği yok.
+      return localReply(describePlan(commandPlan, language), language === 'en' ? 'Plan' : 'Plan')
     }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
