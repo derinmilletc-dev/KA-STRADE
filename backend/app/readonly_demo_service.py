@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+from datetime import datetime
 from typing import Any
 
 from fastapi import Request
@@ -28,6 +29,26 @@ async def read_demo_positions(request: Request, timeout: float) -> list[dict[str
     ]
 
 
+def _scan_time(scanner: dict[str, Any]) -> float:
+    raw = scanner.get("last_scan_at")
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp() if raw else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _freshest_scanner(request: Request, state: dict[str, Any]) -> dict[str, Any]:
+    """Üyenin kendi taraması ile arka plan döngüsünün ortak taramasından hangisi daha yeniyse o okunur.
+    Döngü her 15 dakikada ortak duruma yazar; üye elle tarama yapmadıysa kendi durumu bayat kalırdı.
+    Tarama piyasa geneli verisidir (üyeye özel değil); uygunluk yine üyenin kendi ayarlarıyla süzülür."""
+    own = state.get("scanner") or {}
+    shared_state = getattr(getattr(getattr(request, "app", None), "state", None), "v21_demo", None)
+    shared = shared_state.get("scanner") if isinstance(shared_state, dict) else None
+    if isinstance(shared, dict) and shared is not own and _scan_time(shared) > _scan_time(own):
+        return shared
+    return own
+
+
 def read_scanner_candidates(request: Request) -> dict[str, Any]:
     """Üyenin kendi tarayıcı durumundan, projenin mevcut uygunluk kuralını (candidate_is_tradeable) geçen adaylar.
     Seviye alanları (entry/stop/tp) döndürülmez. Yön anahtarları (allow_long/allow_short) kalite kuralı değildir; açık tutulur."""
@@ -36,7 +57,7 @@ def read_scanner_candidates(request: Request) -> dict[str, Any]:
         # Üye kimliği yoksa state_for ortak (global) duruma düşebilir: başka verisi okunmasın diye reddedilir.
         raise PermissionError("member session required")
     state = v21_demo.state_for(request)
-    scanner = state.get("scanner") or {}
+    scanner = _freshest_scanner(request, state)
     settings = {**(state.get("settings") or {}), "allow_long": True, "allow_short": True}
     candidates = [row for row in scanner.get("all_candidates") or [] if isinstance(row, dict) and row.get("symbol")]
     eligible = [
@@ -62,7 +83,7 @@ def read_plan_candidates(request: Request, min_confidence: int, count: int) -> d
     if not str(member.get("id") or "").strip():
         raise PermissionError("member session required")
     state = v21_demo.state_for(request)
-    scanner = state.get("scanner") or {}
+    scanner = _freshest_scanner(request, state)
     settings = {**(state.get("settings") or {}), "allow_long": True, "allow_short": True}
     picks: list[dict[str, Any]] = []
     for row in scanner.get("all_candidates") or []:

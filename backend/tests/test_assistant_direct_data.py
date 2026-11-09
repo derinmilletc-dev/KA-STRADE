@@ -169,6 +169,21 @@ class ReadonlyServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([row["symbol"] for row in result["eligible"]], ["SOLUSDT"])
         self.assertFalse({"entry", "stop_loss", "tp1", "tp2", "tp3"} & set(result["eligible"][0]))
 
+    def test_scanner_prefers_the_fresher_shared_background_scan(self):
+        good = {"symbol": "SOLUSDT", "direction": "LONG", "status": "SELECTED", "analysis_score": 80, "opportunity_score": 80,
+                "signal_age_seconds": 60, "risk_reward": 2, "entry": 1, "stop_loss": 0.9, "tp1": 1.1, "tp2": 1.2, "tp3": 1.3}
+        old = (NOW - timedelta(hours=3)).isoformat()
+        member_state = {"settings": {}, "scanner": {"last_scan_at": old, "all_candidates": []}}
+        shared = {"last_scan_at": NOW.isoformat(), "all_candidates": [good]}
+        app = SimpleNamespace(state=SimpleNamespace(v21_demo={"scanner": shared}))
+        request = SimpleNamespace(app=app, state=SimpleNamespace(member={"id": "u"}))
+        with patch.object(service.v21_demo, "state_for", return_value=member_state):
+            result = service.read_scanner_candidates(request)
+            self.assertEqual(result["last_scan_at"], NOW.isoformat())
+            self.assertEqual([row["symbol"] for row in result["eligible"]], ["SOLUSDT"])
+            shared["last_scan_at"] = old
+            self.assertEqual(service.read_scanner_candidates(request)["candidate_count"], 0)
+
     async def test_movers_drop_non_finite_and_low_volume_rows(self):
         rows = [{"symbol": "AUSDT", "change": 2.0, "price": 1.0, "volume": 9e6}, {"symbol": "BUSDT", "change": float("nan"), "price": 1.0, "volume": 9e6},
                 {"symbol": "CUSDT", "change": 5.0, "price": 1.0, "volume": 10.0}, {"symbol": "DUSDT", "change": None, "price": 1.0, "volume": 9e6}]
