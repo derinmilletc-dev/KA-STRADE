@@ -1652,8 +1652,13 @@ def consent_status(
         reason = "NONE"
     active = bool(api_key and fingerprint and scope_match and expires > now and reason == "NONE")
     grace_active = bool(not active and api_key and fingerprint and expires <= now < grace_until)
+    # held: 24 saatlik izin kendi başına geçerli (kapsam eşleşiyor, süresi dolmadı). Kurtarma / uzlaştırma / acil durum gibi sistem engelleri
+    # `active`i düşürür ama izni bitirmez; ekran bunu ayırt edebilsin diye ayrıca bildirilir (yeniden "izin ver" gerekmez).
+    held = bool(api_key and fingerprint and scope_match and expires > now)
     return {
         "active": active,
+        "held": held,
+        "held_expires_at": datetime.fromtimestamp(expires, timezone.utc).isoformat() if held else None,
         "accepted_at": payload.get("accepted_at") if active or grace_active else None,
         "expires_at": datetime.fromtimestamp(expires, timezone.utc).isoformat() if active or grace_active else None,
         "grace_active": grace_active,
@@ -1667,6 +1672,12 @@ def consent_status(
 
 
 CONSENT_WARN_STAGES = ((1800.0, "30 dakika"), (300.0, "5 dakika"))
+
+
+def consent_still_valid(state: dict[str, Any], request: Request | None) -> bool:
+    """İzin şu an etkin ve bitmesine yenileme penceresinden (30 dk) fazla var mı? Öyleyse yeniden verilmez (ARM sıfırlanmaz)."""
+    remaining = float((state.get("web_consent") or {}).get("expires_at_epoch") or 0) - time.time()
+    return bool(consent_status(state, request).get("active") and remaining > CONSENT_RENEW_WINDOW_SECONDS)
 
 
 def check_consent_expiry(state: dict[str, Any]) -> None:
@@ -8339,6 +8350,7 @@ async def v25_policy_ack(request: Request, body: Confirmation) -> dict[str, Any]
 
 
 CONSENT_HOUR_CHOICES = (1, 4, 8, 12, 24)
+CONSENT_RENEW_WINDOW_SECONDS = 30 * 60      # izin bitmesine bundan az kaldıysa "İzni yenile" yeniden verir
 
 
 class ConsentRequest(Confirmation):
@@ -8356,6 +8368,8 @@ async def v25_web_consent(request: Request, body: ConsentRequest) -> dict[str, A
     await require_live_understanding(request, user, body.understood)
     state = request.app.state.v25_execution
     async with state["lock"]:
+        if consent_still_valid(state, request):
+            return public_status(request.app, request)      # izin zaten geçerli: tekrar verme, ARM'ı sıfırlama (24 saatte bir izin yeter)
         api_key, secret_key, fingerprint = live_credentials_status(request)
         if not api_key or len(secret_key) < 10 or not fingerprint:
             raise HTTPException(412, "Önce programdaki Borsa Bağlantıları bölümünden canlı Binance API anahtarını kaydedip aktifleştirin.")
