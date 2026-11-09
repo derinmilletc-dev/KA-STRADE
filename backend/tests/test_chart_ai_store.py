@@ -281,7 +281,7 @@ class ChartAiStoreTests(unittest.IsolatedAsyncioTestCase):
         self.pool.now = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
         start = self.pool.now - timedelta(days=1)
         access = QuotaAccess("trial", start, start + timedelta(days=7))
-        for _ in range(7):
+        for _ in range(5):
             await self.complete(access=access)
         self.pool.now = datetime(2026, 10, 18, 20, 59, 59, tzinfo=timezone.utc)  # 23:59:59 Turkey
         self.assertEqual((await self.store.usage("user", access)).remaining, 0)
