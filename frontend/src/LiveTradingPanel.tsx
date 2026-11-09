@@ -53,7 +53,7 @@ type LiveStatus = {
   scanner?: {last_scan_at?: string | null; scanned_symbol_count?: number; candidate_symbols?: string[]; candidate_count?: number; selected_symbols?: string[]; selected_symbols_count?: number; last_skip_reason?: string | null; last_cycle_stage?: string | null}
   policy?: LivePolicy
   policy_acknowledged?: boolean
-  consent?: {active?: boolean; expires_at?: string | null; fingerprint?: string | null; reason?: string; scope_match?: boolean}
+  consent?: {active?: boolean; held?: boolean; held_expires_at?: string | null; expires_at?: string | null; fingerprint?: string | null; reason?: string; scope_match?: boolean}
   authorization?: {valid?: boolean; expires_at?: string | null; reason?: string; scope_match?: boolean}
   readiness?: {ready?: boolean; gates?: Array<{key?: string; label?: string; passed?: boolean; detail?: string}>}
   account?: {wallet_balance?: number | null; available_balance?: number | null; margin_balance?: number | null; unrealized_pnl?: number | null; positions?: Array<Record<string, unknown>>; open_orders?: Array<Record<string, unknown>>}
@@ -185,9 +185,9 @@ export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean
       CREDENTIAL_CHANGED: 'API credentials değişti.',
       POLICY_CHANGED: 'Risk policy değişti; policy acknowledgement ve authorization yenilenmeli.',
       USER_CHANGED: 'Kullanıcı değişti.',
-      RECOVERY_REQUIRED: 'Recovery tamamlanmadan authorization kullanılamaz.',
-      RECONCILIATION_REQUIRED: 'Reconciliation tamamlanmadan authorization kullanılamaz.',
-      EMERGENCY_BLOCKED: 'Emergency block aktif.',
+      RECOVERY_REQUIRED: '24 saatlik izin geçerli. Hesap kurtarma kontrolü bitince emir açılır; yeniden izin vermen gerekmiyor.',
+      RECONCILIATION_REQUIRED: '24 saatlik izin geçerli. Hesap uzlaştırması bitince emir açılır; yeniden izin vermen gerekmiyor.',
+      EMERGENCY_BLOCKED: 'Acil durdurma aktif. İzin geçerli ama önce acil durumu kaldırmalısın.',
     }
     return Object.hasOwn(messages, reason) ? messages[reason] : '24 saatlik LIVE authorization gerekli.'
   }
@@ -642,6 +642,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const readinessReady = status?.readiness?.ready === true
   const authorizationValid = status?.authorization?.valid === true
   const authorizationReason = status?.authorization?.reason || status?.consent?.reason || 'EXPIRED'
+  // 24 saatlik izin kendi başına geçerli ama sistem engeli (kurtarma / uzlaştırma / acil durum) var: yeniden "izin ver" işe yaramaz.
+  const consentHeld = status?.consent?.held === true
+  const permissionBlocked = !authorizationValid && consentHeld
   const authorizationReasonText = authorizationReason === 'EXPIRED'
     ? '24 saatlik izin sona erdi.'
     : authorizationReason === 'TRADING_ACCOUNT_CHANGED'
@@ -998,6 +1001,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const slidePermission = async (silent = false): Promise<boolean> => {
     if (freeTrial) { setNotice({kind: 'error', text: 'LIVE işlem MASTER MODE ile açılır'}); return false }
     setPermError('')
+    if (permissionBlocked) { setPermError(authorizationReasonText); return false }      // izin zaten geçerli; yeniden vermek engeli kaldırmaz, ARM'ı sıfırlar
     const ok = await run('permission', async () => {
       try {
         if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
@@ -1015,12 +1019,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // aynı kaydırma akışını kendisi çalıştırır. Sunucu kapıları (günlük zarar, pozisyon limiti, acil durdurma, uzlaştırma) aynen geçerlidir.
   // Hata olursa kaydırıcı yedek olarak görünür; en sık 30 sn'de bir denenir (kilit açılıp kapanırsa döngüye girmesin).
   const autoPermissionAt = useRef(0)
+  const autoPermissionFails = useRef(0)
   const autoPermissionWanted = Boolean(manualPanelOpen && !freeTrial && statusVerified && status && connected && readinessReady && !emergency && !recoveryRequired
-    && !(authorizationValid && liveArmed))
+    && !permissionBlocked && !(authorizationValid && liveArmed))
   useEffect(() => {
     if (!autoPermissionWanted || busy) return
-    const wait = autoPermissionAt.current + 30_000 - Date.now()
-    const timer = window.setTimeout(() => { autoPermissionAt.current = Date.now(); void slidePermission(true) }, Math.max(300, wait))
+    const wait = autoPermissionAt.current + (autoPermissionFails.current >= 2 ? 300_000 : 30_000) - Date.now()      // 2 başarısızlıktan sonra 5 dakikada bir dene
+    const timer = window.setTimeout(() => { autoPermissionAt.current = Date.now(); void slidePermission(true).then(ok => { autoPermissionFails.current = ok ? 0 : autoPermissionFails.current + 1 }) }, Math.max(300, wait))
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPermissionWanted, busy, authorizationValid, liveArmed])
@@ -1141,7 +1146,19 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     return true
   }
   // Adım değişince eski uyarı kalmasın (pencere içi uyarı yalnız o anki işlemin sonucunu göstersin).
-  const goStep = (index: number) => { setNotice(current => current.kind === 'info' ? current : {kind: 'info', text: ''}); setManualStep(index) }
+  // İzin yokken ileri gitmeye çalışınca "İzni ver" şeridine kaydır ve vurgula.
+  const permStripRef = useRef<HTMLDivElement | null>(null)
+  const [permFlash, setPermFlash] = useState(false)
+  const focusPermission = () => {
+    permStripRef.current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+    setPermFlash(false)
+    window.setTimeout(() => setPermFlash(true), 30)
+    window.setTimeout(() => setPermFlash(false), 2900)
+  }
+  const goStep = (index: number) => {
+    if (index > manualStep && statusVerified && !authorizationValid && !freeTrial && !permissionBlocked) { setNotice({kind: 'error', text: 'Devam etmek için önce 24 saatlik izni ver.'}); focusPermission(); return }
+    setNotice(current => current.kind === 'info' ? current : {kind: 'info', text: ''}); setManualStep(index)
+  }
   const reviewOrder = (nextOrder = order) => {
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
     const values = [nextOrder.margin_usdt, nextOrder.leverage, nextOrder.stop_loss, nextOrder.tp1, nextOrder.tp2, nextOrder.tp3]
@@ -1396,9 +1413,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const realGain = priceGainFull === null || priceGainFull === undefined || roundTripFee === null ? null : (priceGainFull - roundTripFee) * tp1ShareOf(order.tp_split)
     const realRR = realLoss && priceGainFull && roundTripFee !== null && realLoss > 0 ? (priceGainFull - roundTripFee) / realLoss : null
     const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
-    const sendBlock = riskError ? riskError : !manualOrderReady ? (blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
+    const sendBlock = riskError ? riskError : !manualOrderReady ? (!authorizationValid && !freeTrial && statusVerified ? authorizationReasonText : blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
-      if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); return }
+      if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); if (!authorizationValid && !freeTrial && !permissionBlocked) focusPermission(); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
@@ -2182,7 +2199,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     </div>
     return <div className="liveWsOrder liveUxOrderGrid">
       {!wizard && progressEl}
-      {!manualOrderReady && !(wizard && manualMode === 'dca') && !(wizard && needPermission && !orderDone) && <div className="manualLockStrip" role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{!authorizationValid && !freeTrial ? <button type="button" className="liveWsPrimary manualRenewBtn" onClick={grantConsent} disabled={Boolean(busy)}><RefreshCw aria-hidden="true"/>{authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver'}</button> : armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      {!manualOrderReady && !(wizard && manualMode === 'dca') && !(wizard && needPermission && !orderDone) && <div ref={permStripRef} className={`manualLockStrip${permFlash ? ' permFocus' : ''}`} role="status"><div><b>Emir şu an kilitli</b><small>{sendBlock}</small></div>{!authorizationValid && !freeTrial ? (permissionBlocked ? null : <button type="button" className="liveWsPrimary manualRenewBtn" onClick={grantConsent} disabled={Boolean(busy)}><RefreshCw aria-hidden="true"/>{authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver'}</button>) : armable && <button type="button" className="liveWsPrimary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <section className="liveWsOrderForm liveUxManual" data-locked={masterTrade && executionLocked || undefined}>
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
