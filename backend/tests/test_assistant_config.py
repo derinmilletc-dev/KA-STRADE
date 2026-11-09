@@ -22,7 +22,7 @@ class AssistantConfigTests(unittest.TestCase):
         config = load_assistant_config()
         self.assertEqual(config.model_dump(), {
             "enabled": True,
-            "model": "claude-haiku-5-5",
+            "model": "claude-sonnet-5-5",
             "max_input_chars": 500,
             "voice_max_input_chars": 800,
             "history_messages": 8,
@@ -53,10 +53,10 @@ class AssistantConfigTests(unittest.TestCase):
             "max_llm_calls_per_message": 3,
             "max_total_input_tokens_per_message": 40000,
             "max_total_output_tokens_per_message": 3600,
-            "cache_write_price_usd_per_million": Decimal("0.125"),
-            "cache_read_price_usd_per_million": Decimal("0.01"),
-            "input_price_usd_per_million": Decimal("0.10"),
-            "output_price_usd_per_million": Decimal("0.50"),
+            "cache_write_price_usd_per_million": Decimal("2.50"),
+            "cache_read_price_usd_per_million": Decimal("0.20"),
+            "input_price_usd_per_million": Decimal("2"),
+            "output_price_usd_per_million": Decimal("10"),
         })
         self.assertFalse(config.available)
         self.assertIn("kullanılamıyor", config.unavailable_reason)
