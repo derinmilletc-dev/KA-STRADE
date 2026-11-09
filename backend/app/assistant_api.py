@@ -35,7 +35,7 @@ from .assistant_llm import (
 from .assistant_models import AssistantStopped, ChatInput, Language, ModelAnswer
 from .assistant_proactive import CheckInInput, PreferenceInput, ProactiveAssistant
 from .assistant_storage import AssistantStorageError, AssistantStore, month_key
-from .assistant_tools import ARGUMENT_MODELS, AssistantTools, ConfirmAnalysis
+from .assistant_tools import ARGUMENT_MODELS, AssistantTools, ConfirmAnalysis, PlanScanArguments
 from .v22_commercial import authenticated_user
 
 router = APIRouter(prefix="/api/assistant", tags=["Customer assistant"])
@@ -376,6 +376,29 @@ async def tool_request(request: Request, name: str, *, confirmation: bool = Fals
 @router.post("/tools/{name}")
 async def assistant_read_tool(name: str, request: Request) -> JSONResponse:
     return await tool_request(request, name)
+
+
+@router.post("/plan/scan")
+async def assistant_plan_scan(request: Request) -> JSONResponse:
+    """Sesli plan taraması: model araç listesinde değildir, yalnızca arayüz çağırır. Sahip/premium kapısı AssistantTools.plan_scan'de."""
+    user = authenticated_user(request)
+    user_id = str(user["id"])
+    try:
+        config = load_assistant_config()
+    except ValidationError:
+        return JSONResponse({"detail": "Assistant configuration is unavailable"}, status_code=503)
+    if not config.enabled:
+        return JSONResponse({"detail": "Assistant is disabled"}, status_code=503)
+    tools = AssistantTools(request, config=config, clock=service(request).clock)
+    try:
+        args = PlanScanArguments.model_validate(await request.json())
+        result = await tools.plan_scan(user_id, args)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError):
+        return JSONResponse({"detail": "Invalid plan scan arguments"}, status_code=422)
+    except HTTPException as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    audit(user_id, tools.clock(), None, Decimal(0), sources=("plan_scan",))
+    return JSONResponse({**result, "sources": ["plan_scan"]})
 
 
 @router.post("/analysis/confirm")

@@ -3,7 +3,9 @@
 // Emir yine aynı Manuel işlem formundan, aynı dry-run / ARM / yazı onayı akışıyla gider.
 
 export type TradeSide = 'LONG' | 'SHORT'
-type Intent = {symbol: string; direction: TradeSide | null; at: number; applied?: boolean; opened?: boolean; mode?: 'grid'; pct?: number}
+/** Kais'in hazırladığı seviyeler. Emir göndermez: Manuel işlem formunu doldurur; dry-run, izin, ARM ve yazılı onay aynen geçerlidir. */
+export type IntentLevels = {stop_loss: number; tp1: number; tp2: number; tp3: number; margin_usdt?: number; leverage?: number}
+type Intent = {symbol: string; direction: TradeSide | null; at: number; applied?: boolean; opened?: boolean; mode?: 'grid'; pct?: number; levels?: IntentLevels}
 
 const KEY = 'kt-manual-intent-v1'
 const TTL_MS = 2 * 60 * 1000
@@ -12,6 +14,9 @@ export const MANUAL_CLOSE_EVENT = 'kt:manual-close'
 /** Manuel işlem paneli kapandı (çarpı, dış alan, Esc): form bir sonraki açılışta en baştan, güncel fiyatlarla başlasın. */
 export const MANUAL_CLOSED_EVENT = 'kt:manual-closed'
 export const FOLLOW_SYMBOL_EVENT = 'kt:follow-symbol'
+/** Canlı manuel emir borsaya GÖNDERİLDİKTEN sonra (sunucu kabul etti) yayılır; Kais takip alarmı kurmak için dinler. */
+export const LIVE_ORDER_SENT_EVENT = 'kt:live-order-sent'
+export type LiveOrderSent = {symbol: string; direction: TradeSide; stop_loss: number; tp1: number}
 
 const read = (): Intent | null => {
   try {
@@ -37,21 +42,30 @@ const current = () => read() ?? (memory && Date.now() - memory.at < TTL_MS ? mem
 const save = (value: Intent) => { memory = value.applied && value.opened ? null : value; write(value) }
 
 /** Stüdyodaki "İşlem aç": Manuel işlem ekranını bu coinle açtırır. */
-export function requestManualTrade(symbol: string, direction?: string | null, options?: {mode?: 'grid'; pct?: number}) {
+const cleanLevels = (levels?: IntentLevels): IntentLevels | undefined => {
+  if (!levels) return undefined
+  const positive = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0
+  if (![levels.stop_loss, levels.tp1, levels.tp2, levels.tp3].every(positive)) return undefined
+  return {stop_loss: levels.stop_loss, tp1: levels.tp1, tp2: levels.tp2, tp3: levels.tp3,
+    ...(positive(levels.margin_usdt) ? {margin_usdt: levels.margin_usdt} : {}), ...(positive(levels.leverage) && Number.isInteger(levels.leverage) ? {leverage: levels.leverage} : {})}
+}
+
+export function requestManualTrade(symbol: string, direction?: string | null, options?: {mode?: 'grid'; pct?: number; levels?: IntentLevels}) {
   const clean = String(symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (!clean) return
   const pct = Number(options?.pct)
   save({symbol: clean, direction: direction === 'LONG' || direction === 'SHORT' ? direction : null, at: Date.now(),
-    ...(options?.mode === 'grid' ? {mode: 'grid' as const, pct: Number.isFinite(pct) && pct > 0 && pct <= 50 ? pct : 5} : {})})
+    ...(options?.mode === 'grid' ? {mode: 'grid' as const, pct: Number.isFinite(pct) && pct > 0 && pct <= 50 ? pct : 5} : {}),
+    ...(cleanLevels(options?.levels) ? {levels: cleanLevels(options?.levels)} : {})})
   window.setTimeout(() => window.dispatchEvent(new CustomEvent(MANUAL_INTENT_EVENT)), 60)
 }
 
 /** Manuel işlem formu: coin ve yönü bir kez alır. */
-export function takeIntentForOrder(): {symbol: string; direction: TradeSide | null; mode?: 'grid'; pct?: number} | null {
+export function takeIntentForOrder(): {symbol: string; direction: TradeSide | null; mode?: 'grid'; pct?: number; levels?: IntentLevels} | null {
   const value = current()
   if (!value || value.applied) return null
   save({...value, applied: true})
-  return {symbol: value.symbol, direction: value.direction, ...(value.mode ? {mode: value.mode, pct: value.pct} : {})}
+  return {symbol: value.symbol, direction: value.direction, ...(value.mode ? {mode: value.mode, pct: value.pct} : {}), ...(value.levels ? {levels: value.levels} : {})}
 }
 
 /** Canlı İşlem kartı: paneli bir kez açar. */

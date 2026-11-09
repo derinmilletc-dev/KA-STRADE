@@ -14,6 +14,11 @@ import KaisOrderCard from './KaisOrderCard'
 import { parseOrderDraft, type OrderDraft } from './kais-order-intents'
 import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-intents'
 import { parseNavigation, type AgentView } from './kais-agent-intents'
+import { describePlan, parseCommandPlan } from './kais-plan-intents'
+import { buildPlanDraft, parsePlanPicks } from './kais-plan-calc'
+import { LIVE_ORDER_SENT_EVENT, requestManualTrade, type LiveOrderSent } from './trade-intent'
+import { followAlerts, followText, withPairs } from './kais-plan-follow'
+import { applyMemory, clearMemory, isDuplicate, loadMemory, memoryFromPlan, parseMemoryCommand, planKey, saveMemory } from './kais-plan-memory'
 import type {KaisEyeState} from './KaisEye'
 import KaisEye from './frontend/src/KaisEye'
 import KaisGreeting from './frontend/src/KaisGreeting'
@@ -208,6 +213,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   // Sayfa açma geçişi: göz bebeğine dalış (yazılı ve sesli komutta aynı).
   const [dive, setDive] = useState<PupilDive | null>(null)
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
+  const lastPlan = useRef<ReturnType<typeof parseCommandPlan>>(null)  // 'bunu hatırla' için son plan
+  const lastRun = useRef<{key: string; at: number} | null>(null)  // aynı planın kısa sürede iki kez çalışmasını engeller
+  const followPending = useRef<'demo' | 'live' | null>(null)  // plan 'takip et' içeriyorsa gönderilen Demo emri için hedef/stop alarmı kurulur
+  const liveQueue = useRef<OrderDraft[]>([])  // Canlı için sıradaki taslaklar: 'sıradaki' denince bir sonraki Canlı forma yazılır
+  const orderQueue = useRef<OrderDraft[]>([])  // plan taramasından gelen sıradaki Demo taslakları; her biri ayrı test + yazılı ONAYLA ister
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
   const [greetingVisible, setGreetingVisible] = useState(false)
@@ -488,13 +498,13 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
         const hit = price !== null && (row.side === 'above' ? price >= row.level : price <= row.level)
         if (!hit) continue
         fired.push(row.id)
-        const text = language === 'en' ? `${row.symbol} reached ${price}. Your alert at ${row.level} fired.` : `${row.symbol} ${price} oldu. ${row.level} alarmın tetiklendi.`
+        const text = followText(row, price, language)
         append(text, language)
         voice.speak(text)
         setAlarm(language === 'en' ? `Alert: ${row.symbol}` : `Alarm: ${row.symbol}`); window.setTimeout(() => setAlarm(null), 4000)
       }
       // Beklerken yeni alarm eklenmiş olabilir: yeniden okuyup yalnızca tetiklenenleri sil.
-      if (fired.length) saveAlerts(loadAlerts().filter(row => !fired.includes(row.id)))
+      if (fired.length) { const current = loadAlerts(); const remove = withPairs(fired, current); saveAlerts(current.filter(row => !remove.includes(row.id))) }
     } finally { alertBusy.current = false }
   }
   useEffect(() => {
@@ -505,6 +515,35 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
     id: crypto.randomUUID(), role: 'assistant', content, language: replyLanguage, ...(confirmation ? {confirmation, decision: 'pending' as const} : {}),
   }])
   const decide = (id: string, decision: Message['decision']) => setMessages(previous => previous.map(message => message.id === id ? {...message, decision} : message))
+
+  // Canlı: Kais emri GÖNDERMEZ. Hazırlanan seviyeleri mevcut Canlı Manuel İşlem formuna yazar ve o ekranı açar; dry-run kontrolü,
+  // 24 saatlik izin, ARM ve yazılı onay o ekranın kendi akışıyla (sunucu kapılarıyla) aynen çalışır. Sesle onay yok.
+  const handoffLive = (item: OrderDraft) => {
+    const number = (value: string) => Number(value.replace(',', '.'))
+    const margin = number(item.margin), leverage = number(item.leverage)
+    requestManualTrade(item.symbol, item.direction, {levels: {stop_loss: number(item.stop), tp1: number(item.tp1), tp2: number(item.tp2), tp3: number(item.tp3),
+      ...(margin > 0 ? {margin_usdt: margin} : {}), ...(Number.isInteger(leverage) && leverage > 0 ? {leverage} : {})}})
+    setOpen(false); setHoloOpen(false)
+    window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+    if (onNavigate) {
+      onNavigate('master-trade')
+      window.setTimeout(() => { window.history.replaceState({}, '', '/master-trade?tab=canli'); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0) }, 80)
+    }
+  }
+  // Canlı emir borsaya gönderildikten sonra (sunucu kabul etti) plan "takip et" içeriyorsa hedef ve stop alarmı kurulur.
+  useEffect(() => {
+    const onSent = (event: Event) => {
+      if (followPending.current !== 'live') return
+      followPending.current = null
+      const detail = (event as CustomEvent<LiveOrderSent>).detail
+      const alerts = detail ? followAlerts(detail, crypto.randomUUID()) : null
+      if (!alerts) { append(language === 'en' ? 'I could not set follow alerts: the levels are inconsistent.' : 'Takip alarmı kuramadım: seviyeler tutarsız.', language); return }
+      saveAlerts([...loadAlerts(), ...alerts])
+      append(language === 'en' ? `Following ${detail.symbol}: alerts set for target ${alerts[0].level} and stop ${alerts[1].level} (only while this site is open). The exchange-side stop/TP orders stay in place.` : `${detail.symbol} takipte: hedef ${alerts[0].level} ve stop ${alerts[1].level} için alarm kuruldu (yalnızca site açıkken). Borsadaki stop/TP emirleri zaten yerinde.`, language)
+    }
+    window.addEventListener(LIVE_ORDER_SENT_EVENT, onSent)
+    return () => window.removeEventListener(LIVE_ORDER_SENT_EVENT, onSent)
+  }) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendMessage = async (value: string, viaVoice = false): Promise<VoiceAnswer> => {
     if (working.current || !usage || expired || !value.trim()) return null
@@ -573,6 +612,108 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       setOpen(false); setHoloOpen(false); setOrderDraft(draftOrder)
       window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
       return reply
+    }
+    if (liveQueue.current.length > 0 && /^(sıradaki|siradaki|sonraki)( taslak| işlem| islem| fırsat| firsat)?[.!]?$/i.test(message.toLocaleLowerCase('tr').trim())) {
+      const next = liveQueue.current.shift() as OrderDraft
+      handoffLive(next)
+      return localReply(language === 'en' ? `Next Live draft ${next.symbol} ${next.direction} is in the Live manual order form. Run the check, then confirm there.` : `Sıradaki Canlı taslak ${next.symbol} ${next.direction} Canlı manuel işlem formuna yazıldı. Orada kontrolü çalıştır, onayı orada ver.`, language === 'en' ? 'Next Live draft' : 'Sıradaki Canlı taslak')
+    }
+    const memoryCommand = parseMemoryCommand(message)
+    if (memoryCommand) {
+      // Aşama 3 / adım 4: yalnızca bu cihazda tutulan plan hafızası. Demo/Canlı seçimi ve seviyeler asla hatırlanmaz.
+      if (memoryCommand === 'forget') {
+        clearMemory(); lastPlan.current = null
+        return localReply(language === 'en' ? 'Plan memory cleared.' : 'Plan hafızasını sildim.', language === 'en' ? 'Memory cleared' : 'Hafıza silindi')
+      }
+      const toRemember = lastPlan.current ? memoryFromPlan(lastPlan.current) : {}
+      if (!lastPlan.current || Object.keys(toRemember).length === 0) {
+        return localReply(language === 'en' ? 'There is no plan to remember yet. Tell me a plan first.' : 'Hatırlanacak bir plan yok; önce bir plan söyle.', language === 'en' ? 'Nothing to remember' : 'Hatırlanacak yok')
+      }
+      const saved = saveMemory({...loadMemory(), ...toRemember})
+      return localReply(saved
+        ? (language === 'en' ? 'Remembered your plan settings (confidence, count, margin, leverage, profit target) on this device only. I never remember Demo/Live or levels. Say "forget the plan" to delete.' : 'Plan ayarlarını (güven, adet, marjin, kaldıraç, kâr hedefi) yalnızca bu cihazda hatırladım. Demo/Canlı seçimini ve seviyeleri hatırlamam. Silmek için "planı unut" de.')
+        : (language === 'en' ? 'I could not save the memory on this device.' : 'Hafızayı bu cihaza kaydedemedim.'), language === 'en' ? 'Memory saved' : 'Hafıza kaydedildi')
+    }
+    const rawPlan = parseCommandPlan(message)
+    const remembered = rawPlan ? applyMemory(rawPlan, loadMemory(), language) : null
+    const commandPlan = remembered ? remembered.plan : null
+    if (commandPlan) lastPlan.current = commandPlan
+    const memoryNote = remembered && remembered.used.length > 0 ? (language === 'en' ? `I used your saved settings: ${remembered.used.join(', ')}. ` : `Kayıtlı ayarlarını kullandım: ${remembered.used.join(', ')}. `) : ''
+    if (commandPlan) {
+      const scanStep = commandPlan.steps.find(step => step.kind === 'scan')
+      const wantsDrafts = scanStep && commandPlan.steps.some(step => step.kind === 'prepare')
+      // Eksik ya da geçersiz bilgi varsa yalnızca plan söylenir ve eksik sorulur; hiçbir veri okunmaz, emir gitmez.
+      if (!wantsDrafts || commandPlan.missing.length > 0 || commandPlan.invalid.length > 0) {
+        return localReply(memoryNote + describePlan(commandPlan, language), 'Plan')
+      }
+      if (commandPlan.account === 'live' && commandPlan.leverage !== null && commandPlan.leverage > 50) {
+        return localReply(language === 'en' ? 'Live leverage can be at most 50x. Change the plan.' : 'Canlıda kaldıraç en fazla 50x olabilir. Planı değiştir.', language === 'en' ? 'Plan limit' : 'Plan sınırı')
+      }
+      const key = planKey(commandPlan)
+      if (isDuplicate(lastRun.current, key, Date.now())) {
+        return localReply(language === 'en' ? 'I just ran this same plan; I will not run it twice. Wait a little or change it.' : 'Bu planı az önce çalıştırdım; ikinci kez çalıştırmıyorum. Biraz bekle ya da planı değiştir.', language === 'en' ? 'Duplicate plan' : 'Çift plan engellendi')
+      }
+      lastRun.current = {key, at: Date.now()}
+      // Aşama 3 / adım 2: plan eksiksiz. Yalnızca SALT-OKUNUR tarama okunur (sunucu premium kapısı + taze tarama şartı), taslak hazırlanır.
+      // Emir hiçbir koşulda gönderilmez: Demo taslağı kartta sunucu testi + yazılı ONAYLA ister; Canlı emir kendi ekranının izin/ARM zincirinden geçer.
+      const targetNet = Number(commandPlan.steps.find(step => step.kind === 'target_profit')?.params.usdt) || null
+      const wantsFollow = commandPlan.steps.some(step => step.kind === 'follow')
+      working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
+      try {
+        const response = await request('plan/scan', new AbortController().signal, {min_confidence: scanStep.params.min_confidence, count: scanStep.params.count})
+        const data = object(response.data) ? response.data : {}
+        const en = language === 'en'
+        let reply: string
+        let drafts: OrderDraft[] = []
+        if (data.reason === 'PREMIUM_REQUIRED') {
+          reply = en ? 'Plans with entry and stop levels are available to premium members only.' : 'Seviyeli plan taraması yalnızca premium üyeler için.'
+        } else if (data.status !== 'fresh') {
+          reply = en ? 'The last scan is missing or too old, so I will not guess levels. Run a scan first.' : 'Son tarama yok ya da çok eski; seviye uydurmam. Önce taramayı çalıştır.'
+        } else {
+          const picks = parsePlanPicks(data.picks)
+          if (picks.length === 0) {
+            reply = en ? `No setup at ${scanStep.params.min_confidence}% or above right now.` : `Şu an %${scanStep.params.min_confidence} ve üstü uygun fırsat yok.`
+          } else {
+            const plans = picks.map(pick => buildPlanDraft(pick, {marginUsdt: commandPlan.marginUsdt, leverage: commandPlan.leverage, targetNet, strictTargets: commandPlan.account === 'live'}))
+            drafts = plans.map(plan => plan.draft)
+            const lines = plans.map((plan, index) => `${index + 1}) ${plan.pick.symbol.replace('USDT', '')} ${plan.pick.direction}, ${en ? 'confidence' : 'güven'} %${Math.round(plan.pick.confidence_value)}, ${en ? 'entry' : 'giriş'} ${plan.pick.entry}, stop ${plan.pick.stop_loss}`
+              + (plan.targetPrice !== null ? `, ${en ? 'target' : 'hedef'} ${Number(plan.targetPrice.toPrecision(6))}${plan.movePercent !== null ? ` (%${plan.movePercent.toFixed(2)})` : ''}` : `, TP1 ${plan.pick.tp1}`)
+              + (plan.warning ? ` — ${plan.warning}` : ''))
+            const netNote = targetNet !== null ? (en ? ` Targets are for about ${targetNet} USD net after fees; slippage and funding are not included.` : ` Hedefler komisyon sonrası yaklaşık ${targetNet} dolar net kâr içindir; kayma ve fonlama dahil değil.`) : ''
+            const followNote = wantsFollow ? (commandPlan.account === 'demo'
+              ? (en ? ' After you send the order I will set target and stop alerts (only while this site is open).' : ' Emri gönderince hedef ve stop için alarm kuracağım (yalnızca site açıkken).')
+              : (en ? ' After the exchange accepts your Live order I will set target and stop alerts (only while this site is open).' : ' Canlı emrin borsaya gidince hedef ve stop için alarm kuracağım (yalnızca site açıkken).')) : ''
+            const spread = commandPlan.account === 'live' && targetNet !== null ? (en ? ' TP2 and TP3 are set 0.01% and 0.02% beyond TP1 because the Live form needs strictly ordered targets; edit them there if you like.' : ' Canlı form hedeflerin kesin sıralı olmasını istediği için TP2 ve TP3\'ü TP1\'in %0,01 ve %0,02 ötesine koydum; istersen formda değiştir.') : ''
+            reply = memoryNote + (commandPlan.account === 'live'
+              ? (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote}${spread} I filled the first one into the Live manual order form. The dry-run check, your 24-hour permission, ARM and typed confirmation all happen there; voice cannot confirm. Say "next" for the next one.${followNote}`
+                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote}${spread} İlkini Canlı manuel işlem formuna yazdım. Dry-run kontrolü, 24 saatlik izin, ARM ve yazılı onay o ekranda; sesle onay yok. Sıradaki için "sıradaki" de.${followNote}`)
+              : (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote} The first Demo draft is open: run the server test, then type ONAYLA to send. Voice cannot confirm.${followNote}`
+                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote} İlk Demo taslağı açık: sunucuda test et, göndermek için ONAYLA yaz. Sesle onay yok.${followNote}`))
+          }
+        }
+        setMessages(previous => [...previous.map(row => row.decision === 'pending' ? {...row, decision: 'expired' as const} : row), {id: crypto.randomUUID(), role: 'user', content: message, language}])
+        append(reply, language)
+        setAgentActions(previous => [...previous.slice(-3), en ? 'Plan scan' : 'Plan taraması'])
+        if (drafts.length > 0 && commandPlan.account === 'demo') {
+          orderQueue.current = drafts.slice(1)
+          followPending.current = wantsFollow ? 'demo' : null
+          setOpen(false); setHoloOpen(false); setOrderDraft(drafts[0])
+          window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+        }
+        if (drafts.length > 0 && commandPlan.account === 'live') {
+          liveQueue.current = drafts.slice(1)
+          followPending.current = wantsFollow ? 'live' : null
+          handoffLive(drafts[0])
+        }
+        return reply
+      } catch (error) {
+        const next = issueFor(error)
+        setIssue(next)
+        if (next.kind === 'session') { expire(); voice.stop() }
+        return null
+      } finally {
+        working.current = false; setBusy(false)
+      }
     }
     working.current = true; setBusy(true); setIssue(null); setLengthError(false); setDraft('')
     // Confirmation proofs remain only in memory; no model request contains them.
@@ -749,7 +890,17 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   return <>
     {launcherTarget === undefined ? launcher : launcherTarget && createPortal(launcher, launcherTarget)}
     {voicePill}
-    {orderDraft && <KaisOrderCard initial={orderDraft} onClose={() => setOrderDraft(null)} onResult={text => append(text, language)}/>}
+    {orderDraft && <KaisOrderCard key={`${orderDraft.symbol}-${orderDraft.direction}`} initial={orderDraft}
+      onClose={() => { const next = orderQueue.current.shift() ?? null; setOrderDraft(next); if (next) append(language === 'en' ? `Next draft: ${next.symbol} ${next.direction}. Test it, then type ONAYLA.` : `Sıradaki taslak: ${next.symbol} ${next.direction}. Test et, sonra ONAYLA yaz.`, language) }}
+      onResult={text => append(text, language)}
+      onSent={order => {
+        if (followPending.current !== 'demo') return
+        followPending.current = null
+        const alerts = followAlerts(order, crypto.randomUUID())
+        if (!alerts) { append(language === 'en' ? 'I could not set follow alerts: the levels are inconsistent.' : 'Takip alarmı kuramadım: seviyeler tutarsız.', language); return }
+        saveAlerts([...loadAlerts(), ...alerts])
+        append(language === 'en' ? `Following ${order.symbol}: alerts set for target ${alerts[0].level} and stop ${alerts[1].level} (only while this site is open).` : `${order.symbol} takipte: hedef ${alerts[0].level} ve stop ${alerts[1].level} için alarm kuruldu (yalnızca site açıkken).`, language)
+      }}/>}
     {dive && <KaisPupilDive dive={dive}/>}
     {holoVisible && <KaisAgentHolo onSendText={text => { void sendMessage(text) }} onStopListening={() => { setWaking(false); if (voice.active) voice.stop(); else setHoloOpen(false) }} busy={busy} recent={messages.filter(row => !row.proactive && typeof row.content === 'string' && row.content.trim()).slice(-3).map(row => ({role: row.role === 'user' ? 'user' as const : 'assistant' as const, text: String(row.content)}))}
       io={{micState: !voice.inputSupported ? 'unsupported' : voice.starting ? 'starting' : voice.failed ? 'failed' : voice.listening ? 'listening' : 'on', outputSupported: voice.outputSupported, repliesOn: voice.replies, onToggleReplies: voice.toggleReplies}} timing={timingLine} alarm={alarm} confirm={(() => {

@@ -53,6 +53,45 @@ def read_scanner_candidates(request: Request) -> dict[str, Any]:
             "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(candidates), "eligible": eligible, "scored": scored}
 
 
+def read_plan_candidates(request: Request, min_confidence: int, count: int) -> dict[str, Any]:
+    """Sesli plan için: üyenin KENDİ tarayıcı durumundan, projenin uygunluk kuralını geçen ve güven değeri min_confidence ve üstü olan
+    en iyi `count` aday. read_scanner_candidates'ten FARKLI olarak giriş/stop/TP1-3 seviyeleri bilerek döndürülür (kullanıcının bilinçli kararı:
+    yalnız sahip ve premium üyeler için). Bu fonksiyon model araç listesinde YOKTUR; kapı (premium) çağıran araçtadır.
+    Seviyesi tutarsız (yön/sıra bozuk, sonlu olmayan) adaylar atlanır; hiçbir seviye uydurulmaz."""
+    member = getattr(getattr(request, "state", None), "member", None) or {}
+    if not str(member.get("id") or "").strip():
+        raise PermissionError("member session required")
+    state = v21_demo.state_for(request)
+    scanner = state.get("scanner") or {}
+    settings = {**(state.get("settings") or {}), "allow_long": True, "allow_short": True}
+    picks: list[dict[str, Any]] = []
+    for row in scanner.get("all_candidates") or []:
+        if not isinstance(row, dict) or not row.get("symbol") or not v21_demo.candidate_is_tradeable(row, settings, None):
+            continue
+        try:
+            confidence = float(row.get("confidence_value") or 0)
+            entry, stop, tp1, tp2, tp3 = (float(row.get(key) or 0) for key in ("entry", "stop_loss", "tp1", "tp2", "tp3"))
+        except (TypeError, ValueError):
+            continue
+        direction = str(row.get("direction") or "").upper()
+        levels = (entry, stop, tp1, tp2, tp3)
+        if confidence < min_confidence or not all(math.isfinite(value) and value > 0 for value in levels):
+            continue
+        if direction == "LONG" and not (stop < entry < tp1 <= tp2 <= tp3):
+            continue
+        if direction == "SHORT" and not (tp3 <= tp2 <= tp1 < entry < stop):
+            continue
+        if direction not in {"LONG", "SHORT"}:
+            continue
+        picks.append({"symbol": str(row["symbol"]), "direction": direction, "confidence_value": confidence,
+                      "opportunity_score": row.get("opportunity_score"), "analysis_score": row.get("analysis_score"),
+                      "entry": entry, "stop_loss": stop, "tp1": tp1, "tp2": tp2, "tp3": tp3})
+    picks.sort(key=lambda item: (item["confidence_value"], float(item.get("opportunity_score") or 0), item["symbol"]), reverse=True)
+    return {"last_scan_at": scanner.get("last_scan_at"), "timeframe": scanner.get("last_scan_timeframe"),
+            "coins_scanned": scanner.get("coins_scanned"), "candidate_count": len(scanner.get("all_candidates") or []),
+            "matching_count": len(picks), "picks": picks[:count]}
+
+
 async def read_market_movers(request: Request, timeout: float) -> list[dict[str, Any]]:
     """24 saatlik değişim satırları (canlı genel borsa verisi; her çağrıda taze). Yalnızca sonlu sayılar ve yeterli hacim."""
     rows = await asyncio.wait_for(v21_demo.auto_trade_market_universe(request.app), timeout=timeout)

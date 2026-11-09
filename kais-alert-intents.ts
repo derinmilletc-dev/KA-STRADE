@@ -1,5 +1,5 @@
 // Kais ajanı — fiyat alarmı. Yalnızca site açıkken çalışır; emir vermez, veri uydurmaz (fiyat Binance herkese açık uç noktasından).
-export type PriceAlert = {id: string; symbol: string; level: number; side: 'above' | 'below'}
+export type PriceAlert = {id: string; symbol: string; level: number; side: 'above' | 'below'; tag?: 'target' | 'stop'; pairId?: string}
 
 const COINS = ['btc', 'eth', 'sol', 'bnb', 'xrp', 'doge', 'ada', 'avax', 'link', 'dot', 'ltc', 'trx', 'sui', 'arb', 'op', 'near', 'atom', 'inj', 'apt']
 const fold = (value: string) => value.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/,/g, '.')
