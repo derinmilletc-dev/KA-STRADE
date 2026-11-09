@@ -177,6 +177,8 @@ export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
 /** Kullanıcı sustuktan sonra cümlenin bittiğini varsaymadan önce beklenen süre (duraksamada cümle kesilmesin). */
 const SILENCE_MS = 2000
+// Konuşma bu süreden uzun sürerse (arka plan gürültüsü sürekli yeni metin üretse bile) dinleme kapanır ve eldeki cümle işlenir.
+const MAX_UTTERANCE_MS = 25_000
 const BARGE_GUARD_MS = 700
 const BARGE_MIN_WORDS = 2
 
@@ -345,7 +347,11 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     instance.continuous = bargeIn || !coarsePointer()
     const state = {instance, interrupted: false, retired: false, wordOnly: false}
     let silence = 0
+    let utteranceCap = 0
     const clearSilence = () => { if (silence) { window.clearTimeout(silence); silence = 0 } }
+    const clearCap = () => { if (utteranceCap) { window.clearTimeout(utteranceCap); utteranceCap = 0 } }
+    // İlk metin gelince sayaç başlar; sessizlik zamanlayıcısı ne olursa olsun cümle en geç MAX_UTTERANCE_MS sonra biter.
+    const armCap = () => { if (!utteranceCap) utteranceCap = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, MAX_UTTERANCE_MS) }
     if (bargeIn) barge.current = state
     let transcript = ''
     let fatal = false
@@ -357,7 +363,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         emitVoiceActivity('input')
         lastSpeech.current = Date.now()
         clearSilence()
-        if (instance.continuous && transcript) silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
+        // Telefonda tarayıcı bazen dinlemeyi kendiliğinden bitirmez; sessizlik süresi her modda bizim tarafımızda da beklenir.
+        if (transcript) { armCap(); silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS) }
         return
       }
       // Kais'in kendi sesini (yankı) kullanıcı sanmamak için okunan metinle karşılaştırırız.
@@ -375,6 +382,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         if (stopWord) { transcript = ''; try { instance.stop() } catch { /* zaten durmuş */ } return }
       }
       transcript = text
+      armCap()
       setHeard(fixVoiceText(text))
       emitVoiceActivity('input')
       clearSilence()
@@ -387,6 +395,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     }
     instance.onend = () => {
       clearSilence()
+      clearCap()
       if (recognition.current === instance) recognition.current = null
       if (barge.current === state) barge.current = null
       if (!active.current || fatal || state.retired) return
