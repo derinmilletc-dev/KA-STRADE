@@ -3538,6 +3538,9 @@ class ManualPlanActionError(Exception):
         self.http_status = http_status
 
 
+# Kâr hedefleri (TP) son işlem fiyatıyla tetiklenir: grafikte fiyat hedefe değdiği an kapanır (işaret fiyatı geriden gelir).
+# Stop emirleri iğne (fitil) hareketlerinde boşa çalışmasın diye İŞARET fiyatıyla kalır.
+TARGET_WORKING_TYPE = "CONTRACT_PRICE"
 MANUAL_TARGET_KEYS = ("TP12", "TP2", "TP3")  # sırasıyla TP1, TP2, TP3 borsa emri kimlik türleri
 
 
@@ -3661,7 +3664,7 @@ async def manual_update_protection(
         if new_price == old_price:
             continue
         common = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if long_side else "BUY",
-                  "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
+                  "workingType": TARGET_WORKING_TYPE, "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
                   "clientAlgoId": client_id_for(key, plan["intent_id"])}
         if key == "TP3":
             common["closePosition"] = "true"
@@ -3955,7 +3958,7 @@ async def manual_reduce_position(
             try:
                 placed = await post_algo(client, {
                     "algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
-                    "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
+                    "workingType": TARGET_WORKING_TYPE, "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
                     "triggerPrice": str(row.get("trigger_price")), "quantity": decimal_text(new_quantity),
                     "reduceOnly": "true", "clientAlgoId": client_id_for(key, plan["intent_id"]),
                 })
@@ -4105,7 +4108,7 @@ async def install_manual_tp2(
     key = client_id_for("TP2", plan["intent_id"])
     try:
         result = await post_entry_protection_algo(client, {
-            **common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": targets[1],
+            **common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": targets[1],
             "quantity": decimal_text(quantity), "reduceOnly": "true", "clientAlgoId": key,
         }, existing_algos)
     except LiveExchangeError as exc:
@@ -4238,7 +4241,7 @@ async def install_protection(
     if combined_partial > 0 and combined_partial >= min_qty and combined_partial * mark_price >= min_notional:
         key = client_id_for("TP12", plan["intent_id"])
         try:
-            result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": plan["targets"][0], "quantity": decimal_text(combined_partial), "reduceOnly": "true", "clientAlgoId": key}, existing_algos)
+            result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": plan["targets"][0], "quantity": decimal_text(combined_partial), "reduceOnly": "true", "clientAlgoId": key}, existing_algos)
             if result.get("algoId"):
                 ids.append(int(result["algoId"]))
                 plan["tp12_algo_id"] = int(result["algoId"])
@@ -4262,7 +4265,7 @@ async def install_protection(
         if tp2_id:
             ids.append(tp2_id)
     try:
-        result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": plan["targets"][2], "closePosition": "true", "clientAlgoId": client_id_for("TP3", plan["intent_id"])}, existing_algos)
+        result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": plan["targets"][2], "closePosition": "true", "clientAlgoId": client_id_for("TP3", plan["intent_id"])}, existing_algos)
         if result.get("algoId"):
             ids.append(int(result["algoId"]))
         else:
@@ -5387,7 +5390,7 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
         return result
     common = {
         "symbol": plan["symbol"], "side": "SELL" if direction == "LONG" else "BUY",
-        "type": "TAKE_PROFIT_MARKET", "workingType": "MARK_PRICE",
+        "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE,
     }
     for label, params in (
         ("tp1", {"triggerPrice": targets[0], "reduceOnly": "true", "clientAlgoId": client_id_for("TP12", plan["intent_id"])}),
@@ -5456,7 +5459,7 @@ def reconcile_monitoring_targets(state: dict[str, Any], plan: dict[str, Any], ro
             combined = target in {"TP1", "TP2"}
             params = {
                 "symbol": plan["symbol"], "side": "SELL" if plan["direction"] == "LONG" else "BUY",
-                "type": "TAKE_PROFIT_MARKET", "workingType": "MARK_PRICE",
+                "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE,
                 "triggerPrice": prices[0] if combined else prices[2],
                 "clientAlgoId": client_id_for("TP12" if combined else "TP3", str(plan.get("intent_id") or "")),
             }
