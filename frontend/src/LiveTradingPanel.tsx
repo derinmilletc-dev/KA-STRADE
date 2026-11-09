@@ -29,7 +29,7 @@ import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
-import {MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
+import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -350,10 +350,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const apply = () => {
       const intent = takeIntentForOrder()
       if (!intent) return
-      setOrder(current => { const next = switchSymbol(current, intent.symbol); return intent.direction ? {...next, direction: intent.direction} : next })
+      setOrder(current => {
+        const next = switchSymbol(current, intent.symbol)
+        const withDirection = intent.direction ? {...next, direction: intent.direction} : next
+        const levels = intent.levels
+        // Kais'in hazırladığı seviyeler yalnızca formu doldurur; dry-run, izin, ARM ve yazılı onay aynen geçerlidir.
+        return levels ? {...withDirection, order_type: 'MARKET', stop_loss: String(levels.stop_loss), tp1: String(levels.tp1), tp2: String(levels.tp2), tp3: String(levels.tp3),
+          ...(levels.margin_usdt ? {margin_usdt: String(levels.margin_usdt)} : {}), ...(levels.leverage ? {leverage: String(levels.leverage)} : {})} : withDirection
+      })
       orderSentRef.current = false
       setFromStudio(intent.symbol); setOrderDone(null); setReviewedKey(''); setReviewResult(null); setManualStep(1)
-      setAutoFill(!intent.mode); setLevelsFromAnalysis(false)
+      setAutoFill(!intent.mode && !intent.levels); setLevelsFromAnalysis(false)
       if (intent.mode === 'grid') { setManualMode('grid'); setGridAutoPct(intent.pct ?? 5) } else setManualMode('single')
     }
     apply()
@@ -1425,6 +1432,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         writeDraft(null)
         orderSentRef.current = true
         setOrderDone(done)
+        try { window.dispatchEvent(new CustomEvent(LIVE_ORDER_SENT_EVENT, {detail: {symbol: payload.symbol, direction: payload.direction, stop_loss: payload.stop_loss, tp1: payload.tp1}})) } catch { /* olay kapalı olsa da emir sonucu etkilenmez */ }
       }})
       setConfirmText('')
     }

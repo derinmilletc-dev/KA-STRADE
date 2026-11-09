@@ -16,6 +16,7 @@ import { parseAlert, fetchPrice, loadAlerts, saveAlerts } from './kais-alert-int
 import { parseNavigation, type AgentView } from './kais-agent-intents'
 import { describePlan, parseCommandPlan } from './kais-plan-intents'
 import { buildPlanDraft, parsePlanPicks } from './kais-plan-calc'
+import { LIVE_ORDER_SENT_EVENT, requestManualTrade, type LiveOrderSent } from './trade-intent'
 import { followAlerts, followText, withPairs } from './kais-plan-follow'
 import { applyMemory, clearMemory, isDuplicate, loadMemory, memoryFromPlan, parseMemoryCommand, planKey, saveMemory } from './kais-plan-memory'
 import type {KaisEyeState} from './KaisEye'
@@ -214,7 +215,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null)
   const lastPlan = useRef<ReturnType<typeof parseCommandPlan>>(null)  // 'bunu hatırla' için son plan
   const lastRun = useRef<{key: string; at: number} | null>(null)  // aynı planın kısa sürede iki kez çalışmasını engeller
-  const followPending = useRef(false)  // plan 'takip et' içeriyorsa gönderilen Demo emri için hedef/stop alarmı kurulur
+  const followPending = useRef<'demo' | 'live' | null>(null)  // plan 'takip et' içeriyorsa gönderilen Demo emri için hedef/stop alarmı kurulur
+  const liveQueue = useRef<OrderDraft[]>([])  // Canlı için sıradaki taslaklar: 'sıradaki' denince bir sonraki Canlı forma yazılır
   const orderQueue = useRef<OrderDraft[]>([])  // plan taramasından gelen sıradaki Demo taslakları; her biri ayrı test + yazılı ONAYLA ister
   const [agentActions, setAgentActions] = useState<string[]>([])
   const [greetingOpenRequest, setGreetingOpenRequest] = useState(0)
@@ -514,6 +516,35 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
   }])
   const decide = (id: string, decision: Message['decision']) => setMessages(previous => previous.map(message => message.id === id ? {...message, decision} : message))
 
+  // Canlı: Kais emri GÖNDERMEZ. Hazırlanan seviyeleri mevcut Canlı Manuel İşlem formuna yazar ve o ekranı açar; dry-run kontrolü,
+  // 24 saatlik izin, ARM ve yazılı onay o ekranın kendi akışıyla (sunucu kapılarıyla) aynen çalışır. Sesle onay yok.
+  const handoffLive = (item: OrderDraft) => {
+    const number = (value: string) => Number(value.replace(',', '.'))
+    const margin = number(item.margin), leverage = number(item.leverage)
+    requestManualTrade(item.symbol, item.direction, {levels: {stop_loss: number(item.stop), tp1: number(item.tp1), tp2: number(item.tp2), tp3: number(item.tp3),
+      ...(margin > 0 ? {margin_usdt: margin} : {}), ...(Number.isInteger(leverage) && leverage > 0 ? {leverage} : {})}})
+    setOpen(false); setHoloOpen(false)
+    window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+    if (onNavigate) {
+      onNavigate('master-trade')
+      window.setTimeout(() => { window.history.replaceState({}, '', '/master-trade?tab=canli'); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0) }, 80)
+    }
+  }
+  // Canlı emir borsaya gönderildikten sonra (sunucu kabul etti) plan "takip et" içeriyorsa hedef ve stop alarmı kurulur.
+  useEffect(() => {
+    const onSent = (event: Event) => {
+      if (followPending.current !== 'live') return
+      followPending.current = null
+      const detail = (event as CustomEvent<LiveOrderSent>).detail
+      const alerts = detail ? followAlerts(detail, crypto.randomUUID()) : null
+      if (!alerts) { append(language === 'en' ? 'I could not set follow alerts: the levels are inconsistent.' : 'Takip alarmı kuramadım: seviyeler tutarsız.', language); return }
+      saveAlerts([...loadAlerts(), ...alerts])
+      append(language === 'en' ? `Following ${detail.symbol}: alerts set for target ${alerts[0].level} and stop ${alerts[1].level} (only while this site is open). The exchange-side stop/TP orders stay in place.` : `${detail.symbol} takipte: hedef ${alerts[0].level} ve stop ${alerts[1].level} için alarm kuruldu (yalnızca site açıkken). Borsadaki stop/TP emirleri zaten yerinde.`, language)
+    }
+    window.addEventListener(LIVE_ORDER_SENT_EVENT, onSent)
+    return () => window.removeEventListener(LIVE_ORDER_SENT_EVENT, onSent)
+  }) // eslint-disable-line react-hooks/exhaustive-deps
+
   const sendMessage = async (value: string, viaVoice = false): Promise<VoiceAnswer> => {
     if (working.current || !usage || expired || !value.trim()) return null
     const message = value.trim()
@@ -582,6 +613,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
       return reply
     }
+    if (liveQueue.current.length > 0 && /^(sıradaki|siradaki|sonraki)( taslak| işlem| islem| fırsat| firsat)?[.!]?$/i.test(message.toLocaleLowerCase('tr').trim())) {
+      const next = liveQueue.current.shift() as OrderDraft
+      handoffLive(next)
+      return localReply(language === 'en' ? `Next Live draft ${next.symbol} ${next.direction} is in the Live manual order form. Run the check, then confirm there.` : `Sıradaki Canlı taslak ${next.symbol} ${next.direction} Canlı manuel işlem formuna yazıldı. Orada kontrolü çalıştır, onayı orada ver.`, language === 'en' ? 'Next Live draft' : 'Sıradaki Canlı taslak')
+    }
     const memoryCommand = parseMemoryCommand(message)
     if (memoryCommand) {
       // Aşama 3 / adım 4: yalnızca bu cihazda tutulan plan hafızası. Demo/Canlı seçimi ve seviyeler asla hatırlanmaz.
@@ -610,6 +646,9 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       if (!wantsDrafts || commandPlan.missing.length > 0 || commandPlan.invalid.length > 0) {
         return localReply(memoryNote + describePlan(commandPlan, language), 'Plan')
       }
+      if (commandPlan.account === 'live' && commandPlan.leverage !== null && commandPlan.leverage > 50) {
+        return localReply(language === 'en' ? 'Live leverage can be at most 50x. Change the plan.' : 'Canlıda kaldıraç en fazla 50x olabilir. Planı değiştir.', language === 'en' ? 'Plan limit' : 'Plan sınırı')
+      }
       const key = planKey(commandPlan)
       if (isDuplicate(lastRun.current, key, Date.now())) {
         return localReply(language === 'en' ? 'I just ran this same plan; I will not run it twice. Wait a little or change it.' : 'Bu planı az önce çalıştırdım; ikinci kez çalıştırmıyorum. Biraz bekle ya da planı değiştir.', language === 'en' ? 'Duplicate plan' : 'Çift plan engellendi')
@@ -635,7 +674,7 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
           if (picks.length === 0) {
             reply = en ? `No setup at ${scanStep.params.min_confidence}% or above right now.` : `Şu an %${scanStep.params.min_confidence} ve üstü uygun fırsat yok.`
           } else {
-            const plans = picks.map(pick => buildPlanDraft(pick, {marginUsdt: commandPlan.marginUsdt, leverage: commandPlan.leverage, targetNet}))
+            const plans = picks.map(pick => buildPlanDraft(pick, {marginUsdt: commandPlan.marginUsdt, leverage: commandPlan.leverage, targetNet, strictTargets: commandPlan.account === 'live'}))
             drafts = plans.map(plan => plan.draft)
             const lines = plans.map((plan, index) => `${index + 1}) ${plan.pick.symbol.replace('USDT', '')} ${plan.pick.direction}, ${en ? 'confidence' : 'güven'} %${Math.round(plan.pick.confidence_value)}, ${en ? 'entry' : 'giriş'} ${plan.pick.entry}, stop ${plan.pick.stop_loss}`
               + (plan.targetPrice !== null ? `, ${en ? 'target' : 'hedef'} ${Number(plan.targetPrice.toPrecision(6))}${plan.movePercent !== null ? ` (%${plan.movePercent.toFixed(2)})` : ''}` : `, TP1 ${plan.pick.tp1}`)
@@ -643,10 +682,11 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
             const netNote = targetNet !== null ? (en ? ` Targets are for about ${targetNet} USD net after fees; slippage and funding are not included.` : ` Hedefler komisyon sonrası yaklaşık ${targetNet} dolar net kâr içindir; kayma ve fonlama dahil değil.`) : ''
             const followNote = wantsFollow ? (commandPlan.account === 'demo'
               ? (en ? ' After you send the order I will set target and stop alerts (only while this site is open).' : ' Emri gönderince hedef ve stop için alarm kuracağım (yalnızca site açıkken).')
-              : (en ? ' Live trade follow-up is not ready yet.' : ' Canlı işlem takibi henüz hazır değil.')) : ''
+              : (en ? ' After the exchange accepts your Live order I will set target and stop alerts (only while this site is open).' : ' Canlı emrin borsaya gidince hedef ve stop için alarm kuracağım (yalnızca site açıkken).')) : ''
+            const spread = commandPlan.account === 'live' && targetNet !== null ? (en ? ' TP2 and TP3 are set 0.01% and 0.02% beyond TP1 because the Live form needs strictly ordered targets; edit them there if you like.' : ' Canlı form hedeflerin kesin sıralı olmasını istediği için TP2 ve TP3\'ü TP1\'in %0,01 ve %0,02 ötesine koydum; istersen formda değiştir.') : ''
             reply = memoryNote + (commandPlan.account === 'live'
-              ? (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote} For Live I only prepared these levels: you place the order on the Live trading screen with your 24-hour permission, ARM and confirmation.${followNote}`
-                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote} Canlı için yalnızca bu seviyeleri hazırladım: emri Canlı işlem ekranında 24 saatlik izin, ARM ve onayınla sen verirsin.${followNote}`)
+              ? (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote}${spread} I filled the first one into the Live manual order form. The dry-run check, your 24-hour permission, ARM and typed confirmation all happen there; voice cannot confirm. Say "next" for the next one.${followNote}`
+                : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote}${spread} İlkini Canlı manuel işlem formuna yazdım. Dry-run kontrolü, 24 saatlik izin, ARM ve yazılı onay o ekranda; sesle onay yok. Sıradaki için "sıradaki" de.${followNote}`)
               : (en ? `Found ${picks.length}: ${lines.join('; ')}.${netNote} The first Demo draft is open: run the server test, then type ONAYLA to send. Voice cannot confirm.${followNote}`
                 : `${picks.length} fırsat buldum: ${lines.join('; ')}.${netNote} İlk Demo taslağı açık: sunucuda test et, göndermek için ONAYLA yaz. Sesle onay yok.${followNote}`))
           }
@@ -656,9 +696,14 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
         setAgentActions(previous => [...previous.slice(-3), en ? 'Plan scan' : 'Plan taraması'])
         if (drafts.length > 0 && commandPlan.account === 'demo') {
           orderQueue.current = drafts.slice(1)
-          followPending.current = wantsFollow
+          followPending.current = wantsFollow ? 'demo' : null
           setOpen(false); setHoloOpen(false); setOrderDraft(drafts[0])
           window.setTimeout(() => voice.stop(), 300)  // onay ekranında mikrofon kapalı: onay yalnızca yazıyla verilir
+        }
+        if (drafts.length > 0 && commandPlan.account === 'live') {
+          liveQueue.current = drafts.slice(1)
+          followPending.current = wantsFollow ? 'live' : null
+          handoffLive(drafts[0])
         }
         return reply
       } catch (error) {
@@ -849,7 +894,8 @@ function AssistantSession({userId, pageContext, language, launcherTarget, onNavi
       onClose={() => { const next = orderQueue.current.shift() ?? null; setOrderDraft(next); if (next) append(language === 'en' ? `Next draft: ${next.symbol} ${next.direction}. Test it, then type ONAYLA.` : `Sıradaki taslak: ${next.symbol} ${next.direction}. Test et, sonra ONAYLA yaz.`, language) }}
       onResult={text => append(text, language)}
       onSent={order => {
-        if (!followPending.current) return
+        if (followPending.current !== 'demo') return
+        followPending.current = null
         const alerts = followAlerts(order, crypto.randomUUID())
         if (!alerts) { append(language === 'en' ? 'I could not set follow alerts: the levels are inconsistent.' : 'Takip alarmı kuramadım: seviyeler tutarsız.', language); return }
         saveAlerts([...loadAlerts(), ...alerts])

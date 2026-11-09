@@ -62,3 +62,19 @@ test('Server rows are validated and broken ones dropped without repair', () => {
   const rows = [long, {...long, symbol: 5}, {...long, direction: 'NEUTRAL'}, {...long, entry: NaN}, {...long, tp3: 0}, null, short]
   assert.deepEqual(parsePlanPicks(rows).map(pick => pick.symbol), ['BTCUSDT', 'ETHUSDT'])
 })
+
+test('Strict targets (Live form) separate equal TPs by tiny steps away from entry, long and short', () => {
+  const longPlan = buildPlanDraft(long, {marginUsdt: 20, leverage: 10, targetNet: 1, strictTargets: true})
+  const [a, b, c] = [longPlan.draft.tp1, longPlan.draft.tp2, longPlan.draft.tp3].map(Number)
+  assert.ok(a < b && b < c)
+  assert.ok((c - a) / a < 0.001)  // hâlâ yaklaşık aynı fiyat
+  assert.equal(a, Number(buildPlanDraft(long, {marginUsdt: 20, leverage: 10, targetNet: 1}).draft.tp1))  // TP1 hedef fiyat, değişmez
+  const shortPlan = buildPlanDraft(short, {marginUsdt: 20, leverage: 10, targetNet: 1, strictTargets: true})
+  const [x, y, z] = [shortPlan.draft.tp1, shortPlan.draft.tp2, shortPlan.draft.tp3].map(Number)
+  assert.ok(x > y && y > z)
+})
+
+test('Strict targets leave already ordered scan TPs untouched', () => {
+  const plan = buildPlanDraft(long, {marginUsdt: 20, leverage: 10, targetNet: null, strictTargets: true})
+  assert.deepEqual([plan.draft.tp1, plan.draft.tp2, plan.draft.tp3], ['103', '105', '108'])
+})

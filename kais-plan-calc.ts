@@ -30,7 +30,7 @@ export type PlanDraft = {draft: OrderDraft; pick: PlanPick; targetPrice: number 
  * verilmemişse sunucunun TP1–TP3 seviyeleri aynen kullanılır. Hedef fiyat girişin yanlış tarafına düşerse ya da stop ile çelişirse taslak yine de
  * üretilir ama uyarıyla; sunucu testi ve yazılı ONAYLA zaten zorunludur.
  */
-export function buildPlanDraft(pick: PlanPick, options: {marginUsdt: number | null; leverage: number | null; targetNet: number | null}): PlanDraft {
+export function buildPlanDraft(pick: PlanPick, options: {marginUsdt: number | null; leverage: number | null; targetNet: number | null; strictTargets?: boolean}): PlanDraft {
   const {marginUsdt, leverage, targetNet} = options
   let tps = [pick.tp1, pick.tp2, pick.tp3]
   let targetPrice: number | null = null
@@ -48,6 +48,14 @@ export function buildPlanDraft(pick: PlanPick, options: {marginUsdt: number | nu
         if (beyondStop) warning = 'Hedef fiyat girişin yanlış tarafında; taslağı kontrol et.'
         else if (movePercent > 20) warning = `Hedef çok uzak (girişten %${movePercent.toFixed(1)}); marjin ya da kaldıraç çok düşük olabilir.`
       }
+    }
+  }
+  // Canlı Manuel İşlem formu hedeflerin KESİN sıralı olmasını ister (TP1 < TP2 < TP3). Eşit çıkanlar girişten uzağa doğru %0,01 adımlarla ayrılır;
+  // bu yaklaşık aynı fiyattır ve taslakta/mesajda söylenir, kullanıcı formda değiştirebilir.
+  if (options.strictTargets) {
+    const side = pick.direction === 'LONG' ? 1 : -1
+    for (let index = 1; index < 3; index += 1) {
+      if (side * (tps[index] - tps[index - 1]) <= 0) tps[index] = tps[index - 1] * (1 + side * 0.0001)
     }
   }
   const draft: OrderDraft = {
