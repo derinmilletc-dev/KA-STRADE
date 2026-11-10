@@ -368,16 +368,25 @@ def shared_original_symbols(application: Any, symbols: list[str]) -> list[str]:
     return union[:100]
 
 
+def kline_intervals(application: Any) -> tuple[str, ...]:
+    """Paylaşımlı akışın mum aralıkları. KAIS FARMER talebi varken ve sinyal mumu 3m iken 3m de eklenir; yoksa Original V2 aralıkları aynen kalır."""
+    from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS
+    from .farmer_engine.feed import SIGNAL_INTERVAL
+    wanted = bool(getattr(application.state, "farmer_symbol_demand", None))
+    if wanted and SIGNAL_INTERVAL not in LIVE_KLINE_INTERVALS:
+        return (*LIVE_KLINE_INTERVALS, SIGNAL_INTERVAL)
+    return tuple(LIVE_KLINE_INTERVALS)
+
+
 async def configure_original_kline_stream(application: Any, symbols: list[str]) -> None:
     stream = getattr(application.state, "original_kline_stream", None)
     if stream is None:
         return
     # 15m (piyasa süzgeci/kâr koruma) + 30m (Kais canlı sinyali) + 1h/4h; bayrak 15m'e dönse de 30m akışı zararsızdır.
-    from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS as ORIGINAL_INTERVALS
     from . import live_registry
     if not live_registry.enabled():
         application.state.original_stream_base_symbols = list(symbols)
-        await stream.configure(with_farmer_demand(application, symbols), ORIGINAL_INTERVALS)
+        await stream.configure(with_farmer_demand(application, symbols), kline_intervals(application))
         return
     lock = getattr(application.state, "original_demand_lock", None)
     if lock is None:
@@ -386,7 +395,7 @@ async def configure_original_kline_stream(application: Any, symbols: list[str]) 
     async with lock:  # compute the union and apply it without another member interleaving
         union = shared_original_symbols(application, symbols)
         application.state.original_stream_base_symbols = list(union)
-        await stream.configure(with_farmer_demand(application, union), ORIGINAL_INTERVALS)
+        await stream.configure(with_farmer_demand(application, union), kline_intervals(application))
 
 
 async def apply_farmer_stream_demand(application: Any, farmer_symbols: list[str]) -> list[str]:
@@ -416,7 +425,6 @@ async def apply_farmer_stream_demand(application: Any, farmer_symbols: list[str]
     stream = getattr(application.state, "original_kline_stream", None)
     if stream is None:
         return []
-    from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS as ORIGINAL_INTERVALS
     lock = getattr(application.state, "original_demand_lock", None)
     if lock is None:
         lock = asyncio.Lock()
@@ -424,7 +432,7 @@ async def apply_farmer_stream_demand(application: Any, farmer_symbols: list[str]
     async with lock:
         base = list(getattr(application.state, "original_stream_base_symbols", None) or [])
         merged = with_farmer_demand(application, base)
-        await stream.configure(merged, ORIGINAL_INTERVALS)
+        await stream.configure(merged, kline_intervals(application))
         return list(merged)
 
 
