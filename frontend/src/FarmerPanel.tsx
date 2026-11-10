@@ -196,9 +196,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   })()
 
   return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
-    {status && screen !== 'loading' && screen !== 'backend_unavailable' && <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
-      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange}/>}
-    {body}
+    {status && screen !== 'loading' && screen !== 'backend_unavailable' ? <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
+      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange}>{body}</FarmerGuideCard> : body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
     {emergency !== 'closed' && <EmergencyModal lang={lang} working={emergency === 'working'} count={status?.positions.length ?? 0} onCancel={() => setEmergency('closed')} onConfirm={() => void doEmergency()}/>}
   </section>

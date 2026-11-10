@@ -1,4 +1,4 @@
-import {useEffect, useState, type CSSProperties} from 'react'
+import {useEffect, useState, type CSSProperties, type ReactNode} from 'react'
 import {BookOpen, Check, MessageCircle, Zap} from 'lucide-react'
 import {money, tr_, whyKey, type CopyKey, type FarmerPreview, type FarmerStatus, type Screen} from './farmerView'
 
@@ -8,7 +8,7 @@ import {money, tr_, whyKey, type CopyKey, type FarmerPreview, type FarmerStatus,
 type Tone = 'go' | 'warn' | 'stop' | 'wait'
 export type FarmerGuideCardProps = {
   status: FarmerStatus; screen: Screen; L: (tr: string, en: string) => string; now: number; preview: FarmerPreview | null
-  onConnect?: () => void; onRenew: () => void; onOpenGuide: () => void; onAsk: (question: string) => void; busy: boolean
+  onConnect?: () => void; onRenew: () => void; onOpenGuide: () => void; onAsk: (question: string) => void; busy: boolean; children?: ReactNode
   /** Kokpit, KAIS KOÇ görünümü için ızgaraya `data-coach` koyar (Kais Long ile aynı stiller). */
   onCoachChange?: (on: boolean) => void
 }
@@ -24,7 +24,7 @@ function scrollTo(testId: string) {
   if (el instanceof HTMLElement) { if (el instanceof HTMLDetailsElement) el.open = true; el.scrollIntoView({behavior: 'smooth', block: 'center'}) }
 }
 
-export default function FarmerGuideCard({status, screen, L, now: initialNow, preview, onConnect, onRenew, onOpenGuide, onAsk, busy, onCoachChange}: FarmerGuideCardProps) {
+export default function FarmerGuideCard({status, screen, L, now: initialNow, preview, onConnect, onRenew, onOpenGuide, onAsk, busy, onCoachChange, children}: FarmerGuideCardProps) {
   // Sayaç saniyede bir akar (yalnız görünüm).
   const [now, setNow] = useState(initialNow)
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now() / 1000), 1000); return () => window.clearInterval(id) }, [])
@@ -205,5 +205,6 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
       {action && <button type="button" className="lcBtn lcPrimary" data-testid="farmer-guide-action" disabled={action.disabled} onClick={action.run}><Zap aria-hidden="true"/>{action.label}</button>}
       <button type="button" className="lcBtn lcGhost" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/>{L('Rehberi aç', 'Open guide')}</button>
     </div>
+    {children && <div className="fmInner" data-testid="farmer-inner">{children}</div>}
   </section>
 }
