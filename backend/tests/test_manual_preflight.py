@@ -104,6 +104,13 @@ class PreflightRouteTests(unittest.TestCase):
         self.assertNotIn("account_reservations.reserve", block)
         self.assertIn('"created_order": False', block)
 
+    def test_route_reads_account_from_cache_so_it_cannot_queue_the_real_order(self):
+        # Ön kontrol her ekran değişikliğinde çağrılır; taze (önbelleksiz) okuma gerçek emri hesap kilidinde 30 sn bekletiyordu.
+        source = (BACKEND / "app" / "v25_execution.py").read_text(encoding="utf-8")
+        match = re.search(r'@router\.post\("/order/preflight"\)', source)
+        block = source[match.start():source.find("class GridPlanRequest", match.start())]
+        self.assertIn('account_snapshot(client, cached=True, source="manual_preflight")', block)
+
 
 if __name__ == "__main__":
     unittest.main()

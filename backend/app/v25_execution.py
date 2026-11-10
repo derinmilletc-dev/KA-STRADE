@@ -8665,7 +8665,9 @@ async def v25_order_preflight(request: Request, body: ManualPreflightRequest) ->
     state = request.app.state.v25_execution
     try:
         client = client_for(request.app, request)
-        snapshot = await account_snapshot(client)
+        # Ön kontrol yalnız bilgilendirir (gerçek gönderim kapıları kendi taze okumasını yapar). Ekranda her değişiklikte çağrıldığı için
+        # önbellekli okunur: aksi halde her çağrı Binance'e ~7 sorgu atıp hesap kilidinde sıraya girer ve gerçek emri 30 sn bekletirdi.
+        snapshot = await account_snapshot(client, cached=True, source="manual_preflight")
         symbol = normalize_symbol(body.symbol)
         policy = sanitize_execution_policy(state["policy"])
         estimated_loss = None
