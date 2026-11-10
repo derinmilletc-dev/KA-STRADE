@@ -196,12 +196,18 @@ def _today_totals(results: list[Mapping[str, Any]], now: float) -> dict[str, Any
             "pending_count": pending, "unverified_count": unverified}
 
 
+def _signal_seconds() -> int:
+    from .farmer_engine.feed import INTERVAL_MS, SIGNAL_INTERVAL
+    return INTERVAL_MS[SIGNAL_INTERVAL] // 1000
+
+
 def build_status(runtime: Any | None, *, arm: Mapping[str, Any], env: Mapping[str, str] | None = None, now: float,
                  daily_loss: tuple[str, ...] = ()) -> dict[str, Any]:
     """`/farmer/status` gövdesi. Çalışma zamanı (runtime) kurulu değilse `available=False` + kapı kodları; asla uydurma sayı yok."""
     base: dict[str, Any] = {"ok": True, "name": DISPLAY_NAME, "available": runtime is not None, "blockers": entry_blockers_public(env),
                             "env_flags": {"live": LIVE_ENV_FLAG, "declared_verified": TP_MARKET_VERIFIED_ENV},
-                            "recommended": dict(RECOMMENDED), "provisional": True, "limits": LIMITS, "arm": dict(arm), "hard_cap_usdt": HARD_CAP_USDT}
+                            "recommended": dict(RECOMMENDED), "provisional": True, "limits": LIMITS, "arm": dict(arm), "hard_cap_usdt": HARD_CAP_USDT,
+                            "signal_interval_s": _signal_seconds()}
     if runtime is None:
         return {**base, "state": OFF, "configured": False, "config": None, "preview": preview(parse_settings({})), "positions": [], "scanner": [],
                 "slots": None, "effective_capacity": None, "today": None, "why": {"code": "UNAVAILABLE", "details": []}, "recovered": False}

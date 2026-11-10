@@ -26,8 +26,9 @@ MAX_CACHED_CANDLES = 1500
 # (takılmış) bir indirmeye yeni çağrılar katılmaz, kendi indirmesini başlatır (bu PR öncesi davranış).
 BACKFILL_JOIN_MAX_SECONDS = 45
 # 30m: Kais Long canlı sinyali 30 dk kapanmış mumlardan okur (bkz. original_v2_demo.LIVE_KLINE_INTERVALS).
-ALLOWED_INTERVALS = frozenset(ORIGINAL_INTERVALS) | {"30m"}
+ALLOWED_INTERVALS = frozenset(ORIGINAL_INTERVALS) | {"30m", "3m"}   # 3m: KAIS FARMER sinyal mumu
 INTERVAL_MILLISECONDS = {
+    "3m": 3 * 60 * 1000,
     "15m": 15 * 60 * 1000,
     "30m": 30 * 60 * 1000,
     "1h": 60 * 60 * 1000,

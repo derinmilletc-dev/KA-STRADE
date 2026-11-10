@@ -486,7 +486,7 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
     <fieldset disabled={disabled} className="fmGroup"><legend>{L('PORTFÖY', 'PORTFOLIO')}</legend>
       {field('max_positions', L('En fazla pozisyon', 'Max Positions'), L('Üst sınırdır; bu kadar işlem açılacağı anlamına gelmez.', 'A ceiling, not an instruction to open that many.'), 'slots')}
       {mode !== 'wizard' && field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), L(`Farmer’ın toplam marjin tavanı (en çok ${status.hard_cap_usdt} USDT).`, `Total margin cap for KAIS FARMER (max ${status.hard_cap_usdt} USDT).`), 'slots', {suffix: 'USDT'})}
-      <div className="fmField fmReadOnly"><span className="fmFieldTop"><b>{L('Bekleme (Cooldown)', 'Cooldown')}</b></span><span>{L('Aynı sembol için her 15 dakikalık mumda en fazla bir deneme.', 'At most one attempt per symbol per 15-minute candle.')}</span></div>
+      <div className="fmField fmReadOnly"><span className="fmFieldTop"><b>{L('Bekleme (Cooldown)', 'Cooldown')}</b></span><span>{L(`Aynı sembol için her ${Math.round((status.signal_interval_s ?? 900) / 60)} dakikalık mumda en fazla bir deneme.`, `At most one attempt per symbol per ${Math.round((status.signal_interval_s ?? 900) / 60)}-minute candle.`)}</span></div>
     </fieldset>
 
     <details className="fmAdvanced"><summary>{L('Gelişmiş ayarlar', 'Advanced settings')}<ChevronDown aria-hidden="true"/></summary>

@@ -4,7 +4,7 @@ import {money, tr_, whyKey, type CopyKey, type FarmerPreview, type FarmerStatus,
 
 /** KAIS FARMER için KAIS REHBER / KAIS KOÇ kartı. Kais Long ve DCA rehberiyle AYNI yapı ve AYNI sınıflar (lcGuide…):
  *  kurulumda adım adım yönlendirir, çalışırken KAIS KOÇ olur (mum sayacı, oturum, kontrol listesi, koç yorumu).
- *  Yalnız sunucudan gelen durumu gösterir; emir göndermez. Tek hesap yapılan şey saat: 15 dakikalık mum kapanışına kalan süre. */
+ *  Yalnız sunucudan gelen durumu gösterir; emir göndermez. Tek hesap yapılan şey saat: sinyal mumunun (3 dk) kapanışına kalan süre. */
 type Tone = 'go' | 'warn' | 'stop' | 'wait'
 export type FarmerGuideCardProps = {
   status: FarmerStatus; screen: Screen; L: (tr: string, en: string) => string; now: number; preview: FarmerPreview | null
@@ -13,7 +13,7 @@ export type FarmerGuideCardProps = {
   onCoachChange?: (on: boolean) => void
 }
 
-const CANDLE = 900
+const CANDLE_DEFAULT = 900
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const mmss = (t: number) => `${pad2(Math.floor(t / 60))}:${pad2(Math.floor(t % 60))}`
 const hms = (t: number) => `${pad2(Math.floor(t / 3600))}:${pad2(Math.floor((t % 3600) / 60))}:${pad2(Math.floor(t % 60))}`
@@ -28,6 +28,7 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
   // Sayaç saniyede bir akar (yalnız görünüm).
   const [now, setNow] = useState(initialNow)
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now() / 1000), 1000); return () => window.clearInterval(id) }, [])
+  const CANDLE = status.signal_interval_s && status.signal_interval_s > 0 ? status.signal_interval_s : CANDLE_DEFAULT
   const [koView, setKoView] = useState<'candle' | 'session'>('candle')
 
   const t = (key: CopyKey) => tr_(L('tr', 'en') as 'tr' | 'en', key)

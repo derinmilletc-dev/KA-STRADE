@@ -298,7 +298,7 @@ class PublicMarketData:
     def _store(self, key, path, values, response: httpx.Response, request_started_at: float) -> None:
         ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
         if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
-            seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
+            seconds = {"1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
             if seconds:
                 next_close = (math.floor(request_started_at / seconds) + 1) * seconds
                 ttl = max(0.0, next_close - time.time())
@@ -322,7 +322,7 @@ class PublicMarketData:
         if response.is_success:
             ttl = 600 if path.endswith("exchangeInfo") else 60 if path.endswith("klines") else 30 if path.endswith("24hr") else 0 if path.endswith("time") else 1
             if path.endswith("klines") and "endTime" not in values and "startTime" not in values:
-                seconds = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
+                seconds = {"1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(values.get("interval"))
                 if seconds:
                     next_close = (math.floor(request_started_at / seconds) + 1) * seconds
                     ttl = max(0.0, next_close - time.time())

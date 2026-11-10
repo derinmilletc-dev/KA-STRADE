@@ -2,7 +2,7 @@
 
 Tek okuyucu: tüm Farmer motorları için TEK `FarmerFeed`. Mumlar paylaşımlı `BinanceKlineStream` belleğinden okunur (REST yok);
 tek istisna `warm_up` — akışın ortak eksik-mum indirmesi (`get_candles`) üzerinden, yalnız yetersiz geçmiş için.
-Aday üretimi YALNIZ kapanmış 15m mum üzerindedir; strateji çıktısı Original V2'nin `legacy.analysis` / `legacy.mtf` alanlarıdır
+Aday üretimi YALNIZ kapanmış sinyal mumu (varsayılan 3m, ortamdan 15m) üzerindedir; strateji çıktısı Original V2'nin `legacy.analysis` / `legacy.mtf` alanlarıdır
 (yeni indikatör yok). Akışa abone OLMAYAN sembol için aday üretilmez ve giriş izni verilmez; varmış gibi kabul edilmez."""
 from __future__ import annotations
 
@@ -15,9 +15,22 @@ from typing import Any, Awaitable, Callable, Iterable, Mapping, Protocol, Sequen
 from .confirm import FarmerCandidate
 from .demand import NO_ROOM, DemandResult, merge_demand, valid_symbol
 
-SIGNAL_INTERVAL = "15m"
-INTERVALS = ("15m", "1h", "4h")
-INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
+SIGNAL_INTERVAL_ENV = "KAISTRADE_FARMER_SIGNAL_INTERVAL"
+SIGNAL_INTERVALS = ("3m", "15m")
+INTERVAL_MS = {"3m": 180_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
+
+
+def _signal_interval() -> str:
+    """Aday taraması hangi kapanmış mumdan yapılır. Varsayılan 3m (kurucu kararı, 2026-11-10); geri dönüş: ortamda 15m.
+    Geçersiz değer sessizce varsayılana dönmez: kapalı güvenli 15m'e düşer (eski, test edilmiş davranış)."""
+    import os
+    value = os.getenv(SIGNAL_INTERVAL_ENV, "3m").strip().lower()
+    return value if value in SIGNAL_INTERVALS else "15m"
+
+
+SIGNAL_INTERVAL = _signal_interval()
+INTERVALS = (SIGNAL_INTERVAL, "1h", "4h")        # 3m'de 15m akışı gerekmez (strateji penceresi 3m'den beslenir)
+STRATEGY_PRIMARY = "15m"                          # Original V2 birincil pencere anahtarı; 3m'de sinyal mumu bu anahtara konur
 HISTORY_CANDLES = 260                      # original_v2_demo.CANDLE_FETCH_LIMIT ile aynı; kapalı pencere 259
 
 # veri yok nedenleri (açık raporlanır)
@@ -54,6 +67,8 @@ def default_frames_builder(symbol: str, rows: Mapping[str, list[list[Any]]], at:
         if duplicates or len(closed) != HISTORY_CANDLES - 1 or not series.history_complete(at):
             return DATA_GAP
         frames[interval] = closed
+    if SIGNAL_INTERVAL != STRATEGY_PRIMARY:                                     # Original V2 birincil pencere anahtarı "15m"
+        frames[STRATEGY_PRIMARY] = frames.pop(SIGNAL_INTERVAL)
     return frames
 
 
@@ -241,7 +256,7 @@ class FarmerFeed:
 
     # ---------- tarama ----------
     def scan(self, now_ms: int, symbols: Sequence[str] | None = None) -> ScanResult:
-        """Kapanmış 15m mum için aday üretir. Aynı kapanmış mumda tekrar çağrı: sonucu kesinleşmiş semboller YENİDEN hesaplanmaz;
+        """Kapanmış sinyal mumu (3m) için aday üretir. Aynı kapanmış mumda tekrar çağrı: sonucu kesinleşmiş semboller YENİDEN hesaplanmaz;
         yalnız önbellekte olmayan (yeni talep / geçici veri-yok) semboller işlenir. Yeni kapanmış mum → önbellek tamamen yenilenir."""
         closed_ms = self.last_closed_open_ms(now_ms)
         if closed_ms < self.cache.candle_open_ms:                            # geri giden saat: önbellek geriye sarılmaz
