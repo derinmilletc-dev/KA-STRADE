@@ -43,3 +43,5 @@ Sen yokken güncelleme yapacak biri için (şifre/root vermeden):
 Kişi anahtarıyla girer ve yalnız `sudo /usr/local/sbin/kais-update` çalıştırabilir (`sudo bash` dahil başka komut yok).
 İş bitince: `sudo bash /opt/kaistrade/deploy/vps/helper-access.sh remove arkadas`.
 Güncellemeyi açık pozisyon yokken yaptır; Binance anahtarında para çekme kapalı ve IP kısıtlı olsun.
+
+_Yayın yenileme notu: site dosyaları 2026-11-10 tarihinde yeniden yayınlandı._
