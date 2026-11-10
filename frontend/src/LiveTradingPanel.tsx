@@ -1484,7 +1484,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
       setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
-        await call(V25, '/order', {method: 'POST', body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
+        try {
+          // Emir + koruma kurulumu 15 sn'den uzun sürebilir; erken kesilirse ekran hata gösterir ama emir borsada açılmış olur.
+          await call(V25, '/order', {method: 'POST', timeoutMs: 90000, body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
+        } catch (error) {
+          const text = error instanceof Error ? `${error.name} ${error.message}` : String(error)
+          if (/abort|timeout|zaman aşımı|failed to fetch|load failed|network/i.test(text)) {
+            void refresh()
+            throw new Error('Sunucunun cevabı gecikti; emir borsaya gitmiş olabilir. Tekrar göndermeden önce Pozisyonlar sekmesine bak.')
+          }
+          throw error
+        }
         setReviewedKey(''); setReviewResult(null); setManualStep(0)
         setOrder(initialOrder(symbol)); setLevelsFromAnalysis(false); setStopPick(null); setFromStudio(''); setRiskLossInput('')
         writeDraft(null)
