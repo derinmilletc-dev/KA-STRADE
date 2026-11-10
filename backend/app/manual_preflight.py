@@ -99,7 +99,7 @@ def build_report(
     guard = evaluate_entry_gates(
         symbol=symbol, signal={"direction": direction, "confidence": 100, "radar": {"trap_score": 0}},
         snapshot=snapshot, policy=entry_policy, daily=daily, spread_bps=spread_bps, armed=True, allowed_symbols=[],
-        active_plans=active_plans, candidate_notional_usdt=notional, cycle_candidates=None,
+        active_plans=active_plans, candidate_notional_usdt=notional, cycle_candidates=None, enforce_spread=False,
     )
     max_exposure = _num(entry_policy.get("max_total_exposure_usdt"))
     existing_exposure = 0.0
