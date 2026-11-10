@@ -283,3 +283,118 @@
 .lcGuide.fmGuide .fmTip[data-tone="ok"] b{color:#3ddc97}
 .lcGuide.fmGuide .lcGuideActions .lcBtn{white-space:nowrap}
 html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!important;min-width:0}
+
+/* ---- Rehber kartının İÇİNDE açılan Farmer ekranı (kurulum, durum, pozisyonlar) ---- */
+.fmGuide{overflow:hidden}
+.fmInner{display:grid;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);position:relative}
+.fmInner::before{content:"";position:absolute;left:0;top:-1px;width:72px;height:2px;border-radius:2px;background:linear-gradient(90deg,#5ff0b0,transparent)}
+.fmInner .fmCard,.fmInner .fmSection{min-width:0}
+.fmInner .fmCard{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:16px;backdrop-filter:blur(6px)}
+.fmInner .fmHero{display:none}
+.fmInner .fmStatus{background:linear-gradient(135deg,rgba(61,220,151,.10),rgba(255,255,255,.03) 60%);border-color:rgba(61,220,151,.22)}
+.fmInner .fmStatus[data-tone="warn"]{background:linear-gradient(135deg,rgba(240,184,74,.12),rgba(255,255,255,.03) 60%)}
+.fmInner .fmStatus[data-tone="stop"]{background:linear-gradient(135deg,rgba(239,107,102,.16),rgba(255,255,255,.03) 60%)}
+.fmInner .fmStatusMsg{font-size:15px!important}
+.fmInner .fmOverview{grid-template-columns:minmax(0,1fr)}
+.fmInner .fmMetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fmInner .fmMetrics>div{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.fmInner .fmMetrics dd{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.fmInner .fmSlotsRow i{transition:background .3s,box-shadow .3s}
+.fmInner .fmSlotsRow i[data-state="open"]{box-shadow:0 0 10px rgba(61,220,151,.6)}
+.fmInner .fmBtn{min-height:46px;border-radius:14px;font-weight:800;letter-spacing:.03em;transition:transform .12s,filter .15s}
+.fmInner .fmBtn:active{transform:scale(.98)}
+.fmInner .fmPrimary{background:linear-gradient(135deg,#5ff0b0,#2fbf86);color:#06130d;border:0;box-shadow:0 6px 18px rgba(47,191,134,.28)}
+.fmInner .fmSettings{border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
+.fmInner .fmSettings>summary{padding:14px 16px;font-weight:800}
+.fmInner .fmPos{border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.fmInner .fmDanger{border-radius:16px;background:rgba(239,107,102,.06);border:1px solid rgba(239,107,102,.25)}
+@media (min-width:760px){.fmInner .fmOverview{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);align-items:center}.fmInner .fmMetrics{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* ---- Sihirbaz: adım adım kurulum ---- */
+.fmWz{display:grid;gap:14px}
+.fmWzPane{display:grid;gap:14px;animation:fmWzIn .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes fmWzIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fmWzPane{animation:none}}
+.fmWzFields{display:grid;gap:10px}
+.fmWzField{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;padding:14px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);transition:border-color .2s,background .2s}
+.fmWzField[data-filled]{border-color:rgba(61,220,151,.38);background:linear-gradient(135deg,rgba(61,220,151,.09),rgba(255,255,255,.03))}
+.fmWzField:focus-within{border-color:rgba(95,240,176,.7);box-shadow:0 0 0 3px rgba(61,220,151,.14)}
+.fmWzIcon{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;font-size:20px;background:rgba(255,255,255,.07)}
+.fmWzBody{display:grid;gap:8px;min-width:0}
+.fmWzBody>label{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fm-mute)}
+.fmWzInput{display:flex;align-items:baseline;gap:8px;border-bottom:2px solid rgba(255,255,255,.14);padding-bottom:4px}
+.fmWzField:focus-within .fmWzInput{border-color:#5ff0b0}
+.fmWzInput input{flex:1;min-width:0;width:100%;background:transparent;border:0;outline:0;color:#fff;font:800 28px/1.1 var(--font-ui,inherit);font-variant-numeric:tabular-nums;padding:2px 0}
+.fmWzInput input::placeholder{color:rgba(255,255,255,.25)}
+.fmWzInput i{font-style:normal;font-size:12px;font-weight:800;color:var(--fm-faint);letter-spacing:.08em}
+.fmWzChips{display:flex;flex-wrap:wrap;gap:8px}
+.fmWzChips button{min-width:48px;min-height:38px;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#d6e4dc;font-weight:800;font-variant-numeric:tabular-nums;transition:transform .12s,background .15s,border-color .15s}
+.fmWzChips button:active{transform:scale(.94)}
+.fmWzChips button[data-on]{background:linear-gradient(135deg,#5ff0b0,#2fbf86);color:#06130d;border-color:transparent;box-shadow:0 4px 14px rgba(47,191,134,.3)}
+.fmWzBody small{font-size:12.5px;line-height:1.5;color:var(--fm-mute)}
+.fmWzNav{display:grid;gap:10px}
+.fmWzNav .fmBtn{display:flex;align-items:center;justify-content:center;gap:9px;min-height:54px;font-size:16px}
+.fmWzNav .fmBtn:not(.fmPrimary){background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cfe0d6}
+.fmWzNav .fmBtn:disabled{opacity:.45;box-shadow:none;filter:grayscale(.4)}
+.fmWzNeed{text-align:center}
+.fmWzHero{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(61,220,151,.12),rgba(255,255,255,.03));border:1px solid rgba(61,220,151,.28)}
+.fmWzHero>svg{width:34px;height:34px;color:#5ff0b0}
+.fmWzHero b{font-size:17px;color:#fff}
+.fmWzHero p{margin-top:4px;font-size:14px;line-height:1.55;color:#c9d8d0}
+.fmWzSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fmWzSummary>div{padding:14px;border-radius:16px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08)}
+.fmWzSummary dt{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fm-faint)}
+.fmWzSummary dd{margin-top:4px;font-size:22px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+.fmWzChecks{display:grid;gap:8px}
+.fmWzChecks li{display:flex;align-items:center;gap:10px;font-size:14px;color:#d6e4dc}
+.fmWzChecks i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;font-style:normal;font-size:12px;font-weight:900;background:rgba(61,220,151,.2);color:#5ff0b0}
+.fmWzGo{animation:fmWzPulse 2.4s ease-in-out infinite}
+@keyframes fmWzPulse{0%,100%{box-shadow:0 6px 18px rgba(47,191,134,.28)}50%{box-shadow:0 6px 26px rgba(47,191,134,.55)}}
+@media (prefers-reduced-motion:reduce){.fmWzGo{animation:none}}
+@media (min-width:760px){.fmWzFields{grid-template-columns:repeat(3,minmax(0,1fr))}.fmWzField{grid-template-columns:minmax(0,1fr)}.fmWzNav{grid-template-columns:2fr 1fr}.fmWzSummary{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* ---- Cila: daha ferah, modern başlık/adım çubuğu/kutular ---- */
+.fmGuide{padding:20px 18px 18px;border-radius:24px;background:radial-gradient(130% 90% at 0 0,rgba(61,220,151,.13),transparent 55%),linear-gradient(180deg,#12211b,#0d1813);border:1px solid rgba(255,255,255,.09);box-shadow:0 18px 48px rgba(0,0,0,.35)}
+.fmGuide .lcStrat,.fmGuide .lcSteps{display:none!important}
+.fmGHead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-bottom:14px}
+.fmGHead>div b{display:block;font-size:13px;letter-spacing:.16em;color:#5ff0b0}
+.fmGHead>div small{display:block;margin-top:2px;font-size:12.5px;color:var(--fm-mute)}
+.fmStatePill{padding:6px 12px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:.1em;background:rgba(61,220,151,.12);border:1px solid rgba(61,220,151,.35);color:#bff5db;white-space:nowrap}
+.fmHeadBtns{grid-column:1/-1;display:flex;gap:8px;margin-top:2px}
+.fmHeadBtns .fmPill{flex:1;justify-content:center;white-space:nowrap}
+.fmPill{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:800;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#d6e4dc}
+.fmPill svg{width:15px;height:15px}
+.fmPillAsk{background:rgba(61,220,151,.1);border-color:rgba(61,220,151,.32);color:#bff5db}
+.fmGuide .lcGuideTitle{font-size:26px;line-height:1.15;letter-spacing:-.01em;margin:4px 0 8px;color:#fff}
+.fmGuide .lcGuideMsg{font-size:14.5px;line-height:1.6;color:#aebfb6}
+.fmActs{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.fmActs .fmBtn{min-height:46px}
+.fmGuide[data-phase="setup"] .fmActs:empty{display:none}
+.fmProg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 16px}
+.fmProg span{display:grid;gap:6px}
+.fmProg i{display:block;height:5px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;position:relative}
+.fmProg i::after{content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,#5ff0b0,#2fbf86);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.fmProg [data-state="done"] i::after,.fmProg [data-state="now"] i::after{transform:scaleX(1)}
+.fmProg [data-state="now"] i{box-shadow:0 0 12px rgba(95,240,176,.55)}
+.fmProg em{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--fm-faint);text-transform:uppercase}
+.fmProg [data-state="now"] em{color:#bff5db}
+.fmProg [data-state="done"] em{color:var(--fm-mute)}
+.fmInner{margin-top:18px;padding-top:0;border-top:0}
+.fmInner::before{display:none}
+.fmWzField{display:block;padding:16px 16px 14px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));position:relative}
+.fmWzIcon{position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:11px;background:rgba(61,220,151,.1);color:#5ff0b0}
+.fmWzIcon svg{width:18px;height:18px}
+.fmWzBody{gap:10px}
+.fmWzBody>label{font-size:11.5px;letter-spacing:.14em;color:var(--fm-mute)}
+.fmWzInput{border-bottom:0;padding:0}
+.fmWzInput input{font-size:38px;font-weight:800;letter-spacing:-.02em}
+.fmWzInput i{font-size:13px;color:var(--fm-faint)}
+.fmWzChips{display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:8px}
+.fmWzChips button{min-height:42px;padding:6px 8px;border-radius:12px;font-size:15px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1)}
+.fmWzBody small{font-size:12px;color:#8fa398}
+.fmWzNav .fmBtn{min-height:56px;border-radius:16px;font-size:16px;letter-spacing:.01em}
+.fmInner .fmAdvanced{border-radius:16px}
+
+.fmGuide{display:flex;flex-direction:column;min-width:0}
+.fmGuide>*{min-width:0;max-width:100%}
+.fmGuide>.fmInner{order:20}
