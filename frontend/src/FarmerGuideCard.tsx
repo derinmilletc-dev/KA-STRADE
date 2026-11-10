@@ -151,15 +151,16 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
   const showSetup = !wizard && !coach && (screen === 'onboarding' || screen === 'dashboard')
 
   return <section className="lcGuide fmGuide" data-tone={tone} data-phase={coach ? 'running' : 'setup'} data-testid="farmer-guide-card" aria-live="polite">
-    <header className="lcGuideHead">
+    <header className="fmGHead">
       <span className="lcEye" aria-hidden="true" data-tone={tone}/>
       <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{coach ? L('Kurulum tamam · seni bilgilendiriyorum', 'Setup done · keeping you posted') : L(`Adım ${step + 1} / ${steps.length} · ${steps[step]}`, `Step ${step + 1} / ${steps.length} · ${steps[step]}`)}</small><em className="lcStrat" data-testid="strategy-name">{L('Seçili strateji: KAIS FARMER', 'Selected strategy: KAIS FARMER')}</em></div>
-      {!coach && <span className="lcMobileOnly lcGuideRing" role="img" aria-label={`${step + 1} / ${steps.length}`} style={{'--p': `${Math.round(((step + 1) / steps.length) * 100)}%`} as CSSProperties}><b aria-hidden="true">{step + 1}/{steps.length}</b></span>}
-      {coach && <span className="lcMobileOnly lcKoPill">{state === 'RUNNING' ? L('ÇALIŞIYOR', 'RUNNING') : L('DURAKLADI', 'PAUSED')}</span>}
-      <span className="lcHeadBtns">
-        <button type="button" className="lcAsk" onClick={() => onAsk(ask)}><MessageCircle aria-hidden="true"/>{L('Kais’e sor', 'Ask Kais')}</button>
+      {coach && <span className="fmStatePill">{state === 'RUNNING' ? L('ÇALIŞIYOR', 'RUNNING') : L('DURAKLADI', 'PAUSED')}</span>}
+      <span className="fmHeadBtns">
+        <button type="button" className="fmPill" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/>{L('Rehber', 'Guide')}</button>
+        <button type="button" className="fmPill fmPillAsk" onClick={() => onAsk(ask)}><MessageCircle aria-hidden="true"/>{L('Kais’e sor', 'Ask Kais')}</button>
       </span>
     </header>
+    {!coach && <div className="fmProg" role="img" aria-label={L(`Adım ${step + 1} / ${steps.length}`, `Step ${step + 1} of ${steps.length}`)}>{steps.map((label, index) => <span key={label} data-state={index < step ? 'done' : index === step ? 'now' : 'todo'}><i aria-hidden="true"/><em>{label}</em></span>)}</div>}
     {!coach && <ol className="lcSteps" aria-label={L('KAIS FARMER adımları', 'KAIS FARMER steps')}>{steps.map((label, index) => <li key={label} data-state={index < step ? 'done' : index === step ? (tone === 'stop' ? 'problem' : 'current') : 'todo'} aria-current={index === step ? 'step' : undefined}><i/><span>{label}</span></li>)}</ol>}
     <h2 className="lcGuideTitle">{title}</h2>
     <p className="lcGuideMsg" data-open>{message}</p>
@@ -201,9 +202,8 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
       </div>
     </div>}
 
-    <div className="lcGuideActions">
-      {action && !wizard && <button type="button" className="lcBtn lcPrimary" data-testid="farmer-guide-action" disabled={action.disabled} onClick={action.run}><Zap aria-hidden="true"/>{action.label}</button>}
-      <button type="button" className="lcBtn lcGhost" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/>{L('Rehberi aç', 'Open guide')}</button>
+    <div className="fmActs">
+      {action && !wizard && <button type="button" className="fmBtn fmPrimary" data-testid="farmer-guide-action" disabled={action.disabled} onClick={action.run}><Zap aria-hidden="true"/>{action.label}</button>}
     </div>
     {children && <div className="fmInner" data-testid="farmer-inner">{children}</div>}
   </section>

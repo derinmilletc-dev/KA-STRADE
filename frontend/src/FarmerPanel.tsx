@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
-import {Check, ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
+import {Check, ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldAlert, ShieldCheck, Square, Target, TriangleAlert, Wallet, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
 import FarmerGuideCard from './FarmerGuideCard'
@@ -548,7 +548,7 @@ function Wizard(p: WizardProps) {
   const {status, form, edit, preview, formError, L, lang, openGuide, busy, step} = p
   const cap = Number(status.hard_cap_usdt) || 500
   const caps = [...new Set([50, 100, 200, cap].filter(v => v <= cap))]
-  const core = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', icon: string, label: string, help: string, chips: number[], topic: string) => {
+  const core = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', icon: ReactNode, label: string, help: string, chips: number[], topic: string) => {
     const value = form[key]
     return <div className="fmWzField" data-filled={value.trim() !== '' || undefined}>
       <span className="fmWzIcon" aria-hidden="true">{icon}</span>
@@ -571,9 +571,9 @@ function Wizard(p: WizardProps) {
   return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
     {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
       <div className="fmWzFields">
-        {core('target_usdt', '🎯', L('Kâr hedefi', 'Profit Target'), L('Her işlemde kapatmak istediğin net kâr.', 'Net profit you want per trade.'), [1, 2, 3, 5], 'target')}
-        {core('max_loss_usdt', '🛡️', L('En fazla kayıp', 'Max Loss'), L('Tek işlemde göze aldığın en büyük kayıp.', 'Largest loss you accept on one trade.'), [1, 2, 3, 5], 'maxloss')}
-        {core('total_margin_cap', '🧮', L('Marjin tavanı', 'Margin Cap'), L(`Aynı anda kullanılacak toplam teminat (en çok ${cap}).`, `Total collateral used at once (max ${cap}).`), caps, 'slots')}
+        {core('target_usdt', <Target/>, L('Kâr hedefi', 'Profit Target'), L('Her işlemde kapatmak istediğin net kâr.', 'Net profit you want per trade.'), [1, 2, 3, 5], 'target')}
+        {core('max_loss_usdt', <ShieldAlert/>, L('En fazla kayıp', 'Max Loss'), L('Tek işlemde göze aldığın en büyük kayıp.', 'Largest loss you accept on one trade.'), [1, 2, 3, 5], 'maxloss')}
+        {core('total_margin_cap', <Wallet/>, L('Marjin tavanı', 'Margin Cap'), L(`Aynı anda kullanılacak toplam teminat (en çok ${cap}).`, `Total collateral used at once (max ${cap}).`), caps, 'slots')}
       </div>
       <RiskPreview preview={preview} L={L} openGuide={openGuide}/>
       <details className="fmAdvanced"><summary>{L('Gelişmiş ayarlar', 'Advanced settings')}<ChevronDown aria-hidden="true"/></summary>
