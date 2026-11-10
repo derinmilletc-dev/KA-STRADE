@@ -38,32 +38,35 @@ await test('disabled state: explains, no activate, no raw flags', async () => {
   assert.ok(await p.getByTestId('farmer-disabled').isVisible()); assert.strictEqual(await p.getByTestId('farmer-activate').count(), 0)
   assert.ok(!/KAISTRADE_FARMER|LIVE_FLAG|TPM/.test(body)); await p.ctx.close()
 })
-await test('onboarding: recommended shown, activation saves settings then starts', async () => {
-  const p = await open('onboarding'); assert.match(await text(p, 'farmer-config-kind'), /Custom/)      // kâr, kayıp, tavan boş başlar
-  assert.match(await p.innerText('body'), /Position Size[\s\S]*Risk[\s\S]*Target/)
-  await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(100)
-  assert.strictEqual((await calls(p)).some(x => x.startsWith('POST /farmer/settings')), false)           // boşken sunucuya gitmez
-  await fillUser(p); assert.match(await text(p, 'farmer-config-kind'), /Recommended/)
+await test('wizard step 1: nothing pre-filled, save disabled until all three set, then saves settings (no start yet)', async () => {
+  const p = await open('onboarding'); assert.ok(await p.getByTestId('farmer-save').isDisabled())
+  assert.strictEqual(await p.getByRole('textbox', {name: 'Profit Target'}).inputValue(), '')
+  await p.getByRole('textbox', {name: 'Profit Target'}).fill('1'); await p.getByRole('textbox', {name: 'Max Loss'}).fill('1.5')
+  await p.getByRole('group', {name: /Margin Cap/}).getByRole('button', {name: '100'}).click(); await p.waitForTimeout(500)
+  await p.getByTestId('farmer-save').click(); await p.waitForTimeout(150)
+  const c = await calls(p); assert.ok(c.some(x => x.startsWith('POST /farmer/settings')), JSON.stringify(c)); assert.ok(!c.includes('POST /farmer/start'))
+  assert.strictEqual(c.some(x => x.includes('NaN')), false); await p.ctx.close()
+})
+await test('wizard last step: activation starts the bot (settings already saved)', async () => {
+  const p = await open('off'); assert.ok(await p.getByTestId('farmer-step-start').isVisible())
   await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(150)
-  const c = await calls(p); const i = c.findIndex(x => x.startsWith('POST /farmer/settings')), j = c.indexOf('POST /farmer/start')
-  assert.ok(i >= 0 && j > i, JSON.stringify(c)); assert.strictEqual(c.some(x => x.includes('NaN')), false); await p.ctx.close()
+  assert.ok((await calls(p)).includes('POST /farmer/start')); await p.ctx.close()
 })
 await test('rejected start shows no false success (backend refusal is not "active")', async () => {
-  const p = await open('onboarding', {q: '&start=reject'}); await fillUser(p)
+  const p = await open('off', {q: '&start=reject'})
   await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(200)
   const body = await p.innerText('body'); assert.ok(!/KAIS FARMER is active/.test(body), body); assert.match(body, /could not be started/); assert.ok(!/FARMER_NOT_STARTED/.test(body)); await p.ctx.close()
 })
-await test('custom values flip chip to Custom, preview comes from server, reset works', async () => {
-  const p = await open('onboarding'); await fillUser(p); const input = p.getByRole('textbox', {name: 'Profit Target'})
-  await input.fill('0.2'); await p.waitForTimeout(600)
-  assert.match(await text(p, 'farmer-config-kind'), /Custom/); assert.match(await text(p, 'farmer-preview'), /TIGHT/)
-  assert.ok((await calls(p)).some(c => c.startsWith('POST /farmer/preview')))
-  await p.getByRole('button', {name: /Reset to recommended/}).click(); assert.strictEqual(await input.inputValue(), '0.2'); await p.ctx.close()      // kullanıcının seçtiği kâr korunur
+await test('preview comes from server for custom values', async () => {
+  const p = await open('onboarding'); await fillUser(p)
+  await p.getByRole('textbox', {name: 'Profit Target'}).fill('0.2'); await p.waitForTimeout(600)
+  assert.match(await text(p, 'farmer-preview'), /TIGHT/)
+  assert.ok((await calls(p)).some(c => c.startsWith('POST /farmer/preview'))); await p.ctx.close()
 })
-await test('invalid number blocks activation, no request sent', async () => {
+await test('invalid number blocks saving, no request sent', async () => {
   const p = await open('onboarding'); await p.getByRole('textbox', {name: 'Max Loss'}).fill('abc'); await p.waitForTimeout(500)
-  assert.ok(await p.getByTestId('farmer-form-error').isVisible()); assert.ok(await p.getByTestId('farmer-activate').isDisabled())
-  assert.ok(!(await calls(p)).some(c => c.includes('/farmer/start'))); await p.ctx.close()
+  assert.ok(await p.getByTestId('farmer-form-error').isVisible()); assert.ok(await p.getByTestId('farmer-save').isDisabled())
+  assert.ok(!(await calls(p)).some(c => c.includes('/farmer/settings'))); await p.ctx.close()
 })
 await test('running with no position explains why and does not push trading', async () => {
   const p = await open('running_empty'); assert.match(await text(p, 'farmer-message'), /actively scanning/)

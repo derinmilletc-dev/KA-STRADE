@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
-import {ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
+import {Check, ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
 import FarmerGuideCard from './FarmerGuideCard'
@@ -67,6 +67,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   const [preview, setPreview] = useState<FarmerPreview | null>(null)
   const [formError, setFormError] = useState('')
   const dirty = useRef(false)
+  const [wzEdit, setWzEdit] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +142,13 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
     if (!started || started.state !== 'RUNNING') throw new Error('FARMER_NOT_STARTED')   // HTTP 200 tek başına başarı sayılmaz
     setFlash({tone: 'ok', text: L('KAIS FARMER etkinleştirildi.', 'KAIS FARMER is active.')})
   })
+  const saveSettings = () => run('save', async () => {
+    if (!form) return
+    const body = bodyOf(form)
+    if (body.__invalid) { setFormError(L('Lütfen tüm alanları sayıyla doldur.', 'Please fill every field with a number.')); return }
+    await postRef.current('/farmer/settings', body)
+    dirty.current = false; setWzEdit(false)
+  })
   const stopBot = () => run('stop', async () => { await postRef.current('/farmer/stop-bot'); setFlash({tone: 'ok', text: L('Yeni girişler durduruldu. Açık pozisyonlar korunuyor.', 'New entries stopped. Existing positions stay protected.')}) })
   const renewArm = () => run('arm', async () => { await postRef.current('/arm', {understood: true}); setFlash({tone: 'ok', text: L('İşlem oturumu yenilendi.', 'Trading session renewed.')}) })
   const acknowledge = () => run('ack', async () => { await postRef.current('/farmer/acknowledge') })
@@ -157,6 +165,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   const ask = (q: string) => onAsk?.(q)
 
 
+  const wizardActive = !!status && !loading && !error && accountOk && status.available && (screen === 'onboarding' || (screen === 'dashboard' && state === 'OFF' && !hasPositions)) && state !== 'INTERVENTION_REQUIRED'
   const body = ((): ReactNode => {
     if (screen === 'loading') return <section className="fmCard fmCenter" data-testid="farmer-loading" role="status" aria-live="polite"><Loader2 className="fmSpin" aria-hidden="true"/><p>{L('KAIS FARMER durumu okunuyor…', 'Reading KAIS FARMER status…')}</p></section>
     if (screen === 'backend_unavailable') return <section className="fmCard fmCenter" data-testid="farmer-backend-unavailable" role="alert">
@@ -180,6 +189,12 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
       </section>
       <Setup {...{status, form, edit, canEdit: false, preview, formError, lang, L, openGuide, mode: 'preview', onActivate: activate, busy}}/>
     </>
+    const wizardOn = (screen === 'onboarding' || (screen === 'dashboard' && state === 'OFF' && !hasPositions)) && state !== 'INTERVENTION_REQUIRED'
+    if (wizardOn) return <>
+      {notices}
+      <Wizard {...{status, form, edit, preview, formError, lang, L, openGuide, busy, armActive, step: wzEdit || !status.configured ? 1 : !armActive ? 2 : 3, editing: wzEdit && status.configured,
+        onSave: saveSettings, onRenew: renewArm, onActivate: activate, onEdit: () => setWzEdit(true), onCancelEdit: () => { setWzEdit(false); dirty.current = false; setForm(formOf(status.config ?? status.recommended)) }}}/>
+    </>
     if (screen === 'onboarding') return <>
       {notices}
       <section className="fmCard fmHero" data-testid="farmer-onboarding">
@@ -197,7 +212,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
 
   return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
     {status && screen !== 'loading' && screen !== 'backend_unavailable' ? <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
-      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange}>{body}</FarmerGuideCard> : body}
+      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange} editing={wzEdit} wizard={wizardActive}>{body}</FarmerGuideCard> : body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
     {emergency !== 'closed' && <EmergencyModal lang={lang} working={emergency === 'working'} count={status?.positions.length ?? 0} onCancel={() => setEmergency('closed')} onConfirm={() => void doEmergency()}/>}
   </section>
@@ -420,7 +435,7 @@ function EmergencyModal({lang, working, count, onCancel, onConfirm}: {lang: Lang
 // ---------------------------------------------------------------- Kurulum / Ayarlar
 type SetupProps = {
   status: FarmerStatus; form: Form; edit: (patch: Partial<Form>) => void; canEdit: boolean; preview: FarmerPreview | null; formError: string; lang: Lang
-  L: (tr: string, en: string) => string; openGuide: (topic?: string) => void; mode: 'onboarding' | 'edit' | 'preview'; onActivate: () => void; busy: string
+  L: (tr: string, en: string) => string; openGuide: (topic?: string) => void; mode: 'onboarding' | 'edit' | 'preview' | 'wizard'; onActivate: () => void; busy: string
 }
 
 function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, mode, onActivate, busy}: SetupProps) {
@@ -442,11 +457,11 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
         <div><i>3</i><b>{L('Hedef', 'Target')}</b><span>{L('Ne kadar net kâr hedefliyorsun?', 'How much net profit are you targeting?')}</span></div>
       </div>
     </>}
-    <div className="fmRecBar">
+    {mode !== 'wizard' && <div className="fmRecBar">
       <span className="fmChip" data-kind={isRec ? 'rec' : 'custom'} data-testid="farmer-config-kind">{isRec ? L('Önerilen', 'Recommended') : L('Özel', 'Custom')}</span>
       {status.provisional && <small>{L('Önerilen değerler başlangıç içindir; sunucudan gelir.', 'Recommended values are a starting point; they come from the server.')}</small>}
       {!isRec && canEdit && <button type="button" className="fmLink" onClick={() => edit(formOfRec(rec))}>{L('Önerilene dön', 'Reset to recommended')}</button>}
-    </div>
+    </div>}
     {!canEdit && mode === 'edit' && <p className="fmHint">{L('Ayarlar KAIS FARMER kapalıyken ve açık pozisyon yokken değiştirilebilir.', 'Settings can be changed only while KAIS FARMER is off and no position is open.')}</p>}
 
     <fieldset disabled={disabled} className="fmGroup"><legend>{L('TEMEL', 'BASIC')}</legend>
@@ -458,8 +473,8 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
         <small id="fm-h-margin_usdt">{L('Her pozisyonda kullanılacak teminat.', 'Collateral used for each position.')}</small>
       </div>
       {field('leverage', L('Kaldıraç', 'Leverage'), L('Yüksek kaldıraç maruziyeti artırır.', 'Higher leverage increases exposure.'), 'target', {suffix: '×'})}
-      {field('target_usdt', L('Kâr hedefi', 'Profit Target'), L('KAIS FARMER, tahmini net sonuç hedefine ulaşınca kapatmayı amaçlar. Gerçek sonuç ücretler, fonlama ve piyasaya göre farklı olabilir.', 'KAIS FARMER aims to close a position when the estimated net result reaches your target. Actual execution can differ because of fees, funding and market conditions.'), 'target', {suffix: 'USDT'})}
-      {field('max_loss_usdt', L('En fazla kayıp', 'Max Loss'), L('Tek pozisyonda planlanan en yüksek net kayıp.', 'The highest planned net loss on one position.'), 'maxloss', {suffix: 'USDT'})}
+      {mode !== 'wizard' && field('target_usdt', L('Kâr hedefi', 'Profit Target'), L('KAIS FARMER, tahmini net sonuç hedefine ulaşınca kapatmayı amaçlar. Gerçek sonuç ücretler, fonlama ve piyasaya göre farklı olabilir.', 'KAIS FARMER aims to close a position when the estimated net result reaches your target. Actual execution can differ because of fees, funding and market conditions.'), 'target', {suffix: 'USDT'})}
+      {mode !== 'wizard' && field('max_loss_usdt', L('En fazla kayıp', 'Max Loss'), L('Tek pozisyonda planlanan en yüksek net kayıp.', 'The highest planned net loss on one position.'), 'maxloss', {suffix: 'USDT'})}
     </fieldset>
 
     <fieldset disabled={disabled} className="fmGroup"><legend>{L('KALİTE', 'QUALITY')}</legend>
@@ -470,7 +485,7 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
 
     <fieldset disabled={disabled} className="fmGroup"><legend>{L('PORTFÖY', 'PORTFOLIO')}</legend>
       {field('max_positions', L('En fazla pozisyon', 'Max Positions'), L('Üst sınırdır; bu kadar işlem açılacağı anlamına gelmez.', 'A ceiling, not an instruction to open that many.'), 'slots')}
-      {field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), L(`Farmer’ın toplam marjin tavanı (en çok ${status.hard_cap_usdt} USDT).`, `Total margin cap for KAIS FARMER (max ${status.hard_cap_usdt} USDT).`), 'slots', {suffix: 'USDT'})}
+      {mode !== 'wizard' && field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), L(`Farmer’ın toplam marjin tavanı (en çok ${status.hard_cap_usdt} USDT).`, `Total margin cap for KAIS FARMER (max ${status.hard_cap_usdt} USDT).`), 'slots', {suffix: 'USDT'})}
       <div className="fmField fmReadOnly"><span className="fmFieldTop"><b>{L('Bekleme (Cooldown)', 'Cooldown')}</b></span><span>{L('Aynı sembol için her 15 dakikalık mumda en fazla bir deneme.', 'At most one attempt per symbol per 15-minute candle.')}</span></div>
     </fieldset>
 
@@ -481,8 +496,8 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
       </fieldset>
     </details>
 
-    <RiskPreview preview={preview} L={L} openGuide={openGuide}/>
-    {formError && <p className="fmFlash" data-tone="bad" role="alert" data-testid="farmer-form-error">{formError}</p>}
+    {mode !== 'wizard' && <RiskPreview preview={preview} L={L} openGuide={openGuide}/>}
+    {mode !== 'wizard' && formError && <p className="fmFlash" data-tone="bad" role="alert" data-testid="farmer-form-error">{formError}</p>}
     {mode === 'onboarding' && <>
       <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-activate" disabled={!!busy || !!formError} onClick={onActivate}>{busy === 'activate' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Zap aria-hidden="true"/>}{L('KAIS FARMER’I ETKİNLEŞTİR', 'ACTIVATE KAIS FARMER')}</button>
       <p className="fmHint">{L('Etkinleştirmek gerçek pozisyon açmaya izin verir. Hedefler garanti değildir.', 'Activating allows real positions to be opened. Targets are not guarantees.')}</p>
@@ -519,4 +534,75 @@ function RiskPreview({preview, L, openGuide}: {preview: FarmerPreview | null; L:
     {preview.warnings.length > 0 && <ul className="fmWarnList">{preview.warnings.map(w => warn[w] ? <li key={w}><TriangleAlert aria-hidden="true"/>{warn[w]}</li> : null)}</ul>}
     <small>{L('Uyarılardır, yatırım tavsiyesi değildir.', 'These are warnings, not trading advice.')} <button type="button" className="fmLink" onClick={() => openGuide('guarantee')}>{L('Daha fazla', 'Learn more')}</button></small>
   </section>
+}
+
+
+// ---------------------------------------------------------------- Sihirbaz: Rehber adım adım yaptırır
+type WizardProps = {
+  status: FarmerStatus; form: Form; edit: (patch: Partial<Form>) => void; preview: FarmerPreview | null; formError: string; lang: Lang
+  L: (tr: string, en: string) => string; openGuide: (topic?: string) => void; busy: string; armActive: boolean; step: 1 | 2 | 3; editing: boolean
+  onSave: () => void; onRenew: () => void; onActivate: () => void; onEdit: () => void; onCancelEdit: () => void
+}
+
+function Wizard(p: WizardProps) {
+  const {status, form, edit, preview, formError, L, lang, openGuide, busy, step} = p
+  const cap = Number(status.hard_cap_usdt) || 500
+  const caps = [...new Set([50, 100, 200, cap].filter(v => v <= cap))]
+  const core = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', icon: string, label: string, help: string, chips: number[], topic: string) => {
+    const value = form[key]
+    return <div className="fmWzField" data-filled={value.trim() !== '' || undefined}>
+      <span className="fmWzIcon" aria-hidden="true">{icon}</span>
+      <div className="fmWzBody">
+        <label htmlFor={`fm-f-${key}`}>{label}</label>
+        <span className="fmWzInput"><input id={`fm-f-${key}`} inputMode="decimal" type="text" placeholder="0" value={value} onChange={e => edit({[key]: e.target.value} as Partial<Form>)}/><i aria-hidden="true">USDT</i></span>
+        <span className="fmWzChips" role="group" aria-label={`${label}: ${L('hızlı seç', 'quick pick')}`}>{chips.map(c => <button type="button" key={c} data-on={value === String(c) || undefined} onClick={() => edit({[key]: String(c)} as Partial<Form>)}>{c}</button>)}</span>
+        <small>{help} <button type="button" className="fmLink" aria-label={`${label}: ${L('Daha fazla', 'Learn more')}`} onClick={() => openGuide(topic)}>{L('Daha fazla', 'Learn more')}</button></small>
+      </div>
+    </div>
+  }
+  const filled = form.target_usdt.trim() !== '' && form.max_loss_usdt.trim() !== '' && form.total_margin_cap.trim() !== ''
+  const cfg = status.config
+  const cells = cfg ? [
+    [L('Kâr hedefi', 'Profit target'), money(cfg.target_usdt, true)],
+    [L('En fazla kayıp', 'Max loss'), `-${money(cfg.max_loss_usdt).replace('-', '')}`],
+    [L('Toplam tavan', 'Total cap'), `${cfg.total_margin_cap} USDT`],
+    [L('Kaldıraç', 'Leverage'), `${cfg.leverage}×`],
+  ] : []
+  return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
+    {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
+      <div className="fmWzFields">
+        {core('target_usdt', '🎯', L('Kâr hedefi', 'Profit Target'), L('Her işlemde kapatmak istediğin net kâr.', 'Net profit you want per trade.'), [1, 2, 3, 5], 'target')}
+        {core('max_loss_usdt', '🛡️', L('En fazla kayıp', 'Max Loss'), L('Tek işlemde göze aldığın en büyük kayıp.', 'Largest loss you accept on one trade.'), [1, 2, 3, 5], 'maxloss')}
+        {core('total_margin_cap', '🧮', L('Marjin tavanı', 'Margin Cap'), L(`Aynı anda kullanılacak toplam teminat (en çok ${cap}).`, `Total collateral used at once (max ${cap}).`), caps, 'slots')}
+      </div>
+      <RiskPreview preview={preview} L={L} openGuide={openGuide}/>
+      <details className="fmAdvanced"><summary>{L('Gelişmiş ayarlar', 'Advanced settings')}<ChevronDown aria-hidden="true"/></summary>
+        <Setup {...{status, form, edit, canEdit: true, preview, formError, lang, L, openGuide, mode: 'wizard' as const, onActivate: p.onActivate, busy}}/>
+      </details>
+      {formError && <p className="fmFlash" data-tone="bad" role="alert" data-testid="farmer-form-error">{formError}</p>}
+      <div className="fmWzNav">
+        <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-save" disabled={!!busy || !!formError || !filled} onClick={p.onSave}>{busy === 'save' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Check aria-hidden="true"/>}{L('Kaydet ve devam et', 'Save and continue')}</button>
+        {p.editing && <button type="button" className="fmBtn fmWide" onClick={p.onCancelEdit}>{L('Vazgeç', 'Cancel')}</button>}
+      </div>
+      {!filled && <p className="fmHint fmWzNeed">{L('Üç rakamı da sen belirliyorsun; hiçbiri hazır gelmez. Altındaki rakamlara dokunarak hızlıca seçebilirsin.', 'You set all three numbers; none is pre-filled. Tap a chip to pick quickly.')}</p>}
+    </div>}
+
+    {step === 2 && <div className="fmWzPane" key="s2" data-testid="farmer-step-session">
+      <div className="fmWzHero"><ShieldCheck aria-hidden="true"/><div><b>{L('İşlem oturumu', 'Trading session')}</b><p>{L('Güvenlik için yeni pozisyon açma izni süreli verilir. Tek dokunuşla açarsın; süre dolsa da açık pozisyonların koruması sürer.', 'For safety, permission to open new positions is time-limited. One tap opens it; protection of open positions continues after it ends.')}</p></div></div>
+      <div className="fmWzNav">
+        <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-arm-renew" disabled={!!busy} onClick={p.onRenew}>{busy === 'arm' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Clock aria-hidden="true"/>}{L('Oturumu aç', 'Open session')}</button>
+        <button type="button" className="fmBtn fmWide" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
+      </div>
+    </div>}
+
+    {step === 3 && <div className="fmWzPane" key="s3" data-testid="farmer-step-start">
+      <dl className="fmWzSummary">{cells.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      <ul className="fmWzChecks"><li data-ok><i>✓</i>{L('Binance bağlı', 'Binance connected')}</li><li data-ok><i>✓</i>{L('Ayarlar kayıtlı', 'Settings saved')}</li><li data-ok><i>✓</i>{L('İşlem oturumu açık', 'Session open')}</li></ul>
+      <div className="fmWzNav">
+        <button type="button" className="fmBtn fmPrimary fmWide fmWzGo" data-testid="farmer-activate" disabled={!!busy} onClick={p.onActivate}>{busy === 'activate' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Zap aria-hidden="true"/>}{L('KAIS FARMER’ı etkinleştir', 'Activate KAIS FARMER')}</button>
+        <button type="button" className="fmBtn fmWide" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
+      </div>
+      <p className="fmHint">{L('Etkinleştirmek gerçek pozisyon açmaya izin verir. Hedefler garanti değildir.', 'Activating allows real positions to be opened. Targets are not guarantees.')}</p>
+    </div>}
+  </div>
 }

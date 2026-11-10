@@ -8,7 +8,7 @@ import {money, tr_, whyKey, type CopyKey, type FarmerPreview, type FarmerStatus,
 type Tone = 'go' | 'warn' | 'stop' | 'wait'
 export type FarmerGuideCardProps = {
   status: FarmerStatus; screen: Screen; L: (tr: string, en: string) => string; now: number; preview: FarmerPreview | null
-  onConnect?: () => void; onRenew: () => void; onOpenGuide: () => void; onAsk: (question: string) => void; busy: boolean; children?: ReactNode
+  onConnect?: () => void; onRenew: () => void; onOpenGuide: () => void; onAsk: (question: string) => void; busy: boolean; children?: ReactNode; editing?: boolean; wizard?: boolean
   /** Kokpit, KAIS KOÇ görünümü için ızgaraya `data-coach` koyar (Kais Long ile aynı stiller). */
   onCoachChange?: (on: boolean) => void
 }
@@ -24,7 +24,7 @@ function scrollTo(testId: string) {
   if (el instanceof HTMLElement) { if (el instanceof HTMLDetailsElement) el.open = true; el.scrollIntoView({behavior: 'smooth', block: 'center'}) }
 }
 
-export default function FarmerGuideCard({status, screen, L, now: initialNow, preview, onConnect, onRenew, onOpenGuide, onAsk, busy, onCoachChange, children}: FarmerGuideCardProps) {
+export default function FarmerGuideCard({status, screen, L, now: initialNow, preview, onConnect, onRenew, onOpenGuide, onAsk, busy, onCoachChange, children, editing, wizard}: FarmerGuideCardProps) {
   // Sayaç saniyede bir akar (yalnız görünüm).
   const [now, setNow] = useState(initialNow)
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now() / 1000), 1000); return () => window.clearInterval(id) }, [])
@@ -61,11 +61,11 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
     tone = 'warn'
     title = L('Canlı işlem şu an kapalı', 'Live trading is off right now')
     message = t('disabled.body')
-  } else if (screen === 'onboarding') {
+  } else if (screen === 'onboarding' || editing) {
     step = 1
     title = L('Kâr, kayıp ve tavanı sen belirle', 'Set your profit, loss and cap')
     message = L('Üç rakamı gir: kâr hedefi, en fazla kayıp ve toplam marjin tavanı. Kaldıraç 10×. Girdiğin değerler açılacak her pozisyona aynı uygulanır; tavan aynı anda kullanılacak toplam teminatı sınırlar.', 'Enter three numbers: profit target, max loss and total margin cap. Leverage is 10×. Your values apply to every position; the cap limits total collateral used at once.')
-    action = {label: L('Ayarlara git', 'Go to settings'), run: () => scrollTo('farmer-setup')}
+    action = wizard ? null : {label: L('Ayarlara git', 'Go to settings'), run: () => scrollTo('farmer-setup')}
     ask = L('KAIS FARMER için kâr hedefi, en fazla kayıp ve toplam tavanı nasıl seçmeliyim? 10x kaldıraçta nelere dikkat etmeliyim?', 'How should I pick profit target, max loss and total cap for KAIS FARMER at 10x?')
   } else if (coach) {
     tone = state === 'RUNNING' ? 'go' : state === 'STOPPING' ? 'wait' : 'warn'
@@ -148,7 +148,7 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
     {ok: state !== 'OFF', text: L('Etkinleştir', 'Activate'), fix: null},
   ]
   const setupDone = setupItems.filter(item => item.ok).length
-  const showSetup = !coach && (screen === 'onboarding' || screen === 'dashboard')
+  const showSetup = !wizard && !coach && (screen === 'onboarding' || screen === 'dashboard')
 
   return <section className="lcGuide fmGuide" data-tone={tone} data-phase={coach ? 'running' : 'setup'} data-testid="farmer-guide-card" aria-live="polite">
     <header className="lcGuideHead">
@@ -202,7 +202,7 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
     </div>}
 
     <div className="lcGuideActions">
-      {action && <button type="button" className="lcBtn lcPrimary" data-testid="farmer-guide-action" disabled={action.disabled} onClick={action.run}><Zap aria-hidden="true"/>{action.label}</button>}
+      {action && !wizard && <button type="button" className="lcBtn lcPrimary" data-testid="farmer-guide-action" disabled={action.disabled} onClick={action.run}><Zap aria-hidden="true"/>{action.label}</button>}
       <button type="button" className="lcBtn lcGhost" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/>{L('Rehberi aç', 'Open guide')}</button>
     </div>
     {children && <div className="fmInner" data-testid="farmer-inner">{children}</div>}
