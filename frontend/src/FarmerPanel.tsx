@@ -260,6 +260,7 @@ function Dashboard(p: DashProps) {
     {p.flash && <p className="fmFlash" data-tone={p.flash.tone} role="status">{p.flash.text}</p>}
     {p.emergencyResult && <EmergencyResult kind={p.emergencyResult} L={L} onClose={p.clearEmergency}/>}
 
+    <Insight status={status} L={L} t={t}/>
     <Overview status={status} L={L} slots={slots} showAvail={state === 'RUNNING'}/>
     <ArmCard status={status} L={L} now={p.now} busy={p.busy} onRenew={p.onRenew} hideRenew={state === 'ENTRY_PAUSED_ARM'}/>
 
@@ -286,6 +287,21 @@ function Dashboard(p: DashProps) {
   </>
 }
 
+function Insight({status, L, t}: {status: FarmerStatus; L: (tr: string, en: string) => string; t: (key: CopyKey) => string}) {
+  if (status.state === 'OFF' || status.state === 'INTERVENTION_REQUIRED') return null
+  const rows = status.scanner.filter(c => typeof c.score === 'number')
+  const best = rows.reduce<FarmerCandidate | null>((acc, c) => (!acc || (c.score as number) > (acc.score as number) ? c : acc), null)
+  const min = status.config?.min_score
+  const open = status.positions.length
+  let text: string
+  if (open > 0) text = L(`${open} pozisyon açık. Stop ve kâr emirleri borsada duruyor; ben izliyorum.`, `${open} open. Stop and target orders sit on the exchange; I'm watching.`)
+  else if (best && typeof min === 'number') text = best.status === 'QUALIFIED' || best.status === 'WAITING_CONFIRMATION'
+    ? L(`${best.symbol} ${best.direction} adayı ${Math.round(best.score as number)} puanla öne çıktı; onay bekleniyor.`, `${best.symbol} ${best.direction} leads at ${Math.round(best.score as number)}; waiting for confirmation.`)
+    : L(`En yakın aday ${best.symbol}: ${Math.round(best.score as number)} puan, eşik ${min}. Eşiğe ulaşırsa girerim.`, `Closest is ${best.symbol}: ${Math.round(best.score as number)}, threshold ${min}. I enter only if it gets there.`)
+  else text = t(whyKey(status.why.code))
+  return <aside className="fmInsight" data-testid="farmer-insight"><span aria-hidden="true"><Zap/></span><p><b>{L('Kais diyor ki', 'Kais says')}</b>{text}</p></aside>
+}
+
 function Overview({status, L, slots, showAvail}: {status: FarmerStatus; L: (tr: string, en: string) => string; slots: ReturnType<typeof slotView>; showAvail: boolean}) {
   const cfg = status.config
   const usdt = (value: number | undefined) => (typeof value === 'number' && Number.isFinite(value) ? `${value} USDT` : '—')
@@ -300,12 +316,15 @@ function Overview({status, L, slots, showAvail}: {status: FarmerStatus; L: (tr: 
       {showAvail && !slots.zero && slots.free > 0 && <small>{L(`${slots.free} pozisyon müsait. KAIS FARMER bunları yalnızca nitelikli bir kurulum çıkınca kullanır.`, `${slots.free} position${slots.free === 1 ? '' : 's'} available. KAIS FARMER will use them only when a qualified setup appears.`)}</small>}
       {slots.zero && <small>{L('Mevcut ayarlarla hiç pozisyon açılamıyor.', 'With the current settings no position can be opened.')}</small>}
     </div>
-    <dl className="fmMetrics">
-      <div><dt>{L('Kullanılan marjin', 'Margin used')}</dt><dd>{usdt(status.margin_used_usdt)}</dd></div>
-      <div><dt>{L('Kalan kapasite', 'Available capacity')}</dt><dd>{usdt(status.available_margin_usdt)}</dd></div>
-      <div><dt>{L('Kâr hedefi', 'Profit target')}</dt><dd>{cfg ? money(cfg.target_usdt, true) : '—'}</dd></div>
-      <div><dt>{L('En fazla kayıp', 'Max loss')}</dt><dd>{cfg ? `-${money(cfg.max_loss_usdt).replace('-', '')}` : '—'}</dd></div>
-    </dl>
+    <div className="fmGauge" data-testid="farmer-gauge">
+      <div className="fmGaugeTop"><span>{L('Marjin', 'Margin')}</span><b>{usdt(status.margin_used_usdt)} <em>/ {typeof status.margin_used_usdt === 'number' && typeof status.available_margin_usdt === 'number' ? `${Math.round((status.margin_used_usdt + status.available_margin_usdt) * 100) / 100} USDT` : '—'}</em></b></div>
+      <i className="fmGaugeBar" aria-hidden="true"><u style={{width: `${typeof status.margin_used_usdt === 'number' && typeof status.available_margin_usdt === 'number' && status.margin_used_usdt + status.available_margin_usdt > 0 ? Math.min(100, Math.round(status.margin_used_usdt / (status.margin_used_usdt + status.available_margin_usdt) * 100)) : 0}%`}}/></i>
+    </div>
+    <ul className="fmChips" aria-label={L('Hedef ve risk', 'Target and risk')}>
+      <li data-kind="goal"><small>{L('Kâr hedefi', 'Profit target')}</small><b>{cfg ? money(cfg.target_usdt, true) : '—'}</b></li>
+      <li data-kind="risk"><small>{L('En fazla kayıp', 'Max loss')}</small><b>{cfg ? `-${money(cfg.max_loss_usdt).replace('-', '')}` : '—'}</b></li>
+      <li><small>{L('Kaldıraç', 'Leverage')}</small><b>{cfg ? `${cfg.leverage}×` : '—'}</b></li>
+    </ul>
   </section>
 }
 
@@ -379,6 +398,7 @@ function Scanner({items, L, t, openGuide}: {items: FarmerCandidate[]; L: (tr: st
       ? <p className="fmEmpty" data-testid="farmer-no-candidates">{L('Şu an kalite şartlarını karşılayan aday yok. İşlem zorlanmıyor.', 'No candidate currently meets your quality requirements. No trade is being forced.')}</p>
       : <ul className="fmCands">{items.slice(0, 8).map(c => <li key={c.symbol} data-status={c.status}>
         <b>{c.symbol}</b><span className="fmScore">{c.score === null ? '—' : Math.round(c.score)}</span>
+        {c.score !== null && <i className="fmScoreBar" aria-hidden="true"><u style={{width: `${Math.max(0, Math.min(100, c.score))}%`}}/></i>}
         <span className="fmCandSide">{c.direction}</span>
         <em data-status={c.status}>{t(`cand.${c.status}` as CopyKey)}</em></li>)}</ul>}
     <p className="fmFoot">{L('Yüksek skor = KAIS FARMER modeline göre daha güçlü kurulum.', 'Higher score = a stronger setup according to the KAIS FARMER model.')} <button type="button" className="fmLink" onClick={() => openGuide('score')}>{L('Daha fazla', 'Learn more')}</button></p>
