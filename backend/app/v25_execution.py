@@ -3742,6 +3742,9 @@ async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any],
     return True
 
 
+MANUAL_TARGET_MAX_FAILURES = 10  # geçici borsa/ağ hataları hedefi kolayca silmesin
+
+
 async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
     """Manuel plan için kapanış hedefi ("fiyat X olunca" ya da "net Y USDT kârda"): ulaşıldıysa reduce-only piyasa emriyle kapatır.
 
@@ -3751,7 +3754,9 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     target = plan.get("close_target")
     if not isinstance(target, dict) or plan.get("source") != "MANUAL" or not live_plan_can_mutate(plan):
         return False
-    if plan.get("status") in {"KAPANDI", "KAPATMA EMRİ GÖNDERİLDİ"} or live_execution_blocked(state):
+    # Kapatma yeni risk açmaz (reduce-only); geçici "uzlaştırma gerekli", belirsiz durum ya da acil durdurma hedefi sessizce
+    # engellememeli. Yalnız borsa hız sınırı beklenirken denenmez (emir zaten reddedilirdi, hata sayılmaz).
+    if plan.get("status") in {"KAPANDI", "KAPATMA EMRİ GÖNDERİLDİ"} or account_rate_limit_active(state):
         return False
     direction = str(plan.get("direction") or "").upper()
     fee_rate = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["fee_bps_per_side"])) / Decimal(10_000)
@@ -3768,7 +3773,7 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     def register_failure(reason: str) -> bool:
         target["failures"] = int(target.get("failures") or 0) + 1
         target["last_error"] = reason[:200]
-        if target["failures"] >= 3:
+        if target["failures"] >= MANUAL_TARGET_MAX_FAILURES:
             plan.pop("close_target", None)
             add_event(state, "MANUAL_TARGET_DISABLED", f"{symbol} kapanış hedefi üst üste kapatılamadı; hedef kaldırıldı. Stop ve hedefler yerinde.", symbol=symbol, plan_id=plan.get("id"))
         persist_state(state)
@@ -7400,6 +7405,8 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
     state["connection"].update({"last_checked": now_iso(), "last_error": None, "clock_offset_ms": client.time_offset_ms})
     positions = {item["symbol"]: item for item in snapshot.get("positions", [])}
     open_algos = snapshot.get("open_algo_orders", [])
+    # Kapanış hedefi, aşağıdaki plan/koruma işlemlerinden önce de bakılır: oradaki bir hata ya da bekleme hedefi geciktirmesin.
+    await run_manual_close_targets(client, state, positions)
     recovered_count = await recover_orphan_plans(client, state, positions)
     if recovered_count and state.get("reconciliation_required"):
         state["execution_state"] = "LOCKED"

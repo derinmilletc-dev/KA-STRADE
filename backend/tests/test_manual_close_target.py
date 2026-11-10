@@ -77,9 +77,32 @@ class CloseTargetStepTests(unittest.TestCase):
                 patch.object(live, "persist_state", lambda s: None):
             self.assertFalse(asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"})))
             plan["source"] = "MANUAL"
-            with patch.object(live, "live_execution_blocked", return_value=True):
+            with patch.object(live, "account_rate_limit_active", return_value=True):
                 self.assertFalse(asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"})))
         close.assert_not_awaited()
+
+    def test_reconciliation_flag_or_emergency_does_not_block_a_reduce_only_close(self):
+        state = live.initial_state()
+        state["reconciliation_required"] = True
+        state["execution_state"] = "UNKNOWN"
+        state["emergency"]["active"] = True
+        plan = self._plan()
+        close = AsyncMock(return_value={"orderId": 9, "status": "FILLED"})
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "persist_state", lambda s: None):
+            hit = asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertTrue(hit)
+        close.assert_awaited_once()
+
+    def test_single_failures_keep_the_target(self):
+        state = live.initial_state()
+        plan = self._plan()
+        close = AsyncMock(side_effect=live.LiveExchangeError("boom"))
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "persist_state", lambda s: None):
+            for _ in range(3):
+                asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertIn("close_target", plan)
 
     def test_repeated_exchange_failures_remove_the_target(self):
         state = live.initial_state()
@@ -87,7 +110,7 @@ class CloseTargetStepTests(unittest.TestCase):
         close = AsyncMock(side_effect=live.LiveExchangeError("boom"))
         with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
                 patch.object(live, "persist_state", lambda s: None):
-            for _ in range(3):
+            for _ in range(live.MANUAL_TARGET_MAX_FAILURES):
                 asyncio.run(live.manual_close_target_step(object(), state, plan, {"mark_price": "0.70", "entry_price": "0.8013", "quantity": "124.7"}))
         self.assertNotIn("close_target", plan)
         self.assertTrue(any(event["kind"] == "MANUAL_TARGET_DISABLED" for event in state["events"]))
