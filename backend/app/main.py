@@ -1575,6 +1575,15 @@ async def owner_preview_gate(request, call_next):
         response = await call_next(request)
     except Exception as exc:
         member = getattr(request.state, "member", None) or {}
+        try:
+            # Teşhis: yalnız hata TÜRÜ ve kodda nerede olduğu (dosya:satır:fonksiyon) günlüğe yazılır; hata mesajı yazılmaz
+            # (borsa/imza bilgisi sızmasın). Kayıt veritabanına da gidiyor ama sunucu günlüğünde hiç iz kalmıyordu.
+            import traceback
+            where = " <- ".join(f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}" for frame in reversed(traceback.extract_tb(exc.__traceback__)[-4:]))
+            logging.getLogger("app.unhandled").error("UNHANDLED_500 route=%s method=%s request_id=%s type=%s where=%s",
+                                                     request.url.path, request.method, request.state.request_id, type(exc).__name__, where)
+        except Exception:  # noqa: BLE001 - teşhis hatası yanıtı etkilemez
+            pass
         await log_event(
             getattr(request.app.state, "db_pool", None),
             exception_event(exc, route=request.url.path, method=request.method, request_id=request.state.request_id, user_id=member.get("id")),
