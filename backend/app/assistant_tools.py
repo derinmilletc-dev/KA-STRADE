@@ -100,6 +100,7 @@ ARGUMENT_MODELS: dict[str, type[BaseModel]] = {
     "compare_coins": CompareArguments,
     "get_protection_status": ProtectionArguments,
     "get_live_strategy": NoArguments,
+    "get_farmer_status": NoArguments,
     "get_my_account_summary": NoArguments,
     "get_my_settings": NoArguments,
     "get_my_trades": TradesArguments,
@@ -496,6 +497,41 @@ class AssistantTools:
                 "top_rejections": [{"reason_code": key, "count": value} for key, value in top],
                 "near_misses": near, "last_failure": failure.get("message") if failure else None,
             },
+        })
+
+    async def get_farmer_status(self, user_id: str) -> dict[str, Any]:
+        """KAIS FARMER özeti (salt okunur, yalnız üyenin KENDİ Farmer'ı): durum, ayarlar, pozisyonlar, neden işlem açmıyor, bugünkü sonuç.
+        Giriş/stop/hedef fiyat seviyesi, anahtar veya başka üyenin verisi döndürmez; çalışma zamanı kurmaz, hiçbir şeyi değiştirmez."""
+        member_id = str(self.user(user_id)["id"])
+        app_state = self.request.app.state
+        runtime = getattr(app_state, "live_farmer_runner", None)
+        if runtime is not None:
+            if str(getattr(runtime, "owner_id", "") or "") != member_id:
+                return self.result({"reason": "FARMER_NOT_OWNER"}, stale=True)
+        else:
+            registry = getattr(app_state, "live_farmer_registry", None)
+            runtime = registry.get(member_id) if registry is not None else None
+            if runtime is None:
+                return self.result({"reason": "FARMER_NOT_SET_UP"}, stale=True)
+        from . import farmer_view
+        live_state = getattr(app_state, "v25_execution", None)
+        until = float(live_state.get("armed_until") or 0) if isinstance(live_state, dict) else 0.0
+        now = float(self.clock())
+        status = farmer_view.build_status(runtime, arm={"active": until > now, "expires_at": until or None}, now=now)
+        config = status.get("config") or {}
+        scanner = status.get("scanner") or []
+        return self.result({
+            "state": status.get("state"), "available": bool(status.get("available")), "configured": bool(status.get("configured")),
+            "blockers": list(status.get("blockers") or []),
+            "settings": {key: config.get(key) for key in ("target_usdt", "max_loss_usdt", "total_margin_cap", "leverage", "margin_usdt",
+                                                          "max_positions", "min_score")} if status.get("configured") else None,
+            "session_active": until > now, "session_remaining_seconds": max(0, int(until - now)) if until > now else 0,
+            "capacity": status.get("effective_capacity"),
+            "positions": [{key: row.get(key) for key in ("symbol", "side", "age_s", "target_usdt", "max_loss_usdt", "unrealized_net_usdt")}
+                          for row in (status.get("positions") or [])],
+            "why": status.get("why"), "today": status.get("today"),
+            "scanner": {"watching": len(scanner), "qualified": sum(1 for row in scanner if row.get("status") == "QUALIFIED"),
+                        "top": [{key: row.get(key) for key in ("symbol", "direction", "status", "reason")} for row in scanner[:3]]},
         })
 
     def account_context(self, user_id: str, language: Language) -> str:

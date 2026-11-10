@@ -220,7 +220,7 @@ class AssistantContractsTests(AssistantToolsTestCase):
                     # İncelenmiş salt-okunur eklemeler: yalnızca readonly_demo_service üzerinden okur (aşağıdaki sınır testi).
                     "get_demo_positions", "get_market_overview", "compare_coins",
                     # Kais Original V2 canlı strateji özeti: yalnız public_config okur, canlı oturum sahibine.
-                    "get_live_strategy",
+                    "get_live_strategy", "get_farmer_status",
                     # Üyenin kendi hesabı (salt okunur, profil izni + canlı oturum sahibi): bakiye, ayarlar, işlemler, olaylar, pozisyon ayrıntısı.
                     "get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details"}
         self.assertEqual(set(ARGUMENT_MODELS), expected)

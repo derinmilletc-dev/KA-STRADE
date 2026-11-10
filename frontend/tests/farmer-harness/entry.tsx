@@ -1,3 +1,8 @@
+import '../../../live-terminal.css'
+import '../../../live-mobile.css'
+import '../../../live-cockpit.css'
+import '../../../live-cockpit-mobile.css'
+import '../../../live-cockpit-coach-mobile.css'
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import FarmerPanel from '../../src/FarmerPanel'
@@ -38,4 +43,13 @@ const post = async (path: string, body?: any) => { calls.push('POST ' + path + (
   if (path === '/farmer/emergency-close') { if (emergency === 'fail') return {complete: false, closed: 0, failed: 1}; if (emergency === 'partial') return {complete: false, closed: 1, failed: 1}; return {complete: true, closed: 2, failed: 0} }
   if (path === '/farmer/start') { if (new URLSearchParams(location.search).get('start') === 'reject') throw new Error('{"code":"FARMER_NOT_STARTED"}'); return {ok: true, state: 'RUNNING'} }
   return {ok: true} }
-createRoot(document.getElementById('root')!).render(<FarmerPanel get={get} post={post} accountConnected={name !== 'account'} onAsk={q => calls.push('ASK ' + q)} onConnect={() => calls.push('CONNECT')} nowSeconds={() => Date.now() / 1000}/>)
+function Cockpit() {
+  const [coachOn, setCoachOn] = React.useState(false)
+  return <main className="v26App masterTradeRoute"><div className="masterTradePage masterTrade" data-layout-tab="canli"><div className="lcRoot"><div className="lcGrid" data-coach={coachOn || undefined}><div className="lcMain">{panelWith(setCoachOn)}</div></div></div></div></main>
+}
+const panelWith = (onCoachChange?: (on: boolean) => void) => <FarmerPanel onCoachChange={onCoachChange} get={get} post={post} accountConnected={name !== 'account'} onAsk={q => calls.push('ASK ' + q)} onConnect={() => calls.push('CONNECT')} nowSeconds={() => Date.now() / 1000}/>
+// ?cockpit=1: gerçek Canlı İşlem sayfa iskeleti + kokpit stilleri içinde göster (yalnız görsel kontrol).
+const cockpit = new URLSearchParams(location.search).get('cockpit') === '1'
+createRoot(document.getElementById('root')!).render(cockpit
+  ? <Cockpit/>
+  : panelWith())

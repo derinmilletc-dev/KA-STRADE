@@ -193,12 +193,16 @@ class TestRuntimeLifecycle(Base):
         self.assertIsNone(getattr(app.state, "live_farmer_runner", None))      # sahte çalıştırıcı YOK
         self.assertEqual(real_live.live_bot_runners(app), [])                  # diğer botlar etkilenmez
 
-    def test_not_installed_in_multi_member_mode(self):
+    def test_multi_member_mode_installs_registry_not_single_runner(self):
         from app import live_registry
         original = live_registry.enabled
         live_registry.enabled = lambda: True
         try:
-            self.assertIsNone(fr.install(new_app()))
+            app = new_app()
+            installed = fr.install(app, builder=lambda *a, **k: None)
+            self.assertIsInstance(installed, fr.FarmerMemberRegistry)
+            self.assertIsNone(getattr(app.state, "live_farmer_runner", None))       # tek, paylaşılan çalıştırıcı YOK
+            self.assertIs(fr.install(app), installed)
         finally:
             live_registry.enabled = original
 

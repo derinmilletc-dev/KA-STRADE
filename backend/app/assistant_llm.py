@@ -103,6 +103,9 @@ TOOL_PURPOSES = {
     "get_my_access": "The current member's own plan and status.",
     "get_my_credits": "The current member's remaining AI Analyst allowance (credits) and reset time.",
     "search_help": "Customer help articles about screens, menus, terms, payment, trial, plans and limits.",
+    "get_farmer_status": "The member's own KAIS FARMER strategy (Kais Koç for FARMER): state, their profit/loss/cap/leverage settings, "
+                         "open FARMER positions with estimated net, why no new position, scanner counts, today's verified net. Use for "
+                         "any KAIS FARMER / Farmer question.",
 }
 
 
