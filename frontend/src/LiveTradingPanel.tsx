@@ -116,6 +116,9 @@ const CONNECTIONS = `${API_BASE}/exchange-connections`
 let signalsCache: SignalMap | null = null
 const DRAFT_KEY = 'kt-manual-draft-v1'
 const DRAFT_TTL_MS = 30 * 60 * 1000
+type PreflightFix = {type: string; margin_usdt?: number}
+type PreflightCheck = {key: string; passed: boolean; detail: string; fix?: PreflightFix}
+type PreflightState = {state: 'idle' | 'loading' | 'ready' | 'unknown'; checks: PreflightCheck[]}
 type ManualDraft = {t: number; symbol: string; direction: 'LONG' | 'SHORT'; margin_usdt: string; leverage: string; step: number}
 const readDraft = (): ManualDraft | null => {
   try {
@@ -456,6 +459,54 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }, 500)
     return () => { window.clearTimeout(timer); controller.abort() }
   }, [active, masterTrade, openStep, manualPanelOpen, order.symbol, order.order_type, order.limit_price, order.stop_loss, order.margin_usdt, order.leverage, analysis?.entry, symbol, universe])
+  // Ön kontrol: gerçek gönderimdeki hesap kapıları (pozisyon sınırı, maruziyet, risk bütçesi, bakiye, coin doluluğu) emir gitmeden
+  // okunur ve sihirbazın üstünde gösterilir. Yalnız okuma; emir göndermez. Okunamazsa gönderim engellenmez (gerçek kapılar yine çalışır).
+  const [preflight, setPreflight] = useState<PreflightState>({state: 'idle', checks: []})
+  const preRow = (universe ?? []).find(item => item.symbol === order.symbol)
+  const preEntry = order.order_type === 'LIMIT' ? Number(order.limit_price) : order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(preRow?.price)
+  const preEntryBucket = Number.isFinite(preEntry) && preEntry > 0 ? Number(preEntry.toPrecision(3)) : 0
+  useEffect(() => {
+    if (!active || !masterTrade || (openStep !== 3 && !manualPanelOpen)) { setPreflight({state: 'idle', checks: []}); return }
+    const margin = Number(order.margin_usdt)
+    const leverage = Number(order.leverage)
+    if (!order.symbol || !(margin >= 5 && margin <= 300) || !Number.isInteger(leverage) || leverage < 1 || leverage > 50) { setPreflight({state: 'idle', checks: []}); return }
+    const stop = Number(order.stop_loss)
+    const levels = preEntry > 0 && stop > 0 && preEntry !== stop ? {entry: preEntry, stop_loss: stop} : {}
+    const controller = new AbortController()
+    setPreflight(current => current.state === 'ready' ? current : {state: 'loading', checks: current.checks})
+    const timer = window.setTimeout(() => {
+      void fetchWithTimeout(`${V25}/order/preflight`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbol: order.symbol, direction: order.direction, margin_usdt: margin, leverage, ...levels}), signal: controller.signal}).then(async response => {
+        const payload: any = await response.json().catch(() => null)
+        if (!response.ok || !payload || !Array.isArray(payload.checks) || payload.ok === null) { setPreflight({state: 'unknown', checks: []}); return }
+        setPreflight({state: 'ready', checks: payload.checks.filter((item: any) => item && typeof item.key === 'string' && typeof item.detail === 'string').map((item: any) => ({key: item.key, passed: item.passed === true, detail: item.detail, fix: item.fix && typeof item.fix.type === 'string' ? {type: item.fix.type, margin_usdt: Number.isFinite(Number(item.fix.margin_usdt)) ? Number(item.fix.margin_usdt) : undefined} : undefined}))})
+      }).catch(error => { if (error?.name !== 'AbortError') setPreflight({state: 'unknown', checks: []}) })
+    }, 700)
+    return () => { window.clearTimeout(timer); controller.abort() }
+  }, [active, masterTrade, openStep, manualPanelOpen, manualStep, order.symbol, order.direction, order.order_type, order.margin_usdt, order.leverage, order.stop_loss, preEntryBucket])
+  // Hazır öneri (Kais analizi, dalgaya göre, yüzde stop) seçilince kayıp, işlem başına limiti aşıyorsa teminat limite sığacak şekilde
+  // küçültülür ve ekranda söylenir; böylece öneri en sonda "risk limiti" hatasına takılmaz. Elle girilen stopa dokunulmaz.
+  const fitKey = useRef('')
+  useEffect(() => {
+    if (stopPick === null && !levelsFromAnalysis) { fitKey.current = ''; return }
+    const stop = Number(order.stop_loss), margin = Number(order.margin_usdt), leverage = Number(order.leverage)
+    const limit = numericPolicy('max_loss_per_trade', 0)
+    if (!(limit > 0 && preEntry > 0 && stop > 0 && margin > 0 && leverage >= 1)) return
+    const key = `${order.symbol}|${order.direction}|${order.stop_loss}`
+    if (fitKey.current === key) return
+    fitKey.current = key
+    const distance = Math.abs(preEntry - stop) / preEntry
+    if (!(distance > 0 && distance < 1) || margin * leverage * distance <= limit * 0.97) return
+    const available = Number(status?.account?.available_balance)
+    const result = marginForLoss({lossUsdt: Math.floor(limit * 0.97 * 100) / 100, available: available > 0 ? available : 1e9, entry: preEntry, stop, leverage})
+    if (result.margin !== null && result.margin < margin) {
+      setOrder(current => ({...current, margin_usdt: String(result.margin)}))
+      const text = `Öneri risk limitine sığsın diye teminatı ${result.margin} USDT yaptım (stopta en fazla ≈ ${limit} USDT kayıp). Değiştirebilirsin.`
+      setSizingNotice(text); setNotice({kind: 'ok', text})
+    } else if (result.margin === null) {
+      const text = `Bu stop, işlem başına ${limit} USDT kayıp limitine sığmıyor (teminat 5 USDT'nin altına düşer). Stopu yaklaştır ya da limiti artır.`
+      setSizingNotice(text); setNotice({kind: 'error', text})
+    }
+  }, [stopPick, levelsFromAnalysis, order.stop_loss, order.symbol, order.direction, preEntryBucket])
   useEffect(() => {
     if (!active || manualMode !== 'grid' || !order.symbol) { setGridFilters({state: 'idle', data: null, error: ''}); return }
     const controller = new AbortController()
@@ -1423,6 +1474,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const reviewed = reviewedKey !== '' && reviewedKey === orderKey(order)
     const sendBlock = riskError ? riskError : !manualOrderReady ? (!authorizationValid && !freeTrial && statusVerified ? authorizationReasonText : blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
+      if (preBlocked.length > 0) { setNotice({kind: 'error', text: preBlocked[0].detail}); return }
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); if (!authorizationValid && !freeTrial && !permissionBlocked) focusPermission(); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
@@ -1700,8 +1752,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {winLoseBoxes}
       {realRR ? <span className="mxtMRR">Risk / kazanç 1 : {realRR.toFixed(1)}</span> : null}
     </div> : null
-    const riskCalc = <div className="mxtM mxtMRisk">
-      <b>Risk gir</b>
+    const riskCalc = <details className="mxtM mxtMMore"><summary><span>Riske göre miktar hesapla</span></summary><div className="mxtMRisk">
       <small>Stopta en fazla kaç USDT kaybetmek istiyorsun? Teminatı ben hesaplarım.</small>
       <div className="mxtMRiskRow"><input type="number" inputMode="decimal" min="0" step="any" placeholder="örn. 1" aria-label="Stopta en fazla kaybetmek istediğim tutar (USDT)" value={riskLossInput} onChange={event => setRiskLossInput(event.target.value)}/>
         <button type="button" disabled={!(Number(riskLossInput) > 0) || !(stopValue > 0) || !(entryRef > 0)} onClick={() => {
@@ -1710,7 +1761,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           if (result.margin !== null) setOrder(current => ({...current, margin_usdt: String(result.margin)}))
         }}>Teminatı hesapla</button></div>
       {!(stopValue > 0) && <small className="mxtMRiskHint">Önce yukarıda stop gir ya da hazır bir öneri seç.</small>}
-    </div>
+    </div></details>
     const coinShortcuts = (openRows.length > 0 || recentRows.length > 0) ? <div className="mxtM mxtMShort">
       {openRows.length > 0 && <><span>AÇIK POZİSYONLARIN</span><div>{openRows.map(row => <button type="button" key={row.symbol} data-on={row.symbol === order.symbol || undefined} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}<i aria-hidden="true">●</i></button>)}</div></>}
       {recentRows.length > 0 && <><span>SON İŞLEMLERİN</span><div>{recentRows.map(row => <button type="button" key={row.symbol} data-on={row.symbol === order.symbol || undefined} onClick={() => chooseCoin(row.symbol)}>{row.display || row.symbol}</button>)}</div></>}
@@ -1895,11 +1946,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="mxtMLbl"><span>STOP</span><span>{stopDist ? `Girişe %${stopDist.pct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
         <div className="mxtMBig mxtMStep"><button type="button" aria-label="Stopu düşür" disabled={!(entryRef > 0)} onClick={() => nudgeLevel('stop_loss', -1)}>−</button><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/><button type="button" aria-label="Stopu yükselt" disabled={!(entryRef > 0)} onClick={() => nudgeLevel('stop_loss', 1)}>+</button></div>
         <div className="mxtMChips" role="group" aria-label="Stop uzaklığı (girişe göre yüzde)">{[0.5, 1, 2, 3, 5].map(pct => <button type="button" key={pct} disabled={!(entryRef > 0)} data-on={stopDist && Math.abs(stopDist.pct - pct) < 0.005 || undefined} onClick={() => setStopPct(pct)}>%{String(pct).replace('.', ',')}</button>)}</div>
-        <div className="mxtMTiles three">
-          <div><small>Uzaklık</small><b data-muted={!stopDist || undefined}>{stopDist ? `${coinPrice(Math.abs(entryRef - stopValue))} · %${stopDist.pct.toFixed(2)}` : '—'}</b></div>
-          <div><small>Tahmini zarar</small><b data-muted={!lossValue || undefined}>{lossValue || '—'}</b></div>
-          <div><small>Risk kontrolü</small><b data-tone={riskError ? 'down' : risk ? 'up' : undefined} data-muted={(!riskError && !risk) || undefined}>{riskError ? 'Reddedildi' : risk ? 'Uygun' : '—'}</b></div>
-        </div>
+        <p className="mxtMSum" aria-label="Stop özeti">
+          <span>Uzaklık <b data-muted={!stopDist || undefined}>{stopDist ? `%${stopDist.pct.toFixed(2)}` : '—'}</b></span>
+          <span>Zarar <b data-muted={!lossValue || undefined}>{lossValue || '—'}</b></span>
+          <span>Risk <b data-tone={riskError ? 'down' : risk ? 'up' : undefined} data-muted={(!riskError && !risk) || undefined}>{riskError ? 'Reddedildi' : risk ? 'Uygun ✓' : '—'}</b></span>
+        </p>
         {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
         {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       </div>
@@ -1909,10 +1960,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           const dist = targetDistancePct(entryRef, tpValues[index])
           return <Fragment key={key}><i>{label}</i><span className="mxtMStep"><button type="button" aria-label={`${label} düşür`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, -1)}>−</button><input type="number" inputMode="decimal" aria-label={`${label} fiyatı`} value={order[key]} onChange={event => set(key, event.target.value)}/><button type="button" aria-label={`${label} yükselt`} disabled={!(entryRef > 0)} onClick={() => nudgeLevel(key, 1)}>+</button></span><em>%{splitParts[index]} kapanır{dist === null ? '' : ` · girişten %${dist.toFixed(2)}`}</em></Fragment>
         })}</div>
-        <div className="mxtMLbl"><span>HEDEFİ RİSKE GÖRE AYARLA</span><span>TP1 = R×, TP2 = 2R×, TP3 = 3R×</span></div>
+        <details className="mxtMMore"><summary><span>Hedef ayarları</span><em>{String(order.tp_split).replace(/-/g, '/')}</em></summary>
+        <div className="mxtMLbl"><span>Riske göre</span><span>TP1 = R, TP2 = 2R, TP3 = 3R</span></div>
         <div className="mxtMChips" role="group" aria-label="Hedefi risk katına göre ayarla">{[1, 1.5, 2, 3].map(multiple => <button type="button" key={multiple} disabled={!(entryRef > 0) || !(stopValue > 0)} onClick={() => setTargetsByR(multiple)}>R {String(multiple).replace('.', ',')}</button>)}</div>
-        <div className="mxtMLbl"><span>HEDEF PAYLARI</span></div>
+        <div className="mxtMLbl"><span>Kapanış payları</span></div>
         <div className="mxtMSeg" role="group" aria-label="Hedef payları">{TP_SPLITS.map(split => <button type="button" key={split} aria-pressed={order.tp_split === split} data-on={order.tp_split === split || undefined} onClick={() => setOrder(current => ({...current, tp_split: split}))}>{split.replace(/-/g, '/')}</button>)}</div>
+        </details>
       </div>
     </div>
     const stopStep = <>
@@ -2026,6 +2079,24 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}><em>{item.action.label}</em><i aria-hidden="true">→</i></button>}</div>)}
       {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
     </div> : null
+    const preBlocked = preflight.checks.filter(item => !item.passed && !(needPermission && item.key === 'readiness'))
+    const applyPreflightFix = (fix: PreflightFix) => {
+      if (fix.type === 'reduce_margin' && fix.margin_usdt) set('margin_usdt', String(fix.margin_usdt))
+      else if (fix.type === 'positions') goPositions()
+      else if (fix.type === 'other_coin') setManualStep(0)
+      else if (fix.type === 'widen_or_edit_limits') openRiskEdit()
+    }
+    const preflightFixLabel = (fix: PreflightFix) => fix.type === 'reduce_margin' && fix.margin_usdt ? `Miktarı ${fix.margin_usdt} USDT yap`
+      : fix.type === 'positions' ? 'Pozisyonlara git' : fix.type === 'other_coin' ? 'Başka coin seç' : fix.type === 'widen_or_edit_limits' ? 'Limitleri düzenle' : ''
+    const preflightEl = orderDone || preflight.state === 'idle' ? null
+      : preBlocked.length > 0 ? <div className="mxtPre" data-state="bad" role="alert" data-testid="mwz-preflight">
+        <b>{preBlocked.length === 1 ? 'Bu emir şu an gönderilemez' : `Bu emir şu an gönderilemez · ${preBlocked.length} sebep`}</b>
+        {preBlocked.slice(0, 3).map(item => <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
+          {item.fix && preflightFixLabel(item.fix) ? <button type="button" onClick={() => applyPreflightFix(item.fix as PreflightFix)}>{preflightFixLabel(item.fix)}</button> : null}</div>)}
+      </div>
+      : preflight.state === 'ready' ? <p className="mxtPre" data-state="ok" data-testid="mwz-preflight">✓ Hesap kuralları uygun, emir geçer</p>
+      : preflight.state === 'unknown' ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">Ön kontrol yapılamadı; emirde kontroller yine çalışır.</p>
+      : <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">Hesap kuralları kontrol ediliyor…</p>
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
       {statusStrip}
@@ -2040,6 +2111,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
       <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
         <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
+      {preflightEl}
       <div className="mxtLayout">
         <div className="mxtCard" key={wzStep}>
           <span className="mxtKicker">Adım {wzStep + 1} / {stepNames.length}</span>

@@ -207,3 +207,11 @@ html body #root:not(#cs1):not(#cs2) .mxtMTabs .mxtMSpin { display: inline-block;
 html body #root .originalManualOrder .manualLockStrip.permFocus{animation:permFocusPulse .95s ease-in-out 3}
 html body #root .originalManualOrder .manualLockStrip.permFocus .manualRenewBtn{transform:scale(1.05);transition:transform .2s}
 @media (prefers-reduced-motion:reduce){html body #root .originalManualOrder .manualLockStrip.permFocus{animation:none;box-shadow:0 0 0 3px rgba(61,220,151,.6)}}
+
+.mxtPre{display:block;margin:0 0 12px;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.4;font-weight:600}
+.mxtPre[data-state="ok"]{background:rgba(61,220,151,.08);color:#9fe8c4}
+.mxtPre[data-state="wait"]{background:rgba(143,160,180,.08);color:#9db0c4;font-weight:500}
+.mxtPre[data-state="bad"]{display:grid;gap:8px;background:rgba(255,132,121,.10);border:1px solid rgba(255,132,121,.35);color:#ffc2bb}
+.mxtPre[data-state="bad"]>b{font-size:13px;font-weight:800;color:#ffb1a8}
+.mxtPreRow{display:grid;gap:6px;font-weight:500;color:#ffd9d4}
+.mxtPreRow button{justify-self:start;min-height:34px;padding:0 14px;border-radius:99px;border:1px solid rgba(61,220,151,.5);background:rgba(61,220,151,.12);color:#9fe8c4;font-size:13px;font-weight:800;cursor:pointer}

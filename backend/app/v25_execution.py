@@ -8557,6 +8557,62 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
         raise safe_exchange_error(exc) from exc
 
 
+class ManualPreflightRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=24)
+    direction: Literal["LONG", "SHORT"]
+    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
+    leverage: int = Field(ge=1, le=50)
+    entry: float | None = Field(default=None, gt=0)
+    stop_loss: float | None = Field(default=None, gt=0)
+
+
+@router.post("/order/preflight")
+async def v25_order_preflight(request: Request, body: ManualPreflightRequest) -> dict[str, Any]:
+    """Manuel emir ön kontrolü: gerçek gönderimdeki hesap kapılarını EMİR GÖNDERMEDEN okuyarak değerlendirir (bkz. manual_preflight).
+    Rezervasyon yazmaz, emir göndermez. Okunamazsa ok=None döner (ekran "kontrol edilemedi" gösterir, gönderimi engellemez)."""
+    execution_owner(request)
+    from . import manual_preflight
+    state = request.app.state.v25_execution
+    try:
+        client = client_for(request.app, request)
+        snapshot = await account_snapshot(client)
+        symbol = normalize_symbol(body.symbol)
+        policy = sanitize_execution_policy(state["policy"])
+        estimated_loss = None
+        if body.entry is not None and body.stop_loss is not None and body.entry != body.stop_loss:
+            try:
+                sized = risk_sized_order(body.entry, body.stop_loss, sanitize_execution_policy({
+                    **state["policy"], "max_margin_per_trade": body.margin_usdt, "max_leverage": body.leverage}), atr=None, manual=True)
+                estimated_loss = float(sized["estimated_stop_loss_usdt"])
+            except ValueError:
+                estimated_loss = None
+        current_spread = await spread_bps(client, symbol)
+        validation_error = None
+        try:
+            validate_live_isolated_snapshot(snapshot, state["policy"])
+        except LiveExchangeError as exc:
+            validation_error = sanitized_exception_message(exc)
+        occupancy_verified, occupied, occupancy_detail = symbol_occupancy_status(snapshot, symbol)
+        budget: dict[str, Any] = {"budget_left": None, "committed": 0.0}
+        try:
+            budget = shared_daily_budget(request.app, state, request, snapshot)
+        except AccountRiskUnknown:
+            budget = {"budget_left": None, "committed": 0.0}
+        readiness_gates = readiness_for(request.app, state, request).get("gates", [])
+        report = manual_preflight.build_report(
+            symbol=symbol, direction=body.direction, margin_usdt=body.margin_usdt, leverage=body.leverage,
+            estimated_loss_usdt=estimated_loss, snapshot=snapshot, policy=policy, daily=live_daily_metrics(state),
+            spread_bps=current_spread, active_plans=list(state.get("plans", {}).values()), readiness_gates=readiness_gates,
+            budget_left=budget.get("budget_left"), committed=float(budget.get("committed") or 0.0),
+            symbol_occupied=(None if not occupancy_verified else bool(occupied)), symbol_occupancy_detail=occupancy_detail,
+            grid_busy=grid_symbol_busy(request.app, state, request, symbol), isolated_error=validation_error,
+        )
+        return {**report, "created_order": False}
+    except (LiveExchangeError, BinanceDemoError):
+        return {"ok": None, "checks": [], "first_blocker": None, "created_order": False,
+                "message": "Ön kontrol şu an yapılamadı; emir gönderiminde kontroller yine çalışır."}
+
+
 class GridPlanRequest(BaseModel):
     direction: Literal["LONG", "SHORT"]
     start_price: float = Field(gt=0)
