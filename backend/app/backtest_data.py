@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-INTERVALS = {"3m": 180, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
+INTERVALS = {"3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}
 
 
 def finite(value: Any, name: str) -> float:

@@ -369,12 +369,12 @@ def shared_original_symbols(application: Any, symbols: list[str]) -> list[str]:
 
 
 def kline_intervals(application: Any) -> tuple[str, ...]:
-    """Paylaşımlı akışın mum aralıkları. KAIS FARMER talebi varken ve sinyal mumu 3m iken 3m de eklenir; yoksa Original V2 aralıkları aynen kalır."""
+    """Paylaşımlı akışın mum aralıkları. KAIS FARMER talebi varken Farmer'ın sinyal ve onay mumları (3m/5m/15m) eklenir; yoksa Original V2 aralıkları aynen kalır."""
     from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS
-    from .farmer_engine.feed import SIGNAL_INTERVAL
+    from .farmer_engine.feed import INTERVALS as FARMER_INTERVALS
     wanted = bool(getattr(application.state, "farmer_symbol_demand", None))
-    if wanted and SIGNAL_INTERVAL not in LIVE_KLINE_INTERVALS:
-        return (*LIVE_KLINE_INTERVALS, SIGNAL_INTERVAL)
+    if wanted:
+        return (*LIVE_KLINE_INTERVALS, *(iv for iv in FARMER_INTERVALS if iv not in LIVE_KLINE_INTERVALS))
     return tuple(LIVE_KLINE_INTERVALS)
 
 

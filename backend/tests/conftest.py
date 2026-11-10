@@ -8,6 +8,7 @@ import pytest
 # KAIS FARMER'ın varsayılan sinyal mumu 3m; mevcut Farmer testleri 15m'e göre yazıldı ve eski yolu denemeye devam eder.
 # 3m yolu tests/test_farmer_signal_interval.py içinde ayrı süreçte sınanır. Modül yüklenmeden ÖNCE ayarlanmalıdır.
 os.environ.setdefault("KAISTRADE_FARMER_SIGNAL_INTERVAL", "15m")
+os.environ.setdefault("KAISTRADE_FARMER_CONFIRM_INTERVALS", "1h,4h")
 
 
 @pytest.fixture(autouse=True)

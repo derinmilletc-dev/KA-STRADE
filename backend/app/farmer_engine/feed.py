@@ -17,7 +17,9 @@ from .demand import NO_ROOM, DemandResult, merge_demand, valid_symbol
 
 SIGNAL_INTERVAL_ENV = "KAISTRADE_FARMER_SIGNAL_INTERVAL"
 SIGNAL_INTERVALS = ("3m", "15m")
-INTERVAL_MS = {"3m": 180_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
+CONFIRM_INTERVALS_ENV = "KAISTRADE_FARMER_CONFIRM_INTERVALS"
+CONFIRM_CHOICES = (("5m", "15m"), ("1h", "4h"))
+INTERVAL_MS = {"3m": 180_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def _signal_interval() -> str:
@@ -29,8 +31,22 @@ def _signal_interval() -> str:
 
 
 SIGNAL_INTERVAL = _signal_interval()
-INTERVALS = (SIGNAL_INTERVAL, "1h", "4h")        # 3m'de 15m akışı gerekmez (strateji penceresi 3m'den beslenir)
-STRATEGY_PRIMARY = "15m"                          # Original V2 birincil pencere anahtarı; 3m'de sinyal mumu bu anahtara konur
+
+
+def _confirm_intervals() -> tuple[str, str]:
+    """Yön onayı için iki üst mum. Varsayılan (3m sinyalde): 5m ve 15m = anlık görünüm (kurucu kararı, 2026-11-10).
+    Geri dönüş: ortamda "1h,4h". 15m sinyalde ve geçersiz değerde eski 1h/4h."""
+    import os
+    if SIGNAL_INTERVAL != "3m":
+        return ("1h", "4h")
+    raw = tuple(x.strip().lower() for x in os.getenv(CONFIRM_INTERVALS_ENV, "5m,15m").split(","))
+    return raw if raw in CONFIRM_CHOICES else ("1h", "4h")
+
+
+CONFIRM_INTERVALS = _confirm_intervals()
+INTERVALS = (SIGNAL_INTERVAL, *CONFIRM_INTERVALS)
+STRATEGY_PRIMARY = "15m"                          # Original V2 pencere anahtarları "15m"/"1h"/"4h": sinyal ve onay mumları bu yuvalara konur
+STRATEGY_SLOTS = {"15m": SIGNAL_INTERVAL, "1h": CONFIRM_INTERVALS[0], "4h": CONFIRM_INTERVALS[1]}
 HISTORY_CANDLES = 260                      # original_v2_demo.CANDLE_FETCH_LIMIT ile aynı; kapalı pencere 259
 
 # veri yok nedenleri (açık raporlanır)
@@ -67,8 +83,8 @@ def default_frames_builder(symbol: str, rows: Mapping[str, list[list[Any]]], at:
         if duplicates or len(closed) != HISTORY_CANDLES - 1 or not series.history_complete(at):
             return DATA_GAP
         frames[interval] = closed
-    if SIGNAL_INTERVAL != STRATEGY_PRIMARY:                                     # Original V2 birincil pencere anahtarı "15m"
-        frames[STRATEGY_PRIMARY] = frames.pop(SIGNAL_INTERVAL)
+    if tuple(STRATEGY_SLOTS.values()) != ("15m", "1h", "4h"):                   # Original V2 yuvaları: 15m=sinyal, 1h/4h=onay mumları
+        frames = {slot: frames[interval] for slot, interval in STRATEGY_SLOTS.items()}
     return frames
 
 
