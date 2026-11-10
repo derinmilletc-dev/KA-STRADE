@@ -30,7 +30,7 @@ import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
 import LiveCockpit from './LiveCockpit'
 import {accountNetPnl, positionNetPnl} from '../../net-pnl'
-import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, openLiveSheet, takeIntentForOrder} from '../../trade-intent'
+import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, markOrderPending, openLiveSheet, requestPositionsRefresh, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
@@ -1508,6 +1508,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         setOrder(initialOrder(symbol)); setLevelsFromAnalysis(false); setStopPick(null); setFromStudio(''); setRiskLossInput('')
         writeDraft(null)
         orderSentRef.current = true
+        markOrderPending(payload.symbol); requestPositionsRefresh(true) // pozisyon listesi birkaç sn geç gelir: kart "yükleniyor" gösterir, liste sık yenilenir
         setOrderDone(done)
         try { window.dispatchEvent(new CustomEvent(LIVE_ORDER_SENT_EVENT, {detail: {symbol: payload.symbol, direction: payload.direction, stop_loss: payload.stop_loss, tp1: payload.tp1}})) } catch { /* olay kapalı olsa da emir sonucu etkilenmez */ }
       }})
