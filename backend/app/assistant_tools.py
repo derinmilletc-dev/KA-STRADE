@@ -54,6 +54,12 @@ class TradesArguments(NoArguments):
     days: int = Field(default=7, ge=1, le=30)
 
 
+class PlanScanArguments(NoArguments):
+    """Sesli plan taraması. ARGUMENT_MODELS / TOOL_DEFINITIONS içinde DEĞİLDİR: model bu aracı çağıramaz; yalnızca /plan/scan yolu."""
+    min_confidence: int = Field(ge=50, le=100)
+    count: int = Field(ge=1, le=5)
+
+
 class EventsArguments(NoArguments):
     limit: int = Field(default=15, ge=1, le=30)
 
@@ -347,7 +353,15 @@ class AssistantTools:
         try:
             rows = await read_market_movers(self.request, self.config.request_timeout_seconds)
             pick = lambda row: {"symbol": row["symbol"], "change_24h_percent": round(row["change"], 2), "price": row["price"]}
-            data["movers"] = {"status": "fresh", "min_volume_usdt": MIN_MOVER_VOLUME_USDT,
+            changes = sorted(row["change"] for row in rows)
+            by_symbol = {row["symbol"]: round(row["change"], 2) for row in rows}
+            breadth = None if not changes else {
+                "coins": len(changes), "up": sum(1 for value in changes if value > 0), "down": sum(1 for value in changes if value < 0),
+                "up_percent": round(100 * sum(1 for value in changes if value > 0) / len(changes), 1),
+                "median_change_24h_percent": round(changes[len(changes) // 2] if len(changes) % 2 else (changes[len(changes) // 2 - 1] + changes[len(changes) // 2]) / 2, 2),
+                "btc_change_24h_percent": by_symbol.get("BTCUSDT"), "eth_change_24h_percent": by_symbol.get("ETHUSDT"),
+            }
+            data["movers"] = {"status": "fresh", "min_volume_usdt": MIN_MOVER_VOLUME_USDT, "breadth": breadth,
                               "top_gainers": [pick(r) for r in sorted((r for r in rows if r["change"] > 0), key=lambda r: r["change"], reverse=True)[:3]],
                               "top_losers": [pick(r) for r in sorted((r for r in rows if r["change"] < 0), key=lambda r: r["change"])[:3]]}
         except Exception:
@@ -363,6 +377,29 @@ class AssistantTools:
                 return self.result({"reason": usage.pop("reason"), "free_usage": usage}, stale=True)
             data["free_usage"] = usage
         return self.result(data, stale=stale)
+
+    async def plan_scan(self, user_id: str, args: PlanScanArguments) -> dict[str, Any]:
+        """Sesli plan taraması (salt okunur): taze taramadan güven >= min_confidence olan en iyi adaylar, SEVİYELERİYLE.
+        Yalnızca sahip ve premium üyeler; diğerlerine seviye verilmez. Eski/yok tarama için aday uydurulmaz."""
+        member = self.user(user_id)
+        access = access_for_request(self.request, member)
+        # Seviyeler yalnız sahip ve ücretli premium üyeler içindir; ücretsiz deneme üyeleri premium sayılsa da seviye görmez.
+        if not access["isPremium"] or access.get("freeTrial"):
+            return self.result({"reason": "PREMIUM_REQUIRED"}, stale=True)
+        from .readonly_demo_service import MAX_SIGNAL_AGE_SECONDS, read_plan_candidates
+        try:
+            raw = read_plan_candidates(self.request, args.min_confidence, args.count)
+        except Exception:  # noqa: BLE001 - tarama okunamazsa aday uydurulmaz
+            return self.result({"status": "unavailable", "note": "SCAN_UNAVAILABLE", "picks": []}, stale=True)
+        scanned = parse_datetime(raw.get("last_scan_at")) if raw.get("last_scan_at") else None
+        age = self.clock() - scanned.timestamp() if scanned else None
+        base = {"timeframe": raw.get("timeframe"), "coins_scanned": raw.get("coins_scanned"), "last_scan_at": raw.get("last_scan_at"),
+                "max_age_seconds": MAX_SIGNAL_AGE_SECONDS, "min_confidence": args.min_confidence, "requested": args.count}
+        if age is None or age < 0 or not raw.get("candidate_count"):
+            return self.result({**base, "status": "no_scan", "picks": []}, stale=True)
+        if age > MAX_SIGNAL_AGE_SECONDS:
+            return self.result({**base, "status": "stale", "age_seconds": math.floor(age), "picks": []}, stale=True)
+        return self.result({**base, "status": "fresh", "age_seconds": math.floor(age), "matching_count": raw["matching_count"], "picks": raw["picks"]})
 
     async def compare_coins(self, user_id: str, symbols: list[str]) -> dict[str, Any]:
         """Coin karşılaştırma (salt okunur, kredi harcatan analiz üretmez): canlı 24s fiyat/değişim/hacim + son TAZE taramadaki

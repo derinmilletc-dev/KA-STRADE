@@ -65,6 +65,11 @@ class DirectIntentTests(unittest.TestCase):
         for message in ("BTC en iyi long mu", "ETH en çok yükselen mi", "is SOL the best long", "en iyi long BTC mi"):
             self.assertIsNone(fastpath.intent(message), message)
 
+    def test_market_direction_questions_use_the_market_path(self):
+        for message in ("piyasanın yönü nasıl", "genel piyasa nasıl", "piyasa nasıl", "how is the market", "market direction"):
+            self.assertEqual(fastpath.intent(message), "get_market_overview", message)
+        self.assertIsNone(fastpath.intent("BTC piyasası nasıl"))  # coin adı varsa kendi analiz yoluna gider
+
     def test_explicit_ranking_questions_use_the_market_path(self):
         for message in ("en çok yükselen coin hangisi", "en iyi long hangisi", "güven skoru en yüksek olan hangisi", "en iyi short ne", "what is the best long"):
             self.assertEqual(fastpath.intent(message), "get_market_overview", message)
@@ -119,6 +124,10 @@ class MarketOverviewToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r["symbol"] for r in data["top_losers"]], ["BUSDT", "AUSDT"])
         data = (await self.overview(scan(5, []), [{"symbol": "XUSDT", "change": 3.2, "price": 2}, *movers]))["data"]["movers"]
         self.assertEqual([r["symbol"] for r in data["top_gainers"]], ["XUSDT"])
+        breadth = data["breadth"]
+        self.assertEqual((breadth["coins"], breadth["up"], breadth["down"]), (4, 1, 2))
+        self.assertEqual(breadth["up_percent"], 25.0)
+        self.assertIsNone(breadth["btc_change_24h_percent"])
 
     async def test_missing_premium_and_market_failures_are_reported(self):
         result = await self.overview(premium=False)
@@ -159,6 +168,21 @@ class ReadonlyServiceTests(unittest.IsolatedAsyncioTestCase):
         # allow_long=False bir yön anahtarıdır, kalite kuralı değildir; zayıf ve reddedilen adaylar elenir.
         self.assertEqual([row["symbol"] for row in result["eligible"]], ["SOLUSDT"])
         self.assertFalse({"entry", "stop_loss", "tp1", "tp2", "tp3"} & set(result["eligible"][0]))
+
+    def test_scanner_prefers_the_fresher_shared_background_scan(self):
+        good = {"symbol": "SOLUSDT", "direction": "LONG", "status": "SELECTED", "analysis_score": 80, "opportunity_score": 80,
+                "signal_age_seconds": 60, "risk_reward": 2, "entry": 1, "stop_loss": 0.9, "tp1": 1.1, "tp2": 1.2, "tp3": 1.3}
+        old = (NOW - timedelta(hours=3)).isoformat()
+        member_state = {"settings": {}, "scanner": {"last_scan_at": old, "all_candidates": []}}
+        shared = {"last_scan_at": NOW.isoformat(), "all_candidates": [good]}
+        app = SimpleNamespace(state=SimpleNamespace(v21_demo={"scanner": shared}))
+        request = SimpleNamespace(app=app, state=SimpleNamespace(member={"id": "u"}))
+        with patch.object(service.v21_demo, "state_for", return_value=member_state):
+            result = service.read_scanner_candidates(request)
+            self.assertEqual(result["last_scan_at"], NOW.isoformat())
+            self.assertEqual([row["symbol"] for row in result["eligible"]], ["SOLUSDT"])
+            shared["last_scan_at"] = old
+            self.assertEqual(service.read_scanner_candidates(request)["candidate_count"], 0)
 
     async def test_movers_drop_non_finite_and_low_volume_rows(self):
         rows = [{"symbol": "AUSDT", "change": 2.0, "price": 1.0, "volume": 9e6}, {"symbol": "BUSDT", "change": float("nan"), "price": 1.0, "volume": 9e6},
@@ -203,6 +227,24 @@ class DirectAnswerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("short adayı yok", reply)
         reply = (await fastpath.market_overview_answer(FakeTools(data), "u", "tr", "en çok yükselen coin hangisi"))["reply"]
         self.assertIn("XYZUSDT %18.2", reply)
+
+    async def test_market_direction_answers_from_live_breadth_even_when_the_scan_is_stale(self):
+        breadth = {"coins": 600, "up": 420, "down": 180, "up_percent": 70.0, "median_change_24h_percent": 1.4,
+                   "btc_change_24h_percent": 2.1, "eth_change_24h_percent": 3.3}
+        data = {"scan": {"status": "stale", "age_seconds": 9000, "max_age_seconds": 7200},
+                "movers": {"status": "fresh", "top_gainers": [], "top_losers": [], "breadth": breadth}}
+        answer = await fastpath.market_overview_answer(FakeTools(data, True), "u", "tr", "piyasanın yönü nasıl")
+        self.assertIn("yükselişte", answer["reply"])
+        self.assertIn("600 coinin 420", answer["reply"])
+        self.assertIn("BTC %2.1", answer["reply"])
+        self.assertIn("bakmamı istediğin bir coin var mı", answer["reply"])
+        self.assertNotIn("güncel sayılmıyor", answer["reply"])
+        self.assertFalse(answer["stale"])
+        mixed = {**data, "movers": {**data["movers"], "breadth": {**breadth, "up": 300, "down": 300, "up_percent": 50.0}}}
+        self.assertIn("net bir yön yok", (await fastpath.market_overview_answer(FakeTools(mixed), "u", "tr", "genel piyasa nasıl"))["reply"])
+        gone = await fastpath.market_overview_answer(FakeTools({"scan": {"status": "stale"}, "movers": {"status": "unavailable"}}, True), "u", "tr", "piyasa nasıl")
+        self.assertTrue(gone["stale"])
+        self.assertIn("erişemedim", gone["reply"])
 
     async def test_market_stale_no_scan_premium_and_no_gainer_replies_never_rank(self):
         movers = {"status": "fresh", "top_gainers": [], "top_losers": [{"symbol": "AUSDT", "change_24h_percent": -2, "price": 1}]}

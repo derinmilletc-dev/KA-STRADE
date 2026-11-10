@@ -54,6 +54,15 @@ class OrderInfo:
     avg_price: float = 0.0     # ortalama dolum fiyatı (borsa bildirirse); 0 = bilinmiyor
 
 
+@dataclass
+class PositionInfo:
+    """Borsanın bildirdiği gerçek pozisyon (tek yönlü mod). 0 değerleri 'bilinmiyor' demektir."""
+    amount: float              # işaretli: LONG +, SHORT -
+    entry_price: float = 0.0   # borsanın hesapladığı gerçek ortalama giriş fiyatı (entryPrice)
+    liq_price: float = 0.0     # borsanın bildirdiği likidasyon fiyatı (liquidationPrice); pozisyon yoksa 0
+    mark_price: float = 0.0
+
+
 class ExchangePort(Protocol):
     def place_order(self, *, client_id: str, symbol: str, side: str, type: str, qty: float,
                     price: float = 0.0, stop_price: float = 0.0, reduce_only: bool = False) -> OrderInfo: ...
@@ -61,3 +70,4 @@ class ExchangePort(Protocol):
     def open_orders(self, symbol: str) -> list[OrderInfo]: ...
     def cancel_order(self, symbol: str, client_id: str) -> OrderInfo: ...
     def position(self, symbol: str) -> float: ...  # işaretli: LONG +, SHORT -
+    # İsteğe bağlı (DCA kullanır; yoksa motor yerel hesaba döner): def position_info(self, symbol: str) -> PositionInfo

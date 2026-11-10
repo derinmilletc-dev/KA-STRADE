@@ -9,7 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {showToast} from '../../toast-center'
 import {DayLimitCard} from './ManualTerminalParts'
-import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, requestManualMode, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, clearOrderPending, pendingOrderSymbol, requestManualMode, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {DcaGuideCard, StrategyPicker, readStrategy, writeStrategy, type LiveStrategy} from './StrategyPicker'
@@ -609,16 +609,20 @@ export default function LiveCockpit(props: Props) {
     if (!target) return Promise.resolve(false)
     const clickedAt = Date.now()
     return perform('close-position', async () => {
+      // Ekranda görünen canlı fiyat gönderilir: sunucu önce bu fiyattan limit dener, 4 sn dolmazsa piyasadan kapatır.
+      const seen = closeLive?.exitPrice
+      const limitPrice = typeof seen === 'number' && Number.isFinite(seen) && seen > 0 ? {limit_price: seen} : {}
       const result = await (target.planId.length >= 6
-        ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE})
-        : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE})) as {fill_price?: unknown} | undefined
+        ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})
+        : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})) as {fill_price?: unknown; close_mode?: unknown} | undefined
       setSheet(null); setCloseTarget(null)
       // Gerçek dolum fiyatı ve süre: "bastığım an" ile "dolduğu an" arasındaki farkı görünür kılar.
       const coin = target.symbol.replace('USDT', '')
       const fill = finite(result?.fill_price)
       const seconds = ((Date.now() - clickedAt) / 1000).toLocaleString('tr-TR', {maximumFractionDigits: 1})
+      const modeNote = result?.close_mode === 'LIMIT' ? ' Gördüğün fiyattan limitle doldu.' : result?.close_mode === 'LIMIT_SONRA_PIYASA' ? ' Limit 4 sn içinde dolmadı, kalanı piyasadan kapandı.' : ''
       setFlash({tone: 'ok', text: fill !== null
-        ? `${coin} kapandı · dolum fiyatı ${fill.toLocaleString('tr-TR', {maximumFractionDigits: 8})} · ${seconds} sn sürdü. Stop/TP emirleri otomatik temizlenir.`
+        ? `${coin} kapandı · dolum fiyatı ${fill.toLocaleString('tr-TR', {maximumFractionDigits: 8})} · ${seconds} sn sürdü. Stop/TP emirleri otomatik temizlenir.${modeNote}`
         : `${coin} kapanış emri gönderildi (${seconds} sn). Pozisyon kapanınca Stop/TP emirleri otomatik temizlenir.`})
     }, undefined, setSheetError)
   }
@@ -810,6 +814,16 @@ export default function LiveCockpit(props: Props) {
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
   const live = verified && guideInput.connected
   const positions = (live ? status?.account?.positions : null) ?? []
+  // Emir yeni gitti ve pozisyon listede henüz yok: kart "Açık pozisyon yok" yerine "yükleniyor" gösterir (en fazla 60 sn).
+  const [, setPendingTick] = useState(0)
+  const pendingSymbol = pendingOrderSymbol()
+  const awaitingSymbol = pendingSymbol && !(positions as Array<{symbol?: unknown}>).some(position => String(position.symbol ?? '').toUpperCase() === pendingSymbol) ? pendingSymbol : null
+  useEffect(() => {
+    if (pendingSymbol && !awaitingSymbol) { clearOrderPending(); return }
+    if (!awaitingSymbol) return
+    const timer = window.setInterval(() => setPendingTick(value => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [pendingSymbol, awaitingSymbol])
   // Binance'ten canlı alış/satış fiyatı: sunucu özeti 10–30 sn geriden gelir, K/Z bununla anlık hesaplanır.
   const positionSymbols = useMemo(() => (positions as Array<{symbol?: unknown}>).map(position => position.symbol), [positions])
   const liveQuotes = useLiveQuotes(positionSymbols, live && !demo && positions.length > 0)
@@ -1744,10 +1758,11 @@ export default function LiveCockpit(props: Props) {
       <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
   </> : sheet === 'close-position' && closeTarget ? <>
     <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
-    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon <b>piyasa fiyatından, reduce-only</b> emirle hemen kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
+    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon, gördüğün canlı fiyattan <b>reduce-only limit</b> emirle kapatılmaya çalışılır; <b>4 saniyede dolmazsa</b> kalanı piyasadan kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
     <ul className="lcStopList">
       {closeLive ? <li data-tone={closeLive.pnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa ≈ {usdt(closeLive.pnl, true)} USDT</b> · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}. Giriş ve çıkış komisyonu dahil net ≈ {usdt(closeLive.netPnl, true)} USDT. Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
         : <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} USDT ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></li>}
+      <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Fiyat garantisi yok.</b> Önce gördüğün fiyattan kapatmayı deneriz. Fiyat 4 saniye içinde sana dönmezse kalan miktar piyasadan kapanır ve fiyat farklı olabilir.</span></li>
       <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Pozisyon kapanınca bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.</span></li>
     </ul>
     <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
@@ -2085,7 +2100,7 @@ export default function LiveCockpit(props: Props) {
         <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
-          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
+          awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
           onRiskSettings={() => props.onManualRiskEdit?.()}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>

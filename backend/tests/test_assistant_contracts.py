@@ -236,7 +236,7 @@ class AssistantContractsTests(AssistantToolsTestCase):
             "v22_commercial": {"authenticated_user", "access_snapshot", "subscription_for_user"},
             "binance_demo": set(),
             # Asistan Demo/tarayıcı verisini YALNIZCA bu dar arayüzden okur; arayüzün kendisi aşağıdaki testte denetlenir.
-            "readonly_demo_service": {"read_demo_positions", "read_scanner_candidates", "read_market_movers"},
+            "readonly_demo_service": {"read_demo_positions", "read_scanner_candidates", "read_market_movers", "read_plan_candidates"},
         }
 
         def sensitive(module):
@@ -281,7 +281,7 @@ class AssistantContractsTests(AssistantToolsTestCase):
         path = Path(assistant_api.__file__).parent / "readonly_demo_service.py"
         tree = ast.parse(path.read_text(encoding="utf-8-sig"))
         functions = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        self.assertEqual(functions, {"read_demo_positions", "read_scanner_candidates", "read_market_movers"})
+        self.assertEqual(functions, {"read_demo_positions", "read_scanner_candidates", "read_market_movers", "read_plan_candidates", "_scan_time", "_freshest_scanner"})
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.level:
                 self.assertEqual(node.module, "", f"line {node.lineno}: relative import from .{node.module} is not audited")

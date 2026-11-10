@@ -259,6 +259,12 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
   </div>
 }
 
+// Onay yazısı büyük/küçük harf ve Türkçe i/ı/İ/I farkından bağımsız karşılaştırılır (telefonda küçük harf yazılsa da kabul edilir).
+const sameConfirmText = (typed: string, expected: string) => {
+  const fold = (value: string) => value.trim().toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I').replace(/\s+/g, ' ')
+  return fold(typed) === fold(expected)
+}
+
 export default function BinanceDemo({active,symbol,analysis,chart}:{active:boolean;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)
   const [account,setAccount] = useState<DemoAccount|null>(null)
@@ -509,7 +515,7 @@ export default function BinanceDemo({active,symbol,analysis,chart}:{active:boole
     })
   }
   const confirmAction = () => {
-    if (!confirmation || (confirmation.checkbox ? !confirmationChecked : confirmationText.trim().toUpperCase() !== confirmation.expected)) return
+    if (!confirmation || (confirmation.checkbox ? !confirmationChecked : !sameConfirmText(confirmationText, confirmation.expected))) return
     const action = confirmation.action
     setConfirmation(null)
     setConfirmationText('')
@@ -1256,7 +1262,7 @@ export default function BinanceDemo({active,symbol,analysis,chart}:{active:boole
         <h2 id="demo-confirmation-title">{confirmation.title}</h2>
         <p>{confirmation.message}</p>
         {confirmation.checkbox ? <label><input type="checkbox" checked={confirmationChecked} onChange={event => setConfirmationChecked(event.target.checked)} /><span>Demo order'ın gönderilmesini onaylıyorum.</span></label> : <label><span>Onay için {confirmation.expected} yazın</span><input autoFocus value={confirmationText} onChange={event => setConfirmationText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') confirmAction() }} /></label>}
-        <div><button type="button" onClick={() => { setConfirmation(null); setConfirmationText(''); setConfirmationChecked(false) }}>İPTAL</button><button type="button" disabled={confirmation.checkbox ? !confirmationChecked : confirmationText.trim().toUpperCase() !== confirmation.expected} onClick={confirmAction}>{confirmation.checkbox ? 'ONAYLA VE GÖNDER' : 'Onayla'}</button></div>
+        <div><button type="button" onClick={() => { setConfirmation(null); setConfirmationText(''); setConfirmationChecked(false) }}>İPTAL</button><button type="button" disabled={confirmation.checkbox ? !confirmationChecked : !sameConfirmText(confirmationText, confirmation.expected)} onClick={confirmAction}>{confirmation.checkbox ? 'ONAYLA VE GÖNDER' : 'Onayla'}</button></div>
       </section>
     </div>}
     </section>

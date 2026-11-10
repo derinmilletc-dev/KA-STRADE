@@ -77,3 +77,40 @@
 .mxsaBack{min-height:44px;border:0;background:none;color:#8ea0b4;font-weight:700;font-size:14px;cursor:pointer}
 .mxsaRoot button:focus-visible{outline:2px solid #3bb8f5;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.mxsaScrim,.mxsaSheet,.mxsaAlert{animation:none!important}}
+
+/* Canlı mini grafik (CoinLiveChart): analiz sheet'inde ve seçili coin kartının altında. Yalnız mxlc- önekli sınıflar. */
+.mxlc{flex:none;flex-shrink:0;min-height:fit-content;--mxlc-c:#34d399;--mxlc-bg:rgba(52,211,153,.14);position:relative;margin:12px 0 0;padding:12px 14px 10px;border-radius:20px;color:#e8ecf2;overflow:hidden;
+  background:radial-gradient(120% 90% at 0% 0%,var(--mxlc-bg),transparent 60%),linear-gradient(180deg,#0e1827,#0a111c);border:1px solid rgba(255,255,255,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.mxlc[data-tone="down"]{--mxlc-c:#fb7185;--mxlc-bg:rgba(251,113,133,.14)}
+.mxsaBody > .mxlc{margin:0}
+.mxlc[data-compact]{margin:10px 0 0;padding:9px 12px 8px;border-radius:16px}
+.mxlcHead{display:flex;align-items:center;gap:8px;min-height:28px}
+.mxlcPrice{font-size:22px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:#f4f7fb}
+.mxlc[data-compact] .mxlcPrice{font-size:18px}
+.mxlcChip{padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--mxlc-c);background:color-mix(in srgb,var(--mxlc-c) 16%,transparent)}
+.mxlcLive{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#f2c46d;font-variant-numeric:tabular-nums}
+.mxlcLive[data-live]{color:#7ee2b8}
+.mxlcPulse{position:relative;width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block}
+.mxlcPulse::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #34d399;opacity:.6;animation:mxlcPing 1.6s ease-out infinite}
+.mxlcPlot{position:relative;margin-top:8px;touch-action:pan-y;cursor:crosshair;user-select:none;-webkit-user-select:none;color:var(--mxlc-c)}
+.mxlcSvg{display:block;width:100%;overflow:visible}
+.mxlcGrid{stroke:rgba(255,255,255,.07);stroke-width:1;stroke-dasharray:3 5}
+.mxlcLine{stroke:var(--mxlc-c);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--mxlc-c) 65%,transparent))}
+.mxlcArea{stroke:none}
+.mxlcAxis{position:absolute;right:2px;font-size:10.5px;font-weight:700;color:#7f8da3;font-variant-numeric:tabular-nums;pointer-events:none;padding:1px 5px;border-radius:6px;background:rgba(10,17,28,.7)}
+.mxlcAxis[data-pos="top"]{top:2px}
+.mxlcAxis[data-pos="bottom"]{bottom:2px}
+.mxlcGuide{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.35),transparent);pointer-events:none}
+.mxlcDot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--mxlc-c);border:2px solid #0a111c;box-shadow:0 0 10px var(--mxlc-c);pointer-events:none;transition:left .12s linear,top .12s linear}
+.mxlcDot[data-scrub]{transition:none;width:12px;height:12px;margin:-6px 0 0 -6px}
+.mxlcNote{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:8px 0 0;text-align:center;font-size:13px;color:#7f8da3}
+.mxlcNote button{padding:7px 14px;border-radius:12px;border:1px solid #2a3b57;background:#16212f;color:#9fd8ff;font-weight:700;cursor:pointer}
+.mxlcSkel{width:100%;height:46px;border-radius:12px;background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.03) 70%);background-size:200% 100%;animation:mxlcShine 1.4s linear infinite}
+.mxlcFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.mxlcFoot small{flex:1;min-width:0;font-size:11px;color:#6f7d92;line-height:1.3}
+.mxlcTabs{display:inline-flex;padding:3px;border-radius:12px;background:rgba(255,255,255,.05);gap:2px}
+.mxlcTabs button{white-space:nowrap;min-width:46px;min-height:32px;padding:0 10px;border-radius:9px;border:0;background:transparent;color:#8e9bb0;font-weight:700;font-size:12.5px;cursor:pointer}
+.mxlcTabs button[aria-pressed="true"]{background:#1f3350;color:#f4f7fb;box-shadow:0 1px 6px rgba(0,0,0,.35)}
+@keyframes mxlcPing{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+@keyframes mxlcShine{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.mxlcPulse::after,.mxlcSkel{animation:none}.mxlcDot{transition:none}}

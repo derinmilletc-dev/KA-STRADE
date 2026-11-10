@@ -1,5 +1,7 @@
 // DCA botu hesap katmanı — SAF fonksiyonlar, ağ/emir yok. backend/app/dca_engine/plan.py ile AYNI hesabı yapar (önizleme).
-// Funding ve kayma dahil DEĞİLDİR; likidasyon bakım teminatı oranı varsayımla tahmin edilir.
+// BU YALNIZCA YAKLAŞIK ÖNİZLEMEDİR: gerçek karar backend'indir (source of truth). Aynı maliyet sabitlerini (ücret, kayma, funding payı, asgari net kâr)
+// backend/app/dca_engine/risk_config.py ile birebir kullanır; ancak borsa filtreleri, canlı fiyat ve gerçek likidasyon fiyatı backend'de belirlenir.
+// Sabitlerin eşitliği backend/tests/fixtures/dca_parity.json ile her iki tarafta test edilir. Likidasyon bakım teminatı oranı varsayımla tahmin edilir.
 
 export type DcaSide = 'LONG' | 'SHORT'
 
@@ -15,6 +17,13 @@ export const DCA_LIMITS = {
   liqBufferPct: 1,
   takerFee: 0.0005,
   minOrderUsdt: 5,
+  // --- risk_config.py ile AYNI değerler (yüzdeler % cinsinden) ---
+  slippageMarketPct: 0.03,
+  slippageLimitEntryPct: 0,
+  slippageTpExitPct: 0,
+  fundingAllowancePct: 0.03,
+  minNetProfitUsdt: 0.01,
+  minNetProfitPct: 0.02,
 } as const
 
 export type DcaInput = {
@@ -40,7 +49,8 @@ export type DcaStage = {
   cumQty: number
   avgEntry: number
   tpPrice: number
-  tpNetProfit: number
+  tpNetProfit: number            // yalnız ücret düşülmüş
+  tpNetProfitAfterCosts: number  // ücret + kayma + funding payı düşülmüş (tahmin; backend 'tp_net_profit_after_costs_usdt')
 }
 
 export type DcaResult = {
@@ -94,15 +104,20 @@ export function computeDca(input: DcaInput): DcaResult {
   const baseQty = snap(baseMargin * leverage / price, f.stepSize, 'floor')
   let cumQty = 0
   let cumCost = 0
+  let cumNotional = 0
+  let entrySlippage = 0
   for (let i = 0; i <= safetyOrders; i++) {
     const entry = i === 0 ? snap(price, f.tickSize, 'round') : snap(price * (1 - sign * stepPct / 100 * i), f.tickSize, side === 'LONG' ? 'floor' : 'ceil')
     const qty = i === 0 ? baseQty : snap(baseQty * volumeMultiplier ** i, f.stepSize, 'floor')
     cumQty += qty
     cumCost += qty * entry
+    cumNotional += qty * entry
+    entrySlippage += qty * entry * (i === 0 ? L.slippageMarketPct : L.slippageLimitEntryPct) / 100
     const avgEntry = cumQty > 0 ? cumCost / cumQty : entry
     const tpPrice = snap(avgEntry * (1 + sign * takeProfitPct / 100), f.tickSize, side === 'LONG' ? 'ceil' : 'floor')
     const tpNetProfit = Math.abs(tpPrice - avgEntry) * cumQty - (avgEntry + tpPrice) * cumQty * L.takerFee
-    stages.push({index: i, kind: i === 0 ? 'BASE' : 'SAFETY', entry, qty, notional: qty * entry, margin: qty * entry / leverage, cumQty, avgEntry, tpPrice, tpNetProfit})
+    const afterCosts = tpNetProfit - entrySlippage - tpPrice * cumQty * L.slippageTpExitPct / 100 - cumNotional * L.fundingAllowancePct / 100
+    stages.push({index: i, kind: i === 0 ? 'BASE' : 'SAFETY', entry, qty, notional: qty * entry, margin: qty * entry / leverage, cumQty, avgEntry, tpPrice, tpNetProfit, tpNetProfitAfterCosts: afterCosts})
   }
   const lastEntry = stages[stages.length - 1].entry
   const stopPrice = snap(lastEntry * (1 - sign * stopGapPct / 100), f.tickSize, side === 'LONG' ? 'floor' : 'ceil')
@@ -112,13 +127,24 @@ export function computeDca(input: DcaInput): DcaResult {
     if (s.qty <= 0 || s.notional + 1e-9 < Math.max(f.minNotional, L.minOrderUsdt)) errors.push(`${label} borsanın en düşük emir değerinin altında; marjini artır.`)
     if (side === 'LONG' ? s.entry <= stopPrice : s.entry >= stopPrice) errors.push(`${label} stopun ötesinde.`)
   }
-  if (stages.some(s => s.tpNetProfit <= 1e-12)) errors.push('Kâr hedefi işlem ücretini karşılamıyor; hedefi artır.')
+  let cumN = 0
+  for (const s of stages) {  // backend ile aynı sıra: ilk yetersiz aşamada dur
+    cumN += s.notional
+    const needed = Math.max(L.minNetProfitUsdt, cumN * L.minNetProfitPct / 100)
+    if (s.tpNetProfit <= 1e-12) { errors.push('Kâr hedefi işlem ücretini karşılamıyor; hedefi artır.'); break }
+    if (s.tpNetProfitAfterCosts < needed - 1e-12) {
+      errors.push(`Kâr hedefi, ücret + kayma + funding payı düşülünce yeterli net kâr bırakmıyor (en az ${needed.toFixed(4)} USDT gerekir, kalan ${s.tpNetProfitAfterCosts.toFixed(4)} USDT); hedefi artır.`)
+      break
+    }
+  }
 
   const totalNotional = stages.reduce((sum, s) => sum + s.notional, 0)
   const totalQty = stages[stages.length - 1].cumQty
   const avgEntryFull = stages[stages.length - 1].avgEntry
   const rawLoss = stages.reduce((sum, s) => sum + s.qty * sign * (s.entry - stopPrice), 0)
-  const worstLoss = rawLoss + totalNotional * L.takerFee + totalQty * stopPrice * L.takerFee
+  const slippage = stages.reduce((sum, s) => sum + s.notional * (s.index === 0 ? L.slippageMarketPct : L.slippageLimitEntryPct) / 100, 0) + totalQty * stopPrice * L.slippageMarketPct / 100
+  const funding = totalNotional * L.fundingAllowancePct / 100
+  const worstLoss = rawLoss + totalNotional * L.takerFee + totalQty * stopPrice * L.takerFee + slippage + funding
   const spanPct = Math.abs(price - stopPrice) / price * 100
   const stopDistancePct = Math.abs(lastEntry - stopPrice) / lastEntry * 100
   const liquidation = avgEntryFull * (1 - sign / leverage + sign * L.maintenanceRate)

@@ -3,6 +3,7 @@ import { BarChart3, ChevronRight, Sparkles, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
+import { accountNetPnl } from './net-pnl'
 import './mobile-home.css'
 
 // Telefon ana sayfası (<=700px). Tek ekran, kaydırma yok: selam, canlı/demo bakiye, abonelik durumu,
@@ -161,7 +162,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       {shownReady && shown ? <>
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>USDT</span></div>
         <div className="mhChange">
-          {finite(shown.unrealized_pnl) && <span>{t.unrealized} <b className={shown.unrealized_pnl >= 0 ? 'up' : 'down'}>{signed(shown.unrealized_pnl)}</b></span>}
+          {finite(shown.unrealized_pnl) && (() => { const open = accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
       </> : <div className="mhEmpty">

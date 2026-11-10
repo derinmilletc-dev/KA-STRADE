@@ -82,6 +82,11 @@ MARKET_ASK = re.compile(
     r"|top (gainer|loser)s?|best (long|short)|highest confidence|best coin|which coin is (the )?best)\b")
 
 
+# "Piyasa yönü nasıl / genel piyasa / piyasa yükselişte mi": 24 saatlik canlı piyasa genişliğinden cevaplanır (taramaya bağlı değil).
+DIRECTION_ASK = re.compile(
+    r"\b(piyasa(nin|da)? (yonu|durumu|nasil|genel|ne durumda|yukselis|dusus|trend)|genel piyasa|piyasa yonu|kripto piyasasi(nin)? (yonu|nasil|durumu)"
+    r"|market (direction|trend|sentiment|mood|breadth)|how is the (crypto )?market|market (doing|looking)|overall market)\b")
+
 POSITION_READ_STEMS = ("durum", "goster", "listele")
 POSITION_READ_WORDS = {"var", "kac", "neler", "hangileri", "show", "list", "what", "whats", "any", "many", "much", "which"}
 
@@ -127,6 +132,8 @@ def intent(message: str) -> str | None:
     if (len(words) <= 12 and MARKET_ASK.search(normalized) and not is_action_or_educational({word for word in words if not word.startswith("mantik")})
             and not analysis_targets(message)[0] and not words & YES_NO_PARTICLES
             and not (words & EN_QUESTION_OPENERS and normalized.split()[0] in EN_QUESTION_OPENERS)):
+        return "get_market_overview"
+    if len(words) <= 12 and DIRECTION_ASK.search(normalized) and not analysis_targets(message)[0]:
         return "get_market_overview"
     if len(words) <= 12 and not is_action_or_educational(words):
         # Demo hesap pozisyonları / kâr-zarar: kişisel bir pozisyon ifadesi VE açık bir okuma ifadesi (durum/var mı/göster/kaç,
@@ -187,7 +194,7 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
     """Plan özeti: yalnız get_plans verisinden; müşteriye net, eksiksiz ve kısa."""
     plans = {row["id"]: row for row in data["plans"]}
     trial, smart, master = plans["TRIAL"], plans["SMART_TRADE"], plans["MASTER_MODE"]
-    tl, pl = trial["daily_limits"], master["daily_limits"]
+    tl, sl, pl = trial["daily_limits"], smart["daily_limits"], master["daily_limits"]
     if language == "tr":
         return (
             "Üç seçenek var:\n"
@@ -198,8 +205,9 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
             "pozisyon koruması, AI Analist ve Scanner. Canlıda KAIS stratejileri ve Auto Trade yok; Demo hesapta hepsi açık.\n"
             f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} gün. Smart Trade'deki her şey, "
             "ek olarak canlıda KAIS stratejileri, canlı Auto Trade ve öncelikli destek.\n"
-            f"Ücretli iki planda da KAIS AI günde {pl['kais_ai_messages_per_day']} mesaj, Grafik AI günde {pl['chart_ai_per_day']}, "
-            f"AI Analist günde {pl['ai_analyst_per_day']} analiz.\n"
+            f"Günlük haklar: Smart Trade'de KAIS AI {sl['kais_ai_messages_per_day']} mesaj, Grafik AI {sl['chart_ai_per_day']}, "
+            f"AI Analist {sl['ai_analyst_per_day']} analiz; Master Mode'da KAIS AI {pl['kais_ai_messages_per_day']} mesaj, Grafik AI "
+            f"{pl['chart_ai_per_day']}, AI Analist {pl['ai_analyst_per_day']} analiz.\n"
             f"Ödeme {data['payment']['method']} ile {data['payment']['currency']} olarak yapılır; otomatik yenileme olmadığı için iptal "
             "gerekmez. Planı Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranından seçebilirsin."
         )
@@ -212,8 +220,9 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
         "position protection, AI Analyst and Scanner. No KAIS strategies or Auto Trade on live; all of them work on Demo.\n"
         f"• **{master['name']}**: {master['price']} {master['currency']} / {master['period_days']} days. Everything in Smart Trade plus "
         "KAIS strategies and Auto Trade on live, and priority support.\n"
-        f"Both paid plans include KAIS AI {pl['kais_ai_messages_per_day']} messages, Chart AI {pl['chart_ai_per_day']} and "
-        f"AI Analyst {pl['ai_analyst_per_day']} analyses a day.\n"
+        f"Daily allowances: Smart Trade KAIS AI {sl['kais_ai_messages_per_day']} messages, Chart AI {sl['chart_ai_per_day']}, "
+        f"AI Analyst {sl['ai_analyst_per_day']} analyses; Master Mode KAIS AI {pl['kais_ai_messages_per_day']} messages, Chart AI "
+        f"{pl['chart_ai_per_day']}, AI Analyst {pl['ai_analyst_per_day']} analyses.\n"
         f"Payment is made with {data['payment']['method']} in {data['payment']['currency']}; there is no automatic renewal, so nothing "
         "to cancel. Choose a plan under Home → ABONELİK (Subscription)."
     )
@@ -254,7 +263,8 @@ async def demo_positions_answer(tools: AssistantTools, user_id: str, language: L
 def market_focus(message: str) -> set[str]:
     text = " ".join(re.findall(r"\w+", unicodedata.normalize("NFKD", message.casefold().translate(str.maketrans("çğıöşü", "cgiosu"))).replace("\u0307", "")))
     focus = set()
-    if re.search(r"yuksel|artan|gainer", text): focus.add("gainer")
+    if DIRECTION_ASK.search(text): focus.add("direction")
+    if re.search(r"yuksel|artan|gainer", text) and "direction" not in focus: focus.add("gainer")
     if re.search(r"dusen|kaybeden|loser", text): focus.add("loser")
     if re.search(r"\blong\b", text): focus.add("long")
     if re.search(r"\bshort\b", text): focus.add("short")
@@ -286,6 +296,30 @@ async def market_overview_answer(tools: AssistantTools, user_id: str, language: 
     focus = market_focus(message) or {"gainer", "long", "short", "confidence"}
     parts: list[str] = []
     unverified = False
+    if "direction" in focus:
+        breadth = movers.get("breadth") if movers.get("status") == "fresh" else None
+        if not breadth:
+            return {**base, "stale": True, "reply": ("Piyasa verisine şu an erişemedim; yönü söyleyemem, biraz sonra tekrar dene." if tr
+                                                     else "I could not reach the market data right now, so I cannot give a direction; please try again shortly.")}
+        up, down, total, share = breadth["up"], breadth["down"], breadth["coins"], breadth["up_percent"]
+        mood = (("genel olarak yükselişte" if share >= 60 else "genel olarak düşüşte" if share <= 40 else "karışık, net bir yön yok") if tr
+                else ("broadly rising" if share >= 60 else "broadly falling" if share <= 40 else "mixed, with no clear direction"))
+        majors = []
+        for name, key in (("BTC", "btc_change_24h_percent"), ("ETH", "eth_change_24h_percent")):
+            if breadth.get(key) is not None:
+                majors.append(f"{name} %{breadth[key]}" if tr else f"{name} {breadth[key]}%")
+        text = ((f"Son 24 saatte piyasa {mood}: {total} coinin {up} tanesi yükselişte, {down} tanesi düşüşte (yükselen oranı %{share}); "
+                 f"ortanca değişim %{breadth['median_change_24h_percent']}." + (f" {', '.join(majors)}." if majors else "")
+                 + " Özellikle bakmamı istediğin bir coin var mı?") if tr else
+                (f"Over the last 24h the market is {mood}: {up} of {total} coins are up and {down} are down ({share}% rising); "
+                 f"median change {breadth['median_change_24h_percent']}%." + (f" {', '.join(majors)}." if majors else "")
+                 + " Is there a particular coin you want me to look at?"))
+        suffix = " Bunlar piyasa verisi özetidir, al/sat talimatı değildir." if tr else " This is a market data summary, not trading instructions."
+        if usage:
+            left = max(0, int(usage.get("daily_limit") or 0) - int(usage.get("used_today") or 0))
+            suffix += (f" Bu cevap için {usage.get('cost')} kredi düştü; kalan kredin {usage.get('remaining_credits')}, bugün {left} piyasa özeti hakkın kaldı." if tr
+                       else f" This answer used {usage.get('cost')} credits; {usage.get('remaining_credits')} credits and {left} market overviews left today.")
+        return {**base, "stale": False, "reply": text + suffix}
     if focus & {"gainer", "loser"}:
         if movers.get("status") != "fresh":
             unverified = True

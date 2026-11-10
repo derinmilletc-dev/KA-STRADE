@@ -196,7 +196,8 @@ async def save_choice(
     candidate["risk_projection"] = projection(wallet, body.risk_percent, body.daily_loss_percent, opening)
     candidate.pop("last_risk_adjustment", None)
     day = None
-    if isinstance(previous.get("daily"), dict) and previous["daily"].get("opening_wallet") is not None:
+    if (isinstance(previous.get("daily"), dict) and previous["daily"].get("opening_wallet") is not None
+            and previous["daily"].get("day") == datetime.now(timezone.utc).date().isoformat()):
         day = copy.deepcopy(previous["daily"])
         day_wallet = verified_wallet({"wallet_balance": day["opening_wallet"]})
         loss = day.get("loss", 0)

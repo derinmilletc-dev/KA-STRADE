@@ -33,3 +33,15 @@ Strateji durdurulmuşken: `sudo bash /opt/kaistrade/deploy/vps/migrate-db.sh`
 Script: Render sürümünü okur, aynı sürüm PostgreSQL'i kurar, yedek alır, yükler, tabloları sayar,
 yalnızca sayımlar tutarsa `DATABASE_URL` değerini değiştirir. Şifre ekrana yazılmaz.
 Geri dönüş: `sudo cp /etc/kaistrade.env.render-backup /etc/kaistrade.env && sudo systemctl restart kaistrade`
+
+## Yardımcı kişiye "yalnız güncelleme" erişimi
+
+Sen yokken güncelleme yapacak biri için (şifre/root vermeden):
+
+`sudo bash /opt/kaistrade/deploy/vps/helper-access.sh add arkadas "ssh-ed25519 AAAA... not"`
+
+Kişi anahtarıyla girer ve yalnız `sudo /usr/local/sbin/kais-update` çalıştırabilir (`sudo bash` dahil başka komut yok).
+İş bitince: `sudo bash /opt/kaistrade/deploy/vps/helper-access.sh remove arkadas`.
+Güncellemeyi açık pozisyon yokken yaptır; Binance anahtarında para çekme kapalı ve IP kısıtlı olsun.
+
+_Yayın yenileme notu: site dosyaları 2026-11-10 tarihinde yeniden yayınlandı._

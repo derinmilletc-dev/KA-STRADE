@@ -226,6 +226,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   const [dailyPerformance, setDailyPerformance] = useState<PerformanceSnapshot | null>(null)
   const [liveStatus, setLiveStatus] = useState<SharedLiveStatus | null>(null)
   const [liveStatusVerified, setLiveStatusVerified] = useState(false)
+  const liveStatusOkAt = useRef(0)
   const [liveStatusError, setLiveStatusError] = useState('')
   const [liveStatusLoading, setLiveStatusLoading] = useState(true)
   useLiveEventNotifications((liveStatus as {events?: unknown} | null)?.events)
@@ -454,6 +455,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
           return false
         }
         setLiveStatus(accountPayload as SharedLiveStatus)
+        if (connectionResponse.ok) liveStatusOkAt.current = Date.now()
         setLiveStatusVerified(connectionResponse.ok)
         setLiveStatusError(connectionResponse.ok ? '' : 'Canlı hesap bağlantısının güncel durumu doğrulanamadı.')
 
@@ -502,6 +504,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
         setDailyPerformance(accountPayload.daily_performance ?? null)
         return connectionResponse.ok
       } catch (error) {
+        // Tek seferlik kısa kopma ekranı "bağlantı koptu"ya çevirmesin: son başarılı okumadan 45 sn geçmediyse mevcut durum korunur.
+        // Emirde sunucu tüm kapıları ve hesabı yeniden doğrular; bu yalnızca ekranın titremesini önler.
+        if (Date.now() - liveStatusOkAt.current < 45000) throw error
         setLiveStatusVerified(false)
         setLiveStatusError(error instanceof Error ? error.message : 'Canlı durum servisine ulaşılamadı.')
         if (!connectionVerified) setLiveConnections(null)

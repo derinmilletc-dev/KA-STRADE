@@ -24,7 +24,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Literal
@@ -878,6 +878,8 @@ class ManualLiveOrderRequest(LiveOrderRequest):
 class CloseRequest(BaseModel):
     plan_id: str = Field(min_length=6, max_length=64)
     confirmation: str = Field(min_length=1, max_length=64)
+    # Kullanıcının kapat'a bastığında ekranda gördüğü canlı fiyat. Varsa önce bu fiyattan limit (reduce-only) gider.
+    limit_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 class EmergencyRequest(BaseModel):
@@ -3080,6 +3082,101 @@ async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: s
         raise
 
 
+MANUAL_CLOSE_LIMIT_WAIT_SECONDS = 4.0
+MANUAL_CLOSE_LIMIT_POLL_SECONDS = 0.4
+
+
+def _close_result(order: dict[str, Any], mode: str) -> dict[str, Any]:
+    return {**order, "close_mode": mode}
+
+
+async def close_symbol_limit_then_market(client: BinanceLiveClient, symbol: str, intent: str, limit_price: float | Decimal,
+                                         wait_seconds: float = MANUAL_CLOSE_LIMIT_WAIT_SECONDS,
+                                         poll_seconds: float = MANUAL_CLOSE_LIMIT_POLL_SECONDS) -> dict[str, Any] | None:
+    """Manuel kapatma: önce kullanıcının gördüğü fiyattan reduce-only LIMIT; wait_seconds içinde dolmazsa iptal edilir,
+    kalan miktar (borsadan yeniden okunur) reduce-only piyasa emriyle kapanır. Limit reddedilirse doğrudan piyasa.
+    Sonuçta close_mode: LIMIT | LIMIT_SONRA_PIYASA | PIYASA. Pozisyon yoksa None."""
+    rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
+    row = next((item for item in rows if Decimal(str(item.get("positionAmt", "0"))) != 0), None)
+    if row is None:
+        return None
+    amount = Decimal(str(row["positionAmt"]))
+    try:
+        tick = (await live_symbol_rules(client, symbol, "LIMIT"))["tick"]
+        price = (Decimal(str(limit_price)) / tick).to_integral_value(rounding=ROUND_HALF_UP) * tick
+    except (LiveExchangeError, ArithmeticError, ValueError, KeyError):
+        price = Decimal("0")
+    if price <= 0:
+        result = await close_tracked_symbol(client, symbol, intent)
+        return _close_result(result, "PIYASA") if result else None
+    client_id = client_id_for("CLOSE", f"{intent}-lmt-{int(time.time() * 1000)}")
+    params = {
+        "symbol": symbol, "side": "SELL" if amount > 0 else "BUY", "type": "LIMIT", "timeInForce": "GTC",
+        "price": decimal_text(price), "quantity": decimal_text(abs(amount)), "reduceOnly": "true",
+        "newClientOrderId": client_id, "newOrderRespType": "RESULT",
+    }
+    try:
+        order = await client.signed("POST", "/fapi/v1/order", params)
+    except LiveExchangeError as exc:
+        if not exc.unknown_execution:
+            # Borsa limit emri reddetti (fiyat aralığı vb.): hiçbir emir yok, doğrudan piyasadan kapat.
+            result = await close_tracked_symbol(client, symbol, intent)
+            return _close_result(result, "PIYASA") if result else None
+        order = await find_order(client, symbol, client_id)
+        if order is None:
+            raise
+    open_states = {"NEW", "PARTIALLY_FILLED"}
+    status = str(order.get("status") or "").upper()
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while status in open_states and time.monotonic() < deadline:
+        await asyncio.sleep(poll_seconds)
+        try:
+            latest = await find_order(client, symbol, client_id)
+        except LiveExchangeError:
+            break
+        if latest is not None:
+            order = latest
+            status = str(order.get("status") or "").upper()
+    if status in open_states:
+        try:
+            await client.signed("DELETE", "/fapi/v1/order", {"symbol": symbol, "orderId": order.get("orderId")})
+        except LiveExchangeError as exc:
+            if exc.exchange_code != -2011:  # -2011: emir zaten dolmuş/iptal olmuş
+                raise
+        latest = await find_order(client, symbol, client_id)
+        if latest is not None:
+            order = latest
+            status = str(order.get("status") or "").upper()
+    if status == "FILLED":
+        return _close_result(order, "LIMIT")
+    remainder = await close_tracked_symbol(client, symbol, f"{intent}-mkt")
+    try:
+        limit_qty = Decimal(str(order.get("executedQty") or "0"))
+        limit_avg = Decimal(str(order.get("avgPrice") or "0"))
+    except ArithmeticError:
+        limit_qty, limit_avg = Decimal("0"), Decimal("0")
+    if remainder is None:
+        return _close_result(order, "LIMIT") if limit_qty > 0 else None
+    if limit_qty <= 0:
+        return _close_result(remainder, "LIMIT_SONRA_PIYASA")
+    try:
+        market_qty = Decimal(str(remainder.get("executedQty") or "0"))
+        market_avg = Decimal(str(remainder.get("avgPrice") or "0"))
+    except ArithmeticError:
+        market_qty, market_avg = Decimal("0"), Decimal("0")
+    total = limit_qty + market_qty
+    merged = {**remainder, "executedQty": decimal_text(total)}
+    if total > 0 and limit_avg > 0 and market_avg > 0:
+        merged["avgPrice"] = decimal_text((limit_qty * limit_avg + market_qty * market_avg) / total)
+    return _close_result(merged, "LIMIT_SONRA_PIYASA")
+
+
+async def close_manual_symbol(client: BinanceLiveClient, symbol: str, intent: str, limit_price: float | None) -> dict[str, Any] | None:
+    if limit_price is None:
+        return await close_tracked_symbol(client, symbol, intent)
+    return await close_symbol_limit_then_market(client, symbol, intent, limit_price)
+
+
 EMERGENCY_VERIFY_ATTEMPTS = 3
 EMERGENCY_VERIFY_DELAY_SECONDS = 1.0
 
@@ -3442,6 +3539,9 @@ class ManualPlanActionError(Exception):
         self.http_status = http_status
 
 
+# Kâr hedefleri (TP) son işlem fiyatıyla tetiklenir: grafikte fiyat hedefe değdiği an kapanır (işaret fiyatı geriden gelir).
+# Stop emirleri iğne (fitil) hareketlerinde boşa çalışmasın diye İŞARET fiyatıyla kalır.
+TARGET_WORKING_TYPE = "CONTRACT_PRICE"
 MANUAL_TARGET_KEYS = ("TP12", "TP2", "TP3")  # sırasıyla TP1, TP2, TP3 borsa emri kimlik türleri
 
 
@@ -3565,7 +3665,7 @@ async def manual_update_protection(
         if new_price == old_price:
             continue
         common = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if long_side else "BUY",
-                  "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
+                  "workingType": TARGET_WORKING_TYPE, "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
                   "clientAlgoId": client_id_for(key, plan["intent_id"])}
         if key == "TP3":
             common["closePosition"] = "true"
@@ -3643,6 +3743,9 @@ async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any],
     return True
 
 
+MANUAL_TARGET_MAX_FAILURES = 10  # geçici borsa/ağ hataları hedefi kolayca silmesin
+
+
 async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
     """Manuel plan için kapanış hedefi ("fiyat X olunca" ya da "net Y USDT kârda"): ulaşıldıysa reduce-only piyasa emriyle kapatır.
 
@@ -3652,7 +3755,9 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     target = plan.get("close_target")
     if not isinstance(target, dict) or plan.get("source") != "MANUAL" or not live_plan_can_mutate(plan):
         return False
-    if plan.get("status") in {"KAPANDI", "KAPATMA EMRİ GÖNDERİLDİ"} or live_execution_blocked(state):
+    # Kapatma yeni risk açmaz (reduce-only); geçici "uzlaştırma gerekli", belirsiz durum ya da acil durdurma hedefi sessizce
+    # engellememeli. Yalnız borsa hız sınırı beklenirken denenmez (emir zaten reddedilirdi, hata sayılmaz).
+    if plan.get("status") in {"KAPANDI", "KAPATMA EMRİ GÖNDERİLDİ"} or account_rate_limit_active(state):
         return False
     direction = str(plan.get("direction") or "").upper()
     fee_rate = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["fee_bps_per_side"])) / Decimal(10_000)
@@ -3660,6 +3765,17 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     if not manual_close_target.reached(target, direction, position.get("mark_price"), entry, position.get("quantity"), fee_rate):
         return False
     symbol = plan["symbol"]
+    if target.get("mode") == "profit":
+        # Kâr hedefi işaret fiyatına (mark) göre tetiklenir ama kapatma piyasa emridir: LONG alış (bid), SHORT satış (ask)
+        # tarafından dolar. İnce coinlerde fark kârı silip zarara çevirebilir; kapatmadan önce gerçek çıkış fiyatıyla net
+        # kâr hedefi hâlâ tutuyor mu diye bakılır. Okunamazsa bu turda kapatılmaz, 10 sn sonra yeniden denenir.
+        try:
+            book = await client.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol})
+            exit_price = manual_close_target.exit_side_price(direction, book.get("bidPrice"), book.get("askPrice"))
+        except Exception:  # noqa: BLE001 - veri yoksa kapatma yapılmaz
+            return False
+        if not manual_close_target.reached(target, direction, exit_price, entry, position.get("quantity"), fee_rate):
+            return False
     intent = f"manual-target-{plan['id']}-{target.get('set_at') or ''}"
     close_client_id = client_id_for("CLOSE", intent)
     close_ids = plan.setdefault("close_client_order_ids", [])
@@ -3669,7 +3785,7 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     def register_failure(reason: str) -> bool:
         target["failures"] = int(target.get("failures") or 0) + 1
         target["last_error"] = reason[:200]
-        if target["failures"] >= 3:
+        if target["failures"] >= MANUAL_TARGET_MAX_FAILURES:
             plan.pop("close_target", None)
             add_event(state, "MANUAL_TARGET_DISABLED", f"{symbol} kapanış hedefi üst üste kapatılamadı; hedef kaldırıldı. Stop ve hedefler yerinde.", symbol=symbol, plan_id=plan.get("id"))
         persist_state(state)
@@ -3693,6 +3809,24 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
               symbol=symbol, plan_id=plan.get("id"), fill_price=close_fill_price(result))
     persist_state(state)
     return True
+
+
+async def run_manual_close_targets(client: BinanceLiveClient, state: dict[str, Any], positions: dict[str, Any]) -> None:
+    """Kapanış hedefi (fiyat / net kâr) koruma durumundan BAĞIMSIZ kontrol edilir.
+
+    Eskiden yalnız koruma "eşleşti" turunda bakılıyordu; koruma onarılırken, TP1 sonrası emirler değişirken ya da
+    eşleşme geçici belirsizken hedefe ulaşılsa bile pozisyon kapanmıyordu. Kapatma reduce-only piyasa emridir ve
+    yalnız sahipliği doğrulanmış (live_plan_can_mutate) MANUAL planlar için çalışır."""
+    for plan in list(state.get("plans", {}).values()):
+        if not isinstance(plan.get("close_target"), dict) or plan.get("status") in {"KAPANDI", "İPTAL"}:
+            continue
+        position = positions.get(plan.get("symbol"))
+        if position is None:
+            continue
+        try:
+            await manual_close_target_step(client, state, plan, position)
+        except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
+            logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", plan.get("symbol"), type(exc).__name__)
 
 
 async def _install_stop_bridge(
@@ -3859,7 +3993,7 @@ async def manual_reduce_position(
             try:
                 placed = await post_algo(client, {
                     "algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
-                    "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
+                    "workingType": TARGET_WORKING_TYPE, "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
                     "triggerPrice": str(row.get("trigger_price")), "quantity": decimal_text(new_quantity),
                     "reduceOnly": "true", "clientAlgoId": client_id_for(key, plan["intent_id"]),
                 })
@@ -4009,7 +4143,7 @@ async def install_manual_tp2(
     key = client_id_for("TP2", plan["intent_id"])
     try:
         result = await post_entry_protection_algo(client, {
-            **common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": targets[1],
+            **common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": targets[1],
             "quantity": decimal_text(quantity), "reduceOnly": "true", "clientAlgoId": key,
         }, existing_algos)
     except LiveExchangeError as exc:
@@ -4142,7 +4276,7 @@ async def install_protection(
     if combined_partial > 0 and combined_partial >= min_qty and combined_partial * mark_price >= min_notional:
         key = client_id_for("TP12", plan["intent_id"])
         try:
-            result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": plan["targets"][0], "quantity": decimal_text(combined_partial), "reduceOnly": "true", "clientAlgoId": key}, existing_algos)
+            result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": plan["targets"][0], "quantity": decimal_text(combined_partial), "reduceOnly": "true", "clientAlgoId": key}, existing_algos)
             if result.get("algoId"):
                 ids.append(int(result["algoId"]))
                 plan["tp12_algo_id"] = int(result["algoId"])
@@ -4166,7 +4300,7 @@ async def install_protection(
         if tp2_id:
             ids.append(tp2_id)
     try:
-        result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "triggerPrice": plan["targets"][2], "closePosition": "true", "clientAlgoId": client_id_for("TP3", plan["intent_id"])}, existing_algos)
+        result = await post_entry_protection_algo(client, {**common, "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE, "triggerPrice": plan["targets"][2], "closePosition": "true", "clientAlgoId": client_id_for("TP3", plan["intent_id"])}, existing_algos)
         if result.get("algoId"):
             ids.append(int(result["algoId"]))
         else:
@@ -5291,7 +5425,7 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
         return result
     common = {
         "symbol": plan["symbol"], "side": "SELL" if direction == "LONG" else "BUY",
-        "type": "TAKE_PROFIT_MARKET", "workingType": "MARK_PRICE",
+        "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE,
     }
     for label, params in (
         ("tp1", {"triggerPrice": targets[0], "reduceOnly": "true", "clientAlgoId": client_id_for("TP12", plan["intent_id"])}),
@@ -5360,7 +5494,7 @@ def reconcile_monitoring_targets(state: dict[str, Any], plan: dict[str, Any], ro
             combined = target in {"TP1", "TP2"}
             params = {
                 "symbol": plan["symbol"], "side": "SELL" if plan["direction"] == "LONG" else "BUY",
-                "type": "TAKE_PROFIT_MARKET", "workingType": "MARK_PRICE",
+                "type": "TAKE_PROFIT_MARKET", "workingType": TARGET_WORKING_TYPE,
                 "triggerPrice": prices[0] if combined else prices[2],
                 "clientAlgoId": client_id_for("TP12" if combined else "TP3", str(plan.get("intent_id") or "")),
             }
@@ -6088,13 +6222,37 @@ def symbol_occupancy_status(snapshot: dict[str, Any], symbol: str) -> tuple[bool
         return False, False, "Açık pozisyon/emir verisi doğrulanamadı; sembol ayarı değiştirilmedi."
     if snapshot.get("open_algo_orders_available") is not True:
         return False, False, "Açık algo emir verisi doğrulanamadı; sembol ayarı değiştirilmedi."
+    names = {"positions": "pozisyon", "open_orders": "emir", "open_algo_orders": "koşullu emir (stop/hedef)"}
+    found: list[str] = []
     for collection in collections:
-        if any(
-            isinstance(row, dict) and normalize_symbol(row.get("symbol")) == normalized
-            for row in snapshot[collection]
-        ):
-            return True, True, f"{normalized} üzerinde açık pozisyon veya emir var; sembol ayarı değiştirilmedi."
+        rows = [row for row in snapshot[collection] if isinstance(row, dict) and normalize_symbol(row.get("symbol")) == normalized]
+        if rows:
+            kinds = sorted({str(row.get("type") or row.get("orderType") or "").upper() for row in rows} - {""})
+            found.append(f"{len(rows)} {names[collection]}" + (f" ({', '.join(kinds)})" if kinds else ""))
+    if found:
+        # Hangi kayıt yüzünden engellendiği görünsün: kullanıcı Binance'te neyi kontrol edeceğini bilsin.
+        return True, True, f"{normalized} üzerinde açık kayıt var: {'; '.join(found)}. Sembol ayarı değiştirilmedi."
     return True, False, f"{normalized} için açık pozisyon veya emir bulunmuyor."
+
+
+def _order_mark(timer: dict[str, Any], stage: str) -> str:
+    """Emir akışında her aşamanın süresini kaydeder (teşhis; akışı değiştirmez)."""
+    now = time.monotonic()
+    timer["marks"].append((timer.get("stage"), now - timer["last"]))
+    timer["last"], timer["stage"] = now, stage
+    return stage
+
+
+def _order_timing_report(timer: dict[str, Any], symbol: str) -> None:
+    try:
+        now = time.monotonic()
+        marks = [*timer["marks"], (timer.get("stage"), now - timer["last"])]
+        total = now - timer["start"]
+        parts = " ".join(f"{name}={seconds * 1000:.0f}ms" for name, seconds in marks if seconds >= 0.05)
+        level = logging.WARNING if total >= 8 else logging.INFO
+        logger.log(level, "ORDER_TIMING symbol=%s total_ms=%.0f %s", symbol, total * 1000, parts)
+    except Exception:  # noqa: BLE001 - teşhis hatası emri etkilemez
+        pass
 
 
 async def execute_live_order(
@@ -6160,7 +6318,8 @@ async def execute_live_order(
     reservation_token: str | None = None
     reservation_plan: dict[str, Any] | None = None
     reservation_filled = False
-    observation_stage = "SIGNED_ACCOUNT_ACCESS"
+    order_timer = {"start": time.monotonic(), "last": time.monotonic(), "stage": "BASLANGIC", "marks": []}
+    observation_stage = _order_mark(order_timer, "SIGNED_ACCOUNT_ACCESS")
     async with state["lock"]:
         try:
             state["last_order_error"] = None
@@ -6171,12 +6330,12 @@ async def execute_live_order(
             client = client_for_with_credentials(application, credentials, request)
             snapshot = await account_snapshot(client)
             record_live_entry_check(entry_checks, "signed_account_access", True, "Binance hesap snapshot'ı imzalı API isteğiyle alındı.", symbol=body.symbol)
-            observation_stage = "ACCOUNT_MODE"
+            observation_stage = _order_mark(order_timer, "ACCOUNT_MODE")
             # Manuel emirde günlük işlem SAYISI ve ardışık kayıp SAYISI sınırı yok (Original V2 LIVE ile aynı);
             # günlük kayıp kilidi, açık zarar kilidi ve diğer kapılar aynen kalır.
             entry_policy = {**state["policy"], "daily_trade_limit": 0, "consecutive_loss_limit": 0} if source == "MANUAL" else state["policy"]
             if original_entry:
-                observation_stage = "ORIGINAL_ACCOUNT_AUTHORIZATION"
+                observation_stage = _order_mark(order_timer, "ORIGINAL_ACCOUNT_AUTHORIZATION")
                 await original_v2_live.check_entry(application, client, state, snapshot)
                 if strategy_result is None or normalize_symbol(body.symbol) != strategy_result.signal.symbol:
                     raise LiveExchangeError("Original V2 sunucu sinyali doğrulanamadı.", http_status=423)
@@ -6184,7 +6343,7 @@ async def execute_live_order(
                     raise LiveExchangeError("Original V2 kapalı mum kararı güncel değil.", http_status=423)
                 entry_policy = original_v2_live.execution_policy(state, snapshot)
                 manual_symbol_scope = entry_policy["allowed_symbols"]
-                observation_stage = "ACCOUNT_MODE"
+                observation_stage = _order_mark(order_timer, "ACCOUNT_MODE")
             if source != "MANUAL" and state.get("real_trading_locked") is not False:
                 raise LiveExchangeError("Gerçek işlem kilidi kapalı; açık canlı onay olmadan emir gönderilmedi.", http_status=423)
             if automatic_entry and state.get("live_auto_trade") is not True:
@@ -6217,7 +6376,7 @@ async def execute_live_order(
             current_spread = await spread_bps(client, symbol)
             observation.emit("candidate", symbol=symbol, spread_bp=current_spread, snapshot=snapshot,
                          cycle_candidates=cycle_candidates)
-            observation_stage = "ENTRY_GATES"
+            observation_stage = _order_mark(order_timer, "ENTRY_GATES")
             if current_spread > float(entry_policy["max_spread_bps"]):
                 await asyncio.sleep(0.25)
                 current_spread = await spread_bps(client, symbol)
@@ -6233,6 +6392,7 @@ async def execute_live_order(
                 active_plans=list(state.get("plans", {}).values()),
                 candidate_notional_usdt=body.margin_usdt * body.leverage,
                 cycle_candidates=cycle_candidates,
+                enforce_spread=source != "MANUAL",
             )
             for gate in guard.get("gates", []):
                 if isinstance(gate, dict):
@@ -6249,7 +6409,7 @@ async def execute_live_order(
                 observation.emit("candidate", symbol=symbol, actual_gates=guard["gates"], first_reject=failed["key"].upper())
                 prefix = "Canlı yön risk kapısı" if failed["key"] in {"same_direction_positions", "direction_exposure"} else "Canlı risk kapısı"
                 raise LiveExchangeError(f"{prefix}: {guard['reason']}", http_status=409, check_key=f"risk_{failed['key']}")
-            observation_stage = "AVAILABLE_BALANCE"
+            observation_stage = _order_mark(order_timer, "AVAILABLE_BALANCE")
             collateral_available = float(snapshot.get("available_balance") or 0) >= body.margin_usdt
             record_live_entry_check(
                 entry_checks,
@@ -6260,7 +6420,7 @@ async def execute_live_order(
             )
             if not collateral_available:
                 raise LiveExchangeError("Canlı hesap kullanılabilir bakiyesi seçilen marjinden düşük.", http_status=409, check_key="available_collateral")
-            observation_stage = "SIZING"
+            observation_stage = _order_mark(order_timer, "SIZING")
             spec = (
                 await original_v2_live.build_spec(client, strategy_result, state, snapshot, check_results=entry_checks) if original_entry
                 else await build_live_spec(client, body, entry_policy, allowed_symbols=manual_symbol_scope, check_results=entry_checks,
@@ -6298,10 +6458,10 @@ async def execute_live_order(
             )
             if not spec_collateral_available:
                 raise LiveExchangeError("Canlı hesap kullanılabilir bakiyesi hesaplanan marjinden düşük.", http_status=409, check_key="available_collateral")
-            observation_stage = "PROTECTION_READINESS"
+            observation_stage = _order_mark(order_timer, "PROTECTION_READINESS")
             validate_protection_readiness(spec, entry_policy)
             record_live_entry_check(entry_checks, "protection_readiness", True, "Stop ve TP koruma parametreleri hazır.", symbol=symbol)
-            observation_stage = "SYMBOL_OCCUPANCY"
+            observation_stage = _order_mark(order_timer, "SYMBOL_OCCUPANCY")
             occupancy_verified, symbol_occupied, occupancy_detail = symbol_occupancy_status(snapshot, spec["symbol"])
             record_live_entry_check(entry_checks, "symbol_occupancy", occupancy_verified and not symbol_occupied, occupancy_detail, symbol=symbol)
             if not occupancy_verified or symbol_occupied:
@@ -6310,7 +6470,7 @@ async def execute_live_order(
                 detail = f"{normalize_symbol(spec['symbol'])} üzerinde çalışan bir grid var; aynı coinde ayrıca işlem açılmaz."
                 record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
                 raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
-            observation_stage = "ACCOUNT_RESERVATION"
+            observation_stage = _order_mark(order_timer, "ACCOUNT_RESERVATION")
             breakdown = None
             reservation_owner_id = live_reservation_owner(state, request)
             try:
@@ -6330,9 +6490,9 @@ async def execute_live_order(
                 check_key = "account_risk" if isinstance(exc, AccountRiskUnknown) or getattr(exc, "kind", "") == "risk" else "account_reservation"
                 raise LiveExchangeError(text, http_status=503 if blocked else 409, check_key=check_key) from exc
             record_live_entry_check(entry_checks, "account_reservation", True, "Coin ve ortak risk rezervasyonu alındı.", symbol=symbol)
-            observation_stage = "SYMBOL_OCCUPANCY"
+            observation_stage = _order_mark(order_timer, "SYMBOL_OCCUPANCY")
             if automatic_entry:
-                observation_stage = "FRESH_CREDENTIALS"
+                observation_stage = _order_mark(order_timer, "FRESH_CREDENTIALS")
                 fresh_credentials = await fresh_auto_submission_credentials(application, state, check_results=entry_checks)
                 if not usable_live_credentials(fresh_credentials):
                     failed = next((item for item in reversed(entry_checks) if not item["passed"]), None)
@@ -6346,11 +6506,11 @@ async def execute_live_order(
                     )
                 credentials = fresh_credentials
                 client = client_for_with_credentials(application, credentials, request)
-                observation_stage = "FRESH_ACCOUNT_SNAPSHOT"
+                observation_stage = _order_mark(order_timer, "FRESH_ACCOUNT_SNAPSHOT")
                 fresh_snapshot = await account_snapshot(client)
                 record_live_entry_check(entry_checks, "signed_account_access", True, "Gönderim öncesi taze Binance hesap snapshot'ı alındı.", symbol=symbol)
                 if original_entry:
-                    observation_stage = "FRESH_ORIGINAL_GATES"
+                    observation_stage = _order_mark(order_timer, "FRESH_ORIGINAL_GATES")
                     await original_v2_live.check_entry(application, client, state, fresh_snapshot)
                     entry_policy = original_v2_live.execution_policy(state, fresh_snapshot)
                 one_way_mode = not bool(fresh_snapshot.get("hedge_mode"))
@@ -6417,7 +6577,7 @@ async def execute_live_order(
                         check_key=f"risk_{failed_fresh_gate.key}",
                     )
                 snapshot = fresh_snapshot
-            observation_stage = "ISOLATED_MARGIN"
+            observation_stage = _order_mark(order_timer, "ISOLATED_MARGIN")
             try:
                 expected_margin_type = await set_live_isolated_margin(client, spec["symbol"])
             except (LiveExchangeError, BinanceDemoError) as exc:
@@ -6427,7 +6587,7 @@ async def execute_live_order(
                 record_live_entry_check(entry_checks, "isolated_margin", False, "Borsa sembol marjin modunu ISOLATED olarak doğrulamadı.", symbol=symbol)
                 raise LiveExchangeError("Isolated marjin uygulanamadı; canlı giriş reddedildi.", http_status=409, check_key="isolated_margin")
             record_live_entry_check(entry_checks, "isolated_margin", True, "Sembol marjin modu ISOLATED olarak ayarlandı/doğrulandı.", symbol=symbol)
-            observation_stage = "LEVERAGE"
+            observation_stage = _order_mark(order_timer, "LEVERAGE")
             try:
                 leverage_audit = await apply_live_verified_leverage(
                     client,
@@ -6451,7 +6611,7 @@ async def execute_live_order(
             )
             if not leverage_verified:
                 raise LiveExchangeError("Borsa isolated marjini veya kaldıraç değerini doğrulamadı; canlı giriş reddedildi.", http_status=409, check_key="leverage")
-            observation_stage = "LIQUIDATION_BUFFER"
+            observation_stage = _order_mark(order_timer, "LIQUIDATION_BUFFER")
             spec["liquidation_guard"] = await live_liquidation_risk(client, spec, entry_policy)
             record_live_entry_check(entry_checks, "liquidation_risk", True, "Likidasyon mesafesi ve risk tamponu doğrulandı.", symbol=symbol)
             intent_id = body.intent_id or f"manual-{uuid.uuid4().hex}"
@@ -6553,7 +6713,7 @@ async def execute_live_order(
                                          actual_gates=[gate.as_dict() for gate in checks])
                         raise LiveExchangeError(f"Canlı yön risk kapısı: {failed.detail}", http_status=409)
 
-                observation_stage = "ENTRY_SUBMISSION"
+                observation_stage = _order_mark(order_timer, "ENTRY_SUBMISSION")
                 result = await submit_entry(
                     client,
                     spec,
@@ -6563,7 +6723,7 @@ async def execute_live_order(
                     on_submission_started=mark_submission_started,
                 )
             else:
-                observation_stage = "ENTRY_SUBMISSION"
+                observation_stage = _order_mark(order_timer, "ENTRY_SUBMISSION")
                 result = await submit_entry(
                     client,
                     spec,
@@ -6623,8 +6783,10 @@ async def execute_live_order(
                 "plan_id": plan["id"], "expected_entry": spec["entry_price"],
                 "initial_risk_usdt": plan.get("initial_risk_usdt"),
             })
+            _order_mark(order_timer, "PROTECTION_INSTALL")
             if spec["order_type"] == "MARKET":
                 await install_protection(client, state, plan)
+            _order_mark(order_timer, "FINAL_SNAPSHOT")
             update_account_snapshot(state, await account_snapshot(client))
             persist_state(state)
             outcome, message = live_plan_execution_outcome(plan)
@@ -6782,6 +6944,7 @@ async def execute_live_order(
             raise HTTPException(502, "Canlı emir akışı güvenli şekilde kilitlendi; manuel inceleme gerekli.") from exc
         finally:
             _finish_reservation(reservation_token, reservation_plan, reservation_filled)
+            _order_timing_report(order_timer, normalize_symbol(body.symbol))
 
 
 async def automatic_cycle(application: Any, credentials: tuple[str, str] | None = None) -> None:
@@ -7283,6 +7446,8 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
     state["connection"].update({"last_checked": now_iso(), "last_error": None, "clock_offset_ms": client.time_offset_ms})
     positions = {item["symbol"]: item for item in snapshot.get("positions", [])}
     open_algos = snapshot.get("open_algo_orders", [])
+    # Kapanış hedefi, aşağıdaki plan/koruma işlemlerinden önce de bakılır: oradaki bir hata ya da bekleme hedefi geciktirmesin.
+    await run_manual_close_targets(client, state, positions)
     recovered_count = await recover_orphan_plans(client, state, positions)
     if recovered_count and state.get("reconciliation_required"):
         state["execution_state"] = "LOCKED"
@@ -7504,10 +7669,7 @@ async def reconcile(application: Any, credentials: tuple[str, str] | None = None
                 await manual_trailing_step(client, state, plan, position)
             except Exception as exc:  # noqa: BLE001 - iz süren hata ana koruma döngüsünü asla durdurmaz
                 logger.warning("MANUAL_TRAIL_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
-            try:
-                await manual_close_target_step(client, state, plan, position)
-            except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
-                logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", symbol, type(exc).__name__)
+    await run_manual_close_targets(client, state, positions)
     try:
         # Akıllı Kâr Koruma: yalnız Original V2 Live planları; hata ana korumayı asla durdurmaz.
         from . import original_profit_guard, original_v2_live as _original_live
@@ -7771,6 +7933,47 @@ async def execution_loop(application: Any) -> None:
             backoff = min(60, backoff * 2)
 
 
+CLOSE_TARGET_FAST_SECONDS = 2  # kapanış hedefi olan pozisyon için hızlı bakış; hedef yoksa hiç istek atmaz
+CLOSE_TARGET_FAST_MAX_SYMBOLS = 5
+
+
+async def close_target_fast_loop(application: Any) -> None:
+    """Kapanış hedefi (özellikle net kâr) olan pozisyonlara ~2 sn'de bir bakar.
+
+    Ana döngü 10 sn'de bir çalışır; ince coinde fiyat hedefi kısa süre görüp geri dönebiliyordu. Bu döngü yalnız
+    hedefi olan sembollerin pozisyonunu (tek hafif istek) okur ve aynı `run_manual_close_targets` adımını aynı kilit
+    altında çalıştırır. Hedef yoksa ya da hiçbir şey okunamıyorsa sessizce bekler; ana döngü yedek olarak sürer."""
+    while not getattr(application.state, "v25_execution_stopping", False):
+        try:
+            await asyncio.sleep(CLOSE_TARGET_FAST_SECONDS)
+            state = application.state.v25_execution
+            symbols = sorted({
+                str(plan.get("symbol")) for plan in state.get("plans", {}).values()
+                if isinstance(plan, dict) and isinstance(plan.get("close_target"), dict) and plan.get("source") == "MANUAL"
+                and plan.get("status") not in {"KAPANDI", "İPTAL", "KAPATMA EMRİ GÖNDERİLDİ"} and plan.get("symbol")
+            })[:CLOSE_TARGET_FAST_MAX_SYMBOLS]
+            if not symbols or state["lock"].locked() or account_rate_limit_active(state):
+                continue
+            credentials = await auto_session_credentials(application, state)
+            if not usable_live_credentials(credentials):
+                continue
+            client = client_for_with_credentials(application, credentials)
+            positions: dict[str, Any] = {}
+            for symbol in symbols:
+                position = await live_plan_position(client, symbol)
+                if position is not None:
+                    positions[symbol] = position
+            if not positions:
+                continue
+            async with state["lock"]:
+                await run_manual_close_targets(client, state, positions)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - hızlı bakış ana korumayı asla etkilemez
+            logger.warning("CLOSE_TARGET_FAST_SKIPPED error=%s", type(exc).__name__)
+            await asyncio.sleep(5)
+
+
 async def execution_supervisor(application: Any) -> None:
     backoff = 5
     while not getattr(application.state, "v25_execution_stopping", False):
@@ -7886,6 +8089,7 @@ def init_v25_execution(application: Any) -> None:
     application.state.v25_execution_stopping = False
     application.state.v25_execution_task = asyncio.create_task(execution_supervisor(application))
     application.state.v25_live_stream_task = asyncio.create_task(live_user_stream_loop(application))
+    application.state.v25_close_target_task = asyncio.create_task(close_target_fast_loop(application))
     application.state.v25_grid_recovery_task = grid_recovery_task(application)
 
 
@@ -7914,6 +8118,7 @@ async def shutdown_v25_execution(application: Any) -> None:
             getattr(application.state, "v25_execution_task", None),
             getattr(application.state, "v25_execution_worker_task", None),
             getattr(application.state, "v25_live_stream_task", None),
+            getattr(application.state, "v25_close_target_task", None),
         )
         if task is not None
     ]
@@ -8441,6 +8646,64 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
                 "tp2_on_exchange": spec.get("tp2_on_exchange")}
     except (LiveExchangeError, BinanceDemoError) as exc:
         raise safe_exchange_error(exc) from exc
+
+
+class ManualPreflightRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=24)
+    direction: Literal["LONG", "SHORT"]
+    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
+    leverage: int = Field(ge=1, le=50)
+    entry: float | None = Field(default=None, gt=0)
+    stop_loss: float | None = Field(default=None, gt=0)
+
+
+@router.post("/order/preflight")
+async def v25_order_preflight(request: Request, body: ManualPreflightRequest) -> dict[str, Any]:
+    """Manuel emir ön kontrolü: gerçek gönderimdeki hesap kapılarını EMİR GÖNDERMEDEN okuyarak değerlendirir (bkz. manual_preflight).
+    Rezervasyon yazmaz, emir göndermez. Okunamazsa ok=None döner (ekran "kontrol edilemedi" gösterir, gönderimi engellemez)."""
+    execution_owner(request)
+    from . import manual_preflight
+    state = request.app.state.v25_execution
+    try:
+        client = client_for(request.app, request)
+        # Ön kontrol yalnız bilgilendirir (gerçek gönderim kapıları kendi taze okumasını yapar). Ekranda her değişiklikte çağrıldığı için
+        # önbellekli okunur: aksi halde her çağrı Binance'e ~7 sorgu atıp hesap kilidinde sıraya girer ve gerçek emri 30 sn bekletirdi.
+        snapshot = await account_snapshot(client, cached=True, source="manual_preflight")
+        symbol = normalize_symbol(body.symbol)
+        policy = sanitize_execution_policy(state["policy"])
+        estimated_loss = None
+        if body.entry is not None and body.stop_loss is not None and body.entry != body.stop_loss:
+            try:
+                sized = risk_sized_order(body.entry, body.stop_loss, sanitize_execution_policy({
+                    **state["policy"], "max_margin_per_trade": body.margin_usdt, "max_leverage": body.leverage}), atr=None, manual=True)
+                estimated_loss = float(sized["estimated_stop_loss_usdt"])
+            except ValueError:
+                estimated_loss = None
+        current_spread = await spread_bps(client, symbol)
+        validation_error = None
+        try:
+            validate_live_isolated_snapshot(snapshot, state["policy"])
+        except LiveExchangeError as exc:
+            validation_error = sanitized_exception_message(exc)
+        occupancy_verified, occupied, occupancy_detail = symbol_occupancy_status(snapshot, symbol)
+        budget: dict[str, Any] = {"budget_left": None, "committed": 0.0}
+        try:
+            budget = shared_daily_budget(request.app, state, request, snapshot)
+        except AccountRiskUnknown:
+            budget = {"budget_left": None, "committed": 0.0}
+        readiness_gates = readiness_for(request.app, state, request).get("gates", [])
+        report = manual_preflight.build_report(
+            symbol=symbol, direction=body.direction, margin_usdt=body.margin_usdt, leverage=body.leverage,
+            estimated_loss_usdt=estimated_loss, snapshot=snapshot, policy=policy, daily=live_daily_metrics(state),
+            spread_bps=current_spread, active_plans=list(state.get("plans", {}).values()), readiness_gates=readiness_gates,
+            budget_left=budget.get("budget_left"), committed=float(budget.get("committed") or 0.0),
+            symbol_occupied=(None if not occupancy_verified else bool(occupied)), symbol_occupancy_detail=occupancy_detail,
+            grid_busy=grid_symbol_busy(request.app, state, request, symbol), isolated_error=validation_error,
+        )
+        return {**report, "created_order": False}
+    except (LiveExchangeError, BinanceDemoError):
+        return {"ok": None, "checks": [], "first_blocker": None, "created_order": False,
+                "message": "Ön kontrol şu an yapılamadı; emir gönderiminde kontroller yine çalışır."}
 
 
 class GridPlanRequest(BaseModel):
@@ -9843,7 +10106,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             if not symbol:
                 raise HTTPException(423, "Canlı plan provenance doğrulanmadı; pozisyon sahiplenilmedi.")
             try:
-                result = await close_tracked_symbol(client_for(request.app, request), symbol, f"manual-close-ext-{symbol}-{int(time.time())}")
+                result = await close_manual_symbol(client_for(request.app, request), symbol, f"manual-close-ext-{symbol}-{int(time.time())}", body.limit_price)
             except LiveExchangeError as exc:
                 raise safe_exchange_error(exc) from exc
             if result is None:
@@ -9853,7 +10116,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                       fill_price=fill_price, total_ms=int((time.monotonic() - started) * 1000))
             persist_state(state)
             return {"ok": True, "order_id": result.get("orderId"), "plan": plan, "fill_price": fill_price,
-                    "lock_wait_ms": lock_wait_ms, "total_ms": int((time.monotonic() - started) * 1000)}
+                    "lock_wait_ms": lock_wait_ms, "total_ms": int((time.monotonic() - started) * 1000), "close_mode": result.get("close_mode")}
         try:
             close_intent = f"manual-close-{plan['id']}"
             close_client_id = client_id_for("CLOSE", close_intent)
@@ -9861,7 +10124,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             if close_client_id not in close_ids:
                 close_ids.append(close_client_id)
             persist_state(state)
-            result = await close_tracked_symbol(client_for(request.app, request), plan["symbol"], close_intent)
+            result = await close_manual_symbol(client_for(request.app, request), plan["symbol"], close_intent, body.limit_price)
             if result and result.get("orderId"):
                 order_id = int(result["orderId"])
                 known = plan.setdefault("exchange_order_ids", [])
@@ -9875,7 +10138,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
                       fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
             return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
-                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms}
+                    "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms, "close_mode": (result or {}).get("close_mode")}
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
 
@@ -9883,6 +10146,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
 class CloseExternalRequest(BaseModel):
     symbol: str = Field(min_length=6, max_length=24, pattern=r"^[A-Z0-9]{2,20}USDT$")
     confirmation: str = Field(min_length=1, max_length=64)
+    limit_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 @router.post("/position/close-external")
@@ -9898,7 +10162,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         symbol = body.symbol.upper()
         try:
             intent = f"manual-close-ext-{symbol}-{int(time.time())}"
-            result = await close_tracked_symbol(client_for(request.app, request), symbol, intent)
+            result = await close_manual_symbol(client_for(request.app, request), symbol, intent, body.limit_price)
         except LiveExchangeError as exc:
             raise safe_exchange_error(exc) from exc
         if result is None:
@@ -9908,7 +10172,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         add_event(state, "LIVE_CLOSE", f"{symbol} dış pozisyon kullanıcı isteğiyle reduce-only kapatıldı.", actor=user["id"], symbol=symbol,
                   fill_price=fill_price, total_ms=total_ms)
         persist_state(state)
-        return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms}
+        return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms, "close_mode": result.get("close_mode")}
 
 
 class ManualProtectionRequest(BaseModel):

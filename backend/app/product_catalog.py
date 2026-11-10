@@ -39,7 +39,11 @@ def limits(assistant: AssistantConfig | None = None, credits: CreditConfig | Non
             "chart_ai_per_day": chart_ai_store.TRIAL_DAILY_LIMIT,
             "ai_analyst_per_day": max(1, credits.total // credits.cost),
         },
-        "SMART_TRADE": dict(paid),
+        "SMART_TRADE": {
+            "kais_ai_messages_per_day": min(assistant.smart_trade_daily_limit, assistant.daily_limit),
+            "chart_ai_per_day": chart_ai_store.SMART_TRADE_DAILY_LIMIT,
+            "ai_analyst_per_day": member_entitlements.ANALYST_SMART_TRADE_DAILY,
+        },
         "MASTER_MODE": dict(paid),
     }
 

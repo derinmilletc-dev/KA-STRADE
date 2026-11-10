@@ -10,8 +10,13 @@ acil durdurma kapanışı borsadan doğrular.
 DCA'ya özel: (1) emir kimliği öneki `kd-` (grid'in `kg-` akış eşleştirmesiyle karışmaz); (2) ek emirler taban emir DOLMADAN gönderilmez;
 (3) hedef emri tek ve açık miktarın tamamı kadardır; ortalama değişince önce eski hedef iptal edilir, sonra yenisi konur
 (hedef koruyucu değildir; koruyucu stop zaten yerinde kalır).
-Bilinen yaklaşım: kısmi hedef dolumundan SONRA yeni ek emir dolarsa ortalama, tüm turun girişlerinin ortalaması alınarak hesaplanır
-(borsadaki gerçek ortalamadan küçük sapabilir); yalnız hedef fiyatını etkiler, stopu etkilemez."""
+Ortalama giriş (kâr hedefi): KAYNAK BORSADIR. Borsanın bildirdiği gerçek `entryPrice` (kısmi hedef dolumundan sonra yeni ek emir dolsa da
+doğru olan budur) hedefi belirler; yerel (defter) ortalama yalnız borsa verisi geçici okunamazsa yedek olarak kullanılır. Borsa ortalaması defterle
+anlamlı biçimde uyuşmuyorsa sessizce devam edilmez: yeni girişler iptal edilir ve INTERVENTION_REQUIRED olur (stop ve mevcut hedef yerinde kalır).
+Güvenlik sırası: ek emirler yalnız taban DOLUP pozisyonun tamamı borsada doğrulanmış stop VE hedefle korunuyorsa gönderilir. Pozisyon doğrulanmış
+stopla tamamen korunmuyorsa borsada bekleyen ek emirler de İPTAL edilir ve iptal borsadan doğrulanır (iptal yanıtı kaybolursa durum sorulur);
+böylece pozisyon stopsuz büyüyemez. Stop birkaç tur boyunca kurulamazsa pozisyon (çift emir üretmeden) piyasadan kapatılır; bu da doğrulanamazsa
+INTERVENTION_REQUIRED SON çaredir. Stop yeniden doğrulanınca iptal edilen ek emirler (fiyat hâlâ uygunsa) yeniden kurulur."""
 from __future__ import annotations
 
 import json
@@ -20,9 +25,10 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 from ..grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED,
                                   GridEngine, GridLevelSpec, GridSpec)
-from ..grid_engine.ports import (BUY, EPS, FILLED, LIMIT, LONG, MARKET, NEW, PARTIAL, REJECTED, SELL, SHORT, STOP_MARKET,
-                                 WOULD_TRIGGER_IMMEDIATELY)
+from ..grid_engine.ports import (BUY, CANCELED, EPS, FILLED, LIMIT, LONG, MARKET, NEW, PARTIAL, REJECTED, SELL, SHORT, STOP_MARKET,
+                                 WOULD_TRIGGER_IMMEDIATELY, ExchangeError, PositionInfo)
 from ..grid_engine.store import PENDING_SEND, TERMINAL, UNKNOWN
+from .risk_config import (AVG_MISMATCH_TOLERANCE_PCT, AVG_RANGE_TOLERANCE_PCT, CANCEL_VERIFY_ATTEMPTS, LIQ_BUFFER_PCT, STOP_RETRY_TICKS)
 
 CYCLE_DONE = "CYCLE_DONE"
 ACTIVE = (NEW, PARTIAL, PENDING_SEND, UNKNOWN)
@@ -48,6 +54,9 @@ class DcaEngine(GridEngine):
     def __init__(self, exchange, store, spec, **kw) -> None:
         super().__init__(exchange, store, spec, **kw)
         self.prefix = f"kd-{re.sub(r'[^A-Za-z0-9]', '', spec.grid_id)[:16]}-"
+        self._stop_unverified = 0               # pozisyon açıkken doğrulanmış stopun art arda görünmediği TUR sayısı
+        self._tick_seq = self._watch_seq = 0    # bir turda koruma birkaç kez kontrol edilir; sayaç tur başına en çok bir kez artar
+        self._avg_fallback_alerted = False      # borsa ortalaması okunamadığında yerel yedek uyarısı bir kez yazılır
 
     def _intent(self, tag: str | None = None, **row) -> str:
         cid = dca_client_order_id(self.gid, tag or self.spec.side, row["level"], row["role"], row["rev"])
@@ -76,8 +85,72 @@ class DcaEngine(GridEngine):
         qty = sum(e["filled"] for e in filled)
         return sum(e["filled"] * px(e) for e in filled) / qty
 
-    def tp_price(self) -> float | None:
-        avg = self.avg_entry()
+    def _fill_price(self, e) -> float:
+        return e["avg_price"] or e["price"] or self.spec.levels[e["level"] - 1].entry
+
+    def _exchange_position(self) -> PositionInfo | None:
+        """Borsanın gerçek pozisyonu (miktar, entryPrice, likidasyon). Desteklenmiyor ya da geçici okunamıyorsa None: çağıran yerel hesaba döner."""
+        reader = getattr(self.ex, "position_info", None)
+        if reader is None:
+            return None
+        try:
+            return reader(self.sym)
+        except ExchangeError:
+            return None
+
+    def _avg_mismatch(self, exchange_avg: float) -> str | None:
+        """Borsanın ortalama girişi, defterdeki bu tur dolumlarıyla tutarlı mı? Tutarsızsa açıklama, değilse None.
+        Kısmi çıkış YOKSA iki ortalama neredeyse aynı olmalıdır. Kısmi çıkıştan sonra defter ortalaması borsadan meşru olarak sapar
+        (borsa kısmi kapanışta entryPrice'ı değiştirmez); bu durumda borsa ortalaması turun dolum fiyat aralığında kalmalıdır."""
+        local = self.avg_entry()
+        fills = [self._fill_price(e) for e in self._entries() if e["filled"] > EPS]
+        if local is None or not fills:
+            return None
+        cycle = self._cycle()
+        exited = any(o["filled"] > EPS and o["cycle"] == cycle for o in self.store.orders(self.gid) if o["role"] in ("T", "S", "C"))
+        if not exited:
+            gap = abs(exchange_avg - local) / local * 100
+            if gap > AVG_MISMATCH_TOLERANCE_PCT:
+                return f"Borsa ortalama girişi {exchange_avg:g}, defter ortalaması {local:g} (fark %{gap:.2f}, sınır %{AVG_MISMATCH_TOLERANCE_PCT:g})"
+            return None
+        lo, hi = min(fills) * (1 - AVG_RANGE_TOLERANCE_PCT / 100), max(fills) * (1 + AVG_RANGE_TOLERANCE_PCT / 100)
+        if not lo <= exchange_avg <= hi:
+            return f"Borsa ortalama girişi {exchange_avg:g}, bu turun dolum fiyat aralığının ({min(fills):g}–{max(fills):g}) dışında"
+        return None
+
+    def _intervene(self, reason: str) -> None:
+        """Yeni girişleri iptal et ve müdahale iste. Stop ve mevcut hedef YERİNDE kalır (pozisyon korumasız bırakılmaz)."""
+        self._cancel_all(roles=("E",))
+        self._set(INTERVENTION_REQUIRED, reason)
+        self._alert("kritik", f"MÜDAHALE GEREKLİ: {reason}. Yeni giriş emirleri iptal edildi; stop ve mevcut hedef iptal EDİLMEDİ.")
+
+    def _liq_gap_problem(self, info: PositionInfo, avg: float) -> str | None:
+        """Borsanın bildirdiği likidasyon fiyatı biliniyorsa stopun ondan yeterince önde olduğunu denetler (tahmine değil borsa verisine dayanır)."""
+        if info.liq_price <= 0 or avg <= 0:
+            return None
+        gap_pct = self.sign * (self.spec.stop_price - info.liq_price) / avg * 100
+        if gap_pct < LIQ_BUFFER_PCT:
+            return f"Borsanın bildirdiği likidasyon fiyatı {info.liq_price:g} stop fiyatına ({self.spec.stop_price:g}) çok yakın ya da stopun ötesinde (tampon %{gap_pct:.2f}, en az %{LIQ_BUFFER_PCT:g})"
+        return None
+
+    def _target_price(self) -> float | None:
+        """Kâr hedefi fiyatı: borsanın gerçek ortalama girişine göre. Borsa verisi geçici okunamazsa yerel ortalama (yedek).
+        Borsa ile defter tutarsızsa (ortalama ya da likidasyon) hedef konmaz, bot INTERVENTION_REQUIRED olur ve None döner."""
+        info = self._exchange_position()
+        if info is not None and info.entry_price > 0 and abs(info.amount) > EPS:
+            reason = self._avg_mismatch(info.entry_price) or self._liq_gap_problem(info, info.entry_price)
+            if reason:
+                self._intervene(reason)
+                return None
+            self._avg_fallback_alerted = False
+            return self.tp_price(info.entry_price)
+        if not self._avg_fallback_alerted:
+            self._avg_fallback_alerted = True
+            self._alert("uyarı", "Borsanın ortalama giriş fiyatı okunamadı; kâr hedefi geçici olarak defter ortalamasına göre hesaplanıyor.")
+        return self.tp_price()
+
+    def tp_price(self, avg: float | None = None) -> float | None:
+        avg = self.avg_entry() if avg is None else avg
         if avg is None:
             return None
         pct, tick = self.spec.meta.get("take_profit_pct"), self.spec.meta.get("tick")
@@ -90,20 +163,66 @@ class DcaEngine(GridEngine):
     # ---------- gönderim ----------
     def tick(self) -> None:
         """Önce taban emir ve KORUMA (stop + hedef); ek emirler ancak taban dolup korunduktan sonraki turda gönderilir."""
+        self._tick_seq += 1
         super().tick()
         base = self._base()
         if self.status == RUNNING and base is not None and base["status"] == FILLED and any(
                 r["status"] == PENDING_SEND and r["level"] > 1 for r in self._entries()):
             super().tick()
 
-    def _send_pending(self) -> None:
+    def _live_qty(self, role: str) -> float:
+        """Defterde borsada DOĞRULANMIŞ (NEW/PARTIAL) çıkış emirlerinin kalan miktarı (stop: 'S', hedef: 'T')."""
+        return round(sum(o["qty"] - o["filled"] for o in self.store.orders(self.gid, role)
+                         if o["status"] in (NEW, PARTIAL) and o["side"] == self.exit_side), 8)
+
+    def _stop_verified(self) -> bool:
+        """Açık pozisyonun TAMAMI borsada doğrulanmış (NEW/PARTIAL) stopla korunuyor mu? Pozisyon yoksa True.
+        Fazla kapsama (eski + yeni stop birlikte; ikisi de reduce-only) korumasızlık değildir."""
+        net = self.grid_net()
+        return net <= EPS or self._live_qty("S") >= net - 1e-8
+
+    def _targets_verified(self) -> bool:
+        net = self.grid_net()
+        return net <= EPS or self._live_qty("T") >= net - 1e-8
+
+    def sync(self) -> bool:
+        self._adopt_unsent()
+        return super().sync()
+
+    def _adopt_unsent(self) -> None:
+        """Çökme penceresi: emir borsaya gitti ama süreç ölünce defter PENDING_SEND kaldı. Gönderilmemiş saymadan önce borsaya kimlikle sorulur;
+        varsa benimsenir (aksi halde pozisyon defterde yokmuş gibi görünüp bot korumasız pozisyonla BLOCKED kalırdı). Gönderilebilecek durumda
+        olmayan ek emirlere (taban dolmadan) sorulmaz: onlar hiç gönderilmemiştir."""
         base = self._base()
         base_ready = base is not None and base["status"] == FILLED and base["filled"] > EPS
+        cycle = self._cycle()
+        for row in self.store.orders(self.gid):
+            if row["status"] != PENDING_SEND:
+                continue
+            if row["role"] == "E" and row["level"] > 1 and row["cycle"] == cycle and not base_ready:
+                continue
+            try:
+                info = self.ex.get_order(self.sym, row["client_id"])
+            except ExchangeError:
+                return                            # sorulamadı: bir şey yapma; normal eşitleme zaten hata verip emir göndermez
+            if info is not None:
+                self._apply(row["client_id"], info)
+
+    def _send_pending(self) -> None:
+        self._rearm_safeties()                    # stop yeniden doğrulandıysa, koruma yokken iptal edilen ek emirleri geri kur
+        base = self._base()
+        base_ready = base is not None and base["status"] == FILLED and base["filled"] > EPS
+        protected = None                          # yavaş değerlendirilir: yalnız ek emir gönderilecekse
         for row in self.store.orders(self.gid):
             if row["role"] == "E" and self.status in (PAUSED, STOPPED, COMPLETED, CYCLE_DONE, EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, BLOCKED):
                 continue
-            if row["role"] == "E" and row["level"] > 1 and row["cycle"] == self._cycle() and not base_ready:
-                continue                          # taban emir dolmadan ek emir gönderilmez
+            if row["role"] == "E" and row["level"] > 1 and row["cycle"] == self._cycle():
+                if not base_ready:
+                    continue                      # taban emir dolmadan ek emir gönderilmez
+                if row["status"] in (PENDING_SEND, UNKNOWN):
+                    protected = (self._stop_verified() and self._targets_verified()) if protected is None else protected
+                    if not protected:
+                        continue                  # stop VE hedef borsada doğrulanmadan yeni ek emir açılmaz / belirsiz ek emir yeniden gönderilmez
             if row["status"] == PENDING_SEND:
                 self._send(row)
             elif row["status"] == UNKNOWN:
@@ -113,12 +232,120 @@ class DcaEngine(GridEngine):
     def _ensure_protection(self) -> None:
         if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, CYCLE_DONE, BLOCKED, INTERVENTION_REQUIRED):
             return
-        if not self._ensure_stop():
+        stop_ok = self._ensure_stop()
+        self._guard_growth()                      # stop tamamen doğrulanmadıysa: bekleyen ek emirleri iptal et + doğrula; kurulamıyorsa kapat
+        if not stop_ok or self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, CYCLE_DONE, BLOCKED, INTERVENTION_REQUIRED):
             return
         self._ensure_target()
 
+    def _flush_protective(self) -> None:
+        """Defterde yazılı ama gönderilmemiş (çökme) koruyucu emirleri (stop/hedef) ÖNCE gönder. Aksi halde bu satırlar 'kapsıyor' sayılıp yeni
+        emir kurulmaz, ama borsada da yoktur: yeniden başlatmada koruma doğrulanamazdı. Aynı kimlikle gönderilir: borsada varsa kimlik tekrarı
+        reddedilir ve mevcut emir benimsenir (çift emir olmaz). Belirsiz (UNKNOWN) satırların çözümü normal turda, 'yok' teyidiyle yapılır."""
+        for row in self.store.orders(self.gid):
+            if row["role"] in ("S", "T") and row["status"] == PENDING_SEND:
+                self._send(row)
+
+    # ---------- doğrulanmış stop yokken pozisyon büyüyemez ----------
+    def _open_safety_rows(self) -> list:
+        """Borsada AKTİF olabilecek ek (DCA) emir satırları: NEW/PARTIAL ve durumu belirsiz (UNKNOWN). PENDING_SEND borsaya hiç gitmemiştir
+        (çökme penceresi `_adopt_unsent` ile eşitlemede kapatılır); gönderim kapısı onları zaten tutar."""
+        return [e for e in self._entries() if e["level"] > 1 and e["status"] in (NEW, PARTIAL, UNKNOWN)]
+
+    def _disarm_safeties(self) -> bool:
+        """Borsada bekleyen TÜM ek emirleri iptal eder ve iptali borsadan DOĞRULAR. İptal yanıtı kaybolduysa (zaman aşımı) emrin gerçek durumu
+        kimlikle sorulur. Dönüş: True = hiçbir ek emir aktif kalmadı; False = en az biri iptal doğrulanamadı (pozisyon büyüyebilir)."""
+        rows = self._open_safety_rows()
+        if not rows:
+            return True
+        levels = {int(r["level"]) for r in rows}
+        for _ in range(CANCEL_VERIFY_ATTEMPTS):
+            for row in self._open_safety_rows():
+                self._cancel(row["client_id"])
+            for row in self._open_safety_rows():
+                self._adopt(row["client_id"], quiet=True)        # iptal yanıtı kayıp olabilir: borsanın gerçek durumunu sor
+            if not self._open_safety_rows():
+                break
+        self._save_disarmed(set(self._disarmed()) | levels)
+        remaining = self._open_safety_rows()
+        if remaining:
+            self._alert("kritik", f"Doğrulanmış stop yokken bekleyen ek emir iptal EDİLEMEDİ/doğrulanamadı: {[r['client_id'] for r in remaining]}")
+        else:
+            self._alert("uyarı", "Doğrulanmış stop yok: bekleyen ek emirler iptal edildi ve borsada doğrulandı; stop yeniden doğrulanınca yeniden kurulacak.")
+        return not remaining
+
+    def _guard_growth(self) -> None:
+        """Pozisyon açıkken borsada doğrulanmış stop TAMAMINI kapsamıyorsa pozisyonun büyümesine izin verme:
+        1) yeni ek emir zaten gönderilmez (kapı), 2) bekleyen ek emirler iptal edilir ve doğrulanır; doğrulanamazsa HEMEN kapatma yoluna geçilir,
+        3) stop her kontrolde yeniden denenir; art arda STOP_RETRY_TICKS TUR kurulamazsa pozisyon piyasadan kapatılır (kullanıcıyı beklemez)."""
+        if self.status in (EMERGENCY, EMERGENCY_CLOSED, STOPPED, COMPLETED, CYCLE_DONE, BLOCKED, INTERVENTION_REQUIRED):
+            return
+        if self.grid_net() <= EPS or self._stop_verified():
+            self._stop_unverified = 0
+            return
+        if not self._disarm_safeties():
+            if not self._protect_only:
+                self._flatten("Doğrulanmış stop yokken bekleyen DCA emri iptal edilemedi")
+            return
+        if self._protect_only or self._watch_seq == self._tick_seq:
+            return                                # kurtarma/akış yolu sayacı artırmaz; bir turda en çok bir kez sayılır
+        self._watch_seq = self._tick_seq
+        self._stop_unverified += 1
+        if self._stop_unverified >= STOP_RETRY_TICKS:
+            self._flatten(f"Açık pozisyon için doğrulanmış koruyucu stop {STOP_RETRY_TICKS} turdur kurulamadı")
+
+    def _flatten(self, reason: str) -> str:
+        """Pozisyonu güvenle kapat: mevcut ACİL DURDUR akışı (bekleyen girişleri iptal → kapatma emri → borsadan doğrula). Çift emir riski:
+        kapanış emri tek ve kimliklidir; yanıt kaybolursa önce borsaya sorulur, sorulamıyorsa göndermeden beklenir. Kapanış doğrulanamazsa
+        emergency_stop INTERVENTION_REQUIRED yapar ve koruyucu stopları İPTAL ETMEZ (son güvenlik durumu)."""
+        self._alert("kritik", f"{reason}: pozisyon piyasadan kapatılıyor, yeni giriş yok.")
+        status = self.emergency_stop()
+        self.store.set_grid(self.gid, halt_reason=f"{reason} → {status}")
+        return status
+
+    def _disarmed(self) -> list[int]:
+        try:
+            return sorted(int(x) for x in (json.loads(self.store.grid(self.gid)["spec"]).get("meta") or {}).get("disarmed", []))
+        except (ValueError, TypeError, KeyError):
+            return []
+
+    def _save_disarmed(self, levels: set[int]) -> None:
+        """Koruma yokken iptal edilen ek emir kademeleri (yeniden başlatmada da kaybolmasın diye defterdeki ayara yazılır)."""
+        raw = json.loads(self.store.grid(self.gid)["spec"])
+        raw.setdefault("meta", {})["disarmed"] = sorted(levels)
+        self.store.set_grid(self.gid, spec=json.dumps(raw))
+
+    def _rearm_safeties(self) -> None:
+        """Stop ve hedef borsada yeniden doğrulandıysa, koruma yokken iptal edilen ek emirleri (fiyat hâlâ uygunsa) yeni kimlikle geri kurar.
+        Önceki iptaller doğrulanmadan hiçbir ek emir kurulmaz; borsa fiyatı bilinmiyorsa kurulmaz (bekler)."""
+        levels = self._disarmed()
+        base = self._base()
+        if (not levels or self.status != RUNNING or base is None or base["status"] != FILLED or self.grid_net() <= EPS
+                or not (self._stop_verified() and self._targets_verified()) or self._open_safety_rows()):
+            return
+        info = self._exchange_position()
+        price = float(info.mark_price) if info is not None else 0.0
+        if not price > 0:
+            return
+        reopened = skipped = 0
+        for level in levels:
+            mine = [e for e in self._entries() if e["level"] == level]
+            last = max(mine, key=lambda e: e["rev"]) if mine else None
+            if last is None or last["status"] != CANCELED or last["filled"] > EPS:
+                continue
+            if not self._entry_still_valid(level, price):
+                skipped += 1
+                continue
+            lv = self.spec.levels[level - 1]
+            self._intent(role="E", level=level, rev=max(e["rev"] for e in mine) + 1, cycle=self._cycle(), side=self._entry_side(level),
+                         type=LIMIT, price=lv.entry, stop_price=0.0, qty=lv.qty, reduce_only=0, tag=self._level_tag(level))
+            reopened += 1
+        self._save_disarmed(set())
+        self._alert("bilgi", f"Stop yeniden doğrulandı: {reopened} ek emir yeniden kuruldu" + (f", fiyatın yanlış tarafında kalan {skipped} kademe atlandı." if skipped else "."))
+
     def _ensure_stop(self) -> bool:
         """Grid motorundaki stop kuralı: dolu miktarın tamamı, önce yeni stop doğrulanır, sonra eskiler iptal. False: devam etme."""
+        self._flush_protective()
         net = self.grid_net()
         stops = self.store.orders(self.gid, "S")
         active = [s for s in stops if s["status"] in ACTIVE]
@@ -145,9 +372,9 @@ class DcaEngine(GridEngine):
             self._sync_for_emergency()
             self._stop_after_forced_close()
         elif status == REJECTED:
-            self._cancel_all(roles=("E",))
-            self._set(INTERVENTION_REQUIRED, "Koruyucu stop kurulamadı")
-            self._alert("kritik", "MÜDAHALE GEREKLİ: koruyucu stop kurulamadı (borsa reddetti). Yeni ek emirler iptal edildi; eski stoplar iptal EDİLMEDİ.")
+            # Kullanıcıyı beklemeden: bekleyen ek emirler `_guard_growth`'ta iptal+doğrulanır, stop sonraki kontrollerde yeniden denenir,
+            # STOP_RETRY_TICKS tur sonunda hâlâ kurulamazsa pozisyon kapatılır. Eski stoplar iptal EDİLMEDİ.
+            self._alert("kritik", "Koruyucu stop kurulamadı (borsa reddetti); yeniden denenecek. Bekleyen ek emirler iptal ediliyor, eski stoplar korunuyor.")
         else:
             self._alert("kritik", "Yeni koruyucu stop henüz doğrulanamadı; eski stoplar korunuyor, tekrar denenecek.")
         return False
@@ -160,7 +387,7 @@ class DcaEngine(GridEngine):
             for old in active:
                 self._cancel(old["client_id"])
             return
-        price = self.tp_price()
+        price = self._target_price()           # borsanın gerçek ortalamasına göre; tutarsızlıkta INTERVENTION_REQUIRED ve None
         if price is None:
             return
         tick = float(self.spec.meta.get("tick") or 0)
@@ -183,7 +410,10 @@ class DcaEngine(GridEngine):
         """Piyasadan reduceOnly kapanış (acil durdurma / stop geçilmiş); emir turu taşır (özet için)."""
         rows = [r for r in self.store.orders(self.gid, "C") if r["status"] not in TERMINAL]
         if rows:
-            self._send(rows[0])
+            if rows[0]["status"] == UNKNOWN:
+                self._resolve_unknown(rows[0])    # kapanış yanıtı kayıp: ÖNCE borsaya sor; yalnız 'yok' teyidiyle aynı kimlikle tekrar gönderilir
+            else:
+                self._send(rows[0])
             return
         cid = self._intent(role="C", level=0, rev=len(self.store.orders(self.gid, "C")), cycle=self._cycle(), side=self.exit_side, type=MARKET,
                            price=0.0, stop_price=0.0, qty=qty, reduce_only=1)
@@ -232,6 +462,7 @@ class DcaEngine(GridEngine):
         if leftovers or abs(actual - self.store.grid(self.gid)["baseline"]) > 1e-6 or abs(self.grid_net()) > EPS:
             return False
         cycle = self._cycle() + 1
+        self._stop_unverified = 0
         self.spec = spec
         self.store.set_grid(self.gid, spec=json.dumps(spec.as_json()))
         prev = self.store.orders(self.gid, "E")

@@ -143,6 +143,19 @@ function pickVoice(voices: SpeechSynthesisVoice[], tag: string, language: string
   return matching.sort((a, b) => score(b) - score(a))[0]
 }
 
+/** iPhone Safari, sesli okumayı yalnız kullanıcı dokunuşuyla başlatılmış bir konuşmadan sonra serbest bırakır. Cevap ağdan geç geldiği için
+ *  o dokunuşta sessiz bir okuma başlatıp tarayıcının ses kilidini açarız; yoksa Kais "konuşuyor" görünür ama ses gelmez. */
+export function unlockSpeech() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    const synth = window.speechSynthesis
+    synth.resume()
+    const silent = new SpeechSynthesisUtterance(' ')
+    silent.volume = 0
+    synth.speak(silent)
+  } catch { /* ses kilidi açılamazsa normal akış sürer */ }
+}
+
 const coarsePointer = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
 
 /** Sohbetten bağımsız basit okuma (site turu anlatımı). Dönen fonksiyon okumayı keser; bitince ya da kesilince onDone bir kez çağrılır. */
@@ -177,6 +190,8 @@ export type VoicePhase = 'off' | 'listening' | 'thinking' | 'speaking'
 const IDLE_LIMIT_MS = 5 * 60 * 1000
 /** Kullanıcı sustuktan sonra cümlenin bittiğini varsaymadan önce beklenen süre (duraksamada cümle kesilmesin). */
 const SILENCE_MS = 2000
+// Konuşma bu süreden uzun sürerse (arka plan gürültüsü sürekli yeni metin üretse bile) dinleme kapanır ve eldeki cümle işlenir.
+const MAX_UTTERANCE_MS = 25_000
 const BARGE_GUARD_MS = 700
 const BARGE_MIN_WORDS = 2
 
@@ -194,6 +209,9 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
   callback.current = onTranscript
   const active = useRef(false)
   const failures = useRef(0)
+  // Tanıyıcının verdiği son hata kodu (audio-capture, network, language-not-supported …): hata iletisine eklenir, sorunun nedeni görülsün.
+  const lastErrorCode = useRef('')
+  const withCode = (text: string) => lastErrorCode.current ? `${text} (kod: ${lastErrorCode.current})` : text
   const noAnswers = useRef(0)
   const lastSpeech = useRef(0)
   const speakToken = useRef(0)
@@ -342,7 +360,11 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     instance.continuous = bargeIn || !coarsePointer()
     const state = {instance, interrupted: false, retired: false, wordOnly: false}
     let silence = 0
+    let utteranceCap = 0
     const clearSilence = () => { if (silence) { window.clearTimeout(silence); silence = 0 } }
+    const clearCap = () => { if (utteranceCap) { window.clearTimeout(utteranceCap); utteranceCap = 0 } }
+    // İlk metin gelince sayaç başlar; sessizlik zamanlayıcısı ne olursa olsun cümle en geç MAX_UTTERANCE_MS sonra biter.
+    const armCap = () => { if (!utteranceCap) utteranceCap = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, MAX_UTTERANCE_MS) }
     if (bargeIn) barge.current = state
     let transcript = ''
     let fatal = false
@@ -354,7 +376,8 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         emitVoiceActivity('input')
         lastSpeech.current = Date.now()
         clearSilence()
-        if (instance.continuous && transcript) silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS)
+        // Telefonda tarayıcı bazen dinlemeyi kendiliğinden bitirmez; sessizlik süresi her modda bizim tarafımızda da beklenir.
+        if (transcript) { armCap(); silence = window.setTimeout(() => { try { instance.stop() } catch { /* zaten durmuş */ } }, SILENCE_MS) }
         return
       }
       // Kais'in kendi sesini (yankı) kullanıcı sanmamak için okunan metinle karşılaştırırız.
@@ -372,6 +395,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
         if (stopWord) { transcript = ''; try { instance.stop() } catch { /* zaten durmuş */ } return }
       }
       transcript = text
+      armCap()
       setHeard(fixVoiceText(text))
       emitVoiceActivity('input')
       clearSilence()
@@ -380,10 +404,11 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     }
     instance.onerror = event => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { fatal = true; end(copy.denied) }
-      else if (event.error !== 'no-speech' && event.error !== 'aborted') failures.current += 1
+      else if (event.error !== 'no-speech' && event.error !== 'aborted') { failures.current += 1; lastErrorCode.current = event.error ?? '' }
     }
     instance.onend = () => {
       clearSilence()
+      clearCap()
       if (recognition.current === instance) recognition.current = null
       if (barge.current === state) barge.current = null
       if (!active.current || fatal || state.retired) return
@@ -396,7 +421,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       const question = stripWakeWord(transcript)
       if (!transcript || !question) {
         setHeard('')
-        if (failures.current > 5) { end(copy.failed); return }
+        if (failures.current > 5) { end(withCode(copy.failed)); return }
         window.setTimeout(() => listenRef.current(false), failures.current ? 600 : 150)
         return
       }
@@ -416,7 +441,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       failures.current += 1
       if (bargeIn) return
       // start() her seferinde hata verirse (bazı tarayıcılarda) sessizce sonsuza dek denemek yerine nedeni göster ve bitir.
-      if (failures.current > 3) { end(copy.failed); return }
+      if (failures.current > 3) { end(withCode(copy.failed)); return }
       window.setTimeout(() => listenRef.current(false), 800)
     }
   }, [answer, copy, end, stopSpeaking])
@@ -426,6 +451,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
     if (startingRef.current) return
     if (!recognitionConstructor()) { setMessage(copy.unsupported); return }
     stopSpeaking()
+    unlockSpeech()  // dokunuş anında (await öncesi): iPhone Safari'de cevabın sesli okunması için
     startingRef.current = true; setStarting(true); setMessage('')
     try {
       // İzin penceresini doğrudan tıklamayla açmak için mikrofonu önce isteriz.
@@ -442,6 +468,7 @@ export function useVoice(language: VoiceLanguage, onTranscript: (text: string) =
       }
       active.current = true
       failures.current = 0
+      lastErrorCode.current = ''
       lastSpeech.current = Date.now()
       setMessage('')
       listen()

@@ -2275,7 +2275,7 @@ salt-okunur görüntüler. İşlem/bağlantı yetkisi mevcut OWNER veya aktif ab
 kurallarından belirlenir; istemci plan bilgisi yetki vermez. Premium, mevcut
 LOCKED / ARM / consent ve risk kapılarını kaldırmaz.
 
-Sunucu ayarları: `ANALYST_DAILY_CREDITS=70` (7 analiz/gün), `ANALYST_COST=10`,
+Sunucu ayarları: `ANALYST_DAILY_CREDITS=50` (5 analiz/gün), `ANALYST_COST=10`,
 `CREDIT_WINDOW_HOURS=24`, `ANALYST_CACHE_MINUTES=15`.
 Varsayılan analiz maliyeti `backend/app/analyst_credits.py` içindeki
 `ANALYSIS_COST` sabitinden gelir; `ANALYST_COST` mevcut ortam ayarıyla değiştirilebilir.
@@ -2338,7 +2338,7 @@ okunur; diğer modüller model, limit veya fiyat değerlerini tekrar sabitlememe
 | Ortam değişkeni | Varsayılan | Amaç |
 | --- | --- | --- |
 | `ASSISTANT_ENABLED` | `true` | Özelliği açma/kapatma |
-| `ASSISTANT_MODEL` | `claude-haiku-4-5-20251001` | Kullanılacak model kimliği |
+| `ASSISTANT_MODEL` | `claude-sonnet-5-5` | Kullanılacak model kimliği |
 | `ANTHROPIC_API_KEY` | boş | Yalnız backend secret store |
 | `ASSISTANT_MAX_INPUT_CHARS` | `500` | Tek mesaj karakter sınırı |
 | `ASSISTANT_VOICE_MAX_INPUT_CHARS` | `800` | Sesli girişte mesaj karakter sınırı |

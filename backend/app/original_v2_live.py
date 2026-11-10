@@ -455,7 +455,7 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
             "smart_profit": smart_profit_public(state),
             "risk_projection": copy.deepcopy(config.get("risk_projection")),
             "last_risk_adjustment": copy.deepcopy(config.get("last_risk_adjustment")),
-            "daily": copy.deepcopy(config.get("daily")),
+            "daily": daily_public(config),
             "fill_lock": copy.deepcopy(config.get("fill_lock")),
             "scanner": scanner,
             "universe": universe,
@@ -749,6 +749,16 @@ async def daily_guard(client: Any, state: dict[str, Any], snapshot: dict[str, An
         day_state["locked"] = True
     if day_state["locked"]:
         raise HTTPException(423, "Günlük kayıp sınırı aşıldı; bugün yeni işlem açılmaz.")
+
+
+def daily_public(config: dict[str, Any]) -> Any:
+    """Günlük kayıp kaydı ekrana verilirken: önceki UTC gününe ait kilit bugünkü gibi gösterilmez.
+    Sunucu yeni günü ancak bir emir kapısı çalışınca sıfırlar; strateji kapalıyken eski kilit sonsuza dek görünürdü."""
+    day = copy.deepcopy(config.get("daily"))
+    if isinstance(day, dict) and day.get("locked") and day.get("day") != datetime.now(timezone.utc).date().isoformat():
+        day["locked"] = False
+        day["stale_previous_day"] = True
+    return day
 
 
 def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:

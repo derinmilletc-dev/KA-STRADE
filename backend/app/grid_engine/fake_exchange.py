@@ -5,7 +5,7 @@ from typing import Callable
 
 from .ports import (TAKE_PROFIT_MARKET, BUY, CANCELED, DUPLICATE_CLIENT_ID, EPS, FILLED, LIMIT, MARKET, NEW, PARTIAL,
                     REDUCE_ONLY_REJECTED, SELL, STOP_MARKET, UNKNOWN_ORDER, WOULD_TRIGGER_IMMEDIATELY, ExchangeRejected,
-                    ExchangeTimeout, ExchangeUnreachable, OrderInfo)
+                    ExchangeTimeout, ExchangeUnreachable, OrderInfo, PositionInfo)
 
 
 class FakeExchange:
@@ -14,9 +14,13 @@ class FakeExchange:
         self.prices: dict[str, float] = {}
         self.orders: dict[str, OrderInfo] = {}
         self.positions: dict[str, float] = {}
+        self.entries: dict[str, float] = {}            # borsanın ortalama giriş fiyatı (entryPrice): artışta ağırlıklı ortalama, azalışta DEĞİŞMEZ (Binance gibi)
+        self.liq_prices: dict[str, float] = {}         # test: borsanın bildirdiği likidasyon fiyatı (yoksa 0 = bilinmiyor)
+        self.position_info_down = False                # test: position_info okunamıyor (geçici hata)
         self.connected = True
         self.lose_response_for: set[str] = set()      # emir işlenir, yanıt kaybolur (Timeout)
         self.lose_response_always = False
+        self.lose_cancel_response_for: set[str] = set()   # iptal işlenir, yanıt kaybolur (Timeout)
         self.percent_down = 0.0                        # >0: limit alış fiyatı mark*percent_down'dan düşük olamaz (PERCENT_PRICE)
         self.dup_never_rejected = False                # kimlik tekrarını HİÇ reddetmeyen (kötü senaryo) borsa
         self.reuse_final_ids = False                   # biten (dolu/iptal) emrin kimliği yeniden kullanılabilir
@@ -103,11 +107,23 @@ class FakeExchange:
         if order.status not in (NEW, PARTIAL):
             raise ExchangeRejected(UNKNOWN_ORDER, "Order does not exist (dolmuş ya da iptal)")
         order.status = CANCELED
+        if client_id in self.lose_cancel_response_for:        # iptal işlendi, yanıt kayboldu (Timeout): durum sorulmadan bilinemez
+            self.lose_cancel_response_for.discard(client_id)
+            raise ExchangeTimeout("iptal yanıtı alınamadı")
         return self._copy(order)
 
     def position(self, symbol):
         self._enter("position")
         return self.positions.get(symbol, 0.0)
+
+    def position_info(self, symbol):
+        self._enter("position_info")
+        if self.position_info_down:
+            raise ExchangeUnreachable("pozisyon ayrıntısı okunamadı")
+        amount = self.positions.get(symbol, 0.0)
+        if abs(amount) <= EPS:
+            return PositionInfo(0.0)
+        return PositionInfo(amount, self.entries.get(symbol, 0.0), self.liq_prices.get(symbol, 0.0), self.prices.get(symbol, 0.0))
 
     # ---- fiyat ve dolum simülasyonu ----
     def set_price(self, symbol: str, price: float) -> None:
@@ -150,7 +166,16 @@ class FakeExchange:
         order.filled = round(order.filled + qty, 8)
         order.status = FILLED if order.qty - order.filled <= EPS else PARTIAL
         signed = qty if order.side == BUY else -qty
-        self.positions[order.symbol] = round(self.positions.get(order.symbol, 0.0) + signed, 8)
+        before = self.positions.get(order.symbol, 0.0)
+        after = round(before + signed, 8)
+        self.positions[order.symbol] = after
+        if abs(after) <= EPS:
+            self.entries.pop(order.symbol, None)
+        elif abs(before) <= EPS or (before > 0) != (after > 0):                 # yeni pozisyon ya da yön değişimi: giriş = dolum fiyatı
+            self.entries[order.symbol] = price
+        elif abs(after) > abs(before) and price:                                 # pozisyon büyüdü: ağırlıklı ortalama
+            self.entries[order.symbol] = round((abs(before) * self.entries.get(order.symbol, price) + qty * price) / abs(after), 8)
+        # pozisyon küçüldü: entryPrice değişmez
 
     @staticmethod
     def _copy(order: OrderInfo) -> OrderInfo:

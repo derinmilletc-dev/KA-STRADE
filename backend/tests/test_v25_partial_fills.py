@@ -393,8 +393,8 @@ class PartialFillTests(unittest.TestCase):
         client = PartialFillClient(plan)
         client.algos = [
             {"symbol": "BTCUSDT", "side": "SELL", "type": "STOP_MARKET", "closePosition": "true", "triggerPrice": "49000", "workingType": "MARK_PRICE", "clientAlgoId": execution.client_id_for("SL", plan["intent_id"])},
-            {"symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET", "quantity": "0.003", "reduceOnly": "true", "triggerPrice": "51000", "workingType": "MARK_PRICE", "clientAlgoId": execution.client_id_for("TP12", plan["intent_id"])},
-            {"symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET", "closePosition": "true", "triggerPrice": "53000", "workingType": "MARK_PRICE", "clientAlgoId": execution.client_id_for("TP3", plan["intent_id"])},
+            {"symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET", "quantity": "0.003", "reduceOnly": "true", "triggerPrice": "51000", "workingType": "CONTRACT_PRICE", "clientAlgoId": execution.client_id_for("TP12", plan["intent_id"])},
+            {"symbol": "BTCUSDT", "side": "SELL", "type": "TAKE_PROFIT_MARKET", "closePosition": "true", "triggerPrice": "53000", "workingType": "CONTRACT_PRICE", "clientAlgoId": execution.client_id_for("TP3", plan["intent_id"])},
         ]
         plan.update({"stop_algo_id": 101, "stop_client_id": client.algos[0]["clientAlgoId"]})
         state = execution.initial_state()
