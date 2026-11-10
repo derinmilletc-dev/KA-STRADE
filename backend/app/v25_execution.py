@@ -6219,6 +6219,26 @@ def symbol_occupancy_status(snapshot: dict[str, Any], symbol: str) -> tuple[bool
     return True, False, f"{normalized} için açık pozisyon veya emir bulunmuyor."
 
 
+def _order_mark(timer: dict[str, Any], stage: str) -> str:
+    """Emir akışında her aşamanın süresini kaydeder (teşhis; akışı değiştirmez)."""
+    now = time.monotonic()
+    timer["marks"].append((timer.get("stage"), now - timer["last"]))
+    timer["last"], timer["stage"] = now, stage
+    return stage
+
+
+def _order_timing_report(timer: dict[str, Any], symbol: str) -> None:
+    try:
+        now = time.monotonic()
+        marks = [*timer["marks"], (timer.get("stage"), now - timer["last"])]
+        total = now - timer["start"]
+        parts = " ".join(f"{name}={seconds * 1000:.0f}ms" for name, seconds in marks if seconds >= 0.05)
+        level = logging.WARNING if total >= 8 else logging.INFO
+        logger.log(level, "ORDER_TIMING symbol=%s total_ms=%.0f %s", symbol, total * 1000, parts)
+    except Exception:  # noqa: BLE001 - teşhis hatası emri etkilemez
+        pass
+
+
 async def execute_live_order(
     application: Any,
     body: LiveOrderRequest,
@@ -6282,7 +6302,8 @@ async def execute_live_order(
     reservation_token: str | None = None
     reservation_plan: dict[str, Any] | None = None
     reservation_filled = False
-    observation_stage = "SIGNED_ACCOUNT_ACCESS"
+    order_timer = {"start": time.monotonic(), "last": time.monotonic(), "stage": "BASLANGIC", "marks": []}
+    observation_stage = _order_mark(order_timer, "SIGNED_ACCOUNT_ACCESS")
     async with state["lock"]:
         try:
             state["last_order_error"] = None
@@ -6293,12 +6314,12 @@ async def execute_live_order(
             client = client_for_with_credentials(application, credentials, request)
             snapshot = await account_snapshot(client)
             record_live_entry_check(entry_checks, "signed_account_access", True, "Binance hesap snapshot'ı imzalı API isteğiyle alındı.", symbol=body.symbol)
-            observation_stage = "ACCOUNT_MODE"
+            observation_stage = _order_mark(order_timer, "ACCOUNT_MODE")
             # Manuel emirde günlük işlem SAYISI ve ardışık kayıp SAYISI sınırı yok (Original V2 LIVE ile aynı);
             # günlük kayıp kilidi, açık zarar kilidi ve diğer kapılar aynen kalır.
             entry_policy = {**state["policy"], "daily_trade_limit": 0, "consecutive_loss_limit": 0} if source == "MANUAL" else state["policy"]
             if original_entry:
-                observation_stage = "ORIGINAL_ACCOUNT_AUTHORIZATION"
+                observation_stage = _order_mark(order_timer, "ORIGINAL_ACCOUNT_AUTHORIZATION")
                 await original_v2_live.check_entry(application, client, state, snapshot)
                 if strategy_result is None or normalize_symbol(body.symbol) != strategy_result.signal.symbol:
                     raise LiveExchangeError("Original V2 sunucu sinyali doğrulanamadı.", http_status=423)
@@ -6306,7 +6327,7 @@ async def execute_live_order(
                     raise LiveExchangeError("Original V2 kapalı mum kararı güncel değil.", http_status=423)
                 entry_policy = original_v2_live.execution_policy(state, snapshot)
                 manual_symbol_scope = entry_policy["allowed_symbols"]
-                observation_stage = "ACCOUNT_MODE"
+                observation_stage = _order_mark(order_timer, "ACCOUNT_MODE")
             if source != "MANUAL" and state.get("real_trading_locked") is not False:
                 raise LiveExchangeError("Gerçek işlem kilidi kapalı; açık canlı onay olmadan emir gönderilmedi.", http_status=423)
             if automatic_entry and state.get("live_auto_trade") is not True:
@@ -6339,7 +6360,7 @@ async def execute_live_order(
             current_spread = await spread_bps(client, symbol)
             observation.emit("candidate", symbol=symbol, spread_bp=current_spread, snapshot=snapshot,
                          cycle_candidates=cycle_candidates)
-            observation_stage = "ENTRY_GATES"
+            observation_stage = _order_mark(order_timer, "ENTRY_GATES")
             if current_spread > float(entry_policy["max_spread_bps"]):
                 await asyncio.sleep(0.25)
                 current_spread = await spread_bps(client, symbol)
@@ -6371,7 +6392,7 @@ async def execute_live_order(
                 observation.emit("candidate", symbol=symbol, actual_gates=guard["gates"], first_reject=failed["key"].upper())
                 prefix = "Canlı yön risk kapısı" if failed["key"] in {"same_direction_positions", "direction_exposure"} else "Canlı risk kapısı"
                 raise LiveExchangeError(f"{prefix}: {guard['reason']}", http_status=409, check_key=f"risk_{failed['key']}")
-            observation_stage = "AVAILABLE_BALANCE"
+            observation_stage = _order_mark(order_timer, "AVAILABLE_BALANCE")
             collateral_available = float(snapshot.get("available_balance") or 0) >= body.margin_usdt
             record_live_entry_check(
                 entry_checks,
@@ -6382,7 +6403,7 @@ async def execute_live_order(
             )
             if not collateral_available:
                 raise LiveExchangeError("Canlı hesap kullanılabilir bakiyesi seçilen marjinden düşük.", http_status=409, check_key="available_collateral")
-            observation_stage = "SIZING"
+            observation_stage = _order_mark(order_timer, "SIZING")
             spec = (
                 await original_v2_live.build_spec(client, strategy_result, state, snapshot, check_results=entry_checks) if original_entry
                 else await build_live_spec(client, body, entry_policy, allowed_symbols=manual_symbol_scope, check_results=entry_checks,
@@ -6420,10 +6441,10 @@ async def execute_live_order(
             )
             if not spec_collateral_available:
                 raise LiveExchangeError("Canlı hesap kullanılabilir bakiyesi hesaplanan marjinden düşük.", http_status=409, check_key="available_collateral")
-            observation_stage = "PROTECTION_READINESS"
+            observation_stage = _order_mark(order_timer, "PROTECTION_READINESS")
             validate_protection_readiness(spec, entry_policy)
             record_live_entry_check(entry_checks, "protection_readiness", True, "Stop ve TP koruma parametreleri hazır.", symbol=symbol)
-            observation_stage = "SYMBOL_OCCUPANCY"
+            observation_stage = _order_mark(order_timer, "SYMBOL_OCCUPANCY")
             occupancy_verified, symbol_occupied, occupancy_detail = symbol_occupancy_status(snapshot, spec["symbol"])
             record_live_entry_check(entry_checks, "symbol_occupancy", occupancy_verified and not symbol_occupied, occupancy_detail, symbol=symbol)
             if not occupancy_verified or symbol_occupied:
@@ -6432,7 +6453,7 @@ async def execute_live_order(
                 detail = f"{normalize_symbol(spec['symbol'])} üzerinde çalışan bir grid var; aynı coinde ayrıca işlem açılmaz."
                 record_live_entry_check(entry_checks, "grid_occupancy", False, detail, symbol=symbol)
                 raise LiveExchangeError(detail, http_status=409, check_key="grid_occupancy")
-            observation_stage = "ACCOUNT_RESERVATION"
+            observation_stage = _order_mark(order_timer, "ACCOUNT_RESERVATION")
             breakdown = None
             reservation_owner_id = live_reservation_owner(state, request)
             try:
@@ -6452,9 +6473,9 @@ async def execute_live_order(
                 check_key = "account_risk" if isinstance(exc, AccountRiskUnknown) or getattr(exc, "kind", "") == "risk" else "account_reservation"
                 raise LiveExchangeError(text, http_status=503 if blocked else 409, check_key=check_key) from exc
             record_live_entry_check(entry_checks, "account_reservation", True, "Coin ve ortak risk rezervasyonu alındı.", symbol=symbol)
-            observation_stage = "SYMBOL_OCCUPANCY"
+            observation_stage = _order_mark(order_timer, "SYMBOL_OCCUPANCY")
             if automatic_entry:
-                observation_stage = "FRESH_CREDENTIALS"
+                observation_stage = _order_mark(order_timer, "FRESH_CREDENTIALS")
                 fresh_credentials = await fresh_auto_submission_credentials(application, state, check_results=entry_checks)
                 if not usable_live_credentials(fresh_credentials):
                     failed = next((item for item in reversed(entry_checks) if not item["passed"]), None)
@@ -6468,11 +6489,11 @@ async def execute_live_order(
                     )
                 credentials = fresh_credentials
                 client = client_for_with_credentials(application, credentials, request)
-                observation_stage = "FRESH_ACCOUNT_SNAPSHOT"
+                observation_stage = _order_mark(order_timer, "FRESH_ACCOUNT_SNAPSHOT")
                 fresh_snapshot = await account_snapshot(client)
                 record_live_entry_check(entry_checks, "signed_account_access", True, "Gönderim öncesi taze Binance hesap snapshot'ı alındı.", symbol=symbol)
                 if original_entry:
-                    observation_stage = "FRESH_ORIGINAL_GATES"
+                    observation_stage = _order_mark(order_timer, "FRESH_ORIGINAL_GATES")
                     await original_v2_live.check_entry(application, client, state, fresh_snapshot)
                     entry_policy = original_v2_live.execution_policy(state, fresh_snapshot)
                 one_way_mode = not bool(fresh_snapshot.get("hedge_mode"))
@@ -6539,7 +6560,7 @@ async def execute_live_order(
                         check_key=f"risk_{failed_fresh_gate.key}",
                     )
                 snapshot = fresh_snapshot
-            observation_stage = "ISOLATED_MARGIN"
+            observation_stage = _order_mark(order_timer, "ISOLATED_MARGIN")
             try:
                 expected_margin_type = await set_live_isolated_margin(client, spec["symbol"])
             except (LiveExchangeError, BinanceDemoError) as exc:
@@ -6549,7 +6570,7 @@ async def execute_live_order(
                 record_live_entry_check(entry_checks, "isolated_margin", False, "Borsa sembol marjin modunu ISOLATED olarak doğrulamadı.", symbol=symbol)
                 raise LiveExchangeError("Isolated marjin uygulanamadı; canlı giriş reddedildi.", http_status=409, check_key="isolated_margin")
             record_live_entry_check(entry_checks, "isolated_margin", True, "Sembol marjin modu ISOLATED olarak ayarlandı/doğrulandı.", symbol=symbol)
-            observation_stage = "LEVERAGE"
+            observation_stage = _order_mark(order_timer, "LEVERAGE")
             try:
                 leverage_audit = await apply_live_verified_leverage(
                     client,
@@ -6573,7 +6594,7 @@ async def execute_live_order(
             )
             if not leverage_verified:
                 raise LiveExchangeError("Borsa isolated marjini veya kaldıraç değerini doğrulamadı; canlı giriş reddedildi.", http_status=409, check_key="leverage")
-            observation_stage = "LIQUIDATION_BUFFER"
+            observation_stage = _order_mark(order_timer, "LIQUIDATION_BUFFER")
             spec["liquidation_guard"] = await live_liquidation_risk(client, spec, entry_policy)
             record_live_entry_check(entry_checks, "liquidation_risk", True, "Likidasyon mesafesi ve risk tamponu doğrulandı.", symbol=symbol)
             intent_id = body.intent_id or f"manual-{uuid.uuid4().hex}"
@@ -6675,7 +6696,7 @@ async def execute_live_order(
                                          actual_gates=[gate.as_dict() for gate in checks])
                         raise LiveExchangeError(f"Canlı yön risk kapısı: {failed.detail}", http_status=409)
 
-                observation_stage = "ENTRY_SUBMISSION"
+                observation_stage = _order_mark(order_timer, "ENTRY_SUBMISSION")
                 result = await submit_entry(
                     client,
                     spec,
@@ -6685,7 +6706,7 @@ async def execute_live_order(
                     on_submission_started=mark_submission_started,
                 )
             else:
-                observation_stage = "ENTRY_SUBMISSION"
+                observation_stage = _order_mark(order_timer, "ENTRY_SUBMISSION")
                 result = await submit_entry(
                     client,
                     spec,
@@ -6745,8 +6766,10 @@ async def execute_live_order(
                 "plan_id": plan["id"], "expected_entry": spec["entry_price"],
                 "initial_risk_usdt": plan.get("initial_risk_usdt"),
             })
+            _order_mark(order_timer, "PROTECTION_INSTALL")
             if spec["order_type"] == "MARKET":
                 await install_protection(client, state, plan)
+            _order_mark(order_timer, "FINAL_SNAPSHOT")
             update_account_snapshot(state, await account_snapshot(client))
             persist_state(state)
             outcome, message = live_plan_execution_outcome(plan)
@@ -6904,6 +6927,7 @@ async def execute_live_order(
             raise HTTPException(502, "Canlı emir akışı güvenli şekilde kilitlendi; manuel inceleme gerekli.") from exc
         finally:
             _finish_reservation(reservation_token, reservation_plan, reservation_filled)
+            _order_timing_report(order_timer, normalize_symbol(body.symbol))
 
 
 async def automatic_cycle(application: Any, credentials: tuple[str, str] | None = None) -> None:
