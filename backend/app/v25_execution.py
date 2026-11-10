@@ -3764,6 +3764,17 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     if not manual_close_target.reached(target, direction, position.get("mark_price"), entry, position.get("quantity"), fee_rate):
         return False
     symbol = plan["symbol"]
+    if target.get("mode") == "profit":
+        # Kâr hedefi işaret fiyatına (mark) göre tetiklenir ama kapatma piyasa emridir: LONG alış (bid), SHORT satış (ask)
+        # tarafından dolar. İnce coinlerde fark kârı silip zarara çevirebilir; kapatmadan önce gerçek çıkış fiyatıyla net
+        # kâr hedefi hâlâ tutuyor mu diye bakılır. Okunamazsa bu turda kapatılmaz, 10 sn sonra yeniden denenir.
+        try:
+            book = await client.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol})
+            exit_price = manual_close_target.exit_side_price(direction, book.get("bidPrice"), book.get("askPrice"))
+        except Exception:  # noqa: BLE001 - veri yoksa kapatma yapılmaz
+            return False
+        if not manual_close_target.reached(target, direction, exit_price, entry, position.get("quantity"), fee_rate):
+            return False
     intent = f"manual-target-{plan['id']}-{target.get('set_at') or ''}"
     close_client_id = client_id_for("CLOSE", intent)
     close_ids = plan.setdefault("close_client_order_ids", [])

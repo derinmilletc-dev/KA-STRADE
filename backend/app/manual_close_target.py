@@ -51,6 +51,12 @@ def net_pnl(direction: str, mark: Decimal, entry: Decimal, quantity: Decimal, fe
     return (mark - entry) * quantity * sign - (entry + mark) * quantity * fee_rate
 
 
+def exit_side_price(direction: str, bid: Any, ask: Any) -> Decimal | None:
+    """Piyasa emriyle kapatınca gerçekte dolacağı taraf: LONG satar (bid), SHORT geri alır (ask). Okunamazsa None."""
+    value = _decimal(bid if direction == "LONG" else ask)
+    return value if value is not None and value > 0 else None
+
+
 def reached(target: Any, direction: str, mark: Any, entry: Any, quantity: Any, fee_rate: Any) -> bool:
     """Hedefe ulaşıldı mı. Veri eksik ya da bozuksa False (kapatma yapılmaz; uydurma yok)."""
     if not isinstance(target, dict) or direction not in {"LONG", "SHORT"}:
