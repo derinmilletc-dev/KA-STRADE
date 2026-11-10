@@ -171,6 +171,12 @@ const entryCheckLabel = (key: string) => ({
   entry_submission: 'emir gönderimi',
 } as Record<string, string>)[key] || key.replaceAll('_', ' ')
 
+// Onay yazısı büyük/küçük harf ve Türkçe i/ı/İ/I farkından bağımsız karşılaştırılır (telefonda küçük harf yazılsa da kabul edilir).
+const sameConfirmText = (typed: string, expected: string) => {
+  const fold = (value: string) => value.trim().toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I').replace(/\s+/g, ' ')
+  return fold(typed) === fold(expected)
+}
+
 export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean): string {
   if (status === null) return 'Canlı işlem durumu alınamıyor.'
   if (!liveArmed && status.live_lock_reason?.message) return status.live_lock_reason.message
@@ -1278,7 +1284,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
 
   const confirmAction = () => {
-    if (actionInFlight.current || !confirm || (!confirm.simple && confirmText.trim().toUpperCase() !== confirm.expected)
+    if (actionInFlight.current || !confirm || (!confirm.simple && !sameConfirmText(confirmText, confirm.expected))
         || (confirm.understanding && !confirmUnderstood)
         || (confirm.mfa && confirmCode.length < 6)) return
     const action = confirm.action
@@ -1351,7 +1357,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {!activeConfirm.simple && <label>TYPE TO CONFIRM<input autoFocus value={confirmText} onChange={event => setConfirmText(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') confirmAction()}} placeholder={activeConfirm.expected}/></label>}
       {activeConfirm.mfa && <label>2FA kodu<input data-private="true" type="password" autoComplete="one-time-code" maxLength={32} value={confirmCode} onChange={event => setConfirmCode(event.target.value)} onKeyDown={event => {if (event.key === 'Enter') confirmAction()}}/></label>}
       <div className="liveConfirmBtns"><button type="button" className="liveConfirmNo" onClick={() => {setConfirm(null);setConfirmText('');setConfirmCode('')}}>{activeConfirm.simple ? 'HAYIR' : 'CANCEL'}</button>
-        <button type="button" className="liveConfirmYes" disabled={(activeConfirm.understanding && !confirmUnderstood) || (!activeConfirm.simple && confirmText.trim().toUpperCase() !== activeConfirm.expected) || (activeConfirm.mfa && confirmCode.length < 6)} onClick={confirmAction}>{activeConfirm.simple ? 'EVET' : 'CONFIRM'}</button>
+        <button type="button" className="liveConfirmYes" disabled={(activeConfirm.understanding && !confirmUnderstood) || (!activeConfirm.simple && !sameConfirmText(confirmText, activeConfirm.expected)) || (activeConfirm.mfa && confirmCode.length < 6)} onClick={confirmAction}>{activeConfirm.simple ? 'EVET' : 'CONFIRM'}</button>
       </div>
     </section></div>,
     document.body,
