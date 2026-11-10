@@ -668,7 +668,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     try {
       await action()
       if (!await refresh()) throw new Error('İşlem sonrasında LIVE durumu doğrulanamadı; tekrar göndermeden önce durumu kontrol edin.')
-      setNotice({kind: 'ok', text: success})
+      if (success) setNotice({kind: 'ok', text: success})
       if (connectionAction) setConnectionNotice({kind: 'ok', text: success})
       return true
     }
@@ -1073,7 +1073,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         throw error
       }
       setArmPendingSync(true)
-    }, 'İzin verildi; gerçek emir için hazırsın.')
+    }, silent ? '' : 'İzin verildi; gerçek emir için hazırsın.')
     if (ok) window.setTimeout(() => setPreTick(value => value + 1), 1200)
     if (ok && !silent) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
     return ok
@@ -2088,7 +2088,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const preBlocked = preflight.checks.filter(item => !item.passed && item.key !== 'readiness')
     const permNeeded = !orderDone && !freeTrial && preflight.checks.some(item => item.key === 'readiness' && !item.passed)
     const noticePerm = !orderDone && !freeTrial && !authorizationValid && notice.kind === 'error' && /24 saat|izin|consent|EXPIRED/i.test(notice.text)
-    const permAskEl = (permNeeded && wzStep >= stepNames.length - 1) || noticePerm ? <div className="mxtAsk" role="alert" data-testid="mwz-permask" ref={showInView}>
+    // İzin sistem tarafından arka planda otomatik verilir; kart yalnızca otomatik izin başarısız olduysa (permError) görünür.
+    const permAskEl = ((permNeeded && wzStep >= stepNames.length - 1 && Boolean(permError)) || noticePerm) ? <div className="mxtAsk" role="alert" data-testid="mwz-permask" ref={showInView}>
       <span className="mxtAskIcon" aria-hidden="true"><ShieldCheck/></span>
       <div><b>{noticePerm ? '24 saatlik izin bitmiş' : 'Emir için 24 saatlik izin gerekiyor'}</b><small>Gerçek parayla işlemin riskini 24 saatliğine onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
       <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
