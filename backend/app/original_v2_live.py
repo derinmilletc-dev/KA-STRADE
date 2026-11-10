@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import original_v2_demo_execution as original
+from .farmer_engine.demand import with_farmer_demand
 from .execution_core import configured_min_confidence, system_ceilings
 from .market_universe import (
     ORIGINAL_DEFAULT_SYMBOL_COUNT,
@@ -375,14 +376,37 @@ async def configure_original_kline_stream(application: Any, symbols: list[str]) 
     from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS as ORIGINAL_INTERVALS
     from . import live_registry
     if not live_registry.enabled():
-        await stream.configure(symbols, ORIGINAL_INTERVALS)
+        application.state.original_stream_base_symbols = list(symbols)
+        await stream.configure(with_farmer_demand(application, symbols), ORIGINAL_INTERVALS)
         return
     lock = getattr(application.state, "original_demand_lock", None)
     if lock is None:
         lock = asyncio.Lock()
         application.state.original_demand_lock = lock
     async with lock:  # compute the union and apply it without another member interleaving
-        await stream.configure(shared_original_symbols(application, symbols), ORIGINAL_INTERVALS)
+        union = shared_original_symbols(application, symbols)
+        application.state.original_stream_base_symbols = list(union)
+        await stream.configure(with_farmer_demand(application, union), ORIGINAL_INTERVALS)
+
+
+async def apply_farmer_stream_demand(application: Any, farmer_symbols: list[str]) -> list[str]:
+    """KAIS FARMER'ın sembol talebini kaydeder ve paylaşımlı akışı (Original V2 tabanı + Farmer) yeniden yapılandırır.
+    Original V2'nin kendi talebine DOKUNMAZ (üye talepleri `original_symbol_demands`ta kalır). Boş liste = Farmer talebi kalktı,
+    akış yalnız Original V2 tabanına döner. Dönüş: akışa verilen birleşik liste (akış yoksa [])."""
+    application.state.farmer_symbol_demand = list(farmer_symbols)
+    stream = getattr(application.state, "original_kline_stream", None)
+    if stream is None:
+        return []
+    from .strategies.original_v2_demo import LIVE_KLINE_INTERVALS as ORIGINAL_INTERVALS
+    lock = getattr(application.state, "original_demand_lock", None)
+    if lock is None:
+        lock = asyncio.Lock()
+        application.state.original_demand_lock = lock
+    async with lock:
+        base = list(getattr(application.state, "original_stream_base_symbols", None) or [])
+        merged = with_farmer_demand(application, base)
+        await stream.configure(merged, ORIGINAL_INTERVALS)
+        return list(merged)
 
 
 def plan_is_original(plan: dict[str, Any]) -> bool:

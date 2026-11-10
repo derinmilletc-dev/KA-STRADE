@@ -1298,6 +1298,8 @@ async def lifespan(app: FastAPI):
     await BINANCE_GLOBAL_BAN.configure_persistence(app.state.db_pool)
     BINANCE_GLOBAL_BAN.use_pool_provider(lambda: app.state.db_pool)
     await init_exchange_connections(app)
+    from . import farmer_runtime
+    farmer_runtime.install(app)   # KAIS FARMER: bir kez; başarısızsa kurulmaz (fail-closed). Canlı kapılar ayrıca KAPALI.
     await init_v27_cloud(app)
     await restore_health_snapshot(app)
     app.state.infrastructure_task = asyncio.create_task(infrastructure_loop(app))
@@ -1348,6 +1350,7 @@ async def lifespan(app: FastAPI):
 
     await bounded_shutdown(shutdown_v21_demo(app))
     await bounded_shutdown(shutdown_binance_demo(app))
+    await bounded_shutdown(farmer_runtime.uninstall(app))   # pozisyon KAPATILMAZ; yeni giriş durur, borsadaki STOP/TP kalır
     await bounded_shutdown(shutdown_v25_execution(app))
     await app.state.original_kline_stream.close()
     await TICKER_STREAM.close()
@@ -1679,6 +1682,8 @@ app.include_router(account_settings_router)
 app.include_router(google_oauth_router)
 app.include_router(v24_commerce_router)
 app.include_router(v25_execution_router)
+from .farmer_api import router as farmer_router
+app.include_router(farmer_router)
 from .original_v2_live import router as original_v2_live_router
 app.include_router(original_v2_live_router)
 app.include_router(v27_cloud_router)

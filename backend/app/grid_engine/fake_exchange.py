@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .ports import (BUY, CANCELED, DUPLICATE_CLIENT_ID, EPS, FILLED, LIMIT, MARKET, NEW, PARTIAL,
+from .ports import (TAKE_PROFIT_MARKET, BUY, CANCELED, DUPLICATE_CLIENT_ID, EPS, FILLED, LIMIT, MARKET, NEW, PARTIAL,
                     REDUCE_ONLY_REJECTED, SELL, STOP_MARKET, UNKNOWN_ORDER, WOULD_TRIGGER_IMMEDIATELY, ExchangeRejected,
                     ExchangeTimeout, ExchangeUnreachable, OrderInfo, PositionInfo)
 
@@ -29,6 +29,7 @@ class FakeExchange:
         self.cancel_race: dict[str, float] = {}       # client_id -> iptalden hemen önce dolacak miktar
         self.calls: list[tuple[str, str]] = []
         self.placed_count: dict[str, int] = {}        # client_id -> kaç kez GERÇEKTEN kabul edildi
+        self.tp_slippage = 0.0                         # TAKE_PROFIT_MARKET dolumunda fiyat kayması (mutlak, aleyhe)
 
     # ---- test yardımcıları ----
     def set_position(self, symbol: str, qty: float) -> None:
@@ -63,6 +64,8 @@ class FakeExchange:
         if type != STOP_MARKET and not reduce_only and qty * (price or mark) < self.min_notional - 1e-9:
             raise ExchangeRejected(-4164, "emir değeri en düşük sınırın altında")
         if type == STOP_MARKET and mark and ((side == SELL and mark <= stop_price) or (side == BUY and mark >= stop_price)):
+            raise ExchangeRejected(WOULD_TRIGGER_IMMEDIATELY, "Order would immediately trigger")
+        if type == TAKE_PROFIT_MARKET and mark and ((side == SELL and mark >= stop_price) or (side == BUY and mark <= stop_price)):
             raise ExchangeRejected(WOULD_TRIGGER_IMMEDIATELY, "Order would immediately trigger")
         if type == LIMIT and self.percent_down > 0 and mark and price < mark * self.percent_down - 1e-9:
             raise ExchangeRejected(-4024, "Limit price can't be lower than")
@@ -132,6 +135,15 @@ class FakeExchange:
             if order.type == LIMIT:
                 if (order.side == BUY and price <= order.price) or (order.side == SELL and price >= order.price):
                     self._fill(order, remaining, order.price)
+            elif order.type == TAKE_PROFIT_MARKET:
+                if (order.side == SELL and price >= order.stop_price) or (order.side == BUY and price <= order.stop_price):
+                    pos = abs(self.positions.get(symbol, 0.0))
+                    qty = min(remaining, pos) if order.reduce_only else remaining
+                    fill_at = price - self.tp_slippage if order.side == SELL else price + self.tp_slippage
+                    if qty <= EPS:
+                        order.status = CANCELED
+                    else:
+                        self._fill(order, qty, fill_at)
             elif order.type == STOP_MARKET:
                 if (order.side == SELL and price <= order.stop_price) or (order.side == BUY and price >= order.stop_price):
                     pos = abs(self.positions.get(symbol, 0.0))

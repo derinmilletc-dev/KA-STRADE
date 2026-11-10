@@ -2409,6 +2409,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       wallet={snapshotVerified ? status.account.wallet_balance : null} availableBalance={snapshotVerified && Number.isFinite(available) ? available : null}
       marketBanSeconds={globalBanActive ? banCountdown : 0} externalBusy={Boolean(busy)} userId={userId}
       request={(path, body) => call(V25, path, {method: 'POST', timeoutMs: 60000, ...(body ? {body: JSON.stringify(body)} : {})})}
+      get={path => call(V25, path, {timeoutMs: 20000})}
       refresh={() => refresh(true)} findPlan={findActivePlanForPosition} onManualRiskEdit={openRiskEdit}
       extras={<>
         {sessionConflict && <div className="liveNotice error" role="alert"><TriangleAlert aria-hidden="true"/><span>Canlı kontrol başka bir oturuma bağlı görünüyor. Aynı hesapsa 2FA ile bu oturuma geri bağlayabilirsin; anahtar tekrar istenmez.</span><button type="button" className="masterTradeLiveSecondary" onClick={recoverSession} disabled={Boolean(busy)}><RefreshCw size={16} aria-hidden="true"/> Oturumu geri bağla</button></div>}

@@ -13,6 +13,7 @@ import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPE
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {DcaGuideCard, StrategyPicker, readStrategy, writeStrategy, type LiveStrategy} from './StrategyPicker'
+import FarmerPanel from './FarmerPanel'
 import {MasterOnlyGate} from '../../premium-access'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import {closeEstimate} from './live-quote'
@@ -56,6 +57,8 @@ type Props = {
   onNavigate?: (tab: string) => void
   /** Demo'da "Manuel işlem aç" demo emir kartını açar. */
   onOpenManual?: () => void
+  /** KAIS FARMER ekranı için yetkili GET (örn. '/farmer/status'). Verilmezse Farmer seçeneği 'bağlanılamıyor' durumunu gösterir. */
+  get?: (path: string) => Promise<unknown>
 }
 
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
@@ -757,6 +760,7 @@ export default function LiveCockpit(props: Props) {
   const [strategy, setStrategyState] = useState<LiveStrategy>(() => demo ? 'long' : readStrategy())
   const pickStrategy = (next: LiveStrategy) => { setStrategyState(next); writeStrategy(next) }
   const showDca = !demo && strategy === 'dca'
+  const showFarmer = !demo && strategy === 'farmer'
   const openDca = () => { setManualKind('dca'); openManual(); requestManualMode('dca', {lock: true}) }
   useEffect(() => {
     const prev = previousStep.current
@@ -1984,7 +1988,8 @@ export default function LiveCockpit(props: Props) {
       <div className="lcMain">
         {!demo && <StrategyPicker value={strategy} onChange={pickStrategy}/>}
         {showDca && <DcaGuideCard input={guideInput} stale={stale} onOpen={openDca} onAsk={() => askKais('DCA botunu nasıl kurmalıyım? Önce Demo’da denemek için adımları kısaca anlat.')} onConnect={() => goTab('baglanti')} onManual={openManual} onClearEmergency={() => act('clear-emergency')}/>}
-        {!showDca && <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
+        {showFarmer && <FarmerPanel get={props.get ?? (() => Promise.reject(new Error('NO_GET')))} post={request} accountConnected={!guideInput.statusVerified || guideInput.connected} onConnect={() => goTab('baglanti')} onAsk={askKais}/>}
+        {!showDca && !showFarmer && <section className="lcGuide" data-tone={guide.tone} data-phase={guide.phase} data-testid="live-guide" data-ready={readyToStart || undefined} aria-live="polite" key={advanced}>
           <header className="lcGuideHead">
             <span className="lcEye" aria-hidden="true" data-tone={guide.tone}/>
             <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{stale ? 'Bağlantı bekleniyor · ilerlemen korunuyor' : coach ? 'Kurulum tamam · seni bilgilendiriyorum' : guide.phase === 'loading' ? 'Hazırlanıyor' : guide.phase === 'problem' ? 'Önce bunu çözelim · ilerlemen korunuyor' : `Adım ${guide.step} / ${GUIDE_STEPS.length} · ${GUIDE_STEPS[guide.step - 1]}`}</small><em className="lcStrat" data-testid="strategy-name">Çalışan strateji: Kais Long</em></div>

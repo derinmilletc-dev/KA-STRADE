@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=9.1,<10
 ruff>=0.15,<1
+numpy>=2.0,<3  # offline backtest only (backtest_farmer); not a runtime dependency
