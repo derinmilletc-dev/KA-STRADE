@@ -2082,7 +2082,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}><em>{item.action.label}</em><i aria-hidden="true">→</i></button>}</div>)}
       {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
     </div> : null
-    const preBlocked = preflight.checks.filter(item => !item.passed && !(needPermission && item.key === 'readiness'))
+    // İzin kapısı (readiness) kendi izin akışında yönetilir; burada hata gibi gösterilmez.
+    const preBlocked = preflight.checks.filter(item => !item.passed && item.key !== 'readiness')
     const permNeeded = !orderDone && !freeTrial && preflight.checks.some(item => item.key === 'readiness' && !item.passed)
     const permAskEl = permNeeded && wzStep >= stepNames.length - 1 ? <div className="mxtAsk" role="status" data-testid="mwz-permask">
       <span className="mxtAskIcon" aria-hidden="true"><ShieldCheck/></span>
@@ -2097,14 +2098,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     }
     const preflightFixLabel = (fix: PreflightFix) => fix.type === 'reduce_margin' && fix.margin_usdt ? `Miktarı ${fix.margin_usdt} USDT yap`
       : fix.type === 'positions' ? 'Pozisyonlara git' : fix.type === 'other_coin' ? 'Başka coin seç' : fix.type === 'widen_or_edit_limits' ? 'Limitleri düzenle' : ''
-    const preflightEl = orderDone || preflight.state === 'idle' ? null
+    const preflightEl = orderDone || preflight.state === 'idle' || wzStep < 2 ? null
       : preBlocked.length > 0 ? <div className="mxtPre" data-state="bad" role="alert" data-testid="mwz-preflight">
-        <b>{preBlocked.length === 1 ? 'Bu emir şu an gönderilemez' : `Bu emir şu an gönderilemez · ${preBlocked.length} sebep`}</b>
+        <b>{preBlocked.length === 1 ? 'Küçük bir ayar gerekiyor' : `${preBlocked.length} küçük ayar gerekiyor`}</b>
         {preBlocked.slice(0, 3).map(item => <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
           {item.fix && preflightFixLabel(item.fix) ? <button type="button" onClick={() => applyPreflightFix(item.fix as PreflightFix)}>{preflightFixLabel(item.fix)}</button> : null}</div>)}
       </div>
       : preflight.state === 'ready' ? <p className="mxtPre" data-state="ok" data-testid="mwz-preflight">✓ Hesap kuralları uygun, emir geçer</p>
-      : preflight.state === 'unknown' ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">Ön kontrol yapılamadı; emirde kontroller yine çalışır.</p>
+      : preflight.state === 'unknown' ? null
       : <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">Hesap kuralları kontrol ediliyor…</p>
     const wizardBody = <div className="mxt" data-step={wzStep} data-done={orderDone ? 'yes' : undefined}>
       {doneView}
