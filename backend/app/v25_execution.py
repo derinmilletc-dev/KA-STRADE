@@ -7927,6 +7927,47 @@ async def execution_loop(application: Any) -> None:
             backoff = min(60, backoff * 2)
 
 
+CLOSE_TARGET_FAST_SECONDS = 2  # kapanış hedefi olan pozisyon için hızlı bakış; hedef yoksa hiç istek atmaz
+CLOSE_TARGET_FAST_MAX_SYMBOLS = 5
+
+
+async def close_target_fast_loop(application: Any) -> None:
+    """Kapanış hedefi (özellikle net kâr) olan pozisyonlara ~2 sn'de bir bakar.
+
+    Ana döngü 10 sn'de bir çalışır; ince coinde fiyat hedefi kısa süre görüp geri dönebiliyordu. Bu döngü yalnız
+    hedefi olan sembollerin pozisyonunu (tek hafif istek) okur ve aynı `run_manual_close_targets` adımını aynı kilit
+    altında çalıştırır. Hedef yoksa ya da hiçbir şey okunamıyorsa sessizce bekler; ana döngü yedek olarak sürer."""
+    while not getattr(application.state, "v25_execution_stopping", False):
+        try:
+            await asyncio.sleep(CLOSE_TARGET_FAST_SECONDS)
+            state = application.state.v25_execution
+            symbols = sorted({
+                str(plan.get("symbol")) for plan in state.get("plans", {}).values()
+                if isinstance(plan, dict) and isinstance(plan.get("close_target"), dict) and plan.get("source") == "MANUAL"
+                and plan.get("status") not in {"KAPANDI", "İPTAL", "KAPATMA EMRİ GÖNDERİLDİ"} and plan.get("symbol")
+            })[:CLOSE_TARGET_FAST_MAX_SYMBOLS]
+            if not symbols or state["lock"].locked() or account_rate_limit_active(state):
+                continue
+            credentials = await auto_session_credentials(application, state)
+            if not usable_live_credentials(credentials):
+                continue
+            client = client_for_with_credentials(application, credentials)
+            positions: dict[str, Any] = {}
+            for symbol in symbols:
+                position = await live_plan_position(client, symbol)
+                if position is not None:
+                    positions[symbol] = position
+            if not positions:
+                continue
+            async with state["lock"]:
+                await run_manual_close_targets(client, state, positions)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - hızlı bakış ana korumayı asla etkilemez
+            logger.warning("CLOSE_TARGET_FAST_SKIPPED error=%s", type(exc).__name__)
+            await asyncio.sleep(5)
+
+
 async def execution_supervisor(application: Any) -> None:
     backoff = 5
     while not getattr(application.state, "v25_execution_stopping", False):
@@ -8042,6 +8083,7 @@ def init_v25_execution(application: Any) -> None:
     application.state.v25_execution_stopping = False
     application.state.v25_execution_task = asyncio.create_task(execution_supervisor(application))
     application.state.v25_live_stream_task = asyncio.create_task(live_user_stream_loop(application))
+    application.state.v25_close_target_task = asyncio.create_task(close_target_fast_loop(application))
     application.state.v25_grid_recovery_task = grid_recovery_task(application)
 
 
@@ -8070,6 +8112,7 @@ async def shutdown_v25_execution(application: Any) -> None:
             getattr(application.state, "v25_execution_task", None),
             getattr(application.state, "v25_execution_worker_task", None),
             getattr(application.state, "v25_live_stream_task", None),
+            getattr(application.state, "v25_close_target_task", None),
         )
         if task is not None
     ]

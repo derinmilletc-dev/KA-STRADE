@@ -213,3 +213,48 @@ class CloseTargetStepTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CloseTargetFastLoopTests(unittest.TestCase):
+    def _app(self, state):
+        return SimpleNamespace(state=SimpleNamespace(v25_execution=state, v25_execution_stopping=False))
+
+    def _run(self, plans, positions):
+        async def go():
+            state = live.initial_state()
+            state["lock"] = asyncio.Lock()
+            state["plans"] = plans
+            app = self._app(state)
+            seen = []
+
+            async def fake_runner(client, st, pos):
+                seen.append(dict(pos))
+                app.state.v25_execution_stopping = True
+
+            async def fake_position(client, symbol):
+                return positions.get(symbol)
+
+            async def stopper():
+                await asyncio.sleep(0.2)
+                app.state.v25_execution_stopping = True
+
+            with patch.object(live, "CLOSE_TARGET_FAST_SECONDS", 0.01), \
+                    patch.object(live, "auto_session_credentials", AsyncMock(return_value=("a" * 12, "b" * 12))), \
+                    patch.object(live, "client_for_with_credentials", lambda *a, **k: object()), \
+                    patch.object(live, "live_plan_position", fake_position), \
+                    patch.object(live, "run_manual_close_targets", fake_runner):
+                await asyncio.gather(live.close_target_fast_loop(app), stopper())
+            return seen
+        return asyncio.run(go())
+
+    def test_fast_loop_checks_only_symbols_with_a_target(self):
+        plans = {
+            "a": {"id": "a", "symbol": "SOPHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF", "close_target": {"mode": "profit", "value": 0.15}},
+            "b": {"id": "b", "symbol": "ETHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF"},
+        }
+        seen = self._run(plans, {"SOPHUSDT": {"mark_price": "1"}, "ETHUSDT": {"mark_price": "2"}})
+        self.assertEqual(seen, [{"SOPHUSDT": {"mark_price": "1"}}])
+
+    def test_fast_loop_does_nothing_without_targets(self):
+        plans = {"b": {"id": "b", "symbol": "ETHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF"}}
+        self.assertEqual(self._run(plans, {"ETHUSDT": {"mark_price": "2"}}), [])
