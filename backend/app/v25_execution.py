@@ -8909,8 +8909,11 @@ def live_bot_runners(application: Any) -> list[Any]:
     """Bu süreçte kurulu canlı bot çalıştırıcıları (Grid + DCA + KAIS FARMER görünümü). Risk ve coin doluluğu hepsi üzerinden hesaplanır.
     `live_farmer_runner` yalnız KAIS FARMER açıkken kurulur; kurulu değilse liste eskisiyle birebir aynıdır."""
     state = getattr(application, "state", None)
-    return [r for r in (getattr(state, "live_grid_runner", None), getattr(state, "live_dca_runner", None),
-                        getattr(state, "live_farmer_runner", None)) if r is not None]
+    farmer = getattr(state, "live_farmer_runner", None)
+    if farmer is None:                                              # çok üyeli mod: yalnız şu an bağlı üyenin Farmer'ı (başkasınınki görünmez)
+        farmer_registry = getattr(state, "live_farmer_registry", None)
+        farmer = farmer_registry.current() if farmer_registry is not None else None
+    return [r for r in (getattr(state, "live_grid_runner", None), getattr(state, "live_dca_runner", None), farmer) if r is not None]
 
 
 def combined_reserved_risk(application: Any, user_id: str, *, owner: bool, exclude: str | None = None) -> dict[str, Any]:

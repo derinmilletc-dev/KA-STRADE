@@ -52,6 +52,23 @@ class TestApi(unittest.TestCase):
         rt = SimpleNamespace(orchestrator=r.orch, apply_settings=lambda s: applied.append(s))
         return r, rt, applied
 
+    def test_multi_member_registry_serves_each_member_their_own_runtime(self):
+        _, mine, _ = self.runtime()
+        asked = []
+
+        class Registry:
+            def for_member(self, uid):
+                asked.append(uid)
+                if uid != "u1":
+                    raise ValueError("FARMER_MEMBER_INVALID")
+                return mine
+        state = SimpleNamespace(v25_execution={"armed_until": 0.0}, live_farmer_registry=Registry())
+        request = SimpleNamespace(app=SimpleNamespace(state=state))
+        self.assertIs(api._runtime(request, {"id": "u1"}), mine)
+        self.assertIsNone(api._runtime(request, {"id": "bad id"}))            # kurulamadı → "kullanılamıyor", hata sızmaz
+        self.assertIsNone(api._runtime(request))                              # sahibi bilinmeden çalışma zamanı verilmez
+        self.assertEqual(asked, ["u1", "bad id"])
+
     def test_status_unavailable_when_no_runtime(self):
         s = run(api.farmer_status(req()))
         self.assertEqual((s["available"], s["state"]), (False, "OFF"))

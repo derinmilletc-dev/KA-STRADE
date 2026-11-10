@@ -3,13 +3,15 @@
 Bu modül yeni güvenlik/durum makinesi EKLEMEZ: portlar mevcut sistemin kapılarına bağlanır (`farmer_engine.live`), emirler yalnız `FarmerEngine` → mevcut
 `BinanceLiveGridAdapter` üzerinden `kf-` kimlikleriyle gider. Kurulum açılışta BİR kez yapılır (`install`), kapanışta `shutdown` ile kaldırılır.
 
-Fail-closed: kurulum hata verirse `live_farmer_runner` HİÇ ayarlanmaz (sahte çalıştırıcı yok, RUNNING yok); API "kullanılamıyor" döner. Çok üyeli kayıt
-(live_registry) modunda kurulmaz. Normal kapanış acil kapanış DEĞİLDİR: pozisyon kapatılmaz, borsadaki STOP/TP korunur, yeni giriş durur.
+Fail-closed: kurulum hata verirse `live_farmer_runner` HİÇ ayarlanmaz (sahte çalıştırıcı yok, RUNNING yok); API "kullanılamıyor" döner.
+Çok üyeli mod (live_registry): tek örnek yerine `FarmerMemberRegistry` kurulur; her üyenin KENDİ çalışma zamanı, kayıt dosyası ve hesap anahtarı vardır,
+döngüsü o üyeye bağlı (task-local) çalışır. Normal kapanış acil kapanış DEĞİLDİR: pozisyon kapatılmaz, borsadaki STOP/TP korunur, yeni giriş durur.
 Test çerçevesi/harness kodu burada İMPORT EDİLMEZ."""
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -26,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 ACCOUNT_KEY = "LIVE"
 STATE_ATTR = "live_farmer_runner"
+REGISTRY_ATTR = "live_farmer_registry"
+MEMBER_STORE_PREFIX = "farmer_live_"
+MEMBER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 TICK_SECONDS = 5.0
 RECOVERY_RETRY_SECONDS = 10.0
 STORE_FILE = "farmer_live.sqlite3"
@@ -276,16 +281,119 @@ def build_runtime(application: Any, *, store: FarmerStore | None = None, live: A
     return FarmerRuntime(application, orchestrator, store, configured=configured)
 
 
-def install(application: Any, **kw: Any) -> FarmerRuntime | None:
-    """Açılışta BİR kez. Başarısızlık → None ve `live_farmer_runner` ayarlanmaz (fail-closed). Zaten kuruluysa AYNI örnek döner."""
+class FarmerMemberRegistry:
+    """Çok üyeli mod: üye başına AYRI `FarmerRuntime` (kendi sqlite dosyası, kendi hesap anahtarı, o üyeye bağlı döngü).
+    Üyeler birbirinin ayarını, pozisyonunu, kaydını ya da kimlik bilgisini göremez: her çalışma zamanı yalnız kendi üyesinin
+    `application.state.v25_execution` durumunu görür (task-local bağlama)."""
+
+    def __init__(self, application: Any, *, data_dir: Path | None = None, builder: Callable[..., FarmerRuntime] | None = None, **build_kw: Any) -> None:
+        self.application, self.data_dir, self.build_kw = application, data_dir, build_kw
+        self._builder = builder or build_runtime
+        self.runtimes: dict[str, FarmerRuntime] = {}
+
+    # ---------- erişim ----------
+    @staticmethod
+    def valid_member(member_id: Any) -> bool:
+        return bool(MEMBER_ID_PATTERN.match(str(member_id or "")))
+
+    def _dir(self) -> Path:
+        from .local_storage import DATA_DIR
+        return Path(self.data_dir or DATA_DIR)
+
+    def store_path(self, member_id: str) -> Path:
+        return self._dir() / f"{MEMBER_STORE_PREFIX}{member_id}.sqlite3"
+
+    def get(self, member_id: Any) -> FarmerRuntime | None:
+        return self.runtimes.get(str(member_id or ""))
+
+    def current(self) -> FarmerRuntime | None:
+        """Şu an bağlı üyenin çalışma zamanı (yoksa None): `live_bot_runners` bunu diğer botların görünümüne ekler."""
+        from . import live_registry
+        return self.get(live_registry.CURRENT_USER.get())
+
+    def for_member(self, member_id: Any) -> FarmerRuntime:
+        uid = str(member_id or "")
+        if not self.valid_member(uid):
+            raise ValueError("FARMER_MEMBER_INVALID")
+        runtime = self.runtimes.get(uid)
+        if runtime is None:
+            runtime = self._create(uid)
+            self.runtimes[uid] = runtime
+        return runtime
+
+    def _create(self, uid: str) -> FarmerRuntime:
+        from . import live_registry
+        kw = dict(self.build_kw)
+        kw.setdefault("store", FarmerStore(str(self.store_path(uid)), check_same_thread=False))
+        token = live_registry.bind(uid)                               # kurulan döngü/görevler bu üyeye bağlı kalır (bağlama göreve kopyalanır)
+        try:
+            runtime = self._builder(self.application, account_key=f"{ACCOUNT_KEY}:{uid}", **kw)
+            runtime.owner_id = uid
+            runtime.start_loop()
+        finally:
+            live_registry.CURRENT_USER.reset(token)
+        return runtime
+
+    # ---------- yeniden başlatma ----------
+    def restore_pending(self) -> list[str]:
+        """Açılışta: kayıt dosyasında KAPALI olmayan ya da slot tutan üyelerin çalışma zamanını geri kurar (korumalar/kurtarma sürsün)."""
+        restored: list[str] = []
+        try:
+            files = sorted(self._dir().glob(f"{MEMBER_STORE_PREFIX}*.sqlite3"))
+        except OSError:
+            return restored
+        for path in files:
+            uid = path.name[len(MEMBER_STORE_PREFIX):-len(".sqlite3")]
+            if not self.valid_member(uid) or uid in self.runtimes:
+                continue
+            try:
+                probe = FarmerStore(str(path), check_same_thread=False)
+                try:
+                    key = f"{ACCOUNT_KEY}:{uid}"
+                    saved = probe.bot(key)
+                    pending = bool(probe.holds(key)) or bool(saved and saved["state"] != OFF)
+                finally:
+                    probe.db.close()
+                if pending:
+                    self.for_member(uid)
+                    restored.append(uid)
+            except Exception as exc:                                  # noqa: BLE001 — bir üyenin hatası diğerlerini ve açılışı durdurmaz
+                logger.warning("KAIS_FARMER_MEMBER_RESTORE_FAILED type=%s", exc.__class__.__name__)
+        return restored
+
+    async def shutdown(self) -> None:
+        from . import live_registry
+        for uid, runtime in list(self.runtimes.items()):
+            token = live_registry.bind(uid)                           # sembol talebi bu üyenin anahtarıyla bırakılır
+            try:
+                await runtime.shutdown()
+            except Exception as exc:                                  # noqa: BLE001
+                logger.warning("KAIS_FARMER_MEMBER_SHUTDOWN_FAILED type=%s", exc.__class__.__name__)
+            finally:
+                live_registry.CURRENT_USER.reset(token)
+        self.runtimes.clear()
+
+
+def install(application: Any, **kw: Any) -> FarmerRuntime | FarmerMemberRegistry | None:
+    """Açılışta BİR kez. Başarısızlık → None ve çalıştırıcı ayarlanmaz (fail-closed). Zaten kuruluysa AYNI örnek döner.
+    Çok üyeli modda tek örnek yerine üye başına çalışma zamanı kuran `FarmerMemberRegistry` döner."""
+    try:
+        from . import live_registry
+        if live_registry.enabled():
+            existing_registry = getattr(application.state, REGISTRY_ATTR, None)
+            if existing_registry is not None:
+                return existing_registry
+            registry = FarmerMemberRegistry(application, **kw)
+            setattr(application.state, REGISTRY_ATTR, registry)
+            registry.restore_pending()
+            return registry
+    except Exception as exc:                                          # noqa: BLE001
+        logger.warning("KAIS_FARMER_INSTALL_FAILED type=%s", exc.__class__.__name__)
+        return None
     existing = getattr(application.state, STATE_ATTR, None)
     if existing is not None:
         return existing
     try:
-        from . import live_registry
-        if live_registry.enabled():
-            logger.warning("KAIS_FARMER_NOT_INSTALLED reason=MULTI_MEMBER_MODE")
-            return None
         runtime = build_runtime(application, **kw)
     except Exception as exc:                                          # noqa: BLE001 — kurulum hatası canlı başka hiçbir şeyi etkilemez
         logger.warning("KAIS_FARMER_INSTALL_FAILED type=%s", exc.__class__.__name__)
@@ -296,6 +404,10 @@ def install(application: Any, **kw: Any) -> FarmerRuntime | None:
 
 
 async def uninstall(application: Any) -> None:
+    registry = getattr(application.state, REGISTRY_ATTR, None)
+    if registry is not None:
+        await registry.shutdown()
+        setattr(application.state, REGISTRY_ATTR, None)
     runtime = getattr(application.state, STATE_ATTR, None)
     if runtime is None:
         return

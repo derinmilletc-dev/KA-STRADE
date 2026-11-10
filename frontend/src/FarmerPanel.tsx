@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
-import {BookOpen, ChevronDown, Clock, Loader2, MessageCircle, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
+import {ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
 import FarmerGuideCard from './FarmerGuideCard'
@@ -18,6 +18,8 @@ export type FarmerPanelProps = {
   accountConnected: boolean
   onConnect?: () => void
   onAsk?: (question: string) => void
+  /** KAIS KOÇ görünümü açılıp kapanınca (kokpit ızgarası Kais Long ile aynı koç stillerini kullansın). */
+  onCoachChange?: (on: boolean) => void
   /** Testler için sabit saat (saniye). */
   nowSeconds?: () => number
 }
@@ -46,7 +48,7 @@ const sameAsRecommended = (form: Form, rec: Record<string, unknown> | undefined)
   return Number(form[key]) === Number(rec[key])
 })
 
-export default function FarmerPanel({get, post, accountConnected, onConnect, onAsk, nowSeconds = () => Date.now() / 1000}: FarmerPanelProps) {
+export default function FarmerPanel({get, post, accountConnected, onConnect, onAsk, onCoachChange, nowSeconds = () => Date.now() / 1000}: FarmerPanelProps) {
   const lang: Lang = useMemo(() => (currentLang() === 'tr' ? 'tr' : 'en'), [])
   const t = (key: CopyKey) => tr_(lang, key)
   const L = (tr: string, en: string) => (lang === 'tr' ? tr : en)
@@ -154,13 +156,6 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   const openGuide = (topic?: string) => setGuide({open: true, topic})
   const ask = (q: string) => onAsk?.(q)
 
-  const header = <header className="fmHead">
-    <div className="fmTitleBlock">
-      <span className="fmMark" aria-hidden="true"><ShieldCheck/></span>
-      <div><h2>KAIS FARMER</h2><p>{t('tagline')}</p></div>
-    </div>
-    <button type="button" className="fmGuideBtn" data-testid="farmer-open-guide" onClick={() => openGuide()}><BookOpen aria-hidden="true"/><span>KAIS REHBER</span></button>
-  </header>
 
   const body = ((): ReactNode => {
     if (screen === 'loading') return <section className="fmCard fmCenter" data-testid="farmer-loading" role="status" aria-live="polite"><Loader2 className="fmSpin" aria-hidden="true"/><p>{L('KAIS FARMER durumu okunuyor…', 'Reading KAIS FARMER status…')}</p></section>
@@ -201,9 +196,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   })()
 
   return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
-    {header}
     {status && screen !== 'loading' && screen !== 'backend_unavailable' && <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
-      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy}/>}
+      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange}/>}
     {body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
     {emergency !== 'closed' && <EmergencyModal lang={lang} working={emergency === 'working'} count={status?.positions.length ?? 0} onCancel={() => setEmergency('closed')} onConfirm={() => void doEmergency()}/>}

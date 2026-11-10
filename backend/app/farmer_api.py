@@ -26,8 +26,17 @@ def _owner(request: Request) -> dict[str, Any]:
     return execution_owner(request)
 
 
-def _runtime(request: Request) -> Any | None:
-    return getattr(request.app.state, "live_farmer_runner", None)
+def _runtime(request: Request, owner: dict[str, Any] | None = None) -> Any | None:
+    runtime = getattr(request.app.state, "live_farmer_runner", None)
+    if runtime is not None:
+        return runtime
+    registry = getattr(request.app.state, "live_farmer_registry", None)      # çok üyeli mod: her üyenin kendi çalışma zamanı
+    if registry is None or owner is None:
+        return None
+    try:
+        return registry.for_member(str(owner.get("id") or ""))
+    except Exception:                                                        # noqa: BLE001 — geçersiz üye kimliği / kurulamadı: "kullanılamıyor"
+        return None
 
 
 def _authorized(runtime: Any, owner: dict[str, Any]) -> bool:
@@ -37,7 +46,7 @@ def _authorized(runtime: Any, owner: dict[str, Any]) -> bool:
 
 
 def _require_runtime(request: Request, owner: dict[str, Any] | None = None) -> Any:
-    runtime = _runtime(request)
+    runtime = _runtime(request, owner)
     if runtime is None:
         raise HTTPException(409, {"code": "FARMER_UNAVAILABLE"})
     if owner is not None and not _authorized(runtime, owner):
@@ -62,7 +71,7 @@ def _daily_loss(runtime: Any) -> tuple[str, ...]:
 @router.get("/status")
 async def farmer_status(request: Request) -> dict[str, Any]:
     owner = _owner(request)
-    runtime = _runtime(request)
+    runtime = _runtime(request, owner)
     if runtime is not None and not _authorized(runtime, owner):
         runtime = None                                              # başka hesabın durumu sızmaz
     return farmer_view.build_status(runtime, arm=_arm(request), now=time.time(), daily_loss=_daily_loss(runtime) if runtime is not None else ())

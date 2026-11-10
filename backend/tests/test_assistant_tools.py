@@ -141,7 +141,7 @@ class AssistantToolsTests(AssistantToolsTestCase):
             "get_analysis", "get_my_positions", "get_protection_status",
             # #63/#64 ile eklenen, readonly_demo_service üzerinden okuyan salt-okunur araçlar (sözleşme testiyle aynı liste).
             "get_demo_positions", "get_market_overview", "compare_coins",
-            "get_live_strategy",  # canlı strateji özeti (salt okunur, yalnız oturum sahibine)
+            "get_live_strategy", "get_farmer_status",  # canlı strateji özeti (salt okunur, yalnız oturum sahibine)
             "get_my_account_summary", "get_my_settings", "get_my_trades", "get_my_events", "get_my_position_details",
         })
 

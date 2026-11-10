@@ -277,55 +277,9 @@
 .fmToday{text-align:right}
 @media (min-width:640px){.fmCands{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* KAIS REHBER kartı (KAIS FARMER) — DCA / Kais Long rehberiyle aynı dil: adımlar, halka, durum çipleri */
-.fmGuideCard{--gc:var(--fm-green);position:relative;display:grid;gap:12px;padding:16px;border-radius:22px;overflow:hidden;border:1px solid rgba(61,220,151,.28);
-  background:radial-gradient(120% 130% at 0 0,rgba(61,220,151,.16),transparent 58%),linear-gradient(180deg,#14261d,#0e1a14);box-shadow:0 14px 34px -22px rgba(61,220,151,.55)}
-.fmGuideCard[data-tone="warn"]{--gc:var(--fm-amber);border-color:rgba(240,184,74,.38);background:radial-gradient(120% 130% at 0 0,rgba(240,184,74,.15),transparent 58%),linear-gradient(180deg,#221d12,#14110b)}
-.fmGuideCard[data-tone="stop"]{--gc:var(--fm-red);border-color:rgba(239,107,102,.5);background:radial-gradient(120% 130% at 0 0,rgba(239,107,102,.16),transparent 58%),linear-gradient(180deg,#2a1816,#1a1110)}
-.fmGcHead{display:flex;align-items:center;gap:12px}
-.fmGcHead>div{flex:1;min-width:0;display:grid;gap:1px}
-.fmGcHead b{font-size:12.5px;letter-spacing:.16em;color:var(--gc)}
-.fmGcHead small{font-size:12.5px;color:var(--fm-mute)}
-.fmGcHead em{font-style:normal;font-size:11.5px;color:var(--fm-faint)}
-.fmGcEye{flex:none;width:12px;height:12px;border-radius:50%;background:var(--gc);box-shadow:0 0 0 4px color-mix(in srgb,var(--gc) 22%,transparent),0 0 16px var(--gc);animation:fmGcPulse 2.4s ease-in-out infinite}
-@keyframes fmGcPulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--gc) 8%,transparent),0 0 22px var(--gc)}}
-.fmGcRing{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--gc) var(--p),rgba(255,255,255,.1) 0)}
-.fmGcRing b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#0e1a14;color:#fff;font-size:14px;letter-spacing:0}
-.fmGcSteps{display:flex;gap:6px;padding:0;margin:0;list-style:none}
-.fmGcSteps li{flex:1;min-width:0;display:grid;justify-items:center;gap:5px;position:relative;font-size:11px;color:var(--fm-faint)}
-.fmGcSteps li::before{content:"";position:absolute;top:11px;left:-50%;width:100%;height:2px;background:rgba(255,255,255,.1)}
-.fmGcSteps li:first-child::before{display:none}
-.fmGcSteps li[data-state="done"]::before,.fmGcSteps li[data-state="current"]::before{background:var(--gc)}
-.fmGcSteps i{position:relative;z-index:1;display:grid;place-items:center;width:23px;height:23px;border-radius:50%;font-style:normal;font-size:11px;font-weight:800;background:#16241c;border:1.5px solid rgba(255,255,255,.16);color:var(--fm-mute)}
-.fmGcSteps i svg{width:13px;height:13px}
-.fmGcSteps li[data-state="done"] i{background:var(--gc);border-color:var(--gc);color:var(--fm-green-ink)}
-.fmGcSteps li[data-state="current"] i{border-color:var(--gc);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--gc) 22%,transparent)}
-.fmGcSteps li[data-state="current"] span{color:#fff;font-weight:700}
-.fmGcSteps span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fmGcTitle{font-size:20px;line-height:1.25;color:#fff}
-.fmGcMsg{font-size:14px!important;line-height:1.55!important;color:#d3e2da!important}
-.fmGcPills{display:flex;flex-wrap:wrap;gap:7px}
-.fmGcPills li{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;font-size:12px;line-height:1.3;color:var(--fm-mute);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
-.fmGcPills li[data-ok]{color:#c7f6df;background:var(--fm-green-soft);border-color:rgba(61,220,151,.32)}
-.fmGcPills i{font-style:normal;font-weight:800}
-.fmGcActions{display:flex;flex-wrap:wrap;gap:8px}
-.fmGcBtn{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#e8f1ec;font-size:13px;font-weight:700}
-.fmGcBtn svg{width:15px;height:15px}
-.fmGcBtn:hover{background:rgba(255,255,255,.11)}
-.fmGcBtn:disabled{opacity:.55;cursor:default}
-.fmGcPrimary{background:linear-gradient(135deg,#5ff0b0,#2fbf86);border-color:transparent;color:var(--fm-green-ink)}
-.fmGcPrimary:hover{background:linear-gradient(135deg,#74f5bd,#3acd94)}
-.fmGuideCard[data-tone="warn"] .fmGcPrimary{background:linear-gradient(135deg,#f6c867,#e1a22f)}
-@media (prefers-reduced-motion:reduce){.fmGcEye{animation:none}}
-.fmGcTiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
-.fmGcTiles div{display:grid;gap:2px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
-.fmGcTiles dt{font-size:11px;letter-spacing:.06em;color:var(--fm-faint)}
-.fmGcTiles dd{white-space:nowrap;font-size:17px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
-.fmGcTips{display:grid;gap:7px}
-.fmGcTips li{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.5;color:#dbe9e1;background:rgba(61,220,151,.09);border:1px solid rgba(61,220,151,.24)}
-.fmGcTips li[data-tone="warn"]{background:var(--fm-amber-soft);border-color:rgba(240,184,74,.34);color:#ffe9bd}
-.fmGcTips i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font-style:normal;font-size:11px;font-weight:800;background:rgba(61,220,151,.22);color:#bff5db}
-.fmGcTips li[data-tone="warn"] i{background:rgba(240,184,74,.25);color:#ffd98a}
-.fmGuideCard{animation:fmGcIn .35s ease-out both}
-@keyframes fmGcIn{from{opacity:0;transform:translateY(6px)}}
-@media (prefers-reduced-motion:reduce){.fmGuideCard{animation:none}}
+/* KAIS FARMER rehber kartı: Kais Long / DCA ile aynı lcGuide yapısını kullanır; burada yalnız öneri satırlarının rengi. */
+.lcGuide.fmGuide .fmTip{margin:0}
+.lcGuide.fmGuide .fmTip[data-tone="warn"] b{color:#f2c46d}
+.lcGuide.fmGuide .fmTip[data-tone="ok"] b{color:#3ddc97}
+.lcGuide.fmGuide .lcGuideActions .lcBtn{white-space:nowrap}
+html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!important;min-width:0}

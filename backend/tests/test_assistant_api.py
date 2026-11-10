@@ -454,7 +454,7 @@ class AssistantApiTests(unittest.IsolatedAsyncioTestCase):
         arguments = sdk.messages.create.call_args.kwargs
         self.assertEqual(arguments["model"], self.config.model)
         self.assertEqual(arguments["max_tokens"], self.config.max_output_tokens)
-        self.assertEqual(len(arguments["tools"]), 16)  # test_assistant_contracts allowlist ile aynı 16 salt-okunur araç
+        self.assertEqual(len(arguments["tools"]), 17)  # test_assistant_contracts allowlist ile aynı 17 salt-okunur araç
         self.assertIn("read-only", arguments["system"][0]["text"])
         self.assertEqual(arguments["system"][0]["cache_control"], {"type": "ephemeral"})
         self.assertEqual(arguments["tools"][-1]["cache_control"], {"type": "ephemeral"})

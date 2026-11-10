@@ -393,7 +393,26 @@ async def apply_farmer_stream_demand(application: Any, farmer_symbols: list[str]
     """KAIS FARMER'ın sembol talebini kaydeder ve paylaşımlı akışı (Original V2 tabanı + Farmer) yeniden yapılandırır.
     Original V2'nin kendi talebine DOKUNMAZ (üye talepleri `original_symbol_demands`ta kalır). Boş liste = Farmer talebi kalktı,
     akış yalnız Original V2 tabanına döner. Dönüş: akışa verilen birleşik liste (akış yoksa [])."""
-    application.state.farmer_symbol_demand = list(farmer_symbols)
+    from . import live_registry
+    if live_registry.enabled():
+        # Çok üyeli: her üyenin Farmer talebi KENDİ anahtarında tutulur; akışa hepsinin birleşimi gider (biri diğerinin akışını kapatamaz).
+        demands = getattr(application.state, "farmer_symbol_demands", None)
+        if not isinstance(demands, dict):
+            demands = {}
+            application.state.farmer_symbol_demands = demands
+        key = live_registry.CURRENT_USER.get() or ""
+        if farmer_symbols:
+            demands[key] = list(farmer_symbols)
+        else:
+            demands.pop(key, None)
+        union: list[str] = []
+        for wanted in demands.values():
+            for symbol in wanted:
+                if symbol not in union:
+                    union.append(symbol)
+        application.state.farmer_symbol_demand = union
+    else:
+        application.state.farmer_symbol_demand = list(farmer_symbols)
     stream = getattr(application.state, "original_kline_stream", None)
     if stream is None:
         return []
