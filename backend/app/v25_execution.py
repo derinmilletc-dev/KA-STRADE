@@ -6210,12 +6210,16 @@ def symbol_occupancy_status(snapshot: dict[str, Any], symbol: str) -> tuple[bool
         return False, False, "Açık pozisyon/emir verisi doğrulanamadı; sembol ayarı değiştirilmedi."
     if snapshot.get("open_algo_orders_available") is not True:
         return False, False, "Açık algo emir verisi doğrulanamadı; sembol ayarı değiştirilmedi."
+    names = {"positions": "pozisyon", "open_orders": "emir", "open_algo_orders": "koşullu emir (stop/hedef)"}
+    found: list[str] = []
     for collection in collections:
-        if any(
-            isinstance(row, dict) and normalize_symbol(row.get("symbol")) == normalized
-            for row in snapshot[collection]
-        ):
-            return True, True, f"{normalized} üzerinde açık pozisyon veya emir var; sembol ayarı değiştirilmedi."
+        rows = [row for row in snapshot[collection] if isinstance(row, dict) and normalize_symbol(row.get("symbol")) == normalized]
+        if rows:
+            kinds = sorted({str(row.get("type") or row.get("orderType") or "").upper() for row in rows} - {""})
+            found.append(f"{len(rows)} {names[collection]}" + (f" ({', '.join(kinds)})" if kinds else ""))
+    if found:
+        # Hangi kayıt yüzünden engellendiği görünsün: kullanıcı Binance'te neyi kontrol edeceğini bilsin.
+        return True, True, f"{normalized} üzerinde açık kayıt var: {'; '.join(found)}. Sembol ayarı değiştirilmedi."
     return True, False, f"{normalized} için açık pozisyon veya emir bulunmuyor."
 
 
