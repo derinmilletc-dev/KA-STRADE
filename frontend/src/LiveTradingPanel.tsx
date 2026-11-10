@@ -234,6 +234,8 @@ function errorMessage(payload: unknown, fallback: string): string {
   return fallback
 }
 
+const showInView = (el: HTMLElement | null) => { el?.scrollIntoView?.({block: 'center', behavior: 'smooth'}) }
+
 export default function LiveTradingPanel({active, symbol, analysis, masterTrade, masterTradeTab, sharedStatus, sharedStatusVerified = true, sharedStatusError = '', sharedStatusLoading, sharedConnections, onRefreshStatus}: Props) {
   const [originalNotice, setOriginalNotice] = useState('')
   const [connectionNotice, setConnectionNotice] = useState<{kind: 'info' | 'ok' | 'error'; text: string} | null>(null)
@@ -2085,9 +2087,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // İzin kapısı (readiness) kendi izin akışında yönetilir; burada hata gibi gösterilmez.
     const preBlocked = preflight.checks.filter(item => !item.passed && item.key !== 'readiness')
     const permNeeded = !orderDone && !freeTrial && preflight.checks.some(item => item.key === 'readiness' && !item.passed)
-    const permAskEl = permNeeded && wzStep >= stepNames.length - 1 ? <div className="mxtAsk" role="status" data-testid="mwz-permask">
+    const noticePerm = !orderDone && !freeTrial && !authorizationValid && notice.kind === 'error' && /24 saat|izin|consent|EXPIRED/i.test(notice.text)
+    const permAskEl = (permNeeded && wzStep >= stepNames.length - 1) || noticePerm ? <div className="mxtAsk" role="alert" data-testid="mwz-permask" ref={showInView}>
       <span className="mxtAskIcon" aria-hidden="true"><ShieldCheck/></span>
-      <div><b>Emir için 24 saatlik izin gerekiyor</b><small>Gerçek parayla işlemin riskini 24 saatliğine onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
+      <div><b>{noticePerm ? '24 saatlik izin bitmiş' : 'Emir için 24 saatlik izin gerekiyor'}</b><small>Gerçek parayla işlemin riskini 24 saatliğine onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
       <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
     </div> : null
     const applyPreflightFix = (fix: PreflightFix) => {
@@ -2099,7 +2102,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const preflightFixLabel = (fix: PreflightFix) => fix.type === 'reduce_margin' && fix.margin_usdt ? `Miktarı ${fix.margin_usdt} USDT yap`
       : fix.type === 'positions' ? 'Pozisyonlara git' : fix.type === 'other_coin' ? 'Başka coin seç' : fix.type === 'widen_or_edit_limits' ? 'Limitleri düzenle' : ''
     const preflightEl = orderDone || preflight.state === 'idle' || wzStep < 2 ? null
-      : preBlocked.length > 0 ? <div className="mxtPre" data-state="bad" role="alert" data-testid="mwz-preflight">
+      : preBlocked.length > 0 ? <div className="mxtPre" data-state="bad" role="alert" data-testid="mwz-preflight" ref={showInView}>
         <b>{preBlocked.length === 1 ? 'Küçük bir ayar gerekiyor' : `${preBlocked.length} küçük ayar gerekiyor`}</b>
         {preBlocked.slice(0, 3).map(item => <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
           {item.fix && preflightFixLabel(item.fix) ? <button type="button" onClick={() => applyPreflightFix(item.fix as PreflightFix)}>{preflightFixLabel(item.fix)}</button> : null}</div>)}
@@ -2121,8 +2124,6 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </div>
       <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
         <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
-      {preflightEl}
-      {permAskEl}
       <div className="mxtLayout">
         <div className="mxtCard" key={wzStep}>
           <span className="mxtKicker">Adım {wzStep + 1} / {stepNames.length}</span>
@@ -2146,6 +2147,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             {!readinessReady && <span>eksik kapı: {(status?.readiness?.gates ?? []).filter(gate => gate.passed === false).map(gate => gate.label || gate.key).join(', ') || '—'}</span>}
             {permError && <span>son hata: {permError}</span>}
           </p>}
+          {preflightEl}
+          {permAskEl}
           <div className="mxtNav">
             <button type="button" className="mxtBtn ghost" disabled={wzStep === 0} onClick={() => goStep(Math.max(0, wzStep - 1))}>← Geri</button>
             {(needPermission || permDone) && !orderDone
