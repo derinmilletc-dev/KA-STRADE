@@ -114,6 +114,8 @@ def build_report(
         if key in {"arm", "symbol", "direction", "confidence", "trap", "one_way", "daily_trades", "consecutive_losses"}:
             continue  # manuel yolda geçerli değil / ayrıca gösteriliyor
         passed = gate.get("passed") is True
+        if key == "duplicate" and symbol_occupied:
+            continue  # aynı sebep "symbol_occupancy" maddesinde zaten gösterilir; ekranda iki kez çıkmasın
         fix: dict[str, Any] | None = None
         if key in {"positions", "same_direction_positions"}:
             fix = {"type": "positions"}
