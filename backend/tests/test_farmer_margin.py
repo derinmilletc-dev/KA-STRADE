@@ -34,8 +34,9 @@ class TestCapacity(unittest.TestCase):
         self.assertEqual(effective_capacity(5, 100, 101), 0)
 
     def test_hard_cap_cannot_be_raised(self):
-        self.assertEqual(effective_capacity(5, 500, 50), 2)
-        self.assertEqual(guard(total_margin_cap=1000).total_margin_cap, HARD_CAP_USDT)
+        self.assertEqual(effective_capacity(5, 500, 50), 5)                 # kullanıcı tavanı 500'e kadar belirleyebilir
+        self.assertEqual(effective_capacity(5, 5000, 50), 5)
+        self.assertEqual(guard(total_margin_cap=5000).total_margin_cap, HARD_CAP_USDT)
 
     def test_invalid_inputs_zero(self):
         for args in ((0, 100, 50), (5, 0, 50), (5, 100, 0), (-1, 100, 50)):

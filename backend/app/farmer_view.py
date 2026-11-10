@@ -18,17 +18,17 @@ from .farmer_engine.margin import HARD_CAP_USDT, effective_capacity
 from .farmer_engine.orchestrator import (ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY, INTERVENTION, OFF, RUNNING, STOPPING, FarmerSettings)
 
 RECOMMENDED: dict[str, Any] = {
-    "min_score": 92, "margin_usdt": 50.0, "leverage": 3, "target_usdt": 1.0, "max_loss_usdt": 1.5,
+    "min_score": 92, "margin_usdt": 50.0, "leverage": 10, "target_usdt": 1.0, "max_loss_usdt": 1.5,
     "dead_score": 75, "dead_confirmations": 2, "max_positions": 5, "total_margin_cap": HARD_CAP_USDT,
 }
 LIMITS: dict[str, Any] = {
-    "margin_options": [25, 50, 75, 100], "leverage": {"min": 1, "max": 5}, "min_score": {"min": 80, "max": 100},
+    "margin_options": [25, 50, 75, 100], "leverage": {"min": 1, "max": 10}, "min_score": {"min": 80, "max": 100},
     "target_usdt": {"min": 0.1, "max": 50.0}, "max_loss_usdt": {"min": 0.1, "max": 100.0}, "dead_score": {"min": 50, "max": 95},
     "dead_confirmations": {"min": 1, "max": 5}, "max_positions": {"min": 1, "max": 5}, "total_margin_cap": {"min": 25.0, "max": HARD_CAP_USDT},
 }
 PRACTICALITY_TIGHT_COST_RATIO = 0.5       # tahmini tur maliyeti hedefin yarısını geçerse "TIGHT"
 PRACTICALITY_TIGHT_STOP_PCT = 0.5         # stop mesafesi (%) bunun altındaysa "TIGHT"
-PRACTICALITY_HIGH_LEVERAGE = 5
+PRACTICALITY_HIGH_LEVERAGE = 10
 
 
 class SettingsError(ValueError):
@@ -64,9 +64,16 @@ def _in_range(key: str, value: float) -> None:
         raise SettingsError("OUT_OF_RANGE", key)
 
 
-def parse_settings(body: Mapping[str, Any], base: Mapping[str, Any] | None = None) -> FarmerSettings:
+USER_CHOICES = ("target_usdt", "max_loss_usdt", "total_margin_cap")    # kullanıcı açarken kendisi girer; varsayılan YOK
+
+
+def parse_settings(body: Mapping[str, Any], base: Mapping[str, Any] | None = None, *, require_user: bool = False) -> FarmerSettings:
     """Gövdeyi doğrular ve `FarmerSettings` üretir. Eksik alan `base` (mevcut ayar) ya da ÖNERİLEN değerden gelir; geçersiz değer REDDEDİLİR
-    (sessizce düzeltilmez). 100 USDT Farmer tavanı aşılamaz."""
+    (sessizce düzeltilmez). `require_user=True` iken kâr hedefi, en fazla kayıp ve toplam tavan gövdede zorunludur. Tavan HARD_CAP_USDT'yi aşamaz."""
+    if require_user:                                                # kâr, kayıp, toplam tavan: gövdede açıkça gelmeli
+        for key in USER_CHOICES:
+            if key not in body or body[key] is None or body[key] == "":
+                raise SettingsError("REQUIRED", key)
     ref = {**RECOMMENDED, **(dict(base) if base else {})}
     min_score = _number(body, "min_score", ref["min_score"], integer=True)
     margin = _number(body, "margin_usdt", ref["margin_usdt"])

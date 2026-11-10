@@ -90,7 +90,12 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   }, [load, active])
 
   useEffect(() => {
-    if (status && form === null) { setForm(formOf(status.config ?? status.recommended)); setPreview(status.preview) }
+    if (status && form === null) {
+      const base = formOf(status.config ?? status.recommended)
+      // Kâr hedefi, en fazla kayıp ve marjin tavanı kullanıcıdan gelir; henüz kaydedilmediyse boş başlar (varsayılan yok).
+      setForm(status.configured ? base : {...base, target_usdt: '', max_loss_usdt: '', total_margin_cap: ''})
+      setPreview(status.configured ? status.preview : null)
+    }
   }, [status, form])
 
   // Risk önizleme: SUNUCU hesaplar; burada yalnız çağrılır (350 ms sakinleşince).
@@ -499,8 +504,7 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
 }
 
 function formOfRec(rec: Record<string, unknown>): Partial<Form> {
-  return {min_score: String(rec.min_score), margin_usdt: String(rec.margin_usdt), leverage: String(rec.leverage), target_usdt: String(rec.target_usdt),
-    max_loss_usdt: String(rec.max_loss_usdt), max_positions: String(rec.max_positions), total_margin_cap: String(rec.total_margin_cap),
+  return {min_score: String(rec.min_score), margin_usdt: String(rec.margin_usdt), leverage: String(rec.leverage), max_positions: String(rec.max_positions),
     dead_score: String(rec.dead_score ?? 75), dead_confirmations: String(rec.dead_confirmations), dead_on: rec.dead_score !== null && rec.dead_score !== undefined}
 }
 

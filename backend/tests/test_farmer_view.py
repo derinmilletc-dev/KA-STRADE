@@ -24,13 +24,13 @@ class TestSettings(unittest.TestCase):
     def test_defaults_are_recommended(self):
         s = v.parse_settings({})
         self.assertEqual((s.confirm.margin_usdt, s.confirm.leverage, s.confirm.target_usdt, s.confirm.max_loss_usdt, s.confirm.min_score),
-                         (50.0, 3.0, 1.0, 1.5, 92))
-        self.assertEqual((s.max_positions, s.total_margin_cap, s.dead_score, s.dead_confirmations), (5, 100.0, 75, 2))
+                         (50.0, 10.0, 1.0, 1.5, 92))
+        self.assertEqual((s.max_positions, s.total_margin_cap, s.dead_score, s.dead_confirmations), (5, 500.0, 75, 2))
 
     def test_invalid_values_rejected_not_clamped(self):
-        for body, field in [({"margin_usdt": 60}, "margin_usdt"), ({"leverage": 0}, "leverage"), ({"leverage": 2.5}, "leverage"),
+        for body, field in [({"margin_usdt": 60}, "margin_usdt"), ({"leverage": 0}, "leverage"), ({"leverage": 11}, "leverage"), ({"leverage": 2.5}, "leverage"),
                             ({"target_usdt": -1}, "target_usdt"), ({"max_loss_usdt": "x"}, "max_loss_usdt"), ({"min_score": 101}, "min_score"),
-                            ({"total_margin_cap": 150}, "total_margin_cap"), ({"max_positions": 6}, "max_positions"),
+                            ({"total_margin_cap": 500.01}, "total_margin_cap"), ({"max_positions": 6}, "max_positions"),
                             ({"dead_score": 10}, "dead_score"), ({"target_usdt": True}, "target_usdt"), ({"target_usdt": float("nan")}, "target_usdt")]:
             with self.assertRaises(v.SettingsError, msg=str(body)) as cm:
                 v.parse_settings(body)
@@ -38,7 +38,19 @@ class TestSettings(unittest.TestCase):
 
     def test_hard_cap_cannot_be_raised(self):
         with self.assertRaises(v.SettingsError):
-            v.parse_settings({"total_margin_cap": 100.01})
+            v.parse_settings({"total_margin_cap": 500.01})
+
+    def test_user_choices_required_when_opening(self):
+        full = {"target_usdt": 2.0, "max_loss_usdt": 3.0, "total_margin_cap": 300}
+        s = v.parse_settings(full, require_user=True)
+        self.assertEqual((s.confirm.target_usdt, s.confirm.max_loss_usdt, s.total_margin_cap, s.confirm.leverage), (2.0, 3.0, 300.0, 10.0))
+        for key in full:
+            body = {k: x for k, x in full.items() if k != key}
+            with self.assertRaises(v.SettingsError) as cm:
+                v.parse_settings(body, {"target_usdt": 1.0, "max_loss_usdt": 1.5, "total_margin_cap": 100.0}, require_user=True)
+            self.assertEqual((cm.exception.code, cm.exception.field), ("REQUIRED", key))
+        with self.assertRaises(v.SettingsError):
+            v.parse_settings({**full, "total_margin_cap": ""}, require_user=True)
 
     def test_margin_above_cap_rejected(self):
         with self.assertRaises(v.SettingsError) as cm:
@@ -55,11 +67,16 @@ class TestSettings(unittest.TestCase):
 
 class TestPreview(unittest.TestCase):
     def test_numbers_come_from_backend_feasibility(self):
-        p = v.preview(v.parse_settings({}))
-        self.assertEqual((p["notional_usdt"], p["effective_capacity"], p["margin_usdt"], p["leverage"]), (150.0, 2, 50.0, 3.0))
-        self.assertAlmostEqual(p["est_cost_usdt"], 150 * 0.0005 * 2 + 0.05)
+        p = v.preview(v.parse_settings({"target_usdt": 3.0, "max_loss_usdt": 5.0}))
+        self.assertEqual((p["notional_usdt"], p["effective_capacity"], p["margin_usdt"], p["leverage"]), (500.0, 5, 50.0, 10.0))
+        self.assertAlmostEqual(p["est_cost_usdt"], 500 * 0.0005 * 2 + 0.05)
         self.assertEqual(p["verdict"], "GOOD")
-        self.assertIn("MARGIN_CAP_LIMITS", p["warnings"])               # 5 istendi, bütçe 2'ye izin veriyor
+        self.assertNotIn("MARGIN_CAP_LIMITS", p["warnings"])           # tavan 500: 5 pozisyon sığar
+
+    def test_ten_x_with_small_default_numbers_warns_stop_too_tight(self):
+        p = v.preview(v.parse_settings({}))                              # 10x: 1,5 USDT zarar = ~%0,19 fiyat hareketi
+        self.assertEqual(p["verdict"], "TIGHT")
+        self.assertIn("STOP_TOO_TIGHT", p["warnings"])
 
     def test_tiny_target_is_tight(self):
         p = v.preview(v.parse_settings({"target_usdt": 0.2}))
@@ -71,7 +88,7 @@ class TestPreview(unittest.TestCase):
         self.assertEqual(p["verdict"], "NOT_RECOMMENDED")
 
     def test_high_leverage_warning(self):
-        self.assertIn("HIGH_LEVERAGE", v.preview(v.parse_settings({"leverage": 5}))["warnings"])
+        self.assertIn("HIGH_LEVERAGE", v.preview(v.parse_settings({"leverage": 10}))["warnings"])
 
 
 class TestStatusUnavailable(unittest.TestCase):

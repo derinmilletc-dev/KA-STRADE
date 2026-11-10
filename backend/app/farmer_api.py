@@ -72,7 +72,7 @@ async def farmer_status(request: Request) -> dict[str, Any]:
 async def farmer_preview(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     _owner(request)
     try:
-        settings = farmer_view.parse_settings(body)
+        settings = farmer_view.parse_settings(body, require_user=True)
     except farmer_view.SettingsError as exc:
         raise HTTPException(422, {"code": exc.code, "field": exc.field}) from exc
     return {"ok": True, "preview": farmer_view.preview(settings)}
@@ -85,7 +85,7 @@ async def farmer_settings(request: Request, body: dict[str, Any]) -> dict[str, A
     if orch.base != OFF or orch.engines:
         raise HTTPException(409, {"code": "SETTINGS_LOCKED_WHILE_ACTIVE"})
     try:
-        settings = farmer_view.parse_settings(body, orch.settings.as_dict())
+        settings = farmer_view.parse_settings(body, orch.settings.as_dict(), require_user=True)
     except farmer_view.SettingsError as exc:
         raise HTTPException(422, {"code": exc.code, "field": exc.field}) from exc
     apply = getattr(runtime, "apply_settings", None)
