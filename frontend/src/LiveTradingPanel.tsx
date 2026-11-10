@@ -2114,7 +2114,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
     </div> : null
     const applyPreflightFix = (fix: PreflightFix) => {
-      if (fix.type === 'reduce_margin' && fix.margin_usdt) set('margin_usdt', String(fix.margin_usdt))
+      if (fix.type === 'reduce_margin' && fix.margin_usdt) {
+        // Miktar düzeltilince dry-run da otomatik yenilenir; kullanıcı tekrar kontrol düğmesine basmak zorunda kalmaz.
+        set('margin_usdt', String(fix.margin_usdt))
+        setNotice({kind: 'ok', text: `Miktar ${fix.margin_usdt} USDT yapıldı; dry-run yenileniyor.`})
+        reviewOrder({...order, margin_usdt: String(fix.margin_usdt)})
+      }
       else if (fix.type === 'positions') goPositions()
       else if (fix.type === 'other_coin') setManualStep(0)
       else if (fix.type === 'widen_or_edit_limits') openRiskEdit()
