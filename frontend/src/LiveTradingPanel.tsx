@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, X, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
+import CoinLiveChart from './CoinLiveChart'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
 import DcaPanel from './DcaPanel'
@@ -1854,6 +1855,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
             </div>
           </section>
+          <CoinLiveChart symbol={anaRow.symbol}/>
           <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
             <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
             <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
@@ -1874,6 +1876,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     </div>, document.body) : null
     const coinMobile = <div className="mxtM mxtMCoin">
       {order.symbol && <div className="mxtMSel">{coinMark(selectedRow, order.symbol)}<span className="mxtMSelN"><b>{selectedRow?.display || order.symbol}</b><small>{selectedRow ? <>{coinPrice(Number(selectedRow.price))} · <em data-tone={Number(selectedRow.change) >= 0 ? 'up' : 'down'}>{signedChange(selectedRow)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+      {order.symbol && <CoinLiveChart symbol={order.symbol} compact paused={anaSym !== null}/>}
       <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && q && !rows.some(row => row.symbol === q) && /^[A-Z0-9]{2,20}$/.test(q)) chooseCoin(q.endsWith('USDT') ? q : `${q}USDT`) }}/></label>
       {recentRows.length > 0 && <div className="mxtMRecent"><span>Son:</span>{recentRows.slice(0, 5).map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{String(row.display || row.symbol).replace('/USDT', '')}</button>)}</div>}
       <div className="mxtMTabs" role="group" aria-label="Filtre" aria-busy={signals === null || undefined} data-loading={signals === null || undefined}>{filterChips.map(([key, label]) => <button type="button" key={key} disabled={signals === null && key !== 'all'} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signals === null ? <i className="mxtMSpin" aria-hidden="true"/> : signalCount(key)}</em></button>)}</div>

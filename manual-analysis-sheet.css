@@ -77,3 +77,23 @@
 .mxsaBack{min-height:44px;border:0;background:none;color:#8ea0b4;font-weight:700;font-size:14px;cursor:pointer}
 .mxsaRoot button:focus-visible{outline:2px solid #3bb8f5;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.mxsaScrim,.mxsaSheet,.mxsaAlert{animation:none!important}}
+
+/* Canlı mini grafik (CoinLiveChart): analiz sheet'inde ve seçili coin kartının altında. Yalnız mxlc- önekli sınıflar. */
+.mxlc{margin:12px 0 0;padding:10px 12px 8px;border-radius:16px;background:#0c141f;border:1px solid #1c2a40;color:#e8ecf2;--mxlc-c:#6dd9a0}
+.mxlc[data-tone="down"]{--mxlc-c:#f08a80}
+.mxlc[data-compact]{margin:10px 0 0;padding:8px 10px 6px}
+.mxlcHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-height:22px}
+.mxlcPrice{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.mxlcPrice em{margin-left:8px;font-style:normal;font-size:13px;font-weight:700;color:var(--mxlc-c)}
+.mxlcPrice small{margin-left:4px;font-size:11px;font-weight:600;color:#7f8da3}
+.mxlcLive{font-size:12px;font-weight:700;color:#f2c46d}
+.mxlcLive[data-live]{color:#6dd9a0}
+.mxlcSvg{display:block;width:100%;margin-top:6px;overflow:visible}
+.mxlcLine{stroke:var(--mxlc-c);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.mxlcArea{fill:var(--mxlc-c);opacity:.12;stroke:none}
+.mxlcDot{fill:var(--mxlc-c);stroke:#0c141f;stroke-width:1.5}
+.mxlcNote{margin:14px 0;text-align:center;font-size:13px;color:#7f8da3}
+.mxlcNote button{margin-left:6px;padding:6px 12px;border-radius:10px;border:1px solid #2a3b57;background:#16212f;color:#9fd8ff;font-weight:700;cursor:pointer}
+.mxlcTabs{display:flex;gap:6px;margin-top:8px}
+.mxlcTabs button{flex:1;min-height:34px;border-radius:10px;border:1px solid #20304a;background:#111b29;color:#9aa8bd;font-weight:700;font-size:13px;cursor:pointer}
+.mxlcTabs button[aria-pressed="true"]{background:#1f3350;color:#e8ecf2;border-color:#2f4d78}
