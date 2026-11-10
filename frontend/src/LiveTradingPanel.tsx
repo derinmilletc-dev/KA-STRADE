@@ -1073,6 +1073,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const ok = await run('permission', async () => {
       try {
         if (!authorizationValid) await call(V25, '/consent', {method: 'POST', body: JSON.stringify({understood: true})})
+        // "İzni ver" düğmesine bilerek basıldıysa (silent değil) mevcut risk limitlerinin onayı da verilir; ARM bunsuz açılmaz.
+        // Otomatik/sessiz izinde limit onayı verilmez: limitler değişince onay bilerek yeniden istenir.
+        if (!silent && status?.policy_acknowledged !== true) await call(V25, '/policy/acknowledge', {method: 'POST', body: JSON.stringify({understood: true})})
         await call(V25, '/arm', {method: 'POST', body: JSON.stringify({understood: true})})
       } catch (error) {
         setPermError(error instanceof Error ? error.message : 'İzin verilemedi.')
@@ -2107,7 +2110,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // İzin sistem tarafından arka planda otomatik verilir; kart yalnızca otomatik izin başarısız olduysa (permError) görünür.
     const permAskEl = ((permNeeded && wzStep >= stepNames.length - 1 && Boolean(permError)) || noticePerm) ? <div className="mxtAsk" role="alert" data-testid="mwz-permask" ref={showInView}>
       <span className="mxtAskIcon" aria-hidden="true"><ShieldCheck/></span>
-      <div><b>{noticePerm ? '24 saatlik izin bitmiş' : 'Emir için 24 saatlik izin gerekiyor'}</b><small>Gerçek parayla işlemin riskini 24 saatliğine onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
+      <div><b>{noticePerm ? '24 saatlik izin bitmiş' : 'Emir için 24 saatlik izin gerekiyor'}</b><small>Gerçek parayla işlem riskini ve mevcut risk limitlerini onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
       <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
     </div> : null
     const applyPreflightFix = (fix: PreflightFix) => {

@@ -497,7 +497,7 @@ export default function DcaPanel(props: DcaPanelProps) {
             <b>Acil durdurma açık</b><span>Yeni işlem açılamaz. Önce acil durdurmayı kaldırman gerekir (2FA kodu ister).</span>
             <button type="button" onClick={() => onClearEmergency?.()}>Acil durdurmayı kaldır</button>
           </> : <>
-            <b>Canlı işlem izni gerekli</b><span>24 saatlik risk izni ve ARM tek dokunuşla verilir. Gerçek para kullanılacağını onaylamış olursun.</span>
+            <b>Canlı işlem izni gerekli</b><span>24 saatlik risk izni, risk limitlerinin onayı ve ARM tek dokunuşla verilir. Gerçek para kullanılacağını ve mevcut limitleri onaylamış olursun.</span>
             <button type="button" disabled={permBusy} onClick={() => void onGrant?.()}>{permBusy ? 'Veriliyor…' : 'İzni ver'}</button>
             {permError && <em>{permError}</em>}
           </>}
