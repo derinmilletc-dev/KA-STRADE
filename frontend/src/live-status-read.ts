@@ -44,8 +44,10 @@ export async function readLiveStatusResponses(onConnections?: (connections: Shar
       }
       return [status, connection]
     } catch (error) {
-      if (attempt === 0 && (error instanceof TypeError || error instanceof Error && error.name === 'BrowserRequestTimeoutError')) {
-        await new Promise(resolve => setTimeout(resolve, 350))
+      // Telefonda kısa kopmalar / yavaş cevap yaygın: ağ hatası, zaman aşımı ve iptal (Safari "Fetch is aborted") 2 kez daha denenir.
+      const transient = error instanceof TypeError || error instanceof Error && ['BrowserRequestTimeoutError', 'TimeoutError', 'AbortError'].includes(error.name)
+      if (attempt < 2 && transient) {
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 400 : 1200))
         continue
       }
       if (error instanceof TypeError) throw new Error('Sunucuya ulaşılamadı; kayıtlı anahtar ve Binance bakiyesi doğrulanamadı.')
