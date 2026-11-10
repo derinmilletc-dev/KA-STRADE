@@ -271,6 +271,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [confirmText, setConfirmText] = useState('')
   const [confirmCode, setConfirmCode] = useState('')
   const [busy, setBusy] = useState('')
+  const [preTick, setPreTick] = useState(0)
   // Seçili coinin fiyatı Binance bookTicker akışından anlık gelir (liste ≤90 sn geriden gelir). Akış yoksa/bayatsa liste fiyatına dönülür.
   const liveFeed = useLiveQuotes(order.symbol ? [order.symbol] : [], Boolean(order.symbol) && active)
   const liveMidFor = (sym: string) => midPrice(liveFeed.quotes[String(sym || '').toUpperCase()], liveFeed.now)
@@ -482,7 +483,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }).catch(error => { if (error?.name !== 'AbortError') setPreflight({state: 'unknown', checks: []}) })
     }, 700)
     return () => { window.clearTimeout(timer); controller.abort() }
-  }, [active, masterTrade, openStep, manualPanelOpen, manualStep, order.symbol, order.direction, order.order_type, order.margin_usdt, order.leverage, order.stop_loss, preEntryBucket])
+  }, [active, masterTrade, openStep, manualPanelOpen, manualStep, order.symbol, order.direction, order.order_type, order.margin_usdt, order.leverage, order.stop_loss, preEntryBucket, preTick])
   // Hazır öneri (Kais analizi, dalgaya göre, yüzde stop) seçilince kayıp, işlem başına limiti aşıyorsa teminat limite sığacak şekilde
   // küçültülür ve ekranda söylenir; böylece öneri en sonda "risk limiti" hatasına takılmaz. Elle girilen stopa dokunulmaz.
   const fitKey = useRef('')
@@ -1071,6 +1072,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }
       setArmPendingSync(true)
     }, 'İzin verildi; gerçek emir için hazırsın.')
+    if (ok) window.setTimeout(() => setPreTick(value => value + 1), 1200)
     if (ok && !silent) { setPermDone(true); window.setTimeout(() => setPermDone(false), 1800) }
     return ok
   }
@@ -1475,6 +1477,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const sendBlock = riskError ? riskError : !manualOrderReady ? (!authorizationValid && !freeTrial && statusVerified ? authorizationReasonText : blocker && blocker !== 'Engel yok.' ? blocker : 'Önce 1-2. adımları tamamla ve ARM\'ı aç.') : !reviewed ? 'Önce "Dry-run ile kontrol et" düğmesine bas.' : ''
     const sendOrder = () => {
       if (preBlocked.length > 0) { setNotice({kind: 'error', text: preBlocked[0].detail}); return }
+      if (permNeeded) { setNotice({kind: 'error', text: 'Önce yukarıdaki “İzni ver” butonuna dokun.'}); return }
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); if (!authorizationValid && !freeTrial && !permissionBlocked) focusPermission(); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
@@ -2080,6 +2083,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
     </div> : null
     const preBlocked = preflight.checks.filter(item => !item.passed && !(needPermission && item.key === 'readiness'))
+    const permNeeded = !orderDone && !freeTrial && preflight.checks.some(item => item.key === 'readiness' && !item.passed)
+    const permAskEl = permNeeded && wzStep >= stepNames.length - 1 ? <div className="mxtAsk" role="status" data-testid="mwz-permask">
+      <span className="mxtAskIcon" aria-hidden="true"><ShieldCheck/></span>
+      <div><b>Emir için 24 saatlik izin gerekiyor</b><small>Gerçek parayla işlemin riskini 24 saatliğine onaylarsın. İzin bir kez verilir, sayfadan ayrılmazsın.</small></div>
+      <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
+    </div> : null
     const applyPreflightFix = (fix: PreflightFix) => {
       if (fix.type === 'reduce_margin' && fix.margin_usdt) set('margin_usdt', String(fix.margin_usdt))
       else if (fix.type === 'positions') goPositions()
@@ -2112,6 +2121,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <ol className="mxtSteps" aria-label="Manuel emir adımları">{stepNames.map((name, index) => <li key={name} data-state={index === wzStep ? 'current' : index < wzStep ? 'done' : 'todo'}>
         <button type="button" disabled={index > wzStep && !stepOk.slice(0, index).every(Boolean)} aria-current={index === wzStep ? 'step' : undefined} onClick={() => goStep(index)}><i>{index < wzStep ? '✓' : index + 1}</i><span>{name}</span></button></li>)}</ol>
       {preflightEl}
+      {permAskEl}
       <div className="mxtLayout">
         <div className="mxtCard" key={wzStep}>
           <span className="mxtKicker">Adım {wzStep + 1} / {stepNames.length}</span>
