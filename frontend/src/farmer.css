@@ -398,3 +398,70 @@ html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!i
 .fmGuide{display:flex;flex-direction:column;min-width:0}
 .fmGuide>*{min-width:0;max-width:100%}
 .fmGuide>.fmInner{order:20}
+
+/* ---- Kompakt, akıllı canlı ekran (Rehber/Koç kartının içi) ---- */
+#root .fmInner{gap:10px!important}
+#root .fmInner .fmCard,#root .fmInner .fmSection,#root .fmInner .fmSettings,#root .fmInner .fmDanger{margin:0!important}
+#root .fmInner .fmCard{padding:14px!important;gap:8px!important;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03))!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:18px!important;box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+#root .fmInner p,#root .fmInner h3,#root .fmInner dl,#root .fmInner dd{margin:0!important}
+#root .fmInner .fmCard p{font-size:13.5px!important;line-height:1.5!important;color:#b9c9c1!important}
+#root .fmInner .fmCard h3{font-size:14.5px!important;color:#fff!important;letter-spacing:0!important}
+/* durum: rozet + bugünkü sonuç yan yana, mesaj tek paragraf, STOP BOT ince */
+#root .fmInner .fmStatus{gap:10px!important}
+#root .fmInner .fmStatusMsg{font-size:14px!important;line-height:1.5!important;color:#e6f0ea!important}
+#root .fmInner .fmBadge{padding:6px 12px!important;font-size:11.5px!important}
+#root .fmInner .fmBadge[data-tone="ok"]::before{content:"";width:7px;height:7px;border-radius:50%;background:#3ddc97;box-shadow:0 0 0 0 rgba(61,220,151,.6);animation:fmPulse 1.8s infinite}
+@keyframes fmPulse{70%{box-shadow:0 0 0 8px rgba(61,220,151,0)}100%{box-shadow:0 0 0 0 rgba(61,220,151,0)}}
+@media (prefers-reduced-motion:reduce){#root .fmInner .fmBadge[data-tone="ok"]::before{animation:none}}
+#root .fmInner .fmActions .fmBtn{min-height:40px!important;padding:8px 16px!important;font-size:13px!important;border-radius:12px!important}
+#root .fmInner .fmHint{font-size:12px!important;color:#8fa398!important}
+/* özet: 2x2 yerine sıkı kutucuklar */
+#root .fmInner .fmOverview{gap:10px!important}
+#root .fmInner .fmSlots b{font-size:14px!important}
+#root .fmInner .fmSlots small{font-size:12px!important;line-height:1.45!important;color:#8fa398!important}
+#root .fmInner .fmMetrics{gap:8px!important}
+#root .fmInner .fmMetrics>div{padding:9px 11px!important;border-radius:12px!important}
+#root .fmInner .fmMetrics dt{font-size:10.5px!important;letter-spacing:.08em;text-transform:uppercase;color:#7f948a!important}
+#root .fmInner .fmMetrics dd{font-size:16px!important;margin-top:2px!important}
+/* oturum: tek satırlık çip */
+#root .fmInner .fmArm{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px 12px!important;padding:10px 14px!important}
+#root .fmInner .fmArm>div{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+#root .fmInner .fmArm small{font-size:10.5px!important;letter-spacing:.08em;text-transform:uppercase;color:#7f948a}
+#root .fmInner .fmArm>p{flex-basis:100%;font-size:12px!important;color:#8fa398!important}
+/* bölüm başlıkları */
+#root .fmInner .fmSection{gap:8px!important}
+#root .fmInner .fmSection>h3{font-size:11px!important;letter-spacing:.14em!important;color:#7f948a!important;margin:2px 2px 0!important}
+#root .fmInner .fmEmpty{padding:12px 14px!important;border-radius:14px!important;font-size:13px!important;line-height:1.5!important;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.14)!important}
+#root .fmInner .fmEmpty::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#5ff0b0;opacity:.7}
+/* neden işlem yok: ince bilgi kartı */
+#root .fmInner .fmWhy{border-left:3px solid #3ddc97!important}
+#root .fmInner .fmWhy h3{font-size:13px!important;color:#cfe0d6!important}
+#root .fmInner .fmWhy p{font-size:13px!important}
+#root .fmInner .fmLink,#root .fmInner .fmMore{all:unset;cursor:pointer;display:inline!important;font-size:12.5px!important;font-weight:700;color:#5ff0b0!important;text-decoration:underline;text-underline-offset:3px;min-height:0!important;padding:0!important;background:none!important;border:0!important}
+#root .fmInner .fmMore{display:inline-flex!important;align-items:center;gap:4px}
+#root .fmInner .fmFoot{font-size:11.5px!important;line-height:1.5!important;color:#7f948a!important}
+/* aday listesi: yoğun satırlar */
+#root .fmInner .fmCands li{padding:9px 12px!important;border-radius:12px!important}
+/* ayarlar ve acil durum: ince satırlar */
+#root .fmInner .fmSettings>summary{padding:12px 14px!important;font-size:14px!important;min-height:0!important}
+#root .fmInner .fmDanger{display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px!important;border-radius:16px!important}
+#root .fmInner .fmDanger h3{font-size:13.5px!important;color:#ffb4af!important}
+#root .fmInner .fmDanger p{font-size:12px!important;line-height:1.4!important;color:#a98a88!important}
+#root .fmInner .fmDangerBtn{min-height:40px!important;padding:8px 12px!important;font-size:11.5px!important;white-space:nowrap;border-radius:12px!important}
+/* bildirim: hap */
+#root .fmInner .fmFlash{margin:0!important;padding:9px 14px!important;border-radius:999px!important;font-size:12.5px!important;text-align:center;font-weight:700}
+#root .fmInner .fmMetrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#root .fmInner .fmMetrics>div{padding:8px 8px!important;text-align:left}
+#root .fmInner .fmMetrics dt{font-size:10px!important;letter-spacing:.06em!important;line-height:1.25}
+#root .fmInner .fmMetrics dd{font-size:15px!important;white-space:nowrap}
+#root .fmInner .fmSlots{display:grid;gap:4px}
+#root .fmInner .fmStatus{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+#root .fmInner .fmStatus>*{grid-column:1/-1}
+#root .fmInner .fmStatus .fmStatusTop{grid-column:1/-1}
+#root .fmInner .fmStatusMsg{font-size:13.5px!important;color:#cfe0d6!important}
+#root .fmInner .fmStatus .fmActions{grid-column:1/-1}
+#root .fmInner .fmStatus .fmActions .fmBtn{width:100%;justify-content:center}
+#root .fmInner .fmStatus .fmHint{font-size:11px!important;line-height:1.4!important}
+#root .fmInner .fmDanger{flex-direction:column;align-items:stretch!important}
+#root .fmInner .fmDanger .fmDangerBtn{width:100%;justify-content:center}
+#root .fmInner .fmWhy .fmLink{margin-top:2px}
