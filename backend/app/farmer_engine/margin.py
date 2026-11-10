@@ -1,6 +1,6 @@
 """KAIS FARMER marjin/slot koruması ve giriş denemesi (C6).
 
-- 100 USDT Farmer sert tavanı sabittir (`HARD_CAP_USDT`); kullanıcı ayarı yalnız AŞAĞI çekebilir.
+- Toplam marjin tavanını KULLANICI belirler (açarken zorunlu); kodda üst sınır `HARD_CAP_USDT` = en çok 5 pozisyon × 100 USDT marjin.
 - Etkin kapasite = min(max_positions, floor(toplam_marjin_tavanı / pozisyon_marjini)). `max_positions` "N işlem aç" demek DEĞİLDİR.
 - Slot = HELD + OPEN + CLOSING (flat doğrulanana kadar CLOSING slotu ve marjini tutar).
 - Marjin rezervasyonu + mum giriş denemesi `FarmerStore.claim_entry` içinde TEK SQLite işlemidir.
@@ -15,7 +15,7 @@ from typing import Any, Callable, Protocol
 from .confirm import ConfirmParams, EntryDecision, FarmerCandidate, RiskView, decide_entry
 from .store import FarmerStore
 
-HARD_CAP_USDT = 100.0
+HARD_CAP_USDT = 500.0
 DAILY_LOSS_BLOCK = "DAILY_LOSS_LIMIT"
 
 

@@ -15,3 +15,4 @@ export const TriangleAlert = mk('m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4
 export const WifiOff = mk('M12 20h.01 M8.5 16.4a5 5 0 0 1 7 0 M2 2l20 20')
 export const X = mk('M18 6 6 18 M6 6l12 12')
 export const Zap = mk('M13 2 3 14h9l-1 8 10-12h-9z')
+export const Check = mk('M20 6 9 17l-5-5')

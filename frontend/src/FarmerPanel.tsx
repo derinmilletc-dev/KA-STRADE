@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom'
 import {BookOpen, ChevronDown, Clock, Loader2, MessageCircle, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
+import FarmerGuideCard from './FarmerGuideCard'
 import {
   ageText, armRemaining, badgeOf, emergencyOutcome, friendlyError, money, pickScreen, pnlView, priceText, protectionOf, slotView, statusMessageKey,
   tr_, whyKey, type CopyKey, type FarmerCandidate, type FarmerPosition, type FarmerPreview, type FarmerSettings, type FarmerStatus, type Lang,
@@ -90,7 +91,12 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   }, [load, active])
 
   useEffect(() => {
-    if (status && form === null) { setForm(formOf(status.config ?? status.recommended)); setPreview(status.preview) }
+    if (status && form === null) {
+      const base = formOf(status.config ?? status.recommended)
+      // Kâr hedefi, en fazla kayıp ve marjin tavanı kullanıcıdan gelir; henüz kaydedilmediyse boş başlar (varsayılan yok).
+      setForm(status.configured ? base : {...base, target_usdt: '', max_loss_usdt: '', total_margin_cap: ''})
+      setPreview(status.configured ? status.preview : null)
+    }
   }, [status, form])
 
   // Risk önizleme: SUNUCU hesaplar; burada yalnız çağrılır (350 ms sakinleşince).
@@ -196,6 +202,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
 
   return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
     {header}
+    {status && screen !== 'loading' && screen !== 'backend_unavailable' && <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
+      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy}/>}
     {body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
     {emergency !== 'closed' && <EmergencyModal lang={lang} working={emergency === 'working'} count={status?.positions.length ?? 0} onCancel={() => setEmergency('closed')} onConfirm={() => void doEmergency()}/>}
@@ -261,14 +269,6 @@ function Dashboard(p: DashProps) {
       <summary><span>{L('Ayarlar', 'Settings')}</span><ChevronDown aria-hidden="true"/></summary>
       <Setup {...{status, form: p.form, edit: p.edit, canEdit: p.canEdit, preview: p.preview, formError: p.formError, lang: p.lang, L, openGuide: p.openGuide, mode: 'edit', onActivate: p.onActivate, busy: p.busy}}/>
     </details>
-
-    <section className="fmCard fmCoach" data-testid="farmer-coach">
-      <div className="fmCoachHead"><span className="lcEye" aria-hidden="true" data-tone="go"/><div><b>KAIS REHBER</b><small>{L('KAIS FARMER için sade yardım', 'Plain-language help for KAIS FARMER')}</small></div></div>
-      <div className="fmCoachBtns">
-        <button type="button" className="fmGhostBtn" onClick={() => p.openGuide()}><BookOpen aria-hidden="true"/>{L('Rehberi aç', 'Open guide')}</button>
-        <button type="button" className="fmGhostBtn" onClick={() => p.ask(L('KAIS FARMER şu an ne yapıyor ve neden pozisyon açmıyor?', 'What is KAIS FARMER doing right now and why is it not opening positions?'))}><MessageCircle aria-hidden="true"/>{L('Kais’e sor', 'Ask Kais')}</button>
-      </div>
-    </section>
 
     <section className="fmDanger" aria-labelledby="fm-emergency">
       <div><h3 id="fm-emergency">{L('Acil durum', 'Emergency')}</h3>
@@ -499,8 +499,7 @@ function Setup({status, form, edit, canEdit, preview, formError, L, openGuide, m
 }
 
 function formOfRec(rec: Record<string, unknown>): Partial<Form> {
-  return {min_score: String(rec.min_score), margin_usdt: String(rec.margin_usdt), leverage: String(rec.leverage), target_usdt: String(rec.target_usdt),
-    max_loss_usdt: String(rec.max_loss_usdt), max_positions: String(rec.max_positions), total_margin_cap: String(rec.total_margin_cap),
+  return {min_score: String(rec.min_score), margin_usdt: String(rec.margin_usdt), leverage: String(rec.leverage), max_positions: String(rec.max_positions),
     dead_score: String(rec.dead_score ?? 75), dead_confirmations: String(rec.dead_confirmations), dead_on: rec.dead_score !== null && rec.dead_score !== undefined}
 }
 
