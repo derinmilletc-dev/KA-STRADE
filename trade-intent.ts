@@ -121,9 +121,33 @@ export function scrollToPositions(focus?: string | null, tries = 0) {
 
 /** Hızlı AL/SAT, kapatma ve azaltma sonrası: açık pozisyon listesinin hemen yenilenmesini ister (Demo ve Canlı dinler). */
 export const POSITIONS_REFRESH_EVENT = 'kt:positions-refresh'
-export function requestPositionsRefresh() {
-  // Borsa kaydı birkaç saniye geç yansıyabilir; kısa aralıklarla üç kez istenir.
-  for (const delay of [0, 1500, 4500]) window.setTimeout(() => window.dispatchEvent(new CustomEvent(POSITIONS_REFRESH_EVENT)), delay)
+export function requestPositionsRefresh(extended = false) {
+  // Borsa kaydı birkaç saniye geç yansıyabilir; kısa aralıklarla üç kez istenir. Yeni açılan emirde (extended) pozisyon görünene kadar ~25 sn denenir.
+  const delays = extended ? [0, 1500, 3000, 5000, 8000, 12000, 18000, 25000] : [0, 1500, 4500]
+  for (const delay of delays) window.setTimeout(() => window.dispatchEvent(new CustomEvent(POSITIONS_REFRESH_EVENT)), delay)
+}
+
+/** Emir borsaya gitti ama pozisyon listesi henüz yenilenmedi: kart "Açık pozisyon yok" yerine "yükleniyor" gösterir (en fazla 60 sn). */
+const PENDING_KEY = 'kt-order-pending-v1'
+const PENDING_MS = 60 * 1000
+let pendingMemory: {symbol: string; until: number} | null = null
+export function markOrderPending(symbol: string) {
+  const clean = String(symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!clean) return
+  pendingMemory = {symbol: clean, until: Date.now() + PENDING_MS}
+  try { window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(pendingMemory)) } catch { /* depolama kapalıysa bellekteki değer yeter */ }
+}
+export function pendingOrderSymbol(): string | null {
+  let value = pendingMemory
+  if (!value) {
+    try { const raw = window.sessionStorage.getItem(PENDING_KEY); value = raw ? JSON.parse(raw) as {symbol: string; until: number} : null } catch { value = null }
+  }
+  if (!value || typeof value.symbol !== 'string' || !(Number(value.until) > Date.now())) return null
+  return value.symbol
+}
+export function clearOrderPending() {
+  pendingMemory = null
+  try { window.sessionStorage.removeItem(PENDING_KEY) } catch { /* yok say */ }
 }
 
 /** Manuel emir ekranından Canlı İşlem kokpitindeki bir pencereyi açar (acil durdurmayı kaldır / kurtarma kontrolü). Önce manuel panel kapanır. */

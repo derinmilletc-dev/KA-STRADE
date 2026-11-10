@@ -9,7 +9,7 @@ import {
 import {askKais} from '../../kais-ask'
 import {showToast} from '../../toast-center'
 import {DayLimitCard} from './ManualTerminalParts'
-import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, requestManualMode, takeIntentForOpen} from '../../trade-intent'
+import {MANUAL_CLOSE_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_OPENED_EVENT, OPEN_LIVE_SHEET_EVENT, clearOrderPending, pendingOrderSymbol, requestManualMode, takeIntentForOpen} from '../../trade-intent'
 import SpotHint from '../../SpotHint'
 import LcMoreSheet from './LcMoreSheet'
 import {DcaGuideCard, StrategyPicker, readStrategy, writeStrategy, type LiveStrategy} from './StrategyPicker'
@@ -810,6 +810,16 @@ export default function LiveCockpit(props: Props) {
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
   const live = verified && guideInput.connected
   const positions = (live ? status?.account?.positions : null) ?? []
+  // Emir yeni gitti ve pozisyon listede henüz yok: kart "Açık pozisyon yok" yerine "yükleniyor" gösterir (en fazla 60 sn).
+  const [, setPendingTick] = useState(0)
+  const pendingSymbol = pendingOrderSymbol()
+  const awaitingSymbol = pendingSymbol && !(positions as Array<{symbol?: unknown}>).some(position => String(position.symbol ?? '').toUpperCase() === pendingSymbol) ? pendingSymbol : null
+  useEffect(() => {
+    if (pendingSymbol && !awaitingSymbol) { clearOrderPending(); return }
+    if (!awaitingSymbol) return
+    const timer = window.setInterval(() => setPendingTick(value => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [pendingSymbol, awaitingSymbol])
   // Binance'ten canlı alış/satış fiyatı: sunucu özeti 10–30 sn geriden gelir, K/Z bununla anlık hesaplanır.
   const positionSymbols = useMemo(() => (positions as Array<{symbol?: unknown}>).map(position => position.symbol), [positions])
   const liveQuotes = useLiveQuotes(positionSymbols, live && !demo && positions.length > 0)
@@ -2085,7 +2095,7 @@ export default function LiveCockpit(props: Props) {
         <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
-          onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
+          awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
           onRiskSettings={() => props.onManualRiskEdit?.()}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>

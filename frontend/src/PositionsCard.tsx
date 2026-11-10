@@ -30,6 +30,8 @@ type Props = {
   onRiskSettings?: () => void
   /** Manuel pozisyon kapanış hedefi kur/kaldır ("fiyat X olunca" / "net Y USDT kârda"). Sunucu ~10 sn'de bir bakar. */
   onCloseTarget?: (planId: string, mode: CloseTargetMode | 'off', value: number | null) => Promise<boolean>
+  /** Emir borsaya yeni gitti ama bu coinin pozisyonu listede henüz yok: boş durum yerine "yükleniyor" gösterilir. */
+  awaitingSymbol?: string | null
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -172,7 +174,8 @@ export default function PositionsCard(props: Props) {
   return <section className="lcCard pvRoot" aria-label="Açık pozisyonlar" data-view={view}>
     <header className="lcCardHead"><div><small>POZİSYONLAR</small><h3>{title}</h3></div><small data-tone={live && !stale && positions.length > 0 ? allLive ? 'up' : 'warn' : undefined}>{freshness}</small></header>
     {live && positions.length > 0 && !allLive && <p className="lcStaleNote" role="status">Canlı fiyat alınamadı: kâr/zarar 10–30 sn geriden gelebilir. Kapatmadan önce Binance uygulamasından kontrol et.</p>}
-    {positions.length === 0 ? <p className="lcEmpty">{live ? running ? 'Şu an açık pozisyon yok. Uygun fırsat çıkınca stop ve hedefleriyle burada görünür.' : 'Açık pozisyon yok.' : 'Güncel pozisyonlar doğrulanamadı.'}</p> : <div className="pvInner">
+    {live && props.awaitingSymbol && <p className="lcStaleNote" role="status" data-testid="pv-awaiting">⏳ {props.awaitingSymbol} pozisyonu yükleniyor… Emir borsaya gitti, birkaç saniye içinde burada görünür.</p>}
+    {positions.length === 0 ? (props.awaitingSymbol && live ? null : <p className="lcEmpty">{live ? running ? 'Şu an açık pozisyon yok. Uygun fırsat çıkınca stop ve hedefleriyle burada görünür.' : 'Açık pozisyon yok.' : 'Güncel pozisyonlar doğrulanamadı.'}</p>) : <div className="pvInner">
       <div className="pvTools">
         <div className="pvSeg pvViewSeg" role="group" aria-label="Görünüm">
           <button type="button" aria-pressed={view === 'card'} onClick={() => changeView('card')}>Kart</button>
