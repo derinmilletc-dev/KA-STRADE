@@ -420,6 +420,7 @@ def evaluate_entry_gates(
     active_plans: list[dict[str, Any]] | None = None,
     candidate_notional_usdt: float = 0.0,
     cycle_candidates: list[dict[str, Any]] | None = None,
+    enforce_spread: bool = True,
 ) -> dict[str, Any]:
     settings = sanitize_execution_policy(policy)
     safe_symbol = normalize_live_symbol(symbol)
@@ -456,7 +457,9 @@ def evaluate_entry_gates(
         GateResult(direction != "SHORT" or settings["allow_short"], "short", "SHORT izni", "Açık" if settings["allow_short"] else "Kapalı"),
         GateResult(confidence >= settings["min_confidence"], "confidence", "Güven eşiği", f"%{confidence} / ≥ %{settings['min_confidence']}"),
         GateResult(trap_score <= settings["max_trap_score"], "trap", "Tuzak radarı", f"%{trap_score} / ≤ %{settings['max_trap_score']}"),
-        GateResult(spread_bps <= settings["max_spread_bps"], "spread", "Spread", f"{spread_bps:.2f} bp / ≤ {settings['max_spread_bps']:.2f} bp"),
+        # Manuel emirde (enforce_spread=False) yüksek spread engel değil, yalnız uyarıdır; otomatik girişlerde kapı aynen engeller.
+        GateResult(spread_bps <= settings["max_spread_bps"] or not enforce_spread, "spread", "Spread",
+                   f"{spread_bps:.2f} bp / ≤ {settings['max_spread_bps']:.2f} bp" + (" (uyarı: yüksek)" if spread_bps > settings["max_spread_bps"] and not enforce_spread else "")),
         GateResult(not snapshot.get("hedge_mode", False), "one_way", "One-way pozisyon modu", "Hedge kapalı olmalı."),
         GateResult(len(positions) < settings["max_positions"], "positions", "Pozisyon sınırı", f"{len(positions)} / {settings['max_positions']}"),
         GateResult(not any(item.get("symbol") == safe_symbol for item in positions + orders), "duplicate", "Yinelenen parite", "Aynı paritede açık pozisyon/emir bulunmamalı."),

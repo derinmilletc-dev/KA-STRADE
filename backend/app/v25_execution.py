@@ -6376,6 +6376,7 @@ async def execute_live_order(
                 active_plans=list(state.get("plans", {}).values()),
                 candidate_notional_usdt=body.margin_usdt * body.leverage,
                 cycle_candidates=cycle_candidates,
+                enforce_spread=source != "MANUAL",
             )
             for gate in guard.get("gates", []):
                 if isinstance(gate, dict):
