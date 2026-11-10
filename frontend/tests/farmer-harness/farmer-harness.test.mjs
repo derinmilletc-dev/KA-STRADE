@@ -19,6 +19,7 @@ async function open(s, {w = 390, h = 844, q = '', lang = 'en'} = {}) {
   return page
 }
 const calls = page => page.evaluate(() => window.__calls)
+const fillUser = async (page, t = '1', l = '1.5', c = '100') => { await page.getByRole('textbox', {name: 'Profit Target'}).fill(t); await page.getByRole('textbox', {name: 'Max Loss'}).fill(l); await page.getByRole('textbox', {name: 'Margin Cap'}).fill(c); await page.waitForTimeout(500) }
 const text = (page, id) => page.getByTestId(id).innerText()
 async function test(name, fn) { try { await fn(); n++; console.log('ok  ', name) } catch (e) { console.log('FAIL', name, '\n', e.message); process.exitCode = 1 } }
 
@@ -30,31 +31,34 @@ await test('backend unavailable state + retry', async () => {
   await p.getByRole('button', {name: /Try again/}).click(); await p.waitForTimeout(100); assert.ok((await calls(p)).filter(c => c === 'GET /farmer/status').length >= 2); await p.ctx.close()
 })
 await test('account unavailable asks to connect', async () => {
-  const p = await open('account'); assert.ok(await p.getByTestId('farmer-account-unavailable').isVisible()); await p.getByRole('button', {name: /Open connection/}).click(); assert.ok((await calls(p)).includes('CONNECT')); await p.ctx.close()
+  const p = await open('account'); assert.ok(await p.getByTestId('farmer-account-unavailable').isVisible()); await p.getByTestId('farmer-account-unavailable').getByRole('button', {name: /Open connection/}).click(); assert.ok((await calls(p)).includes('CONNECT')); await p.ctx.close()
 })
 await test('disabled state: explains, no activate, no raw flags', async () => {
   const p = await open('disabled'); const body = await p.innerText('body')
   assert.ok(await p.getByTestId('farmer-disabled').isVisible()); assert.strictEqual(await p.getByTestId('farmer-activate').count(), 0)
-  assert.ok(!/KAISTRADE_FARMER|LIVE_FLAG|TPM/.test(body)); assert.ok(await p.getByTestId('farmer-preview').isVisible()); await p.ctx.close()
+  assert.ok(!/KAISTRADE_FARMER|LIVE_FLAG|TPM/.test(body)); await p.ctx.close()
 })
 await test('onboarding: recommended shown, activation saves settings then starts', async () => {
-  const p = await open('onboarding'); assert.match(await text(p, 'farmer-config-kind'), /Recommended/)
+  const p = await open('onboarding'); assert.match(await text(p, 'farmer-config-kind'), /Custom/)      // kâr, kayıp, tavan boş başlar
   assert.match(await p.innerText('body'), /Position Size[\s\S]*Risk[\s\S]*Target/)
+  await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(100)
+  assert.strictEqual((await calls(p)).some(x => x.startsWith('POST /farmer/settings')), false)           // boşken sunucuya gitmez
+  await fillUser(p); assert.match(await text(p, 'farmer-config-kind'), /Recommended/)
   await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(150)
   const c = await calls(p); const i = c.findIndex(x => x.startsWith('POST /farmer/settings')), j = c.indexOf('POST /farmer/start')
   assert.ok(i >= 0 && j > i, JSON.stringify(c)); assert.strictEqual(c.some(x => x.includes('NaN')), false); await p.ctx.close()
 })
 await test('rejected start shows no false success (backend refusal is not "active")', async () => {
-  const p = await open('onboarding', {q: '&start=reject'})
+  const p = await open('onboarding', {q: '&start=reject'}); await fillUser(p)
   await p.getByTestId('farmer-activate').click(); await p.waitForTimeout(200)
   const body = await p.innerText('body'); assert.ok(!/KAIS FARMER is active/.test(body), body); assert.match(body, /could not be started/); assert.ok(!/FARMER_NOT_STARTED/.test(body)); await p.ctx.close()
 })
 await test('custom values flip chip to Custom, preview comes from server, reset works', async () => {
-  const p = await open('onboarding'); const input = p.getByRole('textbox', {name: 'Profit Target'})
+  const p = await open('onboarding'); await fillUser(p); const input = p.getByRole('textbox', {name: 'Profit Target'})
   await input.fill('0.2'); await p.waitForTimeout(600)
   assert.match(await text(p, 'farmer-config-kind'), /Custom/); assert.match(await text(p, 'farmer-preview'), /TIGHT/)
   assert.ok((await calls(p)).some(c => c.startsWith('POST /farmer/preview')))
-  await p.getByRole('button', {name: /Reset to recommended/}).click(); assert.match(await text(p, 'farmer-config-kind'), /Recommended/); await p.ctx.close()
+  await p.getByRole('button', {name: /Reset to recommended/}).click(); assert.strictEqual(await input.inputValue(), '0.2'); await p.ctx.close()      // kullanıcının seçtiği kâr korunur
 })
 await test('invalid number blocks activation, no request sent', async () => {
   const p = await open('onboarding'); await p.getByRole('textbox', {name: 'Max Loss'}).fill('abc'); await p.waitForTimeout(500)

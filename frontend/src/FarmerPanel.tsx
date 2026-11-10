@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom'
 import {BookOpen, ChevronDown, Clock, Loader2, MessageCircle, Pause, Play, Power, RefreshCw, ShieldCheck, Square, TriangleAlert, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
+import FarmerGuideCard from './FarmerGuideCard'
 import {
   ageText, armRemaining, badgeOf, emergencyOutcome, friendlyError, money, pickScreen, pnlView, priceText, protectionOf, slotView, statusMessageKey,
   tr_, whyKey, type CopyKey, type FarmerCandidate, type FarmerPosition, type FarmerPreview, type FarmerSettings, type FarmerStatus, type Lang,
@@ -201,6 +202,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
 
   return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
     {header}
+    {status && screen !== 'loading' && screen !== 'backend_unavailable' && <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
+      onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy}/>}
     {body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
     {emergency !== 'closed' && <EmergencyModal lang={lang} working={emergency === 'working'} count={status?.positions.length ?? 0} onCancel={() => setEmergency('closed')} onConfirm={() => void doEmergency()}/>}
@@ -266,14 +269,6 @@ function Dashboard(p: DashProps) {
       <summary><span>{L('Ayarlar', 'Settings')}</span><ChevronDown aria-hidden="true"/></summary>
       <Setup {...{status, form: p.form, edit: p.edit, canEdit: p.canEdit, preview: p.preview, formError: p.formError, lang: p.lang, L, openGuide: p.openGuide, mode: 'edit', onActivate: p.onActivate, busy: p.busy}}/>
     </details>
-
-    <section className="fmCard fmCoach" data-testid="farmer-coach">
-      <div className="fmCoachHead"><span className="lcEye" aria-hidden="true" data-tone="go"/><div><b>KAIS REHBER</b><small>{L('KAIS FARMER için sade yardım', 'Plain-language help for KAIS FARMER')}</small></div></div>
-      <div className="fmCoachBtns">
-        <button type="button" className="fmGhostBtn" onClick={() => p.openGuide()}><BookOpen aria-hidden="true"/>{L('Rehberi aç', 'Open guide')}</button>
-        <button type="button" className="fmGhostBtn" onClick={() => p.ask(L('KAIS FARMER şu an ne yapıyor ve neden pozisyon açmıyor?', 'What is KAIS FARMER doing right now and why is it not opening positions?'))}><MessageCircle aria-hidden="true"/>{L('Kais’e sor', 'Ask Kais')}</button>
-      </div>
-    </section>
 
     <section className="fmDanger" aria-labelledby="fm-emergency">
       <div><h3 id="fm-emergency">{L('Acil durum', 'Emergency')}</h3>
