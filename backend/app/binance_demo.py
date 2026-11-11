@@ -701,6 +701,14 @@ class MoveStopRequest(BaseModel):
     confirmation: str = Field(min_length=1, max_length=32)
 
 
+class MoveTargetsRequest(BaseModel):
+    symbol: str = Field(min_length=5, max_length=20)
+    tp1: float | None = Field(default=None, gt=0)
+    tp2: float | None = Field(default=None, gt=0)
+    tp3: float | None = Field(default=None, gt=0)
+    confirmation: str = Field(min_length=1, max_length=32)
+
+
 class TrailRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     pct: float | None = Field(default=None, gt=0, le=100)
@@ -2574,6 +2582,175 @@ async def _move_demo_stop_locked(
         f"{symbol} stop taşınamadı; Demo pozisyon güvenlik için kapatılıyor.",
         "Stop kurulamadı; pozisyon güvenlik için kapatıldı.",
     )
+
+
+def _snapshot_has_target(snapshot: dict[str, Any], symbol: str, algo_id: int, side: str) -> bool:
+    if snapshot.get("open_algo_orders_available") is not True or snapshot.get("open_algo_orders_quality") != "CONFIRMED":
+        return False
+    for order in snapshot.get("open_algo_orders") or []:
+        if not isinstance(order, dict) or _algo_id(order) != algo_id:
+            continue
+        return (
+            str(order.get("symbol") or "").upper() == symbol
+            and str(order.get("type") or "").upper() == "TAKE_PROFIT_MARKET"
+            and str(order.get("side") or "").upper() == side
+            and str(order.get("status") or "").upper() in STOP_MOVE_ACTIVE_STATUSES
+        )
+    return False
+
+
+async def _place_target(
+    client: BinanceDemoClient, state: dict[str, Any], plan: dict[str, Any], index: int,
+    price: Decimal, kind: str, close_side: str,
+) -> int | None:
+    """Place one take-profit leg (TP1/TP2 partial reduce-only, TP3 closePosition) and confirm it on the exchange."""
+    symbol = str(plan["symbol"]).upper()
+    params: dict[str, Any] = {
+        "algoType": "CONDITIONAL", "symbol": symbol, "side": close_side, "workingType": "MARK_PRICE",
+        "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET", "triggerPrice": decimal_text(price),
+        "clientAlgoId": new_client_id(kind),
+    }
+    if index == 3:
+        params["closePosition"] = "true"
+    else:
+        params["quantity"] = str(plan.get(f"tp{index}_quantity"))
+        params["reduceOnly"] = "true"
+    stray_id: int | None = None
+    try:
+        result = await post_algo(client, params)
+        stray_id = _algo_id(result) if isinstance(result, dict) else None
+        plans = [item for item in state.get("plans", {}).values() if isinstance(item, dict)]
+        new_id = _validate_new_protection_identity(plan, result, plans, expected_type="TAKE_PROFIT_MARKET", expected_side=close_side)
+        if new_id is None:
+            raise BinanceDemoError("Yeni hedef kimliği doğrulanamadı.", http_status=409)
+        if not _snapshot_has_target(await _fresh_protection_snapshot(client, symbol), symbol, new_id, close_side):
+            raise BinanceDemoError("Yeni hedef borsada doğrulanamadı.", http_status=409)
+    except BinanceDemoError:
+        if stray_id is not None:
+            await _delete_algo_confirmed(client, symbol, stray_id)
+        return None
+    ids = list(_plan_protection_ids(plan) or [])
+    ids.append(new_id)
+    plan["protection_ids"] = ids
+    plan[f"tp{index}_algo_id"] = new_id
+    plan[f"tp{index}_client_id"] = params["clientAlgoId"]
+    return new_id
+
+
+async def move_demo_targets(
+    client: BinanceDemoClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    new_targets: dict[int, float],
+) -> dict[str, Any]:
+    """Change TP1/TP2/TP3 of an open MANUAL Demo position. Each leg: old order removed (proven gone), new one placed and
+    confirmed. The stop is never touched, so the position stays protected even if a leg cannot be re-placed."""
+    key = str(plan.get("id") or "")
+    if not key or plan.get("source") != "MANUAL":
+        raise BinanceDemoError("Hedefler yalnız manuel açılan Demo pozisyonlarında değiştirilebilir.", http_status=422)
+    if not can_mutate_lifecycle(plan):
+        raise BinanceDemoError("Plan sahipliği doğrulanmadı; pozisyona dokunulmadı.", http_status=423)
+    if plan.get("position_status") != "OPEN" or plan.get("stop_protection_cancelled") or plan.get("protection_repair_pending"):
+        raise BinanceDemoError("Pozisyon korumalı ve açık değil; hedefler değiştirilemez.", http_status=409)
+    lock = protection_lock(plan)
+    if key in STOP_MOVE_ACTIVE or lock.locked():
+        raise BinanceDemoError("Bu pozisyonda koruma işlemi sürüyor; birkaç saniye sonra dene.", http_status=409)
+    async with lock:
+        STOP_MOVE_ACTIVE.add(key)
+        try:
+            return await _move_demo_targets_locked(client, state, plan, new_targets)
+        finally:
+            STOP_MOVE_ACTIVE.discard(key)
+            STOP_MOVE_DONE_AT[key] = time.monotonic()
+
+
+async def _move_demo_targets_locked(
+    client: BinanceDemoClient, state: dict[str, Any], plan: dict[str, Any], new_targets: dict[int, float],
+) -> dict[str, Any]:
+    symbol, direction = str(plan["symbol"]).upper(), str(plan.get("direction") or "").upper()
+    if direction not in {"LONG", "SHORT"}:
+        raise BinanceDemoError("Pozisyon yönü okunamadı; hedefler değiştirilemedi.", http_status=409)
+    long_side = direction == "LONG"
+    close_side = "SELL" if long_side else "BUY"
+    rows = response_rows(await client.signed("GET", "/fapi/v3/positionRisk", {"symbol": symbol}))
+    row = next((item for item in rows if position_amount(item.get("positionAmt")) != 0), None)
+    if row is None:
+        raise BinanceDemoError("Borsada bu plana ait açık pozisyon bulunamadı.", http_status=409)
+    if (position_amount(row.get("positionAmt")) > 0) != long_side:
+        raise BinanceDemoError("Pozisyon yönü plan ile uyuşmuyor; hedefler değiştirilemedi.", http_status=409)
+    try:
+        mark = Decimal(str(row.get("markPrice")))
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise BinanceDemoError("Pozisyon fiyatı okunamadı; değişiklik yapılmadı.", http_status=503) from exc
+    if not mark.is_finite() or mark <= 0:
+        raise BinanceDemoError("Pozisyon fiyatı geçersiz; değişiklik yapılmadı.", http_status=503)
+    rules = await symbol_rules(client, symbol)
+    old = [Decimal(str(value)) for value in plan.get("targets") or []]
+    if len(old) != 3:
+        raise BinanceDemoError("Plan hedefleri okunamadı; değişiklik yapılmadı.", http_status=409)
+    merged = list(old)
+    for index, value in new_targets.items():
+        merged[index - 1] = round_tick(Decimal(str(value)), rules["tick"])
+    ordered = all((a < b) if long_side else (a > b) for a, b in zip(merged, merged[1:]))
+    if not ordered:
+        raise BinanceDemoError("Hedefler sırayla uzaklaşmalı (TP1 < TP2 < TP3; SHORT'ta tersi).", http_status=422)
+    stop = Decimal(str(plan["stop_loss"]))
+    changed = [i for i in (1, 2, 3) if merged[i - 1] != old[i - 1]]
+    if not changed:
+        raise BinanceDemoError("Hedefler zaten bu fiyatlarda.", http_status=422)
+    for i in changed:
+        target = merged[i - 1]
+        if (long_side and (target <= mark or target <= stop)) or (not long_side and (target >= mark or target >= stop)):
+            raise BinanceDemoError(f"TP{i}, güncel fiyatın kâr tarafında olmalı (yoksa hemen tetiklenir).", http_status=422)
+
+    snapshot = await _fresh_protection_snapshot(client, symbol)
+    monitoring = list(plan.get("monitoring_targets") or [])
+    open_ids = {_algo_id(o) for o in snapshot.get("open_algo_orders") or [] if isinstance(o, dict)}
+    done: list[int] = []
+    for i in changed:
+        old_id = _single_plan_algo_id(plan, f"tp{i}_algo_id")
+        if old_id is None and f"TP{i}" in monitoring:
+            old[i - 1] = merged[i - 1]
+            done.append(i)  # borsada emri yok; yalnız izleme fiyatı değişir
+            continue
+        if old_id is None and i == 3:
+            candidates = [
+                _algo_id(o) for o in snapshot.get("open_algo_orders") or []
+                if isinstance(o, dict) and str(o.get("symbol") or "").upper() == symbol
+                and str(o.get("type") or "").upper() == "TAKE_PROFIT_MARKET" and str(o.get("side") or "").upper() == close_side
+                and _algo_id(o) in (_plan_protection_ids(plan) or set())
+                and _algo_id(o) not in {_single_plan_algo_id(plan, "tp1_algo_id"), _single_plan_algo_id(plan, "tp2_algo_id")}
+            ]
+            old_id = candidates[0] if len(candidates) == 1 else None
+        if old_id is None or old_id not in open_ids:
+            if done:
+                break
+            raise BinanceDemoError(f"TP{i} borsada açık görünmüyor (gerçekleşmiş olabilir); değişiklik yapılmadı.", http_status=409)
+        if not await _delete_algo_confirmed(client, symbol, old_id):
+            if done:
+                break
+            raise BinanceDemoError(f"Eski TP{i} borsadan kaldırılamadı; hiçbir şey değişmedi.", http_status=409)
+        plan["protection_ids"] = [x for x in (_plan_protection_ids(plan) or set()) if x != old_id]
+        plan[f"tp{i}_algo_id"] = None
+        if await _place_target(client, state, plan, i, merged[i - 1], f"TPM{i}", close_side):
+            old[i - 1] = merged[i - 1]
+            plan["targets"] = [decimal_text(v) for v in old]
+            done.append(i)
+            persist_runtime(state)
+            continue
+        if await _place_target(client, state, plan, i, old[i - 1], f"TPR{i}", close_side):
+            add_event(state, "HEDEF GERİ KURULDU", f"{symbol} yeni TP{i} kurulamadı; eski hedef geri kuruldu.")
+            persist_runtime(state)
+            raise BinanceDemoError(f"Yeni TP{i} kurulamadı; eski hedef geri kuruldu, stop yerinde.", http_status=409)
+        monitoring.append(f"TP{i}")
+        plan["monitoring_targets"] = monitoring
+        plan["protection_status"] = "STOP AKTİF · HEDEF İZLEME"
+        persist_runtime(state)
+        raise BinanceDemoError(f"TP{i} borsada kurulamadı; hedef izlemeye alındı. Stop yerinde, pozisyon korumalı.", http_status=409)
+    plan["targets"] = [decimal_text(v) for v in old]
+    add_event(state, "HEDEF GÜNCELLENDİ", f"{symbol} " + ", ".join(f"TP{i} {decimal_text(old[i-1])}" for i in done) + " güncellendi.")
+    persist_runtime(state)
+    return {"ok": True, "symbol": symbol, "targets": [decimal_text(v) for v in old], "changed": done}
 
 
 async def demo_trailing_step(client: BinanceDemoClient, state: dict[str, Any], plan: dict[str, Any], position_row: dict[str, Any]) -> bool:
@@ -4723,6 +4900,33 @@ async def demo_move_stop(request: Request, body: MoveStopRequest) -> dict[str, A
                 client_for(request), state, candidates[0], body.stop_loss, v21_state_for(request).get("settings", {}),
             )
         return result
+    except BinanceDemoError as exc:
+        raise safe_exchange_error(exc) from exc
+
+
+@router.post("/position/targets")
+async def demo_move_targets(request: Request, body: MoveTargetsRequest) -> dict[str, Any]:
+    """Change the take-profit targets of the user's manual Demo position."""
+    if body.confirmation.strip().upper() != "DEMO HEDEF GÜNCELLE":
+        raise HTTPException(422, "Hedefleri değiştirmek için DEMO HEDEF GÜNCELLE yazın.")
+    wanted = {i: v for i, v in ((1, body.tp1), (2, body.tp2), (3, body.tp3)) if v is not None}
+    if not wanted:
+        raise HTTPException(422, "Değiştirilecek hedef yok.")
+    try:
+        symbol = normalize_symbol(body.symbol)
+        state = state_for(request)
+        user_id = _current_user_id(request=request, state=state)
+        async with state["lock"]:
+            candidates = [
+                plan for plan in state.get("plans", {}).values()
+                if isinstance(plan, dict)
+                and str(plan.get("symbol") or "").upper() == symbol
+                and plan.get("position_status") == "OPEN"
+                and (not user_id or str(plan.get("user_id") or plan.get("_user_id") or "").strip() == user_id)
+            ]
+            if len(candidates) != 1:
+                raise HTTPException(404, "Bu paritede hedefi değişebilir tek bir manuel Demo pozisyonu bulunamadı.")
+            return await move_demo_targets(client_for(request), state, candidates[0], wanted)
     except BinanceDemoError as exc:
         raise safe_exchange_error(exc) from exc
 
