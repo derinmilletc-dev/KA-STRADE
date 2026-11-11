@@ -180,6 +180,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [trailOn, setTrailOn] = useState(false)
   const [extras, setExtras] = useState<string[]>([])
   const [extraNote, setExtraNote] = useState('')
+  const [startTap, setStartTap] = useState(0)
 
   const isDemo = account === 'DEMO'
   const liveArmed = isDemo ? true : liveArmedProp
@@ -692,11 +693,12 @@ export default function DcaPanel(props: DcaPanelProps) {
         </div>
       })()}
 
+      {step === 3 && whyBlocked && <p className="dwWhy" role="alert" key={startTap} data-tap={startTap > 0 || undefined}><i aria-hidden="true">!</i><span><b>Şu an başlatılamıyor</b>{whyBlocked}</span></p>}
       <div className="dwBar">
         {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId || customBlock !== ''} onClick={() => setStep(3)}>Devam · kontrol et</button></>}
-        {step === 3 && <><button type="button" className="dwBack" onClick={() => setStep(2)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" disabled={Boolean(whyBlocked)} onClick={start}>Canlı başlat</button></>}
+        {step === 3 && <><button type="button" className="dwBack" onClick={() => setStep(2)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" aria-disabled={Boolean(whyBlocked) || undefined} data-blocked={Boolean(whyBlocked) || undefined} onClick={() => { if (whyBlocked) { setStartTap(n => n + 1); return } start() }}>Canlı başlat</button></>}
       </div>
-      {step === 3 && whyBlocked && <p className="dcaWhy">{whyBlocked}</p>}
+
       {statusError && <p className="dcaWhy bad">{statusError}</p>}
 
       {finished.length > 0 && <div className="dcaPast"><b>Son botlar</b>{finished.map(bot => <div key={bot.grid_id}><span>{bot.symbol} {bot.side}</span><span>{STATUS[bot.status]?.text || bot.status}</span><span className={Number(bot.stats?.realized_usdt) >= 0 ? 'up' : 'down'}>{fmtUsd(Number(bot.stats?.realized_usdt || 0), true)}</span></div>)}</div>}

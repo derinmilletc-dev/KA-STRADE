@@ -454,3 +454,17 @@
 #root .dca .dwExTotal{margin:0;font-size:12.5px;line-height:1.5;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04)}
 #root .dca .dwExNote{font-style:normal;font-size:12px;color:#f0836a}
 @media (max-width:380px){#root .dca .dwSumBar{grid-template-columns:repeat(2,1fr)}}
+
+/* Başlat engelliyse neden açıkça görünür (buton artık sessizce pasif kalmaz) */
+#root .dca .dwWhy{display:flex;gap:10px;align-items:flex-start;margin:0;padding:12px 14px;border-radius:14px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.4);color:#ffe3a6;font-size:13.5px;line-height:1.45}
+#root .dca .dwWhy i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;background:#f5c04a;color:#2a1c00}
+#root .dca .dwWhy span{display:grid;gap:2px}
+#root .dca .dwWhy b{color:#fff3d1}
+#root .dca .dwWhy[data-tap]{animation:dwShake .45s}
+@keyframes dwShake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+@media (prefers-reduced-motion:reduce){#root .dca .dwWhy[data-tap]{animation:none}}
+#root .dca .dwBar button[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+/* Seçili ek coin kartı: genel yeşil seçili stili yazıyı görünmez yapmasın */
+#root .dca .dwExList button[data-on]{background:linear-gradient(160deg,rgba(61,220,151,.24),#0f1824 85%)!important;color:var(--ink)!important;border-color:#3ddc97!important}
+#root .dca .dwExList button[data-on] b{color:var(--ink)!important}
+#root .dca .dwExList button[data-on] small{color:#b9c8d8!important}
