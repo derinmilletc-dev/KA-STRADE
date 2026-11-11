@@ -69,24 +69,24 @@
   },
   "events": [
     {
-      "id": "32d4cf02d3fd42559b5acbfbedbb7fe2",
+      "id": "7e668ee5961544f5ac7636687bc3ba0c",
       "kind": "LIVE_ENTRY",
       "message": "BTCUSDT LONG MARKET canlı emir gönderildi (ORIGINAL_V2_LIVE).",
-      "created_at": "2026-11-11T10:54:03.047971+00:00",
+      "created_at": "2026-11-11T11:03:50.517112+00:00",
       "symbol": "BTCUSDT",
       "direction": "LONG",
-      "client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64"
+      "client_order_id": "PTBLV_ENTRY_79ae6e917ca05483d9c362"
     },
     {
-      "id": "2368810c9530459c9c1f163d5161958c",
+      "id": "6bd1188134a64f7ba2f493e2e4f645fa",
       "kind": "LIVE_DECISION_AUDIT",
       "message": "Canlı emir öncesi değişmez karar özeti oluşturuldu.",
-      "created_at": "2026-11-11T10:54:03.046005+00:00",
+      "created_at": "2026-11-11T11:03:50.515154+00:00",
       "symbol": "BTCUSDT",
-      "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+      "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
       "audit_snapshot": {
-        "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
-        "timestamp": "2026-11-11T10:54:03.045954+00:00",
+        "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
+        "timestamp": "2026-11-11T11:03:50.515117+00:00",
         "mode": "LIVE",
         "symbol": "BTCUSDT",
         "side": "BUY",
@@ -122,9 +122,9 @@
   ],
   "mtf_decision_history": [],
   "plans": {
-    "0e100fab137c4baf": {
-      "id": "0e100fab137c4baf",
-      "intent_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+    "008faa6d7a124a7e": {
+      "id": "008faa6d7a124a7e",
+      "intent_id": "manual-b9d905940639428db684fc1e572da7f2",
       "symbol": "BTCUSDT",
       "direction": "LONG",
       "order_type": "MARKET",
@@ -160,9 +160,9 @@
       "entry_order_id": 42,
       "min_notional": "5",
       "entry_order_status": "FILLED",
-      "entry_client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64",
+      "entry_client_order_id": "PTBLV_ENTRY_79ae6e917ca05483d9c362",
       "status": "DOLUM BEKLİYOR",
-      "created_at": "2026-11-11T10:54:03.047769+00:00",
+      "created_at": "2026-11-11T11:03:50.516926+00:00",
       "source": "ORIGINAL_V2_LIVE",
       "live": true,
       "protection_ids": [],
@@ -182,7 +182,7 @@
       "original_record": {
         "schema": 1,
         "entry": {
-          "recorded_at": "2026-11-11T10:54:03.047769+00:00",
+          "recorded_at": "2026-11-11T11:03:50.516926+00:00",
           "signal": {
             "symbol": "BTCUSDT",
             "direction": null,
@@ -257,7 +257,7 @@
           },
           "market": {
             "spread_bp": 1,
-            "hour_utc": 10,
+            "hour_utc": 11,
             "weekday_utc": 2,
             "universe_rank": null,
             "universe_ranked_count": null,
@@ -296,10 +296,10 @@
   },
   "persistence_revision": 2,
   "intents": {
-    "manual-5f12aa636f344ef7853fb5b109e953dd": {
+    "manual-b9d905940639428db684fc1e572da7f2": {
       "symbol": "BTCUSDT",
-      "client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64",
-      "created_at": "2026-11-11T10:54:03.046030+00:00",
+      "client_order_id": "PTBLV_ENTRY_79ae6e917ca05483d9c362",
+      "created_at": "2026-11-11T11:03:50.515176+00:00",
       "source": "ORIGINAL_V2_LIVE",
       "spec": {
         "symbol": "BTCUSDT",
@@ -344,7 +344,7 @@
   "live_lock_reason": {
     "code": "SERVER_RESTART",
     "message": "Sunucu yeniden başladığı için ARM iptal edildi; canlı giriş yetkisi yeniden onaylanmalı.",
-    "at": "2026-11-11T10:54:03.048578+00:00"
+    "at": "2026-11-11T11:03:50.517251+00:00"
   },
   "account_rate_limit": null,
   "auto": {

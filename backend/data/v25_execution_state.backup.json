@@ -69,15 +69,15 @@
   },
   "events": [
     {
-      "id": "2368810c9530459c9c1f163d5161958c",
+      "id": "6bd1188134a64f7ba2f493e2e4f645fa",
       "kind": "LIVE_DECISION_AUDIT",
       "message": "Canlı emir öncesi değişmez karar özeti oluşturuldu.",
-      "created_at": "2026-11-11T10:54:03.046005+00:00",
+      "created_at": "2026-11-11T11:03:50.515154+00:00",
       "symbol": "BTCUSDT",
-      "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+      "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
       "audit_snapshot": {
-        "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
-        "timestamp": "2026-11-11T10:54:03.045954+00:00",
+        "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
+        "timestamp": "2026-11-11T11:03:50.515117+00:00",
         "mode": "LIVE",
         "symbol": "BTCUSDT",
         "side": "BUY",
@@ -115,10 +115,10 @@
   "plans": {},
   "persistence_revision": 1,
   "intents": {
-    "manual-5f12aa636f344ef7853fb5b109e953dd": {
+    "manual-b9d905940639428db684fc1e572da7f2": {
       "symbol": "BTCUSDT",
-      "client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64",
-      "created_at": "2026-11-11T10:54:03.046030+00:00",
+      "client_order_id": "PTBLV_ENTRY_79ae6e917ca05483d9c362",
+      "created_at": "2026-11-11T11:03:50.515176+00:00",
       "source": "ORIGINAL_V2_LIVE",
       "spec": {
         "symbol": "BTCUSDT",
@@ -163,7 +163,7 @@
   "live_lock_reason": {
     "code": "SERVER_RESTART",
     "message": "Sunucu yeniden başladığı için ARM iptal edildi; canlı giriş yetkisi yeniden onaylanmalı.",
-    "at": "2026-11-11T10:54:03.046142+00:00"
+    "at": "2026-11-11T11:03:50.515289+00:00"
   },
   "account_rate_limit": null,
   "auto": {

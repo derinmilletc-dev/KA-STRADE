@@ -58,12 +58,12 @@ def demo_enabled() -> bool:
 
 
 def trailing_enabled() -> bool:
-    """Takip eden hedef varsayılan KAPALI (sunucuda KAISTRADE_DCA_TRAILING=1 ile açılır; önce Demo'da ölçülür)."""
-    return str(os.getenv(TRAILING_ENV, "0")).strip().lower() in {"1", "true", "yes", "on"}
+    """Takip eden hedef varsayılan AÇIK (KAISTRADE_DCA_TRAILING=0 ile kapatılır)."""
+    return str(os.getenv(TRAILING_ENV, "1")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def smart_entry_enabled() -> bool:
-    """Akıllı başlama varsayılan KAPALI (sunucuda KAISTRADE_DCA_SMART_ENTRY=1 ile açılır)."""
+    """Akıllı başlama varsayılan AÇIK (KAISTRADE_DCA_SMART_ENTRY=0 ile kapatılır)."""
     return entry_gate.enabled()
 
 

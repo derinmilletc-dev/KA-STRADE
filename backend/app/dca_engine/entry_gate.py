@@ -19,7 +19,7 @@ class EntryNotReady(Exception):
 
 
 def enabled() -> bool:
-    return str(os.getenv(ENABLE_ENV, "0")).strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv(ENABLE_ENV, "1")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def min_confidence() -> float:
