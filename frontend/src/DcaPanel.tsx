@@ -163,7 +163,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const {symbol, price, side, liveArmed: liveArmedProp, call, v25Base, askConfirm, coins = [], signals, onPickSymbol, onPickSide, authorizationValid: authorizationProp = true, emergency: emergencyProp = false, permBusy = false, permError = '', onGrant, onClearEmergency} = props
   const account: Account = props.demo ? 'DEMO' : 'LIVE'
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
-  const [started, setStarted] = useState<{symbol: string; side: DcaSide; at: number} | null>(null)
+  const [started, setStarted] = useState<{symbol: string; side: DcaSide; at: number; symbols?: string[]} | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [anaSym, setAnaSym] = useState<string | null>(null)
@@ -175,6 +175,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [scrub, setScrub] = useState(0.55)
   const [status, setStatus] = useState<any>(null)
   const [statusError, setStatusError] = useState('')
+  const [notStarted, setNotStarted] = useState<Array<{sym: string; why: string}>>([])
   const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
   const [smartEntry, setSmartEntry] = useState(false)
@@ -482,22 +483,24 @@ export default function DcaPanel(props: DcaPanelProps) {
         const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>; skip?: boolean}> = [{sym: symbol, inp: input}]
         for (const sym of extras) jobs.push({sym, inp: await extraInput(sym)})
         const failed: string[] = []
+        const failedList: Array<{sym: string; why: string}> = []
+        setNotStarted([])
         // Önce hepsini sunucuya onaylat: ana coin reddedilirse hiçbiri başlamaz; ek coin reddedilirse o atlanır, diğerleri başlar.
         if (jobs.length > 1) setLaunching(c => c && {...c, phase: 'Ek coinler sunucuda kontrol ediliyor…'})
         for (const job of jobs.slice(1)) {
           try { await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000}) }
-          catch (error: any) { failed.push(`${job.sym}: ${error?.message || 'reddedildi'}`); job.skip = true }
+          catch (error: any) { failed.push(`${job.sym}: ${error?.message || 'reddedildi'}`); failedList.push({sym: job.sym, why: error?.message || 'Sunucu reddetti'}); job.skip = true }
         }
         for (const [index, job] of jobs.entries()) {
           if (job.skip) continue
           setLaunching(c => c && {...c, now: job.sym, phase: 'Binance\'e emir gönderiliyor…'})
           try { await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: bodyFor(job.sym, job.inp, false, word)}) }
-          catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`) }
+          catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`); failedList.push({sym: job.sym, why: error?.message || 'Başlamadı'}) }
           setLaunching(c => c && {...c, done: [...c.done, job.sym]})
         }
-        setStarted({symbol, side, at: Date.now()})
+        setStarted({symbol, side, at: Date.now(), symbols: jobs.filter(j => !j.skip && !failedList.some(f => f.sym === j.sym)).map(j => j.sym)})
         setStep(4)
-        if (failed.length) setStatusError(`Bazı coinler başlamadı: ${failed.join(' · ')}`)
+        setNotStarted(failedList)   // loadStatus hata satırını siler; bu liste silinmez
         await loadStatus()
   }
   const act = (kind: 'stop' | 'emergency' | 'resume', gridId: string) => {
@@ -728,8 +731,10 @@ export default function DcaPanel(props: DcaPanelProps) {
         const mine = bots.filter(bot => bot.symbol === started.symbol).sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0))[0]
         const waited = Date.now() - started.at
         return <div className="dwPane" data-testid="dca-step-4">
+          {notStarted.length > 0 && <div className="dcaWhy bad" role="alert" data-testid="dca-not-started"><b>Başlamayan coinler ({notStarted.length}):</b>{notStarted.map(item => <p key={item.sym}><b>{item.sym.replace('USDT', '')}</b>: {item.why}</p>)}<button type="button" onClick={() => setNotStarted([])}>Tamam</button></div>}
           <div className="dwDone"><i aria-hidden="true">✓</i><div><b>DCA botu başlatıldı</b><span>{started.symbol} · {started.side}. Taban emir piyasadan girer, ek emirler limit olarak beklemeye alınır, stop ve kâr hedefi kurulur.</span></div></div>
           {mine ? <BotCard key={mine.grid_id} bot={mine} busy={busy === mine.grid_id} onAct={act} mark={markOf(mine.symbol)} /> : <div className="dwVerify" data-state="busy" role="status"><i className="dwSpin" aria-hidden="true"/><span>{waited > 20000 ? 'Bot durumu henüz görünmedi. Açık pozisyonlarından kontrol et.' : 'Bot kuruluyor, durum birazdan burada görünür…'}</span></div>}
+          {(() => { const others = (started.symbols ?? []).filter(sym => sym !== started.symbol).map(sym => bots.filter(bot => bot.symbol === sym).sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0))[0]).filter(Boolean); return others.map((bot: any) => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} mark={markOf(bot.symbol)} />) })()}
           <p className="dwFine">Bu kart kendiliğinden güncellenir. İşlemin Binance&apos;te açıldığını “Açık pozisyonlar” bölümünde de görürsün.</p>
           <div className="dwBar dwBar2">
             <button type="button" className="dwBack" onClick={() => { setStarted(null); setPicked(null); setPresetId(''); setStep(1) }}>Yeni DCA</button>
