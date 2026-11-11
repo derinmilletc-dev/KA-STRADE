@@ -21,6 +21,7 @@ export const SCENARIOS: Record<string, any> = {
   disabled: base({available: false, state: 'OFF', configured: false, config: null, blockers: ['LIVE_FLAG_OFF'], why: {code: 'UNAVAILABLE', details: []}, slots: null, effective_capacity: null}),
   onboarding: base({state: 'OFF', configured: false, config: null, arm: {active: false, expires_at: null}, why: {code: 'OFF', details: []}}),
   off: base({state: 'OFF', why: {code: 'OFF', details: []}}),
+  arm_needed: base({state: 'OFF', arm: {active: false, expires_at: null}, why: {code: 'OFF', details: []}}),
   running_empty: base({scanner: [{symbol: 'XRPUSDT', direction: 'SHORT', score: 88, status: 'REJECTED', reason: 'SCORE_TOO_LOW'}], why: {code: 'SCORE_TOO_LOW', details: [{code: 'SCORE_TOO_LOW', count: 1}, {code: 'MTF_NOT_CONFIRMED', count: 2}]}}),
   running_none: base({}),
   running_two: base({positions: two, scanner: scan, slots: {capacity: 2, held: 0, open: 2, closing: 0, free: 0}, margin_used_usdt: 100, available_margin_usdt: 0, why: {code: 'CAPACITY_FULL', details: []}}),

@@ -561,64 +561,81 @@ type WizardProps = {
   onSave: () => void; onRenew: () => void; onActivate: () => void; onEdit: () => void; onCancelEdit: () => void
 }
 
+const PROFILES = [
+  {id: 'safe', icon: ShieldCheck, tr: 'Temkinli', en: 'Careful', dtr: 'Küçük hedef, dar zarar', den: 'Small target, tight loss', target: 0.3, loss: 1, cap: 25},
+  {id: 'balanced', icon: Target, tr: 'Dengeli', en: 'Balanced', dtr: 'Çoğu kişi için orta yol', den: 'The middle road', target: 0.4, loss: 2, cap: 25},
+  {id: 'bold', icon: Zap, tr: 'Atak', en: 'Bold', dtr: 'Daha büyük hedef ve kayıp', den: 'Bigger target and loss', target: 1, loss: 3, cap: 50},
+] as const
+
 function Wizard(p: WizardProps) {
   const {status, form, edit, preview, formError, L, lang, openGuide, busy, step} = p
   const cap = Number(status.hard_cap_usdt) || 500
-  const caps = [...new Set([50, 100, 200, cap].filter(v => v <= cap))]
-  const core = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', icon: ReactNode, label: string, help: string, chips: number[], topic: string) => {
+  const caps = [...new Set([25, 50, 100, 200, cap].filter(v => v <= cap))]
+  const field = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', label: string, chips: number[], topic: string) => {
     const value = form[key]
     return <div className="fmWzField" data-filled={value.trim() !== '' || undefined}>
-      <span className="fmWzIcon" aria-hidden="true">{icon}</span>
-      <div className="fmWzBody">
+      <div className="fmWzRow">
         <label htmlFor={`fm-f-${key}`}>{label}</label>
+        <button type="button" className="fmWzHelp" aria-label={`${label}: ${L('Daha fazla', 'Learn more')}`} onClick={() => openGuide(topic)}>?</button>
         <span className="fmWzInput"><input id={`fm-f-${key}`} inputMode="decimal" type="text" placeholder="0" value={value} onChange={e => edit({[key]: e.target.value} as Partial<Form>)}/><i aria-hidden="true">USDT</i></span>
-        <span className="fmWzChips" role="group" aria-label={`${label}: ${L('hızlı seç', 'quick pick')}`}>{chips.map(c => <button type="button" key={c} data-on={value === String(c) || undefined} onClick={() => edit({[key]: String(c)} as Partial<Form>)}>{c}</button>)}</span>
-        <small>{help} <button type="button" className="fmLink" aria-label={`${label}: ${L('Daha fazla', 'Learn more')}`} onClick={() => openGuide(topic)}>{L('Daha fazla', 'Learn more')}</button></small>
       </div>
+      <span className="fmWzChips" role="group" aria-label={`${label}: ${L('hızlı seç', 'quick pick')}`}>{chips.map(c => <button type="button" key={c} data-on={Number(value) === c || undefined} onClick={() => edit({[key]: String(c)} as Partial<Form>)}>{c}</button>)}</span>
     </div>
   }
   const filled = form.target_usdt.trim() !== '' && form.max_loss_usdt.trim() !== '' && form.total_margin_cap.trim() !== ''
+  const picked = PROFILES.find(pr => Number(form.target_usdt) === pr.target && Number(form.max_loss_usdt) === pr.loss && Number(form.total_margin_cap) === pr.cap && form.target_usdt !== '')
   const cfg = status.config
-  const cells = cfg ? [
-    [L('Kâr hedefi', 'Profit target'), money(cfg.target_usdt, true)],
-    [L('En fazla kayıp', 'Max loss'), `-${money(cfg.max_loss_usdt).replace('-', '')}`],
-    [L('Toplam tavan', 'Total cap'), `${cfg.total_margin_cap} USDT`],
-    [L('Kaldıraç', 'Leverage'), `${cfg.leverage}×`],
-  ] : []
+  const capacity = Number(status.effective_capacity ?? preview?.effective_capacity ?? 0)
+  const plan = (t: number, l: number, n: number) => L(`Bir işlemde en fazla -$${l} kaybedersin, hedef +$${t}. ${n > 0 ? `Aynı anda en fazla ${n} işlem açılır.` : ''}`, `You risk at most -$${l} per trade, target +$${t}. ${n > 0 ? `Up to ${n} trades at once.` : ''}`)
+  const tip = !preview ? null
+    : preview.verdict === 'NOT_RECOMMENDED' ? {tone: 'bad', text: L('Bu rakamlarla işlem kurulamıyor. Kaybı biraz artır ya da hedefi küçült.', 'These numbers cannot form a trade. Raise the loss a bit or lower the target.')}
+    : preview.verdict === 'TIGHT' ? {tone: 'warn', text: L('Dar bir ayar. Normal dalgalanmada stop çalışabilir; daha geniş bir kayıp sınırı dene.', 'A tight setup. Normal moves may hit the stop; try a wider loss limit.')}
+    : {tone: 'ok', text: plan(preview.target_usdt, preview.max_loss_usdt, capacity)}
   return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
     {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
-      <div className="fmWzFields">
-        {core('target_usdt', <Target/>, L('Kâr hedefi', 'Profit Target'), L('Her işlemde kapatmak istediğin net kâr.', 'Net profit you want per trade.'), [1, 2, 3, 5], 'target')}
-        {core('max_loss_usdt', <ShieldAlert/>, L('En fazla kayıp', 'Max Loss'), L('Tek işlemde göze aldığın en büyük kayıp.', 'Largest loss you accept on one trade.'), [1, 2, 3, 5], 'maxloss')}
-        {core('total_margin_cap', <Wallet/>, L('Marjin tavanı', 'Margin Cap'), L(`Aynı anda kullanılacak toplam teminat (en çok ${cap}).`, `Total collateral used at once (max ${cap}).`), caps, 'slots')}
+      <div className="fmProfiles" role="radiogroup" aria-label={L('Hazır profil', 'Ready profile')}>
+        {PROFILES.map(pr => { const Icon = pr.icon; return <button type="button" role="radio" aria-checked={picked?.id === pr.id} key={pr.id} data-on={picked?.id === pr.id || undefined} onClick={() => edit({target_usdt: String(pr.target), max_loss_usdt: String(pr.loss), total_margin_cap: String(Math.min(pr.cap, cap))})}>
+          <Icon aria-hidden="true"/><b>{L(pr.tr, pr.en)}</b><span>{L(pr.dtr, pr.den)}</span><em>+{pr.target} / -{pr.loss}</em>
+        </button> })}
       </div>
+      <p className="fmWzOr"><span>{picked ? L('Bu profil seçili. İstersen rakamları değiştir:', 'Profile selected. Adjust the numbers if you like:') : L('Ya da rakamları kendin yaz:', 'Or type your own numbers:')}</span></p>
+      <div className="fmWzFields">
+        {field('target_usdt', L('Kâr hedefi', 'Profit Target'), [0.3, 0.5, 1, 2], 'target')}
+        {field('max_loss_usdt', L('En fazla kayıp', 'Max Loss'), [1, 2, 3, 5], 'maxloss')}
+        {field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), caps, 'slots')}
+      </div>
+      {tip && <p className="fmWzTip" data-tone={tip.tone} data-testid="farmer-step-tip"><b>{tip.tone === 'ok' ? L('Plan', 'Plan') : L('İpucu', 'Tip')}</b>{tip.text}</p>}
       <RiskPreview preview={preview} L={L} openGuide={openGuide}/>
       <details className="fmAdvanced"><summary>{L('Gelişmiş ayarlar', 'Advanced settings')}<ChevronDown aria-hidden="true"/></summary>
         <Setup {...{status, form, edit, canEdit: true, preview, formError, lang, L, openGuide, mode: 'wizard' as const, onActivate: p.onActivate, busy}}/>
       </details>
       {formError && <p className="fmFlash" data-tone="bad" role="alert" data-testid="farmer-form-error">{formError}</p>}
-      <div className="fmWzNav">
-        <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-save" disabled={!!busy || !!formError || !filled} onClick={p.onSave}>{busy === 'save' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Check aria-hidden="true"/>}{L('Kaydet ve devam et', 'Save and continue')}</button>
-        {p.editing && <button type="button" className="fmBtn fmWide" onClick={p.onCancelEdit}>{L('Vazgeç', 'Cancel')}</button>}
+      <div className="fmWzNav fmWzSticky">
+        <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-save" disabled={!!busy || !!formError || !filled} onClick={p.onSave}>{busy === 'save' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Check aria-hidden="true"/>}{filled ? L('Kaydet ve devam et', 'Save and continue') : L('Önce bir profil seç', 'Pick a profile first')}</button>
+        {p.editing && <button type="button" className="fmWzLink" onClick={p.onCancelEdit}>{L('Vazgeç', 'Cancel')}</button>}
       </div>
-      {!filled && <p className="fmHint fmWzNeed">{L('Üç rakamı da sen belirliyorsun; hiçbiri hazır gelmez. Altındaki rakamlara dokunarak hızlıca seçebilirsin.', 'You set all three numbers; none is pre-filled. Tap a chip to pick quickly.')}</p>}
     </div>}
 
     {step === 2 && <div className="fmWzPane" key="s2" data-testid="farmer-step-session">
-      <div className="fmWzHero"><ShieldCheck aria-hidden="true"/><div><b>{L('İşlem oturumu', 'Trading session')}</b><p>{L('Güvenlik için yeni pozisyon açma izni süreli verilir. Tek dokunuşla açarsın; süre dolsa da açık pozisyonların koruması sürer.', 'For safety, permission to open new positions is time-limited. One tap opens it; protection of open positions continues after it ends.')}</p></div></div>
-      <div className="fmWzNav">
+      <ul className="fmWzPoints">
+        <li><i><Clock aria-hidden="true"/></i><span><b>{L('Süreli izin', 'Time-limited')}</b>{L('Süre dolunca yeni işlem açılmaz.', 'No new trades once it expires.')}</span></li>
+        <li><i><ShieldCheck aria-hidden="true"/></i><span><b>{L('Pozisyonların korunur', 'Positions stay protected')}</b>{L('Süre bitse de stop ve hedef borsada durur.', 'Stop and target stay on the exchange.')}</span></li>
+        <li><i><Zap aria-hidden="true"/></i><span><b>{L('İstediğin an durdur', 'Stop anytime')}</b>{L('STOP BOT yeni girişleri hemen keser.', 'STOP BOT halts new entries at once.')}</span></li>
+      </ul>
+      <div className="fmWzNav fmWzSticky">
         <button type="button" className="fmBtn fmPrimary fmWide" data-testid="farmer-arm-renew" disabled={!!busy} onClick={p.onRenew}>{busy === 'arm' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Clock aria-hidden="true"/>}{L('Oturumu aç', 'Open session')}</button>
-        <button type="button" className="fmBtn fmWide" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
+        <button type="button" className="fmWzLink" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
       </div>
     </div>}
 
     {step === 3 && <div className="fmWzPane" key="s3" data-testid="farmer-step-start">
-      <dl className="fmWzSummary">{cells.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      {cfg && <div className="fmWzPlan"><small>{L('SENİN PLANIN', 'YOUR PLAN')}</small><p>{plan(cfg.target_usdt, cfg.max_loss_usdt, capacity)}</p>
+        <dl><div><dt>{L('Hedef', 'Target')}</dt><dd className="up">{money(cfg.target_usdt, true)}</dd></div><div><dt>{L('En fazla kayıp', 'Max loss')}</dt><dd className="down">-{money(cfg.max_loss_usdt).replace('-', '')}</dd></div><div><dt>{L('Toplam tavan', 'Total cap')}</dt><dd>{cfg.total_margin_cap}<em> USDT</em></dd></div><div><dt>{L('Kaldıraç', 'Leverage')}</dt><dd>{cfg.leverage}×</dd></div></dl></div>}
       <ul className="fmWzChecks" aria-label={L('Hazırlık durumu', 'Readiness')}><li data-ok><i>✓</i>{L('Binance bağlı', 'Binance connected')}</li><li data-ok><i>✓</i>{L('Ayarlar kayıtlı', 'Settings saved')}</li><li data-ok><i>✓</i>{L('İşlem oturumu açık', 'Session open')}</li></ul>
-      {cfg && Number(status.effective_capacity) > 0 && <p className="fmWzCap" data-testid="farmer-step-capacity"><b>{L(`Aynı anda en fazla ${status.effective_capacity} pozisyon`, `Up to ${status.effective_capacity} positions at once`)}</b><span>{L(`Her pozisyonda ${cfg.margin_usdt} USDT teminat · toplam tavan ${cfg.total_margin_cap} USDT`, `${cfg.margin_usdt} USDT collateral each · total cap ${cfg.total_margin_cap} USDT`)}</span></p>}
-      <div className="fmWzNav">
+      {cfg && capacity > 0 && <p className="fmWzCap" data-testid="farmer-step-capacity"><b>{L(`Aynı anda en fazla ${capacity} pozisyon`, `Up to ${capacity} positions at once`)}</b><span>{L(`Her pozisyonda ${cfg.margin_usdt} USDT teminat · toplam tavan ${cfg.total_margin_cap} USDT`, `${cfg.margin_usdt} USDT collateral each · total cap ${cfg.total_margin_cap} USDT`)}</span></p>}
+      <div className="fmWzNav fmWzSticky">
         <button type="button" className="fmBtn fmPrimary fmWide fmWzGo" data-testid="farmer-activate" disabled={!!busy} onClick={p.onActivate}>{busy === 'activate' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Zap aria-hidden="true"/>}{L('KAIS FARMER’ı etkinleştir', 'Activate KAIS FARMER')}</button>
-        <button type="button" className="fmBtn fmWide" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
+        <button type="button" className="fmWzLink" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>
       </div>
       <p className="fmHint">{L('Etkinleştirmek gerçek pozisyon açmaya izin verir. Hedefler garanti değildir.', 'Activating allows real positions to be opened. Targets are not guarantees.')}</p>
     </div>}
