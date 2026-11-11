@@ -1299,6 +1299,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
 
   const confirmAction = () => {
+    if (actionInFlight.current && confirm) { showToast({body: 'Önceki işlem hâlâ sürüyor; birkaç saniye sonra tekrar dene.', tone: 'warn'}); return }
     if (actionInFlight.current || !confirm || (!confirm.simple && !sameConfirmText(confirmText, confirm.expected))
         || (confirm.understanding && !confirmUnderstood)
         || (confirm.mfa && confirmCode.length < 6)) return

@@ -470,3 +470,17 @@
 #root .dca .dwExList button[data-on] small{color:#b9c8d8!important}
 #root .dca .dwWhy[data-bad]{background:rgba(255,107,107,.12);border-color:rgba(255,107,107,.45);color:#ffc9c9}
 #root .dca .dwWhy[data-bad] i{background:#ff6b6b;color:#2a0d0d}
+
+/* Başlatılıyor göstergesi: emirler borsaya giderken ekran donmuş görünmesin */
+.dwLaunch{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:20px;background:rgba(4,9,15,.72);backdrop-filter:blur(6px);animation:dwFade .2s ease both}
+.dwLaunchBox{width:min(360px,100%);display:grid;justify-items:center;gap:10px;padding:26px 22px;border-radius:24px;background:linear-gradient(160deg,#13233a,#0b1522);border:1px solid rgba(61,220,151,.35);box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center;color:#e8eef5}
+.dwLaunchBox>b{font-size:18px}
+.dwLaunchBox>span{font-size:14px;color:#b9c8d8}
+.dwLaunchBox>small{font-size:12px;line-height:1.5;color:#8ea0b4}
+.dwLaunchBox ul{list-style:none;margin:4px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.dwLaunchBox li{display:inline-flex;gap:6px;align-items:center;padding:6px 12px;border-radius:99px;background:#162334;font-weight:800;font-size:13px;color:#8ea0b4}
+.dwLaunchBox li em{font-style:normal}
+.dwLaunchBox li[data-state="now"]{color:#ffe3a6;background:rgba(245,192,74,.16)}
+.dwLaunchBox li[data-state="ok"]{color:#06281a;background:#3ddc97}
+.dwSpinBig{display:block;width:44px;height:44px;border-radius:50%;border-width:4px!important}
+@keyframes dwFade{from{opacity:0}to{opacity:1}}
