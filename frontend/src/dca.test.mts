@@ -2,7 +2,7 @@
 // backend/tests/test_dca_plan.py ile aynı örnek: iki hesap aynı sayıları vermeli.
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {DCA_LIMITS, DCA_PRESETS, computeDca, fitToCap, maxBaseMargin, minBaseMargin, planFit} from './dcaMath.ts'
+import {DCA_LIMITS, DCA_PRESETS, computeDca, fitToCap, maxBaseMargin, minBaseMargin, planFit, LOSS_HEADROOM} from './dcaMath.ts'
 
 const F = {tickSize: 0.01, stepSize: 0.001, minNotional: 5}
 const base: any = {side: 'LONG', price: 100, baseMargin: 10, safetyOrders: 3, stepPct: 1.5, volumeMultiplier: 1.5, takeProfitPct: 1, stopGapPct: 1.5, leverage: 3, filters: F}
@@ -118,3 +118,13 @@ console.log('dca.test.mts: tamam')
   }
   console.log(`parity: ${fx.cases.length} durum backend ile aynı`)
 }
+
+// Hazır planlarda kaldıraç en az 3x; sığdırılan planın en kötü zararı sınırın altında pay bırakır (sunucuyla kuruş farkı olmasın).
+for (const preset of DCA_PRESETS) assert.ok(preset.form.leverage >= 3, `${preset.id} kaldıracı 3x'ten düşük`)
+for (const preset of DCA_PRESETS) {
+  const input: any = {side: 'LONG', price: 100, baseMargin: Number(preset.form.margin), safetyOrders: preset.form.safety, stepPct: Number(preset.form.step), volumeMultiplier: Number(preset.form.volume),
+    takeProfitPct: Number(preset.form.tp), stopGapPct: Number(preset.form.gap), leverage: preset.form.leverage, filters: F}
+  const fit = planFit(input, 300, 5)
+  if (fit.state === 'ok') assert.ok(computeDca({...input, baseMargin: fit.margin!}).worstLoss <= 5 * LOSS_HEADROOM + 1e-9, `${preset.id} en kötü zararı sınırın payını aştı`)
+}
+console.log('ok: kaldıraç ≥3x ve zarar payı')
