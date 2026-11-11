@@ -5454,6 +5454,15 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
     return result
 
 
+PROTECTION_UNCERTAIN_REASONS = {
+    "EXACT_PARAMETERS_MISMATCH": "borsadaki stop kayıtla aynı kimlikte ama fiyatı/türü/ayarı uyuşmuyor",
+    "DUPLICATE_EXACT_IDENTITY": "aynı kimlikle borsada birden fazla stop var",
+    "FALLBACK_SYMBOL_DIRECTION_TYPE": "borsada bu coinde tek bir stop var ama kimliği bu plana ait olduğunu göstermiyor",
+    "AMBIGUOUS_SYMBOL_DIRECTION_TYPE": "borsada bu coinde birden fazla stop var, hangisinin bu plana ait olduğu belli değil",
+    "ENTRY_TP_IDENTITY_UNKNOWN": "giriş sonrası kâr hedefi emrinin kimliği doğrulanamadı",
+}
+
+
 def record_protection_ownership_uncertain(
     state: dict[str, Any],
     plan: dict[str, Any],
@@ -5473,7 +5482,7 @@ def record_protection_ownership_uncertain(
     add_event(
         state,
         "OWNERSHIP_UNCERTAIN",
-        f"{plan.get('symbol')} Stop sahipliği doğrulanamadı; otomatik koruma değişikliği yapılmadı.",
+        f"{plan.get('symbol')} Stop sahipliği doğrulanamadı; otomatik koruma değişikliği yapılmadı. Sebep: {PROTECTION_UNCERTAIN_REASONS.get(reason, reason)}.",
         symbol=plan.get("symbol"),
         plan_id=plan_id,
         reason=reason,
