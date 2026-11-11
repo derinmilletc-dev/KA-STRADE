@@ -9127,7 +9127,7 @@ async def _grid_live_start(request: Request, body: GridLiveStartRequest, reserva
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye grid marjininden düşük.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "entry_gate": gate}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0)}
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":
                 raise HTTPException(409, "Isolated marjin uygulanamadı; grid başlatılmadı.")
             audit = await apply_live_verified_leverage(client, symbol, plan["leverage"], expected_margin_type="ISOLATED")
@@ -9376,7 +9376,7 @@ async def _dca_live_start(request: Request, body: DcaLiveStartRequest, reservati
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye DCA marjininden düşük.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0)}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "entry_gate": gate}
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":
                 raise HTTPException(409, "Isolated marjin uygulanamadı; DCA başlatılmadı.")
             audit = await apply_live_verified_leverage(client, symbol, plan["leverage"], expected_margin_type="ISOLATED")

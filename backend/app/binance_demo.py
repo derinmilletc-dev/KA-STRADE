@@ -4986,8 +4986,7 @@ async def demo_grid_start(request: Request, body: DemoGridStartRequest) -> dict[
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Demo hesabında grid marjini için yeterli kullanılabilir bakiye yok.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO",
-                        "entry_gate": gate}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO"}
             await set_isolated_margin(client, symbol)
             audit = await apply_verified_leverage(client, symbol, plan["leverage"])
             if not audit.get("leverage_verified"):
@@ -5175,7 +5174,7 @@ async def demo_dca_start(request: Request, body: DemoDcaStartRequest) -> dict[st
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Demo hesabında DCA marjini için yeterli kullanılabilir bakiye yok.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO"}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO", "entry_gate": gate}
             await set_isolated_margin(client, symbol)
             audit = await apply_verified_leverage(client, symbol, plan["leverage"])
             if not audit.get("leverage_verified"):

@@ -2,22 +2,19 @@
   "version": "25.0.0",
   "policy": {
     "allowed_symbols": [
-      "BTCUSDT",
-      "ETHUSDT",
-      "SOLUSDT",
-      "BNBUSDT"
+      "BTCUSDT"
     ],
     "interval": "15m",
     "allow_long": true,
     "allow_short": true,
     "max_margin_per_trade": 25.0,
     "max_loss_per_trade": 3.0,
-    "max_leverage": 30,
+    "max_leverage": 50,
     "max_positions": 5,
     "max_same_direction_positions": 2,
     "max_direction_exposure_usdt": null,
     "max_total_exposure_usdt": 350.0,
-    "daily_loss_limit": 10.0,
+    "daily_loss_limit": 5,
     "daily_trade_limit": 3,
     "consecutive_loss_limit": 3,
     "min_confidence": 80,
@@ -72,18 +69,283 @@
   },
   "events": [
     {
-      "id": "b96ddff323084e008c76715a4864c0eb",
-      "kind": "CREDENTIAL_REFRESH_RETRY_SUCCEEDED",
-      "message": "İlk credential çözümlemesi boş döndü; tek zorunlu yenileme denemesi tamamlandı.",
-      "created_at": "2026-11-02T17:21:58.010372+00:00"
+      "id": "32d4cf02d3fd42559b5acbfbedbb7fe2",
+      "kind": "LIVE_ENTRY",
+      "message": "BTCUSDT LONG MARKET canlı emir gönderildi (ORIGINAL_V2_LIVE).",
+      "created_at": "2026-11-11T10:54:03.047971+00:00",
+      "symbol": "BTCUSDT",
+      "direction": "LONG",
+      "client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64"
+    },
+    {
+      "id": "2368810c9530459c9c1f163d5161958c",
+      "kind": "LIVE_DECISION_AUDIT",
+      "message": "Canlı emir öncesi değişmez karar özeti oluşturuldu.",
+      "created_at": "2026-11-11T10:54:03.046005+00:00",
+      "symbol": "BTCUSDT",
+      "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+      "audit_snapshot": {
+        "decision_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+        "timestamp": "2026-11-11T10:54:03.045954+00:00",
+        "mode": "LIVE",
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "position_side": "BOTH",
+        "quantity": "2.5",
+        "leverage": 50,
+        "margin_usdt": 5,
+        "estimated_notional_usdt": 250,
+        "stop_loss": "99.2",
+        "tp_levels": [
+          "102",
+          "104",
+          "106"
+        ],
+        "risk_amount_usdt": 2,
+        "exposure_usdt": 250,
+        "exposure_limit_usdt": 350.0,
+        "active_plan_conflict": false,
+        "protection_readiness": true,
+        "lock_state": false,
+        "order_parameters": {
+          "type": "MARKET",
+          "entry_price": "100",
+          "stop_loss": "99.2",
+          "targets": [
+            "102",
+            "104",
+            "106"
+          ]
+        }
+      }
     }
   ],
   "mtf_decision_history": [],
-  "plans": {},
-  "persistence_revision": 1,
-  "intents": {},
+  "plans": {
+    "0e100fab137c4baf": {
+      "id": "0e100fab137c4baf",
+      "intent_id": "manual-5f12aa636f344ef7853fb5b109e953dd",
+      "symbol": "BTCUSDT",
+      "direction": "LONG",
+      "order_type": "MARKET",
+      "entry_price": "100",
+      "quantity": "2.5",
+      "requested_quantity": "2.5",
+      "initial_risk_usdt": 2.0,
+      "r_multiple": null,
+      "liquidation_guard": {
+        "verified": true,
+        "model": "ISOLATED_MAINTENANCE_BRACKETS_WITH_FEE_RESERVE",
+        "liquidation_price_estimate": "98.49321948769462581617277750",
+        "buffer_pct": 0.5,
+        "minimum_buffer": "0.5",
+        "available_buffer": "0.70678051230537418382722250",
+        "maintenance_rate": "0.004",
+        "maintenance_deduction": "0",
+        "funding_included": false
+      },
+      "margin_usdt": 5,
+      "notional_usdt": 250,
+      "leverage": 50,
+      "applied_leverage": 50,
+      "margin_type": "isolated",
+      "stop_loss": "99.2",
+      "targets": [
+        "102",
+        "104",
+        "106"
+      ],
+      "step": "0.001",
+      "min_qty": "0.001",
+      "entry_order_id": 42,
+      "min_notional": "5",
+      "entry_order_status": "FILLED",
+      "entry_client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64",
+      "status": "DOLUM BEKLİYOR",
+      "created_at": "2026-11-11T10:54:03.047769+00:00",
+      "source": "ORIGINAL_V2_LIVE",
+      "live": true,
+      "protection_ids": [],
+      "provenance_state": "PROVISIONAL",
+      "protection_state": "UNKNOWN",
+      "protection_cleanup_state": "IDLE",
+      "protection_cleanup_pending_ids": [],
+      "protection_cleanup_last_error": null,
+      "protection_cleanup_attempted_at": null,
+      "exchange_order_ids": [
+        42
+      ],
+      "initial_stop_loss": "99.2",
+      "initial_quantity": "2.5",
+      "original_risk_budget": "2",
+      "original_cost_bps": "0",
+      "original_record": {
+        "schema": 1,
+        "entry": {
+          "recorded_at": "2026-11-11T10:54:03.047769+00:00",
+          "signal": {
+            "symbol": "BTCUSDT",
+            "direction": null,
+            "confidence": null,
+            "trap_score": null,
+            "breakout_quality": null,
+            "momentum": null,
+            "trend": null,
+            "rsi": null,
+            "macd_hist": null,
+            "adx": null,
+            "atr": null,
+            "atr_pct": null,
+            "volume_ratio": null,
+            "ema20": null,
+            "ema50": null,
+            "ema200": null,
+            "bb_upper": null,
+            "bb_middle": null,
+            "bb_lower": null,
+            "bb_width": null,
+            "support": null,
+            "resistance": null,
+            "signal_entry": null,
+            "signal_stop": null,
+            "signal_tp1": null,
+            "signal_tp2": null,
+            "signal_tp3": null,
+            "signal_timestamp": null,
+            "decision_time": null
+          },
+          "mtf": {
+            "alignment": null,
+            "verdict": null,
+            "higher_timeframe_confirmation": null,
+            "directions": {
+              "15m": null,
+              "1h": null,
+              "4h": null
+            },
+            "confidence": {
+              "15m": null,
+              "1h": null,
+              "4h": null
+            },
+            "weights": {
+              "15m": null,
+              "1h": null,
+              "4h": null
+            },
+            "short_filter_v2": null
+          },
+          "quality_checks": [],
+          "entry_model": "legacy",
+          "pullback": null,
+          "planned": {
+            "entry_price": "100",
+            "initial_stop": "99.2",
+            "targets": [
+              "102",
+              "104",
+              "106"
+            ],
+            "tp1_fraction": null,
+            "quantity": "2.5",
+            "margin_usdt": 5,
+            "notional_usdt": 250,
+            "leverage": 50,
+            "initial_risk_usdt": 2.0,
+            "risk_budget": "2",
+            "cost_bps": "0"
+          },
+          "market": {
+            "spread_bp": 1,
+            "hour_utc": 10,
+            "weekday_utc": 2,
+            "universe_rank": null,
+            "universe_ranked_count": null,
+            "universe_eligible_count": null
+          },
+          "account": {
+            "wallet_balance": 100,
+            "available_balance": 100,
+            "unrealized_pnl": null,
+            "open_positions": 0,
+            "open_long": 0,
+            "open_short": 0
+          },
+          "policy": {
+            "min_confidence": 80,
+            "max_stop_distance_pct": 5.0,
+            "fee_bps_per_side": 5.0,
+            "slippage_bps_per_side": 3.0,
+            "max_loss_per_trade": 3.0,
+            "max_margin_per_trade": 25.0,
+            "max_positions": 5,
+            "max_same_direction_positions": 2
+          },
+          "not_recorded": [
+            "quote_volume_24h",
+            "price_change_pct_24h",
+            "funding_rate",
+            "btc_market_trend"
+          ]
+        }
+      },
+      "protection_status": "UNKNOWN",
+      "protection_match_confidence": "NONE",
+      "protection_match_reason": "NOT_RECONCILED"
+    }
+  },
+  "persistence_revision": 2,
+  "intents": {
+    "manual-5f12aa636f344ef7853fb5b109e953dd": {
+      "symbol": "BTCUSDT",
+      "client_order_id": "PTBLV_ENTRY_c61da486061a0d63ee0e64",
+      "created_at": "2026-11-11T10:54:03.046030+00:00",
+      "source": "ORIGINAL_V2_LIVE",
+      "spec": {
+        "symbol": "BTCUSDT",
+        "direction": "LONG",
+        "order_type": "MARKET",
+        "entry_price": "100",
+        "quantity": "2.5",
+        "margin_usdt": 5,
+        "notional_usdt": 250,
+        "leverage": 50,
+        "stop_loss": "99.2",
+        "targets": [
+          "102",
+          "104",
+          "106"
+        ],
+        "step": "0.001",
+        "min_qty": "0.001",
+        "min_notional": "5",
+        "initial_risk_usdt": 2.0,
+        "liquidation_guard": {
+          "verified": true,
+          "model": "ISOLATED_MAINTENANCE_BRACKETS_WITH_FEE_RESERVE",
+          "liquidation_price_estimate": "98.49321948769462581617277750",
+          "buffer_pct": 0.5,
+          "minimum_buffer": "0.5",
+          "available_buffer": "0.70678051230537418382722250",
+          "maintenance_rate": "0.004",
+          "maintenance_deduction": "0",
+          "funding_included": false
+        },
+        "initial_stop_loss": "99.2",
+        "initial_quantity": "2.5",
+        "original_risk_budget": "2",
+        "original_cost_bps": "0"
+      },
+      "applied_leverage": 50,
+      "margin_type": "isolated"
+    }
+  },
   "armed_until": 0.0,
-  "live_lock_reason": null,
+  "live_lock_reason": {
+    "code": "SERVER_RESTART",
+    "message": "Sunucu yeniden başladığı için ARM iptal edildi; canlı giriş yetkisi yeniden onaylanmalı.",
+    "at": "2026-11-11T10:54:03.048578+00:00"
+  },
   "account_rate_limit": null,
   "auto": {
     "enabled": false,
