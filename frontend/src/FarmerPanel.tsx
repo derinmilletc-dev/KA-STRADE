@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
-import {Check, ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldAlert, ShieldCheck, Square, Target, TriangleAlert, Wallet, WifiOff, X, Zap} from 'lucide-react'
+import {Check, ChevronDown, Clock, Loader2, Pause, Play, Power, RefreshCw, ShieldAlert, ShieldCheck, Square, Target, TrendingDown, TrendingUp, TriangleAlert, Wallet, WifiOff, X, Zap} from 'lucide-react'
 import {currentLang} from '../../i18n'
 import FarmerGuide from './FarmerGuide'
 import FarmerGuideCard from './FarmerGuideCard'
@@ -565,19 +565,20 @@ type WizardProps = {
 }
 
 const PROFILES = [
-  {id: 'safe', icon: ShieldCheck, tr: 'Temkinli', en: 'Careful', dtr: 'Küçük hedef, dar zarar', den: 'Small target, tight loss', target: 0.3, loss: 1, cap: 25},
-  {id: 'balanced', icon: Target, tr: 'Dengeli', en: 'Balanced', dtr: 'Çoğu kişi için orta yol', den: 'The middle road', target: 0.4, loss: 2, cap: 25},
-  {id: 'bold', icon: Zap, tr: 'Atak', en: 'Bold', dtr: 'Daha büyük hedef ve kayıp', den: 'Bigger target and loss', target: 1, loss: 3, cap: 50},
+  {id: 'safe', tone: 'cool', icon: ShieldCheck, tr: 'Temkinli', en: 'Careful', dtr: 'Küçük hedef, dar zarar', den: 'Small target, tight loss', target: 0.3, loss: 1, cap: 25},
+  {id: 'balanced', tone: 'mint', icon: Target, tr: 'Dengeli', en: 'Balanced', dtr: 'Çoğu kişi için orta yol', den: 'The middle road', target: 0.4, loss: 2, cap: 25},
+  {id: 'bold', tone: 'warm', icon: Zap, tr: 'Atak', en: 'Bold', dtr: 'Daha büyük hedef ve kayıp', den: 'Bigger target and loss', target: 1, loss: 3, cap: 50},
 ] as const
 
 function Wizard(p: WizardProps) {
   const {status, form, edit, preview, formError, L, lang, openGuide, busy, step} = p
   const cap = Number(status.hard_cap_usdt) || 500
   const caps = [...new Set([25, 50, 100, 200, cap].filter(v => v <= cap))]
-  const field = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', label: string, chips: number[], topic: string) => {
+  const field = (key: 'target_usdt' | 'max_loss_usdt' | 'total_margin_cap', label: string, chips: number[], topic: string, accent: 'gain' | 'loss' | 'cap', Icon: typeof Wallet) => {
     const value = form[key]
-    return <div className="fmWzField" data-filled={value.trim() !== '' || undefined}>
+    return <div className="fmWzField" data-accent={accent} data-filled={value.trim() !== '' || undefined}>
       <div className="fmWzRow">
+        <span className="fmWzIco" aria-hidden="true"><Icon/></span>
         <label htmlFor={`fm-f-${key}`}>{label}</label>
         <button type="button" className="fmWzHelp" aria-label={`${label}: ${L('Daha fazla', 'Learn more')}`} onClick={() => openGuide(topic)}>?</button>
         <span className="fmWzInput"><input id={`fm-f-${key}`} inputMode="decimal" type="text" placeholder="0" value={value} onChange={e => edit({[key]: e.target.value} as Partial<Form>)}/><i aria-hidden="true">USDT</i></span>
@@ -597,16 +598,20 @@ function Wizard(p: WizardProps) {
   return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
     {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
       <div className="fmProfiles" role="radiogroup" aria-label={L('Hazır profil', 'Ready profile')}>
-        {PROFILES.map(pr => { const Icon = pr.icon; return <button type="button" role="radio" aria-checked={picked?.id === pr.id} key={pr.id} data-on={picked?.id === pr.id || undefined} onClick={() => edit({target_usdt: String(pr.target), max_loss_usdt: String(pr.loss), total_margin_cap: String(Math.min(pr.cap, cap))})}>
+        {PROFILES.map(pr => { const Icon = pr.icon; return <button type="button" role="radio" aria-checked={picked?.id === pr.id} key={pr.id} data-tone={pr.tone} data-on={picked?.id === pr.id || undefined} onClick={() => edit({target_usdt: String(pr.target), max_loss_usdt: String(pr.loss), total_margin_cap: String(Math.min(pr.cap, cap))})}>
           <Icon aria-hidden="true"/><b>{L(pr.tr, pr.en)}</b><span>{L(pr.dtr, pr.den)}</span><em>+{pr.target} / -{pr.loss}</em>
         </button> })}
       </div>
       <p className="fmWzOr"><span>{picked ? L('Bu profil seçili. İstersen rakamları değiştir:', 'Profile selected. Adjust the numbers if you like:') : L('Ya da rakamları kendin yaz:', 'Or type your own numbers:')}</span></p>
       <div className="fmWzFields">
-        {field('target_usdt', L('Kâr hedefi', 'Profit Target'), [0.3, 0.5, 1, 2], 'target')}
-        {field('max_loss_usdt', L('En fazla kayıp', 'Max Loss'), [1, 2, 3, 5], 'maxloss')}
-        {field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), caps, 'slots')}
+        {field('target_usdt', L('Kâr hedefi', 'Profit Target'), [0.3, 0.5, 1, 2], 'target', 'gain', TrendingUp)}
+        {field('max_loss_usdt', L('En fazla kayıp', 'Max Loss'), [1, 2, 3, 5], 'maxloss', 'loss', TrendingDown)}
+        {field('total_margin_cap', L('Marjin tavanı', 'Margin Cap'), caps, 'slots', 'cap', Wallet)}
       </div>
+      {Number(form.target_usdt) > 0 && Number(form.max_loss_usdt) > 0 && <div className="fmWzBalance" data-testid="farmer-balance" aria-label={L('Kazanç ve kayıp dengesi', 'Gain versus loss balance')}>
+        <div className="fmWzBar"><i data-k="gain" style={{flexGrow: Number(form.target_usdt)}}/><i data-k="loss" style={{flexGrow: Number(form.max_loss_usdt)}}/></div>
+        <div className="fmWzBarTx"><span data-k="gain"><TrendingUp aria-hidden="true"/>{L('Kazanırsan', 'If it wins')} <b>+${Number(form.target_usdt)}</b></span><span data-k="loss"><TrendingDown aria-hidden="true"/>{L('Kaybedersen', 'If it loses')} <b>-${Number(form.max_loss_usdt)}</b></span></div>
+      </div>}
       {tip && <p className="fmWzTip" data-tone={tip.tone} data-testid="farmer-step-tip"><b>{tip.tone === 'ok' ? L('Plan', 'Plan') : L('İpucu', 'Tip')}</b>{tip.text}</p>}
       <RiskPreview preview={preview} L={L} openGuide={openGuide}/>
       <details className="fmAdvanced"><summary>{L('Gelişmiş ayarlar', 'Advanced settings')}<ChevronDown aria-hidden="true"/></summary>
