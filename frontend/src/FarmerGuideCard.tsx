@@ -120,8 +120,10 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
   const koBig = justClosed ? L('Taranıyor', 'Scanning') : koSession ? hms(sessionLeft) : mmss(candleLeft)
   const koSub = justClosed ? L('adaylar kontrol ediliyor', 'checking candidates') : koSession ? L('sayaca dokun: mum', 'tap: candle') : L(`kapanış ${clockAt(lastClose + CANDLE)}`, `closes ${clockAt(lastClose + CANDLE)}`)
   const qualified = status.scanner.filter(row => row.status === 'QUALIFIED').length
+  const scanned = typeof status.scanned_count === 'number' && status.scanned_count > 0 ? status.scanned_count : null
   const koSmart = positions > 0 ? L(`${positions} pozisyon korunuyor · stop ve hedef borsada`, `${positions} position${positions === 1 ? '' : 's'} protected · stop and target on exchange`)
-    : status.scanner.length > 0 ? L(`${status.scanner.length} aday izleniyor · ${qualified} nitelikli`, `${status.scanner.length} candidates · ${qualified} qualified`)
+    : scanned !== null ? L(`${scanned} coin tarandı · ${status.scanner.length} yönlü aday · ${qualified} nitelikli`, `${scanned} coins scanned · ${status.scanner.length} with a direction · ${qualified} qualified`)
+    : status.scanner.length > 0 ? L(`${status.scanner.length} yönlü aday · ${qualified} nitelikli`, `${status.scanner.length} with a direction · ${qualified} qualified`)
     : L('Fırsat yok · sıradaki mumu bekliyor', 'No setup · waiting for the next candle')
   const today = status.today?.verified_net_pnl ?? null
   const coachChecks: Array<{ok: boolean; text: string}> = coach ? [
