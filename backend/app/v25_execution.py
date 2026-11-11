@@ -9211,6 +9211,8 @@ class DcaLiveStartRequest(BaseModel):
     stop_gap_pct: float = Field(gt=0)
     leverage: int = Field(ge=1, le=125)
     recycle: bool = False          # True: kâr hedefi dolunca yeni tur (her tur risk kapılarından yeniden geçer)
+    smart_entry: bool = False      # True: yalnız Kais analizi yönle uyumluysa başlar (sunucu bayrağı gerekir)
+    trailing_pct: float = Field(default=0.0, ge=0, le=20)   # >0: takip eden hedef (sunucu bayrağı gerekir)
     preview: bool = False
     confirmation: str = ""
 
@@ -9265,7 +9267,8 @@ def dca_live_cycle_planner(application: Any, runner: Any) -> Any:
         user_id = str(runner.store.grid(engine.gid)["user_id"] or "")
         async with state["lock"]:
             kwargs, snapshot = await dca_live_inputs(application, state, None, adapter.client, runner, engine.sym, user_id, True, exclude=engine.gid)
-            plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, **dca_plan_kwargs(params), **kwargs)
+            plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, trailing_pct=float(params.get("trailing_pct") or 0.0),
+                                    **dca_plan_kwargs(params), **kwargs)
             dca_live.check_live_margin(plan)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye yeni tur marjininden düşük.")
@@ -9283,6 +9286,7 @@ async def v25_dca_live_status(request: Request, history: int = Query(default=6, 
     from .dca_engine import plan as dca_plan
     return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": day, "enabled": dca_live.live_enabled(),
             "dca_limits": dca_plan.limits_payload(), "live_max_margin_usdt": dca_live.live_max_margin_usdt(),
+            "smart_entry_enabled": dca_live.smart_entry_enabled(), "trailing_enabled": dca_live.trailing_enabled(),
             "risk_limits": {"max_loss_per_trade": float((state_policy := sanitize_execution_policy(request.app.state.v25_execution.get("policy") or {})).get("max_loss_per_trade") or 0),
                             "daily_loss_limit": float(state_policy.get("daily_loss_limit") or 0)}}
 
@@ -9344,7 +9348,15 @@ async def _dca_live_start(request: Request, body: DcaLiveStartRequest, reservati
         raise HTTPException(409, f"{symbol} için zaten çalışan bir bot (Grid/DCA) var.")
     if len(runner.occupying_rows(user_id, owner=owner)) >= dca_live.MAX_BOTS_PER_USER:
         raise HTTPException(409, f"Aynı anda en fazla {dca_live.MAX_BOTS_PER_USER} DCA botu çalışabilir. Önce birini durdur.")
+    dca_live.require_options(body)
     params = dca_live.plan_params(body)
+    gate = None
+    if body.smart_entry:
+        from .dca_engine import entry_gate
+        gate_ok, gate_why = await entry_gate.check(symbol, body.direction)
+        gate = {"ok": gate_ok, "reason": gate_why}
+        if not gate_ok and not body.preview:
+            raise HTTPException(409, f"Şu an uygun değil: {gate_why}. Uygun olunca yeniden dene.")
     try:
         async with state["lock"]:
             client = client_for(application, request)
@@ -9355,7 +9367,8 @@ async def _dca_live_start(request: Request, body: DcaLiveStartRequest, reservati
             if any(isinstance(p, dict) and live_plan_is_active(p) and normalize_symbol(str(p.get("symbol") or "")) == symbol
                    for p in state.get("plans", {}).values()):
                 raise HTTPException(409, f"{symbol} için etkin bir işlem planı var; aynı coinde DCA açılmaz.")
-            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, **dca_plan_kwargs(params), **kwargs)
+            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, trailing_pct=float(params.get("trailing_pct") or 0.0),
+                                    **dca_plan_kwargs(params), **kwargs)
             dca_live.check_live_margin(plan)
             attach_dca_extras(plan, params, kwargs["rules"])
             if reservation:
@@ -9363,7 +9376,7 @@ async def _dca_live_start(request: Request, body: DcaLiveStartRequest, reservati
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Kullanılabilir bakiye DCA marjininden düşük.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0)}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "entry_gate": gate}
             if await set_live_isolated_margin(client, symbol) != "ISOLATED":
                 raise HTTPException(409, "Isolated marjin uygulanamadı; DCA başlatılmadı.")
             audit = await apply_live_verified_leverage(client, symbol, plan["leverage"], expected_margin_type="ISOLATED")

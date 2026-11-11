@@ -152,6 +152,11 @@
 .dcaBotActions{display:flex;gap:10px}
 .dcaBotActions button{flex:1;min-height:46px;border:0;border-radius:14px;font-weight:800;font-size:14px;cursor:pointer;background:#162334;color:#bfd0e2}
 .dcaBotActions button.danger{background:linear-gradient(135deg,#ff7b7b,#e5484d);color:#fff}
+.dcaSum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.dcaSum span{display:grid;gap:2px}
+.dcaSum small{font-size:11px;letter-spacing:.06em;color:var(--mut)}
+.dcaSum b{font-size:15px}
+.dwRecycle{margin-top:4px}
 .dcaPast{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-size:13px}
 .dcaPast>b{font-size:11px;letter-spacing:.1em;color:var(--mut)}
 .dcaPast div{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
@@ -391,3 +396,10 @@
 #root .dca .dwCoins li.dwAnaLi>button:first-child{flex:1 1 0;width:auto;min-width:0}
 #root .dca .dwCoins li.dwAnaLi>button.dwAnaBtn{flex:none;display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:14px;background:#16212f;border:1px solid #20304a;color:#9fd8ff;cursor:pointer}
 #root .dca .dwCoins li.dwAnaLi>button.dwAnaBtn svg{width:22px;height:22px}
+
+.dwExtras{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.dwExtras small{color:var(--mut)}
+.dwExtras div{display:flex;flex-wrap:wrap;gap:6px}
+.dwExtras button{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:inherit}
+.dwExtras button[data-on]{border-color:var(--up,#2ecc71);background:rgba(46,204,113,.15)}
+.dwExtras em{font-style:normal;color:var(--down,#e5484d);font-size:12px}

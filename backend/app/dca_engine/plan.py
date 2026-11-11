@@ -11,7 +11,8 @@ from typing import Any
 
 from ..execution_core import HARD_MAX_MARGIN_USDT
 from .risk_config import (FUNDING_ALLOWANCE_PCT, LIQ_BUFFER_PCT, MAINTENANCE_RATE_ESTIMATE, MAKER_FEE, MIN_NET_PROFIT_PCT,  # noqa: F401
-                          MIN_NET_PROFIT_USDT, SLIPPAGE_LIMIT_ENTRY_PCT, SLIPPAGE_MARKET_PCT, SLIPPAGE_TP_EXIT_PCT, TAKER_FEE)
+                          MIN_NET_PROFIT_USDT, SLIPPAGE_LIMIT_ENTRY_PCT, SLIPPAGE_MARKET_PCT, SLIPPAGE_TP_EXIT_PCT, TAKER_FEE,
+                          TRAIL_MIN_LOCKED_PCT, TRAIL_MIN_PCT)
 
 LONG, SHORT = "LONG", "SHORT"
 MAX_SAFETY_ORDERS = 5            # grid'deki kademe sınırıyla aynı
@@ -58,7 +59,7 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
                      take_profit_pct: float, stop_gap_pct: float, leverage: int, rules: dict[str, Any], policy: dict[str, Any],
                      realized_pnl_today: float = 0.0, existing_exposure: float = 0.0, open_positions: int = 0,
                      reserved_worst_loss: float = 0.0, reserved_pending_notional: float = 0.0, reserved_symbols: int = 0,
-                     recycle: bool = False) -> dict[str, Any]:
+                     recycle: bool = False, trailing_pct: float = 0.0) -> dict[str, Any]:
     direction = str(direction).upper()
     if direction not in (LONG, SHORT):
         raise DcaPlanError("Yön LONG veya SHORT olmalı.")
@@ -79,6 +80,15 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
         raise DcaPlanError(f"Stop mesafesi (son ek emrin ötesi) %{MIN_STOP_GAP_PCT:g} ile %{MAX_STOP_GAP_PCT:g} arasında olmalı.")
     if int(leverage) != leverage:
         raise DcaPlanError("Kaldıraç tam sayı olmalı.")
+    trailing_pct = float(trailing_pct or 0.0)
+    if trailing_pct:
+        if not (trailing_pct == trailing_pct and trailing_pct > 0):
+            raise DcaPlanError("Takip mesafesi sıfırdan büyük bir sayı olmalı.")
+        if trailing_pct < TRAIL_MIN_PCT - 1e-9:
+            raise DcaPlanError(f"Takip mesafesi en az %{TRAIL_MIN_PCT:g} olmalı.")
+        if take_profit_pct - trailing_pct < TRAIL_MIN_LOCKED_PCT - 1e-9:
+            raise DcaPlanError(f"Takip eden hedefte kâr hedefi, takip mesafesinden en az %{TRAIL_MIN_LOCKED_PCT:g} büyük olmalı "
+                               "(aksi halde çekilen stop ücreti karşılamaz).")
     max_lev = min(MAX_LEVERAGE, int(float(policy.get("max_leverage", DEFAULT_POLICY_LEVERAGE))))
     if leverage > max_lev:
         raise DcaPlanError(f"Kaldıraç en fazla {max_lev}x olabilir.")
@@ -186,4 +196,4 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
                                      "slippage_allowance_usdt": round(slippage, 6), "funding_allowance_usdt": round(funding, 6)},
             "liquidation_estimate": round(liq_price, 8), "liquidation_is_estimate": True, "liquidation_gap_pct": round(liq_gap_pct, 4),
             "safety_orders": count, "step_pct": float(step_pct), "volume_multiplier": float(volume_multiplier),
-            "take_profit_pct": float(take_profit_pct), "stop_gap_pct": float(stop_gap_pct)}
+            "take_profit_pct": float(take_profit_pct), "stop_gap_pct": float(stop_gap_pct), "trailing_pct": trailing_pct}

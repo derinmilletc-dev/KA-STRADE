@@ -233,3 +233,5 @@ tests/test_reconcile_prefetch.py
 tests/test_daily_loss_no_fixed_ceiling.py
 tests/test_ledger_warmup.py
 tests/test_kais_shadow_score.py
+tests/test_dca_trailing.py
+tests/test_dca_entry_gate.py

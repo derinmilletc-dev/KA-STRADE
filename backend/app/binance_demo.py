@@ -5254,6 +5254,8 @@ class DemoDcaStartRequest(BaseModel):
     stop_gap_pct: float = Field(gt=0)
     leverage: int = Field(ge=1, le=125)
     recycle: bool = False
+    smart_entry: bool = False
+    trailing_pct: float = Field(default=0.0, ge=0, le=20)
     preview: bool = False
     confirmation: str = ""
 
@@ -5304,7 +5306,8 @@ def _demo_dca_planner(runner: Any) -> Any:
         if not params or adapter is None or v21_state is None:
             raise HTTPException(409, "Bot parametreleri, borsa bağlantısı ya da Demo risk durumu hazır değil.")
         kwargs, snapshot, rules = await _demo_dca_inputs(v21_state, adapter.client, runner, engine.sym, user_id, True, exclude=engine.gid)
-        plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
+        plan = prepare_dca_plan(direction=engine.spec.side, recycle=True, trailing_pct=float(params.get("trailing_pct") or 0.0),
+                                **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
         if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
             raise HTTPException(409, "Demo bakiyesi yeni tur marjini için yeterli değil.")
         plan["tick"], plan["params"] = float(rules["tick"]), dict(params)
@@ -5327,7 +5330,8 @@ async def demo_dca_status(request: Request, history: int = Query(default=6, ge=1
     user_id, owner = _grid_actor(request)
     runner = dca_live.demo_runner_for(request.app)
     return {"ok": True, **runner.status_payload(user_id, owner=owner, history=history), "day": runner.day_summary(user_id, owner=owner),
-            "enabled": dca_live.demo_enabled(), "account": "DEMO", "dca_limits": dca_plan.limits_payload()}
+            "enabled": dca_live.demo_enabled(), "account": "DEMO", "dca_limits": dca_plan.limits_payload(),
+            "smart_entry_enabled": dca_live.smart_entry_enabled(), "trailing_enabled": dca_live.trailing_enabled()}
 
 
 @router.post("/dca/start")
@@ -5348,7 +5352,15 @@ async def demo_dca_start(request: Request, body: DemoDcaStartRequest) -> dict[st
     runner = dca_live.demo_runner_for(application)
     if len(runner.occupying_rows(user_id, owner=owner)) >= dca_live.MAX_BOTS_PER_USER:
         raise HTTPException(409, f"Aynı anda en fazla {dca_live.MAX_BOTS_PER_USER} DCA botu çalışabilir. Önce birini durdur.")
+    dca_live.require_options(body)
     params = dca_live.plan_params(body)
+    gate = None
+    if body.smart_entry:
+        from .dca_engine import entry_gate
+        gate_ok, gate_why = await entry_gate.check(normalize_symbol(body.symbol), body.direction)
+        gate = {"ok": gate_ok, "reason": gate_why}
+        if not gate_ok and not body.preview:
+            raise HTTPException(409, f"Şu an uygun değil: {gate_why}. Uygun olunca yeniden dene.")
     try:
         async with state["lock"]:
             client = client_for(request)
@@ -5361,12 +5373,13 @@ async def demo_dca_start(request: Request, body: DemoDcaStartRequest) -> dict[st
             reason = stale_protection_entry_reason(snapshot, state, symbol)
             if reason or any(_symbol_matches(item.get("symbol"), symbol) for item in snapshot.get("open_algo_orders", [])):
                 raise HTTPException(409, f"{symbol} üzerinde açık pozisyon veya emir var; aynı coinde DCA açılmaz.")
-            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
+            plan = prepare_dca_plan(direction=body.direction, recycle=body.recycle, trailing_pct=float(params.get("trailing_pct") or 0.0),
+                                    **{k: params[k] for k in dca_live.PARAM_KEYS}, **kwargs)
             plan["tick"], plan["params"] = float(rules["tick"]), dict(params)
             if float(snapshot.get("available_balance") or 0) < plan["total_margin_usdt"]:
                 raise HTTPException(409, "Demo hesabında DCA marjini için yeterli kullanılabilir bakiye yok.")
             if body.preview:
-                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO"}
+                return {"ok": True, "preview": True, "plan": plan, "available_balance": float(snapshot.get("available_balance") or 0), "account": "DEMO", "entry_gate": gate}
             await set_isolated_margin(client, symbol)
             audit = await apply_verified_leverage(client, symbol, plan["leverage"])
             if not audit.get("leverage_verified"):

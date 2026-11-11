@@ -17,6 +17,7 @@ import asyncio
 
 from fastapi import HTTPException
 
+from .dca_engine import entry_gate
 from .dca_engine.engine import CYCLE_DONE, DcaEngine, spec_from_plan
 from .dca_engine.plan import DcaPlanError
 from .execution_core import HARD_MAX_MARGIN_USDT
@@ -37,6 +38,9 @@ CONFIRM_DEMO_START = "DEMO DCA BAŞLAT"
 CONFIRM_EMERGENCY = "DCA ACİL DURDUR"
 MAX_BOTS_PER_USER = 3
 PARAM_KEYS = ("base_margin_usdt", "safety_orders", "step_pct", "volume_multiplier", "take_profit_pct", "stop_gap_pct", "leverage")
+# Opsiyonel ek ayarlar: plan hesabına GİRMEZ (prepare_dca_plan'a ayrı geçilir); yeni tur için botun parametrelerinde saklanır.
+EXTRA_PARAM_KEYS = ("smart_entry", "trailing_pct")
+TRAILING_ENV = "KAISTRADE_DCA_TRAILING"
 
 
 def _truthy(value: str) -> bool:
@@ -51,6 +55,24 @@ def live_enabled() -> bool:
 def demo_enabled() -> bool:
     """Demo DCA varsayılan AÇIK (gerçek para yok)."""
     return str(os.getenv(DEMO_ENV_FLAG, "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def trailing_enabled() -> bool:
+    """Takip eden hedef varsayılan KAPALI (sunucuda KAISTRADE_DCA_TRAILING=1 ile açılır; önce Demo'da ölçülür)."""
+    return str(os.getenv(TRAILING_ENV, "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def smart_entry_enabled() -> bool:
+    """Akıllı başlama varsayılan KAPALI (sunucuda KAISTRADE_DCA_SMART_ENTRY=1 ile açılır)."""
+    return entry_gate.enabled()
+
+
+def require_options(body: Any) -> None:
+    """İstekte kapalı bir özellik açıksa reddet (sessizce yok sayılmaz: kullanıcı özelliğin çalıştığını sanmasın)."""
+    if bool(getattr(body, "smart_entry", False)) and not smart_entry_enabled():
+        raise HTTPException(409, "Akıllı başlama şu an sunucuda kapalı.")
+    if float(getattr(body, "trailing_pct", 0) or 0) > 0 and not trailing_enabled():
+        raise HTTPException(409, "Takip eden hedef şu an sunucuda kapalı.")
 
 
 def live_max_margin_usdt() -> float:
@@ -80,7 +102,10 @@ def http_error(exc: LiveGridError | DcaPlanError) -> HTTPException:
 
 def plan_params(body: Any) -> dict[str, Any]:
     """İstek gövdesinden yeni tur için saklanacak parametreler."""
-    return {key: getattr(body, key) for key in PARAM_KEYS}
+    params = {key: getattr(body, key) for key in PARAM_KEYS}
+    params["smart_entry"] = bool(getattr(body, "smart_entry", False))
+    params["trailing_pct"] = float(getattr(body, "trailing_pct", 0.0) or 0.0)
+    return params
 
 
 class DcaRunner(LiveGridRunner):
@@ -90,6 +115,9 @@ class DcaRunner(LiveGridRunner):
         super().__init__(store, account=account)
         # Yeni tur planlayıcı: async (engine, state) -> plan (DcaPlanError fırlatabilir). Uç nokta katmanı atar; yoksa tur BİTER.
         self.cycle_planner: Any = None
+        # Akıllı başlama: (symbol, direction) -> (uygun mu, açıklama). Testlerde değiştirilir; varsayılan Kais analizine bakar.
+        self.entry_checker: Any = entry_gate.check
+        self._entry_wait: dict[str, float] = {}      # grid_id -> uygun an beklemeye başlanan zaman (yeniden başlatmada sıfırlanır: güvenli yön)
 
     # ---- ayar / motor
     def _spec_for_plan(self, grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
@@ -136,6 +164,19 @@ class DcaRunner(LiveGridRunner):
         self._record(state, "LIVE_GRID_STATUS", f"{engine.sym} DCA botu durdu: {reason}", grid_id=engine.gid, status=STOPPED)
         return STOPPED
 
+    def _wait_entry(self, engine: Any, state: dict[str, Any], why: str) -> str:
+        """Tur bitti ama Kais analizi yeni giriş için uygun değil: bot CYCLE_DONE'da bekler (açık pozisyon/emir yok, risk yok).
+        Süre dolarsa (varsayılan 6 saat) bot durur. Bekleme sayacı bellekte tutulur; sunucu yeniden başlarsa yeniden sayılır."""
+        now = time.monotonic()
+        started = self._entry_wait.setdefault(engine.gid, now)
+        if now - started > entry_gate.max_wait_seconds():
+            self._entry_wait.pop(engine.gid, None)
+            return self._end(engine, state, f"Kâr hedefi doldu; uygun an gelmediği için yeni tur açılmadı ({why})")
+        if started == now:
+            self.store.set_grid(engine.gid, halt_reason=f"Yeni tur için uygun an bekleniyor: {why}")
+            self._record(state, "LIVE_GRID_STATUS", f"{engine.sym} DCA yeni tur için uygun anı bekliyor: {why}.", grid_id=engine.gid, status=engine.status)
+        return engine.status
+
     async def _next_cycle(self, engine: Any, state: dict[str, Any]) -> str:
         """Kâr hedefi doldu. Yeni tur yalnız tüm kapılar yeniden geçilirse açılır; aksi halde bot durur (açık pozisyon yoktur)."""
         if not self.entry_authority(state):
@@ -146,6 +187,15 @@ class DcaRunner(LiveGridRunner):
         row = self.store.grid(engine.gid)
         if limit is not None and self.day_summary(str(row["user_id"] or ""), owner=False, limit=limit)["reached"]:
             return self._end(engine, state, "Kâr hedefi doldu; günlük zarar limitine ulaşıldığı için yeni tur açılmadı")
+        params = (engine.spec.meta or {}).get("params") or {}
+        if params.get("smart_entry") and smart_entry_enabled():
+            try:
+                ready, why = await self.entry_checker(engine.sym, engine.spec.side)
+            except Exception:  # noqa: BLE001 - belirsizlikte yeni risk açılmaz
+                ready, why = False, "Kais analizi şu an okunamadı"
+            if not ready:
+                return self._wait_entry(engine, state, why)
+        self._entry_wait.pop(engine.gid, None)
         planner = self.cycle_planner
         if planner is None:
             return self._end(engine, state, "Kâr hedefi doldu; yeni tur planlayıcısı hazır olmadığı için yeni tur açılmadı")
