@@ -6,6 +6,7 @@ import {goPositions} from '../../trade-intent'
 import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
 import type {SignalMap} from './coin-ranking'
 import '../../manual-analysis-sheet.css'
+import {showToast} from '../../toast-center'
 import './dca.css'
 
 type Call = <T = any>(base: string, path: string, options?: RequestInit & {timeoutMs?: number}) => Promise<T>
@@ -226,6 +227,9 @@ export default function DcaPanel(props: DcaPanelProps) {
       .then(() => loadStatus()).then(() => setLossEdit({open: false, value: '', ok: false, busy: false, error: ''}))
       .catch(error => setLossEdit(c => ({...c, busy: false, error: error?.message || 'Kaydedilemedi.'})))
   }
+  // Hata ve "başlamayan coin" bildirimleri ekranın nerede olursan ol görünür (üstte sabit toast).
+  useEffect(() => { if (startError) showToast({title: 'DCA başlatılamadı', body: startError, tone: 'bad'}) }, [startError])
+  useEffect(() => { if (notStarted.length) showToast({title: `${notStarted.length} coin başlamadı`, body: notStarted.map(item => `${item.sym.replace('USDT', '')}: ${item.why}`).join(' · '), tone: 'warn'}) }, [notStarted])
   const loadStatus = () => call<any>(base, '/status').then(data => { setStatus(data); setStatusError('') }).catch(error => { setStatus(null); setStatusError(error?.message || 'Durum okunamadı.') })
   useEffect(() => {
     let cancelled = false
