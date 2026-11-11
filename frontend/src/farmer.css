@@ -760,3 +760,7 @@ html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data
 }
 
 .fmRoot{scroll-margin-top:92px}
+
+/* Kısa adımlarda (2 ve 3) altta gereksiz boşluk kalmasın; adım 1 uzun olduğu için yapışkan çubukla kalır */
+.fmGuide[data-compact] .fmWz[data-step="2"],.fmGuide[data-compact] .fmWz[data-step="3"]{padding-bottom:4px}
+.fmGuide[data-compact] .fmWz[data-step="2"] .fmWzSticky,.fmGuide[data-compact] .fmWz[data-step="3"] .fmWzSticky{position:static;background:none;padding:6px 0 0}
