@@ -236,7 +236,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const result = useMemo(() => computeDca(input), [input])
   const ready = synced && price > 0 && filters !== null
   const scenario = result.valid ? scenarioAt(result, price, side, scrub) : null
-  const set = <K extends keyof Form>(key: K, value: Form[K]) => { setPresetId(''); setForm(current => ({...current, [key]: value})) }
+  const set = <K extends keyof Form>(key: K, value: Form[K]) => { setPresetId('custom'); setForm(current => ({...current, [key]: value})) }
   const cap = Number(status?.live_max_margin_usdt) > 0 ? Number(status.live_max_margin_usdt) : 10
   const rl = status?.risk_limits
   const maxLoss = Math.min(...[Number(rl?.max_loss_per_trade), Number(rl?.daily_loss_left)].filter(v => Number.isFinite(v) && v > 0), Infinity)
@@ -256,7 +256,17 @@ export default function DcaPanel(props: DcaPanelProps) {
   const fitNow = useMemo(() => ready ? planFit(input, cap, lossCap) : null, [input, ready, cap, lossCap])
   const fixNow = useMemo(() => ready && fitNow?.state === 'over-cap' ? fitToCap(input, cap, lossCap) : null, [input, ready, cap, lossCap, fitNow])
 
+  const marginChips = useMemo(() => [5, 10, 15, 20, 30, 50], [])
+  // Özel (elle değiştirilmiş) plan: canlı limitine ve tek işlem zarar sınırına sığmıyorsa nedenini söyler; "Otomatik sığdır" düzeltir.
+  const customBlock = !ready || !result.valid ? ''
+    : result.totalMargin > cap + 1e-9 ? `Bu ayar ${fmtUsd(result.totalMargin)} marj ister; canlı limitin ${cap} USDT.`
+    : lossCap > 0 && result.worstLoss > lossCap + 1e-9 ? `En kötü kayıp ${fmtUsd(result.worstLoss)}; tek işlem zarar sınırın ${lossCap} USDT.`
+    : ''
+  const fixNowCustom = ready && customBlock ? fitToCap(input, cap, lossCap) : null
+  const applyCustomFix = () => { if (fixNowCustom) { setPresetId('custom'); setForm(c => ({...c, margin: fmtMargin(fixNowCustom.margin), safety: fixNowCustom.safety, volume: fixNowCustom.volume.toFixed(1)})) } }
+  const lastPlanRef = useRef('')
   const choosePlan = (plan: NonNullable<typeof presetPlans>[number]) => {
+    lastPlanRef.current = plan.preset.id
     setPresetId(plan.preset.id)
     setForm({...plan.form, recycle: form.recycle})   // "Otomatik tekrar" kullanıcının seçimidir; plan değişince sıfırlanmaz
     setNote(lossCap > 0 && plan.state !== 'no' ? `Plan tek işlem zarar sınırın olan ${lossCap} USDT'ye göre ayarlandı (en kötü kayıp bunun altında).` : plan.shrunk ? `Plan ${cap} USDT limitine sığsın diye otomatik küçültüldü (daha az ek alım, daha yavaş büyüme).` : plan.state === 'ok' ? `Yatırım tutarı ${cap} USDT limitine göre ayarlandı.` : '')
@@ -301,7 +311,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     return () => { scanToken.current += 1 }
   }, [scanKey])
 
-  const suggestions = useMemo(() => {
+  const rankScan = (limit: number) => {
     const rank = (item: ScanItem) => {
       const sig = signals?.[item.symbol]
       if (sig && sig.lean !== 'NEUTRAL') return sig.lean === side ? 2000 + sig.confidence : -1
@@ -313,8 +323,10 @@ export default function DcaPanel(props: DcaPanelProps) {
     const ranked = scan.items.map(item => ({item, r: rank(item)}))
     const good = ranked.filter(entry => entry.r >= 0).sort((a, b) => b.r - a.r || Number(a.item.fixed) - Number(b.item.fixed) || a.item.total - b.item.total || a.item.idx - b.item.idx)
     const against = ranked.filter(entry => entry.r < 0).sort((a, b) => a.item.idx - b.item.idx)
-    return [...good, ...(good.length < 4 ? against.slice(0, 4 - good.length) : [])].slice(0, 6).map(entry => ({...entry.item, against: entry.r < 0}))
-  }, [scan.items, signals, side])
+    return [...good, ...(good.length < 4 ? against.slice(0, 4 - good.length) : [])].slice(0, limit).map(entry => ({...entry.item, against: entry.r < 0, strong: entry.r >= 1500}))
+  }
+  const suggestions = useMemo(() => rankScan(6), [scan.items, signals, side])
+  const extraPool = useMemo(() => rankScan(12), [scan.items, signals, side])
   const known = new Map(scan.items.map(item => [item.symbol, item]))
   const q = query.trim().toUpperCase().replace('/', '')
   const searchRows = q ? coins.filter(coin => coin.symbol.includes(q) || String(coin.display || '').toUpperCase().replace('/', '').includes(q)).slice(0, 6) : []
@@ -334,7 +346,8 @@ export default function DcaPanel(props: DcaPanelProps) {
     take_profit_pct: inp.takeProfitPct, stop_gap_pct: inp.stopGapPct, leverage: inp.leverage, recycle: form.recycle, smart_entry: useSmart, trailing_pct: trailPct, preview, confirmation,
   })
   const body = (preview: boolean, confirmation = '') => bodyFor(symbol, input, preview, confirmation)
-  const slots = Math.max(0, MAX_BOTS - ((status?.grids ?? []).filter((g: any) => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !FINAL.includes(g.status)).length) - 1)
+  const activeCount = (status?.grids ?? []).filter((g: any) => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !FINAL.includes(g.status)).length
+  const slots = Math.max(0, MAX_BOTS - activeCount - 1)
   const extraInput = async (sym: string) => {
     const coin = coins.find(c => c.symbol === sym)
     if (!coin || !(coin.price > 0)) throw new Error('Fiyat okunamadı.')
@@ -344,12 +357,44 @@ export default function DcaPanel(props: DcaPanelProps) {
     if (fit.state !== 'ok') throw new Error('Bu plan bu coine sığmıyor.')
     return trial
   }
-  const toggleExtra = async (sym: string) => {
+  // Ek coin adayları: her biri için mevcut plan ayarıyla gerçek hesap (yatırım, en kötü kayıp, sığıyor mu).
+  const [extraFits, setExtraFits] = useState<Record<string, {state: 'busy' | 'ok' | 'no'; total?: number; worst?: number; reason?: string}>>({})
+  useEffect(() => {
+    if (step !== 3 || !ready || slots <= 0) return
+    let cancelled = false
+    const list = extraPool.filter(item => item.symbol !== symbol)
+    setExtraFits(Object.fromEntries(list.map(item => [item.symbol, {state: 'busy' as const}])))
+    void (async () => {
+      for (const item of list) {
+        if (cancelled) return
+        let next: {state: 'ok' | 'no'; total?: number; worst?: number; reason?: string}
+        try {
+          const coin = coins.find(c => c.symbol === item.symbol)
+          if (!coin || !(coin.price > 0)) throw new Error('Fiyat okunamadı')
+          const f = await readFilters(item.symbol)
+          const trial = inputOf(form, {price: coin.price, filters: f})
+          const r = computeDca(trial)
+          if (!r.valid) next = {state: 'no', reason: 'Bu plan bu coine uymuyor'}
+          else if (planFit(trial, cap, lossCap).state !== 'ok') next = {state: 'no', reason: 'Limitine sığmıyor'}
+          else next = {state: 'ok', total: r.totalMargin, worst: r.worstLoss}
+        } catch (error: any) { next = {state: 'no', reason: error?.message || 'Okunamadı'} }
+        if (!cancelled) setExtraFits(current => ({...current, [item.symbol]: next}))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [step, ready, slots, symbol, side, form, extraPool.map(item => item.symbol).join(',')])
+  const toggleExtra = (sym: string) => {
     setExtraNote('')
     if (extras.includes(sym)) { setExtras(c => c.filter(x => x !== sym)); return }
     if (extras.length >= slots) { setExtraNote(`En fazla ${slots} ek coin seçebilirsin.`); return }
-    try { await extraInput(sym); setExtras(c => [...c, sym]) } catch (error: any) { setExtraNote(`${sym}: ${error?.message || 'Uygun değil.'}`) }
+    const fit = extraFits[sym]
+    if (fit?.state === 'no') { setExtraNote(`${sym.replace('USDT', '')}: ${fit.reason || 'Uygun değil.'}`); return }
+    setExtras(c => [...c, sym])
   }
+  const okExtras = extraPool.filter(item => item.symbol !== symbol && extraFits[item.symbol]?.state === 'ok').map(item => item.symbol)
+  const pickAllExtras = () => { setExtraNote(''); setExtras(okExtras.slice(0, slots)) }
+  const extrasTotal = extras.reduce((sum, sym) => sum + (extraFits[sym]?.total ?? 0), 0)
+  const extrasWorst = extras.reduce((sum, sym) => sum + (extraFits[sym]?.worst ?? 0), 0)
   const checkOnServer = async () => {
     setServer({state: 'busy', text: 'Sunucu planı kendi kurallarıyla yeniden hesaplıyor…'})
     try {
@@ -480,19 +525,27 @@ export default function DcaPanel(props: DcaPanelProps) {
           <span>Borsanın en düşük işlem tutarı yüzünden bu coin {fitNow?.total ? `en az ${fmtUsd(fitNow.total)}` : 'daha yüksek'} toplam marj ister; canlı limitin {cap} USDT.</span>
           <button type="button" onClick={() => setStep(1)}>Başka coin seç</button>
         </div>}
-        {ready && <div className="dwPlans" role="radiogroup" aria-label="Plan">{presetPlans.map(plan => {
+        {ready && <div className="dwPlans" role="radiogroup" aria-label="Plan">{[...presetPlans].sort((a, b) => a.preset.risk - b.preset.risk).map(plan => {
           const r = plan.result
           const disabled = plan.state === 'no'
           const tp = r.stages.length ? r.stages[r.stages.length - 1].tpNetProfitAfterCosts : 0
           return <button key={plan.preset.id} type="button" role="radio" aria-checked={presetId === plan.preset.id} data-on={presetId === plan.preset.id || undefined} data-state={plan.state} disabled={disabled} onClick={() => choosePlan(plan)}>
-            <span className="dwPlanHead"><b>{plan.preset.name}</b>{plan.preset.id === 'balanced' && <em>Önerilen</em>}</span>
+            <span className="dwPlanHead"><b>{plan.preset.name}</b>{plan.preset.id === 'balanced' && <em>Önerilen</em>}<span className="dwRisk5" aria-label={`Risk ${plan.preset.risk}/5`} title={`Risk ${plan.preset.risk}/5`}>{[1, 2, 3, 4, 5].map(n => <i key={n} data-on={n <= plan.preset.risk || undefined} />)}</span></span>
             <small>{plan.preset.hint}</small>
             {disabled ? <span className="dwPlanNo">Bu coinde uygun değil</span> : <>
-              <span className="dwPlanLine">Fiyat her %{plan.form.step} {falls} bir ek alım, en fazla {plan.form.safety} kez</span>
+              <span className="dwPlanLine">Fiyat her %{plan.form.step} {falls} ek alım (en fazla {plan.form.safety} kez) · {plan.form.leverage}x · hedef %{plan.form.tp}</span>
               <span className="dwPlanNums"><span><small>Yatırım</small><b>{fmtUsd(r.totalMargin)}</b></span><span><small>En kötü kayıp</small><b className="down">{fmtUsd(-r.worstLoss)}</b></span><span><small>Hedef kâr</small><b className="up">{fmtUsd(tp, true)}</b></span></span>
             </>}
           </button>
         })}</div>}
+        {ready && <div className="dwTune" data-testid="dca-tune">
+          <div className="dwTuneHead"><b>Hızlı ayar</b>{presetId === 'custom' ? <em>Özel ayar</em> : <small>Seçtiğin planı buradan değiştirebilirsin</small>}</div>
+          <div className="dwTuneRow"><span>Yatırım (taban)</span><Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} /></div>
+          <div className="dwTuneRow"><span>Kaldıraç</span><Chips options={[1, 2, 3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /></div>
+          <div className="dwTuneRow"><span>Kâr hedefi</span><Chips options={[0.5, 0.8, 1, 1.5, 2, 3]} value={num(form.tp)} onPick={v => set('tp', String(v))} fmt={v => `%${v}`} /></div>
+          <div className="dwTuneRow"><span>Ek alım sayısı</span><Chips options={[1, 2, 3, 4, 5]} value={form.safety} onPick={v => set('safety', v)} fmt={v => `${v}`} /></div>
+        </div>}
+        {ready && customBlock && <p className="dwWarn" role="alert" data-testid="dca-custom-block">{customBlock}{fixNowCustom && <> <button type="button" className="dwFix" onClick={applyCustomFix}>Otomatik sığdır</button></>}</p>}
         {ready && <label className="dcaToggle dwRecycle" data-testid="dca-recycle"><input type="checkbox" checked={form.recycle} onChange={e => setForm(c => ({...c, recycle: e.target.checked}))} /><span><b>Otomatik tekrar</b><small>Kâr hedefi dolunca yeni tur başlar. Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>}
         {ready && smartAvail && <label className="dcaToggle dwRecycle" data-testid="dca-smart-entry"><input type="checkbox" checked={smartEntry} onChange={e => setSmartEntry(e.target.checked)} /><span><b>Akıllı başlama</b><small>Bot, Kais bu coin için yönü uygun görene kadar bekler (en fazla birkaç saat). Uygun görmezse hiç işlem açmaz.</small></span></label>}
         {ready && trailAvail && <label className="dcaToggle dwRecycle" data-testid="dca-trailing"><input type="checkbox" checked={trailOn} onChange={e => setTrailOn(e.target.checked)} /><span><b>Takip eden kâr</b><small>Fiyat hedefe gelince bot hemen kapatmaz; kârı yukarı doğru takip eden bir stop ile kovalar. Stop geri gitmez. Hedef yerine daha fazla kâr da, biraz daha az kâr da olabilir.</small></span></label>}
@@ -512,17 +565,41 @@ export default function DcaPanel(props: DcaPanelProps) {
         {note && <p className="dcaNote2" role="status">{note}</p>}
         {ready && result.errors.length > 0 && presetId === '' && <ul className="dcaErrors" role="alert">{result.errors.map(text => <li key={text}><i>!</i><span>{text}</span></li>)}</ul>}
 
-        <details className="dwAdv">
+        <details className="dwAdv" data-testid="dca-advanced" open={presetId === 'custom' || undefined}>
           <summary>Gelişmiş ayarlar</summary>
-          <div className="dcaGrid">
-            <div className="dcaCard dcaForm">
+          <div className="dwAdvBody">
+            {ready && <div className="dwSumBar" data-bad={customBlock ? '1' : undefined} role="status" aria-label="Canlı özet">
+              <span><small>Yatırım</small><b>{result.valid ? fmtUsd(result.totalMargin) : '—'}</b></span>
+              <span><small>En kötü kayıp</small><b className="down">{result.valid ? fmtUsd(-result.worstLoss) : '—'}</b></span>
+              <span><small>Hedef kâr</small><b className="up">{result.valid && result.stages.length ? fmtUsd(result.stages[result.stages.length - 1].tpNetProfitAfterCosts, true) : '—'}</b></span>
+              <span><small>Likidasyona</small><b>{result.valid && Number.isFinite(result.liquidationGapPct) ? `%${result.liquidationGapPct.toFixed(0)}` : '—'}</b></span>
+            </div>}
+            {ready && result.valid && <p className="dwStory2">Bot <b>{fmtUsd(num(form.margin))}</b> marjla girer. Fiyat her <b>%{form.step}</b> {falls} <b>{form.safety}</b> kez ek alım yapar (her biri <b>{form.volume}x</b> büyük). Ortalamadan <b>%{form.tp}</b> kârda kapatır; son ek alımın <b>%{form.gap}</b> ötesinde stop çalışır.</p>}
+            {ready && result.errors.length > 0 && <ul className="dcaErrors" role="alert">{result.errors.map(text => <li key={text}><i>!</i><span>{text}</span></li>)}</ul>}
+            <div className="dwAdvGroup">
+              <h4>Giriş</h4>
               <Field label="Taban marjin" suffix="USDT"><input inputMode="decimal" value={form.margin} onChange={e => set('margin', e.target.value)} /></Field>
-              <div className="dcaField"><label>Ek emir sayısı</label><div className="dcaSeg">{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" className={form.safety === n ? 'on' : ''} onClick={() => set('safety', n)}>{n}</button>)}</div></div>
-              <div className="dcaField"><label>Kaldıraç</label><div className="dcaSeg">{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" className={form.leverage === n ? 'on' : ''} onClick={() => set('leverage', n)}>{n}x</button>)}</div><small>DCA'da en fazla {DCA_LIMITS.maxLeverage}x.</small></div>
+              <Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} />
+              <div className="dcaField"><label>Kaldıraç</label><Chips options={[1, 2, 3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /><small>DCA'da en fazla {DCA_LIMITS.maxLeverage}x. Kaldıraç arttıkça likidasyon yaklaşır.</small></div>
+            </div>
+            <div className="dwAdvGroup">
+              <h4>Ek alımlar</h4>
+              <div className="dcaField"><label>Ek emir sayısı</label><Chips options={[1, 2, 3, 4, 5]} value={form.safety} onPick={v => set('safety', v)} fmt={v => `${v}`} /></div>
               <Slider label="Ek emirler arası aralık" unit="%" min={DCA_LIMITS.stepPct[0]} max={DCA_LIMITS.stepPct[1]} step={0.1} value={form.step} onChange={v => set('step', v)} />
+              <Chips options={[0.5, 1, 1.5, 2, 3, 5]} value={num(form.step)} onPick={v => set('step', String(v))} fmt={v => `%${v}`} />
               <Slider label="Hacim çarpanı" unit="x" min={1} max={DCA_LIMITS.maxVolumeMultiplier} step={0.1} value={form.volume} onChange={v => set('volume', v)} hint="Her ek emir bir öncekinden bu kadar büyük" />
+              <Chips options={[1, 1.2, 1.5, 1.8, 2]} value={num(form.volume)} onPick={v => set('volume', v.toFixed(1))} fmt={v => `${v}x`} />
+            </div>
+            <div className="dwAdvGroup">
+              <h4>Çıkış</h4>
               <Slider label="Kâr hedefi (ortalamadan)" unit="%" min={DCA_LIMITS.takeProfitPct[0]} max={5} step={0.1} value={form.tp} onChange={v => set('tp', v)} />
+              <Chips options={[0.5, 0.8, 1, 1.5, 2, 3]} value={num(form.tp)} onPick={v => set('tp', String(v))} fmt={v => `%${v}`} />
               <Slider label="Stop mesafesi (son ek emrin ötesi)" unit="%" min={DCA_LIMITS.stopGapPct[0]} max={5} step={0.1} value={form.gap} onChange={v => set('gap', v)} />
+              <Chips options={[0.8, 1, 1.5, 2, 3]} value={num(form.gap)} onPick={v => set('gap', String(v))} fmt={v => `%${v}`} />
+            </div>
+            <div className="dwAdvActions">
+              <button type="button" onClick={() => { const plan = presetPlans.find(p => p.preset.id === (lastPlanRef.current || 'balanced')) ?? presetPlans.find(p => p.state !== 'no'); if (plan) choosePlan(plan) }}>Seçili plana dön</button>
+              <button type="button" disabled={!fixNowCustom && !(fitNow?.state === 'over-cap' && fixNow)} onClick={() => { if (fixNowCustom) applyCustomFix(); else if (fixNow) { setPresetId('custom'); setForm(c => ({...c, margin: fmtMargin(fixNow.margin), safety: fixNow.safety, volume: fixNow.volume.toFixed(1)})) } }}>Limitime sığdır</button>
             </div>
             <div className="dcaCard dcaVisual">
               {result.valid && ready ? <>
@@ -559,12 +636,29 @@ export default function DcaPanel(props: DcaPanelProps) {
           <div className="dwRisk"><span><small>Toplam yatırım (marj)</small><b>{fmtUsd(result.totalMargin)}</b></span><span><small>Kaldıraç</small><b>{form.leverage}x</b></span><span><small>Canlı limit</small><b>{cap} USDT</b></span></div>
         </> : <p className="dwWarn">Plan geçerli değil. Geri dönüp başka bir plan ya da coin seç.</p>}
 
-        {slots > 0 && suggestions.length > 0 && <div className="dwExtras" data-testid="dca-extras">
-          <b>Aynı ayarla başka coin de ekle</b>
-          <small>En fazla {slots} coin daha. Her biri aynı plan yüzdeleriyle, ayrı bot olarak çalışır.</small>
-          <div>{suggestions.filter(item => item.symbol !== symbol).slice(0, 6).map(item => <button type="button" key={item.symbol} data-on={extras.includes(item.symbol) || undefined} onClick={() => void toggleExtra(item.symbol)}>{item.display || item.symbol}</button>)}</div>
-          {extraNote && <em>{extraNote}</em>}
-        </div>}
+        <div className="dwExtras" data-testid="dca-extras">
+          <div className="dwExHead"><b>Aynı ayarla başka coin de ekle</b><span>{extras.length}/{slots}</span></div>
+          <small>{slots > 0
+            ? `Aynı anda en fazla ${MAX_BOTS} bot çalışır (güvenlik sınırı). Şu an ${activeCount} çalışıyor, bu yüzden ${slots} coin daha ekleyebilirsin. Her coin ayrı bot olarak, aynı plan yüzdeleriyle çalışır.`
+            : `Aynı anda en fazla ${MAX_BOTS} bot çalışır ve şu an hepsi dolu. Yer açmak için çalışan bir botu durdur.`}</small>
+          {slots > 0 && <>
+            <div className="dwExList">{extraPool.filter(item => item.symbol !== symbol).map(item => {
+              const fit = extraFits[item.symbol]
+              const on = extras.includes(item.symbol)
+              const move = Number.isFinite(item.change) ? `${item.change > 0 ? '+' : ''}${item.change.toFixed(1)}%` : ''
+              return <button type="button" key={item.symbol} data-on={on || undefined} data-state={fit?.state ?? 'busy'} data-against={item.against || undefined} aria-pressed={on} onClick={() => toggleExtra(item.symbol)}>
+                <span className="dwExTop"><b>{(item.display || item.symbol).replace('/USDT', '')}</b>{move && <i className={item.change > 0 ? 'up' : 'down'}>{move}</i>}{item.strong && <em>{dir ? 'Yükselişte' : 'Düşüşte'}</em>}{item.against && <em className="warn">Ters yönde</em>}</span>
+                <small>{!fit || fit.state === 'busy' ? 'Hesaplanıyor…' : fit.state === 'no' ? fit.reason : `${fmtUsd(fit.total ?? 0)} yatırım · en kötü ${fmtUsd(-(fit.worst ?? 0))}`}</small>
+              </button>
+            })}</div>
+            <div className="dwExActions">
+              <button type="button" disabled={okExtras.length === 0} onClick={pickAllExtras}>Uygun olanlardan {Math.min(slots, okExtras.length)} tanesini seç</button>
+              {extras.length > 0 && <button type="button" onClick={() => { setExtras([]); setExtraNote('') }}>Temizle</button>}
+            </div>
+            {extras.length > 0 && <p className="dwExTotal" role="status">Toplam {1 + extras.length} coin · yatırım <b>{fmtUsd(result.totalMargin + extrasTotal)}</b> · hepsinde stop çalışırsa en kötü zarar <b className="down">{fmtUsd(-(result.worstLoss + extrasWorst))}</b></p>}
+          </>}
+          {extraNote && <em className="dwExNote">{extraNote}</em>}
+        </div>
         {(!liveArmed || !authorizationValid || emergency) && <div className="dwPerm" data-testid="dca-perm" data-tone={emergency ? 'bad' : 'warn'}>
           {emergency ? <>
             <b>Acil durdurma açık</b><span>Yeni işlem açılamaz. Önce acil durdurmayı kaldırman gerekir (2FA kodu ister).</span>
@@ -599,7 +693,7 @@ export default function DcaPanel(props: DcaPanelProps) {
       })()}
 
       <div className="dwBar">
-        {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId} onClick={() => setStep(3)}>Devam · kontrol et</button></>}
+        {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId || customBlock !== ''} onClick={() => setStep(3)}>Devam · kontrol et</button></>}
         {step === 3 && <><button type="button" className="dwBack" onClick={() => setStep(2)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" disabled={Boolean(whyBlocked)} onClick={start}>Canlı başlat</button></>}
       </div>
       {step === 3 && whyBlocked && <p className="dcaWhy">{whyBlocked}</p>}
@@ -624,6 +718,10 @@ function Slider({label, unit, min, max, step, value, onChange, hint}: {label: st
       {hint && <small>{hint}</small>}
     </div>
   )
+}
+
+function Chips({options, value, onPick, fmt}: {options: number[]; value: number; onPick: (v: number) => void; fmt: (v: number) => string}) {
+  return <div className="dwChips" role="group">{options.map(option => <button key={option} type="button" className={Math.abs(option - value) < 1e-9 ? 'on' : ''} aria-pressed={Math.abs(option - value) < 1e-9} onClick={() => onPick(option)}>{fmt(option)}</button>)}</div>
 }
 
 function Stat({label, value, tone, hint}: {label: string; value: string; tone?: 'up' | 'down'; hint?: string}) {

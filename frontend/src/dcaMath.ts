@@ -155,11 +155,14 @@ export function computeDca(input: DcaInput): DcaResult {
 }
 
 export type DcaPresetForm = {margin: string; safety: number; step: string; volume: string; tp: string; gap: string; leverage: number; recycle: boolean}
-export type DcaPreset = {id: string; name: string; hint: string; form: DcaPresetForm}
+export type DcaPreset = {id: string; name: string; hint: string; risk: 1 | 2 | 3 | 4 | 5; form: DcaPresetForm}
+// Dizideki sıra sabit (indeks 1 = Dengeli, tarayıcı onu kullanır); ekranda `risk` değerine göre sıralanır.
 export const DCA_PRESETS: DcaPreset[] = [
-  {id: 'calm', name: 'Sakin', hint: 'Geniş aralık, düşük kaldıraç', form: {margin: '10', safety: 3, step: '2', volume: '1.2', tp: '1', gap: '2', leverage: 2, recycle: false}},
-  {id: 'balanced', name: 'Dengeli', hint: 'Çoğu durum için', form: {margin: '10', safety: 3, step: '1.5', volume: '1.5', tp: '1', gap: '1.5', leverage: 3, recycle: false}},
-  {id: 'bold', name: 'Atak', hint: 'Sık ek emir, hızlı hedef', form: {margin: '10', safety: 4, step: '1', volume: '1.6', tp: '0.8', gap: '1', leverage: 4, recycle: false}},
+  {id: 'calm', name: 'Sakin', hint: 'Geniş aralık, düşük kaldıraç', risk: 2, form: {margin: '10', safety: 3, step: '2', volume: '1.2', tp: '1', gap: '2', leverage: 2, recycle: false}},
+  {id: 'balanced', name: 'Dengeli', hint: 'Çoğu durum için', risk: 3, form: {margin: '10', safety: 3, step: '1.5', volume: '1.5', tp: '1', gap: '1.5', leverage: 3, recycle: false}},
+  {id: 'bold', name: 'Atak', hint: 'Sık ek emir, hızlı hedef', risk: 5, form: {margin: '10', safety: 4, step: '1', volume: '1.6', tp: '0.8', gap: '1', leverage: 4, recycle: false}},
+  {id: 'steady', name: 'Uzun nefes', hint: 'Çok geniş aralık, 1x kaldıraç, büyük hareketi bekler', risk: 1, form: {margin: '10', safety: 3, step: '3', volume: '1.1', tp: '1.5', gap: '3', leverage: 1, recycle: false}},
+  {id: 'quick', name: 'Hızlı kâr', hint: 'Az ek alım, küçük hedefi çabuk toplar', risk: 4, form: {margin: '10', safety: 2, step: '0.8', volume: '1.3', tp: '0.6', gap: '0.8', leverage: 3, recycle: false}},
 ]
 
 const NOTIONAL_ERROR = 'en düşük emir değerinin altında'

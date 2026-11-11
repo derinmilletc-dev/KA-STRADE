@@ -403,3 +403,54 @@
 .dwExtras button{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:inherit}
 .dwExtras button[data-on]{border-color:var(--up,#2ecc71);background:rgba(46,204,113,.15)}
 .dwExtras em{font-style:normal;color:var(--down,#e5484d);font-size:12px}
+
+/* ---- Plan ekranı: risk noktaları, hızlı ayar, gelişmiş ayarlar, ek coin ---- */
+#root .dca .dwRisk5{margin-left:auto;display:inline-flex;gap:3px;align-items:center}
+#root .dca .dwRisk5 i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.14)}
+#root .dca .dwRisk5 i[data-on]{background:linear-gradient(135deg,#3ddc97,#f0b429)}
+#root .dca .dwRisk5 i[data-on]:nth-child(n+4){background:#f0836a}
+#root .dca .dwTune{display:grid;gap:10px;padding:14px;border-radius:18px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwTuneHead{display:flex;align-items:center;gap:8px;justify-content:space-between}
+#root .dca .dwTuneHead b{font-size:14px}
+#root .dca .dwTuneHead small{font-size:11.5px;color:#6f8399;text-align:right}
+#root .dca .dwTuneHead em{font-style:normal;font-size:11.5px;font-weight:800;color:#f0b429;background:rgba(240,180,41,.14);padding:3px 9px;border-radius:99px}
+#root .dca .dwTuneRow{display:grid;gap:6px}
+#root .dca .dwTuneRow>span{font-size:12px;font-weight:700;color:#9fb2c8}
+#root .dca .dwChips{display:flex;flex-wrap:wrap;gap:6px}
+#root .dca .dwChips button{min-height:38px;padding:0 13px;border-radius:12px;border:1px solid rgba(255,255,255,.09);background:var(--card2,#142033);color:var(--mut,#8ea0b4);font:inherit;font-weight:800;font-size:13px;cursor:pointer;transition:.15s;font-variant-numeric:tabular-nums}
+#root .dca .dwChips button.on{color:#06281a;background:linear-gradient(135deg,var(--g,#3ddc97),var(--g2,#2bc4a0));border-color:transparent}
+#root .dca .dwFix,#root .dca .dwAdvActions button{min-height:40px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:var(--card2,#142033);color:inherit;font:inherit;font-weight:800;font-size:13px;cursor:pointer}
+#root .dca .dwAdvActions button:disabled{opacity:.45;cursor:not-allowed}
+#root .dca .dwAdvActions{display:flex;gap:8px;flex-wrap:wrap}
+#root .dca .dwAdvBody{display:grid;gap:14px;padding-bottom:14px}
+#root .dca .dwSumBar{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:12px;border-radius:16px;background:linear-gradient(160deg,rgba(61,220,151,.14),#0f1824 80%);border:1px solid rgba(61,220,151,.28);backdrop-filter:blur(6px)}
+#root .dca .dwSumBar[data-bad]{background:linear-gradient(160deg,rgba(240,131,106,.18),#0f1824 80%);border-color:rgba(240,131,106,.4)}
+#root .dca .dwSumBar span{display:grid;gap:2px;min-width:0}
+#root .dca .dwSumBar small{font-size:10.5px;color:#8ea0b4;letter-spacing:.03em}
+#root .dca .dwSumBar b{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#root .dca .dwStory2{margin:0;font-size:13px;line-height:1.55;color:#b9c8d8;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04)}
+#root .dca .dwStory2 b{color:#e8f0f8}
+#root .dca .dwAdvGroup{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}
+#root .dca .dwAdvGroup h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6f8399}
+#root .dca .dwExtras{display:grid;gap:10px;padding:14px;border-radius:18px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwExHead{display:flex;justify-content:space-between;align-items:center}
+#root .dca .dwExHead b{font-size:14px}
+#root .dca .dwExHead span{font-weight:800;font-size:12px;padding:3px 10px;border-radius:99px;background:rgba(61,220,151,.14);color:#3ddc97}
+#root .dca .dwExtras>small{font-size:12px;line-height:1.5;color:#8ea0b4}
+#root .dca .dwExList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .dca .dwExList button{display:grid;gap:4px;justify-items:start;text-align:left;padding:11px 12px;border-radius:14px;border:2px solid rgba(255,255,255,.07);background:var(--card2,#142033);color:inherit;font:inherit;cursor:pointer;min-width:0}
+#root .dca .dwExList button[data-on]{border-color:#3ddc97;background:linear-gradient(160deg,rgba(61,220,151,.22),#0f1824 80%)}
+#root .dca .dwExList button[data-state="no"]{opacity:.5}
+#root .dca .dwExList button[data-against]{border-color:rgba(240,131,106,.25)}
+#root .dca .dwExTop{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#root .dca .dwExTop b{font-size:14px}
+#root .dca .dwExTop i{font-style:normal;font-size:12px;font-weight:800}
+#root .dca .dwExTop em{font-style:normal;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(61,220,151,.16);color:#3ddc97}
+#root .dca .dwExTop em.warn{background:rgba(240,131,106,.16);color:#f0836a}
+#root .dca .dwExList small{font-size:11px;color:#8ea0b4;line-height:1.35}
+#root .dca .dwExActions{display:flex;gap:8px;flex-wrap:wrap}
+#root .dca .dwExActions button{min-height:40px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:var(--card2,#142033);color:inherit;font:inherit;font-weight:800;font-size:13px;cursor:pointer}
+#root .dca .dwExActions button:disabled{opacity:.45;cursor:not-allowed}
+#root .dca .dwExTotal{margin:0;font-size:12.5px;line-height:1.5;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04)}
+#root .dca .dwExNote{font-style:normal;font-size:12px;color:#f0836a}
+@media (max-width:380px){#root .dca .dwSumBar{grid-template-columns:repeat(2,1fr)}}
