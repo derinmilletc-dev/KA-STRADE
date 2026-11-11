@@ -758,3 +758,5 @@ html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data
 .fmStepper [data-state="now"] i{animation:fmStepPop .4s cubic-bezier(.2,.8,.2,1),fmStepRing 2.2s ease-in-out .4s infinite}
 .fmStepper [data-state="done"] i{animation:fmStepPop .35s cubic-bezier(.2,.8,.2,1)}
 }
+
+.fmRoot{scroll-margin-top:92px}

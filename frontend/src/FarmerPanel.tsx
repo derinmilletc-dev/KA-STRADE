@@ -595,7 +595,15 @@ function Wizard(p: WizardProps) {
     : preview.verdict === 'NOT_RECOMMENDED' ? {tone: 'bad', text: L('Bu rakamlarla işlem kurulamıyor. Kaybı biraz artır ya da hedefi küçült.', 'These numbers cannot form a trade. Raise the loss a bit or lower the target.')}
     : preview.verdict === 'TIGHT' ? {tone: 'warn', text: L('Dar bir ayar. Normal dalgalanmada stop çalışabilir; daha geniş bir kayıp sınırı dene.', 'A tight setup. Normal moves may hit the stop; try a wider loss limit.')}
     : {tone: 'ok', text: plan(preview.target_usdt, preview.max_loss_usdt, capacity)}
-  return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
+  const wzRef = useRef<HTMLDivElement>(null)
+  const firstStep = useRef(true)
+  // Adım değişince (kaydet → oturum → başlat) panelin başına kaydır; yoksa ekran eski yerinde kalıyor
+  useEffect(() => {
+    if (firstStep.current) { firstStep.current = false; return }
+    const id = requestAnimationFrame(() => { try { (wzRef.current?.closest('.fmRoot') ?? wzRef.current)?.scrollIntoView({behavior: 'smooth', block: 'start'}) } catch { /* eski tarayıcı */ } })
+    return () => cancelAnimationFrame(id)
+  }, [step])
+  return <div className="fmWz" ref={wzRef} data-step={step} data-testid="farmer-wizard">
     {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
       <div className="fmProfiles" role="radiogroup" aria-label={L('Hazır profil', 'Ready profile')}>
         {PROFILES.map(pr => { const Icon = pr.icon; return <button type="button" role="radio" aria-checked={picked?.id === pr.id} key={pr.id} data-tone={pr.tone} data-on={picked?.id === pr.id || undefined} onClick={() => edit({target_usdt: String(pr.target), max_loss_usdt: String(pr.loss), total_margin_cap: String(Math.min(pr.cap, cap))})}>
