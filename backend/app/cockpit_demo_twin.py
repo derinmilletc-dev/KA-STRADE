@@ -183,6 +183,8 @@ async def build_status(request: Request) -> dict[str, Any]:
             "max_positions": settings.get("max_positions"),
             "daily_loss_limit": settings.get("daily_loss_limit"),
             "max_loss_per_trade": settings.get("max_loss_per_trade"),
+            "max_margin_per_trade": settings.get("max_margin_per_trade"),
+            "max_leverage": settings.get("max_leverage", 50),
         },
         "policy_acknowledged": True,
         "readiness": {"ready": connected, "gates": []},
@@ -386,7 +388,17 @@ async def fill_lock(request: Request, body: Loose | None = None) -> dict[str, An
 
 @router.post("/position/protection")
 async def protection(request: Request, body: Loose | None = None) -> dict[str, Any]:
-    raise HTTPException(409, UNSUPPORTED)
+    """Manuel demo pozisyonda stop taşıma (canlıdaki "stop/hedefleri güncelle"nin stop kısmı). Hedef değişimi demo motorunda yok."""
+    from . import binance_demo as demo
+
+    data = body.model_dump() if body else {}
+    if any(data.get(key) is not None for key in ("tp1", "tp2", "tp3")):
+        raise HTTPException(409, "Demo'da hedefler sonradan değiştirilemez; yalnız stop taşınabilir.")
+    if data.get("stop_loss") is None:
+        raise HTTPException(422, "Değiştirilecek stop yok.")
+    symbol = _plan_symbol(request, data.get("plan_id"))
+    await demo.demo_move_stop(request, demo.MoveStopRequest(symbol=symbol, stop_loss=float(data["stop_loss"]), confirmation="DEMO STOP GÜNCELLE"))
+    return await build_status(request)
 
 
 def _plan_symbol(request: Request, plan_id: Any) -> str:
@@ -440,3 +452,147 @@ async def emergency(request: Request, body: Loose | None = None) -> dict[str, An
     )
     await v21_demo.v21_auto_stop(request)
     return await build_status(request)
+
+
+# ---------------------------------------------------------------------------------------------
+# Manuel emir: canlıdaki sihirbazın (ön kontrol → dry-run → gönder) demo karşılıkları.
+# Aynı istek/cevap biçimi; yalnız demo-fapi.binance.com'a gider.
+# ---------------------------------------------------------------------------------------------
+_DEMO_ORDER_FIELDS = {"symbol", "direction", "order_type", "margin_usdt", "leverage", "limit_price", "stop_loss", "tp1", "tp2", "tp3",
+                      "tp_split", "limit_expiry_minutes"}
+
+
+def _demo_order(data: dict[str, Any]):
+    from . import binance_demo as demo
+
+    return demo.DemoOrderRequest(**{key: value for key, value in data.items() if key in _DEMO_ORDER_FIELDS and value is not None})
+
+
+def _demo_policy(request: Request) -> dict[str, Any]:
+    from . import v21_demo
+    from .execution_core import sanitize_execution_policy
+
+    settings = v21_demo.state_for(request).get("settings", {})
+    keys = ("max_margin_per_trade", "max_loss_per_trade", "daily_loss_limit", "max_leverage", "max_positions")
+    return sanitize_execution_policy({key: settings[key] for key in keys if settings.get(key) is not None})
+
+
+@router.post("/order/test")
+async def order_test(request: Request, body: Loose) -> dict[str, Any]:
+    from . import binance_demo as demo
+
+    order = _demo_order(body.model_dump())
+    result = await demo.demo_order_test(request, order)
+    preview = result.get("preview") or {}
+    return {"ok": True, "exchange_response": {}, "created_order": False, "message": result.get("message"),
+            "notional_usdt": preview.get("notional_usdt"), "estimated_stop_loss_usdt": preview.get("risk_per_trade"),
+            "tp2_on_exchange": True}
+
+
+@router.post("/order")
+async def order_send(request: Request, body: Loose) -> dict[str, Any]:
+    from . import binance_demo as demo
+
+    data = body.model_dump()
+    if str(data.get("confirmation") or "").strip().upper() not in {"CANLI EMİR GÖNDER", "DEMO EMİR GÖNDER"}:
+        raise HTTPException(422, "Emri göndermek için onay gerekir.")
+    return await demo.execute_demo_order(request.app, _demo_order(data), source="MANUAL", request=request)
+
+
+@router.post("/order/preflight")
+async def order_preflight(request: Request, body: Loose) -> dict[str, Any]:
+    """Canlıdaki ön kontrolün demo karşılığı: emir göndermez, aynı kapıları demo hesabında okur."""
+    from . import binance_demo as demo
+    from . import manual_preflight
+    from .execution_core import position_notional_usdt, risk_sized_order  # noqa: F401 - risk_sized_order aşağıda kullanılır
+    from .liquidation_risk import isolated_liquidation_risk  # noqa: F401
+    from . import v21_demo
+
+    data = body.model_dump()
+    try:
+        symbol = demo.normalize_symbol(str(data.get("symbol") or ""))
+        direction = str(data.get("direction") or "").upper()
+        margin = float(data.get("margin_usdt"))
+        leverage = int(data.get("leverage"))
+        entry = float(data["entry"]) if data.get("entry") else None
+        stop = float(data["stop_loss"]) if data.get("stop_loss") else None
+        client = demo.client_for(request)
+        snapshot = await demo.account_snapshot(client)
+        policy = _demo_policy(request)
+        estimated_loss = None
+        sized_notional = None
+        if entry and stop and entry != stop:
+            try:
+                sized = risk_sized_order(entry, stop, {**policy, "max_margin_per_trade": margin, "max_leverage": leverage}, atr=None, manual=True)
+                estimated_loss, sized_notional = float(sized["estimated_stop_loss_usdt"]), float(sized["notional_usdt"])
+            except (ValueError, KeyError):
+                estimated_loss = None
+        liquidation = None
+        if sized_notional and entry and stop:
+            try:
+                brackets = await client.signed("GET", "/fapi/v1/leverageBracket", {"symbol": symbol})
+                liquidation = manual_preflight.liquidation_check(
+                    symbol=symbol, direction=direction, entry=entry, stop=stop, margin_usdt=margin, leverage=leverage,
+                    notional_usdt=sized_notional, policy=policy, brackets=brackets)
+            except Exception:  # noqa: BLE001 - okunamazsa atlanır (engel sayılmaz), canlıdaki gibi
+                liquidation = None
+        book = await client.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol})
+        bid, ask = float(book.get("bidPrice", 0)), float(book.get("askPrice", 0))
+        spread = (ask - bid) / ((ask + bid) / 2) * 10000 if bid > 0 and ask >= bid else 0.0
+        state = demo.state_for(request)
+        occupied = any(str(item.get("symbol")).upper() == symbol for item in snapshot.get("positions", [])) or any(
+            str(item.get("symbol")).upper() == symbol for item in snapshot.get("open_orders", []))
+        v21 = v21_demo.state_for(request)
+        realized = demo.verified_realized_pnl(v21) if isinstance(v21, dict) else 0.0
+        report = manual_preflight.build_report(
+            symbol=symbol, direction=direction, margin_usdt=margin, leverage=leverage, estimated_loss_usdt=estimated_loss,
+            snapshot=snapshot, policy=policy, daily={"realized_pnl": realized}, spread_bps=spread,
+            active_plans=list(state.get("plans", {}).values()), readiness_gates=[], budget_left=None, committed=0.0,
+            symbol_occupied=bool(occupied), symbol_occupancy_detail="", grid_busy=demo.demo_grid_busy(request.app, state, symbol),
+            isolated_error=None, liquidation=liquidation)
+        return {**report, "created_order": False}
+    except Exception:  # noqa: BLE001 - canlıdaki gibi: okunamazsa gönderimi engellemeyen "kontrol edilemedi" cevabı
+        return {"ok": None, "checks": [], "first_blocker": None, "created_order": False,
+                "message": "Ön kontrol şu an yapılamadı; emir gönderiminde kontroller yine çalışır."}
+
+
+@router.put("/policy")
+async def policy_update(request: Request, body: Loose) -> dict[str, Any]:
+    """Risk limitleri (marjin, işlem başı kayıp, günlük limit, kaldıraç, pozisyon sayısı): demo ayarlarına yazılır;
+    hem manuel hem otomatik demo işlemler aynı değerleri kullanır."""
+    from . import v21_demo
+
+    data = body.model_dump()
+    bounds = {"max_margin_per_trade": (5, 300), "max_loss_per_trade": (0.5, 25), "daily_loss_limit": (5, 1000), "max_leverage": (1, 50), "max_positions": (1, 5)}
+    settings = v21_demo.state_for(request).setdefault("settings", {})
+    for key, (low, high) in bounds.items():
+        if data.get(key) is None:
+            continue
+        value = _num(data.get(key), float("nan"))
+        if value != value or not low <= value <= high:
+            raise HTTPException(422, f"{key}: {low} – {high} arasında olmalı.")
+        settings[key] = int(value) if key in {"max_leverage", "max_positions"} else value
+    persist = getattr(v21_demo, "persist_state", None)
+    if callable(persist):
+        persist(v21_demo.state_for(request))
+    return await build_status(request)
+
+
+
+@router.post("/risk/preview")
+async def risk_preview(request: Request, body: Loose) -> dict[str, Any]:
+    """Canlıdaki risk önizlemesinin demo karşılığı (emir yok; yalnız hesap)."""
+    from .execution_core import risk_sized_order
+
+    data = body.model_dump()
+    try:
+        policy = {**_demo_policy(request), "max_margin_per_trade": float(data["margin_usdt"]), "max_leverage": int(data["leverage"])}
+        from .execution_core import sanitize_execution_policy
+
+        risk = risk_sized_order(float(data["entry"]), float(data["stop_loss"]), sanitize_execution_policy(policy),
+                                atr=float(data["atr"]) if data.get("atr") else None, manual=bool(data.get("manual")))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(422, f"Risk preview reddedildi: {exc}") from exc
+    return {"ok": True, "orders_created": False, **{key: risk[key] for key in (
+        "entry", "stop", "stop_distance_pct", "max_stop_distance_pct", "leverage", "notional_usdt", "margin_usdt",
+        "estimated_stop_loss_usdt", "capped", "atr")}}
