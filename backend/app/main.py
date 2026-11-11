@@ -1350,6 +1350,8 @@ async def lifespan(app: FastAPI):
 
     await bounded_shutdown(shutdown_v21_demo(app))
     await bounded_shutdown(shutdown_binance_demo(app))
+    from . import farmer_demo
+    await bounded_shutdown(farmer_demo.uninstall(app))   # demo Farmer: pozisyon KAPATILMAZ; borsadaki (demo) STOP/TP kalır
     await bounded_shutdown(farmer_runtime.uninstall(app))   # pozisyon KAPATILMAZ; yeni giriş durur, borsadaki STOP/TP kalır
     await bounded_shutdown(shutdown_v25_execution(app))
     await app.state.original_kline_stream.close()
@@ -1657,6 +1659,8 @@ app.include_router(binance_demo_router)
 app.include_router(v21_demo_router)
 from .cockpit_demo_twin import router as cockpit_demo_twin_router
 app.include_router(cockpit_demo_twin_router)
+from .farmer_demo import router as farmer_demo_router
+app.include_router(farmer_demo_router)
 app.include_router(v22_commercial_router)
 app.include_router(moderator_router)
 app.include_router(audit_router)

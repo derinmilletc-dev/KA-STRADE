@@ -4874,7 +4874,8 @@ def _grid_actor(request: Request) -> tuple[str, bool]:
 def demo_grid_busy(application: Any, state: dict[str, Any], symbol: str) -> bool:
     """Bu kullanıcının bu coinde bitmemiş Demo grid'i var mı? Varsa manuel/otomatik Demo emri o coine girmez."""
     runners = [r for r in (getattr(getattr(application, "state", None), "demo_grid_runner", None),
-                           getattr(getattr(application, "state", None), "demo_dca_runner", None)) if r is not None]
+                           getattr(getattr(application, "state", None), "demo_dca_runner", None),
+                           getattr(getattr(application, "state", None), "demo_farmer_registry", None)) if r is not None]
     if not runners:
         return False
     user_id = str(state.get("_user_id") or "").strip()
