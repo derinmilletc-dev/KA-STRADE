@@ -83,3 +83,15 @@ def test_policy_update_validates_bounds_and_writes_shared_settings(monkeypatch):
         raise AssertionError("limit altı kabul edildi")
     except HTTPException as exc:
         assert exc.status_code == 422
+
+
+def test_protection_route_moves_stop_only_and_rejects_targets():
+    import asyncio
+    from fastapi import HTTPException
+
+    for payload, code in (({"plan_id": "abcdef", "tp1": 101.0, "stop_loss": 99.0}, 409), ({"plan_id": "abcdef"}, 422)):
+        try:
+            asyncio.run(twin.protection(None, twin.Loose(**payload)))
+            raise AssertionError("kabul edilmemeliydi")
+        except HTTPException as exc:
+            assert exc.status_code == code

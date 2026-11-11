@@ -388,7 +388,17 @@ async def fill_lock(request: Request, body: Loose | None = None) -> dict[str, An
 
 @router.post("/position/protection")
 async def protection(request: Request, body: Loose | None = None) -> dict[str, Any]:
-    raise HTTPException(409, UNSUPPORTED)
+    """Manuel demo pozisyonda stop taşıma (canlıdaki "stop/hedefleri güncelle"nin stop kısmı). Hedef değişimi demo motorunda yok."""
+    from . import binance_demo as demo
+
+    data = body.model_dump() if body else {}
+    if any(data.get(key) is not None for key in ("tp1", "tp2", "tp3")):
+        raise HTTPException(409, "Demo'da hedefler sonradan değiştirilemez; yalnız stop taşınabilir.")
+    if data.get("stop_loss") is None:
+        raise HTTPException(422, "Değiştirilecek stop yok.")
+    symbol = _plan_symbol(request, data.get("plan_id"))
+    await demo.demo_move_stop(request, demo.MoveStopRequest(symbol=symbol, stop_loss=float(data["stop_loss"]), confirmation="DEMO STOP GÜNCELLE"))
+    return await build_status(request)
 
 
 def _plan_symbol(request: Request, plan_id: Any) -> str:
