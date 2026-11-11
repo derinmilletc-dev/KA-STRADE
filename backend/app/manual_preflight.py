@@ -12,6 +12,7 @@ import math
 from typing import Any
 
 from .execution_core import evaluate_entry_gates, position_notional_usdt
+from .liquidation_risk import isolated_liquidation_risk
 
 MIN_MARGIN_USDT = 5.0
 # Önerilen miktarı kapı sınırının biraz altında tutar (yuvarlama/komisyon payı).
@@ -77,6 +78,7 @@ def build_report(
     symbol_occupancy_detail: str,
     grid_busy: bool,
     isolated_error: str | None,
+    liquidation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Tüm kapıları değerlendirir; {"ok", "checks", "first_blocker"} döner. Başarısız maddelerde çözüm önerisi bulunabilir."""
     notional = margin_usdt * leverage
@@ -93,6 +95,8 @@ def build_report(
                          else "Multi-Assets modu açık; kapatılmadan yeni işlem açılamaz."))
     if isolated_error:
         checks.append(_check("isolated", False, isolated_error))
+    if liquidation is not None:
+        checks.append(_check("liquidation", bool(liquidation.get("ok")), str(liquidation.get("detail") or "")))
 
     # Manuel gönderimle aynı politika/sinyal: günlük işlem ve ardışık kayıp SAYISI sınırı yok, güven ve tuzak puanı sabit.
     entry_policy = {**policy, "daily_trade_limit": 0, "consecutive_loss_limit": 0}
@@ -163,3 +167,34 @@ def build_report(
 
     failed = [item for item in checks if not item["passed"]]
     return {"ok": not failed, "checks": checks, "first_blocker": failed[0] if failed else None}
+
+
+def liquidation_check(*, symbol: str, direction: str, entry: float, stop: float, margin_usdt: float, leverage: int,
+                      notional_usdt: float, brackets: Any, policy: dict[str, Any]) -> dict[str, Any] | None:
+    """Gerçek gönderimdeki tasfiye (likidasyon) güvenliği kuralının aynısını (liquidation_risk) emir göndermeden çalıştırır.
+    Stop tasfiye fiyatından gerekli tampon kadar önce kalmıyorsa ok=False ve çözüm ipucu döner.
+    Başka sebeple doğrulanamazsa (bakım dilimi okunamadı vb.) None döner: ön kontrol bunu engel saymaz, gerçek gönderim yine kontrol eder."""
+    if not (entry > 0 and stop > 0 and notional_usdt > 0 and leverage >= 1):
+        return None
+
+    def run(lev: int, notional: float) -> None:
+        spec = {"symbol": symbol, "direction": direction, "entry_price": entry, "quantity": notional / entry,
+                "leverage": lev, "stop_loss": stop}
+        isolated_liquidation_risk(spec, brackets, policy)
+
+    try:
+        run(leverage, notional_usdt)
+        return {"ok": True, "detail": "Stop, tasfiye fiyatından yeterince önce kalıyor."}
+    except ValueError as exc:
+        if "required buffer" not in str(exc):
+            return None
+    best = None
+    for lev in range(leverage - 1, 0, -1):
+        try:
+            run(lev, margin_usdt * lev)
+        except ValueError:
+            continue
+        best = lev
+        break
+    hint = f" Bu stopla en çok yaklaşık {best}x kaldıraç geçer." if best else " Stopu girişe yaklaştır."
+    return {"ok": False, "detail": f"Bu stop {leverage}x kaldıraçta tasfiye fiyatından sonra kalıyor; gerçek emirde reddedilir.{hint}"}
