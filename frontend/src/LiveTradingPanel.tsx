@@ -108,9 +108,12 @@ export type SharedConnectionStatus = ConnectionStatus
 
 const normalizeCredentialFingerprint = (value: string | null | undefined) => (value || '').trim().toUpperCase().replace(/^SHA256:/, '')
 
-type Props = {active: boolean; symbol: string; analysis?: {direction?: string | null; confidence?: number; entry?: number; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number} | null; masterTrade?: boolean; masterTradeTab?: 'analiz' | 'canli' | 'pozisyonlar' | 'baglanti'; sharedStatus?: LiveStatus | null; sharedStatusVerified?: boolean; sharedStatusError?: string; sharedStatusLoading?: boolean; sharedConnections?: ConnectionStatus | null; onRefreshStatus?: (force?: boolean) => Promise<void>}
+type Props = {demo?: boolean; active: boolean; symbol: string; analysis?: {direction?: string | null; confidence?: number; entry?: number; stop_loss?: number; tp1?: number; tp2?: number; tp3?: number} | null; masterTrade?: boolean; masterTradeTab?: 'analiz' | 'canli' | 'pozisyonlar' | 'baglanti'; sharedStatus?: LiveStatus | null; sharedStatusVerified?: boolean; sharedStatusError?: string; sharedStatusLoading?: boolean; sharedConnections?: ConnectionStatus | null; onRefreshStatus?: (force?: boolean) => Promise<void>}
 
-const V25 = `${API_BASE}/v25`
+const LIVE_V25 = `${API_BASE}/v25`
+// Demo ikizi: aynı ekran, adresler demo motoruna gider (/binance-demo/cockpit = canlı /v25'in demo karşılığı).
+const DEMO_TWIN = `${API_BASE}/binance-demo/cockpit`
+const DEMO_BASE = `${API_BASE}/binance-demo`
 const CONNECTIONS = `${API_BASE}/exchange-connections`
 // Taslak: yalnız coin, yön, marjin ve kaldıraç kaydedilir (30 dk). Fiyata bağlı stop/hedef kaydedilmez; eski fiyatla emir hazırlanmasın.
 // Kais AI sinyalleri sayfa içinde önbellekte tutulur: panel yeniden açılınca LONG/SHORT/Güçlü sekmeleri hemen görünür, arka planda tazelenir.
@@ -243,7 +246,10 @@ function errorMessage(payload: unknown, fallback: string): string {
 
 const showInView = (el: HTMLElement | null) => { el?.scrollIntoView?.({block: 'center', behavior: 'smooth'}) }
 
-export default function LiveTradingPanel({active, symbol, analysis, masterTrade, masterTradeTab, sharedStatus, sharedStatusVerified = true, sharedStatusError = '', sharedStatusLoading, sharedConnections, onRefreshStatus}: Props) {
+export default function LiveTradingPanel({active, symbol, analysis, masterTrade, masterTradeTab, sharedStatus, sharedStatusVerified = true, sharedStatusError = '', sharedStatusLoading, sharedConnections, onRefreshStatus, demo = false}: Props) {
+  const V25 = demo ? DEMO_TWIN : LIVE_V25
+  const GRID = demo ? DEMO_BASE : V25
+  const gridPath = (path: string) => demo ? path.replace('/grid/live', '/grid') : path
   const [originalNotice, setOriginalNotice] = useState('')
   const [connectionNotice, setConnectionNotice] = useState<{kind: 'info' | 'ok' | 'error'; text: string} | null>(null)
   const {freeTrial, userId, automationAllowed, openUpgrade} = useMemberAccess()
@@ -521,7 +527,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (!active || manualMode !== 'grid' || !order.symbol) { setGridFilters({state: 'idle', data: null, error: ''}); return }
     const controller = new AbortController()
     setGridFilters({state: 'loading', data: null, error: ''})
-    void fetchWithTimeout(`${V25}/grid/filters?symbol=${encodeURIComponent(order.symbol)}`, {signal: controller.signal}).then(async response => {
+    void fetchWithTimeout(`${GRID}/grid/filters?symbol=${encodeURIComponent(order.symbol)}`, {signal: controller.signal}).then(async response => {
       const payload: any = await response.json().catch(() => null)
       if (!response.ok) { setGridFilters({state: 'error', data: null, error: errorMessage(payload, 'Borsa kuralları okunamadı.')}); return }
       const tick = Number(payload?.tickSize), step = Number(payload?.stepSize), min = Number(payload?.minNotional)
@@ -748,7 +754,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   useEffect(() => {
     if (!active || manualMode !== 'grid') return
     let cancelled = false
-    const load = () => { void call<LiveGridStatus>(V25, '/grid/live/status').then(result => { if (!cancelled) setLiveGrid(result) }).catch(() => { if (!cancelled) setLiveGrid(null) }) }
+    const load = () => { void call<LiveGridStatus>(GRID, gridPath('/grid/live/status')).then(result => { if (!cancelled) setLiveGrid(result) }).catch(() => { if (!cancelled) setLiveGrid(null) }) }
     load()
     const timer = visibleInterval(load, 5000)
     return () => { cancelled = true; clearVisibleInterval(timer) }
@@ -1496,10 +1502,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); if (!authorizationValid && !freeTrial && !permissionBlocked) focusPermission(); return }
       const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
       const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
-      setConfirm({title: 'CANLI MANUEL EMİR', message: `GERÇEK PARA KULLANILACAK. ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
+      setConfirm({title: demo ? 'DEMO MANUEL EMİR' : 'CANLI MANUEL EMİR', message: `${demo ? 'DEMO HESAP, gerçek para kullanılmaz.' : 'GERÇEK PARA KULLANILACAK.'} ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
         try {
           // Emir + koruma kurulumu 15 sn'den uzun sürebilir; erken kesilirse ekran hata gösterir ama emir borsada açılmış olur.
-          await call(V25, '/order', {method: 'POST', timeoutMs: 90000, body: JSON.stringify({...payload, confirmation: 'CANLI EMİR GÖNDER'})})
+          await call(V25, '/order', {method: 'POST', timeoutMs: 90000, body: JSON.stringify({...payload, confirmation: demo ? 'DEMO EMİR GÖNDER' : 'CANLI EMİR GÖNDER'})})
         } catch (error) {
           const text = error instanceof Error ? `${error.name} ${error.message}` : String(error)
           if (/abort|timeout|zaman aşımı|failed to fetch|load failed|network/i.test(text)) {
@@ -2227,13 +2233,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       : !(liveGridCount >= 2 && liveGridCount <= (liveGrid?.max_levels ?? 20)) ? `Kademe sayısı 2 ile ${liveGrid?.max_levels ?? 20} arasında olmalı.`
       : !(liveGridMargin > 0 && liveGridMargin <= (liveGrid?.max_margin_usdt ?? 300)) ? `Toplam marjin en fazla ${liveGrid?.max_margin_usdt ?? 300} USDT.` : ''
     const startLiveGrid = () => setConfirm({
-      title: 'CANLI GRID BAŞLAT',
-      message: `GERÇEK PARA. ${order.symbol} ${gridSide}, ${liveGridCount} kademe, toplam marjin ${grid.margin} USDT, kaldıraç ${grid.leverage}x, ortak stop ${grid.stop}. Tüm kademeler dolup stop çalışırsa tahmini zarar ${money(gridResult.worstLoss)}. Limit emirler hemen borsaya konur; dolan her kademe için stop kurulur.`,
-      expected: 'CANLI GRID BAŞLAT',
+      title: demo ? 'DEMO GRID BAŞLAT' : 'CANLI GRID BAŞLAT',
+      message: `${demo ? 'DEMO HESAP, gerçek para yok.' : 'GERÇEK PARA.'} ${order.symbol} ${gridSide}, ${liveGridCount} kademe, toplam marjin ${grid.margin} USDT, kaldıraç ${grid.leverage}x, ortak stop ${grid.stop}. Tüm kademeler dolup stop çalışırsa tahmini zarar ${money(gridResult.worstLoss)}. Limit emirler hemen borsaya konur; dolan her kademe için stop kurulur.`,
+      expected: demo ? 'DEMO GRID BAŞLAT' : 'CANLI GRID BAŞLAT',
       action: async () => {
-        const result = await call<LiveGridStatus>(V25, '/grid/live/start', {method: 'POST', timeoutMs: 60000, body: JSON.stringify({
+        const result = await call<LiveGridStatus>(GRID, gridPath('/grid/live/start'), {method: 'POST', timeoutMs: 60000, body: JSON.stringify({
           symbol: order.symbol, direction: gridSide, lower: Number(grid.lower), upper: Number(grid.upper), count: liveGridCount,
-          margin_usdt: liveGridMargin, leverage: Number(grid.leverage), stop: Number(grid.stop), confirmation: 'CANLI GRID BAŞLAT'})})
+          margin_usdt: liveGridMargin, leverage: Number(grid.leverage), stop: Number(grid.stop), confirmation: demo ? 'DEMO GRID BAŞLAT' : 'CANLI GRID BAŞLAT'})})
         setLiveGrid(result)
       },
     })
@@ -2241,13 +2247,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       title: 'GRID\'İ DURDUR',
       message: 'Bekleyen giriş emirleri iptal edilir. Açık pozisyon varsa stop ve hedefleriyle yerinde kalır.',
       simple: true,
-      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, `/grid/live/stop${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`, {method: 'POST', timeoutMs: 60000})) },
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(GRID, gridPath(`/grid/live/stop${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`), {method: 'POST', timeoutMs: 60000})) },
     })
     const emergencyLiveGrid = () => setConfirm({
       title: 'GRID ACİL DURDUR',
       message: 'Bekleyen girişler iptal edilir, grid pozisyonu piyasadan kapatılır ve kapandığı borsadan doğrulanır. Doğrulanamazsa koruyucu stoplara dokunulmaz.',
       expected: 'ACİL DURDUR',
-      action: async () => { setLiveGrid(await call<LiveGridStatus>(V25, `/grid/live/emergency${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`, {method: 'POST', timeoutMs: 90000})) },
+      action: async () => { setLiveGrid(await call<LiveGridStatus>(GRID, gridPath(`/grid/live/emergency${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`), {method: 'POST', timeoutMs: 90000})) },
     })
     const gridLiveBlock = liveGrid?.enabled || liveGridRow || liveGridLast ? <div className="mgpLive" role="group" aria-label="Canlı grid">
       {liveGridRow && <>
@@ -2267,7 +2273,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <h4>Canlı grid başlat</h4>
         {liveGridLast && <p className="liveWsHint">Son grid: {liveGridLast.symbol} — {LIVE_GRID_STATUS_TEXT[liveGridLast.status] || liveGridLast.status}</p>}
         {liveGridWhy && <p className="liveWsWarn" role="status">{liveGridWhy}</p>}
-        <div className="mxtNav"><button type="button" className="mxtBtn primary" disabled={busy !== '' || liveGridWhy !== ''} onClick={startLiveGrid}>CANLI GRID BAŞLAT</button></div>
+        <div className="mxtNav"><button type="button" className="mxtBtn primary" disabled={busy !== '' || liveGridWhy !== ''} onClick={startLiveGrid}>{demo ? 'DEMO GRID BAŞLAT' : 'CANLI GRID BAŞLAT'}</button></div>
       </>}
     </div> : null
     // Akıllı özet: yalnız hesaplanmış verilerden (kademeler, limit kontrolleri) türetilir; emir göndermez.
@@ -2341,7 +2347,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="liveWsOrderHead"><Send/><div><b>Emir hazırla</b><small>Önce kontrol et, sonra gönder. Gerçek emir yazı onayı ister.</small></div><span className={`liveWsTag ${executionLocked ? 'warn' : ''}`}>{executionLocked ? 'KİLİTLİ' : 'HAZIR'}</span></div>
 
         {wizard && !modeLocked && <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid{liveGrid?.enabled ? null : <> <em>ÖNİZLEME</em></>}</button></div>}
-        {wizard ? (manualMode === 'dca' ? <DcaPanel coins={rows} signals={signals} onPickSymbol={chooseCoin} onPickSide={side => set('direction', side)} authorizationValid={authorizationValid} emergency={Boolean(emergency)} permBusy={busy === 'permission'} permError={permError} onGrant={() => slidePermission(false)} onClearEmergency={() => openLiveSheet('clear-emergency')} symbol={order.symbol} price={Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN} side={order.direction === 'SHORT' ? 'SHORT' : 'LONG'} liveArmed={liveArmed} call={call} v25Base={V25} demoBase={`${API_BASE}/binance-demo`} askConfirm={config => { setConfirm(config); setConfirmText(''); setConfirmCode('') }} /> : manualMode === 'grid' ? gridBody : wizardBody) : <>
+        {wizard ? (manualMode === 'dca' ? <DcaPanel demo={demo} coins={rows} signals={signals} onPickSymbol={chooseCoin} onPickSide={side => set('direction', side)} authorizationValid={authorizationValid} emergency={Boolean(emergency)} permBusy={busy === 'permission'} permError={permError} onGrant={() => slidePermission(false)} onClearEmergency={() => openLiveSheet('clear-emergency')} symbol={order.symbol} price={Number(selectedRow?.price) > 0 ? Number(selectedRow?.price) : order.symbol === symbol && Number(analysis?.entry) > 0 ? Number(analysis?.entry) : NaN} side={order.direction === 'SHORT' ? 'SHORT' : 'LONG'} liveArmed={liveArmed} call={call} v25Base={V25} demoBase={DEMO_BASE} askConfirm={config => { setConfirm(config); setConfirmText(''); setConfirmCode('') }} /> : manualMode === 'grid' ? gridBody : wizardBody) : <>
           {coinBlock}
           {dirBlock}
           {amountBlock}

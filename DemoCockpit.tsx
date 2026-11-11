@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import LiveCockpit from './frontend/src/LiveCockpit'
-import type {SharedLiveStatus} from './frontend/src/LiveTradingPanel'
+import LiveTradingPanel, {type SharedLiveStatus, type SharedConnectionStatus} from './frontend/src/LiveTradingPanel'
 import {API_BASE} from './api'
 import {visibleInterval, clearVisibleInterval} from './visible-interval'
 import {useMemberAccess} from './premium-access'
@@ -16,9 +15,7 @@ const detailText = (payload: unknown, fallback: string) => {
   return fallback
 }
 
-type Plan = NonNullable<SharedLiveStatus['plans']>[number]
-
-export default function DemoCockpit({onNavigate, onOpenManual}: {onNavigate?: (tab: string) => void; onOpenManual?: () => void}) {
+export default function DemoCockpit({symbol = 'BTCUSDT', analysis = null}: {onNavigate?: (tab: string) => void; onOpenManual?: () => void; symbol?: string; analysis?: React.ComponentProps<typeof LiveTradingPanel>['analysis']}) {
   const {userId} = useMemberAccess()
   const [status, setStatus] = useState<SharedLiveStatus | null>(null)
   const [error, setError] = useState('')
@@ -47,40 +44,15 @@ export default function DemoCockpit({onNavigate, onOpenManual}: {onNavigate?: (t
     return () => clearVisibleInterval(timer)
   }, [load])
 
-  const request = useCallback(async (path: string, body?: Record<string, unknown>) => {
-    const response = await fetch(`${TWIN}${path}`, {
-      method: 'POST', headers: {'Content-Type': 'application/json', Accept: 'application/json'},
-      body: JSON.stringify(body ?? {}),
-    })
-    const payload: unknown = await response.json().catch(() => null)
-    if (!response.ok) throw new Error(detailText(payload, 'İşlem tamamlanamadı.'))
-    if (payload && typeof payload === 'object' && alive.current) setStatus(current => (payload as SharedLiveStatus).mode ? payload as SharedLiveStatus : current)
-    return payload
-  }, [])
-
-  const runtime = status?.original_v2_live
   const connected = status?.connected === true
   const wallet = typeof status?.account?.wallet_balance === 'number' ? status.account.wallet_balance : null
-  const available = Number(status?.account?.available_balance)
-  const guideInput = {
-    statusLoaded: status !== null, statusVerified: status !== null && !error, statusError: error || null,
-    loading, freeTrial: false, credentialsConfigured: status?.credentials?.configured === true, connected,
-    balance: connected ? wallet : null,
-    emergency: false, recoveryRequired: false, accountRateLimited: false, marketBanSeconds: 0,
-    fillLocked: false, dailyLocked: runtime?.daily?.locked === true,
-    riskApproved: (runtime?.risk_revision ?? 0) > 0,
-    authorizationValid: status?.authorization?.valid === true, policyAcknowledged: status?.policy_acknowledged === true,
-    armed: status?.armed === true, running: runtime?.enabled === true, paused: false, pauseReason: null,
-    entryBlocker: null, sessionRemainingSeconds: runtime?.session?.remaining_seconds ?? 0,
+  // Canlıdaki "bağlantı" bilgisinin demo karşılığı: demo anahtarı kayıtlıysa bağlı sayılır; engelleme/IP bilgisi yok.
+  const connections: SharedConnectionStatus = {
+    vault: {ready: true}, binance_ban: {active: false},
+    connections: {LIVE: {configured: status?.credentials?.configured === true, active: connected, last_test_ok: connected, fingerprint: null, last_error: error || null, account: {wallet_balance: wallet ?? undefined}}},
   }
-  const terminal = ['KAPANDI', 'İPTAL', 'ACİL DURDURULDU', 'CLOSED', 'CANCELLED']
-  const findPlan = (position: Record<string, unknown>): Plan | undefined => status?.plans?.find(plan =>
-    String(plan.symbol || '').toUpperCase() === String(position.symbol || '').toUpperCase() && !terminal.includes(String(plan.status || '').toUpperCase()))
-
-  return <LiveCockpit
-    demo onNavigate={onNavigate} onOpenManual={onOpenManual} key={userId} status={status} verified={status !== null && !error} loading={loading} guideInput={guideInput}
-    wallet={connected ? wallet : null} availableBalance={connected && Number.isFinite(available) ? available : null}
-    marketBanSeconds={0} externalBusy={false} userId={userId}
-    request={request} refresh={load} findPlan={findPlan}
-  />
+  // Canlı İşlem ekranının AYNISI; tek fark adreslerin demo motoruna gitmesi (demo prop'u). Gerçek hesaba hiçbir istek gitmez.
+  return <LiveTradingPanel demo active masterTrade masterTradeTab="canli" key={userId} symbol={symbol} analysis={analysis}
+    sharedStatus={status} sharedStatusVerified={status !== null && !error} sharedStatusError={error} sharedStatusLoading={loading}
+    sharedConnections={connections} onRefreshStatus={async () => { await load() }}/>
 }

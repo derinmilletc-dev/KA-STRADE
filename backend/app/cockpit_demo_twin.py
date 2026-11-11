@@ -567,3 +567,22 @@ async def policy_update(request: Request, body: Loose) -> dict[str, Any]:
         persist(v21_demo.state_for(request))
     return await build_status(request)
 
+
+
+@router.post("/risk/preview")
+async def risk_preview(request: Request, body: Loose) -> dict[str, Any]:
+    """Canlıdaki risk önizlemesinin demo karşılığı (emir yok; yalnız hesap)."""
+    from .execution_core import risk_sized_order
+
+    data = body.model_dump()
+    try:
+        policy = {**_demo_policy(request), "max_margin_per_trade": float(data["margin_usdt"]), "max_leverage": int(data["leverage"])}
+        from .execution_core import sanitize_execution_policy
+
+        risk = risk_sized_order(float(data["entry"]), float(data["stop_loss"]), sanitize_execution_policy(policy),
+                                atr=float(data["atr"]) if data.get("atr") else None, manual=bool(data.get("manual")))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(422, f"Risk preview reddedildi: {exc}") from exc
+    return {"ok": True, "orders_created": False, **{key: risk[key] for key in (
+        "entry", "stop", "stop_distance_pct", "max_stop_distance_pct", "leverage", "notional_usdt", "margin_usdt",
+        "estimated_stop_loss_usdt", "capped", "atr")}}
