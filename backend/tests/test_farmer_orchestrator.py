@@ -434,6 +434,56 @@ class TestClose(unittest.TestCase):
         self.assertEqual(r.orch.start(), o.INTERVENTION)
 
 
+class TestNotify(unittest.TestCase):
+    """Açılış/kapanış/müdahale bildirimleri: bir kez, en iyi çaba, işlem akışını etkilemez."""
+
+    def rig(self):
+        r = Rig()
+        r.events = []
+        r.orch._notify_cb = lambda kind, message: r.events.append((kind, message))
+        return r
+
+    def test_open_notifies_each_position_once(self):
+        r = self.rig()
+        r.run()
+        r.tick()
+        entries = [m for k, m in r.events if k == "FARMER_ENTRY"]
+        self.assertEqual(len(entries), 2)
+        self.assertTrue(all("stop borsada" in m and "hedef" in m for m in entries))
+
+    def test_target_close_notifies_once(self):
+        r = self.rig()
+        r.run()
+        engine = r.by_symbol("AAAUSDT")
+        r.ex.set_price("AAAUSDT", engine.tp_price() + 0.5)
+        for _ in range(4):
+            r.tick()
+        closes = [m for k, m in r.events if k == "FARMER_CLOSE"]
+        self.assertEqual(len(closes), 1)
+        self.assertIn("AAAUSDT hedefe ulaştı", closes[0])
+
+    def test_intervention_notifies_once(self):
+        r = self.rig()
+        r.orch._intervene("test")
+        r.orch._intervene("test")
+        self.assertEqual([k for k, _ in r.events], ["FARMER_INTERVENTION"])
+
+    def test_failing_notify_never_breaks_trading(self):
+        r = Rig()
+
+        def boom(kind, message):
+            raise RuntimeError("push down")
+        r.orch._notify_cb = boom
+        out = r.run()
+        self.assertEqual(out["opened"], ["AAAUSDT", "BBBUSDT"])
+
+    def test_push_categories_cover_farmer_kinds_without_touching_trade_metrics_kinds(self):
+        from app import web_push
+        self.assertEqual(web_push.category_of("FARMER_ENTRY"), "entry")
+        self.assertEqual(web_push.category_of("FARMER_CLOSE"), "close")
+        self.assertEqual(web_push.category_of("FARMER_INTERVENTION"), "protection")
+
+
 class TestDemandAndDead(unittest.TestCase):
     def test_held_symbol_stays_in_demand_when_dropped_from_universe(self):
         r = Rig()

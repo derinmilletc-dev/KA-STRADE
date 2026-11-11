@@ -274,9 +274,25 @@ def build_runtime(application: Any, *, store: FarmerStore | None = None, live: A
     feed = feed or FarmerFeed(stream, apply_demand=apply_demand)
     factory = factory or LiveEngineFactory(application, bridge, store, client_factory, live)
     daily_loss = lambda: daily_loss_blockers(state_of(), daily_ledger)                  # noqa: E731
+    def notify(kind: str, message: str) -> None:
+        """Açılış/kapanış/koruma olayı → mevcut `add_event` hattı (telefon push + zil). Orkestratör bir iş parçacığında çalışır; push için
+        olay döngüsü gerekir: durum o an (üye bağlamıyla) yakalanır, olay döngüye güvenle aktarılır. Hata bildirimi işlem akışını etkilemez."""
+        state = state_of()
+        loop = getattr(bridge, "loop", None)
+
+        def emit() -> None:
+            try:
+                live.add_event(state, kind, message)
+            except Exception:                                                          # noqa: BLE001
+                logger.debug("Farmer bildirimi yazılamadı")
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(emit)
+        else:
+            emit()
+
     orchestrator = Orchestrator(account_key=account_key, store=store, settings=settings, exchange=exchange, snapshot_source=snapshot_source,
                                 feed=feed, gates=gates, reservations=reservations, universe=universe, factory=factory,
-                                set_demand=lambda symbols: bridge(feed.set_demand(symbols)), pnl=pnl, daily_loss=daily_loss,
+                                set_demand=lambda symbols: bridge(feed.set_demand(symbols)), pnl=pnl, daily_loss=daily_loss, notify=notify,
                                 **({"clock": clock} if clock else {}))
     return FarmerRuntime(application, orchestrator, store, configured=configured)
 
