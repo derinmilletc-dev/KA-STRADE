@@ -8636,6 +8636,8 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
         client = client_for(request.app, request)
         # Manuel emirde izin listesi yok (gerçek gönderim de [] ile çalışır); dry-run aynı kuralı kullanmalı.
         spec = await build_live_spec(client, body, state["policy"], allowed_symbols=[], manual_targets=True)
+        # Gerçek gönderimdeki tasfiye (likidasyon) güvenliği kuralı dry-run'da da çalışır: aksi halde dry-run geçer, gerçek emir 409 ile reddedilirdi.
+        spec["liquidation_guard"] = await live_liquidation_risk(client, spec, sanitize_execution_policy(state["policy"]))
         result = await submit_entry(client, spec, client_id_for("TEST", body.intent_id or uuid.uuid4().hex), test_only=True)
         add_event(state, "LIVE_ORDER_TEST", f"{spec['symbol']} imzalı /order/test doğrulandı; gerçek emir oluşmadı.", actor=user["id"], symbol=spec["symbol"])
         persist_state(state)
@@ -8658,6 +8660,19 @@ class ManualPreflightRequest(BaseModel):
     stop_loss: float | None = Field(default=None, gt=0)
 
 
+_PREFLIGHT_BRACKETS: dict[str, tuple[float, Any]] = {}
+
+
+async def preflight_leverage_brackets(client: BinanceLiveClient, symbol: str) -> Any:
+    """Ön kontrol için bakım teminatı dilimleri (imzalı okuma). Ekranda sık çağrıldığı için 2 dakika önbelleklenir; emir göndermez."""
+    cached = _PREFLIGHT_BRACKETS.get(symbol)
+    if cached is not None and time.monotonic() - cached[0] < 120:
+        return cached[1]
+    payload = await client.signed("GET", "/fapi/v1/leverageBracket", {"symbol": symbol})
+    _PREFLIGHT_BRACKETS[symbol] = (time.monotonic(), payload)
+    return payload
+
+
 @router.post("/order/preflight")
 async def v25_order_preflight(request: Request, body: ManualPreflightRequest) -> dict[str, Any]:
     """Manuel emir ön kontrolü: gerçek gönderimdeki hesap kapılarını EMİR GÖNDERMEDEN okuyarak değerlendirir (bkz. manual_preflight).
@@ -8673,13 +8688,25 @@ async def v25_order_preflight(request: Request, body: ManualPreflightRequest) ->
         symbol = normalize_symbol(body.symbol)
         policy = sanitize_execution_policy(state["policy"])
         estimated_loss = None
+        sized_notional: float | None = None
         if body.entry is not None and body.stop_loss is not None and body.entry != body.stop_loss:
             try:
                 sized = risk_sized_order(body.entry, body.stop_loss, sanitize_execution_policy({
                     **state["policy"], "max_margin_per_trade": body.margin_usdt, "max_leverage": body.leverage}), atr=None, manual=True)
                 estimated_loss = float(sized["estimated_stop_loss_usdt"])
-            except ValueError:
+                sized_notional = float(sized["notional_usdt"])
+            except (ValueError, KeyError):
                 estimated_loss = None
+        # Tasfiye güvenliği: gerçek gönderimdeki kuralın aynısı, emir göndermeden. Okunamazsa atlanır (engel sayılmaz).
+        liquidation = None
+        if sized_notional and body.entry is not None and body.stop_loss is not None:
+            try:
+                liquidation = manual_preflight.liquidation_check(
+                    symbol=symbol, direction=body.direction, entry=body.entry, stop=body.stop_loss, margin_usdt=body.margin_usdt,
+                    leverage=body.leverage, notional_usdt=sized_notional, policy=policy,
+                    brackets=await preflight_leverage_brackets(client, symbol))
+            except (LiveExchangeError, BinanceDemoError, ValueError):
+                liquidation = None
         current_spread = await spread_bps(client, symbol)
         validation_error = None
         try:
@@ -8700,6 +8727,7 @@ async def v25_order_preflight(request: Request, body: ManualPreflightRequest) ->
             budget_left=budget.get("budget_left"), committed=float(budget.get("committed") or 0.0),
             symbol_occupied=(None if not occupancy_verified else bool(occupied)), symbol_occupancy_detail=occupancy_detail,
             grid_busy=grid_symbol_busy(request.app, state, request, symbol), isolated_error=validation_error,
+            liquidation=liquidation,
         )
         return {**report, "created_order": False}
     except (LiveExchangeError, BinanceDemoError):

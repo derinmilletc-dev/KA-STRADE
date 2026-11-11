@@ -96,6 +96,45 @@ class PreflightReportTests(unittest.TestCase):
         self.assertNotIn("max_loss", {item["key"] for item in report(estimated_loss_usdt=None)["checks"]})
 
 
+BRACKETS = [{"symbol": "BTCUSDT", "notionalCoef": 1, "brackets": [
+    {"bracket": 1, "initialLeverage": 50, "notionalCap": 1_000_000_000, "notionalFloor": 0, "maintMarginRatio": 0.004, "cum": 0}]}]
+LIQ_POLICY = {"liquidation_buffer_pct": 0.5, "fee_bps_per_side": 5.0}
+
+
+def liquidation(**over):
+    base = dict(symbol="BTCUSDT", direction="LONG", entry=100.0, stop=99.0, margin_usdt=20.0, leverage=10,
+                notional_usdt=200.0, brackets=BRACKETS, policy=LIQ_POLICY)
+    base.update(over)
+    return mp.liquidation_check(**base)
+
+
+class LiquidationCheckTests(unittest.TestCase):
+    def test_stop_well_before_liquidation_passes(self):
+        self.assertTrue(liquidation()["ok"])
+
+    def test_stop_beyond_liquidation_buffer_fails_with_leverage_hint(self):
+        result = liquidation(stop=98.0, leverage=50, notional_usdt=1000.0)
+        self.assertFalse(result["ok"])
+        self.assertIn("50x", result["detail"])
+        self.assertIn("kaldıraç geçer", result["detail"])
+
+    def test_short_direction_is_checked_too(self):
+        result = liquidation(direction="SHORT", entry=100.0, stop=102.0, leverage=50, notional_usdt=1000.0)
+        self.assertFalse(result["ok"])
+
+    def test_unverifiable_brackets_do_not_block_preflight(self):
+        self.assertIsNone(liquidation(brackets=[]))
+
+    def test_report_blocks_on_failed_liquidation(self):
+        result = report(liquidation={"ok": False, "detail": "Bu stop 50x kaldıraçta tasfiye fiyatından sonra kalıyor."})
+        self.assertIn("liquidation", failed(result))
+        self.assertFalse(result["ok"])
+        self.assertTrue(report(liquidation={"ok": True, "detail": "Stop uygun."})["ok"])
+
+    def test_report_without_liquidation_data_is_unchanged(self):
+        self.assertNotIn("liquidation", {item["key"] for item in report()["checks"]})
+
+
 class PreflightRouteTests(unittest.TestCase):
     def test_route_requires_owner_and_never_creates_orders(self):
         source = (BACKEND / "app" / "v25_execution.py").read_text(encoding="utf-8")
