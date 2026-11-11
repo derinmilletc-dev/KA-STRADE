@@ -816,14 +816,14 @@ export default function LiveCockpit(props: Props) {
   // ---- Görünen veriler.
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
   const live = verified && guideInput.connected
-  const [dcaBots, setDcaBots] = useState<Array<{symbol: string; side: string}>>([])
+  const [dcaBots, setDcaBots] = useState<Array<{symbol: string; side: string; bot?: unknown}>>([])
   const getForDca = props.get
   useEffect(() => {
     if (demo || !live || !getForDca) { setDcaBots([]); return }
     let cancelled = false
     const load = () => { if (document.hidden) return; Promise.resolve(getForDca('/dca/live/status')).then(data => {
       const grids = ((data as {grids?: any[]} | null)?.grids ?? []).filter(g => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED'].includes(g.status))
-      if (!cancelled) setDcaBots(grids.map(g => ({symbol: String(g.symbol ?? ''), side: String(g.side ?? g.spec?.side ?? '')})))
+      if (!cancelled) setDcaBots(grids.map(g => ({symbol: String(g.symbol ?? ''), side: String(g.side ?? g.spec?.side ?? ''), bot: g})))
     }).catch(() => { /* durum okunamazsa kart eski görünümde kalır */ }) }
     load(); const timer = window.setInterval(load, 15000)
     return () => { cancelled = true; window.clearInterval(timer) }
