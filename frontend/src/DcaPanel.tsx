@@ -184,6 +184,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [startTap, setStartTap] = useState(0)
   const autoFixes = useRef(0)
   const [startError, setStartError] = useState('')
+  const [launching, setLaunching] = useState<{coins: string[]; done: string[]; now: string; phase: string} | null>(null)
 
   const isDemo = account === 'DEMO'
   const liveArmed = isDemo ? true : liveArmedProp
@@ -459,20 +460,27 @@ export default function DcaPanel(props: DcaPanelProps) {
     })
   }
   const runStart = async () => {
+    try { await runStartInner() } finally { setLaunching(null) }
+  }
+  const runStartInner = async () => {
         setStartError('')
+        setLaunching({coins: [symbol, ...extras], done: [], now: symbol, phase: 'Hazırlanıyor…'})
         const word = isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT'
         const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>; skip?: boolean}> = [{sym: symbol, inp: input}]
         for (const sym of extras) jobs.push({sym, inp: await extraInput(sym)})
         const failed: string[] = []
         // Önce hepsini sunucuya onaylat: ana coin reddedilirse hiçbiri başlamaz; ek coin reddedilirse o atlanır, diğerleri başlar.
+        if (jobs.length > 1) setLaunching(c => c && {...c, phase: 'Ek coinler sunucuda kontrol ediliyor…'})
         for (const job of jobs.slice(1)) {
           try { await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000}) }
           catch (error: any) { failed.push(`${job.sym}: ${error?.message || 'reddedildi'}`); job.skip = true }
         }
         for (const [index, job] of jobs.entries()) {
           if (job.skip) continue
+          setLaunching(c => c && {...c, now: job.sym, phase: 'Binance\'e emir gönderiliyor…'})
           try { await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: bodyFor(job.sym, job.inp, false, word)}) }
           catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`) }
+          setLaunching(c => c && {...c, done: [...c.done, job.sym]})
         }
         setStarted({symbol, side, at: Date.now()})
         setStep(4)
@@ -727,6 +735,15 @@ export default function DcaPanel(props: DcaPanelProps) {
 
       {step === 2 && whyBlocked && <p className="dwWhy" role="alert" key={startTap} data-tap={startTap > 0 || undefined}><i aria-hidden="true">!</i><span><b>Şu an başlatılamıyor</b>{whyBlocked}</span></p>}
       {step === 2 && startError && <p className="dwWhy" data-bad role="alert"><i aria-hidden="true">!</i><span><b>Başlatılamadı</b>{startError}</span></p>}
+      {launching && <div className="dwLaunch" role="status" aria-live="polite" data-testid="dca-launching">
+        <div className="dwLaunchBox">
+          <i className="dwSpin dwSpinBig" aria-hidden="true"/>
+          <b>DCA başlatılıyor</b>
+          <span>{launching.phase}</span>
+          <ul>{launching.coins.map(c => <li key={c} data-state={launching.done.includes(c) ? 'ok' : launching.now === c ? 'now' : 'wait'}><em>{launching.done.includes(c) ? '✓' : launching.now === c ? '…' : '•'}</em>{c.replace('USDT', '')}</li>)}</ul>
+          <small>Kaldıraç, marjin modu ve emirler borsada kuruluyor; 10–30 sn sürebilir. Sayfayı kapatma.</small>
+        </div>
+      </div>}
       <div className="dwBar">
         {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" aria-disabled={Boolean(whyBlocked) || undefined} data-blocked={Boolean(whyBlocked) || undefined} onClick={() => { if (whyBlocked) { setStartTap(n => n + 1); return } start() }}>Canlı başlat</button></>}
       </div>
