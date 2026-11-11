@@ -158,10 +158,10 @@ export type DcaPresetForm = {margin: string; safety: number; step: string; volum
 export type DcaPreset = {id: string; name: string; hint: string; risk: 1 | 2 | 3 | 4 | 5; form: DcaPresetForm}
 // Dizideki sıra sabit (indeks 1 = Dengeli, tarayıcı onu kullanır); ekranda `risk` değerine göre sıralanır.
 export const DCA_PRESETS: DcaPreset[] = [
-  {id: 'calm', name: 'Sakin', hint: 'Geniş aralık, düşük kaldıraç', risk: 2, form: {margin: '10', safety: 3, step: '2', volume: '1.2', tp: '1', gap: '2', leverage: 2, recycle: false}},
+  {id: 'calm', name: 'Sakin', hint: 'Geniş aralık, temkinli', risk: 2, form: {margin: '10', safety: 3, step: '2', volume: '1.2', tp: '1', gap: '2', leverage: 3, recycle: false}},
   {id: 'balanced', name: 'Dengeli', hint: 'Çoğu durum için', risk: 3, form: {margin: '10', safety: 3, step: '1.5', volume: '1.5', tp: '1', gap: '1.5', leverage: 3, recycle: false}},
   {id: 'bold', name: 'Atak', hint: 'Sık ek emir, hızlı hedef', risk: 5, form: {margin: '10', safety: 4, step: '1', volume: '1.6', tp: '0.8', gap: '1', leverage: 4, recycle: false}},
-  {id: 'steady', name: 'Uzun nefes', hint: 'Çok geniş aralık, 1x kaldıraç, büyük hareketi bekler', risk: 1, form: {margin: '10', safety: 3, step: '3', volume: '1.1', tp: '1.5', gap: '3', leverage: 1, recycle: false}},
+  {id: 'steady', name: 'Uzun nefes', hint: 'Çok geniş aralık, büyük hareketi bekler', risk: 1, form: {margin: '10', safety: 3, step: '3', volume: '1.1', tp: '1.5', gap: '3', leverage: 3, recycle: false}},
   {id: 'quick', name: 'Hızlı kâr', hint: 'Az ek alım, küçük hedefi çabuk toplar', risk: 4, form: {margin: '10', safety: 2, step: '0.8', volume: '1.3', tp: '0.6', gap: '0.8', leverage: 3, recycle: false}},
 ]
 
@@ -207,7 +207,10 @@ function planFitCap(input: DcaInput, cap: number): DcaFit {
 }
 
 /** Toplam marj sınırına VE tek işlem en kötü zarar sınırına (maxLoss > 0 ise) sığan en yüksek yatırımı bulur; sığmazsa 'over-cap'. */
-export function planFit(input: DcaInput, cap: number, maxLoss = 0): DcaFit {
+/** Sunucu 'en kötü zarar ≤ sınır' der; kuruş farkı yüzünden reddedilmesin diye ekran sınırın %3 altına hedefler. */
+export const LOSS_HEADROOM = 0.97
+export function planFit(input: DcaInput, cap: number, maxLossRaw = 0): DcaFit {
+  const maxLoss = maxLossRaw * LOSS_HEADROOM
   const base = planFitCap(input, cap)
   if (!(maxLoss > 0) || base.state !== 'ok' || !base.margin) return base
   let margin = base.margin

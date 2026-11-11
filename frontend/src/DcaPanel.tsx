@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {BarChart3} from 'lucide-react'
-import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
+import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, LOSS_HEADROOM, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import {goPositions} from '../../trade-intent'
 import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
 import type {SignalMap} from './coin-ranking'
@@ -181,6 +181,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [extras, setExtras] = useState<string[]>([])
   const [extraNote, setExtraNote] = useState('')
   const [startTap, setStartTap] = useState(0)
+  const autoFixes = useRef(0)
   const [startError, setStartError] = useState('')
 
   const isDemo = account === 'DEMO'
@@ -228,6 +229,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [base, started !== null])
   useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
+  useEffect(() => { if (step !== 3) autoFixes.current = 0 }, [step])
   useEffect(() => { setNote('') }, [symbol, side])
   useEffect(() => { setExtras([]); setExtraNote('') }, [symbol, side, form])
 
@@ -262,7 +264,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   // Özel (elle değiştirilmiş) plan: canlı limitine ve tek işlem zarar sınırına sığmıyorsa nedenini söyler; "Otomatik sığdır" düzeltir.
   const customBlock = !ready || !result.valid ? ''
     : result.totalMargin > cap + 1e-9 ? `Bu ayar ${fmtUsd(result.totalMargin)} marj ister; canlı limitin ${cap} USDT.`
-    : lossCap > 0 && result.worstLoss > lossCap + 1e-9 ? `En kötü kayıp ${fmtUsd(result.worstLoss)}; tek işlem zarar sınırın ${lossCap} USDT.`
+    : lossCap > 0 && result.worstLoss > lossCap * LOSS_HEADROOM + 1e-9 ? `En kötü kayıp ${fmtUsd(result.worstLoss)}; tek işlem zarar sınırın ${lossCap} USDT.`
     : ''
   const fixNowCustom = ready && customBlock ? fitToCap(input, cap, lossCap) : null
   const applyCustomFix = () => { if (fixNowCustom) { setPresetId('custom'); setForm(c => ({...c, margin: fmtMargin(fixNowCustom.margin), safety: fixNowCustom.safety, volume: fixNowCustom.volume.toFixed(1)})) } }
@@ -402,7 +404,20 @@ export default function DcaPanel(props: DcaPanelProps) {
     try {
       const data = await call<any>(base, '/start', {method: 'POST', body: body(true), timeoutMs: 60000})
       setServer({state: 'ok', plan: data.plan, text: 'Sunucu planı onayladı.'})
-    } catch (error: any) { setServer({state: 'error', text: error?.message || 'Sunucu planı reddetti.'}) }
+    } catch (error: any) {
+      const text = String(error?.message || 'Sunucu planı reddetti.')
+      // Sunucu "en kötü zarar sınırı aştı" derse (çoğu kez kuruş farkı) yatırımı bir tık küçültüp kendisi yeniden dener; en fazla 2 kez.
+      if (/En kötü zarar/.test(text) && autoFixes.current < 2 && lossCap > 0) {
+        const fit = planFit(input, cap, lossCap * (autoFixes.current === 0 ? 0.93 : 0.8))
+        if (fit.state === 'ok' && fit.margin && fit.margin < num(form.margin)) {
+          autoFixes.current += 1
+          set('margin', String(fit.margin))
+          setNote(`Sunucu zarar sınırını kuruş farkıyla aştı; yatırım ${fit.margin} USDT'ye küçültüldü, yeniden kontrol ediliyor.`)
+          return
+        }
+      }
+      setServer({state: 'error', text})
+    }
   }
   useEffect(() => { if (step === 3 && server.state === 'idle' && result.valid && ready) void checkOnServer() }, [step, server.state, result.valid, ready])
 
@@ -413,6 +428,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     : !liveArmed || !authorizationValid ? 'Önce yukarıdaki "İzni ver" düğmesine bas.'
     : result.totalMargin > cap + 1e-9 ? `Canlı DCA şu an en çok ${cap} USDT toplam marjinle çalışır.`
     : server.state === 'busy' ? 'Sunucu kontrol ediyor…'
+    : server.state === 'error' ? 'Sunucu planı reddetti (sebebi yukarıda). "Planı değiştir" ile geri dön.'
     : server.state !== 'ok' ? 'Sunucu onayı bekleniyor.'
     : ''
 
@@ -550,7 +566,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         {ready && <div className="dwTune" data-testid="dca-tune">
           <div className="dwTuneHead"><b>Hızlı ayar</b>{presetId === 'custom' ? <em>Özel ayar</em> : <small>Seçtiğin planı buradan değiştirebilirsin</small>}</div>
           <div className="dwTuneRow"><span>Yatırım (taban)</span><Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} /></div>
-          <div className="dwTuneRow"><span>Kaldıraç</span><Chips options={[1, 2, 3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /></div>
+          <div className="dwTuneRow"><span>Kaldıraç</span><Chips options={[3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /></div>
           <div className="dwTuneRow"><span>Kâr hedefi</span><Chips options={[0.5, 0.8, 1, 1.5, 2, 3]} value={num(form.tp)} onPick={v => set('tp', String(v))} fmt={v => `%${v}`} /></div>
           <div className="dwTuneRow"><span>Ek alım sayısı</span><Chips options={[1, 2, 3, 4, 5]} value={form.safety} onPick={v => set('safety', v)} fmt={v => `${v}`} /></div>
         </div>}
@@ -589,7 +605,7 @@ export default function DcaPanel(props: DcaPanelProps) {
               <h4>Giriş</h4>
               <Field label="Taban marjin" suffix="USDT"><input inputMode="decimal" value={form.margin} onChange={e => set('margin', e.target.value)} /></Field>
               <Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} />
-              <div className="dcaField"><label>Kaldıraç</label><Chips options={[1, 2, 3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /><small>DCA'da en fazla {DCA_LIMITS.maxLeverage}x. Kaldıraç arttıkça likidasyon yaklaşır.</small></div>
+              <div className="dcaField"><label>Kaldıraç</label><Chips options={[3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /><small>DCA'da en fazla {DCA_LIMITS.maxLeverage}x. Kaldıraç arttıkça likidasyon yaklaşır.</small></div>
             </div>
             <div className="dwAdvGroup">
               <h4>Ek alımlar</h4>
