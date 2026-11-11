@@ -724,3 +724,37 @@ html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzInput input{color:var(--sol) !important}
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button[data-on]{box-shadow:none !important}
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button{border-radius:14px !important}
+
+/* ---- v3 hareket: geçişler, bekleme animasyonları (azaltılmış harekette kapalı) ---- */
+@keyframes fmWzSlide{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+@keyframes fmWzRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes fmWzPop{0%{transform:scale(.86)}60%{transform:scale(1.07)}100%{transform:scale(1)}}
+@keyframes fmWzShine{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes fmWzDot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+@media (prefers-reduced-motion:no-preference){
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane{animation:fmWzSlide .38s cubic-bezier(.2,.8,.2,1) both !important}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:not(.fmWzNav){animation:fmWzRise .45s cubic-bezier(.2,.8,.2,1) both}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(1){animation-delay:.02s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(2){animation-delay:.07s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(3){animation-delay:.12s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(4){animation-delay:.17s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(5){animation-delay:.22s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(6){animation-delay:.27s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzPane>*:nth-child(n+7){animation-delay:.32s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzChips button,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzInput,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzNav .fmPrimary{transition:transform .16s cubic-bezier(.2,.8,.2,1),background-color .22s,color .22s,border-color .22s,box-shadow .22s,filter .2s !important}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzChips button[data-on],html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button[data-on]{animation:fmWzPop .32s cubic-bezier(.2,.8,.2,1)}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzChips button:not([data-on]):hover,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button:not([data-on]):hover{transform:translateY(-2px);filter:brightness(1.15)}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzBar i{transition:flex-grow .55s cubic-bezier(.2,.8,.2,1) !important}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzNav .fmPrimary:not(:disabled):hover{transform:translateY(-1px);filter:brightness(1.06)}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzTip,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmPreview,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzBalance{transition:background-color .3s,border-color .3s}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzNav .fmPrimary:has(.fmSpin){background:linear-gradient(110deg,#2fbf86 30%,#8ff7cb 50%,#2fbf86 70%) 0 0/300% 100% !important;animation:fmWzShine 1.4s linear infinite;color:#06130d !important}
+}
+html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzField .fmWzChips button:active,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmProfiles button:active,html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzNav .fmPrimary:active:not(:disabled){transform:scale(.95) !important}
+@keyframes fmStepPop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes fmStepRing{0%,100%{box-shadow:0 0 0 4px rgba(95,240,176,.16)}50%{box-shadow:0 0 0 8px rgba(95,240,176,.04)}}
+@media (prefers-reduced-motion:no-preference){
+.fmStepper i{transition:background-color .3s,border-color .3s,color .3s}
+.fmStepper li::before{transition:background .4s}
+.fmStepper [data-state="now"] i{animation:fmStepPop .4s cubic-bezier(.2,.8,.2,1),fmStepRing 2.2s ease-in-out .4s infinite}
+.fmStepper [data-state="done"] i{animation:fmStepPop .35s cubic-bezier(.2,.8,.2,1)}
+}
