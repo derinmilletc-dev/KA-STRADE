@@ -839,6 +839,13 @@ export default function LiveCockpit(props: Props) {
   const limitCandidates = [day?.limit, caps?.daily_loss_limit_usdt, status?.policy?.daily_loss_limit].map(finite).filter((value): value is number => value !== null && value > 0)
   const dailyLimit = live && dayCurrent && finite(day?.limit) ? Math.min(...limitCandidates) : null
   const dailyLoss = live && dayCurrent ? finite(day?.loss) : null
+  // Kart iki limitin küçüğünü gösterir: Kais Original (hesap yüzdesi) ve genel limit (manuel/DCA/Farmer). Karışmasın diye ikisi ayrı yazılır.
+  const generalLimits = [caps?.daily_loss_limit_usdt, status?.policy?.daily_loss_limit].map(finite).filter((value): value is number => value !== null && value > 0)
+  const originalLimit = finite(day?.limit)
+  const generalLimit = generalLimits.length ? Math.min(...generalLimits) : null
+  const dayNote = originalLimit !== null && generalLimit !== null && Math.abs(originalLimit - generalLimit) > 0.005
+    ? `Kais Original limiti ${usdt(originalLimit)}, genel limit ${usdt(generalLimit)} (manuel, DCA ve Farmer genel limiti kullanır).`
+    : undefined
   const protectedCount = positions.filter(position => {
     const plan = findPlan(position)
     return plan?.provenance_state === 'CONFIRMED' && plan.exchange_protection?.stop === true
@@ -2071,7 +2078,7 @@ export default function LiveCockpit(props: Props) {
           {retryIn !== null && <p className="lcRetry" role="status"><RefreshCw aria-hidden="true" className="lcSpin"/>{retryIn > 0 ? `${retryIn} sn sonra kendiliğinden tekrar denenecek` : 'Tekrar deneniyor…'}{retry.attempt > 0 ? ` · ${retry.attempt + 1}. deneme` : ''}</p>}
         </section>}
 
-        {dayCardShown && <DayLimitCard used={dailyLoss ?? 0} limit={dailyLimit ?? 0} locked={guideInput.dailyLocked} suggested={daySuggested}
+        {dayCardShown && <DayLimitCard used={dailyLoss ?? 0} limit={dailyLimit ?? 0} locked={guideInput.dailyLocked} suggested={daySuggested} note={dayNote}
           onSuggest={props.onManualRiskEdit && daySuggested ? () => props.onManualRiskEdit?.({daily_loss_limit: daySuggested}) : undefined}
           onEdit={props.onManualRiskEdit ? () => props.onManualRiskEdit?.() : undefined}/>}
         {visibleAlerts.length > 0 && <div className="lcAlerts">{visibleAlerts.map((item, index) => <p key={index} className="lcAlert" data-tone={item.tone}>{item.tone === 'ok' ? <ShieldCheck aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{item.text}</p>)}</div>}
