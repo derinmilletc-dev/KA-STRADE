@@ -47,6 +47,8 @@ def state(monkeypatch):
     monkeypatch.setattr(live, "persist_state", Mock())
     monkeypatch.setattr(live, "persist_state_awaited", AsyncMock(return_value="UPDATED"))
     state = live.initial_state()
+    # Bu testler yüzde (cüzdana oranlı) yedek davranışını sınar; USDT politikası yolu test_daily_limit_single_number.py'de.
+    state["policy"].pop("daily_loss_limit", None)
     state.update(lock=asyncio.Lock(), recovery_ready=True, real_trading_locked=False,
                  connected=True, armed_until=time.time() + 3600, live_auto_trade=True)
     state["auto"].update(enabled=True, session_until=time.time() + 3600)

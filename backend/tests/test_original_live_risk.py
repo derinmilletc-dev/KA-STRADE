@@ -103,6 +103,7 @@ class Connection:
 
 def context(failure=None):
     state = live.initial_state()
+    state["policy"].pop("daily_loss_limit", None)  # yüzde yedek davranışı; USDT politikası yolu test_daily_limit_single_number.py'de
     state["lock"] = asyncio.Lock()
     state["original_v2_live"] = {
         "owner_id": "owner", "fingerprint": "fp", "risk_percent": 0.5, "daily_loss_percent": 5,
@@ -160,7 +161,8 @@ def test_risk_and_audit_commit_together_without_reopening_daily_lock_or_touching
     assert config["risk_percent"] == 10
     assert config["risk_revision"] == 1
     assert config["daily"]["locked"] is True
-    assert config["daily"]["limit"] == 250
+    # Günlük limit tek sayı: Risk limitleri ekranındaki USDT politikası (yüzde sadece politika yoksa yedek).
+    assert config["daily"]["limit"] == risk.daily_limit_usdt(state, 1000, {"daily_loss_percent": 25})
     assert config["enabled"] is True
     assert state["plans"] == old_plans
     assert state["auto_authorization"] == old_authority

@@ -60,6 +60,17 @@ def verified_wallet(snapshot: dict[str, Any]) -> float:
     return float(value)
 
 
+def daily_limit_usdt(state: dict[str, Any], reference: float, config: dict[str, Any]) -> float:
+    """Günlük zarar limiti TEK sayıdır: kullanıcının Risk limitleri ekranında yazdığı USDT değeri (manuel ve otomatik aynı).
+    Politika değeri yoksa/geçersizse eski davranış (cüzdan yüzdesi) kullanılır. Sistem tavanı her zaman uygulanır."""
+    from .execution_core import system_ceilings
+    ceiling = system_ceilings()["max_daily_loss_usdt"]
+    value = (state.get("policy") or {}).get("daily_loss_limit") if isinstance(state.get("policy"), dict) else None
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0:
+        return min(float(value), ceiling)
+    return min(reference * float(config.get("daily_loss_percent", 5)) / 100, ceiling)
+
+
 def limits(state: dict[str, Any]) -> dict[str, Any] | None:
     """Ekranda gösterilen sınırlar güncel bakiyeden ve seçilen yüzdelerden dinamik gelir (sabit USDT yok).
     Bir sistem tavanı seçilen değeri kırparsa, kırpılmış değer döner; ekran bunu "tavan nedeniyle" diye gösterir.
@@ -83,7 +94,7 @@ def limits(state: dict[str, Any]) -> dict[str, Any] | None:
     cost_pct = (float(fixed_policy["fee_bps_per_side"]) + float(fixed_policy["slippage_bps_per_side"])) * 2 / 100
     return {
         "max_loss_per_trade_usdt": min(float(wallet) * float(config.get("risk_percent", 0.5)) / 100, ceilings["max_loss_per_trade_usdt"]),
-        "daily_loss_limit_usdt": min(reference * float(config.get("daily_loss_percent", 5)) / 100, ceilings["max_daily_loss_usdt"]),
+        "daily_loss_limit_usdt": daily_limit_usdt(state, reference, config),
         "max_margin_usdt": min(float(wallet) * per_trade_pct / 100, ceilings["max_margin_per_trade_usdt"]),
         "max_total_margin_usdt": min(float(wallet) * total_pct / 100, ceilings["max_total_exposure_usdt"] / original.ORIGINAL_LEVERAGE),
         "min_margin_usdt": 5,
@@ -204,7 +215,7 @@ async def save_choice(
         if isinstance(loss, bool) or not isinstance(loss, (int, float)) or not math.isfinite(loss) or loss < 0:
             logger.warning("ORIGINAL_RISK_DAILY_UNVERIFIED")
             raise HTTPException(423, "Günlük kayıp kaydı doğrulanamadı; risk ayarı değiştirilmedi.")
-        day["limit"] = day_wallet * body.daily_loss_percent / 100
+        day["limit"] = daily_limit_usdt(state, day_wallet, {"daily_loss_percent": body.daily_loss_percent})
         day["locked"] = bool(day.get("locked")) or loss >= day["limit"]
         candidate["daily"] = day
     pool = getattr(request.app.state, "db_pool", None)
