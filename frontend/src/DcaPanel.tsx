@@ -247,6 +247,10 @@ export default function DcaPanel(props: DcaPanelProps) {
   const rl = status?.risk_limits
   const maxLoss = Math.min(...[Number(rl?.max_loss_per_trade), Number(rl?.daily_loss_left)].filter(v => Number.isFinite(v) && v > 0), Infinity)
   const lossCap = Number.isFinite(maxLoss) ? maxLoss : 0
+  // Birlikte açılan botlar aynı günlük zarar hakkını paylaşır (çalışan bot payını ayırır): coin sayısı arttıkça her botun payı küçülür.
+  const nBots = 1 + extras.length
+  const dailyLeftNow = Number(rl?.daily_loss_left)
+  const lossCapN = nBots > 1 && dailyLeftNow > 0 ? Math.min(lossCap || Infinity, dailyLeftNow / nBots) : lossCap
   const inputOf = (f: Form, over?: {price: number; filters: NonNullable<DcaInputFilters>}) => ({...input, ...over, baseMargin: num(f.margin), safetyOrders: f.safety, stepPct: num(f.step), volumeMultiplier: num(f.volume), takeProfitPct: num(f.tp), stopGapPct: num(f.gap), leverage: f.leverage})
   const fmtMargin = (value: number) => String(Number(value.toFixed(2)))
   const falls = side === 'LONG' ? 'düşerse' : 'yükselirse'
@@ -266,9 +270,18 @@ export default function DcaPanel(props: DcaPanelProps) {
   // Özel (elle değiştirilmiş) plan: canlı limitine ve tek işlem zarar sınırına sığmıyorsa nedenini söyler; "Otomatik sığdır" düzeltir.
   const customBlock = !ready || !result.valid ? ''
     : result.totalMargin > cap + 1e-9 ? `Bu ayar ${fmtUsd(result.totalMargin)} marj ister; canlı limitin ${cap} USDT.`
-    : lossCap > 0 && result.worstLoss > lossCap * LOSS_HEADROOM + 1e-9 ? `En kötü kayıp ${fmtUsd(result.worstLoss)}; tek işlem zarar sınırın ${lossCap} USDT.`
+    : lossCapN > 0 && result.worstLoss > lossCapN * LOSS_HEADROOM + 1e-9 ? (nBots > 1 ? `${nBots} coin birlikte: her botun en kötü kaybı en çok ${fmtUsd(lossCapN)} olabilir (günlük zarar hakkı paylaşılır); şimdi ${fmtUsd(result.worstLoss)}.` : `En kötü kayıp ${fmtUsd(result.worstLoss)}; tek işlem zarar sınırın ${lossCap} USDT.`)
     : ''
-  const fixNowCustom = ready && customBlock ? fitToCap(input, cap, lossCap) : null
+  const fixNowCustom = ready && customBlock ? fitToCap(input, cap, lossCapN) : null
+  const multiFixed = useRef('')
+  useEffect(() => {
+    // Coin eklenince plan kendiliğinden küçülür; yoksa 2. / 3. bot sunucuda "zarar hakkı yok" diye reddedilir.
+    if (step !== 2 || nBots < 2 || !fixNowCustom || multiFixed.current === `${nBots}|${symbol}`) return
+    multiFixed.current = `${nBots}|${symbol}`
+    setPresetId('custom'); setForm(c => ({...c, margin: fmtMargin(fixNowCustom.margin), safety: fixNowCustom.safety, volume: fixNowCustom.volume.toFixed(1)}))
+    setNote(`${nBots} coin birlikte açılacağı için plan küçültüldü: günlük zarar hakkı botlar arasında paylaşılıyor.`)
+  }, [step, nBots, symbol, fixNowCustom])
+  useEffect(() => { if (nBots < 2) multiFixed.current = '' }, [nBots])
   const applyCustomFix = () => { if (fixNowCustom) { setPresetId('custom'); setForm(c => ({...c, margin: fmtMargin(fixNowCustom.margin), safety: fixNowCustom.safety, volume: fixNowCustom.volume.toFixed(1)})) } }
   const lastPlanRef = useRef('')
   const choosePlan = (plan: NonNullable<typeof presetPlans>[number]) => {
@@ -367,7 +380,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     if (!coin || !(coin.price > 0)) throw new Error('Fiyat okunamadı.')
     const f = await readFilters(sym)
     const trial = inputOf(form, {price: coin.price, filters: f})
-    const fit = planFit(trial, cap, lossCap)
+    const fit = planFit(trial, cap, lossCapN)
     if (fit.state !== 'ok') throw new Error('Bu plan bu coine sığmıyor.')
     return trial
   }
