@@ -184,6 +184,9 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [extraNote, setExtraNote] = useState('')
   const [startTap, setStartTap] = useState(0)
   const autoFixes = useRef(0)
+  const panelRef = useRef<HTMLElement | null>(null)
+  // Başlatma bildirimleri / sonuç panelin üstünde çıkar; ekran oraya kayar ki kullanıcı kaçırmasın.
+  const toPanelTop = () => { try { panelRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'}) } catch { /* eski tarayıcı */ } }
   const [startError, setStartError] = useState('')
   const [launching, setLaunching] = useState<{coins: string[]; done: string[]; now: string; phase: string} | null>(null)
 
@@ -470,7 +473,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         + (useSmart ? 'Akıllı başlama açık: Kais uygun görene kadar bot bekler. ' : 'Taban emir hemen piyasadan girer. ')
         + 'Ek emirler limit olarak bekler, stop dolan her miktar için kurulur.',
       expected: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
-      action: async () => { try { await runStart() } catch (error: any) { setStartError(error?.message || 'Başlatılamadı.'); throw error } },
+      action: async () => { toPanelTop(); try { await runStart(); toPanelTop() } catch (error: any) { setStartError(error?.message || 'Başlatılamadı.'); toPanelTop(); throw error } },
     })
   }
   const runStart = async () => {
@@ -530,7 +533,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const totalRealized = bots.reduce((sum, bot) => sum + (Number(bot.stats?.realized_usdt) || 0), 0)
 
   return (
-    <section className="dca dw" aria-label="DCA botu" data-step={step}>
+    <section ref={panelRef} className="dca dw" aria-label="DCA botu" data-step={step}>
       {bots.length > 0 && step !== 4 && <div className="dcaSum" data-testid="dca-summary" aria-label="DCA özeti">
         <span><small>Biten tur</small><b>{totalCycles}</b></span>
         <span><small>Gerçekleşen net</small><b className={totalRealized >= 0 ? 'up' : 'down'}>{fmtUsd(totalRealized, true)}</b></span>
