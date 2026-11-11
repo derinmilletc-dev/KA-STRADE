@@ -176,7 +176,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [status, setStatus] = useState<any>(null)
   const [statusError, setStatusError] = useState('')
   const [notStarted, setNotStarted] = useState<Array<{sym: string; why: string}>>([])
-  const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
+  const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any; gate?: {ok: boolean; reason: string}}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
   const [smartEntry, setSmartEntry] = useState(true)
   const [trailOn, setTrailOn] = useState(false)
@@ -234,7 +234,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     const timer = window.setInterval(tick, started ? 2000 : 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [base, started !== null])
-  useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
+  useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form, smartEntry])
   useEffect(() => { if (step !== 2) autoFixes.current = 0 }, [step])
   useEffect(() => { setNote('') }, [symbol, side])
   useEffect(() => { setExtras([]); setExtraNote('') }, [symbol, side, form])
@@ -430,7 +430,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     setServer({state: 'busy', text: 'Sunucu planı kendi kurallarıyla yeniden hesaplıyor…'})
     try {
       const data = await call<any>(base, '/start', {method: 'POST', body: body(true), timeoutMs: 60000})
-      setServer({state: 'ok', plan: data.plan, text: 'Sunucu planı onayladı.'})
+      setServer({state: 'ok', plan: data.plan, text: 'Sunucu planı onayladı.', gate: data.entry_gate && typeof data.entry_gate.ok === 'boolean' ? {ok: data.entry_gate.ok, reason: String(data.entry_gate.reason || '')} : undefined})
     } catch (error: any) {
       const text = String(error?.message || 'Sunucu planı reddetti.')
       // Sunucu "en kötü zarar sınırı aştı" derse (çoğu kez kuruş farkı) yatırımı bir tık küçültüp kendisi yeniden dener; en fazla 2 kez.
@@ -462,6 +462,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     : customBlock ? customBlock
     : server.state === 'error' ? 'Sunucu planı reddetti (sebebi yukarıda). Riski azaltıp tekrar dene.'
     : server.state !== 'ok' ? 'Sunucu onayı bekleniyor.'
+    : useSmart && server.gate && !server.gate.ok ? 'Akıllı başlama: Kais şu an bu coini uygun görmüyor (sebebi yukarıda). Başka coin seç ya da akıllı başlamayı kapat.'
     : ''
 
   const start = () => {
@@ -726,6 +727,7 @@ export default function DcaPanel(props: DcaPanelProps) {
           {server.state === 'ok' && <><i aria-hidden="true">✓</i><span><b>Sunucu onayladı.</b> En kötü zarar {fmtUsd(-Number(server.plan?.worst_loss_usdt))}, toplam marj {fmtUsd(Number(server.plan?.total_margin_usdt))}.</span></>}
           {server.state === 'error' && <><i aria-hidden="true">!</i><span><b>Sunucu reddetti:</b> {server.text}</span></>}
           {server.state === 'idle' && <span>Sunucu kontrolü bekleniyor…</span>}
+          {server.state === 'ok' && useSmart && server.gate && !server.gate.ok && <span data-testid="dca-gate-warn"><b>Kais şu an uygun görmüyor:</b> {server.gate.reason}. <button type="button" onClick={() => setSmartEntry(false)}>Akıllı başlamayı kapat</button> <button type="button" onClick={() => setServer({state: 'idle', text: ''})}>Yeniden kontrol et</button></span>}
         </div>
         <p className="dwFine">Gerçek para kullanılır. Başlatınca bir kez daha yazı onayı istenir. Hesaplar tahmindir: funding, kayma ve borsanın gerçek teminat tablosu dahil değil.</p>
       </div>}
