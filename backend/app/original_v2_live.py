@@ -768,12 +768,17 @@ async def daily_guard(client: Any, state: dict[str, Any], snapshot: dict[str, An
             raise HTTPException(423, "Gün başlangıç bakiyesi doğrulanamadı.")
         day_state = {"day": day, "opening_wallet": opening, "locked": False}
         config["daily"] = day_state
-    limit = day_state["opening_wallet"] * config["daily_loss_percent"] / 100
+    limit = risk_settings.daily_limit_usdt(state, day_state["opening_wallet"], config)
     loss = max(0, -float(pnl) - min(0, unrealized))
     # Gerçekleşmiş net zarar: gerçekleşen PnL + komisyon + fonlama (transferler hariç, yukarıda). Kapıda ayrıca kullanılır.
+    # Limit kullanıcı tarafından YÜKSELTİLDİYSE (ve zarar yeni limitin altındaysa) bugünkü kilit açılır; yoksa kilit gün sonuna kadar kalır.
+    locked_at = day_state.get("locked_at_limit")
+    if day_state.get("locked") and isinstance(locked_at, (int, float)) and limit > float(locked_at) + 1e-9 and loss < limit:
+        day_state["locked"] = False
     day_state.update(loss=loss, limit=limit, realized_loss=max(0.0, -float(pnl)))
     if loss >= limit:
         day_state["locked"] = True
+        day_state["locked_at_limit"] = limit
     if day_state["locked"]:
         raise HTTPException(423, "Günlük kayıp sınırı aşıldı; bugün yeni işlem açılmaz.")
 
@@ -832,8 +837,7 @@ def execution_policy(state: dict[str, Any], snapshot: dict[str, Any]) -> dict[st
     day = config.get("daily") if isinstance(config.get("daily"), dict) else {}
     opening = day.get("opening_wallet") if day.get("day") == datetime.now(timezone.utc).date().isoformat() else None
     reference = float(opening) if isinstance(opening, (int, float)) and not isinstance(opening, bool) and opening > 0 else wallet
-    result["daily_loss_limit"] = min(reference * float(config.get("daily_loss_percent", 5)) / 100,
-                                     system_ceilings()["max_daily_loss_usdt"])
+    result["daily_loss_limit"] = risk_settings.daily_limit_usdt(state, reference, config)
     for key in ("min_confidence", "fee_bps_per_side", "slippage_bps_per_side", "minimum_net_reward_usdt"):
         result[key] = max(current[key], fixed[key])
     # Sunucu ayarı (PROTREBOT_MIN_CONFIDENCE) canlı girişte de alt sınırdır; yalnız yükseltebilir, %80'in altına indiremez.
