@@ -21,7 +21,7 @@ from .dca_engine import entry_gate
 from .dca_engine.engine import CYCLE_DONE, DcaEngine, spec_from_plan
 from .dca_engine.plan import DcaPlanError
 from .execution_core import HARD_MAX_MARGIN_USDT
-from .grid_engine.engine import GridSpec, STOPPED
+from .grid_engine.engine import RUNNING, GridSpec, STOPPED
 from .grid_engine.store import GridStore
 from .grid_live import LiveGridError, LiveGridRunner, grid_spec_from_row
 
@@ -55,6 +55,15 @@ def live_enabled() -> bool:
 def demo_enabled() -> bool:
     """Demo DCA varsayılan AÇIK (gerçek para yok)."""
     return str(os.getenv(DEMO_ENV_FLAG, "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+
+TREND_GUARD_ENV = "KAISTRADE_DCA_TREND_GUARD"
+TREND_CHECK_SECONDS = 60.0
+
+
+def trend_guard_enabled() -> bool:
+    """Trend dönüşü bekçisi varsayılan AÇIK (KAISTRADE_DCA_TREND_GUARD=0 ile kapatılır)."""
+    return _truthy(os.getenv(TREND_GUARD_ENV, "1"))
 
 
 def trailing_enabled() -> bool:
@@ -118,6 +127,9 @@ class DcaRunner(LiveGridRunner):
         # Akıllı başlama: (symbol, direction) -> (uygun mu, açıklama). Testlerde değiştirilir; varsayılan Kais analizine bakar.
         self.entry_checker: Any = entry_gate.check
         self._entry_wait: dict[str, float] = {}      # grid_id -> uygun an beklemeye başlanan zaman (yeniden başlatmada sıfırlanır: güvenli yön)
+        # Trend dönüşü bekçisi: açık pozisyonda Kais analizi ters yönü güçlü gösterirse ek alım durur (kârdaysa kapatılır, zarardaysa stop yaklaşır).
+        self.trend_fetch: Any = None                  # testlerde değiştirilir; None = Kais analiz listesi (60 sn önbellekli)
+        self._trend_checked: dict[str, float] = {}
 
     # ---- ayar / motor
     def _spec_for_plan(self, grid_id: str, symbol: str, plan: dict[str, Any]) -> GridSpec:
@@ -154,7 +166,44 @@ class DcaRunner(LiveGridRunner):
         return out
 
     # ---- tur döngüsü
+    async def _trend_guard(self, engine: Any, state: dict[str, Any]) -> None:
+        """Açık DCA pozisyonu için dakikada bir Kais analizine bakar. Ters yön en az güçlü sinyal eşiği kadar güvenliyse motora bildirir.
+        Analiz okunamazsa, coin listede yoksa ya da sinyal zayıfsa HİÇBİR ŞEY yapılmaz (mevcut stop ve plan korur)."""
+        if not trend_guard_enabled() or engine.status != RUNNING or (engine.spec.meta or {}).get("trend") or engine.grid_net() <= 1e-12:
+            return
+        now = time.monotonic()
+        if now - self._trend_checked.get(engine.gid, 0.0) < TREND_CHECK_SECONDS:
+            return
+        self._trend_checked[engine.gid] = now
+        try:
+            rows = await (self.trend_fetch or entry_gate._fetch_rows)()
+        except Exception:  # noqa: BLE001 - okunamazsa dokunulmaz
+            return
+        key = entry_gate._norm(engine.sym)
+        row = next((r for r in rows or [] if isinstance(r, dict) and entry_gate._norm(r.get("symbol")) == key), None)
+        if row is None:
+            return
+        lean = str(row.get("direction") or "").upper()
+        try:
+            confidence = float(row.get("confidence"))
+        except (TypeError, ValueError):
+            return
+        wanted = str(engine.spec.side).upper()
+        if lean not in ("LONG", "SHORT") or lean == wanted or not confidence >= entry_gate.min_confidence():
+            return
+        reason = f"Kais {lean} %{confidence:.0f}"
+        result = await asyncio.to_thread(engine.trend_reversal, reason)
+        if result != "skip":
+            text = {"closed": "kârda olduğu için kapatıldı", "tightened": "ek alım durdu, stop yaklaştırıldı", "held": "ek alım durdu"}.get(result, result)
+            self._record(state, "LIVE_GRID_STATUS", f"{engine.sym} DCA: trend döndü ({reason}); {text}.", grid_id=engine.gid, status=engine.status)
+
     async def _after_tick(self, engine: Any, state: dict[str, Any], status: str) -> str:
+        if status == RUNNING:
+            try:
+                await self._trend_guard(engine, state)
+            except Exception:  # noqa: BLE001 - bekçi hatası botu durdurmaz; stop zaten yerinde
+                logger.warning("DCA_TREND_GUARD_FAILED grid=%s", getattr(engine, "gid", "?"))
+            return engine.status
         if status != CYCLE_DONE:
             return status
         return await self._next_cycle(engine, state)

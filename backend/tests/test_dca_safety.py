@@ -5,6 +5,8 @@ Kapsam: borsa ortalaması (source of truth), koruma sırası ve stop güvenliği
 from __future__ import annotations
 
 import ast
+import os
+from unittest import mock
 import math
 import re
 import sys
@@ -118,6 +120,13 @@ class Base(unittest.TestCase):
 # 1) Borsadaki GERÇEK ortalama giriş = hedefin kaynağı
 # ---------------------------------------------------------------------------------------------------------------------------
 class AverageTruthMixin:
+    # Bu testler kısmi hedef dolumundan sonra yeni ek alımı inceler; 'kârı koru' (ek alımı durdurur) burada kapalı tutulur.
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"KAISTRADE_DCA_BREAKEVEN": "0"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        super().setUp()
+
     def test_partial_tp_then_new_dca_uses_binance_average(self):
         """BASE → hedefin bir kısmı doldu → pozisyon küçüldü → yeni DCA doldu → ortalama değişti → hedef BORSA ortalamasına göre yeniden hesaplanır."""
         eng = self.engine()

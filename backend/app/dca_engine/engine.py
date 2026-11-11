@@ -20,6 +20,7 @@ INTERVENTION_REQUIRED SON çaredir. Stop yeniden doğrulanınca iptal edilen ek 
 from __future__ import annotations
 
 import json
+import os
 import re
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
@@ -32,6 +33,19 @@ from .risk_config import (AVG_MISMATCH_TOLERANCE_PCT, AVG_RANGE_TOLERANCE_PCT, C
                           TRAIL_MIN_STEP_PCT)
 
 CYCLE_DONE = "CYCLE_DONE"
+# Kârı koru: fiyat ortalamanın kâr yönünde hedefin yarısı kadar (en az %0,3) ilerleyince stop girişin %0,15 ötesine çekilir (ücret + kayma payı).
+BREAKEVEN_ENV = "KAISTRADE_DCA_BREAKEVEN"
+BREAKEVEN_MIN_MOVE_PCT = 0.3
+BREAKEVEN_TP_SHARE = 0.5
+BREAKEVEN_BUFFER_PCT = 0.15
+# Trend dönüşü: ters yön güçlü görünürse ek alım durur; kârdaysa kapatılır, zarardaysa stop fiyata doğru yarı yarıya yaklaştırılır.
+TREND_PROFIT_EXIT_PCT = 0.15           # en az bu kadar kârdaysa (ücreti karşılar) piyasadan kapatılır
+TREND_TIGHTEN_SHARE = 0.5              # zarardaysa stop ile fiyat arasındaki mesafenin bu kadarı kapatılır
+TREND_MIN_ROOM_PCT = 0.3               # yeni stop fiyata bundan yakın olamaz (anında tetiklenmesin)
+
+
+def breakeven_enabled() -> bool:
+    return str(os.getenv(BREAKEVEN_ENV, "1")).strip().lower() in {"1", "true", "yes", "on"}
 ACTIVE = (NEW, PARTIAL, PENDING_SEND, UNKNOWN)
 TAKER_FEE = 0.0005
 
@@ -260,6 +274,8 @@ class DcaEngine(GridEngine):
             if row["role"] == "E" and self.status in (PAUSED, STOPPED, COMPLETED, CYCLE_DONE, EMERGENCY, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, BLOCKED):
                 continue
             if row["role"] == "E" and row["level"] > 1 and row["cycle"] == self._cycle():
+                if self._hold():
+                    continue                      # ek alım bilerek kapatıldı (kâr koruma / trend dönüşü)
                 if not base_ready:
                     continue                      # taban emir dolmadan ek emir gönderilmez
                 if row["status"] in (PENDING_SEND, UNKNOWN):
@@ -295,7 +311,7 @@ class DcaEngine(GridEngine):
         (çökme penceresi `_adopt_unsent` ile eşitlemede kapatılır); gönderim kapısı onları zaten tutar."""
         return [e for e in self._entries() if e["level"] > 1 and e["status"] in (NEW, PARTIAL, UNKNOWN)]
 
-    def _disarm_safeties(self) -> bool:
+    def _disarm_safeties(self, note: str | None = None) -> bool:
         """Borsada bekleyen TÜM ek emirleri iptal eder ve iptali borsadan DOĞRULAR. İptal yanıtı kaybolduysa (zaman aşımı) emrin gerçek durumu
         kimlikle sorulur. Dönüş: True = hiçbir ek emir aktif kalmadı; False = en az biri iptal doğrulanamadı (pozisyon büyüyebilir)."""
         rows = self._open_safety_rows()
@@ -314,7 +330,7 @@ class DcaEngine(GridEngine):
         if remaining:
             self._alert("kritik", f"Doğrulanmış stop yokken bekleyen ek emir iptal EDİLEMEDİ/doğrulanamadı: {[r['client_id'] for r in remaining]}")
         else:
-            self._alert("uyarı", "Doğrulanmış stop yok: bekleyen ek emirler iptal edildi ve borsada doğrulandı; stop yeniden doğrulanınca yeniden kurulacak.")
+            self._alert("uyarı", note or "Doğrulanmış stop yok: bekleyen ek emirler iptal edildi ve borsada doğrulandı; stop yeniden doğrulanınca yeniden kurulacak.")
         return not remaining
 
     def _guard_growth(self) -> None:
@@ -363,6 +379,8 @@ class DcaEngine(GridEngine):
         Önceki iptaller doğrulanmadan hiçbir ek emir kurulmaz; borsa fiyatı bilinmiyorsa kurulmaz (bekler)."""
         levels = self._disarmed()
         base = self._base()
+        if self._hold():
+            return                                # kâr korunuyor / trend döndü: ek alım bilerek kapatıldı, geri kurulmaz
         if (not levels or self.status != RUNNING or base is None or base["status"] != FILLED or self.grid_net() <= EPS
                 or not (self._stop_verified() and self._targets_verified()) or self._open_safety_rows()):
             return
@@ -430,6 +448,9 @@ class DcaEngine(GridEngine):
             for old in active:
                 self._cancel(old["client_id"])
             return
+        self._ensure_breakeven(net)
+        if self.status not in (RUNNING, PAUSED):
+            return
         if self._trail_on():                     # takip eden hedef: limit hedef konmaz; var olan hedef emri kaldırılır, stop kâr yönünde çekilir
             for old in active:
                 self._cancel(old["client_id"])
@@ -453,6 +474,104 @@ class DcaEngine(GridEngine):
         cid = self._intent(role="T", level=0, rev=len(self.store.orders(self.gid, "T")), cycle=self._cycle(), side=self.exit_side, type=LIMIT,
                            price=price, stop_price=0.0, qty=net, reduce_only=1)
         self._send(self.store.order(cid))
+
+    # ---------- kârı koru + trend dönüşü ----------
+    def _hold(self) -> bool:
+        meta = self.spec.meta or {}
+        return bool(meta.get("hold"))
+
+    def _save_meta(self, **values) -> None:
+        self.spec.meta.update(values)
+        self.store.set_grid(self.gid, spec=json.dumps(self.spec.as_json()))
+
+    def _snap_stop(self, raw: float, toward_price: bool) -> float:
+        """Stop fiyatını tick'e yuvarlar. toward_price=True: fiyata doğru değil, GÜVENLİ yöne (fiyattan uzağa) yuvarlar."""
+        tick = float(self.spec.meta.get("tick") or 0)
+        if not tick > 0:
+            return raw
+        unit = Decimal(repr(tick))
+        away = ROUND_FLOOR if self.sign > 0 else ROUND_CEILING
+        toward = ROUND_CEILING if self.sign > 0 else ROUND_FLOOR
+        return float((Decimal(repr(raw)) / unit).to_integral_value(rounding=away if toward_price else toward) * unit)
+
+    def _move_stop(self, raw: float, net: float) -> bool:
+        """Koruyucu stopu `raw` seviyesine taşır: önce yeni stop borsada doğrulanır, SONRA eskisi iptal edilir (pozisyon bir an bile stopsuz kalmaz).
+        Yeni stop reddedilirse eski stop yerinde kalır ve False döner."""
+        stops = self.store.orders(self.gid, "S")
+        active = [x for x in stops if x["status"] in ACTIVE]
+        self._last_reject = 0
+        cid = self._intent(role="S", level=0, rev=len(stops), cycle=self._cycle(), side=self.exit_side, type=STOP_MARKET, price=0.0,
+                           stop_price=raw, qty=net, reduce_only=1)
+        self._send(self.store.order(cid))
+        if self.store.order(cid)["status"] not in (NEW, PARTIAL):
+            return False
+        for old in active:
+            self._cancel(old["client_id"])
+        self.spec.stop_price = raw
+        self.store.set_grid(self.gid, spec=json.dumps(self.spec.as_json()))
+        return True
+
+    def _ensure_breakeven(self, net: float) -> None:
+        """Kârı koru: fiyat (borsanın gerçek ortalamasına göre) hedefin yarısı kadar kâra geçince bekleyen ek alımlar iptal edilir ve stop girişin
+        biraz ötesine (ücret payı) çekilir. Böylece kâra geçmiş işlem zarara dönmez. Bir kez yapılır; stop yalnız kâr yönüne gider."""
+        meta = self.spec.meta or {}
+        if not breakeven_enabled() or meta.get("be") or self.status != RUNNING or self._trail_state():
+            return
+        info = self._exchange_position()
+        if info is None or not (info.entry_price > 0 and info.mark_price > 0):
+            return
+        avg, price, sign = float(info.entry_price), float(info.mark_price), self.sign
+        target = self.tp_price(avg)
+        if target is None:
+            return
+        tp_pct = abs(target - avg) / avg * 100
+        move = sign * (price - avg) / avg * 100
+        if move < max(BREAKEVEN_MIN_MOVE_PCT, tp_pct * BREAKEVEN_TP_SHARE):
+            return
+        raw = self._snap_stop(avg * (1 + sign * BREAKEVEN_BUFFER_PCT / 100), toward_price=False)
+        if sign * (raw - float(self.spec.stop_price)) <= 0 or sign * (price - raw) / price * 100 < 0.1:
+            return                                # stop geri gitmez; fiyata çok yakınsa anında tetiklenmesin diye beklenir
+        if not self._disarm_safeties("Kâr korunuyor: bekleyen ek alımlar iptal edildi."):
+            return                                # ek emir iptali doğrulanamadı: stop taşınmaz, sonraki turda tekrar denenir
+        self._save_meta(hold=True)
+        if self._move_stop(raw, net):
+            self._save_meta(be={"stop": raw})
+            self._alert("bilgi", f"Kâr korundu: stop girişin üstüne ({raw:g}) çekildi. Fiyat geri dönerse işlem zararsız kapanır." if sign > 0 else
+                        f"Kâr korundu: stop girişin altına ({raw:g}) çekildi. Fiyat geri dönerse işlem zararsız kapanır.")
+
+    def trend_reversal(self, reason: str) -> str:
+        """Kais analizi ters yönü güçlü gösteriyor: ek alım durur. Kârdaysa (ücreti karşılayacak kadar) pozisyon güvenli kapatma akışıyla kapatılır;
+        zarardaysa stop fiyata doğru yaklaştırılır (yalnız kâr yönüne, fiyattan güvenli mesafede). Her tur için bir kez çalışır.
+        Dönüş: 'closed' | 'tightened' | 'held' | 'skip'."""
+        meta = self.spec.meta or {}
+        if self.status != RUNNING or meta.get("trend"):
+            return "skip"
+        net = self.grid_net()
+        if net <= EPS:
+            return "skip"
+        info = self._exchange_position()
+        if info is None or not (info.entry_price > 0 and info.mark_price > 0):
+            return "skip"
+        avg, price, sign = float(info.entry_price), float(info.mark_price), self.sign
+        if not self._disarm_safeties(f"Trend döndü ({reason}): bekleyen ek alımlar iptal edildi."):
+            return "skip"
+        self._save_meta(hold=True, trend={"reason": reason})
+        profit_pct = sign * (price - avg) / avg * 100
+        if profit_pct >= TREND_PROFIT_EXIT_PCT:
+            self._save_meta(trend_exit=True)
+            self._alert("bilgi", f"Trend döndü ({reason}); işlem kârda (%{profit_pct:.2f}), kapatılıyor.")
+            self._cancel_all(roles=("T",))
+            self._close(net)
+            return "closed"
+        current = float(self.spec.stop_price)
+        raw = self._snap_stop(current + (price - current) * TREND_TIGHTEN_SHARE, toward_price=True)
+        if sign * (price - raw) / price * 100 < TREND_MIN_ROOM_PCT:
+            raw = self._snap_stop(price * (1 - sign * TREND_MIN_ROOM_PCT / 100), toward_price=True)
+        if sign * (raw - current) > 0 and self._move_stop(raw, net):
+            self._alert("uyarı", f"Trend döndü ({reason}): ek alım durduruldu, stop {current:g} → {raw:g} yaklaştırıldı (zarar küçültüldü).")
+            return "tightened"
+        self._alert("uyarı", f"Trend döndü ({reason}): ek alım durduruldu; stop zaten yakın, yerinde kaldı.")
+        return "held"
 
     # ---------- takip eden hedef (opsiyonel) ----------
     def _trail_pct(self) -> float:
@@ -521,7 +640,7 @@ class DcaEngine(GridEngine):
 
     def _trail_exit_profitable(self, stops: list) -> bool:
         """Takip eden hedefte çekilmiş stopla (kârda) çıkıldı mı? Evet ise bu bir hedef dolumudur, zarar stopu değildir."""
-        if not self._trail_on() or not self._trail_state():
+        if not ((self._trail_on() and self._trail_state()) or (self.spec.meta or {}).get("be")):
             return False
         avg = self.avg_entry()
         if avg is None:
@@ -556,6 +675,11 @@ class DcaEngine(GridEngine):
             return
         cycle = self._cycle()
         stops = self.store.orders(self.gid, "S")
+        if (self.spec.meta or {}).get("trend_exit") and any(c["filled"] > EPS and c["cycle"] == cycle for c in self.store.orders(self.gid, "C")):
+            self._cancel_all(roles=("E", "T", "S"))
+            self._set(STOPPED, "Trend döndü: kârla kapatıldı")
+            self._alert("bilgi", "Trend döndü: pozisyon kârla kapatıldı, bekleyen emirler iptal edildi. Bot durdu.")
+            return
         trail_win = self._trail_exit_profitable(stops)
         if any(s["filled"] > EPS for s in stops) and not trail_win:
             self._cancel_all(roles=("E", "T", "S"))
@@ -564,6 +688,8 @@ class DcaEngine(GridEngine):
             return
         if trail_win or any(t["filled"] > EPS and t["cycle"] == cycle for t in self.store.orders(self.gid, "T")):
             self._cancel_all(roles=("E", "T", "S"))
+            if trail_win and (self.spec.meta or {}).get("be") and not self._trail_state():
+                self._alert("bilgi", "Fiyat geri döndü; kâr koruma stopu işlemi küçük kârla kapattı (zarara dönmedi).")
             if self.spec.recycle:
                 self._set(CYCLE_DONE, "Kâr hedefi doldu; yeni tur bekleniyor")
                 self._alert("bilgi", "Kâr hedefi doldu: tur tamamlandı, yeni tur için risk kapıları yeniden kontrol edilecek.")
@@ -648,4 +774,6 @@ class DcaEngine(GridEngine):
         net = self.grid_net()
         return {"cycle": cycle + 1, "completed_cycles": completed, "position_qty": net, "avg_entry": self.avg_entry(), "tp_price": self.tp_price() if net > EPS else None,
                 "stop_price": self.spec.stop_price, "trailing_pct": self._trail_pct() or None, "trail_active": bool(self._trail_state()), "stages_filled": len([e for e in self._entries() if e["filled"] > EPS]),
-                "stages_total": len(self.spec.levels), "realized_usdt": round(realized - fees, 8), "fees_usdt": round(fees, 8)}
+                "stages_total": len(self.spec.levels), "realized_usdt": round(realized - fees, 8), "fees_usdt": round(fees, 8),
+                "breakeven": bool((self.spec.meta or {}).get("be")), "trend_hold": bool((self.spec.meta or {}).get("trend")),
+                "trend_reason": str(((self.spec.meta or {}).get("trend") or {}).get("reason") or "")}

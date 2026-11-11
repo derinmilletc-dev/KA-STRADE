@@ -4,8 +4,10 @@ Kural: stop yalnız kâr yönünde ilerler, her an borsada doğrulanmış kalır
 """
 from __future__ import annotations
 
+import os
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -55,6 +57,9 @@ class TrailBase(unittest.TestCase):
     trail = 0.4
 
     def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"KAISTRADE_DCA_BREAKEVEN": "0"})   # takip eden hedefi tek başına test eder
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.ex = FakeExchange(tick=0.01, step=0.001)
         self.ex.prices[SYM] = 100.0
         self.store = GridStore()
