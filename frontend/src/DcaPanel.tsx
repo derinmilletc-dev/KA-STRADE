@@ -176,6 +176,10 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [statusError, setStatusError] = useState('')
   const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
+  const [smartEntry, setSmartEntry] = useState(false)
+  const [trailOn, setTrailOn] = useState(false)
+  const [extras, setExtras] = useState<string[]>([])
+  const [extraNote, setExtraNote] = useState('')
 
   const isDemo = account === 'DEMO'
   const liveArmed = isDemo ? true : liveArmedProp
@@ -223,6 +227,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   }, [base, started !== null])
   useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
   useEffect(() => { setNote('') }, [symbol, side])
+  useEffect(() => { setExtras([]); setExtraNote('') }, [symbol, side, form])
 
   const input = useMemo(() => ({
     side, price, baseMargin: num(form.margin), safetyOrders: form.safety, stepPct: num(form.step), volumeMultiplier: num(form.volume),
@@ -317,10 +322,31 @@ export default function DcaPanel(props: DcaPanelProps) {
   const pickCoin = (sym: string) => { setAnaSym(null); onPickSymbol?.(sym); setPicked(sym); setPresetId(''); setNote(''); setQuery(''); setStep(2) }
   const pickSide = (next: DcaSide) => { onPickSide?.(next); setPresetId(''); autoRef.current = '' }
 
-  const body = (preview: boolean, confirmation = '') => JSON.stringify({
-    symbol, direction: side, base_margin_usdt: input.baseMargin, safety_orders: input.safetyOrders, step_pct: input.stepPct, volume_multiplier: input.volumeMultiplier,
-    take_profit_pct: input.takeProfitPct, stop_gap_pct: input.stopGapPct, leverage: input.leverage, recycle: form.recycle, preview, confirmation,
+  const smartAvail = status?.smart_entry_enabled === true
+  const trailAvail = status?.trailing_enabled === true && num(form.tp) >= 0.4
+  const useSmart = smartAvail && smartEntry
+  const trailPct = trailAvail && trailOn ? Number((num(form.tp) / 2).toFixed(2)) : 0
+  const bodyFor = (sym: string, inp: ReturnType<typeof inputOf>, preview: boolean, confirmation = '') => JSON.stringify({
+    symbol: sym, direction: side, base_margin_usdt: inp.baseMargin, safety_orders: inp.safetyOrders, step_pct: inp.stepPct, volume_multiplier: inp.volumeMultiplier,
+    take_profit_pct: inp.takeProfitPct, stop_gap_pct: inp.stopGapPct, leverage: inp.leverage, recycle: form.recycle, smart_entry: useSmart, trailing_pct: trailPct, preview, confirmation,
   })
+  const body = (preview: boolean, confirmation = '') => bodyFor(symbol, input, preview, confirmation)
+  const slots = Math.max(0, MAX_BOTS - ((status?.grids ?? []).filter((g: any) => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !FINAL.includes(g.status)).length) - 1)
+  const extraInput = async (sym: string) => {
+    const coin = coins.find(c => c.symbol === sym)
+    if (!coin || !(coin.price > 0)) throw new Error('Fiyat okunamadı.')
+    const f = await readFilters(sym)
+    const trial = inputOf(form, {price: coin.price, filters: f})
+    const fit = planFit(trial, cap, lossCap)
+    if (fit.state !== 'ok') throw new Error('Bu plan bu coine sığmıyor.')
+    return trial
+  }
+  const toggleExtra = async (sym: string) => {
+    setExtraNote('')
+    if (extras.includes(sym)) { setExtras(c => c.filter(x => x !== sym)); return }
+    if (extras.length >= slots) { setExtraNote(`En fazla ${slots} ek coin seçebilirsin.`); return }
+    try { await extraInput(sym); setExtras(c => [...c, sym]) } catch (error: any) { setExtraNote(`${sym}: ${error?.message || 'Uygun değil.'}`) }
+  }
   const checkOnServer = async () => {
     setServer({state: 'busy', text: 'Sunucu planı kendi kurallarıyla yeniden hesaplıyor…'})
     try {
@@ -341,15 +367,27 @@ export default function DcaPanel(props: DcaPanelProps) {
     : ''
 
   const start = () => {
+    const n = 1 + extras.length
     askConfirm({
       title: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
-      message: `GERÇEK PARA. ${symbol} ${side}: taban + ${form.safety} ek emir, toplam marjin ${fmtUsd(result.totalMargin)}, kaldıraç ${form.leverage}x. `
-        + `Tüm emirler dolup stop çalışırsa tahmini en kötü zarar ${fmtUsd(result.worstLoss)}. Taban emir hemen piyasadan girer; ek emirler limit olarak bekler, stop dolan her miktar için kurulur.`,
+      message: `GERÇEK PARA. ${[symbol, ...extras].join(', ')} ${side}: her coinde taban + ${form.safety} ek emir, coin başına marjin ${fmtUsd(result.totalMargin)}, kaldıraç ${form.leverage}x. `
+        + (n > 1 ? `${n} coin birlikte başlar; toplam marjin ${fmtUsd(result.totalMargin * n)}, hepsinde stop çalışırsa en kötü zarar en çok ${fmtUsd(result.worstLoss * n)} (yaklaşık). ` : `Tüm emirler dolup stop çalışırsa tahmini en kötü zarar ${fmtUsd(result.worstLoss)}. `)
+        + (useSmart ? 'Akıllı başlama açık: Kais uygun görene kadar bot bekler. ' : 'Taban emir hemen piyasadan girer. ')
+        + 'Ek emirler limit olarak bekler, stop dolan her miktar için kurulur.',
       expected: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
       action: async () => {
-        await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT')})
+        const word = isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT'
+        const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>}> = [{sym: symbol, inp: input}]
+        for (const sym of extras) jobs.push({sym, inp: await extraInput(sym)})
+        for (const job of jobs.slice(1)) await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000})   // önce hepsini sunucuya onaylat
+        const failed: string[] = []
+        for (const [index, job] of jobs.entries()) {
+          try { await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: bodyFor(job.sym, job.inp, false, word)}) }
+          catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`) }
+        }
         setStarted({symbol, side, at: Date.now()})
         setStep(4)
+        if (failed.length) setStatusError(`Bazı coinler başlamadı: ${failed.join(' · ')}`)
         await loadStatus()
       },
     })
@@ -453,6 +491,8 @@ export default function DcaPanel(props: DcaPanelProps) {
           </button>
         })}</div>}
         {ready && <label className="dcaToggle dwRecycle" data-testid="dca-recycle"><input type="checkbox" checked={form.recycle} onChange={e => setForm(c => ({...c, recycle: e.target.checked}))} /><span><b>Otomatik tekrar</b><small>Kâr hedefi dolunca yeni tur başlar. Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>}
+        {ready && smartAvail && <label className="dcaToggle dwRecycle" data-testid="dca-smart-entry"><input type="checkbox" checked={smartEntry} onChange={e => setSmartEntry(e.target.checked)} /><span><b>Akıllı başlama</b><small>Bot, Kais bu coin için yönü uygun görene kadar bekler (en fazla birkaç saat). Uygun görmezse hiç işlem açmaz.</small></span></label>}
+        {ready && trailAvail && <label className="dcaToggle dwRecycle" data-testid="dca-trailing"><input type="checkbox" checked={trailOn} onChange={e => setTrailOn(e.target.checked)} /><span><b>Takip eden kâr</b><small>Fiyat hedefe gelince bot hemen kapatmaz; kârı yukarı doğru takip eden bir stop ile kovalar. Stop geri gitmez. Hedef yerine daha fazla kâr da, biraz daha az kâr da olabilir.</small></span></label>}
         {ready && <p className="dwHint" data-testid="dca-no-guarantee">Kâr garantisi yoktur. Fiyat ek emirlerin ötesine giderse stop çalışır ve yukarıda gösterilen en kötü kayıp yaşanabilir.</p>}
         {rl?.max_loss_per_trade > 0 && <div className="dwLoss" data-testid="dca-loss-limit">
           <div><small>Tek işlem zarar sınırın (canlı risk ayarı)</small><b>{rl.max_loss_per_trade} USDT</b></div>
@@ -516,6 +556,12 @@ export default function DcaPanel(props: DcaPanelProps) {
           <div className="dwRisk"><span><small>Toplam yatırım (marj)</small><b>{fmtUsd(result.totalMargin)}</b></span><span><small>Kaldıraç</small><b>{form.leverage}x</b></span><span><small>Canlı limit</small><b>{cap} USDT</b></span></div>
         </> : <p className="dwWarn">Plan geçerli değil. Geri dönüp başka bir plan ya da coin seç.</p>}
 
+        {slots > 0 && suggestions.length > 0 && <div className="dwExtras" data-testid="dca-extras">
+          <b>Aynı ayarla başka coin de ekle</b>
+          <small>En fazla {slots} coin daha. Her biri aynı plan yüzdeleriyle, ayrı bot olarak çalışır.</small>
+          <div>{suggestions.filter(item => item.symbol !== symbol).slice(0, 6).map(item => <button type="button" key={item.symbol} data-on={extras.includes(item.symbol) || undefined} onClick={() => void toggleExtra(item.symbol)}>{item.display || item.symbol}</button>)}</div>
+          {extraNote && <em>{extraNote}</em>}
+        </div>}
         {(!liveArmed || !authorizationValid || emergency) && <div className="dwPerm" data-testid="dca-perm" data-tone={emergency ? 'bad' : 'warn'}>
           {emergency ? <>
             <b>Acil durdurma açık</b><span>Yeni işlem açılamaz. Önce acil durdurmayı kaldırman gerekir (2FA kodu ister).</span>
@@ -605,6 +651,8 @@ function BotCard({bot, busy, onAct}: {bot: any; busy: boolean; onAct: (kind: 'st
         <span><small>Tur</small><b>{stats.cycle ?? 1}{Number(stats.completed_cycles) > 0 ? ` · ${stats.completed_cycles} bitti` : ''}</b></span>
         <span><small>Gerçekleşen</small><b className={Number(stats.realized_usdt) >= 0 ? 'up' : 'down'}>{fmtUsd(Number(stats.realized_usdt || 0), true)}</b></span>
       </div>
+      {stats.trail_active && <p className="dcaBotReason" data-testid="dca-trail-on">Takip eden kâr açık: stop kârı kovalıyor, geri gitmez.</p>}
+      {bot.status === 'CYCLE_DONE' && Number(stats.trailing_pct) >= 0 && bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
       {bot.liq?.distance_pct != null && bot.liq.level !== 'ok' && <p className="dcaBotWarn">Likidasyona %{bot.liq.distance_pct} kaldı.</p>}
       {bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
       {alerts.map((a, i) => <p key={i} className="dcaBotAlert" data-level={a.level}>{a.text}</p>)}

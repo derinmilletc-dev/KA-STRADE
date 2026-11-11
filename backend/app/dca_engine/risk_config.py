@@ -37,3 +37,11 @@ AVG_RANGE_TOLERANCE_PCT = 0.5       # kısmi çıkış varsa: borsa ortalaması 
 # (INTERVENTION_REQUIRED yalnız kapatma da doğrulanamazsa son güvenlik durumudur).
 STOP_RETRY_TICKS = 3
 CANCEL_VERIFY_ATTEMPTS = 3          # bekleyen ek emir iptali için aynı kontrolde en çok bu kadar iptal + durum sorgusu; sonra kapatmaya geçilir
+
+# --- takip eden hedef (opsiyonel; sunucu bayrağı KAISTRADE_DCA_TRAILING ile açılır) ---
+# Hedefe (ortalama giriş + kâr hedefi %) ulaşılınca pozisyon hemen kapatılmaz: koruyucu STOP kâr yönünde, tepe fiyatın `trailing_pct` kadar gerisine çekilir.
+# Stop hiçbir zaman geriye gitmez ve her zaman borsada doğrulanmış kalır (yeni stop doğrulanmadan eskisi iptal edilmez).
+TRAIL_MIN_PCT = 0.2                 # takip mesafesi alt sınırı (%): bundan dar mesafe normal dalgalanmada stopu tetikler
+TRAIL_MIN_LOCKED_PCT = 0.2          # hedef% - takip%: stop ilk çekildiğinde kilitlenen kâr (ücret + kayma + funding payını aşmalı)
+TRAIL_MIN_STEP_PCT = 0.1            # stopu yukarı çekmek için fiyata göre en az bu kadar (%) iyileşme (gereksiz emir trafiği olmasın)
+

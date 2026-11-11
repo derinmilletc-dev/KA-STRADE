@@ -28,7 +28,8 @@ from ..grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY, EMERGENCY_CLOSE
 from ..grid_engine.ports import (BUY, CANCELED, EPS, FILLED, LIMIT, LONG, MARKET, NEW, PARTIAL, REJECTED, SELL, SHORT, STOP_MARKET,
                                  WOULD_TRIGGER_IMMEDIATELY, ExchangeError, PositionInfo)
 from ..grid_engine.store import PENDING_SEND, TERMINAL, UNKNOWN
-from .risk_config import (AVG_MISMATCH_TOLERANCE_PCT, AVG_RANGE_TOLERANCE_PCT, CANCEL_VERIFY_ATTEMPTS, LIQ_BUFFER_PCT, STOP_RETRY_TICKS)
+from .risk_config import (AVG_MISMATCH_TOLERANCE_PCT, AVG_RANGE_TOLERANCE_PCT, CANCEL_VERIFY_ATTEMPTS, LIQ_BUFFER_PCT, STOP_RETRY_TICKS,
+                          TRAIL_MIN_STEP_PCT)
 
 CYCLE_DONE = "CYCLE_DONE"
 ACTIVE = (NEW, PARTIAL, PENDING_SEND, UNKNOWN)
@@ -46,6 +47,8 @@ def spec_from_plan(grid_id: str, symbol: str, plan: dict, *, tick: float) -> Gri
     levels = [GridLevelSpec(float(s["entry"]), float(s["tp_price"]), float(s["qty"])) for s in plan["stages"]]
     meta = {"take_profit_pct": float(plan["take_profit_pct"]), "tick": float(tick), "worst_loss_usdt": float(plan["worst_loss_usdt"]),
             "total_margin_usdt": float(plan["total_margin_usdt"]), "leverage": int(plan["leverage"]), "kind": "DCA"}
+    if float(plan.get("trailing_pct") or 0.0) > 0:
+        meta["trailing_pct"] = float(plan["trailing_pct"])       # takip eden hedef (opsiyonel); yoksa klasik tek limit hedef
     return GridSpec(grid_id, symbol, plan["direction"], levels, float(plan["stop_price"]), recycle=bool(plan.get("recycle")), meta=meta)
 
 
@@ -182,6 +185,8 @@ class DcaEngine(GridEngine):
         return net <= EPS or self._live_qty("S") >= net - 1e-8
 
     def _targets_verified(self) -> bool:
+        if self._trail_on():
+            return True                           # takip eden hedefte borsada limit hedef YOK; kapı yalnız doğrulanmış stoptur
         net = self.grid_net()
         return net <= EPS or self._live_qty("T") >= net - 1e-8
 
@@ -387,6 +392,11 @@ class DcaEngine(GridEngine):
             for old in active:
                 self._cancel(old["client_id"])
             return
+        if self._trail_on():                     # takip eden hedef: limit hedef konmaz; var olan hedef emri kaldırılır, stop kâr yönünde çekilir
+            for old in active:
+                self._cancel(old["client_id"])
+            self._ensure_trailing(net)
+            return
         price = self._target_price()           # borsanın gerçek ortalamasına göre; tutarsızlıkta INTERVENTION_REQUIRED ve None
         if price is None:
             return
@@ -405,6 +415,80 @@ class DcaEngine(GridEngine):
         cid = self._intent(role="T", level=0, rev=len(self.store.orders(self.gid, "T")), cycle=self._cycle(), side=self.exit_side, type=LIMIT,
                            price=price, stop_price=0.0, qty=net, reduce_only=1)
         self._send(self.store.order(cid))
+
+    # ---------- takip eden hedef (opsiyonel) ----------
+    def _trail_pct(self) -> float:
+        try:
+            return max(0.0, float((self.spec.meta or {}).get("trailing_pct") or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _trail_on(self) -> bool:
+        return self._trail_pct() > 0
+
+    def _trail_state(self) -> dict:
+        raw = (self.spec.meta or {}).get("trail")
+        return dict(raw) if isinstance(raw, dict) else {}
+
+    def _ensure_trailing(self, net: float) -> None:
+        """Hedefe (borsanın gerçek ortalamasına göre ortalama + kâr hedefi %) ulaşılınca stopu kâr yönünde tepe fiyatın `trailing_pct` gerisine çeker.
+        Güvenlik: (1) koruyucu stop her an yerinde: yeni stop borsada doğrulanmadan eskisi iptal edilmez; (2) stop yalnız kâr yönünde ilerler, geri gitmez;
+        (3) fiyat okunamazsa ya da borsa ortalaması tutarsızsa hiçbir şey yapılmaz (mevcut stop korur); (4) yeni stop reddedilirse eski stop kalır,
+        sonraki turda yeniden denenir; (5) stop dolarsa `_detect_end` kârlı çıkışı hedef dolmuş sayar (tur biter, yeniden başlatma kurallar dahilinde)."""
+        pct = self._trail_pct()
+        activation = self._target_price()      # borsa ortalamasına göre; tutarsızlıkta INTERVENTION_REQUIRED ve None
+        if activation is None or self.status != RUNNING and self.status != PAUSED:
+            return
+        info = self._exchange_position()
+        price = float(info.mark_price) if info is not None else 0.0
+        if not price > 0:
+            return
+        sign = self.sign
+        state = self._trail_state()
+        if not state and sign * (price - activation) < 0:
+            return                             # hedefe henüz ulaşılmadı: klasik stop korur
+        peak = float(state.get("peak") or price)
+        peak = max(peak, price) if sign > 0 else min(peak, price)
+        if state and peak != float(state.get("peak") or 0.0):    # yeni tepe: stop çekilmese bile saklanır (geri çekilmede kaybolmasın)
+            self.spec.meta["trail"] = {**state, "peak": peak}
+            self.store.set_grid(self.gid, spec=json.dumps(self.spec.as_json()))
+            state = self._trail_state()
+        tick = float(self.spec.meta.get("tick") or 0)
+        raw = peak * (1 - sign * pct / 100)
+        if tick > 0:
+            unit = Decimal(repr(tick))
+            raw = float((Decimal(repr(raw)) / unit).to_integral_value(rounding=ROUND_FLOOR if sign > 0 else ROUND_CEILING) * unit)
+        current = float(self.spec.stop_price)
+        gain = sign * (raw - current)
+        if gain <= 0 or sign * (price - raw) <= 0:
+            return                             # stop geriye gitmez; fiyatın yanlış tarafına da konmaz
+        if state and gain / price * 100 < TRAIL_MIN_STEP_PCT:
+            return                             # iyileşme küçük: emir trafiği yaratma (tepe sonraki turlarda zaten izlenir)
+        stops = self.store.orders(self.gid, "S")
+        active = [x for x in stops if x["status"] in ACTIVE]
+        self._last_reject = 0
+        cid = self._intent(role="S", level=0, rev=len(stops), cycle=self._cycle(), side=self.exit_side, type=STOP_MARKET, price=0.0,
+                           stop_price=raw, qty=net, reduce_only=1)
+        self._send(self.store.order(cid))
+        if self.store.order(cid)["status"] not in (NEW, PARTIAL):
+            return                             # yeni stop doğrulanamadı/reddedildi: eski stop korur, sonraki turda tekrar denenir
+        for old in active:
+            self._cancel(old["client_id"])
+        first = not state
+        self.spec.stop_price = raw
+        self.spec.meta["trail"] = {"peak": peak, "stop": raw}
+        self.store.set_grid(self.gid, spec=json.dumps(self.spec.as_json()))
+        if first:
+            self._alert("bilgi", f"Takip eden hedef başladı: stop {raw:g} seviyesine çekildi (tepe {peak:g}, takip %{pct:g}); fiyat yükseldikçe stop kâr yönünde izler.")
+
+    def _trail_exit_profitable(self, stops: list) -> bool:
+        """Takip eden hedefte çekilmiş stopla (kârda) çıkıldı mı? Evet ise bu bir hedef dolumudur, zarar stopu değildir."""
+        if not self._trail_on() or not self._trail_state():
+            return False
+        avg = self.avg_entry()
+        if avg is None:
+            return False
+        return any(s["filled"] > EPS and self.sign * ((s["avg_price"] or s["stop_price"]) - avg) > 0 for s in stops if s["cycle"] == self._cycle())
 
     def _close(self, qty: float) -> None:
         """Piyasadan reduceOnly kapanış (acil durdurma / stop geçilmiş); emir turu taşır (özet için)."""
@@ -434,12 +518,13 @@ class DcaEngine(GridEngine):
             return
         cycle = self._cycle()
         stops = self.store.orders(self.gid, "S")
-        if any(s["filled"] > EPS for s in stops):
+        trail_win = self._trail_exit_profitable(stops)
+        if any(s["filled"] > EPS for s in stops) and not trail_win:
             self._cancel_all(roles=("E", "T", "S"))
             self._set(STOPPED, "Stop tetiklendi")
             self._alert("bilgi", "Stop tetiklendi: bekleyen emirler iptal edildi, yeni emir açılmayacak.")
             return
-        if any(t["filled"] > EPS and t["cycle"] == cycle for t in self.store.orders(self.gid, "T")):
+        if trail_win or any(t["filled"] > EPS and t["cycle"] == cycle for t in self.store.orders(self.gid, "T")):
             self._cancel_all(roles=("E", "T", "S"))
             if self.spec.recycle:
                 self._set(CYCLE_DONE, "Kâr hedefi doldu; yeni tur bekleniyor")
@@ -519,9 +604,10 @@ class DcaEngine(GridEngine):
                 realized += sign * ((o["avg_price"] or o["price"] or o["stop_price"]) - avg) * o["filled"]
                 fees += ((o["avg_price"] or o["price"] or o["stop_price"]) * o["filled"]) * TAKER_FEE
             fees += avg * qty_in * TAKER_FEE
-            if abs(qty_in - out_qty) <= 1e-8 and any(o["role"] == "T" for o in exits):
+            trail_win = self._trail_on() and any(o["role"] == "S" and sign * ((o["avg_price"] or o["stop_price"]) - avg) > 0 for o in exits)
+            if abs(qty_in - out_qty) <= 1e-8 and (any(o["role"] == "T" for o in exits) or trail_win):
                 completed += 1
         net = self.grid_net()
         return {"cycle": cycle + 1, "completed_cycles": completed, "position_qty": net, "avg_entry": self.avg_entry(), "tp_price": self.tp_price() if net > EPS else None,
-                "stop_price": self.spec.stop_price, "stages_filled": len([e for e in self._entries() if e["filled"] > EPS]),
+                "stop_price": self.spec.stop_price, "trailing_pct": self._trail_pct() or None, "trail_active": bool(self._trail_state()), "stages_filled": len([e for e in self._entries() if e["filled"] > EPS]),
                 "stages_total": len(self.spec.levels), "realized_usdt": round(realized - fees, 8), "fees_usdt": round(fees, 8)}
