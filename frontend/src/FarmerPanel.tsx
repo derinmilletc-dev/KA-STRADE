@@ -8,6 +8,7 @@ import {
   ageText, armRemaining, badgeOf, emergencyOutcome, friendlyError, money, pickScreen, pnlView, priceText, protectionOf, slotView, statusMessageKey,
   tr_, whyKey, type CopyKey, type FarmerCandidate, type FarmerPosition, type FarmerPreview, type FarmerSettings, type FarmerStatus, type Lang,
 } from './farmerView'
+import {showToast} from '../../toast-center'
 import './farmer.css'
 
 /** KAIS FARMER ekranı. Sunucu tek doğruluk kaynağıdır: marjin, risk, PnL, ARM, günlük kayıp ve koruma durumu burada HESAPLANMAZ, yalnız gösterilir.
@@ -116,6 +117,8 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
     return () => window.clearTimeout(handle)
   }, [form, lang])
 
+  // Sonuç bildirimi ekranın neresinde olursan ol görünür (üstte, sabit): düğmeye basıp aşağıda kalan kullanıcı sonucu kaçırmaz.
+  useEffect(() => { if (flash) showToast({body: flash.text, tone: flash.tone}) }, [flash])
   const run = async (name: string, action: () => Promise<void>) => {
     if (busy) return
     setBusy(name); setFlash(null)
