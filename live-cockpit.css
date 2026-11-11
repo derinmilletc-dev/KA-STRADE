@@ -1411,3 +1411,37 @@ html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary em { font-st
 html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > summary svg { width: 16px; height: 16px; margin-left: auto; transition: transform .2s; }
 html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns[open] > summary svg { transform: rotate(180deg); }
 html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > p { margin: 0 8px 8px !important; }
+
+/* DCA botu canlı izleme (pozisyon kartı içinde) */
+.dwWatch{display:grid;gap:10px;padding:14px;border-radius:16px;background:linear-gradient(160deg,color-mix(in srgb,var(--lc-info) 14%,var(--lc-soft)),var(--lc-soft) 70%);border:1px solid color-mix(in srgb,var(--lc-info) 32%,transparent)}
+.dwWatch[data-tone="up"]{background:linear-gradient(160deg,color-mix(in srgb,var(--lc-go) 16%,var(--lc-soft)),var(--lc-soft) 70%);border-color:color-mix(in srgb,var(--lc-go) 35%,transparent)}
+.dwWatch[data-tone="warn"]{background:linear-gradient(160deg,color-mix(in srgb,var(--lc-warn) 16%,var(--lc-soft)),var(--lc-soft) 70%);border-color:color-mix(in srgb,var(--lc-warn) 38%,transparent)}
+.dwWatch[data-tone="down"]{background:linear-gradient(160deg,color-mix(in srgb,var(--lc-bad) 18%,var(--lc-soft)),var(--lc-soft) 70%);border-color:color-mix(in srgb,var(--lc-bad) 42%,transparent)}
+.dwWatchHead{display:flex;align-items:center;gap:10px}
+.dwWatchHead small{display:block;font-size:10.5px;letter-spacing:.08em;color:var(--lc-mute)}
+.dwWatchHead b{font-size:16px;color:var(--lc-ink)}
+.dwWatchDot{width:10px;height:10px;border-radius:50%;background:var(--lc-info);box-shadow:0 0 0 0 color-mix(in srgb,var(--lc-info) 60%,transparent);animation:dwPulse 1.8s infinite}
+.dwWatch[data-tone="up"] .dwWatchDot{background:var(--lc-go)}.dwWatch[data-tone="warn"] .dwWatchDot{background:var(--lc-warn)}.dwWatch[data-tone="down"] .dwWatchDot{background:var(--lc-bad)}
+@keyframes dwPulse{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.dwWatchDot{animation:none}}
+.dwWatchText{margin:0;font-size:13px;line-height:1.55;color:var(--lc-ink)}
+.dwTrack{position:relative;height:30px;margin:4px 8px 0}
+.dwTrack i{position:absolute;display:block}
+.dwTrackBar{left:0;right:0;top:13px;height:4px;border-radius:4px;background:color-mix(in srgb,var(--lc-line) 80%,transparent)}
+.dwTrackFill{top:13px;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--lc-bad),var(--lc-warn),var(--lc-go));opacity:.55}
+.dwTick{top:9px;width:8px;height:12px;margin-left:-4px;border-radius:3px;border:2px solid var(--lc-mute);background:transparent;box-sizing:border-box}
+.dwTick[data-on]{background:var(--lc-info);border-color:var(--lc-info)}
+.dwPin{top:5px;width:4px;height:20px;margin-left:-2px;border-radius:3px}
+.dwPinStop{background:var(--lc-bad)}.dwPinTp{background:var(--lc-go)}.dwPinAvg{background:var(--lc-mute);height:14px;top:8px}
+.dwPinNow{top:2px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--lc-ink);border:3px solid var(--lc-card);box-shadow:0 0 0 2px var(--lc-info);box-sizing:border-box}
+.dwTrackKey{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--lc-mute)}
+.dwTrackKey span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--lc-mute)}
+.dwTrackKey [data-k="stop"]::before{background:var(--lc-bad)}.dwTrackKey [data-k="tp"]::before{background:var(--lc-go)}.dwTrackKey [data-k="now"]::before{background:var(--lc-ink)}
+.dwWatchGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dwWatchGrid span{display:grid;gap:2px;padding:9px 11px;border-radius:12px;background:color-mix(in srgb,var(--lc-card) 55%,transparent)}
+.dwWatchGrid small{font-size:11px;color:var(--lc-mute)}
+.dwWatchGrid b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--lc-ink)}
+.dwWatchGrid b[data-tone="up"],.dwWatchFoot b[data-tone="up"]{color:var(--lc-go)}.dwWatchGrid b[data-tone="down"],.dwWatchFoot b[data-tone="down"]{color:var(--lc-bad)}
+.dwWatchGrid em{font-style:normal;font-size:11px;color:var(--lc-mute)}
+.dwWatchFoot{margin:0;font-size:12px;color:var(--lc-mute)}
+.dwWatchNote{margin:0;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--lc-card) 55%,transparent);font-size:12px;line-height:1.5;color:var(--lc-mute);overflow-wrap:anywhere}

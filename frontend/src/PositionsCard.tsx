@@ -1,4 +1,5 @@
 import {useMemo, useState, type CSSProperties} from 'react'
+import DcaWatch from './DcaWatch'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
@@ -33,7 +34,7 @@ type Props = {
   /** Emir borsaya yeni gitti ama bu coinin pozisyonu listede henüz yok: boş durum yerine "yükleniyor" gösterilir. */
   awaitingSymbol?: string | null
   /** Çalışan DCA botları: bunların açtığı pozisyon 'Dış' değil 'DCA botu' olarak gösterilir. */
-  dcaBots?: Array<{symbol: string; side: string}>
+  dcaBots?: Array<{symbol: string; side: string; bot?: unknown}>
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -163,8 +164,8 @@ export default function PositionsCard(props: Props) {
     const net = estimate ? estimate.netPnl : netOfFees(base.pnl, base.entry, base.mark, base.quantity)
     const metrics = estimate ? positionMetrics(position, external ? undefined : plan, now, {price: estimate.exitPrice, pnl: estimate.netPnl})
       : net !== null && base.mark !== null ? positionMetrics(position, external ? undefined : plan, now, {price: base.mark, pnl: net}) : base
-    const dca = external && (props.dcaBots ?? []).some(bot => bot.symbol.toUpperCase() === String(position.symbol ?? '').toUpperCase() && (!bot.side || bot.side.toUpperCase() === String(position.direction ?? '').toUpperCase()))
-    return {key: `${String(position.symbol)}-${index}`, position, plan, external, dca, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: dca || (confirmed && protection?.stop === true)}
+    const dca = external ? (props.dcaBots ?? []).find(bot => bot.symbol.toUpperCase() === String(position.symbol ?? '').toUpperCase() && (!bot.side || bot.side.toUpperCase() === String(position.direction ?? '').toUpperCase())) : undefined
+    return {key: `${String(position.symbol)}-${index}`, position, plan, external, dca, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: Boolean(dca) || (confirmed && protection?.stop === true)}
   }), [positions, findPlan, now, props.quotes, props.quoteNow, props.dcaBots])
   const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
   const summary = useMemo(() => summarize(items, {wallet: props.wallet, dailyLoss: props.dailyLoss, dailyLimit: props.dailyLimit, exposureLimit: props.exposureLimit}), [items, props.wallet, props.dailyLoss, props.dailyLimit, props.exposureLimit])
@@ -289,6 +290,7 @@ export default function PositionsCard(props: Props) {
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
             </details>}
 
+            {dca && <DcaWatch bot={dca.bot} mark={metrics.mark}/>}
             {dca && <p className="pvNote">Bu pozisyonu DCA botu yönetiyor: stop, ek alım ve kâr hedefi bot tarafında. Botu DCA ekranından durdurabilirsin; buradan Kapat dersen bot borsayla kendini eşitler.</p>}
             {external && !dca && <p className="pvNote">Bu pozisyonun sistemde planı yok: stop ve hedef takip edilmiyor. Kapat ile hemen kapatabilirsin; Binance'taki kendi stop/TP emirlerin varsa onları kendin iptal et.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
