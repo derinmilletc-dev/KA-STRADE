@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {BarChart3} from 'lucide-react'
+import DcaWatch from './DcaWatch'
 import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, LOSS_HEADROOM, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import {goPositions} from '../../trade-intent'
 import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
@@ -183,6 +184,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [startTap, setStartTap] = useState(0)
   const autoFixes = useRef(0)
   const [startError, setStartError] = useState('')
+  const [launching, setLaunching] = useState<{coins: string[]; done: string[]; now: string; phase: string} | null>(null)
 
   const isDemo = account === 'DEMO'
   const liveArmed = isDemo ? true : liveArmedProp
@@ -229,7 +231,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [base, started !== null])
   useEffect(() => { setServer({state: 'idle', text: ''}) }, [symbol, side, form])
-  useEffect(() => { if (step !== 3) autoFixes.current = 0 }, [step])
+  useEffect(() => { if (step !== 2) autoFixes.current = 0 }, [step])
   useEffect(() => { setNote('') }, [symbol, side])
   useEffect(() => { setExtras([]); setExtraNote('') }, [symbol, side, form])
 
@@ -339,6 +341,14 @@ export default function DcaPanel(props: DcaPanelProps) {
     ? searchRows.map(coin => ({symbol: coin.symbol, display: coin.display, price: coin.price, change: Number((coin as any).change ?? NaN)}))
     : suggestions.map(item => ({symbol: item.symbol, display: item.display, price: item.price, change: item.change}))
   const pickCoin = (sym: string) => { setAnaSym(null); onPickSymbol?.(sym); setPicked(sym); setPresetId(''); setNote(''); setQuery(''); setStep(2) }
+  const top3 = suggestions.filter(item => !item.against).slice(0, 3)
+  const pickTop3 = () => {
+    const [first, ...rest] = top3
+    if (!first) return
+    pickCoin(first.symbol)
+    setExtraNote('')
+    setExtras(rest.map(item => item.symbol).slice(0, Math.max(0, MAX_BOTS - activeCount - 1)))
+  }
   const pickSide = (next: DcaSide) => { onPickSide?.(next); setPresetId(''); autoRef.current = '' }
 
   const smartAvail = status?.smart_entry_enabled === true
@@ -364,7 +374,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   // Ek coin adayları: her biri için mevcut plan ayarıyla gerçek hesap (yatırım, en kötü kayıp, sığıyor mu).
   const [extraFits, setExtraFits] = useState<Record<string, {state: 'busy' | 'ok' | 'no'; total?: number; worst?: number; reason?: string}>>({})
   useEffect(() => {
-    if (step !== 3 || !ready || slots <= 0) return
+    if (step !== 2 || !ready || slots <= 0) return
     let cancelled = false
     const list = extraPool.filter(item => item.symbol !== symbol)
     setExtraFits(Object.fromEntries(list.map(item => [item.symbol, {state: 'busy' as const}])))
@@ -419,7 +429,11 @@ export default function DcaPanel(props: DcaPanelProps) {
       setServer({state: 'error', text})
     }
   }
-  useEffect(() => { if (step === 3 && server.state === 'idle' && result.valid && ready) void checkOnServer() }, [step, server.state, result.valid, ready])
+  useEffect(() => {
+    if (step !== 2 || server.state !== 'idle' || !result.valid || !ready || !presetId || customBlock !== '') return
+    const timer = window.setTimeout(() => { void checkOnServer() }, 700)   // ayar değişirken her dokunuşta sunucuya gitmesin
+    return () => window.clearTimeout(timer)
+  }, [step, server.state, result.valid, ready, presetId, customBlock])
 
   const liveEnabled = status?.enabled !== false && status?.enabled !== undefined
   const whyBlocked = !ready ? (filtersError || 'Borsa kuralları yükleniyor…')
@@ -428,7 +442,8 @@ export default function DcaPanel(props: DcaPanelProps) {
     : !liveArmed || !authorizationValid ? 'Önce yukarıdaki "İzni ver" düğmesine bas.'
     : result.totalMargin > cap + 1e-9 ? `Canlı DCA şu an en çok ${cap} USDT toplam marjinle çalışır.`
     : server.state === 'busy' ? 'Sunucu kontrol ediyor…'
-    : server.state === 'error' ? 'Sunucu planı reddetti (sebebi yukarıda). "Planı değiştir" ile geri dön.'
+    : customBlock ? customBlock
+    : server.state === 'error' ? 'Sunucu planı reddetti (sebebi yukarıda). Riski azaltıp tekrar dene.'
     : server.state !== 'ok' ? 'Sunucu onayı bekleniyor.'
     : ''
 
@@ -445,20 +460,27 @@ export default function DcaPanel(props: DcaPanelProps) {
     })
   }
   const runStart = async () => {
+    try { await runStartInner() } finally { setLaunching(null) }
+  }
+  const runStartInner = async () => {
         setStartError('')
+        setLaunching({coins: [symbol, ...extras], done: [], now: symbol, phase: 'Hazırlanıyor…'})
         const word = isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT'
         const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>; skip?: boolean}> = [{sym: symbol, inp: input}]
         for (const sym of extras) jobs.push({sym, inp: await extraInput(sym)})
         const failed: string[] = []
         // Önce hepsini sunucuya onaylat: ana coin reddedilirse hiçbiri başlamaz; ek coin reddedilirse o atlanır, diğerleri başlar.
+        if (jobs.length > 1) setLaunching(c => c && {...c, phase: 'Ek coinler sunucuda kontrol ediliyor…'})
         for (const job of jobs.slice(1)) {
           try { await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000}) }
           catch (error: any) { failed.push(`${job.sym}: ${error?.message || 'reddedildi'}`); job.skip = true }
         }
         for (const [index, job] of jobs.entries()) {
           if (job.skip) continue
+          setLaunching(c => c && {...c, now: job.sym, phase: 'Binance\'e emir gönderiliyor…'})
           try { await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: bodyFor(job.sym, job.inp, false, word)}) }
           catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`) }
+          setLaunching(c => c && {...c, done: [...c.done, job.sym]})
         }
         setStarted({symbol, side, at: Date.now()})
         setStep(4)
@@ -482,9 +504,12 @@ export default function DcaPanel(props: DcaPanelProps) {
   const finished = bots.filter(g => FINAL.includes(g.status)).slice(0, 3)
   const dir = side === 'LONG'
   const display = coins.find(coin => coin.symbol === symbol)?.display || symbol
-  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 3, label: 'Başlat'}, {n: 4, label: 'Takip'}] as const
-  const canStep = (n: number) => step !== 4 && started === null ? (n === 1 || (n === 2 && picked !== null) || (n === 3 && picked !== null && result.valid && ready)) : n === 4 || n === 1
+  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 4, label: 'Takip'}] as const
+  const canStep = (n: number) => step !== 4 && started === null ? (n === 1 || (n === 2 && picked !== null) || false) : n === 4 || n === 1
   const lastStage = result.stages[result.stages.length - 1]
+  const markOf = (sym: string) => { const p = Number(coins.find(coin => coin.symbol === sym)?.price); return p > 0 ? p : null }
+  const usable = [...presetPlans].filter(plan => plan.state !== 'no').sort((a, b) => a.preset.risk - b.preset.risk)
+  const current = usable.find(plan => plan.preset.id === (presetId === 'custom' ? lastPlanRef.current : presetId))
   const totalCycles = bots.reduce((sum, bot) => sum + (Number(bot.stats?.completed_cycles) || 0), 0)
   const totalRealized = bots.reduce((sum, bot) => sum + (Number(bot.stats?.realized_usdt) || 0), 0)
 
@@ -495,11 +520,11 @@ export default function DcaPanel(props: DcaPanelProps) {
         <span><small>Gerçekleşen net</small><b className={totalRealized >= 0 ? 'up' : 'down'}>{fmtUsd(totalRealized, true)}</b></span>
         <span><small>Çalışan bot</small><b>{active.length}/{MAX_BOTS}</b></span>
       </div>}
-      {active.length > 0 && step !== 4 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} />)}</div>}
+      {active.length > 0 && step !== 4 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} mark={markOf(bot.symbol)} />)}</div>}
 
       <ol className="dwSteps" aria-label="Adımlar">
         {stepsMeta.map(item => <li key={item.n} data-state={step === item.n ? 'current' : step > item.n ? 'done' : 'todo'}>
-          <button type="button" disabled={!canStep(item.n)} aria-current={step === item.n ? 'step' : undefined} onClick={() => { if (item.n === 1 && started) { setStarted(null); setPicked(null); setPresetId('') } setStep(item.n as 1 | 2 | 3 | 4) }}><i>{step > item.n ? '✓' : item.n}</i><span>{item.label}</span></button>
+          <button type="button" disabled={!canStep(item.n)} aria-current={step === item.n ? 'step' : undefined} onClick={() => { if (item.n === 1 && started) { setStarted(null); setPicked(null); setPresetId('') } setStep(item.n as 1 | 2 | 3 | 4) }}><i>{step > item.n ? '✓' : stepsMeta.findIndex(m => m.n === item.n) + 1}</i><span>{item.label}</span></button>
         </li>)}
       </ol>
 
@@ -511,6 +536,12 @@ export default function DcaPanel(props: DcaPanelProps) {
           <button type="button" role="radio" aria-checked={!dir} data-on={!dir || undefined} data-side="short" onClick={() => pickSide('SHORT')}><b>SHORT</b><small>Düşecek diye düşünüyorum</small></button>
         </div>
 
+        {!query && top3.length >= 2 && <div className="dwKais" data-testid="dca-kais-top">
+          <div><small>KAİS ÖNERİSİ</small><b>{dir ? 'LONG' : 'SHORT'} için şu an en uygun {top3.length} coin</b></div>
+          <ul>{top3.map(item => <li key={item.symbol}><b>{(item.display || item.symbol).replace('/USDT', '')}</b>{signals?.[item.symbol] && signals[item.symbol].lean === side ? <em>AI %{Math.round(signals[item.symbol].confidence)}</em> : Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}>{item.change >= 0 ? '+' : ''}{item.change.toFixed(1)}%</em> : null}</li>)}</ul>
+          <button type="button" onClick={pickTop3}>{Math.min(top3.length, 1 + Math.max(0, MAX_BOTS - activeCount - 1))} tanesini birlikte kur</button>
+          <small>Aynı plan her coinde ayrı bot olarak çalışır. Bir sonraki ekranda kontrol edip başlatırsın.</small>
+        </div>}
         <div className="dwSecHead"><b>{dir ? 'LONG' : 'SHORT'} için sana uygun coinler</b>
           <small>{scan.state === 'busy' ? `Taranıyor ${scan.checked}/${scan.total}` : scan.state === 'done' ? `${scan.items.length} uygun coin bulundu` : ''}</small></div>
         <p className="dwHint">“Uygun”: bu coin, canlı toplam {cap} USDT limitine sığan bir DCA planı kuruyor. {signals ? 'Kais AI aynı yönü gösteriyorsa en üstte.' : 'Kais AI sinyali şu an alınamadı; seçtiğin yöne uyan 24 saatlik harekete göre sıralı (LONG: yükselen, SHORT: düşen).'}</p>
@@ -542,34 +573,31 @@ export default function DcaPanel(props: DcaPanelProps) {
 
       {step === 2 && <div className="dwPane" data-testid="dca-step-2">
         <button type="button" className="dwSummary" onClick={() => setStep(1)}><b>{display}</b><span className={dir ? 'up' : 'down'}>{side}</span><span>{fmtPrice(price)} USDT</span><em>Değiştir</em></button>
-        <h3 className="dwH">Plan seç</h3>
-        <p className="dwLead">Hepsi stoplu. Fark: ne kadar sık ek alım yapıldığı ve ne kadar risk alındığı. Emin değilsen Dengeli iyi başlangıçtır.</p>
+        <h3 className="dwH">Ne kadar risk?</h3>
+        <p className="dwLead">Sürgüyü kaydır, gerisini bot ayarlar. Her planda stop var.</p>
         {!ready && <p className="dwHint">{filtersError || 'Borsa kuralları okunuyor…'}</p>}
         {ready && presetPlans.every(plan => plan.state === 'no') && <div className="dwWarn" data-testid="dca-advice">
           <b>{display} bu limitle çalışmaz</b>
           <span>Borsanın en düşük işlem tutarı yüzünden bu coin {fitNow?.total ? `en az ${fmtUsd(fitNow.total)}` : 'daha yüksek'} toplam marj ister; canlı limitin {cap} USDT.</span>
           <button type="button" onClick={() => setStep(1)}>Başka coin seç</button>
         </div>}
-        {ready && <div className="dwPlans" role="radiogroup" aria-label="Plan">{[...presetPlans].sort((a, b) => a.preset.risk - b.preset.risk).map(plan => {
-          const r = plan.result
-          const disabled = plan.state === 'no'
-          const tp = r.stages.length ? r.stages[r.stages.length - 1].tpNetProfitAfterCosts : 0
-          return <button key={plan.preset.id} type="button" role="radio" aria-checked={presetId === plan.preset.id} data-on={presetId === plan.preset.id || undefined} data-state={plan.state} disabled={disabled} onClick={() => choosePlan(plan)}>
-            <span className="dwPlanHead"><b>{plan.preset.name}</b>{plan.preset.id === 'balanced' && <em>Önerilen</em>}<span className="dwRisk5" aria-label={`Risk ${plan.preset.risk}/5`} title={`Risk ${plan.preset.risk}/5`}>{[1, 2, 3, 4, 5].map(n => <i key={n} data-on={n <= plan.preset.risk || undefined} />)}</span></span>
-            <small>{plan.preset.hint}</small>
-            {disabled ? <span className="dwPlanNo">Bu coinde uygun değil</span> : <>
-              <span className="dwPlanLine">Fiyat her %{plan.form.step} {falls} ek alım (en fazla {plan.form.safety} kez) · {plan.form.leverage}x · hedef %{plan.form.tp}</span>
-              <span className="dwPlanNums"><span><small>Yatırım</small><b>{fmtUsd(r.totalMargin)}</b></span><span><small>En kötü kayıp</small><b className="down">{fmtUsd(-r.worstLoss)}</b></span><span><small>Hedef kâr</small><b className="up">{fmtUsd(tp, true)}</b></span></span>
-            </>}
-          </button>
-        })}</div>}
-        {ready && <div className="dwTune" data-testid="dca-tune">
-          <div className="dwTuneHead"><b>Hızlı ayar</b>{presetId === 'custom' ? <em>Özel ayar</em> : <small>Seçtiğin planı buradan değiştirebilirsin</small>}</div>
-          <div className="dwTuneRow"><span>Yatırım (taban)</span><Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} /></div>
-          <div className="dwTuneRow"><span>Kaldıraç</span><Chips options={[3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /></div>
-          <div className="dwTuneRow"><span>Kâr hedefi</span><Chips options={[0.5, 0.8, 1, 1.5, 2, 3]} value={num(form.tp)} onPick={v => set('tp', String(v))} fmt={v => `%${v}`} /></div>
-          <div className="dwTuneRow"><span>Ek alım sayısı</span><Chips options={[1, 2, 3, 4, 5]} value={form.safety} onPick={v => set('safety', v)} fmt={v => `${v}`} /></div>
+        {ready && usable.length > 0 && <div className="dwRiskS" data-testid="dca-risk-slider">
+          <div className="dwRiskSTop"><b>{presetId === 'custom' ? 'Özel ayar' : current?.preset.name ?? '—'}</b>{current && presetId !== 'custom' && <em className="dwRiskTag" data-level={current.preset.risk}>Risk {current.preset.risk}/5</em>}</div>
+          <input type="range" min={0} max={usable.length - 1} step={1} value={Math.max(0, usable.findIndex(plan => plan.preset.id === (presetId === 'custom' ? lastPlanRef.current : presetId)))}
+            onChange={event => { const plan = usable[Number(event.target.value)]; if (plan) choosePlan(plan) }} aria-label="Risk seviyesi" style={{['--pos' as string]: `${usable.length > 1 ? Math.max(0, usable.findIndex(plan => plan.preset.id === (presetId === 'custom' ? lastPlanRef.current : presetId))) / (usable.length - 1) * 100 : 50}%`} as React.CSSProperties}/>
+          <div className="dwRiskSEnds"><span>Temkinli</span><span>Atak</span></div>
+          <small>{presetId === 'custom' ? 'Ayarları elle değiştirdin. Sürgüyü kaydırırsan hazır plana döner.' : current?.preset.hint}</small>
+          {result.valid && <div className="dwBig">
+            <span><small>Yatırım</small><b>{fmtUsd(result.totalMargin)}</b></span>
+            <span><small>Hedef kâr</small><b className="up">{fmtUsd(lastStage?.tpNetProfitAfterCosts ?? 0, true)}</b></span>
+            <span><small>En kötü</small><b className="down">{fmtUsd(-result.worstLoss)}</b></span>
+            <span><small>Kaldıraç</small><b>{form.leverage}x</b></span>
+          </div>}
         </div>}
+        {ready && customBlock && <p className="dwWarn" role="alert">{customBlock}{fixNowCustom && <> <button type="button" className="dwFix" onClick={applyCustomFix}>Otomatik sığdır</button></>}</p>}
+        {ready && result.valid && <DcaPriceLine result={result} price={price} side={side} />}
+        <details className="dwSettings" data-testid="dca-settings">
+          <summary>Ayarları aç<small>yatırım, kaldıraç, ek alım, kâr hedefi</small></summary>
         {ready && customBlock && <p className="dwWarn" role="alert" data-testid="dca-custom-block">{customBlock}{fixNowCustom && <> <button type="button" className="dwFix" onClick={applyCustomFix}>Otomatik sığdır</button></>}</p>}
         {ready && <label className="dcaToggle dwRecycle" data-testid="dca-recycle"><input type="checkbox" checked={form.recycle} onChange={e => setForm(c => ({...c, recycle: e.target.checked}))} /><span><b>Otomatik tekrar</b><small>Kâr hedefi dolunca yeni tur başlar. Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>}
         {ready && smartAvail && <label className="dcaToggle dwRecycle" data-testid="dca-smart-entry"><input type="checkbox" checked={smartEntry} onChange={e => setSmartEntry(e.target.checked)} /><span><b>Akıllı başlama</b><small>Bot, Kais bu coin için yönü uygun görene kadar bekler (en fazla birkaç saat). Uygun görmezse hiç işlem açmaz.</small></span></label>}
@@ -590,8 +618,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         {note && <p className="dcaNote2" role="status">{note}</p>}
         {ready && result.errors.length > 0 && presetId === '' && <ul className="dcaErrors" role="alert">{result.errors.map(text => <li key={text}><i>!</i><span>{text}</span></li>)}</ul>}
 
-        <details className="dwAdv" data-testid="dca-advanced" open={presetId === 'custom' || undefined}>
-          <summary>Gelişmiş ayarlar</summary>
+        <div className="dwAdv dwAdvFlat" data-testid="dca-advanced">
           <div className="dwAdvBody">
             {ready && <div className="dwSumBar" data-bad={customBlock ? '1' : undefined} role="status" aria-label="Canlı özet">
               <span><small>Yatırım</small><b>{result.valid ? fmtUsd(result.totalMargin) : '—'}</b></span>
@@ -640,27 +667,8 @@ export default function DcaPanel(props: DcaPanelProps) {
               </> : <p className="dwHint">Plan geçerli olunca merdiven burada görünür.</p>}
             </div>
           </div>
+        </div>
         </details>
-      </div>}
-
-      {step === 3 && <div className="dwPane" data-testid="dca-step-3">
-        <button type="button" className="dwSummary" onClick={() => setStep(1)}><b>{display}</b><span className={dir ? 'up' : 'down'}>{side}</span><span>{fmtPrice(price)} USDT</span><em>Değiştir</em></button>
-        <h3 className="dwH">Bot şunu yapacak</h3>
-        {result.valid && ready ? <>
-          <ol className="dwStory">
-            {result.stages.map(stage => <li key={stage.index}>
-              <i>{stage.index === 0 ? '▶' : stage.index}</i>
-              <span>{stage.index === 0
-                ? <><b>Şimdi:</b> {fmtPrice(stage.entry)} fiyattan {fmtUsd(stage.notional)} değerinde ilk işlemi açar.</>
-                : <><b>Fiyat {fmtPrice(stage.entry)}’e {falls}:</b> {fmtUsd(stage.notional)} ek işlem açar, ortalama giriş {fmtPrice(stage.avgEntry)} olur.</>}</span>
-            </li>)}
-            <li className="win"><i>✓</i><span><b>Kâr:</b> fiyat ortalama girişin %{form.tp} ötesine gelince hepsini kapatır. Tüm kademeler dolmuşsa net kâr ≈ <b className="up">{fmtUsd(lastStage?.tpNetProfitAfterCosts ?? 0, true)}</b> (ücret, kayma ve funding payı düşülmüş tahmin).</span></li>
-            <li className="loss"><i>!</i><span><b>Koruma:</b> fiyat {fmtPrice(result.stopPrice)}’e ulaşırsa stop çalışır ve çıkar. En kötü kayıp ≈ <b className="down">{fmtUsd(-result.worstLoss)}</b> (ücret, kayma ve funding payı dahil).</span></li>
-          </ol>
-          <p className="dwHint" data-testid="dca-approx-note">Bu rakamlar yaklaşık önizlemedir; geçerli plan kararını ve gerçek hesabı sunucu verir. Sunucu planı reddederse başlatılamaz.</p>
-          <div className="dwRisk"><span><small>Toplam yatırım (marj)</small><b>{fmtUsd(result.totalMargin)}</b></span><span><small>Kaldıraç</small><b>{form.leverage}x</b></span><span><small>Canlı limit</small><b>{cap} USDT</b></span></div>
-        </> : <p className="dwWarn">Plan geçerli değil. Geri dönüp başka bir plan ya da coin seç.</p>}
-
         <div className="dwExtras" data-testid="dca-extras">
           <div className="dwExHead"><b>Aynı ayarla başka coin de ekle</b><span>{extras.length}/{slots}</span></div>
           <small>{slots > 0
@@ -697,7 +705,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         <div className="dwVerify" data-state={server.state} role="status">
           {server.state === 'busy' && <><i className="dwSpin" aria-hidden="true"/><span>Sunucu planı kontrol ediyor…</span></>}
           {server.state === 'ok' && <><i aria-hidden="true">✓</i><span><b>Sunucu onayladı.</b> En kötü zarar {fmtUsd(-Number(server.plan?.worst_loss_usdt))}, toplam marj {fmtUsd(Number(server.plan?.total_margin_usdt))}.</span></>}
-          {server.state === 'error' && <><i aria-hidden="true">!</i><span><b>Sunucu reddetti:</b> {server.text} <button type="button" onClick={() => setStep(2)}>Planı değiştir</button></span></>}
+          {server.state === 'error' && <><i aria-hidden="true">!</i><span><b>Sunucu reddetti:</b> {server.text}</span></>}
           {server.state === 'idle' && <span>Sunucu kontrolü bekleniyor…</span>}
         </div>
         <p className="dwFine">Gerçek para kullanılır. Başlatınca bir kez daha yazı onayı istenir. Hesaplar tahmindir: funding, kayma ve borsanın gerçek teminat tablosu dahil değil.</p>
@@ -708,7 +716,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         const waited = Date.now() - started.at
         return <div className="dwPane" data-testid="dca-step-4">
           <div className="dwDone"><i aria-hidden="true">✓</i><div><b>DCA botu başlatıldı</b><span>{started.symbol} · {started.side}. Taban emir piyasadan girer, ek emirler limit olarak beklemeye alınır, stop ve kâr hedefi kurulur.</span></div></div>
-          {mine ? <BotCard key={mine.grid_id} bot={mine} busy={busy === mine.grid_id} onAct={act} /> : <div className="dwVerify" data-state="busy" role="status"><i className="dwSpin" aria-hidden="true"/><span>{waited > 20000 ? 'Bot durumu henüz görünmedi. Açık pozisyonlarından kontrol et.' : 'Bot kuruluyor, durum birazdan burada görünür…'}</span></div>}
+          {mine ? <BotCard key={mine.grid_id} bot={mine} busy={busy === mine.grid_id} onAct={act} mark={markOf(mine.symbol)} /> : <div className="dwVerify" data-state="busy" role="status"><i className="dwSpin" aria-hidden="true"/><span>{waited > 20000 ? 'Bot durumu henüz görünmedi. Açık pozisyonlarından kontrol et.' : 'Bot kuruluyor, durum birazdan burada görünür…'}</span></div>}
           <p className="dwFine">Bu kart kendiliğinden güncellenir. İşlemin Binance&apos;te açıldığını “Açık pozisyonlar” bölümünde de görürsün.</p>
           <div className="dwBar dwBar2">
             <button type="button" className="dwBack" onClick={() => { setStarted(null); setPicked(null); setPresetId(''); setStep(1) }}>Yeni DCA</button>
@@ -717,11 +725,19 @@ export default function DcaPanel(props: DcaPanelProps) {
         </div>
       })()}
 
-      {step === 3 && whyBlocked && <p className="dwWhy" role="alert" key={startTap} data-tap={startTap > 0 || undefined}><i aria-hidden="true">!</i><span><b>Şu an başlatılamıyor</b>{whyBlocked}</span></p>}
-      {step === 3 && startError && <p className="dwWhy" data-bad role="alert"><i aria-hidden="true">!</i><span><b>Başlatılamadı</b>{startError}</span></p>}
+      {step === 2 && whyBlocked && <p className="dwWhy" role="alert" key={startTap} data-tap={startTap > 0 || undefined}><i aria-hidden="true">!</i><span><b>Şu an başlatılamıyor</b>{whyBlocked}</span></p>}
+      {step === 2 && startError && <p className="dwWhy" data-bad role="alert"><i aria-hidden="true">!</i><span><b>Başlatılamadı</b>{startError}</span></p>}
+      {launching && <div className="dwLaunch" role="status" aria-live="polite" data-testid="dca-launching">
+        <div className="dwLaunchBox">
+          <i className="dwSpin dwSpinBig" aria-hidden="true"/>
+          <b>DCA başlatılıyor</b>
+          <span>{launching.phase}</span>
+          <ul>{launching.coins.map(c => <li key={c} data-state={launching.done.includes(c) ? 'ok' : launching.now === c ? 'now' : 'wait'}><em>{launching.done.includes(c) ? '✓' : launching.now === c ? '…' : '•'}</em>{c.replace('USDT', '')}</li>)}</ul>
+          <small>Kaldıraç, marjin modu ve emirler borsada kuruluyor; 10–30 sn sürebilir. Sayfayı kapatma.</small>
+        </div>
+      </div>}
       <div className="dwBar">
-        {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId || customBlock !== ''} onClick={() => setStep(3)}>Devam · kontrol et</button></>}
-        {step === 3 && <><button type="button" className="dwBack" onClick={() => setStep(2)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" aria-disabled={Boolean(whyBlocked) || undefined} data-blocked={Boolean(whyBlocked) || undefined} onClick={() => { if (whyBlocked) { setStartTap(n => n + 1); return } start() }}>Canlı başlat</button></>}
+        {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" aria-disabled={Boolean(whyBlocked) || undefined} data-blocked={Boolean(whyBlocked) || undefined} onClick={() => { if (whyBlocked) { setStartTap(n => n + 1); return } start() }}>Canlı başlat</button></>}
       </div>
 
       {statusError && <p className="dcaWhy bad">{statusError}</p>}
@@ -755,34 +771,36 @@ function Stat({label, value, tone, hint}: {label: string; value: string; tone?: 
   return <div className="dcaStat"><small>{label}</small><b className={tone}>{value}</b>{hint && <em>{hint}</em>}</div>
 }
 
-function BotCard({bot, busy, onAct}: {bot: any; busy: boolean; onAct: (kind: 'stop' | 'emergency' | 'resume', id: string) => void}) {
+function BotCard({bot, busy, onAct, mark = null}: {bot: any; busy: boolean; onAct: (kind: 'stop' | 'emergency' | 'resume', id: string) => void; mark?: number | null}) {
   const stats = bot.stats || {}
   const info = STATUS[bot.status] || {text: bot.status, tone: 'wait' as const}
   const total = Number(stats.stages_total || 0), done = Number(stats.stages_filled || 0)
   const long = bot.side === 'LONG'
   const alerts: Array<{level: string; text: string}> = (bot.alerts || []).slice(-2)
   const hasPos = Math.abs(Number(bot.position_qty || 0)) > 1e-9
+  const watching = !FINAL.includes(bot.status)
   return (
     <article className="dcaBot" data-tone={info.tone}>
       <div className="dcaBotTop">
         <div><b>{bot.symbol}</b><span className={long ? 'up' : 'down'}>{long ? 'LONG ▲' : 'SHORT ▼'}</span></div>
         <span className="dcaStatus" data-tone={info.tone}><i />{info.text}</span>
       </div>
-      <div className="dcaRail" aria-label={`${done}/${total} emir doldu`}>
+      {watching && <DcaWatch bot={bot} mark={mark}/>}
+      {!watching && <div className="dcaRail" aria-label={`${done}/${total} emir doldu`}>
         {Array.from({length: total}).map((_, index) => <span key={index} className={index < done ? 'on' : ''}><i>{index === 0 ? 'T' : index}</i></span>)}
-      </div>
-      <div className="dcaBotGrid">
+      </div>}
+      {watching ? <div className="dcaBotGrid dcaBotGrid2"><span><small>Pozisyon</small><b>{hasPos ? Number(bot.position_qty).toString() : '—'}</b></span><span><small>Ortalama</small><b>{stats.avg_entry ? fmtPrice(Number(stats.avg_entry)) : '—'}</b></span></div> : <div className="dcaBotGrid">
         <span><small>Pozisyon</small><b>{hasPos ? Number(bot.position_qty).toString() : '—'}</b></span>
         <span><small>Ortalama</small><b>{stats.avg_entry ? fmtPrice(Number(stats.avg_entry)) : '—'}</b></span>
         <span><small>Kâr hedefi</small><b className="up">{stats.tp_price ? fmtPrice(Number(stats.tp_price)) : '—'}</b></span>
         <span><small>Stop</small><b className="down">{fmtPrice(Number(stats.stop_price))}</b></span>
         <span><small>Tur</small><b>{stats.cycle ?? 1}{Number(stats.completed_cycles) > 0 ? ` · ${stats.completed_cycles} bitti` : ''}</b></span>
         <span><small>Gerçekleşen</small><b className={Number(stats.realized_usdt) >= 0 ? 'up' : 'down'}>{fmtUsd(Number(stats.realized_usdt || 0), true)}</b></span>
-      </div>
-      {stats.trail_active && <p className="dcaBotReason" data-testid="dca-trail-on">Takip eden kâr açık: stop kârı kovalıyor, geri gitmez.</p>}
+      </div>}
+      {stats.trail_active && !watching && <p className="dcaBotReason" data-testid="dca-trail-on">Takip eden kâr açık: stop kârı kovalıyor, geri gitmez.</p>}
       {bot.status === 'CYCLE_DONE' && Number(stats.trailing_pct) >= 0 && bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
       {bot.liq?.distance_pct != null && bot.liq.level !== 'ok' && <p className="dcaBotWarn">Likidasyona %{bot.liq.distance_pct} kaldı.</p>}
-      {bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
+      {bot.reason && !watching && <p className="dcaBotReason">{bot.reason}</p>}
       {alerts.map((a, i) => <p key={i} className="dcaBotAlert" data-level={a.level}>{a.text}</p>)}
       <div className="dcaBotActions">
         {bot.status === 'PAUSED' && <button type="button" disabled={busy} onClick={() => onAct('resume', bot.grid_id)}>Devam ettir</button>}
@@ -791,4 +809,30 @@ function BotCard({bot, busy, onAct}: {bot: any; busy: boolean; onAct: (kind: 'st
       </div>
     </article>
   )
+}
+
+// Planın resmi: yukarıdan aşağı fiyat sırasıyla hedef, şimdi, ek alımlar ve stop; her satırda şimdiki fiyata uzaklık.
+function DcaPriceLine({result, price, side}: {result: DcaResult; price: number; side: DcaSide}) {
+  const long = side === 'LONG'
+  const first = result.stages[0]
+  const now = first?.entry ?? price
+  const tp = first?.tpPrice ?? 0    // yalnız ilk alımla hedef; ek alım olursa hedef ortalamayla birlikte yaklaşır
+  const rows: Array<{key: string; price: number; kind: 'now' | 'buy' | 'tp' | 'stop'; label: string; note?: string}> = [
+    {key: 'tp', price: tp, kind: 'tp', label: 'Hedef', note: `Buraya ${long ? 'çıkınca' : 'inince'} kârla kapatır`},
+    {key: 'now', price: now, kind: 'now', label: 'Şimdi', note: 'İlk alım'},
+    ...result.stages.slice(1).map(stage => ({key: `s${stage.index}`, price: stage.entry, kind: 'buy' as const, label: `${stage.index}. ek alım`,
+      note: stage.index === 1 ? `Fiyat buraya ${long ? 'düşerse' : 'çıkarsa'} tekrar alır` : undefined})),
+    {key: 'stop', price: result.stopPrice, kind: 'stop', label: 'Stop', note: 'Buraya gelirse zararla çıkar'},
+  ]
+  const sorted = rows.filter(row => row.price > 0).sort((a, b) => b.price - a.price)
+  const dist = (value: number) => { const pct = (value - now) / now * 100; return Math.abs(pct) < 0.005 ? '' : `${pct > 0 ? '+' : '−'}%${Math.abs(pct).toFixed(2)}` }
+  return <div className="dwLine" data-testid="dca-price-line" aria-label="Plan fiyat çizgisi">
+    <div className="dwLineHead"><b>Plan resmi</b><small>{long ? 'Düşüşte ek alır, toparlanınca satar' : 'Yükselişte ek satar, geri gelince kapatır'}</small></div>
+    <ol>{sorted.map(row => <li key={row.key} data-kind={row.kind}>
+      <i aria-hidden="true"/>
+      <span><b>{row.label}</b>{row.note && <small>{row.note}</small>}</span>
+      <span className="dwLineP"><b>{fmtPrice(row.price)}</b>{dist(row.price) && <small>{dist(row.price)}</small>}</span>
+    </li>)}</ol>
+    <p className="dwLineFoot">Ek alım olursa ortalama düşer, hedef de {long ? 'aşağı' : 'yukarı'} yaklaşır.</p>
+  </div>
 }
