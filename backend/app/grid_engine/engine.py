@@ -296,6 +296,10 @@ class GridEngine:
             self._protect_only = False
         return True
 
+    def _on_position_mismatch(self, actual: float, expected: float) -> bool:
+        """Pozisyon uyuşmazlığında alt sınıfın güvenle çözebileceği bir durum varsa True döner (halt edilmez). Varsayılan: çözme."""
+        return False
+
     def sync(self) -> bool:
         """Defter ↔ borsa eşitlemesi. Tutarsızlık varsa False döner ve grid durur."""
         try:
@@ -323,6 +327,8 @@ class GridEngine:
             expected = self.store.grid(self.gid)["baseline"] + self._position_delta()
             actual = self.ex.position(self.sym)
             if abs(actual - expected) > 1e-6:
+                if self._on_position_mismatch(actual, expected):
+                    return False
                 self._halt(f"Pozisyon uyuşmuyor: borsa {actual}, defter {expected}")
                 return False
         except ExchangeError as exc:

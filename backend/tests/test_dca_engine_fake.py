@@ -344,3 +344,27 @@ class TestBaseGridUntouched(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestManualClose(Base):
+    def test_position_closed_by_hand_stops_bot_and_cancels_orders(self):
+        eng = self.engine()
+        eng.start()
+        for order in list(self.ex.orders.values()):
+            pass
+        self.ex.positions[SYM] = 0.0                                   # kullanıcı pozisyonu başka ekrandan kapattı
+        eng.tick()
+        self.assertEqual(eng.status, RUNNING)                          # tek seferlik görünüşte hemen karar verilmez
+        eng.tick()
+        self.assertEqual(eng.status, RUNNING)
+        eng.tick()
+        self.assertEqual(eng.status, STOPPED)
+        self.assertEqual(self.live(), [])                              # bu botun bekleyen emirleri iptal edildi
+
+    def test_partial_difference_still_halts(self):
+        eng = self.engine()
+        eng.start()
+        self.ex.positions[SYM] = self.ex.positions[SYM] * 0.5          # yarısı kapandı: baseline'a dönmedi
+        for _ in range(4):
+            eng.tick()
+        self.assertIn(eng.status, (BLOCKED, INTERVENTION_REQUIRED))
