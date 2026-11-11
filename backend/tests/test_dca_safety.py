@@ -179,6 +179,17 @@ class TestAverageMismatch(Base):
         eng.tick()
         self.assertEqual(self.ex.placed_count, placed)                    # yanlış hedef / yeni emir üretilmedi
 
+    def test_single_base_fill_with_different_exchange_average_adopts_exchange_price(self):
+        """AGT olayı: tek dolum (taban piyasa emri); defterdeki fiyat planlanan tahminse borsanın gerçek ortalaması benimsenir, bot kilitlenmez."""
+        eng = self.engine()
+        eng.start()
+        self.ex.entries[SYM] = self.plan["stages"][0]["entry"] * 1.01     # %1 fark: sınırın (%0,5) üstünde
+        eng.tick()
+        eng.tick()
+        self.assertEqual(eng.status, RUNNING)
+        (tp,) = self.live("T")
+        self.assertAlmostEqual(tp.price, self.expected_tp(self.ex.entries[SYM]), delta=0.0051)   # hedef borsanın gerçek ortalamasından
+
     def test_average_outside_fill_range_after_partial_exit_requires_intervention(self):
         eng = self.engine()
         eng.start()

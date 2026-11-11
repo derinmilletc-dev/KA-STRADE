@@ -92,6 +92,19 @@ class DcaEngine(GridEngine):
     def _fill_price(self, e) -> float:
         return e["avg_price"] or e["price"] or self.spec.levels[e["level"] - 1].entry
 
+    def _adopt_single_fill_average(self, exchange_avg: float, exchange_qty: float | None) -> bool:
+        """Tek dolum (yalnız taban piyasa emri) varsa ve borsadaki miktar defterle aynıysa, borsanın ortalama girişi o dolumun GERÇEK
+        fiyatıdır: defterdeki değer planlanan fiyat tahminiyse (piyasa emri kayması, fiyat oynaması) borsanın değeri benimsenir ve bot
+        kilitlenmez. İki ya da daha fazla dolum varsa ya da miktar uyuşmuyorsa dokunulmaz (gerçek tutarsızlık olabilir)."""
+        if exchange_qty is None or exchange_avg <= 0 or abs(float(self.store.grid(self.gid)["baseline"])) > EPS:
+            return False
+        filled = [e for e in self._entries() if e["filled"] > EPS]
+        if len(filled) != 1 or abs(abs(exchange_qty) - self.grid_net()) > 1e-6:
+            return False
+        self.store.set_order(filled[0]["client_id"], avg_price=exchange_avg)
+        self._alert("bilgi", f"Taban emrin gerçek dolum fiyatı borsadan alındı ({exchange_avg:g}); hedef ve hesaplar buna göre.")
+        return True
+
     def _exchange_position(self) -> PositionInfo | None:
         """Borsanın gerçek pozisyonu (miktar, entryPrice, likidasyon). Desteklenmiyor ya da geçici okunamıyorsa None: çağıran yerel hesaba döner."""
         reader = getattr(self.ex, "position_info", None)
@@ -102,7 +115,7 @@ class DcaEngine(GridEngine):
         except ExchangeError:
             return None
 
-    def _avg_mismatch(self, exchange_avg: float) -> str | None:
+    def _avg_mismatch(self, exchange_avg: float, exchange_qty: float | None = None) -> str | None:
         """Borsanın ortalama girişi, defterdeki bu tur dolumlarıyla tutarlı mı? Tutarsızsa açıklama, değilse None.
         Kısmi çıkış YOKSA iki ortalama neredeyse aynı olmalıdır. Kısmi çıkıştan sonra defter ortalaması borsadan meşru olarak sapar
         (borsa kısmi kapanışta entryPrice'ı değiştirmez); bu durumda borsa ortalaması turun dolum fiyat aralığında kalmalıdır."""
@@ -114,6 +127,8 @@ class DcaEngine(GridEngine):
         exited = any(o["filled"] > EPS and o["cycle"] == cycle for o in self.store.orders(self.gid) if o["role"] in ("T", "S", "C"))
         if not exited:
             gap = abs(exchange_avg - local) / local * 100
+            if gap > AVG_MISMATCH_TOLERANCE_PCT and self._adopt_single_fill_average(exchange_avg, exchange_qty):
+                return None
             if gap > AVG_MISMATCH_TOLERANCE_PCT:
                 return f"Borsa ortalama girişi {exchange_avg:g}, defter ortalaması {local:g} (fark %{gap:.2f}, sınır %{AVG_MISMATCH_TOLERANCE_PCT:g})"
             return None
@@ -142,7 +157,7 @@ class DcaEngine(GridEngine):
         Borsa ile defter tutarsızsa (ortalama ya da likidasyon) hedef konmaz, bot INTERVENTION_REQUIRED olur ve None döner."""
         info = self._exchange_position()
         if info is not None and info.entry_price > 0 and abs(info.amount) > EPS:
-            reason = self._avg_mismatch(info.entry_price) or self._liq_gap_problem(info, info.entry_price)
+            reason = self._avg_mismatch(info.entry_price, info.amount) or self._liq_gap_problem(info, info.entry_price)
             if reason:
                 self._intervene(reason)
                 return None
