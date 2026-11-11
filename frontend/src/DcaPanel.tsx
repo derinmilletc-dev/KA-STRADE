@@ -304,8 +304,11 @@ export default function DcaPanel(props: DcaPanelProps) {
   const suggestions = useMemo(() => {
     const rank = (item: ScanItem) => {
       const sig = signals?.[item.symbol]
-      if (!sig || sig.lean === 'NEUTRAL') return 1000
-      return sig.lean === side ? 2000 + sig.confidence : -1
+      if (sig && sig.lean !== 'NEUTRAL') return sig.lean === side ? 2000 + sig.confidence : -1
+      // Kais AI sinyali yoksa yön için 24 saatlik değişime bakılır: LONG için yükselen, SHORT için düşen coinler öne geçer; ters gidenler sona.
+      const move = item.change
+      if (!Number.isFinite(move) || Math.abs(move) < 0.3) return 1000
+      return (side === 'LONG') === (move > 0) ? 1500 + Math.min(Math.abs(move), 10) : -1
     }
     const ranked = scan.items.map(item => ({item, r: rank(item)}))
     const good = ranked.filter(entry => entry.r >= 0).sort((a, b) => b.r - a.r || Number(a.item.fixed) - Number(b.item.fixed) || a.item.total - b.item.total || a.item.idx - b.item.idx)
@@ -440,7 +443,7 @@ export default function DcaPanel(props: DcaPanelProps) {
 
         <div className="dwSecHead"><b>{dir ? 'LONG' : 'SHORT'} için sana uygun coinler</b>
           <small>{scan.state === 'busy' ? `Taranıyor ${scan.checked}/${scan.total}` : scan.state === 'done' ? `${scan.items.length} uygun coin bulundu` : ''}</small></div>
-        <p className="dwHint">“Uygun”: bu coin, canlı toplam {cap} USDT limitine sığan bir DCA planı kuruyor. {signals ? 'Kais AI aynı yönü gösteriyorsa en üstte.' : 'Kais AI sinyali şu an alınamadı; hacme göre sıralı.'}</p>
+        <p className="dwHint">“Uygun”: bu coin, canlı toplam {cap} USDT limitine sığan bir DCA planı kuruyor. {signals ? 'Kais AI aynı yönü gösteriyorsa en üstte.' : 'Kais AI sinyali şu an alınamadı; seçtiğin yöne uyan 24 saatlik harekete göre sıralı (LONG: yükselen, SHORT: düşen).'}</p>
         <label className="dwFind"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Coin ara: BTC, SOL, XRP…" inputMode="search" autoCapitalize="characters" aria-label="Coin ara"/>
           {query && <button type="button" className="dwFindX" aria-label="Aramayı temizle" onClick={() => setQuery('')}>×</button>}</label>
