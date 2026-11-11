@@ -674,6 +674,9 @@ class DemoOrderRequest(BaseModel):
     tp1: float = Field(gt=0)
     tp2: float = Field(gt=0)
     tp3: float = Field(gt=0)
+    # Yalnız MANUEL emir (canlıyla aynı): hedef payları ve LIMIT emrin otomatik iptal süresi. Boşsa eski demo davranışı (otomatik stratejiler).
+    tp_split: Literal["60-20-20", "50-30-20", "40-30-30", "34-33-33"] | None = None
+    limit_expiry_minutes: Literal[60, 240, 1440] | None = None
 
 
 class CancelOrderRequest(BaseModel):
@@ -2201,7 +2204,15 @@ async def build_order_spec(client: BinanceDemoClient, order: DemoOrderRequest) -
     targets = [round_tick(Decimal(str(value)), rules["tick"]) for value in (order.tp1, order.tp2, order.tp3)]
     limit_price = round_tick(entry, rules["tick"])
     validate_levels(order.direction, limit_price if order.order_type == "LIMIT" else current_price, stop, targets)
+    manual_extra: dict[str, Any] = {}
+    if order.tp_split:
+        first, second = MANUAL_TP_SPLITS[order.tp_split]
+        manual_extra = {"tp1_fraction": decimal_text(first), "tp2_fraction": decimal_text(second)}
+    if order.order_type == "LIMIT" and order.limit_expiry_minutes:
+        manual_extra["limit_expiry_minutes"] = int(order.limit_expiry_minutes)
+        manual_extra["good_till_ms"] = int(time.time() * 1000) + int(order.limit_expiry_minutes) * 60_000
     return {
+        **manual_extra,
         "symbol": symbol,
         "direction": order.direction,
         "side": "BUY" if order.direction == "LONG" else "SELL",
@@ -2309,7 +2320,9 @@ async def submit_entry(client: BinanceDemoClient, spec: dict[str, Any], *, test_
         "newOrderRespType": "RESULT",
     }
     if spec["order_type"] == "LIMIT":
-        params.update({"price": spec["entry_price"], "timeInForce": "GTC"})
+        params.update({"price": spec["entry_price"], "timeInForce": "GTD" if spec.get("good_till_ms") else "GTC"})
+        if spec.get("good_till_ms"):
+            params["goodTillDate"] = int(spec["good_till_ms"])
     path = "/fapi/v1/order/test" if test_only else "/fapi/v1/order"
     try:
         response = await client.signed("POST", path, params)
@@ -3727,7 +3740,10 @@ async def _install_protection(
         )
         plan["tp2_quantity"] = "0"
     else:
-        partial_qty = floor_step(total_qty * Decimal("0.30"), step)
+        manual_split = plan.get("tp1_fraction") is not None and plan.get("tp2_fraction") is not None
+        tp1_share = Decimal(str(plan["tp1_fraction"])) if manual_split else Decimal("0.30")
+        tp2_share = Decimal(str(plan["tp2_fraction"])) if manual_split else Decimal("0.30")
+        partial_qty = floor_step(total_qty * tp1_share, step)
     tp_quantity = decimal_text(partial_qty)
     update_position_lifecycle(plan, amount)
     targets = plan["targets"]
@@ -3736,11 +3752,16 @@ async def _install_protection(
         for index, trigger in enumerate(targets[:1] if original_exit else targets[:2], start=1):
             client_key = f"tp{index}_client_id"
             algo_client_id = plan.get(client_key) or new_client_id(f"TP{index}")
+            leg_qty = partial_qty if index == 1 or original_exit else floor_step(total_qty * tp2_share, step)
+            if leg_qty < min_qty:
+                monitoring_targets.append(f"TP{index}")
+                continue
+            tp_quantity = decimal_text(leg_qty)
             params = {
                 **common,
                 "type": "TAKE_PROFIT_MARKET",
                 "triggerPrice": trigger,
-                "quantity": decimal_text(partial_qty),
+                "quantity": decimal_text(leg_qty),
                 "reduceOnly": "true",
                 "clientAlgoId": algo_client_id,
             }
@@ -4473,6 +4494,7 @@ async def execute_demo_order(
                 "demo_only": True,
                 "source": source,
                 "initial_stop_loss": spec["stop_loss"],
+                **{key: spec[key] for key in ("tp1_fraction", "tp2_fraction", "good_till_ms", "limit_expiry_minutes") if key in spec},
                 "notional_usdt": spec["notional_usdt"],
                 "risk_per_trade": spec["risk_per_trade"],
                 "risk_adjusted": bool(spec.get("risk_adjusted")),
