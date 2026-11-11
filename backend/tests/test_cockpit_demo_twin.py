@@ -48,3 +48,38 @@ def test_start_refuses_when_server_flags_are_off(monkeypatch):
     with pytest.raises(HTTPException) as caught:
         asyncio.run(twin.start(object(), body))
     assert caught.value.status_code == 423
+
+
+def test_twin_has_manual_wizard_routes():
+    paths = {(route.path, m) for route in twin.router.routes for m in route.methods}
+    for path, method in (("/order/preflight", "POST"), ("/order/test", "POST"), ("/order", "POST"), ("/policy", "PUT")):
+        assert (f"/api/binance-demo/cockpit{path}", method) in paths
+
+
+def test_demo_order_mapping_keeps_split_and_expiry_and_drops_extras():
+    order = twin._demo_order({"symbol": "BTCUSDT", "direction": "LONG", "order_type": "LIMIT", "margin_usdt": 150, "leverage": 10,
+                              "limit_price": 100, "stop_loss": 99, "tp1": 101, "tp2": 102, "tp3": 103,
+                              "tp_split": "50-30-20", "limit_expiry_minutes": 240, "intent_id": "x", "atr": None, "confirmation": "y"})
+    assert order.margin_usdt == 150 and order.tp_split == "50-30-20" and order.limit_expiry_minutes == 240
+
+
+def test_policy_update_validates_bounds_and_writes_shared_settings(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from app import v21_demo
+
+    state = {"settings": {}}
+    monkeypatch.setattr(v21_demo, "state_for", lambda request: state)
+    monkeypatch.setattr(v21_demo, "persist_state", lambda value: None)
+
+    async def fake_status(request):
+        return {"ok": True}
+    monkeypatch.setattr(twin, "build_status", fake_status)
+    asyncio.run(twin.policy_update(SimpleNamespace(), twin.Loose(daily_loss_limit=40, max_leverage=20)))
+    assert state["settings"]["daily_loss_limit"] == 40 and state["settings"]["max_leverage"] == 20
+    try:
+        asyncio.run(twin.policy_update(SimpleNamespace(), twin.Loose(daily_loss_limit=2)))
+        raise AssertionError("limit altı kabul edildi")
+    except HTTPException as exc:
+        assert exc.status_code == 422
