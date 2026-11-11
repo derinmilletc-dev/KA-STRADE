@@ -1,7 +1,7 @@
 // Çalıştırma: node --test frontend/src/manual-order-state.test.mts   (Node 22.18+; ek paket gerekmez)
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {analysisFillBlock, checkRows, normalizeSymbol, priceMap, stopDistance, switchSymbol, targetDistancePct} from './manual-order-state.ts'
+import {analysisFillBlock, checkRows, clampStopToLeverage, normalizeSymbol, priceMap, safeStopPct, stopDistance, switchSymbol, targetDistancePct} from './manual-order-state.ts'
 
 const order = {symbol: 'BTCUSDT', direction: 'SHORT', order_type: 'LIMIT', margin_usdt: '12', leverage: '3', tp_split: '50-30-20', limit_expiry_minutes: 60, limit_price: '80000', stop_loss: '80500', tp1: '79500', tp2: '79000', tp3: '78500'}
 
@@ -113,4 +113,24 @@ test('kontrol listesi: bilinmeyen değerler bekliyor, hatalılar kötü', () => 
   assert.equal(s.targets, 'pending')
   assert.equal(s.margin, 'bad')
   assert.equal(checkRows(base).length, 9)
+})
+
+test('kaldıraca göre en uzak güvenli stop', () => {
+  assert.equal(safeStopPct(1), null)
+  assert.ok(Math.abs((safeStopPct(10) as number) - 8.8) < 1e-9)
+  assert.ok((safeStopPct(5) as number) > (safeStopPct(10) as number))
+  assert.ok((safeStopPct(100) as number) >= 0.1)
+})
+
+test('sınırı aşan stop girişe doğru çekilir, güvenli stop değişmez', () => {
+  const far = clampStopToLeverage('LONG', 100, 80, 10)
+  assert.equal(far.clamped, true)
+  assert.ok(Math.abs(far.stop - 91.2) < 1e-9)
+  const farShort = clampStopToLeverage('SHORT', 100, 120, 10)
+  assert.equal(farShort.clamped, true)
+  assert.ok(Math.abs(farShort.stop - 108.8) < 1e-9)
+  const near = clampStopToLeverage('LONG', 100, 97.3, 10)
+  assert.equal(near.clamped, false)
+  assert.equal(near.stop, 97.3)
+  assert.equal(clampStopToLeverage('LONG', 100, 50, 1).clamped, false)
 })
