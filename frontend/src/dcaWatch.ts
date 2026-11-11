@@ -46,6 +46,9 @@ export function watchDca(bot: any, mark: number | null): WatchView {
   else if (next !== null) {
     headline = long ? 'Düşüşü bekliyor' : 'Yükselişi bekliyor'
     detail = `Sıradaki ek alım ${fmt(next)} fiyatında${nextDistPct !== null ? ` (%${nextDistPct.toFixed(2)} uzakta)` : ''}. Fiyat oraya gelmezse alım yapmaz.`; tone = 'info'
+  } else if (done < total) {
+    headline = long ? 'Düşüşü bekliyor' : 'Yükselişi bekliyor'
+    detail = `${total - done} ek alım hakkı var; fiyat ${long ? 'düşerse' : 'yükselirse'} alır, ${long ? 'çıkarsa' : 'inerse'} kârla kapatır.`; tone = 'info'
   } else { headline = 'Tüm ek alımlar doldu'; detail = 'Daha fazla alım yok; kâr hedefini ya da stopu bekliyor.'; tone = done > 0 ? 'warn' : 'info' }
 
   let track: WatchView['track'] = null

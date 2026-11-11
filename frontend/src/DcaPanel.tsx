@@ -504,7 +504,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const finished = bots.filter(g => FINAL.includes(g.status)).slice(0, 3)
   const dir = side === 'LONG'
   const display = coins.find(coin => coin.symbol === symbol)?.display || symbol
-  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan · Başlat'}, {n: 4, label: 'Takip'}] as const
+  const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 4, label: 'Takip'}] as const
   const canStep = (n: number) => step !== 4 && started === null ? (n === 1 || (n === 2 && picked !== null) || false) : n === 4 || n === 1
   const lastStage = result.stages[result.stages.length - 1]
   const markOf = (sym: string) => { const p = Number(coins.find(coin => coin.symbol === sym)?.price); return p > 0 ? p : null }
@@ -582,7 +582,7 @@ export default function DcaPanel(props: DcaPanelProps) {
           <button type="button" onClick={() => setStep(1)}>Başka coin seç</button>
         </div>}
         {ready && usable.length > 0 && <div className="dwRiskS" data-testid="dca-risk-slider">
-          <div className="dwRiskSTop"><b>{presetId === 'custom' ? 'Özel ayar' : current?.preset.name ?? '—'}</b><span className="dwRisk5" aria-hidden="true">{[1, 2, 3, 4, 5].map(n => <i key={n} data-on={n <= (current?.preset.risk ?? 0) || undefined} />)}</span></div>
+          <div className="dwRiskSTop"><b>{presetId === 'custom' ? 'Özel ayar' : current?.preset.name ?? '—'}</b>{current && presetId !== 'custom' && <em className="dwRiskTag" data-level={current.preset.risk}>Risk {current.preset.risk}/5</em>}</div>
           <input type="range" min={0} max={usable.length - 1} step={1} value={Math.max(0, usable.findIndex(plan => plan.preset.id === (presetId === 'custom' ? lastPlanRef.current : presetId)))}
             onChange={event => { const plan = usable[Number(event.target.value)]; if (plan) choosePlan(plan) }} aria-label="Risk seviyesi" style={{['--pos' as string]: `${usable.length > 1 ? Math.max(0, usable.findIndex(plan => plan.preset.id === (presetId === 'custom' ? lastPlanRef.current : presetId))) / (usable.length - 1) * 100 : 50}%`} as React.CSSProperties}/>
           <div className="dwRiskSEnds"><span>Temkinli</span><span>Atak</span></div>
@@ -598,13 +598,6 @@ export default function DcaPanel(props: DcaPanelProps) {
         {ready && result.valid && <DcaPriceLine result={result} price={price} side={side} />}
         <details className="dwSettings" data-testid="dca-settings">
           <summary>Ayarları aç<small>yatırım, kaldıraç, ek alım, kâr hedefi</small></summary>
-        {ready && <div className="dwTune" data-testid="dca-tune">
-          <div className="dwTuneHead"><b>Hızlı ayar</b>{presetId === 'custom' ? <em>Özel ayar</em> : <small>Seçtiğin planı buradan değiştirebilirsin</small>}</div>
-          <div className="dwTuneRow"><span>Yatırım (taban)</span><Chips options={marginChips} value={num(form.margin)} onPick={v => set('margin', fmtMargin(v))} fmt={v => `${v}`} /></div>
-          <div className="dwTuneRow"><span>Kaldıraç</span><Chips options={[3, 4, 5]} value={form.leverage} onPick={v => set('leverage', v)} fmt={v => `${v}x`} /></div>
-          <div className="dwTuneRow"><span>Kâr hedefi</span><Chips options={[0.5, 0.8, 1, 1.5, 2, 3]} value={num(form.tp)} onPick={v => set('tp', String(v))} fmt={v => `%${v}`} /></div>
-          <div className="dwTuneRow"><span>Ek alım sayısı</span><Chips options={[1, 2, 3, 4, 5]} value={form.safety} onPick={v => set('safety', v)} fmt={v => `${v}`} /></div>
-        </div>}
         {ready && customBlock && <p className="dwWarn" role="alert" data-testid="dca-custom-block">{customBlock}{fixNowCustom && <> <button type="button" className="dwFix" onClick={applyCustomFix}>Otomatik sığdır</button></>}</p>}
         {ready && <label className="dcaToggle dwRecycle" data-testid="dca-recycle"><input type="checkbox" checked={form.recycle} onChange={e => setForm(c => ({...c, recycle: e.target.checked}))} /><span><b>Otomatik tekrar</b><small>Kâr hedefi dolunca yeni tur başlar. Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>}
         {ready && smartAvail && <label className="dcaToggle dwRecycle" data-testid="dca-smart-entry"><input type="checkbox" checked={smartEntry} onChange={e => setSmartEntry(e.target.checked)} /><span><b>Akıllı başlama</b><small>Bot, Kais bu coin için yönü uygun görene kadar bekler (en fazla birkaç saat). Uygun görmezse hiç işlem açmaz.</small></span></label>}
@@ -625,8 +618,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         {note && <p className="dcaNote2" role="status">{note}</p>}
         {ready && result.errors.length > 0 && presetId === '' && <ul className="dcaErrors" role="alert">{result.errors.map(text => <li key={text}><i>!</i><span>{text}</span></li>)}</ul>}
 
-        <details className="dwAdv" data-testid="dca-advanced" open={presetId === 'custom' || undefined}>
-          <summary>Gelişmiş ayarlar</summary>
+        <div className="dwAdv dwAdvFlat" data-testid="dca-advanced">
           <div className="dwAdvBody">
             {ready && <div className="dwSumBar" data-bad={customBlock ? '1' : undefined} role="status" aria-label="Canlı özet">
               <span><small>Yatırım</small><b>{result.valid ? fmtUsd(result.totalMargin) : '—'}</b></span>
@@ -675,7 +667,7 @@ export default function DcaPanel(props: DcaPanelProps) {
               </> : <p className="dwHint">Plan geçerli olunca merdiven burada görünür.</p>}
             </div>
           </div>
-        </details>
+        </div>
         </details>
         <div className="dwExtras" data-testid="dca-extras">
           <div className="dwExHead"><b>Aynı ayarla başka coin de ekle</b><span>{extras.length}/{slots}</span></div>
@@ -786,28 +778,29 @@ function BotCard({bot, busy, onAct, mark = null}: {bot: any; busy: boolean; onAc
   const long = bot.side === 'LONG'
   const alerts: Array<{level: string; text: string}> = (bot.alerts || []).slice(-2)
   const hasPos = Math.abs(Number(bot.position_qty || 0)) > 1e-9
+  const watching = !FINAL.includes(bot.status)
   return (
     <article className="dcaBot" data-tone={info.tone}>
       <div className="dcaBotTop">
         <div><b>{bot.symbol}</b><span className={long ? 'up' : 'down'}>{long ? 'LONG ▲' : 'SHORT ▼'}</span></div>
         <span className="dcaStatus" data-tone={info.tone}><i />{info.text}</span>
       </div>
-      {!FINAL.includes(bot.status) && <DcaWatch bot={bot} mark={mark}/>}
-      <div className="dcaRail" aria-label={`${done}/${total} emir doldu`}>
+      {watching && <DcaWatch bot={bot} mark={mark}/>}
+      {!watching && <div className="dcaRail" aria-label={`${done}/${total} emir doldu`}>
         {Array.from({length: total}).map((_, index) => <span key={index} className={index < done ? 'on' : ''}><i>{index === 0 ? 'T' : index}</i></span>)}
-      </div>
-      <div className="dcaBotGrid">
+      </div>}
+      {watching ? <div className="dcaBotGrid dcaBotGrid2"><span><small>Pozisyon</small><b>{hasPos ? Number(bot.position_qty).toString() : '—'}</b></span><span><small>Ortalama</small><b>{stats.avg_entry ? fmtPrice(Number(stats.avg_entry)) : '—'}</b></span></div> : <div className="dcaBotGrid">
         <span><small>Pozisyon</small><b>{hasPos ? Number(bot.position_qty).toString() : '—'}</b></span>
         <span><small>Ortalama</small><b>{stats.avg_entry ? fmtPrice(Number(stats.avg_entry)) : '—'}</b></span>
         <span><small>Kâr hedefi</small><b className="up">{stats.tp_price ? fmtPrice(Number(stats.tp_price)) : '—'}</b></span>
         <span><small>Stop</small><b className="down">{fmtPrice(Number(stats.stop_price))}</b></span>
         <span><small>Tur</small><b>{stats.cycle ?? 1}{Number(stats.completed_cycles) > 0 ? ` · ${stats.completed_cycles} bitti` : ''}</b></span>
         <span><small>Gerçekleşen</small><b className={Number(stats.realized_usdt) >= 0 ? 'up' : 'down'}>{fmtUsd(Number(stats.realized_usdt || 0), true)}</b></span>
-      </div>
-      {stats.trail_active && <p className="dcaBotReason" data-testid="dca-trail-on">Takip eden kâr açık: stop kârı kovalıyor, geri gitmez.</p>}
+      </div>}
+      {stats.trail_active && !watching && <p className="dcaBotReason" data-testid="dca-trail-on">Takip eden kâr açık: stop kârı kovalıyor, geri gitmez.</p>}
       {bot.status === 'CYCLE_DONE' && Number(stats.trailing_pct) >= 0 && bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
       {bot.liq?.distance_pct != null && bot.liq.level !== 'ok' && <p className="dcaBotWarn">Likidasyona %{bot.liq.distance_pct} kaldı.</p>}
-      {bot.reason && <p className="dcaBotReason">{bot.reason}</p>}
+      {bot.reason && !watching && <p className="dcaBotReason">{bot.reason}</p>}
       {alerts.map((a, i) => <p key={i} className="dcaBotAlert" data-level={a.level}>{a.text}</p>)}
       <div className="dcaBotActions">
         {bot.status === 'PAUSED' && <button type="button" disabled={busy} onClick={() => onAct('resume', bot.grid_id)}>Devam ettir</button>}
@@ -818,27 +811,28 @@ function BotCard({bot, busy, onAct, mark = null}: {bot: any; busy: boolean; onAc
   )
 }
 
-// Planın resmi: fiyat çizgisinde şimdi, ek alım noktaları, hedef ve stop. Yukarı = yüksek fiyat.
+// Planın resmi: yukarıdan aşağı fiyat sırasıyla hedef, şimdi, ek alımlar ve stop; her satırda şimdiki fiyata uzaklık.
 function DcaPriceLine({result, price, side}: {result: DcaResult; price: number; side: DcaSide}) {
   const long = side === 'LONG'
-  const last = result.stages[result.stages.length - 1]
-  const tp = last?.tpPrice ?? 0
-  const marks: Array<{key: string; price: number; kind: 'now' | 'buy' | 'tp' | 'stop'; label: string; note?: string}> = [
-    {key: 'tp', price: tp, kind: 'tp' as const, label: `Hedef ${fmtPrice(tp)}`, note: 'Buraya gelince kârla çıkar (tüm ek alımlar dolarsa)'},
-    {key: 'now', price: result.stages[0]?.entry ?? price, kind: 'now' as const, label: `Şimdi ${fmtPrice(result.stages[0]?.entry ?? price)}`, note: 'İlk alım burada'},
-    ...result.stages.slice(1).map(stage => ({key: `s${stage.index}`, price: stage.entry, kind: 'buy' as const, label: `${stage.index}. ek alım ${fmtPrice(stage.entry)}`,
+  const first = result.stages[0]
+  const now = first?.entry ?? price
+  const tp = first?.tpPrice ?? 0    // yalnız ilk alımla hedef; ek alım olursa hedef ortalamayla birlikte yaklaşır
+  const rows: Array<{key: string; price: number; kind: 'now' | 'buy' | 'tp' | 'stop'; label: string; note?: string}> = [
+    {key: 'tp', price: tp, kind: 'tp', label: 'Hedef', note: `Buraya ${long ? 'çıkınca' : 'inince'} kârla kapatır`},
+    {key: 'now', price: now, kind: 'now', label: 'Şimdi', note: 'İlk alım'},
+    ...result.stages.slice(1).map(stage => ({key: `s${stage.index}`, price: stage.entry, kind: 'buy' as const, label: `${stage.index}. ek alım`,
       note: stage.index === 1 ? `Fiyat buraya ${long ? 'düşerse' : 'çıkarsa'} tekrar alır` : undefined})),
-    {key: 'stop', price: result.stopPrice, kind: 'stop' as const, label: `Stop ${fmtPrice(result.stopPrice)}`, note: 'Buraya gelirse zararla çıkar'},
-  ].filter(item => item.price > 0)
-  const prices = marks.map(item => item.price)
-  const hi = Math.max(...prices), lo = Math.min(...prices), span = hi - lo || 1
-  const sorted = [...marks].sort((a, b) => b.price - a.price)
-  return <div className="dwLine" data-testid="dca-price-line" role="img" aria-label="Plan fiyat çizgisi">
+    {key: 'stop', price: result.stopPrice, kind: 'stop', label: 'Stop', note: 'Buraya gelirse zararla çıkar'},
+  ]
+  const sorted = rows.filter(row => row.price > 0).sort((a, b) => b.price - a.price)
+  const dist = (value: number) => { const pct = (value - now) / now * 100; return Math.abs(pct) < 0.005 ? '' : `${pct > 0 ? '+' : '−'}%${Math.abs(pct).toFixed(2)}` }
+  return <div className="dwLine" data-testid="dca-price-line" aria-label="Plan fiyat çizgisi">
     <div className="dwLineHead"><b>Plan resmi</b><small>{long ? 'Düşüşte ek alır, toparlanınca satar' : 'Yükselişte ek satar, geri gelince kapatır'}</small></div>
-    <div className="dwLineBody">
-      <div className="dwLineBar"><i className="dwLineWin" style={{top: 0, height: `${(hi - Math.max(tp, result.stages[0]?.entry ?? 0)) / span * 100}%`}} data-long={long || undefined}/>
-        {marks.map(item => <i key={item.key} className="dwLineDot" data-kind={item.kind} style={{top: `${(hi - item.price) / span * 100}%`}}/>)}</div>
-      <ol>{sorted.map(item => <li key={item.key} data-kind={item.kind}><b>{item.label}</b>{item.note && <small>{item.note}</small>}</li>)}</ol>
-    </div>
+    <ol>{sorted.map(row => <li key={row.key} data-kind={row.kind}>
+      <i aria-hidden="true"/>
+      <span><b>{row.label}</b>{row.note && <small>{row.note}</small>}</span>
+      <span className="dwLineP"><b>{fmtPrice(row.price)}</b>{dist(row.price) && <small>{dist(row.price)}</small>}</span>
+    </li>)}</ol>
+    <p className="dwLineFoot">Ek alım olursa ortalama düşer, hedef de {long ? 'aşağı' : 'yukarı'} yaklaşır.</p>
   </div>
 }

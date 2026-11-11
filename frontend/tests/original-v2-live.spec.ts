@@ -734,7 +734,6 @@ test('DCA wizard: coin suggestions fit the live limit, plan is auto-picked, stor
   const step2 = panel.getByTestId('dca-step-2')
   await expect(step2).toBeVisible()
   await expect(step2.getByTestId('dca-risk-slider')).toBeVisible()
-  await expect(step2.getByTestId('dca-price-line')).toContainText('Şimdi')
   await expect(step2.getByTestId('dca-price-line')).toContainText('Stop')
   await page.screenshot({path: '/tmp/dcaw-2.png'})
   await expect(step2).toContainText('Sunucu onayladı')

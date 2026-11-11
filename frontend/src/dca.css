@@ -498,24 +498,30 @@
 #root .dca .dwBig b{font-size:14.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 @media (max-width:380px){#root .dca .dwBig{grid-template-columns:repeat(2,1fr)}}
 
-#root .dca .dwLine{display:grid;gap:12px;padding:16px;border-radius:20px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwLine{display:grid;gap:10px;padding:16px;border-radius:20px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
 #root .dca .dwLineHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 #root .dca .dwLineHead small{font-size:11.5px;color:#8ea0b4;text-align:right}
-#root .dca .dwLineBody{display:grid;grid-template-columns:22px 1fr;gap:14px}
-#root .dca .dwLineBar{position:relative;width:6px;margin:8px auto;border-radius:6px;background:linear-gradient(#3ddc97,#8fb4ff 45%,#ff6b6b)}
-#root .dca .dwLineWin{position:absolute;left:0;right:0;border-radius:6px;background:#3ddc97}
-#root .dca .dwLineDot{position:absolute;left:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #0b1522;background:#8fb4ff}
-#root .dca .dwLineDot[data-kind="now"]{background:#fff;width:18px;height:18px;margin:-9px 0 0 -9px;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
-#root .dca .dwLineDot[data-kind="tp"]{background:#3ddc97}
-#root .dca .dwLineDot[data-kind="stop"]{background:#ff6b6b}
-#root .dca .dwLine ol{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-#root .dca .dwLine li{display:grid;gap:1px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.035);border-left:3px solid #8fb4ff}
-#root .dca .dwLine li[data-kind="now"]{border-left-color:#fff}
-#root .dca .dwLine li[data-kind="tp"]{border-left-color:#3ddc97}
-#root .dca .dwLine li[data-kind="stop"]{border-left-color:#ff6b6b}
-#root .dca .dwLine li b{font-size:13.5px;font-variant-numeric:tabular-nums}
-#root .dca .dwLine li small{font-size:11.5px;color:#8ea0b4}
-
+#root .dca .dwLine ol{list-style:none;margin:0;padding:0;display:grid}
+#root .dca .dwLine li{position:relative;display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:10px;padding:9px 0}
+#root .dca .dwLine li::before{content:"";position:absolute;left:9px;top:0;bottom:0;width:2px;background:#22344d}
+#root .dca .dwLine li:first-child::before{top:50%}
+#root .dca .dwLine li:last-child::before{bottom:50%}
+#root .dca .dwLine li>i{position:relative;z-index:1;width:14px;height:14px;margin-left:3px;border-radius:50%;border:3px solid #0f1824;background:#8fb4ff}
+#root .dca .dwLine li[data-kind="now"]>i{width:18px;height:18px;margin-left:1px;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.2)}
+#root .dca .dwLine li[data-kind="tp"]>i{background:#3ddc97}
+#root .dca .dwLine li[data-kind="stop"]>i{background:#ff6b6b}
+#root .dca .dwLine li>span{display:grid;gap:1px;min-width:0}
+#root .dca .dwLine li>span b{font-size:14px}
+#root .dca .dwLine li>span small{font-size:11.5px;color:#8ea0b4}
+#root .dca .dwLine li[data-kind="tp"]>span:first-of-type b{color:#3ddc97}
+#root .dca .dwLine li[data-kind="stop"]>span:first-of-type b{color:#ff8a8a}
+#root .dca .dwLine .dwLineP{text-align:right;justify-items:end}
+#root .dca .dwLine .dwLineP b{font-variant-numeric:tabular-nums}
+#root .dca .dwLineFoot{margin:0;font-size:11.5px;color:#8ea0b4}
+#root .dca .dwRiskTag{margin-left:auto;font-style:normal;font-size:12px;font-weight:800;padding:4px 10px;border-radius:99px;background:rgba(245,192,74,.16);color:#f5c04a}
+#root .dca .dwRiskTag[data-level="1"],#root .dca .dwRiskTag[data-level="2"]{background:rgba(61,220,151,.16);color:#3ddc97}
+#root .dca .dwRiskTag[data-level="4"],#root .dca .dwRiskTag[data-level="5"]{background:rgba(255,107,107,.16);color:#ff8a8a}
+#root .dca .dwAdvFlat{display:grid;gap:12px}
 #root .dca .dwSettings{border-radius:18px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
 #root .dca .dwSettings>summary{position:relative;list-style:none;display:flex;flex-direction:column;gap:2px;padding:14px 16px;cursor:pointer;font-weight:800;font-size:15px}
 #root .dca .dwSettings>summary::-webkit-details-marker{display:none}
@@ -523,7 +529,8 @@
 #root .dca .dwSettings>summary small{font-weight:600;font-size:11.5px;color:#8ea0b4}
 #root .dca .dwSettings[open]>summary{border-bottom:1px solid rgba(255,255,255,.07)}
 #root .dca .dwSettings[open]{display:grid;gap:12px;padding-bottom:12px}
-#root .dca .dwSettings[open]>*:not(summary){margin-left:12px;margin-right:12px}
+#root .dca .dwSettings[open]{padding:0 12px 12px}
+#root .dca .dwSettings[open]>summary{margin:0 -12px}
 #root .dca .dcaBot .dwWatch{margin:4px 0}
 /* Başlatılıyor göstergesi: emirler borsaya giderken ekran donmuş görünmesin */
 .dwLaunch{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:20px;background:rgba(4,9,15,.72);backdrop-filter:blur(6px);animation:dwFade .2s ease both}
@@ -538,3 +545,5 @@
 .dwLaunchBox li[data-state="ok"]{color:#06281a;background:#3ddc97}
 .dwSpinBig{display:block;width:44px;height:44px;border-radius:50%;border-width:4px!important}
 @keyframes dwFade{from{opacity:0}to{opacity:1}}
+
+#root .dca .dcaBotGrid2{grid-template-columns:repeat(2,minmax(0,1fr))}

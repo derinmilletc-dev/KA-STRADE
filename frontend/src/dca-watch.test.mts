@@ -27,3 +27,7 @@ test('tüm ek alımlar dolduysa sıradaki alım yok; fiyat yoksa çökmez', () =
   assert.equal(v.next, null); assert.equal(v.headline, 'Tüm ek alımlar doldu'); assert.equal(v.mark, null)
   assert.doesNotThrow(() => watchDca(null, null))
 })
+test('seviye fiyatı yoksa bile bekleyen ek alım varken "doldu" demez', () => {
+  const v = watchDca({side: 'LONG', status: 'RUNNING', stats: {stages_total: 4, stages_filled: 1, avg_entry: 2.5, tp_price: 2.53, stop_price: 2.35}}, 2.5)
+  assert.equal(v.headline, 'Düşüşü bekliyor')
+})
