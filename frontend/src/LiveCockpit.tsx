@@ -816,6 +816,18 @@ export default function LiveCockpit(props: Props) {
   // ---- Görünen veriler.
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
   const live = verified && guideInput.connected
+  const [dcaBots, setDcaBots] = useState<Array<{symbol: string; side: string}>>([])
+  const getForDca = props.get
+  useEffect(() => {
+    if (demo || !live || !getForDca) { setDcaBots([]); return }
+    let cancelled = false
+    const load = () => { if (document.hidden) return; Promise.resolve(getForDca('/dca/live/status')).then(data => {
+      const grids = ((data as {grids?: any[]} | null)?.grids ?? []).filter(g => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED'].includes(g.status))
+      if (!cancelled) setDcaBots(grids.map(g => ({symbol: String(g.symbol ?? ''), side: String(g.side ?? g.spec?.side ?? '')})))
+    }).catch(() => { /* durum okunamazsa kart eski görünümde kalır */ }) }
+    load(); const timer = window.setInterval(load, 15000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [demo, live, getForDca])
   const positions = (live ? status?.account?.positions : null) ?? []
   // Emir yeni gitti ve pozisyon listede henüz yok: kart "Açık pozisyon yok" yerine "yükleniyor" gösterir (en fazla 60 sn).
   const [, setPendingTick] = useState(0)
@@ -2108,7 +2120,7 @@ export default function LiveCockpit(props: Props) {
             </div></details>}
         </section>}
 
-        <PositionsCard live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
+        <PositionsCard dcaBots={dcaBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
           awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
