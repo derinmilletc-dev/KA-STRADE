@@ -541,16 +541,13 @@ function RiskPreview({preview, L, openGuide}: {preview: FarmerPreview | null; L:
     HIGH_LEVERAGE: L('Yüksek kaldıraç maruziyeti ve tasfiye hassasiyetini artırır.', 'Higher leverage increases exposure and liquidation sensitivity.'),
   }
   return <section className="fmPreview" data-testid="farmer-preview" data-verdict={preview.verdict} aria-label={L('Risk önizlemen', 'Your Risk Preview')}>
-    <h4>{L('Risk önizlemen', 'Your Risk Preview')}</h4>
-    <dl className="fmPreviewGrid">
-      <div><dt>{L('Pozisyon marjini', 'Position margin')}</dt><dd>{preview.margin_usdt} USDT</dd></div>
-      <div><dt>{L('Kaldıraç', 'Leverage')}</dt><dd>{preview.leverage}×</dd></div>
-      <div><dt>{L('Yaklaşık nominal', 'Approx. notional')}</dt><dd>{preview.notional_usdt} USDT</dd></div>
-      <div><dt>{L('Hedef', 'Target')}</dt><dd>{money(preview.target_usdt, true)}</dd></div>
-      <div><dt>{L('Planlanan en yüksek kayıp', 'Maximum planned loss')}</dt><dd>-{money(preview.max_loss_usdt).replace('-', '')}</dd></div>
-      <div><dt>{L('Tahmini tur maliyeti', 'Estimated round-trip cost')}</dt><dd>{money(preview.est_cost_usdt)}</dd></div>
+    <div className="fmPvHead"><h4>{L('Risk önizlemen', 'Your Risk Preview')}</h4><b className="fmPvVerdict" data-verdict={preview.verdict}>{verdictText}</b></div>
+    <dl className="fmPvMain">
+      <div data-kind="goal"><dt>{L('Hedef', 'Target')}</dt><dd>{money(preview.target_usdt, true)}</dd></div>
+      <div data-kind="risk"><dt>{L('En yüksek kayıp', 'Max loss')}</dt><dd>-{money(preview.max_loss_usdt).replace('-', '')}</dd></div>
+      <div><dt>{L('Marjin', 'Margin')}</dt><dd>{preview.margin_usdt}<em> USDT</em></dd></div>
     </dl>
-    <p className="fmVerdict" data-verdict={preview.verdict}><span>{L('Bu yapılandırma pratik mi?', 'Is this configuration practical?')}</span><b>{verdictText}</b></p>
+    <p className="fmPvSub">{L(`${preview.leverage}× kaldıraç · yaklaşık ${preview.notional_usdt} USDT büyüklük · tahmini maliyet ${money(preview.est_cost_usdt)}`, `${preview.leverage}× leverage · about ${preview.notional_usdt} USDT size · est. cost ${money(preview.est_cost_usdt)}`)}</p>
     {preview.warnings.length > 0 && <ul className="fmWarnList">{preview.warnings.map(w => warn[w] ? <li key={w}><TriangleAlert aria-hidden="true"/>{warn[w]}</li> : null)}</ul>}
     <small>{L('Uyarılardır, yatırım tavsiyesi değildir.', 'These are warnings, not trading advice.')} <button type="button" className="fmLink" onClick={() => openGuide('guarantee')}>{L('Daha fazla', 'Learn more')}</button></small>
   </section>
@@ -617,7 +614,8 @@ function Wizard(p: WizardProps) {
 
     {step === 3 && <div className="fmWzPane" key="s3" data-testid="farmer-step-start">
       <dl className="fmWzSummary">{cells.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-      <ul className="fmWzChecks"><li data-ok><i>✓</i>{L('Binance bağlı', 'Binance connected')}</li><li data-ok><i>✓</i>{L('Ayarlar kayıtlı', 'Settings saved')}</li><li data-ok><i>✓</i>{L('İşlem oturumu açık', 'Session open')}</li></ul>
+      <ul className="fmWzChecks" aria-label={L('Hazırlık durumu', 'Readiness')}><li data-ok><i>✓</i>{L('Binance bağlı', 'Binance connected')}</li><li data-ok><i>✓</i>{L('Ayarlar kayıtlı', 'Settings saved')}</li><li data-ok><i>✓</i>{L('İşlem oturumu açık', 'Session open')}</li></ul>
+      {cfg && Number(status.effective_capacity) > 0 && <p className="fmWzCap" data-testid="farmer-step-capacity"><b>{L(`Aynı anda en fazla ${status.effective_capacity} pozisyon`, `Up to ${status.effective_capacity} positions at once`)}</b><span>{L(`Her pozisyonda ${cfg.margin_usdt} USDT teminat · toplam tavan ${cfg.total_margin_cap} USDT`, `${cfg.margin_usdt} USDT collateral each · total cap ${cfg.total_margin_cap} USDT`)}</span></p>}
       <div className="fmWzNav">
         <button type="button" className="fmBtn fmPrimary fmWide fmWzGo" data-testid="farmer-activate" disabled={!!busy} onClick={p.onActivate}>{busy === 'activate' ? <Loader2 className="fmSpin" aria-hidden="true"/> : <Zap aria-hidden="true"/>}{L('KAIS FARMER’ı etkinleştir', 'Activate KAIS FARMER')}</button>
         <button type="button" className="fmBtn fmWide" onClick={p.onEdit}>{L('Ayarları değiştir', 'Change settings')}</button>

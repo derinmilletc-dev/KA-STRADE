@@ -97,10 +97,18 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
     ask = L('KAIS FARMER’ı etkinleştirmeden önce neleri kontrol etmeliyim?', 'What should I check before activating KAIS FARMER?')
   }
 
+  // Sihirbazda her adım tek iş: kısa başlık, tek cümle. (Uzun açıklamalar "Rehber" ve "Kais'e sor" içinde.)
+  const compact = !!wizard && !coach && (screen === 'onboarding' || screen === 'dashboard')
+  if (compact) {
+    if (step === 1) { title = L('Üç rakamı belirle', 'Set three numbers'); message = L('Kâr hedefi, en fazla kayıp ve toplam tavan. Rakamlara dokunarak hızlı seçebilirsin.', 'Profit target, max loss and total cap. Tap a chip to pick quickly.') }
+    else if (step === 2) { title = L('İşlem oturumunu aç', 'Open a trading session'); message = L('Yeni pozisyon açma izni süreli verilir. Tek dokunuş yeter.', 'Permission to open positions is time-limited. One tap is enough.') }
+    else if (step === 3) { title = L('Hazırsın', 'You are ready'); message = L('Etkinleştirince uygun kurulum çıktıkça pozisyon açılır. Hedefler garanti değildir.', 'Once active, positions open when a qualified setup appears. Targets are not guarantees.') }
+  }
+
   // ---------------------------------------------------------------- akıllı öneriler (sunucu önizlemesinden)
   const pct = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? `%${v.toFixed(2).replace('.', ',')}` : '—')
   const tips: Array<{tone: 'ok' | 'warn'; text: string}> = []
-  if (!coach && preview && (screen === 'onboarding' || screen === 'dashboard')) {
+  if (!coach && !compact && preview && (screen === 'onboarding' || screen === 'dashboard')) {
     if (preview.verdict === 'NOT_RECOMMENDED') tips.push({tone: 'warn', text: L('Bu rakamlarla pozisyon kurulamıyor: kayıp tahmini maliyetin altında kalıyor.', 'These numbers cannot form a position: the loss is below estimated costs.')})
     if (preview.warnings.includes('STOP_TOO_TIGHT')) tips.push({tone: 'warn', text: L(`Stop mesafen fiyatın yalnız ${pct(preview.stop_pct)}'i. ${preview.leverage}× kaldıraçta normal dalgalanma stop'u vurabilir; en fazla kaybı biraz artır.`, `Your stop is only ${pct(preview.stop_pct)} of price. At ${preview.leverage}× noise can hit it; raise max loss a bit.`)})
     if (preview.warnings.includes('TARGET_TOO_SMALL')) tips.push({tone: 'warn', text: L(`İşlem maliyeti hedefinin yaklaşık %${Math.round((preview.cost_over_target ?? 0) * 100)}'ini yiyor. Hedefi biraz büyüt.`, `Costs eat about ${Math.round((preview.cost_over_target ?? 0) * 100)}% of your target. Raise it a bit.`)})
@@ -153,17 +161,17 @@ export default function FarmerGuideCard({status, screen, L, now: initialNow, pre
   const setupDone = setupItems.filter(item => item.ok).length
   const showSetup = !wizard && !coach && (screen === 'onboarding' || screen === 'dashboard')
 
-  return <section className="lcGuide fmGuide" data-tone={tone} data-phase={coach ? 'running' : 'setup'} data-testid="farmer-guide-card" aria-live="polite">
+  return <section className="lcGuide fmGuide" data-tone={tone} data-phase={coach ? 'running' : 'setup'} data-compact={compact || undefined} data-testid="farmer-guide-card" aria-live="polite">
     <header className="fmGHead">
       <span className="lcEye" aria-hidden="true" data-tone={tone}/>
       <div><b>{coach ? 'KAIS KOÇ' : 'KAIS REHBER'}</b><small>{coach ? L('Kurulum tamam · seni bilgilendiriyorum', 'Setup done · keeping you posted') : L(`Adım ${step + 1} / ${steps.length} · ${steps[step]}`, `Step ${step + 1} / ${steps.length} · ${steps[step]}`)}</small><em className="lcStrat" data-testid="strategy-name">{L('Seçili strateji: KAIS FARMER', 'Selected strategy: KAIS FARMER')}</em></div>
       {coach && <span className="fmStatePill">{state === 'RUNNING' ? L('ÇALIŞIYOR', 'RUNNING') : L('DURAKLADI', 'PAUSED')}</span>}
       <span className="fmHeadBtns">
-        <button type="button" className="fmPill" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/>{L('Rehber', 'Guide')}</button>
-        <button type="button" className="fmPill fmPillAsk" onClick={() => onAsk(ask)}><MessageCircle aria-hidden="true"/>{L('Kais’e sor', 'Ask Kais')}</button>
+        <button type="button" className="fmPill" data-testid="farmer-open-guide" onClick={onOpenGuide}><BookOpen aria-hidden="true"/><span className="fmPillTx">{L('Rehber', 'Guide')}</span></button>
+        <button type="button" className="fmPill fmPillAsk" onClick={() => onAsk(ask)}><MessageCircle aria-hidden="true"/><span className="fmPillTx">{L('Kais’e sor', 'Ask Kais')}</span></button>
       </span>
     </header>
-    {!coach && <div className="fmProg" role="img" aria-label={L(`Adım ${step + 1} / ${steps.length}`, `Step ${step + 1} of ${steps.length}`)}>{steps.map((label, index) => <span key={label} data-state={index < step ? 'done' : index === step ? 'now' : 'todo'}><i aria-hidden="true"/><em>{label}</em></span>)}</div>}
+    {!coach && <ol className="fmStepper" aria-label={L(`Adım ${step + 1} / ${steps.length}`, `Step ${step + 1} of ${steps.length}`)}>{steps.map((label, index) => <li key={label} data-state={index < step ? 'done' : index === step ? 'now' : 'todo'} aria-current={index === step ? 'step' : undefined}><i aria-hidden="true">{index < step ? '✓' : index + 1}</i><span>{label}</span></li>)}</ol>}
     {!coach && <ol className="lcSteps" aria-label={L('KAIS FARMER adımları', 'KAIS FARMER steps')}>{steps.map((label, index) => <li key={label} data-state={index < step ? 'done' : index === step ? (tone === 'stop' ? 'problem' : 'current') : 'todo'} aria-current={index === step ? 'step' : undefined}><i/><span>{label}</span></li>)}</ol>}
     <h2 className="lcGuideTitle">{title}</h2>
     <p className="lcGuideMsg" data-open>{message}</p>
