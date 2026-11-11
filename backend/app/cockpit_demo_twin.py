@@ -388,16 +388,20 @@ async def fill_lock(request: Request, body: Loose | None = None) -> dict[str, An
 
 @router.post("/position/protection")
 async def protection(request: Request, body: Loose | None = None) -> dict[str, Any]:
-    """Manuel demo pozisyonda stop taşıma (canlıdaki "stop/hedefleri güncelle"nin stop kısmı). Hedef değişimi demo motorunda yok."""
+    """Manuel demo pozisyonda stop ve/veya hedefleri güncelleme (canlıdaki "stop/hedefleri güncelle")."""
     from . import binance_demo as demo
 
     data = body.model_dump() if body else {}
-    if any(data.get(key) is not None for key in ("tp1", "tp2", "tp3")):
-        raise HTTPException(409, "Demo'da hedefler sonradan değiştirilemez; yalnız stop taşınabilir.")
-    if data.get("stop_loss") is None:
-        raise HTTPException(422, "Değiştirilecek stop yok.")
+    wanted_tps = {k: data.get(f"tp{k}") for k in (1, 2, 3) if data.get(f"tp{k}") is not None}
+    if data.get("stop_loss") is None and not wanted_tps:
+        raise HTTPException(422, "Değiştirilecek stop veya hedef yok.")
     symbol = _plan_symbol(request, data.get("plan_id"))
-    await demo.demo_move_stop(request, demo.MoveStopRequest(symbol=symbol, stop_loss=float(data["stop_loss"]), confirmation="DEMO STOP GÜNCELLE"))
+    if data.get("stop_loss") is not None:
+        await demo.demo_move_stop(request, demo.MoveStopRequest(symbol=symbol, stop_loss=float(data["stop_loss"]), confirmation="DEMO STOP GÜNCELLE"))
+    if wanted_tps:
+        await demo.demo_move_targets(request, demo.MoveTargetsRequest(
+            symbol=symbol, confirmation="DEMO HEDEF GÜNCELLE", **{f"tp{k}": float(v) for k, v in wanted_tps.items()},
+        ))
     return await build_status(request)
 
 
