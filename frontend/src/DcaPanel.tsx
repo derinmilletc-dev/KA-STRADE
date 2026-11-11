@@ -18,6 +18,8 @@ export type DcaPanelProps = {
   call: Call
   v25Base: string
   demoBase: string
+  /** Demo hesabı: aynı ekran, adresler demo motoruna gider; ARM/izin gerekmez. */
+  demo?: boolean
   askConfirm: (config: ConfirmConfig) => void
   /** Taranabilecek coinler (fiyat ve hacimle); "Uygun coin bul" için. */
   coins?: Array<{symbol: string; display?: string; price: number; volume?: number}>
@@ -156,8 +158,8 @@ const FILTER_CACHE = new Map<string, {tickSize: number; stepSize: number; minNot
 const fitLabel = (state: 'ok' | 'fix' | 'no') => state === 'ok' ? 'Sana uygun' : state === 'fix' ? 'Küçültülerek uygun' : 'Bu coinde uygun değil'
 
 export default function DcaPanel(props: DcaPanelProps) {
-  const {symbol, price, side, liveArmed, call, v25Base, askConfirm, coins = [], signals, onPickSymbol, onPickSide, authorizationValid = true, emergency = false, permBusy = false, permError = '', onGrant, onClearEmergency} = props
-  const account: Account = 'LIVE'
+  const {symbol, price, side, liveArmed: liveArmedProp, call, v25Base, askConfirm, coins = [], signals, onPickSymbol, onPickSide, authorizationValid: authorizationProp = true, emergency: emergencyProp = false, permBusy = false, permError = '', onGrant, onClearEmergency} = props
+  const account: Account = props.demo ? 'DEMO' : 'LIVE'
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [started, setStarted] = useState<{symbol: string; side: DcaSide; at: number} | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -174,8 +176,12 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
 
-  const base = `${v25Base}/dca/live`
-  const filtersPath = `${v25Base}/grid/filters`
+  const isDemo = account === 'DEMO'
+  const liveArmed = isDemo ? true : liveArmedProp
+  const authorizationValid = isDemo ? true : authorizationProp
+  const emergency = isDemo ? false : emergencyProp
+  const base = isDemo ? `${props.demoBase}/dca` : `${v25Base}/dca/live`
+  const filtersPath = isDemo ? `${props.demoBase}/grid/filters` : `${v25Base}/grid/filters`
   const synced = picked !== null && symbol === picked
 
   const readFilters = async (sym: string) => {
@@ -335,12 +341,12 @@ export default function DcaPanel(props: DcaPanelProps) {
 
   const start = () => {
     askConfirm({
-      title: 'CANLI DCA BAŞLAT',
+      title: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
       message: `GERÇEK PARA. ${symbol} ${side}: taban + ${form.safety} ek emir, toplam marjin ${fmtUsd(result.totalMargin)}, kaldıraç ${form.leverage}x. `
         + `Tüm emirler dolup stop çalışırsa tahmini en kötü zarar ${fmtUsd(result.worstLoss)}. Taban emir hemen piyasadan girer; ek emirler limit olarak bekler, stop dolan her miktar için kurulur.`,
-      expected: 'CANLI DCA BAŞLAT',
+      expected: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
       action: async () => {
-        await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, 'CANLI DCA BAŞLAT')})
+        await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: body(false, isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT')})
         setStarted({symbol, side, at: Date.now()})
         setStep(4)
         await loadStatus()
