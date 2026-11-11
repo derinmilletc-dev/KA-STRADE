@@ -50,6 +50,8 @@ MAX_MARGIN_USDT = Decimal("100")
 MAX_LEVERAGE = 2
 MANUAL_MAX_LEVERAGE = 50
 MAX_NOTIONAL_USDT = Decimal("200")
+# Manuel demo emirleri canlıyla aynı tavanı kullanır (otomatik stratejiler yukarıdaki sınırda kalır).
+MANUAL_MAX_MARGIN_USDT = Decimal("300")
 MAX_OPEN_POSITIONS = 3
 ARM_SECONDS = 10 * 60
 CLIENT_PREFIX = "PTB_"
@@ -665,7 +667,7 @@ class DemoOrderRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     direction: Literal["LONG", "SHORT"]
     order_type: Literal["MARKET", "LIMIT"] = "MARKET"
-    margin_usdt: float = Field(ge=5, le=100)
+    margin_usdt: float = Field(ge=5, le=300)
     leverage: int = Field(ge=1, le=MANUAL_MAX_LEVERAGE)
     limit_price: float | None = Field(default=None, gt=0)
     stop_loss: float = Field(gt=0)
@@ -2160,6 +2162,18 @@ def validate_levels(direction: str, entry: Decimal, stop: Decimal, targets: list
         raise BinanceDemoError(message, http_status=422)
 
 
+async def demo_liquidation_guard(client: BinanceDemoClient, spec: dict[str, Any]) -> None:
+    """Manuel demo emri için canlıdaki gibi tasfiye (likidasyon) güvenlik kontrolü."""
+    from .liquidation_risk import isolated_liquidation_risk
+
+    payload = await client.signed("GET", "/fapi/v1/leverageBracket", {"symbol": spec["symbol"]})
+    policy = {"liquidation_buffer_pct": 0.5, "fee_bps_per_side": 5.0}
+    try:
+        isolated_liquidation_risk(spec, payload, policy)
+    except ValueError as exc:
+        raise BinanceDemoError(f"Likidasyon güvenliği doğrulanamadı: {exc}", http_status=409) from exc
+
+
 async def build_order_spec(client: BinanceDemoClient, order: DemoOrderRequest) -> dict[str, Any]:
     symbol = await resolve_demo_symbol(client, order.symbol)
     current_price, rules = await asyncio.gather(ticker_price(client, symbol), symbol_rules(client, symbol))
@@ -2168,9 +2182,9 @@ async def build_order_spec(client: BinanceDemoClient, order: DemoOrderRequest) -
     entry = Decimal(str(order.limit_price)) if order.order_type == "LIMIT" else current_price
     margin = Decimal(str(order.margin_usdt))
     notional = margin * Decimal(order.leverage)
-    if margin > MAX_MARGIN_USDT or order.leverage > MANUAL_MAX_LEVERAGE or notional > MAX_NOTIONAL_USDT:
+    if margin > MANUAL_MAX_MARGIN_USDT or order.leverage > MANUAL_MAX_LEVERAGE:
         raise BinanceDemoError(
-            f"Demo güvenlik tavanı: en fazla 100 USDT marjin, {MANUAL_MAX_LEVERAGE}x kaldıraç ve {decimal_text(MAX_NOTIONAL_USDT)} USDT notional.",
+            f"Demo güvenlik tavanı: en fazla {decimal_text(MANUAL_MAX_MARGIN_USDT)} USDT marjin ve {MANUAL_MAX_LEVERAGE}x kaldıraç.",
             http_status=422,
         )
     quantity = floor_step(notional / entry, rules["step"])
@@ -3424,9 +3438,10 @@ def validate_entry_risk(
         raise BinanceDemoError("LONG girişleri risk politikası tarafından kapatıldı.", http_status=409)
     if body.direction == "SHORT" and not settings.get("allow_short", True):
         raise BinanceDemoError("SHORT girişleri risk politikası tarafından kapatıldı.", http_status=409)
-    if body.leverage > MANUAL_MAX_LEVERAGE or body.margin_usdt > MAX_MARGIN_USDT:
+    margin_cap = MAX_MARGIN_USDT if use_auto_universe else MANUAL_MAX_MARGIN_USDT
+    if body.leverage > MANUAL_MAX_LEVERAGE or body.margin_usdt > margin_cap:
         raise BinanceDemoError("Demo kaldıraç veya marjin güvenlik sınırını aşıyor.", http_status=422)
-    if float(spec["notional_usdt"]) > float(MAX_NOTIONAL_USDT):
+    if use_auto_universe and float(spec["notional_usdt"]) > float(MAX_NOTIONAL_USDT):
         raise BinanceDemoError("Demo notional güvenlik sınırını aşıyor.", http_status=422)
     if daily_realized_pnl <= -float(settings.get("daily_loss_limit", 0)):
         raise BinanceDemoError("Günlük doğrulanmış zarar limiti aktif; yeni giriş kilitli.", http_status=409)
@@ -4254,6 +4269,7 @@ async def demo_order_test(request: Request, body: DemoOrderRequest) -> dict[str,
         from .v21_demo import state_for as v21_state_for
         policy = v21_state_for(request).get("settings", {})
         adjust_manual_spec_to_risk(spec, policy)
+        await demo_liquidation_guard(client, spec)
         await submit_entry(client, spec, test_only=True)
         add_event(state, "EMİR TESTİ BAŞARILI", f"{spec['symbol']} {spec['direction']} planı Demo doğrulamasından geçti; emir oluşmadı.")
         return {
@@ -4390,6 +4406,8 @@ async def execute_demo_order(
                     paper_positions=risk_state.get("paper_positions", []),
                     use_auto_universe=source != "MANUAL",
                 )
+                if source == "MANUAL":
+                    await demo_liquidation_guard(client, spec)
             await traced_stage("set_isolated_margin", request_id, set_isolated_margin(client, spec["symbol"]), client=client)
             leverage_audit = await traced_stage("apply_verified_leverage", request_id, apply_verified_leverage(client, spec["symbol"], spec["leverage"]), client=client)
             spec = await traced_stage(
