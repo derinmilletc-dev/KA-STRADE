@@ -2136,6 +2136,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {preBlocked.slice(0, 3).map(item => <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
           {item.fix && preflightFixLabel(item.fix) ? <button type="button" onClick={() => applyPreflightFix(item.fix as PreflightFix)}>{preflightFixLabel(item.fix)}</button> : null}</div>)}
       </div>
+      : preflight.state === 'ready' && preflight.checks.some(item => item.key === 'gate_exposure' && item.detail.includes('uyarı')) ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">⚠ Bu işlem toplam büyüklük sınırını aşıyor. Çok riskli: fiyat ters gidince zarar bakiyene göre büyük olabilir. Emir yine de gönderilebilir, karar senin.</p>
       : preflight.state === 'ready' && preflight.checks.some(item => item.key === 'gate_spread' && item.detail.includes('uyarı')) ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">⚠ Alış-satış farkı şu an yüksek; emir yine gönderilebilir, fiyat biraz kayabilir.</p>
       : preflight.state === 'ready' ? <p className="mxtPre" data-state="ok" data-testid="mwz-preflight">✓ Hesap kuralları uygun, emir geçer</p>
       : preflight.state === 'unknown' ? null

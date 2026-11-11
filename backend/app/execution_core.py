@@ -421,6 +421,7 @@ def evaluate_entry_gates(
     candidate_notional_usdt: float = 0.0,
     cycle_candidates: list[dict[str, Any]] | None = None,
     enforce_spread: bool = True,
+    enforce_exposure: bool = True,
 ) -> dict[str, Any]:
     settings = sanitize_execution_policy(policy)
     safe_symbol = normalize_live_symbol(symbol)
@@ -464,8 +465,11 @@ def evaluate_entry_gates(
         GateResult(len(positions) < settings["max_positions"], "positions", "Pozisyon sınırı", f"{len(positions)} / {settings['max_positions']}"),
         GateResult(not any(item.get("symbol") == safe_symbol for item in positions + orders), "duplicate", "Yinelenen parite", "Aynı paritede açık pozisyon/emir bulunmamalı."),
         GateResult(not existing_plan_match, "active_plan", "Aktif plan çakışması", "Aynı parite ve yönde aktif plan bulunmamalı."),
-        GateResult(exposure_known and existing_exposure + max(0.0, float(candidate_notional_usdt)) <= float(settings["max_total_exposure_usdt"]), "exposure", "Toplam maruziyet sınırı",
-                   f"{existing_exposure + max(0.0, float(candidate_notional_usdt)):.2f} / {settings['max_total_exposure_usdt']:.2f} USDT" if exposure_known else
+        # Manuel emirde (enforce_exposure=False) toplam büyüklük sınırı engel değil, yalnız uyarıdır; otomatik girişlerde kapı aynen engeller.
+        # Mevcut pozisyonlar okunamıyorsa (exposure_known=False) manuelde de reddedilir: veri doğrulanamadan emir gitmez.
+        GateResult(exposure_known and (not enforce_exposure or existing_exposure + max(0.0, float(candidate_notional_usdt)) <= float(settings["max_total_exposure_usdt"])), "exposure", "Toplam maruziyet sınırı",
+                   f"{existing_exposure + max(0.0, float(candidate_notional_usdt)):.2f} / {settings['max_total_exposure_usdt']:.2f} USDT"
+                   + (" (uyarı: sınır aşılıyor)" if not enforce_exposure and existing_exposure + max(0.0, float(candidate_notional_usdt)) > float(settings["max_total_exposure_usdt"]) else "") if exposure_known else
                    "Mevcut pozisyon maruziyeti doğrulanamadı; yeni giriş reddedildi."),
         GateResult(settings["daily_trade_limit"] == 0 or int(daily.get("entries", 0)) < settings["daily_trade_limit"], "daily_trades", "Günlük işlem sınırı",
                    f"{daily.get('entries', 0)} / limitsiz" if settings["daily_trade_limit"] == 0 else f"{daily.get('entries', 0)} / {settings['daily_trade_limit']}"),

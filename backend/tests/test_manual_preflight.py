@@ -73,11 +73,14 @@ class PreflightReportTests(unittest.TestCase):
         self.assertEqual(none_left["fix"], {"type": "positions"})
         self.assertTrue(report(budget_left=5.0)["ok"])
 
-    def test_exposure_overflow_offers_margin_that_fits(self):
+    def test_exposure_overflow_is_only_a_warning_for_manual_orders(self):
         snap = {"positions": [position("ETHUSDT", notional=300.0)], "open_orders": [], "available_balance": 500.0,
                 "hedge_mode": False, "multi_assets_mode": False}
-        item = failed(report(snapshot=snap, margin_usdt=20.0, leverage=5))["gate_exposure"]
-        self.assertEqual(item["fix"], {"type": "reduce_margin", "margin_usdt": 9.8})
+        result = report(snapshot=snap, margin_usdt=20.0, leverage=5)
+        self.assertNotIn("gate_exposure", failed(result))
+        item = next(check for check in result["checks"] if check["key"] == "gate_exposure")
+        self.assertTrue(item["passed"])
+        self.assertIn("uyarı", item["detail"])
 
     def test_account_mode_and_readiness_are_reported(self):
         snap = {"positions": [], "open_orders": [], "available_balance": 500.0, "hedge_mode": True, "multi_assets_mode": True}
