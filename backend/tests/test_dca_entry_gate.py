@@ -59,12 +59,12 @@ class TestEvaluate(unittest.TestCase):
         with mock.patch.dict(os.environ, {entry_gate.MIN_CONFIDENCE_ENV: "bozuk"}):
             self.assertEqual(entry_gate.min_confidence(), entry_gate.DEFAULT_MIN_CONFIDENCE)
 
-    def test_flag_default_off(self):
+    def test_flag_default_on(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop(entry_gate.ENABLE_ENV, None)
-            self.assertFalse(entry_gate.enabled())
-        with mock.patch.dict(os.environ, {entry_gate.ENABLE_ENV: "1"}):
             self.assertTrue(entry_gate.enabled())
+        with mock.patch.dict(os.environ, {entry_gate.ENABLE_ENV: "0"}):
+            self.assertFalse(entry_gate.enabled())
 
 
 class TestCheck(unittest.TestCase):
@@ -95,9 +95,7 @@ class TestOptions(unittest.TestCase):
             self.smart_entry, self.trailing_pct = smart, trail
 
     def test_disabled_options_are_rejected_not_ignored(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(entry_gate.ENABLE_ENV, None)
-            os.environ.pop(dca_live.TRAILING_ENV, None)
+        with mock.patch.dict(os.environ, {entry_gate.ENABLE_ENV: "0", dca_live.TRAILING_ENV: "0"}):
             from fastapi import HTTPException
             with self.assertRaises(HTTPException):
                 dca_live.require_options(self.Body(smart=True))
