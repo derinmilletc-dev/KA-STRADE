@@ -516,3 +516,103 @@ html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!i
 .fmGuide.lcGuideDca .lcGuideMsg{margin:0}
 .fmGuide.lcGuideDca .fmGHead{margin-bottom:16px}
 .fmGuide.lcGuideDca .lcStrat{display:block!important;margin-top:4px;font-style:normal;font-size:13px;font-weight:800;color:#5ff0b0}
+
+/* ---- Sade sihirbaz: numaralı adımlar, ikonlu üst düğmeler, kısa metin, tek ana buton ---- */
+.fmStepper{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(4,1fr);position:relative}
+.fmStepper li{display:grid;justify-items:center;gap:6px;position:relative;font-size:11.5px;font-weight:800;letter-spacing:.04em;color:var(--fm-faint);text-transform:uppercase}
+.fmStepper li::before{content:"";position:absolute;top:15px;right:50%;width:100%;height:2px;background:rgba(255,255,255,.12)}
+.fmStepper li:first-child::before{display:none}
+.fmStepper li[data-state="done"]::before,.fmStepper li[data-state="now"]::before{background:linear-gradient(90deg,#2fbf86,#5ff0b0)}
+.fmStepper i{position:relative;z-index:1;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-style:normal;font-size:14px;font-weight:900;background:#16241d;border:2px solid rgba(255,255,255,.16);color:#9fb3a9}
+.fmStepper [data-state="done"] i{background:#2fbf86;border-color:#2fbf86;color:#06130d}
+.fmStepper [data-state="now"] i{background:#0d1d16;border-color:#5ff0b0;color:#5ff0b0;box-shadow:0 0 0 4px rgba(95,240,176,.16)}
+.fmStepper [data-state="now"]{color:#d6f7e6}
+.fmStepper [data-state="done"]{color:var(--fm-mute)}
+.fmGuide[data-compact] .fmGHead{grid-template-columns:auto minmax(0,1fr) auto;margin-bottom:12px}
+.fmGuide[data-compact] .fmHeadBtns{grid-column:auto;margin:0;gap:8px}
+.fmGuide[data-compact] .fmHeadBtns .fmPill{flex:none;width:44px;height:44px;min-height:44px;padding:0;justify-content:center;border-radius:50%}
+.fmGuide[data-compact] .fmPill svg{width:19px;height:19px}
+.fmGuide[data-compact] .fmPillTx{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fmGuide[data-compact] .lcGuideTitle{font-size:24px;margin:2px 0 6px}
+.fmGuide[data-compact] .lcGuideMsg{font-size:14px;line-height:1.5;margin:0 0 14px}
+.fmGuide[data-compact] .fmWz{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}   /* alt gezinme çubuğunun altında kalmasın */
+
+/* risk önizleme: karar rozeti + 3 büyük rakam */
+#root .fmPreview{display:grid;gap:10px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09)}
+.fmPvHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fmPvHead h4{margin:0;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--fm-mute)}
+.fmPvVerdict{padding:5px 12px;border-radius:999px;font-size:11.5px;font-weight:900;letter-spacing:.08em;background:rgba(61,220,151,.18);color:#5ff0b0}
+.fmPvVerdict[data-verdict="TIGHT"]{background:rgba(242,196,109,.16);color:#f2c46d}
+.fmPvVerdict[data-verdict="NOT_RECOMMENDED"]{background:rgba(255,107,107,.16);color:#ff8f8f}
+.fmPvMain{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}
+.fmPvMain>div{padding:10px 10px 9px;border-radius:14px;background:rgba(255,255,255,.045)}
+.fmPvMain dt{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fm-faint)}
+.fmPvMain dd{margin:3px 0 0;font-size:19px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fmPvMain dd em{font-style:normal;font-size:11px;color:var(--fm-faint)}
+.fmPvMain [data-kind="goal"] dd{color:#5ff0b0}
+.fmPvMain [data-kind="risk"] dd{color:#ff8f8f}
+.fmPvSub{margin:0;font-size:12.5px;line-height:1.5;color:var(--fm-mute)}
+.fmPreview .fmWarnList{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.fmPreview .fmWarnList li{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:rgba(242,196,109,.09);font-size:12.5px;line-height:1.45;color:#ecd7a6}
+.fmPreview .fmWarnList svg{flex:none;width:15px;height:15px;margin-top:2px;color:#f2c46d}
+.fmPreview>small{font-size:11.5px;color:var(--fm-faint)}
+
+/* adım 3 */
+.fmWzChecks{grid-template-columns:repeat(3,auto);justify-content:space-between;gap:6px}
+.fmWzChecks li{font-size:12.5px;gap:6px}
+.fmWzChecks i{width:20px;height:20px}
+.fmWzCap{display:grid;gap:2px;margin:0;padding:12px 14px;border-radius:14px;background:rgba(95,240,176,.07);border:1px solid rgba(95,240,176,.2)}
+.fmWzCap b{font-size:14.5px;color:#e6fff3}
+.fmWzCap span{font-size:12.5px;color:var(--fm-mute)}
+@media (max-width:380px){.fmWzChecks{grid-template-columns:1fr}.fmStepper li{font-size:10.5px}}
+
+/* ---- Sihirbaz v2: hazır profiller, kompakt satırlar, "Plan" cümlesi, yapışkan ana buton ---- */
+.fmProfiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fmProfiles button{display:grid;justify-items:start;align-content:start;gap:4px;min-height:132px;padding:12px 10px;border-radius:16px;text-align:left;cursor:pointer;color:#cfe0d6;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.12);transition:transform .15s,border-color .15s,background .15s}
+.fmProfiles button:active{transform:scale(.97)}
+.fmProfiles svg{width:22px;height:22px;color:#7fdcb2}
+.fmProfiles b{font-size:15px;color:#fff}
+.fmProfiles span{font-size:11.5px;line-height:1.35;color:var(--fm-mute)}
+.fmProfiles em{margin-top:auto;font-style:normal;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:#bff5db}
+.fmProfiles button[data-on]{border-color:#5ff0b0;background:linear-gradient(160deg,rgba(95,240,176,.2),rgba(95,240,176,.05));box-shadow:0 0 0 3px rgba(95,240,176,.14)}
+.fmProfiles button[data-on] svg{color:#5ff0b0}
+.fmWzOr{margin:2px 0 0;text-align:center;font-size:12.5px;color:var(--fm-mute);display:flex;align-items:center;gap:10px}
+.fmWzOr::before,.fmWzOr::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.1)}
+.fmWzOr span{max-width:80%}
+#root .fmWz .fmWzField{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09)}
+.fmWzRow{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:8px}
+.fmWzRow>label{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fm-mute)}
+.fmWzHelp{width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;color:#9fb3a9;font-size:12px;font-weight:800;cursor:pointer;padding:0;display:grid;place-items:center}
+.fmWzRow .fmWzInput{justify-self:end;display:flex;align-items:baseline;gap:6px;border:0;padding:0;min-width:0}
+.fmWzRow .fmWzInput input{width:96px;text-align:right;font:800 26px/1.1 var(--font-ui,inherit);color:#fff;background:transparent;border:0;outline:0;border-bottom:2px solid rgba(255,255,255,.16);padding:2px 0}
+.fmWzRow .fmWzInput input:focus{border-color:#5ff0b0}
+.fmWzRow .fmWzInput i{font-style:normal;font-size:11px;font-weight:800;color:var(--fm-faint)}
+.fmWzField .fmWzChips{gap:6px}
+.fmWzField .fmWzChips button{min-width:44px;min-height:40px;padding:4px 12px;font-size:14px}
+.fmWzTip{display:grid;gap:3px;margin:0;padding:12px 14px;border-radius:14px;font-size:13.5px;line-height:1.5;background:rgba(95,240,176,.08);border:1px solid rgba(95,240,176,.22);color:#d6f7e6}
+.fmWzTip b{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#5ff0b0}
+.fmWzTip[data-tone="warn"]{background:rgba(242,196,109,.09);border-color:rgba(242,196,109,.28);color:#f0dcae}
+.fmWzTip[data-tone="warn"] b{color:#f2c46d}
+.fmWzTip[data-tone="bad"]{background:rgba(255,107,107,.09);border-color:rgba(255,107,107,.3);color:#ffc2c2}
+.fmWzTip[data-tone="bad"] b{color:#ff8f8f}
+.fmWzPoints{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.fmWzPoints li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.fmWzPoints i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(95,240,176,.12);color:#5ff0b0}
+.fmWzPoints i svg{width:19px;height:19px}
+.fmWzPoints span{display:grid;gap:2px;font-size:12.5px;line-height:1.4;color:var(--fm-mute)}
+.fmWzPoints b{font-size:14.5px;color:#fff}
+.fmWzPlan{display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(160deg,rgba(95,240,176,.14),rgba(255,255,255,.03));border:1px solid rgba(95,240,176,.28)}
+.fmWzPlan small{font-size:11px;font-weight:800;letter-spacing:.14em;color:#5ff0b0}
+.fmWzPlan p{margin:0;font-size:16px;line-height:1.5;font-weight:700;color:#fff}
+.fmWzPlan dl{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fmWzPlan dl>div{padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22)}
+.fmWzPlan dt{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fm-faint)}
+.fmWzPlan dd{margin:2px 0 0;font-size:18px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+.fmWzPlan dd em{font-style:normal;font-size:11px;color:var(--fm-faint)}
+.fmWzPlan .up{color:#5ff0b0}.fmWzPlan .down{color:#ff8f8f}
+.fmWzLink{background:none;border:0;padding:12px;font-size:14px;font-weight:700;color:#9fd9bf;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px}
+.fmWzNav .fmWzLink{background:none!important;border:0!important}
+@media (max-width:759px){
+  .fmWzSticky{position:sticky;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:5;padding:10px 0 4px;background:linear-gradient(180deg,rgba(13,24,19,0),rgba(13,24,19,.96) 28%)}
+}
+.fmWz .fmPvMain{display:none}
