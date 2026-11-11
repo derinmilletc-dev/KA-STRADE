@@ -26,10 +26,10 @@ router = APIRouter(prefix="/api/v22/push", tags=["Push notifications"])
 
 # Same categories as notification-prefs.ts so the settings screen controls what is pushed.
 CATEGORIES: dict[str, tuple[str, re.Pattern[str]]] = {
-    "entry": ("Emir açıldı", re.compile(r"^LIVE_ENTRY$|^LIVE_ENTRY_RECOVERED$")),
-    "close": ("Pozisyon kapandı", re.compile(r"^LIVE_CLOSE$|^LIVE_ENTRY_CANCELLED$|STOP_HIT|TP_HIT")),
+    "entry": ("Emir açıldı", re.compile(r"^LIVE_ENTRY$|^LIVE_ENTRY_RECOVERED$|^FARMER_ENTRY$")),
+    "close": ("Pozisyon kapandı", re.compile(r"^LIVE_CLOSE$|^LIVE_ENTRY_CANCELLED$|STOP_HIT|TP_HIT|^FARMER_CLOSE$")),
     "protection": ("Stop / koruma sorunu", re.compile(
-        r"^PROTECTION_(FAIL|BLOCK|REPAIR)$|LIVE_STOP_VERIFICATION_RETRY|OWNERSHIP_UNCERTAIN|LIVE_FOREIGN_ORDER|LIVE_ENTRY_REMAINDER_UNCERTAIN")),
+        r"^PROTECTION_(FAIL|BLOCK|REPAIR)$|^FARMER_INTERVENTION$|LIVE_STOP_VERIFICATION_RETRY|OWNERSHIP_UNCERTAIN|LIVE_FOREIGN_ORDER|LIVE_ENTRY_REMAINDER_UNCERTAIN")),
     "connection": ("Bağlantı sorunu", re.compile(
         r"^(?!.*(RECOVERED|RESTORED|RESUMED)).*(STALE|RATE_LIMIT|RATE_LIMITED|AUTO_ERROR|MONITORING)")),
     "arm": ("İzin süresi / kilit", re.compile(

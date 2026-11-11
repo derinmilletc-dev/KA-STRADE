@@ -179,7 +179,7 @@ class Orchestrator:
                  feed: FarmerFeed, gates: Gates, reservations: Reservations, universe: Universe, factory: EngineFactory,
                  set_demand: Callable[[list[str]], None] = lambda symbols: None, pnl: PnlVerifier | None = None,
                  daily_loss: Callable[[], tuple[str, ...]] | None = None, clock: Callable[[], float] = time.time,
-                 new_grid_id: Callable[[], str] | None = None) -> None:
+                 new_grid_id: Callable[[], str] | None = None, notify: Callable[[str, str], None] | None = None) -> None:
         self.account_key, self.store, self.settings = account_key, store, settings
         self.shared = SharedExchange(exchange, clock=clock)
         self.snapshot_source, self.feed, self.gates, self.reservations = snapshot_source, feed, gates, reservations
@@ -187,6 +187,7 @@ class Orchestrator:
         self.guard = MarginGuard(store, account_key, max_positions=settings.max_positions, total_margin_cap=settings.total_margin_cap,
                                  position_margin=settings.confirm.margin_usdt, daily_loss=daily_loss)
         self.clock = clock
+        self._notify_cb = notify                    # (olay türü, metin): telefon/zil bildirimi için; en iyi çaba, işlem akışını ASLA etkilemez
         self._seq = 0
         self._new_gid = new_grid_id or self._default_gid
         self.engines: dict[str, Any] = {}
@@ -216,6 +217,15 @@ class Orchestrator:
     def _event(self, text: str) -> None:
         self.events.append(text)
         del self.events[:-50]
+
+    def _notify(self, kind: str, message: str) -> None:
+        callback = self._notify_cb
+        if callback is None:
+            return
+        try:
+            callback(kind, message)
+        except Exception:                                          # noqa: BLE001 — bildirim hatası emir/koruma/kurtarmaya dokunmaz
+            pass
 
     def _persist(self) -> None:
         self.store.save_bot(self.account_key, self.base, self.settings.as_dict(), pause_reason=self.reason)
@@ -328,6 +338,7 @@ class Orchestrator:
                                        max_loss_usdt=float(spec["max_loss_usdt"]), est_cost_usdt=float(spec["est_cost_usdt"]))
                 self.reservations.consume(gid)
                 hold = {**hold, "state": "OPEN"}
+                self._notify("FARMER_ENTRY", f"{DISPLAY_NAME}: {engine.sym} {engine.spec.side} açıldı · hedef +${float(spec['target_usdt']):g} · en fazla -${float(spec['max_loss_usdt']):g} · stop borsada.")
             elif status in _ENDED or (status in (BLOCKED, INTERVENTION_REQUIRED) and not self._pending_orders(gid)):
                 self.guard.entry_failed(gid, "NO_FILL" if status in _ENDED else "BLOCKED_NO_ORDER")
                 self.reservations.release(gid)
@@ -345,6 +356,8 @@ class Orchestrator:
                 return
             reason = engine.close_reason()
             self.store.close_result(gid, reason if reason != "OPEN" else "MARKET_CLOSE")
+            label = {"TARGET": "hedefe ulaştı", "STOP": "stop oldu", "DEAD_CLOSE": "ölü pozisyon olarak kapandı", "EMERGENCY": "acil kapandı"}.get(reason, "kapandı")
+            self._notify("FARMER_CLOSE", f"{DISPLAY_NAME}: {engine.sym} {label}. Net sonuç doğrulanınca Sonuçların kartında görünür.")
             self.guard.release_when_flat(gid, True)                 # PnL'den ÖNCE ve PnL'den BAĞIMSIZ
             self.engines.pop(gid, None)
             self._verify_pnl(gid)
@@ -391,6 +404,7 @@ class Orchestrator:
             self.base, self.reason = INTERVENTION, why
             self._persist()
             self._event(f"{DISPLAY_NAME}: müdahale gerekli — {why}")
+            self._notify("FARMER_INTERVENTION", f"{DISPLAY_NAME}: müdahale gerekli — {why}")
 
     # ---------- talep + ölü kontrol ----------
     def _refresh_demand(self) -> None:
