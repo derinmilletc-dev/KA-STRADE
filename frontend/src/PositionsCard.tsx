@@ -35,6 +35,7 @@ type Props = {
   awaitingSymbol?: string | null
   /** Çalışan DCA botları: bunların açtığı pozisyon 'Dış' değil 'DCA botu' olarak gösterilir. */
   dcaBots?: Array<{symbol: string; side: string; bot?: unknown}>
+  farmerBots?: Array<{symbol: string; side: string}>
 }
 
 const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
@@ -165,8 +166,9 @@ export default function PositionsCard(props: Props) {
     const metrics = estimate ? positionMetrics(position, external ? undefined : plan, now, {price: estimate.exitPrice, pnl: estimate.netPnl})
       : net !== null && base.mark !== null ? positionMetrics(position, external ? undefined : plan, now, {price: base.mark, pnl: net}) : base
     const dca = external ? (props.dcaBots ?? []).find(bot => bot.symbol.toUpperCase() === String(position.symbol ?? '').toUpperCase() && (!bot.side || bot.side.toUpperCase() === String(position.direction ?? '').toUpperCase())) : undefined
-    return {key: `${String(position.symbol)}-${index}`, position, plan, external, dca, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: Boolean(dca) || (confirmed && protection?.stop === true)}
-  }), [positions, findPlan, now, props.quotes, props.quoteNow, props.dcaBots])
+    const farmer = external && !dca ? (props.farmerBots ?? []).find(bot => bot.symbol.toUpperCase() === String(position.symbol ?? '').toUpperCase() && (!bot.side || bot.side.toUpperCase() === String(position.direction ?? '').toUpperCase())) : undefined
+    return {key: `${String(position.symbol)}-${index}`, position, plan, external, dca, farmer, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: Boolean(dca) || Boolean(farmer) || (confirmed && protection?.stop === true)}
+  }), [positions, findPlan, now, props.quotes, props.quoteNow, props.dcaBots, props.farmerBots])
   const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
   const summary = useMemo(() => summarize(items, {wallet: props.wallet, dailyLoss: props.dailyLoss, dailyLimit: props.dailyLimit, exposureLimit: props.exposureLimit}), [items, props.wallet, props.dailyLoss, props.dailyLimit, props.exposureLimit])
 
@@ -205,14 +207,14 @@ export default function PositionsCard(props: Props) {
           <em>{summary.protectedCount === summary.count ? 'Stop ve hedefler Binance’te' : 'Doğrulanamayan pozisyon var'}</em></div>
       </div>
 
-      <div className="pvCards">{sorted.map(({key, position, plan, external, dca, confirmed, protection, metrics, livePrice, protectedStop}) => {
+      <div className="pvCards">{sorted.map(({key, position, plan, external, dca, farmer, confirmed, protection, metrics, livePrice, protectedStop}) => {
         const pnl = metrics.pnl
         const planId = plan && typeof plan.id === 'string' ? plan.id : ''
         // Yalnız sahipliği doğrulanmış bot pozisyonu kapatılabilir (sunucu da aynısını ister); dış pozisyona dokunulmaz.
         const closable = !external && confirmed && planId.length >= 6 && live
         const closableExternal = external && live && Boolean(position.symbol)
         const manual = plan?.source === 'MANUAL'
-        const source = dca ? 'DCA' : external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
+        const source = dca ? 'DCA' : farmer ? 'Farmer' : external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
         // İnce kart: varsayılan kapalı; yalnız stopa çok yakın pozisyon kendiliğinden açılır.
         const isOpen = open[key] ?? false
         const insights = external ? [] : positionInsights(metrics, plan, protectedStop)
@@ -233,7 +235,7 @@ export default function PositionsCard(props: Props) {
         const scoreTime = score?.candle ? new Date(score.candle * 1000).toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'}) : null
         const progress = external || metrics.toStopPct === null || tp1Left === null ? null
           : tp1Left <= 0 ? 100 : Math.max(0, Math.min(100, metrics.toStopPct / (metrics.toStopPct + tp1Left) * 100))
-        const status = dca ? 'DCA botu yönetiyor' : external ? 'Dış pozisyon' : metrics.level === 'danger' ? 'Stopa çok yakın' : metrics.level === 'warn' ? 'Stopa yakın' : breakeven ? 'Stop girişte' : protectedStop ? 'Korumalı' : 'Koruma doğrulanamadı'
+        const status = dca ? 'DCA botu yönetiyor' : farmer ? 'KAIS FARMER yönetiyor' : external ? 'Dış pozisyon' : metrics.level === 'danger' ? 'Stopa çok yakın' : metrics.level === 'warn' ? 'Stopa yakın' : breakeven ? 'Stop girişte' : protectedStop ? 'Korumalı' : 'Koruma doğrulanamadı'
         const statusTone = external ? undefined : metrics.level === 'danger' ? 'down' : metrics.level === 'warn' || !protectedStop ? 'warn' : undefined
         return <article className="pvCard" key={key} data-pos-symbol={metrics.symbol.toUpperCase()} data-level={metrics.level} data-open={isOpen || undefined} data-external={external || undefined}>
           <button type="button" className="pvSlim" aria-expanded={isOpen} aria-label={`${metrics.coin || 'Pozisyon'} ${isOpen ? 'detayını gizle' : 'detayını göster'}`} onClick={toggle}>
@@ -292,7 +294,8 @@ export default function PositionsCard(props: Props) {
 
             {dca && <DcaWatch bot={dca.bot} mark={metrics.mark}/>}
             {dca && <p className="pvNote">Bu pozisyonu DCA botu yönetiyor: stop, ek alım ve kâr hedefi bot tarafında. Botu DCA ekranından durdurabilirsin; buradan Kapat dersen bot borsayla kendini eşitler.</p>}
-            {external && !dca && <p className="pvNote">Bu pozisyonun sistemde planı yok: stop ve hedef takip edilmiyor. Kapat ile hemen kapatabilirsin; Binance'taki kendi stop/TP emirlerin varsa onları kendin iptal et.</p>}
+            {farmer && <p className="pvNote">Bu pozisyonu KAIS FARMER yönetiyor: stop ve kâr hedefi borsada, bot tarafından kurulu. Kapat dersen Farmer borsayla kendini eşitler.</p>}
+            {external && !dca && !farmer && <p className="pvNote">Bu pozisyonun sistemde planı yok: stop ve hedef takip edilmiyor. Kapat ile hemen kapatabilirsin; Binance'taki kendi stop/TP emirlerin varsa onları kendin iptal et.</p>}
             {!external && !confirmed && <p className="pvNote" data-tone="warn">Plan sahipliği doğrulanamadı.</p>}
 
             {closable && manual && <div className="pvActs">
