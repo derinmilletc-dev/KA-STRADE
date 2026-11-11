@@ -18,17 +18,18 @@ from .farmer_engine.margin import HARD_CAP_USDT, effective_capacity
 from .farmer_engine.orchestrator import (ENTRY_PAUSED_ARM, ENTRY_PAUSED_SAFETY, INTERVENTION, OFF, RUNNING, STOPPING, FarmerSettings)
 
 RECOMMENDED: dict[str, Any] = {
-    "min_score": 92, "margin_usdt": 50.0, "leverage": 10, "target_usdt": 1.0, "max_loss_usdt": 1.5,
+    "min_score": 92, "margin_usdt": 50.0, "leverage": 5, "target_usdt": 1.0, "max_loss_usdt": 1.5,
     "dead_score": 75, "dead_confirmations": 2, "max_positions": 5, "total_margin_cap": HARD_CAP_USDT,
 }
 LIMITS: dict[str, Any] = {
-    "margin_options": [25, 50, 75, 100], "leverage": {"min": 1, "max": 10}, "min_score": {"min": 80, "max": 100},
+    "margin_options": [25, 50, 75, 100], "leverage": {"min": 1, "max": 5}, "min_score": {"min": 80, "max": 100},
     "target_usdt": {"min": 0.1, "max": 50.0}, "max_loss_usdt": {"min": 0.1, "max": 100.0}, "dead_score": {"min": 50, "max": 95},
     "dead_confirmations": {"min": 1, "max": 5}, "max_positions": {"min": 1, "max": 5}, "total_margin_cap": {"min": 25.0, "max": HARD_CAP_USDT},
 }
 PRACTICALITY_TIGHT_COST_RATIO = 0.5       # tahmini tur maliyeti hedefin yarısını geçerse "TIGHT"
 PRACTICALITY_TIGHT_STOP_PCT = 0.5         # stop mesafesi (%) bunun altındaysa "TIGHT"
-PRACTICALITY_HIGH_LEVERAGE = 10
+PRACTICALITY_HIGH_LEVERAGE = 5
+LEGACY_MAX_LEVERAGE = 10                  # eskiden izin verilen en yüksek kaldıraç; daha büyük değer hâlâ REDDEDİLİR
 
 
 class SettingsError(ValueError):
@@ -78,6 +79,8 @@ def parse_settings(body: Mapping[str, Any], base: Mapping[str, Any] | None = Non
     min_score = _number(body, "min_score", ref["min_score"], integer=True)
     margin = _number(body, "margin_usdt", ref["margin_usdt"])
     leverage = _number(body, "leverage", ref["leverage"], integer=True)
+    if leverage is not None and LIMITS["leverage"]["max"] < leverage <= LEGACY_MAX_LEVERAGE:
+        leverage = LIMITS["leverage"]["max"]            # tavan 5x: eski kayıtlı 6-10x ayar 5x'e iner, Farmer açılışta çökmez
     target = _number(body, "target_usdt", ref["target_usdt"])
     max_loss = _number(body, "max_loss_usdt", ref["max_loss_usdt"])
     dead_score = _number(body, "dead_score", ref.get("dead_score"), integer=True, nullable=True)
