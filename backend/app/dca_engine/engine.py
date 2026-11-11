@@ -57,6 +57,7 @@ class DcaEngine(GridEngine):
     def __init__(self, exchange, store, spec, **kw) -> None:
         super().__init__(exchange, store, spec, **kw)
         self.prefix = f"kd-{re.sub(r'[^A-Za-z0-9]', '', spec.grid_id)[:16]}-"
+        self._flat_seen = 0
         self._stop_unverified = 0               # pozisyon açıkken doğrulanmış stopun art arda görünmediği TUR sayısı
         self._tick_seq = self._watch_seq = 0    # bir turda koruma birkaç kez kontrol edilir; sayaç tur başına en çok bir kez artar
         self._avg_fallback_alerted = False      # borsa ortalaması okunamadığında yerel yedek uyarısı bir kez yazılır
@@ -192,7 +193,29 @@ class DcaEngine(GridEngine):
 
     def sync(self) -> bool:
         self._adopt_unsent()
-        return super().sync()
+        ok = super().sync()
+        if ok:
+            self._flat_seen = 0
+        return ok
+
+    FLAT_CONFIRM_TICKS = 3
+
+    def _on_position_mismatch(self, actual: float, expected: float) -> bool:
+        """Borsada pozisyon, bot başlamadan önceki düzeye (baseline) dönmüşse ama defter dolu görünüyorsa pozisyon elle kapatılmıştır.
+        Korunacak pozisyon kalmadığı için tehlike yok: art arda FLAT_CONFIRM_TICKS tur aynı görülürse bu botun bekleyen emirleri
+        iptal edilir ve bot 'Bitti' olur. Emirler iptal edilemezse bekler (halt etmez, sonraki tur yine dener)."""
+        baseline = float(self.store.grid(self.gid)["baseline"])
+        if abs(actual - baseline) > 1e-6 or abs(expected - baseline) <= 1e-6 or self.status not in (RUNNING, PAUSED, BLOCKED):
+            self._flat_seen = 0
+            return False
+        self._flat_seen += 1
+        if self._flat_seen < self.FLAT_CONFIRM_TICKS:
+            return True
+        if not self._cancel_all(roles=("E", "T", "S")):
+            return True
+        self._set(STOPPED, "Pozisyon borsada kapalı (elle kapatıldı)")
+        self._alert("bilgi", "Pozisyon borsada kapalı görünüyor (elle kapatılmış). Bekleyen emirler iptal edildi; bot durdu.")
+        return True
 
     def _adopt_unsent(self) -> None:
         """Çökme penceresi: emir borsaya gitti ama süreç ölünce defter PENDING_SEND kaldı. Gönderilmemiş saymadan önce borsaya kimlikle sorulur;
