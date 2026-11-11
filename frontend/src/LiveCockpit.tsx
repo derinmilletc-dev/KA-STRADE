@@ -758,12 +758,12 @@ export default function LiveCockpit(props: Props) {
   const previousStep = useRef<{phase: string; step: number} | null>(null)
   const [advanced, setAdvanced] = useState(0)
   // Strateji seçici (yalnız Canlı): Kais Long ya da DCA. Demo ikizinde seçici yok, her zaman Kais Long.
-  const [strategy, setStrategyState] = useState<LiveStrategy>(() => demo && readStrategy() === 'farmer' ? 'long' : readStrategy())
+  const [strategy, setStrategyState] = useState<LiveStrategy>(() => readStrategy())
   const pickStrategy = (next: LiveStrategy) => { setStrategyState(next); writeStrategy(next) }
   const showDca = strategy === 'dca'
   const [demoDcaOpen, setDemoDcaOpen] = useState(false)
   const [farmerCoach, setFarmerCoach] = useState(false)
-  const showFarmer = !demo && strategy === 'farmer'
+  const showFarmer = strategy === 'farmer'
   const openDca = () => { if (demo) { setDemoDcaOpen(true); return } setManualKind('dca'); openManual(); requestManualMode('dca', {lock: true}) }
   useEffect(() => {
     const prev = previousStep.current
@@ -1989,7 +1989,7 @@ export default function LiveCockpit(props: Props) {
 
     <div className="lcGrid" data-coach={(showFarmer ? farmerCoach : coach) || undefined} data-noscan={!(running || scanner?.last_scan_at) || undefined}>
       <div className="lcMain">
-        <StrategyPicker value={strategy} onChange={pickStrategy} hideFarmer={demo}/>
+        <StrategyPicker value={strategy} onChange={pickStrategy}/>
         {demo && demoDcaOpen && <DemoDcaSheet onClose={() => setDemoDcaOpen(false)}/>}
         {showDca && <DcaGuideCard input={guideInput} stale={stale} onOpen={openDca} onAsk={() => askKais('DCA botunu nasıl kurmalıyım? Önce Demo’da denemek için adımları kısaca anlat.')} onConnect={() => goTab('baglanti')} onManual={openManual} onClearEmergency={() => act('clear-emergency')}/>}
         {showFarmer && <FarmerPanel get={props.get ?? (() => Promise.reject(new Error('NO_GET')))} post={request} accountConnected={!guideInput.statusVerified || guideInput.connected} onConnect={() => goTab('baglanti')} onAsk={askKais} onCoachChange={setFarmerCoach}/>}
