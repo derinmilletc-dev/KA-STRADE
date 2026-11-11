@@ -1,6 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
+import {BarChart3} from 'lucide-react'
 import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import {goPositions} from '../../trade-intent'
+import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
+import type {SignalMap} from './coin-ranking'
+import '../../manual-analysis-sheet.css'
 import './dca.css'
 
 type Call = <T = any>(base: string, path: string, options?: RequestInit & {timeoutMs?: number}) => Promise<T>
@@ -20,7 +24,7 @@ export type DcaPanelProps = {
   onPickSymbol?: (symbol: string) => void
   onPickSide?: (side: DcaSide) => void
   /** Kais AI sinyalleri (coin → yön eğilimi ve güven); varsa öneriler buna göre sıralanır. */
-  signals?: Record<string, {lean: string; confidence: number}> | null
+  signals?: SignalMap | null
   /** Canlı izin durumu: 24 saatlik risk izni geçerli mi, acil durdurma açık mı. */
   authorizationValid?: boolean
   emergency?: boolean
@@ -158,6 +162,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [started, setStarted] = useState<{symbol: string; side: DcaSide; at: number} | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [anaSym, setAnaSym] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [form, setForm] = useState<Form>(DCA_PRESETS[1].form)
   const [presetId, setPresetId] = useState('')
@@ -299,7 +304,10 @@ export default function DcaPanel(props: DcaPanelProps) {
   const q = query.trim().toUpperCase().replace('/', '')
   const searchRows = q ? coins.filter(coin => coin.symbol.includes(q) || String(coin.display || '').toUpperCase().replace('/', '').includes(q)).slice(0, 6) : []
 
-  const pickCoin = (sym: string) => { onPickSymbol?.(sym); setPicked(sym); setPresetId(''); setNote(''); setQuery(''); setStep(2) }
+  const anaRows: AnalysisRow[] = query
+    ? searchRows.map(coin => ({symbol: coin.symbol, display: coin.display, price: coin.price, change: Number((coin as any).change ?? NaN)}))
+    : suggestions.map(item => ({symbol: item.symbol, display: item.display, price: item.price, change: item.change}))
+  const pickCoin = (sym: string) => { setAnaSym(null); onPickSymbol?.(sym); setPicked(sym); setPresetId(''); setNote(''); setQuery(''); setStep(2) }
   const pickSide = (next: DcaSide) => { onPickSide?.(next); setPresetId(''); autoRef.current = '' }
 
   const body = (preview: boolean, confirmation = '') => JSON.stringify({
@@ -387,23 +395,24 @@ export default function DcaPanel(props: DcaPanelProps) {
         {scan.state === 'busy' && suggestions.length === 0 && !query && <ul className="dwCoins" aria-hidden="true">{[0, 1, 2].map(i => <li key={i} className="dwSkel"/>)}</ul>}
         {!query && suggestions.length > 0 && <ul className="dwCoins dwScroll" data-testid="dca-suggestions">{suggestions.map(item => {
           const sig = signals?.[item.symbol]
-          return <li key={item.symbol}><button type="button" onClick={() => pickCoin(item.symbol)}>
+          return <li key={item.symbol} className="dwAnaLi"><button type="button" onClick={() => pickCoin(item.symbol)}>
             <span className="dwCoinMain"><b>{item.display}</b><small>{fmtPrice(item.price)}{Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}> {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%</em> : null}</small></span>
             <span className="dwCoinSide">
               {sig && sig.lean !== 'NEUTRAL' && !item.against && <span className="dwBadge ok">AI {side} %{Math.round(sig.confidence)}</span>}
               {item.against && <span className="dwBadge warn">AI ters yön</span>}
               <span className="dwFit">≈{fmtUsd(item.total)}</span>
             </span>
-          </button></li>
+          </button>{sig && <button type="button" className="dwAnaBtn" aria-label={`${item.display} analizini aç`} onClick={() => setAnaSym(item.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>
         })}</ul>}
         {!query && scan.state === 'done' && suggestions.length === 0 && <p className="dwWarn">Şu an {cap} USDT limite sığan coin bulunamadı. Yukarıdan başka bir coin arayabilirsin.</p>}
         {query && <ul className="dwCoins dwScroll dwSearchRes">{searchRows.map(coin => {
           const item = known.get(coin.symbol)
-          return <li key={coin.symbol}><button type="button" onClick={() => pickCoin(coin.symbol)}>
+          return <li key={coin.symbol} className="dwAnaLi"><button type="button" onClick={() => pickCoin(coin.symbol)}>
             <span className="dwCoinMain"><b>{coin.display || coin.symbol}</b><small>{fmtPrice(coin.price)}</small></span>
             <span className="dwCoinSide"><span className="dwFit" data-state={item ? 'ok' : 'unk'}>{item ? `≈${fmtUsd(item.total)}` : 'Seçince kontrol edilir'}</span></span>
-          </button></li>
+          </button>{signals?.[coin.symbol] && <button type="button" className="dwAnaBtn" aria-label={`${coin.display || coin.symbol} analizini aç`} onClick={() => setAnaSym(coin.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>
         })}{searchRows.length === 0 && <li className="dwEmpty">Sonuç yok.</li>}</ul>}
+        <CoinAnalysisSheet rows={anaRows} symbol={anaSym} signals={signals} onClose={() => setAnaSym(null)} onOpen={setAnaSym} onPick={pickCoin}/>
       </div>}
 
       {step === 2 && <div className="dwPane" data-testid="dca-step-2">
