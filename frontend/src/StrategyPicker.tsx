@@ -50,13 +50,11 @@ export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual, 
     <header className="fmGHead">
       <span className="lcEye" aria-hidden="true" data-tone={blocked ? 'stop' : 'go'}/>
       <div><b>KAIS REHBER</b><small>{`Adım ${step + 1} / ${steps.length} · ${steps[step]}`}</small><em className="lcStrat" data-testid="strategy-name">Seçili strateji: DCA</em></div>
-      <span className="fmStatePill">DCA</span>
       <span className="fmHeadBtns">
         <button type="button" className="fmPill fmPillAsk" onClick={onAsk}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
         {onManual && <button type="button" className="fmPill" data-testid="dca-manual" onClick={onManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
       </span>
     </header>
-    <div className="fmProg" role="img" aria-label={`Adım ${step + 1} / ${steps.length}`}>{steps.map((label, index) => <span key={label} data-state={index < step ? 'done' : index === step ? 'now' : 'todo'}><i aria-hidden="true"/><em>{label}</em></span>)}</div>
     <h2 className="lcGuideTitle">{title}</h2>
     <p className="lcGuideMsg" data-open>{message}</p>
     {verified && <ul className="fmDcaChecks" aria-label="Durum">{checks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '○'}</i>{item.text}</li>)}</ul>}

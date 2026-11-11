@@ -514,3 +514,5 @@ html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!i
 .fmGuide.lcGuideDca .fmDcaChecks{margin:16px 0 0}
 .fmGuide.lcGuideDca .fmGHead>div b,.fmGuide.lcGuideDca .fmGHead>div small{font-family:inherit}
 .fmGuide.lcGuideDca .lcGuideMsg{margin:0}
+.fmGuide.lcGuideDca .fmGHead{margin-bottom:16px}
+.fmGuide.lcGuideDca .lcStrat{display:block!important;margin-top:4px;font-style:normal;font-size:13px;font-weight:800;color:#5ff0b0}
