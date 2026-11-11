@@ -17,12 +17,13 @@ export function writeStrategy(value: LiveStrategy) {
 }
 
 /** Kais Rehber'in üstündeki iki seçenekli strateji seçici. Seçim yalnız rehberin hangi adımları göstereceğini belirler; emir göndermez. */
-export function StrategyPicker({value, onChange}: {value: LiveStrategy; onChange: (next: LiveStrategy) => void}) {
-  const items: Array<{id: LiveStrategy; label: string; sub: string}> = [
+export function StrategyPicker({value, onChange, hideFarmer = false}: {value: LiveStrategy; onChange: (next: LiveStrategy) => void; hideFarmer?: boolean}) {
+  const all: Array<{id: LiveStrategy; label: string; sub: string}> = [
     {id: 'long', label: 'Kais Long', sub: 'Otomatik tarama ve işlem'},
     {id: 'dca', label: 'DCA', sub: 'Kademeli alım botu'},
     {id: 'farmer', label: 'KAIS FARMER', sub: 'Küçük, kontrollü işlemler'},
   ]
+  const items = hideFarmer ? all.filter(item => item.id !== 'farmer') : all
   return <div className="lcPicker" role="radiogroup" aria-label="Strateji seç" data-testid="strategy-picker" data-count={items.length}>
     {items.map(item => <button key={item.id} type="button" role="radio" aria-checked={value === item.id} data-on={value === item.id || undefined} data-testid={`strategy-${item.id}`} onClick={() => onChange(item.id)}>
       <b>{item.label}</b><small>{item.sub}</small>
