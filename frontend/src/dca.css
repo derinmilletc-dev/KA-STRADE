@@ -470,3 +470,58 @@
 #root .dca .dwExList button[data-on] small{color:#b9c8d8!important}
 #root .dca .dwWhy[data-bad]{background:rgba(255,107,107,.12);border-color:rgba(255,107,107,.45);color:#ffc9c9}
 #root .dca .dwWhy[data-bad] i{background:#ff6b6b;color:#2a0d0d}
+
+/* ===== Sade akış: Kais önerisi, risk sürgüsü, plan resmi, ayarlar ===== */
+.dca{--lc-go:#3ddc97;--lc-bad:#ff6b6b;--lc-warn:#f5c04a;--lc-info:#8fb4ff;--lc-ink:#e8eef5;--lc-mute:#8ea0b4;--lc-soft:#0f1824;--lc-card:#0b1522;--lc-line:#1f3149}
+#root .dca .dwKais{display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(150deg,rgba(143,180,255,.18),rgba(61,220,151,.1) 60%,#0f1824);border:1px solid rgba(143,180,255,.35)}
+#root .dca .dwKais>div small{display:block;font-size:10.5px;letter-spacing:.1em;color:#8fb4ff;font-weight:800}
+#root .dca .dwKais>div b{font-size:15.5px}
+#root .dca .dwKais ul{list-style:none;margin:0;padding:0;display:flex;gap:8px;flex-wrap:wrap}
+#root .dca .dwKais li{display:inline-flex;gap:6px;align-items:baseline;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+#root .dca .dwKais li b{font-size:14px}
+#root .dca .dwKais li em{font-style:normal;font-size:11.5px;font-weight:800;color:#3ddc97}
+#root .dca .dwKais li em.down{color:#ff8a8a}
+#root .dca .dwKais>button{min-height:48px;border:0;border-radius:14px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;color:#06281a;background:linear-gradient(135deg,var(--g),var(--g2))}
+#root .dca .dwKais>small{font-size:11.5px;color:#8ea0b4;line-height:1.45}
+
+#root .dca .dwRiskS{display:grid;gap:10px;padding:16px;border-radius:20px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwRiskSTop{display:flex;align-items:center;gap:10px}
+#root .dca .dwRiskSTop b{font-size:20px}
+#root .dca .dwRiskS input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:10px;border-radius:99px;margin:6px 0;background:linear-gradient(90deg,#3ddc97,#f5c04a 60%,#ff6b6b);outline:none}
+#root .dca .dwRiskS input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:#fff;border:4px solid #0b1522;box-shadow:0 0 0 2px #3ddc97,0 6px 14px rgba(0,0,0,.4);cursor:pointer}
+#root .dca .dwRiskS input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#fff;border:4px solid #0b1522;box-shadow:0 0 0 2px #3ddc97;cursor:pointer}
+#root .dca .dwRiskSEnds{display:flex;justify-content:space-between;font-size:11.5px;color:#8ea0b4;margin-top:-4px}
+#root .dca .dwRiskS>small{font-size:12.5px;color:#b9c8d8}
+#root .dca .dwBig{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding-top:4px}
+#root .dca .dwBig span{display:grid;gap:2px;padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.04);text-align:center}
+#root .dca .dwBig small{font-size:10.5px;color:#8ea0b4}
+#root .dca .dwBig b{font-size:14.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:380px){#root .dca .dwBig{grid-template-columns:repeat(2,1fr)}}
+
+#root .dca .dwLine{display:grid;gap:12px;padding:16px;border-radius:20px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwLineHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+#root .dca .dwLineHead small{font-size:11.5px;color:#8ea0b4;text-align:right}
+#root .dca .dwLineBody{display:grid;grid-template-columns:22px 1fr;gap:14px}
+#root .dca .dwLineBar{position:relative;width:6px;margin:8px auto;border-radius:6px;background:linear-gradient(#3ddc97,#8fb4ff 45%,#ff6b6b)}
+#root .dca .dwLineWin{position:absolute;left:0;right:0;border-radius:6px;background:#3ddc97}
+#root .dca .dwLineDot{position:absolute;left:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #0b1522;background:#8fb4ff}
+#root .dca .dwLineDot[data-kind="now"]{background:#fff;width:18px;height:18px;margin:-9px 0 0 -9px;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
+#root .dca .dwLineDot[data-kind="tp"]{background:#3ddc97}
+#root .dca .dwLineDot[data-kind="stop"]{background:#ff6b6b}
+#root .dca .dwLine ol{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+#root .dca .dwLine li{display:grid;gap:1px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.035);border-left:3px solid #8fb4ff}
+#root .dca .dwLine li[data-kind="now"]{border-left-color:#fff}
+#root .dca .dwLine li[data-kind="tp"]{border-left-color:#3ddc97}
+#root .dca .dwLine li[data-kind="stop"]{border-left-color:#ff6b6b}
+#root .dca .dwLine li b{font-size:13.5px;font-variant-numeric:tabular-nums}
+#root .dca .dwLine li small{font-size:11.5px;color:#8ea0b4}
+
+#root .dca .dwSettings{border-radius:18px;background:var(--card);border:1px solid rgba(255,255,255,.07)}
+#root .dca .dwSettings>summary{position:relative;list-style:none;display:flex;flex-direction:column;gap:2px;padding:14px 16px;cursor:pointer;font-weight:800;font-size:15px}
+#root .dca .dwSettings>summary::-webkit-details-marker{display:none}
+#root .dca .dwSettings>summary::after{content:"⌄";position:absolute;right:28px;font-size:18px;color:#8ea0b4}
+#root .dca .dwSettings>summary small{font-weight:600;font-size:11.5px;color:#8ea0b4}
+#root .dca .dwSettings[open]>summary{border-bottom:1px solid rgba(255,255,255,.07)}
+#root .dca .dwSettings[open]{display:grid;gap:12px;padding-bottom:12px}
+#root .dca .dwSettings[open]>*:not(summary){margin-left:12px;margin-right:12px}
+#root .dca .dcaBot .dwWatch{margin:4px 0}
