@@ -132,6 +132,16 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   const hasPositions = (status?.positions.length ?? 0) > 0
   const canEdit = !!status && status.available && state === 'OFF' && !hasPositions
   const armActive = !!status?.arm.active
+  // Kaydet / Ayarları değiştir / Oturum açılınca panelin başına kaydır. İşlem bitip "yükleniyor" ekranı gidince çalışır;
+  // sihirbaz yeniden kurulsa da kaybolmasın diye ana panelde tutulur.
+  const rootRef = useRef<HTMLElement>(null)
+  const scrollNext = useRef(false)
+  useEffect(() => {
+    if (!scrollNext.current || screen === 'loading' || busy) return
+    scrollNext.current = false
+    const id = requestAnimationFrame(() => { try { rootRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'}) } catch { /* eski tarayıcı */ } })
+    return () => cancelAnimationFrame(id)
+  }, [screen, busy, wzEdit, armActive, status?.configured, status?.state])
 
   const activate = () => run('activate', async () => {
     if (!status) return
@@ -143,6 +153,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
     }
     const started = await postRef.current('/farmer/start') as {state?: string} | null | undefined
     if (!started || started.state !== 'RUNNING') throw new Error('FARMER_NOT_STARTED')   // HTTP 200 tek başına başarı sayılmaz
+    scrollNext.current = true
     setFlash({tone: 'ok', text: L('KAIS FARMER etkinleştirildi.', 'KAIS FARMER is active.')})
   })
   const saveSettings = () => run('save', async () => {
@@ -150,10 +161,10 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
     const body = bodyOf(form)
     if (body.__invalid) { setFormError(L('Lütfen tüm alanları sayıyla doldur.', 'Please fill every field with a number.')); return }
     await postRef.current('/farmer/settings', body)
-    dirty.current = false; setWzEdit(false)
+    dirty.current = false; scrollNext.current = true; setWzEdit(false)
   })
   const stopBot = () => run('stop', async () => { await postRef.current('/farmer/stop-bot'); setFlash({tone: 'ok', text: L('Yeni girişler durduruldu. Açık pozisyonlar korunuyor.', 'New entries stopped. Existing positions stay protected.')}) })
-  const renewArm = () => run('arm', async () => { await postRef.current('/arm', {understood: true}); setFlash({tone: 'ok', text: L('İşlem oturumu yenilendi.', 'Trading session renewed.')}) })
+  const renewArm = () => run('arm', async () => { await postRef.current('/arm', {understood: true}); scrollNext.current = true; setFlash({tone: 'ok', text: L('İşlem oturumu yenilendi.', 'Trading session renewed.')}) })
   const acknowledge = () => run('ack', async () => { await postRef.current('/farmer/acknowledge') })
   const doEmergency = async () => {
     setEmergency('working'); setEmergencyResult(null)
@@ -196,7 +207,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
     if (wizardOn) return <>
       {notices}
       <Wizard {...{status, form, edit, preview, formError, lang, L, openGuide, busy, armActive, step: wzEdit || !status.configured ? 1 : !armActive ? 2 : 3, editing: wzEdit && status.configured,
-        onSave: saveSettings, onRenew: renewArm, onActivate: activate, onEdit: () => setWzEdit(true), onCancelEdit: () => { setWzEdit(false); dirty.current = false; setForm(formOf(status.config ?? status.recommended)) }}}/>
+        onSave: saveSettings, onRenew: renewArm, onActivate: activate, onEdit: () => { scrollNext.current = true; setWzEdit(true) }, onCancelEdit: () => { scrollNext.current = true; setWzEdit(false); dirty.current = false; setForm(formOf(status.config ?? status.recommended)) }}}/>
     </>
     if (screen === 'onboarding') return <>
       {notices}
@@ -213,7 +224,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
       emergencyResult, clearEmergency: () => setEmergencyResult(null)}}/>
   })()
 
-  return <section className="fmRoot" data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
+  return <section className="fmRoot" ref={rootRef} data-testid="farmer-panel" data-screen={screen} data-state={status?.state}>
     {status && screen !== 'loading' && screen !== 'backend_unavailable' ? <FarmerGuideCard status={status} screen={screen} L={L} now={now} onConnect={onConnect} onRenew={renewArm} preview={preview}
       onOpenGuide={() => openGuide()} onAsk={ask} busy={!!busy} onCoachChange={onCoachChange} editing={wzEdit} wizard={wizardActive}>{body}</FarmerGuideCard> : body}
     <FarmerGuide lang={lang} open={guide.open} topic={guide.topic} onClose={() => setGuide({open: false})} onAsk={onAsk}/>
@@ -595,15 +606,7 @@ function Wizard(p: WizardProps) {
     : preview.verdict === 'NOT_RECOMMENDED' ? {tone: 'bad', text: L('Bu rakamlarla işlem kurulamıyor. Kaybı biraz artır ya da hedefi küçült.', 'These numbers cannot form a trade. Raise the loss a bit or lower the target.')}
     : preview.verdict === 'TIGHT' ? {tone: 'warn', text: L('Dar bir ayar. Normal dalgalanmada stop çalışabilir; daha geniş bir kayıp sınırı dene.', 'A tight setup. Normal moves may hit the stop; try a wider loss limit.')}
     : {tone: 'ok', text: plan(preview.target_usdt, preview.max_loss_usdt, capacity)}
-  const wzRef = useRef<HTMLDivElement>(null)
-  const firstStep = useRef(true)
-  // Adım değişince (kaydet → oturum → başlat) panelin başına kaydır; yoksa ekran eski yerinde kalıyor
-  useEffect(() => {
-    if (firstStep.current) { firstStep.current = false; return }
-    const id = requestAnimationFrame(() => { try { (wzRef.current?.closest('.fmRoot') ?? wzRef.current)?.scrollIntoView({behavior: 'smooth', block: 'start'}) } catch { /* eski tarayıcı */ } })
-    return () => cancelAnimationFrame(id)
-  }, [step])
-  return <div className="fmWz" ref={wzRef} data-step={step} data-testid="farmer-wizard">
+  return <div className="fmWz" data-step={step} data-testid="farmer-wizard">
     {step === 1 && <div className="fmWzPane" key="s1" data-testid="farmer-setup">
       <div className="fmProfiles" role="radiogroup" aria-label={L('Hazır profil', 'Ready profile')}>
         {PROFILES.map(pr => { const Icon = pr.icon; return <button type="button" role="radio" aria-checked={picked?.id === pr.id} key={pr.id} data-tone={pr.tone} data-on={picked?.id === pr.id || undefined} onClick={() => edit({target_usdt: String(pr.target), max_loss_usdt: String(pr.loss), total_margin_cap: String(Math.min(pr.cap, cap))})}>
