@@ -385,3 +385,9 @@
 #root .dca .dwLossEdit label input{width:18px;height:18px}
 #root .dca .dwLossEdit>button{min-height:44px;border-radius:12px;border:0;background:#3ddc97;color:#06210f;font-weight:800}
 #root .dca .dwLossEdit>button:disabled{opacity:.45}
+
+/* Coin satırında analiz penceresini açan ikon (Manuel işlemdeki gibi) */
+#root .dca .dwCoins li.dwAnaLi{display:flex;align-items:center;gap:8px}
+#root .dca .dwCoins li.dwAnaLi>button:first-child{flex:1 1 0;width:auto;min-width:0}
+#root .dca .dwCoins li.dwAnaLi>button.dwAnaBtn{flex:none;display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:14px;background:#16212f;border:1px solid #20304a;color:#9fd8ff;cursor:pointer}
+#root .dca .dwCoins li.dwAnaLi>button.dwAnaBtn svg{width:22px;height:22px}
