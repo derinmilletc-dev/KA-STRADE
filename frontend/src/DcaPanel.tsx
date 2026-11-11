@@ -54,6 +54,7 @@ const STATUS: Record<string, {text: string; tone: 'run' | 'wait' | 'stop' | 'bad
   EMERGENCY: {text: 'Acil durum', tone: 'bad'},
 }
 const FINAL = ['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED']
+const MAX_BOTS = 3   // backend dca_live.MAX_BOTS_PER_USER ile aynı
 
 const num = (value: unknown) => { const n = Number(String(value).replace(',', '.')); return Number.isFinite(n) ? n : NaN }
 export const fmtPrice = (value: number) => (Number.isFinite(value) && value !== 0 ? String(Number(value.toPrecision(6))) : '—')
@@ -252,7 +253,7 @@ export default function DcaPanel(props: DcaPanelProps) {
 
   const choosePlan = (plan: NonNullable<typeof presetPlans>[number]) => {
     setPresetId(plan.preset.id)
-    setForm(plan.form)
+    setForm({...plan.form, recycle: form.recycle})   // "Otomatik tekrar" kullanıcının seçimidir; plan değişince sıfırlanmaz
     setNote(lossCap > 0 && plan.state !== 'no' ? `Plan tek işlem zarar sınırın olan ${lossCap} USDT'ye göre ayarlandı (en kötü kayıp bunun altında).` : plan.shrunk ? `Plan ${cap} USDT limitine sığsın diye otomatik küçültüldü (daha az ek alım, daha yavaş büyüme).` : plan.state === 'ok' ? `Yatırım tutarı ${cap} USDT limitine göre ayarlandı.` : '')
   }
   const autoRef = useRef('')
@@ -373,9 +374,16 @@ export default function DcaPanel(props: DcaPanelProps) {
   const stepsMeta = [{n: 1, label: 'Coin'}, {n: 2, label: 'Plan'}, {n: 3, label: 'Başlat'}, {n: 4, label: 'Takip'}] as const
   const canStep = (n: number) => step !== 4 && started === null ? (n === 1 || (n === 2 && picked !== null) || (n === 3 && picked !== null && result.valid && ready)) : n === 4 || n === 1
   const lastStage = result.stages[result.stages.length - 1]
+  const totalCycles = bots.reduce((sum, bot) => sum + (Number(bot.stats?.completed_cycles) || 0), 0)
+  const totalRealized = bots.reduce((sum, bot) => sum + (Number(bot.stats?.realized_usdt) || 0), 0)
 
   return (
     <section className="dca dw" aria-label="DCA botu" data-step={step}>
+      {bots.length > 0 && step !== 4 && <div className="dcaSum" data-testid="dca-summary" aria-label="DCA özeti">
+        <span><small>Biten tur</small><b>{totalCycles}</b></span>
+        <span><small>Gerçekleşen net</small><b className={totalRealized >= 0 ? 'up' : 'down'}>{fmtUsd(totalRealized, true)}</b></span>
+        <span><small>Çalışan bot</small><b>{active.length}/{MAX_BOTS}</b></span>
+      </div>}
       {active.length > 0 && step !== 4 && <div className="dcaBots" aria-label="Çalışan botlar">{active.map(bot => <BotCard key={bot.grid_id} bot={bot} busy={busy === bot.grid_id} onAct={act} />)}</div>}
 
       <ol className="dwSteps" aria-label="Adımlar">
@@ -444,6 +452,8 @@ export default function DcaPanel(props: DcaPanelProps) {
             </>}
           </button>
         })}</div>}
+        {ready && <label className="dcaToggle dwRecycle" data-testid="dca-recycle"><input type="checkbox" checked={form.recycle} onChange={e => setForm(c => ({...c, recycle: e.target.checked}))} /><span><b>Otomatik tekrar</b><small>Kâr hedefi dolunca yeni tur başlar. Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>}
+        {ready && <p className="dwHint" data-testid="dca-no-guarantee">Kâr garantisi yoktur. Fiyat ek emirlerin ötesine giderse stop çalışır ve yukarıda gösterilen en kötü kayıp yaşanabilir.</p>}
         {rl?.max_loss_per_trade > 0 && <div className="dwLoss" data-testid="dca-loss-limit">
           <div><small>Tek işlem zarar sınırın (canlı risk ayarı)</small><b>{rl.max_loss_per_trade} USDT</b></div>
           <button type="button" onClick={() => setLossEdit(c => ({...c, open: !c.open, value: String(rl.max_loss_per_trade)}))}>{lossEdit.open ? 'Kapat' : 'Değiştir'}</button>
@@ -470,7 +480,6 @@ export default function DcaPanel(props: DcaPanelProps) {
               <Slider label="Hacim çarpanı" unit="x" min={1} max={DCA_LIMITS.maxVolumeMultiplier} step={0.1} value={form.volume} onChange={v => set('volume', v)} hint="Her ek emir bir öncekinden bu kadar büyük" />
               <Slider label="Kâr hedefi (ortalamadan)" unit="%" min={DCA_LIMITS.takeProfitPct[0]} max={5} step={0.1} value={form.tp} onChange={v => set('tp', v)} />
               <Slider label="Stop mesafesi (son ek emrin ötesi)" unit="%" min={DCA_LIMITS.stopGapPct[0]} max={5} step={0.1} value={form.gap} onChange={v => set('gap', v)} />
-              <label className="dcaToggle"><input type="checkbox" checked={form.recycle} onChange={e => { setPresetId(''); setForm(c => ({...c, recycle: e.target.checked})) }} /><span><b>Tur bitince yeniden başlat</b><small>Her yeni tur risk kapılarından baştan geçer; biri geçmezse bot durur.</small></span></label>
             </div>
             <div className="dcaCard dcaVisual">
               {result.valid && ready ? <>

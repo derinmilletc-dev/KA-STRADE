@@ -152,6 +152,11 @@
 .dcaBotActions{display:flex;gap:10px}
 .dcaBotActions button{flex:1;min-height:46px;border:0;border-radius:14px;font-weight:800;font-size:14px;cursor:pointer;background:#162334;color:#bfd0e2}
 .dcaBotActions button.danger{background:linear-gradient(135deg,#ff7b7b,#e5484d);color:#fff}
+.dcaSum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.dcaSum span{display:grid;gap:2px}
+.dcaSum small{font-size:11px;letter-spacing:.06em;color:var(--mut)}
+.dcaSum b{font-size:15px}
+.dwRecycle{margin-top:4px}
 .dcaPast{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-size:13px}
 .dcaPast>b{font-size:11px;letter-spacing:.1em;color:var(--mut)}
 .dcaPast div{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
