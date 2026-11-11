@@ -6393,6 +6393,7 @@ async def execute_live_order(
                 candidate_notional_usdt=body.margin_usdt * body.leverage,
                 cycle_candidates=cycle_candidates,
                 enforce_spread=source != "MANUAL",
+                enforce_exposure=source != "MANUAL",
             )
             for gate in guard.get("gates", []):
                 if isinstance(gate, dict):
