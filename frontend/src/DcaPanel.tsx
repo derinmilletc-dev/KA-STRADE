@@ -178,7 +178,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [notStarted, setNotStarted] = useState<Array<{sym: string; why: string}>>([])
   const [server, setServer] = useState<{state: 'idle' | 'busy' | 'ok' | 'error'; text: string; plan?: any}>({state: 'idle', text: ''})
   const [busy, setBusy] = useState('')
-  const [smartEntry, setSmartEntry] = useState(false)
+  const [smartEntry, setSmartEntry] = useState(true)
   const [trailOn, setTrailOn] = useState(false)
   const [extras, setExtras] = useState<string[]>([])
   const [extraNote, setExtraNote] = useState('')
