@@ -46,23 +46,24 @@ export function DcaGuideCard({input, stale, onOpen, onAsk, onConnect, onManual, 
     {text: input.emergency ? 'Acil durum var' : 'Acil durum yok', ok: !input.emergency},
   ]
   const steps = ['Hesap', 'Plan', 'Doğrula', 'Başlat']
-  return <section className="lcGuide lcGuideDca" data-tone={blocked ? 'stop' : needsAccount ? 'warn' : 'go'} data-phase="setup" data-testid="dca-guide" aria-live="polite">
-    <header className="lcGuideHead">
+  return <section className="lcGuide fmGuide lcGuideDca" data-tone={blocked ? 'stop' : needsAccount ? 'warn' : 'go'} data-phase="setup" data-testid="dca-guide" aria-live="polite">
+    <header className="fmGHead">
       <span className="lcEye" aria-hidden="true" data-tone={blocked ? 'stop' : 'go'}/>
       <div><b>KAIS REHBER</b><small>{`Adım ${step + 1} / ${steps.length} · ${steps[step]}`}</small><em className="lcStrat" data-testid="strategy-name">Seçili strateji: DCA</em></div>
-      <span className="lcHeadBtns">
-        <button type="button" className="lcAsk" onClick={onAsk}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
-        {onManual && <button type="button" className="lcManualBtn" data-testid="dca-manual" onClick={onManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
+      <span className="fmStatePill">DCA</span>
+      <span className="fmHeadBtns">
+        <button type="button" className="fmPill fmPillAsk" onClick={onAsk}><MessageCircle aria-hidden="true"/>Kais’e sor</button>
+        {onManual && <button type="button" className="fmPill" data-testid="dca-manual" onClick={onManual}><Zap aria-hidden="true"/>Manuel işlem aç</button>}
       </span>
     </header>
-    <ol className="lcSteps" aria-label="DCA adımları">{steps.map((label, index) => <li key={label} data-state={index < step ? 'done' : index === step ? 'current' : 'todo'} aria-current={index === step ? 'step' : undefined}><i/><span>{label}</span></li>)}</ol>
+    <div className="fmProg" role="img" aria-label={`Adım ${step + 1} / ${steps.length}`}>{steps.map((label, index) => <span key={label} data-state={index < step ? 'done' : index === step ? 'now' : 'todo'}><i aria-hidden="true"/><em>{label}</em></span>)}</div>
     <h2 className="lcGuideTitle">{title}</h2>
     <p className="lcGuideMsg" data-open>{message}</p>
-    {verified && <ul className="lcDcaPills" aria-label="Durum">{checks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '○'}</i>{item.text}</li>)}</ul>}
-    <div className="lcGuideActions">
-      {needsAccount ? <button type="button" className="lcBtn lcPrimary" onClick={onConnect}>Bağlantıyı aç</button> : null}
-      {blocked && onClearEmergency ? <button type="button" className="lcBtn lcPrimary" data-testid="dca-clear-emergency" onClick={onClearEmergency}>Acil durdurmayı kaldır</button> : null}
-      <button type="button" className={needsAccount || blocked ? 'lcBtn lcGhost' : 'lcBtn lcPrimary'} data-testid="dca-open" disabled={blocked} onClick={onOpen}><Zap aria-hidden="true"/>DCA ekranını aç</button>
+    {verified && <ul className="fmDcaChecks" aria-label="Durum">{checks.map(item => <li key={item.text} data-ok={item.ok || undefined}><i aria-hidden="true">{item.ok ? '✓' : '○'}</i>{item.text}</li>)}</ul>}
+    <div className="fmActs fmDcaActs">
+      {needsAccount ? <button type="button" className="fmBtn fmPrimary" onClick={onConnect}>Bağlantıyı aç</button> : null}
+      {blocked && onClearEmergency ? <button type="button" className="fmBtn fmPrimary" data-testid="dca-clear-emergency" onClick={onClearEmergency}>Acil durdurmayı kaldır</button> : null}
+      <button type="button" className={needsAccount || blocked ? 'fmBtn' : 'fmBtn fmPrimary'} data-testid="dca-open" disabled={blocked} onClick={onOpen}><Zap aria-hidden="true"/>DCA ekranını aç</button>
     </div>
   </section>
 }

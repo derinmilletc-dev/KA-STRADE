@@ -493,3 +493,24 @@ html body #root .lcRoot .lcGrid[data-coach] .lcMain > .fmRoot{grid-column:1/-1!i
 #root .fmInner .fmCands li[data-status="REJECTED"] .fmScoreBar u{background:rgba(255,255,255,.28)}
 #root .fmInner .fmCands li[data-status="WAITING_CONFIRMATION"] .fmScoreBar u{background:linear-gradient(90deg,#d9a53a,#f0b84a)}
 #root .fmInner .fmCands li>em{grid-area:st;font-size:11.5px;font-style:normal}
+
+/* ---- DCA Rehber kartı: Farmer ile aynı modern görünüm ---- */
+.fmDcaChecks{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+.fmDcaChecks li{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:14px;font-size:14px;font-weight:700;color:#aebfb6;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.fmDcaChecks li[data-ok]{color:#d9f7e8;background:rgba(61,220,151,.08);border-color:rgba(61,220,151,.28)}
+.fmDcaChecks i{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;font-style:normal;font-size:12px;font-weight:900;background:rgba(255,255,255,.08);color:#8fa398}
+.fmDcaChecks li[data-ok] i{background:rgba(61,220,151,.22);color:#5ff0b0}
+.fmDcaActs{display:grid;grid-template-columns:1fr;margin-top:16px}
+.fmDcaActs .fmBtn{width:100%;min-height:54px;border-radius:16px;font-size:16px;white-space:nowrap}
+.fmGuide[data-phase="setup"] .fmDcaActs:empty{display:none}
+/* DCA kartı Farmer panelinin (.fmRoot) dışında durur: gereken değişkenleri, yazı tipini ve sıfırlamaları kendisi taşır */
+.fmGuide.lcGuideDca{--fm-text:#e8f1ec;--fm-mute:#9db0a6;--fm-faint:#7a8f84;--fm-green:#3ddc97;--fm-green-ink:#06130d;--fm-green-soft:rgba(61,220,151,.12);color:var(--fm-text);font-family:var(--font-ui,'Avenir Next','Segoe UI',sans-serif);box-sizing:border-box}
+.fmGuide.lcGuideDca *{box-sizing:border-box}
+.fmGuide.lcGuideDca button{font-family:inherit;cursor:pointer}
+.fmGuide.lcGuideDca .fmPill,.fmGuide.lcGuideDca .fmBtn{font-weight:800}
+.fmGuide.lcGuideDca .fmPill{font-size:12.5px}
+.fmGuide.lcGuideDca .fmBtn{font-size:16px;letter-spacing:.01em}
+.fmGuide.lcGuideDca .lcGuideTitle{margin:4px 0 8px}
+.fmGuide.lcGuideDca .fmDcaChecks{margin:16px 0 0}
+.fmGuide.lcGuideDca .fmGHead>div b,.fmGuide.lcGuideDca .fmGHead>div small{font-family:inherit}
+.fmGuide.lcGuideDca .lcGuideMsg{margin:0}
