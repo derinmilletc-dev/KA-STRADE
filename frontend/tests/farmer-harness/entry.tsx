@@ -21,6 +21,12 @@ export const SCENARIOS: Record<string, any> = {
   disabled: base({available: false, state: 'OFF', configured: false, config: null, blockers: ['LIVE_FLAG_OFF'], why: {code: 'UNAVAILABLE', details: []}, slots: null, effective_capacity: null}),
   onboarding: base({state: 'OFF', configured: false, config: null, arm: {active: false, expires_at: null}, why: {code: 'OFF', details: []}}),
   off: base({state: 'OFF', why: {code: 'OFF', details: []}}),
+  results: base({summary: {closed_count: 9, target_count: 6, stop_count: 3, other_count: 0, win_rate: 0.6667, verified_count: 8, verified_net_pnl: 1.23, commission_total: 1.41, best_pnl: 0.34, worst_pnl: -1.92},
+    recent_results: [
+      {grid_id: 'r1', symbol: 'SOLUSDT', side: 'LONG', opened_at: 1, closed_at: Date.now() / 1000 - 600, target_usdt: 0.4, max_loss_usdt: 2, est_cost_usdt: 0.2, close_reason: 'TARGET', pnl_state: 'VERIFIED', commission: 0.16, verified_net_pnl: 0.31},
+      {grid_id: 'r2', symbol: 'ETHUSDT', side: 'SHORT', opened_at: 1, closed_at: Date.now() / 1000 - 4000, target_usdt: 0.4, max_loss_usdt: 2, est_cost_usdt: 0.2, close_reason: 'STOP', pnl_state: 'VERIFIED', commission: 0.17, verified_net_pnl: -1.92},
+      {grid_id: 'r3', symbol: 'XRPUSDT', side: 'LONG', opened_at: 1, closed_at: Date.now() / 1000 - 9000, target_usdt: 0.4, max_loss_usdt: 2, est_cost_usdt: 0.2, close_reason: 'TARGET', pnl_state: 'PENDING', commission: null, verified_net_pnl: null}]}),
+  results_empty: base({summary: {closed_count: 0, target_count: 0, stop_count: 0, other_count: 0, win_rate: null, verified_count: 0, verified_net_pnl: null, commission_total: null, best_pnl: null, worst_pnl: null}, recent_results: []}),
   arm_needed: base({state: 'OFF', arm: {active: false, expires_at: null}, why: {code: 'OFF', details: []}}),
   running_empty: base({scanner: [{symbol: 'XRPUSDT', direction: 'SHORT', score: 88, status: 'REJECTED', reason: 'SCORE_TOO_LOW'}], why: {code: 'SCORE_TOO_LOW', details: [{code: 'SCORE_TOO_LOW', count: 1}, {code: 'MTF_NOT_CONFIRMED', count: 2}]}}),
   running_none: base({}),
@@ -34,12 +40,13 @@ export const SCENARIOS: Record<string, any> = {
   intervention: base({state: 'INTERVENTION_REQUIRED', positions: [pos({engine_status: 'BLOCKED'})], slots: {capacity: 2, held: 0, open: 1, closing: 0, free: 1}, why: {code: 'INTERVENTION', details: []}, margin_used_usdt: 50, available_margin_usdt: 50}),
   pnl: base({positions: [pos({grid_id: 'a', symbol: 'ADAUSDT', slot_state: 'CLOSING', pnl_state: 'PENDING'}), pos({grid_id: 'b', symbol: 'LTCUSDT', slot_state: 'OPEN', pnl_state: 'UNVERIFIED'}), pos({grid_id: 'c', symbol: 'AVAXUSDT', pnl_state: 'VERIFIED', verified_net_pnl: 1.02})], slots: {capacity: 5, held: 0, open: 2, closing: 1, free: 2}, effective_capacity: 5, today: {basis: 'UTC_DAY', verified_net_pnl: null, verified_count: 0, pending_count: 1, unverified_count: 1}}),
 }
+;(window as any).__mk = {base, pos}
 const params = new URLSearchParams(location.search)
 const name = params.get('s') || 'running_two'
 const emergency = params.get('em') || ''
-const sc = name === 'account' ? SCENARIOS.off : SCENARIOS[name]
+const sc = name === 'account' ? SCENARIOS.off : name === 'notify' ? SCENARIOS.running_empty : SCENARIOS[name]
 const calls: string[] = ((window as any).__calls = [])
-const get = async (path: string) => { calls.push('GET ' + path); if (sc === 'loading') return new Promise(() => {}); if (sc === 'down') throw new Error('x'); return sc }
+const get = async (path: string) => { calls.push('GET ' + path); if (name === 'notify') return (window as any).__status || SCENARIOS.running_empty; if (sc === 'loading') return new Promise(() => {}); if (sc === 'down') throw new Error('x'); return sc }
 const post = async (path: string, body?: any) => { calls.push('POST ' + path + (body ? ' ' + JSON.stringify(body) : '')); if (path === '/farmer/preview') return {preview: prev({verdict: body?.target_usdt < 0.4 ? 'TIGHT' : 'GOOD', warnings: body?.target_usdt < 0.4 ? ['TARGET_TOO_SMALL'] : []})}
   if (path === '/farmer/emergency-close') { if (emergency === 'fail') return {complete: false, closed: 0, failed: 1}; if (emergency === 'partial') return {complete: false, closed: 1, failed: 1}; return {complete: true, closed: 2, failed: 0} }
   if (path === '/farmer/start') { if (new URLSearchParams(location.search).get('start') === 'reject') throw new Error('{"code":"FARMER_NOT_STARTED"}'); return {ok: true, state: 'RUNNING'} }

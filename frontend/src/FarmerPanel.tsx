@@ -9,6 +9,7 @@ import {
   tr_, whyKey, type CopyKey, type FarmerCandidate, type FarmerPosition, type FarmerPreview, type FarmerSettings, type FarmerStatus, type Lang,
 } from './farmerView'
 import {showToast} from '../../toast-center'
+import {ResultsCard, useFarmerNotifications} from './FarmerResults'
 import './farmer.css'
 
 /** KAIS FARMER ekranı. Sunucu tek doğruluk kaynağıdır: marjin, risk, PnL, ARM, günlük kayıp ve koruma durumu burada HESAPLANMAZ, yalnız gösterilir.
@@ -69,6 +70,7 @@ export default function FarmerPanel({get, post, accountConnected, onConnect, onA
   const [formError, setFormError] = useState('')
   const dirty = useRef(false)
   const [wzEdit, setWzEdit] = useState(false)
+  useFarmerNotifications(status, L)
 
   const load = useCallback(async () => {
     try {
@@ -284,6 +286,8 @@ function Dashboard(p: DashProps) {
         ? <div className="fmPositions">{status.positions.map(pos => <PositionCard key={pos.grid_id} pos={pos} L={L} t={t}/>)}</div>
         : <p className="fmEmpty" data-testid="farmer-no-positions">{L('Şu an açık pozisyon yok. KAIS FARMER yalnızca nitelikli bir kurulum çıkınca pozisyon açar.', 'No open positions right now. KAIS FARMER opens one only when a qualified setup appears.')}</p>}
     </section>
+
+    <ResultsCard status={status} L={L}/>
 
     {(!hasPositions || slots.free > 0) && <WhyCard status={status} L={L} t={t} openGuide={p.openGuide}/>}
     <Scanner items={status.scanner} L={L} t={t} openGuide={p.openGuide}/>
@@ -597,6 +601,7 @@ function Wizard(p: WizardProps) {
       <span className="fmWzChips" role="group" aria-label={`${label}: ${L('hızlı seç', 'quick pick')}`}>{chips.map(c => <button type="button" key={c} data-on={Number(value) === c || undefined} onClick={() => edit({[key]: String(c)} as Partial<Form>)}>{c}</button>)}</span>
     </div>
   }
+  const feeShare = preview && preview.target_usdt > 0 && Number.isFinite(preview.est_cost_usdt) ? preview.est_cost_usdt / preview.target_usdt : null
   const filled = form.target_usdt.trim() !== '' && form.max_loss_usdt.trim() !== '' && form.total_margin_cap.trim() !== ''
   const picked = PROFILES.find(pr => Number(form.target_usdt) === pr.target && Number(form.max_loss_usdt) === pr.loss && Number(form.total_margin_cap) === pr.cap && form.target_usdt !== '')
   const cfg = status.config
@@ -622,6 +627,13 @@ function Wizard(p: WizardProps) {
       {Number(form.target_usdt) > 0 && Number(form.max_loss_usdt) > 0 && <div className="fmWzBalance" data-testid="farmer-balance" aria-label={L('Kazanç ve kayıp dengesi', 'Gain versus loss balance')}>
         <div className="fmWzBar"><i data-k="gain" style={{flexGrow: Number(form.target_usdt)}}/><i data-k="loss" style={{flexGrow: Number(form.max_loss_usdt)}}/></div>
         <div className="fmWzBarTx"><span data-k="gain"><TrendingUp aria-hidden="true"/>{L('Kazanırsan', 'If it wins')} <b>+${Number(form.target_usdt)}</b></span><span data-k="loss"><TrendingDown aria-hidden="true"/>{L('Kaybedersen', 'If it loses')} <b>-${Number(form.max_loss_usdt)}</b></span></div>
+        {feeShare !== null && <p className="fmWzFee" data-level={feeShare >= 0.5 ? 'high' : feeShare >= 0.3 ? 'mid' : 'low'} data-testid="farmer-fee-note">
+          <Wallet aria-hidden="true"/>{feeShare >= 0.5
+            ? L(`İşlem ücreti hedefinin yaklaşık %${Math.round(feeShare * 100)}’i. Kazansan da kârın yarısı ücrete gider; hedefi büyütmek ya da marjini küçültmek mantıklı.`, `Fees are about ${Math.round(feeShare * 100)}% of your target. Even a win loses half to fees; consider a bigger target or smaller margin.`)
+            : feeShare >= 0.3
+              ? L(`İşlem ücreti hedefinin yaklaşık %${Math.round(feeShare * 100)}’i. Makul ama hedefi küçültme.`, `Fees are about ${Math.round(feeShare * 100)}% of your target. Acceptable, but don't shrink the target.`)
+              : L(`İşlem ücreti hedefinin yaklaşık %${Math.round(feeShare * 100)}’i. İyi.`, `Fees are about ${Math.round(feeShare * 100)}% of your target. Good.`)}
+        </p>}
       </div>}
       {tip && <p className="fmWzTip" data-tone={tip.tone} data-testid="farmer-step-tip"><b>{tip.tone === 'ok' ? L('Plan', 'Plan') : L('İpucu', 'Tip')}</b>{tip.text}</p>}
       <RiskPreview preview={preview} L={L} openGuide={openGuide}/>

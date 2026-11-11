@@ -22,6 +22,14 @@ export type FarmerPosition = {
   cost_over_target: number | null; close_reason: string | null; pnl_state: PnlState; verified_net_pnl: number | null
   entry_price: number | null; tp_price: number | null; stop_price: number | null; mark_price: number | null; unrealized_net_usdt: number | null
 }
+export type FarmerResultRow = {
+  grid_id: string; symbol: string; side: 'LONG' | 'SHORT'; opened_at: number; closed_at: number; target_usdt: number; max_loss_usdt: number
+  est_cost_usdt: number; close_reason: string; pnl_state: PnlState; commission: number | null; verified_net_pnl: number | null
+}
+export type FarmerSummary = {
+  closed_count: number; target_count: number; stop_count: number; other_count: number; win_rate: number | null
+  verified_count: number; verified_net_pnl: number | null; commission_total: number | null; best_pnl: number | null; worst_pnl: number | null
+}
 export type FarmerCandidate = {symbol: string; direction: string; score: number | null; status: 'QUALIFIED' | 'WAITING_CONFIRMATION' | 'REJECTED' | 'COOLING_DOWN'; reason: string | null}
 export type FarmerSlots = {capacity: number; held: number; open: number; closing: number; free: number}
 export type FarmerStatus = {
@@ -32,6 +40,7 @@ export type FarmerStatus = {
   today: {basis: string; verified_net_pnl: number | null; verified_count: number; pending_count: number; unverified_count: number} | null
   why: {code: string; details: Array<{code: string; count: number}>}; hard_cap_usdt: number; signal_interval_s?: number; scanned_count?: number | null
   margin_used_usdt?: number; available_margin_usdt?: number
+  recent_results?: FarmerResultRow[]; summary?: FarmerSummary; events?: string[]
 }
 
 /** Ekranlar: hiçbir durum boş ekran bırakmaz. */
@@ -91,7 +100,7 @@ export const COPY = {
   'why.QUALIFIED_ONLY': {tr: 'Nitelikli kurulumların hepsi zaten pozisyonda.', en: 'All qualified setups are already in positions.'},
   'why.ARM_EXPIRED': {tr: 'ARM süresi doldu.', en: 'ARM is expired.'},
   'why.SAFETY_GATE': {tr: 'Bir güvenlik kapısı aktif.', en: 'A safety gate is active.'},
-  'why.DAILY_LOSS': {tr: 'Günlük kayıp koruması aktif.', en: 'Daily loss protection is active.'},
+  'why.DAILY_LOSS': {tr: 'Günlük zarar limiti doldu, yeni işlem durdu. Bu limit tüm botlar için ortaktır (Dca dahil); gün dönünce ya da limit yükselince devam eder. Açık pozisyonların stopu borsada korunur.', en: 'The daily loss limit is reached, so new entries are paused. The limit is shared by all bots (DCA included); it resumes when the day rolls over or the limit is raised. Open positions stay protected on the exchange.'},
   'why.STOP_BOT': {tr: 'STOP BOT aktif: yeni pozisyon açılmıyor.', en: 'STOP BOT is active: no new positions are opened.'},
   'why.INTERVENTION': {tr: 'Dikkatin gerekiyor; yeni pozisyon açılmıyor.', en: 'Your attention is needed; no new position is being opened.'},
   'why.UNKNOWN': {tr: 'Şu an belirgin tek bir neden yok.', en: 'There is no single clear reason right now.'},

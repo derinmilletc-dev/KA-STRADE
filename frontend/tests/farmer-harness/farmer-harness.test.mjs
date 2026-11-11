@@ -104,7 +104,7 @@ await test('stopping state copy', async () => {
   const p = await open('stopping'); assert.match(await text(p, 'farmer-message'), /New positions are stopped\. Existing positions continue under their protection orders/); assert.strictEqual(await p.getByTestId('farmer-stop').count(), 0); await p.ctx.close()
 })
 await test('safety pause shows daily loss reason', async () => {
-  const p = await open('safety'); assert.match(await text(p, 'farmer-status'), /ENTRY PAUSED/); assert.match(await text(p, 'farmer-status'), /Daily loss protection is active/); await p.ctx.close()
+  const p = await open('safety'); assert.match(await text(p, 'farmer-status'), /ENTRY PAUSED/); assert.match(await text(p, 'farmer-status'), /daily loss limit is reached/i); await p.ctx.close()
 })
 await test('intervention: prominent, no raw errors, no activate, ack posts /farmer/acknowledge', async () => {
   const p = await open('intervention'); const a = await text(p, 'farmer-intervention')
@@ -158,8 +158,30 @@ await test('mobile: no horizontal overflow on every screen', async () => {
 await test('mobile touch targets >= 44px for main actions', async () => {
   const p = await open('running_one'); for (const id of ['farmer-stop', 'farmer-emergency']) { const b = await p.getByTestId(id).boundingBox(); assert.ok(b.height >= 44, `${id} ${b.height}`) }; await p.ctx.close()
 })
+await test('notifications: open, close, critical state (and none for the initial state)', async () => {
+  const ctx = await browser.newContext({viewport: {width: 390, height: 844}, locale: 'en'})
+  await ctx.addInitScript(() => { try { localStorage.setItem('kt_lang', 'en') } catch {} })
+  const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message))
+  await page.clock.install()
+  await page.goto(`file://${dir}/index.html?s=notify`)
+  await page.waitForSelector('[data-testid="farmer-panel"]'); await page.clock.runFor(200)
+  const toasts = () => page.evaluate(() => [...document.querySelectorAll('#kt-toasts .ktT')].map(e => e.innerText))
+  assert.deepStrictEqual(await toasts(), [], 'initial state must not notify')
+  const step = async patch => { await page.evaluate(p => { const {base, pos} = window.__mk; window.__status = base(p(pos)) }, patch); await page.clock.runFor(10500); await page.waitForTimeout(100) }
+  await page.evaluate(() => { const {base, pos} = window.__mk; window.__status = base({positions: [pos({grid_id: 'x1', symbol: 'SOLUSDT'})]}) })
+  await page.clock.runFor(10500); await page.waitForTimeout(100)
+  let t = (await toasts()).join(' | '); assert.match(t, /SOL LONG opened/, t)
+  const rr = {grid_id: 'x1', symbol: 'SOLUSDT', side: 'LONG', opened_at: 1, closed_at: Date.now() / 1000, target_usdt: 0.4, max_loss_usdt: 2, est_cost_usdt: 0.2, close_reason: 'TARGET', pnl_state: 'PENDING', commission: null, verified_net_pnl: null}
+  await page.evaluate(r => { const {base} = window.__mk; window.__status = base({positions: [], recent_results: [r], summary: {closed_count: 1, target_count: 1, stop_count: 0, other_count: 0, win_rate: 1, verified_count: 0, verified_net_pnl: null, commission_total: null, best_pnl: null, worst_pnl: null}}) }, rr)
+  await page.clock.runFor(10500); await page.waitForTimeout(100)
+  t = (await toasts()).join(' | '); assert.match(t, /SOL hit its target/, t)
+  await page.evaluate(() => { const {base, pos} = window.__mk; window.__status = base({state: 'INTERVENTION_REQUIRED', positions: [pos({engine_status: 'BLOCKED'})]}) })
+  await page.clock.runFor(10500); await page.waitForTimeout(100)
+  t = (await toasts()).join(' | '); assert.match(t, /Attention required/, t)
+  assert.deepStrictEqual(errors, []); await ctx.close()
+})
 await test('no page errors in any scenario', async () => {
-  for (const s of ['loading', 'down', 'account', 'disabled', 'onboarding', 'off', 'running_empty', 'running_two', 'five', 'zero_cap', 'arm_expired', 'safety', 'stopping', 'intervention', 'pnl']) { console.log('  scenario', s); const p = await open(s); assert.deepStrictEqual(p.errors, [], s); await p.ctx.close() }
+  for (const s of ['loading', 'down', 'account', 'disabled', 'onboarding', 'off', 'running_empty', 'running_two', 'five', 'zero_cap', 'arm_expired', 'safety', 'stopping', 'intervention', 'pnl', 'results', 'results_empty']) { console.log('  scenario', s); const p = await open(s); assert.deepStrictEqual(p.errors, [], s); await p.ctx.close() }
 })
 await browser.close()
 console.log(`${n} passed`)

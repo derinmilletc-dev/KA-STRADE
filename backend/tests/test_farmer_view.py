@@ -117,6 +117,26 @@ class TestStatusUnavailable(unittest.TestCase):
             self.assertNotIn(banned, text)
 
 
+class TestSummary(unittest.TestCase):
+    def test_empty(self):
+        s = v._summary([])
+        self.assertEqual((s["closed_count"], s["win_rate"], s["verified_net_pnl"]), (0, None, None))
+
+    def test_counts_and_verified_only(self):
+        rows = [
+            {"closed_at": 1, "close_reason": "TARGET", "pnl_state": "VERIFIED", "verified_net_pnl": 0.30, "commission": 0.10},
+            {"closed_at": 2, "close_reason": "STOP", "pnl_state": "VERIFIED", "verified_net_pnl": -1.90, "commission": 0.12},
+            {"closed_at": 3, "close_reason": "TARGET", "pnl_state": "UNVERIFIED", "verified_net_pnl": None, "commission": None},
+            {"closed_at": 4, "close_reason": "DEAD_CLOSE", "pnl_state": "PENDING", "verified_net_pnl": None, "commission": None},
+            {"closed_at": 0, "close_reason": "OPEN", "pnl_state": "PENDING", "verified_net_pnl": None, "commission": None},
+        ]
+        s = v._summary(rows)
+        self.assertEqual((s["closed_count"], s["target_count"], s["stop_count"], s["other_count"]), (4, 2, 1, 1))
+        self.assertAlmostEqual(s["win_rate"], 2 / 3, places=3)
+        self.assertEqual((s["verified_count"], s["verified_net_pnl"], s["commission_total"]), (2, -1.6, 0.22))   # doğrulanmamış net toplama GİRMEZ
+        self.assertEqual((s["best_pnl"], s["worst_pnl"]), (0.3, -1.9))
+
+
 class TestStatusLive(unittest.TestCase):
     def test_open_position_view(self):
         r = Rig(table=dict(ONE))

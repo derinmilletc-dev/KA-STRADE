@@ -199,6 +199,23 @@ def _today_totals(results: list[Mapping[str, Any]], now: float) -> dict[str, Any
             "pending_count": pending, "unverified_count": unverified}
 
 
+def _summary(results: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """Tüm kapanmış sonuçların genel özeti. Kazanç/kayıp yalnız borsa dolumuyla kanıtlanan kapanış nedeninden (TARGET/STOP) sayılır;
+    net PnL yalnız VERIFIED satırlardan toplanır (varsayım/tahmin yok)."""
+    closed = [r for r in results if float(r.get("closed_at") or 0) > 0]
+    target = sum(1 for r in closed if r.get("close_reason") == "TARGET")
+    stop = sum(1 for r in closed if r.get("close_reason") == "STOP")
+    verified = [r for r in closed if r.get("pnl_state") == "VERIFIED" and r.get("verified_net_pnl") is not None]
+    nets = [float(r["verified_net_pnl"]) for r in verified]
+    fees = [float(r["commission"]) for r in verified if r.get("commission") is not None]
+    decided = target + stop
+    return {"closed_count": len(closed), "target_count": target, "stop_count": stop, "other_count": len(closed) - decided,
+            "win_rate": round(target / decided, 4) if decided else None,
+            "verified_count": len(verified), "verified_net_pnl": round(sum(nets), 6) if nets else None,
+            "commission_total": round(sum(fees), 6) if fees else None,
+            "best_pnl": round(max(nets), 6) if nets else None, "worst_pnl": round(min(nets), 6) if nets else None}
+
+
 def _scanned_count(orch: Any) -> int | None:
     """Son kapanmış mumda taranan (analizi çıkan) sembol sayısı; okunamazsa None (uydurma sayı yok)."""
     try:
@@ -231,6 +248,7 @@ def build_status(runtime: Any | None, *, arm: Mapping[str, Any], env: Mapping[st
             "positions": view["positions"], "scanner": scanner, "slots": view["slots"], "effective_capacity": view["effective_capacity"],
             "max_positions": cfg.max_positions, "snapshot_ok": view["snapshot_ok"], "recovered": bool(orch.recovered),
             "today": _today_totals(orch.store.results(orch.account_key), now), "recent_results": view["recent_results"],
+            "summary": _summary(orch.store.results(orch.account_key)), "events": list(view.get("events") or [])[-10:],
             "why": why_no_position(view, scanner, daily_loss), "has_held": bool(orch.engines),
             "scanned_count": _scanned_count(orch),
             "margin_used_usdt": round(float(orch.store.held_margin(orch.account_key)), 6),
