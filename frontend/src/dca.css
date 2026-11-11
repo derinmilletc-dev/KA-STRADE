@@ -468,3 +468,5 @@
 #root .dca .dwExList button[data-on]{background:linear-gradient(160deg,rgba(61,220,151,.24),#0f1824 85%)!important;color:var(--ink)!important;border-color:#3ddc97!important}
 #root .dca .dwExList button[data-on] b{color:var(--ink)!important}
 #root .dca .dwExList button[data-on] small{color:#b9c8d8!important}
+#root .dca .dwWhy[data-bad]{background:rgba(255,107,107,.12);border-color:rgba(255,107,107,.45);color:#ffc9c9}
+#root .dca .dwWhy[data-bad] i{background:#ff6b6b;color:#2a0d0d}

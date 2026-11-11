@@ -181,6 +181,7 @@ export default function DcaPanel(props: DcaPanelProps) {
   const [extras, setExtras] = useState<string[]>([])
   const [extraNote, setExtraNote] = useState('')
   const [startTap, setStartTap] = useState(0)
+  const [startError, setStartError] = useState('')
 
   const isDemo = account === 'DEMO'
   const liveArmed = isDemo ? true : liveArmedProp
@@ -424,13 +425,22 @@ export default function DcaPanel(props: DcaPanelProps) {
         + (useSmart ? 'Akıllı başlama açık: Kais uygun görene kadar bot bekler. ' : 'Taban emir hemen piyasadan girer. ')
         + 'Ek emirler limit olarak bekler, stop dolan her miktar için kurulur.',
       expected: isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT',
-      action: async () => {
+      action: async () => { try { await runStart() } catch (error: any) { setStartError(error?.message || 'Başlatılamadı.'); throw error } },
+    })
+  }
+  const runStart = async () => {
+        setStartError('')
         const word = isDemo ? 'DEMO DCA BAŞLAT' : 'CANLI DCA BAŞLAT'
-        const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>}> = [{sym: symbol, inp: input}]
+        const jobs: Array<{sym: string; inp: ReturnType<typeof inputOf>; skip?: boolean}> = [{sym: symbol, inp: input}]
         for (const sym of extras) jobs.push({sym, inp: await extraInput(sym)})
-        for (const job of jobs.slice(1)) await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000})   // önce hepsini sunucuya onaylat
         const failed: string[] = []
+        // Önce hepsini sunucuya onaylat: ana coin reddedilirse hiçbiri başlamaz; ek coin reddedilirse o atlanır, diğerleri başlar.
+        for (const job of jobs.slice(1)) {
+          try { await call(base, '/start', {method: 'POST', body: bodyFor(job.sym, job.inp, true), timeoutMs: 60000}) }
+          catch (error: any) { failed.push(`${job.sym}: ${error?.message || 'reddedildi'}`); job.skip = true }
+        }
         for (const [index, job] of jobs.entries()) {
+          if (job.skip) continue
           try { await call(base, '/start', {method: 'POST', timeoutMs: 60000, body: bodyFor(job.sym, job.inp, false, word)}) }
           catch (error: any) { if (index === 0) throw error; failed.push(`${job.sym}: ${error?.message || 'başlamadı'}`) }
         }
@@ -438,8 +448,6 @@ export default function DcaPanel(props: DcaPanelProps) {
         setStep(4)
         if (failed.length) setStatusError(`Bazı coinler başlamadı: ${failed.join(' · ')}`)
         await loadStatus()
-      },
-    })
   }
   const act = (kind: 'stop' | 'emergency' | 'resume', gridId: string) => {
     const query = `?grid_id=${encodeURIComponent(gridId)}`
@@ -694,6 +702,7 @@ export default function DcaPanel(props: DcaPanelProps) {
       })()}
 
       {step === 3 && whyBlocked && <p className="dwWhy" role="alert" key={startTap} data-tap={startTap > 0 || undefined}><i aria-hidden="true">!</i><span><b>Şu an başlatılamıyor</b>{whyBlocked}</span></p>}
+      {step === 3 && startError && <p className="dwWhy" data-bad role="alert"><i aria-hidden="true">!</i><span><b>Başlatılamadı</b>{startError}</span></p>}
       <div className="dwBar">
         {step === 2 && <><button type="button" className="dwBack" onClick={() => setStep(1)}>Geri</button><button type="button" className="dwGo" data-testid="dca-next" disabled={!ready || !result.valid || !presetId || customBlock !== ''} onClick={() => setStep(3)}>Devam · kontrol et</button></>}
         {step === 3 && <><button type="button" className="dwBack" onClick={() => setStep(2)}>Geri</button><button type="button" className="dwGo live" data-testid="dca-start" aria-disabled={Boolean(whyBlocked) || undefined} data-blocked={Boolean(whyBlocked) || undefined} onClick={() => { if (whyBlocked) { setStartTap(n => n + 1); return } start() }}>Canlı başlat</button></>}

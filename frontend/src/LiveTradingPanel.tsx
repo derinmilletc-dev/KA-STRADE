@@ -20,6 +20,7 @@ import '../../coin-picker.css'
 import '../../manual-mobile.css'
 import '../../manual-analysis-sheet.css'
 import {askKais} from '../../kais-ask'
+import {showToast} from '../../toast-center'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
@@ -682,6 +683,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       await action()
       if (!await refresh()) throw new Error('İşlem sonrasında LIVE durumu doğrulanamadı; tekrar göndermeden önce durumu kontrol edin.')
       if (success) setNotice({kind: 'ok', text: success})
+      if (success && !connectionAction) showToast({body: success, tone: 'ok'})
       if (connectionAction) setConnectionNotice({kind: 'ok', text: success})
       return true
     }
