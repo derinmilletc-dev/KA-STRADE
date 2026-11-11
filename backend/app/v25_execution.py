@@ -9297,7 +9297,8 @@ async def v25_dca_live_status(request: Request, history: int = Query(default=6, 
             "dca_limits": dca_plan.limits_payload(), "live_max_margin_usdt": dca_live.live_max_margin_usdt(),
             "smart_entry_enabled": dca_live.smart_entry_enabled(), "trailing_enabled": dca_live.trailing_enabled(),
             "risk_limits": {"max_loss_per_trade": float((state_policy := sanitize_execution_policy(request.app.state.v25_execution.get("policy") or {})).get("max_loss_per_trade") or 0),
-                            "daily_loss_limit": float(state_policy.get("daily_loss_limit") or 0)}}
+                            "daily_loss_limit": float(state_policy.get("daily_loss_limit") or 0),
+                            "max_total_exposure_usdt": float(state_policy.get("max_total_exposure_usdt") or 0)}}
 
 
 @router.post("/dca/live/start")
