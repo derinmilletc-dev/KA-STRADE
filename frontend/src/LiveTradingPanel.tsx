@@ -9,7 +9,7 @@ import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
 import DcaPanel from './DcaPanel'
 import { liveChangePercent, midPrice } from './live-quote'
-import { analysisFillBlock, checkRows, priceMap, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
+import { analysisFillBlock, checkRows, clampStopToLeverage, priceMap, safeStopPct, stopDistance, switchSymbol, targetDistancePct } from './manual-order-state'
 import { CheckList, DirectionCards, DayLimitCard, ElapsedSeconds, PriceMapView, SlideToConfirm, StatusPill, SummaryList, type SummaryItem } from './ManualTerminalParts'
 import { AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, strengthLabel, buildSignalMap, filterBySignal, leanText, sortByConfidence, sortCoins, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap } from './coin-ranking'
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
@@ -1214,8 +1214,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     // Analiz yalnız sayfada açık coin içindir; seçili coin farklıysa sessizce coin değiştirmez, başka coinin fiyatlarını da yazmaz.
     const fillBlock = analysisFillBlock(order.symbol, symbol)
     if (fillBlock) { setNotice({kind: 'error', text: fillBlock}); return false }
-    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: text(analysis.stop_loss).replace('—', ''), tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
-    setNotice({kind: 'ok', text: 'Seçili analiz yönü ve seviyeleri forma dolduruldu.'})
+    // Seçili kaldıraçta stop tasfiyeden sonra kalıyorsa, analizin stopu girişe doğru güvenli sınıra çekilir (hedefler değişmez).
+    const fitted = clampStopToLeverage(analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', Number(analysis.entry), Number(analysis.stop_loss), Number(order.leverage))
+    const analysisStop = fitted.clamped ? String(Number(fitted.stop.toPrecision(6))) : text(analysis.stop_loss).replace('—', '')
+    setOrder(current => ({...current, direction: analysis.direction === 'SHORT' ? 'SHORT' : 'LONG', limit_price: text(analysis.entry).replace('—', ''), stop_loss: analysisStop, tp1: text(analysis.tp1).replace('—', ''), tp2: text(analysis.tp2).replace('—', ''), tp3: text(analysis.tp3).replace('—', '')}))
+    setNotice({kind: 'ok', text: fitted.clamped && fitted.maxPct !== null ? `Seçili analiz forma dolduruldu. ${order.leverage}x kaldıraçta stop girişten en fazla yaklaşık %${fitted.maxPct.toFixed(1).replace('.', ',')} uzakta olabilir; analizin stopu buna çekildi.` : 'Seçili analiz yönü ve seviyeleri forma dolduruldu.'})
     return true
   }
   // Adım değişince eski uyarı kalmasın (pencere içi uyarı yalnız o anki işlemin sonucunu göstersin).
@@ -1544,13 +1547,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         const result = Array.isArray(candles) ? suggestVolatilityStop(candles as StopCandle[], entryNow, directionNow) : null
         if (!result) { setVolStopNote({symbol: symbolNow, text: 'Bu coin için yeterli mum verisi yok; stopu elle gir.', tone: 'warn'}); return }
         const sgn = directionNow === 'LONG' ? 1 : -1
-        const riskDistance = Math.abs(entryNow - result.stop)
+        const fittedStop = clampStopToLeverage(directionNow, entryNow, result.stop, Number(order.leverage))
+        const riskDistance = Math.abs(entryNow - fittedStop.stop)
         const pct = (value: number) => value.toFixed(2).replace('.', ',')
         setLevelsFromAnalysis(false)
         if (pickEpoch === stopPickEpoch.current) setStopPick('vol')
         setOrder(current => current.symbol !== symbolNow || current.direction !== directionNow ? current : {...current,
-          stop_loss: presetPrice(result.stop), tp1: presetPrice(entryNow + sgn * riskDistance), tp2: presetPrice(entryNow + sgn * riskDistance * 2), tp3: presetPrice(entryNow + sgn * riskDistance * 3)})
-        setVolStopNote({symbol: symbolNow, tone: 'ok', text: `Stop girişten %${pct(result.distancePct)} uzakta. Bu coin 15 dakikada ortalama %${pct(result.atrPct)} oynuyor; stop bu hareketin yaklaşık ${(riskDistance / result.atr).toFixed(1).replace('.', ',')} katı uzakta; küçük dalgalanmayla tetiklenme ihtimali azalır. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.`})
+          stop_loss: presetPrice(fittedStop.stop), tp1: presetPrice(entryNow + sgn * riskDistance), tp2: presetPrice(entryNow + sgn * riskDistance * 2), tp3: presetPrice(entryNow + sgn * riskDistance * 3)})
+        setVolStopNote({symbol: symbolNow, tone: fittedStop.clamped ? 'warn' : 'ok', text: fittedStop.clamped && fittedStop.maxPct !== null ? `${order.leverage}x kaldıraçta stop girişten en fazla yaklaşık %${pct(fittedStop.maxPct)} uzakta olabilir; coinin normal hareketine göre bulunan stop buna çekildi. Hedefler 1R / 2R / 3R. Daha uzak stop için kaldıracı düşür.` : `Stop girişten %${pct(result.distancePct)} uzakta. Bu coin 15 dakikada ortalama %${pct(result.atrPct)} oynuyor; stop bu hareketin yaklaşık ${(riskDistance / result.atr).toFixed(1).replace('.', ',')} katı uzakta; küçük dalgalanmayla tetiklenme ihtimali azalır. Hedefler 1R / 2R / 3R. Kayıp, risk ayarına göre küçültülen pozisyonla aynı kalır.`})
       } catch {
         setVolStopNote({symbol: symbolNow, text: 'Mum verisi alınamadı; tekrar dene veya stopu elle gir.', tone: 'warn'})
       } finally {
@@ -1671,6 +1675,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const wzStep = Math.min(manualStep, stepNames.length - 1)
     const wzHint = [needPermission ? 'Devam etmek için aşağıdaki kaydırıcıyı sağa kaydır. Kaydırarak gerçek para riskini ve 24 saatlik izni onaylamış olursun.' : !stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
     const sign = order.direction === 'LONG' ? 1 : -1
+    // Seçilen kaldıraçta stopun girişten en fazla ne kadar uzak olabileceği (tasfiyeden önce kalması için). Yalnız bilgi ve ön uyarı; kesin karar sunucuda.
+    const levMax = safeStopPct(Number(order.leverage))
+    const levNoteText = levMax !== null && levMax <= 30 ? `${order.leverage}x kaldıraçta stop girişten en fazla yaklaşık %${levMax.toFixed(1).replace('.', ',')} uzakta olabilir. Daha uzak stop için kaldıracı düşür.` : null
     const suggest = [1, 2, 3].map(pct => ({pct, stop: entryRef > 0 ? presetPrice(entryRef * (1 - sign * pct / 100)) : null, tp1: entryRef > 0 ? presetPrice(entryRef * (1 + sign * pct / 100)) : null}))
     const hasAnalysis = order.symbol === symbol && Number.isFinite(Number(analysis?.entry))
     const dirSide: 'LONG' | 'SHORT' = order.direction === 'SHORT' ? 'SHORT' : 'LONG'
@@ -1966,9 +1973,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" data-on={analysisOn || undefined} aria-pressed={analysisOn} onClick={event => { if (fillAnalysis()) { setStopPick('analysis'); showPick(event) } }}><b>Kais analizi</b><small>Önerilen</small></button>}
         <button type="button" className="mxtMPk" data-rec={!hasAnalysis ? '1' : undefined} data-on={volOn || undefined} aria-pressed={volOn} disabled={!(entryRef > 0) || volStopBusy} onClick={event => { showPick(event); void applyVolatilityStop() }}><b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</b><small>{hasAnalysis ? 'Coinin hareketine göre' : 'Önerilen'}</small></button>
-        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" data-on={stopPick === item.pct || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={event => { applyPreset(item.pct); showPick(event) }}><b>Stop %{item.pct}</b><small>{item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" data-on={stopPick === item.pct || undefined} data-far={(levMax !== null && item.pct > levMax) || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={event => { applyPreset(item.pct); showPick(event) }}><b>Stop %{item.pct}</b><small>{levMax !== null && item.pct > levMax ? `${order.leverage}x'te geçmez` : item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
       </div>
       {volNote && <p className="mxtHint" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
+      {levNoteText && <p className="mxtHint" role="note" data-testid="mwz-lev-note">{levNoteText}</p>}
       {stopVisual}
       <div className="mxtMCard" data-tone="stop">
         <div className="mxtMLbl"><span>STOP</span><span>{stopDist ? `Girişe %${stopDist.pct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
@@ -1980,6 +1988,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <span>Risk <b data-tone={riskError ? 'down' : risk ? 'up' : undefined} data-muted={(!riskError && !risk) || undefined}>{riskError ? 'Reddedildi' : risk ? 'Uygun ✓' : '—'}</b></span>
         </p>
         {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
+        {stopDist && stopDist.sideOk && levMax !== null && stopDist.pct > levMax && <p className="mxtWarn" role="alert" data-testid="mwz-stop-too-far">Bu stop {order.leverage}x kaldıraçta tasfiyeden sonra kalıyor; son kontrolde reddedilir. En fazla yaklaşık %{levMax.toFixed(1).replace('.', ',')} uzakta olmalı.</p>}
         {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       </div>
       <div className="mxtMCard" data-tone="tp">
@@ -2004,10 +2013,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {hasAnalysis && <button type="button" className="mxtPick" data-rec="1" data-on={analysisOn || undefined} aria-pressed={analysisOn} onClick={() => { if (fillAnalysis()) setStopPick('analysis') }}><b>Kais analizi <em>Önerilen</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
         <button type="button" className="mxtPick" data-rec={!hasAnalysis ? '1' : undefined} data-on={volOn || undefined} aria-pressed={volOn} disabled={!(entryRef > 0) || volStopBusy} onClick={() => void applyVolatilityStop()}>
           <b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}{!hasAnalysis && <em>Önerilen</em>}</b><small>Son dip ve coinin normal hareketine göre stop</small></button>
-        {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-on={stopPick === item.pct || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
-          <b>Stop %{item.pct}</b><small>{item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
+        {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-on={stopPick === item.pct || undefined} data-far={(levMax !== null && item.pct > levMax) || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
+          <b>Stop %{item.pct}</b><small>{levMax !== null && item.pct > levMax ? `${order.leverage}x kaldıraçta tasfiyeden sonra kalır, geçmez` : item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
       </div>
       {volNote && <p className="mxtHint mxtDesk" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
+      {levNoteText && <p className="mxtHint mxtDesk" role="note">{levNoteText}</p>}
       <section className="mxtSec mxtDesk" aria-label="Stop Loss">
         <h5>Stop Loss</h5>
         <label className="liveWsField">Stop fiyatı<input type="number" value={order.stop_loss} onChange={event => set('stop_loss', event.target.value)}/></label>
@@ -2017,6 +2027,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           {label: 'Risk kontrolü', value: riskError ? 'Sunucu reddetti' : risk ? `Uygun · en çok ${money(risk.loss)}` : null, tone: riskError ? 'down' : risk ? 'up' : undefined},
         ]}/>
         {stopDist && !stopDist.sideOk && <p className="mxtWarn" role="alert">Stop, {dirSide} için yanlış tarafta: {dirSide === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
+        {stopDist && stopDist.sideOk && levMax !== null && stopDist.pct > levMax && <p className="mxtWarn" role="alert" data-testid="mwz-stop-too-far">Bu stop {order.leverage}x kaldıraçta tasfiyeden sonra kalıyor; son kontrolde reddedilir. En fazla yaklaşık %{levMax.toFixed(1).replace('.', ',')} uzakta olmalı.</p>}
         {riskError && <p className="mxtWarn" role="alert">{riskError}</p>}
       </section>
       <section className="mxtSec mxtDesk" aria-label="Take Profit">

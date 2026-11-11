@@ -226,3 +226,6 @@ html body #root .originalManualOrder .manualLockStrip.permFocus .manualRenewBtn{
 .mxt .mxtAsk button{border:0;border-radius:14px;padding:11px 16px;font-weight:700;font-size:13px;color:#06241a;background:linear-gradient(135deg,#7ee8b0,#5fd0c0);cursor:pointer;white-space:nowrap}
 .mxt .mxtAsk button:disabled{opacity:.6}
 @media (max-width:760px){.mxt .mxtAsk{flex-wrap:wrap}.mxt .mxtAsk button{width:100%}}
+
+/* Seçili kaldıraçta tasfiyeden sonra kalan stop önerisi soluk görünür (yine de seçilebilir; uyarı çıkar). */
+.mxtMPk[data-far],.mxtPick[data-far]{opacity:.55}

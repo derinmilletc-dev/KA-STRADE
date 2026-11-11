@@ -82,3 +82,24 @@ export function checkRows(input: CheckInput): CheckRow[] {
     {key: 'fresh', label: 'Emir verileri güncel', state: exchange, detail: input.dryRunPassed ? 'Dry-run bu emirle yapıldı' : input.dryRunStale ? 'Dry-run eski emre ait' : 'Dry-run bekliyor'},
   ]
 }
+
+// Tasfiye (likidasyon) öncesi stop: sunucu stopu tasfiye fiyatından en az %0,5 önce ister.
+// Tasfiye uzaklığı yaklaşık 100/kaldıraç − bakım marjı (~%0,5) − ücretler (~%0,1) olur; üstüne %0,5 tampon konur.
+// Bu bir ön hesaptır (biraz temkinli); kesin karar yine sunucudaki kontrolde. Ağ ve emir yok.
+export const LIQUIDATION_SAFETY_PCT = 1.2
+
+// Seçilen kaldıraçta stopun girişten en fazla ne kadar (yüzde) uzak olabileceği. Düşük kaldıraçta (≥2 altı) anlamlı sınır yok → null.
+export function safeStopPct(leverage: number): number | null {
+  if (!Number.isFinite(leverage) || leverage < 2) return null
+  return Math.max(0.1, 100 / leverage - LIQUIDATION_SAFETY_PCT)
+}
+
+// Stop bu sınırdan uzaksa girişe doğru sınıra çeker. Aksi halde stopu olduğu gibi döndürür.
+export function clampStopToLeverage(direction: Direction, entry: number, stop: number, leverage: number): {stop: number; clamped: boolean; maxPct: number | null} {
+  const maxPct = safeStopPct(leverage)
+  if (maxPct === null || !(entry > 0) || !(stop > 0)) return {stop, clamped: false, maxPct}
+  const distancePct = Math.abs(entry - stop) / entry * 100
+  if (distancePct <= maxPct) return {stop, clamped: false, maxPct}
+  const sign = direction === 'LONG' ? 1 : -1
+  return {stop: entry * (1 - sign * maxPct / 100), clamped: true, maxPct}
+}
