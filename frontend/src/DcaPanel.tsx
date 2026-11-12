@@ -583,6 +583,7 @@ export default function DcaPanel(props: DcaPanelProps) {
             <span className="dwCoinSide">
               {sig && sig.lean !== 'NEUTRAL' && !item.against && <span className="dwBadge ok">AI {side} %{Math.round(sig.confidence)}</span>}
               {item.against && <span className="dwBadge warn">AI ters yön</span>}
+              {!item.against && !(sig && sig.lean !== 'NEUTRAL') && <span className="dwBadge mute">{sig ? 'AI nötr' : 'AI sinyali yok'}</span>}
               <span className="dwFit">≈{fmtUsd(item.total)}</span>
             </span>
           </button>{sig && <button type="button" className="dwAnaBtn" aria-label={`${item.display} analizini aç`} onClick={() => setAnaSym(item.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>

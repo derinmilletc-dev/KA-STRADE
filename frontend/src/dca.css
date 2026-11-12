@@ -285,6 +285,7 @@
 .dwBadge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:800;white-space:nowrap}
 .dwBadge.ok{color:var(--g);background:rgba(61,220,151,.13)}
 .dwBadge.warn{color:var(--a);background:rgba(245,192,74,.13)}
+.dwBadge.mute{color:#9fb0c3;background:rgba(255,255,255,.07)}
 .dwFit{font-size:12px;font-weight:700;color:var(--g);white-space:nowrap}
 .dwFit[data-state="unk"]{color:#7f93a9}
 .dwSkel{height:64px;border-radius:18px;background:linear-gradient(90deg,#0f1824,#16263a,#0f1824);background-size:200% 100%;animation:dcaShimmer 1.6s linear infinite}
