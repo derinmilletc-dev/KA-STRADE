@@ -70,6 +70,15 @@ class KeyLoadingTests(unittest.TestCase):
         self.assertIsInstance(jwt_auth.load_private_key(pem.replace("\n", "\\n")), ec.EllipticCurvePrivateKey)
         self.assertIsInstance(jwt_auth.load_private_key(f'"{pem}"'), ec.EllipticCurvePrivateKey)
 
+    def test_accepts_single_line_paste_without_newlines(self):
+        # Tek satırlık (password) alana yapıştırınca satır sonları kaybolur; yine de okunmalı.
+        for fmt in (serialization.PrivateFormat.TraditionalOpenSSL, serialization.PrivateFormat.PKCS8):
+            key = ec.generate_private_key(ec.SECP256R1())
+            flat = _pem(key, fmt).replace("\n", "")
+            self.assertIsInstance(jwt_auth.load_private_key(flat), ec.EllipticCurvePrivateKey)
+            spaced = _pem(key, fmt).replace("\n", " ")
+            self.assertIsInstance(jwt_auth.load_private_key(spaced), ec.EllipticCurvePrivateKey)
+
     def test_accepts_pkcs8_ec_key(self):
         key = ec.generate_private_key(ec.SECP256R1())
         loaded = jwt_auth.load_private_key(_pem(key, serialization.PrivateFormat.PKCS8))
