@@ -179,6 +179,16 @@ class BehaviourTests(OrderRouteCase):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(self.ex.positions, {})
 
+    def test_status_tells_ui_whether_orders_are_on(self):
+        from app.coinbase import routes
+
+        app = build_app(self.pool)
+        app.include_router(routes.router)
+        http = TestClient(app)
+        self.assertTrue(http.get("/api/coinbase/status", headers=ME).json()["orders_enabled"])
+        with patch.dict(os.environ, {"COINBASE_ORDERS_ENABLED": "false"}):
+            self.assertFalse(http.get("/api/coinbase/status", headers=ME).json()["orders_enabled"])
+
     def test_orders_flag_off_blocks_even_if_route_is_mounted(self):
         with patch.dict(os.environ, {"COINBASE_ORDERS_ENABLED": "false"}):
             r = self.post("/open", OPEN_BODY)

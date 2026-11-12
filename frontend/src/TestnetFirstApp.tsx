@@ -4,14 +4,16 @@ import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries,
 import { Activity, ArrowUp, CircleDollarSign, Cloud, KeyRound, LockKeyhole, RadioTower, RefreshCw, ShieldCheck, TestTube2 } from 'lucide-react'
 import { API_BASE } from './api'
 import {loadWorkspaceWithDeadline} from '../../browser-request'
+import {useCoinbaseVisible} from './useCoinbaseVisible'
 
 const BinanceDemo = lazy(() => loadWorkspaceWithDeadline(() => import('./BinanceDemo')))
 const LiveTradingPanel = lazy(() => loadWorkspaceWithDeadline(() => import('./LiveTradingPanel')))
 const ExecutionCenter = lazy(() => loadWorkspaceWithDeadline(() => import('./ExecutionCenter')))
 const CloudOpsCenter = lazy(() => loadWorkspaceWithDeadline(() => import('./CloudOpsCenter')))
 const ExchangeConnections = lazy(() => loadWorkspaceWithDeadline(() => import('./ExchangeConnections')))
+const CoinbaseManualPanel = lazy(() => loadWorkspaceWithDeadline(() => import('./CoinbaseManualPanel')))
 
-type View = 'testnet'|'ops'|'live'|'setup'
+type View = 'testnet'|'ops'|'live'|'setup'|'coinbase'
 type Market = {symbol:string;display:string;price:number;change:number;volume:number}
 type Candle = {time:number;open:number;high:number;low:number;close:number;volume:number}
 type Point = {time:number;value:number}
@@ -101,6 +103,7 @@ function TestnetMarketChart({symbol,interval,onAnalysis,showLevels=true,showEma=
 
 export default function TestnetFirstApp() {
   const [view,setView] = useState<View>('live')
+  const coinbaseVisible = useCoinbaseVisible()
   const [markets,setMarkets] = useState<Market[]>([])
   const [symbol,setSymbol] = useState('BTCUSDT')
   const [marketQuery,setMarketQuery] = useState('')
@@ -171,13 +174,14 @@ export default function TestnetFirstApp() {
       <button className={view === 'ops' ? 'active' : ''} onClick={() => setView('ops')}><Cloud/><span><b>OPERASYON & KANIT</b><small>Karar, pozisyon ve kalıcı PostgreSQL kaydı</small></span></button>
       <button className={view === 'live' ? 'active liveTab' : ''} onClick={() => setView('live')}><ShieldCheck/><span><b>CANLI HAZIRLIK</b><small>API yoksa kesin kilitli · Gerçek kanal</small></span></button>
       <button className={view === 'setup' ? 'active' : ''} onClick={() => setView('setup')}><KeyRound/><span><b>BORSA BAĞLANTILARI</b><small>Testnet & Gerçek API kasası</small></span></button>
+      {coinbaseVisible && <button className={view === 'coinbase' ? 'active' : ''} onClick={() => setView('coinbase')}><CircleDollarSign/><span><b>COINBASE</b><small>ABD vadeli · Manuel işlem</small></span></button>}
     </nav>
 
     <button className={`mobileBackTop${showBackTop ? ' visible' : ''}`} onClick={scrollToTop} aria-label="En yukarı çık"><ArrowUp/></button>
 
     <section className="v26ModeBar">
-      <div><small>AKTİF ÇALIŞMA ALANI</small><h1>{view === 'testnet' ? 'Binance Futures Demo Merkezi' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'live' ? 'Gerçek Futures Hazırlık Merkezi' : 'Borsa Bağlantıları ve Şifreli Kasa'}</h1><p>{view === 'testnet' ? 'Gerçek Binance motoruna en yakın test ortamı; sanal bakiye, gerçek emir akışı ve borsa yanıtları.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'live' ? 'Gerçek hesap bağlantısı salt-okunur başlar; emir yetkisi bağımsız ve süreli risk kilitleriyle korunur.' : 'Testnet ve gerçek hesap API anahtarlarını programdan test et, şifreli kaydet, aktifleştir veya anında kapat.'}</p></div>
-      <aside><span><CircleDollarSign/>GERÇEK PARA</span><b>{view === 'live' ? 'KİLİTLİ' : '0 USDT'}</b><em>Paper devre dışı</em></aside>
+      <div><small>AKTİF ÇALIŞMA ALANI</small><h1>{view === 'coinbase' ? 'Coinbase Manuel İşlem (ABD Vadeli)' : view === 'testnet' ? 'Binance Futures Demo Merkezi' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'live' ? 'Gerçek Futures Hazırlık Merkezi' : 'Borsa Bağlantıları ve Şifreli Kasa'}</h1><p>{view === 'coinbase' ? 'Yalnızca elle işlem: her emir ön kontrolden geçer, stop zorunludur, stop doğrulanamazsa pozisyon kapatılır.' : view === 'testnet' ? 'Gerçek Binance motoruna en yakın test ortamı; sanal bakiye, gerçek emir akışı ve borsa yanıtları.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'live' ? 'Gerçek hesap bağlantısı salt-okunur başlar; emir yetkisi bağımsız ve süreli risk kilitleriyle korunur.' : 'Testnet ve gerçek hesap API anahtarlarını programdan test et, şifreli kaydet, aktifleştir veya anında kapat.'}</p></div>
+      <aside><span><CircleDollarSign/>GERÇEK PARA</span><b>{view === 'live' ? 'KİLİTLİ' : view === 'coinbase' ? 'GERÇEK HESAP' : '0 USDT'}</b><em>Paper devre dışı</em></aside>
     </section>
 
     {view === 'testnet' && <>
@@ -197,6 +201,8 @@ export default function TestnetFirstApp() {
     {view === 'live' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Canlı güvenlik merkezi hazırlanıyor…</div>}><LiveTradingPanel active symbol={symbol} analysis={analysis} masterTrade={import.meta.env.MODE === 'test'}/></Suspense>}
 
     {view === 'ops' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Bulut operasyon merkezi hazırlanıyor…</div>}><CloudOpsCenter/></Suspense>}
+
+    {view === 'coinbase' && coinbaseVisible && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Coinbase ekranı hazırlanıyor…</div>}><CoinbaseManualPanel/></Suspense>}
 
     {view === 'setup' && <Suspense fallback={<div className="v26Loading"><RefreshCw className="spin"/>Şifreli borsa kasası hazırlanıyor…</div>}><ExchangeConnections/></Suspense>}
 
