@@ -1,4 +1,12 @@
-.exSwitch{display:flex;gap:8px;align-items:center;margin:0 auto 12px;max-width:1100px;padding:0 4px}
-.exSwitch span{font-size:.74rem;font-weight:800;letter-spacing:.06em;color:#5b7463}
-.exSwitch button{min-height:38px;padding:6px 16px;border:1px solid #cdd8cb;border-radius:999px;background:#fff;font-weight:800;cursor:pointer}
-.exSwitch button[aria-pressed="true"]{background:#16a560;border-color:#16a560;color:#fff}
+/* Borsa seçici: Master Trade'in koyu sekme çubuğuyla aynı dil (yuvarlak çerçeve, turkuaz seçili durum). */
+.exSwitch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 14px;padding:6px;border:1px solid rgba(151,174,181,.18);border-radius:18px;background:rgba(12,19,24,.88)}
+.exSwitch button{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 14px;border:1px solid transparent;border-radius:14px;background:transparent;color:#a6b3b8;text-align:left;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.exSwitch button:hover{background:rgba(255,255,255,.04);color:#e9f1f2}
+.exSwitch button:focus-visible{outline:2px solid #22d3c5;outline-offset:2px}
+.exSwitch button i{flex:0 0 auto;width:12px;height:12px;border-radius:50%;border:2px solid rgba(151,174,181,.45)}
+.exSwitch button span{display:grid;gap:2px;min-width:0}
+.exSwitch button b{font-size:1rem;font-weight:800;line-height:1.1}
+.exSwitch button small{font-size:.74rem;font-weight:600;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exSwitch button[aria-checked="true"]{border-color:rgba(34,211,197,.55);background:rgba(34,211,197,.1);color:#e9f1f2}
+.exSwitch button[aria-checked="true"] i{border-color:#22d3c5;background:#22d3c5;box-shadow:0 0 0 4px rgba(34,211,197,.2)}
+@media (max-width:420px){.exSwitch button{padding:8px 10px;gap:8px}.exSwitch button small{font-size:.68rem}}
