@@ -1,0 +1,4 @@
+.exSwitch{display:flex;gap:8px;align-items:center;margin:0 auto 12px;max-width:1100px;padding:0 4px}
+.exSwitch span{font-size:.74rem;font-weight:800;letter-spacing:.06em;color:#5b7463}
+.exSwitch button{min-height:38px;padding:6px 16px;border:1px solid #cdd8cb;border-radius:999px;background:#fff;font-weight:800;cursor:pointer}
+.exSwitch button[aria-pressed="true"]{background:#16a560;border-color:#16a560;color:#fff}
