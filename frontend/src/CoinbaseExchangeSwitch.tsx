@@ -4,7 +4,7 @@ export type Exchange = 'binance' | 'coinbase'
 
 const OPTIONS: {id: Exchange; name: string; note: string}[] = [
   {id: 'binance', name: 'Binance', note: 'USDT-M Futures'},
-  {id: 'coinbase', name: 'Coinbase', note: 'ABD Vadeli · manuel'},
+  {id: 'coinbase', name: 'Coinbase', note: 'Futures · manuel'},
 ]
 
 /** Borsa seçici: aynı ekranlar, hangi borsanın arka planda çalışacağını seçer. Master Trade sekme çubuğuyla aynı görünüm. */
