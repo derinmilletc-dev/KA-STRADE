@@ -161,6 +161,7 @@ class StaleProtectionEntryGuardTests(unittest.TestCase):
                 patch.object(binance_demo, "adjust_manual_spec_to_risk", return_value=spec), \
                 patch.object(binance_demo, "validate_entry_risk"), \
                 patch.object(binance_demo, "set_isolated_margin", new=AsyncMock(return_value={})), \
+                patch.object(binance_demo, "demo_liquidation_guard", new=AsyncMock(return_value=None)), \
                 patch.object(binance_demo, "apply_verified_leverage", new=AsyncMock(return_value={
                     "requested_leverage": 2,
                     "applied_leverage": 2,
