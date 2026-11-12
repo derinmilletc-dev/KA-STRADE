@@ -257,7 +257,10 @@ async def open_position(
         "client_order_id": _cid("e"),
         "product_id": product_id,
         "side": side,
-        "order_configuration": {"market_market_ioc": {"base_size": str(planned)}},
+        "order_configuration": (
+            {"limit_limit_fok": {"base_size": str(planned), "limit_price": plan["entry_limit_price"]}}
+            if plan.get("entry_limit_price") else {"market_market_ioc": {"base_size": str(planned)}}
+        ),
         "leverage": fmt(Decimal(plan["leverage"]).quantize(Decimal("1"), rounding=ROUND_DOWN)) if Decimal(plan["leverage"]) >= 1 else "1",
     }
     await journal.record(pool, user_id, "open", "entry_sending", product_id=product_id, role="entry", detail=plan)

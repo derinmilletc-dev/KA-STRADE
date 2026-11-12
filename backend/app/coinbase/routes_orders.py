@@ -39,6 +39,7 @@ class PreflightPayload(BaseModel):
     side: Literal["BUY", "SELL"]
     stop_price: str = Field(min_length=1, max_length=30)
     margin_usd: str = Field(min_length=1, max_length=30)
+    entry_limit_price: str | None = Field(default=None, max_length=30)
     contracts: int | None = Field(default=None, ge=1, le=100000)
 
 

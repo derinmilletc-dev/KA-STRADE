@@ -130,6 +130,23 @@ class OpenTests(FlowBase):
         self.assertEqual(err.code, "ENTRY_NOT_FILLED")
         self.assertEqual(self.ex.positions, {})
 
+    def test_limit_entry_fills_when_price_reachable(self):
+        result = self.open(entry_limit_price="3010", margin_usd="30")
+        self.assertEqual(result["status"], "opened")
+        self.assertEqual(result["plan"]["entry_limit_price"], "3010")
+        self.assertLessEqual(Decimal(result["plan"]["worst_case_loss_usd"]), Decimal("5"))
+        self.assertEqual(len(self.ex.active_stops()), 1)
+
+    def test_limit_entry_below_market_does_not_fill_and_opens_nothing(self):
+        err = self.fails(lambda: self.open(entry_limit_price="2950", margin_usd="30"))
+        self.assertEqual(err.code, "ENTRY_NOT_FILLED")
+        self.assertEqual(self.ex.positions, {})
+        self.assertEqual(self.ex.active_stops(), [])
+
+    def test_bad_limit_price_rejected(self):
+        err = self.fails(lambda: self.open(entry_limit_price="abc"))
+        self.assertEqual(err.code, "PREFLIGHT_FAILED")
+
     def test_partial_fill_stop_matches_actual_size(self):
         self.ex.entry_mode = "partial"
         self.ex.partial_contracts = 2

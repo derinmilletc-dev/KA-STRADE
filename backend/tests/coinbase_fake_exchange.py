@@ -2,6 +2,7 @@
 import email.utils
 import json
 import re
+from decimal import Decimal
 from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -192,6 +193,17 @@ class FakeExchange:
             cfg = body["order_configuration"]
             if "market_market_ioc" in cfg:
                 return self._entry(body, int(cfg["market_market_ioc"]["base_size"]))
+            if "limit_limit_fok" in cfg:
+                fok = cfg["limit_limit_fok"]
+                cap = Decimal(fok["limit_price"])
+                reachable = Decimal(str(self.ask)) <= cap if body["side"] == "BUY" else Decimal(str(self.bid)) >= cap
+                saved = self.entry_mode
+                if not reachable:
+                    self.entry_mode = "nofill"
+                try:
+                    return self._entry(body, int(fok["base_size"]))
+                finally:
+                    self.entry_mode = saved
             stop_cfg = cfg["stop_limit_stop_limit_gtc"]
             if self.stop_mode == "reject":
                 return self._fail("INVALID_LIMIT_PRICE")

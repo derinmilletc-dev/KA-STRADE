@@ -215,6 +215,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {label: 'Ürün', value: ticket.productId.trim() || null},
     {label: 'Yön', value: dir},
     {label: 'Teminat', value: ticket.marginUsd.trim() ? `${ticket.marginUsd.trim()} USD` : null},
+    {label: 'Giriş türü', value: ticket.limitPrice.trim() ? `Limit · en kötü ${ticket.limitPrice.trim()} (dolmazsa işlem açılmaz)` : 'Piyasa'},
     {label: 'Stop (zorunlu)', value: ticket.stopPrice.trim() || null, tone: 'down'},
     ...(plan ? [
       {label: 'Sözleşme sayısı', value: String(plan.contracts)},
@@ -399,7 +400,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           {aiCard}</>}
         {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Kullanacağın teminatı yaz. Sözleşme sayısını boş bırakırsan 5 USD kayıp ve 3–5x kaldıraç kurallarına uyan en büyük miktar seçilir.</p>
           <input className="cbMxtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="teminat (USD)"/>
-          <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (isteğe bağlı)"/></>}
+          <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (isteğe bağlı)"/>
+          <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (isteğe bağlı)"/>
+          <p className="mxtHint">Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Boş bırakırsan piyasa fiyatından girilir.</p></>}
         {step === 3 && <><h4>Stop</h4><p className="mxtLead">Stop zorunludur; stop'suz işlem açılmaz. LONG'da giriş fiyatının altına, SHORT'ta üstüne koy.</p>
           <input className="cbMxtInput" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => patch({stopPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></>}
         {step === 4 && reviewStep}
