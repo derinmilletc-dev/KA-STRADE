@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from . import service, vault
 from .client import CoinbaseClient, clock_status
-from .config import user_allowed
+from .config import orders_enabled, user_allowed
 from .errors import CoinbaseError
 from .jwt_auth import load_private_key, validate_key_name
 
@@ -89,6 +89,7 @@ async def coinbase_status(request: Request) -> Any:
         return _error(exc)
     return {
         "enabled": True,
+        "orders_enabled": orders_enabled(),
         "mode": "READ_ONLY",
         "vault_ready": ready,
         "vault_reason": reason,
