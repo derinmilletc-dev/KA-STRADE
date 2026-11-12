@@ -25,9 +25,11 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
   }
 
   const save = () => run('save', async () => {
-    await coinbaseCall('/key', {method: 'PUT', body: JSON.stringify({key_name: keyName.trim(), private_key: privateKey, confirm: CONFIRM.saveKey, totp_code: totp.trim()})}, [privateKey])
+    const result = await coinbaseCall<{check?: {warning?: string | null; permissions_checked?: boolean}}>('/key', {method: 'PUT', body: JSON.stringify({key_name: keyName.trim(), private_key: privateKey, confirm: CONFIRM.saveKey, totp_code: totp.trim()})}, [privateKey])
     setPrivateKey(''); setTotp(''); setAccepted(false)
-    onDone('Coinbase anahtarı doğrulandı ve şifreli kaydedildi.')
+    // İzinler okunamadıysa sessiz geçilmez: kullanıcıya açık uyarı gösterilir.
+    const warning = result?.check?.warning
+    onDone('Coinbase anahtarı doğrulandı ve şifreli kaydedildi.' + (warning ? ` UYARI: ${warning}` : ''))
   })
   const remove = () => run('delete', async () => {
     await coinbaseCall('/key', {method: 'DELETE', body: JSON.stringify({confirm: CONFIRM.deleteKey, totp_code: totp.trim()})})
