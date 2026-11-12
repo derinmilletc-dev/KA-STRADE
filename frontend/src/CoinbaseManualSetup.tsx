@@ -11,8 +11,13 @@ type Status = {vault_ready: boolean; vault_reason: string | null; key_saved: boo
 export default function CoinbaseManualSetup() {
   const [status, setStatus] = useState<Status | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [lastChecked, setLastChecked] = useState('')
   const refresh = useCallback(async () => {
-    try { setStatus(await coinbaseCall<Status>('/status')) } catch (error) { setNotice(noticeFromError(error)) }
+    try {
+      setStatus(await coinbaseCall<Status>('/status'))
+      const now = new Date(), two = (value: number) => String(value).padStart(2, '0')
+      setLastChecked(`${two(now.getDate())}.${two(now.getMonth() + 1)} ${two(now.getHours())}:${two(now.getMinutes())}`)
+    } catch (error) { setNotice(noticeFromError(error)) }
   }, [])
   useEffect(() => { void refresh() }, [refresh])
   const test = useCallback(async () => {
@@ -27,7 +32,7 @@ export default function CoinbaseManualSetup() {
     </div>}
     <section className="liveWsCard open"><div className="liveWsCardHead static"><span className={`liveWsBadge ${saved ? 'done' : 'current'}`}>{saved ? <CheckCircle2/> : '1'}</span><span><b>Coinbase bağlantısı</b><small>{saved ? 'Coinbase hesabın bağlı' : 'API anahtarını bağla'}</small></span></div>
       <div className="liveWsBody">{status
-        ? <CoinbaseManualKey keySaved={saved} meta={status.key} vaultReady={status.vault_ready} vaultReason={status.vault_reason} onTest={test}
+        ? <CoinbaseManualKey lastChecked={lastChecked} keySaved={saved} meta={status.key} vaultReady={status.vault_ready} vaultReason={status.vault_reason} onTest={test}
             onDone={text => { setNotice({kind: 'ok', text}); void refresh() }} onError={error => { setNotice(noticeFromError(error)); void refresh() }}/>
         : <p className="liveWsHint">Coinbase kasası kontrol ediliyor…</p>}</div></section>
   </>

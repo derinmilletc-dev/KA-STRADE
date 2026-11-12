@@ -46,7 +46,15 @@ def validate_key_name(name: str) -> str:
 def normalize_pem(raw: str) -> str:
     text = (raw or "").strip().strip('"').strip("'")
     text = text.replace("\\r", "").replace("\\n", "\n").replace("\r", "")
-    return text.strip()
+    text = text.strip()
+    # Tek satırlık alana yapıştırılınca satır sonları kaybolur: başlık/gövde/bitiş ayrıştırılıp 64'lük satırlarla yeniden kurulur.
+    match = re.fullmatch(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", text, flags=re.DOTALL)
+    if match:
+        body = re.sub(r"\s+", "", match.group(2))
+        if body:
+            lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+            return f"-----BEGIN {match.group(1)}-----\n" + "\n".join(lines) + f"\n-----END {match.group(1)}-----"
+    return text
 
 
 def load_private_key(raw: str) -> ec.EllipticCurvePrivateKey:
