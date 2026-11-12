@@ -8220,3 +8220,6 @@ body:has(#root .liveTradingPanel.liveUx),
 .v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaGo { display: grid; flex: 0 0 30px; place-items: center; width: 30px; height: 30px; border-radius: 50%; background-color: rgba(221, 42, 123, .35); color: #fff; }
 .v26MobileMenuSheet a.v26MobileMenuInsta .v26MobileMenuInstaGo svg { width: 17px; height: 17px; }
 .v26MobileMenuSheet a.v26MobileMenuInsta::after { background: linear-gradient(105deg, transparent, rgba(255, 255, 255, .09) 50%, transparent); }
+
+/* Menü açıkken Master Trade karar kartı (z-index 200) menünün üstüne binmesin */
+.v26MobileMenuBackdrop { z-index: 2000 !important; }
