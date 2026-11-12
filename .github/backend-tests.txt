@@ -235,3 +235,9 @@ tests/test_ledger_warmup.py
 tests/test_kais_shadow_score.py
 tests/test_dca_trailing.py
 tests/test_dca_entry_gate.py
+tests/test_coinbase_config.py
+tests/test_coinbase_jwt.py
+tests/test_coinbase_client.py
+tests/test_coinbase_vault.py
+tests/test_coinbase_service.py
+tests/test_coinbase_routes.py
