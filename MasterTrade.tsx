@@ -1150,7 +1150,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
 
         <div className="masterTradeOperationsPanel" id={`master-panel-${layoutTab === 'analiz' ? 'operations' : layoutTab}`} role="tabpanel" aria-labelledby={`master-tab-${layoutTab}`} hidden={layoutTab === 'analiz'}>
           {!embedDemo && coinbaseVisible && (layoutTab === 'canli' || layoutTab === 'baglanti') && <CoinbaseExchangeSwitch value={exchange} onChange={setExchange}/>}
-          {coinbaseOn && <Suspense fallback={<p>Coinbase ekranı hazırlanıyor…</p>}>{layoutTab === 'canli' ? <CoinbaseManualTerminal onGoSetup={() => navigateTab('baglanti')}/> : <CoinbaseManualSetup/>}</Suspense>}
+          {coinbaseOn && <section id="master-trade-live-terminal" className="liveWs" aria-label="Coinbase"><Suspense fallback={<p>Coinbase ekranı hazırlanıyor…</p>}>{layoutTab === 'canli' ? <CoinbaseManualTerminal onGoSetup={() => navigateTab('baglanti')}/> : <CoinbaseManualSetup/>}</Suspense></section>}
           {!embedDemo && !coinbaseOn && <LiveTradingPanel active symbol={draft.market} analysis={analysis} masterTrade masterTradeTab={layoutTab} sharedStatus={liveStatus} sharedStatusVerified={liveStatusVerified} sharedStatusError={liveStatusError} sharedStatusLoading={liveStatusLoading} sharedConnections={liveConnections} onRefreshStatus={async (force = false) => {
             if (!await refreshAccountData(force)) throw new Error('LIVE durum yenilemesi başarısız; işlem durumunu doğrulayın.')
           }} />}
