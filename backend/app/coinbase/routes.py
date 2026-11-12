@@ -42,7 +42,7 @@ class DeletePayload(BaseModel):
 
 def _member(request: Request) -> dict[str, Any]:
     user = getattr(request.state, "member", None)
-    allowed, reason = user_allowed(user)
+    allowed, reason = user_allowed(user, getattr(request.state, "premium", None))
     if not allowed:
         if not user:
             raise HTTPException(401, reason)

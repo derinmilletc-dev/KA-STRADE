@@ -74,3 +74,32 @@ class AllowlistTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublicModeTests(unittest.TestCase):
+    def setUp(self):
+        os.environ["COINBASE_ENABLED"] = "true"
+        os.environ["COINBASE_PUBLIC"] = "true"
+        os.environ.pop("COINBASE_ALLOWED_EMAILS", None)
+
+    def tearDown(self):
+        os.environ.pop("COINBASE_ENABLED", None)
+        os.environ.pop("COINBASE_PUBLIC", None)
+
+    def test_premium_member_allowed_without_allowlist(self):
+        self.assertTrue(config.user_allowed({"id": "2", "role": "CUSTOMER", "email": "x@y.com"}, True)[0])
+
+    def test_non_premium_member_denied_with_clear_reason(self):
+        ok, reason = config.user_allowed({"id": "2", "role": "CUSTOMER", "email": "x@y.com"}, False)
+        self.assertFalse(ok)
+        self.assertIn("Premium", reason)
+        self.assertFalse(config.user_allowed({"id": "2", "role": "CUSTOMER"}, None)[0])
+
+    def test_owner_allowed_and_no_session_denied(self):
+        self.assertTrue(config.user_allowed({"id": "1", "role": "OWNER"}, False)[0])
+        self.assertFalse(config.user_allowed(None, True)[0])
+
+    def test_public_needs_master_flag(self):
+        os.environ.pop("COINBASE_ENABLED")
+        self.assertFalse(config.public_enabled())
+

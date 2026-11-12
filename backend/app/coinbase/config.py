@@ -50,10 +50,21 @@ def min_request_interval() -> float:
     return min(max(value, 0.0), 5.0)
 
 
-def user_allowed(user: dict[str, Any] | None) -> tuple[bool, str]:
-    """(izinli mi, değilse Türkçe neden). Hesap hem OWNER olmalı hem izin listesinde olmalı."""
+def public_enabled() -> bool:
+    """Müşterilere açık mod: izin listesi aranmaz; Binance canlı işlemle aynı üyelik şartı (premium) aranır."""
+    return coinbase_enabled() and os.getenv("COINBASE_PUBLIC", "false").strip().lower() in TRUE_VALUES
+
+
+def user_allowed(user: dict[str, Any] | None, premium: bool | None = None) -> tuple[bool, str]:
+    """(izinli mi, değilse Türkçe neden).
+    Kapalı mod: hesap hem OWNER hem izin listesinde olmalı.
+    Herkese açık mod (COINBASE_PUBLIC): giriş yapmış üye yeter; OWNER değilse premium üyelik şart (Binance canlı işlemle aynı)."""
     if not user:
         return False, "Oturum gerekli"
+    if public_enabled():
+        if user.get("role") == "OWNER" or premium is True:
+            return True, ""
+        return False, "Coinbase manuel işlem Premium üyelikle açılır."
     if user.get("role") != "OWNER":
         return False, "Coinbase yalnızca yönetici hesabı için açık."
     allowed = allowed_emails()
