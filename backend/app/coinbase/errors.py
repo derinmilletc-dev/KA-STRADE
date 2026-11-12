@@ -18,17 +18,21 @@ class CoinbaseError(Exception):
         *,
         http_status: int = 424,
         retry_after_seconds: int | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.http_status = http_status
         self.retry_after_seconds = retry_after_seconds
+        self.extra = extra or {}
 
     def body(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"detail": self.message, "code": self.code}
         if self.retry_after_seconds is not None:
             payload["retry_after_seconds"] = self.retry_after_seconds
+        for key, value in self.extra.items():
+            payload.setdefault(key, value)
         return payload
 
 

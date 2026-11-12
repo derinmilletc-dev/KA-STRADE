@@ -4,6 +4,7 @@ Bu dosya ağ, veritabanı ve FastAPI kullanmaz; yalnızca ortam değişkenlerini
 
 COINBASE_ENABLED         "true" değilse hiçbir Coinbase rotası yüklenmez (varsayılan: kapalı).
 COINBASE_ALLOWED_EMAILS  Virgülle ayrılmış e-posta listesi. Boşsa kimseye izin verilmez.
+COINBASE_ORDERS_ENABLED  "true" değilse emir rotaları yüklenmez ve emir gönderen kod çalışmaz (varsayılan: kapalı).
 """
 
 from __future__ import annotations
@@ -23,6 +24,11 @@ MAX_CLOCK_SKEW_SECONDS = 20.0
 
 def coinbase_enabled() -> bool:
     return os.getenv("COINBASE_ENABLED", "false").strip().lower() in TRUE_VALUES
+
+
+def orders_enabled() -> bool:
+    """Emir gönderme ayrı bir anahtardır: COINBASE_ENABLED açık OLSA BİLE bu açılmadıkça tek emir gitmez."""
+    return coinbase_enabled() and os.getenv("COINBASE_ORDERS_ENABLED", "false").strip().lower() in TRUE_VALUES
 
 
 def allowed_emails() -> frozenset[str]:
