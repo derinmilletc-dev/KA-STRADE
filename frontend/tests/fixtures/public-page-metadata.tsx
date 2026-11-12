@@ -8,9 +8,9 @@ function MetadataNavigation() {
   const [policy, setPolicy] = useState<PublicPolicy | null>(null)
   return <>
     <nav aria-label="Metadata test navigation">
-      {Object.keys(PAGE_METADATA).filter(page => !['home','privacy','terms','risk'].includes(page)).map(page =>
+      {Object.keys(PAGE_METADATA).filter(page => !['home','privacy','terms','risk','hesap-silme'].includes(page)).map(page =>
         <button key={page} onClick={() => applyPageMetadataForPath(`/${page}`)}>{page}</button>)}
-      {(['privacy', 'terms', 'risk'] as const).map(page =>
+      {(['privacy', 'terms', 'risk', 'hesap-silme'] as const).map(page =>
         <button key={page} onClick={() => setPolicy(page)}>{page}</button>)}
       <button onClick={() => setPolicy(null)}>home</button>
     </nav>

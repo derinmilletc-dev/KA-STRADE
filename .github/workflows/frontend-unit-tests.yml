@@ -12,6 +12,11 @@ on:
       - 'frontend/src/coin-ranking.test.mts'
       - 'frontend/src/manual-order-state.ts'
       - 'frontend/src/manual-order-state.test.mts'
+      - 'legal-contact.ts'
+      - 'tools/legal-contact.test.mjs'
+      - 'vercel.json'
+      - 'frontend/vercel.json'
+      - 'tools/vercel-routing.test.mjs'
       - '.github/workflows/frontend-unit-tests.yml'
   push:
     branches: [main]
@@ -24,6 +29,11 @@ on:
       - 'frontend/src/coin-ranking.test.mts'
       - 'frontend/src/manual-order-state.ts'
       - 'frontend/src/manual-order-state.test.mts'
+      - 'legal-contact.ts'
+      - 'tools/legal-contact.test.mjs'
+      - 'vercel.json'
+      - 'frontend/vercel.json'
+      - 'tools/vercel-routing.test.mjs'
       - '.github/workflows/frontend-unit-tests.yml'
   workflow_dispatch:
 
@@ -60,6 +70,10 @@ jobs:
           node --test frontend/src/manual-order-state.test.mts 2>&1 | tee -a node-test-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           node --test tools/site-tour.test.mjs 2>&1 | tee -a node-test-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          node --test tools/legal-contact.test.mjs 2>&1 | tee -a node-test-out.txt
+          [ ${PIPESTATUS[0]} -eq 0 ] || status=1
+          node --test tools/vercel-routing.test.mjs 2>&1 | tee -a node-test-out.txt
           [ ${PIPESTATUS[0]} -eq 0 ] || status=1
           grep -E "^not ok|AssertionError|Error:" node-test-out.txt | head -40 | sed 's/^/::error::/'
           exit $status
