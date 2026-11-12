@@ -29,7 +29,6 @@ WRITE_PATTERNS = (
 TRADING_READ_PATTERNS = READ_ONLY_PATTERNS + (
     re.compile(re.escape(ORDER_LIST_PATH)),
     re.compile(r"/api/v3/brokerage/orders/historical/(?!batch$)[A-Za-z0-9][A-Za-z0-9-]{7,63}"),
-    re.compile(re.escape(BEST_BID_ASK_PATH)),
 )
 
 

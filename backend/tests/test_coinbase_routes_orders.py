@@ -94,6 +94,7 @@ class AccessTests(OrderRouteCase):
         self.assertEqual(pairs, {
             ("POST", f"{URL}/preflight"), ("POST", f"{URL}/open"), ("POST", f"{URL}/close"), ("POST", f"{URL}/reduce"),
             ("POST", f"{URL}/stop"), ("POST", f"{URL}/cleanup-orphans"), ("GET", f"{URL}/protection"), ("GET", f"{URL}/open"),
+            ("POST", f"{URL}/cancel-entry"), ("POST", f"{URL}/reconcile"), ("GET", f"{URL}/pending"),
         })
 
     def test_wrong_confirmation_is_422_and_sends_nothing(self):

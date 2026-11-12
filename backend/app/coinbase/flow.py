@@ -135,7 +135,8 @@ async def _cancel_verified(client: CoinbaseTradingClient, order_ids: list[str]) 
 
 async def our_stops(client: CoinbaseTradingClient, product_id: str | None = None) -> list[dict[str, Any]]:
     orders = await order_api.list_active_orders(client, product_id)
-    return [o for o in orders if str(o.get("client_order_id") or "").startswith(STOP_PREFIX)]
+    # Borsanın ekli girişten kendisi kurduğu bracket'ın kimliği bizim önekimizi taşımaz; yine de koruma sayılır.
+    return [o for o in orders if str(o.get("client_order_id") or "").startswith(STOP_PREFIX) or o.get("is_bracket")]
 
 
 async def _wait_flat(client: CoinbaseTradingClient, product_id: str, sleep: Sleep) -> bool:
@@ -184,6 +185,72 @@ async def _verify_stop(client: CoinbaseTradingClient, order_id: str, *, side: st
     if order["stop_price"] is None or order["stop_price"] != stop:
         return "Stop emrinin fiyatı beklenenden farklı."
     return None
+
+
+async def _place_bracket(client: CoinbaseTradingClient, *, product_id: str, side: str, contracts: int, stop: Decimal, take_profit: Decimal) -> str:
+    """Borsa tarafında TP+stop tek emir (OCO): biri dolunca öteki kendiliğinden iptal olur; ters pozisyon açılmaz."""
+    body = {
+        "client_order_id": _cid("s"),
+        "product_id": product_id,
+        "side": _opposite(side),
+        "order_configuration": {
+            "trigger_bracket_gtc": {"base_size": str(contracts), "limit_price": fmt(take_profit), "stop_trigger_price": fmt(stop)}
+        },
+    }
+    return await order_api.create_order(client, body, "Hedef+Stop")
+
+
+async def _verify_bracket(client: CoinbaseTradingClient, order_id: str, *, side: str, contracts: int, stop: Decimal, take_profit: Decimal) -> str | None:
+    order = await order_api.get_order(client, order_id)
+    if order["status"] not in OK_STOP_STATUSES:
+        return f"Hedef+stop emri aktif değil (durum: {order['status']})."
+    if not order.get("is_bracket"):
+        return "Emir bracket (hedef+stop) olarak görünmüyor."
+    if order["side"] != _opposite(side):
+        return "Hedef+stop emri ters yönde değil."
+    if order["base_size"] is None or order["base_size"] != Decimal(contracts):
+        return "Hedef+stop emrinin büyüklüğü pozisyonla aynı değil."
+    if order["stop_price"] is None or order["stop_price"] != stop:
+        return "Hedef+stop emrinin stop fiyatı beklenenden farklı."
+    if order.get("take_profit_price") is None or order["take_profit_price"] != take_profit:
+        return "Hedef+stop emrinin hedef fiyatı beklenenden farklı."
+    return None
+
+
+async def _protect_with_tp(
+    client: CoinbaseTradingClient, pool: Any, user_id: str, *, product_id: str, side: str, contracts: int,
+    stop: Decimal, limit: Decimal, take_profit: Decimal | None, sleep: Sleep, action: str,
+) -> tuple[str, str | None]:
+    """Hedef varsa önce bracket dener; kurulamaz/doğrulanamazsa onu kaldırıp SADECE stop'a döner (sebep açıkça döner).
+    Stop her durumda zorunludur: o da kurulamazsa _protect_or_close pozisyonu kapatır."""
+    tp_note: str | None = None
+    if take_profit is not None:
+        bracket_id: str | None = None
+        problem: str | None = None
+        try:
+            bracket_id = await _place_bracket(client, product_id=product_id, side=side, contracts=contracts, stop=stop, take_profit=take_profit)
+            await journal.record(pool, user_id, action, "bracket_placed", product_id=product_id, order_id=bracket_id, role="stop")
+            problem = await _verify_bracket(client, bracket_id, side=side, contracts=contracts, stop=stop, take_profit=take_profit)
+        except CoinbaseError as exc:
+            problem = exc.message
+        if problem is None and bracket_id is not None:
+            await journal.record(pool, user_id, action, "bracket_verified", product_id=product_id, order_id=bracket_id, role="stop")
+            return bracket_id, None
+        await journal.record(pool, user_id, action, "bracket_failed", product_id=product_id, order_id=bracket_id, detail={"problem": problem})
+        if bracket_id is not None:
+            stuck = await _cancel_verified(client, [bracket_id])
+            if stuck:
+                # Yarım bracket iptal edilemedi: üstüne stop koymak iki emri birden açık bırakır -> pozisyonu kapat.
+                await journal.record(pool, user_id, action, "bracket_cancel_failed", product_id=product_id, order_id=bracket_id)
+                problem = f"{problem} Hedef+stop emri ({bracket_id}) iptal edilemedi."
+                if await _close_all(client, product_id, contracts, sleep):
+                    raise CoinbaseError("STOP_FAILED_POSITION_CLOSED", f"Hedef+stop emri kaldırılamadı, pozisyon kapatıldı. Sebep: {problem} Coinbase'de kalan emri elle iptal et.", http_status=409, extra={"closed": True})
+                raise _critical("CRITICAL_UNPROTECTED", f"ACİL: {product_id} için hedef+stop emri bozuk ve pozisyon kapatılamadı! Coinbase'den elle müdahale et. Sebep: {problem}", product_id=product_id)
+        tp_note = f"Hedef (TP) kurulamadı, yalnızca stop kuruldu. Sebep: {problem}"
+    stop_id = await _protect_or_close(
+        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit, sleep=sleep, action=action,
+    )
+    return stop_id, tp_note
 
 
 def _stop_prices(plan: dict[str, Any]) -> tuple[Decimal, Decimal]:
@@ -253,11 +320,18 @@ async def open_position(
     product_id, side, planned = plan["product_id"], plan["side"], int(plan["contracts"])
     stop, limit = _stop_prices(plan)
 
+    take_profit = Decimal(plan["take_profit_price"]) if plan.get("take_profit_price") else None
+    if plan.get("rest"):
+        return await _open_resting(client, pool, user_id, plan, stop, take_profit)
+
     body = {
         "client_order_id": _cid("e"),
         "product_id": product_id,
         "side": side,
-        "order_configuration": {"market_market_ioc": {"base_size": str(planned)}},
+        "order_configuration": (
+            {"limit_limit_fok": {"base_size": str(planned), "limit_price": plan["entry_limit_price"]}}
+            if plan.get("entry_limit_price") else {"market_market_ioc": {"base_size": str(planned)}}
+        ),
         "leverage": fmt(Decimal(plan["leverage"]).quantize(Decimal("1"), rounding=ROUND_DOWN)) if Decimal(plan["leverage"]) >= 1 else "1",
     }
     await journal.record(pool, user_id, "open", "entry_sending", product_id=product_id, role="entry", detail=plan)
@@ -293,14 +367,98 @@ async def open_position(
         await journal.record(pool, user_id, "open", "unexpected_side", product_id=product_id)
         raise _critical("UNEXPECTED_POSITION", f"{product_id} pozisyonu beklenen yönde değil. Coinbase'de kontrol et.", product_id=product_id)
 
-    stop_id = await _protect_or_close(
-        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit, sleep=sleep, action="open",
+    stop_id, tp_note = await _protect_with_tp(
+        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit,
+        take_profit=take_profit, sleep=sleep, action="open",
     )
+    protected = "hedef ve stop doğrulandı" if take_profit is not None and tp_note is None else "stop doğrulandı"
     return {
         "status": "opened", "plan": plan, "contracts": contracts, "entry_order_id": entry_id, "stop_order_id": stop_id,
-        "partial_fill": contracts != planned,
-        "message": f"Pozisyon açıldı ve stop doğrulandı ({contracts} sözleşme).",
+        "partial_fill": contracts != planned, "tp_note": tp_note,
+        "message": f"Pozisyon açıldı, {protected} ({contracts} sözleşme)." + (f" {tp_note}" if tp_note else ""),
     }
+
+
+# ---------------------------------------------------------------- bekleyen limit giriş (ekli bracket)
+
+async def _open_resting(
+    client: CoinbaseTradingClient, pool: Any, user_id: str, plan: dict[str, Any], stop: Decimal, take_profit: Decimal | None,
+) -> dict[str, Any]:
+    """Dolana kadar duran limit giriş. Stop+hedef emre EKLİ gider (borsa doldurunca kendisi kurar). Biz dolumu beklemeyiz;
+    'reconcile' (arayüz sürekli sorar) dolmuş ama korumasız pozisyonu hemen korur ya da kapatır."""
+    product_id, side, planned = plan["product_id"], plan["side"], int(plan["contracts"])
+    if take_profit is None or not plan.get("entry_limit_price"):
+        raise CoinbaseError("PREFLIGHT_FAILED", "Bekleyen emir için limit giriş ve hedef fiyatı zorunlu.", http_status=422)
+    body = {
+        "client_order_id": _cid("e"),
+        "product_id": product_id,
+        "side": side,
+        "order_configuration": {"limit_limit_gtc": {"base_size": str(planned), "limit_price": plan["entry_limit_price"], "post_only": False}},
+        "attached_order_configuration": {"trigger_bracket_gtc": {"limit_price": fmt(take_profit), "stop_trigger_price": fmt(stop)}},
+    }
+    await journal.record(pool, user_id, "open_rest", "rest_sending", product_id=product_id, role="entry_rest", detail=plan)
+    try:
+        entry_id = await order_api.create_order(client, body, "Bekleyen giriş")
+    except order_api.OrderRejected:
+        await journal.record(pool, user_id, "open_rest", "rest_rejected", product_id=product_id)
+        raise
+    except CoinbaseError as exc:
+        if exc.code != "ORDER_OUTCOME_UNKNOWN":
+            raise
+        await journal.record(pool, user_id, "open_rest", "rest_unknown", product_id=product_id)
+        raise _critical("ORDER_OUTCOME_UNKNOWN", "Bekleyen giriş emrinin sonucu belirsiz. Coinbase'de açık emirleri ve pozisyonu kontrol et.", product_id=product_id) from None
+    await journal.record(pool, user_id, "open_rest", "rest_sent", product_id=product_id, order_id=entry_id, role="entry_rest", detail=plan)
+    return {
+        "status": "pending", "plan": plan, "entry_order_id": entry_id,
+        "message": "Bekleyen limit emri verildi. Dolunca hedef+stop borsada otomatik devreye girer; ekran dolumu izler ve korumayı doğrular.",
+    }
+
+
+async def pending_entries(client: CoinbaseTradingClient) -> list[dict[str, Any]]:
+    orders = await order_api.list_active_orders(client)
+    return [o for o in orders if str(o.get("client_order_id") or "").startswith(PREFIX + "e-")]
+
+
+async def reconcile_flow(
+    client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, *, sleep: Sleep = asyncio.sleep,
+) -> dict[str, Any]:
+    """Bekleyen girişlerden dolanları kontrol et: pozisyon var ama stop yoksa, kayıtlı plana göre korumayı kur ya da kapat."""
+    report = await protection_report(client)
+    fixed: list[str] = []
+    notes: list[str] = []
+    for item in report["positions"]:
+        if item["state"] != "UNPROTECTED":
+            continue
+        plan = await journal.rest_plan(pool, user_id, item["product_id"])
+        if plan is None:
+            notes.append(f"{item['product_id']}: korumasız, ama bu pozisyon için kayıtlı plan yok. Elle stop koy veya kapat.")
+            continue
+        stop, limit = Decimal(plan["stop_price"]), Decimal(plan["stop_limit_price"])
+        take_profit = Decimal(plan["take_profit_price"]) if plan.get("take_profit_price") else None
+        await journal.record(pool, user_id, "reconcile", "protecting_filled_entry", product_id=item["product_id"])
+        _id, tp_note = await _protect_with_tp(
+            client, pool, user_id, product_id=item["product_id"], side=item["side"], contracts=item["contracts"],
+            stop=stop, limit=limit, take_profit=take_profit, sleep=sleep, action="reconcile",
+        )
+        fixed.append(item["product_id"])
+        if tp_note:
+            notes.append(f"{item['product_id']}: {tp_note}")
+    pending = await pending_entries(client)
+    return {"fixed": fixed, "notes": notes, "pending": [
+        {k: (str(v) if v is not None and not isinstance(v, str) else v) for k, v in row.items()} for row in pending
+    ]}
+
+
+async def cancel_entry(client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, order_id: str, *, sleep: Sleep = asyncio.sleep) -> dict[str, Any]:
+    mine = {o["order_id"] for o in await pending_entries(client)}
+    if order_id not in mine:
+        raise CoinbaseError("NOT_OUR_ORDER", "Bu, bekleyen bir Kais giriş emri değil (ya da zaten dolmuş/iptal olmuş).", http_status=409)
+    stuck = await _cancel_verified(client, [order_id])
+    if stuck:
+        raise _critical("ENTRY_CANCEL_FAILED", f"Bekleyen giriş emri ({order_id}) iptal edilemedi. Coinbase'de kontrol et.")
+    await journal.record(pool, user_id, "cancel_entry", "cancelled", order_id=order_id)
+    result = await reconcile_flow(client, pool, user_id, limits, sleep=sleep)  # iptal yarışında kısmen dolmuş olabilir
+    return {"status": "cancelled", "order_id": order_id, **result, "message": "Bekleyen emir iptal edildi."}
 
 
 # ---------------------------------------------------------------- kapat
@@ -379,13 +537,13 @@ async def set_stop(
         stuck = await _cancel_verified(client, [o["order_id"] for o in old])
         if stuck:
             raise _critical("STOP_CANCEL_FAILED", "Eski stop iptal edilemedi; stop taşınmadı. Mevcut durumu Coinbase'de kontrol et.", product_id=product_id)
-    try:
-        stop_id = await _protect_or_close(
-            client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit, sleep=sleep, action="stop_move",
-        )
-    except CoinbaseError:
-        raise
-    return {"status": "stop_set", "product_id": product_id, "stop_order_id": stop_id, "stop_price": fmt(stop), "message": "Stop yerleştirildi ve doğrulandı."}
+    keep_tp = next((o["take_profit_price"] for o in old if o.get("take_profit_price") is not None), None)
+    stop_id, tp_note = await _protect_with_tp(
+        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit,
+        take_profit=keep_tp, sleep=sleep, action="stop_move",
+    )
+    return {"status": "stop_set", "product_id": product_id, "stop_order_id": stop_id, "stop_price": fmt(stop), "tp_note": tp_note,
+            "message": "Stop yerleştirildi ve doğrulandı." + (f" {tp_note}" if tp_note else "")}
 
 
 # ---------------------------------------------------------------- azalt
@@ -408,6 +566,7 @@ async def reduce_flow(
     if len(old) != 1 or old[0]["stop_price"] is None:
         raise CoinbaseError("NO_KNOWN_STOP", "Bu pozisyonda tek bir bilinen stop emri yok; önce stop'u düzelt, sonra azalt.", http_status=409)
     stop = old[0]["stop_price"]
+    keep_tp = old[0].get("take_profit_price")
     if side == "BUY":
         limit = round_to_increment(stop * (1 - limits.stop_limit_gap_pct), state["product"]["price_increment"], ROUND_DOWN)
     else:
@@ -431,13 +590,14 @@ async def reduce_flow(
         current = position_contracts(position) if position else 0
         if current == 0:
             raise
-        await _protect_or_close(client, pool, user_id, product_id=product_id, side=side, contracts=current, stop=stop, limit=limit, sleep=sleep, action="reduce")
+        await _protect_with_tp(client, pool, user_id, product_id=product_id, side=side, contracts=current, stop=stop, limit=limit, take_profit=keep_tp, sleep=sleep, action="reduce")
         raise CoinbaseError("REDUCE_FAILED", f"Azaltma başarısız: {exc.message}. Pozisyon ({current} sözleşme) stop ile korundu.", http_status=409) from None
     if current == 0:
         raise _critical("UNEXPECTED_FLAT", "Azaltma sonrası pozisyon tamamen kapanmış görünüyor. Coinbase'de kontrol et.", product_id=product_id, closed=True)
-    stop_id = await _protect_or_close(client, pool, user_id, product_id=product_id, side=side, contracts=current, stop=stop, limit=limit, sleep=sleep, action="reduce")
+    stop_id, tp_note = await _protect_with_tp(client, pool, user_id, product_id=product_id, side=side, contracts=current, stop=stop, limit=limit, take_profit=keep_tp, sleep=sleep, action="reduce")
     await journal.record(pool, user_id, "reduce", "reduced", product_id=product_id, order_id=stop_id, detail={"remaining": current})
-    return {"status": "reduced", "product_id": product_id, "remaining_contracts": current, "stop_order_id": stop_id, "message": f"{amount} sözleşme azaltıldı; kalan {current} sözleşme stop ile korunuyor."}
+    return {"status": "reduced", "product_id": product_id, "remaining_contracts": current, "stop_order_id": stop_id, "tp_note": tp_note,
+            "message": f"{amount} sözleşme azaltıldı; kalan {current} sözleşme stop ile korunuyor." + (f" {tp_note}" if tp_note else "")}
 
 
 # ---------------------------------------------------------------- koruma raporu / yetim stop
@@ -463,6 +623,7 @@ async def protection_report(client: CoinbaseTradingClient) -> dict[str, Any]:
         items.append({
             "product_id": product_id, "side": side, "contracts": contracts, "state": state, "message": text,
             "stop_price": fmt(matching[0]["stop_price"]) if matching and matching[0]["stop_price"] is not None else None,
+            "take_profit_price": fmt(matching[0]["take_profit_price"]) if matching and matching[0].get("take_profit_price") is not None else None,
         })
     flat = {str(p["product_id"]) for p in positions if position_contracts(p) > 0}
     orphans = [

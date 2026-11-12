@@ -103,3 +103,22 @@ async def our_order_ids(pool: Any, user_id: str, roles: tuple[str, ...]) -> set[
         user_id, list(roles),
     )
     return {str(row["order_id"]) for row in rows}
+
+
+async def rest_plan(pool: Any, user_id: str, product_id: str) -> dict[str, Any] | None:
+    """Bu ürün için en son bekleyen girişin kayıtlı planı (stop/hedef fiyatları). Yoksa None."""
+    await ensure_schema(pool)
+    row = await pool.fetchrow(
+        f"SELECT detail FROM {EVENT_TABLE} WHERE user_id = $1 AND product_id = $2 AND outcome = 'rest_sent' "
+        "AND ts > NOW() - INTERVAL '45 days' ORDER BY id DESC LIMIT 1",
+        user_id, product_id,
+    )
+    if row is None:
+        return None
+    detail = row["detail"]
+    if isinstance(detail, str):
+        try:
+            detail = json.loads(detail)
+        except ValueError:
+            return None
+    return detail if isinstance(detail, dict) and detail.get("stop_price") and detail.get("stop_limit_price") else None

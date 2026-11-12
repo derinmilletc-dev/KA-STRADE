@@ -245,3 +245,5 @@ tests/test_coinbase_preflight.py
 tests/test_coinbase_order_api.py
 tests/test_coinbase_flow.py
 tests/test_coinbase_routes_orders.py
+tests/test_coinbase_market.py
+tests/test_coinbase_routes_market.py

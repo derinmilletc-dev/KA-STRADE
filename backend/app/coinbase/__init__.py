@@ -50,8 +50,10 @@ def include_coinbase_if_enabled(app: Any) -> bool:
         return False
     try:
         from .routes import router
+        from .routes_market import router as market_router
 
         app.include_router(router)
+        app.include_router(market_router)
     except Exception as exc:  # siteyi düşürme; ama hatayı gizleme
         message = f"Coinbase modülü yüklenemedi: {type(exc).__name__}. Sunucu günlüğüne bak."
         logger.exception("COINBASE_ENABLED açık ama Coinbase rotaları yüklenemedi")

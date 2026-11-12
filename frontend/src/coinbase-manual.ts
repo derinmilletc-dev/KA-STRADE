@@ -92,8 +92,8 @@ export const PRODUCT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,39}$/
 export const isProductId = (value: string): boolean => PRODUCT_PATTERN.test(value.trim())
 export const isPositiveDecimal = (value: string): boolean => /^\d+(\.\d+)?$/.test(value.trim()) && Number(value) > 0
 
-export type Ticket = {productId: string; side: 'BUY' | 'SELL'; stopPrice: string; marginUsd: string; contracts: string}
-export const emptyTicket = (): Ticket => ({productId: '', side: 'BUY', stopPrice: '', marginUsd: '', contracts: ''})
+export type Ticket = {productId: string; side: 'BUY' | 'SELL'; stopPrice: string; marginUsd: string; contracts: string; limitPrice: string; takeProfit: string; rest: boolean}
+export const emptyTicket = (): Ticket => ({productId: '', side: 'BUY', stopPrice: '', marginUsd: '', contracts: '', limitPrice: '', takeProfit: '', rest: false})
 
 /** Göndermeden önce açık eksikleri yakalar (sunucu yine de tüm kuralları denetler). */
 export function ticketProblems(ticket: Ticket): string[] {
@@ -101,6 +101,10 @@ export function ticketProblems(ticket: Ticket): string[] {
   if (!isProductId(ticket.productId)) problems.push('Ürün kodunu yaz (örnek: bir vadeli ürün kodu).')
   if (!isPositiveDecimal(ticket.stopPrice)) problems.push('Stop fiyatı zorunlu ve sıfırdan büyük bir sayı olmalı. Stop'+"'suz işlem açılmaz.")
   if (!isPositiveDecimal(ticket.marginUsd)) problems.push('Kullanılacak teminat (USD) sıfırdan büyük bir sayı olmalı.')
+  if (ticket.limitPrice.trim() !== '' && !isPositiveDecimal(ticket.limitPrice)) problems.push('Limit giriş fiyatı sıfırdan büyük bir sayı olmalı (boş bırakırsan piyasa fiyatından girilir).')
+  if (ticket.takeProfit.trim() !== '' && !isPositiveDecimal(ticket.takeProfit)) problems.push('Hedef (TP) fiyatı sıfırdan büyük bir sayı olmalı (boş bırakırsan yalnızca stop kurulur).')
+  if (ticket.rest && ticket.limitPrice.trim() === '') problems.push('Bekleyen emir için limit giriş fiyatı zorunlu.')
+  if (ticket.rest && ticket.takeProfit.trim() === '') problems.push('Bekleyen emir için hedef (TP) fiyatı zorunlu; stop hedefle birlikte tek koruma emri olarak emre eklenir.')
   if (ticket.contracts.trim() !== '' && !/^[1-9]\d{0,5}$/.test(ticket.contracts.trim())) problems.push('Sözleşme sayısı tam sayı olmalı (boş bırakırsan en büyük güvenli miktar seçilir).')
   return problems
 }
@@ -109,6 +113,9 @@ export function ticketPayload(ticket: Ticket): Record<string, unknown> {
   const body: Record<string, unknown> = {
     product_id: ticket.productId.trim(), side: ticket.side, stop_price: ticket.stopPrice.trim(), margin_usd: ticket.marginUsd.trim(),
   }
+  if (ticket.limitPrice.trim() !== '') body.entry_limit_price = ticket.limitPrice.trim()
+  if (ticket.takeProfit.trim() !== '') body.take_profit_price = ticket.takeProfit.trim()
+  if (ticket.rest) body.rest = true
   if (ticket.contracts.trim() !== '') body.contracts = Number(ticket.contracts.trim())
   return body
 }
@@ -124,4 +131,4 @@ export function protectionTone(state: string): 'ok' | 'bad' | 'warn' {
 export const confirmMatches = (typed: string, expected: string): boolean => typed.trim() === expected
 
 export type OrderAction = 'open' | 'close' | 'reduce' | 'stop' | 'cleanup-orphans'
-export const mutatingPath = (path: string): boolean => /^\/orders\/(open|close|reduce|stop|cleanup-orphans)$/.test(path)
+export const mutatingPath = (path: string): boolean => /^\/orders\/(open|close|reduce|stop|cleanup-orphans|cancel-entry|reconcile)$/.test(path)
