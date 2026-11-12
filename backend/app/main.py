@@ -1698,6 +1698,8 @@ from .web_push import router as web_push_router
 app.include_router(web_push_router)
 app.include_router(chart_ai_router)
 app.include_router(instagram_showcase_router)
+from .coinbase import include_coinbase_if_enabled
+include_coinbase_if_enabled(app)  # COINBASE_ENABLED açık değilse hiçbir şey yüklenmez
 
 
 async def analyst_analysis(symbol: str, timeframe: str) -> dict:
