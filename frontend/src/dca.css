@@ -476,8 +476,8 @@
 #root .dca .dwKais{display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(150deg,rgba(143,180,255,.18),rgba(61,220,151,.1) 60%,#0f1824);border:1px solid rgba(143,180,255,.35)}
 #root .dca .dwKais>div small{display:block;font-size:10.5px;letter-spacing:.1em;color:#8fb4ff;font-weight:800}
 #root .dca .dwKais>div b{font-size:15.5px}
-#root .dca .dwKais ul{list-style:none;margin:0;padding:0;display:flex;gap:8px;flex-wrap:wrap}
-#root .dca .dwKais li{display:inline-flex;gap:6px;align-items:baseline;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+#root .dca .dwKais ul{list-style:none;margin:0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+#root .dca .dwKais li{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;padding:10px 6px;border-radius:12px;background:rgba(255,255,255,.06);text-align:center}
 #root .dca .dwKais li b{font-size:14px}
 #root .dca .dwKais li em{font-style:normal;font-size:11.5px;font-weight:800;color:#3ddc97}
 #root .dca .dwKais li em.down{color:#ff8a8a}
