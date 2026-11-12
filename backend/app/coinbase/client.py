@@ -37,10 +37,8 @@ READ_ONLY_PATTERNS = (
     re.compile(r"/api/v3/brokerage/products/[A-Za-z0-9][A-Za-z0-9._-]{0,39}"),
 )
 
-Transport = Callable[
-    [str, str, dict[str, str], dict[str, Any] | None, float],
-    Awaitable[tuple[int, dict[str, str], bytes]],
-]
+# (yöntem, adres, başlıklar, sorgu, zaman aşımı[, gövde]) -> (durum, başlıklar, gövde). Gövde yalnızca POST'ta verilir.
+Transport = Callable[..., Awaitable[tuple[int, dict[str, str], bytes]]]
 
 # Son ölçülen saat farkı (her Coinbase cevabındaki Date başlığından). Süreç geneli.
 CLOCK: dict[str, Any] = {"skew_seconds": None, "measured_epoch": None, "measured_mono": None}
@@ -77,12 +75,13 @@ def reset_limiters() -> None:
 
 async def httpx_transport(
     method: str, url: str, headers: dict[str, str], params: dict[str, Any] | None, timeout: float,
+    content: bytes | None = None,
 ) -> tuple[int, dict[str, str], bytes]:
     import httpx  # tembel: kapalıyken veya testte gerekmez
 
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as http:
-            response = await http.request(method, url, headers=headers, params=params)
+            response = await http.request(method, url, headers=headers, params=params, content=content)
     except httpx.TimeoutException:
         raise CoinbaseError(
             "NETWORK", "Coinbase zamanında cevap vermedi. Biraz sonra tekrar dene; sürerse Coinbase durum sayfasına bak.",
@@ -120,10 +119,18 @@ class CoinbaseClient:
         self._limiter = _LIMITERS.setdefault(key_fingerprint(key_name), _Limiter())
 
     # ---- ön kontroller -------------------------------------------------
-    def _guard_path(self, path: str) -> str:
+    def _read_patterns(self) -> tuple[re.Pattern[str], ...]:
+        return READ_ONLY_PATTERNS
+
+    def _write_patterns(self) -> tuple[re.Pattern[str], ...]:
+        """Bu sınıfta yazma yolu YOK. Yazma ancak ayrı, dar izinli alt sınıfta açılır (trading_client)."""
+        return ()
+
+    def _guard(self, method: str, path: str) -> str:
         clean = path.split("?", 1)[0]
-        if not any(pattern.fullmatch(clean) for pattern in READ_ONLY_PATTERNS):
-            raise ReadOnlyViolation(f"Salt okunur listede olmayan yol: {clean}")
+        patterns = self._read_patterns() if method == "GET" else self._write_patterns()
+        if not any(pattern.fullmatch(clean) for pattern in patterns):
+            raise ReadOnlyViolation(f"İzinli listede olmayan yol ({method}): {clean}")
         return clean
 
     def _preflight_clock(self) -> None:
@@ -156,13 +163,18 @@ class CoinbaseClient:
 
     # ---- istek ---------------------------------------------------------
     async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        clean_path = self._guard_path(path)
+        return await self._execute("GET", path, params, None)
+
+    async def _execute(
+        self, method: str, path: str, params: dict[str, Any] | None, json_body: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        clean_path = self._guard(method, path)
         self._preflight_clock()
         await self._wait_for_slot()
         token = build_jwt(
             key_name=self._key_name,
             private_key=self._private_key,
-            method="GET",
+            method=method,
             host=self._host,
             path=clean_path,
             now=self._clock(),
@@ -170,11 +182,15 @@ class CoinbaseClient:
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
-            "User-Agent": "KaisTrade-Coinbase/B-readonly",
+            "User-Agent": "KaisTrade-Coinbase",
         }
-        status, response_headers, body = await self._transport(
-            "GET", f"https://{self._host}{clean_path}", headers, params, self._timeout,
-        )
+        url = f"https://{self._host}{clean_path}"
+        if json_body is None:
+            status, response_headers, body = await self._transport(method, url, headers, params, self._timeout)
+        else:
+            headers["Content-Type"] = "application/json"
+            payload = json.dumps(json_body, separators=(",", ":")).encode("utf-8")
+            status, response_headers, body = await self._transport(method, url, headers, params, self._timeout, payload)
         skew = self._record_skew(response_headers)
         return self._interpret(status, response_headers, body, skew)
 
