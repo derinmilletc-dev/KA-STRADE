@@ -283,6 +283,7 @@ class TradeRMetricTests(unittest.TestCase):
             resolve_demo_symbol=AsyncMock(return_value="BTCUSDT"),
             build_order_spec=AsyncMock(return_value=spec),
             set_isolated_margin=AsyncMock(return_value={}),
+            demo_liquidation_guard=AsyncMock(return_value=None),
             apply_verified_leverage=AsyncMock(return_value={
                 "requested_leverage": 1, "applied_leverage": 1, "margin_type": "ISOLATED",
                 "leverage_verified": True, "configuration_source": "TEST", "max_notional_value": 200,
