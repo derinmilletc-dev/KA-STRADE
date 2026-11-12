@@ -14,6 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from .config import resting_enabled
 from .limits import Limits
 from .money import ROUND_DOWN, ROUND_UP, fmt, is_multiple, round_to_increment
 from .service import level_rank
@@ -118,6 +119,31 @@ def run_preflight(
         if entry_limit <= 0:
             return _result(False, reasons + ["Limit giriş fiyatı geçersiz."], None)
         entry = entry_limit
+
+    rest = request.get("rest") is True
+    take_profit: Decimal | None = None
+    raw_tp = request.get("take_profit_price")
+    if raw_tp not in (None, ""):
+        try:
+            take_profit = Decimal(str(raw_tp))
+            if not take_profit.is_finite() or take_profit <= 0:
+                raise ValueError
+        except Exception:  # noqa: BLE001
+            return _result(False, reasons + ["Hedef (TP) fiyatı sıfırdan büyük bir sayı olmalı."], None)
+        take_profit = round_to_increment(take_profit, price_increment, ROUND_UP if side == "BUY" else ROUND_DOWN)
+        if side == "BUY" and take_profit <= max(entry, ask):
+            reasons.append("Alış (long) için hedef fiyatı giriş ve mevcut fiyatın ÜSTÜNDE olmalı.")
+        if side == "SELL" and take_profit >= min(entry, bid):
+            reasons.append("Satış (short) için hedef fiyatı giriş ve mevcut fiyatın ALTINDA olmalı.")
+    if rest:
+        if not resting_enabled():
+            reasons.append("Bekleyen limit emri şu an kapalı (COINBASE_RESTING_ENABLED açık değil).")
+        if entry_limit is None:
+            reasons.append("Bekleyen emir için limit giriş fiyatı zorunlu.")
+        if take_profit is None:
+            reasons.append("Bekleyen emir için hedef (TP) fiyatı zorunlu: stop, hedefle birlikte tek koruma emri olarak emre eklenir.")
+    if any(str(o.get("client_order_id") or "").startswith("kais-e-") and str(o.get("product_id")) == product_id for o in open_orders):
+        reasons.append("Bu ürün için bekleyen bir giriş emri zaten var; önce onu iptal et.")
     if side == "BUY":
         stop = round_to_increment(stop_raw, price_increment, ROUND_UP)      # girişe doğru yuvarla (güvenli)
         if stop >= bid:
@@ -241,6 +267,7 @@ def run_preflight(
         "product_id": product_id, "side": side, "contracts": contracts,
         "contract_size": fmt(contract_size), "entry_reference": fmt(entry),
         "entry_limit_price": fmt(entry_limit) if entry_limit is not None else None,
+        "take_profit_price": fmt(take_profit) if take_profit is not None else None, "rest": rest,
         "stop_price": fmt(stop), "stop_limit_price": fmt(limit_price),
         "notional_usd": fmt(notional.quantize(Decimal("0.01"))), "margin_usd": fmt(margin_usd),
         "leverage": fmt(leverage.quantize(Decimal("0.01"))),

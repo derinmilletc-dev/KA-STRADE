@@ -18,12 +18,13 @@ import {changeText, expiryText, matchRows, priceText, signalsForRows, toRows, ty
 import {CONFIRM, confirmMatches, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
+import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
 import {CheckList, DirectionCards, ElapsedSeconds, StatusPill, SummaryList, type SummaryItem} from './ManualTerminalParts'
 import type {CheckRow} from './manual-order-state'
 import './coinbase-manual.css'
 
-type Status = {orders_enabled?: boolean; key_saved: boolean; clock?: {ok: boolean | null; skew_seconds: number | null}}
+type Status = {orders_enabled?: boolean; resting_enabled?: boolean; key_saved: boolean; clock?: {ok: boolean | null; skew_seconds: number | null}}
 type Amount = {value: string | null; currency: string} | null
 type Account = {balance: {futures_buying_power: Amount; available_margin: Amount; unrealized_pnl: Amount; daily_realized_pnl: Amount; worst_margin_level: string | null; worst_margin_window: string | null}}
 type Plan = Record<string, string | number>
@@ -215,7 +216,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {label: 'Ürün', value: ticket.productId.trim() || null},
     {label: 'Yön', value: dir},
     {label: 'Teminat', value: ticket.marginUsd.trim() ? `${ticket.marginUsd.trim()} USD` : null},
-    {label: 'Giriş türü', value: ticket.limitPrice.trim() ? `Limit · en kötü ${ticket.limitPrice.trim()} (dolmazsa işlem açılmaz)` : 'Piyasa'},
+    {label: 'Hedef (TP)', value: ticket.takeProfit.trim() ? `${ticket.takeProfit.trim()} (Coinbase'de hedef+stop tek emir)` : 'Yok (yalnızca stop)'},
+    {label: 'Giriş türü', value: ticket.rest ? `Bekleyen limit · ${ticket.limitPrice.trim() || '—'} (dolana kadar emir kalır)` : ticket.limitPrice.trim() ? `Limit · en kötü ${ticket.limitPrice.trim()} (dolmazsa işlem açılmaz)` : 'Piyasa'},
     {label: 'Stop (zorunlu)', value: ticket.stopPrice.trim() || null, tone: 'down'},
     ...(plan ? [
       {label: 'Sözleşme sayısı', value: String(plan.contracts)},
@@ -402,7 +404,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           <input className="cbMxtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="teminat (USD)"/>
           <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (isteğe bağlı)"/>
           <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (isteğe bağlı)"/>
-          <p className="mxtHint">Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Boş bırakırsan piyasa fiyatından girilir.</p></>}
+          <input className="cbMxtInput" aria-label="Hedef (TP) fiyatı (isteğe bağlı)" value={ticket.takeProfit} onChange={event => patch({takeProfit: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="hedef (TP) fiyatı (isteğe bağlı)"/>
+          {status?.resting_enabled === true && <label className="mxtHint"><input type="checkbox" checked={ticket.rest} onChange={event => patch({rest: event.target.checked})}/> Bekleyen limit: emir dolana kadar Coinbase'de bekler (limit giriş ve hedef zorunlu; stop+hedef emre ekli gider ve ekran dolumu izler).</label>}
+          <p className="mxtHint">Hedef yazarsan stop ile birlikte Coinbase'de TEK koruma emri olur: biri dolunca öteki iptal olur, ters pozisyon açılmaz. Kurulamazsa yalnızca stop kurulur ve sana açıkça söylenir. Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Boş bırakırsan piyasa fiyatından girilir.</p></>}
         {step === 3 && <><h4>Stop</h4><p className="mxtLead">Stop zorunludur; stop'suz işlem açılmaz. LONG'da giriş fiyatının altına, SHORT'ta üstüne koy.</p>
           <input className="cbMxtInput" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => patch({stopPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></>}
         {step === 4 && reviewStep}
@@ -435,6 +439,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {accountRows.length > 0 && <section className="cbCard" aria-label="Hesap"><h3>Vadeli hesap</h3><SummaryList rows={accountRows}/></section>}
+      {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
     </div>}
   </div>

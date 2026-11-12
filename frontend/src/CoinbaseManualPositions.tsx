@@ -4,7 +4,7 @@ import {CONFIRM, confirmMatches, isPositiveDecimal, newRequestId, protectionTone
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
 
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
-export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null}
+export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null; take_profit_price?: string | null}
 export type CbProtection = {positions: CbProtectionItem[]; orphan_stops: {order_id: string; product_id: string}[]; open_order_count: number; all_protected: boolean; has_problem: boolean}
 type Props = {positions: CbPosition[]; protection: CbProtection | null; ordersEnabled: boolean; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void}
 type Mode = 'close' | 'reduce' | 'stop' | null
@@ -40,7 +40,7 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
       <b>{position.product_id}</b><span>{sideLabel(sideOf(position.side))}</span><span>{position.number_of_contracts ?? '—'} sözleşme</span>
       <span>Giriş {position.avg_entry_price ?? '—'}</span><span>Güncel {position.current_price ?? '—'}</span><span>K/Z {position.unrealized_pnl ?? '—'}</span>
     </div>
-    <div className={`cbBadge ${tone}`}>{item ? (item.state === 'protected' ? `Stop var${item.stop_price ? ` (${item.stop_price})` : ''}` : item.message) : ordersEnabled ? 'Koruma durumu okunamadı' : 'Emir gönderme kapalı; koruma bilgisi yok'}</div>
+    <div className={`cbBadge ${tone}`}>{item ? (item.state === 'protected' ? `Stop var${item.stop_price ? ` (${item.stop_price})` : ''}${item.take_profit_price ? ` · Hedef ${item.take_profit_price}` : ''}` : item.message) : ordersEnabled ? 'Koruma durumu okunamadı' : 'Emir gönderme kapalı; koruma bilgisi yok'}</div>
     {ordersEnabled && <div className="cbButtons">
       <button onClick={() => setMode(mode === 'stop' ? null : 'stop')}>{item?.state === 'UNPROTECTED' ? 'Stop koy' : 'Stop taşı'}</button>
       <button onClick={() => setMode(mode === 'reduce' ? null : 'reduce')}>Azalt</button>

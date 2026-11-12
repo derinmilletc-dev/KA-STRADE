@@ -140,10 +140,13 @@ def normalize_order(raw: Any) -> dict[str, Any]:
         raise CoinbaseError("BAD_RESPONSE", "Coinbase emir kaydı beklenen biçimde değil (order_id/status yok).")
     configuration = raw.get("order_configuration")
     stop_cfg: dict[str, Any] = {}
+    bracket_cfg: dict[str, Any] = {}
     if isinstance(configuration, dict):
         for key, value in configuration.items():
             if key.startswith("stop_limit") and isinstance(value, dict):
                 stop_cfg = value
+            if key.startswith("trigger_bracket") and isinstance(value, dict):
+                bracket_cfg = value
 
     def num(value: Any) -> Decimal | None:
         return to_decimal(value, "sayı") if value not in (None, "") else None
@@ -157,9 +160,11 @@ def normalize_order(raw: Any) -> dict[str, Any]:
         "order_type": str(raw.get("order_type") or "").upper(),
         "filled_size": num(raw.get("filled_size")),
         "average_filled_price": num(raw.get("average_filled_price")),
-        "base_size": num(stop_cfg.get("base_size")),
-        "stop_price": num(stop_cfg.get("stop_price")),
+        "base_size": num(stop_cfg.get("base_size") or bracket_cfg.get("base_size")),
+        "stop_price": num(stop_cfg.get("stop_price") or bracket_cfg.get("stop_trigger_price")),
         "limit_price": num(stop_cfg.get("limit_price")),
+        "take_profit_price": num(bracket_cfg.get("limit_price")),
+        "is_bracket": bool(bracket_cfg),
         "stop_direction": stop_cfg.get("stop_direction"),
     }
 

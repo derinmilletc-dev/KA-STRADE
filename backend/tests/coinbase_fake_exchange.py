@@ -37,6 +37,11 @@ class FakePool:
                 self.lock = None
 
     async def fetchrow(self, sql, *args):
+        if sql.lstrip().startswith("SELECT detail"):
+            for event in reversed(self.events):
+                if event["product_id"] == args[1] and event["outcome"] == "rest_sent":
+                    return {"detail": event["detail"]}
+            return None
         if self.lock is None:
             self.lock = args[1]
             return {"token": args[1]}
@@ -63,6 +68,9 @@ class FakeExchange:
         self.entry_mode = "fill"     # fill | reject | partial | nofill | lost_response
         self.partial_contracts = 3
         self.stop_mode = "ok"        # ok | reject | wrong_size | inactive
+        self.bracket_mode = "ok"     # ok | reject | wrong_size | inactive
+        self.rest_mode = "ok"        # ok | reject
+        self.attached_works = True   # False: borsa ekli bracket'ı sessizce yok sayar (doldurunca korumasız kalır)
         self.close_fails = False
         self.close_noop = False      # istek başarılı görünür ama pozisyon kapanmaz
         self.cancel_fails = set()    # bu id'ler iptal edilemez
@@ -97,6 +105,22 @@ class FakeExchange:
     def active_stops(self):
         return [o for o in self.orders.values() if o["status"] == "OPEN" and o["order_type"] == "STOP_LIMIT"]
 
+    def fill_resting(self, order_id):
+        """Bekleyen limit doldu: pozisyon açılır; ekli bracket çalışıyorsa borsa onu kendisi kurar."""
+        order = self.orders[order_id]
+        order["status"] = "FILLED"
+        size = int(order["base_size"])
+        self.positions[order["product_id"]] = {"side": order["side"], "contracts": size}
+        attached = order.get("attached")
+        if attached and self.attached_works:
+            br = attached["trigger_bracket_gtc"]
+            oid = self._new_id("br")
+            self.orders[oid] = {
+                "order_id": oid, "client_order_id": f"exch-{oid}", "product_id": order["product_id"],
+                "side": "SELL" if order["side"] == "BUY" else "BUY", "status": "OPEN", "order_type": "BRACKET",
+                "base_size": str(size), "stop_price": br["stop_trigger_price"], "tp": br["limit_price"],
+            }
+
     def set_position(self, product, side, contracts):
         self.positions[product] = {"side": side, "contracts": contracts}
 
@@ -119,6 +143,8 @@ class FakeExchange:
 
     def _order_json(self, o):
         cfg = {}
+        if o["order_type"] == "BRACKET":
+            cfg = {"trigger_bracket_gtc": {"base_size": o["base_size"], "limit_price": o["tp"], "stop_trigger_price": o["stop_price"]}}
         if o["order_type"] == "STOP_LIMIT":
             cfg = {"stop_limit_stop_limit_gtc": {"base_size": o["base_size"], "limit_price": o["limit_price"], "stop_price": o["stop_price"],
                                                  "stop_direction": "STOP_DIRECTION_STOP_DOWN"}}
@@ -204,6 +230,28 @@ class FakeExchange:
                     return self._entry(body, int(fok["base_size"]))
                 finally:
                     self.entry_mode = saved
+            if "trigger_bracket_gtc" in cfg:
+                if self.bracket_mode == "reject":
+                    return self._fail("UNSUPPORTED_ORDER_CONFIGURATION")
+                br = cfg["trigger_bracket_gtc"]
+                oid = self._new_id("br")
+                size = br["base_size"] if self.bracket_mode != "wrong_size" else str(int(br["base_size"]) + 1)
+                self.orders[oid] = {
+                    "order_id": oid, "client_order_id": body["client_order_id"], "product_id": body["product_id"], "side": body["side"],
+                    "status": "CANCELLED" if self.bracket_mode == "inactive" else "OPEN", "order_type": "BRACKET", "base_size": size,
+                    "stop_price": br["stop_trigger_price"], "tp": br["limit_price"],
+                }
+                return self._ok(oid)
+            if "limit_limit_gtc" in cfg:
+                if self.rest_mode == "reject":
+                    return self._fail("UNSUPPORTED_ORDER_CONFIGURATION")
+                oid = self._new_id("rest")
+                self.orders[oid] = {
+                    "order_id": oid, "client_order_id": body["client_order_id"], "product_id": body["product_id"], "side": body["side"],
+                    "status": "OPEN", "order_type": "LIMIT", "base_size": cfg["limit_limit_gtc"]["base_size"],
+                    "attached": body.get("attached_order_configuration"),
+                }
+                return self._ok(oid)
             stop_cfg = cfg["stop_limit_stop_limit_gtc"]
             if self.stop_mode == "reject":
                 return self._fail("INVALID_LIMIT_PRICE")

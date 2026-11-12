@@ -31,6 +31,11 @@ def orders_enabled() -> bool:
     return coinbase_enabled() and os.getenv("COINBASE_ORDERS_ENABLED", "false").strip().lower() in TRUE_VALUES
 
 
+def resting_enabled() -> bool:
+    """Bekleyen (dolana kadar duran) limit giriş ayrı anahtardır; Coinbase'de 'ekli bracket' doğrulanana kadar KAPALI tutulur."""
+    return orders_enabled() and os.getenv("COINBASE_RESTING_ENABLED", "false").strip().lower() in TRUE_VALUES
+
+
 def allowed_emails() -> frozenset[str]:
     raw = os.getenv("COINBASE_ALLOWED_EMAILS", "")
     return frozenset(item.strip().casefold() for item in raw.replace(";", ",").split(",") if item.strip())

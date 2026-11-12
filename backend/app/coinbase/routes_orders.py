@@ -40,6 +40,8 @@ class PreflightPayload(BaseModel):
     stop_price: str = Field(min_length=1, max_length=30)
     margin_usd: str = Field(min_length=1, max_length=30)
     entry_limit_price: str | None = Field(default=None, max_length=30)
+    take_profit_price: str | None = Field(default=None, max_length=30)
+    rest: bool = False
     contracts: int | None = Field(default=None, ge=1, le=100000)
 
 
@@ -60,6 +62,11 @@ class StopPayload(ClosePayload):
 
 class ReducePayload(ClosePayload):
     reduce_by: int = Field(ge=1, le=100000)
+
+
+class CancelEntryPayload(ClosePayload):
+    product_id: str = Field(default="", max_length=40)
+    order_id: str = Field(min_length=3, max_length=80)
 
 
 class CleanupPayload(BaseModel):
@@ -176,6 +183,29 @@ async def move_stop(payload: StopPayload, request: Request) -> Any:
     return await _guarded(request, "stop", work, claim=payload.request_id)
 
 
+@router.post("/cancel-entry")
+async def cancel_entry(payload: CancelEntryPayload, request: Request) -> Any:
+    _member(request)
+    _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
+
+    async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        return await flow.cancel_entry(client, pool, user_id, current_limits(), payload.order_id)
+
+    return await _guarded(request, "cancel_entry", work, claim=payload.request_id)
+
+
+@router.post("/reconcile")
+async def reconcile(request: Request) -> Any:
+    """Dolmuş ama korumasız bekleyen girişleri korur/kapatır. Emir verebildiği için üye + akış kilidi şart; onay metni gerekmez
+    (kullanıcının zaten verdiği emrin koruması; yeni risk açmaz)."""
+    _member(request)
+
+    async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        return await flow.reconcile_flow(client, pool, user_id, current_limits())
+
+    return await _guarded(request, "reconcile", work)
+
+
 @router.post("/cleanup-orphans")
 async def cleanup(payload: CleanupPayload, request: Request) -> Any:
     _member(request)
@@ -193,6 +223,15 @@ async def protection(request: Request) -> Any:
         return await flow.protection_report(client)
 
     return await _guarded(request, "protection", work)
+
+
+@router.get("/pending")
+async def pending(request: Request) -> Any:
+    async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        rows = await flow.pending_entries(client)
+        return {"orders": [{k: (str(v) if v is not None and not isinstance(v, str) else v) for k, v in row.items()} for row in rows]}
+
+    return await _guarded(request, "pending", work)
 
 
 @router.get("/open")

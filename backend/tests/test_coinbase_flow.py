@@ -356,3 +356,129 @@ class LockTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TakeProfitTests(FlowBase):
+    def test_tp_places_verified_bracket_instead_of_plain_stop(self):
+        result = self.open(take_profit_price="3100")
+        self.assertIsNone(result["tp_note"])
+        active = [o for o in self.ex.orders.values() if o["status"] == "OPEN"]
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0]["order_type"], "BRACKET")
+        self.assertEqual(active[0]["tp"], "3100")
+        self.assertEqual(active[0]["side"], "SELL")
+        self.assertIn("bracket_verified", self.pool.outcomes())
+        report = run(flow.protection_report(self.client))
+        self.assertTrue(report["all_protected"])
+        self.assertEqual(report["positions"][0]["take_profit_price"], "3100")
+
+    def test_tp_on_wrong_side_rejected(self):
+        err = self.fails(lambda: self.open(take_profit_price="2990"))
+        self.assertEqual(err.code, "PREFLIGHT_FAILED")
+        self.assertEqual(self.ex.posts(), [])
+
+    def test_bracket_rejected_falls_back_to_plain_stop_and_says_so(self):
+        self.ex.bracket_mode = "reject"
+        result = self.open(take_profit_price="3100")
+        self.assertIn("Hedef (TP) kurulamadı", result["tp_note"])
+        self.assertEqual(len(self.ex.active_stops()), 1)
+        self.assertIn("stop_verified", self.pool.outcomes())
+
+    def test_bracket_wrong_size_is_cancelled_then_plain_stop(self):
+        self.ex.bracket_mode = "wrong_size"
+        result = self.open(take_profit_price="3100")
+        self.assertIsNotNone(result["tp_note"])
+        self.assertEqual([o["order_type"] for o in self.ex.orders.values() if o["status"] == "OPEN"], ["STOP_LIMIT"])
+
+    def test_bracket_stuck_and_wrong_closes_position(self):
+        self.ex.bracket_mode = "wrong_size"
+        self.ex.cancel_fails = {"br-00000002"}
+        err = self.fails(lambda: self.open(take_profit_price="3100"))
+        self.assertEqual(err.code, "STOP_FAILED_POSITION_CLOSED")
+        self.assertEqual(self.ex.positions, {})
+
+    def test_stop_move_keeps_the_target(self):
+        self.open(take_profit_price="3100")
+        run(flow.set_stop(self.client, self.pool, "u1", self.limits, PRODUCT, "2950", sleep=nosleep))
+        active = [o for o in self.ex.orders.values() if o["status"] == "OPEN"]
+        self.assertEqual(len(active), 1)
+        self.assertEqual((active[0]["order_type"], active[0]["tp"], active[0]["stop_price"]), ("BRACKET", "3100", "2950"))
+
+
+class RestingTests(FlowBase):
+    def setUp(self):
+        super().setUp()
+        os.environ["COINBASE_RESTING_ENABLED"] = "true"
+
+    def tearDown(self):
+        os.environ.pop("COINBASE_RESTING_ENABLED", None)
+        super().tearDown()
+
+    def rest(self, **over):
+        return self.open(entry_limit_price="2995", take_profit_price="3100", rest=True, margin_usd="30", **over)
+
+    def test_flag_off_rejects_resting(self):
+        os.environ.pop("COINBASE_RESTING_ENABLED")
+        err = self.fails(lambda: self.rest())
+        self.assertEqual(err.code, "PREFLIGHT_FAILED")
+        self.assertEqual(self.ex.posts(), [])
+
+    def test_resting_requires_tp_and_limit(self):
+        err = self.fails(lambda: self.open(entry_limit_price="2995", rest=True, margin_usd="30"))
+        self.assertIn("hedef", err.message)
+        err = self.fails(lambda: self.open(take_profit_price="3100", rest=True, margin_usd="30"))
+        self.assertIn("limit", err.message)
+
+    def test_resting_order_carries_attached_bracket_and_is_pending(self):
+        result = self.rest()
+        self.assertEqual(result["status"], "pending")
+        body = self.ex.posts()[-1][2]
+        self.assertIn("limit_limit_gtc", body["order_configuration"])
+        self.assertEqual(body["attached_order_configuration"]["trigger_bracket_gtc"], {"limit_price": "3100", "stop_trigger_price": "2940"})
+        self.assertEqual(self.ex.positions, {})
+        self.assertEqual(len(run(flow.pending_entries(self.client))), 1)
+
+    def test_second_pending_entry_for_same_product_blocked(self):
+        self.rest()
+        err = self.fails(lambda: self.rest())
+        self.assertIn("bekleyen", err.message)
+
+    def test_filled_with_working_attached_bracket_is_protected_and_reconcile_does_nothing_more(self):
+        result = self.rest()
+        self.ex.fill_resting(result["entry_order_id"])
+        posts_before = len(self.ex.posts())
+        out = run(flow.reconcile_flow(self.client, self.pool, "u1", self.limits, sleep=nosleep))
+        self.assertEqual(out["fixed"], [])
+        self.assertEqual(len(self.ex.posts()), posts_before)
+
+    def test_filled_but_attached_ignored_gets_protected_by_reconcile(self):
+        self.ex.attached_works = False
+        result = self.rest()
+        self.ex.fill_resting(result["entry_order_id"])
+        self.assertEqual(run(flow.protection_report(self.client))["positions"][0]["state"], "UNPROTECTED")
+        out = run(flow.reconcile_flow(self.client, self.pool, "u1", self.limits, sleep=nosleep))
+        self.assertEqual(out["fixed"], [PRODUCT])
+        self.assertEqual(run(flow.protection_report(self.client))["positions"][0]["state"], "protected")
+
+    def test_reconcile_closes_when_protection_impossible(self):
+        self.ex.attached_works = False
+        self.ex.stop_mode = "reject"
+        self.ex.bracket_mode = "reject"
+        result = self.rest()
+        self.ex.fill_resting(result["entry_order_id"])
+        err = self.fails(lambda: run(flow.reconcile_flow(self.client, self.pool, "u1", self.limits, sleep=nosleep)))
+        self.assertEqual(err.code, "STOP_FAILED_POSITION_CLOSED")
+        self.assertEqual(self.ex.positions, {})
+
+    def test_cancel_entry_cancels_only_our_pending_order(self):
+        result = self.rest()
+        out = run(flow.cancel_entry(self.client, self.pool, "u1", self.limits, result["entry_order_id"], sleep=nosleep))
+        self.assertEqual(out["status"], "cancelled")
+        self.assertEqual(self.ex.orders[result["entry_order_id"]]["status"], "CANCELLED")
+        err = self.fails(lambda: run(flow.cancel_entry(self.client, self.pool, "u1", self.limits, "someone-elses-order", sleep=nosleep)))
+        self.assertEqual(err.code, "NOT_OUR_ORDER")
+
+    def test_exchange_rejects_resting_order(self):
+        self.ex.rest_mode = "reject"
+        err = self.fails(lambda: self.rest())
+        self.assertEqual(err.code, "ORDER_REJECTED")
