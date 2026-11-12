@@ -304,21 +304,34 @@ class ReadTests(RouteTestCase):
         self.assertEqual((response.status_code, response.json()["code"]), (424, "VAULT_DECRYPT"))
 
 
+def probe(app):
+    """Her Coinbase rotasına gerçek istek at (FastAPI'nin iç yol listesine bağlı kalma). Oturum yok."""
+    http = TestClient(app)
+    body = {**SAVE}
+    return {
+        "GET /status": http.get("/api/coinbase/status").status_code,
+        "GET /account": http.get("/api/coinbase/account").status_code,
+        "GET /positions": http.get("/api/coinbase/positions").status_code,
+        "PUT /key": http.put("/api/coinbase/key", json=body).status_code,
+        "DELETE /key": http.request("DELETE", "/api/coinbase/key", json={"confirm": "x"}).status_code,
+    }
+
+
 class FlagTests(unittest.TestCase):
     def test_flag_off_leaves_the_app_untouched(self):
         app = FastAPI()
-        before = [route.path for route in app.routes]
         with patch.dict(os.environ, {"COINBASE_ENABLED": "false"}):
             self.assertFalse(include_coinbase_if_enabled(app))
-        self.assertEqual([route.path for route in app.routes], before)
-        self.assertFalse(any(route.path.startswith("/api/coinbase") for route in app.routes))
+        self.assertEqual(set(probe(app).values()), {404})  # rota hiç yok
+        self.assertFalse(hasattr(app.state, "coinbase_enabled"))
+        self.assertFalse(hasattr(app.state, "coinbase_load_error"))
 
     def test_flag_on_mounts_the_router(self):
         app = FastAPI()
         with patch.dict(os.environ, {"COINBASE_ENABLED": "true", "COINBASE_ALLOWED_EMAILS": "me@example.com"}):
             self.assertTrue(include_coinbase_if_enabled(app))
-        paths = {route.path for route in app.routes}
-        self.assertTrue({"/api/coinbase/status", "/api/coinbase/account", "/api/coinbase/positions", "/api/coinbase/key"} <= paths)
+        # Rota var ve oturum yok: 404 değil 401 (erişim kontrolü çalışıyor)
+        self.assertEqual(set(probe(app).values()), {401})
         self.assertTrue(app.state.coinbase_enabled)
 
     def test_load_failure_is_visible_not_silent_and_does_not_crash(self):
