@@ -67,6 +67,16 @@ class FakeExchange:
         self.cancel_fails = set()    # bu id'ler iptal edilemez
         self.margin_level = "MARGIN_LEVEL_TYPE_BASE"
         self.key = ec.generate_private_key(ec.SECP256R1())
+        self.product_rows = [
+            {"product_id": "ETP-20DEC30-CDE", "display_name": "ETH PERP", "price": "3000.5", "price_percentage_change_24h": "-1.25",
+             "approximate_quote_24h_volume": "5000000", "status": "online", "trading_disabled": False,
+             "future_product_details": {"contract_root_unit": "eth", "contract_size": "0.01", "contract_expiry": "2030-12-20T16:00:00Z"}},
+            {"product_id": "BIP-20DEC30-CDE", "display_name": "BTC PERP", "price": "100000", "price_percentage_change_24h": "0.5",
+             "approximate_quote_24h_volume": "90000000", "status": "online", "trading_disabled": False,
+             "future_product_details": {"contract_root_unit": "BTC", "contract_size": "0.01"}},
+            {"product_id": "XXX-20DEC30-CDE", "display_name": "XXX", "price": "oops", "status": "offline", "trading_disabled": True,
+             "future_product_details": {}},
+        ]
 
     def client(self):
         async def sleep(_):
@@ -144,6 +154,9 @@ class FakeExchange:
         if m:
             o = self.orders.get(m.group(1))
             return _resp({"order": self._order_json(o)}) if o else _resp({"error": "NOT_FOUND"}, 404)
+        if path.endswith("/brokerage/products"):
+            self.product_list_calls = getattr(self, "product_list_calls", 0) + 1
+            return _resp({"products": self.product_rows})
         m = re.search(r"/products/([^/]+)$", path)
         if m:
             return _resp({"product_id": m.group(1), "status": "online", "base_increment": "1", "quote_increment": "0.5",
