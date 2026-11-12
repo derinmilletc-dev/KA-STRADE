@@ -22,6 +22,19 @@ export const PUBLIC_POLICIES = {
       '13. Grafik yapay zekâ analizi: Kais AI\'a sorarsan grafiğin görüntüsü ve ekranda görünen piyasa bilgisi analiz için yapay zekâ sağlayıcımız Anthropic\'e gönderilir. Görüntü sitemizde saklanmaz.',
     ],
   },
+  'hesap-silme': {
+    title: 'Hesap ve Veri Silme',
+    paragraphs: [
+      'KaisTrade hesabınızı ve hesabınıza bağlı kişisel verilerinizi uygulama içinden kalıcı olarak silebilirsiniz. Bu sayfa, Android ve web için aynı silme yolunu anlatır. Silme işlemi geri alınamaz.',
+      'Nasıl silinir: 1) KaisTrade\'e giriş yapın. 2) AYARLAR > Hesap ve güvenlik bölümünü açın. 3) "Tehlikeli işlemler" altındaki "Hesabımı sil" düğmesine basın. 4) Parolanızı girin (parolasız Google hesaplarında e-postanıza gelen kodu girin); iki aşamalı doğrulama açıksa doğrulama kodunu da girin. 5) Onay kutusuna HESABIMI SIL yazıp "Hesabımı kalıcı olarak sil" düğmesine basın.',
+      'Silmeden önce: Açık pozisyonunuz, açık emriniz, açık otomasyonunuz veya aktif borsa bağlantınız varsa silme reddedilir; önce bunları kapatın ve borsa bağlantısını kaldırın. Hesabı silmek borsadaki pozisyon ve emirleri kendiliğinden kapatmaz, Binance hesabınızı silmez ve kendi borsa hesabınızdaki işlemlerinizi etkilemez.',
+      'Silinen veriler: hesap ve profil kaydınız, parola özetiniz, oturumlarınız, Google bağlantınız, hesap ayarlarınız, borsa API anahtarlarınız (şifreli kasadaki kayıtlar), Kais AI ve analist kullanım kayıtlarınız, destek ekleriniz ve bildirim abonelikleriniz silinir. Destek talebi içerikleri, bildirim kuyruğu kayıtları, ticari ileti tercihleri ve deneme kayıtları silinir veya kimliksizleştirilir.',
+      'Anonim olarak saklananlar: Abonelik, ödeme, işlem ve denetim kayıtları gibi mali ve güvenlik kanıtı niteliğindeki kayıtlar kimliğinizle bağlantısı kesilerek (kullanıcı kimliği yerine "ERASED" yazılarak) saklanır. Bu kayıtlardan size ulaşılamaz. Kategori bazlı saklama süreleri: [SAKLAMA SÜRELERİ].',
+      'Kapsam dışı olanlar: Hizmet sağlayıcıların kendi günlükleri, yedekler ve diğer tarayıcı veya cihazlardaki yerel kopyalar bu işlemle hemen silinemez. Üçüncü taraf ödeme sağlayıcısı üzerinden yapılmış bir aboneliğin iptali veya iadesi bu işlemle yapılmaz.',
+      'Geçici seçenek: Verilerinizi silmeden yalnızca erişimi kapatmak isterseniz aynı bölümdeki "Hesabı kapat" seçeneğini kullanabilirsiniz; bu seçenekte kayıtlarınız saklanmaya devam eder.',
+      'Giriş yapamıyorsanız: Hesabınıza erişemeyen kullanıcılar silme talebini şu adrese iletebilir: [GİZLİLİK E-POSTASI]. Veri sorumlusu: [VERİ SORUMLUSU / HUKUKİ UNVAN]. Bu iletişim bilgileri ve saklama süreleri henüz doğrulanmamıştır; yayından önce tamamlanmalıdır. Ayrıntılar için Gizlilik Politikası\'na bakın.',
+    ],
+  },
   terms: {
     title: 'Kullanım Şartları',
     paragraphs: registrationDocument.paragraphs,
@@ -43,6 +56,7 @@ export function publicPolicyForPath(pathname:string):PublicPolicy|null {
     case '/privacy': return 'privacy'
     case '/terms': return 'terms'
     case '/risk': return 'risk'
+    case '/hesap-silme': return 'hesap-silme'
     default: return null
   }
 }

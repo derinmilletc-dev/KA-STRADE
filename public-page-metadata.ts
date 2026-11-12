@@ -19,6 +19,11 @@ export const PUBLIC_PAGE_METADATA = {
     description: 'Kripto işlemlerinde sermaye kaybı ve piyasa oynaklığı risklerini öğrenin. KaisTrade kâr veya getiri garantisi vermez.',
     url: 'https://kaistrade.com/risk',
   },
+  'hesap-silme': {
+    title: 'Hesap ve Veri Silme | KaisTrade',
+    description: 'KaisTrade hesabınızı ve kişisel verilerinizi uygulama içinden nasıl kalıcı olarak silebileceğinizi, nelerin silindiğini ve nelerin anonim saklandığını öğrenin.',
+    url: 'https://kaistrade.com/hesap-silme',
+  },
 } as const
 
 export type PublicPage = keyof typeof PUBLIC_PAGE_METADATA
@@ -87,7 +92,7 @@ export function applyPageMetadataForPath(pathname:string, indexingPath = pathnam
 export function publicPageForPath(pathname: string): PublicPage | null {
   const path = pathname.split('?')[0].replace(/\/$/, '')
   if (path === '') return 'home'
-  if (path === '/privacy' || path === '/terms' || path === '/risk') return path.slice(1) as Exclude<PublicPage, 'home'>
+  if (path === '/privacy' || path === '/terms' || path === '/risk' || path === '/hesap-silme') return path.slice(1) as Exclude<PublicPage, 'home'>
   return null
 }
 
