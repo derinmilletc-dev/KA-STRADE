@@ -34,3 +34,7 @@
 .cbBadge{font-weight:800;font-size:.85rem}.cbBadge.ok{color:#1c7a45}.cbBadge.bad{color:#b3261a}.cbBadge.warn{color:#8a5a00}
 .cbInline{display:grid;gap:8px;padding:10px;border-radius:10px;background:#f6f8f4}
 @media (max-width:640px){.cbPanel{padding:0 2px 24px}.cbGrid{grid-template-columns:1fr}.cbPanel button{width:100%}.cbTop button{width:auto}}
+.cbTerminal{display:grid;gap:14px}
+.cbMxtInput{width:100%;box-sizing:border-box;padding:12px;border:1px solid #c5d2c3;border-radius:10px;font:inherit;margin-top:8px}
+.cbConfirm{display:grid;gap:4px;margin-top:10px;font-weight:700}
+.cbConfirm input{padding:10px;border:1px solid #c5d2c3;border-radius:9px;font:inherit}
