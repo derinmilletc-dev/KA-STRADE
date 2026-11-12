@@ -1,5 +1,10 @@
 import { useLiveEventNotifications } from './notification-prefs'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
+import {useCoinbaseVisible} from './frontend/src/useCoinbaseVisible'
+import CoinbaseExchangeSwitch, {type Exchange} from './frontend/src/CoinbaseExchangeSwitch'
+
+const CoinbaseManualTerminal = lazy(() => import('./frontend/src/CoinbaseManualTerminal'))
+const CoinbaseManualSetup = lazy(() => import('./frontend/src/CoinbaseManualSetup'))
 import { Activity, BarChart3, Cable, Check, ChevronDown, Clock3, Crosshair, Gauge, History, ListChecks, LockKeyhole, ShieldX, UnlockKeyhole, Wallet, X, XCircle } from 'lucide-react'
 import { API_BASE, userSessionToken } from './api'
 import {userIsScrolling, userScrollDirection, watchUserScroll} from './user-scroll'
@@ -189,6 +194,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   const {premium, owner, userId} = useMemberAccess()
   const urlTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
   const layoutTab: MasterTradeTab = embedDemo ? 'analiz' : urlTab
+  const coinbaseVisible = useCoinbaseVisible()
+  const [exchange, setExchange] = useState<Exchange>('binance')
+  const coinbaseOn = !embedDemo && coinbaseVisible && exchange === 'coinbase' && (layoutTab === 'canli' || layoutTab === 'baglanti')
   const goTab = (tab: MasterTradeTab) => { if (embedDemo) onDemoTab?.(tab); else navigateTab(tab) }
   const referenceEnabled = useSyncExternalStore(subscribePresentation, readPresentation, () => false)
   const masterLayoutV2 = referenceEnabled && layoutTab === 'analiz'
@@ -1141,7 +1149,9 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
         </div>
 
         <div className="masterTradeOperationsPanel" id={`master-panel-${layoutTab === 'analiz' ? 'operations' : layoutTab}`} role="tabpanel" aria-labelledby={`master-tab-${layoutTab}`} hidden={layoutTab === 'analiz'}>
-          {!embedDemo && <LiveTradingPanel active symbol={draft.market} analysis={analysis} masterTrade masterTradeTab={layoutTab} sharedStatus={liveStatus} sharedStatusVerified={liveStatusVerified} sharedStatusError={liveStatusError} sharedStatusLoading={liveStatusLoading} sharedConnections={liveConnections} onRefreshStatus={async (force = false) => {
+          {!embedDemo && coinbaseVisible && (layoutTab === 'canli' || layoutTab === 'baglanti') && <CoinbaseExchangeSwitch value={exchange} onChange={setExchange}/>}
+          {coinbaseOn && <Suspense fallback={<p>Coinbase ekranı hazırlanıyor…</p>}>{layoutTab === 'canli' ? <CoinbaseManualTerminal onGoSetup={() => navigateTab('baglanti')}/> : <CoinbaseManualSetup/>}</Suspense>}
+          {!embedDemo && !coinbaseOn && <LiveTradingPanel active symbol={draft.market} analysis={analysis} masterTrade masterTradeTab={layoutTab} sharedStatus={liveStatus} sharedStatusVerified={liveStatusVerified} sharedStatusError={liveStatusError} sharedStatusLoading={liveStatusLoading} sharedConnections={liveConnections} onRefreshStatus={async (force = false) => {
             if (!await refreshAccountData(force)) throw new Error('LIVE durum yenilemesi başarısız; işlem durumunu doğrulayın.')
           }} />}
 
