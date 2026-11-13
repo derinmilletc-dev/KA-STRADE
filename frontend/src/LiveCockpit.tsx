@@ -25,6 +25,7 @@ import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
 import '../../live-cockpit-coach-mobile.css'
 import './lc-guide-sheet.css'
+import {sameConfirm} from './confirm-text'
 
 const LAUNCH_TARGETS = ['[data-testid="launch-open-mobile"]', '[data-testid="launch-open"]']
 
@@ -1788,7 +1789,7 @@ export default function LiveCockpit(props: Props) {
     <p className="lcSheetLead">Bota ait giriş ve koruma emirleri iptal edilir, doğrulanmış bot pozisyonları <b>piyasa fiyatından reduce-only</b> emirle kapatılır. Kayıp kesinleşebilir. Sonrasında yeniden başlatmak 2FA ister.</p>
     <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
         <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
-      <button type="button" className="lcBtn lcDanger" disabled={closePhrase.trim().toLocaleUpperCase('tr-TR') !== CLOSE_ALL_PHRASE || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
+      <button type="button" className="lcBtn lcDanger" disabled={!sameConfirm(closePhrase, CLOSE_ALL_PHRASE) || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
   </> : sheet === 'close-position' && closeTarget ? <>
     <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
     <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon, gördüğün canlı fiyattan <b>reduce-only limit</b> emirle kapatılmaya çalışılır; <b>4 saniyede dolmazsa</b> kalanı piyasadan kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>

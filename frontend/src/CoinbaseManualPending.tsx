@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Clock} from 'lucide-react'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
-import {CONFIRM, confirmMatches, newRequestId} from './coinbase-manual'
+import {CONFIRM, newRequestId} from './coinbase-manual'
+import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
 
 type Pending = {order_id: string; product_id: string; side: string; status: string; base_size?: string | null}
@@ -40,7 +41,7 @@ export default function CoinbaseManualPending({onDone, onError}: Props) {
     if (!target) return
     setBusy(true)
     try {
-      const result = await postJson<{message: string}>('/orders/cancel-entry', {order_id: target, confirm, request_id: newRequestId()})
+      const result = await postJson<{message: string}>('/orders/cancel-entry', {order_id: target, confirm: CONFIRM.change, request_id: newRequestId()})
       setTarget(null); setConfirm(''); onDone(result.message); void reconcile()
     } catch (error) {
       setTarget(null); setConfirm('')
@@ -56,7 +57,7 @@ export default function CoinbaseManualPending({onDone, onError}: Props) {
       <div className="cbButtons"><button className="danger" onClick={() => setTarget(target === order.order_id ? null : order.order_id)}>İptal et</button></div>
       {target === order.order_id && <div className="cbInline">
         <label>Onay metni<input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={`Şunu yaz: ${CONFIRM.change}`} autoComplete="off"/></label>
-        <button className="danger" disabled={busy || !confirmMatches(confirm, CONFIRM.change)} onClick={cancel}>Bekleyen emri iptal et</button>
+        <button className="danger" disabled={busy || !sameConfirm(confirm, CONFIRM.change)} onClick={cancel}>Bekleyen emri iptal et</button>
       </div>}
     </li>)}</ul>
   </section>

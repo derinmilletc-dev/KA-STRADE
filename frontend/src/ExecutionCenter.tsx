@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries } from 'lightweight-charts'
 import { Activity, AlertTriangle, Bot, CheckCircle2, CircleDollarSign, KeyRound, LockKeyhole, Play, Power, RefreshCw, Save, Send, ShieldCheck, Square, TestTube2, TrendingUp, WalletCards, XCircle } from 'lucide-react'
 import { API_BASE } from './api'
+import { sameConfirm } from './confirm-text'
 import { closeEstimate } from './live-quote'
 import { useLiveQuotes } from './useLiveQuotes'
 
@@ -304,7 +305,7 @@ export default function ExecutionCenter({token=''}:{token?:string}) {
       `Limit fiyatı: ${payload.order_type === 'LIMIT' ? money(Number(payload.limit_price)) : 'MARKET'}`,
     ].join('\n')
     const phrase = window.prompt(`Bu işlem GERÇEK PARA kullanabilir.\n\nCanlı emir detayları:\n${details}\n\nGöndermek için aynen yazın: CANLI EMİR GÖNDER`)
-    if (!phrase || phrase.trim() !== 'CANLI EMİR GÖNDER') return
+    if (!phrase || !sameConfirm(phrase, 'CANLI EMİR GÖNDER')) return
     setBusy('live-order')
     try {
       const result = await call<{ok:boolean;plan:Plan}>('/order',{method:'POST',body:JSON.stringify({...payload,confirmation:phrase.trim()})})
