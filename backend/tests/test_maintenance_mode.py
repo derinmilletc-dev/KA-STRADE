@@ -315,3 +315,21 @@ class ScheduledMaintenanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StaffBypassTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        MAINTENANCE.clear_staff()
+        MAINTENANCE.STAFF_USER_IDS.clear()
+
+    def test_owner_is_never_blocked_but_members_are(self):
+        state = {"mode": "MAINTENANCE", "reason": "", "updated_at": None, "updated_by": None}
+        MAINTENANCE.clear_staff()
+        self.assertTrue(MAINTENANCE.new_entry_blocked(state))
+        MAINTENANCE.mark_staff("owner-1")
+        self.assertFalse(MAINTENANCE.new_entry_blocked(state))
+        MAINTENANCE.guard_new_entry(state)
+        MAINTENANCE.clear_staff()
+        self.assertTrue(MAINTENANCE.new_entry_blocked(state))
+        with self.assertRaises(HTTPException):
+            MAINTENANCE.guard_new_entry(state)

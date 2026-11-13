@@ -1529,6 +1529,12 @@ async def owner_preview_gate(request, call_next):
             if exc.status_code == 401 and request.cookies.get(USER_SESSION_COOKIE):
                 clear_browser_cookie(response, request, USER_SESSION_COOKIE)
             return apply_cors_headers(request, response)
+    from . import maintenance as _maintenance
+    _member_now = getattr(request.state, "member", None) or {}
+    if owner_access_authenticated or _member_now.get("role") == "OWNER":
+        _maintenance.mark_staff(str(_member_now.get("id") or "") or ("WEB_OWNER" if owner_access_authenticated else None))
+    else:
+        _maintenance.clear_staff()
     if live_registry.enabled():
         # Multi-user LIVE: everything below (and the endpoint itself) sees only this member's own live state.
         live_member = getattr(request.state, "member", None)
