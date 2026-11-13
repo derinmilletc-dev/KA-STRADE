@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Literal
 
@@ -48,8 +49,41 @@ def get_maintenance_mode(state: dict[str, Any] | None) -> str:
     return mode if mode in VALID_MODES else "UNKNOWN"
 
 
+# Yönetici (OWNER) bakım modundan etkilenmez: kendi yeni girişleri ve otomasyonları açık kalır.
+# Üyeler için kural aynen geçerli. İstek geldiğinde ``mark_staff`` ile işaretlenir; arka plan
+# döngüleri (istek bağlamı olmayan) kullanıcı kimliğiyle bu listeye bakar.
+STAFF_REQUEST: ContextVar[bool] = ContextVar("maintenance_staff_request", default=False)
+STAFF_USER_IDS: set[str] = set()
+
+
+def mark_staff(user_id: str | None) -> None:
+    """Call from the request middleware when the caller is the admin/owner."""
+    STAFF_REQUEST.set(True)
+    if user_id:
+        STAFF_USER_IDS.add(str(user_id))
+
+
+def clear_staff() -> None:
+    STAFF_REQUEST.set(False)
+
+
+def _is_staff_context() -> bool:
+    if STAFF_REQUEST.get():
+        return True
+    try:
+        from .live_registry import CURRENT_USER
+        current = CURRENT_USER.get()
+    except Exception:
+        return False
+    return bool(current) and str(current) in STAFF_USER_IDS
+
+
 def new_entry_blocked(state: dict[str, Any] | None) -> bool:
-    """True whenever a brand-new position/automation entry must not be created."""
+    """True whenever a brand-new position/automation entry must not be created.
+
+    Never true for the admin/owner: maintenance only restricts regular members."""
+    if _is_staff_context():
+        return False
     return get_maintenance_mode(state) != "NORMAL"
 
 
