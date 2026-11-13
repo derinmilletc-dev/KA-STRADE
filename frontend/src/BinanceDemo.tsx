@@ -5,6 +5,7 @@ import OriginalDemoControls, {checkedOriginalStatus, ORIGINAL_DEMO_ID, type Demo
 import {checkDemoResponse, demoRequest, prepareDemoTrading, startDemoAutomation} from '../../demo-request'
 import '../../demo-recovery.css'
 import DemoInfoCards from '../../DemoInfoCards'
+import {sameConfirm} from './confirm-text'
 
 const API = `${API_BASE}/binance-demo`
 const V21_API = `${API_BASE}/v21`
@@ -260,10 +261,7 @@ function PositionMap({position,plan}:{position:DemoPosition;plan?:DemoPlan}) {
 }
 
 // Onay yazısı büyük/küçük harf ve Türkçe i/ı/İ/I farkından bağımsız karşılaştırılır (telefonda küçük harf yazılsa da kabul edilir).
-const sameConfirmText = (typed: string, expected: string) => {
-  const fold = (value: string) => value.trim().toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I').replace(/\s+/g, ' ')
-  return fold(typed) === fold(expected)
-}
+const sameConfirmText = (typed: string, expected: string) => sameConfirm(typed, expected)
 
 export default function BinanceDemo({active,symbol,analysis,chart}:{active:boolean;symbol:string;analysis:AnalysisPlan|null;chart?:ReactNode}) {
   const [status,setStatus] = useState<DemoStatus|null>(null)

@@ -15,7 +15,8 @@ import '../../manual-mobile.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
 import {changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote} from './coinbase-market'
-import {CONFIRM, confirmMatches, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
+import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
+import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
@@ -143,7 +144,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     setConfirmOpen(false)
     setBusy('send')
     try {
-      await postJson<{message: string}>('/orders/open', {...ticketPayload(ticket), confirm: confirmText, request_id: newRequestId()})
+      await postJson<{message: string}>('/orders/open', {...ticketPayload(ticket), confirm: CONFIRM.open, request_id: newRequestId()})
       setDone({
         product: String(plan.product_id), side: String(plan.side), contracts: String(plan.contracts), leverage: String(plan.leverage),
         margin: String(plan.margin_usd), entry: String(plan.entry_reference), stop: String(plan.stop_price),
@@ -270,7 +271,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </div>
     {busy !== 'send' && noticeEl}
     {sendBlock && <p className="mxtHint">{sendBlock}</p>}
-    <p className="mxtHint">Giriş piyasa emriyle yapılır. Stop kurulamaz veya doğrulanamazsa pozisyon hemen kapatılır. Bu sürümde hedef (TP) emri yoktur.</p>
+    <p className="mxtHint">Giriş piyasa emriyle yapılır. Stop kurulamaz veya doğrulanamazsa pozisyon hemen kapatılır. Hedef (TP) isteğe bağlıdır.</p>
   </>
 
   const summaryAside = <aside className="mxtSummary" data-open={summaryOpen} aria-label="Emir özeti">
@@ -307,9 +308,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <span className="liveConfirmIcon" aria-hidden="true"><ShieldAlert/></span>
       <h2>COINBASE MANUEL EMİR</h2>
       <p>GERÇEK PARA KULLANILACAK. {String(check?.plan?.product_id ?? '')} · {dir} · PİYASA · {String(check?.plan?.contracts ?? '')} sözleşme · stop {String(check?.plan?.stop_price ?? '')} · stopta en kötü kayıp {String(check?.plan?.worst_case_loss_usd ?? '')} USD. Stop doğrulanamazsa pozisyon hemen kapatılır.</p>
-      <label>TYPE TO CONFIRM<input autoFocus value={confirmText} onChange={event => setConfirmText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && confirmMatches(confirmText, CONFIRM.open)) void sendOrder() }} placeholder={CONFIRM.open} autoComplete="off"/></label>
+      <label>TYPE TO CONFIRM<input autoFocus value={confirmText} onChange={event => setConfirmText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && sameConfirm(confirmText, CONFIRM.open)) void sendOrder() }} placeholder={CONFIRM.open} autoComplete="off"/></label>
       <div className="liveConfirmBtns"><button type="button" className="liveConfirmNo" onClick={() => { setConfirmOpen(false); setConfirmText('') }}>CANCEL</button>
-        <button type="button" className="liveConfirmYes" disabled={!confirmMatches(confirmText, CONFIRM.open)} onClick={() => void sendOrder()}>CONFIRM</button></div>
+        <button type="button" className="liveConfirmYes" disabled={!sameConfirm(confirmText, CONFIRM.open)} onClick={() => void sendOrder()}>CONFIRM</button></div>
     </section></div>,
     document.body,
   ) : null

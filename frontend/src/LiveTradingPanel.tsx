@@ -34,6 +34,7 @@ import LiveCockpit from './LiveCockpit'
 import {accountNetPnl, positionNetPnl} from '../../net-pnl'
 import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_MODE_EVENT, MANUAL_OPENED_EVENT, followSymbol, goPositions, markOrderPending, openLiveSheet, requestPositionsRefresh, takeIntentForOrder} from '../../trade-intent'
 import {checkProtection} from './order-protection'
+import {sameConfirm} from './confirm-text'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
@@ -177,10 +178,7 @@ const entryCheckLabel = (key: string) => ({
 } as Record<string, string>)[key] || key.replaceAll('_', ' ')
 
 // Onay yazısı büyük/küçük harf ve Türkçe i/ı/İ/I farkından bağımsız karşılaştırılır (telefonda küçük harf yazılsa da kabul edilir).
-const sameConfirmText = (typed: string, expected: string) => {
-  const fold = (value: string) => value.trim().toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/İ/g, 'I').replace(/\s+/g, ' ')
-  return fold(typed) === fold(expected)
-}
+const sameConfirmText = (typed: string, expected: string) => sameConfirm(typed, expected)
 
 export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean): string {
   if (status === null) return 'Canlı işlem durumu alınamıyor.'

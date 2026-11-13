@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
-import {CONFIRM, confirmMatches, isPositiveDecimal, newRequestId, protectionTone, sideLabel} from './coinbase-manual'
+import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone, sideLabel} from './coinbase-manual'
+import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
 
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
@@ -19,12 +20,12 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
   const tone = item ? protectionTone(item.state) : 'warn'
   const expected = mode === 'close' ? CONFIRM.close : CONFIRM.change
   const valueOk = mode === 'close' || (mode === 'reduce' ? /^[1-9]\d{0,5}$/.test(value.trim()) : mode === 'stop' ? isPositiveDecimal(value) : false)
-  const canSend = !busy && mode !== null && valueOk && confirmMatches(confirm, expected)
+  const canSend = !busy && mode !== null && valueOk && sameConfirm(confirm, expected)
 
   const send = async () => {
     setBusy(true)
     try {
-      const base = {product_id: position.product_id, confirm, request_id: newRequestId()}
+      const base = {product_id: position.product_id, confirm: expected, request_id: newRequestId()}
       const result = await postJson<{message: string}>(`/orders/${mode}`,
         mode === 'reduce' ? {...base, reduce_by: Number(value.trim())} : mode === 'stop' ? {...base, stop_price: value.trim()} : base)
       setMode(null); setValue(''); setConfirm('')
@@ -62,7 +63,7 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
   const cleanup = async () => {
     setBusy(true)
     try {
-      const result = await postJson<{message: string}>('/orders/cleanup-orphans', {confirm, request_id: newRequestId()})
+      const result = await postJson<{message: string}>('/orders/cleanup-orphans', {confirm: CONFIRM.change, request_id: newRequestId()})
       setConfirm(''); onDone(result.message)
     } catch (error) { setConfirm(''); if (error instanceof CoinbaseApiError) onError(error); else throw error } finally { setBusy(false) }
   }
@@ -77,7 +78,7 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
       <b>Sahipsiz stop emri var ({orphans.length}).</b> Pozisyon yokken kalan stop, ters yönde pozisyon açabilir.
       <ul>{orphans.map(entry => <li key={entry.order_id}>{entry.product_id} · {entry.order_id}</li>)}</ul>
       <label>Onay metni<input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={`Şunu yaz: ${CONFIRM.change}`} autoComplete="off"/></label>
-      <button className="danger" disabled={busy || !confirmMatches(confirm, CONFIRM.change)} onClick={cleanup}>Sahipsiz stop'ları iptal et</button>
+      <button className="danger" disabled={busy || !sameConfirm(confirm, CONFIRM.change)} onClick={cleanup}>Sahipsiz stop'ları iptal et</button>
     </div>}
   </section>
 }

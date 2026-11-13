@@ -99,6 +99,22 @@ function translateCore(key: string, depth: number): string | null {
   return null
 }
 
+/** Tam cümle sözlükte yoksa (ör. sunucudan gelen "Ön kontrol geçmedi. Stop girişe çok yakın." gibi birleşik mesajlar)
+ *  cümle cümle çevrilir. Hiçbir cümle çevrilemezse null döner, metin olduğu gibi kalır. */
+function translateBySentence(key: string): string | null {
+  const parts = key.match(/[^.!?…]+(?:[.!?…]+["”)]*)?\s*/g)
+  if (!parts || parts.length < 2 || parts.length > 8) return null
+  let hit = false
+  const out = parts.map(raw => {
+    const piece = norm(raw)
+    if (!piece || !HAS_LETTER.test(piece)) return piece
+    const t = trMode ? translateToTr(piece) : translateCore(piece, 1)
+    if (t !== null) hit = true
+    return t ?? piece
+  })
+  return hit ? out.filter(Boolean).join(' ') : null
+}
+
 const HAS_LETTER = /[A-Za-zÇĞİÖŞÜçğıöşü]/
 // Canlı fiyat/skor metinleri ("RSI 65,37", "Skor 58,7") her tikte yeni anahtar üretir; sınırsız önbellek
 // uzun açık kalan sekmede belleği şişiriyordu. Sınır aşılınca önbellek sıfırlanır (sözlük aynı kalır).
@@ -110,7 +126,7 @@ export function translateText(text: string): string {
   if (!key) return text
   let out = cache.get(key)
   if (out === undefined) {
-    out = translateCore(key, 0) ?? key
+    out = translateCore(key, 0) ?? translateBySentence(key) ?? key
     if (cache.size >= CACHE_LIMIT) cache.clear()
     cache.set(key, out)
   }

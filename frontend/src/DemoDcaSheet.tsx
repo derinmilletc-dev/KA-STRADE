@@ -7,6 +7,7 @@ import {API_BASE} from '../../api'
 import {fetchWithTimeout} from '../../master-trade-request'
 import '../../live-ws.css'
 import '../../manual-order.css'
+import {sameConfirm} from './confirm-text'
 
 type Row = {symbol: string; display: string; price: number; change: number; volume: number}
 type Confirm = Parameters<DcaPanelProps['askConfirm']>[0]
@@ -48,7 +49,7 @@ export default function DemoDcaSheet({onClose}: {onClose: () => void}) {
   }
 
   const price = Number(rows.find(row => row.symbol === symbol)?.price)
-  const same = (a: string, b?: string) => a.trim().toLocaleUpperCase('tr-TR') === (b ?? '').trim().toLocaleUpperCase('tr-TR')
+  const same = (a: string, b?: string) => sameConfirm(a, b)
   const run = async () => {
     if (!confirm) return
     setBusy(true)
