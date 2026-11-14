@@ -1078,3 +1078,17 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
 .authInviteCode small { color: #ff8a8a; }
 .authInviteCode button.authSubmit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .authInviteApply { text-align: center; color: #a9b6b1; font-size: 13px; text-decoration: underline; }
+
+/* Giriş ekranı: "Davetin var mı?" ve "Üyelik başvurusu yap" sade, profesyonel iki buton olarak yan yana. */
+#root .authPageLogin .authCardLogin .authAltActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 4px; }
+#root .authPageLogin .authCardLogin .authAltBtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 12px; box-sizing: border-box;
+  border: 1px solid rgba(156, 232, 196, .28); border-radius: 14px; background: rgba(255, 255, 255, .04); color: #d8e8e1 !important;
+  font: 600 13.5px/1.2 system-ui, -apple-system, sans-serif; text-decoration: none !important; text-align: center; cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease; -webkit-tap-highlight-color: transparent;
+}
+#root .authPageLogin .authCardLogin .authAltBtn svg { width: 17px; height: 17px; flex: 0 0 auto; color: #9ce8c4; }
+#root .authPageLogin .authCardLogin .authAltBtn:hover { background: rgba(156, 232, 196, .1); border-color: rgba(156, 232, 196, .5); }
+#root .authPageLogin .authCardLogin .authAltBtn:active { transform: scale(.98); }
+#root .authPageLogin .authCardLogin .authAltBtn:focus-visible { outline: 2px solid #64e3a1; outline-offset: 2px; }
+@media (max-width: 360px) { #root .authPageLogin .authCardLogin .authAltActions { grid-template-columns: 1fr; } }
