@@ -187,6 +187,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     return () => controller.abort()
   }, [inviteToken])
   const inviteOnlyBlocked = mode === 'register' && (!inviteToken || Boolean(inviteError))
+  const inviteGate = inviteOnlyBlocked && !inviteToken
   const [inviteInput,setInviteInput] = useState('')
   const [inviteInputError,setInviteInputError] = useState('')
   // Davet e-postasındaki bağlantı veya kod buraya yapıştırılır; token çıkarılıp /davet sayfasına gidilir (sunucu yine doğrular).
@@ -713,17 +714,23 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
       <AuthIntroPanel data={market.data} status={market.status} movers={market.movers} premium={mode === 'login'} onBrand={mode !== 'login' ? () => setMode('login') : undefined}/>
       <section className={`authCard ${mode === 'verify' ? 'authCardVerify' : ''}${isRegistration ? ' authCardRegister' : ''}${mode === 'login' ? ' authCardLogin' : ''}`}>
         <div className={`authLoginBrand${mode !== 'login' ? ' isLink' : ''}`} {...(mode !== 'login' ? {role:'link',tabIndex:0,'aria-label':'Giriş ekranına dön',onClick:() => setMode('login'),onKeyDown:(event:ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMode('login') } }} : {})}><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
-        <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? 'HESAP OLUŞTUR' : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? 'Hesabını oluştur' : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
-        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? (invite ? 'Davetin onaylandı. Hesabını davet e-postanla oluştur; davet başka bir adresle kullanılamaz.' : 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.') : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
+        <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? (inviteGate ? 'DAVETLE ÜYELİK' : 'HESAP OLUŞTUR') : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? (inviteGate ? 'Davetini kullan' : 'Hesabını oluştur') : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
+        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? (invite ? 'Davetin onaylandı. Hesabını davet e-postanla oluştur; davet başka bir adresle kullanılamaz.' : inviteGate ? 'E-postana gelen davet bağlantısını veya kodunu yapıştır.' : 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.') : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
         {inviteOnlyBlocked ? <div className="authInviteOnly" role="status">
-          <b>{inviteToken ? 'Davet kullanılamıyor' : 'KaisTrade yalnızca davetle üye kabul ediyor'}</b>
-          <p>{inviteToken ? inviteError : 'Yeni hesap açmak için sana özel bir davet gerekir. Davetin yoksa üyelik başvurusu yapabilirsin; başvurun onaylanırsa davetin e-postana gelir.'}</p>
-          {!inviteToken && <form className="authInviteCode" onSubmit={applyInviteCode} noValidate>
-            <label>Davet bağlantısı veya kodu<input value={inviteInput} onChange={event => { setInviteInput(event.target.value); setInviteInputError('') }} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder="E-postandaki davet bağlantısını yapıştır"/></label>
-            {inviteInputError && <small role="alert">{inviteInputError}</small>}
-            <button type="submit" className="authSubmit" disabled={!inviteInput.trim()}>Davetle devam et<ArrowRight/></button>
-          </form>}
-          <a className={inviteToken ? 'authSubmit' : 'authInviteApply'} href="/basvuru">{inviteToken ? 'Üyelik başvurusu yap' : 'Davetin yok mu? Üyelik başvurusu yap'}{inviteToken && <ArrowRight/>}</a>
+          {inviteToken ? <>
+            <b>Davet kullanılamıyor</b>
+            <p>{inviteError}</p>
+            <a className="authInviteSecondary" href="/basvuru"><FileText aria-hidden="true"/>Üyelik başvurusu yap</a>
+          </> : <>
+            <form className="authInviteCode" onSubmit={applyInviteCode} noValidate>
+              <label>Davet bağlantısı veya kodu<input value={inviteInput} onChange={event => { setInviteInput(event.target.value); setInviteInputError('') }} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder="E-postandaki davet bağlantısını yapıştır"/></label>
+              {inviteInputError && <small role="alert">{inviteInputError}</small>}
+              <button type="submit" className="authInviteGo" disabled={!inviteInput.trim()}>Davetle devam et<ArrowRight aria-hidden="true"/></button>
+            </form>
+            <div className="authInviteDivider"><span>veya</span></div>
+            <a className="authInviteSecondary" href="/basvuru"><FileText aria-hidden="true"/>Üyelik başvurusu yap</a>
+            <small className="authInviteHint">KaisTrade şu an yalnızca davetle üye kabul ediyor. Başvurun onaylanırsa davetin e-postana gelir.</small>
+          </>}
         </div> : inviteToken && inviteLoading ? <p className="authInviteOnly" role="status">Davet doğrulanıyor…</p> : <>
         {invite && <div className="authInviteBanner"><ShieldCheck aria-hidden="true"/><span><b>Kişiye özel davet</b><small translate="no">{invite.email}{invite.reference ? ` · ${invite.reference}` : ''}</small></span></div>}
         <form ref={registrationFormRef} onSubmit={submit} noValidate={mode === 'login'} aria-busy={busy}>
