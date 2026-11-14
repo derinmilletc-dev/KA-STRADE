@@ -301,7 +301,7 @@ class TestHardLimits(unittest.TestCase):
         wide = {**POLICY, "max_leverage": 50, "max_loss_per_trade": 50.0, "daily_loss_limit": 50.0}
         with self.assertRaises(grid_live.LiveGridError) as ctx:
             prepare(leverage=50, policy=wide, stop=96.0, lower=98.0, upper=99.0, count=2, margin_usdt=5.0)
-        self.assertIn("likidasyon", str(ctx.exception).lower())
+        self.assertIn("tasfiye", str(ctx.exception).lower())
 
     def test_default_is_enabled_and_zero_disables(self):
         import os
@@ -367,7 +367,7 @@ class TestHardLimits(unittest.TestCase):
 
     def test_stop_too_close_to_liquidation_is_refused(self):
         with self.assertRaises(grid_live.LiveGridError):
-            prepare(leverage=10, lower=98.0, upper=99.0, stop=91.0, policy={**POLICY, "max_loss_per_trade": 50, "daily_loss_limit": 50,
+            prepare(leverage=10, lower=98.0, upper=99.0, stop=88.0, policy={**POLICY, "max_loss_per_trade": 50, "daily_loss_limit": 50,
                                                                              "max_stop_distance_pct": 9})
 
     def test_tiny_orders_below_exchange_minimum_are_refused(self):

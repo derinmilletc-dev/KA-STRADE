@@ -23,7 +23,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from . import daily_ledger
-from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT
+from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT, manual_stop_cap_pct
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
@@ -218,11 +218,11 @@ def prepare_live_grid(*, direction: str, lower: float, upper: float, count: int,
         problems.append(f"Toplam maruziyet {exposure_now + total_notional:.2f}, sınır {exposure_limit:g} USDT.")
     if open_positions + max(0, int(reserved_symbols)) >= int(policy.get("max_positions", 5)):
         problems.append("Açık pozisyon / grid sınırı dolu.")
-    max_stop_pct = float(policy.get("max_stop_distance_pct", 5))
-    if stop_distance_pct > max_stop_pct + 1e-9:
-        problems.append(f"Stop mesafesi %{stop_distance_pct:.2f}, sınır %{max_stop_pct:g}.")
-    if stop_distance_pct * leverage > 70:
-        problems.append("Stop, tahmini likidasyona çok yakın; kaldıracı düşür ya da stopu yakınlaştır.")
+    # Manuel emirle aynı mantık: sabit %5 sınırı yok; tek sınır tasfiye güvenliği (Stop, tasfiye fiyatından önce çalışabilmeli).
+    stop_cap = manual_stop_cap_pct(leverage)
+    stretch_pct = max(abs(r["entry"] - stop_price) / r["entry"] * 100 for r in rows)
+    if stretch_pct > stop_cap + 1e-9:
+        problems.append(f"Stop mesafesi %{stretch_pct:.2f}; {int(leverage)}x kaldıraçta tasfiye fiyatından önce çalışması için en fazla %{stop_cap:.2f} olabilir. Kaldıracı düşürürsen daha uzak Stop koyabilirsin.")
     if problems:
         raise LiveGridError(" ".join(dict.fromkeys(problems)))
     gross_per_cycle = sum(abs(r["target"] - r["entry"]) * r["qty"] for r in rows)
@@ -337,11 +337,10 @@ def prepare_live_neutral_grid(*, lower: float, upper: float, count: int, margin_
         problems.append(f"Toplam maruziyet {exposure_now + side_max:.2f}, sınır {exposure_limit:g} USDT.")
     if open_positions + max(0, int(reserved_symbols)) >= int(policy.get("max_positions", 5)):
         problems.append("Açık pozisyon / grid sınırı dolu.")
-    max_stop_pct = float(policy.get("max_stop_distance_pct", 5))
-    if stop_distance_pct > max_stop_pct + 1e-9:
-        problems.append(f"Stop mesafesi %{stop_distance_pct:.2f}, sınır %{max_stop_pct:g}.")
-    if worst_stretch_pct * leverage > 70:
-        problems.append("Stop, tahmini likidasyona çok yakın; kaldıracı düşür ya da stopları yakınlaştır.")
+    # Manuel emirle aynı mantık: sabit %5 sınırı yok; tek sınır tasfiye güvenliği.
+    stop_cap = manual_stop_cap_pct(leverage)
+    if worst_stretch_pct > stop_cap + 1e-9:
+        problems.append(f"Stop mesafesi %{worst_stretch_pct:.2f}; {int(leverage)}x kaldıraçta tasfiye fiyatından önce çalışması için en fazla %{stop_cap:.2f} olabilir. Kaldıracı düşürürsen daha uzak Stop koyabilirsin.")
     if problems:
         raise LiveGridError(" ".join(dict.fromkeys(problems)))
     gross = sum(abs(r["target"] - r["entry"]) * r["qty"] for r in rows)
