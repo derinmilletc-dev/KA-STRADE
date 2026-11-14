@@ -754,7 +754,7 @@
       "scanner",
       "analyst"
     ],
-    "content": "The home page shows workspace cards: TRADING (open and manage trades), MASTER TRADE (professional trading area with Analysis, Live Trading and Positions tabs), ANALYST (market analysis and signals), SCANNER (opportunity scanning), PERFORMANCE (profit, win rate, drawdown), RISK (position and risk control), SUPPORT (questions and request form), SETTINGS (account, security, notifications, API connections) and SUBSCRIPTION (plans and billing). On mobile the same sections are in the Menu; API keys are under Menu → Connections. The person icon at the top right opens the profile menu (profile, security, sign out). The eye icon opens Kais AI.",
+    "content": "The home page shows workspace cards: TRADING (open and manage trades), MASTER TRADE (professional trading area with Analysis, Live Trading and Positions tabs), ANALYST (market analysis and signals), SCANNER (opportunity scanning), PERFORMANCE (profit, win rate, drawdown), RISK (position and risk control), SUPPORT (questions and request form), SETTINGS (account, security, notifications, API connections) SUBSCRIPTION (plans and billing), the DCA bot and Grid bot pages, KAIS FARMER (automatic position management), STUDIO (quick BUY/SELL) and Coinbase inside Master Trade (manual only). On mobile the same sections are in the Menu; API keys are under Menu → Connections. The person icon at the top right opens the profile menu (profile, security, sign out). The eye icon opens Kais AI.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "MasterTradeReference.tsx",
@@ -1012,6 +1012,145 @@
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"
+    ]
+  },
+  {
+    "id": "dca-bot",
+    "title": "What is the DCA bot and how does it work?",
+    "keywords": [
+      "dca",
+      "dca bot",
+      "extra buy",
+      "average",
+      "bot",
+      "kais pick",
+      "long",
+      "short",
+      "coin",
+      "ai neutral"
+    ],
+    "content": "The DCA bot opens a first trade on the coin you choose using the margin you set. If the price moves against you by the percentage you chose, it makes the planned number of extra buys; each extra buy is larger than the previous one by the multiplier you set. The position's average price changes and the bot closes everything once the profit percentage you chose from the average is reached. A stop is always present and sits beyond the last extra buy; if it triggers, the position closes. LONG expects a rise, SHORT expects a fall. The Kais pick shows the three most suitable coins for the direction side by side; each coin carries a label such as 'AI neutral' or 'No AI signal', which describes the state of the direction signal and is not trading advice. There is a safety limit on how many bots run at once; if it is full, stop one first. There is no profit guarantee and you can lose money.",
+    "code_sources": [
+      "frontend/src/DcaPanel.tsx",
+      "frontend/src/dcaMath.ts"
+    ]
+  },
+  {
+    "id": "grid-bot",
+    "title": "What is the Grid bot?",
+    "keywords": [
+      "grid",
+      "grid bot",
+      "level",
+      "buy",
+      "sell",
+      "neutral",
+      "range"
+    ],
+    "content": "The Grid bot places levels across the price range you choose. In two-way mode it buys as the price falls and sells as it rises; in buy-only mode it buys on drops and sells one level higher; in sell-only mode it sells on rises and buys back one level lower. If the price leaves the range the bot does nothing new. Before starting it live, trying it on the Demo account first is recommended. If the exchange rules cannot be read, the bot does not start for safety. There is no profit guarantee.",
+    "code_sources": [
+      "StudioGrid.tsx",
+      "frontend/src/DcaPanel.tsx"
+    ]
+  },
+  {
+    "id": "farmer",
+    "title": "What is KAIS FARMER?",
+    "keywords": [
+      "farmer",
+      "kais farmer",
+      "automatic",
+      "managing",
+      "position management"
+    ],
+    "content": "KAIS FARMER is the automatic section that manages opened positions for you. Each position is tracked on its own row; entry, stop and target orders are kept on the exchange. In the open positions list, positions managed by Farmer show a 'KAIS FARMER is managing' label. You follow its status and results on the Farmer page. All safety rules apply unchanged: a stop is mandatory and the daily loss limit is kept. There is no profit guarantee.",
+    "code_sources": [
+      "frontend/src/FarmerPanel.tsx",
+      "frontend/src/FarmerGuide.tsx"
+    ]
+  },
+  {
+    "id": "studio-quick",
+    "title": "Studio and quick BUY / SELL",
+    "keywords": [
+      "studio",
+      "quick trade",
+      "buy",
+      "sell",
+      "close",
+      "one tap"
+    ],
+    "content": "Studio is a simple screen for opening and closing trades quickly: pick the coin, press BUY or SELL, and set the stop and target. A stop is mandatory on every trade, and after the trade opens it appears in the Open positions list; the list can arrive a few seconds late from the exchange. You can close the position from Studio or from the Open positions section. The permission and confirmation steps required for live trading apply in Studio as well.",
+    "code_sources": [
+      "StudioQuickTrade.tsx",
+      "StudioConsent.tsx"
+    ]
+  },
+  {
+    "id": "coinbase",
+    "title": "Coinbase connection and manual trading",
+    "keywords": [
+      "coinbase",
+      "coinbase trading",
+      "coinbase connection",
+      "manual",
+      "limit",
+      "tp",
+      "target"
+    ],
+    "content": "Only manual trading is supported for Coinbase; bots and automatic strategies do not run on Coinbase. First you save your Coinbase key in the Connections section; the key is stored encrypted and only the required permissions are requested. Then, in the Coinbase terminal inside Master Trade, you can place a market or limit order and optionally set a target (TP) and a stop. If the stop triggers, the position is closed immediately. You must type the confirmation phrase shown in the confirmation box exactly. This feature may not be open to everyone; if you do not see it, write to the Support section.",
+    "code_sources": [
+      "frontend/src/CoinbaseManualTerminal.tsx",
+      "frontend/src/CoinbaseManualPositions.tsx"
+    ]
+  },
+  {
+    "id": "profit-protection",
+    "title": "Smart Profit Protection",
+    "keywords": [
+      "smart profit protection",
+      "profit protection",
+      "stop to entry",
+      "trailing",
+      "tp1"
+    ],
+    "content": "Smart Profit Protection automatically moves the stop up (down for SHORT) once the position is in profit. When the profit equals the amount you put at risk, the stop is moved to the entry price and you can no longer lose on that trade. The stop follows behind the price and never moves back; if the price turns, the position exits with a profit. The position card shows whether the protection is on. This is not a profit guarantee; if the price moves very fast the exit price can differ.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx"
+    ]
+  },
+  {
+    "id": "language-notify",
+    "title": "Language and notifications",
+    "keywords": [
+      "language",
+      "english",
+      "turkish",
+      "notification",
+      "phone notification",
+      "add to home screen"
+    ],
+    "content": "You choose Turkish or English with the language button on the site; the choice is saved in this browser and the page reloads. You turn notifications on in Settings; the browser or phone asks for permission, and if it is blocked you must allow the site in your browser settings. On iPhone, add the site to the Home Screen from the Share menu first to receive notifications. Notifications tell you about important events such as a trade reaching its profit target or stop, the daily limit and maintenance announcements.",
+    "code_sources": [
+      "NotificationSettings.tsx",
+      "LanguageToggle.tsx"
+    ]
+  },
+  {
+    "id": "maintenance",
+    "title": "Maintenance mode and emergency stop",
+    "keywords": [
+      "maintenance",
+      "maintenance mode",
+      "new entries",
+      "paused",
+      "emergency",
+      "countdown"
+    ],
+    "content": "In maintenance or emergency mode, new trade entries are paused temporarily; members may see a maintenance screen or a countdown. The stop and target protections of open positions keep running, so existing trades are not left unprotected. When maintenance ends, new entries open again automatically. You can follow the time on the countdown; if the problem lasts long, write to the Support section.",
+    "code_sources": [
+      "MaintenanceCountdown.tsx",
+      "AuthGate.tsx"
     ]
   }
 ]

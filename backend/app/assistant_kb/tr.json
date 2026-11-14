@@ -782,7 +782,7 @@
       "tarama",
       "analist"
     ],
-    "content": "Ana sayfada çalışma alanı kartları var: İŞLEM (işlem açma ve yönetme), MASTER TRADE (profesyonel işlem alanı; üstte Analiz, Canlı İşlem ve Pozisyonlar sekmeleri), ANALİST (piyasa analizi ve sinyaller), TARAMA (fırsat tarama), PERFORMANS (kâr, kazanma oranı, düşüş), RİSK (pozisyon ve risk kontrolü), DESTEK (sorular ve talep formu), AYARLAR (hesap, güvenlik, bildirimler, API bağlantıları) ve ABONELİK (planlar ve faturalama). Telefonda aynı bölümlere Menü üzerinden ulaşılır; API anahtarları Menü → Bağlantılar'dadır. Sağ üstteki kişi simgesi profil menüsünü açar (profil, güvenlik, çıkış). Göz simgesi Kais AI'yi açar.",
+    "content": "Ana sayfada çalışma alanı kartları var: İŞLEM (işlem açma ve yönetme), MASTER TRADE (profesyonel işlem alanı; üstte Analiz, Canlı İşlem ve Pozisyonlar sekmeleri), ANALİST (piyasa analizi ve sinyaller), TARAMA (fırsat tarama), PERFORMANS (kâr, kazanma oranı, düşüş), RİSK (pozisyon ve risk kontrolü), DESTEK (sorular ve talep formu), AYARLAR (hesap, güvenlik, bildirimler, API bağlantıları) ABONELİK (planlar ve faturalama), DCA botu ve Grid botu (bot sayfaları), KAIS FARMER (otomatik pozisyon yönetimi), STÜDYO (hızlı AL/SAT) ve Master Trade içinde Coinbase (yalnız manuel). Telefonda aynı bölümlere Menü üzerinden ulaşılır; API anahtarları Menü → Bağlantılar'dadır. Sağ üstteki kişi simgesi profil menüsünü açar (profil, güvenlik, çıkış). Göz simgesi Kais AI'yi açar.",
     "code_sources": [
       "TestnetFirstApp.tsx",
       "MasterTradeReference.tsx",
@@ -1042,6 +1042,148 @@
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"
+    ]
+  },
+  {
+    "id": "dca-bot",
+    "title": "DCA botu nedir, nasıl çalışır?",
+    "keywords": [
+      "dca",
+      "dca botu",
+      "ek alım",
+      "ortalama",
+      "bot",
+      "kais önerisi",
+      "long",
+      "short",
+      "coin",
+      "ai nötr"
+    ],
+    "content": "DCA botu seçtiğin coinde belirlediğin marjla bir ilk işlem açar. Fiyat senin seçtiğin yüzde kadar ters yöne giderse planlanan sayıda ek alım yapar; her ek alım bir öncekinden belirlediğin çarpan kadar büyüktür. Pozisyonun ortalama fiyatı değişir ve bot, ortalamadan seçtiğin kâr yüzdesine ulaşınca hepsini kapatır. Stop her zaman vardır ve son ek alımın ötesine konur; stop çalışırsa pozisyon kapanır. LONG yükseliş, SHORT düşüş beklentisiyle çalışır. Kais önerisi, yön için en uygun üç coini yan yana gösterir; her coinde 'AI nötr' veya 'AI sinyali yok' gibi bir etiket görürsün, etiket yön sinyalinin durumunu anlatır, işlem tavsiyesi değildir. Aynı anda çalışan bot sayısının bir güvenlik sınırı vardır; sınır doluysa önce bir botu durdur. Kâr garantisi yoktur, kaybedebilirsin.",
+    "code_sources": [
+      "frontend/src/DcaPanel.tsx",
+      "frontend/src/dcaMath.ts"
+    ]
+  },
+  {
+    "id": "grid-bot",
+    "title": "Grid botu nedir?",
+    "keywords": [
+      "grid",
+      "grid botu",
+      "kademe",
+      "alış",
+      "satış",
+      "nötr",
+      "aralık"
+    ],
+    "content": "Grid botu seçtiğin fiyat aralığına kademeler koyar. Çift yönlü modda fiyat aşağı inerken alır, yukarı çıkarken satar; yalnız alış modunda düşüşlerde alır ve bir kademe yukarıda satar; yalnız satış modunda yükselişlerde satar ve bir kademe aşağıda geri alır. Fiyat aralıktan çıkarsa bot yeni iş yapmaz. Canlıda başlatmadan önce önce Demo hesapta denemen önerilir. Borsa kuralları okunamazsa güvenlik için bot başlamaz. Kâr garantisi yoktur.",
+    "code_sources": [
+      "StudioGrid.tsx",
+      "frontend/src/DcaPanel.tsx"
+    ]
+  },
+  {
+    "id": "farmer",
+    "title": "KAIS FARMER nedir?",
+    "keywords": [
+      "farmer",
+      "kais farmer",
+      "otomatik",
+      "yönetiyor",
+      "pozisyon yönetimi"
+    ],
+    "content": "KAIS FARMER, açılan pozisyonları senin adına yöneten otomatik bölümdür. Her pozisyon kendi ayrı satırında izlenir; giriş, stop ve hedef emirleri borsada tutulur. Açık pozisyonlar listesinde Farmer'ın yönettiği pozisyonlarda 'KAIS FARMER yönetiyor' etiketi görünür. Durumunu Farmer sayfasından ve sonuçlarından izlersin. Güvenlik kuralları aynen geçerlidir: stop zorunludur ve günlük kayıp sınırı korunur. Kâr garantisi yoktur.",
+    "code_sources": [
+      "frontend/src/FarmerPanel.tsx",
+      "frontend/src/FarmerGuide.tsx"
+    ]
+  },
+  {
+    "id": "studio-quick",
+    "title": "Stüdyo ve hızlı AL / SAT",
+    "keywords": [
+      "stüdyo",
+      "hızlı işlem",
+      "al",
+      "sat",
+      "kapat",
+      "hızlı al sat",
+      "tek dokunuş"
+    ],
+    "content": "Stüdyo, işlemi hızlıca açıp kapatmak için sade bir ekrandır: coini seç, AL veya SAT'a bas, stop ve hedefi belirle. Her işlemde stop zorunludur ve işlem açıldıktan sonra Açık pozisyonlar listesinde görünür; liste borsadan birkaç saniye geç gelebilir. Pozisyonu yine Stüdyodan veya Açık pozisyonlar bölümünden kapatabilirsin. Canlı işlem için gerekli izin ve onay adımları Stüdyoda da geçerlidir.",
+    "code_sources": [
+      "StudioQuickTrade.tsx",
+      "StudioConsent.tsx"
+    ]
+  },
+  {
+    "id": "coinbase",
+    "title": "Coinbase bağlantısı ve manuel işlem",
+    "keywords": [
+      "coinbase",
+      "coinbase işlem",
+      "coinbase bağlantı",
+      "manuel",
+      "limit",
+      "tp",
+      "hedef"
+    ],
+    "content": "Coinbase için yalnızca elle (manuel) işlem desteklenir; botlar ve otomatik stratejiler Coinbase'de çalışmaz. Önce Bağlantılar bölümünden Coinbase anahtarını kaydedersin; anahtar şifreli saklanır ve yalnız gerekli izinler istenir. Sonra Master Trade içindeki Coinbase terminalinden piyasa veya limit emri açabilir, isteğe bağlı olarak hedef (TP) ve stop belirleyebilirsin. Stop çalışırsa pozisyon hemen kapatılır. Onay kutusuna yazılması istenen ifadeyi aynen yazmak gerekir. Bu özellik herkese açık olmayabilir; görmüyorsan Destek bölümüne yaz.",
+    "code_sources": [
+      "frontend/src/CoinbaseManualTerminal.tsx",
+      "frontend/src/CoinbaseManualPositions.tsx"
+    ]
+  },
+  {
+    "id": "profit-protection",
+    "title": "Akıllı Kâr Koruma",
+    "keywords": [
+      "akıllı kâr koruma",
+      "kâr koruma",
+      "stop girişe",
+      "trailing",
+      "iz süren stop",
+      "tp1"
+    ],
+    "content": "Akıllı Kâr Koruma, pozisyon kâra geçince stopu otomatik yukarı (SHORT'ta aşağı) taşıyan korumadır. Kâr, riske girdiğin tutar kadar olunca stop giriş fiyatına çekilir ve o işlemde artık zarar etmezsin. Stop fiyatın arkasından gelir ve geri gitmez; fiyat dönerse pozisyon kârla çıkar. Pozisyon kartında korumanın açık olup olmadığı yazar. Bu bir kâr garantisi değildir; fiyat çok hızlı hareket ederse çıkış fiyatı değişebilir.",
+    "code_sources": [
+      "frontend/src/LiveCockpit.tsx"
+    ]
+  },
+  {
+    "id": "language-notify",
+    "title": "Dil seçimi ve bildirimler",
+    "keywords": [
+      "dil",
+      "ingilizce",
+      "türkçe",
+      "language",
+      "bildirim",
+      "telefon bildirimi",
+      "ana ekrana ekle"
+    ],
+    "content": "Dili sitedeki dil düğmesinden Türkçe veya İngilizce seçersin; seçim bu tarayıcıda saklanır ve sayfa yenilenir. Bildirimleri Ayarlar bölümünden açarsın; tarayıcı veya telefon izin ister, izin engellenmişse tarayıcı ayarlarından siteye izin vermen gerekir. iPhone'da bildirim için siteyi önce Paylaş menüsünden Ana Ekrana Ekle ile eklemelisin. Bildirimler işlemin kâr hedefine veya stopa ulaşması, günlük limit ve bakım duyurusu gibi önemli olayları haber verir.",
+    "code_sources": [
+      "NotificationSettings.tsx",
+      "LanguageToggle.tsx"
+    ]
+  },
+  {
+    "id": "maintenance",
+    "title": "Bakım modu ve acil durdurma",
+    "keywords": [
+      "bakım",
+      "bakım modu",
+      "yeni giriş",
+      "durduruldu",
+      "acil durum",
+      "geri sayım"
+    ],
+    "content": "Bakım veya acil durum modunda yeni işlem girişleri geçici olarak durdurulur; üyelere bakım ekranı veya geri sayım gösterilebilir. Açık pozisyonların stop ve hedef korumaları çalışmaya devam eder, yani mevcut işlemlerin korumasız kalmaz. Bakım bitince yeni girişler otomatik olarak yeniden açılır. Süreyi geri sayımdan izleyebilirsin; sorun uzarsa Destek bölümüne yaz.",
+    "code_sources": [
+      "MaintenanceCountdown.tsx",
+      "AuthGate.tsx"
     ]
   }
 ]
