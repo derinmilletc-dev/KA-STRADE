@@ -34,7 +34,7 @@ export default class AppErrorBoundary extends Component<Props,State> {
     const stale = this.state.stale
     return <main className="appRecoveryShell errScreen" role="alert">
       <section className="errCard">
-        <div className="errIcon" aria-hidden="true"><span className="errRing"/><span className="errIconCore">{stale ? <Sparkles size={30} strokeWidth={1.8}/> : <WifiOff size={30} strokeWidth={1.8}/>}</span></div>
+        <div className="errIcon" aria-hidden="true"><span className="errIconCore">{stale ? <Sparkles size={30} strokeWidth={1.8}/> : <WifiOff size={30} strokeWidth={1.8}/>}</span></div>
         <span className="errPill"><i aria-hidden="true"/>{stale ? 'Yeni sürüm hazır' : 'Bağlantı sorunu'}</span>
         <h1>{stale ? 'Site güncellendi' : 'Sayfa yüklenemedi'}</h1>
         <p className="errText">{stale ? 'Sitenin yeni bir sürümü yayınlandı. Sayfayı yenilemen yeterli.' : 'Bu bölüm şu anda açılamadı. Hesabın ve işlem kayıtların korunuyor.'}</p>

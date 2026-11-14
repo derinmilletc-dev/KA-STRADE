@@ -6,8 +6,8 @@ body #root .errCard { position: relative; width: min(420px, 100%); box-sizing: b
   border: 1px solid rgba(120,240,190,.22); border-radius: 28px; background: linear-gradient(160deg, rgba(10,30,24,.8), rgba(4,14,11,.9));
   box-shadow: 0 24px 70px rgba(0,0,0,.6), 0 0 60px rgba(46,229,157,.08); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); animation: errIn .35s ease-out both; }
 .errIcon { position: relative; width: 84px; height: 84px; display: grid; place-items: center; margin-bottom: 18px; }
-.errRing { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(98,232,166,.5); animation: errPulse 2.4s ease-out infinite; }
-.errIconCore { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 22px; color: #62e8a6; background: linear-gradient(145deg, rgba(46,229,157,.2), rgba(46,229,157,.06)); border: 1px solid rgba(120,240,190,.35); box-shadow: 0 0 30px rgba(46,229,157,.18); }
+.errRing { display: none; position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(98,232,166,.5); animation: errPulse 2.4s ease-out infinite; }
+.errIconCore { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 22px; color: #62e8a6; background: linear-gradient(145deg, rgba(46,229,157,.2), rgba(46,229,157,.06)); border: 0; box-shadow: none; }
 .errPill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(120,240,190,.25); background: rgba(46,229,157,.08); color: #b8f3d6; font: 600 12px/1 system-ui, -apple-system, sans-serif; letter-spacing: .02em; }
 .errPill i { width: 7px; height: 7px; border-radius: 50%; background: #62e8a6; box-shadow: 0 0 10px #62e8a6; animation: errBlink 1.6s ease-in-out infinite; }
 body #root .errCard h1 { margin: 16px 0 0; max-width: none; color: #fff; font: 780 28px/1.15 system-ui, -apple-system, "SF Pro Display", sans-serif; letter-spacing: -.025em; }
