@@ -1093,3 +1093,15 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
 #root .authInviteDivider { display: flex; align-items: center; gap: 12px; color: #7d8f89; font-size: 13px; }
 #root .authInviteDivider::before, #root .authInviteDivider::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.1); }
 #root .authInviteHint { color: #8fa09a; font-size: 12.5px; line-height: 1.5; text-align: center; }
+
+/* Davetle üyelik sayfası: tek renk dili (nane yeşili), karışık görünen metin satırları yerine sade butonlar. */
+#root .authCardRegister:has(.authInviteCode) .authCardHead span { display: inline-flex; padding: 5px 12px; border-radius: 999px; background: rgba(155,232,196,.12); color: #9be8c4; font-size: 11px; letter-spacing: .14em; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks { margin-top: 16px !important; padding-top: 0 !important; border-top: 0 !important; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks button { border-color: rgba(255,255,255,.14) !important; background: transparent !important; color: #b8c7c1 !important; font-weight: 600 !important; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks button:hover { color: #9be8c4 !important; border-color: rgba(155,232,196,.45) !important; background: rgba(155,232,196,.06) !important; }
+#root .authInviteHint { padding: 0 6px; }
+/* Alt bilgi bağlantıları (Gizlilik, Şartlar, Risk): sade küçük butonlar. */
+#root .authRoot:has(.authCardRegister) .authFooter { gap: 8px !important; }
+#root .authRoot:has(.authCardRegister) .authFooter > span { flex: 0 0 100%; text-align: center; order: 2; margin-top: 6px; }
+#root .authRoot:has(.authCardRegister) .authFooter a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.03); color: #9fb3ac; font-size: 12px; font-weight: 600; text-decoration: none; transition: background .18s ease, color .18s ease, border-color .18s ease; }
+#root .authRoot:has(.authCardRegister) .authFooter a:hover { color: #9be8c4; border-color: rgba(155,232,196,.4); background: rgba(155,232,196,.06); }
