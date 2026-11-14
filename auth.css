@@ -1072,23 +1072,36 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
 .authLinks a { color: inherit; }
 input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
 
-.authInviteCode { display: grid; gap: 10px; }
-.authInviteCode label { display: grid; gap: 6px; font-size: 13px; color: #a9b6b1; }
-.authInviteCode input { min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: inherit; font-size: 16px; }
-.authInviteCode small { color: #ff8a8a; }
-.authInviteCode button.authSubmit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.authInviteApply { text-align: center; color: #a9b6b1; font-size: 13px; text-decoration: underline; }
+/* Davetle üyelik ekranı: sade, tek kolon; yazı tipi sayfanın geri kalanıyla aynı. */
+#root .authInviteOnly { display: grid; gap: 14px; margin: 4px 0 0; padding: 0; border: 0; background: none; font-family: system-ui, -apple-system, "SF Pro Text", sans-serif; }
+#root .authInviteOnly * { font-family: inherit; }
+#root .authInviteOnly b { font-size: 17px; font-weight: 700; color: #eaf4ef; }
+#root .authInviteOnly p { margin: 0; color: #a9b6b1; font-size: 14px; line-height: 1.55; }
+#root .authInviteCode { display: grid; gap: 12px; }
+#root .authInviteCode label { display: grid; gap: 8px; font-size: 13px; font-weight: 600; color: #b8c7c1; }
+#root .authInviteCode input { min-height: 52px; padding: 0 16px; border-radius: 14px; border: 1px solid rgba(156,232,196,.22); background: rgba(255,255,255,.04); color: #eaf4ef; font-size: 16px; font-weight: 500; box-sizing: border-box; width: 100%; }
+#root .authInviteCode input:focus { outline: none; border-color: #64e3a1; box-shadow: 0 0 0 3px rgba(100,227,161,.16); }
+#root .authInviteCode small { color: #ff8a8a; font-size: 13px; }
+#root .authInviteGo, #root .authInviteSecondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; width: 100%; box-sizing: border-box; border-radius: 14px; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; transition: background .18s ease, border-color .18s ease, opacity .18s ease, transform .12s ease; -webkit-tap-highlight-color: transparent; }
+#root .authInviteGo { border: 0; background: #9be8c4; color: #06281c; }
+#root .authInviteGo:disabled { opacity: .45; cursor: not-allowed; }
+#root .authInviteGo:not(:disabled):active, #root .authInviteSecondary:active { transform: scale(.985); }
+#root .authInviteGo svg, #root .authInviteSecondary svg { width: 18px; height: 18px; flex: none; }
+#root .authInviteSecondary { border: 1px solid rgba(156,232,196,.3); background: rgba(255,255,255,.04); color: #d8e8e1; }
+#root .authInviteSecondary svg { color: #9ce8c4; }
+#root .authInviteSecondary:hover { background: rgba(156,232,196,.1); border-color: rgba(156,232,196,.5); }
+#root .authInviteDivider { display: flex; align-items: center; gap: 12px; color: #7d8f89; font-size: 13px; }
+#root .authInviteDivider::before, #root .authInviteDivider::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.1); }
+#root .authInviteHint { color: #8fa09a; font-size: 12.5px; line-height: 1.5; text-align: center; }
 
-/* Giriş ekranı: "Davetin var mı?" ve "Üyelik başvurusu yap" sade, profesyonel iki buton olarak yan yana. */
-#root .authPageLogin .authCardLogin .authAltActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 4px; }
-#root .authPageLogin .authCardLogin .authAltBtn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 12px; box-sizing: border-box;
-  border: 1px solid rgba(156, 232, 196, .28); border-radius: 14px; background: rgba(255, 255, 255, .04); color: #d8e8e1 !important;
-  font: 600 13.5px/1.2 system-ui, -apple-system, sans-serif; text-decoration: none !important; text-align: center; cursor: pointer;
-  transition: background .18s ease, border-color .18s ease, transform .12s ease; -webkit-tap-highlight-color: transparent;
-}
-#root .authPageLogin .authCardLogin .authAltBtn svg { width: 17px; height: 17px; flex: 0 0 auto; color: #9ce8c4; }
-#root .authPageLogin .authCardLogin .authAltBtn:hover { background: rgba(156, 232, 196, .1); border-color: rgba(156, 232, 196, .5); }
-#root .authPageLogin .authCardLogin .authAltBtn:active { transform: scale(.98); }
-#root .authPageLogin .authCardLogin .authAltBtn:focus-visible { outline: 2px solid #64e3a1; outline-offset: 2px; }
-@media (max-width: 360px) { #root .authPageLogin .authCardLogin .authAltActions { grid-template-columns: 1fr; } }
+/* Davetle üyelik sayfası: tek renk dili (nane yeşili), karışık görünen metin satırları yerine sade butonlar. */
+#root .authCardRegister:has(.authInviteCode) .authCardHead span { display: inline-flex; padding: 5px 12px; border-radius: 999px; background: rgba(155,232,196,.12); color: #9be8c4; font-size: 11px; letter-spacing: .14em; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks { margin-top: 16px !important; padding-top: 0 !important; border-top: 0 !important; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks button { border-color: rgba(255,255,255,.14) !important; background: transparent !important; color: #b8c7c1 !important; font-weight: 600 !important; }
+#root .authCardRegister:has(.authInviteCode) .authRegisterLinks button:hover { color: #9be8c4 !important; border-color: rgba(155,232,196,.45) !important; background: rgba(155,232,196,.06) !important; }
+#root .authInviteHint { padding: 0 6px; }
+/* Alt bilgi bağlantıları (Gizlilik, Şartlar, Risk): sade küçük butonlar. */
+#root .authRoot:has(.authCardRegister) .authFooter { gap: 8px !important; }
+#root .authRoot:has(.authCardRegister) .authFooter > span { flex: 0 0 100%; text-align: center; order: 2; margin-top: 6px; }
+#root .authRoot:has(.authCardRegister) .authFooter a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.03); color: #9fb3ac; font-size: 12px; font-weight: 600; text-decoration: none; transition: background .18s ease, color .18s ease, border-color .18s ease; }
+#root .authRoot:has(.authCardRegister) .authFooter a:hover { color: #9be8c4; border-color: rgba(155,232,196,.4); background: rgba(155,232,196,.06); }
