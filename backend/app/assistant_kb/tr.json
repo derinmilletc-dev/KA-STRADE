@@ -1185,5 +1185,25 @@
       "MaintenanceCountdown.tsx",
       "AuthGate.tsx"
     ]
+  },
+  {
+    "id": "iphone-fullscreen",
+    "title": "iPhone'da Analiz Studio neden tam ekran olmuyor? Ana Ekrana Ekle",
+    "keywords": [
+      "iphone",
+      "safari",
+      "tam ekran",
+      "analiz studio",
+      "ana ekrana ekle",
+      "yatay",
+      "çubuk",
+      "adres çubuğu",
+      "ekranı kaplamıyor",
+      "uygulama gibi"
+    ],
+    "content": "iPhone'da Safari, web sitelerinin adres ve sekme çubuğunu gizlemesine izin vermez; bu yüzden Analiz Studio Safari'de tüm ekranı kaplayamaz, üstte tarayıcı çubukları ve altta küçük bir boşluk kalır. Soldaki veya sağdaki siyah alan telefonun çentiğidir. Çözüm: siteyi Ana Ekrana eklemek. Safari'de siteyi aç, alttaki Paylaş düğmesine bas, Ana Ekrana Ekle'yi seç ve oluşan KaisTrade simgesinden aç. Böyle açınca tarayıcı çubukları olmaz, Studio yatayda gerçekten tam ekran olur; ayrıca telefon bildirimleri de yalnız bu şekilde çalışır. Chrome veya uygulama içi tarayıcılarda (Instagram gibi) Ana Ekrana Ekle çalışmaz; siteyi Safari'de aç.",
+    "code_sources": [
+      "InstallPrompt.tsx"
+    ]
   }
 ]

@@ -30,7 +30,7 @@ class AssistantHelpTests(unittest.TestCase):
             "live-guide", "live-screen", "live-status", "live-scan", "margin-mode", "risk-target",
             "live-session", "live-positions", "live-notify", "connection-tab", "how-bot-works", "kais-ai", "margin-who",
             "plan-compare", "trial", "payment", "ai-limits",
-            "dca-bot", "grid-bot", "farmer", "studio-quick", "coinbase", "profit-protection", "language-notify", "maintenance",
+            "dca-bot", "grid-bot", "farmer", "studio-quick", "coinbase", "profit-protection", "language-notify", "maintenance", "iphone-fullscreen",
         }
         self.assertEqual({row.id for row in tr}, expected)
         root = Path(__file__).resolve().parents[2]

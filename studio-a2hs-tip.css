@@ -1,0 +1,28 @@
+/* iPhone Safari: Analiz Studio'da "Ana Ekrana Ekle" önerisi. Dönme uyarısının (z-index 2147483001) ve yatay terminalin üstünde durur. */
+.ktA2hs {
+  position: fixed; z-index: 2147483002; left: 50%; transform: translateX(-50%);
+  top: max(12px, env(safe-area-inset-top)); width: min(440px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; padding: 14px 14px 12px;
+  border: 1px solid rgba(169, 212, 255, .22); border-radius: 18px; background: rgba(14, 20, 36, .96);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); color: #f1f5ff;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5); animation: ktA2hsIn .28s ease-out both;
+  font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+@keyframes ktA2hsIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.ktA2hsHead { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; }
+.ktA2hsIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgba(110, 231, 183, .14); color: #6ee7b7; }
+.ktA2hsIcon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ktA2hs b { font-size: 14px; font-weight: 700; }
+.ktA2hs p { margin: 3px 0 0; color: #b4c0d6; }
+.ktA2hsClose { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: #cfd9ec; padding: 0; }
+.ktA2hsClose svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.ktA2hsSteps { list-style: none; margin: 12px 0 0; padding: 10px 12px; display: grid; gap: 8px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+.ktA2hsSteps li { display: flex; align-items: center; gap: 10px; color: #dbe5f7; }
+.ktA2hsSteps li > span { flex: 0 0 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: rgba(169, 212, 255, .16); color: #a9d4ff; font-size: 12px; font-weight: 700; }
+.ktA2hsGlyph { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: rgba(255, 255, 255, .1); }
+.ktA2hsGlyph svg { width: 16px; height: 16px; fill: none; stroke: #a9d4ff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ktA2hsActions { display: flex; gap: 8px; margin-top: 12px; }
+.ktA2hsActions button { min-height: 40px; border-radius: 12px; border: 0; font: 700 13px/1 inherit; padding: 0 16px; }
+.ktA2hsPrimary { flex: 1; background: #6ee7b7; color: #06281c; }
+.ktA2hsGhost { background: rgba(255, 255, 255, .08); color: #cfd9ec; }
+@media (prefers-reduced-motion: reduce) { .ktA2hs { animation: none; } }

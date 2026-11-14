@@ -19,6 +19,7 @@ import {captureChart} from './chart-ai-client'
 import {useLiveCandles} from './useLiveCandles'
 import {useFuturesBook} from './useFuturesBook'
 import {AnalysisDrawer, RotateOverlay, useExitTransition, useIsolatedFocus, useLandscapeFullscreen} from './MasterTradeFullscreen'
+import StudioHomeScreenTip from './StudioHomeScreenTip'
 import {DrawingRail} from './MasterTradeDrawingRail'
 import StudioQuickTrade, {StudioPositionTabs} from './StudioQuickTrade'
 import type {ChartTools, GridChartLine} from './studio-grid'
@@ -727,6 +728,7 @@ export default function MasterTradeReference(props: Props) {
         </section>
       </aside>
     </main>
+    {fullscreen.state.open && <StudioHomeScreenTip/>}
     {rotateOverlay.mounted && <RotateOverlay key={overlaySession} leaving={rotateOverlay.leaving} studio onCancel={fullscreen.close} canAutoRotate={fullscreen.state.lock === 'none' || fullscreen.state.lock === 'locked'}/>}
   </section>
 }
