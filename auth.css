@@ -1267,3 +1267,9 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
   html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { contain: layout paint; }
   html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { will-change: auto !important; }
 }
+
+/* Fiyat seridi: CSS animasyonu yerine JS ile gorunur alan kaydirilir (iPhone'da bos/silik cizimi onler) */
+html body #root .authPageLogin .authCoinTrack,
+html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { animation: none !important; transform: none !important; will-change: auto !important; }
+html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { overflow: hidden !important; contain: none !important; scrollbar-width: none; }
+html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::-webkit-scrollbar { display: none; }
