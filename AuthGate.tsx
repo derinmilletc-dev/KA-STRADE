@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, KeyRound, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, LoaderCircle, LockKeyhole, ChevronRight, LogOut, Mail, MailCheck, Pause, Play, ShieldAlert, ShieldCheck, Ticket, UserPlus, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
 import { API_BASE, COOKIE_SESSION_PREFIX, USER_SESSION_KEY, clearDemoCredentials, clearUserSessionToken, saveUserSessionToken, userSessionToken } from './api'
 import {withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
@@ -87,7 +87,7 @@ function AuthIntroPanel({data,status,movers,premium = false,onBrand}:{data:LiveT
 function LoginMarketShell({children}:{children:(market:{data:LiveTickerData;status:LiveTickerStatus;movers:ReturnType<typeof useTopMovers>}) => ReactNode}) {
   const live = useLiveTickers(LIVE_MARKET_CONFIG.map(config => config.symbol))
   const movers = useTopMovers()
-  return <div className="authRoot"><TickerTape data={live.data} status={live.status}/>{children({data:live.data,status:live.status,movers})}<footer className="authFooter"><span>© 2026 KaisTrade</span><a href="/privacy">Gizlilik Politikası</a><a href="/terms">Kullanım Şartları</a><a href="/risk">Risk Uyarısı</a></footer></div>
+  return <div className="authRoot"><TickerTape data={live.data} status={live.status}/>{children({data:live.data,status:live.status,movers})}<footer className="authFooter"><span>© 2026 KaisTrade. Tüm hakları saklıdır.</span><a href="/privacy">Gizlilik Politikası</a><a href="/terms">Kullanım Şartları</a><a href="/risk">Risk Uyarısı</a></footer></div>
 }
 
 function detail(payload:unknown):string {
@@ -710,13 +710,13 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     const registrationStrength = strength(register.password)
     return <LoginMarketShell>{market => <><MaintenanceCountdown variant="login"/><main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
       {mode !== 'login' && <p className="authMobileSlogan">KaisTrade piyasayı tek yerden yönetin</p>}
-      {mode === 'login' && <header className="authMobileIdentity"><img src="/kaistrade-logo.png" alt="KaisTrade"/><p>KaisTrade piyasayı tek yerden yönetin</p></header>}
+      {mode === 'login' && <header className="authMobileIdentity"><img src="/kaistrade-logo.png" alt="KaisTrade"/><p className="authTagline"><span>TRADING INTELLIGENCE</span></p></header>}
       <AuthIntroPanel data={market.data} status={market.status} movers={market.movers} premium={mode === 'login'} onBrand={mode !== 'login' ? () => setMode('login') : undefined}/>
       <section className={`authCard ${mode === 'verify' ? 'authCardVerify' : ''}${isRegistration ? ' authCardRegister' : ''}${mode === 'login' ? ' authCardLogin' : ''}`}>
         {inviteGate && mode !== 'login' && <button type="button" className="authBackBtn" onClick={() => setMode('login')}><ArrowLeft aria-hidden="true"/>Geri dön</button>}
         <div className={`authLoginBrand${mode !== 'login' ? ' isLink' : ''}`} {...(mode !== 'login' ? {role:'link',tabIndex:0,'aria-label':'Giriş ekranına dön',onClick:() => setMode('login'),onKeyDown:(event:ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMode('login') } }} : {})}><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
         <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? (inviteGate ? 'DAVETLE ÜYELİK' : 'HESAP OLUŞTUR') : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? (inviteGate ? 'Davetini kullan' : 'Hesabını oluştur') : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
-        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenli bir şekilde giriş yap.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? (invite ? 'Davetin onaylandı. Hesabını davet e-postanla oluştur; davet başka bir adresle kullanılamaz.' : inviteGate ? 'E-postana gelen davet bağlantısını veya kodunu yapıştır.' : 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.') : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
+        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenle devam et.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? (invite ? 'Davetin onaylandı. Hesabını davet e-postanla oluştur; davet başka bir adresle kullanılamaz.' : inviteGate ? 'E-postana gelen davet bağlantısını veya kodunu yapıştır.' : 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.') : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
         {inviteOnlyBlocked ? <div className="authInviteOnly" role="status">
           {inviteToken ? <>
             <b>Davet kullanılamıyor</b>
@@ -765,8 +765,8 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {message && message !== 'Oturum doğrulanıyor…' && <p className={`authMessage${submitFailed ? ' authMessageError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
         {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
         {mode === 'login' && <div className="authAltActions">
-          <button type="button" className="authAltBtn" onClick={() => setMode('register')}><KeyRound aria-hidden="true"/>Davetin var mı?</button>
-          <a className="authAltBtn" href="/basvuru"><FileText aria-hidden="true"/>Üyelik başvurusu yap</a>
+          <button type="button" className="authAltBtn" onClick={() => setMode('register')}><Ticket aria-hidden="true"/><span>Davetin var mı?</span><ChevronRight className="authAltChev" aria-hidden="true"/></button>
+          <a className="authAltBtn" href="/basvuru"><UserPlus aria-hidden="true"/><span>Üyelik başvurusu</span><ChevronRight className="authAltChev" aria-hidden="true"/></a>
         </div>}
         <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button></>}{mode === 'register' ? (inviteGate ? <button type="button" onClick={() => setMode('login')}>Zaten hesabım var · Giriş yap</button> : <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></>) : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
         {mode === 'login' && LOCAL_OWNER_SETUP_PAGE && ownerSetupAvailable && <div className="authLinks"><button type="button" onClick={() => {setRegister(current => ({...current,email:login.email,password:'',confirm_password:''}));setMessage('');setFieldErrors({});setTermsError('');setMode('bootstrap')}}><ShieldCheck aria-hidden="true"/> İlk yönetici kurulumu</button></div>}
