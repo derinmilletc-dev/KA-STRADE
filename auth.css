@@ -1240,3 +1240,21 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
 @media (max-width: 1023px) {
   html body #root .authPageLogin .authCardLogin > .authLinks:has(> .authDesktopForgot:only-child) { display: none !important; }
 }
+
+/* Fiyat seridi (telefon girisi): iPhone'da silik/bos gorunme duzeltmesi + daha hizli akis */
+@media (max-width: 1023px) {
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: linear-gradient(165deg, rgba(12,36,27,.9), rgba(4,14,10,.95) 60%) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { position: relative; overflow: hidden; -webkit-mask-image: none !important; mask-image: none !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::before,
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::after { content: ""; position: absolute; top: 0; bottom: 0; width: 18px; z-index: 2; pointer-events: none; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::before { left: 0; background: linear-gradient(90deg, #050f0b, rgba(5,15,11,0)); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::after { right: 0; background: linear-gradient(270deg, #050f0b, rgba(5,15,11,0)); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets { background: #050f0b !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { animation: authCoinMarquee 34s linear infinite !important; will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: translate3d(0, 0, 0); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack[data-paused="true"] { animation-play-state: paused !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinQuote, html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinQuote * { opacity: 1 !important; filter: none !important; animation: none !important; }
+}
+@media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { animation-duration: 60s !important; }
+}
+@keyframes authCoinMarquee { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
