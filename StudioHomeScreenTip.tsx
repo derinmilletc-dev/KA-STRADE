@@ -47,9 +47,10 @@ export default function StudioHomeScreenTip() {
     </div>
     {steps && <ol className="ktA2hsSteps">
       <li><span>1</span>{en ? <>Open this page in <b>Safari</b>.</> : <>Bu sayfayı <b>Safari</b>’de aç.</>}</li>
-      <li><span>2</span>{en ? <>Tap <b>Share</b></> : <><b>Paylaş</b> düğmesine bas</>} <i className="ktA2hsGlyph">{SHARE}</i></li>
-      <li><span>3</span>{en ? <>Choose <b>Add to Home Screen</b>.</> : <><b>Ana Ekrana Ekle</b>’yi seç.</>}</li>
-      <li><span>4</span>{en ? <>Open KaisTrade from the new icon.</> : <>Yeni KaisTrade simgesinden aç.</>}</li>
+      <li><span>2</span>{en ? <>Tap <b>⋯</b> next to the address bar (or the <b>Share</b> button at the bottom on older iOS), then <b>Share</b></> : <>Adres çubuğunun yanındaki <b>⋯</b> düğmesine bas (eski iOS’ta alttaki <b>Paylaş</b> düğmesi), sonra <b>Paylaş</b></>} <i className="ktA2hsGlyph">{SHARE}</i></li>
+      <li><span>3</span>{en ? <>Scroll down and choose <b>Add to Home Screen</b>.</> : <>Aşağı kaydır, <b>Ana Ekrana Ekle</b>’yi seç.</>}</li>
+      <li><span>4</span>{en ? <>Keep <b>Open as Web App</b> on (if shown), then tap <b>Add</b>.</> : <><b>Web Uygulaması Olarak Aç</b> seçeneği varsa açık kalsın, sonra <b>Ekle</b>’ye bas.</>}</li>
+      <li><span>5</span>{en ? <>Open KaisTrade from the new icon.</> : <>Yeni KaisTrade simgesinden aç.</>}</li>
     </ol>}
     <div className="ktA2hsActions">
       <button type="button" className="ktA2hsPrimary" onClick={() => setSteps(value => !value)} aria-expanded={steps}>

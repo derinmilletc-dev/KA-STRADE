@@ -1167,7 +1167,7 @@
       "does not fill",
       "app-like"
     ],
-    "content": "On iPhone, Safari does not let websites hide the address and tab bars, so Analysis Studio cannot fill the whole screen in Safari: browser bars stay at the top and a small gap remains at the bottom. The black area on the left or right is the phone's notch. The fix is to add the site to your Home Screen: open the site in Safari, tap the Share button at the bottom, choose Add to Home Screen, and open KaisTrade from the new icon. Opened that way there are no browser bars and Studio is truly full screen in landscape; phone notifications also work only this way. Add to Home Screen does not work in Chrome or in-app browsers (such as Instagram); open the site in Safari.",
+    "content": "On iPhone, Safari does not let websites hide the address and tab bars, so Analysis Studio cannot fill the whole screen in Safari: browser bars stay at the top and a small gap remains at the bottom. The black area on the left or right is the phone's notch. The fix is to add the site to your Home Screen: open the site in Safari, tap the three-dot button (⋯) next to the address bar and choose Share (on older iOS versions it is the Share button at the bottom), scroll down and choose Add to Home Screen, keep Open as Web App on if it is shown, tap Add, and open KaisTrade from the new icon. Opened that way there are no browser bars and Studio is truly full screen in landscape; phone notifications also work only this way. Add to Home Screen does not work in Chrome or in-app browsers (such as Instagram); open the site in Safari.",
     "code_sources": [
       "InstallPrompt.tsx"
     ]
