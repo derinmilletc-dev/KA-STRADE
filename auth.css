@@ -1135,3 +1135,14 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
 #root .authRoot > .authFooter > span {
   order: 2; flex: 0 0 100%; text-align: center; margin: 6px 0 0 !important; color: #5f7a70 !important; font: 500 12px/1.4 system-ui, sans-serif !important;
 }
+
+/* Davet ekrani: giris ekranina Geri don dugmesi */
+#root .authCard .authBackBtn {
+  display: inline-flex !important; align-items: center; gap: 6px; align-self: flex-start; width: auto !important; min-height: 38px; margin: 0 0 14px !important; padding: 0 14px 0 10px !important;
+  border: 1px solid rgba(156, 232, 196, .3) !important; border-radius: 999px !important; background: rgba(156, 232, 196, .06) !important; color: #d8e8e1 !important;
+  font: 600 13px/1 system-ui, -apple-system, "SF Pro Text", sans-serif !important; cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .12s ease; -webkit-tap-highlight-color: transparent;
+}
+#root .authCard .authBackBtn svg { width: 16px !important; height: 16px !important; color: #9ce8c4; flex: 0 0 auto; }
+#root .authCard .authBackBtn:hover { background: rgba(156, 232, 196, .14) !important; border-color: rgba(156, 232, 196, .5) !important; }
+#root .authCard .authBackBtn:active { transform: scale(.97); }
+#root .authCard .authBackBtn:focus-visible { outline: 2px solid #64e3a1; outline-offset: 2px; }
