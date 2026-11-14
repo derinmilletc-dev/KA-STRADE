@@ -333,3 +333,4 @@ class StaffBypassTests(unittest.TestCase):
         self.assertTrue(MAINTENANCE.new_entry_blocked(state))
         with self.assertRaises(HTTPException):
             MAINTENANCE.guard_new_entry(state)
+

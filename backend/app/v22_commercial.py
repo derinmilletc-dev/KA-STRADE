@@ -232,17 +232,30 @@ def sanitize_state(payload: Any) -> dict[str, Any]:
     return base
 
 
+def _remember_owners(state: dict[str, Any]) -> dict[str, Any]:
+    """Bakım modu yöneticiyi kısıtlamaz: sunucu yeniden başlasa da OWNER kimlikleri baştan bilinir."""
+    try:
+        from . import maintenance
+        maintenance.STAFF_USER_IDS.update(
+            str(user["id"]) for user in state.get("users", [])
+            if isinstance(user, dict) and user.get("role") == "OWNER" and user.get("active", True) and user.get("id"))
+    except Exception:  # noqa: BLE001 - bu yardımcı yüklemeyi/kaydı asla bozmaz
+        pass
+    return state
+
+
 def load_state() -> dict[str, Any]:
     for path in (STATE_PATH, BACKUP_PATH):
         try:
-            return sanitize_state(json.loads(path.read_text(encoding="utf-8")))
+            return _remember_owners(sanitize_state(json.loads(path.read_text(encoding="utf-8"))))
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             continue
-    return default_commercial_state()
+    return _remember_owners(default_commercial_state())
 
 
 def save_state(state: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _remember_owners(state)
     serializable = sanitize_state(state)
     body = json.dumps(serializable, ensure_ascii=False, indent=2)
     temp = STATE_PATH.with_suffix(".tmp")
