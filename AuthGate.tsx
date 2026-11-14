@@ -72,9 +72,31 @@ function AuthCoinScreen({data:liveData,status}:{data:LiveTickerData;status:LiveT
   const [snapshot,setSnapshot] = useState(liveData)
   useEffect(() => { const timer = window.setInterval(() => setSnapshot(latestRef.current), 3000); return () => window.clearInterval(timer) }, [])
   const data = Object.keys(snapshot).length ? snapshot : liveData
+  // iPhone Safari çok geniş, CSS ile kayan katmanı eksik çiziyor (şeridin bir kısmı boş/silik kalıyor).
+  // Bunun yerine görünür alanı kaydırıyoruz: yalnızca küçük pencere yeniden çizilir.
+  const viewportRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport || paused) return
+    const speed = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 30 : 60
+    let frame = 0
+    let last = performance.now()
+    let position = viewport.scrollLeft
+    const step = (now:number) => {
+      const elapsed = Math.min(64, now - last)
+      last = now
+      const group = viewport.querySelector<HTMLElement>('.authCoinGroup')?.offsetWidth || 0
+      position += speed * elapsed / 1000
+      if (group > 0 && position >= group) position -= group
+      viewport.scrollLeft = position
+      frame = window.requestAnimationFrame(step)
+    }
+    frame = window.requestAnimationFrame(step)
+    return () => window.cancelAnimationFrame(frame)
+  }, [paused])
   return <div className="authCoinScreen">
     <header><div><span className={`authCoinLive status-${status}`}/><h2>Canlı piyasa</h2><small>{status === 'live' ? 'CANLI' : status === 'offline' ? 'ÇEVRİMDIŞI' : 'BAĞLANIYOR'}</small></div><button type="button" onClick={() => setPaused(value => !value)} aria-label={paused ? 'Coin akışını devam ettir' : 'Coin akışını duraklat'} title={paused ? 'Devam et' : 'Duraklat'} aria-pressed={paused}>{paused ? <Play/> : <Pause/>}</button></header>
-    <div className="authCoinViewport"><div className="authCoinTrack" data-paused={paused}>{[false,true].map(duplicate => <div className="authCoinGroup" key={String(duplicate)} aria-hidden={duplicate || undefined}>{LIVE_MARKET_CONFIG.map(config => { const ticker = data[config.symbol]; const Icon = config.symbol === 'BTCUSDT' ? Bitcoin : config.symbol === 'ETHUSDT' ? Diamond : config.kind === 'fiat' ? CircleDollarSign : Coins; return <div className="authCoinQuote" key={config.symbol}><span className="authCoinAvatar" data-symbol={config.symbol}><Icon aria-hidden="true"/></span><div><b>{config.displaySymbol}</b><small>{config.name}</small></div><div className="authCoinNumbers">{ticker ? <><strong>{formatPanelPrice(config.symbol,ticker.price)}</strong><span className={ticker.changePercent >= 0 ? 'isPositive' : 'isNegative'}>{ticker.changePercent >= 0 ? '+' : ''}{ticker.changePercent.toFixed(2)}%</span></> : <span className="authCoinPending">—</span>}</div></div> })}</div>)}</div></div>
+    <div className="authCoinViewport" ref={viewportRef}><div className="authCoinTrack" data-paused={paused}>{[false,true].map(duplicate => <div className="authCoinGroup" key={String(duplicate)} aria-hidden={duplicate || undefined}>{LIVE_MARKET_CONFIG.map(config => { const ticker = data[config.symbol]; const Icon = config.symbol === 'BTCUSDT' ? Bitcoin : config.symbol === 'ETHUSDT' ? Diamond : config.kind === 'fiat' ? CircleDollarSign : Coins; return <div className="authCoinQuote" key={config.symbol}><span className="authCoinAvatar" data-symbol={config.symbol}><Icon aria-hidden="true"/></span><div><b>{config.displaySymbol}</b><small>{config.name}</small></div><div className="authCoinNumbers">{ticker ? <><strong>{formatPanelPrice(config.symbol,ticker.price)}</strong><span className={ticker.changePercent >= 0 ? 'isPositive' : 'isNegative'}>{ticker.changePercent >= 0 ? '+' : ''}{ticker.changePercent.toFixed(2)}%</span></> : <span className="authCoinPending">—</span>}</div></div> })}</div>)}</div></div>
   </div>
 }
 
