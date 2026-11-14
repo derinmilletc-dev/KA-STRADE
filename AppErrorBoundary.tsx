@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { RefreshCw, ShieldCheck } from 'lucide-react'
+import { RefreshCw, Sparkles, WifiOff } from 'lucide-react'
+import './app-error.css'
 import { reportClientError } from './api'
 import { isStaffView, isStaleBuildError, reloadForNewVersion } from './error-visibility'
 
@@ -31,18 +32,18 @@ export default class AppErrorBoundary extends Component<Props,State> {
   render() {
     if (!this.state.failed) return this.props.children
     const stale = this.state.stale
-    return <main className="appRecoveryShell" role="alert">
-      <section className="appRecoveryCard">
-        <span className="appRecoveryIcon" aria-hidden="true"><ShieldCheck size={34} strokeWidth={1.7} /></span>
-        <small className="appRecoveryEyebrow">SECURE RECOVERY</small>
+    return <main className="appRecoveryShell errScreen" role="alert">
+      <section className="errCard">
+        <div className="errIcon" aria-hidden="true"><span className="errRing"/><span className="errIconCore">{stale ? <Sparkles size={30} strokeWidth={1.8}/> : <WifiOff size={30} strokeWidth={1.8}/>}</span></div>
+        <span className="errPill"><i aria-hidden="true"/>{stale ? 'Yeni sürüm hazır' : 'Bağlantı sorunu'}</span>
         <h1>{stale ? 'Site güncellendi' : 'Sayfa yüklenemedi'}</h1>
-        <p>{stale ? 'Sitenin yeni bir sürümü yayınlandı. Sayfayı yenilemen yeterli.' : 'Bu bölüm şu anda açılamadı. Hesabın ve işlem kayıtların korunuyor.'}</p>
-        <p className="appRecoveryHint">{stale ? 'Yenilemeden sonra sorun sürerse tarayıcıda Ctrl+F5 ile tekrar dene.' : 'Sayfayı yenile. Sorun sürerse birkaç dakika sonra tekrar dene.'}</p>
-        <button className="appRecoveryAction" type="button" onClick={this.recover}>
-          <RefreshCw size={16} aria-hidden="true" />
-          Paneli yeniden yükle
+        <p className="errText">{stale ? 'Sitenin yeni bir sürümü yayınlandı. Sayfayı yenilemen yeterli.' : 'Bu bölüm şu anda açılamadı. Hesabın ve işlem kayıtların korunuyor.'}</p>
+        <button className="errBtn" type="button" onClick={this.recover}>
+          <RefreshCw size={18} aria-hidden="true" />
+          Sayfayı yenile
         </button>
-        {isStaffView() && <details className="appRecoveryDetails">
+        <p className="errHint">{stale ? 'Yenilemeden sonra sorun sürerse tarayıcıda Ctrl+F5 ile tekrar dene.' : 'Sorun sürerse birkaç dakika sonra tekrar dene.'}</p>
+        {isStaffView() && <details className="appRecoveryDetails errDetails">
           <summary>Teknik ayrıntılar (yalnızca yönetici)</summary>
           <pre>{this.state.message || 'Veri yeniden istenecek.'}</pre>
         </details>}
