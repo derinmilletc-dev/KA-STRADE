@@ -1258,3 +1258,12 @@ input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
   html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { animation-duration: 60s !important; }
 }
 @keyframes authCoinMarquee { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
+
+/* Fiyat seridi: rakamlar degisince genislik oynamasin (takilmayi onler) */
+@media (max-width: 1023px) {
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers strong,
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers > span { font-variant-numeric: tabular-nums !important; white-space: nowrap; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers > span { display: inline-block; min-width: 6.2ch; text-align: left; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { contain: layout paint; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { will-change: auto !important; }
+}
