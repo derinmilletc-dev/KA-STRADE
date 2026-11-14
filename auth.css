@@ -1071,3 +1071,10 @@ html body .authMemberScrim, html body .authMemberArrow, html body .authMemberMen
 .authInviteBanner small { color: #93a1b0; overflow-wrap: anywhere; }
 .authLinks a { color: inherit; }
 input[readonly][aria-readonly="true"] { opacity: .8; cursor: not-allowed; }
+
+.authInviteCode { display: grid; gap: 10px; }
+.authInviteCode label { display: grid; gap: 6px; font-size: 13px; color: #a9b6b1; }
+.authInviteCode input { min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: inherit; font-size: 16px; }
+.authInviteCode small { color: #ff8a8a; }
+.authInviteCode button.authSubmit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.authInviteApply { text-align: center; color: #a9b6b1; font-size: 13px; text-decoration: underline; }

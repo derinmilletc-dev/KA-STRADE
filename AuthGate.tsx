@@ -151,8 +151,8 @@ function MaintenanceScreen({mode}:{mode:string}) {
 
 
 
-/** Build ayarı: VITE_LAUNCH_MODE=off ile giriş ekranı geri açılır. */
-const LAUNCH_FROZEN = String(import.meta.env.VITE_LAUNCH_MODE ?? '').trim().toLowerCase() !== 'off'
+/** Build ayarı: varsayılan normal giriş ekranı; VITE_LAUNCH_MODE=on lansman (Founding 30) sayfasını geri getirir. */
+const LAUNCH_FROZEN = String(import.meta.env.VITE_LAUNCH_MODE ?? '').trim().toLowerCase() === 'on'
 
 export default function AuthGate({children,surface='customer'}:{children:ReactNode;surface?:Surface}) {
   const [token,setToken] = useState(userSessionToken())
@@ -187,6 +187,18 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     return () => controller.abort()
   }, [inviteToken])
   const inviteOnlyBlocked = mode === 'register' && (!inviteToken || Boolean(inviteError))
+  const [inviteInput,setInviteInput] = useState('')
+  const [inviteInputError,setInviteInputError] = useState('')
+  // Davet e-postasındaki bağlantı veya kod buraya yapıştırılır; token çıkarılıp /davet sayfasına gidilir (sunucu yine doğrular).
+  const applyInviteCode = (event: FormEvent) => {
+    event.preventDefault()
+    const raw = inviteInput.trim()
+    let token = ''
+    try { token = raw.includes('://') || raw.startsWith('/') || raw.includes('?') ? (new URL(raw, window.location.origin).searchParams.get('t') ?? '') : raw } catch { token = '' }
+    token = token.trim()
+    if (!/^[A-Za-z0-9_-]{16,200}$/.test(token)) { setInviteInputError('Davet bağlantısı veya kodu okunamadı. E-postandaki bağlantıyı olduğu gibi yapıştır.'); return }
+    window.location.assign(`/davet?t=${encodeURIComponent(token)}`)
+  }
   const [ownerSetupAvailable,setOwnerSetupAvailable] = useState(false)
   const [busy,setBusy] = useState(true)
   const [sessionLoading,setSessionLoading] = useState(true)
@@ -706,7 +718,12 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {inviteOnlyBlocked ? <div className="authInviteOnly" role="status">
           <b>{inviteToken ? 'Davet kullanılamıyor' : 'KaisTrade yalnızca davetle üye kabul ediyor'}</b>
           <p>{inviteToken ? inviteError : 'Yeni hesap açmak için sana özel bir davet gerekir. Davetin yoksa üyelik başvurusu yapabilirsin; başvurun onaylanırsa davetin e-postana gelir.'}</p>
-          <a className="authSubmit" href="/basvuru">Üyelik başvurusu yap<ArrowRight/></a>
+          {!inviteToken && <form className="authInviteCode" onSubmit={applyInviteCode} noValidate>
+            <label>Davet bağlantısı veya kodu<input value={inviteInput} onChange={event => { setInviteInput(event.target.value); setInviteInputError('') }} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder="E-postandaki davet bağlantısını yapıştır"/></label>
+            {inviteInputError && <small role="alert">{inviteInputError}</small>}
+            <button type="submit" className="authSubmit" disabled={!inviteInput.trim()}>Davetle devam et<ArrowRight/></button>
+          </form>}
+          <a className={inviteToken ? 'authSubmit' : 'authInviteApply'} href="/basvuru">{inviteToken ? 'Üyelik başvurusu yap' : 'Davetin yok mu? Üyelik başvurusu yap'}{inviteToken && <ArrowRight/>}</a>
         </div> : inviteToken && inviteLoading ? <p className="authInviteOnly" role="status">Davet doğrulanıyor…</p> : <>
         {invite && <div className="authInviteBanner"><ShieldCheck aria-hidden="true"/><span><b>Kişiye özel davet</b><small translate="no">{invite.email}{invite.reference ? ` · ${invite.reference}` : ''}</small></span></div>}
         <form ref={registrationFormRef} onSubmit={submit} noValidate={mode === 'login'} aria-busy={busy}>
@@ -739,7 +756,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         </div>}
         {message && message !== 'Oturum doğrulanıyor…' && <p className={`authMessage${submitFailed ? ' authMessageError' : ''}`} role={submitFailed ? 'alert' : 'status'}>{message}</p>}
         {sessionUnavailable && <button type="button" className="authGoogle" disabled={busy} onClick={() => void loadSession(token)}>Oturumu yeniden kontrol et</button>}
-        <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button><a href="/basvuru">Üyelik başvurusu yap</a></>}{mode === 'register' ? <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></> : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
+        <div className={`authLinks${mode === 'register' ? ' authRegisterLinks' : ''}`}>{mode === 'login' && <><button className="authDesktopForgot" onClick={() => setMode('forgot')}>Parolamı unuttum</button><button type="button" onClick={() => setMode('register')}>Davetin var mı?</button><a href="/basvuru">Üyelik başvurusu yap</a></>}{mode === 'register' ? <><span>Zaten hesabın var mı?</span><button type="button" onClick={() => setMode('login')}>Giriş yap</button></> : mode !== 'login' && <button onClick={() => setMode('login')}>Giriş ekranına dön</button>}</div>
         {mode === 'login' && LOCAL_OWNER_SETUP_PAGE && ownerSetupAvailable && <div className="authLinks"><button type="button" onClick={() => {setRegister(current => ({...current,email:login.email,password:'',confirm_password:''}));setMessage('');setFieldErrors({});setTermsError('');setMode('bootstrap')}}><ShieldCheck aria-hidden="true"/> İlk yönetici kurulumu</button></div>}
         {mode === 'login' && <a className="authInstagramFollow" href="https://www.instagram.com/kaistrade_/" target="_blank" rel="noopener noreferrer">
           <svg className="authInstagramGlyph" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="authIgGradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#feda75"/><stop offset=".3" stopColor="#fa7e1e"/><stop offset=".6" stopColor="#d62976"/><stop offset="1" stopColor="#4f5bd5"/></linearGradient></defs><g fill="none" stroke="url(#authIgGradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></g><circle cx="17.5" cy="6.5" r="1.1" fill="url(#authIgGradient)"/></svg>
