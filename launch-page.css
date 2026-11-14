@@ -838,3 +838,19 @@
 .fdEmailActions button.ghost { background: transparent; color: inherit; border: 1px solid currentColor; font-weight: 600; }
 .fdEmailActions button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .fdForm input[aria-invalid="true"] { border-color: #a8414f !important; }
+
+/* Basvuru sayfasi: giris ekranina geri don dugmesi */
+.fdRoot .fdBackLogin { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 14px 0 10px; border: 1px solid rgba(46, 229, 157, .28); border-radius: 999px; background: rgba(46, 229, 157, .06); color: #cfeee0; font: 600 13px/1 system-ui, -apple-system, sans-serif; text-decoration: none; white-space: nowrap; transition: background .18s ease, border-color .18s ease, transform .12s ease; -webkit-tap-highlight-color: transparent; }
+.fdRoot .fdBackLogin svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--green); }
+.fdRoot .fdBackLogin:hover { background: rgba(46, 229, 157, .14); border-color: rgba(46, 229, 157, .5); }
+.fdRoot .fdBackLogin:active { transform: scale(.97); }
+.fdRoot .fdBackLogin:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.fdTopRight { display: flex; align-items: center; gap: 10px; }
+
+.fdTop > .fdBackLogin { justify-self: start; }
+@media (max-width: 700px) {
+  .fdTop { position: relative; }
+  .fdRoot .fdTop > .fdBackLogin { position: absolute; left: 14px; top: calc(10px + env(safe-area-inset-top)); min-height: 34px; padding: 0 12px 0 8px; font-size: 12.5px; z-index: 2; }
+}
+@media (min-width: 1001px) { .fdTop { grid-template-columns: auto auto 1fr auto; } }
+@media (min-width: 701px) and (max-width: 1000px) { .fdTop { grid-template-columns: auto 1fr auto; } .fdTop > .fdBrand { justify-self: center; } }
