@@ -45,11 +45,12 @@ export function priceText(value: number): string {
 }
 export const changeText = (value: number): string => Number.isFinite(value) ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%` : '—'
 
-/** "2030-12-20T16:00:00Z" → "20.12.2030". Okunamıyorsa null (tahmin yok). */
+/** "2030-12-20T16:00:00Z" → "20.12.2030". Okunamıyorsa null (tahmin yok). Süresiz (perp) ürünlerin yer tutucu tarihi (2050+) gösterilmez. */
 export function expiryText(value: string | null): string | null {
   if (!value) return null
   const time = Date.parse(value)
   if (!Number.isFinite(time)) return null
   const d = new Date(time)
+  if (d.getUTCFullYear() >= 2050) return null
   return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
 }

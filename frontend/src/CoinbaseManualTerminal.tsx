@@ -18,10 +18,11 @@ import {changeText, expiryText, matchRows, priceText, signalsForRows, toRows, ty
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
+import CoinbaseAccountHero from './CoinbaseAccountHero'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
-import {CheckList, DirectionCards, ElapsedSeconds, StatusPill, SummaryList, type SummaryItem} from './ManualTerminalParts'
+import {CheckList, DirectionCards, ElapsedSeconds, SummaryList, type SummaryItem} from './ManualTerminalParts'
 import type {CheckRow} from './manual-order-state'
 import './coinbase-manual.css'
 
@@ -43,16 +44,25 @@ const duo = (signal: CoinSignal | undefined) => signal
   </span>
   : <span className="cpkDuo cpkNone" aria-hidden="true"/>
 
+// Kısa satır: LONG/SHORT yüzdeleri yan yana, güçlü taraf vurgulu. Listeler için; büyük çift çubuk seçili ürün kartında kalır.
+const miniDuo = (signal: CoinSignal | undefined) => signal
+  ? <span className="cbMini" data-lean={signal.lean} role="img" aria-label={`LONG yüzde ${signal.long ?? 'bilinmiyor'}, SHORT yüzde ${signal.short ?? 'bilinmiyor'}`}>
+    <span className="cbMiniSide cbMiniL" data-lead={signal.lean === 'LONG'}>LONG <b>{signal.long === null ? '–' : `%${signal.long}`}</b></span>
+    <span className="cbMiniSide cbMiniS" data-lead={signal.lean === 'SHORT'}>SHORT <b>{signal.short === null ? '–' : `%${signal.short}`}</b></span>
+    <span className="cbMiniLean">{leanText(signal)}</span>
+  </span>
+  : null
+
 const FILTER_CHIPS: [CoinFilter, string][] = [['all', 'Tümü'], ['long', 'LONG ağır'], ['short', 'SHORT ağır'], ['strong', 'Güçlü sinyal']]
 const SORT_CHIPS: [CoinSort, string][] = [['confidence', 'Güvene göre'], ['volume', 'Hacme göre'], ['change', 'Değişime göre']]
 const PICK_LIMIT = 30
 
 const STEP_NAMES = ['Ürün', 'Yön', 'Tutar', 'Stop', 'Kontrol']
-const amount = (value: Amount | undefined) => value?.value == null ? null : `${value.value} ${value.currency}`
 
 export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => void}) {
   const [status, setStatus] = useState<Status | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
+  const [futuresMissing, setFuturesMissing] = useState(false)
   const [positions, setPositions] = useState<CbPosition[]>([])
   const [protection, setProtection] = useState<CbProtection | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -86,7 +96,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     try {
       const next = await coinbaseCall<Status>('/status')
       setStatus(next)
-      if (!next.key_saved) { setAccount(null); setPositions([]); setProtection(null); return }
+      if (!next.key_saved) { setAccount(null); setFuturesMissing(false); setPositions([]); setProtection(null); return }
       // Her okuma ayrı: biri bozulursa diğerleri gösterilir ve hata açıkça yazılır.
       const results = await Promise.allSettled([
         coinbaseCall<Account>('/account'),
@@ -97,10 +107,13 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       const [accountResult, positionResult, protectionResult, productsResult] = results
       if (productsResult.status === 'fulfilled') { setProducts(productsResult.value.products); setProductsError('') }
       else setProductsError(noticeFromError(productsResult.reason).text)
-      if (accountResult.status === 'fulfilled') setAccount(accountResult.value)
+      // Vadeli hesap yoksa/boşsa Coinbase balance_summary vermez: bu bir arıza değil, kullanıcıya sade yönlendirme gösterilir.
+      const noFutures = accountResult.status === 'rejected' && /balance_summary yok/.test(noticeFromError(accountResult.reason).text)
+      if (accountResult.status === 'fulfilled') { setAccount(accountResult.value); setFuturesMissing(false) }
+      else if (noFutures) { setAccount(null); setFuturesMissing(true) }
       if (positionResult.status === 'fulfilled') setPositions(positionResult.value.positions)
       if (protectionResult.status === 'fulfilled') setProtection(protectionResult.value)
-      const failed = results.slice(0, 3).find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      const failed = results.slice(0, 3).find((result, index): result is PromiseRejectedResult => result.status === 'rejected' && !(index === 0 && noFutures))
       if (failed) setNotice(noticeFromError(failed.reason))
       else if (!quiet) setNotice({kind: 'ok', text: 'Coinbase bilgileri yenilendi.'})
     } catch (error) {
@@ -246,14 +259,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <small>{busy === 'review' ? 'Gerçek emir gitmez; Coinbase kurallarına ve sınırlara göre sınanıyor.' : 'Ekranı kapatma, tekrar basma; sonuç gelince burada görünür.'} <ElapsedSeconds/></small></span>
   </div> : null
 
-  const statusStrip = <div className="mxtStatus" aria-label="Bağlantı ve güvenlik durumu">
-    <span className="mxtBrand">KAISTRADE MANUAL EXECUTION<small>Manuel emir · gerçek para</small></span>
-    <StatusPill tone={keySaved ? 'ok' : 'bad'}>Coinbase {keySaved ? 'bağlı' : 'bağlı değil'}</StatusPill>
-    <StatusPill tone={keySaved ? 'ok' : 'warn'}>Hesap / API {keySaved ? 'tanımlı' : 'eksik'}</StatusPill>
-    <StatusPill tone={ordersOn ? 'ok' : 'warn'}>Güvenlik: {ordersOn ? 'emir kilidi açık' : 'emir kilitli'}</StatusPill>
-    {status?.clock?.ok === false && <StatusPill tone="bad">Saat farkı {status.clock.skew_seconds} sn</StatusPill>}
-    <StatusPill tone="warn">Gerçek para</StatusPill>
-  </div>
+  const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} futuresMissing={futuresMissing} ordersOn={ordersOn}
+    clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}/>
 
   const reviewStep = <>
     <h4>Son kontrol</h4>
@@ -334,8 +341,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       const signal = signals![row.symbol]
       return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === selectedId} data-lean={signal.lean} className={`cpkCard ${row.symbol === selectedId ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
         <span className="cpkCardTop"><strong>{row.display}</strong><span className="cpkTick"><span>{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></span></span>
-        {duo(signal)}
-        <span className="cpkLeanLine">{leanText(signal)}</span>
+        {miniDuo(signal)}
       </button></li>
     })}</ul>}
     <p className="cpkNote">{AI_DISCLAIMER}</p>
@@ -360,7 +366,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {products === null && !productsError && <p className="cpkEmpty">Ürün listesi yükleniyor…</p>}
       {productsError && <p className="cpkEmpty warn">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
       {products !== null && <ul role="listbox" aria-label="Ürün listesi" className="cpkList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === selectedId} data-lean={signals?.[row.symbol]?.lean ?? 'NONE'} className="cpkRow" onClick={() => chooseCoin(row.symbol)}>
-        <strong>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</strong>{duo(signals?.[row.symbol])}<span className="cpkRowPrice">{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></button></li>)}{listed.length === 0 && <li className="cpkEmpty">Sonuç yok.</li>}</ul>}
+        <strong>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</strong>{miniDuo(signals?.[row.symbol])}<span className="cpkRowPrice">{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></button></li>)}{listed.length === 0 && <li className="cpkEmpty">Sonuç yok.</li>}</ul>}
       {signals !== null && <p className="cpkNote">{AI_DISCLAIMER}</p>}
       {products !== null && matches.length > listed.length && <p className="cpkNote">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</p>}
     </div>}
@@ -421,25 +427,13 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </div>
   </div>
 
-  const accountRows: SummaryItem[] = account?.balance ? [
-    {label: 'Alım gücü', value: amount(account.balance.futures_buying_power)},
-    {label: 'Kullanılabilir marjin', value: amount(account.balance.available_margin)},
-    {label: 'Gerçekleşmemiş K/Z', value: amount(account.balance.unrealized_pnl)},
-    {label: 'Bugünkü gerçekleşen K/Z', value: amount(account.balance.daily_realized_pnl)},
-    {label: 'Marjin seviyesi (kötü pencere)', value: account.balance.worst_margin_level ? `${account.balance.worst_margin_level}${account.balance.worst_margin_window ? ` · ${account.balance.worst_margin_window === 'overnight' ? 'gece' : 'gün içi'}` : ''}` : null},
-  ] : []
-
   return <div className="cbTerminal">
-    {(notice || loading) && <div className="cbPanel">
-      <div className="cbTop"><span/><button onClick={() => void refresh()} disabled={loading}><RefreshCw className={loading ? 'spin' : ''}/>Yenile</button></div>
-      {notice && <CoinbaseManualNotice notice={notice}/>}
-    </div>}
+    {notice && <div className="cbPanel"><CoinbaseManualNotice notice={notice}/></div>}
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
     {keySaved && wizardBody}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
-      {accountRows.length > 0 && <section className="cbCard" aria-label="Hesap"><h3>Vadeli hesap</h3><SummaryList rows={accountRows}/></section>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
     </div>}
