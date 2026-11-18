@@ -971,6 +971,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setNotice({kind: 'error', text: 'LIVE API Key, Secret Key ve güncel 2FA kodunu girin.'})
       return
     }
+    // Açık işlem ya da belirsiz yürütme durumu varken hesap değişimi: sade onay sorulur, evet denirse tek seferde geçilir.
+    const openNow = (status?.account?.positions?.length ?? 0) > 0 || recoveryRequired
+    if (openNow && !window.confirm('Açık işlem var. Yeni hesaba geçmek istiyor musun?\n\nEski hesaptaki açık işlem KaisTrade\'den yönetilmez; stop ve kapatmayı Binance uygulamasından sen yapmalısın. Yeni hesapta emir kilidi kapalı başlar.')) return
     setTestResult(null)
     void run('connect-save', async () => {
       let saved = false
@@ -979,6 +982,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           mode: 'LIVE', api_key: credentials.apiKey, secret_key: credentials.secretKey,
           confirmation: 'CANLI KASAYA KAYDET',
           totp_code: keyCode,
+          ...(openNow ? {acknowledge_open_exposure: true} : {}),
         })})
         const connection = result.connections?.LIVE
         const fingerprint = normalizeCredentialFingerprint(connection?.fingerprint)
