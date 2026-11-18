@@ -3082,7 +3082,7 @@ async def close_tracked_symbol(client: BinanceLiveClient, symbol: str, intent: s
         raise
 
 
-MANUAL_CLOSE_LIMIT_WAIT_SECONDS = 4.0
+MANUAL_CLOSE_LIMIT_WAIT_SECONDS = 1.5
 MANUAL_CLOSE_LIMIT_POLL_SECONDS = 0.4
 
 
@@ -3175,6 +3175,18 @@ async def close_manual_symbol(client: BinanceLiveClient, symbol: str, intent: st
     if limit_price is None:
         return await close_tracked_symbol(client, symbol, intent)
     return await close_symbol_limit_then_market(client, symbol, intent, limit_price)
+
+
+async def refresh_snapshot_after_close(request: Request, state: dict[str, Any]) -> None:
+    """Kapanıştan hemen sonra Binance hesabını yeniden okuyup ekran verisini günceller.
+
+    Bunu yapmazsak kapanan pozisyon, 10 sn'lik uzlaştırma döngüsü gelene kadar listede görünür. Okuma başarısız ya da
+    yavaşsa kapatma sonucu etkilenmez: hata yutulur, döngü yedek olarak sürer."""
+    try:
+        client = client_for(request.app, request)
+        update_account_snapshot(state, await asyncio.wait_for(account_snapshot(client), timeout=3.0))
+    except Exception as exc:  # noqa: BLE001 - yalnız görünüm tazeleme; kapatma zaten tamamlandı
+        logger.info("LIVE_CLOSE_SNAPSHOT_REFRESH_SKIPPED reason=%s", type(exc).__name__)
 
 
 EMERGENCY_VERIFY_ATTEMPTS = 3
@@ -10170,6 +10182,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             add_event(state, "LIVE_CLOSE", f"{symbol} doğrulanamayan plan pozisyonu kullanıcı isteğiyle reduce-only kapatıldı.", actor=user["id"], symbol=symbol,
                       fill_price=fill_price, total_ms=int((time.monotonic() - started) * 1000))
             persist_state(state)
+            await refresh_snapshot_after_close(request, state)
             return {"ok": True, "order_id": result.get("orderId"), "plan": plan, "fill_price": fill_price,
                     "lock_wait_ms": lock_wait_ms, "total_ms": int((time.monotonic() - started) * 1000), "close_mode": result.get("close_mode")}
         try:
@@ -10192,6 +10205,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
             add_event(state, "LIVE_CLOSE", f"{plan['symbol']} tracked pozisyon reduce-only kapatıldı.", actor=user["id"], symbol=plan["symbol"],
                       fill_price=fill_price, lock_wait_ms=lock_wait_ms, total_ms=total_ms)
             persist_state(state)
+            await refresh_snapshot_after_close(request, state)
             return {"ok": True, "order_id": result.get("orderId") if result else None, "plan": plan,
                     "fill_price": fill_price, "lock_wait_ms": lock_wait_ms, "total_ms": total_ms, "close_mode": (result or {}).get("close_mode")}
         except LiveExchangeError as exc:
@@ -10227,6 +10241,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         add_event(state, "LIVE_CLOSE", f"{symbol} dış pozisyon kullanıcı isteğiyle reduce-only kapatıldı.", actor=user["id"], symbol=symbol,
                   fill_price=fill_price, total_ms=total_ms)
         persist_state(state)
+        await refresh_snapshot_after_close(request, state)
         return {"ok": True, "order_id": result.get("orderId"), "fill_price": fill_price, "total_ms": total_ms, "close_mode": result.get("close_mode")}
 
 
