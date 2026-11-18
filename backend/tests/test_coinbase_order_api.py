@@ -32,6 +32,7 @@ class Scripted(FakeExchange):
 
     async def transport(self, method, url, headers, params, timeout, content=None):
         self.calls.append((method, url, json.loads(content) if content else None))
+        self.last_params = params
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -107,6 +108,12 @@ class ApiTests(unittest.TestCase):
         c = self.client(*endless)
         with self.assertRaises(CoinbaseError):
             run(order_api.list_active_orders(c))
+
+    def test_list_sends_single_order_status(self):
+        c = self.client(_resp({"orders": [], "has_next": False}))
+        run(order_api.list_active_orders(c))
+        statuses = self.ex.last_params["order_status"]
+        self.assertEqual(len(statuses), 1)
 
     def test_list_has_next_without_cursor_fails(self):
         c = self.client(_resp({"orders": [], "has_next": True}))

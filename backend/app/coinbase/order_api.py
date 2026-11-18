@@ -18,6 +18,9 @@ from .trading_client import (
     ORDERS_PATH, CoinbaseTradingClient,
 )
 
+# Coinbase aktif emirleri tek istekte ister: "Cannot pass multiple statuses when requesting active orders".
+# Tek durum ("OPEN") gönderilir; Coinbase tüm aktif emirleri (bekleyen/kuyruktaki dahil) döndürür.
+ACTIVE_STATUS_QUERY = ("OPEN",)
 ACTIVE_STATUSES = ("OPEN", "PENDING", "QUEUED", "CANCEL_QUEUED", "EDIT_QUEUED")
 STOP_TYPES = ("STOP_LIMIT", "STOP", "BRACKET")
 _MAX_PAGES = 5
@@ -176,7 +179,7 @@ async def get_order(client: CoinbaseTradingClient, order_id: str) -> dict[str, A
 
 async def list_active_orders(client: CoinbaseTradingClient, product_id: str | None = None) -> list[dict[str, Any]]:
     """Aktif (açık/bekleyen) vadeli emirler. Sayfa sayısı aşılırsa HATA verir (eksik liste ile karar verilmez)."""
-    params: dict[str, Any] = {"order_status": list(ACTIVE_STATUSES), "product_type": "FUTURE", "limit": 250}
+    params: dict[str, Any] = {"order_status": list(ACTIVE_STATUS_QUERY), "product_type": "FUTURE", "limit": 250}
     if product_id:
         params["product_ids"] = [product_id]
     orders: list[dict[str, Any]] = []
