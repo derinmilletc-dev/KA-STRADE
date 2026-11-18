@@ -2,6 +2,19 @@ import {useState} from 'react'
 import {Eye, EyeOff, LockKeyhole, RefreshCw, ShieldCheck, Trash2} from 'lucide-react'
 import {CONFIRM} from './coinbase-manual'
 import {CoinbaseApiError, coinbaseCall} from './coinbase-manual-api'
+import './coinbase-manual.css'
+
+// Coinbase anahtarı oluşturma adımları: "?" düğmesine basınca açılır. Metin sade tutulur; anahtar değerleri burada gösterilmez.
+export const COINBASE_KEY_STEPS: string[] = [
+  'Coinbase hesabına gir: Ayarlar > API bölümünü aç ve "API anahtarı oluştur" de.',
+  'Bir ad yaz (örneğin KaisTrade) ve işlem yapacağın portföyü seç.',
+  'İzinlerde yalnız "View" ve "Trade" açık kalsın. "Transfer" ve "Receive" kutularının işaretini kaldır; para taşıma izni verme.',
+  'İmza algoritmasında "ECDSA (Legacy SDKs)" seç. "Ed25519" seçersen çalışmaz.',
+  '"Create & download" de. İnen dosyada iki bilgi var: "name" ve "privateKey".',
+  'Aşağıdaki "API anahtarı" alanına, "name" değerini yapıştır (organizations/ ile başlar).',
+  '"Gizli anahtar" alanına, "privateKey" değerini yapıştır (-----BEGIN EC PRIVATE KEY----- ile başlar). Tırnak ya da virgül kalırsa sorun olmaz.',
+  '2FA kodunu yaz, kutuyu işaretle ve "Kaydet ve bağlan" de. Sonra "Bağlantıyı test et" ile kontrol et.',
+]
 
 export type KeyMeta = {key_hint?: string; fingerprint?: string; created_at?: string; updated_at?: string} | null
 type Props = {lastChecked?: string; keySaved: boolean; meta: KeyMeta; vaultReady: boolean; vaultReason: string | null; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void; onTest: () => Promise<void>}
@@ -15,6 +28,7 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
   const [showSecret, setShowSecret] = useState(false)
   const [armedDelete, setArmedDelete] = useState(false)
   const [busy, setBusy] = useState<'' | 'save' | 'test' | 'delete'>('')
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const run = async (kind: 'save' | 'test' | 'delete', action: () => Promise<void>) => {
     setBusy(kind)
@@ -41,7 +55,12 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
   const canSave = !busy && vaultReady && accepted && keyName.trim().length >= 10 && privateKey.length >= 40 && totpOk
 
   return <div className="liveWsConnect">
-    <div className="liveWsConnectHead"><span className={`liveWsDot ${keySaved ? 'on' : ''}`}/><div><b>{keySaved ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Coinbase · Futures · Son kontrol: {lastChecked || '—'}</small></div></div>
+    <div className="liveWsConnectHead"><span className={`liveWsDot ${keySaved ? 'on' : ''}`}/><div><b>{keySaved ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Coinbase · Futures · Son kontrol: {lastChecked || '—'}</small></div><button type="button" className="cbHelpBtn" aria-label="Coinbase bağlantısı nasıl yapılır?" aria-expanded={helpOpen} aria-controls="coinbase-key-help" onClick={() => setHelpOpen(value => !value)}>?</button></div>
+    {helpOpen && <div id="coinbase-key-help" className="cbHelp" role="region" aria-label="Coinbase anahtarı oluşturma adımları">
+      <b>Coinbase'e nasıl bağlanırım?</b>
+      <ol>{COINBASE_KEY_STEPS.map(step => <li key={step}>{step}</li>)}</ol>
+      <p>Anahtarını kimseyle paylaşma, ekran görüntüsü atma. Sadece bu sitedeki alana yapıştır.</p>
+    </div>}
     {!vaultReady && <p className="liveWsWarn">Anahtar kasası hazır değil. {vaultReason || 'COINBASE_VAULT_MASTER_KEY ayarını kontrol et.'}</p>}
     {keySaved && <p className="liveWsHint">Kayıtlı anahtar: <b>{meta?.key_hint || '—'}</b>. Gizli kısım bir daha gösterilmez. Yenisini kaydedersen eskisinin yerine geçer.</p>}
     <div className="liveWsFields">

@@ -42,3 +42,9 @@
 .cbConfirm{display:grid;gap:4px;margin-top:10px;font-weight:700}
 .cbConfirm input{padding:10px;border:1px solid rgba(151,174,181,.28);border-radius:9px;font:inherit;background:#0a1118;color:#e9f1f2}
 .cbDeleteKey{color:#f6a39b!important}
+.liveWsConnect button.cbHelpBtn{margin-left:auto;flex:none;width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;border:1px solid rgba(46,242,170,.55);background:rgba(46,242,170,.1);color:#2ef2aa;font-weight:800;font-size:1rem;line-height:1;cursor:pointer}
+.liveWsConnect button.cbHelpBtn[aria-expanded="true"]{background:#2ef2aa;color:#04211f}
+.cbHelp{display:grid;gap:8px;padding:12px 14px;border-radius:12px;border:1px solid rgba(46,242,170,.35);background:rgba(46,242,170,.07);color:#e9f1f2;font-size:.9rem}
+.cbHelp b{color:#2ef2aa}
+.cbHelp ol{margin:0;padding-left:20px;display:grid;gap:6px}
+.cbHelp p{margin:0;font-size:.82rem;color:#f3dcab}
