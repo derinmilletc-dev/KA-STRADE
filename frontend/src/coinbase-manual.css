@@ -49,65 +49,60 @@
 .cbHelp ol{margin:0;padding-left:20px;display:grid;gap:6px}
 .cbHelp p{margin:0;font-size:.82rem;color:#f3dcab}
 
-/* ===== Modern Coinbase ekranı: özet kartı, kısa liste satırları, mobil düzen ===== */
-.cbHero{display:grid;gap:14px;padding:18px;border-radius:20px;color:#eaf2ed;background:linear-gradient(160deg,#10201b 0%,#0b1411 70%);box-shadow:inset 0 0 0 1px #26352f,0 10px 30px rgba(0,0,0,.25)}
-.cbHeroTop{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.cbHeroTitle{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:.95rem}
-.cbHeroTitle svg{width:18px;height:18px;color:#39d69a;flex:none}
-.cbHeroTitle b{font-weight:700;white-space:nowrap}
-.cbHeroTitle small{color:#94a49c;font-size:.8rem}
-.cbDot{width:8px;height:8px;border-radius:50%;background:#39d69a;box-shadow:0 0 0 4px rgba(57,214,154,.16);flex:none}
-.cbHero button.cbHeroRefresh{display:grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;border:0;border-radius:12px;background:rgba(255,255,255,.06);color:#eaf2ed;cursor:pointer}
-.cbHero button.cbHeroRefresh svg{width:18px;height:18px}
-.cbHero button.cbHeroRefresh:disabled{opacity:.5}
-.cbHeroMain{display:grid;gap:2px}
-.cbHeroMain small{font-size:.8rem;color:#94a49c}
-.cbHeroMain b{font-size:clamp(1.7rem,7vw,2.3rem);font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.cbHeroGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}
-.cbHeroGrid>div{display:grid;gap:2px;min-width:0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-.cbHeroGrid dt{font-size:.72rem;color:#94a49c;line-height:1.25}
-.cbHeroGrid dd{margin:0;font-size:.88rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.cbHeroGrid dd[data-tone='up']{color:#39d69a}.cbHeroGrid dd[data-tone='down']{color:#ef7777}
-.cbHeroEmpty{display:grid;gap:8px;padding:14px;border-radius:14px;background:rgba(232,183,92,.09);box-shadow:inset 0 0 0 1.5px rgba(232,183,92,.4)}
-.cbHeroEmpty b{color:#e8b75c;font-size:.98rem}
-.cbHeroEmpty p{margin:0;font-size:.86rem;color:#d9e3dd;line-height:1.45}
-.cbHeroEmpty ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.86rem;color:#d9e3dd}
-.cbHero .cbHeroEmpty button{justify-self:start;min-height:42px;padding:0 18px;border:0;border-radius:12px;background:#e8b75c;color:#2b1a05;font-weight:800;cursor:pointer}
-.cbHero .cbHeroEmpty button:disabled{opacity:.55}
-.cbHeroChips{display:flex;flex-wrap:wrap;gap:6px}
-.cbChip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 11px;border-radius:999px;font-size:.78rem;font-weight:700;background:rgba(255,255,255,.06);color:#c3d0c9}
-.cbChip svg{width:13px;height:13px}
-.cbChip[data-tone='ok']{background:rgba(57,214,154,.12);color:#83e8b7}
-.cbChip[data-tone='warn']{background:rgba(232,183,92,.13);color:#e8b75c}
-.cbChip[data-tone='bad']{background:rgba(239,119,119,.14);color:#ef9a9a}
-
-/* Liste satırı: tek bakışta okunur (ad + fiyat + değişim, altında LONG/SHORT yüzdeleri) */
-.cbMini{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-width:0;font-size:12px;color:#94a49c}
-.cbMiniSide{display:inline-flex;gap:5px;align-items:baseline;opacity:.55;font-weight:700;letter-spacing:.02em}
-.cbMiniSide b{font-size:13px;font-variant-numeric:tabular-nums}
-.cbMiniL b{color:#39d69a}.cbMiniS b{color:#ef7777}
-.cbMiniSide[data-lead='true']{opacity:1}
-.cbMini[data-lean='NEUTRAL'] .cbMiniSide{opacity:.85}
-.cbMiniLean{margin-left:auto;font-weight:600;white-space:nowrap}
-.cbMini[data-lean='LONG'] .cbMiniLean{color:#39d69a}.cbMini[data-lean='SHORT'] .cbMiniLean{color:#ef7777}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCard{gap:6px;padding:11px 12px 11px 16px!important}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCard::before{top:10px;bottom:10px}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCardTop strong{font-size:15px}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRow{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRow .cbMini{grid-column:1/-1;grid-row:2}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRowPrice{display:block}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkPickScroll{max-height:420px}
-
-/* Adım şeridi: Binance'e özel mobil kurallara bağlı kalmadan her ekranda düzgün (Ürün yazısı kırılmaz) */
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps button{white-space:nowrap;min-width:0;padding:0 6px!important}
-@media (max-width:640px){
-  .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps button span{display:none}
-  .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li[data-state='current'] button span{display:inline}
-  .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps{grid-template-columns:repeat(4,44px) minmax(0,1fr)}
-  .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtCard{padding:16px}
-  .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtMHead,.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtKicker{display:none}
-  .cbHeroGrid{grid-template-columns:1fr 1fr}
-  .cbHeroGrid>div:first-child{grid-column:1/-1}
-  .cbTerminal{padding-bottom:96px}
-}
+/* Modern Coinbase ekranı */
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero{display:grid !important;gap:14px !important;padding:18px !important;border-radius:20px !important;color:#eaf2ed !important;background:linear-gradient(160deg,#10201b 0%,#0b1411 70%) !important;box-shadow:inset 0 0 0 1px #26352f,0 10px 30px rgba(0,0,0,.25) !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroTop{display:flex !important;align-items:center !important;justify-content:space-between !important;gap:10px !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroTitle{display:inline-flex !important;align-items:center !important;gap:8px !important;min-width:0 !important;font-size:.95rem !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroTitle svg{width:18px !important;height:18px !important;color:#39d69a !important;flex:none !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroTitle b{font-weight:700 !important;white-space:nowrap !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroTitle small{color:#94a49c !important;font-size:.8rem !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbDot{width:8px !important;height:8px !important;border-radius:50% !important;background:#39d69a !important;box-shadow:0 0 0 4px rgba(57,214,154,.16) !important;flex:none !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero button.cbHeroRefresh{display:grid !important;place-items:center !important;width:40px !important;height:40px !important;min-height:40px !important;padding:0 !important;border:0 !important;border-radius:12px !important;background:rgba(255,255,255,.06) !important;color:#eaf2ed !important;cursor:pointer !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero button.cbHeroRefresh svg{width:18px !important;height:18px !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero button.cbHeroRefresh:disabled{opacity:.5 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroMain{display:grid !important;gap:2px !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroMain small{font-size:.8rem !important;color:#94a49c !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroMain b{font-size:clamp(1.7rem,7vw,2.3rem) !important;font-weight:800 !important;line-height:1.1 !important;font-variant-numeric:tabular-nums !important;letter-spacing:-.01em !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:8px !important;margin:0 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid>div{display:grid !important;gap:2px !important;min-width:0 !important;padding:10px 12px !important;border-radius:12px !important;background:rgba(255,255,255,.04) !important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05) !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid dt{font-size:.72rem !important;color:#94a49c !important;line-height:1.25 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid dd{margin:0 !important;font-size:.88rem !important;font-weight:700 !important;font-variant-numeric:tabular-nums !important;overflow-wrap:anywhere !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid dd[data-tone='up']{color:#39d69a !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid dd[data-tone='down']{color:#ef7777 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroEmpty{display:grid !important;gap:8px !important;padding:14px !important;border-radius:14px !important;background:rgba(232,183,92,.09) !important;box-shadow:inset 0 0 0 1.5px rgba(232,183,92,.4) !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroEmpty b{color:#e8b75c !important;font-size:.98rem !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroEmpty p{margin:0 !important;font-size:.86rem !important;color:#d9e3dd !important;line-height:1.45 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroEmpty ol{list-style:decimal !important;margin:0 !important;padding-left:20px !important;display:grid !important;gap:4px !important;font-size:.86rem !important;color:#d9e3dd !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero .cbHeroEmpty button{justify-self:start !important;min-height:42px !important;padding:0 18px !important;border:0 !important;border-radius:12px !important;background:#e8b75c !important;color:#2b1a05 !important;font-weight:800 !important;cursor:pointer !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHero .cbHeroEmpty button:disabled{opacity:.55 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbHeroChips{display:flex !important;flex-wrap:wrap !important;gap:6px !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbChip{display:inline-flex !important;align-items:center !important;gap:6px !important;min-height:28px !important;padding:0 11px !important;border-radius:999px !important;font-size:.78rem !important;font-weight:700 !important;background:rgba(255,255,255,.06) !important;color:#c3d0c9 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbChip svg{width:13px !important;height:13px !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbChip[data-tone='ok']{background:rgba(57,214,154,.12) !important;color:#83e8b7 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbChip[data-tone='warn']{background:rgba(232,183,92,.13) !important;color:#e8b75c !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbChip[data-tone='bad']{background:rgba(239,119,119,.14) !important;color:#ef9a9a !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMini{display:flex !important;flex-wrap:wrap !important;align-items:center !important;gap:4px 12px !important;min-width:0 !important;font-size:12px !important;color:#94a49c !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniSide{display:inline-flex !important;gap:5px !important;align-items:baseline !important;opacity:.55 !important;font-weight:700 !important;letter-spacing:.02em !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniSide b{font-size:13px !important;font-variant-numeric:tabular-nums !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniL b{color:#39d69a !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniS b{color:#ef7777 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniSide[data-lead='true']{opacity:1 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMini[data-lean='NEUTRAL'] .cbMiniSide{opacity:.85 !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMiniLean{margin-left:auto !important;font-weight:600 !important;white-space:nowrap !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMini[data-lean='LONG'] .cbMiniLean{color:#39d69a !important}
+.cbTerminal:not(#a):not(#b):not(#c) .cbMini[data-lean='SHORT'] .cbMiniLean{color:#ef7777 !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCard{gap:6px !important;padding:11px 12px 11px 16px!important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCard::before{top:10px !important;bottom:10px !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkCardTop strong{font-size:15px !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRow{grid-template-columns:minmax(0,1fr) auto auto !important;gap:4px 12px !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRow .cbMini{grid-column:1/-1 !important;grid-row:2 !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkRowPrice{display:block !important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cpkPickScroll{max-height:420px !important}
+@media (max-width:640px){.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtCard{padding:16px !important}.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtMHead,.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtKicker{display:none !important}.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid{grid-template-columns:1fr 1fr !important}.cbTerminal:not(#a):not(#b):not(#c) .cbHeroGrid>div:first-child{grid-column:1/-1 !important}.cbTerminal{padding-bottom:96px !important}}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps{display:flex!important;gap:6px!important;grid-template-columns:none!important}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li{flex:0 0 44px;min-width:0}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li[data-state='current']{flex:1 1 auto}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li button{width:100%!important;white-space:nowrap}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li button span{display:none}
+.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li[data-state='current'] button span{display:inline}
+@media (min-width:641px){.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li{flex:1 1 0}.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .mxtSteps li button span{display:inline}}

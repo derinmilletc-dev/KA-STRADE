@@ -330,7 +330,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const pickRows = pickAll.slice(0, PICK_LIMIT)
   const sortLabel = (SORT_CHIPS.find(([key]) => key === coinSort) || [null, ''])[1]
   const signalNote = signals !== null && Object.keys(signals).length === 0 ? 'Bu ürünler için Kais AI analizi eşleşmedi (dayanak varlık bilinmiyor ya da analiz evreninde yok).' : ''
-  const picksBlock = !coinOpen && <section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
+  const picksBlock = !coinOpen && <div className="cpk"><section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
     <header className="cpkPicksHead"><h5>Kais AI güçlü sinyaller</h5>{universe === null && !signalsError && <span className="cpkStatus">Analiz yükleniyor…</span>}{signalsError && <span className="cpkStatus warn">Analiz şu an alınamadı; liste hacme göre.</span>}</header>
     {toolbar}
     {universe === null && !signalsError && <ul className="cpkPickList" aria-hidden="true">{[0, 1, 2, 3].map(index => <li key={index} className="cpkSkeleton"/>)}</ul>}
@@ -345,7 +345,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       </button></li>
     })}</ul>}
     <p className="cpkNote">{AI_DISCLAIMER}</p>
-  </section>
+  </section></div>
   const coinBlock = <div className="liveWsBlock liveWsCoin cpk">
     <span className="liveWsLabel">1 · Ürün</span>
     <button type="button" className="liveWsCoinBtn cpkHero" data-lean={selectedSignal?.lean ?? 'NONE'} aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
