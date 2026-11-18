@@ -164,7 +164,8 @@ export default function ExchangeConnections() {
   })
 
   const deleteConnection = () => execute(`delete-${selected}`,async () => {
-    if (!window.confirm(`${selected === 'TESTNET' ? 'Testnet' : 'Gerçek hesap'} şifreli anahtar kaydı kalıcı olarak silinsin mi?`)) return
+    if (!window.confirm(`${selected === 'TESTNET' ? 'Testnet' : 'Gerçek hesap'} bağlantısı kesilsin ve şifreli anahtar kaydı kalıcı olarak silinsin mi?`)) return
+    if (connection?.active) await call<ConnectionStatus & {message:string}>('/deactivate',{method:'POST',body:JSON.stringify({mode:selected,confirmation:'BAĞLANTIYI KAPAT'})})
     const next = await call<ConnectionStatus & {message:string}>('/credentials',{method:'DELETE',body:JSON.stringify({mode:selected,confirmation:'ANAHTARI KALICI SİL'})})
     setStatus(next);setForms(current => ({...current,[selected]:emptyForm()}));setTotpCode('');setNotice({kind:'ok',text:next.message})
   })
@@ -230,7 +231,7 @@ export default function ExchangeConnections() {
           {!connection?.active
             ? <button className="activate" onClick={activateConnection} disabled={Boolean(busy) || (rateLimitSeconds !== null && rateLimitSeconds > 0) || !connection?.configured || !connection?.last_test_ok}>{busy === `activate-${selected}` ? <LoaderCircle className="spin"/> : <Power/>}BAĞLANTIYI AKTİFLEŞTİR</button>
             : <button className="deactivate" onClick={deactivateConnection} disabled={Boolean(busy)}>{busy === `deactivate-${selected}` ? <LoaderCircle className="spin"/> : <PowerOff/>}BAĞLANTIYI KAPAT</button>}
-            <button className="delete" onClick={deleteConnection} disabled={Boolean(busy) || !connection?.configured || connection?.active}>{busy === `delete-${selected}` ? <LoaderCircle className="spin"/> : <Trash2/>}ANAHTARI SİL</button>
+            <button className="delete" onClick={deleteConnection} disabled={Boolean(busy) || !connection?.configured}>{busy === `delete-${selected}` ? <LoaderCircle className="spin"/> : <Trash2/>}BAĞLANTIYI KES (ANAHTARI SİL)</button>
         </div>
       </section>
     </div>
