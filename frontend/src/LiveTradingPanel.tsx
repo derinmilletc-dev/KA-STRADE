@@ -61,7 +61,7 @@ type LiveStatus = {
   authorization?: {valid?: boolean; expires_at?: string | null; reason?: string; scope_match?: boolean}
   readiness?: {ready?: boolean; gates?: Array<{key?: string; label?: string; passed?: boolean; detail?: string}>}
   account?: {wallet_balance?: number | null; available_balance?: number | null; margin_balance?: number | null; unrealized_pnl?: number | null; positions?: Array<Record<string, unknown>>; open_orders?: Array<Record<string, unknown>>}
-  daily?: {realized_pnl?: number; remaining_loss_budget?: number; entries?: number; consecutive_losses?: number; unverified_closures?: number}
+  daily?: {realized_pnl?: number; pnl_source?: string; remaining_loss_budget?: number; entries?: number; consecutive_losses?: number; unverified_closures?: number}
   plans?: Array<Record<string, unknown> & {targets?: unknown[]; stop_loss?: unknown; protection_state?: string; protection_status?: string; exchange_protection?: {stop: boolean; tp1: boolean; tp2?: boolean; tp3: boolean}}>
   events?: Array<{kind?: string; message?: string; created_at?: string; symbol?: string; failures?: string[]}>
   emergency?: {active?: boolean; reason?: string | null; triggered_at?: string | null}
