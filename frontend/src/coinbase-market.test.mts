@@ -46,5 +46,6 @@ test('biçimleyiciler', () => {
   assert.equal(changeText(0.5), '+0.50%')
   assert.equal(expiryText('2030-12-20T16:00:00Z'), '20.12.2030')
   assert.equal(expiryText('abc'), null)
+  assert.equal(expiryText('2089-12-30T00:00:00Z'), null)
   assert.equal(expiryText(null), null)
 })
