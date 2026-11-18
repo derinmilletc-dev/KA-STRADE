@@ -166,7 +166,14 @@ export default function ExchangeConnections() {
   const deleteConnection = () => execute(`delete-${selected}`,async () => {
     if (!window.confirm(`${selected === 'TESTNET' ? 'Testnet' : 'Gerçek hesap'} bağlantısı kesilsin ve şifreli anahtar kaydı kalıcı olarak silinsin mi?`)) return
     if (connection?.active) await call<ConnectionStatus & {message:string}>('/deactivate',{method:'POST',body:JSON.stringify({mode:selected,confirmation:'BAĞLANTIYI KAPAT'})})
-    const next = await call<ConnectionStatus & {message:string}>('/credentials',{method:'DELETE',body:JSON.stringify({mode:selected,confirmation:'ANAHTARI KALICI SİL'})})
+    const send = (force:boolean) => call<ConnectionStatus & {message:string}>('/credentials',{method:'DELETE',body:JSON.stringify({mode:selected,confirmation:'ANAHTARI KALICI SİL',...(force ? {force_open_positions:true} : {})})})
+    let next:ConnectionStatus & {message:string}
+    try { next = await send(false) } catch (error) {
+      // Açık pozisyon varken silme, kullanıcı riski açıkça kabul ederse yapılır.
+      if (!(error instanceof Error) || !error.message.includes('Açık pozisyon varken')) throw error
+      if (!window.confirm('Binance hesabında AÇIK POZİSYON var. Anahtar silinirse KaisTrade pozisyonu yönetemez, stop koyamaz ve kapatamaz; pozisyonu Binance uygulamasından sen yönetmelisin. Yine de silinsin mi?')) return
+      next = await send(true)
+    }
     setStatus(next);setForms(current => ({...current,[selected]:emptyForm()}));setTotpCode('');setNotice({kind:'ok',text:next.message})
   })
 

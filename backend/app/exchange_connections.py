@@ -179,6 +179,7 @@ class ConnectionActionRequest(BaseModel):
     confirmation: str = Field(min_length=1, max_length=100)
     totp_code: str | None = Field(default=None, min_length=6, max_length=32, repr=False)
     expected_fingerprint: str | None = Field(default=None, pattern=r"^(?:SHA256:)?[0-9A-Fa-f]{12}$")
+    force_open_positions: bool = False  # yalnız anahtar silmede: kullanıcı açık pozisyonu bilerek kabul ediyor
 
 
 def now_iso() -> str:
@@ -1741,7 +1742,7 @@ async def _delete_connection(request: Request, body: ConnectionActionRequest) ->
     if api_key and secret_key:
         try:
             account = await _verify_request_credentials(request, mode, api_key, secret_key)
-            if int(account.get("active_positions") or 0) > 0:
+            if int(account.get("active_positions") or 0) > 0 and not body.force_open_positions:
                 raise HTTPException(409, "Açık pozisyon varken anahtar silinemez. Önce Binance hesabındaki pozisyonları güvenle kapatın.")
         except HTTPException:
             raise
