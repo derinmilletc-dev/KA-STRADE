@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, AlertTriangle, CheckCircle2, Database,
   KeyRound, Link2, LoaderCircle, LockKeyhole, Power, PowerOff,
@@ -109,6 +109,7 @@ export default function ExchangeConnections() {
     return () => window.clearInterval(timer)
   },[])
 
+  const switchAckRef = useRef(false)
   const form = forms[selected]
   const connection = status?.connections[selected]
   const patchForm = (patch:Partial<FormState>) => setForms(current => ({...current,[selected]:{...current[selected],...patch}}))
@@ -134,7 +135,26 @@ export default function ExchangeConnections() {
     if (!form.apiKey || !form.secretKey) throw new Error('API Key ve Secret Key alanlarını doldurun.')
     if (!form.accepted) throw new Error('Güvenli saklama açıklamasını okuyup onay kutusunu işaretleyin.')
     const confirmation = selected === 'TESTNET' ? 'TESTNET KASAYA KAYDET' : 'CANLI KASAYA KAYDET'
-    const next = await call<ConnectionStatus & {message:string}>('/save',{method:'POST',body:JSON.stringify({mode:selected,api_key:form.apiKey,secret_key:form.secretKey,confirmation,...(selected === 'LIVE' ? {totp_code:totpCode} : {})})})
+    const send = (acknowledge:boolean) => call<ConnectionStatus & {message:string}>('/save',{method:'POST',body:JSON.stringify({mode:selected,api_key:form.apiKey,secret_key:form.secretKey,confirmation,...(selected === 'LIVE' ? {totp_code:totpCode} : {}),...(acknowledge ? {acknowledge_open_exposure:true} : {})})})
+    const SWITCH_WARNING = 'Açık işlem var. Yeni hesaba geçmek istiyor musun?\n\nEski hesaptaki açık işlem KaisTrade\'den yönetilmez; stop ve kapatmayı Binance uygulamasından sen yapmalısın. Yeni hesapta emir kilidi kapalı başlar.'
+    let acknowledge = switchAckRef.current
+    // Açık pozisyon zaten görünüyorsa onay en başta sorulur; evet denirse tek seferde geçilir (2FA kodu tekrar gerekmez).
+    if (!acknowledge && selected === 'LIVE' && connection?.configured && Number(connection.account?.active_positions ?? 0) > 0) {
+      if (!window.confirm(SWITCH_WARNING)) return
+      acknowledge = true
+    }
+    let next:ConnectionStatus & {message:string}
+    try { next = await send(acknowledge) } catch (error) {
+      // Açık işlem / belirsiz durum yüzünden hesap değişimi reddedildiyse: sade onay sor. 2FA kodu tek kullanımlık olduğu için
+      // onaydan sonra kullanıcı yeni kodla tekrar basar; onay o tekrar için hatırlanır.
+      const blocked = selected === 'LIVE' && !acknowledge && error instanceof Error && /yürütme durumu belirsiz|Açık pozisyon veya emir varken|farklı bir Binance hesabına/.test(error.message)
+      if (!blocked) throw error
+      if (!window.confirm(SWITCH_WARNING)) return
+      switchAckRef.current = true
+      setTotpCode('')
+      setNotice({kind:'warn',text:'Onaylandı. Yeni 2FA kodunu yazıp tekrar "ŞİFRELİ KAYDET"e bas.'})
+      return
+    } finally { if (acknowledge) switchAckRef.current = false }
     setStatus(next)
     setForms(current => ({...current,[selected]:emptyForm()}))
     setTotpCode('')

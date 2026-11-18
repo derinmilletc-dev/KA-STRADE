@@ -160,6 +160,7 @@ class SaveCredentialsRequest(BaseModel):
     secret_key: SecretStr
     confirmation: str = Field(min_length=1, max_length=80)
     totp_code: str | None = Field(default=None, min_length=6, max_length=32, repr=False)
+    acknowledge_open_exposure: bool = False  # kullanıcı açık işlem varken hesap değiştirmeyi ekranda onayladı
 
 
 class TestCredentialsRequest(BaseModel):
@@ -1344,7 +1345,7 @@ def _lock_runtime(application: Any, mode: str, request: Request) -> None:
             persist_state(state)
 
 
-def _live_credential_identity(request: Request, fingerprint: str, account: Any) -> str:
+def _live_credential_identity(request: Request, fingerprint: str, account: Any, force: bool = False) -> str:
     from .v25_execution import current_user_id, live_plan_is_active, unresolved_execution_evidence
 
     identity = account_identity(account, "LIVE", fingerprint)
@@ -1355,6 +1356,9 @@ def _live_credential_identity(request: Request, fingerprint: str, account: Any) 
     if authorization.get("user_id") != current_user_id(request):
         return identity
     if normalize_fingerprint(str(authorization.get("fingerprint") or "")) == normalize_fingerprint(fingerprint):
+        return identity
+    if force:
+        # Kullanıcı açık işlem/belirsiz durumu bilerek kabul etti; bağlama sonrası LIVE emir kilidi yine kapalı kalır.
         return identity
     if state.get("reconciliation_required") or state.get("execution_state") == "UNKNOWN" or unresolved_execution_evidence(state):
         raise HTTPException(409, "LIVE yürütme durumu belirsiz; anahtar değişimi için önce kurtarma kontrolü gerekli.")
@@ -1371,7 +1375,7 @@ def _live_credential_identity(request: Request, fingerprint: str, account: Any) 
     return identity
 
 
-def _bind_live_credential(request: Request, fingerprint: str, account: Any) -> None:
+def _bind_live_credential(request: Request, fingerprint: str, account: Any, force: bool = False) -> None:
     from .v25_execution import current_user_id, initial_state, persist_state
 
     state = getattr(request.app.state, "v25_execution", None)
@@ -1380,7 +1384,7 @@ def _bind_live_credential(request: Request, fingerprint: str, account: Any) -> N
     authorization = state.get("live_session_authorization") or {}
     if not authorization.get("user_id") or authorization.get("user_id") != current_user_id(request):
         return
-    identity = _live_credential_identity(request, fingerprint, account)
+    identity = _live_credential_identity(request, fingerprint, account, force)
     if normalize_fingerprint(str(authorization.get("fingerprint") or "")) == normalize_fingerprint(fingerprint):
         return
     _lock_runtime(request.app, "LIVE", request)
@@ -1526,7 +1530,7 @@ async def _save_connection(request: Request, body: SaveCredentialsRequest) -> di
         raise HTTPException(422 if "kısa" in str(exc) or "boşluk" in str(exc) else 502, str(exc)) from exc
     scope, owner_id = _vault_scope(request, mode)
     if mode == "LIVE":
-        _live_credential_identity(request, fingerprint, account)
+        _live_credential_identity(request, fingerprint, account, body.acknowledge_open_exposure)
     try:
         logger.info("CONNECTION_SAVE VAULT_WRITE_START mode=%s fingerprint=%s", mode, fingerprint)
         if mode == "LIVE":
@@ -1608,7 +1612,7 @@ async def _save_connection(request: Request, body: SaveCredentialsRequest) -> di
     }
     _lock_runtime(request.app, mode, request)
     if mode == "LIVE":
-        _bind_live_credential(request, fingerprint, account)
+        _bind_live_credential(request, fingerprint, account, body.acknowledge_open_exposure)
     return {
         **session_public_status(request.app, request),
         "verification": {
