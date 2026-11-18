@@ -4,6 +4,9 @@ import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
 import { accountNetPnl } from './net-pnl'
+import {useCoinbaseVisible} from './frontend/src/useCoinbaseVisible'
+import {readExchange, writeExchange} from './frontend/src/exchange-pref'
+import type {Exchange} from './frontend/src/CoinbaseExchangeSwitch'
 import './mobile-home.css'
 
 // Telefon ana sayfası (<=700px). Tek ekran, kaydırma yok: selam, canlı/demo bakiye, abonelik durumu,
@@ -20,7 +23,7 @@ type UniverseRow = {symbol: string; display: string; price: number; change: numb
 // Metinler bileşende iki dilli tutulur: tarihli cümleler sözlük çevirisiyle doğru kurulamaz.
 const COPY = {
   tr: {greet: (h: number) => h < 5 ? 'İyi geceler' : h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar', home: 'Ana sayfa',
-    liveTitle: 'Toplam bakiye · Binance Futures', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
+    liveTitle: 'Toplam bakiye · Binance Futures', coinbaseTitle: 'Futures bakiyesi · Coinbase', exchange: 'Borsa', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
     unrealized: 'Gerçekleşmemiş', open: (n: number) => `${n} açık işlem`, liveOff: 'Canlı hesap bağlı değil', demoOff: 'Demo hesap bağlı değil',
     connect: 'Bağla', portfolio: 'Portföyüm', setupSub: 'Bakiyeni ve işlemlerini takip et.', aiTag: 'AI FIRSATI', setupTitle: 'Hesabını bağla', setupText: 'Binance hesabını ya da demo hesabını bağla; bakiyen ve işlemlerin burada görünsün.', setupLive: 'Binance bağla', setupDemo: 'Demo hesap', notConnectedLink: 'Bağla', selectedOff: 'Bu hesap henüz bağlı değil.', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
     trial: 'Deneme', trialEnds: (d: string) => `${d} tarihinde sona erer`, trialOn: 'Deneme süresi devam ediyor',
@@ -29,7 +32,7 @@ const COPY = {
     market: 'Piyasa', direction: 'Genel yön', up: 'Yükseliş', down: 'Düşüş', flat: 'Dengeli', waiting: 'Piyasa verisi bekleniyor…',
     featured: 'Öne çıkan fırsat', scanning: 'Tarama yapılıyor…', change24: '24s', locale: 'tr-TR'},
   en: {greet: (h: number) => h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', home: 'Home',
-    liveTitle: 'Total balance · Binance Futures', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
+    liveTitle: 'Total balance · Binance Futures', coinbaseTitle: 'Futures balance · Coinbase', exchange: 'Exchange', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
     unrealized: 'Unrealized', open: (n: number) => `${n} open ${n === 1 ? 'trade' : 'trades'}`, liveOff: 'Live account not connected', demoOff: 'Demo account not connected',
     connect: 'Connect', portfolio: 'Portfolio', setupSub: 'Track your balance and trades.', aiTag: 'AI SETUP', setupTitle: 'Connect your account', setupText: 'Connect your Binance or demo account to see your balance and trades here.', setupLive: 'Connect Binance', setupDemo: 'Demo account', notConnectedLink: 'Connect', selectedOff: 'This account is not connected yet.', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
     trial: 'Trial', trialEnds: (d: string) => `Ends on ${d}`, trialOn: 'Trial in progress',
@@ -76,6 +79,9 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   const [demo, setDemo] = useState<DemoAccount | null>(null)
   const [universe, setUniverse] = useState<UniverseRow[]>([])
   const [tab, setTab] = useState<'live' | 'demo' | null>(null)
+  const coinbaseVisible = useCoinbaseVisible()
+  const [coinbase, setCoinbase] = useState<Account | null>(null)
+  const [exchangePick, setExchangePick] = useState<Exchange | null>(() => readExchange())
   // İlk yanıtlar gelene kadar yanlış durum (ör. bağlı hesap için "Hesabını bağla", premium için "Ücretsiz plan") göstermeyiz.
   const [loaded, setLoaded] = useState({session: false, subscription: false, live: false, demo: false})
   const [timedOut, setTimedOut] = useState(false)
@@ -95,21 +101,38 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       void getJson<DemoAccount>('/binance-demo/account', controller.signal).then(value => { setDemo(value); markLoaded('demo') })
     }
     const scan = () => void getJson<{results?: UniverseRow[]}>('/analysis-universe?interval=15m&limit=40', controller.signal).then(payload => setUniverse(Array.isArray(payload?.results) ? payload.results : []))
+    // Coinbase (yalnız izinli hesaplarda): anahtar kayıtlı değilse ya da okunamazsa istek null döner, kart Binance'te kalır.
+    const coinbaseBalance = () => void Promise.all([
+      getJson<{balance?: {cfm_usd_balance?: {value?: string | null} | null; total_usd_balance?: {value?: string | null} | null; unrealized_pnl?: {value?: string | null} | null}}>('/coinbase/account', controller.signal),
+      getJson<{positions?: unknown[]}>('/coinbase/positions', controller.signal),
+    ]).then(([account, positions]) => {
+      const balance = account?.balance
+      const wallet = Number(balance?.cfm_usd_balance?.value ?? balance?.total_usd_balance?.value)
+      const pnl = Number(balance?.unrealized_pnl?.value)
+      setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: Number.isFinite(pnl) ? pnl : null, positions: Array.isArray(positions?.positions) ? positions.positions : []} : null)
+    })
+    if (coinbaseVisible) coinbaseBalance()
     balances(); scan()
-    const balanceTimer = window.setInterval(balances, 30_000)
+    const balanceTimer = window.setInterval(() => { balances(); if (coinbaseVisible) coinbaseBalance() }, 30_000)
     const scanTimer = window.setInterval(scan, 60_000)
     // Yavaş/asılı istekte sayfa sonsuza dek iskelette kalmasın.
     const settleTimer = window.setTimeout(() => setTimedOut(true), 4000)
     return () => { controller.abort(); window.clearInterval(balanceTimer); window.clearInterval(scanTimer); window.clearTimeout(settleTimer) }
-  }, [])
+  }, [coinbaseVisible])
 
   const liveReady = Boolean(live && (live.connected || live.credentials?.configured) && finite(live.account?.wallet_balance))
   const demoReady = Boolean(demo && demo.configured !== false && finite(demo.wallet_balance))
-  const active = tab ?? (liveReady || !demoReady ? 'live' : 'demo')
-  const shown = active === 'live' ? live?.account : demo
-  const shownReady = active === 'live' ? liveReady : demoReady
-  const other = active === 'live' ? demo : live?.account
-  const otherReady = active === 'live' ? demoReady : liveReady
+  const coinbaseReady = coinbaseVisible && Boolean(coinbase && finite(coinbase.wallet_balance))
+  // Seçili borsa: kayıtlı tercih; tercih yoksa Binance bağlı değil ama Coinbase bağlıysa Coinbase.
+  const exchange: Exchange = !coinbaseVisible ? 'binance' : exchangePick ?? (!liveReady && coinbaseReady ? 'coinbase' : 'binance')
+  const onCoinbase = exchange === 'coinbase'
+  const pickExchange = (next: Exchange) => { writeExchange(next); setExchangePick(next) }
+  const liveShownReady = onCoinbase ? coinbaseReady : liveReady
+  const active = tab ?? (liveShownReady || !demoReady ? 'live' : 'demo')
+  const shown = active === 'live' ? (onCoinbase ? coinbase : live?.account) : demo
+  const shownReady = active === 'live' ? liveShownReady : demoReady
+  const other = active === 'live' ? demo : (onCoinbase ? coinbase : live?.account)
+  const otherReady = active === 'live' ? demoReady : liveShownReady
 
   const watch = useMemo(() => {
     const picked = WATCH.map(symbol => markets.find(item => item.symbol === symbol)).filter((item): item is Market => Boolean(item))
@@ -140,7 +163,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
     <p className="mhHello">{t.greet(new Date().getHours())}{name ? <>, <b>{name}</b></> : null}</p>
 
     {!settled ? <div className="mhCard mhSkel" aria-busy="true" aria-hidden="true"><i className="w40"/><i className="big"/><i className="w60"/></div>
-    : !liveReady && !demoReady ? <div className="mhCard mhSetup">
+    : !liveReady && !demoReady && !coinbaseReady ? <div className="mhCard mhSetup">
       <div className="mhCoinArt" aria-hidden="true"><Coin symbol="ETHUSDT"/><Coin symbol="BNBUSDT"/><Coin symbol="BTCUSDT"/></div>
       <div className="mhCardHead"><span className="mhIconTile"><Wallet aria-hidden="true"/></span><b>{t.portfolio}</b></div>
       <h2>{t.setupTitle}</h2>
@@ -158,11 +181,15 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
           <button type="button" role="tab" aria-selected={active === 'demo'} className={active === 'demo' ? 'on' : ''} onClick={() => setTab('demo')}>{t.demo}</button>
         </div>
       </div>
-      <small className="mhBalanceLabel">{active === 'live' ? t.liveTitle : t.demoTitle}</small>
+      {coinbaseVisible && active === 'live' && <div className="mhTabs mhExchange" role="tablist" aria-label={t.exchange}>
+        <button type="button" role="tab" aria-selected={!onCoinbase} className={!onCoinbase ? 'on' : ''} onClick={() => pickExchange('binance')}>Binance</button>
+        <button type="button" role="tab" aria-selected={onCoinbase} className={onCoinbase ? 'on' : ''} onClick={() => pickExchange('coinbase')}>Coinbase</button>
+      </div>}
+      <small className="mhBalanceLabel">{active === 'live' ? (onCoinbase ? t.coinbaseTitle : t.liveTitle) : t.demoTitle}</small>
       {shownReady && shown ? <>
-        <div className="mhAmount">{money(shown.wallet_balance as number)}<span>USDT</span></div>
+        <div className="mhAmount">{money(shown.wallet_balance as number)}<span>{active === 'live' && onCoinbase ? 'USD' : 'USDT'}</span></div>
         <div className="mhChange">
-          {finite(shown.unrealized_pnl) && (() => { const open = accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
+          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: false} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
       </> : <div className="mhEmpty">
@@ -171,7 +198,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       </div>}
       <div className="mhOther">
         <span>{active === 'live' ? t.demoAcc : t.liveAcc}</span>
-        {otherReady && other ? <span><b>{money(other.wallet_balance as number)}</b> USDT</span>
+        {otherReady && other ? <span><b>{money(other.wallet_balance as number)}</b> {active === 'demo' && onCoinbase ? 'USD' : 'USDT'}</span>
           : <button type="button" className="mhLink" onClick={() => onNavigate('setup')}>{t.notConnectedLink}<ChevronRight aria-hidden="true"/></button>}
       </div>
     </div>}

@@ -6,6 +6,7 @@ import { API_BASE } from './api'
 import {loadWorkspaceWithDeadline} from '../../browser-request'
 import {useCoinbaseVisible} from './useCoinbaseVisible'
 import CoinbaseExchangeSwitch, {type Exchange} from './CoinbaseExchangeSwitch'
+import {readExchange, writeExchange} from './exchange-pref'
 
 const BinanceDemo = lazy(() => loadWorkspaceWithDeadline(() => import('./BinanceDemo')))
 const LiveTradingPanel = lazy(() => loadWorkspaceWithDeadline(() => import('./LiveTradingPanel')))
@@ -106,7 +107,8 @@ function TestnetMarketChart({symbol,interval,onAnalysis,showLevels=true,showEma=
 export default function TestnetFirstApp() {
   const [view,setView] = useState<View>('live')
   const coinbaseVisible = useCoinbaseVisible()
-  const [exchange,setExchange] = useState<Exchange>('binance')
+  const [exchange,setExchangeState] = useState<Exchange>(() => readExchange() ?? 'binance')
+  const setExchange = (next: Exchange) => { writeExchange(next); setExchangeState(next) }
   const coinbaseMode = coinbaseVisible && exchange === 'coinbase' && (view === 'live' || view === 'setup')
   const [markets,setMarkets] = useState<Market[]>([])
   const [symbol,setSymbol] = useState('BTCUSDT')

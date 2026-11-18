@@ -2,6 +2,7 @@ import { useLiveEventNotifications } from './notification-prefs'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefCallback } from 'react'
 import {useCoinbaseVisible} from './frontend/src/useCoinbaseVisible'
 import CoinbaseExchangeSwitch, {type Exchange} from './frontend/src/CoinbaseExchangeSwitch'
+import {readExchange, writeExchange} from './frontend/src/exchange-pref'
 
 const CoinbaseManualTerminal = lazy(() => import('./frontend/src/CoinbaseManualTerminal'))
 const CoinbaseManualSetup = lazy(() => import('./frontend/src/CoinbaseManualSetup'))
@@ -195,7 +196,8 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   const urlTab = useSyncExternalStore(subscribeTab, readTab, () => 'analiz' as MasterTradeTab)
   const layoutTab: MasterTradeTab = embedDemo ? 'analiz' : urlTab
   const coinbaseVisible = useCoinbaseVisible()
-  const [exchange, setExchange] = useState<Exchange>('binance')
+  const [exchange, setExchangeState] = useState<Exchange>(() => readExchange() ?? 'binance')
+  const setExchange = (next: Exchange) => { writeExchange(next); setExchangeState(next) }
   const coinbaseOn = !embedDemo && coinbaseVisible && exchange === 'coinbase' && (layoutTab === 'canli' || layoutTab === 'baglanti')
   const goTab = (tab: MasterTradeTab) => { if (embedDemo) onDemoTab?.(tab); else navigateTab(tab) }
   const referenceEnabled = useSyncExternalStore(subscribePresentation, readPresentation, () => false)

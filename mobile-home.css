@@ -233,3 +233,4 @@ html body #root main.v26App .mobileHome .mhSkelPlan i.big { width: 38px; height:
   html body #root > main.v26App.homeRoute > .v26Header.v26HomeHeader .v26BrandLogo,
   html body #root > main.v26App.homeRoute > .v26Header.v26HomeHeader .v26BrandLogo img { backface-visibility: hidden; -webkit-font-smoothing: antialiased; image-rendering: auto; }
 }
+html body #root main.v26App .mhExchange { align-self: flex-start !important; margin: 2px 0 6px !important; width: fit-content !important; }
