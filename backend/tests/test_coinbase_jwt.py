@@ -132,3 +132,19 @@ class SkewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_key_name_accepts_json_line_pasted_from_download(self):
+        for pasted in (f'"name": "{KEY_NAME}",', f'name": "{KEY_NAME}",', f'"{KEY_NAME}"', f"'{KEY_NAME}'"):
+            with self.subTest(pasted):
+                self.assertEqual(jwt_auth.validate_key_name(pasted), KEY_NAME)
+        two = f'"{KEY_NAME}" "{KEY_NAME}"'
+        with self.assertRaises(CoinbaseError):
+            jwt_auth.validate_key_name(two)
+
+    def test_private_key_accepts_json_line_pasted_from_download(self):
+        pem = _pem(ec.generate_private_key(ec.SECP256R1()))
+        escaped = pem.strip().replace("\n", "\\n")
+        for pasted in (f'"privateKey": "{escaped}\\n"\n}}', f'"{escaped}"'):
+            with self.subTest(pasted[:20]):
+                self.assertIsInstance(jwt_auth.load_private_key(pasted), ec.EllipticCurvePrivateKey)
