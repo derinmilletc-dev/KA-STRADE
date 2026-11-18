@@ -160,6 +160,15 @@ const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk
 
 const STALE_LIMIT_MS = 30 * 60 * 1000
 
+let lastLedgerPnl: {day: string; value: number} | null = null
+/** "Bugün" kâr/zarar: Binance gelir defteri değeri esas; defter önbelleği bittiğinde aynı UTC gün içinde son defter değeri korunur (rakam sıçramaz). */
+function stableTodayPnl(daily: {realized_pnl?: number; pnl_source?: string} | undefined): number | null {
+  const raw = typeof daily?.realized_pnl === 'number' && Number.isFinite(daily.realized_pnl) ? daily.realized_pnl : null
+  const day = new Date().toISOString().slice(0, 10)
+  if (raw !== null && daily?.pnl_source === 'BINANCE_INCOME') lastLedgerPnl = {day, value: raw}
+  return raw !== null && daily?.pnl_source !== 'BINANCE_INCOME' && lastLedgerPnl?.day === day ? lastLedgerPnl.value : raw
+}
+
 export default function LiveCockpit(props: Props) {
   const {loading, availableBalance, marketBanSeconds, userId, request, refresh, findPlan, extras} = props
   const demo = props.demo === true
@@ -882,7 +891,7 @@ export default function LiveCockpit(props: Props) {
     marketBanSeconds, openPositions: positions.length, protectedPositions: protectedCount,
   }) : [])]
   const why = running ? whyNoTrade(original?.scanner) : null
-  const today = live ? dailySummary({realizedPnl: status?.daily?.realized_pnl, entries: status?.daily?.entries, last24h: original?.scanner?.last_24h, dailyLoss, dailyLimit}) : null
+  const today = live ? dailySummary({realizedPnl: stableTodayPnl(status?.daily) ?? undefined, entries: status?.daily?.entries, last24h: original?.scanner?.last_24h, dailyLoss, dailyLimit}) : null
   const eventTone = (kind: unknown) => NOTIFY_KINDS.find(item => item.pattern.test(String(kind || '')))?.tone ?? 'mute'
   const notify = useMemo(() => {
     try { const prefs = loadNotifyPrefs(); return prefs.browser && browserNotificationState() === 'granted' } catch { return false }
@@ -1867,7 +1876,7 @@ export default function LiveCockpit(props: Props) {
   </> : null
 
   // ---- Durum çubuğu, tarama kartı ve akış için türetilen değerler.
-  const pnlToday = live ? finite(status?.daily?.realized_pnl) : null
+  const pnlToday = live ? stableTodayPnl(status?.daily) : null
   const scanner = original?.scanner
   const banWaits = marketBanSeconds > 0 && !guideInput.scanningContinues
   const upcoming = running ? nextScan(now, {waitUntilMs: banWaits ? now + marketBanSeconds * 1000 : null}) : null
