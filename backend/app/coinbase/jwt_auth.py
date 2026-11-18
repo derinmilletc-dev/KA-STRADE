@@ -32,8 +32,18 @@ _KEY_FORMAT_HELP = (
 )
 
 
+_KEY_NAME_IN_TEXT = re.compile(
+    r"(?<![A-Za-z0-9_/-])organizations/[A-Za-z0-9_-]+/apiKeys/[A-Za-z0-9_-]+(?![A-Za-z0-9_/-])"
+)
+
+
 def validate_key_name(name: str) -> str:
     cleaned = (name or "").strip()
+    if not KEY_NAME_PATTERN.fullmatch(cleaned):
+        # Coinbase'in indirdiği JSON'dan satır kopyalanınca tırnak, virgül ya da `"name":` gelebilir: yalnız anahtar adı alınır.
+        found = _KEY_NAME_IN_TEXT.findall(cleaned)
+        if len(found) == 1:
+            cleaned = found[0]
     if not KEY_NAME_PATTERN.fullmatch(cleaned):
         raise CoinbaseError(
             "KEY_FORMAT",
@@ -48,7 +58,8 @@ def normalize_pem(raw: str) -> str:
     text = text.replace("\\r", "").replace("\\n", "\n").replace("\r", "")
     text = text.strip()
     # Tek satırlık alana yapıştırılınca satır sonları kaybolur: başlık/gövde/bitiş ayrıştırılıp 64'lük satırlarla yeniden kurulur.
-    match = re.fullmatch(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", text, flags=re.DOTALL)
+    # Başında `"privateKey":` ya da sonunda tırnak/süslü parantez kalmış olabilir: yalnız anahtar bloğu alınır.
+    match = re.search(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", text, flags=re.DOTALL)
     if match:
         body = re.sub(r"\s+", "", match.group(2))
         if body:
