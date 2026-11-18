@@ -61,6 +61,18 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
       <ol>{COINBASE_KEY_STEPS.map(step => <li key={step}>{step}</li>)}</ol>
       <p>Anahtarını kimseyle paylaşma, ekran görüntüsü atma. Sadece bu sitedeki alana yapıştır.</p>
     </div>}
+    {keySaved && <div className="cbDisconnect">
+      {!armedDelete
+        ? <button type="button" className="liveWsGhost cbDeleteKey" disabled={Boolean(busy)} onClick={() => setArmedDelete(true)}><Trash2/> Bağlantıyı kes</button>
+        : <div className="cbDisconnectArm" role="group" aria-label="Bağlantıyı kes">
+          <p>Kayıtlı Coinbase anahtarı sunucudan silinir. Onaylamak için 2FA kodunu yaz.</p>
+          <input data-private="true" type="password" autoComplete="one-time-code" inputMode="numeric" value={totp} onChange={event => setTotp(event.target.value)} maxLength={12} placeholder="6 haneli 2FA kodu" aria-label="2FA kodu"/>
+          <div className="liveWsRow">
+            <button type="button" className="liveWsGhost cbDeleteKey" disabled={Boolean(busy) || !totpOk} onClick={() => void remove()}>{busy === 'delete' ? <RefreshCw className="spin"/> : <Trash2/>} Evet, bağlantıyı kes</button>
+            <button type="button" className="liveWsGhost" onClick={() => { setArmedDelete(false); setTotp('') }}>Vazgeç</button>
+          </div>
+        </div>}
+    </div>}
     {!vaultReady && <p className="liveWsWarn">Anahtar kasası hazır değil. {vaultReason || 'COINBASE_VAULT_MASTER_KEY ayarını kontrol et.'}</p>}
     {keySaved && <p className="liveWsHint">Kayıtlı anahtar: <b>{meta?.key_hint || '—'}</b>. Gizli kısım bir daha gösterilmez. Yenisini kaydedersen eskisinin yerine geçer.</p>}
     <div className="liveWsFields">
@@ -74,11 +86,5 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
       <button type="button" className="liveWsPrimary" disabled={!canSave} onClick={save}>{busy === 'save' ? <RefreshCw className="spin"/> : <LockKeyhole/>} Kaydet ve bağlan</button>
     </div>
     <p className="liveWsHint">Futures izni olan, para çekme izni olmayan bir anahtar kullan. Bu adım emir açmaz.</p>
-    {keySaved && <div className="liveWsRow">
-      <button type="button" className="liveWsGhost cbDeleteKey" disabled={Boolean(busy) || (armedDelete && !totpOk)} onClick={() => { if (!armedDelete) setArmedDelete(true); else void remove() }}>
-        <Trash2/> {armedDelete ? (totpOk ? 'Silmeyi onayla' : 'Silmek için 2FA kodunu yaz') : 'Anahtarı sil'}
-      </button>
-      {armedDelete && <button type="button" className="liveWsGhost" onClick={() => setArmedDelete(false)}>Vazgeç</button>}
-    </div>}
   </div>
 }
