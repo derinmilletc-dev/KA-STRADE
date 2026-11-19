@@ -112,7 +112,7 @@ const dateTime = (value: number) => new Date(value).toLocaleString('tr-TR', {day
 const errorText = (error: unknown, fallback: string) => {
   const raw = error instanceof Error ? error.message : fallback
   // Sunucunun teknik ön ekini ("LIVE KİLİTLİ / GATE BLOCKED: ...") müşteriye göstermeyiz; açıklamanın kendisi kalır.
-  return raw.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '') || fallback
+  return raw.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|GEÇİCİ SORUN \/ YENİ GİRİŞ DURDU|LIVE HTTP \d+):\s*/, '') || fallback
 }
 const goTabUrl = (tab: string) => {
   const url = new URL(window.location.href)

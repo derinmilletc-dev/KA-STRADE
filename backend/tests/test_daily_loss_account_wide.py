@@ -21,15 +21,17 @@ def row(kind, amount, tran, symbol="BTCUSDT", at=None, asset="USDT"):
 
 
 class FakeClient:
-    def __init__(self, pages=None, fail=False):
-        self.pages, self.fail, self.calls = pages or [[]], fail, []
+    """Binance'in 2026-10-15 sonrası davranışı: `page` yok sayılır; yalnız startTime/endTime penceresindeki ilk `limit` satır döner."""
+
+    def __init__(self, rows=None, fail=False):
+        self.rows, self.fail, self.calls = rows or [], fail, []
 
     async def signed(self, method, path, params=None):
         self.calls.append((method, path, dict(params or {})))
         if self.fail:
             raise RuntimeError("boom")
-        index = int(params["page"]) - 1
-        return self.pages[index] if index < len(self.pages) else []
+        window = [r for r in self.rows if params["startTime"] <= r["time"] <= params["endTime"]]
+        return window[:int(params["limit"])]
 
 
 class LedgerBuild(unittest.TestCase):
@@ -54,20 +56,39 @@ class LedgerBuild(unittest.TestCase):
 
 
 class LedgerFetch(unittest.TestCase):
-    def test_pagination_and_failures(self):
-        full = [row("REALIZED_PNL", -.001, i) for i in range(1000)]
-        client = FakeClient([full, [row("COMMISSION", -1, 5000)]])
+    def test_over_1000_rows_are_read_completely_without_page_param(self):
+        # Eski hata: gün içinde 1000+ satır olunca sayfa parametresi yok sayılıp aynı 1000 satır tekrar okunuyor, defter kapanıyordu.
+        rows_in = [row("REALIZED_PNL", -.001, i, at=START + 1000 + i * 5000) for i in range(5000)]
+        client = FakeClient(rows_in)
         rows, s, e = asyncio.run(dl.fetch(client, NOW))
-        self.assertEqual((len(rows), len(client.calls), s), (1001, 2, START))
-        self.assertTrue(all(c[1] == "/fapi/v1/income" and c[2]["startTime"] == START for c in client.calls))
+        self.assertEqual((len(rows), s), (5000, START))
+        self.assertEqual(len({(r["incomeType"], r["tranId"]) for r in rows}), 5000)      # çakışma / tekrar yok
+        self.assertTrue(all(c[1] == "/fapi/v1/income" and "page" not in c[2] and c[2]["limit"] == 1000 for c in client.calls))
+        self.assertLess(len(client.calls), dl.MAX_REQUESTS)
+        ledger = dl.build(rows, s, e)                                                    # defter kurulur (kapı kapanmaz)
+        self.assertEqual(ledger["totals"]["realized_pnl"], -5.0)
+
+    def test_exactly_1000_rows_is_not_mistaken_for_complete(self):
+        rows_in = [row("REALIZED_PNL", -1, i, at=START + 1000 + i) for i in range(1000)] + [row("COMMISSION", -1, 5000, at=START + 9000)]
+        rows, _s, _e = asyncio.run(dl.fetch(FakeClient(rows_in), NOW))
+        self.assertEqual(len(rows), 1001)
+
+    def test_failures_still_fail_closed(self):
         with self.assertRaises(dl.LedgerUnavailable):
             asyncio.run(dl.fetch(FakeClient(fail=True), NOW))
-        with self.assertRaises(dl.LedgerUnavailable):                                   # sayfa sınırı: eksik hesap yapılmaz
-            asyncio.run(dl.fetch(FakeClient([full] * (dl.MAX_PAGES + 1)), NOW))
+        # tek milisaniyede 1000+ satır: bölünemez → eksik hesap yapılmaz
+        same_instant = [row("REALIZED_PNL", -.001, i, at=START + 1000) for i in range(1001)]
+        with self.assertRaises(dl.LedgerUnavailable):
+            asyncio.run(dl.fetch(FakeClient(same_instant), NOW))
+
+    def test_request_cap_fails_closed(self):
+        rows_in = [row("REALIZED_PNL", -.001, i, at=START + 1000 + i * 100) for i in range(30000)]
+        with self.assertRaises(dl.LedgerUnavailable):
+            asyncio.run(dl.fetch(FakeClient(rows_in), NOW))
 
     def test_refresh_uses_cache_then_stale_then_fails_closed(self):
         state = {}
-        ok = FakeClient([[row("REALIZED_PNL", -2, 1, at=int(time.time() * 1000) - 1)]])
+        ok = FakeClient([row("REALIZED_PNL", -2, 1, at=int(time.time() * 1000) - 1)])
         first = asyncio.run(dl.refresh(ok, state))
         self.assertEqual(first["totals"]["net"], -2)
         asyncio.run(dl.refresh(ok, state))
@@ -162,7 +183,7 @@ class GridRunner(unittest.TestCase):
         asyncio.run(runner._refresh_daily_ledger(engine, state))
         self.assertIn("g1", runner._ledger_failed_since)
         now_ms = int(time.time() * 1000)
-        runner._adapters["g1"] = SimpleNamespace(client=FakeClient([[row("REALIZED_PNL", -1, 1, at=now_ms - 1)]]))
+        runner._adapters["g1"] = SimpleNamespace(client=FakeClient([row("REALIZED_PNL", -1, 1, at=now_ms - 1)]))
         asyncio.run(runner._refresh_daily_ledger(engine, state))
         self.assertNotIn("g1", runner._ledger_failed_since)
         self.assertEqual(state[dl.KEY]["totals"]["net"], -1)
