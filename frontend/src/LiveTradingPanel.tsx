@@ -613,7 +613,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         : response.status === 502
           ? (/belirsiz|kilitlendi|uzlaştır/i.test(errorMessage(payload, '')) ? 'BELİRSİZ YÜRÜTME / MANUEL İNCELEME GEREKLİ' : 'BORSA REDDETTİ')
           : response.status === 503
-            ? 'BAKIM MODU / YENİ GİRİŞLER KAPALI'
+            // 503 her zaman bakım modu değildir (günlük defter / Binance okuma sorunu da 503 döner); yalnız sunucu açıkça söylerse "bakım" yazılır.
+            ? ((payload as {detail?: {code?: unknown}} | null)?.detail?.code === 'MAINTENANCE_MODE' ? 'BAKIM MODU / YENİ GİRİŞLER KAPALI' : 'GEÇİCİ SORUN / YENİ GİRİŞ DURDU')
             : `LIVE HTTP ${response.status}`
       throw new Error(`${statusLabel}: ${errorMessage(payload, 'LIVE isteği reddedildi.')}`)
     }
@@ -2127,7 +2128,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const permBlockCard = (permBlockers.length > 0 || (permError && needPermission && !orderDone)) ? <div className="mxtBlockPopup" role="alert">
       <div className="mxtBlockHead"><span className="mxtBlockIcon" aria-hidden="true"><TriangleAlert/></span><small>İZİN VERİLEMİYOR</small></div>
       {permBlockers.map(item => <div key={item.key} className="mxtBlockItem"><b>{item.title}</b><span>{item.text}</span>{item.action && <button type="button" onClick={item.action.run}><em>{item.action.label}</em><i aria-hidden="true">→</i></button>}</div>)}
-      {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|LIVE HTTP \d+):\s*/, '')}</span></div>}
+      {permError && <div className="mxtBlockItem"><b>Sunucu izni vermedi</b><span>{permError.replace(/^(LIVE KİLİTLİ \/ GATE BLOCKED|BORSA REDDETTİ|BELİRSİZ YÜRÜTME \/ MANUEL İNCELEME GEREKLİ|BAKIM MODU \/ YENİ GİRİŞLER KAPALI|GEÇİCİ SORUN \/ YENİ GİRİŞ DURDU|LIVE HTTP \d+):\s*/, '')}</span></div>}
     </div> : null
     // İzin kapısı (readiness) kendi izin akışında yönetilir; burada hata gibi gösterilmez.
     const preBlocked = preflight.checks.filter(item => !item.passed && item.key !== 'readiness')

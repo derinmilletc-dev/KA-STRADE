@@ -17,7 +17,7 @@ from typing import Any
 
 KEY = "_daily_ledger"
 TRANSFER_TYPES = frozenset({"TRANSFER", "INTERNAL_TRANSFER"})
-MAX_PAGES = 8
+MAX_REQUESTS = 60           # tek okumada en çok bu kadar Binance isteği (yaklaşık 20 bin satıra yeter); aşarsa kapı kapanır
 PAGE_LIMIT = 1000
 FRESH_SECONDS = 30.0        # giriş kapıları bu yaşa kadar önbelleği kullanır, daha eskiyse yeniden okur
 STALE_OK_SECONDS = 300.0    # okuma başarısızsa bu yaştaki son defter kabul edilir; daha eskiyse kapı kapanır
@@ -39,23 +39,37 @@ def _day_of(start_ms: int) -> str:
 
 
 async def fetch(client: Any, now: datetime | None = None) -> tuple[list[dict[str, Any]], int, int]:
-    """Bugünün gelir satırları (sayfalı). Eksik/bozuk/çakışan veri → LedgerUnavailable (tahmin yapılmaz)."""
+    """Bugünün gelir satırları. Eksik/bozuk/çakışan veri → LedgerUnavailable (tahmin yapılmaz).
+
+    Binance 2026-10-15'ten beri /fapi/v1/income için `page` parametresini DESTEKLEMİYOR (yok sayılıyor): eski sayfalı okuma,
+    gün içinde 1000+ satır olunca her sayfada aynı 1000 satırı alıp "sayfa sınırı aşıldı" hatasına düşüyordu. Artık yalnız
+    startTime/endTime kullanılır: bir pencere `limit` kadar satır döndürürse kesilmiş olabilir → atılır ve pencere ikiye bölünüp
+    yeniden okunur (sıralamadan bağımsız; pencereler çakışmaz). Yalnız `limit`ten az satır dönen pencere eksiksiz sayılır."""
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     start_ms, end_ms = day_start_ms(current), int(current.timestamp() * 1000)
     rows: list[dict[str, Any]] = []
-    for page in range(1, MAX_PAGES + 1):
+    pending: list[tuple[int, int]] = [(start_ms, end_ms)]
+    requests = 0
+    while pending:
+        low, high = pending.pop()
+        requests += 1
+        if requests > MAX_REQUESTS:
+            raise LedgerUnavailable("Günlük gelir geçmişi istek sınırını aştı; eksik hesap yapılmaz.")
         try:
-            batch = await client.signed("GET", "/fapi/v1/income", {
-                "startTime": start_ms, "endTime": end_ms, "limit": PAGE_LIMIT, "page": page,
-            })
+            batch = await client.signed("GET", "/fapi/v1/income", {"startTime": low, "endTime": high, "limit": PAGE_LIMIT})
         except Exception as exc:  # noqa: BLE001 - istemci hatası sınıfı çağırana göre değişir; hepsi "okunamadı"
             raise LedgerUnavailable("Binance gelir geçmişi okunamadı.") from exc
         if not isinstance(batch, list):
             raise LedgerUnavailable("Binance gelir geçmişi yanıtı geçersiz.")
-        rows.extend(batch)
         if len(batch) < PAGE_LIMIT:
-            return rows, start_ms, end_ms
-    raise LedgerUnavailable("Günlük gelir geçmişi sayfa sınırını aştı; eksik hesap yapılmaz.")
+            rows.extend(batch)
+            continue
+        if low >= high:  # tek milisaniyede 1000+ satır: bölünemez, eksiksiz okunamaz
+            raise LedgerUnavailable("Aynı anda 1000'den fazla gelir satırı var; eksik hesap yapılmaz.")
+        middle = (low + high) // 2
+        pending.append((middle + 1, high))
+        pending.append((low, middle))
+    return rows, start_ms, end_ms
 
 
 def build(rows: list[Any], start_ms: int, end_ms: int, *, fetched_at: float | None = None) -> dict[str, Any]:

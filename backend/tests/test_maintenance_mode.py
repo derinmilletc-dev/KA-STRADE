@@ -81,6 +81,16 @@ class MaintenanceWiringTests(unittest.TestCase):
         live_order_body = live_source.split("async def execute_live_order(", 1)[1]
         self.assertIn("guard_new_entry(", live_order_body.split("recovery_ready", 1)[0])
 
+    def test_manual_dry_run_is_never_blocked_by_maintenance(self):
+        """Dry-run emir göndermez; bakım modunda bile hata vermemeli (LIVE ve Demo manuel /order/test)."""
+        demo_source = (APP_DIR / "binance_demo.py").read_text(encoding="utf-8")
+        live_source = (APP_DIR / "v25_execution.py").read_text(encoding="utf-8")
+        live_test_body = live_source.split("async def v25_order_test(", 1)[1].split("\n\n\n", 1)[0]
+        demo_test_body = demo_source.split("async def demo_order_test(", 1)[1].split("\n\n\n", 1)[0]
+        self.assertNotIn("guard_new_entry", live_test_body)
+        self.assertNotIn("guard_new_entry", demo_test_body)
+        self.assertNotIn("refresh_account_daily_ledger", live_test_body)
+
     def test_position_protection_paths_do_not_call_guard(self):
         """Test 3-6 & Test 8: refresh/close/risk-guard code must stay untouched."""
         main_source = (APP_DIR / "main.py").read_text(encoding="utf-8")
