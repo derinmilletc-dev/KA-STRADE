@@ -74,6 +74,7 @@ from .execution_core import (
     HARD_MAX_DAILY_LOSS_USDT,
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
+    MANUAL_MARGIN_REQUEST_MAX,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
     configured_min_confidence,
     configured_mtf_allow_either_timeframe,
@@ -839,7 +840,7 @@ class LiveOrderRequest(BaseModel):
     symbol: str = Field(min_length=5, max_length=20)
     direction: Literal["LONG", "SHORT"]
     order_type: Literal["MARKET", "LIMIT"] = "MARKET"
-    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
+    margin_usdt: float = Field(ge=5, le=MANUAL_MARGIN_REQUEST_MAX)
     leverage: int = Field(ge=1, le=50)
     limit_price: float | None = Field(default=None, gt=0)
     stop_loss: float = Field(gt=0)
@@ -856,7 +857,7 @@ class LiveOrderRequest(BaseModel):
 class RiskPreviewRequest(BaseModel):
     entry: float = Field(gt=0)
     stop_loss: float = Field(gt=0)
-    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
+    margin_usdt: float = Field(ge=5, le=MANUAL_MARGIN_REQUEST_MAX)
     leverage: int = Field(ge=1, le=50)
     atr: float | None = Field(default=None, gt=0)
     manual: bool = False
@@ -2678,7 +2679,7 @@ async def build_live_spec(
         raise LiveExchangeError("Canlı LONG işlemleri risk politikasında kapalı.", http_status=422)
     if order.direction == "SHORT" and not settings["allow_short"]:
         raise LiveExchangeError("Canlı SHORT işlemleri risk politikasında kapalı.", http_status=422)
-    if order.margin_usdt > settings["max_margin_per_trade"] or order.leverage > settings["max_leverage"]:
+    if (not manual_targets and order.margin_usdt > settings["max_margin_per_trade"]) or order.leverage > settings["max_leverage"]:
         raise LiveExchangeError("Emir, kullanıcı risk limitindeki marjin veya kaldıraç tavanını aşıyor.", http_status=422)
     if order.order_type == "LIMIT" and order.limit_price is None:
         raise LiveExchangeError("Limit emir için fiyat zorunludur.", http_status=422)
@@ -8675,7 +8676,7 @@ async def v25_order_test(request: Request, body: LiveOrderRequest) -> dict[str, 
 class ManualPreflightRequest(BaseModel):
     symbol: str = Field(min_length=3, max_length=24)
     direction: Literal["LONG", "SHORT"]
-    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT)
+    margin_usdt: float = Field(ge=5, le=MANUAL_MARGIN_REQUEST_MAX)
     leverage: int = Field(ge=1, le=50)
     entry: float | None = Field(default=None, gt=0)
     stop_loss: float | None = Field(default=None, gt=0)

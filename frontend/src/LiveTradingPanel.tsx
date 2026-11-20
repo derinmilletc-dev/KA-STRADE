@@ -1476,9 +1476,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const chooseCoin = (value: string) => { setOrder(current => switchSymbol(current, value)); setCoinOpen(false); setCoinQuery(''); saveRecentCoin(value); setRecentCoins(readRecentCoins()) }
     const marginValue = Number(order.margin_usdt)
     const leverageValue = Number(order.leverage)
-    // Formun marjin üst sınırı = kişisel risk ayarı (platform tavanı 300 USDT). Eskiden form 100'e izin verip sunucu reddediyordu.
-    const policyMarginMax = Number(status?.policy?.max_margin_per_trade)
-    const marginMax = Number.isFinite(policyMarginMax) && policyMarginMax >= 5 ? Math.min(300, Math.floor(policyMarginMax)) : 300
+    // Manuel işlemde sabit marjin tavanı yok: üst sınır kasandaki kullanılabilir bakiyedir (okunamazsa geniş bir üst değer).
+    const walletMax = Number(status?.account?.available_balance)
+    const marginMax = Number.isFinite(walletMax) && walletMax >= 5 ? Math.floor(walletMax) : 1_000_000
     const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : livePrice ?? (order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price))
     const notional = marginValue * leverageValue
     const stopValue = Number(order.stop_loss)
@@ -1925,7 +1925,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <div className="mxtMCard">
         <div className="mxtMLbl"><span>TEMİNAT</span>{walletShare !== null && <span>Hesabının <b>%{walletShare.toFixed(1)}</b>’ü</span>}</div>
         <div className="mxtMBig"><input type="number" inputMode="decimal" min="5" max={marginMax} style={{width: `${Math.max(2, String(order.margin_usdt).length + 0.6)}ch`}} value={order.margin_usdt} aria-label="Marjin (USDT)" onChange={event => set('margin_usdt', event.target.value)}/><span>USDT</span></div>
-        <p className="mxtMUnder">Kullanılabilir <b>{Number.isFinite(availableBalanceNum) ? money(availableBalanceNum) : 'okunamadı'}</b> · risk ayarınla en çok <b>{marginMax}</b></p>
+        <p className="mxtMUnder">Kullanılabilir <b>{Number.isFinite(availableBalanceNum) ? money(availableBalanceNum) : 'okunamadı'}</b> · sınır: kasan</p>
         <div className="mxtMChips">{marginChips.map(v => <button type="button" key={v} aria-pressed={String(order.margin_usdt) === String(v)} data-on={String(order.margin_usdt) === String(v) || undefined} onClick={() => set('margin_usdt', String(v))}>{v === maxPick && marginChips.length > 1 ? `Maks ${v}` : v}</button>)}</div>
         <input type="range" className="mxtMRange" min="5" max={marginMax} step="1" value={Number.isFinite(marginValue) && marginValue > 0 ? Math.min(marginValue, marginMax) : Math.min(10, marginMax)} onChange={event => set('margin_usdt', event.target.value)} aria-label="Marjin kaydırıcı"/>
       </div>

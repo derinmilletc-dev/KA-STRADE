@@ -20,6 +20,7 @@ from typing import Any
 V25_VERSION = "25.0.0"
 LIVE_CLIENT_PREFIX = "PTBLV_"
 HARD_MAX_MARGIN_USDT = 300.0
+MANUAL_MARGIN_REQUEST_MAX = 10_000_000.0  # manuel emir için pratikte sınırsız; asıl sınır kullanılabilir bakiye
 HARD_MAX_LEVERAGE = 50
 HARD_MAX_POSITIONS = 5
 # Günlük zarar için sabit 100 USDT tavanı KALDIRILDI: limit kullanıcının/stratejinin kendi ayarıdır (hesap büyüklüğüne göre).
@@ -238,6 +239,11 @@ def manual_stop_cap_pct(leverage: float) -> float:
 
 def risk_sized_order(entry: float, stop: float, policy: dict[str, Any], *, atr: float | None = None, manual: bool = False) -> dict[str, Any]:
     settings = sanitize_execution_policy(policy)
+    if manual:
+        # Manuel emirde marjin üst sınırı yok: kullanıcı kasasına göre ister (bakiyeyi borsa/bakiye kapısı denetler).
+        raw_margin = _number(policy.get("max_margin_per_trade"), 0, 0, 10_000_000)
+        if raw_margin > 0:
+            settings["max_margin_per_trade"] = raw_margin
     if entry <= 0 or stop <= 0 or entry == stop:
         raise ValueError("Giriş ve Stop sıfırdan büyük ve birbirinden farklı olmalı")
     stop_pct = abs(entry - stop) / entry * 100
