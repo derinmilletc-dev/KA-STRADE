@@ -423,7 +423,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
         const [accountResponse, connectionResponse] = await readLiveStatusResponses(connections => {
           connectionVerified = true
           setLiveConnections(connections)
-        })
+        }, forceLiveSnapshot)
         const nextConnections = connectionResponse.ok ? await connectionResponse.json() as SharedConnectionStatus : null
         setLiveConnections(nextConnections)
         connectionVerified = connectionResponse.ok

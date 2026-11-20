@@ -12,7 +12,7 @@ export function liveCredentialStatusMatches(status: SharedLiveStatus, connection
   return Boolean(saved && saved === normalizeCredentialFingerprint(status.credentials?.fingerprint))
 }
 
-export async function readLiveStatusResponses(onConnections?: (connections: SharedConnectionStatus) => void): Promise<[Response, Response]> {
+export async function readLiveStatusResponses(onConnections?: (connections: SharedConnectionStatus) => void, fresh = false): Promise<[Response, Response]> {
   for (let attempt = 0; ; attempt++) {
     try {
       const connection = await fetchWithTimeout(`${API_BASE}/exchange-connections/status`, {cache: 'no-store'})
@@ -31,7 +31,7 @@ export async function readLiveStatusResponses(onConnections?: (connections: Shar
         throw new Error('Kayıtlı anahtar durum yanıtı eksik veya geçersiz; LIVE doğrulanamadı.')
       }
       onConnections?.(connections)
-      const status = await fetchWithTimeout(`${API_BASE}/v25/status`, {cache: 'no-store'})
+      const status = await fetchWithTimeout(`${API_BASE}/v25/status${fresh ? '?fresh=1' : ''}`, {cache: 'no-store'})
       const payload = status.ok ? await status.clone().json() as SharedLiveStatus : null
       const wallet = payload?.account?.wallet_balance
       const pending = status.ok && (!payload || !liveCredentialStatusMatches(payload, connections)

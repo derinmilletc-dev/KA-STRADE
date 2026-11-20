@@ -8161,7 +8161,7 @@ async def shutdown_v25_execution(application: Any) -> None:
 
 
 @router.get("/status")
-async def v25_status(request: Request) -> dict[str, Any]:
+async def v25_status(request: Request, fresh: bool = Query(default=False)) -> dict[str, Any]:
     from .exchange_connections import ensure_session_cache
 
     user = execution_owner(request)
@@ -8182,6 +8182,16 @@ async def v25_status(request: Request) -> dict[str, Any]:
         guard_execution_ownership(request, claim=True)
         return await connect_read_only_for_request(request.app, request)
     schedule_ledger_warmup(request.app, (api_key, secret_key))
+    if fresh and state.get("connected") and usable_live_credentials((api_key, secret_key)):
+        # Yeni açılan işlem ekranda geç görünmesin: ekran "taze oku" isterse saklı hesap görüntüsü Binance'ten yenilenir.
+        # En fazla 1,5 sn'de bir; hata olursa sessizce eski görüntüyle devam edilir (durum ucu asla bozulmaz).
+        if time.monotonic() - float(state.get("_fresh_snapshot_at") or 0.0) > 1.5 and not state["lock"].locked():
+            state["_fresh_snapshot_at"] = time.monotonic()
+            try:
+                client = client_for(request.app, request)
+                update_account_snapshot(state, await asyncio.wait_for(account_snapshot(client, source="status_fresh"), timeout=4.0))
+            except Exception:
+                logger.info("LIVE_STATUS_FRESH_SKIPPED")
     return public_status(request.app, request)
 
 
