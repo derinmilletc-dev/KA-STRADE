@@ -123,7 +123,7 @@ export function scrollToPositions(focus?: string | null, tries = 0) {
 export const POSITIONS_REFRESH_EVENT = 'kt:positions-refresh'
 export function requestPositionsRefresh(extended = false) {
   // Borsa kaydı birkaç saniye geç yansıyabilir; kısa aralıklarla üç kez istenir. Yeni açılan emirde (extended) pozisyon görünene kadar ~25 sn denenir.
-  const delays = extended ? [0, 1500, 3000, 5000, 8000, 12000, 18000, 25000] : [0, 1500, 4500]
+  const delays = extended ? [0, 800, 1600, 2500, 4000, 6000, 9000, 13000, 18000, 25000] : [0, 1500, 4500]
   for (const delay of delays) window.setTimeout(() => window.dispatchEvent(new CustomEvent(POSITIONS_REFRESH_EVENT)), delay)
 }
 
