@@ -6265,7 +6265,7 @@ def _order_mark(timer: dict[str, Any], stage: str) -> str:
     return stage
 
 
-def _order_timing_report(timer: dict[str, Any], symbol: str) -> None:
+def _order_timing_report(timer: dict[str, Any], symbol: str, state: dict[str, Any] | None = None) -> None:
     try:
         now = time.monotonic()
         marks = [*timer["marks"], (timer.get("stage"), now - timer["last"])]
@@ -6273,6 +6273,9 @@ def _order_timing_report(timer: dict[str, Any], symbol: str) -> None:
         parts = " ".join(f"{name}={seconds * 1000:.0f}ms" for name, seconds in marks if seconds >= 0.05)
         level = logging.WARNING if total >= 8 else logging.INFO
         logger.log(level, "ORDER_TIMING symbol=%s total_ms=%.0f %s", symbol, total * 1000, parts)
+        if state is not None and total >= 4:
+            # Yavaş emir: hangi adımın ne kadar sürdüğü "Son olaylar" akışında görünür (teşhis).
+            add_event(state, "LIVE_ORDER_TIMING", f"{symbol} emri {total:.0f} sn sürdü: {parts}"[:240], symbol=symbol)
     except Exception:  # noqa: BLE001 - teşhis hatası emri etkilemez
         pass
 
@@ -6967,7 +6970,7 @@ async def execute_live_order(
             raise HTTPException(502, "Canlı emir akışı güvenli şekilde kilitlendi; manuel inceleme gerekli.") from exc
         finally:
             _finish_reservation(reservation_token, reservation_plan, reservation_filled)
-            _order_timing_report(order_timer, normalize_symbol(body.symbol))
+            _order_timing_report(order_timer, normalize_symbol(body.symbol), state)
 
 
 async def automatic_cycle(application: Any, credentials: tuple[str, str] | None = None) -> None:
