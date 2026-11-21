@@ -2,7 +2,6 @@ import {useState} from 'react'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
 import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone} from './coinbase-manual'
 import {closeParts, closePreview, positionView} from './coinbase-position'
-import HoldButton from './HoldButton'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
@@ -120,7 +119,8 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
         <div className="cbCl2Net" data-tone={toneOf(preview.now)}><small>Şimdi kapatırsan yaklaşık</small><b>{money(preview.now)}</b><small>komisyon hariç tahmin</small></div>
         {preview.atStop !== null && <div className="cbCl2Cmp"><div><small>Şimdi kapat</small><b data-tone={toneOf(preview.now)}>{money(preview.now)}</b></div><div><small>Stop çalışırsa</small><b data-tone={toneOf(preview.atStop)}>{money(preview.atStop)}</b></div></div>}
         <p className="cbCl2Warn"><AlertTriangle aria-hidden="true"/><span>{partial ? <>Seçtiğin pay piyasa fiyatından kapanır; kalan <b>{view.contracts - part} sözleşme</b> aynı stop ve hedefle korunur.</> : <>Tamamı piyasa fiyatından kapanır. <b>Fiyat garantisi yok</b>; stop ve hedef emirleri silinir.</>}</span></p>
-        <HoldButton className="cbHold" label={partial ? `%${Math.round(preview.fraction * 100)} kapatmak için basılı tut` : 'Kapatmak için basılı tut'} busyLabel="Gönderiliyor…" busy={busy} disabled={!canSend} onConfirm={() => void send()}/>
+        <p className="cbCl2Hint">Basınca hemen kapanır.</p>
+        <button type="button" className="cbHold" disabled={!canSend} onClick={() => void send()}><span>{busy ? 'Gönderiliyor…' : partial ? `%${Math.round(preview.fraction * 100)} kapat` : 'Kapat'}</span></button>
         <button type="button" className="cbCl2Cancel" onClick={() => setAct(null)} disabled={busy}>Vazgeç</button>
       </div>
     })()}
@@ -128,7 +128,8 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
       <b>{sheet[act].title}</b>
       <p>{sheet[act].text}</p>
       {(act === 'stop' || act === 'reduce') && <label>{act === 'reduce' ? 'Kaç sözleşme?' : 'Yeni stop fiyatı'}<input value={value} onChange={event => setValue(event.target.value)} inputMode="decimal" autoComplete="off" placeholder={act === 'stop' ? px(view.stop) : '1'}/></label>}
-      <HoldButton className="cbHold" label={`${sheet[act].button} · basılı tut`} busyLabel="Gönderiliyor…" busy={busy} disabled={!canSend} onConfirm={() => void send()}/>
+      <p className="cbCl2Hint">Basınca hemen uygulanır.</p>
+      <button type="button" className="cbHold" disabled={!canSend} onClick={() => void send()}><span>{busy ? 'Gönderiliyor…' : sheet[act].button}</span></button>
       <button type="button" className="cbCl2Cancel" onClick={() => setAct(null)} disabled={busy}>Vazgeç</button>
     </div>}
   </li>

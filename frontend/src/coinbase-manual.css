@@ -453,3 +453,4 @@ html body #root .cbTerminal .cbHold:not(#a){position:relative!important;overflow
 .cbTerminal .cbHold span{position:relative}
 .cbTerminal .cbHold:disabled{opacity:.5}
 html body #root .cbTerminal .cbCl2Cancel:not(#a){min-height:44px!important;border:0!important;background:none!important;color:#93a3b5!important;font-size:.9rem!important;width:100%!important}
+.cbTerminal .cbCl2Hint{margin:0;text-align:center;font-size:.8rem;color:#93a3b5}
