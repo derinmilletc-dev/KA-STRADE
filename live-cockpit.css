@@ -1447,3 +1447,37 @@ html body #root:not(#pv1):not(#pv2) .pvCard details.pvIns > p { margin: 0 8px 8p
 .dwWatchNote{margin:0;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--lc-card) 55%,transparent);font-size:12px;line-height:1.5;color:var(--lc-mute);overflow-wrap:anywhere}
 
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcEvents li .lcEvDetail{display:block;margin-top:2px;font-size:12px;opacity:.65;font-weight:400}
+
+/* Kapatma onayı v2: büyük net sonuç, pay seçimi, stop karşılaştırması, basılı tutarak onay */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2{display:grid!important;gap:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Head h2{margin:0!important;font-size:19px!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Head small{display:block;margin-top:2px;color:#93a3b5;font-size:13px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Seg button{min-height:44px;border-radius:12px;border:1px solid #2a3a4f;background:#162231;color:#cfd9e3;font-size:14px;font-weight:600;cursor:pointer}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Seg button[aria-pressed='true']{background:#1f3550;border-color:#4b78b0;color:#fff}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Net{display:grid;gap:2px;justify-items:center;text-align:center;padding:4px 0 2px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Net small{color:#93a3b5;font-size:13px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Net b{font-size:34px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;color:#eaf1f7}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Net[data-tone='bad'] b{color:#ef7777}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Net[data-tone='good'] b{color:#39d69a}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Note{margin:0;text-align:center;font-size:12.5px;color:#f3d08a}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Rows{margin:0;display:grid}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Rows>div{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #1d2b3d;font-size:14px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Rows>div:last-child{border-bottom:0}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Rows dt{color:#93a3b5}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Rows dd{margin:0;font-weight:600;color:#eaf1f7;font-variant-numeric:tabular-nums}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp>div{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:#162231;border:1px solid #243346}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp small{color:#93a3b5;font-size:12px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp b[data-tone='bad']{color:#ef7777}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cmp b[data-tone='good']{color:#39d69a}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Warn{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:12px;background:rgba(232,183,92,.12);color:#f3d08a;font-size:13px;line-height:1.45}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Warn svg{width:18px;height:18px;flex:none;margin-top:1px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2How summary{cursor:pointer;color:#7cb8ff;font-size:13px;list-style:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2How p{margin:8px 0 0;font-size:13px;line-height:1.55;color:#b8c6d3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcHold{position:relative;overflow:hidden;width:100%;min-height:56px;border-radius:14px;border:1px solid #7a3a3f;background:#2b1a1f;color:#ffb4b4;font-size:16px;font-weight:700;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcHold i{position:absolute;left:0;top:0;bottom:0;background:#c2474f;opacity:.55;pointer-events:none}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcHold span{position:relative}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcHold:disabled{opacity:.6}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cancel{min-height:44px;border:0;background:none;color:#93a3b5;font-size:14px;cursor:pointer}

@@ -17,7 +17,9 @@ import FarmerPanel from './FarmerPanel'
 import {MasterOnlyGate} from '../../premium-access'
 import DemoDcaSheet from './DemoDcaSheet'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
-import {closeEstimate} from './live-quote'
+import {closeEstimate, TAKER_FEE_RATE} from './live-quote'
+import {netAtPrice} from './close-target'
+import HoldButton from './HoldButton'
 import {useLiveQuotes} from './useLiveQuotes'
 import type {RawRecord} from './position-view'
 import {browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -67,7 +69,7 @@ type Props = {
 // Sunucunun beklediği sabit onay ifadesi; kullanıcı artık yazmıyor, kutuyu işaretliyor.
 const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
 type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'edit-protection' | 'reduce-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard' | 'summary' | 'launch'
-type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null}
+type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null; stopPrice?: number | null; canReduce?: boolean}
 // Manuel pozisyon: stop/hedef değiştirme ve kısmi kapatma hedefi (yalnız MANUEL planlar).
 type ManualTarget = CloseTarget & {stop: string; targets: [string, string, string]; mark: string}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
@@ -615,10 +617,18 @@ export default function LiveCockpit(props: Props) {
   const [closePhrase, setClosePhrase] = useState('')
   // ---- Tek pozisyonu kapat: yalnız o sembolü piyasa fiyatından reduce-only emirle kapatır; Stop/TP temizliğini sunucu yapar.
   const [closeTarget, setCloseTarget] = useState<CloseTarget | null>(null)
-  const askClosePosition = (target: CloseTarget) => { setSheetError(''); setCloseTarget(target); setSheet('close-position') }
+  const [closePct, setClosePct] = useState<25 | 50 | 100>(100)
+  const askClosePosition = (target: CloseTarget) => { setSheetError(''); setClosePct(100); setCloseTarget(target); setSheet('close-position') }
   const closePosition = () => {
     const target = closeTarget
     if (!target) return Promise.resolve(false)
+    if (closePct < 100 && target.canReduce && target.planId) {
+      const percent = closePct
+      return perform('close-position', async () => {
+        await request('/position/reduce', {plan_id: target.planId, percent, confirmation: REDUCE_PHRASE})
+        setSheet(null); setCloseTarget(null)
+      }, `${target.symbol.replace('USDT', '')} pozisyonun %${percent}'i kapatıldı; kalan kısım stopla korunuyor.`, setSheetError)
+    }
     const clickedAt = Date.now()
     return perform('close-position', async () => {
       // Ekranda görünen canlı fiyat gönderilir: sunucu önce bu fiyattan limit dener, 1,5 sn dolmazsa piyasadan kapatır.
@@ -1799,18 +1809,38 @@ export default function LiveCockpit(props: Props) {
     <label className="lcField">Onay için <b className="selectablePhrase" translate="no">{CLOSE_ALL_PHRASE}</b> yaz<input value={closePhrase} autoComplete="off" onChange={event => setClosePhrase(event.target.value)}/></label>
         <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={() => setSheet('stop')} disabled={Boolean(working)}>Geri</button>
       <button type="button" className="lcBtn lcDanger" disabled={!sameConfirm(closePhrase, CLOSE_ALL_PHRASE) || Boolean(working)} onClick={() => void closeAll()}>{working === 'close-all' ? 'Gönderiliyor…' : 'Acil durdur ve kapat'}</button></div>
-  </> : sheet === 'close-position' && closeTarget ? <>
-    <h2 id="lc-sheet-title">{closeTarget.symbol.replace('USDT', '')} pozisyonunu kapat</h2>
-    <p className="lcSheetLead">{closeTarget.direction} · giriş {closeTarget.entry}. Pozisyon, gördüğün canlı fiyattan <b>reduce-only limit</b> emirle kapatılmaya çalışılır; <b>1,5 saniyede dolmazsa</b> kalanı piyasadan kapanır; ters yönde yeni pozisyon açılmaz. Kayıp kesinleşebilir. Diğer pozisyonlara dokunulmaz.</p>
-    <ul className="lcStopList">
-      {closeLive ? <li data-tone={closeLive.netPnl < 0 ? 'warn' : 'ok'}><Check aria-hidden="true"/><span><b>Şimdi kapanırsa net ≈ {usdt(closeLive.netPnl, true)} USDT</b> · giriş ve çıkış komisyonu düşülmüş, cebine kalan bu. Komisyonsuz fiyat farkı ≈ {usdt(closeLive.pnl, true)} USDT · canlı fiyat {closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}.{closeLive.pnl > 0 && closeLive.netPnl < 0 ? ' Fiyat farkı artıda görünse de komisyon sonrası zarardasın.' : ''} Fiyat oynarsa dolum biraz farklı olabilir.</span></li>
-        : <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} USDT ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></li>}
-      <li data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Fiyat garantisi yok.</b> Önce gördüğün fiyattan kapatmayı deneriz. Fiyat 1,5 saniye içinde sana dönmezse kalan miktar piyasadan kapanır ve fiyat farklı olabilir.</span></li>
-      <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Pozisyon kapanınca bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.</span></li>
-    </ul>
-    <div className="lcSheetActions"><button type="button" className="lcBtn" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
-      <button type="button" className="lcBtn lcDanger" disabled={Boolean(working)} onClick={() => void closePosition()}>{working === 'close-position' ? 'Gönderiliyor…' : 'Evet, kapat'}</button></div>
-  </> : sheet === 'edit-protection' && manualTarget ? <>
+  </> : sheet === 'close-position' && closeTarget ? (() => {
+    const part = closeTarget.canReduce ? closePct : 100
+    const frac = part / 100
+    const coin = closeTarget.symbol.replace('USDT', '')
+    const net = closeLive ? closeLive.netPnl * frac : null
+    const gross = closeLive ? closeLive.pnl * frac : null
+    const fees = closeLive && net !== null && gross !== null ? net - gross : null
+    const stopNet = closeTarget.long !== undefined && closeTarget.stopPrice
+      ? netAtPrice(closeTarget.long, closeTarget.entryPrice ?? null, closeTarget.quantity ?? null, closeTarget.stopPrice, TAKER_FEE_RATE) : null
+    const stopShown = stopNet !== null ? stopNet * frac : null
+    const tone = net === null ? 'mute' : net < 0 ? 'bad' : 'good'
+    return <div className="lcClose2">
+      <div className="lcCl2Head"><div><h2 id="lc-sheet-title">{coin} {part < 100 ? `%${part} ` : ''}kapat</h2><small>{closeTarget.direction} · giriş {closeTarget.entry}</small></div></div>
+      {closeTarget.canReduce && <div className="lcCl2Seg" role="group" aria-label="Kapatılacak pay">{([25, 50, 100] as const).map(value => <button type="button" key={value} aria-pressed={closePct === value} disabled={Boolean(working)} onClick={() => setClosePct(value)}>{value === 100 ? 'Tamamı' : `%${value}`}</button>)}</div>}
+      {closeLive && net !== null && gross !== null && fees !== null ? <>
+        <div className="lcCl2Net" data-tone={tone}><small>Şimdi kapatırsan net</small><b>{usdt(net, true)}</b><small>komisyon dahil, cebine kalan</small></div>
+        {closeLive.pnl > 0 && closeLive.netPnl < 0 && <p className="lcCl2Note">Fiyat farkı artıda görünse de komisyon sonrası zarardasın.</p>}
+        <dl className="lcCl2Rows">
+          <div><dt>Canlı fiyat</dt><dd>{closeLive.exitPrice.toLocaleString('tr-TR', {maximumFractionDigits: 8})}</dd></div>
+          <div><dt>Fiyat farkı</dt><dd>{usdt(gross, true)}</dd></div>
+          <div><dt>Komisyon (giriş + çıkış)</dt><dd>{usdt(fees, true)}</dd></div>
+        </dl>
+        {stopShown !== null && <div className="lcCl2Cmp"><div><small>Şimdi kapat</small><b data-tone={net < 0 ? 'bad' : 'good'}>{usdt(net, true)}</b></div><div><small>Stop çalışırsa</small><b data-tone={stopShown < 0 ? 'bad' : 'good'}>{usdt(stopShown, true)}</b></div></div>}
+      </> : <p className="lcCl2Warn" data-tone="warn"><TriangleAlert aria-hidden="true"/><span><b>Canlı fiyat alınamadı.</b> Son bilinen sonuç {usdt(closeTarget.pnl, true)} ama 10–30 sn eski olabilir; gerçek sonuç çok farklı olabilir. Binance uygulamasından kontrol et.</span></p>}
+      <p className="lcCl2Warn" data-tone="warn"><TriangleAlert aria-hidden="true"/><span>{part < 100 ? 'Seçtiğin pay piyasa fiyatından kapanır; kalan kısım stopla korunur.' : <><b>Fiyat garantisi yok.</b> 1,5 sn içinde dolmazsa kalan piyasadan kapanır.</>}</span></p>
+      <details className="lcCl2How"><summary>Nasıl kapanır?</summary><p>{part < 100
+        ? 'Seçtiğin pay piyasa fiyatından reduce-only (yalnız küçültür) emirle kapanır. Kalan pozisyon stopla korunur; açık hedef emirleri kalana göre küçültülür.'
+        : 'Önce gördüğün fiyattan kapatmayı dener. 1,5 saniyede dolmazsa kalanı piyasadan kapatır. Ters yönde yeni pozisyon açılmaz, diğer pozisyonlara dokunulmaz. Bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.'}</p></details>
+      <HoldButton label={part < 100 ? `%${part} kapatmak için basılı tut` : 'Kapatmak için basılı tut'} busyLabel="Gönderiliyor…" busy={working === 'close-position'} disabled={Boolean(working)} onConfirm={() => void closePosition()}/>
+      <button type="button" className="lcCl2Cancel" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
+    </div>
+  })() : sheet === 'edit-protection' && manualTarget ? <>
     <h2 id="lc-sheet-title">{manualTarget.symbol.replace('USDT', '')} · stop ve hedefler</h2>
     <p className="lcSheetLead">{manualTarget.direction} · giriş {manualTarget.entry} · şu anki fiyat {manualTarget.mark}. Yalnız değiştirdiğin alanlar gönderilir.</p>
     <div className="lcPosEdit">
