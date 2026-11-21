@@ -19,7 +19,6 @@ import DemoDcaSheet from './DemoDcaSheet'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import {closeEstimate, TAKER_FEE_RATE} from './live-quote'
 import {netAtPrice} from './close-target'
-import HoldButton from './HoldButton'
 import {useLiveQuotes} from './useLiveQuotes'
 import type {RawRecord} from './position-view'
 import {browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
@@ -1837,7 +1836,8 @@ export default function LiveCockpit(props: Props) {
       <details className="lcCl2How"><summary>Nasıl kapanır?</summary><p>{part < 100
         ? 'Seçtiğin pay piyasa fiyatından reduce-only (yalnız küçültür) emirle kapanır. Kalan pozisyon stopla korunur; açık hedef emirleri kalana göre küçültülür.'
         : 'Önce gördüğün fiyattan kapatmayı dener. 1,5 saniyede dolmazsa kalanı piyasadan kapatır. Ters yönde yeni pozisyon açılmaz, diğer pozisyonlara dokunulmaz. Bota ait Stop/TP emirleri otomatik iptal edilir; birkaç saniye sürebilir.'}</p></details>
-      <HoldButton label={part < 100 ? `%${part} kapatmak için basılı tut` : 'Kapatmak için basılı tut'} busyLabel="Gönderiliyor…" busy={working === 'close-position'} disabled={Boolean(working)} onConfirm={() => void closePosition()}/>
+      <p className="lcCl2Hint">Basınca hemen kapanır.</p>
+      <button type="button" className="lcHold" disabled={Boolean(working)} onClick={() => void closePosition()}><span>{working === 'close-position' ? 'Gönderiliyor…' : part < 100 ? `%${part} kapat` : 'Kapat'}</span></button>
       <button type="button" className="lcCl2Cancel" onClick={closeSheet} disabled={Boolean(working)}>Vazgeç</button>
     </div>
   })() : sheet === 'edit-protection' && manualTarget ? <>
