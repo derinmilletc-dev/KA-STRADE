@@ -69,6 +69,21 @@ class CloseTargetStepTests(unittest.TestCase):
             self.assertTrue(asyncio.run(live.manual_close_target_step(self.client, state, plan, position)))
         close.assert_awaited_once()
 
+    def test_price_target_closes_when_book_touches_even_if_mark_lags(self):
+        state = live.initial_state()
+        plan = self._plan()
+        plan["close_target"] = {"mode": "price", "value": 0.79, "side": "BELOW", "set_at": "t"}
+        state["plans"][plan["id"]] = plan
+        close = AsyncMock(return_value={"orderId": 78, "avgPrice": "0.79", "status": "FILLED"})
+        position = {"mark_price": "0.80", "entry_price": "0.8013", "quantity": "124.7"}  # işaret fiyatı henüz inmedi
+        with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
+                patch.object(live, "persist_state", lambda s: None):
+            self.book = {"bidPrice": "0.80", "askPrice": "0.801"}
+            self.assertFalse(asyncio.run(live.manual_close_target_step(self.client, state, plan, position)))
+            self.book = {"bidPrice": "0.789", "askPrice": "0.79"}  # SHORT için çıkış tarafı (ask) hedefe değdi
+            self.assertTrue(asyncio.run(live.manual_close_target_step(self.client, state, plan, position)))
+        close.assert_awaited_once()
+
     def test_profit_target_does_not_close_when_book_unreadable(self):
         state = live.initial_state()
         plan = self._plan()
@@ -93,11 +108,13 @@ class CloseTargetStepTests(unittest.TestCase):
         close = AsyncMock(return_value={"orderId": 77, "avgPrice": "0.79", "status": "FILLED"})
         with patch.object(live, "live_plan_can_mutate", return_value=True), patch.object(live, "close_tracked_symbol", close), \
                 patch.object(live, "persist_state", lambda s: None):
-            hit = asyncio.run(live.manual_close_target_step(self.client, state, plan, {"mark_price": "0.795", "entry_price": "0.8013", "quantity": "124.7"}))
-            self.assertFalse(hit)
-            close.assert_not_awaited()
+            self.book = {"bidPrice": "0.794", "askPrice": "0.795"}  # gerçek çıkış (ask) hedefte değil
             hit = asyncio.run(live.manual_close_target_step(self.client, state, plan, {"mark_price": "0.79", "entry_price": "0.8013", "quantity": "124.7"}))
-        self.assertTrue(hit)
+            self.assertFalse(hit)  # işaret fiyatı hedefte görünse bile gerçek çıkış fiyatı tutmuyor
+            close.assert_not_awaited()
+            self.book = {"bidPrice": "0.789", "askPrice": "0.79"}
+            hit = asyncio.run(live.manual_close_target_step(self.client, state, plan, {"mark_price": "0.795", "entry_price": "0.8013", "quantity": "124.7"}))
+        self.assertTrue(hit)  # işaret fiyatı geride kalsa da gerçek çıkış fiyatı hedefte: kapanır
         close.assert_awaited_once()
         self.assertTrue(close.await_args.args[2].startswith("manual-target-plan-123456"))
         self.assertEqual(plan["close_reason"], "TARGET")
@@ -219,7 +236,7 @@ class CloseTargetFastLoopTests(unittest.TestCase):
     def _app(self, state):
         return SimpleNamespace(state=SimpleNamespace(v25_execution=state, v25_execution_stopping=False))
 
-    def _run(self, plans, positions):
+    def _run(self, plans, positions, book=None, fetched=None):
         async def go():
             state = live.initial_state()
             state["lock"] = asyncio.Lock()
@@ -227,7 +244,7 @@ class CloseTargetFastLoopTests(unittest.TestCase):
             app = self._app(state)
             seen = []
 
-            async def fake_runner(client, st, pos):
+            async def fake_runner(client, st, pos, books=None):
                 seen.append(dict(pos))
                 app.state.v25_execution_stopping = True
 
@@ -238,7 +255,8 @@ class CloseTargetFastLoopTests(unittest.TestCase):
                 await asyncio.sleep(0.2)
                 app.state.v25_execution_stopping = True
 
-            with patch.object(live, "CLOSE_TARGET_FAST_SECONDS", 0.01), \
+            public = SimpleNamespace(public_get=AsyncMock(side_effect=lambda path, params=None: (fetched.append(params["symbol"]) if fetched is not None else None) or dict(book or {"bidPrice": "1.50", "askPrice": "1.51"})))
+            with patch.object(live, "CLOSE_TARGET_FAST_SECONDS", 0.01), patch.object(live, "public_client_for", lambda app: public), \
                     patch.object(live, "auto_session_credentials", AsyncMock(return_value=("a" * 12, "b" * 12))), \
                     patch.object(live, "client_for_with_credentials", lambda *a, **k: object()), \
                     patch.object(live, "live_plan_position", fake_position), \
@@ -249,11 +267,49 @@ class CloseTargetFastLoopTests(unittest.TestCase):
 
     def test_fast_loop_checks_only_symbols_with_a_target(self):
         plans = {
-            "a": {"id": "a", "symbol": "SOPHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF", "close_target": {"mode": "profit", "value": 0.15}},
+            "a": {"id": "a", "symbol": "SOPHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF", "direction": "LONG", "entry_price": "1", "quantity": "10", "close_target": {"mode": "profit", "value": 0.15}},
             "b": {"id": "b", "symbol": "ETHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF"},
         }
-        seen = self._run(plans, {"SOPHUSDT": {"mark_price": "1"}, "ETHUSDT": {"mark_price": "2"}})
+        fetched = []
+        seen = self._run(plans, {"SOPHUSDT": {"mark_price": "1"}, "ETHUSDT": {"mark_price": "2"}}, fetched=fetched)
         self.assertEqual(seen, [{"SOPHUSDT": {"mark_price": "1"}}])
+        self.assertEqual(set(fetched), {"SOPHUSDT"})  # yalnız hedefi olan sembolün fiyatı okunur
+
+    def test_fast_loop_makes_no_signed_calls_until_the_book_touches_the_target(self):
+        plans = {"a": {"id": "a", "symbol": "SOPHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF", "direction": "LONG", "entry_price": "1", "quantity": "10", "close_target": {"mode": "profit", "value": 0.15}}}
+        calls = []
+
+        async def go():
+            state = live.initial_state()
+            state["lock"] = asyncio.Lock()
+            state["plans"] = plans
+            app = self._app(state)
+            public = SimpleNamespace(public_get=AsyncMock(return_value={"bidPrice": "1.001", "askPrice": "1.002"}))
+
+            async def stopper():
+                await asyncio.sleep(0.15)
+                app.state.v25_execution_stopping = True
+
+            with patch.object(live, "CLOSE_TARGET_FAST_SECONDS", 0.01), patch.object(live, "public_client_for", lambda app: public), \
+                    patch.object(live, "auto_session_credentials", AsyncMock(side_effect=lambda *a, **k: calls.append("cred") or ("a" * 12, "b" * 12))), \
+                    patch.object(live, "live_plan_position", AsyncMock(side_effect=lambda *a, **k: calls.append("pos"))):
+                await asyncio.gather(live.close_target_fast_loop(app), stopper())
+            return public.public_get.await_count
+        reads = asyncio.run(go())
+        self.assertGreater(reads, 2)  # birkaç kez bakıldı
+        self.assertEqual(calls, [])  # ama fiyat hedefe değmediği için kimlik/pozisyon çağrısı yok
+
+    def test_touch_check_uses_real_exit_side(self):
+        state = live.initial_state()
+        plan = {"id": "a", "symbol": "SOPHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF", "direction": "LONG", "entry_price": "1", "quantity": "10",
+                "close_target": {"mode": "profit", "value": 0.5}}
+        state["plans"] = {"a": plan}
+        # LONG 10 adet, giriş 1: 1.06 bid -> brüt 0.6, komisyon ~0.0103 -> net ~0.59 >= 0.5
+        self.assertTrue(live.close_target_touched(state, "SOPHUSDT", {"bidPrice": "1.06", "askPrice": "1.07"}))
+        self.assertFalse(live.close_target_touched(state, "SOPHUSDT", {"bidPrice": "1.03", "askPrice": "1.04"}))
+        self.assertFalse(live.close_target_touched(state, "ETHUSDT", {"bidPrice": "9", "askPrice": "9"}))
+        plan.pop("quantity")
+        self.assertFalse(live.close_target_touched(state, "SOPHUSDT", {"bidPrice": "1.06", "askPrice": "1.07"}))  # veri eksik: ön eleme yapmaz, ana döngü yedek
 
     def test_fast_loop_does_nothing_without_targets(self):
         plans = {"b": {"id": "b", "symbol": "ETHUSDT", "source": "MANUAL", "status": "KORUMA AKTİF"}}
