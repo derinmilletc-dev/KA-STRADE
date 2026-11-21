@@ -28,6 +28,7 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [period, setPeriod] = useState<'today' | 'week'>('today')
   const [push, setPush] = useState<PushState | 'unknown' | 'busy'>('unknown')
   const [pushError, setPushError] = useState('')
 
@@ -58,10 +59,19 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
   }
 
   const today = new Date().toDateString()
+  const weekAgo = Date.now() - 7 * 86_400_000
   const todayItems = (data?.items ?? []).filter(item => new Date(item.time).toDateString() === today)
-  const closes = todayItems.filter(item => ['target', 'stop', 'manual_close', 'protect'].includes(item.kind))
-  const wins = closes.filter(item => (num(item.pnl) ?? 0) > 0).length
+  const weekItems = (data?.items ?? []).filter(item => new Date(item.time).getTime() >= weekAgo)
+  const isClose = (item: Item) => ['target', 'stop', 'manual_close', 'protect'].includes(item.kind)
+  const scope = period === 'today' ? todayItems : weekItems
+  const closes = scope.filter(isClose)
+  const known = closes.filter(item => num(item.pnl) !== null)
+  const wins = known.filter(item => (num(item.pnl) ?? 0) > 0).length
+  const weekTotal = known.reduce((sum, item) => sum + (num(item.pnl) ?? 0), 0)
+  const best = known.length ? known.reduce((a, b) => (num(b.pnl) ?? 0) > (num(a.pnl) ?? 0) ? b : a) : null
+  const worst = known.length ? known.reduce((a, b) => (num(b.pnl) ?? 0) < (num(a.pnl) ?? 0) ? b : a) : null
   const pnlToday = num(dailyPnl)
+  const pnlShown = period === 'today' ? pnlToday : known.length ? weekTotal : null
   const items = showAll ? (data?.items ?? []) : (data?.items ?? []).slice(0, 6)
 
   return <section className="cbAct" aria-label="İşlem geçmişi">
@@ -70,11 +80,14 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
       <button type="button" className="cbActRefresh" onClick={() => void load()} disabled={loading} aria-label="Yenile"><RefreshCw className={loading ? 'spin' : ''} aria-hidden="true"/></button>
     </div>
 
-    <dl className="cbActToday" aria-label="Bugün">
-      <div><dt>Bugün K/Z</dt><dd data-tone={pnlToday === null || pnlToday === 0 ? undefined : pnlToday > 0 ? 'up' : 'down'}>{pnlToday === null ? '—' : money(pnlToday)}</dd></div>
-      <div><dt>İşlem</dt><dd>{todayItems.length}</dd></div>
-      <div><dt>Kapanan</dt><dd>{closes.length ? `${wins} / ${closes.length} kârlı` : '0'}</dd></div>
+    <div className="cbActSeg" role="group" aria-label="Dönem"><button type="button" aria-pressed={period === 'today'} data-on={period === 'today' || undefined} onClick={() => setPeriod('today')}>Bugün</button><button type="button" aria-pressed={period === 'week'} data-on={period === 'week' || undefined} onClick={() => setPeriod('week')}>Bu hafta</button></div>
+    <dl className="cbActToday" aria-label={period === 'today' ? 'Bugün' : 'Son 7 gün'}>
+      <div><dt>{period === 'today' ? 'Bugün K/Z' : '7 gün K/Z'}</dt><dd data-tone={pnlShown === null || pnlShown === 0 ? undefined : pnlShown > 0 ? 'up' : 'down'}>{pnlShown === null ? '—' : money(pnlShown)}</dd></div>
+      <div><dt>İşlem</dt><dd>{scope.length}</dd></div>
+      <div><dt>Kapanan</dt><dd>{closes.length ? `${wins} / ${known.length || closes.length} kârlı` : '0'}</dd></div>
     </dl>
+    {period === 'week' && best && worst && known.length > 1 && <p className="cbActBest"><span>En iyi <b data-tone="up">{best.product_id.split('-')[0]} {money(num(best.pnl) ?? 0)}</b></span><span>En kötü <b data-tone={(num(worst.pnl) ?? 0) < 0 ? 'down' : 'up'}>{worst.product_id.split('-')[0]} {money(num(worst.pnl) ?? 0)}</b></span></p>}
+    {period === 'week' && <p className="cbActNote">Her pazartesi sabah bu özet telefona da gelir (bildirim açıksa).</p>}
 
     {push !== 'on' && push !== 'unknown' && push !== 'not-ready' && <div className="cbActPush">
       <Bell aria-hidden="true"/>

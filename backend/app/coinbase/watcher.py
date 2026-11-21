@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 
 from . import activity, journal, market, service, vault
@@ -127,6 +129,97 @@ async def check_user(pool: Any, user_id: str, client: Any, *, send: Any) -> list
     return sent
 
 
+EXPIRY_WARN_HOURS = 24
+
+
+def _parse_time(value: Any) -> datetime | None:
+    try:
+        moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+async def check_expiry(pool: Any, user_id: str, positions: list[dict[str, Any]], *, send: Any, now: datetime | None = None) -> list[str]:
+    """Vadesine 24 saatten az kalan açık pozisyonlar için BİR KEZ bildirim (ürün + vade başına)."""
+    now = now or datetime.now(timezone.utc)
+    warned: list[str] = []
+    for row in positions:
+        expiry = _parse_time(row.get("expiration_time"))
+        if expiry is None or expiry.year >= 2050:
+            continue
+        left = expiry - now
+        if not (timedelta(0) < left <= timedelta(hours=EXPIRY_WARN_HOURS)):
+            continue
+        product = str(row["product_id"])
+        key = expiry.isoformat()
+        if await journal.has_event(pool, user_id, "expiry_warned", product_id=product, key=key, days=7):
+            continue
+        hours = max(1, round(left.total_seconds() / 3600))
+        side = activity.position_side(row.get("side")) or ""
+        await journal.record(pool, user_id, "watch", "expiry_warned", product_id=product, detail={"key": key, "hours": hours})
+        try:
+            await send(pool, user_id, "close", f"⏳ {product.split('-')[0]} pozisyonun {hours} saat sonra kapanıyor",
+                       f"{product} {side} · vade dolunca pozisyon otomatik kapanır. İstersen önceden kapat ya da sonraki vadeye geç.")
+        except Exception as exc:
+            logger.warning("Coinbase vade bildirimi gönderilemedi (%s)", type(exc).__name__)
+        warned.append(product)
+    return warned
+
+
+def week_key(now: datetime) -> str:
+    year, week, _ = now.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def weekly_summary(feed: list[dict[str, Any]], now: datetime) -> dict[str, Any] | None:
+    """Son 7 günün kapanışlarından özet. Kapanış yoksa None (boş rapor gönderilmez)."""
+    since = now - timedelta(days=7)
+    closes = [item for item in feed if item["kind"] in ("target", "stop", "manual_close") and (_parse_time(item["time"]) or now) >= since]
+    if not closes:
+        return None
+    values = [(item, Decimal(item["pnl"])) for item in closes if item.get("pnl") is not None]
+    total = sum((value for _, value in values), Decimal(0))
+    wins = sum(1 for _, value in values if value > 0)
+    best = max(values, key=lambda pair: pair[1]) if values else None
+    worst = min(values, key=lambda pair: pair[1]) if values else None
+    return {"trades": len(closes), "known": len(values), "wins": wins, "total": f"{total.quantize(Decimal('0.01')):f}",
+            "best": (best[0]["product_id"].split("-")[0], f"{best[1].quantize(Decimal('0.01')):f}") if best else None,
+            "worst": (worst[0]["product_id"].split("-")[0], f"{worst[1].quantize(Decimal('0.01')):f}") if worst else None}
+
+
+async def check_weekly(pool: Any, user_id: str, client: Any, *, send: Any, now: datetime | None = None) -> dict[str, Any] | None:
+    """Pazartesi 06:00 UTC'den sonra haftada BİR KEZ özet bildirimi."""
+    now = now or datetime.now(timezone.utc)
+    if now.weekday() != 0 or now.hour < 6:
+        return None
+    key = week_key(now)
+    if await journal.has_event(pool, user_id, "weekly_sent", key=key, days=8):
+        return None
+    roles: dict[str, str] = {}
+    for role in ("entry", "entry_rest", "stop", "close"):
+        for order_id in await journal.our_order_ids(pool, user_id, (role,)):
+            roles[order_id] = role
+    try:
+        sizes = activity.contract_sizes(await market.fetch_products(client))
+    except Exception:
+        sizes = {}
+    feed = activity.build_feed(activity.group_fills(await activity.fetch_fills(client)), roles, sizes)
+    summary = weekly_summary(feed, now)
+    await journal.record(pool, user_id, "watch", "weekly_sent", detail={"key": key, "summary": summary})
+    if summary is None:
+        return None
+    total = Decimal(summary["total"])
+    lines = [f"{summary['trades']} işlem kapandı · {summary['wins']}/{summary['known']} kârlı · toplam {'+' if total > 0 else ''}{summary['total']} USD"]
+    if summary["best"] and summary["worst"] and summary["known"] > 1:
+        lines.append(f"En iyi {summary['best'][0]} {summary['best'][1]} · en kötü {summary['worst'][0]} {summary['worst'][1]}")
+    try:
+        await send(pool, user_id, "close", "📊 Coinbase haftalık özet", " · ".join(lines) + " (komisyon hariç, yaklaşık)")
+    except Exception as exc:
+        logger.warning("Coinbase haftalık özet gönderilemedi (%s)", type(exc).__name__)
+    return summary
+
+
 async def _push(pool: Any, user_id: str, category: str, title: str, body: str) -> None:
     from ..web_push import configured, send_to_user
     if configured():
@@ -154,6 +247,8 @@ async def run_once(app: Any) -> int:
             key_name, pem = stored
             client = CoinbaseClient(key_name, load_private_key(pem))
             count += len(await check_user(pool, user_id, client, send=_push))
+            await check_expiry(pool, user_id, await service.fetch_positions(client), send=_push)
+            await check_weekly(pool, user_id, client, send=_push)
         except Exception as exc:
             logger.warning("Coinbase izleyici bu hesabı atladı (%s)", type(exc).__name__)
     return count
