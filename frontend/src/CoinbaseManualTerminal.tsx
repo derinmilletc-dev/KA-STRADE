@@ -223,7 +223,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const chooseCoin = (value: string) => { setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
   useEffect(() => {
     if (step !== 4) { autoCheckRef.current = false; return }
-    if (autoCheckRef.current || check !== null || busy !== '' || !ordersOn || ticketProblems(ticket).length > 0) return
+    if (autoCheckRef.current || check !== null || busy !== '' || !ordersOn || futuresMissing || ticketProblems(ticket).length > 0) return
     autoCheckRef.current = true
     void reviewOrder()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,7 +289,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       ? [{key: 'pre', label: 'Ön kontrol', state: 'ok', detail: 'Kayıp, kaldıraç, alım gücü, marjin ve sınırlar uygun.'}]
       : check.reasons.map((reason, index) => ({key: `r${index}`, label: 'Düzeltilmeli', state: 'bad' as const, detail: reason}))
   const reviewed = check?.ok === true
-  const sendBlock = !ordersOn ? 'Emir gönderme sunucuda kapalı (COINBASE_ORDERS_ENABLED).' : !reviewed ? 'Önce "Ön kontrol yap" ile sına; geçerse gönderebilirsin.' : ''
+  const sendBlock = futuresMissing ? 'Vadeli cüzdanında bakiye yok. Coinbase\'de vadeli cüzdana USD ekle, sonra tekrar dene.' : !ordersOn ? 'Emir gönderme sunucuda kapalı (COINBASE_ORDERS_ENABLED).' : !reviewed ? 'Önce "Ön kontrol yap" ile sına; geçerse gönderebilirsin.' : ''
 
   const noticeEl = wizNotice.kind !== 'info' && wizNotice.text
     ? <p className={`mxtNotice ${wizNotice.kind}`} role={wizNotice.kind === 'error' ? 'alert' : 'status'}>{wizNotice.text}</p> : null
@@ -306,13 +306,14 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const reviewStep = <>
     <h4>Son kontrol</h4>
     <p className="mxtLead">Önce ön kontrolle sına (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
+    {futuresMissing && <div className="mxtLockCard" role="alert"><span><b>Bakiye ekle</b><small>Vadeli cüzdanında bakiye yok. Coinbase'de vadeli cüzdana USD ekle, buradan yenile ve tekrar dene.</small></span></div>}
     {!ordersOn && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock}</small></span></div>}
     <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 5)}/><SummaryList rows={summaryRows.slice(5)}/></div>
     <CheckList rows={checkRows}/>
     {plan && <p className="mxtHint">Stop'ta kaybın en çok {String(plan.worst_case_loss_usd)} USD olur.</p>}
     {progressEl}
     <div className="mxtActions">
-      <button type="button" className="mxtBtn ghost" onClick={() => void reviewOrder()} disabled={busy !== '' || !ordersOn}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'review' ? 'Kontrol ediliyor…' : 'Ön kontrol yap'}</button>
+      <button type="button" className="mxtBtn ghost" onClick={() => void reviewOrder()} disabled={busy !== '' || !ordersOn || futuresMissing}>{busy === 'review' ? <RefreshCw className="spin"/> : <Send/>} {busy === 'review' ? 'Kontrol ediliyor…' : 'Ön kontrol yap'}</button>
       <button type="button" className="mxtBtn danger mxtSendPop" data-sending={busy === 'send' || undefined} onClick={() => { setConfirmText(''); setConfirmOpen(true) }} disabled={busy !== '' || sendBlock !== ''} aria-busy={busy === 'send'}>
         {busy === 'send' ? 'Gönderiliyor…' : <><Send/> Gerçek emri gönder</>}
       </button>
@@ -506,10 +507,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {notice && <div className="cbPanel"><CoinbaseManualNotice notice={notice}/></div>}
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
-    {keySaved && futuresMissing && <div className="mxt">{statusStrip}</div>}
-    {keySaved && !futuresMissing && wizardBody}
+    {keySaved && wizardBody}
     {confirmModal}
-    {keySaved && !futuresMissing && <div className="cbPanel" ref={positionsRef}>
+    {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
     </div>}
