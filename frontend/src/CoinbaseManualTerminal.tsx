@@ -97,6 +97,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
+  const [lastCheck, setLastCheck] = useState<number | null>(null)
   const [anaSym, setAnaSym] = useState<string | null>(null)
   const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
   const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
@@ -145,6 +146,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       setNotice(noticeFromError(error))
     } finally {
       loadingRef.current = false
+      setLastCheck(Date.now())
       setLoading(false)
     }
   }, [])
@@ -555,7 +557,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   </div> : null
 
   const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} futuresMissing={futuresMissing} ordersOn={ordersOn}
-    clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}/>
+    clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}
+    openSummary={positions.length === 1 ? `${(positions[0].product_id || '').split('-')[0]} · ${String(positions[0].side ?? '').toUpperCase().endsWith('SHORT') ? 'SHORT' : 'LONG'}` : positions.length > 1 ? `${positions.length} açık` : null}
+    openOrders={protection?.open_order_count ?? null} lastCheck={lastCheck}/>
 
   const reviewStep = <>
     <h4>Son kontrol</h4>
