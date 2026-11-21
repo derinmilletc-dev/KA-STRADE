@@ -4,7 +4,9 @@
 // piyasa girişi, zorunlu stop, stop doğrulama. Binance dosyalarına dokunulmaz; yalnızca içe aktarılır.
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {ChevronDown, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
+import {ChevronDown, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
+import {CoinIcon} from '../../src/components/CoinIcon'
+import CoinLiveChart from './CoinLiveChart'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {askKais} from '../../kais-ask'
 import {fetchWithTimeout} from '../../master-trade-request'
@@ -12,9 +14,10 @@ import '../../live-ws.css'
 import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
+import '../../live-cockpit.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
-import {changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote} from './coinbase-market'
+import {analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
@@ -83,6 +86,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
+  const [recentIds, setRecentIds] = useState<string[]>(() => { try { const raw = JSON.parse(window.localStorage.getItem('kt-cb-recent') || '[]'); return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string').slice(0, 5) : [] } catch { return [] } })
   const [products, setProducts] = useState<CbProduct[] | null>(null)
   const [productsError, setProductsError] = useState('')
   const [universe, setUniverse] = useState<SignalMap | null>(() => universeCache)
@@ -221,7 +225,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const selectedSignal = signals?.[selectedId]
   const shownPrice = quote ? Number(quote.mid) : selectedRow ? selectedRow.price : NaN
   const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
-  const chooseCoin = (value: string) => { setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
+  const chooseCoin = (value: string) => { setRecentIds(current => { const next = [value, ...current.filter(item => item !== value)].slice(0, 5); try { window.localStorage.setItem('kt-cb-recent', JSON.stringify(next)) } catch { /* depolama kapalı */ } return next }); setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
   useEffect(() => {
     if (!manualOpen) return
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !confirmOpen) setManualOpen(false) }
@@ -373,54 +377,30 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     document.body,
   ) : null
 
-  const toolbar = signals !== null && <div className="cpkTools">
-    <div className="cpkChips" role="group" aria-label="Filtre">{FILTER_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} className={coinFilter === key ? 'on' : ''} onClick={() => setCoinFilter(key)}>{label}<span>{key === 'all' ? rows.length : signalCount(key)}</span></button>)}</div>
-    <div className="cpkChips cpkSorts" role="group" aria-label="Sıralama">{SORT_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinSort === key} className={coinSort === key ? 'on' : ''} onClick={() => setCoinSort(key)}>{label}</button>)}</div>
-  </div>
-  const pickAll = signals ? sortCoins(filterBySignal(rows, signals, coinFilter), signals, coinSort).filter(row => signals[row.symbol]) : []
-  const pickRows = pickAll.slice(0, PICK_LIMIT)
-  const sortLabel = (SORT_CHIPS.find(([key]) => key === coinSort) || [null, ''])[1]
-  const signalNote = signals !== null && Object.keys(signals).length === 0 ? 'Bu ürünler için Kais AI analizi eşleşmedi (dayanak varlık bilinmiyor ya da analiz evreninde yok).' : ''
-  const picksBlock = !coinOpen && <div className="cpk"><section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
-    <header className="cpkPicksHead"><h5>Kais AI güçlü sinyaller</h5>{universe === null && !signalsError && <span className="cpkStatus">Analiz yükleniyor…</span>}{signalsError && <span className="cpkStatus warn">Analiz şu an alınamadı; liste hacme göre.</span>}</header>
-    {toolbar}
-    {universe === null && !signalsError && <ul className="cpkPickList" aria-hidden="true">{[0, 1, 2, 3].map(index => <li key={index} className="cpkSkeleton"/>)}</ul>}
-    {signalNote && <p className="cpkEmpty">{signalNote}</p>}
-    {signals !== null && !signalNote && pickRows.length === 0 && <p className="cpkEmpty">Bu filtrede ürün yok. Başka bir filtre seç.</p>}
-    {pickRows.length > 0 && <p className="cpkPickCount" role="status"><b>{pickAll.length} ürün</b> · {sortLabel}{pickAll.length > 4 ? ' · kaydırarak hepsini gör' : ''}</p>}
-    {pickRows.length > 0 && <ul className="cpkPickList cpkPickScroll" key={`${coinFilter}-${coinSort}`}>{pickRows.map(row => {
-      const signal = signals![row.symbol]
-      return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === selectedId} data-lean={signal.lean} className={`cpkCard ${row.symbol === selectedId ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
-        <span className="cpkCardTop"><strong>{row.display}</strong><span className="cpkTick"><span>{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></span></span>
-        {miniDuo(signal)}
-      </button></li>
-    })}</ul>}
-    <p className="cpkNote">{AI_DISCLAIMER}</p>
-  </section></div>
-  const coinBlock = <div className="liveWsBlock liveWsCoin cpk">
-    <span className="liveWsLabel">1 · Ürün</span>
-    <button type="button" className="liveWsCoinBtn cpkHero" data-lean={selectedSignal?.lean ?? 'NONE'} aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
-      <span className="cpkHeroMain"><b>{selectedRow?.display || selectedId || 'Ürün seç'}</b>
-        <span className="cpkTick">{selectedRow || quote ? <><span>{priceText(shownPrice)} USD</span>{selectedRow && <em className={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em>}{quote && <em className="mxtMLive" title="Coinbase anlık fiyatı"><i aria-hidden="true"/>CANLI</em>}</> : <span>{productsError ? 'Liste alınamadı' : products === null ? 'Liste yükleniyor…' : 'Listeden seç'}</span>}</span>
-        {selectedSignal && <span className="cpkLeanLine">{leanText(selectedSignal)}</span>}</span>
-      {duo(selectedSignal)}
-      <ChevronDown/>
-    </button>
-    {quoteError && selectedId && <small className="liveWsHint" role="alert">Canlı fiyat alınamadı; son liste fiyatı gösteriliyor.</small>}
-    {coinOpen && <div className="cpkPop">
-      <label className="cpkSearch"><Search/><input autoFocus value={coinQuery} placeholder="Ürün ara: BTC, ETH, SOL…" aria-label="Ürün ara" onChange={event => setCoinQuery(event.target.value)}
-        onKeyDown={event => {
-          if (event.key === 'Escape') setCoinOpen(false)
-          if (event.key === 'Enter') { if (listed[0]) chooseCoin(listed[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) }
-        }}/></label>
-      {toolbar}
-      {products === null && !productsError && <p className="cpkEmpty">Ürün listesi yükleniyor…</p>}
-      {productsError && <p className="cpkEmpty warn">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
-      {products !== null && <ul role="listbox" aria-label="Ürün listesi" className="cpkList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === selectedId} data-lean={signals?.[row.symbol]?.lean ?? 'NONE'} className="cpkRow" onClick={() => chooseCoin(row.symbol)}>
-        <strong>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</strong>{miniDuo(signals?.[row.symbol])}<span className="cpkRowPrice">{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></button></li>)}{listed.length === 0 && <li className="cpkEmpty">Sonuç yok.</li>}</ul>}
-      {signals !== null && <p className="cpkNote">{AI_DISCLAIMER}</p>}
-      {products !== null && matches.length > listed.length && <p className="cpkNote">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</p>}
-    </div>}
+  const coinSym = (row: CbRow | undefined) => (row && (analysisSymbol(row.root) || row.root)) || ''
+  const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
+  const coinMark = (row: CbRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={coinSym(row) || fallback} size={40}/></span>
+  const recentRows = !coinQuery.trim() ? recentIds.map(id => rows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)) : []
+  const mobileList = matches.slice(0, 120)
+  const coinMobile = <div className="mxtM mxtMCoin">
+    {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{selectedRow ? <>{priceText(selectedRow.price)} · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+    {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
+    <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)}
+      onKeyDown={event => { if (event.key === 'Enter') { if (matches[0]) chooseCoin(matches[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) } }}/></label>
+    {recentRows.length > 0 && <div className="mxtMRecent"><span>Son:</span>{recentRows.slice(0, 5).map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.root || row.display}</button>)}</div>}
+    <div className="mxtMTabs" role="group" aria-label="Filtre" aria-busy={signals === null || undefined} data-loading={signals === null || undefined}>{FILTER_CHIPS.map(([key, label]) => <button type="button" key={key} disabled={signals === null && key !== 'all'} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signals === null ? <i className="mxtMSpin" aria-hidden="true"/> : signalCount(key)}</em></button>)}</div>
+    {signals === null && signalsError && <p className="mxtMSigNote" role="status">Kais AI sinyalleri alınamadı; liste hacme göre gösteriliyor.</p>}
+    <div className="mxtMMeta"><span><b>{matches.length} ürün</b>{matches.length > 5 ? ' · kaydır' : ''}</span>{signals !== null && <label className="mxtMSort">Sırala:<select value={coinSort} aria-label="Sıralama" onChange={event => setCoinSort(event.target.value as CoinSort)}>{SORT_CHIPS.map(([key, label]) => <option key={key} value={key}>{label.replace(' göre', '').replace('Güvene', 'Güven').replace('Hacme', 'Hacim').replace('Değişime', 'Değişim')}</option>)}</select></label>}</div>
+    {products === null && !productsError && <p className="mxtMEmpty">Ürün listesi yükleniyor…</p>}
+    {productsError && <p className="mxtMEmpty">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
+    {products !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede ürün yok.</p>}
+    {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${coinQuery}`} role="listbox" aria-label="Ürün listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={row.symbol === selectedId} data-on={row.symbol === selectedId || undefined} onClick={() => chooseCoin(row.symbol)}>
+      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</b><small>{priceText(row.price)}</small></span>
+      <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
+      {row.symbol === selectedId && <i className="mxtMTick" aria-hidden="true">✓</i>}
+    </button></li>)}</ul>}
+    {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
+    {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
   </div>
   const aiCard = selectedSignal ? <div className="cpk mxtAi" data-align={align}>
     <h5>Kais AI analizi · {selectedRow?.display || selectedId}</h5>
@@ -453,7 +433,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <div className="mxtCard" key={step}>
         <span className="mxtKicker">Adım {step + 1} / {STEP_NAMES.length}</span>
         {step !== 4 && noticeEl}
-        {step === 0 && <><h4>Hangi ürün?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{picksBlock}{coinBlock}</>}
+        {step === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{coinMobile}</>}
         {step === 1 && <><h4>Hangi yön?</h4><p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
           <DirectionCards value={dir} onChange={side => { const next = side === 'LONG' ? 'BUY' : 'SELL'; if (next !== ticket.side) { setTpRR(null); patch({side: next, stopPrice: '', takeProfit: ''}) } }}/>
           {aiCard}</>}
@@ -521,11 +501,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         <span className="cbOpenText"><b>Manuel işlem aç</b><small>Ürün seç, yönü belirle, stop ve hedefle gönder</small></span>
         <span className="cbOpenGo" aria-hidden="true">→</span>
       </button></div>}
-    {keySaved && manualOpen && <><div className="cbModalBackdrop" role="presentation" onClick={() => setManualOpen(false)}/>
-      <div className="cbModal" role="dialog" aria-modal="true" aria-label="Manuel işlem">
-        <button type="button" className="cbModalClose" aria-label="Manuel işlem panelini kapat" onClick={() => setManualOpen(false)}><X aria-hidden="true"/></button>
-        {wizardBody}
-      </div></>}
+    {keySaved && manualOpen && <div className="lcRoot" data-manual-modal="">
+      <div className="lcManualBackdrop" role="presentation" onClick={() => setManualOpen(false)}/>
+      <button type="button" className="lcManualClose" aria-label="Manuel işlem panelini kapat" onClick={() => setManualOpen(false)}><X aria-hidden="true"/></button>
+      <details open className="originalSurface originalManualOrder advRow" role="dialog" aria-modal="true" aria-label="Manuel işlem">
+        <summary className="advHead" onClick={event => event.preventDefault()}>
+          <span className="advHeadIcon amber"><CircleDollarSign aria-hidden="true"/></span>
+          <span className="advHeadText"><small>MANUEL</small><b>Manuel işlem</b></span>
+          <span className="advChip warn">GERÇEK PARA</span>
+        </summary>
+        <div className="liveWs">{wizardBody}</div>
+      </details></div>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
