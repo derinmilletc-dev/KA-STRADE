@@ -11,7 +11,7 @@ import {
 
 // Kapatma / düzenleme hedefleri LiveCockpit'teki türlerle birebir aynıdır (orada onay penceresi açılır; bu dosya emir göndermez).
 // long/entryPrice/quantity: onay penceresi açıkken K/Z'yi canlı fiyattan yeniden hesaplamak için.
-export type PositionCloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null}
+export type PositionCloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null; stopPrice?: number | null; canReduce?: boolean}
 export type PositionManualTarget = PositionCloseTarget & {stop: string; targets: [string, string, string]; mark: string}
 export type SmartPositionItem = {plan_id?: string; symbol?: string; mode?: string; last_score?: number | null; timer_end?: number | null; direction_state?: string; opposite_confidence?: number | null}
 
@@ -228,7 +228,8 @@ export default function PositionsCard(props: Props) {
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
         const askClose = () => props.onClose({planId: external ? '' : planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
-          long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity})
+          long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity,
+          stopPrice: Number.isFinite(Number(plan?.stop_loss)) && Number(plan?.stop_loss) > 0 ? Number(plan?.stop_loss) : null, canReduce: manual && !external && Boolean(planId)})
         // İnce çubuk: fiyatın stop (sol) ile TP1 (sağ) arasındaki yeri. TP1 sonrası / bilinmiyorsa çubuk yok.
         const tp1Left = metrics.toTp1Pct !== null && !breakeven ? metrics.toTp1Pct : null
         const score = external ? null : scoreInfo(plan, smartFor(plan, String(position.symbol ?? '')))
