@@ -2,9 +2,10 @@
 // Binance ekranındaki ama Coinbase'de yapılamayan parçalar çıkarıldı: hedef (TP) emirleri (yalnız-azalt emri olmadığı için güvensiz),
 // limit emir, risk limiti düzenleme, 24 saatlik izin/ARM. Ürün listesi, canlı fiyat ve Kais AI analizi VAR (analiz, ürünün dayanak varlığı üzerinden). Arka planda Coinbase mantığı çalışır: ön kontrol ("dry-run"),
 // piyasa girişi, zorunlu stop, stop doğrulama. Binance dosyalarına dokunulmaz; yalnızca içe aktarılır.
+import type React from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {ChevronDown, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
+import {BarChart3, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import CoinLiveChart from './CoinLiveChart'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
@@ -15,6 +16,7 @@ import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
 import '../../live-cockpit.css'
+import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
 import {analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
@@ -86,6 +88,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
+  const [anaSym, setAnaSym] = useState<string | null>(null)
   const [recentIds, setRecentIds] = useState<string[]>(() => { try { const raw = JSON.parse(window.localStorage.getItem('kt-cb-recent') || '[]'); return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string').slice(0, 5) : [] } catch { return [] } })
   const [products, setProducts] = useState<CbProduct[] | null>(null)
   const [productsError, setProductsError] = useState('')
@@ -382,6 +385,57 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const coinMark = (row: CbRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={coinSym(row) || fallback} size={40}/></span>
   const recentRows = !coinQuery.trim() ? recentIds.map(id => rows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)) : []
   const mobileList = matches.slice(0, 120)
+  // Analiz çekmecesi: Binance'teki ile aynı (listedeki sinyalden beslenir, yeni istek atmaz).
+  const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
+  const anaRow = anaIdx >= 0 ? matches[anaIdx] : undefined
+  const anaSig = anaRow ? signals?.[anaRow.symbol] : undefined
+  const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
+  const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
+  const anaLeanTitle = !anaSig ? '' : anaSig.lean === 'LONG' ? 'Yükseliş yönü ağır basıyor' : anaSig.lean === 'SHORT' ? 'Düşüş yönü ağır basıyor' : 'Belirgin yön yok'
+  const anaPos = anaSig && anaSig.long !== null && anaSig.short !== null && anaSig.long + anaSig.short > 0 ? anaSig.long / (anaSig.long + anaSig.short) * 100 : 50
+  const anaRead = !anaSig ? '' : anaSig.lean === 'NEUTRAL' ? 'LONG ve SHORT tarafları birbirine yakın. Net bir yön yok.'
+    : `${anaSig.lean === 'SHORT' ? 'Düşüş' : 'Yükseliş'} tarafı ${strengthLabel(anaSig.confidence) === 'Güçlü' ? 'belirgin şekilde' : strengthLabel(anaSig.confidence) === 'Orta' ? 'kısmen' : 'hafifçe'} ağır basıyor.${strengthLabel(anaSig.confidence) === 'Zayıf' ? ' Tek başına yön için yeterli değil.' : ''}`
+  const anaSheet = anaRow && anaSig && typeof document !== 'undefined' ? createPortal(<div className="mxsaRoot" data-open="1">
+    <button type="button" className="mxsaScrim" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}/>
+    <section className="mxsaSheet" role="dialog" aria-modal="true" aria-label={`${anaRow.display} analizi`} data-lean={anaSig.lean}
+      onKeyDown={event => { if (event.key === 'Escape') setAnaSym(null); if (event.key === 'ArrowRight') anaStep(1); if (event.key === 'ArrowLeft') anaStep(-1) }}>
+      <span className="mxsaGrab" aria-hidden="true"/>
+      <header className="mxsaHead">
+        <button type="button" className="mxsaIcon" aria-label="Önceki coin" disabled={anaIdx <= 0} onClick={() => anaStep(-1)}><ChevronLeft aria-hidden="true"/></button>
+        <span className="mxsaTitle"><small>ANALİZ SONUCU · {anaIdx + 1} / {matches.length}</small><b>{anaRow.display}</b></span>
+        <button type="button" className="mxsaIcon" aria-label="Sonraki coin" disabled={anaIdx >= matches.length - 1 || !signals?.[matches[anaIdx + 1]?.symbol]} onClick={() => anaStep(1)}><ChevronRight aria-hidden="true"/></button>
+        <button type="button" className="mxsaIcon" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}><X aria-hidden="true"/></button>
+      </header>
+      <div className="mxsaBody">
+        <section className="mxsaHero" aria-label="Analiz özeti">
+          <div className="mxsaHeroTxt">
+            <span className="mxsaPrice">{priceText(anaRow.price)}{Number.isFinite(anaRow.change) && <em data-tone={anaRow.change >= 0 ? 'up' : 'down'}>{changeText(anaRow.change)}</em>}</span>
+            <b className="mxsaVerdictT" data-lean={anaSig.lean}>{anaLeanTitle}</b>
+            <p className="mxsaRead">{anaRead}</p>
+          </div>
+          <div className="mxsaRing" data-lean={anaSig.lean} style={{'--mxsa-p': `${anaSig.confidence}%`} as React.CSSProperties} role="img" aria-label={`Güven yüzde ${anaSig.confidence}, ${strengthLabel(anaSig.confidence)}`}>
+            <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
+          </div>
+        </section>
+        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)}/>}
+        <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
+          <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
+          <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
+        </section>
+        <div className="mxsaPair">
+          <div className="mxsaTile" data-side="SHORT" data-lead={anaSig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{anaSig.short === null ? '–' : `%${anaSig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.short ?? 0}%`}}/></span></div>
+          <div className="mxsaTile" data-side="LONG" data-lead={anaSig.lean === 'LONG' || undefined}><span>LONG</span><strong>{anaSig.long === null ? '–' : `%${anaSig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.long ?? 0}%`}}/></span></div>
+        </div>
+        <p className="mxsaNote">{AI_DISCLAIMER} Analiz, ürünün dayanak coininin (Binance verisi) durumunu gösterir.</p>
+      </div>
+      <footer className="mxsaFoot">
+        {anaSig.lean === 'NEUTRAL'
+          ? <button type="button" className="mxsaCta" data-lean="NEUTRAL" onClick={anaPick}>{anaRow.display} seç</button>
+          : <button type="button" className="mxsaCta" data-lean={anaSig.lean} onClick={anaPick}>{anaRow.display} seç · analiz {anaSig.lean}</button>}
+        <button type="button" className="mxsaBack" onClick={() => setAnaSym(null)}>Listeye dön</button>
+      </footer>
+    </section>
+  </div>, document.body) : null
   const coinMobile = <div className="mxtM mxtMCoin">
     {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{selectedRow ? <>{priceText(selectedRow.price)} · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
@@ -398,7 +452,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</b><small>{priceText(row.price)}</small></span>
       <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
       {row.symbol === selectedId && <i className="mxtMTick" aria-hidden="true">✓</i>}
-    </button></li>)}</ul>}
+    </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}
+    {anaSheet}
     {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
     {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
   </div>
@@ -510,7 +565,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           <span className="advHeadText"><small>MANUEL</small><b>Manuel işlem</b></span>
           <span className="advChip warn">GERÇEK PARA</span>
         </summary>
-        <div className="liveWs">{wizardBody}</div>
+        <div className="liveWs cbWizWrap">{wizardBody}</div>
       </details></div>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
