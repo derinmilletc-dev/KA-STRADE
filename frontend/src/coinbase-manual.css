@@ -272,3 +272,52 @@ html body #root .cbTerminal .cbMinOrder:not(#a) button{flex:none!important;min-h
 .cbTerminal .cbActMore{justify-self:center;min-height:34px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#cfe0ea;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
 .cbTerminal .cbActNote{margin:0;font-size:.72rem;color:#7f8f88;text-align:center}
 html body #root .cbTerminal .cbActPush:not(#a) button{background:#3ddc97!important;color:#06281a!important;border:0!important}
+
+/* Hesap kartı v2: hazırlık adımları / canlı özet */
+html body #root .cbTerminal .cbHero2:not(#a):not(#b){display:grid!important;gap:14px!important;padding:18px!important;border-radius:22px!important;background:linear-gradient(160deg,#10201a,#0c141c 60%)!important;border:1px solid rgba(255,255,255,.07)!important;color:#eaf1f7!important}
+html body #root .cbTerminal .cbHero2:not(#a):not(#b) .cbHeroTitle b{white-space:nowrap!important;font-size:1.02rem!important}
+html body #root .cbTerminal .cbHero2:not(#a):not(#b) .cbHeroState{white-space:nowrap!important}
+html body #root .cbTerminal .cbHero2:not(#a):not(#b) .cbHeroState[data-tone='mute']{background:rgba(255,255,255,.06)!important;color:#b8c6d3!important}
+.cbTerminal .cbHero2 .cbHeroRing{display:flex;align-items:center;gap:14px}
+.cbTerminal .cbHero2 .cbRing{flex:none;width:62px;height:62px;border-radius:50%;display:grid;place-items:center}
+.cbTerminal .cbHero2 .cbRing i{width:48px;height:48px;border-radius:50%;background:#0f1a1d;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:15px;color:#eaf1f7}
+.cbTerminal .cbHero2 .cbHeroRing>span:last-child{display:grid;gap:2px}
+.cbTerminal .cbHero2 .cbHeroRing b{font-size:1.08rem;font-weight:800}
+.cbTerminal .cbHero2 .cbHeroRing small{font-size:.84rem;color:#a4b3ab}
+.cbTerminal .cbHero2 .cbSteps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.cbTerminal .cbHero2 .cbSteps li{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.03);font-size:.92rem;border:1px solid transparent}
+.cbTerminal .cbHero2 .cbSteps li span{flex:1;min-width:0}
+.cbTerminal .cbHero2 .cbSteps li i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;border:2px solid #3a4655;color:#93a3b5}
+.cbTerminal .cbHero2 .cbSteps li[data-state='done'] i{border:0;background:rgba(57,214,154,.18);color:#39d69a}
+.cbTerminal .cbHero2 .cbSteps li[data-state='now']{background:rgba(232,183,92,.1);border-color:rgba(232,183,92,.4);color:#f3d08a}
+.cbTerminal .cbHero2 .cbSteps li[data-state='now'] i{border:0;background:rgba(232,183,92,.2);color:#f0c46a}
+.cbTerminal .cbHero2 .cbSteps li[data-state='todo']{color:#7f8f88}
+.cbTerminal .cbHero2 .cbSteps li small{font-size:.76rem;color:#7f8f88;white-space:nowrap}
+html body #root .cbTerminal .cbHero2 .cbSteps li a:not(#a){flex:none;padding:6px 11px;border-radius:999px;background:#e8b75c!important;color:#1d1405!important;font-weight:800;font-size:.76rem;text-decoration:none!important;white-space:nowrap}
+.cbTerminal .cbHero2 .cbHeroAuto{display:flex;align-items:center;gap:8px;margin:0;font-size:.78rem;color:#7f8f88}
+.cbTerminal .cbHero2 .cbHeroAuto svg{width:14px;height:14px;flex:none}
+.cbTerminal .cbHero2 .cbHeroAuto span{flex:1}
+html body #root .cbTerminal .cbHero2 .cbHeroAuto button:not(#a){flex:none;padding:0!important;min-height:0!important;border:0!important;background:none!important;color:#7cb8ff!important;font:inherit!important;font-weight:700!important;cursor:pointer}
+.cbTerminal .cbHero2 .cbHeroWarn{margin:0;padding:9px 12px;border-radius:12px;background:rgba(239,119,119,.12);color:#f6b7b7;font-size:.84rem}
+.cbTerminal .cbHero2 .cbHeroMoney{display:grid;gap:0}
+.cbTerminal .cbHero2 .cbHeroMoney small{font-size:.84rem;color:#94a49c}
+.cbTerminal .cbHero2 .cbHeroMoney b{font-size:clamp(1.9rem,8vw,2.4rem);font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.15}
+.cbTerminal .cbHero2 .cbHeroLine{margin:-6px 0 0;font-size:.84rem;color:#a4b3ab}
+.cbTerminal .cbHero2 .cbHeroLine em{font-style:normal;font-weight:700}
+.cbTerminal .cbHero2 .cbHeroLine em[data-tone='up']{color:#39d69a}
+.cbTerminal .cbHero2 .cbHeroLine em[data-tone='down']{color:#ef9a9a}
+.cbTerminal .cbHero2 .cbHeroTiles2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.cbTerminal .cbHero2 .cbHeroTiles2>div{display:grid;gap:3px;padding:12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);min-width:0}
+.cbTerminal .cbHero2 .cbHeroTiles2 dt{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#94a49c}
+.cbTerminal .cbHero2 .cbHeroTiles2 dd{margin:0;font-size:1rem;font-weight:800;overflow-wrap:anywhere}
+.cbTerminal .cbHero2 .cbHeroTiles2 dd[data-tone='up']{color:#39d69a}
+.cbTerminal .cbHero2 .cbHeroTiles2 dd[data-tone='down']{color:#ef9a9a}
+.cbTerminal .cbHero2 .cbHeroChips2{display:flex;flex-wrap:wrap;gap:6px}
+.cbTerminal .cbHero2 .cbHeroChips2 span{font-size:.76rem;font-weight:700;padding:5px 10px;border-radius:999px;background:rgba(57,214,154,.1);color:#8ff0c4}
+.cbTerminal .cbHero2 .cbHeroChips2 span[data-off]{background:rgba(255,255,255,.05);color:#93a3b5}
+.cbTerminal .cbHero2 .cbHeroChips2 span[data-bad]{background:rgba(239,119,119,.12);color:#f6b7b7}
+.cbTerminal .cbCard[data-empty]{padding:0!important;background:none!important;border:0!important}
+.cbTerminal .cbPosEmpty{display:flex;align-items:center;gap:10px;margin:0;padding:14px 16px;border-radius:18px;background:#0e151d;border:1px solid rgba(255,255,255,.06);font-size:.92rem;color:#eaf1f7}
+.cbTerminal .cbPosEmpty svg{width:18px;height:18px;flex:none;color:#93a3b5}
+.cbTerminal .cbPosEmpty span{flex:1}
+.cbTerminal .cbPosEmpty small{font-size:.76rem;color:#7f8f88;text-align:right}

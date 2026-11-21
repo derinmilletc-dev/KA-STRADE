@@ -33,7 +33,7 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { setData(await coinbaseCall<Activity>('/activity')); setError('') }
+    try { const next = await coinbaseCall<Partial<Activity>>('/activity'); setData({items: Array.isArray(next?.items) ? next.items : [], alerts: Array.isArray(next?.alerts) ? next.alerts : []}); setError('') }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'İşlem geçmişi alınamadı.') }
     finally { setLoading(false) }
   }, [])

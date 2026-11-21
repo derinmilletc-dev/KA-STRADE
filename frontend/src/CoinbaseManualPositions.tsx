@@ -68,19 +68,15 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
     } catch (error) { setConfirm(''); if (error instanceof CoinbaseApiError) onError(error); else throw error } finally { setBusy(false) }
   }
 
-  return <section className="cbCard" aria-label="Pozisyonlar ve koruma">
-    <h3><ShieldAlert/>Pozisyonlar ve koruma</h3>
-    <div className="cbPosSum" aria-label="Pozisyon özeti">
+  return <section className="cbCard" data-empty={positions.length === 0 && orphans.length === 0 && !protection?.has_problem || undefined} aria-label="Pozisyonlar ve koruma">
+    {(positions.length > 0 || orphans.length > 0 || protection?.has_problem) && <h3><ShieldAlert/>Pozisyonlar ve koruma</h3>}
+    {positions.length > 0 && <div className="cbPosSum" aria-label="Pozisyon özeti">
       <div><small>Açık</small><b>{positions.length}</b></div>
       <div><small>Long</small><b data-tone="up">{positions.filter(item => sideOf(item.side) === 'BUY').length}</b></div>
       <div><small>Short</small><b data-tone="down">{positions.filter(item => sideOf(item.side) === 'SELL').length}</b></div>
-    </div>
-    <ul className="cbGuard" aria-label="Koruma">
-      <li><i aria-hidden="true">✓</i>Her işlem stop ile açılır; stop kurulamazsa pozisyon kapatılır</li>
-      <li><i aria-hidden="true">✓</i>Aynı anda en fazla 5 açık emir</li>
-      {protection && <li><i aria-hidden="true">{protection.all_protected ? '✓' : '!'}</i>{protection.all_protected ? 'Açık pozisyonların hepsi korumalı' : 'Korumasız pozisyon var, aşağıdan düzelt'}</li>}
-    </ul>
-    {positions.length === 0 && <p className="cbNote">Açık pozisyon yok.</p>}
+    </div>}
+    {protection && positions.length > 0 && !protection.all_protected && <p className="cbNote warn" role="alert">Korumasız pozisyon var; aşağıdan düzelt.</p>}
+    {positions.length === 0 && <p className="cbPosEmpty"><ShieldAlert aria-hidden="true"/><span>Açık pozisyon yok</span><small>Stop zorunlu · en fazla 5 emir</small></p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
     <ul className="cbPositions">{positions.map(position => <PositionRow key={position.product_id} position={position} ordersEnabled={ordersEnabled}
       item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError}/>)}</ul>
