@@ -1,7 +1,8 @@
 import {useState} from 'react'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
 import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone} from './coinbase-manual'
-import {positionView} from './coinbase-position'
+import {closeParts, closePreview, positionView} from './coinbase-position'
+import HoldButton from './HoldButton'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
@@ -22,39 +23,47 @@ const hoursLeft = (ms: number) => ms <= 0 ? 'vadesi doldu' : ms < 86_400_000 ? `
 function PositionRow({position, item, ordersEnabled, onDone, onError}: {position: CbPosition; item?: CbProtectionItem; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']}) {
   const [act, setAct] = useState<Act | null>(null)
   const [value, setValue] = useState('')
-  const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [more, setMore] = useState(false)
+  const [part, setPart] = useState(0)
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
   const pnl = num(position.unrealized_pnl)
   const root = position.product_id.split('-')[0]
-  const expected = act === 'close' ? CONFIRM.close : CONFIRM.change
+  const closing = act === 'close' || act === 'half'
+  const fullClose = act === 'close' && part >= view.contracts
+  const expected = fullClose ? CONFIRM.close : CONFIRM.change
   const valueOk = act === 'close' || act === 'half' || act === 'breakeven' || (act === 'reduce' ? /^[1-9]\d{0,5}$/.test(value.trim()) : act === 'stop' ? isPositiveDecimal(value) : false)
-  const canSend = !busy && act !== null && valueOk && sameConfirm(confirm, expected)
-  const open = (next: Act) => { setAct(current => current === next ? null : next); setValue(''); setConfirm('') }
+  const canSend = !busy && act !== null && valueOk && (closing ? part >= 1 : true)
+  const open = (next: Act) => {
+    setAct(current => current === next ? null : next); setValue('')
+    // Kapat → tamamı, Yarısını kapat → yarısı; iki düğme aynı ekranı açar, pay ekranda değiştirilir.
+    setPart(next === 'close' ? view.contracts : next === 'half' ? view.half ?? view.contracts : 0)
+    if (next === 'half') setAct('close')
+  }
 
   const send = async () => {
     if (!act) return
     setBusy(true)
     try {
       const base = {product_id: position.product_id, confirm: expected, request_id: newRequestId()}
-      const path = act === 'half' || act === 'reduce' ? 'reduce' : act === 'breakeven' || act === 'stop' ? 'stop' : 'close'
-      const body = act === 'half' ? {...base, reduce_by: view.half} : act === 'reduce' ? {...base, reduce_by: Number(value.trim())}
+      const partial = closing && part < view.contracts
+      const path = partial || act === 'reduce' ? 'reduce' : act === 'breakeven' || act === 'stop' ? 'stop' : 'close'
+      const body = partial ? {...base, reduce_by: part} : act === 'reduce' ? {...base, reduce_by: Number(value.trim())}
         : act === 'breakeven' ? {...base, stop_price: plain(view.breakeven as number)} : act === 'stop' ? {...base, stop_price: value.trim()} : base
       const result = await postJson<{message: string}>(`/orders/${path}`, body)
-      setAct(null); setValue(''); setConfirm('')
+      setAct(null); setValue('')
       onDone(result.message)
     } catch (error) {
-      setAct(null); setValue(''); setConfirm('')
+      setAct(null); setValue('')
       if (error instanceof CoinbaseApiError) onError(error); else throw error
     } finally { setBusy(false) }
   }
 
   const sheet: Record<Act, {title: string; text: string; button: string}> = {
     breakeven: {title: 'Stopu girişe çek', text: `Stop ${px(view.breakeven)} olur (giriş + komisyon payı). Fiyat geri dönse bile yaklaşık başa baş kapanır. Hedef aynı kalır.`, button: 'Stopu girişe çek'},
-    half: {title: 'Yarısını kapat', text: `${view.half ?? 0} sözleşme piyasa fiyatından kapanır, kalan ${view.contracts - (view.half ?? 0)} sözleşme aynı stop ve hedefle korunur.`, button: 'Yarısını kapat'},
-    close: {title: 'Pozisyonu kapat', text: `${view.contracts} sözleşmenin tamamı piyasa fiyatından kapanır, stop ve hedef emirleri silinir.`, button: 'Pozisyonu kapat'},
+    half: {title: 'Yarısını kapat', text: '', button: 'Yarısını kapat'},
+    close: {title: 'Pozisyonu kapat', text: '', button: 'Pozisyonu kapat'},
     stop: {title: 'Stopu taşı', text: 'Stop yalnızca pozisyona yaklaştırılabilir; kaybı büyütecek bir yere taşınamaz.', button: 'Stopu uygula'},
     reduce: {title: 'Azalt', text: `1 ile ${Math.max(1, view.contracts - 1)} arasında sözleşme kapatılır, kalan kısım korunur.`, button: 'Azalt'},
   }
@@ -99,12 +108,28 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
       {view.contracts > 1 && <button type="button" onClick={() => open('reduce')}>Belirli miktar azalt</button>}
     </div>}
 
-    {act && <div className="cbPos2Sheet" data-danger={act === 'close' || undefined}>
+    {act && closing && (() => {
+      const preview = closePreview(view, pnl, part)
+      const parts = closeParts(view.contracts)
+      const partial = part < view.contracts
+      const money = (value: number | null) => value === null ? '—' : `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`
+      const toneOf = (value: number | null) => value === null || value === 0 ? undefined : value > 0 ? 'good' : 'bad'
+      return <div className="cbClose2" data-danger={!partial || undefined}>
+        <div className="cbCl2Head"><b>{root} {partial ? `%${Math.round(preview.fraction * 100)} ` : ''}kapat</b><small>{view.dir ?? '—'} · {view.contracts} sözleşmenin {part}’i kapanır</small></div>
+        {parts.length > 1 && <div className="cbCl2Seg" role="group" aria-label="Kapatılacak pay">{parts.map(value => <button type="button" key={value} aria-pressed={part === value} disabled={busy} onClick={() => setPart(value)}>{value === view.contracts ? 'Tamamı' : `%${Math.round(value / view.contracts * 100)}`}</button>)}</div>}
+        <div className="cbCl2Net" data-tone={toneOf(preview.now)}><small>Şimdi kapatırsan yaklaşık</small><b>{money(preview.now)}</b><small>komisyon hariç tahmin</small></div>
+        {preview.atStop !== null && <div className="cbCl2Cmp"><div><small>Şimdi kapat</small><b data-tone={toneOf(preview.now)}>{money(preview.now)}</b></div><div><small>Stop çalışırsa</small><b data-tone={toneOf(preview.atStop)}>{money(preview.atStop)}</b></div></div>}
+        <p className="cbCl2Warn"><AlertTriangle aria-hidden="true"/><span>{partial ? <>Seçtiğin pay piyasa fiyatından kapanır; kalan <b>{view.contracts - part} sözleşme</b> aynı stop ve hedefle korunur.</> : <>Tamamı piyasa fiyatından kapanır. <b>Fiyat garantisi yok</b>; stop ve hedef emirleri silinir.</>}</span></p>
+        <HoldButton className="cbHold" label={partial ? `%${Math.round(preview.fraction * 100)} kapatmak için basılı tut` : 'Kapatmak için basılı tut'} busyLabel="Gönderiliyor…" busy={busy} disabled={!canSend} onConfirm={() => void send()}/>
+        <button type="button" className="cbCl2Cancel" onClick={() => setAct(null)} disabled={busy}>Vazgeç</button>
+      </div>
+    })()}
+    {act && !closing && <div className="cbPos2Sheet">
       <b>{sheet[act].title}</b>
       <p>{sheet[act].text}</p>
       {(act === 'stop' || act === 'reduce') && <label>{act === 'reduce' ? 'Kaç sözleşme?' : 'Yeni stop fiyatı'}<input value={value} onChange={event => setValue(event.target.value)} inputMode="decimal" autoComplete="off" placeholder={act === 'stop' ? px(view.stop) : '1'}/></label>}
-      <label>Onaylamak için yaz: <code>{expected}</code><input value={confirm} onChange={event => setConfirm(event.target.value)} autoComplete="off" placeholder={expected}/></label>
-      <div className="cbPos2SheetBtns"><button type="button" onClick={() => setAct(null)} disabled={busy}>Vazgeç</button><button type="button" data-kind={act === 'close' ? 'danger' : 'primary'} disabled={!canSend} onClick={() => void send()}>{busy ? 'Gönderiliyor…' : sheet[act].button}</button></div>
+      <HoldButton className="cbHold" label={`${sheet[act].button} · basılı tut`} busyLabel="Gönderiliyor…" busy={busy} disabled={!canSend} onConfirm={() => void send()}/>
+      <button type="button" className="cbCl2Cancel" onClick={() => setAct(null)} disabled={busy}>Vazgeç</button>
     </div>}
   </li>
 }

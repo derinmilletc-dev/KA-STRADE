@@ -1,9 +1,9 @@
 // Basılı tutarak onay: yanlışlıkla dokunmayı önler. Süre dolunca onConfirm bir kez çağrılır; bırakınca sıfırlanır.
 import {useEffect, useRef, useState} from 'react'
 
-type Props = {label: string; busyLabel: string; busy: boolean; disabled?: boolean; ms?: number; onConfirm: () => void}
+type Props = {className?: string; label: string; busyLabel: string; busy: boolean; disabled?: boolean; ms?: number; onConfirm: () => void}
 
-export default function HoldButton({label, busyLabel, busy, disabled, ms = 900, onConfirm}: Props) {
+export default function HoldButton({className = 'lcHold', label, busyLabel, busy, disabled, ms = 900, onConfirm}: Props) {
   const [progress, setProgress] = useState(0)
   const start = useRef(0)
   const frame = useRef(0)
@@ -25,7 +25,7 @@ export default function HoldButton({label, busyLabel, busy, disabled, ms = 900, 
   }
   useEffect(() => { if (!busy) { fired.current = false; setProgress(0) } }, [busy])
   useEffect(() => () => window.cancelAnimationFrame(frame.current), [])
-  return <button type="button" className="lcHold" data-busy={busy || undefined} disabled={Boolean(disabled) && !busy} aria-busy={busy}
+  return <button type="button" className={className} data-busy={busy || undefined} disabled={Boolean(disabled) && !busy} aria-busy={busy}
     onPointerDown={begin} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
     onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { event.preventDefault(); begin() } }}
     onKeyUp={event => { if (event.key === 'Enter' || event.key === ' ') stop() }}

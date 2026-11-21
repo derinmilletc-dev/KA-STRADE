@@ -1,6 +1,6 @@
 // Çalıştırma: node frontend/src/coinbase-position.test.mts
 import assert from 'node:assert/strict'
-import {positionView} from './coinbase-position.ts'
+import {closeParts, closePreview, positionView} from './coinbase-position.ts'
 
 const close = (a: number | null, b: number, eps = 1e-6) => assert.ok(a !== null && Math.abs(a - b) < eps, `${a} ≈ ${b}`)
 
@@ -42,3 +42,34 @@ const close = (a: number | null, b: number, eps = 1e-6) => assert.ok(a !== null 
   assert.equal(positionView({side: 'LONG', number_of_contracts: '1', avg_entry_price: '1', current_price: '1', expiration_time: '2030-12-20T16:00:00Z'}, null, now).expiryMs, null)
 }
 console.log('coinbase-position testleri geçti')
+
+// Kapatma payları
+assert.deepEqual(closeParts(1), [1])
+assert.deepEqual(closeParts(2), [1, 2])
+assert.deepEqual(closeParts(3), [1, 3])
+assert.deepEqual(closeParts(4), [1, 2, 4])
+assert.deepEqual(closeParts(9), [2, 4, 9])
+assert.deepEqual(closeParts(0), [])
+
+// Kapatma önizlemesi: LONG, giriş 100, güncel 102 (+20 USD) -> stop 98 ise -20 USD; yarısı için yarıya iner
+{
+  const v = positionView({side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '4', avg_entry_price: '100', current_price: '102'}, {stop_price: '98'})
+  const full = closePreview(v, 20, 4)
+  close(full.now, 20); close(full.atStop, -20)
+  const half = closePreview(v, 20, 2)
+  close(half.fraction, 0.5); close(half.now, 10); close(half.atStop, -10)
+}
+// SHORT zararda: giriş 100, güncel 101 (-10 USD), stop 103 -> -30 USD
+{
+  const v = positionView({side: 'FUTURES_POSITION_SIDE_SHORT', number_of_contracts: '2', avg_entry_price: '100', current_price: '101'}, {stop_price: '103'})
+  close(closePreview(v, -10, 2).atStop, -30)
+}
+// Fiyat girişe çok yakın / stop yok / K/Z yok: stop tahmini uydurulmaz
+{
+  const near = positionView({side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '2', avg_entry_price: '100', current_price: '100.01'}, {stop_price: '98'})
+  assert.equal(closePreview(near, 0.1, 2).atStop, null)
+  const nostop = positionView({side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '2', avg_entry_price: '100', current_price: '102'}, null)
+  assert.equal(closePreview(nostop, 20, 2).atStop, null)
+  const nopnl = positionView({side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '2', avg_entry_price: '100', current_price: '102'}, {stop_price: '98'})
+  assert.equal(closePreview(nopnl, null, 2).now, null)
+}
