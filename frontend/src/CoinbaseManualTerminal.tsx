@@ -782,9 +782,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
     {keySaved && <div className="mxt cbHome">{statusStrip}
-      <button type="button" className="cbOpenManual" data-testid="cb-open-manual" onClick={() => setManualOpen(true)}>
+      <button type="button" className="cbOpenManual" data-testid="cb-open-manual" data-wait={futuresMissing || undefined} onClick={() => setManualOpen(true)}>
         <span className="cbOpenIcon" aria-hidden="true"><Zap/></span>
-        <span className="cbOpenText"><b>Manuel işlem aç</b><small>Ürün seç, yönü belirle, stop ve hedefle gönder</small></span>
+        <span className="cbOpenText"><b>Manuel işlem aç</b><small>{futuresMissing ? 'İnceleyebilirsin · göndermek için bakiye gerekir' : 'Ürün seç · Long/Short · Stop · TP'}</small></span>
         <span className="cbOpenGo" aria-hidden="true">→</span>
       </button></div>}
     {keySaved && manualOpen && <div className="lcRoot" data-manual-modal="">
