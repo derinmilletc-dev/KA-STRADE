@@ -3759,10 +3759,10 @@ async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any],
 MANUAL_TARGET_MAX_FAILURES = 10  # geçici borsa/ağ hataları hedefi kolayca silmesin
 
 
-async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
+async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any], book: dict[str, Any] | None = None) -> bool:
     """Manuel plan için kapanış hedefi ("fiyat X olunca" ya da "net Y USDT kârda"): ulaşıldıysa reduce-only piyasa emriyle kapatır.
 
-    Koruma döngüsüyle aynı kilit altında, ~10 sn'de bir çalışır. Veri eksikse hiçbir şey yapmaz; stop ve hedefler yerinde kalır."""
+    Koruma döngüsüyle aynı kilit altında ~10 sn'de bir, hızlı bakış döngüsüyle (book verilir) yarım saniyede bir çalışır. Veri eksikse hiçbir şey yapmaz; stop ve hedefler yerinde kalır."""
     from . import manual_close_target
 
     target = plan.get("close_target")
@@ -3775,19 +3775,28 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     direction = str(plan.get("direction") or "").upper()
     fee_rate = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["fee_bps_per_side"])) / Decimal(10_000)
     entry = position.get("entry_price") or plan.get("entry_price")
-    if not manual_close_target.reached(target, direction, position.get("mark_price"), entry, position.get("quantity"), fee_rate):
-        return False
     symbol = plan["symbol"]
-    if target.get("mode") == "profit":
-        # Kâr hedefi işaret fiyatına (mark) göre tetiklenir ama kapatma piyasa emridir: LONG alış (bid), SHORT satış (ask)
-        # tarafından dolar. İnce coinlerde fark kârı silip zarara çevirebilir; kapatmadan önce gerçek çıkış fiyatıyla net
-        # kâr hedefi hâlâ tutuyor mu diye bakılır. Okunamazsa bu turda kapatılmaz, 10 sn sonra yeniden denenir.
+
+    async def exit_price_now() -> Decimal | None:
+        # Piyasa emriyle kapatınca gerçekte dolacak taraf: LONG satar (bid), SHORT geri alır (ask). Fiyat kısa süre
+        # hedefe değip dönebildiği için işaret fiyatı (mark) yerine bu fiyata bakılır; mark geriden gelir.
+        nonlocal book
         try:
-            book = await client.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol})
-            exit_price = manual_close_target.exit_side_price(direction, book.get("bidPrice"), book.get("askPrice"))
+            if book is None:
+                book = await client.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol})
+            return manual_close_target.exit_side_price(direction, book.get("bidPrice"), book.get("askPrice"))
         except Exception:  # noqa: BLE001 - veri yoksa kapatma yapılmaz
+            return None
+
+    if target.get("mode") == "profit":
+        # Net kâr hedefi gerçek çıkış fiyatıyla hesaplanır. Okunamazsa bu turda kapatılmaz, kısa süre sonra yeniden denenir.
+        exit_price = await exit_price_now()
+        if exit_price is None or not manual_close_target.reached(target, direction, exit_price, entry, position.get("quantity"), fee_rate):
             return False
-        if not manual_close_target.reached(target, direction, exit_price, entry, position.get("quantity"), fee_rate):
+    elif not manual_close_target.reached(target, direction, position.get("mark_price"), entry, position.get("quantity"), fee_rate):
+        # Fiyat hedefi: işaret fiyatı geride kalsa bile borsada o fiyata dokunulduysa (çıkış tarafı) hedef sayılır.
+        exit_price = await exit_price_now()
+        if exit_price is None or not manual_close_target.reached(target, direction, exit_price, entry, position.get("quantity"), fee_rate):
             return False
     intent = f"manual-target-{plan['id']}-{target.get('set_at') or ''}"
     close_client_id = client_id_for("CLOSE", intent)
@@ -3824,7 +3833,7 @@ async def manual_close_target_step(client: BinanceLiveClient, state: dict[str, A
     return True
 
 
-async def run_manual_close_targets(client: BinanceLiveClient, state: dict[str, Any], positions: dict[str, Any]) -> None:
+async def run_manual_close_targets(client: BinanceLiveClient, state: dict[str, Any], positions: dict[str, Any], books: dict[str, Any] | None = None) -> None:
     """Kapanış hedefi (fiyat / net kâr) koruma durumundan BAĞIMSIZ kontrol edilir.
 
     Eskiden yalnız koruma "eşleşti" turunda bakılıyordu; koruma onarılırken, TP1 sonrası emirler değişirken ya da
@@ -3837,7 +3846,7 @@ async def run_manual_close_targets(client: BinanceLiveClient, state: dict[str, A
         if position is None:
             continue
         try:
-            await manual_close_target_step(client, state, plan, position)
+            await manual_close_target_step(client, state, plan, position, (books or {}).get(plan.get("symbol")))
         except Exception as exc:  # noqa: BLE001 - kapanış hedefi hatası ana koruma döngüsünü asla durdurmaz
             logger.warning("MANUAL_TARGET_DEFERRED symbol=%s error=%s", plan.get("symbol"), type(exc).__name__)
 
@@ -7959,40 +7968,73 @@ async def execution_loop(application: Any) -> None:
             backoff = min(60, backoff * 2)
 
 
-CLOSE_TARGET_FAST_SECONDS = 2  # kapanış hedefi olan pozisyon için hızlı bakış; hedef yoksa hiç istek atmaz
+CLOSE_TARGET_FAST_SECONDS = 0.5  # hedef olan pozisyon için yarım saniyede bir (en fazla 2 sembolde); hedef yoksa hiç istek atmaz
 CLOSE_TARGET_FAST_MAX_SYMBOLS = 5
 
 
-async def close_target_fast_loop(application: Any) -> None:
-    """Kapanış hedefi (özellikle net kâr) olan pozisyonlara ~2 sn'de bir bakar.
+def close_target_touched(state: dict[str, Any], symbol: str, book: dict[str, Any]) -> bool:
+    """Kimlik gerektirmeyen ön eleme: bu sembolün kapanış hedefi, gerçek çıkış fiyatında (LONG bid / SHORT ask) dokunuldu mu?
 
-    Ana döngü 10 sn'de bir çalışır; ince coinde fiyat hedefi kısa süre görüp geri dönebiliyordu. Bu döngü yalnız
-    hedefi olan sembollerin pozisyonunu (tek hafif istek) okur ve aynı `run_manual_close_targets` adımını aynı kilit
-    altında çalıştırır. Hedef yoksa ya da hiçbir şey okunamıyorsa sessizce bekler; ana döngü yedek olarak sürer."""
+    Yalnız "bakmaya değer mi" kararı verir; kapatma kararı yine `manual_close_target_step` içinde gerçek pozisyonla alınır.
+    Ön eleme gevşektir (plan miktarı/girişi ile hesaplar); veri eksikse False: o durumda ana döngü (~10 sn) yedek olur."""
+    from . import manual_close_target
+
+    fee_rate = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["fee_bps_per_side"])) / Decimal(10_000)
+    for plan in state.get("plans", {}).values():
+        if not isinstance(plan, dict) or plan.get("symbol") != symbol or not isinstance(plan.get("close_target"), dict):
+            continue
+        if plan.get("source") != "MANUAL" or plan.get("status") in {"KAPANDI", "İPTAL", "KAPATMA EMRİ GÖNDERİLDİ"}:
+            continue
+        direction = str(plan.get("direction") or "").upper()
+        price = manual_close_target.exit_side_price(direction, book.get("bidPrice"), book.get("askPrice"))
+        mid = None
+        try:
+            mid = (Decimal(str(book.get("bidPrice"))) + Decimal(str(book.get("askPrice")))) / 2
+        except Exception:  # noqa: BLE001
+            pass
+        quantity = plan.get("requested_quantity", plan.get("quantity"))
+        for candidate in (price, mid):
+            if candidate is not None and manual_close_target.reached(plan["close_target"], direction, candidate, plan.get("entry_price"), quantity, fee_rate):
+                return True
+    return False
+
+
+async def close_target_fast_loop(application: Any) -> None:
+    """Kapanış hedefi olan pozisyonlara yarım saniyede bir bakar.
+
+    Eskiden 2 sn'de bir işaret fiyatına bakılıyordu; hızlı coinde fiyat hedefe değip hemen dönünce yakalanmıyordu.
+    Şimdi yalnız hedefi olan sembollerin alış/satış fiyatı (halka açık, kimliksiz) okunur; hedefe dokunulduysa gerçek
+    pozisyon okunup aynı `run_manual_close_targets` adımı aynı kilit altında çalışır. Hedef yoksa sessizce bekler."""
     while not getattr(application.state, "v25_execution_stopping", False):
         try:
-            await asyncio.sleep(CLOSE_TARGET_FAST_SECONDS)
             state = application.state.v25_execution
             symbols = sorted({
                 str(plan.get("symbol")) for plan in state.get("plans", {}).values()
                 if isinstance(plan, dict) and isinstance(plan.get("close_target"), dict) and plan.get("source") == "MANUAL"
                 and plan.get("status") not in {"KAPANDI", "İPTAL", "KAPATMA EMRİ GÖNDERİLDİ"} and plan.get("symbol")
             })[:CLOSE_TARGET_FAST_MAX_SYMBOLS]
+            await asyncio.sleep(CLOSE_TARGET_FAST_SECONDS if len(symbols) <= 2 else CLOSE_TARGET_FAST_SECONDS * 2)
             if not symbols or state["lock"].locked() or account_rate_limit_active(state):
+                continue
+            public = public_client_for(application)
+            fetched = await asyncio.gather(*(public.public_get("/fapi/v1/ticker/bookTicker", {"symbol": symbol}) for symbol in symbols), return_exceptions=True)
+            books = {symbol: row for symbol, row in zip(symbols, fetched) if isinstance(row, dict)}
+            due = [symbol for symbol, row in books.items() if close_target_touched(state, symbol, row)]
+            if not due:
                 continue
             credentials = await auto_session_credentials(application, state)
             if not usable_live_credentials(credentials):
                 continue
             client = client_for_with_credentials(application, credentials)
             positions: dict[str, Any] = {}
-            for symbol in symbols:
+            for symbol in due:
                 position = await live_plan_position(client, symbol)
                 if position is not None:
                     positions[symbol] = position
             if not positions:
                 continue
             async with state["lock"]:
-                await run_manual_close_targets(client, state, positions)
+                await run_manual_close_targets(client, state, positions, books)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - hızlı bakış ana korumayı asla etkilemez
