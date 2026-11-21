@@ -21,6 +21,7 @@ from .service import level_rank
 
 ZERO = Decimal("0")
 ONE = Decimal("1")
+AUTO_LEVERAGE = Decimal("5")  # sözleşme sayısı boş bırakılınca kullanılan varsayılan kaldıraç
 
 
 def _amount_value(block: Any) -> Decimal | None:
@@ -185,7 +186,16 @@ def run_preflight(
     requested = request.get("contracts")
     contracts: int
     if requested in (None, ""):
-        contracts = min(max_by_loss, max_by_leverage)
+        # Otomatik seçim: sabit tavan yok, ama sayı yazılmadıysa güvenli varsayılan kaldıraçla (5x; isteğe bağlı "leverage") boyutlanır.
+        try:
+            auto_leverage = Decimal(str(request.get("leverage") or AUTO_LEVERAGE))
+            if not auto_leverage.is_finite() or auto_leverage < 1:
+                auto_leverage = AUTO_LEVERAGE
+        except Exception:  # noqa: BLE001
+            auto_leverage = AUTO_LEVERAGE
+        auto_leverage = min(max(auto_leverage, limits.leverage_min), limits.leverage_max)
+        by_auto_leverage = int((margin_usd * auto_leverage / notional_per_contract).to_integral_value(rounding=ROUND_DOWN))
+        contracts = min(max_by_loss, by_auto_leverage)
     else:
         try:
             contracts = int(str(requested))

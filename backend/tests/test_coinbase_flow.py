@@ -28,8 +28,14 @@ async def nosleep(_):
 REQ = {"product_id": PRODUCT, "side": "BUY", "stop_price": "2940", "margin_usd": "60"}
 
 
+TIGHT_ENV = {"COINBASE_MAX_LOSS_USD": "5", "COINBASE_LEVERAGE_MIN": "3", "COINBASE_LEVERAGE_MAX": "5", "COINBASE_MAX_POSITIONS": "3", "COINBASE_DAILY_LOSS_LIMIT_USD": "10"}
+
+
 class FlowBase(unittest.TestCase):
     def setUp(self):
+        # Sabit tavanlar kaldırıldı; akış testleri eski sınırları ortam değişkeniyle sıkılaştırarak doğrular.
+        for key, value in TIGHT_ENV.items():
+            os.environ[key] = value
         os.environ["COINBASE_ENABLED"] = "true"
         os.environ["COINBASE_ORDERS_ENABLED"] = "true"
         cb_client.reset_limiters()
@@ -40,6 +46,8 @@ class FlowBase(unittest.TestCase):
         self.limits = current_limits()
 
     def tearDown(self):
+        for key in TIGHT_ENV:
+            os.environ.pop(key, None)
         os.environ.pop("COINBASE_ENABLED", None)
         os.environ.pop("COINBASE_ORDERS_ENABLED", None)
 

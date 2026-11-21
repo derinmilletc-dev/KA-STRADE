@@ -407,7 +407,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         {step === 1 && <><h4>Hangi yön?</h4><p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
           <DirectionCards value={dir} onChange={side => patch({side: side === 'LONG' ? 'BUY' : 'SELL'})}/>
           {aiCard}</>}
-        {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Kullanacağın teminatı yaz. Sözleşme sayısını boş bırakırsan 5 USD kayıp ve 3–5x kaldıraç kurallarına uyan en büyük miktar seçilir.</p>
+        {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Kullanacağın teminatı yaz. Sözleşme sayısını boş bırakırsan teminatına göre 5x kaldıraçlı güvenli miktar seçilir; kendin sayı yazarsan istediğin kaldıraca çıkabilirsin.</p>
           <input className="cbMxtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="teminat (USD)"/>
           <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (isteğe bağlı)"/>
           <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (isteğe bağlı)"/>
