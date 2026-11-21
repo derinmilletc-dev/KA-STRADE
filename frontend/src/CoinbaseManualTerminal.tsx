@@ -2,11 +2,14 @@
 // Binance ekranındaki ama Coinbase'de yapılamayan parçalar çıkarıldı: hedef (TP) emirleri (yalnız-azalt emri olmadığı için güvensiz),
 // limit emir, risk limiti düzenleme, 24 saatlik izin/ARM. Ürün listesi, canlı fiyat ve Kais AI analizi VAR (analiz, ürünün dayanak varlığı üzerinden). Arka planda Coinbase mantığı çalışır: ön kontrol ("dry-run"),
 // piyasa girişi, zorunlu stop, stop doğrulama. Binance dosyalarına dokunulmaz; yalnızca içe aktarılır.
+import type React from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {ChevronDown, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
+import {BarChart3, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import CoinLiveChart from './CoinLiveChart'
+import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridSide} from './gridMath'
+import {buildGridAlerts} from './gridAlerts'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {askKais} from '../../kais-ask'
 import {fetchWithTimeout} from '../../master-trade-request'
@@ -15,6 +18,7 @@ import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
 import '../../live-cockpit.css'
+import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
 import {analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
@@ -86,6 +90,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
+  const [anaSym, setAnaSym] = useState<string | null>(null)
+  const [manualMode, setManualMode] = useState<'single' | 'grid'>('single')
+  const [grid, setGrid] = useState({lower: '', upper: '', count: '5', margin: '50', leverage: '2', stop: ''})
   const [recentIds, setRecentIds] = useState<string[]>(() => { try { const raw = JSON.parse(window.localStorage.getItem('kt-cb-recent') || '[]'); return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string').slice(0, 5) : [] } catch { return [] } })
   const [products, setProducts] = useState<CbProduct[] | null>(null)
   const [productsError, setProductsError] = useState('')
@@ -280,6 +287,170 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     setTpRR(rr); patch({takeProfit: priceString(target)})
   }
 
+
+  // --- Telefon: tutar ve stop/hedef adımları (Binance'teki mxtM bloklarının aynısı; Coinbase alanlarıyla) ---
+  const FEE_RATE = 0.001
+  const isLimit = ticket.limitPrice.trim() !== '' || ticket.rest
+  const marginMax = Number.isFinite(marginAvail) && marginAvail >= 1 ? Math.floor(marginAvail) : 1_000_000
+  const maxPick = Math.max(5, Math.min(marginMax, Number.isFinite(marginAvail) && marginAvail >= 5 ? Math.floor(marginAvail) : marginMax))
+  const marginPicks = Array.from(new Set([10, 25, 50, 100].filter(v => v < maxPick).concat(maxPick)))
+  const walletShare = Number.isFinite(marginAvail) && marginAvail > 0 && marginNum > 0 ? marginNum / marginAvail * 100 : null
+  const notionalNow = contractsNow !== null && Number.isFinite(contractSize) && Number.isFinite(entryRef) ? contractsNow * contractSize * entryRef : null
+  const roundTripFee = notionalNow !== null ? notionalNow * FEE_RATE * 2 : null
+  const levBandM = !(levNum >= 1) ? null : levNum <= 3 ? ['Düşük risk', 'low'] : levNum <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
+  const amountMobile = <div className="mxtM mxtMAmt">
+    <div className="mxtMSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={!isLimit} data-on={!isLimit || undefined} onClick={() => patch({limitPrice: '', rest: false})}>Piyasa fiyatından</button><button type="button" aria-pressed={isLimit} data-on={isLimit || undefined} onClick={() => patch({limitPrice: ticket.limitPrice.trim() || (Number.isFinite(shownPrice) ? priceString(shownPrice) : '')})}>Limit fiyattan</button></div>
+    {isLimit && <div className="mxtMCard"><label className="mxtMField">Limit fiyatı<input type="number" inputMode="decimal" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})}/></label>
+      {status?.resting_enabled === true
+        ? <div className="mxtMField">Dolmazsa<div className="mxtMSeg" role="group" aria-label="Limit emir davranışı"><button type="button" aria-pressed={!ticket.rest} data-on={!ticket.rest || undefined} onClick={() => patch({rest: false})}>Hemen iptal</button><button type="button" aria-pressed={ticket.rest} data-on={ticket.rest || undefined} onClick={() => patch({rest: true})}>Dolana kadar beklesin</button></div></div>
+        : <p className="mxtMNote">Limit emir anında dolmazsa iptal edilir; işlem açılmaz.</p>}</div>}
+    <div className="mxtMCard">
+      <div className="mxtMLbl"><span>TEMİNAT</span>{walletShare !== null && <span>Hesabının <b>%{walletShare.toFixed(1)}</b>’ü</span>}</div>
+      <div className="mxtMBig"><input type="number" inputMode="decimal" min="1" max={marginMax} style={{width: `${Math.max(2, String(ticket.marginUsd).length + 0.6)}ch`}} value={ticket.marginUsd} aria-label="Teminat (USD)" onChange={event => patch({marginUsd: event.target.value})}/><span>USD</span></div>
+      <p className="mxtMUnder">Kullanılabilir <b>{Number.isFinite(marginAvail) ? `${usd(marginAvail)} USD` : 'okunamadı'}</b> · sınır: kasan</p>
+      <div className="mxtMChips">{marginPicks.map(v => <button type="button" key={v} aria-pressed={ticket.marginUsd.trim() === String(v)} data-on={ticket.marginUsd.trim() === String(v) || undefined} onClick={() => patch({marginUsd: String(v)})}>{v === maxPick && marginPicks.length > 1 ? `Maks ${v}` : v}</button>)}</div>
+      <input type="range" className="mxtMRange" min="1" max={marginMax} step="1" value={Number.isFinite(marginNum) && marginNum > 0 ? Math.min(marginNum, marginMax) : Math.min(10, marginMax)} onChange={event => patch({marginUsd: event.target.value})} aria-label="Teminat kaydırıcı"/>
+    </div>
+    <div className="mxtMCard">
+      <div className="mxtMLbl"><span>KALDIRAÇ</span><span>Pozisyon = teminat × kaldıraç</span></div>
+      <div className="mxtMLev"><input type="number" inputMode="numeric" min="1" max="20" style={{width: `${Math.max(1.6, String(ticket.leverage).length + 0.6)}ch`}} value={ticket.leverage} aria-label="Kaldıraç (x)" disabled={manualContracts !== null} onChange={event => patch({leverage: event.target.value})}/><i>x</i>{levBandM && <span className="mxtMBand" data-band={levBandM[1]}>{levBandM[0]}</span>}</div>
+      <div className="mxtMChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} disabled={manualContracts !== null} aria-pressed={ticket.leverage === String(v)} data-on={ticket.leverage === String(v) || undefined} onClick={() => patch({leverage: String(v)})}>{v}x</button>)}</div>
+      <input type="range" className="mxtMRange" min="1" max="20" step="1" disabled={manualContracts !== null} value={Number.isFinite(levNum) && levNum > 0 ? Math.min(20, levNum) : 1} onChange={event => patch({leverage: event.target.value})} aria-label="Kaldıraç kaydırıcı"/>
+    </div>
+    <div className="mxtMTiles">
+      <div className="mxtMTileW"><span><small>Pozisyon büyüklüğü</small><b>{notionalNow !== null ? `${usd(notionalNow)} USD · ${contractsNow} sözleşme` : '—'}</b></span></div>
+      <div><small>Toplam komisyon</small><b>{roundTripFee === null ? '—' : `${usd(roundTripFee)} USD`}</b></div>
+      <div><small>Stopta risk</small><b data-muted={!risk || risk.wrongSide || undefined}>{risk && !risk.wrongSide ? `${usd(risk.lossUsd)} USD` : 'Stop girilince'}</b></div>
+    </div>
+    {contractsNow === null && marginNum > 0 && Number.isFinite(entryRef) && Number.isFinite(contractSize) && <p className="mxtWarn" role="alert">Bu teminat ve kaldıraçla 1 sözleşme bile alınamıyor. Teminatı ya da kaldıracı artır.</p>}
+    <details className="mxtMMore"><summary><span>Sözleşme sayısını elle yaz</span><em>{manualContracts !== null ? `${manualContracts} sözleşme` : 'otomatik'}</em></summary>
+      <label className="mxtMField">Sözleşme sayısı<input type="number" inputMode="numeric" value={ticket.contracts} placeholder="boşsa kaldıraçtan hesaplanır" onChange={event => patch({contracts: event.target.value})}/></label>
+    </details>
+    <p className="mxtMNote">Giriş ve çıkış komisyonu dahil (taraf başı yaklaşık %{(FEE_RATE * 100).toFixed(2)}). Kayma ve fonlama dahil değil.</p>
+  </div>
+  const stopSide = ticket.side === 'SELL' ? -1 : 1
+  const nudge = (key: 'stopPrice' | 'takeProfit', direction: 1 | -1) => {
+    if (!(entryRef > 0)) return
+    const stepPx = Math.max(entryRef * 0.001, entryRef * 1e-6)
+    const current = Number(ticket[key])
+    const next = (current > 0 ? current : entryRef) + direction * stepPx
+    if (!(next > 0)) return
+    if (key === 'stopPrice') setStop(priceString(next)); else { setTpRR(null); patch({takeProfit: priceString(next)}) }
+  }
+  const stopDistPct = Number.isFinite(stopNum) && entryRef > 0 ? Math.abs(entryRef - stopNum) / entryRef * 100 : null
+  const stopSideOk = Number.isFinite(stopNum) && entryRef > 0 ? (stopSide === 1 ? stopNum < entryRef : stopNum > entryRef) : true
+  const stopPickPct = stopDistPct !== null && stopSideOk ? [1, 2, 3, 5].find(pct => Math.abs(stopDistPct - pct) < 0.01) ?? null : null
+  const stopMobile = <div className="mxtM mxtMStop">
+    <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
+      {[1, 2, 3, 5].map(pct => <button type="button" key={pct} className="mxtMPk" data-rec={pct === 2 ? '1' : undefined} data-on={stopPickPct === pct || undefined} aria-pressed={stopPickPct === pct} disabled={!(entryRef > 0)} onClick={() => { pickStopPct(pct); if (tpRR === null) { const st = stopFromPct(ticket.side, entryRef, pct); const tg = st !== null ? targetFromRR(ticket.side, entryRef, st, 2) : null; if (tg !== null) { setTpRR(2); patch({stopPrice: priceString(st as number), takeProfit: priceString(tg)}) } } }}><b>Stop %{pct}</b><small>{pct === 2 ? 'Önerilen' : entryRef > 0 ? `Stop ${priceString(stopFromPct(ticket.side, entryRef, pct) ?? 0)}` : 'Fiyat bekleniyor'}</small></button>)}
+    </div>
+    <div className="mxtMCard" data-tone="stop">
+      <div className="mxtMLbl"><span>STOP</span><span>{stopDistPct !== null ? `Girişe %${stopDistPct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
+      <div className="mxtMBig mxtMStep"><button type="button" aria-label="Stopu düşür" disabled={!(entryRef > 0)} onClick={() => nudge('stopPrice', -1)}>−</button><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)}/><button type="button" aria-label="Stopu yükselt" disabled={!(entryRef > 0)} onClick={() => nudge('stopPrice', 1)}>+</button></div>
+      <div className="mxtMChips" role="group" aria-label="Stop uzaklığı (girişe göre yüzde)">{[0.5, 1, 2, 3, 5].map(pct => <button type="button" key={pct} disabled={!(entryRef > 0)} data-on={stopDistPct !== null && stopSideOk && Math.abs(stopDistPct - pct) < 0.005 || undefined} onClick={() => pickStopPct(pct)}>%{String(pct).replace('.', ',')}</button>)}</div>
+      <p className="mxtMSum" aria-label="Stop özeti">
+        <span>Uzaklık <b data-muted={stopDistPct === null || undefined}>{stopDistPct !== null ? `%${stopDistPct.toFixed(2)}` : '—'}</b></span>
+        <span>Zarar <b data-muted={!risk || risk.wrongSide || undefined}>{risk && !risk.wrongSide ? `${usd(risk.lossUsd)} USD` : '—'}</b></span>
+        <span>Risk <b data-tone={risk && !risk.wrongSide ? 'up' : risk?.wrongSide ? 'down' : undefined} data-muted={!risk || undefined}>{risk?.wrongSide ? 'Yanlış taraf' : risk ? 'Uygun ✓' : '—'}</b></span>
+      </p>
+      {!stopSideOk && <p className="mxtWarn" role="alert">Stop, {dir} için yanlış tarafta: {dir === 'LONG' ? 'girişin altında' : 'girişin üstünde'} olmalı.</p>}
+    </div>
+    <div className="mxtMCard" data-tone="tp">
+      <div className="mxtMLbl"><span>HEDEF</span><span>Coinbase’de hedef ve stop tek emirde</span></div>
+      <div className="mxtMTp"><i>TP</i><span className="mxtMStep"><button type="button" aria-label="Hedefi düşür" disabled={!(entryRef > 0)} onClick={() => nudge('takeProfit', -1)}>−</button><input type="number" inputMode="decimal" aria-label="Hedef fiyatı" placeholder="isteğe bağlı" value={ticket.takeProfit} onChange={event => { setTpRR(null); patch({takeProfit: event.target.value}) }}/><button type="button" aria-label="Hedefi yükselt" disabled={!(entryRef > 0)} onClick={() => nudge('takeProfit', 1)}>+</button></span><em>{risk?.targetPct != null ? `%${risk.targetPct.toFixed(2)}` : '—'}</em></div>
+      <div className="mxtMLbl"><span>Riske göre</span><span>Hedef = stop mesafesi × R</span></div>
+      <div className="mxtMChips" role="group" aria-label="Hedefi risk katına göre ayarla">{[1, 1.5, 2, 3].map(multiple => <button type="button" key={multiple} data-on={tpRR === multiple || undefined} disabled={!(entryRef > 0) || !Number.isFinite(stopNum)} onClick={() => pickTargetRR(multiple)}>R {String(multiple).replace('.', ',')}</button>)}<button type="button" disabled={ticket.takeProfit.trim() === ''} onClick={() => { setTpRR(null); patch({takeProfit: ''}) }}>Hedefsiz</button></div>
+      <p className="mxtMSum"><span>Hedefte <b data-tone={risk?.gainUsd != null ? 'up' : undefined} data-muted={risk?.gainUsd == null || undefined}>{risk?.gainUsd != null ? `+${usd(risk.gainUsd)} USD` : '—'}</b></span><span>Kâr/zarar <b data-muted={risk?.rr == null || undefined}>{risk?.rr != null ? `1 : ${risk.rr.toFixed(1)}` : '—'}</b></span></p>
+      {risk?.rr != null && risk.rr < 1 && <p className="mxtWarn" role="status">Hedef, stoptan yakın: kazanabileceğin, kaybedebileceğinden az.</p>}
+    </div>
+  </div>
+
+  // --- Grid (Binance'teki Grid sekmesinin aynısı; Coinbase'de canlı grid motoru olmadığı için ÖNİZLEME, emir göndermez) ---
+  const gridSide: GridSide = dir
+  const gridPrice = Number.isFinite(shownPrice) ? shownPrice : 0
+  const setGridField = (key: keyof typeof grid, value: string) => setGrid(current => ({...current, [key]: value}))
+  const gridAuto = (pct: number) => {
+    if (!(gridPrice > 0)) return
+    const sgn = gridSide === 'LONG' ? -1 : 1
+    const near = gridPrice * (1 + sgn * 0.005), far = gridPrice * (1 + sgn * pct / 100), stopAt = gridPrice * (1 + sgn * (pct + 1.5) / 100)
+    setGrid(current => ({...current, lower: priceString(Math.min(near, far)), upper: priceString(Math.max(near, far)), stop: priceString(stopAt)}))
+  }
+  const selProduct = products?.find(item => item.product_id === selectedId)
+  const tick = Number(selProduct?.price_increment)
+  const gridFilters: GridFilters | undefined = Number.isFinite(contractSize) && contractSize > 0 && gridPrice > 0
+    ? {tickSize: Number.isFinite(tick) && tick > 0 ? tick : Math.pow(10, Math.floor(Math.log10(gridPrice)) - 4), stepSize: contractSize, minNotional: contractSize * gridPrice} : undefined
+  const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: gridFilters}, {
+    maxPositions: 1000, maxLossPerTrade: 1_000_000, maxTotalExposure: 100_000_000, currentExposure: 0, openPositions: positions.length, dailyLossBudgetLeft: 1_000_000, openPositionRisk: positions.length === 0 ? 0 : null,
+  })
+  const gridAlerts = buildGridAlerts({result: gridResult, filters: gridFilters ? 'ok' : selectedId ? 'loading' : 'idle', openRisk: positions.length === 0 ? 0 : null, hasOpenPositions: positions.length > 0})
+  const gridLevelsSorted = [...gridResult.levels].sort((x, y) => Math.abs(x.entry - gridPrice) - Math.abs(y.entry - gridPrice))
+  const gridChecksOk = gridResult.checks.filter(item => item.ok).length
+  const gridTooTight = gridResult.levels.length > 1 && gridResult.spacingPct > 0 && gridResult.spacingPct < 0.4
+  const gridScore = gridResult.levels.length === 0 ? 0 : Math.max(0, Math.round(100 * gridChecksOk / Math.max(1, gridResult.checks.length)) - (gridTooTight ? 12 : 0) - (gridAlerts.some(item => item.level === 'kritik') ? 25 : 0))
+  const gridScoreName = gridScore >= 80 ? 'İyi' : gridScore >= 55 ? 'Orta' : 'Zayıf'
+  const gridRangePct = gridResult.spacingPct * Math.max(1, gridResult.levels.length - 1)
+  const gridFitCount = Math.max(GRID_MIN_COUNT, Math.min(GRID_MAX_COUNT, Math.floor(gridRangePct / 0.5) + 1))
+  const gridMapPrices = gridResult.levels.length ? [gridPrice, Number(grid.stop), ...gridResult.levels.map(level => level.entry)].filter(value => value > 0) : []
+  const gridMapHi = gridMapPrices.length ? Math.max(...gridMapPrices) : 0, gridMapLo = gridMapPrices.length ? Math.min(...gridMapPrices) : 0
+  const gridMapY = (value: number) => gridMapHi > gridMapLo ? ((gridMapHi - value) / (gridMapHi - gridMapLo)) * 100 : 50
+  const gusd = (value: number) => `${usd(value)} USD`
+  const gridMap = gridResult.levels.length > 0 && gridMapHi > gridMapLo ? <div className="mgpMap" role="img" aria-label="Kademe haritası">
+    <div className="mgpMapZone" style={{top: `${gridMapY(Math.max(...gridResult.levels.map(level => level.entry)))}%`, bottom: `${100 - gridMapY(Math.min(...gridResult.levels.map(level => level.entry)))}%`}}/>
+    {gridResult.levels.map(level => <div className="mgpMapLv" key={level.index} style={{top: `${gridMapY(level.entry)}%`}}><i>{level.index}</i><span>{priceText(level.entry)}</span><em>{level.notional.toFixed(0)} USD</em></div>)}
+    {gridPrice > 0 && <div className="mgpMapPx" style={{top: `${gridMapY(gridPrice)}%`}}><span>Fiyat {priceText(gridPrice)}</span></div>}
+    {Number(grid.stop) > 0 && <div className="mgpMapStop" style={{top: `${gridMapY(Number(grid.stop))}%`}}><span>STOP {priceText(Number(grid.stop))}</span></div>}
+  </div> : null
+  const gridWhatIf = gridLevelsSorted.length > 0 ? <ul className="mgpWhat" aria-label="Ne olur?">
+    {gridLevelsSorted.slice(0, 3).map((level, index) => <li key={level.index}>Fiyat <b>{priceText(level.entry)}</b> seviyesine gelirse <b>{index + 1}</b> kademe dolar, toplam büyüklük <b>{gusd(gridLevelsSorted.slice(0, index + 1).reduce((sum, item) => sum + item.notional, 0))}</b>.</li>)}
+    <li>Stop <b>{grid.stop || '—'}</b> olursa toplam zarar <b className="down">{gusd(gridResult.worstLoss)}</b> (hepsi dolmuşsa).</li>
+    <li>Fiyat ilk kademeye hiç gelmezse emir dolmaz, kâr da zarar da olmaz.</li>
+  </ul> : null
+  const gridSmart = gridResult.levels.length > 0 ? <div className="mgpSmart">
+    <div className="mgpScore" data-level={gridScoreName}><span className="mgpRing" style={{background: `conic-gradient(var(--mgp-c) 0 ${gridScore}%, #1a283a 0)`}}><b>{gridScore}</b></span><span><b>Plan puanı: {gridScoreName}</b><small>{gridChecksOk}/{gridResult.checks.length} kontrol geçti</small></span></div>
+    {gridTooTight && <div className="mgpFix"><span><b>Kademeler çok sık</b><small>Aralık %{gridResult.spacingPct.toFixed(2)}; ücretler kârı yer.</small></span>{gridFitCount < Number(grid.count) && <button type="button" onClick={() => setGridField('count', String(gridFitCount))}>{gridFitCount} kademe yap</button>}</div>}
+  </div> : null
+  const gridBody = <div className="mwz mgp">
+    <div className="mwzCard">
+      <small className="mwzKicker">GRID · ÖNİZLEME</small>
+      <h4>Kademeli alım planı</h4>
+      <p>Coinbase’de canlı grid motoru yok; bu ekran planı hesaplar, <b>emir göndermez</b>. Coinbase’de aynı anda en fazla 5 açık emir olabilir.</p>
+      {!selectedId && <p className="liveWsWarn" role="status">Önce Tek işlem sekmesinde ürün seç.</p>}
+      <div className="mwzMini"><span>{selectedRow?.display || selectedId || 'Ürün seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? priceText(gridPrice) : '—'}</span></div>
+      <div className="mxtDirMini liveWsSeg" role="group" aria-label="Grid yönü"><button type="button" aria-pressed={gridSide === 'LONG'} className={gridSide === 'LONG' ? 'on' : ''} onClick={() => patch({side: 'BUY'})}>LONG</button><button type="button" aria-pressed={gridSide === 'SHORT'} className={gridSide === 'SHORT' ? 'on' : ''} onClick={() => patch({side: 'SELL'})}>SHORT</button></div>
+      <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Hazır plan:</small>{([[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]] as const).map(([pct, name, cnt]) => <button type="button" key={pct} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct); setGridField('count', String(cnt)) }}>{name} · %{pct}</button>)}</div>
+      {gridSmart}{gridMap}
+      <div className="liveWsTwo">
+        <label className="liveWsField">Alt sınır<input type="number" value={grid.lower} onChange={event => setGridField('lower', event.target.value)}/></label>
+        <label className="liveWsField">Üst sınır<input type="number" value={grid.upper} onChange={event => setGridField('upper', event.target.value)}/></label>
+        <label className="liveWsField">Kademe sayısı ({GRID_MIN_COUNT}-{GRID_MAX_COUNT})<input type="number" min={GRID_MIN_COUNT} max={GRID_MAX_COUNT} value={grid.count} onChange={event => setGridField('count', event.target.value)}/></label>
+        <label className="liveWsField">Toplam teminat (USD)<input type="number" min="5" value={grid.margin} onChange={event => setGridField('margin', event.target.value)}/></label>
+        <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="20" value={grid.leverage} onChange={event => setGridField('leverage', event.target.value)}/></label>
+        <label className="liveWsField">Ortak stop<input type="number" value={grid.stop} onChange={event => setGridField('stop', event.target.value)}/></label>
+      </div>
+      <p className="liveWsHint mgpRules">{gridFilters ? `Coinbase kuralları: fiyat adımı ${priceString(gridFilters.tickSize)} · sözleşme ${priceString(contractSize)} · en küçük emir 1 sözleşme ≈ ${usd(gridFilters.minNotional)} USD` : 'Ürün seçilince Coinbase kuralları burada görünür.'}</p>
+      {Number(grid.count) > 5 && <p className="liveWsWarn" role="status">Coinbase’de aynı anda en fazla 5 açık emir olabilir; {grid.count} kademe tek seferde kurulamaz.</p>}
+      {gridAlerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Grid uyarıları">{gridAlerts.map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b> {item.text}</li>)}</ul>}
+      {gridResult.levels.length > 0 && <>
+        <div className="liveWsSumGrid mgpSum">
+          <span><small>Kademe aralığı</small><b>%{gridResult.spacingPct.toFixed(2)}</b></span>
+          <span><small>Tüm kademeler dolarsa büyüklük</small><b>{gusd(gridResult.totalNotional)}</b></span>
+          <span><small>En kötü zarar (hepsi dolar, stop)</small><b className="down">{gusd(gridResult.worstLoss)}</b></span>
+          <span><small>Tahmini kâr (hepsi hedefe)</small><b className="up">{gusd(gridResult.bestGain)}</b></span>
+          <span><small>Giriş+hedef ücreti (tahmini)</small><b>{gusd(gridResult.entryFees)}</b></span>
+          <span><small>Stop ücreti (tahmini)</small><b>{gusd(gridResult.exitFees)}</b></span>
+          <span><small>Tahmini likidasyon (hepsi dolarsa)</small><b>{gridResult.liquidation ? priceText(gridResult.liquidation) : '—'}</b></span>
+        </div>
+        <ul className="mgpChecks" aria-label="Limit kontrolleri">{gridResult.checks.map(item => <li key={item.id} data-ok={item.ok ? '1' : '0'}><i aria-hidden="true">{item.ok ? '✓' : '!'}</i><span><b>{item.label}</b><small>{item.detail}</small></span></li>)}</ul>
+        {gridWhatIf}
+        <div className="mgpTable" role="table" aria-label="Kademeler (USD)"><div role="row" className="mgpHead"><span>#</span><span>Giriş</span><span>Hedef</span><span>Boyut</span><span>Zarar</span></div>
+          {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{priceText(level.entry)}</span><span>{priceText(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
+        <p className="liveWsHint" role="status">Coinbase’de canlı grid kapalı olduğu için emir gönderilmez.</p>
+      </>}
+      {gridResult.errors.length > 0 && (grid.lower || grid.upper || grid.stop) && <ul className="mgpAlerts" aria-label="Eksikler">{gridResult.errors.map(item => <li key={item} data-level="uyari"><b>EKSİK</b> {item}</li>)}</ul>}
+      <p className="liveWsHint">Hepsi tahmindir: fonlama ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil; gerçek sonuç farklı olabilir. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
+    </div>
+  </div>
+
   const summaryRows: SummaryItem[] = [
     {label: 'Ürün', value: ticket.productId.trim() || null},
     {label: 'Yön', value: dir},
@@ -377,11 +548,111 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     document.body,
   ) : null
 
+  const toolbar = signals !== null && <div className="cpkTools">
+    <div className="cpkChips" role="group" aria-label="Filtre">{FILTER_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} className={coinFilter === key ? 'on' : ''} onClick={() => setCoinFilter(key)}>{label}<span>{key === 'all' ? rows.length : signalCount(key)}</span></button>)}</div>
+    <div className="cpkChips cpkSorts" role="group" aria-label="Sıralama">{SORT_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinSort === key} className={coinSort === key ? 'on' : ''} onClick={() => setCoinSort(key)}>{label}</button>)}</div>
+  </div>
+  const pickAll = signals ? sortCoins(filterBySignal(rows, signals, coinFilter), signals, coinSort).filter(row => signals[row.symbol]) : []
+  const pickRows = pickAll.slice(0, PICK_LIMIT)
+  const sortLabel = (SORT_CHIPS.find(([key]) => key === coinSort) || [null, ''])[1]
+  const signalNote = signals !== null && Object.keys(signals).length === 0 ? 'Bu ürünler için Kais AI analizi eşleşmedi (dayanak varlık bilinmiyor ya da analiz evreninde yok).' : ''
+  const picksBlock = !coinOpen && <div className="cpk"><section className="cpkPicks" aria-label="Kais AI güçlü sinyaller">
+    <header className="cpkPicksHead"><h5>Kais AI güçlü sinyaller</h5>{universe === null && !signalsError && <span className="cpkStatus">Analiz yükleniyor…</span>}{signalsError && <span className="cpkStatus warn">Analiz şu an alınamadı; liste hacme göre.</span>}</header>
+    {toolbar}
+    {universe === null && !signalsError && <ul className="cpkPickList" aria-hidden="true">{[0, 1, 2, 3].map(index => <li key={index} className="cpkSkeleton"/>)}</ul>}
+    {signalNote && <p className="cpkEmpty">{signalNote}</p>}
+    {signals !== null && !signalNote && pickRows.length === 0 && <p className="cpkEmpty">Bu filtrede ürün yok. Başka bir filtre seç.</p>}
+    {pickRows.length > 0 && <p className="cpkPickCount" role="status"><b>{pickAll.length} ürün</b> · {sortLabel}{pickAll.length > 4 ? ' · kaydırarak hepsini gör' : ''}</p>}
+    {pickRows.length > 0 && <ul className="cpkPickList cpkPickScroll" key={`${coinFilter}-${coinSort}`}>{pickRows.map(row => {
+      const signal = signals![row.symbol]
+      return <li key={row.symbol}><button type="button" aria-pressed={row.symbol === selectedId} data-lean={signal.lean} className={`cpkCard ${row.symbol === selectedId ? 'on' : ''}`} onClick={() => chooseCoin(row.symbol)}>
+        <span className="cpkCardTop"><strong>{row.display}</strong><span className="cpkTick"><span>{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></span></span>
+        {miniDuo(signal)}
+      </button></li>
+    })}</ul>}
+    <p className="cpkNote">{AI_DISCLAIMER}</p>
+  </section></div>
+  const coinBlock = <div className="liveWsBlock liveWsCoin cpk">
+    <span className="liveWsLabel">1 · Ürün</span>
+    <button type="button" className="liveWsCoinBtn cpkHero" data-lean={selectedSignal?.lean ?? 'NONE'} aria-haspopup="listbox" aria-expanded={coinOpen} onClick={() => setCoinOpen(value => !value)}>
+      <span className="cpkHeroMain"><b>{selectedRow?.display || selectedId || 'Ürün seç'}</b>
+        <span className="cpkTick">{selectedRow || quote ? <><span>{priceText(shownPrice)} USD</span>{selectedRow && <em className={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em>}{quote && <em className="mxtMLive" title="Coinbase anlık fiyatı"><i aria-hidden="true"/>CANLI</em>}</> : <span>{productsError ? 'Liste alınamadı' : products === null ? 'Liste yükleniyor…' : 'Listeden seç'}</span>}</span>
+        {selectedSignal && <span className="cpkLeanLine">{leanText(selectedSignal)}</span>}</span>
+      {duo(selectedSignal)}
+      <ChevronDown/>
+    </button>
+    {quoteError && selectedId && <small className="liveWsHint" role="alert">Canlı fiyat alınamadı; son liste fiyatı gösteriliyor.</small>}
+    {coinOpen && <div className="cpkPop">
+      <label className="cpkSearch"><Search/><input autoFocus value={coinQuery} placeholder="Ürün ara: BTC, ETH, SOL…" aria-label="Ürün ara" onChange={event => setCoinQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Escape') setCoinOpen(false)
+          if (event.key === 'Enter') { if (listed[0]) chooseCoin(listed[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) }
+        }}/></label>
+      {toolbar}
+      {products === null && !productsError && <p className="cpkEmpty">Ürün listesi yükleniyor…</p>}
+      {productsError && <p className="cpkEmpty warn">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
+      {products !== null && <ul role="listbox" aria-label="Ürün listesi" className="cpkList">{listed.map(row => <li key={row.symbol}><button type="button" role="option" aria-selected={row.symbol === selectedId} data-lean={signals?.[row.symbol]?.lean ?? 'NONE'} className="cpkRow" onClick={() => chooseCoin(row.symbol)}>
+        <strong>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</strong>{miniDuo(signals?.[row.symbol])}<span className="cpkRowPrice">{priceText(row.price)}</span><em className={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em></button></li>)}{listed.length === 0 && <li className="cpkEmpty">Sonuç yok.</li>}</ul>}
+      {signals !== null && <p className="cpkNote">{AI_DISCLAIMER}</p>}
+      {products !== null && matches.length > listed.length && <p className="cpkNote">{matches.length} sonuçtan ilk {listed.length} gösteriliyor; aramayı daralt.</p>}
+    </div>}
+  </div>
   const coinSym = (row: CbRow | undefined) => (row && (analysisSymbol(row.root) || row.root)) || ''
   const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
   const coinMark = (row: CbRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={coinSym(row) || fallback} size={40}/></span>
   const recentRows = !coinQuery.trim() ? recentIds.map(id => rows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)) : []
   const mobileList = matches.slice(0, 120)
+  // Analiz çekmecesi: Binance'teki ile aynı (listedeki sinyalden beslenir, yeni istek atmaz).
+  const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
+  const anaRow = anaIdx >= 0 ? matches[anaIdx] : undefined
+  const anaSig = anaRow ? signals?.[anaRow.symbol] : undefined
+  const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
+  const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
+  const anaLeanTitle = !anaSig ? '' : anaSig.lean === 'LONG' ? 'Yükseliş yönü ağır basıyor' : anaSig.lean === 'SHORT' ? 'Düşüş yönü ağır basıyor' : 'Belirgin yön yok'
+  const anaPos = anaSig && anaSig.long !== null && anaSig.short !== null && anaSig.long + anaSig.short > 0 ? anaSig.long / (anaSig.long + anaSig.short) * 100 : 50
+  const anaRead = !anaSig ? '' : anaSig.lean === 'NEUTRAL' ? 'LONG ve SHORT tarafları birbirine yakın. Net bir yön yok.'
+    : `${anaSig.lean === 'SHORT' ? 'Düşüş' : 'Yükseliş'} tarafı ${strengthLabel(anaSig.confidence) === 'Güçlü' ? 'belirgin şekilde' : strengthLabel(anaSig.confidence) === 'Orta' ? 'kısmen' : 'hafifçe'} ağır basıyor.${strengthLabel(anaSig.confidence) === 'Zayıf' ? ' Tek başına yön için yeterli değil.' : ''}`
+  const anaSheet = anaRow && anaSig && typeof document !== 'undefined' ? createPortal(<div className="mxsaRoot" data-open="1">
+    <button type="button" className="mxsaScrim" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}/>
+    <section className="mxsaSheet" role="dialog" aria-modal="true" aria-label={`${anaRow.display} analizi`} data-lean={anaSig.lean}
+      onKeyDown={event => { if (event.key === 'Escape') setAnaSym(null); if (event.key === 'ArrowRight') anaStep(1); if (event.key === 'ArrowLeft') anaStep(-1) }}>
+      <span className="mxsaGrab" aria-hidden="true"/>
+      <header className="mxsaHead">
+        <button type="button" className="mxsaIcon" aria-label="Önceki coin" disabled={anaIdx <= 0} onClick={() => anaStep(-1)}><ChevronLeft aria-hidden="true"/></button>
+        <span className="mxsaTitle"><small>ANALİZ SONUCU · {anaIdx + 1} / {matches.length}</small><b>{anaRow.display}</b></span>
+        <button type="button" className="mxsaIcon" aria-label="Sonraki coin" disabled={anaIdx >= matches.length - 1 || !signals?.[matches[anaIdx + 1]?.symbol]} onClick={() => anaStep(1)}><ChevronRight aria-hidden="true"/></button>
+        <button type="button" className="mxsaIcon" aria-label="Analizi kapat" onClick={() => setAnaSym(null)}><X aria-hidden="true"/></button>
+      </header>
+      <div className="mxsaBody">
+        <section className="mxsaHero" aria-label="Analiz özeti">
+          <div className="mxsaHeroTxt">
+            <span className="mxsaPrice">{priceText(anaRow.price)}{Number.isFinite(anaRow.change) && <em data-tone={anaRow.change >= 0 ? 'up' : 'down'}>{changeText(anaRow.change)}</em>}</span>
+            <b className="mxsaVerdictT" data-lean={anaSig.lean}>{anaLeanTitle}</b>
+            <p className="mxsaRead">{anaRead}</p>
+          </div>
+          <div className="mxsaRing" data-lean={anaSig.lean} style={{'--mxsa-p': `${anaSig.confidence}%`} as React.CSSProperties} role="img" aria-label={`Güven yüzde ${anaSig.confidence}, ${strengthLabel(anaSig.confidence)}`}>
+            <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
+          </div>
+        </section>
+        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)}/>}
+        <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
+          <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
+          <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
+        </section>
+        <div className="mxsaPair">
+          <div className="mxsaTile" data-side="SHORT" data-lead={anaSig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{anaSig.short === null ? '–' : `%${anaSig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.short ?? 0}%`}}/></span></div>
+          <div className="mxsaTile" data-side="LONG" data-lead={anaSig.lean === 'LONG' || undefined}><span>LONG</span><strong>{anaSig.long === null ? '–' : `%${anaSig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.long ?? 0}%`}}/></span></div>
+        </div>
+        <p className="mxsaNote">{AI_DISCLAIMER} Analiz, ürünün dayanak coininin (Binance verisi) durumunu gösterir.</p>
+      </div>
+      <footer className="mxsaFoot">
+        {anaSig.lean === 'NEUTRAL'
+          ? <button type="button" className="mxsaCta" data-lean="NEUTRAL" onClick={anaPick}>{anaRow.display} seç</button>
+          : <button type="button" className="mxsaCta" data-lean={anaSig.lean} onClick={anaPick}>{anaRow.display} seç · analiz {anaSig.lean}</button>}
+        <button type="button" className="mxsaBack" onClick={() => setAnaSym(null)}>Listeye dön</button>
+      </footer>
+    </section>
+  </div>, document.body) : null
   const coinMobile = <div className="mxtM mxtMCoin">
     {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{selectedRow ? <>{priceText(selectedRow.price)} · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
@@ -398,7 +669,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</b><small>{priceText(row.price)}</small></span>
       <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
       {row.symbol === selectedId && <i className="mxtMTick" aria-hidden="true">✓</i>}
-    </button></li>)}</ul>}
+    </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}
+    {anaSheet}
     {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
     {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
   </div>
@@ -433,11 +705,12 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <div className="mxtCard" key={step}>
         <span className="mxtKicker">Adım {step + 1} / {STEP_NAMES.length}</span>
         {step !== 4 && noticeEl}
-        {step === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{coinMobile}</>}
+        {step === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{coinMobile}<div className="mxtDesk">{picksBlock}</div>{coinBlock}</>}
         {step === 1 && <><h4>Hangi yön?</h4><p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
           <DirectionCards value={dir} onChange={side => { const next = side === 'LONG' ? 'BUY' : 'SELL'; if (next !== ticket.side) { setTpRR(null); patch({side: next, stopPrice: '', takeProfit: ''}) } }}/>
           {aiCard}</>}
-        {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Teminatını ve kaldıracını seç, sözleşme sayısını biz hesaplarız.</p>
+        {step === 2 && <><h4>Ne kadar ve nasıl girelim?</h4><p className="mxtLead">Teminat, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>
+          {amountMobile}<div className="mxtDesk">
           <div className="cbAmt">
             <label className="cbAmtMain"><span>Teminat (USD)</span>
               <input className="cbAmtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="0"/></label>
@@ -461,8 +734,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (boşsa piyasa)"/>
             {status?.resting_enabled === true && <label className="mxtHint"><input type="checkbox" checked={ticket.rest} onChange={event => patch({rest: event.target.checked})}/> Bekleyen limit: emir dolana kadar Coinbase'de bekler (limit giriş ve hedef zorunlu; stop+hedef emre ekli gider ve ekran dolumu izler).</label>}
             <p className="mxtHint">Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Sözleşme sayısını elle yazarsan kaldıraç ona göre kendiliğinden belirlenir.</p>
-          </details></>}
-        {step === 3 && <><h4>Stop ve hedef</h4><p className="mxtLead">Stop zorunludur; stop'suz işlem açılmaz. LONG'da girişin altına, SHORT'ta üstüne koy. Hedef isteğe bağlıdır.</p>
+          </details></div></>}
+        {step === 3 && <><h4>Stop ve hedefleri belirle</h4><p className="mxtLead">Stop, zararı sınırlar; hedef kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
+          {stopMobile}<div className="mxtDesk">
           <div className="cbLv">
             <label className="cbLvField"><span>Stop fiyatı</span><input className="cbAmtInput small" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></label>
             <div className="cbChips" role="group" aria-label="Stop kısayolları"><em>Girişten</em>{STOP_PCTS.map(pct => <button type="button" key={pct} disabled={!Number.isFinite(entryRef)} onClick={() => pickStopPct(pct)}>%{pct}</button>)}</div>
@@ -479,7 +753,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             {risk.rr !== null && risk.rr < 1 && <p className="cbRiskWarn">Hedef, stoptan yakın: kazanabileceğin, kaybedebileceğinden az.</p>}
             <p className="cbRiskNote">Komisyon dahil tahmindir; gerçek rakamı son adımdaki ön kontrol verir.</p>
           </div>}
-          {!risk && <p className="mxtHint">Teminat, kaldıraç ve stop girilince risk özeti burada görünür.</p>}</>}
+          {!risk && <p className="mxtHint">Teminat, kaldıraç ve stop girilince risk özeti burada görünür.</p>}</div></>}
         {step === 4 && reviewStep}
         <div className="mxtNav">
           <button type="button" className="mxtBtn ghost" disabled={step === 0} onClick={() => goStep(Math.max(0, step - 1))}>← Geri</button>
@@ -510,7 +784,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           <span className="advHeadText"><small>MANUEL</small><b>Manuel işlem</b></span>
           <span className="advChip warn">GERÇEK PARA</span>
         </summary>
-        <div className="liveWs">{wizardBody}</div>
+        <div className="liveWs cbWizWrap">
+          <div className="liveWsSeg mgpSwitch" role="group" aria-label="Emir türü"><button type="button" aria-pressed={manualMode === 'single'} className={manualMode === 'single' ? 'on' : ''} onClick={() => setManualMode('single')}>Tek işlem</button><button type="button" aria-pressed={manualMode === 'grid'} className={manualMode === 'grid' ? 'on' : ''} onClick={() => setManualMode('grid')}>Grid <em>ÖNİZLEME</em></button></div>
+          {manualMode === 'grid' ? gridBody : wizardBody}</div>
       </details></div>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>

@@ -70,6 +70,7 @@ def normalize_products(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "volume_usd": _number(row.get("approximate_quote_24h_volume")),
             "expiry": _text(details.get("contract_expiry")),
             "contract_size": _number(details.get("contract_size")),
+            "price_increment": _number(row.get("price_increment")),
             "tradable": tradable,
         })
     result.sort(key=lambda item: Decimal(item["volume_usd"]) if item["volume_usd"] is not None else Decimal(-1), reverse=True)
