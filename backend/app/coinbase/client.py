@@ -37,6 +37,7 @@ READ_ONLY_PATTERNS = (
     re.compile(r"/api/v3/brokerage/products/[A-Za-z0-9][A-Za-z0-9._-]{0,39}"),
     re.compile(r"/api/v3/brokerage/products"),       # vadeli ürün listesi (yalnızca okuma)
     re.compile(r"/api/v3/brokerage/best_bid_ask"),   # anlık alış/satış fiyatı (yalnızca okuma)
+    re.compile(r"/api/v3/brokerage/orders/historical/fills"),  # dolum geçmişi (yalnızca okuma; işlem geçmişi ve bildirim)
 )
 
 # (yöntem, adres, başlıklar, sorgu, zaman aşımı[, gövde]) -> (durum, başlıklar, gövde). Gövde yalnızca POST'ta verilir.

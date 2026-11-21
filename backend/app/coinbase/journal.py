@@ -122,3 +122,18 @@ async def rest_plan(pool: Any, user_id: str, product_id: str) -> dict[str, Any] 
         except ValueError:
             return None
     return detail if isinstance(detail, dict) and detail.get("stop_price") and detail.get("stop_limit_price") else None
+
+
+ALERT_OUTCOMES = ("CRITICAL_UNPROTECTED", "stop_failed", "bracket_failed", "closed_after_stop_failure", "entry_not_filled", "entry_rejected", "rest_rejected")
+
+
+async def recent_alerts(pool: Any, user_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Ekranda gösterilecek son önemli uyarılar (koruma sorunları, reddedilen/dolmayan girişler). Son 7 gün."""
+    await ensure_schema(pool)
+    rows = await pool.fetch(
+        f"SELECT ts, product_id, outcome FROM {EVENT_TABLE} WHERE user_id = $1 AND outcome = ANY($2::text[]) "
+        "AND ts > NOW() - INTERVAL '7 days' ORDER BY id DESC LIMIT $3",
+        user_id, list(ALERT_OUTCOMES), limit,
+    )
+    return [{"time": row["ts"].isoformat() if hasattr(row["ts"], "isoformat") else str(row["ts"]),
+             "product_id": row["product_id"], "outcome": row["outcome"]} for row in rows]
