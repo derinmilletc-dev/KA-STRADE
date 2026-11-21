@@ -20,7 +20,8 @@ import PositionsCard, {type SmartPositionItem} from './PositionsCard'
 import {closeEstimate} from './live-quote'
 import {useLiveQuotes} from './useLiveQuotes'
 import type {RawRecord} from './position-view'
-import {NOTIFY_KINDS, browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
+import {browserNotificationState, loadNotifyPrefs} from '../../notification-prefs'
+import {friendlyFeed} from './live-feed'
 import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
 import '../../live-cockpit-coach-mobile.css'
@@ -892,7 +893,6 @@ export default function LiveCockpit(props: Props) {
   }) : [])]
   const why = running ? whyNoTrade(original?.scanner) : null
   const today = live ? dailySummary({realizedPnl: stableTodayPnl(status?.daily) ?? undefined, entries: status?.daily?.entries, last24h: original?.scanner?.last_24h, dailyLoss, dailyLimit}) : null
-  const eventTone = (kind: unknown) => NOTIFY_KINDS.find(item => item.pattern.test(String(kind || '')))?.tone ?? 'mute'
   const notify = useMemo(() => {
     try { const prefs = loadNotifyPrefs(); return prefs.browser && browserNotificationState() === 'granted' } catch { return false }
   }, [])
@@ -1894,12 +1894,9 @@ export default function LiveCockpit(props: Props) {
     : guide.phase === 'problem' ? {tone: guide.tone === 'stop' ? 'stop' : 'warn', label: 'Dikkat gerekiyor'}
     : guideInput.paused ? {tone: 'mute', label: 'Durdu'} : {tone: 'go', label: `Kurulum · Adım ${guide.step}/${GUIDE_STEPS.length}`}
   const [eventFilter, setEventFilter] = useState<'all' | 'trade' | 'warn' | 'system'>('all')
-  const eventGroup = (kind: unknown): 'trade' | 'warn' | 'system' => {
-    const match = NOTIFY_KINDS.find(item => item.pattern.test(String(kind || '')))
-    return !match ? 'system' : match.id === 'entry' || match.id === 'close' ? 'trade' : 'warn'
-  }
-  const allEvents = status?.events ?? []
-  const shownEvents = allEvents.filter(event => eventFilter === 'all' || eventGroup(event.kind) === eventFilter).slice(0, 14)
+  // Akış: ham borsa/teşhis olayları elenir, parçalı dolumlar tek satıra iner (live-feed.ts).
+  const allEvents = friendlyFeed(status?.events, 80)
+  const shownEvents = allEvents.filter(item => eventFilter === 'all' || item.group === eventFilter).slice(0, 14)
   const nearMisses = (scanner?.near_misses ?? []).slice(0, 3)
   const breakdown = rejectionBreakdown(scanner?.rejections_24h, Date.now())
   // Çalışırken bağlantı koparsa da koç görünümü kalır (adım çubuğuna geri dönülmez).
@@ -2161,8 +2158,8 @@ export default function LiveCockpit(props: Props) {
           <div className="lcChips" role="tablist" aria-label="Olay filtresi">{([['all', 'Tümü'], ['trade', 'İşlemler'], ['warn', 'Uyarılar'], ['system', 'Sistem']] as const).map(([id, label]) =>
             <button type="button" role="tab" key={id} aria-selected={eventFilter === id} data-on={eventFilter === id || undefined} onClick={() => setEventFilter(id)}>{label}</button>)}</div>
           {!verified && allEvents.length > 0 && <p className="lcHint">Son görülen kayıtlar; güncel durum doğrulanamadı.</p>}
-          {shownEvents.length === 0 ? <p className="lcEmpty">{allEvents.length ? 'Bu filtrede olay yok.' : 'Henüz olay yok.'}</p> : <ul>{shownEvents.map((event, index) => <li key={`${event.created_at}-${index}`} data-tone={eventTone(event.kind)}>
-            <time>{clock(event.created_at)}</time><span>{event.message ?? String(event.kind || '').replaceAll('_', ' ')}</span></li>)}</ul>}
+          {shownEvents.length === 0 ? <p className="lcEmpty">{allEvents.length ? 'Bu filtrede olay yok.' : 'Henüz olay yok.'}</p> : <ul>{shownEvents.map(item => <li key={item.id} data-tone={item.tone}>
+            <time>{clock(item.at)}</time><span>{item.title}{item.detail && <small className="lcEvDetail">{item.detail}</small>}</span></li>)}</ul>}
         </section>
       </aside>
     </div>
