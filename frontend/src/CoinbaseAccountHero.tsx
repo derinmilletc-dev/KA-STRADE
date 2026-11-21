@@ -1,7 +1,7 @@
 // Coinbase ekranının üst özeti: bakiye, durum ve (vadeli hesap hazır değilse) sade yönlendirme.
 // Yalnızca gösterim; hiçbir emir/ayar buradan değişmez.
-import {useEffect, useState} from 'react'
-import {RefreshCw, Wallet} from 'lucide-react'
+import {useEffect, useRef, useState} from 'react'
+import {ArrowUpRight, Check, RefreshCw, Wallet} from 'lucide-react'
 import {pushState, type PushState} from '../../push-client'
 
 type Amount = {value: string | null; currency: string} | null
@@ -50,6 +50,21 @@ export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, 
   const [push, setPush] = useState<PushState | null>(null)
   useEffect(() => { let alive = true; void pushState().then(state => { if (alive) setPush(state) }).catch(() => undefined); return () => { alive = false } }, [])
   const since = useSecondsSince(lastCheck)
+  // Coinbase'e gidip dönünce kart kendisi yeniden kontrol eder (kullanıcı düğmeye basmak zorunda kalmaz).
+  const refreshRef = useRef(onRefresh)
+  refreshRef.current = onRefresh
+  const lastRef = useRef(lastCheck)
+  lastRef.current = lastCheck
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== 'visible') return
+      if (lastRef.current !== null && Date.now() - lastRef.current < 4000) return
+      refreshRef.current()
+    }
+    document.addEventListener('visibilitychange', back)
+    window.addEventListener('focus', back)
+    return () => { document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
+  }, [])
   const levelUpper = String(balance?.worst_margin_level ?? '').split('_').pop()?.toUpperCase() ?? ''
   const danger = Boolean(balance) && !['BASE', ''].includes(levelUpper)
   const power = Number(balance?.futures_buying_power?.value)
@@ -69,20 +84,32 @@ export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, 
     <p className="cbHeroAuto"><RefreshCw className="spin" aria-hidden="true"/><span>Hesap kontrol ediliyor…</span></p>
   </section>
 
-  if (!ready) return <section className="cbHero cbHero2" aria-label="Coinbase vadeli hesap özeti" data-state="setup">
-    <div className="cbHeroTop"><span className="cbHeroTitle"><Wallet aria-hidden="true"/><b>Coinbase Futures</b></span><span className="cbHeroState" data-tone="warn">{3 - done} ADIM KALDI</span>{refreshBtn}</div>
-    <div className="cbHeroRing">
-      <span className="cbRing" style={{background: `conic-gradient(#39d69a 0 ${done / 3 * 100}%, #2a3341 0)`}} role="img" aria-label={`${done} / 3 adım tamam`}><i>{done}/3</i></span>
-      <span><b>İşleme hazır değil</b><small>Sıradaki adım: {current === 2 ? 'Futures hesabını aç' : 'Vadeli cüzdana USD ekle'}</small></span>
-    </div>
-    <ol className="cbSteps" aria-label="Hazırlık adımları">
-      <li data-state="done"><i aria-hidden="true">✓</i><span>API anahtarı bağlı</span></li>
-      <li data-state={accountOk ? 'done' : 'now'}><i aria-hidden="true">{accountOk ? '✓' : '2'}</i><span>Futures hesabını aç</span>{!accountOk && <a href={COINBASE_URL} target="_blank" rel="noreferrer">Coinbase’de aç ↗</a>}</li>
-      <li data-state={current === 3 ? 'now' : 'todo'}><i aria-hidden="true">{current === 3 ? '3' : ''}</i><span>Vadeli cüzdana USD ekle</span>{current === 3 ? <a href={COINBASE_URL} target="_blank" rel="noreferrer">Para ekle ↗</a> : <small>{balance ? fmt(balance.futures_buying_power) : '0,00 USD'}</small>}</li>
-    </ol>
-    <p className="cbHeroAuto"><RefreshCw className={loading ? 'spin' : ''} aria-hidden="true"/><span>Her 30 sn kendisi kontrol ediyor{since !== null ? ` · son: ${since < 2 ? 'şimdi' : `${since} sn önce`}` : ''}</span><button type="button" onClick={onRefresh} disabled={loading}>Şimdi kontrol et</button></p>
-    {clockSkew !== null && <p className="cbHeroWarn" role="alert">Sunucu saati {clockSkew} sn kaymış; emirler bekletilir.</p>}
-  </section>
+  if (!ready) {
+    const steps: {key: string; label: string; state: 'done' | 'now' | 'todo'}[] = [
+      {key: 'key', label: 'Anahtar', state: 'done'},
+      {key: 'acct', label: 'Hesap', state: accountOk ? 'done' : 'now'},
+      {key: 'fund', label: 'Bakiye', state: current === 3 ? 'now' : 'todo'},
+    ]
+    const nowTitle = current === 2 ? 'Futures hesabını aç' : 'Vadeli cüzdana USD ekle'
+    const nowText = current === 2
+      ? 'Coinbase’de vadeli işlemler (Futures) hesabını etkinleştir. Bitince buraya dön; kart kendisi algılar.'
+      : 'Spot cüzdanından vadeli cüzdana USD aktar. Bitince buraya dön; kart kendisi algılar.'
+    return <section className="cbHero cbHero2 cbSetup" aria-label="Coinbase vadeli hesap özeti" data-state="setup">
+      <div className="cbHeroTop"><span className="cbHeroTitle"><Wallet aria-hidden="true"/><b>Coinbase Futures</b></span><span className="cbHeroState" data-tone="warn">{done}/3</span>{refreshBtn}</div>
+      <ol className="cbStepper" aria-label={`Hazırlık: ${done} / 3 adım tamam`}>
+        {steps.map(step => <li key={step.key} data-state={step.state}><span className="cbStepBar" aria-hidden="true"/><span className="cbStepLabel">{step.state === 'done' ? <Check aria-hidden="true"/> : null}{step.label}</span></li>)}
+      </ol>
+      <div className="cbSetupNow">
+        <small>SIRADAKİ ADIM · {current}/3</small>
+        <b>{nowTitle}</b>
+        <p>{nowText}</p>
+        {current === 3 && <span className="cbSetupBal">Vadeli cüzdan <em>{balance ? fmt(balance.futures_buying_power) : '0,00 USD'}</em></span>}
+        <a className="cbSetupCta" href={COINBASE_URL} target="_blank" rel="noreferrer">{current === 2 ? 'Coinbase’de aç' : 'Para ekle'}<ArrowUpRight aria-hidden="true"/></a>
+      </div>
+      <p className="cbHeroAuto"><i className="cbLiveDot" data-busy={loading || undefined} aria-hidden="true"/><span>Canlı izleniyor{since !== null ? ` · ${since < 2 ? 'şimdi kontrol edildi' : `${since} sn önce`}` : ''}</span><button type="button" onClick={onRefresh} disabled={loading}>Şimdi kontrol et</button></p>
+      {clockSkew !== null && <p className="cbHeroWarn" role="alert">Sunucu saati {clockSkew} sn kaymış; emirler bekletilir.</p>}
+    </section>
+  }
 
   return <section className="cbHero cbHero2" aria-label="Coinbase vadeli hesap özeti" data-state="ready">
     <div className="cbHeroTop"><span className="cbHeroTitle"><Wallet aria-hidden="true"/><b>Coinbase Futures</b></span><span className="cbHeroState" data-tone={ordersOn ? 'ok' : 'warn'}>{ordersOn ? '● CANLI · HAZIR' : 'EMİR KAPALI'}</span>{refreshBtn}</div>

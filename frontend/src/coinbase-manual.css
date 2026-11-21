@@ -387,3 +387,39 @@ html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b) button[data-kind='primar
 html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b) button[data-kind='more']:not(#c){flex:0 0 auto!important;padding:0 12px!important}
 html body #root .cbTerminal .cbPos2More:not(#a):not(#b) button:not(#c),html body #root .cbTerminal .cbPos2SheetBtns:not(#a):not(#b) button:not(#c){width:auto!important;flex:1 1 0!important}
 html body #root .cbTerminal .cbActPush:not(#a):not(#b) button:not(#c){background:#3ddc97!important;color:#06281a!important;border:0!important;width:auto!important}
+
+/* Kurulum kartı v3: adım çubuğu + tek net eylem */
+html body #root .cbTerminal .cbSetup:not(#a){gap:16px!important;background:radial-gradient(120% 90% at 0% 0%,rgba(57,214,154,.14),transparent 55%),linear-gradient(160deg,#10201a,#0b131a 70%)!important}
+.cbTerminal .cbSetup .cbStepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cbTerminal .cbSetup .cbStepper li{display:grid;gap:7px}
+.cbTerminal .cbSetup .cbStepBar{display:block;height:5px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.cbTerminal .cbSetup .cbStepper li[data-state='done'] .cbStepBar{background:#39d69a}
+.cbTerminal .cbSetup .cbStepper li[data-state='now'] .cbStepBar{background:linear-gradient(90deg,#e8b75c,#f0c46a);animation:cbPulse 1.6s ease-in-out infinite}
+.cbTerminal .cbSetup .cbStepLabel{display:flex;align-items:center;gap:4px;font-size:.78rem;font-weight:700;color:#7f8f88}
+.cbTerminal .cbSetup .cbStepLabel svg{width:13px;height:13px;flex:none;stroke-width:3}
+.cbTerminal .cbSetup .cbStepper li[data-state='done'] .cbStepLabel{color:#7fe6bb}
+.cbTerminal .cbSetup .cbStepper li[data-state='now'] .cbStepLabel{color:#f3d08a}
+@keyframes cbPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.cbTerminal .cbSetup .cbSetupNow{display:grid;gap:6px;padding:16px;border-radius:18px;background:rgba(232,183,92,.08);border:1px solid rgba(232,183,92,.3)}
+.cbTerminal .cbSetup .cbSetupNow small{font-size:.7rem;letter-spacing:.1em;font-weight:800;color:#f0c46a}
+.cbTerminal .cbSetup .cbSetupNow b{font-size:1.2rem;font-weight:800;color:#fff4dc;line-height:1.2}
+.cbTerminal .cbSetup .cbSetupNow p{margin:0;font-size:.86rem;line-height:1.45;color:#c8d3cd}
+.cbTerminal .cbSetup .cbSetupBal{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.22);font-size:.82rem;color:#a4b3ab}
+.cbTerminal .cbSetup .cbSetupBal em{font-style:normal;font-weight:800;color:#eaf1f7;font-variant-numeric:tabular-nums}
+html body #root .cbTerminal .cbSetup a.cbSetupCta:not(#a){display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;margin-top:8px!important;min-height:48px!important;border-radius:14px!important;background:linear-gradient(135deg,#f0c46a,#e8b75c)!important;color:#1d1405!important;font-weight:800!important;font-size:1rem!important;text-decoration:none!important;box-shadow:0 10px 24px -12px rgba(232,183,92,.8)!important}
+.cbTerminal .cbSetup a.cbSetupCta svg{width:18px;height:18px}
+.cbTerminal .cbSetup a.cbSetupCta:active{transform:scale(.985)}
+.cbTerminal .cbHero2 .cbLiveDot{flex:none;width:8px;height:8px;border-radius:50%;background:#39d69a;box-shadow:0 0 0 3px rgba(57,214,154,.2);animation:cbPulse 2s ease-in-out infinite}
+.cbTerminal .cbHero2 .cbLiveDot[data-busy]{background:#7cb8ff;box-shadow:0 0 0 3px rgba(124,184,255,.22)}
+
+/* Bakiye yokken "Manuel işlem aç": sakin, ikinci planda */
+html body #root .cbTerminal .cbOpenManual[data-wait]:not(#a){background:rgba(255,255,255,.04)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)!important;padding:14px 16px!important}
+html body #root .cbTerminal .cbOpenManual[data-wait]:not(#a) .cbOpenIcon{background:rgba(255,255,255,.07)!important;color:#b8c6d3!important}
+html body #root .cbTerminal .cbOpenManual[data-wait]:not(#a) .cbOpenText b{font-size:16px!important}
+html body #root .cbTerminal .cbOpenManual[data-wait]:not(#a) .cbOpenGo{color:#7f8f88!important}
+
+/* Boş durumlar */
+.cbTerminal .cbActEmpty{display:grid;gap:3px;padding:18px 14px!important}
+.cbTerminal .cbActEmpty b{font-size:.92rem;color:#d9e3dd}
+.cbTerminal .cbActEmpty small{font-size:.78rem;color:#7f8f88}
+.cbTerminal .cbPanel{width:100%;box-sizing:border-box}

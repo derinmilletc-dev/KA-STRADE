@@ -81,11 +81,11 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
     </div>
 
     <div className="cbActSeg" role="group" aria-label="Dönem"><button type="button" aria-pressed={period === 'today'} data-on={period === 'today' || undefined} onClick={() => setPeriod('today')}>Bugün</button><button type="button" aria-pressed={period === 'week'} data-on={period === 'week' || undefined} onClick={() => setPeriod('week')}>Bu hafta</button></div>
-    <dl className="cbActToday" aria-label={period === 'today' ? 'Bugün' : 'Son 7 gün'}>
+    {(scope.length > 0 || closes.length > 0) && <dl className="cbActToday" aria-label={period === 'today' ? 'Bugün' : 'Son 7 gün'}>
       <div><dt>{period === 'today' ? 'Bugün K/Z' : '7 gün K/Z'}</dt><dd data-tone={pnlShown === null || pnlShown === 0 ? undefined : pnlShown > 0 ? 'up' : 'down'}>{pnlShown === null ? '—' : money(pnlShown)}</dd></div>
       <div><dt>İşlem</dt><dd>{scope.length}</dd></div>
       <div><dt>Kapanan</dt><dd>{closes.length ? `${wins} / ${known.length || closes.length} kârlı` : '0'}</dd></div>
-    </dl>
+    </dl>}
     {period === 'week' && best && worst && known.length > 1 && <p className="cbActBest"><span>En iyi <b data-tone="up">{best.product_id.split('-')[0]} {money(num(best.pnl) ?? 0)}</b></span><span>En kötü <b data-tone={(num(worst.pnl) ?? 0) < 0 ? 'down' : 'up'}>{worst.product_id.split('-')[0]} {money(num(worst.pnl) ?? 0)}</b></span></p>}
     {period === 'week' && <p className="cbActNote">Her pazartesi sabah bu özet telefona da gelir (bildirim açıksa).</p>}
 
@@ -100,7 +100,7 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
       <b>{alert.title}</b><small>{alert.product_id ?? ''} · {dayLabel(alert.time)} {hhmm(alert.time)}</small></li>)}</ul>}
 
     {error && !data && <p className="cbNote warn" role="alert">{error}</p>}
-    {data && data.items.length === 0 && <p className="cbActEmpty">Henüz işlem yok. İlk işlemin burada görünür.</p>}
+    {data && data.items.length === 0 && <p className="cbActEmpty"><b>Henüz işlem yok</b><small>İlk işlemin, stop ve hedef olayları burada görünür.</small></p>}
     {items.length > 0 && <ol className="cbActList">{items.map((item, index) => {
       const pnl = num(item.pnl)
       return <li key={`${item.time}-${index}`} data-tone={item.tone} data-kind={item.kind}>
