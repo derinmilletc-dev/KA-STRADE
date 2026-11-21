@@ -661,7 +661,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </section>
   </div>, document.body) : null
   const coinMobile = <div className="mxtM mxtMCoin">
-    {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{selectedRow ? <>{priceText(selectedRow.price)} · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+    {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{Number.isFinite(shownPrice) ? <>{priceText(shownPrice)}{selectedRow && Number.isFinite(selectedRow.change) && <> · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></>}</> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
     {vadePicker}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
     <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)}
