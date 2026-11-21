@@ -21,7 +21,7 @@ import '../../live-cockpit.css'
 import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
-import {analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
+import {analysisSymbol, changeText, expiryText, groupRows, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
@@ -223,12 +223,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, selectedId])
 
-  const rows = products ? toRows(products) : []
-  const signals = signalsForRows(rows, universe)
+  const allRows = products ? toRows(products) : []
+  // Her coin tek satır (perp varsa o); tarihli ürünler seçilen coinin altında "Vade" olarak seçilir.
+  const grouped = groupRows(allRows)
+  const rows = grouped.rows
+  const signals = signalsForRows(allRows, universe)
   const rankedRows = sortCoins(filterBySignal(rows, signals, coinFilter), signals, coinSort)
   const matches = matchRows(rankedRows, coinQuery)
   const listed = matches.slice(0, 80)
-  const selectedRow = rows.find(row => row.symbol === selectedId)
+  const selectedRow = allRows.find(row => row.symbol === selectedId)
+  const selectedVariants = selectedRow ? grouped.variants[selectedRow.root || selectedRow.symbol] ?? [] : []
+  const isSelectedCoin = (row: CbRow) => selectedRow !== undefined && (row.root || row.symbol) === (selectedRow.root || selectedRow.symbol)
   const selectedSignal = signals?.[selectedId]
   const shownPrice = quote ? Number(quote.mid) : selectedRow ? selectedRow.price : NaN
   const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
@@ -548,6 +553,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     document.body,
   ) : null
 
+  const vadePicker = selectedVariants.length > 1 ? <div className="cbVade" role="group" aria-label="Vade"><span>Vade:</span>{selectedVariants.map(row => <button type="button" key={row.symbol} aria-pressed={row.symbol === selectedId} data-on={row.symbol === selectedId || undefined} onClick={() => chooseCoin(row.symbol)}>{variantLabel(row)}</button>)}</div> : null
   const toolbar = signals !== null && <div className="cpkTools">
     <div className="cpkChips" role="group" aria-label="Filtre">{FILTER_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinFilter === key} className={coinFilter === key ? 'on' : ''} onClick={() => setCoinFilter(key)}>{label}<span>{key === 'all' ? rows.length : signalCount(key)}</span></button>)}</div>
     <div className="cpkChips cpkSorts" role="group" aria-label="Sıralama">{SORT_CHIPS.map(([key, label]) => <button type="button" key={key} aria-pressed={coinSort === key} className={coinSort === key ? 'on' : ''} onClick={() => setCoinSort(key)}>{label}</button>)}</div>
@@ -581,6 +587,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {duo(selectedSignal)}
       <ChevronDown/>
     </button>
+    {vadePicker}
     {quoteError && selectedId && <small className="liveWsHint" role="alert">Canlı fiyat alınamadı; son liste fiyatı gösteriliyor.</small>}
     {coinOpen && <div className="cpkPop">
       <label className="cpkSearch"><Search/><input autoFocus value={coinQuery} placeholder="Ürün ara: BTC, ETH, SOL…" aria-label="Ürün ara" onChange={event => setCoinQuery(event.target.value)}
@@ -600,7 +607,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const coinSym = (row: CbRow | undefined) => (row && (analysisSymbol(row.root) || row.root)) || ''
   const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
   const coinMark = (row: CbRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={coinSym(row) || fallback} size={40}/></span>
-  const recentRows = !coinQuery.trim() ? recentIds.map(id => rows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)) : []
+  const recentRows = !coinQuery.trim() ? recentIds.map(id => allRows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)).filter((row, index, list) => list.findIndex(item => (item.root || item.symbol) === (row.root || row.symbol)) === index) : []
   const mobileList = matches.slice(0, 120)
   // Analiz çekmecesi: Binance'teki ile aynı (listedeki sinyalden beslenir, yeni istek atmaz).
   const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
@@ -655,6 +662,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   </div>, document.body) : null
   const coinMobile = <div className="mxtM mxtMCoin">
     {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{selectedRow ? <>{priceText(selectedRow.price)} · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+    {vadePicker}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
     <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)}
       onKeyDown={event => { if (event.key === 'Enter') { if (matches[0]) chooseCoin(matches[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) } }}/></label>
@@ -665,10 +673,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {products === null && !productsError && <p className="mxtMEmpty">Ürün listesi yükleniyor…</p>}
     {productsError && <p className="mxtMEmpty">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
     {products !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede ürün yok.</p>}
-    {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${coinQuery}`} role="listbox" aria-label="Ürün listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={row.symbol === selectedId} data-on={row.symbol === selectedId || undefined} onClick={() => chooseCoin(row.symbol)}>
-      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.display}{expiryText(row.expiry) ? ` · ${expiryText(row.expiry)}` : ''}</b><small>{priceText(row.price)}</small></span>
+    {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${coinQuery}`} role="listbox" aria-label="Ürün listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={isSelectedCoin(row)} data-on={isSelectedCoin(row) || undefined} onClick={() => chooseCoin(isSelectedCoin(row) ? selectedId : row.symbol)}>
+      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.root || row.display}{(grouped.variants[row.root || row.symbol]?.length ?? 0) > 1 ? <em className="cbVadeN"> · {grouped.variants[row.root || row.symbol].length} vade</em> : expiryText(row.expiry) ? ` · ${variantLabel(row)}` : ''}</b><small>{priceText(row.price)}</small></span>
       <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
-      {row.symbol === selectedId && <i className="mxtMTick" aria-hidden="true">✓</i>}
+      {isSelectedCoin(row) && <i className="mxtMTick" aria-hidden="true">✓</i>}
     </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}
     {anaSheet}
     {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}

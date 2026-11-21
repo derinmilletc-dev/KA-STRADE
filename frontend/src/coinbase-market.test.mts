@@ -49,3 +49,24 @@ test('biçimleyiciler', () => {
   assert.equal(expiryText('2089-12-30T00:00:00Z'), null)
   assert.equal(expiryText(null), null)
 })
+
+{
+  const {groupRows, variantLabel, isPerp} = await import('./coinbase-market.ts')
+  const mk = (symbol: string, display: string, root: string | null, expiry: string | null) => ({symbol, display, price: 1, change: 0, volume: 1, root, expiry})
+  const rows = [
+    mk('SOL-27NOV26', 'SOL 27-Nov', 'SOL', '2026-11-27T16:00:00Z'),
+    mk('SOL-PERP', 'SOL Perp', 'SOL', '2030-12-20T16:00:00Z'),
+    mk('BCH-26FEB27', 'BCH 26-Feb 27', 'BCH', '2027-02-26T16:00:00Z'),
+    mk('BCH-29JAN27', 'BCH 29-Jan 27', 'BCH', '2027-01-29T16:00:00Z'),
+    mk('X-1', 'Mystery', null, null),
+  ]
+  const g = groupRows(rows)
+  assert.deepEqual(g.rows.map(r => r.symbol), ['SOL-PERP', 'BCH-29JAN27', 'X-1'])
+  assert.deepEqual(g.variants.SOL.map(r => r.symbol), ['SOL-PERP', 'SOL-27NOV26'])
+  assert.deepEqual(g.variants.BCH.map(r => r.symbol), ['BCH-29JAN27', 'BCH-26FEB27'])
+  assert.equal(isPerp(rows[1]), true)
+  assert.equal(variantLabel(rows[1]), 'Perp')
+  assert.equal(variantLabel(rows[0], Date.parse('2026-11-21T00:00:00Z')), '27 Kas')
+  assert.equal(variantLabel(rows[2], Date.parse('2026-11-21T00:00:00Z')), '26 Şub 27')
+  console.log('coinbase-market gruplama testleri geçti')
+}

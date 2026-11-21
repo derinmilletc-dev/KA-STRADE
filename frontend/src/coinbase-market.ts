@@ -54,3 +54,43 @@ export function expiryText(value: string | null): string | null {
   if (d.getUTCFullYear() >= 2050) return null
   return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
 }
+
+/** Süresiz (perp) ürün mü: adında "Perp" geçer ya da vade tarihi yer tutucudur (2050+). */
+export function isPerp(row: {display: string; expiry: string | null}): boolean {
+  if (/perp/i.test(row.display)) return true
+  const time = row.expiry ? Date.parse(row.expiry) : NaN
+  return Number.isFinite(time) && new Date(time).getUTCFullYear() >= 2050
+}
+
+const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+/** Vade seçeneğinin kısa adı: "Perp" ya da "27 Kas" (yıl farklıysa "26 Şub 27"). */
+export function variantLabel(row: {display: string; expiry: string | null}, now = Date.now()): string {
+  if (isPerp(row)) return 'Perp'
+  const time = row.expiry ? Date.parse(row.expiry) : NaN
+  if (!Number.isFinite(time)) return row.display
+  const d = new Date(time)
+  const sameYear = d.getUTCFullYear() === new Date(now).getUTCFullYear()
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${sameYear ? '' : ` ${String(d.getUTCFullYear()).slice(2)}`}`
+}
+
+const expiryTime = (row: CbRow) => { const t = row.expiry ? Date.parse(row.expiry) : NaN; return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER }
+
+/** Her coin için tek satır: perp varsa o, yoksa en yakın vadeli ürün. Liste sırası (hacim) korunur.
+ *  variants: coinin tüm ürünleri (perp önce, sonra vadeye göre). Dayanağı bilinmeyen ürün kendi başına kalır. */
+export function groupRows(rows: readonly CbRow[]): {rows: CbRow[]; variants: Record<string, CbRow[]>} {
+  const groups = new Map<string, CbRow[]>()
+  const order: string[] = []
+  for (const row of rows) {
+    const key = row.root || row.symbol
+    if (!groups.has(key)) { groups.set(key, []); order.push(key) }
+    groups.get(key)!.push(row)
+  }
+  const variants: Record<string, CbRow[]> = {}
+  const result: CbRow[] = []
+  for (const key of order) {
+    const list = [...groups.get(key)!].sort((a, b) => (isPerp(a) ? 0 : 1) - (isPerp(b) ? 0 : 1) || expiryTime(a) - expiryTime(b))
+    variants[key] = list
+    result.push(list[0])
+  }
+  return {rows: result, variants}
+}
