@@ -43,6 +43,7 @@ class PreflightPayload(BaseModel):
     take_profit_price: str | None = Field(default=None, max_length=30)
     rest: bool = False
     contracts: int | None = Field(default=None, ge=1, le=100000)
+    leverage: float | None = Field(default=None, ge=1, le=100)  # yalnız sözleşme sayısı boşken: otomatik miktar bu kaldıraca göre seçilir
 
 
 class OpenPayload(PreflightPayload):

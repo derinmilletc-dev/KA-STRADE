@@ -26,7 +26,18 @@ def go(request=None, **over):
     return run_preflight(**args)
 
 
+# Sabit tavanlar kaldırıldı; bu testler, isteyenin ortam değişkeniyle sıkılaştırdığı eski sınırları (5 USD, 3x–5x, 3 pozisyon, 10 USD/gün) doğrular.
+TIGHT_ENV = {"COINBASE_MAX_LOSS_USD": "5", "COINBASE_LEVERAGE_MIN": "3", "COINBASE_LEVERAGE_MAX": "5", "COINBASE_MAX_POSITIONS": "3", "COINBASE_DAILY_LOSS_LIMIT_USD": "10"}
+
+
 class PreflightTests(unittest.TestCase):
+    def setUp(self):
+        import os
+        from unittest.mock import patch
+        patcher = patch.dict(os.environ, TIGHT_ENV)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_ok_plan_respects_all_rules(self):
         r = go()
         self.assertTrue(r["ok"], r["reasons"])
@@ -121,15 +132,50 @@ class PreflightTests(unittest.TestCase):
     def test_env_can_only_tighten(self):
         import os
         from unittest.mock import patch
-        with patch.dict(os.environ, {"COINBASE_MAX_LOSS_USD": "50", "COINBASE_LEVERAGE_MAX": "20", "COINBASE_MAX_POSITIONS": "9"}):
+        # Yeni sert üst sınırların üstündeki env değeri yok sayılır; sınır içindeki değer sıkılaştırır.
+        with patch.dict(os.environ, {"COINBASE_MAX_LOSS_USD": "5000000", "COINBASE_LEVERAGE_MAX": "500", "COINBASE_MAX_POSITIONS": "5000"}):
             lim = current_limits()
-        self.assertEqual(lim.max_loss_usd, D("5"))
-        self.assertEqual(lim.leverage_max, D("5"))
-        self.assertEqual(lim.max_positions, 3)
+        self.assertEqual(lim.max_loss_usd, HARD_MAX_LOSS_USD)
+        self.assertEqual(lim.leverage_max, D("100"))
+        self.assertEqual(lim.max_positions, 1000)
         with patch.dict(os.environ, {"COINBASE_MAX_LOSS_USD": "2", "COINBASE_LEVERAGE_MAX": "4"}):
             lim = current_limits()
         self.assertEqual(lim.max_loss_usd, D("2"))
         self.assertEqual(lim.leverage_max, D("4"))
+
+    def test_auto_size_without_caps_stays_at_5x_and_explicit_can_go_higher(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {k: "" for k in TIGHT_ENV}):
+            lim = current_limits()
+            auto = go({"margin_usd": "300"}, limits=lim)
+            big = go({"margin_usd": "300", "contracts": 400}, limits=lim)
+        notional = D("3000.5") * D("0.01")
+        self.assertTrue(auto["ok"], auto)
+        self.assertLessEqual(D(auto["plan"]["contracts"]) * notional, D("300") * D("5") + notional)
+        self.assertGreater(big["plan"]["contracts"], auto["plan"]["contracts"])
+
+    def test_auto_size_follows_requested_leverage(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {k: "" for k in TIGHT_ENV}):
+            lim = current_limits()
+            low = go({"margin_usd": "300", "leverage": 2}, limits=lim)
+            high = go({"margin_usd": "300", "leverage": 8}, limits=lim)
+        self.assertTrue(low["ok"], low)
+        self.assertTrue(high["ok"], high)
+        self.assertLess(low["plan"]["contracts"], high["plan"]["contracts"])
+        self.assertLessEqual(D(low["plan"]["leverage"]), D("2.01"))
+
+    def test_default_limits_are_not_capped_except_open_orders(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {k: "" for k in TIGHT_ENV}):
+            lim = current_limits()
+        self.assertGreaterEqual(lim.max_loss_usd, D("100000"))
+        self.assertGreaterEqual(lim.leverage_max, D("50"))
+        self.assertGreaterEqual(lim.max_positions, 100)
+        self.assertEqual(lim.max_open_orders, 5)
 
 
 if __name__ == "__main__":

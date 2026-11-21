@@ -92,8 +92,9 @@ export const PRODUCT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,39}$/
 export const isProductId = (value: string): boolean => PRODUCT_PATTERN.test(value.trim())
 export const isPositiveDecimal = (value: string): boolean => /^\d+(\.\d+)?$/.test(value.trim()) && Number(value) > 0
 
-export type Ticket = {productId: string; side: 'BUY' | 'SELL'; stopPrice: string; marginUsd: string; contracts: string; limitPrice: string; takeProfit: string; rest: boolean}
-export const emptyTicket = (): Ticket => ({productId: '', side: 'BUY', stopPrice: '', marginUsd: '', contracts: '', limitPrice: '', takeProfit: '', rest: false})
+export type Ticket = {productId: string; side: 'BUY' | 'SELL'; stopPrice: string; marginUsd: string; contracts: string; limitPrice: string; takeProfit: string; rest: boolean; leverage: string}
+export const DEFAULT_LEVERAGE = '5'
+export const emptyTicket = (): Ticket => ({productId: '', side: 'BUY', stopPrice: '', marginUsd: '', contracts: '', limitPrice: '', takeProfit: '', rest: false, leverage: DEFAULT_LEVERAGE})
 
 /** Göndermeden önce açık eksikleri yakalar (sunucu yine de tüm kuralları denetler). */
 export function ticketProblems(ticket: Ticket): string[] {
@@ -117,6 +118,7 @@ export function ticketPayload(ticket: Ticket): Record<string, unknown> {
   if (ticket.takeProfit.trim() !== '') body.take_profit_price = ticket.takeProfit.trim()
   if (ticket.rest) body.rest = true
   if (ticket.contracts.trim() !== '') body.contracts = Number(ticket.contracts.trim())
+  else if (/^\d+(\.\d+)?$/.test(ticket.leverage.trim()) && Number(ticket.leverage) >= 1) body.leverage = Number(ticket.leverage.trim())
   return body
 }
 

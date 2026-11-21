@@ -83,12 +83,16 @@ test('emir formu: stop zorunlu, sayılar doğrulanır', () => {
 test('emir gövdesi: metin sayılar korunur, sözleşme yoksa gönderilmez', () => {
   const base = {...emptyTicket(), productId: ' ETP-20DEC30-CDE ', stopPrice: ' 2940.50 ', marginUsd: '60'}
   assert.equal(ticketPayload({...base, limitPrice: ' 3001.5 '}).entry_limit_price, '3001.5')
+  // Kaldıraç yalnız sözleşme sayısı boşken gönderilir; elle sayı varsa o geçerlidir.
+  assert.equal(ticketPayload({...base, leverage: '8'}).leverage, 8)
+  assert.equal(ticketPayload({...base, leverage: '8', contracts: '40'}).leverage, undefined)
+  assert.equal(ticketPayload({...base, leverage: '0'}).leverage, undefined)
   assert.equal(ticketPayload({...base, takeProfit: ' 3100 ', rest: true}).take_profit_price, '3100')
   assert.equal(ticketPayload({...base, takeProfit: ' 3100 ', rest: true}).rest, true)
   assert.ok(ticketProblems({...base, rest: true}).length >= 2)
   assert.ok(ticketProblems({...base, takeProfit: 'x'}).length >= 1)
   assert.ok(ticketProblems({...base, limitPrice: 'abc'}).length >= 1)
-  assert.deepEqual(ticketPayload(base), {product_id: 'ETP-20DEC30-CDE', side: 'BUY', stop_price: '2940.50', margin_usd: '60'})
+  assert.deepEqual(ticketPayload(base), {leverage: 5, product_id: 'ETP-20DEC30-CDE', side: 'BUY', stop_price: '2940.50', margin_usd: '60'})
   assert.equal(ticketPayload({...base, contracts: '4'}).contracts, 4)
 })
 
