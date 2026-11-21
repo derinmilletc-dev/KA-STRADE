@@ -70,6 +70,16 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
 
   return <section className="cbCard" aria-label="Pozisyonlar ve koruma">
     <h3><ShieldAlert/>Pozisyonlar ve koruma</h3>
+    <div className="cbPosSum" aria-label="Pozisyon özeti">
+      <div><small>Açık</small><b>{positions.length}</b></div>
+      <div><small>Long</small><b data-tone="up">{positions.filter(item => sideOf(item.side) === 'BUY').length}</b></div>
+      <div><small>Short</small><b data-tone="down">{positions.filter(item => sideOf(item.side) === 'SELL').length}</b></div>
+    </div>
+    <ul className="cbGuard" aria-label="Koruma">
+      <li><i aria-hidden="true">✓</i>Her işlem stop ile açılır; stop kurulamazsa pozisyon kapatılır</li>
+      <li><i aria-hidden="true">✓</i>Aynı anda en fazla 5 açık emir</li>
+      {protection && <li><i aria-hidden="true">{protection.all_protected ? '✓' : '!'}</i>{protection.all_protected ? 'Açık pozisyonların hepsi korumalı' : 'Korumasız pozisyon var, aşağıdan düzelt'}</li>}
+    </ul>
     {positions.length === 0 && <p className="cbNote">Açık pozisyon yok.</p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
     <ul className="cbPositions">{positions.map(position => <PositionRow key={position.product_id} position={position} ordersEnabled={ordersEnabled}
