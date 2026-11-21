@@ -10,6 +10,9 @@ import {CoinIcon} from '../../src/components/CoinIcon'
 import CoinLiveChart from './CoinLiveChart'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridSide} from './gridMath'
 import {buildGridAlerts} from './gridAlerts'
+import {expiryInfo, levelsFromAnalysis, levelsFromVolatility, minOrder, type AnalysisLevels} from './coinbase-levels'
+import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
+import CoinbaseActivity from './CoinbaseActivity'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {askKais} from '../../kais-ask'
 import {fetchWithTimeout} from '../../master-trade-request'
@@ -21,7 +24,7 @@ import '../../live-cockpit.css'
 import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
-import {analysisSymbol, changeText, expiryText, groupRows, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
+import {analysisSymbol, changeText, expiryText, groupRows, isPerp, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
@@ -87,6 +90,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [busy, setBusy] = useState<'' | 'review' | 'send'>('')
   const [tpRR, setTpRR] = useState<number | null>(null)
+  const [kaisAna, setKaisAna] = useState<Record<string, AnalysisLevels | 'none' | 'error'>>({})
+  const [levelPick, setLevelPick] = useState<{kind: 'kais' | 'vol'; stop: string; note: string; tone: 'ok' | 'warn'} | null>(null)
+  const [volBusy, setVolBusy] = useState(false)
+  const [activityKey, setActivityKey] = useState(0)
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
@@ -150,7 +157,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
 
   const patch = (change: Partial<Ticket>) => { setTicket(current => ({...current, ...change})); setCheck(null); setWizNotice({kind: 'info', text: ''}) }
   const goStep = (index: number) => { setWizNotice({kind: 'info', text: ''}); setStep(index) }
-  const afterAction = (text: string) => { setNotice({kind: 'ok', text}); void refresh(true) }
+  const afterAction = (text: string) => { setNotice({kind: 'ok', text}); setActivityKey(key => key + 1); void refresh(true) }
   const afterError = (error: CoinbaseApiError) => { setNotice(noticeFromError(error)); void refresh(true) }
 
   /** Emir akışı hatası: ACİL olanlar üstte büyük bildirimde, diğerleri Binance'teki gibi kartın içinde. */
@@ -180,7 +187,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         product: String(plan.product_id), side: String(plan.side), contracts: String(plan.contracts), leverage: String(plan.leverage),
         margin: String(plan.margin_usd), entry: String(plan.entry_reference), stop: String(plan.stop_price),
       })
-      setTicket(emptyTicket()); setCheck(null); setStep(0); setWizNotice({kind: 'info', text: ''})
+      setTicket(emptyTicket()); setCheck(null); setStep(0); setWizNotice({kind: 'info', text: ''}); setLevelPick(null); setActivityKey(key => key + 1)
     } catch (error) {
       setCheck(null)
       orderFailure(error)
@@ -234,6 +241,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     const timer = visibleInterval(load, 5000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, quoteIds])
+  // Kais analizi (aynı coinin Binance analizi): stop adımında "Kais analizi" önerisi için. Coin başına bir kez alınır.
+  const anaKey = analysisSymbol(selectedRow?.root ?? null)
+  useEffect(() => {
+    if (!anaKey || kaisAna[anaKey] !== undefined) return
+    let alive = true
+    void fetchWithTimeout(`${API_BASE}/analysis/${encodeURIComponent(anaKey)}?interval=15m`, {}, 30000)
+      .then(async response => { const body = response.ok ? await response.json() : null; if (alive) setKaisAna(current => ({...current, [anaKey]: body && typeof body === 'object' ? body as AnalysisLevels : 'none'})) })
+      .catch(() => { if (alive) setKaisAna(current => ({...current, [anaKey]: 'error'})) })
+    return () => { alive = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anaKey])
   const quoteRaw = quotes[selectedId]
   const quote = quoteRaw && quoteRaw.mid !== null && Number(quoteRaw.mid) > 0 ? quoteRaw : null
   const quoteNote = quoteRaw?.source === 'last' || quoteRaw?.source === 'none' ? quoteRaw.reason ?? '' : ''
@@ -306,6 +324,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const notionalNow = contractsNow !== null && Number.isFinite(contractSize) && Number.isFinite(entryRef) ? contractsNow * contractSize * entryRef : null
   const roundTripFee = notionalNow !== null ? notionalNow * FEE_RATE * 2 : null
   const levBandM = !(levNum >= 1) ? null : levNum <= 3 ? ['Düşük risk', 'low'] : levNum <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
+  const minO = minOrder(contractSize, entryRef, manualContracts === null && levNum >= 1 ? levNum : 1)
   const amountMobile = <div className="mxtM mxtMAmt">
     <div className="mxtMSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={!isLimit} data-on={!isLimit || undefined} onClick={() => patch({limitPrice: '', rest: false})}>Piyasa fiyatından</button><button type="button" aria-pressed={isLimit} data-on={isLimit || undefined} onClick={() => patch({limitPrice: ticket.limitPrice.trim() || (Number.isFinite(shownPrice) ? priceString(shownPrice) : '')})}>Limit fiyattan</button></div>
     {isLimit && <div className="mxtMCard"><label className="mxtMField">Limit fiyatı<input type="number" inputMode="decimal" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})}/></label>
@@ -316,6 +335,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <div className="mxtMLbl"><span>TEMİNAT</span>{walletShare !== null && <span>Hesabının <b>%{walletShare.toFixed(1)}</b>’ü</span>}</div>
       <div className="mxtMBig"><input type="number" inputMode="decimal" min="1" max={marginMax} style={{width: `${Math.max(2, String(ticket.marginUsd).length + 0.6)}ch`}} value={ticket.marginUsd} aria-label="Teminat (USD)" onChange={event => patch({marginUsd: event.target.value})}/><span>USD</span></div>
       <p className="mxtMUnder">Kullanılabilir <b>{Number.isFinite(marginAvail) ? `${usd(marginAvail)} USD` : 'okunamadı'}</b> · sınır: kasan</p>
+      {minO && <p className="cbMinOrder" data-low={Number.isFinite(marginNum) && marginNum > 0 && marginNum < minO.margin || undefined}><span>En küçük emir <b>1 sözleşme ≈ {usd(minO.notional)} USD</b>{manualContracts === null && levNum >= 1 ? <> · {levNum}x ile ≈ <b>{usd(minO.margin)} USD</b> teminat</> : null}</span>{manualContracts === null && levNum >= 1 && <button type="button" onClick={() => patch({marginUsd: String(Math.ceil(minO.margin * 1.02 * 100) / 100)})}>En azını yaz</button>}</p>}
       <div className="mxtMChips">{marginPicks.map(v => <button type="button" key={v} aria-pressed={ticket.marginUsd.trim() === String(v)} data-on={ticket.marginUsd.trim() === String(v) || undefined} onClick={() => patch({marginUsd: String(v)})}>{v === maxPick && marginPicks.length > 1 ? `Maks ${v}` : v}</button>)}</div>
       <input type="range" className="mxtMRange" min="1" max={marginMax} step="1" value={Number.isFinite(marginNum) && marginNum > 0 ? Math.min(marginNum, marginMax) : Math.min(10, marginMax)} onChange={event => patch({marginUsd: event.target.value})} aria-label="Teminat kaydırıcı"/>
     </div>
@@ -348,10 +368,52 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const stopDistPct = Number.isFinite(stopNum) && entryRef > 0 ? Math.abs(entryRef - stopNum) / entryRef * 100 : null
   const stopSideOk = Number.isFinite(stopNum) && entryRef > 0 ? (stopSide === 1 ? stopNum < entryRef : stopNum > entryRef) : true
   const stopPickPct = stopDistPct !== null && stopSideOk ? [1, 2, 3, 5].find(pct => Math.abs(stopDistPct - pct) < 0.01) ?? null : null
+  const anaData = anaKey ? kaisAna[anaKey] : undefined
+  const kaisSuggest = anaData && typeof anaData === 'object' ? levelsFromAnalysis(anaData, entryRef, levNum) : null
+  const kaisSub = anaData === undefined ? 'Yükleniyor…' : !kaisSuggest ? 'Şu an net yön yok' : `${kaisSuggest.direction} · stop %${kaisSuggest.stopPct.toFixed(1)}`
+  const applyLevels = (kind: 'kais' | 'vol', suggestion: NonNullable<ReturnType<typeof levelsFromVolatility>>, note: string) => {
+    const stop = priceString(suggestion.stop)
+    const nextSide = suggestion.direction === 'LONG' ? 'BUY' : 'SELL'
+    setTpRR(null)
+    patch({...(nextSide !== ticket.side ? {side: nextSide} : {}), stopPrice: stop, takeProfit: suggestion.target !== null ? priceString(suggestion.target) : ''})
+    const clampNote = suggestion.clamped && suggestion.maxPct !== null ? ` ${levNum}x kaldıraçta stop en fazla %${suggestion.maxPct.toFixed(1)} uzakta olabilir; ona çekildi.` : ''
+    setLevelPick({kind, stop, tone: suggestion.clamped || nextSide !== ticket.side ? 'warn' : 'ok', note: note + (nextSide !== ticket.side ? ` Yön analize göre ${suggestion.direction} yapıldı.` : '') + clampNote})
+  }
+  const applyKais = () => {
+    if (!kaisSuggest) { setWizNotice({kind: 'error', text: anaData === undefined ? 'Kais analizi yükleniyor, birkaç saniye sonra tekrar dene.' : 'Bu coin için şu an net yönlü Kais analizi yok. Dalgaya göre ya da yüzde ile stop seç.'}); return }
+    applyLevels('kais', kaisSuggest, `Kais analizinin stop ve hedefi Coinbase fiyatına uyarlandı (%${kaisSuggest.stopPct.toFixed(2)} stop${kaisSuggest.targetPct !== null ? `, %${kaisSuggest.targetPct.toFixed(2)} hedef` : ''}).`)
+  }
+  const applyVol = async () => {
+    if (!anaKey || !(entryRef > 0) || volBusy) return
+    const sideNow: 'LONG' | 'SHORT' = dir
+    setVolBusy(true)
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/klines/${encodeURIComponent(anaKey)}?interval=15m&limit=60`, {cache: 'no-store'}, 20000)
+      if (!response.ok) throw new Error('klines')
+      const candles: unknown = await response.json()
+      const list = Array.isArray(candles) ? candles as StopCandle[] : []
+      const last = Number(list[list.length - 1]?.close)
+      const result = list.length && last > 0 ? suggestVolatilityStop(list, last, sideNow) : null
+      const suggestion = result ? levelsFromVolatility(sideNow, entryRef, result.distancePct, levNum) : null
+      if (!suggestion) { setLevelPick(null); setWizNotice({kind: 'error', text: 'Bu coin için yeterli mum verisi yok; stopu elle gir.'}); return }
+      applyLevels('vol', suggestion, `Stop, coinin son 15 dk hareketine göre %${suggestion.stopPct.toFixed(2)} uzağa kondu; hedef bunun 2 katı.`)
+    } catch {
+      setWizNotice({kind: 'error', text: 'Mum verisi alınamadı; tekrar dene ya da stopu elle gir.'})
+    } finally {
+      setVolBusy(false)
+    }
+  }
+  const pickOn = (kind: 'kais' | 'vol') => levelPick?.kind === kind && levelPick.stop === ticket.stopPrice.trim()
+  const pickNote = levelPick && levelPick.stop === ticket.stopPrice.trim() ? <p className="mxtHint cbPickNote" role="status" data-tone={levelPick.tone}>{levelPick.note}</p> : null
+  const expiry = selectedRow && !isPerp(selectedRow) ? expiryInfo(selectedRow.expiry) : null
+  const expiryEl = expiry ? <p className="cbExpiry" role={expiry.tone === 'info' ? 'status' : 'alert'} data-tone={expiry.tone}><b>{expiry.tone === 'info' ? 'Vadeli ürün' : 'Vade yaklaşıyor'}</b>{expiry.text}</p> : null
   const stopMobile = <div className="mxtM mxtMStop">
     <div className="mxtMPicks" role="group" aria-label="Hazır stop ve hedef önerileri">
-      {[1, 2, 3, 5].map(pct => <button type="button" key={pct} className="mxtMPk" data-rec={pct === 2 ? '1' : undefined} data-on={stopPickPct === pct || undefined} aria-pressed={stopPickPct === pct} disabled={!(entryRef > 0)} onClick={() => { pickStopPct(pct); if (tpRR === null) { const st = stopFromPct(ticket.side, entryRef, pct); const tg = st !== null ? targetFromRR(ticket.side, entryRef, st, 2) : null; if (tg !== null) { setTpRR(2); patch({stopPrice: priceString(st as number), takeProfit: priceString(tg)}) } } }}><b>Stop %{pct}</b><small>{pct === 2 ? 'Önerilen' : entryRef > 0 ? `Stop ${priceString(stopFromPct(ticket.side, entryRef, pct) ?? 0)}` : 'Fiyat bekleniyor'}</small></button>)}
+      <button type="button" className="mxtMPk" data-rec={kaisSuggest ? '1' : undefined} data-on={pickOn('kais') || undefined} aria-pressed={pickOn('kais')} disabled={!(entryRef > 0) || !anaKey} onClick={applyKais}><b>Kais analizi</b><small>{kaisSuggest ? `Önerilen · ${kaisSub}` : kaisSub}</small></button>
+      <button type="button" className="mxtMPk" data-rec={!kaisSuggest ? '1' : undefined} data-on={pickOn('vol') || undefined} aria-pressed={pickOn('vol')} disabled={!(entryRef > 0) || !anaKey || volBusy} onClick={() => void applyVol()}><b>{volBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</b><small>Coinin normal hareketine göre</small></button>
+      {[1, 2, 3, 5].map(pct => <button type="button" key={pct} className="mxtMPk" data-on={!pickOn('kais') && !pickOn('vol') && stopPickPct === pct || undefined} aria-pressed={stopPickPct === pct} disabled={!(entryRef > 0)} onClick={() => { pickStopPct(pct); if (tpRR === null) { const st = stopFromPct(ticket.side, entryRef, pct); const tg = st !== null ? targetFromRR(ticket.side, entryRef, st, 2) : null; if (tg !== null) { setTpRR(2); patch({stopPrice: priceString(st as number), takeProfit: priceString(tg)}) } } }}><b>Stop %{pct}</b><small>{entryRef > 0 ? `Stop ${priceString(stopFromPct(ticket.side, entryRef, pct) ?? 0)}` : 'Fiyat bekleniyor'}</small></button>)}
     </div>
+    {pickNote}
     <div className="mxtMCard" data-tone="stop">
       <div className="mxtMLbl"><span>STOP</span><span>{stopDistPct !== null ? `Girişe %${stopDistPct.toFixed(2)}` : 'Henüz girilmedi'}</span></div>
       <div className="mxtMBig mxtMStep"><button type="button" aria-label="Stopu düşür" disabled={!(entryRef > 0)} onClick={() => nudge('stopPrice', -1)}>−</button><input type="number" inputMode="decimal" placeholder="Stop fiyatı" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)}/><button type="button" aria-label="Stopu yükselt" disabled={!(entryRef > 0)} onClick={() => nudge('stopPrice', 1)}>+</button></div>
@@ -497,6 +559,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
 
   const reviewStep = <>
     <h4>Son kontrol</h4>
+    {expiry && expiry.tone !== 'info' && expiryEl}
     <p className="mxtLead">Önce ön kontrolle sına (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
     {futuresMissing && <div className="mxtLockCard" role="alert"><span><b>Bakiye ekle</b><small>Vadeli cüzdanında bakiye yok. Coinbase'de vadeli cüzdana USD ekle, buradan yenile ve tekrar dene.</small></span></div>}
     {!ordersOn && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock}</small></span></div>}
@@ -591,6 +654,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <ChevronDown/>
     </button>
     {vadePicker}
+    {expiryEl}
     {quoteError && selectedId && <small className="liveWsHint" role="alert">Canlı fiyat alınamadı; son liste fiyatı gösteriliyor.</small>}
     {coinOpen && <div className="cpkPop">
       <label className="cpkSearch"><Search/><input autoFocus value={coinQuery} placeholder="Ürün ara: BTC, ETH, SOL…" aria-label="Ürün ara" onChange={event => setCoinQuery(event.target.value)}
@@ -666,6 +730,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const coinMobile = <div className="mxtM mxtMCoin">
     {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{Number.isFinite(shownPrice) ? <>{priceText(shownPrice)}{selectedRow && Number.isFinite(selectedRow.change) && <> · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></>}</> : (quoteRaw?.source === 'none' ? 'Fiyat yok' : 'Fiyat alınıyor…')}</small></span>{leanBadge(selectedSignal)}</div>}
     {vadePicker}
+    {expiryEl}
     {selectedId && (quoteNote || (!quoteRaw && !Number.isFinite(shownPrice) && quoteError)) && <p className="mxtMSigNote" role="status">{quoteNote || 'Fiyat alınamadı; birkaç saniye içinde yeniden deneniyor.'}</p>}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
     <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)}
@@ -727,7 +792,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             <label className="cbAmtMain"><span>Teminat (USD)</span>
               <input className="cbAmtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="0"/></label>
             {chips.length > 0 && <div className="cbChips" role="group" aria-label="Teminat kısayolları">{chips.map(chip => <button type="button" key={chip.label} aria-pressed={ticket.marginUsd.trim() === chip.value} onClick={() => patch({marginUsd: chip.value})}>{chip.label}</button>)}</div>}
-            <small className="cbAmtNote">{Number.isFinite(marginAvail) ? `Kullanılabilir marjin ${usd(marginAvail)} USD` : 'Kullanılabilir marjin okunamadı; teminatı kendin yaz.'}</small>
+            <small className="cbAmtNote">{Number.isFinite(marginAvail) ? `Kullanılabilir marjin ${usd(marginAvail)} USD` : 'Kullanılabilir marjin okunamadı; teminatı kendin yaz.'}{minO ? ` · En küçük emir 1 sözleşme ≈ ${usd(minO.notional)} USD (${levNum >= 1 ? levNum : 1}x ile ≈ ${usd(minO.margin)} USD teminat)` : ''}</small>
             <div className="cbLev" data-tone={band.tone}>
               <div className="cbLevHead"><span>Kaldıraç</span><b>{manualContracts === null ? `${Number.isFinite(levNum) ? levNum : '—'}x` : 'elle'}</b><em>{manualContracts === null ? band.label : 'sözleşme elle yazıldı'}</em></div>
               <input type="range" min="1" max="20" step="1" aria-label="Kaldıraç" disabled={manualContracts !== null} value={Number.isFinite(levNum) && levNum >= 1 ? Math.min(20, levNum) : 5} onChange={event => patch({leverage: event.target.value})}/>
@@ -751,6 +816,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           {stopMobile}<div className="mxtDesk">
           <div className="cbLv">
             <label className="cbLvField"><span>Stop fiyatı</span><input className="cbAmtInput small" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></label>
+            <div className="cbChips" role="group" aria-label="Akıllı stop önerileri"><em>Öneri</em><button type="button" aria-pressed={pickOn('kais')} disabled={!(entryRef > 0) || !anaKey} onClick={applyKais}>Kais analizi{kaisSuggest ? ` · ${kaisSuggest.direction}` : ''}</button><button type="button" aria-pressed={pickOn('vol')} disabled={!(entryRef > 0) || !anaKey || volBusy} onClick={() => void applyVol()}>{volBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</button></div>
+            {pickNote}
             <div className="cbChips" role="group" aria-label="Stop kısayolları"><em>Girişten</em>{STOP_PCTS.map(pct => <button type="button" key={pct} disabled={!Number.isFinite(entryRef)} onClick={() => pickStopPct(pct)}>%{pct}</button>)}</div>
             <label className="cbLvField"><span>Hedef fiyatı (isteğe bağlı)</span><input className="cbAmtInput small" aria-label="Hedef (TP) fiyatı (isteğe bağlı)" value={ticket.takeProfit} onChange={event => { setTpRR(null); patch({takeProfit: event.target.value}) }} inputMode="decimal" autoComplete="off" placeholder="hedef fiyatı"/></label>
             <div className="cbChips" role="group" aria-label="Hedef kısayolları"><em>Stop mesafesinin</em>{TARGET_RRS.map(rr => <button type="button" key={rr} aria-pressed={tpRR === rr} disabled={!Number.isFinite(stopNum)} onClick={() => pickTargetRR(rr)}>{rr}R</button>)}<button type="button" disabled={ticket.takeProfit.trim() === ''} onClick={() => { setTpRR(null); patch({takeProfit: ''}) }}>Hedefsiz</button></div>
@@ -804,6 +871,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>
 }

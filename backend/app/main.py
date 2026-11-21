@@ -1319,6 +1319,9 @@ async def lifespan(app: FastAPI):
     from .closed_account_retention import closed_account_retention_loop, retention_enabled
     if retention_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))
+    if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
+        from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
+        app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),

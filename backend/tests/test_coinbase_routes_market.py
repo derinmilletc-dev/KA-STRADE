@@ -60,7 +60,7 @@ class AccessAndData(MarketRouteCase):
 
     def test_exact_route_set_is_read_only(self):
         pairs = {(m, r.path) for r in routes_market.router.routes for m in r.methods}
-        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}"), ("GET", "/api/coinbase/quotes")})
+        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}"), ("GET", "/api/coinbase/quotes"), ("GET", "/api/coinbase/activity")})
 
     def test_quotes_batch(self):
         r = self.http.get("/api/coinbase/quotes?ids=ETP-20DEC30-CDE,BIP-20DEC30-CDE", headers=ME)
@@ -68,6 +68,16 @@ class AccessAndData(MarketRouteCase):
         self.assertEqual(set(r.json()["quotes"]), {"ETP-20DEC30-CDE", "BIP-20DEC30-CDE"})
         bad = self.http.get("/api/coinbase/quotes?ids=../x,ETP", headers=ME)
         self.assertGreaterEqual(bad.status_code, 400)
+        self.assertEqual(self.ex.posts(), [])
+
+    def test_activity_lists_fills_read_only(self):
+        self.ex.fills = [{"order_id": "o1", "product_id": "ETP-20DEC30-CDE", "side": "BUY", "price": "3000", "size": "2", "trade_time": "2026-11-21T05:00:00Z", "commission": "0.5"}]
+        r = self.http.get("/api/coinbase/activity", headers=ME)
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        self.assertEqual(len(body["items"]), 1)
+        self.assertEqual(body["items"][0]["product_id"], "ETP-20DEC30-CDE")
+        self.assertIn("alerts", body)
         self.assertEqual(self.ex.posts(), [])
 
     def test_products_work_with_orders_flag_off(self):
