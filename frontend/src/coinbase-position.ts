@@ -53,3 +53,28 @@ export function positionView(input: {side: string | null; number_of_contracts: s
   const expiryMs = Number.isFinite(expiry) && new Date(expiry).getUTCFullYear() < 2050 && expiry - now < 30 * 86_400_000 ? expiry - now : null
   return {dir, contracts, entry, current, stop, target, movePct, breakeven, canBreakeven, breakevenWhy, half, bar, expiryMs}
 }
+
+/** Kapatılabilecek pay seçenekleri (sözleşme sayısı, küçükten büyüğe): ~%25, yarısı, tamamı. Tek sözleşmede yalnız tamamı. */
+export function closeParts(contracts: number): number[] {
+  if (!Number.isInteger(contracts) || contracts < 1) return []
+  const set = new Set<number>([contracts])
+  const half = Math.floor(contracts / 2), quarter = Math.floor(contracts / 4)
+  if (half >= 1 && half < contracts) set.add(half)
+  if (quarter >= 1 && quarter < half) set.add(quarter)
+  return [...set].sort((a, b) => a - b)
+}
+
+export type ClosePreview = {fraction: number; now: number | null; atStop: number | null}
+/** Seçilen payı kapatırsan yaklaşık K/Z (komisyon hariç) ve stop çalışırsa yaklaşık K/Z. K/Z fiyatla doğrusal kabul edilir;
+ *  fiyat girişe çok yakınsa ya da veri eksikse null (uydurma yok). */
+export function closePreview(view: PositionView, pnl: number | null, part: number): ClosePreview {
+  const fraction = view.contracts > 0 ? Math.min(1, Math.max(0, part / view.contracts)) : 0
+  if (pnl === null || !Number.isFinite(pnl)) return {fraction, now: null, atStop: null}
+  const now = pnl * fraction
+  const {entry, current, stop, dir} = view
+  if (!entry || !current || !stop || !dir || pnl === 0) return {fraction, now, atStop: null}
+  const sign = dir === 'SHORT' ? -1 : 1
+  const move = (current - entry) * sign
+  if (Math.abs(move) / entry <= 0.0005 || Math.sign(move) !== Math.sign(pnl)) return {fraction, now, atStop: null}
+  return {fraction, now, atStop: pnl / move * (stop - entry) * sign * fraction}
+}

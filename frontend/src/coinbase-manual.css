@@ -423,3 +423,33 @@ html body #root .cbTerminal .cbOpenManual[data-wait]:not(#a) .cbOpenGo{color:#7f
 .cbTerminal .cbActEmpty b{font-size:.92rem;color:#d9e3dd}
 .cbTerminal .cbActEmpty small{font-size:.78rem;color:#7f8f88}
 .cbTerminal .cbPanel{width:100%;box-sizing:border-box}
+
+/* Kapatma ekranı v2 (Coinbase): büyük K/Z, pay seçimi, stop karşılaştırması, basılı tutarak onay */
+.cbTerminal .cbClose2{display:grid;gap:12px;padding:14px;border-radius:16px;background:#121c27;border:1px solid rgba(124,184,255,.25)}
+.cbTerminal .cbClose2[data-danger]{border-color:rgba(239,119,119,.4)}
+.cbTerminal .cbCl2Head{display:grid;gap:2px}
+.cbTerminal .cbCl2Head b{font-size:1.05rem}
+.cbTerminal .cbCl2Head small{font-size:.8rem;color:#93a3b5}
+.cbTerminal .cbCl2Seg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+html body #root .cbTerminal .cbCl2Seg button:not(#a){min-height:44px!important;border-radius:12px!important;border:1px solid #2a3a4f!important;background:#162231!important;color:#cfd9e3!important;font-weight:700!important;width:auto!important}
+html body #root .cbTerminal .cbCl2Seg button[aria-pressed='true']:not(#a){background:#1f3550!important;border-color:#4b78b0!important;color:#fff!important}
+.cbTerminal .cbCl2Net{display:grid;gap:2px;justify-items:center;text-align:center;padding:2px 0}
+.cbTerminal .cbCl2Net small{font-size:.8rem;color:#93a3b5}
+.cbTerminal .cbCl2Net b{font-size:2rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;color:#eaf1f7}
+.cbTerminal .cbCl2Net[data-tone='bad'] b{color:#ef7777}
+.cbTerminal .cbCl2Net[data-tone='good'] b{color:#39d69a}
+.cbTerminal .cbCl2Cmp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cbTerminal .cbCl2Cmp>div{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:#162231;border:1px solid #243346}
+.cbTerminal .cbCl2Cmp small{font-size:.74rem;color:#93a3b5}
+.cbTerminal .cbCl2Cmp b{font-size:.95rem;font-weight:800;font-variant-numeric:tabular-nums}
+.cbTerminal .cbCl2Cmp b[data-tone='bad']{color:#ef7777}
+.cbTerminal .cbCl2Cmp b[data-tone='good']{color:#39d69a}
+.cbTerminal .cbCl2Warn{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:12px;background:rgba(232,183,92,.12);color:#f3d08a;font-size:.82rem;line-height:1.45}
+.cbTerminal .cbCl2Warn svg{width:18px;height:18px;flex:none;margin-top:1px}
+html body #root .cbTerminal .cbHold:not(#a){position:relative!important;overflow:hidden!important;display:block!important;width:100%!important;min-height:56px!important;padding:0 14px!important;border-radius:14px!important;border:1px solid #7a3a3f!important;background:#2b1a1f!important;color:#ffb4b4!important;font-size:1rem!important;font-weight:800!important;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.cbTerminal .cbPos2Sheet:not([data-danger]) .cbHold{border-color:rgba(61,220,151,.5)!important;background:#12261f!important;color:#8ff0c4!important}
+.cbTerminal .cbHold i{position:absolute;left:0;top:0;bottom:0;background:#c2474f;opacity:.55;pointer-events:none}
+.cbTerminal .cbPos2Sheet:not([data-danger]) .cbHold i{background:#2fae7c}
+.cbTerminal .cbHold span{position:relative}
+.cbTerminal .cbHold:disabled{opacity:.5}
+html body #root .cbTerminal .cbCl2Cancel:not(#a){min-height:44px!important;border:0!important;background:none!important;color:#93a3b5!important;font-size:.9rem!important;width:100%!important}
