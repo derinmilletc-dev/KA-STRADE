@@ -4,7 +4,7 @@
 // piyasa girişi, zorunlu stop, stop doğrulama. Binance dosyalarına dokunulmaz; yalnızca içe aktarılır.
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {ChevronDown, RefreshCw, Search, Send, ShieldAlert, TriangleAlert} from 'lucide-react'
+import {ChevronDown, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {askKais} from '../../kais-ask'
 import {fetchWithTimeout} from '../../master-trade-request'
@@ -82,6 +82,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [tpRR, setTpRR] = useState<number | null>(null)
   const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
+  const [manualOpen, setManualOpen] = useState(false)
   const [products, setProducts] = useState<CbProduct[] | null>(null)
   const [productsError, setProductsError] = useState('')
   const [universe, setUniverse] = useState<SignalMap | null>(() => universeCache)
@@ -222,6 +223,14 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
   const chooseCoin = (value: string) => { setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
   useEffect(() => {
+    if (!manualOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !confirmOpen) setManualOpen(false) }
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
+  }, [manualOpen, confirmOpen])
+  useEffect(() => {
     if (step !== 4) { autoCheckRef.current = false; return }
     if (autoCheckRef.current || check !== null || busy !== '' || !ordersOn || futuresMissing || ticketProblems(ticket).length > 0) return
     autoCheckRef.current = true
@@ -331,7 +340,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const prot = done ? protection?.positions.find(item => item.product_id === done.product) : undefined
   const hasPos = Boolean(prot)
   const hasStop = prot?.state === 'protected'
-  const goPositions = () => { setDone(null); window.setTimeout(() => positionsRef.current?.scrollIntoView?.({block: 'start', behavior: 'smooth'}), 60) }
+  const goPositions = () => { setDone(null); setManualOpen(false); window.setTimeout(() => positionsRef.current?.scrollIntoView?.({block: 'start', behavior: 'smooth'}), 60) }
   const doneView = done ? <div className="mxtDone" role="status">
     <span className="mxtDoneIco" aria-hidden="true">✓</span>
     <h4>Emir gönderildi</h4>
@@ -434,7 +443,6 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
 
   const wizardBody = <div className="mxt" data-step={step} data-done={done ? 'yes' : undefined}>
     {doneView}
-    {statusStrip}
     <div className="mxtM mxtMHead">
       <div className="mxtMLabel"><span>ADIM {step + 1} / {STEP_NAMES.length} · <em>{STEP_NAMES[step]}</em></span><span className="mxtMTools"><button type="button" className="mxtMAsk" onClick={() => askKais(askText)}>✦ Kais’e sor</button></span></div>
       {(selectedRow || quote) && Number.isFinite(shownPrice) && <div className="mxtMPrice"><i aria-hidden="true"/><b>{selectedRow?.display || selectedId}</b><span>{priceText(shownPrice)}</span>{selectedRow && Number.isFinite(selectedRow.change) && <span className="mxtMChg" data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</span>}{quote && <em className="mxtMLive" title="Coinbase anlık fiyatı"><i aria-hidden="true"/>CANLI</em>}</div>}
@@ -507,7 +515,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {notice && <div className="cbPanel"><CoinbaseManualNotice notice={notice}/></div>}
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
-    {keySaved && wizardBody}
+    {keySaved && <div className="mxt cbHome">{statusStrip}
+      <button type="button" className="cbOpenManual" data-testid="cb-open-manual" onClick={() => setManualOpen(true)}>
+        <span className="cbOpenIcon" aria-hidden="true"><Zap/></span>
+        <span className="cbOpenText"><b>Manuel işlem aç</b><small>Ürün seç, yönü belirle, stop ve hedefle gönder</small></span>
+        <span className="cbOpenGo" aria-hidden="true">→</span>
+      </button></div>}
+    {keySaved && manualOpen && <><div className="cbModalBackdrop" role="presentation" onClick={() => setManualOpen(false)}/>
+      <div className="cbModal" role="dialog" aria-modal="true" aria-label="Manuel işlem">
+        <button type="button" className="cbModalClose" aria-label="Manuel işlem panelini kapat" onClick={() => setManualOpen(false)}><X aria-hidden="true"/></button>
+        {wizardBody}
+      </div></>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
