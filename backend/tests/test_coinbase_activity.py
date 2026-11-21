@@ -50,11 +50,16 @@ class FakePool:
         elif text.startswith("UPDATE kaistrade_coinbase_watch"):
             self.watch = {"last_fill_time": args[1], "positions": args[2]}
         elif text.startswith("INSERT INTO kaistrade_coinbase_events"):
-            self.events.append({"outcome": args[5], "order_id": args[3]})
+            self.events.append({"outcome": args[5], "order_id": args[3], "product_id": args[2], "detail": json.loads(args[6]) if args[6] else None})
 
     async def fetchrow(self, sql, *args):
         if "kaistrade_coinbase_watch" in sql:
             return self.watch
+        if "SELECT 1 AS hit" in sql:
+            _user, outcome, product, key, _days = args
+            for event in self.events:
+                if event["outcome"] == outcome and (product is None or event["product_id"] == product) and (key is None or (event["detail"] or {}).get("key") == key):
+                    return {"hit": 1}
         return None
 
     async def fetch(self, sql, *args):
@@ -162,6 +167,51 @@ class ActivityTests(unittest.TestCase):
         events = run(watcher.check_user(pool, "u1", client, send=broken))
         self.assertEqual([e["kind"] for e in events], ["stop"])
         self.assertEqual(pool.events[-1]["outcome"], "stop")
+
+
+    def test_expiry_warning_once_and_only_inside_24h(self):
+        from datetime import datetime, timezone
+        pool, sent = FakePool(), []
+
+        async def send(_pool, user_id, category, title, body):
+            sent.append((category, title))
+
+        now = datetime(2026, 11, 26, 20, 0, tzinfo=timezone.utc)
+        rows = [{"product_id": "SLP-27NOV26-CDE", "side": "FUTURES_POSITION_SIDE_LONG", "expiration_time": "2026-11-27T16:00:00Z"},
+                {"product_id": "SLP-24DEC26-CDE", "side": "FUTURES_POSITION_SIDE_SHORT", "expiration_time": "2026-12-24T16:00:00Z"},
+                {"product_id": "SLP-20DEC30-CDE", "side": "FUTURES_POSITION_SIDE_LONG", "expiration_time": "2030-12-20T16:00:00Z"}]
+        self.assertEqual(run(watcher.check_expiry(pool, "u1", rows, send=send, now=now)), ["SLP-27NOV26-CDE"])
+        self.assertIn("20 saat", sent[0][1])
+        self.assertEqual(run(watcher.check_expiry(pool, "u1", rows, send=send, now=now)), [])
+        self.assertEqual(len(sent), 1)
+
+    def test_weekly_summary_monday_once(self):
+        from datetime import datetime, timezone
+        client, pool, sent = FakeClient(), FakePool(roles={"e1": "entry", "p1": "stop", "e2": "entry", "p2": "stop"}), []
+
+        async def send(_pool, user_id, category, title, body):
+            sent.append((title, body))
+
+        client.fills = [fill("e1", "BUY", "60", "2", "2026-11-20T05:00:00Z"), fill("p1", "SELL", "66", "2", "2026-11-20T06:00:00Z"),
+                        fill("e2", "SELL", "66", "1", "2026-11-21T07:00:00Z"), fill("p2", "BUY", "68", "1", "2026-11-21T08:00:00Z")]
+        tuesday = datetime(2026, 11, 24, 9, 0, tzinfo=timezone.utc)
+        self.assertIsNone(run(watcher.check_weekly(pool, "u1", client, send=send, now=tuesday)))
+        monday = datetime(2026, 11, 23, 7, 0, tzinfo=timezone.utc)
+        summary = run(watcher.check_weekly(pool, "u1", client, send=send, now=monday))
+        self.assertEqual((summary["trades"], summary["wins"], summary["total"]), (2, 1, "50.00"))
+        self.assertIn("2 işlem", sent[0][1])
+        self.assertIsNone(run(watcher.check_weekly(pool, "u1", client, send=send, now=monday)))
+        self.assertEqual(len(sent), 1)
+
+    def test_weekly_without_trades_sends_nothing(self):
+        from datetime import datetime, timezone
+        client, pool, sent = FakeClient(), FakePool(), []
+
+        async def send(*args):
+            sent.append(args)
+
+        self.assertIsNone(run(watcher.check_weekly(pool, "u1", client, send=send, now=datetime(2026, 11, 23, 7, 0, tzinfo=timezone.utc))))
+        self.assertEqual(sent, [])
 
 
 if __name__ == "__main__":

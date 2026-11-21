@@ -137,3 +137,14 @@ async def recent_alerts(pool: Any, user_id: str, limit: int = 10) -> list[dict[s
     )
     return [{"time": row["ts"].isoformat() if hasattr(row["ts"], "isoformat") else str(row["ts"]),
              "product_id": row["product_id"], "outcome": row["outcome"]} for row in rows]
+
+
+async def has_event(pool: Any, user_id: str, outcome: str, *, product_id: str | None = None, key: str | None = None, days: int = 45) -> bool:
+    """Bu sonuç (ürün ve isteğe bağlı anahtar için) son N günde yazıldı mı? Tek seferlik bildirimler için."""
+    await ensure_schema(pool)
+    row = await pool.fetchrow(
+        f"SELECT 1 AS hit FROM {EVENT_TABLE} WHERE user_id = $1 AND outcome = $2 AND ($3::text IS NULL OR product_id = $3) "
+        "AND ($4::text IS NULL OR detail->>'key' = $4) AND ts > NOW() - make_interval(days => $5) LIMIT 1",
+        user_id, outcome, product_id, key, days,
+    )
+    return row is not None

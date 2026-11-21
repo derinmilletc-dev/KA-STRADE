@@ -321,3 +321,69 @@ html body #root .cbTerminal .cbHero2 .cbHeroAuto button:not(#a){flex:none;paddin
 .cbTerminal .cbPosEmpty svg{width:18px;height:18px;flex:none;color:#93a3b5}
 .cbTerminal .cbPosEmpty span{flex:1}
 .cbTerminal .cbPosEmpty small{font-size:.76rem;color:#7f8f88;text-align:right}
+
+/* Açık pozisyon kartı v2 */
+.cbTerminal .cbPos2List{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.cbTerminal .cbPos2{display:grid;gap:12px;padding:16px;border-radius:20px;background:#0e151d;border:1px solid rgba(255,255,255,.07);color:#eaf1f7}
+.cbTerminal .cbPos2[data-tone='bad']{border-color:rgba(239,119,119,.5)}
+.cbTerminal .cbPos2[data-tone='warn']{border-color:rgba(232,183,92,.45)}
+.cbTerminal .cbPos2Head{display:flex;align-items:center;gap:12px}
+.cbTerminal .cbPos2Logo{flex:none;display:grid;place-items:center}
+.cbTerminal .cbPos2Name{flex:1;min-width:0;display:grid;gap:2px}
+.cbTerminal .cbPos2Name b{font-size:1.02rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.cbTerminal .cbPos2Name em{font-style:normal;font-size:.7rem;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:999px;background:rgba(57,214,154,.16);color:#7fe6bb}
+.cbTerminal .cbPos2Name em[data-dir='SHORT']{background:rgba(239,119,119,.16);color:#f19a9a}
+.cbTerminal .cbPos2Name small{font-size:.74rem;color:#7f8f88;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbTerminal .cbPos2Pnl{display:grid;justify-items:end;gap:2px}
+.cbTerminal .cbPos2Pnl b{font-size:1.1rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cbTerminal .cbPos2Pnl b[data-tone='up']{color:#39d69a}
+.cbTerminal .cbPos2Pnl b[data-tone='down']{color:#ef8a8a}
+.cbTerminal .cbPos2Pnl small{font-size:.74rem;color:#94a49c;white-space:nowrap}
+.cbTerminal .cbPos2Bar{display:grid;gap:8px}
+.cbTerminal .cbPos2Track{position:relative;height:8px;border-radius:999px;background:rgba(255,255,255,.07);margin:4px 6px}
+.cbTerminal .cbPos2Track i{position:absolute;top:0;bottom:0;border-radius:999px}
+.cbTerminal .cbPos2Risk{background:rgba(239,119,119,.45)}
+.cbTerminal .cbPos2Gain{background:rgba(57,214,154,.45)}
+.cbTerminal .cbPos2Tick{width:2px;margin-left:-1px;top:-4px!important;bottom:-4px!important;background:#cfe0ea;border-radius:0!important}
+.cbTerminal .cbPos2Now{width:14px;height:14px;margin-left:-7px;top:-3px!important;bottom:auto!important;background:#fff;box-shadow:0 0 0 3px rgba(124,184,255,.45)}
+.cbTerminal .cbPos2Labels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.cbTerminal .cbPos2Labels span{display:grid;gap:1px;min-width:0}
+.cbTerminal .cbPos2Labels small{font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#7f8f88}
+.cbTerminal .cbPos2Labels b{font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.cbTerminal .cbPos2Labels [data-k='stop'] b{color:#ef9a9a}
+.cbTerminal .cbPos2Labels [data-k='target'] b{color:#7fe6bb}
+.cbTerminal .cbPos2Labels [data-k='now'] b{color:#fff}
+.cbTerminal .cbPos2Guard{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;font-size:.82rem;background:rgba(57,214,154,.08);color:#9af0cd}
+.cbTerminal .cbPos2Guard.bad{background:rgba(239,119,119,.12);color:#f6b7b7}
+.cbTerminal .cbPos2Guard.warn{background:rgba(232,183,92,.12);color:#f3d08a}
+.cbTerminal .cbPos2Exp{margin-left:auto;color:#cfe3ff}
+.cbTerminal .cbPos2Exp[data-soon]{color:#f0c46a;font-weight:700}
+.cbTerminal .cbPos2Acts{display:flex;flex-wrap:wrap;gap:8px}
+html body #root .cbTerminal .cbPos2Acts button:not(#a),html body #root .cbTerminal .cbPos2More button:not(#a),html body #root .cbTerminal .cbPos2SheetBtns button:not(#a){min-height:40px!important;padding:0 14px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(255,255,255,.05)!important;color:#e6eef6!important;font:inherit!important;font-size:.84rem!important;font-weight:700!important;cursor:pointer;flex:1 1 auto}
+html body #root .cbTerminal .cbPos2Acts button[data-kind='primary']:not(#a),html body #root .cbTerminal .cbPos2SheetBtns button[data-kind='primary']:not(#a){background:#3ddc97!important;border-color:#3ddc97!important;color:#06281a!important}
+html body #root .cbTerminal .cbPos2Acts button[data-kind='danger']:not(#a),html body #root .cbTerminal .cbPos2SheetBtns button[data-kind='danger']:not(#a){background:rgba(239,119,119,.14)!important;border-color:rgba(239,119,119,.5)!important;color:#f6b7b7!important}
+html body #root .cbTerminal .cbPos2Acts button[data-kind='more']:not(#a){flex:0 0 auto!important;background:transparent!important}
+html body #root .cbTerminal .cbPos2Acts button:disabled:not(#a),html body #root .cbTerminal .cbPos2SheetBtns button:disabled:not(#a){opacity:.45!important;cursor:not-allowed}
+.cbTerminal .cbPos2Why{margin:-4px 0 0;font-size:.74rem;color:#7f8f88}
+.cbTerminal .cbPos2More{display:flex;gap:8px}
+.cbTerminal .cbPos2Sheet{display:grid;gap:10px;padding:14px;border-radius:16px;background:#121c27;border:1px solid rgba(124,184,255,.25)}
+.cbTerminal .cbPos2Sheet[data-danger]{border-color:rgba(239,119,119,.45)}
+.cbTerminal .cbPos2Sheet>b{font-size:.98rem}
+.cbTerminal .cbPos2Sheet p{margin:0;font-size:.84rem;color:#b8c6d3;line-height:1.45}
+.cbTerminal .cbPos2Sheet label{display:grid;gap:6px;font-size:.78rem;color:#93a3b5}
+.cbTerminal .cbPos2Sheet code{font-family:inherit;font-weight:800;color:#f0c46a}
+html body #root .cbTerminal .cbPos2Sheet input:not(#a){min-height:42px!important;padding:0 12px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.14)!important;background:#0a1118!important;color:#eaf1f7!important;font:inherit!important;font-size:.92rem!important}
+.cbTerminal .cbPos2SheetBtns{display:flex;gap:8px}
+.cbTerminal .cbActSeg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.04)}
+html body #root .cbTerminal .cbActSeg button:not(#a){min-height:34px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:#93a3b5!important;font:inherit!important;font-size:.82rem!important;font-weight:700!important;cursor:pointer}
+html body #root .cbTerminal .cbActSeg button[data-on]:not(#a){background:#1d2a3a!important;color:#eaf1f7!important}
+.cbTerminal .cbActBest{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin:0;font-size:.8rem;color:#94a49c}
+.cbTerminal .cbActBest b{font-weight:800}
+.cbTerminal .cbActBest b[data-tone='up']{color:#39d69a}
+.cbTerminal .cbActBest b[data-tone='down']{color:#ef9a9a}
+html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b){display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b) button:not(#c){width:auto!important;flex:1 1 0!important;min-width:0!important}
+html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b) button[data-kind='primary']:not(#c){flex:1 1 100%!important}
+html body #root .cbTerminal .cbPos2Acts:not(#a):not(#b) button[data-kind='more']:not(#c){flex:0 0 auto!important;padding:0 12px!important}
+html body #root .cbTerminal .cbPos2More:not(#a):not(#b) button:not(#c),html body #root .cbTerminal .cbPos2SheetBtns:not(#a):not(#b) button:not(#c){width:auto!important;flex:1 1 0!important}
+html body #root .cbTerminal .cbActPush:not(#a):not(#b) button:not(#c){background:#3ddc97!important;color:#06281a!important;border:0!important;width:auto!important}
