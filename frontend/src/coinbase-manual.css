@@ -156,3 +156,22 @@
 .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cbRiskWarn{margin:0!important;padding:8px 12px!important;border-radius:10px!important;background:rgba(240,190,90,.12)!important;color:#f0c46a!important;font-size:.85rem!important}
 .cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cbRiskNote{margin:0!important;color:#6f878e!important;font-size:.75rem!important}
 @media (max-width:640px){.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cbAmtInput{font-size:1.7rem!important}.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cbAmt,.cbTerminal .mxt:not(#mx1):not(#mx2):not(#mx3) .cbLv{padding:14px!important}}
+
+/* Ana ekran: hesap kartı + "Manuel işlem aç"; sihirbaz tam ekran panelde açılır (Binance'teki gibi). */
+.cbTerminal .cbHome{display:grid;gap:14px}
+.cbTerminal .cbOpenManual{display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border:0;border-radius:20px;cursor:pointer;text-align:left;color:#04140d;background:linear-gradient(135deg,#34d399,#10b981 60%,#0ea5a4);box-shadow:0 10px 30px -12px rgba(16,185,129,.7),inset 0 1px 0 rgba(255,255,255,.35);transition:transform .15s ease,box-shadow .15s ease}
+.cbTerminal .cbOpenManual:hover{transform:translateY(-1px);box-shadow:0 14px 34px -12px rgba(16,185,129,.8),inset 0 1px 0 rgba(255,255,255,.35)}
+.cbTerminal .cbOpenManual:active{transform:scale(.99)}
+.cbTerminal .cbOpenManual:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.cbTerminal .cbOpenIcon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:14px;background:rgba(4,20,13,.16)}
+.cbTerminal .cbOpenIcon svg{width:22px;height:22px}
+.cbTerminal .cbOpenText{display:grid;gap:2px;flex:1;min-width:0}
+.cbTerminal .cbOpenText b{font-size:17px;font-weight:800;letter-spacing:.1px}
+.cbTerminal .cbOpenText small{font-size:12.5px;opacity:.8;line-height:1.3}
+.cbTerminal .cbOpenGo{font-size:22px;font-weight:700}
+.cbModalBackdrop{position:fixed;inset:0;z-index:80;background:rgba(3,8,14,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.cbModal{position:fixed;z-index:81;inset:0;overflow-y:auto;overscroll-behavior:contain;padding:max(14px,env(safe-area-inset-top)) 12px max(24px,env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.cbModal>.mxt{max-width:720px;margin:0 auto;padding-top:44px}
+.cbModalClose{position:sticky;top:0;z-index:3;display:grid;place-items:center;width:38px;height:38px;margin:0 0 -38px auto;border:1px solid rgba(255,255,255,.14);border-radius:12px;color:#e6edf3;background:rgba(14,22,30,.9);cursor:pointer}
+.cbModalClose svg{width:18px;height:18px}
+@media (min-width:760px){.cbModal{padding-top:5vh}}
