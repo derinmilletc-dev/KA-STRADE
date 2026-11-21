@@ -6,7 +6,7 @@ export type CbProduct = {
   volume_usd: string | null; expiry: string | null; contract_size: string | null; price_increment?: string | null; tradable: boolean
 }
 export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null}
-export type CbQuote = {product_id: string; bid: string; ask: string; mid: string; spread_pct: string}
+export type CbQuote = {product_id: string; bid: string | null; ask: string | null; mid: string | null; spread_pct: string | null; source?: 'book' | 'last' | 'none'; reason?: string}
 
 const num = (value: string | null): number => value === null ? NaN : Number(value)
 

@@ -109,3 +109,54 @@ async def fetch_quote(client: Any, product_id: str) -> dict[str, str]:
     mid = (bid + ask) / 2
     return {"product_id": product_id, "bid": fmt(bid), "ask": fmt(ask), "mid": fmt(mid.quantize(Decimal("0.0000001")).normalize()),
             "spread_pct": fmt(((ask - bid) / mid * 100).quantize(Decimal("0.001")))}
+
+
+MAX_BATCH_QUOTES = 12
+
+
+async def fetch_quotes(client: Any, product_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Birden çok ürünün fiyatı TEK istekte (vade seçimi anında görünsün diye). Salt okunur, emir mantığında kullanılmaz.
+
+    Defterde alıcı/satıcı yoksa son işlem fiyatına (ürün listesi) düşer ve bunu `source: "last"` ile açıkça belirtir;
+    o da yoksa ürün `null` döner ve `reason` açıklanır. Uydurma fiyat yok.
+    """
+    ids = list(dict.fromkeys(product_ids))[:MAX_BATCH_QUOTES]
+    if not ids:
+        return {}
+    payload = await client.get(BEST_BID_ASK_PATH, params={"product_ids": ids})
+    books = payload.get("pricebooks")
+    if not isinstance(books, list):
+        raise CoinbaseError("BAD_RESPONSE", "Coinbase fiyat cevabı beklenen biçimde değil.")
+    by_id = {b.get("product_id"): b for b in books if isinstance(b, dict)}
+    last: dict[str, str] = {}
+    try:
+        for row in await fetch_products(client):
+            if row.get("price"):
+                last[row["product_id"]] = row["price"]
+    except CoinbaseError:
+        last = {}
+
+    def best(book: dict[str, Any] | None, side: str) -> Decimal | None:
+        levels = book.get(side) if book else None
+        if not isinstance(levels, list) or not levels or not isinstance(levels[0], dict):
+            return None
+        try:
+            price = to_decimal(levels[0].get("price"), "fiyat")
+        except CoinbaseError:
+            return None
+        return price if price > 0 else None
+
+    result: dict[str, dict[str, Any]] = {}
+    for pid in ids:
+        bid, ask = best(by_id.get(pid), "bids"), best(by_id.get(pid), "asks")
+        if bid is not None and ask is not None and bid <= ask:
+            mid = (bid + ask) / 2
+            result[pid] = {"product_id": pid, "bid": fmt(bid), "ask": fmt(ask), "mid": fmt(mid.quantize(Decimal("0.0000001")).normalize()),
+                           "spread_pct": fmt(((ask - bid) / mid * 100).quantize(Decimal("0.001"))), "source": "book"}
+        elif pid in last:
+            result[pid] = {"product_id": pid, "bid": None, "ask": None, "mid": last[pid], "spread_pct": None, "source": "last",
+                           "reason": "Bu vadede şu an alıcı/satıcı emri yok; son işlem fiyatı gösteriliyor."}
+        else:
+            result[pid] = {"product_id": pid, "bid": None, "ask": None, "mid": None, "spread_pct": None, "source": "none",
+                           "reason": "Bu vadede şu an alıcı/satıcı emri ve son işlem fiyatı yok (çok az işlem görüyor)."}
+    return result

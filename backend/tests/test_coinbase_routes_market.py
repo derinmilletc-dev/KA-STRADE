@@ -60,7 +60,15 @@ class AccessAndData(MarketRouteCase):
 
     def test_exact_route_set_is_read_only(self):
         pairs = {(m, r.path) for r in routes_market.router.routes for m in r.methods}
-        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}")})
+        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}"), ("GET", "/api/coinbase/quotes")})
+
+    def test_quotes_batch(self):
+        r = self.http.get("/api/coinbase/quotes?ids=ETP-20DEC30-CDE,BIP-20DEC30-CDE", headers=ME)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(set(r.json()["quotes"]), {"ETP-20DEC30-CDE", "BIP-20DEC30-CDE"})
+        bad = self.http.get("/api/coinbase/quotes?ids=../x,ETP", headers=ME)
+        self.assertGreaterEqual(bad.status_code, 400)
+        self.assertEqual(self.ex.posts(), [])
 
     def test_products_work_with_orders_flag_off(self):
         r = self.http.get("/api/coinbase/products", headers=ME)

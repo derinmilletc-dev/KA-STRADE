@@ -172,8 +172,9 @@ class FakeExchange:
                     for p, v in self.positions.items() if v["contracts"] > 0]
             return _resp({"positions": rows})
         if path.endswith("/best_bid_ask"):
-            pid = params["product_ids"][0] if isinstance(params["product_ids"], list) else params["product_ids"]
-            return _resp({"pricebooks": [{"product_id": pid, "bids": [{"price": self.bid, "size": "1"}], "asks": [{"price": self.ask, "size": "1"}]}]})
+            pids = params["product_ids"] if isinstance(params["product_ids"], list) else [params["product_ids"]]
+            empty = getattr(self, "empty_books", set())
+            return _resp({"pricebooks": [{"product_id": pid, "bids": [] if pid in empty else [{"price": self.bid, "size": "1"}], "asks": [] if pid in empty else [{"price": self.ask, "size": "1"}]} for pid in pids]})
         if path.endswith("/orders/historical/batch"):
             rows = [self._order_json(o) for o in self.orders.values() if o["status"] in ("OPEN", "PENDING", "QUEUED")]
             return _resp({"orders": rows, "has_next": False, "cursor": ""})
