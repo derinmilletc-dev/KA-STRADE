@@ -155,6 +155,18 @@ class PreflightTests(unittest.TestCase):
         self.assertLessEqual(D(auto["plan"]["contracts"]) * notional, D("300") * D("5") + notional)
         self.assertGreater(big["plan"]["contracts"], auto["plan"]["contracts"])
 
+    def test_auto_size_follows_requested_leverage(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {k: "" for k in TIGHT_ENV}):
+            lim = current_limits()
+            low = go({"margin_usd": "300", "leverage": 2}, limits=lim)
+            high = go({"margin_usd": "300", "leverage": 8}, limits=lim)
+        self.assertTrue(low["ok"], low)
+        self.assertTrue(high["ok"], high)
+        self.assertLess(low["plan"]["contracts"], high["plan"]["contracts"])
+        self.assertLessEqual(D(low["plan"]["leverage"]), D("2.01"))
+
     def test_default_limits_are_not_capped_except_open_orders(self):
         import os
         from unittest.mock import patch

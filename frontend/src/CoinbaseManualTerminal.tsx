@@ -16,6 +16,7 @@ import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
 import {changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct, type CbQuote} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
+import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseAccountHero from './CoinbaseAccountHero'
@@ -57,7 +58,10 @@ const FILTER_CHIPS: [CoinFilter, string][] = [['all', 'Tümü'], ['long', 'LONG 
 const SORT_CHIPS: [CoinSort, string][] = [['confidence', 'Güvene göre'], ['volume', 'Hacme göre'], ['change', 'Değişime göre']]
 const PICK_LIMIT = 30
 
-const STEP_NAMES = ['Ürün', 'Yön', 'Tutar', 'Stop', 'Kontrol']
+const STEP_NAMES = ['Ürün', 'Yön', 'Tutar', 'Stop ve hedef', 'Kontrol']
+const STOP_PCTS = [1, 2, 3, 5]
+const TARGET_RRS = [1, 2, 3]
+const usd = (value: number) => value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
 
 export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => void}) {
   const [status, setStatus] = useState<Status | null>(null)
@@ -75,6 +79,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [confirmText, setConfirmText] = useState('')
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [busy, setBusy] = useState<'' | 'review' | 'send'>('')
+  const [tpRR, setTpRR] = useState<number | null>(null)
+  const autoCheckRef = useRef(false)
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [products, setProducts] = useState<CbProduct[] | null>(null)
   const [productsError, setProductsError] = useState('')
@@ -215,6 +221,13 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const shownPrice = quote ? Number(quote.mid) : selectedRow ? selectedRow.price : NaN
   const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
   const chooseCoin = (value: string) => { setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
+  useEffect(() => {
+    if (step !== 4) { autoCheckRef.current = false; return }
+    if (autoCheckRef.current || check !== null || busy !== '' || !ordersOn || ticketProblems(ticket).length > 0) return
+    autoCheckRef.current = true
+    void reviewOrder()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, check, busy, ordersOn])
   const stepOk = [
     isProductId(ticket.productId),
     true,
@@ -225,6 +238,34 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const plan = check?.ok ? check.plan : null
   const dir: 'LONG' | 'SHORT' = ticket.side === 'BUY' ? 'LONG' : 'SHORT'
   const align = alignment(selectedSignal, dir)
+
+  // --- Akıllı boyutlandırma ve risk özeti (tahmin; asıl kuralları sunucu uygular) ---
+  const contractSize = Number(products?.find(item => item.product_id === selectedId)?.contract_size)
+  const limitNum = isPositiveDecimal(ticket.limitPrice) ? Number(ticket.limitPrice) : NaN
+  const entryRef = Number.isFinite(limitNum) ? limitNum : shownPrice
+  const marginNum = Number(ticket.marginUsd)
+  const levNum = Number(ticket.leverage)
+  const manualContracts = ticket.contracts.trim() !== '' && /^[1-9]\d{0,5}$/.test(ticket.contracts.trim()) ? Number(ticket.contracts.trim()) : null
+  const sizing = manualContracts === null ? sizeFromLeverage({margin: marginNum, leverage: levNum, entry: entryRef, contractSize}) : null
+  const contractsNow = manualContracts ?? sizing?.contracts ?? null
+  const marginAvail = Number(account?.balance.available_margin?.value)
+  const chips = marginChips(Number.isFinite(marginAvail) ? marginAvail : null)
+  const band = leverageBand(levNum)
+  const stopNum = isPositiveDecimal(ticket.stopPrice) ? Number(ticket.stopPrice) : NaN
+  const tpNum = isPositiveDecimal(ticket.takeProfit) ? Number(ticket.takeProfit) : null
+  const risk = contractsNow !== null && Number.isFinite(stopNum)
+    ? riskPreview({side: ticket.side, entry: entryRef, stop: stopNum, target: tpNum, contracts: contractsNow, contractSize}) : null
+  const setStop = (value: string) => {
+    const stop = Number(value)
+    const target = tpRR !== null && Number.isFinite(stop) && Number.isFinite(entryRef) ? targetFromRR(ticket.side, entryRef, stop, tpRR) : null
+    patch(target !== null ? {stopPrice: value, takeProfit: priceString(target)} : {stopPrice: value})
+  }
+  const pickStopPct = (pct: number) => { const stop = stopFromPct(ticket.side, entryRef, pct); if (stop !== null) setStop(priceString(stop)) }
+  const pickTargetRR = (rr: number) => {
+    const target = targetFromRR(ticket.side, entryRef, stopNum, rr)
+    if (target === null) { setWizNotice({kind: 'error', text: 'Önce geçerli bir stop koy (LONG\'da girişin altı, SHORT\'ta üstü).'}); return }
+    setTpRR(rr); patch({takeProfit: priceString(target)})
+  }
 
   const summaryRows: SummaryItem[] = [
     {label: 'Ürün', value: ticket.productId.trim() || null},
@@ -405,17 +446,51 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         {step !== 4 && noticeEl}
         {step === 0 && <><h4>Hangi ürün?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{picksBlock}{coinBlock}</>}
         {step === 1 && <><h4>Hangi yön?</h4><p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
-          <DirectionCards value={dir} onChange={side => patch({side: side === 'LONG' ? 'BUY' : 'SELL'})}/>
+          <DirectionCards value={dir} onChange={side => { const next = side === 'LONG' ? 'BUY' : 'SELL'; if (next !== ticket.side) { setTpRR(null); patch({side: next, stopPrice: '', takeProfit: ''}) } }}/>
           {aiCard}</>}
-        {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Kullanacağın teminatı yaz. Sözleşme sayısını boş bırakırsan teminatına göre 5x kaldıraçlı güvenli miktar seçilir; kendin sayı yazarsan istediğin kaldıraca çıkabilirsin.</p>
-          <input className="cbMxtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="teminat (USD)"/>
-          <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (isteğe bağlı)"/>
-          <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (isteğe bağlı)"/>
-          <input className="cbMxtInput" aria-label="Hedef (TP) fiyatı (isteğe bağlı)" value={ticket.takeProfit} onChange={event => patch({takeProfit: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="hedef (TP) fiyatı (isteğe bağlı)"/>
-          {status?.resting_enabled === true && <label className="mxtHint"><input type="checkbox" checked={ticket.rest} onChange={event => patch({rest: event.target.checked})}/> Bekleyen limit: emir dolana kadar Coinbase'de bekler (limit giriş ve hedef zorunlu; stop+hedef emre ekli gider ve ekran dolumu izler).</label>}
-          <p className="mxtHint">Hedef yazarsan stop ile birlikte Coinbase'de TEK koruma emri olur: biri dolunca öteki iptal olur, ters pozisyon açılmaz. Kurulamazsa yalnızca stop kurulur ve sana açıkça söylenir. Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Boş bırakırsan piyasa fiyatından girilir.</p></>}
-        {step === 3 && <><h4>Stop</h4><p className="mxtLead">Stop zorunludur; stop'suz işlem açılmaz. LONG'da giriş fiyatının altına, SHORT'ta üstüne koy.</p>
-          <input className="cbMxtInput" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => patch({stopPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></>}
+        {step === 2 && <><h4>Ne kadar?</h4><p className="mxtLead">Teminatını ve kaldıracını seç, sözleşme sayısını biz hesaplarız.</p>
+          <div className="cbAmt">
+            <label className="cbAmtMain"><span>Teminat (USD)</span>
+              <input className="cbAmtInput" aria-label="Teminat (USD)" value={ticket.marginUsd} onChange={event => patch({marginUsd: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="0"/></label>
+            {chips.length > 0 && <div className="cbChips" role="group" aria-label="Teminat kısayolları">{chips.map(chip => <button type="button" key={chip.label} aria-pressed={ticket.marginUsd.trim() === chip.value} onClick={() => patch({marginUsd: chip.value})}>{chip.label}</button>)}</div>}
+            <small className="cbAmtNote">{Number.isFinite(marginAvail) ? `Kullanılabilir marjin ${usd(marginAvail)} USD` : 'Kullanılabilir marjin okunamadı; teminatı kendin yaz.'}</small>
+            <div className="cbLev" data-tone={band.tone}>
+              <div className="cbLevHead"><span>Kaldıraç</span><b>{manualContracts === null ? `${Number.isFinite(levNum) ? levNum : '—'}x` : 'elle'}</b><em>{manualContracts === null ? band.label : 'sözleşme elle yazıldı'}</em></div>
+              <input type="range" min="1" max="20" step="1" aria-label="Kaldıraç" disabled={manualContracts !== null} value={Number.isFinite(levNum) && levNum >= 1 ? Math.min(20, levNum) : 5} onChange={event => patch({leverage: event.target.value})}/>
+              <div className="cbLevScale" aria-hidden="true"><span>1x</span><span>5x</span><span>10x</span><span>20x</span></div>
+            </div>
+            <div className="cbAmtPreview" role="status" data-ok={contractsNow !== null || undefined}>
+              {contractsNow !== null && Number.isFinite(entryRef) && Number.isFinite(contractSize)
+                ? <><b>≈ {contractsNow} sözleşme</b><span>pozisyon ≈ {usd(contractsNow * contractSize * entryRef)} USD{Number.isFinite(marginNum) && marginNum > 0 ? ` · gerçek kaldıraç ≈ ${(contractsNow * contractSize * entryRef / marginNum).toFixed(1)}x` : ''}</span></>
+                : Number.isFinite(marginNum) && marginNum > 0 && Number.isFinite(entryRef) && Number.isFinite(contractSize)
+                  ? <span>Bu teminat ve kaldıraçla 1 sözleşme bile alınamıyor. Teminatı ya da kaldıracı artır.</span>
+                  : <span>Teminat yazınca sözleşme sayısı burada hesaplanır.</span>}
+            </div>
+          </div>
+          <details className="cbAdv"><summary>Gelişmiş: sözleşme sayısı, limit giriş</summary>
+            <input className="cbMxtInput" aria-label="Sözleşme sayısı (isteğe bağlı)" value={ticket.contracts} onChange={event => patch({contracts: event.target.value})} inputMode="numeric" autoComplete="off" placeholder="sözleşme sayısı (boşsa kaldıraçtan hesaplanır)"/>
+            <input className="cbMxtInput" aria-label="Limit giriş fiyatı (isteğe bağlı)" value={ticket.limitPrice} onChange={event => patch({limitPrice: event.target.value})} inputMode="decimal" autoComplete="off" placeholder="limit giriş fiyatı (boşsa piyasa)"/>
+            {status?.resting_enabled === true && <label className="mxtHint"><input type="checkbox" checked={ticket.rest} onChange={event => patch({rest: event.target.checked})}/> Bekleyen limit: emir dolana kadar Coinbase'de bekler (limit giriş ve hedef zorunlu; stop+hedef emre ekli gider ve ekran dolumu izler).</label>}
+            <p className="mxtHint">Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Sözleşme sayısını elle yazarsan kaldıraç ona göre kendiliğinden belirlenir.</p>
+          </details></>}
+        {step === 3 && <><h4>Stop ve hedef</h4><p className="mxtLead">Stop zorunludur; stop'suz işlem açılmaz. LONG'da girişin altına, SHORT'ta üstüne koy. Hedef isteğe bağlıdır.</p>
+          <div className="cbLv">
+            <label className="cbLvField"><span>Stop fiyatı</span><input className="cbAmtInput small" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></label>
+            <div className="cbChips" role="group" aria-label="Stop kısayolları"><em>Girişten</em>{STOP_PCTS.map(pct => <button type="button" key={pct} disabled={!Number.isFinite(entryRef)} onClick={() => pickStopPct(pct)}>%{pct}</button>)}</div>
+            <label className="cbLvField"><span>Hedef fiyatı (isteğe bağlı)</span><input className="cbAmtInput small" aria-label="Hedef (TP) fiyatı (isteğe bağlı)" value={ticket.takeProfit} onChange={event => { setTpRR(null); patch({takeProfit: event.target.value}) }} inputMode="decimal" autoComplete="off" placeholder="hedef fiyatı"/></label>
+            <div className="cbChips" role="group" aria-label="Hedef kısayolları"><em>Stop mesafesinin</em>{TARGET_RRS.map(rr => <button type="button" key={rr} aria-pressed={tpRR === rr} disabled={!Number.isFinite(stopNum)} onClick={() => pickTargetRR(rr)}>{rr}R</button>)}<button type="button" disabled={ticket.takeProfit.trim() === ''} onClick={() => { setTpRR(null); patch({takeProfit: ''}) }}>Hedefsiz</button></div>
+          </div>
+          {risk && risk.wrongSide && <p className="mxtNotice error" role="alert">Stop yanlış tarafta: {dir === 'LONG' ? 'LONG\'da girişin altında' : 'SHORT\'ta girişin üstünde'} olmalı.</p>}
+          {risk && !risk.wrongSide && <div className="cbRisk" aria-label="Risk özeti">
+            <div className="cbRiskRow" data-k="loss"><span>Stopta yaklaşık</span><b>−{usd(risk.lossUsd)} USD</b><small>%{risk.stopPct.toFixed(2)} uzakta{Number.isFinite(marginNum) && marginNum > 0 ? ` · teminatının %${(risk.lossUsd / marginNum * 100).toFixed(0)}'i` : ''}</small></div>
+            {risk.gainUsd !== null && risk.rr !== null
+              ? <div className="cbRiskRow" data-k="gain"><span>Hedefte yaklaşık</span><b>+{usd(risk.gainUsd)} USD</b><small>%{(risk.targetPct ?? 0).toFixed(2)} uzakta · kâr/zarar 1:{risk.rr.toFixed(1)}</small></div>
+              : <div className="cbRiskRow" data-k="none"><span>Hedef yok</span><small>Yalnızca stop kurulur</small></div>}
+            {risk.gainUsd !== null && risk.rr !== null && <div className="cbRiskBar" aria-hidden="true"><i data-k="loss" style={{flexGrow: Math.max(0.05, risk.lossUsd)}}/><i data-k="gain" style={{flexGrow: Math.max(0.05, risk.gainUsd)}}/></div>}
+            {risk.rr !== null && risk.rr < 1 && <p className="cbRiskWarn">Hedef, stoptan yakın: kazanabileceğin, kaybedebileceğinden az.</p>}
+            <p className="cbRiskNote">Komisyon dahil tahmindir; gerçek rakamı son adımdaki ön kontrol verir.</p>
+          </div>}
+          {!risk && <p className="mxtHint">Teminat, kaldıraç ve stop girilince risk özeti burada görünür.</p>}</>}
         {step === 4 && reviewStep}
         <div className="mxtNav">
           <button type="button" className="mxtBtn ghost" disabled={step === 0} onClick={() => goStep(Math.max(0, step - 1))}>← Geri</button>
