@@ -506,9 +506,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {notice && <div className="cbPanel"><CoinbaseManualNotice notice={notice}/></div>}
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
-    {keySaved && wizardBody}
+    {keySaved && futuresMissing && <div className="mxt">{statusStrip}</div>}
+    {keySaved && !futuresMissing && wizardBody}
     {confirmModal}
-    {keySaved && <div className="cbPanel" ref={positionsRef}>
+    {keySaved && !futuresMissing && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
     </div>}
