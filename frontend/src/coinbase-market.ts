@@ -3,7 +3,7 @@ import type {SignalMap} from './coin-ranking'
 
 export type CbProduct = {
   product_id: string; display: string; root: string | null; price: string | null; change_pct: string | null
-  volume_usd: string | null; expiry: string | null; contract_size: string | null; tradable: boolean
+  volume_usd: string | null; expiry: string | null; contract_size: string | null; price_increment?: string | null; tradable: boolean
 }
 export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null}
 export type CbQuote = {product_id: string; bid: string; ask: string; mid: string; spread_pct: string}
