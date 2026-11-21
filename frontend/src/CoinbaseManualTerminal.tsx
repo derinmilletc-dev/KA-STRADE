@@ -556,6 +556,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <small>{busy === 'review' ? 'Gerçek emir gitmez; Coinbase kurallarına ve sınırlara göre sınanıyor.' : 'Ekranı kapatma, tekrar basma; sonuç gelince burada görünür.'} <ElapsedSeconds/></small></span>
   </div> : null
 
+  // Hesap/bakiye hazır değilse düğme sakin görünür; yine de açılır (inceleme serbest, gönderimde bakiye hatası verir).
+  const waitFunds = futuresMissing || (account?.balance != null && !(Number(account.balance.futures_buying_power?.value) > 0))
   const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} futuresMissing={futuresMissing} ordersOn={ordersOn}
     clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}
     openSummary={positions.length === 1 ? `${(positions[0].product_id || '').split('-')[0]} · ${String(positions[0].side ?? '').toUpperCase().endsWith('SHORT') ? 'SHORT' : 'LONG'}` : positions.length > 1 ? `${positions.length} açık` : null}
@@ -853,9 +855,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {status && !keySaved && <div className="cbPanel"><p className="cbNote warn">Coinbase anahtarı yok. Önce <b>Borsa Bağlantıları</b> sayfasında Coinbase’i seçip anahtarı ekle.
       <button type="button" onClick={onGoSetup}>Borsa Bağlantıları’na git</button></p></div>}
     {keySaved && <div className="mxt cbHome">{statusStrip}
-      <button type="button" className="cbOpenManual" data-testid="cb-open-manual" data-wait={futuresMissing || undefined} onClick={() => setManualOpen(true)}>
+      <button type="button" className="cbOpenManual" data-testid="cb-open-manual" data-wait={waitFunds || undefined} onClick={() => setManualOpen(true)}>
         <span className="cbOpenIcon" aria-hidden="true"><Zap/></span>
-        <span className="cbOpenText"><b>Manuel işlem aç</b><small>{futuresMissing ? 'İnceleyebilirsin · göndermek için bakiye gerekir' : 'Ürün seç · Long/Short · Stop · TP'}</small></span>
+        <span className="cbOpenText"><b>Manuel işlem aç</b><small>{waitFunds ? 'İnceleyebilirsin · göndermek için bakiye gerekir' : 'Ürün seç · Long/Short · Stop · TP'}</small></span>
         <span className="cbOpenGo" aria-hidden="true">→</span>
       </button></div>}
     {keySaved && manualOpen && <div className="lcRoot" data-manual-modal="">
