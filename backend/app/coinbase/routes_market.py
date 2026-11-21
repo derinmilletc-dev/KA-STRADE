@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Path, Query, Request
 
 from . import market
 from .errors import CoinbaseError
@@ -37,5 +37,20 @@ async def coinbase_quote(request: Request, product_id: str = Path(pattern=PRODUC
     try:
         client = await _reader(request, user)
         return await market.fetch_quote(client, product_id)
+    except CoinbaseError as exc:
+        return _error(exc)
+
+
+@router.get("/quotes")
+async def coinbase_quotes(request: Request, ids: str = Query(min_length=3, max_length=600)) -> Any:
+    """Birden çok ürünün fiyatı tek istekte (vade seçimi için). Salt okunur."""
+    import re
+    user = _member(request)
+    product_ids = [item.strip() for item in ids.split(",") if item.strip()]
+    if not product_ids or len(product_ids) > market.MAX_BATCH_QUOTES or not all(re.match(PRODUCT_PATTERN, item) for item in product_ids):
+        return _error(CoinbaseError("BAD_REQUEST", "Ürün kodları geçersiz.", http_status=422))
+    try:
+        client = await _reader(request, user)
+        return {"quotes": await market.fetch_quotes(client, product_ids)}
     except CoinbaseError as exc:
         return _error(exc)

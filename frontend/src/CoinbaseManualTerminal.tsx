@@ -102,7 +102,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [coinQuery, setCoinQuery] = useState('')
   const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
   const [coinSort, setCoinSort] = useState<CoinSort>('confidence')
-  const [quote, setQuote] = useState<CbQuote | null>(null)
+  const [quotes, setQuotes] = useState<Record<string, CbQuote>>({})
   const [quoteError, setQuoteError] = useState(false)
   const loadingRef = useRef(false)
   const positionsRef = useRef<HTMLDivElement>(null)
@@ -209,20 +209,6 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     return () => { cancelled = true; controller.abort() }
   }, [])
 
-  useEffect(() => {
-    setQuote(null); setQuoteError(false)
-    if (!keySaved || !isProductId(selectedId)) return
-    let alive = true
-    const load = () => {
-      void coinbaseCall<CbQuote>(`/quote/${encodeURIComponent(selectedId)}`)
-        .then(next => { if (alive) { setQuote(next); setQuoteError(false) } })
-        .catch(() => { if (alive) { setQuote(null); setQuoteError(true) } })
-    }
-    load()
-    const timer = visibleInterval(load, 5000)
-    return () => { alive = false; clearVisibleInterval(timer) }
-  }, [keySaved, selectedId])
-
   const allRows = products ? toRows(products) : []
   // Her coin tek satır (perp varsa o); tarihli ürünler seçilen coinin altında "Vade" olarak seçilir.
   const grouped = groupRows(allRows)
@@ -234,8 +220,25 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const selectedRow = allRows.find(row => row.symbol === selectedId)
   const selectedVariants = selectedRow ? grouped.variants[selectedRow.root || selectedRow.symbol] ?? [] : []
   const isSelectedCoin = (row: CbRow) => selectedRow !== undefined && (row.root || row.symbol) === (selectedRow.root || selectedRow.symbol)
-  const selectedSignal = signals?.[selectedId]
+  // Seçilen coinin TÜM vadelerinin fiyatı tek istekte: vade değiştirmek anında olur, ekstra bekleme yok.
+  const quoteIds = (selectedVariants.length > 0 ? selectedVariants.map(row => row.symbol) : isProductId(selectedId) ? [selectedId] : []).slice(0, 12).join(',')
+  useEffect(() => {
+    if (!keySaved || !quoteIds) return
+    let alive = true
+    const load = () => {
+      void coinbaseCall<{quotes: Record<string, CbQuote>}>(`/quotes?ids=${encodeURIComponent(quoteIds)}`)
+        .then(next => { if (alive) { setQuotes(current => ({...current, ...next.quotes})); setQuoteError(false) } })
+        .catch(() => { if (alive) setQuoteError(true) })
+    }
+    load()
+    const timer = visibleInterval(load, 5000)
+    return () => { alive = false; clearVisibleInterval(timer) }
+  }, [keySaved, quoteIds])
+  const quoteRaw = quotes[selectedId]
+  const quote = quoteRaw && quoteRaw.mid !== null && Number(quoteRaw.mid) > 0 ? quoteRaw : null
+  const quoteNote = quoteRaw?.source === 'last' || quoteRaw?.source === 'none' ? quoteRaw.reason ?? '' : ''
   const shownPrice = quote ? Number(quote.mid) : selectedRow ? selectedRow.price : NaN
+  const selectedSignal = signals?.[selectedId]
   const signalCount = (filter: CoinFilter) => signals ? filterBySignal(rows, signals, filter).length : 0
   const chooseCoin = (value: string) => { setRecentIds(current => { const next = [value, ...current.filter(item => item !== value)].slice(0, 5); try { window.localStorage.setItem('kt-cb-recent', JSON.stringify(next)) } catch { /* depolama kapalı */ } return next }); setTicket(current => ({...current, productId: value})); setCheck(null); setWizNotice({kind: 'info', text: ''}); setCoinOpen(false); setCoinQuery('') }
   useEffect(() => {
@@ -661,8 +664,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </section>
   </div>, document.body) : null
   const coinMobile = <div className="mxtM mxtMCoin">
-    {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{Number.isFinite(shownPrice) ? <>{priceText(shownPrice)}{selectedRow && Number.isFinite(selectedRow.change) && <> · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></>}</> : 'Fiyat bekleniyor'}</small></span>{leanBadge(selectedSignal)}</div>}
+    {selectedId && <div className="mxtMSel">{coinMark(selectedRow, selectedId)}<span className="mxtMSelN"><b>{selectedRow?.display || selectedId}</b><small>{Number.isFinite(shownPrice) ? <>{priceText(shownPrice)}{selectedRow && Number.isFinite(selectedRow.change) && <> · <em data-tone={selectedRow.change >= 0 ? 'up' : 'down'}>{changeText(selectedRow.change)}</em></>}</> : (quoteRaw?.source === 'none' ? 'Fiyat yok' : 'Fiyat alınıyor…')}</small></span>{leanBadge(selectedSignal)}</div>}
     {vadePicker}
+    {selectedId && (quoteNote || (!quoteRaw && !Number.isFinite(shownPrice) && quoteError)) && <p className="mxtMSigNote" role="status">{quoteNote || 'Fiyat alınamadı; birkaç saniye içinde yeniden deneniyor.'}</p>}
     {selectedId && coinSym(selectedRow) && <CoinLiveChart symbol={coinSym(selectedRow)} compact/>}
     <label className="mxtMSearch"><Search aria-hidden="true"/><input value={coinQuery} placeholder="Coin ara: BTC, ETH, SOL…" aria-label="Coin ara" onChange={event => setCoinQuery(event.target.value)}
       onKeyDown={event => { if (event.key === 'Enter') { if (matches[0]) chooseCoin(matches[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) } }}/></label>

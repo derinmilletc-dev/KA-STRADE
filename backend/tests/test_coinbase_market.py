@@ -87,6 +87,18 @@ class MarketTests(unittest.TestCase):
         with self.assertRaises(CoinbaseError):
             run(market.fetch_quote(self.read_client(), "ETP-20DEC30-CDE"))
 
+    def test_quotes_batch_falls_back_to_last_price(self):
+        self.ex.empty_books = {"ETP-20DEC30-CDE"}
+        quotes = run(market.fetch_quotes(self.read_client(), ["ETP-20DEC30-CDE", "BIT-ZZZ", "ETP-20DEC30-CDE"]))
+        self.assertEqual(list(quotes), ["ETP-20DEC30-CDE", "BIT-ZZZ"])
+        eth = quotes["ETP-20DEC30-CDE"]
+        self.assertIn(eth["source"], ("last", "none"))
+        self.assertIsNone(eth["bid"])
+        self.assertTrue(eth["reason"])
+        self.assertEqual(quotes["BIT-ZZZ"]["source"], "book")
+        self.assertEqual(quotes["BIT-ZZZ"]["bid"], "3000")
+        self.assertEqual(run(market.fetch_quotes(self.read_client(), [])), {})
+
     def test_read_client_still_cannot_post(self):
         client = self.read_client()
         with self.assertRaises(Exception):
