@@ -195,6 +195,7 @@ tests/test_v22_commercial.py
 tests/test_v23_storage.py
 tests/test_v24_commercial_complete.py
 tests/test_v25_1_paper_autonomy.py
+tests/test_symbol_lock.py
 tests/test_v25_adoption_execute.py
 tests/test_v25_history_legacy.py
 tests/test_v25_live_guard.py

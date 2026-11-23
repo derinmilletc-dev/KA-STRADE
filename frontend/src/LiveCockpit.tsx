@@ -161,6 +161,9 @@ const NEAR_TEXT: Record<string, string> = {
 const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk > 1 ? 'yellow' : 'normal'
 
 const STALE_LIMIT_MS = 30 * 60 * 1000
+// Bu işlemler bittiğinde ekran tam durum yenilemesini beklemez (kapatma sonrası pozisyon ~1 dk listede kalmasın).
+const QUICK_RELEASE_KEYS = new Set(['close-position', 'edit-protection', 'reduce-position', 'close-target'])
+const OPTIMISTIC_HIDE_MS = 12_000
 
 let lastLedgerPnl: {day: string; value: number} | null = null
 /** "Bugün" kâr/zarar: Binance gelir defteri değeri esas; defter önbelleği bittiğinde aynı UTC gün içinde son defter değeri korunur (rakam sıçramaz). */
@@ -279,9 +282,16 @@ export default function LiveCockpit(props: Props) {
       onError?.(message)
       return false
     } finally {
-      try { await refresh() } catch { /* yenileme hatası rehberde "doğrulanamadı" olarak görünür */ }
-      flight.current = false
-      setWorking('')
+      if (QUICK_RELEASE_KEYS.has(key)) {
+        // Pozisyon işlemleri (kapat/stop/hedef): düğmeler sunucu yenilemesini beklemeden serbest kalır; liste arka planda tazelenir.
+        flight.current = false
+        setWorking('')
+        void Promise.resolve(refresh()).catch(() => { /* yenileme hatası rehberde "doğrulanamadı" olarak görünür */ })
+      } else {
+        try { await refresh() } catch { /* yenileme hatası rehberde "doğrulanamadı" olarak görünür */ }
+        flight.current = false
+        setWorking('')
+      }
     }
   }
 
@@ -637,6 +647,7 @@ export default function LiveCockpit(props: Props) {
         ? request('/position/close', {plan_id: target.planId, confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})
         : request('/position/close-external', {symbol: target.symbol.toUpperCase(), confirmation: CLOSE_POSITION_PHRASE, ...limitPrice})) as {fill_price?: unknown; close_mode?: unknown} | undefined
       setSheet(null); setCloseTarget(null)
+      setHiddenClosed(current => ({...current, [target.symbol.toUpperCase()]: Date.now()}))
       // Gerçek dolum fiyatı ve süre: "bastığım an" ile "dolduğu an" arasındaki farkı görünür kılar.
       const coin = target.symbol.replace('USDT', '')
       const fill = finite(result?.fill_price)
@@ -859,7 +870,22 @@ export default function LiveCockpit(props: Props) {
     load(); const timer = window.setInterval(load, 15000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [demo, live, getForDca])
-  const positions = (live ? status?.account?.positions : null) ?? []
+  const serverPositions = useMemo(() => (live ? status?.account?.positions : null) ?? [], [live, status?.account?.positions])
+  // Kapatma Binance'te onaylanınca pozisyon, sunucu listesi yenilenene kadar beklemeden gizlenir (en fazla 12 sn).
+  const [hiddenClosed, setHiddenClosed] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!Object.keys(hiddenClosed).length) return
+    const timer = window.setTimeout(() => setHiddenClosed(current => {
+      const present = new Set((serverPositions as Array<{symbol?: unknown}>).map(position => String(position.symbol ?? '').toUpperCase()))
+      const next: Record<string, number> = {}
+      for (const [key, at] of Object.entries(current) as Array<[string, number]>) if (present.has(key) && Date.now() - at < OPTIMISTIC_HIDE_MS) next[key] = at
+      return Object.keys(next).length === Object.keys(current).length ? current : next
+    }), 1000)
+    return () => window.clearTimeout(timer)
+  }, [hiddenClosed, serverPositions])
+  const positions = useMemo(() => Object.keys(hiddenClosed).length
+    ? (serverPositions as Array<{symbol?: unknown}>).filter(position => !(String(position.symbol ?? '').toUpperCase() in hiddenClosed))
+    : serverPositions, [serverPositions, hiddenClosed]) as typeof serverPositions
   // Emir yeni gitti ve pozisyon listede henüz yok: kart "Açık pozisyon yok" yerine "yükleniyor" gösterir (en fazla 60 sn).
   const [, setPendingTick] = useState(0)
   const pendingSymbol = pendingOrderSymbol()
@@ -2168,7 +2194,7 @@ export default function LiveCockpit(props: Props) {
             </div></details>}
         </section>}
 
-        <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={busy} now={now} positions={positions as unknown as RawRecord[]}
+        <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={Boolean(working) || stale} closeBusy={Boolean(working)} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
           awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}

@@ -58,6 +58,7 @@ CLIENT_PREFIX = "PTB_"
 PLAN_RECONCILIATION_GRACE_SECONDS = 15
 _PROTECTION_INSTALL_LOCKS: dict[str, asyncio.Lock] = {}
 _PROTECTION_CLEANUP_LOCKS: dict[str, asyncio.Lock] = {}
+from .symbol_lock import SymbolAwareLock, declare_entry, position_guard
 logger = logging.getLogger(__name__)
 class _MemberSnapshotLock:
     """Hesap okuma kilidi, üye başına.
@@ -594,14 +595,16 @@ async def traced_stage(stage: str, request_id: str, operation: Any, *, client: "
 
 
 @asynccontextmanager
-async def traced_lock(lock: asyncio.Lock, request_id: str, name: str) -> Any:
+async def traced_lock(lock: asyncio.Lock, request_id: str, name: str, entry_symbol: str | None = None) -> Any:
     wait_started = time.monotonic()
-    await lock.acquire()
-    trace_log(f"{name}.lock", request_id, lock_wait_ms=round((time.monotonic() - wait_started) * 1000, 2))
-    try:
-        yield
-    finally:
-        lock.release()
+    # entry_symbol: bu kilidi alan görev o sembolün girişidir; başka sembolün stop/hedef işlemleri beklemez.
+    with declare_entry(entry_symbol):
+        await lock.acquire()
+        trace_log(f"{name}.lock", request_id, lock_wait_ms=round((time.monotonic() - wait_started) * 1000, 2))
+        try:
+            yield
+        finally:
+            lock.release()
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = BACKEND_ROOT / ".env"
@@ -736,6 +739,12 @@ def normalize_symbol(value: str) -> str:
     if not symbol.endswith("USDT") or not 5 <= len(symbol) <= 20:
         raise BinanceDemoError("Yalnızca USDT vadeli işlem pariteleri destekleniyor.", http_status=422)
     return symbol
+
+
+def _entry_lock_symbol(value: str) -> str | None:
+    """Kilit bildirimi için sembol; çözülemezse None (kilit eskisi gibi her şeyi dışlar)."""
+    cleaned = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    return cleaned if cleaned.endswith("USDT") and 5 <= len(cleaned) <= 20 else None
 
 
 async def resolve_demo_symbol(client: BinanceDemoClient, value: str) -> str:
@@ -996,6 +1005,7 @@ class BinanceDemoClient:
             try:
                 async with BINANCE_RATE_LIMITER.slot(
                     DEMO_REST_BASE,
+                    priority=method.upper() != "GET",  # emir/kapatma/stop okumaların arkasında beklemesin
                     source="demo",
                     egress_route=account_egress_route(),
                 ) as rate_limit:
@@ -1305,7 +1315,7 @@ def _state_from_demo_payload(
         "events": payload.get("events", []) if isinstance(payload.get("events"), list) else [],
         "plans": plans,
         "reconciliation": payload.get("reconciliation", {}) if isinstance(payload.get("reconciliation"), dict) else {},
-        "lock": asyncio.Lock(),
+        "lock": SymbolAwareLock(),
         "_user_id": user_id,
         "_app": application,
         "_restore_origin": origin,
@@ -1358,7 +1368,7 @@ def _default_demo_state(application: Any) -> dict[str, Any]:
         "last_error": None,
         "events": [],
         "plans": {},
-        "lock": asyncio.Lock(),
+        "lock": SymbolAwareLock(),
     }
     application.state.binance_demo = state
     return state
@@ -4316,7 +4326,7 @@ def init_binance_demo(application: Any) -> None:
         "last_error": None,
         "events": [],
         "plans": load_runtime(),
-        "lock": asyncio.Lock(),
+        "lock": SymbolAwareLock(),
     }
     add_event(application.state.binance_demo, "GÜVENLİ BAŞLANGIÇ", "Demo emir kilidi kapalı başladı; yeniden elle açılması gerekir.")
     application.state.binance_demo_task = asyncio.create_task(protection_loop(application))
@@ -4539,7 +4549,7 @@ async def execute_demo_order(
     trace_log("start", request_id, symbol=body.symbol, side="BUY" if body.direction == "LONG" else "SELL")
     if not armed(state) and source != "MANUAL":
         raise HTTPException(423, "Demo emir kilidi kapalı veya süresi doldu; önce 10 dakikalık kilidi açın.")
-    async with traced_lock(state["lock"], request_id, "state"):
+    async with traced_lock(state["lock"], request_id, "state", entry_symbol=_entry_lock_symbol(body.symbol)):
         try:
             client = client_for(request) if request is not None else (
                 client_for_state(application, state)
@@ -4884,7 +4894,7 @@ async def demo_move_stop(request: Request, body: MoveStopRequest) -> dict[str, A
         symbol = normalize_symbol(body.symbol)
         state = state_for(request)
         user_id = _current_user_id(request=request, state=state)
-        async with state["lock"]:
+        async with position_guard(state, symbol):
             candidates = [
                 plan for plan in state.get("plans", {}).values()
                 if isinstance(plan, dict)
@@ -4916,7 +4926,7 @@ async def demo_move_targets(request: Request, body: MoveTargetsRequest) -> dict[
         symbol = normalize_symbol(body.symbol)
         state = state_for(request)
         user_id = _current_user_id(request=request, state=state)
-        async with state["lock"]:
+        async with position_guard(state, symbol):
             candidates = [
                 plan for plan in state.get("plans", {}).values()
                 if isinstance(plan, dict)
@@ -4946,7 +4956,7 @@ async def demo_set_trail(request: Request, body: TrailRequest) -> dict[str, Any]
         pct = manual_trail.valid_trail_pct(body.pct)
         if pct is None:
             raise HTTPException(422, "İz süren mesafe %0,3 ile %10 arasında olmalı.")
-    async with state["lock"]:
+    async with position_guard(state, symbol):
         candidates = [
             plan for plan in state.get("plans", {}).values()
             if isinstance(plan, dict) and str(plan.get("symbol") or "").upper() == symbol
