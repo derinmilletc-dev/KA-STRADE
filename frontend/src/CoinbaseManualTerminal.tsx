@@ -120,6 +120,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [coinOpen, setCoinOpen] = useState(false)
   const [coinQuery, setCoinQuery] = useState('')
   const [coinFilter, setCoinFilter] = useState<CoinFilter>('all')
+  const [affordOnly, setAffordOnly] = useState(false)
   const [coinSort, setCoinSort] = useState<CoinSort>('confidence')
   const [quotes, setQuotes] = useState<Record<string, CbQuote>>({})
   const [quoteError, setQuoteError] = useState(false)
@@ -792,7 +793,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const leanBadge = (signal: CoinSignal | undefined) => !signal ? null : signal.lean === 'LONG' ? <span className="mxtMLean" data-lean="LONG">LONG{signal.long !== null ? ` %${signal.long}` : ''}</span> : signal.lean === 'SHORT' ? <span className="mxtMLean" data-lean="SHORT">SHORT{signal.short !== null ? ` %${signal.short}` : ''}</span> : <span className="mxtMLean">Nötr</span>
   const coinMark = (row: CbRow | undefined, fallback: string) => <span className="mxtMLogo" aria-hidden="true"><CoinIcon symbol={coinSym(row) || fallback} size={40}/></span>
   const recentRows = !coinQuery.trim() ? recentIds.map(id => allRows.find(row => row.symbol === id)).filter((row): row is CbRow => Boolean(row)).filter((row, index, list) => list.findIndex(item => (item.root || item.symbol) === (row.root || row.symbol)) === index) : []
-  const mobileList = matches.slice(0, 120)
+  // "Bakiyeme yeten": 1 sözleşme için gereken en az teminat harcanabilir tutarı aşanlar gizlenir (oranı bilinmeyen ürünler kalır).
+  const canFilterAfford = rows.some(row => (row.minMargin ?? 0) > 0)
+  const shownMatches = affordOnly && canFilterAfford ? matches.filter(row => !(minMarginNote(row.minMargin, Number.isFinite(marginAvail) ? marginAvail : null)?.short)) : matches
+  const mobileList = shownMatches.slice(0, 120)
   // Analiz çekmecesi: Binance'teki ile aynı (listedeki sinyalden beslenir, yeni istek atmaz).
   const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
   const anaRow = anaIdx >= 0 ? matches[anaIdx] : undefined
@@ -854,6 +858,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       onKeyDown={event => { if (event.key === 'Enter') { if (matches[0]) chooseCoin(matches[0].symbol); else if (isProductId(coinQuery)) chooseCoin(coinQuery.trim()) } }}/></label>
     {recentRows.length > 0 && <div className="mxtMRecent"><span>Son:</span>{recentRows.slice(0, 5).map(row => <button type="button" key={row.symbol} onClick={() => chooseCoin(row.symbol)}>{row.root || row.display}</button>)}</div>}
     <div className="mxtMTabs" role="group" aria-label="Filtre" aria-busy={signals === null || undefined} data-loading={signals === null || undefined}>{FILTER_CHIPS.map(([key, label]) => <button type="button" key={key} disabled={signals === null && key !== 'all'} aria-pressed={coinFilter === key} data-on={coinFilter === key || undefined} onClick={() => setCoinFilter(key)}>{label.replace(' ağır', '').replace(' sinyal', '')}<em>{key === 'all' ? rows.length : signals === null ? <i className="mxtMSpin" aria-hidden="true"/> : signalCount(key)}</em></button>)}</div>
+    {canFilterAfford && <button type="button" className="mxtAfford" aria-pressed={affordOnly} data-on={affordOnly || undefined} onClick={() => setAffordOnly(value => !value)}>{affordOnly ? '✓ ' : ''}Sadece bakiyeme yetenler{affordOnly && matches.length > shownMatches.length ? ` · ${matches.length - shownMatches.length} gizli` : ''}</button>}
+    {affordOnly && canFilterAfford && shownMatches.length === 0 && <p className="mxtMEmpty">Bakiyene yeten ürün yok. Bakiye ekle ya da filtreyi kapat.</p>}
     {signals === null && signalsError && <p className="mxtMSigNote" role="status">Kais AI sinyalleri alınamadı; liste hacme göre gösteriliyor.</p>}
     <div className="mxtMMeta"><span><b>{matches.length} ürün</b>{matches.length > 5 ? ' · kaydır' : ''}</span>{signals !== null && <label className="mxtMSort">Sırala:<select value={coinSort} aria-label="Sıralama" onChange={event => setCoinSort(event.target.value as CoinSort)}>{SORT_CHIPS.map(([key, label]) => <option key={key} value={key}>{label.replace(' göre', '').replace('Güvene', 'Güven').replace('Hacme', 'Hacim').replace('Değişime', 'Değişim')}</option>)}</select></label>}</div>
     {products === null && !productsError && <p className="mxtMEmpty">Ürün listesi yükleniyor…</p>}
@@ -865,7 +871,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {isSelectedCoin(row) && <i className="mxtMTick" aria-hidden="true">✓</i>}
     </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}
     {anaSheet}
-    {matches.length > mobileList.length && <p className="mxtMEmpty">{matches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
+    {shownMatches.length > mobileList.length && <p className="mxtMEmpty">{shownMatches.length} üründen ilk {mobileList.length} gösteriliyor; aramayla daralt.</p>}
     {signals !== null && <p className="mxtMNote">{AI_DISCLAIMER}</p>}
   </div>
   const aiCard = selectedSignal ? <div className="cpk mxtAi" data-align={align}>
