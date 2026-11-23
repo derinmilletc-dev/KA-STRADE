@@ -138,3 +138,36 @@ export function limitFormValue(field: LimitField, custom: LimitsView['custom']):
   if (value === undefined) return ''
   return field === 'stop_limit_gap_pct' ? String(Number((Number(value) * 100).toFixed(4))) : value
 }
+
+export type LimitProfile = {id: 'careful' | 'balanced' | 'bold'; name: string; hint: string; values: Record<LimitField, string>}
+const PROFILE_SHAPES = [
+  {id: 'careful', name: 'Temkinli', loss: 0.01, daily: 0.03, lev: 3, gap: 0.5},
+  {id: 'balanced', name: 'Dengeli', loss: 0.02, daily: 0.05, lev: 5, gap: 0.3},
+  {id: 'bold', name: 'Atak', loss: 0.05, daily: 0.10, lev: 10, gap: 0.3},
+] as const
+
+/** Hesap büyüklüğüne göre hazır limit profilleri (form metni olarak; gap yüzde). Sunucu sınırlarına kıstırılır.
+ *  Alım gücü bilinmiyorsa null: yanlış büyüklükte öneri verilmez. */
+export function limitProfiles(buyingPower: number | null, bounds: LimitsView['bounds']): LimitProfile[] | null {
+  if (buyingPower === null || !Number.isFinite(buyingPower) || buyingPower <= 0) return null
+  const clamp = (field: LimitField, value: number, scale = 1) => {
+    const [low, high] = bounds[field].map(Number)
+    return Math.min(Math.max(value, low * scale), high * scale)
+  }
+  const money = (value: number) => String(Math.round(value * 100) / 100)
+  return PROFILE_SHAPES.map(shape => {
+    const loss = clamp('max_loss_usd', buyingPower * shape.loss)
+    const daily = clamp('daily_loss_limit_usd', Math.max(buyingPower * shape.daily, loss))
+    const lev = Math.round(clamp('leverage_max', shape.lev))
+    const gap = clamp('stop_limit_gap_pct', shape.gap, 100)
+    return {id: shape.id, name: shape.name,
+      hint: `Zarar ${usd(loss)} · Günlük ${usd(daily)} · ${lev}x`,
+      values: {max_loss_usd: money(loss), daily_loss_limit_usd: money(daily), leverage_max: String(lev), stop_limit_gap_pct: String(Math.round(gap * 1000) / 1000)}}
+  })
+}
+
+/** Hiç özel limit konmamış ve sunucu varsayılanı fiilen sınırsızsa uyarı gerekir. */
+export function limitsUnbounded(view: Pick<LimitsView, 'custom' | 'effective'>): boolean {
+  const loss = num(view.effective.max_loss_usd)
+  return Object.keys(view.custom).length === 0 && loss !== null && loss >= UNLIMITED_AT
+}

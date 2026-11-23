@@ -22,7 +22,7 @@ const tone = (amount: Amount | undefined): 'up' | 'down' | undefined => {
 }
 const levelName = (level: string | null): string => {
   const name = String(level ?? '').split('_').pop()?.toUpperCase() ?? ''
-  return name === 'BASE' ? 'Güvenli' : name === 'WARNING' ? 'Uyarı' : name === 'DANGER' ? 'Tehlike' : name === 'LIQUIDATION' ? 'Tasfiye' : name || '—'
+  return name === 'BASE' ? 'Güvenli' : name === 'WARNING' ? 'Uyarı' : name === 'DANGER' ? 'Tehlike' : name === 'LIQUIDATION' ? 'Tasfiye' : name === 'UNSPECIFIED' ? '—' : name || '—'
 }
 
 type Props = {
@@ -66,7 +66,7 @@ export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, 
     return () => { document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
   }, [])
   const levelUpper = String(balance?.worst_margin_level ?? '').split('_').pop()?.toUpperCase() ?? ''
-  const danger = Boolean(balance) && !['BASE', ''].includes(levelUpper)
+  const danger = Boolean(balance) && !['BASE', '', 'UNSPECIFIED'].includes(levelUpper)
   const power = Number(balance?.futures_buying_power?.value)
   const hasMoney = Number.isFinite(power) && power > 0
   const checking = balance === null && !futuresMissing
@@ -117,7 +117,7 @@ export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, 
     <p className="cbHeroLine">Kullanılabilir {fmt(balance!.available_margin)}{Number.isFinite(pnl) ? <> · Bugün <em data-tone={tone(balance!.daily_realized_pnl)}>{pnl > 0 ? '+' : ''}{fmt(balance!.daily_realized_pnl)}</em></> : null}</p>
     <dl className="cbHeroTiles2">
       <div><dt>Açık pozisyon</dt><dd>{openCount === 0 ? 'Yok' : openSummary ?? `${openCount} açık`}</dd></div>
-      <div><dt>Marjin</dt><dd data-tone={danger ? 'down' : 'up'}>{levelName(balance!.worst_margin_level) === '—' ? 'Güvenli' : levelName(balance!.worst_margin_level)}</dd></div>
+      <div><dt>Marjin</dt><dd data-tone={danger ? 'down' : levelUpper === 'UNSPECIFIED' ? 'mute' : 'up'}>{levelName(balance!.worst_margin_level) === '—' ? 'Belirtilmedi' : levelName(balance!.worst_margin_level)}</dd></div>
     </dl>
     {openCount > 0 && <p className="cbHeroLine">Açık K/Z <em data-tone={tone(balance!.unrealized_pnl)}>{fmt(balance!.unrealized_pnl)}</em></p>}
     <div className="cbHeroChips2">
