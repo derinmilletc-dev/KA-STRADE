@@ -149,10 +149,20 @@ def build_feed(orders: list[dict[str, Any]], roles: dict[str, str], sizes: dict[
         prev = state.get(product)
         item = classify(order, role, prev, sizes.get(product))
         feed.append(item)
-        if item["kind"] in ("entry", "other") and (prev is None or prev["side"] == ("LONG" if order["side"] == "BUY" else "SHORT")):
-            state[product] = {"side": "LONG" if order["side"] == "BUY" else "SHORT", "entry": order["price"]}
+        direction = "LONG" if order["side"] == "BUY" else "SHORT"
+        if item["kind"] in ("entry", "other") and (prev is None or prev["side"] == direction):
+            # Aynı yöne ekleme: giriş fiyatı ağırlıklı ortalama olur, boyut toplanır.
+            before = prev["size"] if prev else Decimal(0)
+            total = before + order["size"]
+            entry = order["price"] if prev is None or before <= 0 else (prev["entry"] * before + order["price"] * order["size"]) / total
+            state[product] = {"side": direction, "entry": entry, "size": total}
         elif item["kind"] in ("target", "stop", "protect", "manual_close"):
-            state.pop(product, None)
+            # Kısmi kapanışta pozisyon kalan boyutla devam eder (kalanın sonraki kapanışı da K/Z'sini bilir).
+            remain = (prev["size"] if prev and prev.get("size") else Decimal(0)) - order["size"]
+            if prev is not None and remain > 0:
+                state[product] = {**prev, "size": remain}
+            else:
+                state.pop(product, None)
     feed.reverse()
     return feed
 

@@ -593,3 +593,37 @@ html body #root .cbTerminal .cbProfitHint span:not(#a){display:grid!important;ga
 html body #root .cbTerminal .cbProfitHint b:not(#a){color:#f2f7f4!important;font-size:14px!important}
 html body #root .cbTerminal .cbProfitHint small:not(#a){color:#c9d6cf!important;font-size:12.5px!important;line-height:1.4!important}
 html body #root .cbTerminal .cbProfitHint button:not(#a){flex:none!important;min-height:40px!important;padding:0 14px!important;border-radius:12px!important;border:0!important;background:#3de0a0!important;color:#04140d!important;font-weight:700!important;font-size:13px!important;cursor:pointer!important}
+
+/* İşlem performansı kartı */
+html body #root .cbTerminal .cbStats:not(#a){border-radius:18px!important;border:1px solid rgba(151,174,181,.22)!important;background:#0a1118!important;overflow:hidden!important}
+html body #root .cbTerminal .cbStatsHead:not(#a){display:flex!important;align-items:center!important;gap:12px!important;width:100%!important;min-height:64px!important;padding:12px 16px!important;border:0!important;background:transparent!important;color:#f2f7f4!important;cursor:pointer!important;text-align:left!important}
+html body #root .cbTerminal .cbStatsIcon:not(#a){display:grid!important;place-items:center!important;flex:none!important;width:38px!important;height:38px!important;border-radius:12px!important;background:rgba(61,224,160,.12)!important;color:#3de0a0!important}
+html body #root .cbTerminal .cbStatsIcon svg:not(#a){width:20px!important;height:20px!important}
+html body #root .cbTerminal .cbStatsTitle:not(#a){display:grid!important;gap:2px!important;flex:1!important;min-width:0!important}
+html body #root .cbTerminal .cbStatsTitle b:not(#a){color:#f2f7f4!important;font-size:15px!important}
+html body #root .cbTerminal .cbStatsTitle small:not(#a){color:#b9c7c0!important;font-size:12px!important}
+html body #root .cbTerminal .cbStatsNet:not(#a){font-size:16px!important;font-weight:700!important;color:#f2f7f4!important;white-space:nowrap!important}
+html body #root .cbTerminal .cbStats [data-tone='up']:not(#a){color:#3de0a0!important}
+html body #root .cbTerminal .cbStats [data-tone='down']:not(#a){color:#ff8b8b!important}
+html body #root .cbTerminal .cbStatsHead>svg:not(#a){flex:none!important;width:18px!important;height:18px!important;color:#9fb0a8!important;transition:transform .2s ease!important}
+html body #root .cbTerminal .cbStats[data-open] .cbStatsHead>svg:not(#a){transform:rotate(180deg)!important}
+html body #root .cbTerminal .cbStatsBody:not(#a){display:grid!important;gap:14px!important;padding:0 16px 16px!important}
+html body #root .cbTerminal .cbStatsGrid:not(#a){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin:0!important}
+html body #root .cbTerminal .cbStatsGrid>div:not(#a){padding:10px 12px!important;border-radius:12px!important;background:rgba(255,255,255,.04)!important}
+html body #root .cbTerminal .cbStatsGrid dt:not(#a){color:#b9c7c0!important;font-size:12px!important;font-weight:500!important}
+html body #root .cbTerminal .cbStatsGrid dd:not(#a){display:grid!important;gap:1px!important;margin:3px 0 0!important;color:#f2f7f4!important;font-size:16px!important;font-weight:700!important}
+html body #root .cbTerminal .cbStatsGrid dd small:not(#a){color:#9fb0a8!important;font-size:11.5px!important;font-weight:400!important}
+html body #root .cbTerminal .cbStatsExit:not(#a){font-size:13px!important;font-weight:600!important}
+html body #root .cbTerminal .cbStatsCoins:not(#a){display:grid!important;gap:6px!important;margin:0!important;padding:0!important;list-style:none!important}
+html body #root .cbTerminal .cbStatsCoins li:not(#a){display:flex!important;align-items:center!important;gap:10px!important;padding:8px 12px!important;border-radius:12px!important;background:rgba(255,255,255,.04)!important}
+html body #root .cbTerminal .cbStatsCoins b:not(#a){color:#f2f7f4!important;min-width:48px!important}
+html body #root .cbTerminal .cbStatsCoins span:not(#a){flex:1!important;color:#b9c7c0!important;font-size:12.5px!important}
+html body #root .cbTerminal .cbStatsCoins em:not(#a){font-style:normal!important;font-weight:700!important;font-size:14px!important}
+html body #root .cbTerminal .cbStatsSrc:not(#a){display:grid!important;gap:8px!important;padding:12px!important;border-radius:14px!important;border:1px solid rgba(151,174,181,.2)!important}
+html body #root .cbTerminal .cbStatsSrc[data-ready]:not(#a){border-color:rgba(61,224,160,.45)!important}
+html body #root .cbTerminal .cbStatsSrc>b:not(#a){color:#f2f7f4!important;font-size:14px!important}
+html body #root .cbTerminal .cbStatsSrc>div:not(#a){display:flex!important;justify-content:space-between!important;align-items:center!important;color:#f2f7f4!important}
+html body #root .cbTerminal .cbStatsSrc small:not(#a){display:block!important;color:#9fb0a8!important;font-size:11.5px!important}
+html body #root .cbTerminal .cbStatsSrc em:not(#a){font-style:normal!important;font-weight:700!important}
+html body #root .cbTerminal .cbStatsSrc p:not(#a){margin:0!important;color:#c9d6cf!important;font-size:12.5px!important;line-height:1.45!important}
+html body #root .cbTerminal .cbStatsNote:not(#a){margin:0!important;color:#9fb0a8!important;font-size:11.5px!important;line-height:1.4!important}

@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Path, Query, Request
 
-from . import activity, journal, market, service
+from . import activity, journal, market, service, stats
 from .errors import CoinbaseError
 from .routes import _error, _member, _pool, _stored_client
 
@@ -107,3 +107,32 @@ async def coinbase_position_fees(request: Request) -> Any:
     except CoinbaseError as exc:
         return _error(exc)
     return {"fees": activity.position_fees(fills, positions)}
+
+
+@router.get("/stats")
+async def coinbase_stats(request: Request) -> Any:
+    """İşlem istatistikleri: kapanan işlemlerin komisyon dahil net sonucu ve Kais önerisi / elle karşılaştırması. Salt okunur."""
+    user = _member(request)
+    try:
+        client = await _reader(request, user)
+        fills = await activity.fetch_fills(client, limit=250)
+        try:
+            sizes = activity.contract_sizes(await market.fetch_products(client))
+        except CoinbaseError:
+            sizes = {}
+    except CoinbaseError as exc:
+        return _error(exc)
+    roles: dict[str, str] = {}
+    entries: list[dict[str, Any]] = []
+    try:
+        pool = _pool(request)
+        for role in ("entry", "entry_rest", "stop", "close"):
+            for order_id in await journal.our_order_ids(pool, user["id"], (role,)):
+                roles[order_id] = role
+        entries = await journal.entry_plans(pool, user["id"])
+    except Exception:  # günlük okunamazsa istatistik yine hesaplanır; kaynak "bilinmiyor" olur
+        roles, entries = {}, []
+    feed = activity.build_feed(activity.group_fills(fills), roles, sizes)
+    trades, unknown = stats.build_trades(feed)
+    stats.attach_sources(trades, entries)
+    return stats.summarize(trades, unknown)

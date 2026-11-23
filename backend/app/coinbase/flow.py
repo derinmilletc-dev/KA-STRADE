@@ -422,7 +422,8 @@ async def open_position(
             "PREFLIGHT_FAILED", "Ön kontrol geçmedi, emir verilmedi: " + " ".join(check["reasons"]),
             http_status=422, extra={"reasons": check["reasons"], "plan": check["plan"]},
         )
-    plan = check["plan"]
+    source = request.get("plan_source")
+    plan = {**check["plan"], "plan_source": source if source in ("kais", "manual") else None}  # istatistik için günlükte saklanır
     product_id, side, planned = plan["product_id"], plan["side"], int(plan["contracts"])
     stop, limit = _stop_prices(plan)
 

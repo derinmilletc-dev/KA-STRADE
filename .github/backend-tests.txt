@@ -251,3 +251,4 @@ tests/test_coinbase_market.py
 tests/test_coinbase_routes_market.py
 tests/test_coinbase_limits_suggest_watch.py
 tests/test_coinbase_activity.py
+tests/test_coinbase_stats.py
