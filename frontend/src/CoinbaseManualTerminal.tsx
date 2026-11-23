@@ -430,7 +430,12 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       dailyLossUsd: Number.isFinite(dailyPnlNum) ? Math.max(0, -dailyPnlNum) : null, openOrders: protection?.open_order_count ?? null, maxOrders: limitView?.max_open_orders ?? null}) : null
   const levBandM = !(levNum >= 1) ? null : levNum <= 3 ? ['Düşük risk', 'low'] : levNum <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
   // Bu coinde bakiyenle yapılabilecek en fazla: sözleşme, teminat, pozisyon ve borsanın izin verdiği en yüksek kaldıraç (kendi limitinle sınırlı).
-  const cap = capacityOf({minMargin: selectedRow?.minMargin, marginRate: selectedRow?.marginRate, spendable: Number.isFinite(marginAvail) ? marginAvail : null, leverageLimit: limitNumber(limitView?.effective.leverage_max)})
+  // Kayıp limitinin (bu stopla) izin verdiği en fazla sözleşme: 1 sözleşmenin stopta kaybı = boyut × stop mesafesi + komisyon.
+  const lossLimit = limitNumber(limitView?.effective.max_loss_usd)
+  const stopRisk = Number.isFinite(stopNum) && entryRef > 0 ? (ticket.side === 'BUY' ? entryRef - stopNum : stopNum - entryRef) : NaN
+  const lossPerContract = stopRisk > 0 && Number.isFinite(contractSize) ? contractSize * stopRisk + contractSize * entryRef * FEE_RATE * 2 : NaN
+  const maxByLoss = lossLimit !== null && lossLimit > 0 && lossLimit < 1_000_000 && lossPerContract > 0 ? Math.floor(lossLimit / lossPerContract) : null
+  const cap = capacityOf({minMargin: selectedRow?.minMargin, marginRate: selectedRow?.marginRate, spendable: Number.isFinite(marginAvail) ? marginAvail : null, leverageLimit: limitNumber(limitView?.effective.leverage_max), maxByLoss})
   const levMax = cap ? Math.max(1, Math.floor(cap.maxLeverage)) : 20
   useEffect(() => { if (cap && Number(ticket.leverage) > levMax) patch({leverage: String(levMax)}) }, [levMax, cap !== null, ticket.leverage])  // eslint-disable-line react-hooks/exhaustive-deps
   const minO = minOrder(contractSize, entryRef, manualContracts === null && levNum >= 1 ? levNum : 1)
@@ -450,7 +455,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </div>
     {cap && <div className="cbCapacity" data-none={cap.contracts < 1 || undefined} role="note">
       {cap.contracts >= 1
-        ? <><span>Bu coinde bakiyenle en fazla <b>{cap.contracts} sözleşme</b> · pozisyon ≈ {usd(cap.notional)} USD · teminat ≈ {usd(cap.margin)} USD</span><span>En yüksek kaldıraç: <b>~{levMax}x</b> (borsa bu coin için bu kadarına izin veriyor)</span>
+        ? <><span>Bu coinde bakiyenle en fazla <b>{cap.contracts} sözleşme</b>{cap.byLoss ? ' (kayıp limitin bu stopla bu kadara izin veriyor)' : ''} · pozisyon ≈ {usd(cap.notional)} USD · teminat ≈ {usd(cap.margin)} USD</span><span>En yüksek kaldıraç: <b>~{levMax}x</b> (borsa bu coin için bu kadarına izin veriyor)</span>
           <button type="button" onClick={() => patch({marginUsd: String(cap.margin), contracts: String(cap.contracts)})}>Maksimumu yaz</button></>
         : <><span>Bu coinde 1 sözleşme için <b>~{usd(cap.perContractMargin)} USD</b> teminat gerekir; bakiyen yetmiyor.</span><span>En yüksek kaldıraç ~{levMax}x. Başka coin seç ya da bakiye ekle.</span></>}
     </div>}
@@ -660,7 +665,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       : check.reasons.map((reason, index) => ({key: `r${index}`, label: 'Düzeltilmeli', state: 'bad' as const, detail: reason}))
   const reviewed = check?.ok === true
   // Ön kontrol reddederse nedene göre tek dokunuşla uygun teminat/sözleşme bulunur ve ön kontrol yenilenir (stop, hedef, yön değişmez).
-  const fix = check?.ok === false ? autoFix({reasons: check.reasons, marginUsd: Number.isFinite(marginNum) ? marginNum : 0, contracts: contractsNow, spendable: Number.isFinite(marginAvail) ? marginAvail : null}) : null
+  const fix = check?.ok === false ? autoFix({reasons: check.reasons, marginUsd: Number.isFinite(marginNum) ? marginNum : 0, contracts: contractsNow, spendable: Number.isFinite(marginAvail) ? marginAvail : null, notional: notionalNow, exchangeMargin: contractsNow !== null && selectedRow?.minMargin ? contractsNow * selectedRow.minMargin : null}) : null
   const applyFix = () => { if (!fix || fix.label === null) return; autoCheckRef.current = false; patch(fix.patch) }
   const sendBlock = futuresMissing ? 'Vadeli cüzdanında bakiye yok. Coinbase\'de vadeli cüzdana USD ekle, sonra tekrar dene.' : !ordersOn ? 'Emir gönderme sunucuda kapalı (COINBASE_ORDERS_ENABLED).' : !reviewed ? 'Önce "Ön kontrol yap" ile sına; geçerse gönderebilirsin.' : ''
 

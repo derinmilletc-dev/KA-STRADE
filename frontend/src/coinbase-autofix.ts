@@ -5,12 +5,14 @@ export type AutoFixInput = {
   marginUsd: number            // girilen teminat
   contracts: number | null     // şu an hesaplanan/yazılan sözleşme sayısı
   spendable: number | null     // harcanabilir tutar (alım gücü ile kullanılabilir marjinin küçüğü)
+  notional?: number | null     // şu anki pozisyon değeri (sözleşme × boyut × fiyat)
+  exchangeMargin?: number | null  // şu anki sözleşme sayısı için borsanın istediği en az teminat (biliniyorsa)
 }
 export type AutoFix = {label: string; patch: {marginUsd?: string; contracts?: string}} | {label: null; hint: string}
 
 const SAFETY = 0.97   // borsa gerçek marjini ve komisyon payı için küçük tampon
 const num = (text: string | undefined): number | null => { const n = Number(text); return text !== undefined && Number.isFinite(n) ? n : null }
-const money = (value: number) => String(Math.floor(value * 100) / 100)
+const money = (value: number) => String(Math.floor(value * 100 + 1e-6) / 100)
 
 export function autoFix(input: AutoFixInput): AutoFix | null {
   const {reasons, marginUsd, contracts, spendable} = input
@@ -20,6 +22,17 @@ export function autoFix(input: AutoFixInput): AutoFix | null {
   const capContracts = (value: number) => { count = count === null ? value : Math.min(count, value) }
 
   for (const reason of reasons) {
+    // "Kaldıraç 0.72x; en az 1x olmalı": teminat pozisyondan büyük. Teminatı pozisyonun yarısına (2x) çek; borsanın istediği en az teminat daha büyükse ona.
+    if (/Kaldıraç [\d.]+x; en az [\d.]+x olmalı/.test(reason)) {
+      const notional = input.notional ?? null
+      if (notional !== null && notional > 0) {
+        const floorMargin = input.exchangeMargin != null && input.exchangeMargin > 0 ? input.exchangeMargin * 1.02 : 0
+        const want = Math.min(notional * 0.98, Math.max(notional / 2, floorMargin))
+        if (spendable !== null && want > spendable * 0.98) blocked = 'Bu işlem için gereken teminat bakiyeni aşıyor. Bakiye ekle ya da daha küçük sözleşmeli coin seç.'
+        else margin = Math.min(margin ?? Infinity, Math.floor(want * 100 + 1e-6) / 100)
+      }
+      continue
+    }
     // Coinbase'in kendi hesabına göre gereken marjin bakiyeyi aşıyor: sözleşmeyi gerçek marjin oranına göre küçült.
     const need = reason.match(/gereken marjin ≈ ([\d.]+) USD/)
     if (need) {
