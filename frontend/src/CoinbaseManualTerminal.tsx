@@ -39,6 +39,7 @@ import {tradeAdvice} from './coinbase-advice'
 import {autoFix} from './coinbase-autofix'
 import {recommendSizes, type SizeOption} from './coinbase-autosize'
 import CoinbaseSmartSetup from './CoinbaseSmartSetup'
+import {makeRepeat, parseRepeat, repeatLevels, type RepeatRecord} from './coinbase-repeat'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
@@ -97,6 +98,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState(0)
   const [ticket, setTicket] = useState<Ticket>(emptyTicket())
+  const [lastTrade, setLastTrade] = useState<RepeatRecord | null>(() => { try { return parseRepeat(JSON.parse(window.localStorage.getItem('kt-cb-last') || 'null')) } catch { return null } })
+  const [repeating, setRepeating] = useState<RepeatRecord | null>(null)
   const [check, setCheck] = useState<Preflight | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -207,6 +210,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         product: String(plan.product_id), side: String(plan.side), contracts: String(plan.contracts), leverage: String(plan.leverage),
         margin: String(plan.margin_usd), entry: String(plan.entry_reference), stop: String(plan.stop_price),
       })
+      const record = makeRepeat(plan)
+      if (record) { setLastTrade(record); try { window.localStorage.setItem('kt-cb-last', JSON.stringify(record)) } catch { /* depolama kapalı */ } }
       setTicket(emptyTicket()); setCheck(null); setStep(0); setWizNotice({kind: 'info', text: ''}); setLevelPick(null); setActivityKey(key => key + 1)
     } catch (error) {
       setCheck(null)
@@ -388,6 +393,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const contractSize = Number(products?.find(item => item.product_id === selectedId)?.contract_size)
   const limitNum = isPositiveDecimal(ticket.limitPrice) ? Number(ticket.limitPrice) : NaN
   const entryRef = Number.isFinite(limitNum) ? limitNum : shownPrice
+  // "Son işlemi tekrarla": coin seçilir, güncel fiyat gelince stop/hedef yüzdeden hesaplanır ve kontrol adımına geçilir (yine onay ister).
+  useEffect(() => {
+    if (!repeating || ticket.productId !== repeating.productId || !(entryRef > 0)) return
+    const levels = repeatLevels(repeating, entryRef)
+    setRepeating(null)
+    if (!levels) return
+    autoCheckRef.current = false; setLevelPick(null); setTpRR(null)
+    patch({side: repeating.side, marginUsd: repeating.marginUsd, contracts: repeating.contracts, leverage: repeating.leverage, stopPrice: levels.stop, takeProfit: levels.takeProfit})
+    goStep(4)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeating, ticket.productId, entryRef])
   const marginNum = Number(ticket.marginUsd)
   const levNum = Number(ticket.leverage)
   const manualContracts = ticket.contracts.trim() !== '' && /^[1-9]\d{0,5}$/.test(ticket.contracts.trim()) ? Number(ticket.contracts.trim()) : null
@@ -956,6 +972,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <div className="mxtCard" key={step}>
         <span className="mxtKicker">Adım {step + 1} / {STEP_NAMES.length}</span>
         {step !== 4 && noticeEl}
+        {step === 0 && lastTrade && <button type="button" className="mxtRepeat" disabled={!!repeating} onClick={() => { setRepeating(lastTrade); setTicket(current => ({...current, productId: lastTrade.productId})); setCheck(null) }}>
+          <span>↻ Son işlemi tekrarla</span><small>{lastTrade.productId.split('-')[0]} {lastTrade.side === 'BUY' ? 'LONG' : 'SHORT'} · {lastTrade.marginUsd} USD · {lastTrade.leverage}x · stop %{lastTrade.stopPct}{lastTrade.tpPct !== null ? ` · hedef %${lastTrade.tpPct}` : ''}</small></button>}
         {step === 0 && <><h4>Hangi coin?</h4><p className="mxtLead">Listeden seç ya da ürün kodunu yaz.</p>{coinMobile}<div className="mxtDesk">{picksBlock}</div>{coinBlock}</>}
         {step === 1 && <><h4>Hangi yön?</h4><p className="mxtLead">LONG: fiyat yükselirse kazanırsın. SHORT: fiyat düşerse kazanırsın.</p>
           <DirectionCards value={dir} onChange={side => { const next = side === 'LONG' ? 'BUY' : 'SELL'; if (next !== ticket.side) { setTpRR(null); patch({side: next, stopPrice: '', takeProfit: ''}) } }}/>

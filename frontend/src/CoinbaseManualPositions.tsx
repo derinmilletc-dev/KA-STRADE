@@ -149,7 +149,7 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
           <div className="cbGoalChips">{TARGET_CHIPS.map(v => <button type="button" key={v} disabled={busy} onClick={() => void saveGoal(v)}>+{v}</button>)}</div>
           <div className="cbGoalCustom"><input value={goalText} onChange={e => setGoalText(e.target.value)} inputMode="decimal" autoComplete="off" placeholder="Başka tutar (USD)"/>
             <button type="button" disabled={busy || parseTarget(goalText) === null} onClick={() => void saveGoal(parseTarget(goalText))}>Kur</button></div>
-          <small>Komisyon dahil net kâra bakılır. Hedefe gelince pozisyon kapanır ve bildirim gelir (~45 sn içinde).</small></>}
+          <small>Komisyon dahil net kâra bakılır. Hedef borsaya emir olarak konur (anında kapanır); konamazsa sunucu ~45 sn içinde kapatır. Bildirim gelir.</small></>}
     </div>}
     {ordersEnabled && !view.canBreakeven && item?.state !== 'UNPROTECTED' && !act && <p className="cbPos2Why">{view.breakevenWhy}</p>}
     {ordersEnabled && more && <div className="cbPos2More">

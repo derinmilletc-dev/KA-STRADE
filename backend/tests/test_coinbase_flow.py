@@ -418,6 +418,35 @@ class TakeProfitTests(FlowBase):
         self.assertEqual(len(active), 1)
         self.assertEqual((active[0]["order_type"], active[0]["tp"], active[0]["stop_price"]), ("BRACKET", "3100", "2950"))
 
+    def test_target_price_math(self):
+        d = Decimal
+        self.assertEqual(flow.target_price("BUY", d("100"), 10, d("1"), d("10"), d("1"), d("0.1")), d("101.2"))
+        self.assertEqual(flow.target_price("SELL", d("100"), 10, d("1"), d("10"), d("1"), d("0.1")), d("98.8"))
+        self.assertEqual(flow.target_price("BUY", d("100"), 10, d("1"), d("10"), d("1"), d("0.5")), d("101.5"))   # artış yönünde yuvarla
+
+    def test_set_target_puts_tp_on_exchange_and_keeps_stop(self):
+        self.open()
+        before = self.ex.active_stops()[0]["stop_price"]
+        result = run(flow.set_target(self.client, self.pool, "u1", self.limits, PRODUCT, Decimal("5"), Decimal("0.1"), sleep=nosleep))
+        self.assertTrue(result["exchange"])
+        active = [o for o in self.ex.orders.values() if o["status"] == "OPEN"]
+        self.assertEqual(len(active), 1)
+        self.assertEqual((active[0]["order_type"], active[0]["stop_price"]), ("BRACKET", before))
+        self.assertGreater(Decimal(active[0]["tp"]), Decimal("3000.5"))
+
+    def test_set_target_falls_back_to_stop_only(self):
+        self.open()
+        self.ex.bracket_mode = "wrong_size"
+        result = run(flow.set_target(self.client, self.pool, "u1", self.limits, PRODUCT, Decimal("5"), None, sleep=nosleep))
+        self.assertFalse(result["exchange"])
+        self.assertEqual(len(self.ex.active_stops()), 1)       # pozisyon korumasız kalmadı
+
+    def test_drop_tp_removes_target_keeps_stop(self):
+        self.open(take_profit_price="3100")
+        run(flow.set_stop(self.client, self.pool, "u1", self.limits, PRODUCT, "2940", sleep=nosleep, drop_tp=True))
+        active = [o for o in self.ex.orders.values() if o["status"] == "OPEN"]
+        self.assertEqual([o["order_type"] for o in active], ["STOP_LIMIT"])
+
 
 class RestingTests(FlowBase):
     def setUp(self):

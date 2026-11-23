@@ -76,5 +76,17 @@ class SendOnceTests(unittest.TestCase):
         self.assertTrue(flow.daily_loss_from_account(account) == Decimal(45))
 
 
+class CombineTests(unittest.TestCase):
+    def test_single_passes_through_and_many_merge(self):
+        one = ("close", "A", "x")
+        self.assertEqual(watcher.combine([one]), one)
+        self.assertIsNone(watcher.combine([]))
+        cat, title, body = watcher.combine([("info", "A", "a"), ("close", "B", "b"), ("info", "C", "")])
+        self.assertEqual((cat, title), ("close", "Coinbase: 3 yeni gelişme"))
+        self.assertIn("A: a", body); self.assertIn("\nC", body)
+        _, _, long_body = watcher.combine([("info", f"T{i}", "") for i in range(8)])
+        self.assertIn("3 bildirim daha", long_body)
+
+
 if __name__ == "__main__":
     unittest.main()

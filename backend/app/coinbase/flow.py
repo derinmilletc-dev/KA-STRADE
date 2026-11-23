@@ -611,7 +611,7 @@ async def close_flow(
 # ---------------------------------------------------------------- stop koy / taşı
 
 async def set_stop(
-    client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, product_id: str, new_stop_price: Any, *, sleep: Sleep = asyncio.sleep,
+    client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, product_id: str, new_stop_price: Any, *, sleep: Sleep = asyncio.sleep, drop_tp: bool = False,
 ) -> dict[str, Any]:
     """Stop'u yeni fiyata koy/taşı. Sadece SIKILAŞTIRILIR (kayıp artmaz). Korumasız pozisyona ilk stop'u da koyar."""
     state = await gather_state(client, product_id)
@@ -650,13 +650,68 @@ async def set_stop(
         stuck = await _cancel_verified(client, [o["order_id"] for o in old])
         if stuck:
             raise _critical("STOP_CANCEL_FAILED", "Eski stop iptal edilemedi; stop taşınmadı. Mevcut durumu Coinbase'de kontrol et.", product_id=product_id)
-    keep_tp = next((o["take_profit_price"] for o in old if o.get("take_profit_price") is not None), None)
+    keep_tp = None if drop_tp else next((o["take_profit_price"] for o in old if o.get("take_profit_price") is not None), None)
     stop_id, tp_note = await _protect_with_tp(
         client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit,
         take_profit=keep_tp, sleep=sleep, action="stop_move",
     )
     return {"status": "stop_set", "product_id": product_id, "stop_order_id": stop_id, "stop_price": fmt(stop), "tp_note": tp_note,
             "message": "Stop yerleştirildi ve doğrulandı." + (f" {tp_note}" if tp_note else "")}
+
+
+# ---------------------------------------------------------------- USD kâr hedefi -> borsa tarafı TP
+
+EXIT_FEE_FALLBACK = Decimal("0.0006")   # komisyon bilinmiyorsa kapanış komisyonu tahmini (notional oranı)
+
+
+def target_price(side: str, entry: Decimal, contracts: int, size: Decimal, usd: Decimal, fee_paid: Decimal | None, increment: Decimal) -> Decimal:
+    """Net `usd` kârı (ödenen + tahmini kapanış komisyonu dahil) veren TP fiyatı. Long yukarı, short aşağı; kâr garantisi için
+    fiyat artış yönünde yuvarlanır. Kapanış komisyonu ≈ açılış komisyonu varsayılır."""
+    qty = Decimal(contracts) * size
+    exit_fee = fee_paid if fee_paid is not None else entry * qty * EXIT_FEE_FALLBACK
+    move = (usd + (fee_paid or Decimal(0)) + exit_fee) / qty
+    if side == "BUY":
+        return round_to_increment(entry + move, increment, ROUND_UP)
+    return round_to_increment(entry - move, increment, ROUND_DOWN)
+
+
+async def set_target(
+    client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, product_id: str, usd: Decimal, fee_paid: Decimal | None,
+    *, sleep: Sleep = asyncio.sleep,
+) -> dict[str, Any]:
+    """USD hedefini fiyata çevirip mevcut stop'a TP ekler (bracket). Stop AYNI kalır; bracket kurulamazsa yalnız stop kalır
+    (pozisyon korumasız kalmaz) ve sonuç `exchange=False` döner; çağıran izleyici yedeğini zaten kaydetmiştir."""
+    state = await gather_state(client, product_id)
+    position = _find_position(state["positions"], product_id)
+    if position is None:
+        raise CoinbaseError("NO_POSITION", "Bu üründe açık pozisyon yok.", http_status=409)
+    side, contracts = position_side(position), position_contracts(position)
+    product = state["product"]
+    entry = to_decimal(position.get("avg_entry_price"), "giriş fiyatı")
+    tp = target_price(side, entry, contracts, product["contract_size"], usd, fee_paid, product["price_increment"])
+    if (side == "BUY" and tp <= state["ask"]) or (side == "SELL" and tp >= state["bid"]):
+        return {"status": "already_reached", "exchange": False, "message": "Fiyat hedefi zaten geçti; sunucu birazdan kapatır."}
+    old = await our_stops(client, product_id)
+    if len(old) != 1 or old[0].get("stop_price") is None:
+        return {"status": "no_single_stop", "exchange": False, "message": "Tek bir stop bulunamadı; hedef sunucu takibiyle çalışır."}
+    stop = old[0]["stop_price"]
+    if old[0].get("take_profit_price") == tp:
+        return {"status": "target_set", "exchange": True, "take_profit_price": fmt(tp), "message": "Hedef zaten borsada."}
+    if side == "BUY":
+        limit = round_to_increment(stop * (1 - limits.stop_limit_gap_pct), product["price_increment"], ROUND_DOWN)
+    else:
+        limit = round_to_increment(stop * (1 + limits.stop_limit_gap_pct), product["price_increment"], ROUND_UP)
+    await journal.record(pool, user_id, "target_set", "moving", product_id=product_id, detail={"tp": fmt(tp), "usd": fmt(usd)})
+    stuck = await _cancel_verified(client, [old[0]["order_id"]])
+    if stuck:
+        raise _critical("STOP_CANCEL_FAILED", "Eski stop iptal edilemedi; hedef borsaya konmadı. Mevcut durumu Coinbase'de kontrol et.", product_id=product_id)
+    _, tp_note = await _protect_with_tp(
+        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit,
+        take_profit=tp, sleep=sleep, action="target_set",
+    )
+    if tp_note:
+        return {"status": "stop_only", "exchange": False, "message": f"Hedef borsaya konamadı, sunucu takip edecek. {tp_note}"}
+    return {"status": "target_set", "exchange": True, "take_profit_price": fmt(tp), "message": f"Hedef borsaya kondu ({fmt(tp)}); anında kapanır."}
 
 
 # ---------------------------------------------------------------- azalt
