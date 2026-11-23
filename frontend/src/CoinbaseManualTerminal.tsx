@@ -37,6 +37,8 @@ import {SuggestionButtons, SuggestionNote, useCoinbaseSuggestions} from './Coinb
 import {itemSelected, type LimitsView, type SuggestItem} from './coinbase-suggest'
 import {tradeAdvice} from './coinbase-advice'
 import {autoFix} from './coinbase-autofix'
+import {recommendSizes, type SizeOption} from './coinbase-autosize'
+import CoinbaseSmartSetup from './CoinbaseSmartSetup'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
@@ -106,6 +108,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [volBusy, setVolBusy] = useState(false)
   const [activityKey, setActivityKey] = useState(0)
   const autoCheckRef = useRef(false)
+  const autoFixRounds = useRef(0)
+  const [autoNote, setAutoNote] = useState('')
   const [done, setDone] = useState<DoneInfo | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [lastCheck, setLastCheck] = useState<number | null>(null)
@@ -491,6 +495,26 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const anaData = anaKey ? kaisAna[anaKey] : undefined
   const kaisSuggest = anaData && typeof anaData === 'object' ? levelsFromAnalysis(anaData, entryRef, levNum) : null
   const kaisSub = anaData === undefined ? 'Yükleniyor…' : !kaisSuggest ? 'Şu an net yön yok' : `${kaisSuggest.direction} · stop %${kaisSuggest.stopPct.toFixed(1)}`
+  // Akıllı kurulum: stop/hedef (seçtiğin ya da Kais analizi, yoksa %3 + 2R) ve buna göre geçerli hazır boyutlar.
+  const smartLevels = (() => {
+    if (!(entryRef > 0)) return null
+    if (Number.isFinite(stopNum) && stopNum > 0 && stopSideOk) return {stop: stopNum, target: tpNum, note: 'Seçtiğin stop ile'}
+    if (kaisSuggest && kaisSuggest.direction === dir) return {stop: kaisSuggest.stop, target: kaisSuggest.target, note: `Kais analizi · stop %${kaisSuggest.stopPct.toFixed(1)} ile`}
+    const fallback = stopFromPct(ticket.side, entryRef, 3)
+    return fallback !== null ? {stop: fallback, target: targetFromRR(ticket.side, entryRef, fallback, 2), note: 'Varsayılan stop %3, hedef 2R ile'} : null
+  })()
+  const dailyCap = limitNumber(limitView?.effective.daily_loss_limit_usd)
+  const dailyLeft = dailyCap !== null && dailyCap > 0 && dailyCap < 1_000_000 ? Math.max(0, dailyCap - (Number.isFinite(dailyPnlNum) ? Math.max(0, -dailyPnlNum) : 0)) : null
+  const smart = ordersOn && smartLevels && Number.isFinite(contractSize) && Number.isFinite(marginAvail)
+    ? recommendSizes({side: ticket.side, entry: entryRef, stop: smartLevels.stop, target: smartLevels.target, contractSize, minMargin: selectedRow?.minMargin ?? null, spendable: marginAvail,
+      maxLossUsd: limitNumber(limitView?.effective.max_loss_usd), dailyLeftUsd: dailyLeft, leverageMax: limitNumber(limitView?.effective.leverage_max), feeRate: FEE_RATE}) : null
+  const applySmart = (option: SizeOption) => {
+    if (!smartLevels) return
+    autoCheckRef.current = false; setLevelPick(null); setTpRR(null)
+    patch({marginUsd: String(option.marginUsd), contracts: String(option.contracts), leverage: String(Math.max(1, Math.floor(option.leverage))),
+      stopPrice: priceString(smartLevels.stop), takeProfit: smartLevels.target !== null ? priceString(smartLevels.target) : ''})
+    goStep(4)
+  }
   const applyLevels = (kind: 'kais' | 'vol', suggestion: NonNullable<ReturnType<typeof levelsFromVolatility>>, note: string) => {
     const stop = priceString(suggestion.stop)
     const nextSide = suggestion.direction === 'LONG' ? 'BUY' : 'SELL'
@@ -667,6 +691,16 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   // Ön kontrol reddederse nedene göre tek dokunuşla uygun teminat/sözleşme bulunur ve ön kontrol yenilenir (stop, hedef, yön değişmez).
   const fix = check?.ok === false ? autoFix({reasons: check.reasons, marginUsd: Number.isFinite(marginNum) ? marginNum : 0, contracts: contractsNow, spendable: Number.isFinite(marginAvail) ? marginAvail : null, notional: notionalNow, exchangeMargin: contractsNow !== null && selectedRow?.minMargin ? contractsNow * selectedRow.minMargin : null}) : null
   const applyFix = () => { if (!fix || fix.label === null) return; autoCheckRef.current = false; patch(fix.patch) }
+  // Düzeltilebilir bir red gelirse kendiliğinden uygula (en çok 2 tur) ve ön kontrolü yenile; ne yapıldığı ekranda yazar.
+  useEffect(() => {
+    if (step !== 4) { autoFixRounds.current = 0; setAutoNote(''); return }
+    if (check?.ok === false && fix && fix.label !== null && busy === '' && autoFixRounds.current < 2) {
+      autoFixRounds.current += 1
+      setAutoNote(fix.label.replace('Otomatik düzelt:', 'Otomatik ayarlandı:'))
+      applyFix()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check, step, busy])
   const sendBlock = futuresMissing ? 'Vadeli cüzdanında bakiye yok. Coinbase\'de vadeli cüzdana USD ekle, sonra tekrar dene.' : !ordersOn ? 'Emir gönderme sunucuda kapalı (COINBASE_ORDERS_ENABLED).' : !reviewed ? 'Önce "Ön kontrol yap" ile sına; geçerse gönderebilirsin.' : ''
 
   const noticeEl = wizNotice.kind !== 'info' && wizNotice.text
@@ -692,6 +726,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     <p className="mxtLead">Önce ön kontrolle sına (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
     {futuresMissing && <div className="mxtLockCard" role="alert"><span><b>Bakiye ekle</b><small>Vadeli cüzdanında bakiye yok. Coinbase'de vadeli cüzdana USD ekle, buradan yenile ve tekrar dene.</small></span></div>}
     {!ordersOn && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock}</small></span></div>}
+    {autoNote && <p className="mxtAutoNote" role="status">⚡ {autoNote}</p>}
+    {advice && contractsNow !== null && <p className="mxtSentence">{(ticket.productId.split('-')[0] || '').toUpperCase()} {dir} · {contractsNow} sözleşme{advice.lossUsd !== null ? <> · stopta <b data-tone="down">−{usd(advice.lossUsd)} USD</b></> : null}{advice.gainUsd !== null ? <> · hedefte <b data-tone="up">+{usd(advice.gainUsd)} USD</b></> : null} <small>(komisyon dahil)</small></p>}
     {advice && <TradeAdviceCard advice={advice} compact/>}
     <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 5)}/><SummaryList rows={summaryRows.slice(5)}/></div>
     <CheckList rows={checkRows}/>
@@ -925,6 +961,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           <DirectionCards value={dir} onChange={side => { const next = side === 'LONG' ? 'BUY' : 'SELL'; if (next !== ticket.side) { setTpRR(null); patch({side: next, stopPrice: '', takeProfit: ''}) } }}/>
           {aiCard}</>}
         {step === 2 && <><h4>Ne kadar ve nasıl girelim?</h4><p className="mxtLead">Teminat, bu işe ayırdığın para. Kaldıraç arttıkça kazanç da zarar da büyür.</p>
+          {smart && smartLevels && <CoinbaseSmartSetup result={smart} source={`${smartLevels.note} · harcanabilir ${usd(marginAvail)} USD`} onPick={applySmart}/>}
           {amountMobile}<div className="mxtDesk">
           <div className="cbAmt">
             <label className="cbAmtMain"><span>Teminat (USD)</span>
