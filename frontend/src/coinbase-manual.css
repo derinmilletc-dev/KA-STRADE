@@ -561,3 +561,35 @@ html body #root .cbTerminal .cbLiveChip[data-live]:not(#a){background:rgba(61,22
 html body #root .cbTerminal .cbLiveChip[data-live] i:not(#a){background:var(--kt-accent,#3de0a0)!important;animation:cbLivePulse 1.6s ease-in-out infinite!important}
 @keyframes cbLivePulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){html body #root .cbTerminal .cbLiveChip[data-live] i:not(#a){animation:none!important}}
+
+/* Akıllı uyarılar: işlem değerlendirmesi, günlük zarar sayacı, kısmi kâr önerisi. Renk kontrastı koyu zeminde okunur tutuldu. */
+html body #root .cbTerminal .cbAdvice:not(#a){display:grid!important;gap:10px!important;margin-top:14px!important;padding:14px 16px!important;border-radius:16px!important;border:1px solid rgba(151,174,181,.22)!important;background:#0a1118!important}
+html body #root .cbTerminal .cbAdvice[data-verdict='block']:not(#a){border-color:rgba(255,107,107,.55)!important;background:rgba(255,107,107,.07)!important}
+html body #root .cbTerminal .cbAdvice[data-verdict='warn']:not(#a){border-color:rgba(232,183,92,.5)!important;background:rgba(232,183,92,.06)!important}
+html body #root .cbTerminal .cbAdvice[data-verdict='ok']:not(#a){border-color:rgba(61,224,160,.4)!important}
+html body #root .cbTerminal .cbAdvice header:not(#a){display:flex!important;flex-wrap:wrap!important;justify-content:space-between!important;gap:4px 12px!important;align-items:baseline!important}
+html body #root .cbTerminal .cbAdvice header b:not(#a){color:#f2f7f4!important;font-size:15px!important}
+html body #root .cbTerminal .cbAdvice header span:not(#a){color:#b9c7c0!important;font-size:12.5px!important}
+html body #root .cbTerminal .cbAdvice ul:not(#a){display:grid!important;gap:8px!important;margin:0!important;padding:0!important;list-style:none!important}
+html body #root .cbTerminal .cbAdvice li:not(#a){display:flex!important;gap:10px!important;align-items:flex-start!important}
+html body #root .cbTerminal .cbAdvice li svg:not(#a){flex:none!important;width:18px!important;height:18px!important;margin-top:1px!important}
+html body #root .cbTerminal .cbAdvice li[data-tone='bad'] svg:not(#a){color:#ff8b8b!important}
+html body #root .cbTerminal .cbAdvice li[data-tone='warn'] svg:not(#a){color:#f0c46a!important}
+html body #root .cbTerminal .cbAdvice li[data-tone='info'] svg:not(#a){color:#9fb0a8!important}
+html body #root .cbTerminal .cbAdvice li[data-tone='good'] svg:not(#a){color:#3de0a0!important}
+html body #root .cbTerminal .cbAdvice li span:not(#a){display:grid!important;gap:2px!important}
+html body #root .cbTerminal .cbAdvice li b:not(#a){color:#f2f7f4!important;font-size:13.5px!important;font-weight:600!important}
+html body #root .cbTerminal .cbAdvice li small:not(#a){color:#b9c7c0!important;font-size:12.5px!important;line-height:1.4!important}
+html body #root .cbTerminal .cbDaily:not(#a){display:grid!important;gap:6px!important;margin:10px 0 0!important;font-size:13px!important;color:#b9c7c0!important}
+html body #root .cbTerminal .cbDailyTrack:not(#a){height:8px!important;border-radius:6px!important;background:rgba(255,255,255,.12)!important;overflow:hidden!important}
+html body #root .cbTerminal .cbDailyTrack i:not(#a){display:block!important;height:100%!important;border-radius:6px!important;background:var(--kt-accent,#3de0a0)!important;transition:width .4s ease!important}
+html body #root .cbTerminal .cbDaily[data-tone='warn'] .cbDailyTrack i:not(#a){background:var(--kt-warn,#e8b75c)!important}
+html body #root .cbTerminal .cbDaily[data-tone='bad'] .cbDailyTrack i:not(#a){background:var(--kt-danger,#ff6b6b)!important}
+html body #root .cbTerminal .cbDaily[data-tone='bad'] span:not(#a){color:#ff9a9a!important}
+html body #root .cbTerminal .cbProfitHint:not(#a){display:flex!important;gap:10px!important;align-items:center!important;margin:10px 0 0!important;padding:11px 12px!important;border-radius:14px!important;border:1px solid rgba(61,224,160,.4)!important;background:rgba(61,224,160,.08)!important}
+html body #root .cbTerminal .cbProfitHint[data-level='strong']:not(#a){border-color:rgba(61,224,160,.7)!important;background:rgba(61,224,160,.14)!important}
+html body #root .cbTerminal .cbProfitHint svg:not(#a){flex:none!important;width:20px!important;height:20px!important;color:#3de0a0!important}
+html body #root .cbTerminal .cbProfitHint span:not(#a){display:grid!important;gap:2px!important;flex:1!important;min-width:0!important}
+html body #root .cbTerminal .cbProfitHint b:not(#a){color:#f2f7f4!important;font-size:14px!important}
+html body #root .cbTerminal .cbProfitHint small:not(#a){color:#c9d6cf!important;font-size:12.5px!important;line-height:1.4!important}
+html body #root .cbTerminal .cbProfitHint button:not(#a){flex:none!important;min-height:40px!important;padding:0 14px!important;border-radius:12px!important;border:0!important;background:#3de0a0!important;color:#04140d!important;font-weight:700!important;font-size:13px!important;cursor:pointer!important}

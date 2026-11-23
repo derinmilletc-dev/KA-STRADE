@@ -2,6 +2,8 @@ import {useEffect, useState} from 'react'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
 import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone} from './coinbase-manual'
 import {closeParts, closePreview, positionView} from './coinbase-position'
+import {profitHint} from './coinbase-advice'
+import {ProfitHintBanner} from './CoinbaseAdvice'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, postJson} from './coinbase-manual-api'
@@ -27,6 +29,9 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
   const [part, setPart] = useState(0)
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
+  // Hedefe yarıdan fazla ilerlediyse kârı korumayı öner (kapatma/taşıma yine ayrı onay ister).
+  const rawHint = profitHint({dir: view.dir, contracts: view.contracts, entry: view.entry, current: view.current, stop: view.stop, target: view.target})
+  const hint = rawHint && (rawHint.action !== 'breakeven' || view.canBreakeven) ? rawHint : null
   const grossPnl = num(position.unrealized_pnl)
   // Coinbase'in "unrealized return"ü gibi: fiyat K/Z'si − ödenen komisyon. Komisyon bilinmiyorsa brüt gösterilir ve yazılır.
   const pnl = grossPnl === null ? null : fee !== null ? Number((grossPnl - fee).toFixed(4)) : grossPnl
@@ -91,6 +96,8 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
         <span data-k="target"><small>Hedef</small><b>{px(view.target)}</b></span>
       </div>
     </div>}
+
+    {ordersEnabled && act === null && hint && <ProfitHintBanner hint={hint} onHalf={() => open('half')} onBreakeven={() => open('breakeven')}/>}
 
     <div className={`cbPos2Guard ${tone}`}>{item ? (item.state === 'protected' ? <>🛡 Korumalı{view.stop !== null && view.entry !== null && view.dir && (view.stop - view.entry) * (view.dir === 'LONG' ? 1 : -1) >= 0 ? ' · stop kârda' : ''}</> : item.message) : ordersEnabled ? 'Koruma durumu okunamadı' : 'Emir gönderme kapalı; koruma bilgisi yok'}
       {view.expiryMs !== null && <span className="cbPos2Exp" data-soon={view.expiryMs < 86_400_000 || undefined}>⏳ {hoursLeft(view.expiryMs)}</span>}</div>
