@@ -264,7 +264,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
         .catch(() => { /* bir sonraki turda yeniden denenir; 15 sn sonuç gelmezse rozet "Bağlanıyor…" olur */ })
     }
     load()
-    const timer = visibleInterval(load, 3000)
+    const timer = visibleInterval(load, 2000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, positionIds])
   // WebSocket (saniyelik) varken onu, yoksa/bayatsa 3 sn'lik sorgulamayı kullan.
@@ -276,6 +276,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     return overlayLive(item, fresh ? {mid: String(tick.price)} : liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
   })
   const liveStamp = Math.max(liveAt ?? 0, ticker.at ?? 0) || null
+  const liveSource: 'ws' | 'poll' | null = ticker.at !== null && Date.now() - ticker.at < 10000 ? 'ws' : liveAt !== null ? 'poll' : null
   // Kais analizi (aynı coinin Binance analizi): stop adımında "Kais analizi" önerisi için. Coin başına bir kez alınır.
   const anaKey = analysisSymbol(selectedRow?.root ?? null)
   useEffect(() => {
@@ -912,7 +913,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
-      <CoinbaseManualPositions positions={livePositions} liveAt={liveStamp} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseManualPositions positions={livePositions} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>
