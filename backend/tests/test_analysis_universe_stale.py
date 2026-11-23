@@ -31,7 +31,7 @@ class StaleUniverseTests(unittest.TestCase):
         return asyncio.run(run())
 
     def test_stale_returns_immediately_and_schedules_refresh(self):
-        result, schedule, compute = self.call(300)
+        result, schedule, compute = self.call(400)
         self.assertTrue(result["stale"]); self.assertEqual(result["results"], [{"symbol": "BTCUSDT"}])
         schedule.assert_called_once_with("15m", 100); compute.assert_not_awaited()
 

@@ -424,7 +424,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Emir sonrası: Binance'ten güncel durum birkaç kez okunur (yalnız okuma), koruma kontrolü buna göre görünür.
   useEffect(() => {
     if (!orderDone || orderDone.type === 'LIMIT') return
-    const timers = [2500, 6000, 12000].map(delay => window.setTimeout(() => { void refresh(true) }, delay))
+    const timers = [700, 2500, 6000, 12000].map(delay => window.setTimeout(() => { void refresh(true, true) }, delay))   // taze okuma: yeni pozisyon ekranda hemen görünsün
     return () => timers.forEach(timer => window.clearTimeout(timer))
   }, [orderDone]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -631,12 +631,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     return payload as T
   }
 
-  const refresh = async (quiet = true) => {
+  const refresh = async (quiet = true, fresh = false) => {
     if (!onRefreshStatus && (refreshInFlight.current || confirmationOpen.current)) return
     setRefreshPending(true)
     if (onRefreshStatus) {
       try {
-        await onRefreshStatus(!quiet)
+        await onRefreshStatus(fresh || !quiet)
         return true
       } catch (error) {
         if (!quiet) setNotice({kind: 'error', text: error instanceof Error ? error.message : 'LIVE durumu okunamadı.'})
