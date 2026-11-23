@@ -61,6 +61,14 @@ def normalize_products(payload: dict[str, Any]) -> list[dict[str, Any]]:
         root = root_raw.upper() if root_raw and _ROOT.match(root_raw.upper()) else None
         status = _text(row.get("status"))
         tradable = row.get("trading_disabled") is not True and (status is None or status.lower() == "online")
+        # Borsanın gün içi ve gece marjin oranları (long/short); en yükseği alınır: ön kontrol de "kötüsüne" göre bakar.
+        rates: list[Decimal] = []
+        for key in ("intraday_margin_rate", "overnight_margin_rate"):
+            block = details.get(key)
+            for side in ("long_margin_rate", "short_margin_rate"):
+                rate = _number(block.get(side)) if isinstance(block, dict) else None
+                if rate is not None and Decimal(rate) > 0:
+                    rates.append(Decimal(rate))
         result.append({
             "product_id": product_id,
             "display": _text(row.get("display_name")) or product_id,
@@ -71,6 +79,7 @@ def normalize_products(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "expiry": _text(details.get("contract_expiry")),
             "contract_size": _number(details.get("contract_size")),
             "price_increment": _number(row.get("price_increment")),
+            "margin_rate": format(max(rates), "f") if rates else None,
             "tradable": tradable,
         })
     result.sort(key=lambda item: Decimal(item["volume_usd"]) if item["volume_usd"] is not None else Decimal(-1), reverse=True)

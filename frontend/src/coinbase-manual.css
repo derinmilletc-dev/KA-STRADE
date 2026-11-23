@@ -641,3 +641,8 @@ html body #root .cbTerminal .cbLimits>header .cbLimMore:not(#a){flex:0 0 auto!im
 html body #root .cbTerminal .cbLimits>header .cbLimMore svg:not(#a){width:18px!important;height:18px!important;transition:transform .2s!important}
 html body #root .cbTerminal .cbLimits[data-open]>header .cbLimMore svg:not(#a){transform:rotate(180deg)!important}
 html body #root .cbTerminal .cbLimits:not(#a){padding:12px 14px!important}
+
+/* Coin listesi: 1 sözleşme için gereken en az teminat; bakiyeye yetmeyen soluk */
+html body #root .cbTerminal .cbMinMargin:not(#a){font-style:normal!important;opacity:.85!important}
+html body #root .cbTerminal .cbMinMargin[data-short]:not(#a){color:#e6a96b!important;opacity:1!important}
+html body #root .cbTerminal .mxtMList li:has(.cbMinMargin[data-short]) .mxtMRowN b:not(#a){opacity:.6!important}

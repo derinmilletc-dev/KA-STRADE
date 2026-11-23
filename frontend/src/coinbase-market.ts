@@ -3,9 +3,9 @@ import type {SignalMap} from './coin-ranking'
 
 export type CbProduct = {
   product_id: string; display: string; root: string | null; price: string | null; change_pct: string | null
-  volume_usd: string | null; expiry: string | null; contract_size: string | null; price_increment?: string | null; tradable: boolean
+  volume_usd: string | null; expiry: string | null; contract_size: string | null; price_increment?: string | null; margin_rate?: string | null; tradable: boolean
 }
-export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null}
+export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null; minMargin?: number | null}
 export type CbQuote = {product_id: string; bid: string | null; ask: string | null; mid: string | null; spread_pct: string | null; source?: 'book' | 'last' | 'none'; reason?: string}
 
 const num = (value: string | null): number => value === null ? NaN : Number(value)
@@ -14,8 +14,21 @@ const num = (value: string | null): number => value === null ? NaN : Number(valu
 export function toRows(products: readonly CbProduct[]): CbRow[] {
   return products.filter(item => item.tradable).map(item => ({
     symbol: item.product_id, display: item.display || item.product_id, price: num(item.price), change: num(item.change_pct),
-    volume: num(item.volume_usd), root: item.root, expiry: item.expiry,
+    volume: num(item.volume_usd), root: item.root, expiry: item.expiry, minMargin: minMarginOf(num(item.price), num(item.contract_size), num(item.margin_rate ?? null)),
   }))
+}
+
+/** 1 sözleşme için borsanın istediği en az teminat (USD): fiyat × sözleşme boyutu × marjin oranı. Oran bilinmiyorsa null (tahmin uydurulmaz). */
+export function minMarginOf(price: number, contractSize: number, rate: number): number | null {
+  const value = price * contractSize * rate
+  return [price, contractSize, rate].every(item => Number.isFinite(item) && item > 0) && Number.isFinite(value) ? Math.round(value * 100) / 100 : null
+}
+
+/** Listede coinin yanında: "en az ~104 USD" ve bakiyeye yetip yetmediği. Bilinmiyorsa null. */
+export function minMarginNote(minMargin: number | null | undefined, spendable: number | null): {text: string; short: boolean} | null {
+  if (minMargin === null || minMargin === undefined || !Number.isFinite(minMargin) || minMargin <= 0) return null
+  const text = `en az ~${minMargin >= 100 ? Math.ceil(minMargin) : minMargin.toFixed(2).replace(/\.?0+$/, '')} USD`
+  return {text, short: spendable !== null && Number.isFinite(spendable) && spendable > 0 && minMargin > spendable}
 }
 
 /** Dayanak varlığın Binance analiz anahtarı (BTC → BTCUSDT). Dayanak bilinmiyorsa null. */

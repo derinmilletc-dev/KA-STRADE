@@ -1,7 +1,7 @@
 // Çalıştırma: node --test frontend/src/coinbase-market.test.mts   (Node 22.18+; ek paket gerekmez)
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct} from './coinbase-market.ts'
+import {minMarginNote, minMarginOf, analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct} from './coinbase-market.ts'
 
 const product = (over: Partial<CbProduct>): CbProduct => ({
   product_id: 'BIP-20DEC30-CDE', display: 'BTC PERP', root: 'BTC', price: '100000', change_pct: '0.5', volume_usd: '90000000',
@@ -70,3 +70,17 @@ test('biçimleyiciler', () => {
   assert.equal(variantLabel(rows[2], Date.parse('2026-11-21T00:00:00Z')), '26 Şub 27')
   console.log('coinbase-market gruplama testleri geçti')
 }
+
+test('en az teminat: fiyat × sözleşme boyutu × oran; oran yoksa null', () => {
+  assert.equal(minMarginOf(30, 10, 0.34), 102)
+  assert.equal(minMarginOf(30, 10, NaN), null)
+  assert.equal(toRows([product({price: '30', contract_size: '10', margin_rate: '0.34'})])[0].minMargin, 102)
+  assert.equal(toRows([product({})])[0].minMargin, null)
+})
+
+test('liste notu bakiyeye yetmeyeni işaretler', () => {
+  assert.deepEqual(minMarginNote(104.23, 98.94), {text: 'en az ~105 USD', short: true})
+  assert.deepEqual(minMarginNote(23.5, 98.94), {text: 'en az ~23.5 USD', short: false})
+  assert.equal(minMarginNote(null, 98.94), null)
+  assert.equal(minMarginNote(50, null)?.short, false)
+})
