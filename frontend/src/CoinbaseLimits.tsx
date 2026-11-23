@@ -17,6 +17,7 @@ const EMPTY = {max_loss_usd: '', daily_loss_limit_usd: '', leverage_max: '', sto
 export default function CoinbaseLimits({openOrders, onChanged}: Props) {
   const [view, setView] = useState<LimitsView | null>(null)
   const [error, setError] = useState('')
+  const [missing, setMissing] = useState(false)
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<Record<LimitField, string>>(EMPTY)
   const [fieldError, setFieldError] = useState<{field: LimitField; message: string} | null>(null)
@@ -28,11 +29,16 @@ export default function CoinbaseLimits({openOrders, onChanged}: Props) {
       const next = await coinbaseCall<LimitsView>('/orders/limits')
       setView(next); setError('')
       setForm(Object.fromEntries((Object.keys(EMPTY) as LimitField[]).map(key => [key, limitFormValue(key, next.custom)])) as Record<LimitField, string>)
-    } catch (caught) { setError(caught instanceof CoinbaseApiError ? caught.failure.message : 'Limitler alınamadı.') }
+    } catch (caught) {
+      // Sunucu henüz güncellenmemişse (rota yok) kartı hiç gösterme; hata gibi görünmesin.
+      if (caught instanceof CoinbaseApiError && (caught.failure.status === 404 || caught.failure.status === 405)) { setMissing(true); return }
+      setError(caught instanceof CoinbaseApiError ? caught.failure.message : 'Limitler alınamadı.')
+    }
   }, [])
   useEffect(() => { void load() }, [load])
   useEffect(() => { if (!saved) return; const timer = window.setTimeout(() => setSaved(false), 2800); return () => window.clearTimeout(timer) }, [saved])
 
+  if (missing) return null
   if (!view) {
     return <section className="cbLimits" aria-label="Risk limitlerim" data-state={error ? 'error' : 'loading'}>
       <header><span className="cbLimIcon"><ShieldCheck aria-hidden="true"/></span><div><b>Risk limitlerim</b><small>{error || 'Yükleniyor…'}</small></div>
