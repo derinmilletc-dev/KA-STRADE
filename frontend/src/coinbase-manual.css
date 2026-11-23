@@ -646,3 +646,6 @@ html body #root .cbTerminal .cbLimits:not(#a){padding:12px 14px!important}
 html body #root .cbTerminal .cbMinMargin:not(#a){font-style:normal!important;opacity:.85!important}
 html body #root .cbTerminal .cbMinMargin[data-short]:not(#a){color:#e6a96b!important;opacity:1!important}
 html body #root .cbTerminal .mxtMList li:has(.cbMinMargin[data-short]) .mxtMRowN b:not(#a){opacity:.6!important}
+
+html body #root .cbTerminal .mxtAfford:not(#a){display:inline-flex!important;width:auto!important;margin:8px 0 4px!important;padding:8px 14px!important;border-radius:999px!important;border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.04)!important;color:inherit!important;font-size:.85rem!important;font-weight:600!important}
+html body #root .cbTerminal .mxtAfford[data-on]:not(#a){border-color:rgba(70,214,160,.6)!important;background:rgba(70,214,160,.14)!important}
