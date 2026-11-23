@@ -108,16 +108,19 @@ export function groupRows(rows: readonly CbRow[]): {rows: CbRow[]; variants: Rec
   return {rows: result, variants}
 }
 
-export type Capacity = {contracts: number; margin: number; notional: number; maxLeverage: number; perContractMargin: number}
+export type Capacity = {contracts: number; margin: number; notional: number; maxLeverage: number; perContractMargin: number; byLoss: boolean}
 
 /** Bakiyenle bu üründe en fazla ne yapılır: sözleşme sayısı, gereken teminat, pozisyon değeri ve borsanın izin verdiği en yüksek kaldıraç (1 ÷ marjin oranı; kendi limitinle sınırlı).
  *  Bilgi eksikse null. contracts 0 ise 1 sözleşme bile yetmiyor (perContractMargin gereken tutardır). */
-export function capacityOf(input: {minMargin: number | null | undefined; marginRate: number | null | undefined; spendable: number | null; leverageLimit?: number | null}): Capacity | null {
+export function capacityOf(input: {minMargin: number | null | undefined; marginRate: number | null | undefined; spendable: number | null; leverageLimit?: number | null; maxByLoss?: number | null}): Capacity | null {
   const {minMargin, marginRate, spendable} = input
   if (!(typeof minMargin === 'number' && minMargin > 0) || !(typeof marginRate === 'number' && marginRate > 0) || spendable === null || !Number.isFinite(spendable) || spendable <= 0) return null
   const perContractNotional = minMargin / marginRate
   const limit = input.leverageLimit != null && Number.isFinite(input.leverageLimit) && input.leverageLimit >= 1 && input.leverageLimit < 1000 ? input.leverageLimit : Infinity
   const maxLeverage = Math.max(1, Math.floor(Math.min(1 / marginRate, limit) * 10) / 10)
-  const contracts = Math.floor(spendable * 0.97 / minMargin + 1e-9)
-  return {contracts, margin: Math.ceil(contracts * minMargin * 100) / 100, notional: contracts * perContractNotional, maxLeverage, perContractMargin: Math.ceil(minMargin * 100) / 100}
+  const byBalance = Math.floor(spendable * 0.97 / minMargin + 1e-9)
+  // Kayıp limitin (bu stopla) izin verdiği sözleşme sayısı varsa o da tavan: aksi halde teminat büyük, pozisyon küçük kalır ve kaldıraç 1x'in altına düşer.
+  const byLoss = input.maxByLoss != null && Number.isFinite(input.maxByLoss) && input.maxByLoss >= 0 ? Math.floor(input.maxByLoss) : Infinity
+  const contracts = Math.min(byBalance, byLoss)
+  return {contracts, margin: Math.ceil(contracts * minMargin * 100) / 100, notional: contracts * perContractNotional, maxLeverage, perContractMargin: Math.ceil(minMargin * 100) / 100, byLoss: byLoss < byBalance}
 }

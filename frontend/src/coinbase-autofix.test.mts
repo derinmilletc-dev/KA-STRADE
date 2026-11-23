@@ -32,3 +32,12 @@ test('gereken teminat bakiyeye sığıyorsa teminat artırılır, sığmıyorsa 
 test('düzeltilemeyen neden (günlük limit) için öneri yok', () => {
   assert.equal(autoFix({...base, reasons: ['Günlük zarar sınırı (50 USD) aşılır: bugün 40 USD zarar var.']}), null)
 })
+
+test('kaldıraç 1x altında: teminat pozisyonun yarısına iner, sözleşme yeniden hesaplanır', () => {
+  const fix = autoFix({marginUsd: 97, contracts: 1, spendable: 98.94, notional: 69.84, reasons: ['Kaldıraç 0.72x; en az 1x olmalı. Teminatı düşür veya miktarı artır (en az 2 sözleşme gerekir).']})
+  assert.deepEqual(fix, {label: 'Otomatik düzelt: teminat 34.92 USD', patch: {marginUsd: '34.92', contracts: ''}})
+})
+test('kaldıraç 1x altında: borsanın istediği teminat yarıdan büyükse ona çıkar', () => {
+  const fix = autoFix({marginUsd: 97, contracts: 1, spendable: 98.94, notional: 70, exchangeMargin: 40, reasons: ['Kaldıraç 0.72x; en az 1x olmalı.']})
+  assert.deepEqual(fix, {label: 'Otomatik düzelt: teminat 40.8 USD', patch: {marginUsd: '40.8', contracts: ''}})
+})
