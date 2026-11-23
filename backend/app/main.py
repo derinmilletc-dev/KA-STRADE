@@ -1319,6 +1319,7 @@ async def lifespan(app: FastAPI):
     from .closed_account_retention import closed_account_retention_loop, retention_enabled
     if retention_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))
+    app.state.runtime_tasks.append(asyncio.create_task(analysis_universe_warm_loop(app)))
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
@@ -4864,8 +4865,60 @@ async def analysis_universe(interval: str = "15m", limit: int = Query(100, ge=1,
     locks = getattr(app.state, "analysis_universe_locks", None)
     if locks is None:
         locks = app.state.analysis_universe_locks = {}
+    ANALYSIS_UNIVERSE_LAST_USED[0] = time.monotonic()
     async with locks.setdefault((interval, limit), asyncio.Lock()):
+        cached = ANALYSIS_UNIVERSE_CACHE.get(interval)
+        age = time.monotonic() - cached[0] if cached else None
+        # Bayat ama çok eski olmayan sonuç ANINDA döner, yenisi arka planda hazırlanır (ilk açılışta 30+ sn beklenmez).
+        if cached and age is not None and ANALYSIS_UNIVERSE_FRESH_SECONDS <= age < ANALYSIS_UNIVERSE_STALE_SECONDS:
+            _schedule_universe_refresh(interval, limit)
+            return {"cached": True, "stale": True, "interval": interval, "results": cached[1][:limit]}
         return await _analysis_universe(interval, limit)
+
+
+ANALYSIS_UNIVERSE_FRESH_SECONDS = 60
+ANALYSIS_UNIVERSE_STALE_SECONDS = 1800   # bundan eski sonuç sunulmaz (yeniden hesaplanır)
+ANALYSIS_UNIVERSE_WARM_WINDOW = 1200      # son kullanımdan bu yana 20 dk boyunca önbellek sıcak tutulur
+ANALYSIS_UNIVERSE_LAST_USED: list[float] = [0.0]
+_UNIVERSE_REFRESHING: set[tuple[str, int]] = set()
+_UNIVERSE_TASKS: set[Any] = set()
+
+
+def _schedule_universe_refresh(interval: str, limit: int) -> None:
+    key = (interval, limit)
+    if key in _UNIVERSE_REFRESHING:
+        return
+    _UNIVERSE_REFRESHING.add(key)
+
+    async def refresh() -> None:
+        try:
+            locks = getattr(app.state, "analysis_universe_locks", None)
+            if locks is None:
+                locks = app.state.analysis_universe_locks = {}
+            async with locks.setdefault(key, asyncio.Lock()):
+                await _analysis_universe(interval, limit, max_age=0)
+        except Exception:  # noqa: BLE001 - arka plan yenilemesi hatası kullanıcıyı etkilemez; eski sonuç süresi dolunca yeniden hesaplanır
+            logging.getLogger(__name__).warning("Analiz evreni arka plan yenilemesi başarısız")
+        finally:
+            _UNIVERSE_REFRESHING.discard(key)
+
+    task = asyncio.create_task(refresh())
+    _UNIVERSE_TASKS.add(task)   # görev referansı tutulur (çöp toplayıcı yarıda kesmesin)
+    task.add_done_callback(_UNIVERSE_TASKS.discard)
+
+
+async def analysis_universe_warm_loop(application: Any) -> None:
+    """Analiz listesi yakın zamanda kullanıldıysa 15 dk'lık evreni sıcak tutar; kimse bakmıyorsa hesaplamaz."""
+    await asyncio.sleep(20)
+    while True:
+        try:
+            if time.monotonic() - ANALYSIS_UNIVERSE_LAST_USED[0] < ANALYSIS_UNIVERSE_WARM_WINDOW and ANALYSIS_UNIVERSE_LAST_USED[0] > 0:
+                _schedule_universe_refresh("15m", 100)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            pass
+        await asyncio.sleep(45)
 
 
 def _analyst_v2_snapshot(candles: list[dict]) -> dict | None:
@@ -4876,7 +4929,7 @@ def _analyst_v2_snapshot(candles: list[dict]) -> dict | None:
         return None
 
 
-async def _analysis_universe(interval: str, limit: int):
+async def _analysis_universe(interval: str, limit: int, max_age: float = ANALYSIS_UNIVERSE_FRESH_SECONDS):
     """Return cached, read-only technical snapshots for eligible USDT pairs."""
     analysis_started = time.monotonic()
     timing = {
@@ -4890,7 +4943,7 @@ async def _analysis_universe(interval: str, limit: int):
     if interval not in ALLOWED_INTERVALS:
         raise HTTPException(400, "Desteklenmeyen zaman dilimi")
     cached = ANALYSIS_UNIVERSE_CACHE.get(interval)
-    if cached and time.monotonic() - cached[0] < 60:
+    if cached and time.monotonic() - cached[0] < max_age:
         return {"cached": True, "interval": interval, "results": cached[1][:limit]}
 
     market_list = await _markets(limit=limit, timing=timing)
