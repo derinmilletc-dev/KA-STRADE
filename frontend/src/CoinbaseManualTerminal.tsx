@@ -25,7 +25,7 @@ import '../../live-cockpit.css'
 import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
-import {analysisSymbol, changeText, expiryText, groupRows, isPerp, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
+import {minMarginNote, analysisSymbol, changeText, expiryText, groupRows, isPerp, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
@@ -860,7 +860,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {productsError && <p className="mxtMEmpty">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
     {products !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede ürün yok.</p>}
     {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${coinQuery}`} role="listbox" aria-label="Ürün listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={isSelectedCoin(row)} data-on={isSelectedCoin(row) || undefined} onClick={() => chooseCoin(isSelectedCoin(row) ? selectedId : row.symbol)}>
-      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.root || row.display}{(grouped.variants[row.root || row.symbol]?.length ?? 0) > 1 ? <em className="cbVadeN"> · {grouped.variants[row.root || row.symbol].length} vade</em> : expiryText(row.expiry) ? ` · ${variantLabel(row)}` : ''}</b><small>{priceText(row.price)}</small></span>
+      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.root || row.display}{(grouped.variants[row.root || row.symbol]?.length ?? 0) > 1 ? <em className="cbVadeN"> · {grouped.variants[row.root || row.symbol].length} vade</em> : expiryText(row.expiry) ? ` · ${variantLabel(row)}` : ''}</b><small>{priceText(row.price)}{(() => { const note = minMarginNote(row.minMargin, Number.isFinite(marginAvail) ? marginAvail : null); return note ? <> · <i data-short={note.short || undefined} className="cbMinMargin">{note.short ? 'bakiyen yetmez · ' : ''}{note.text}</i></> : null })()}</small></span>
       <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
       {isSelectedCoin(row) && <i className="mxtMTick" aria-hidden="true">✓</i>}
     </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}

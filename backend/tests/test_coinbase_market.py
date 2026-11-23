@@ -41,6 +41,17 @@ class MarketTests(unittest.TestCase):
         self.assertEqual((eth["root"], eth["display"], eth["price"], eth["change_pct"], eth["tradable"]), ("ETH", "ETH PERP", "3000.5", "-1.25", True))
         self.assertEqual(eth["contract_size"], "0.01")
 
+    def test_margin_rate_takes_highest_of_intraday_and_overnight(self):
+        payload = {"products": [{"product_id": "AVP-20DEC30-CDE", "price": "7", "status": "online", "volume_24h": "1",
+                                 "approximate_quote_24h_volume": "10", "future_product_details": {
+                                     "contract_size": "10", "contract_root_unit": "AVP",
+                                     "intraday_margin_rate": {"long_margin_rate": "0.20", "short_margin_rate": "0.22"},
+                                     "overnight_margin_rate": {"long_margin_rate": "0.34", "short_margin_rate": "0.30"}}},
+                                {"product_id": "ZZZ-20DEC30-CDE", "price": "7", "status": "online", "future_product_details": {"contract_size": "1"}}]}
+        rows = {row["product_id"]: row for row in market.normalize_products(payload)}
+        self.assertEqual(rows["AVP-20DEC30-CDE"]["margin_rate"], "0.34")
+        self.assertIsNone(rows["ZZZ-20DEC30-CDE"]["margin_rate"])
+
     def test_bad_number_is_none_not_zero_and_disabled_is_not_tradable(self):
         bad = run(market.fetch_products(self.read_client()))[2]
         self.assertIsNone(bad["price"])
