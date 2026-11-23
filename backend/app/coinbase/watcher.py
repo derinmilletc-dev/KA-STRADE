@@ -19,6 +19,8 @@ from typing import Any
 
 from . import activity, journal, market, service, vault
 from .client import CoinbaseClient
+from .config import orders_enabled
+from .trading_client import CoinbaseTradingClient as TradingClient
 from .jwt_auth import load_private_key
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,7 @@ async def ensure_schema(pool: Any) -> None:
         )
         """
     )
+    await pool.execute(f"ALTER TABLE {WATCH_TABLE} ADD COLUMN IF NOT EXISTS alerts JSONB")
     _SCHEMA_DONE.add(id(pool))
 
 
@@ -130,6 +133,70 @@ async def check_user(pool: Any, user_id: str, client: Any, *, send: Any) -> list
 
 
 EXPIRY_WARN_HOURS = 24
+REALERT_MINUTES = 30      # korumasız kalan pozisyon için tekrar hatırlatma aralığı
+CONFIRM_SIGHTINGS = 2     # emir akışı sürerken görülen anlık "stop yok" durumu alarm vermesin: iki tur üst üste görülmeli
+
+
+def plan_protection_alerts(items: list[dict[str, Any]], before: Any, now: datetime) -> tuple[list[tuple[str, str, str]], dict[str, Any]]:
+    """Saf karar: (gönderilecek bildirimler [(kategori, başlık, metin)], yeni alarm durumu).
+
+    - Korumasız/uyumsuz pozisyon iki tur üst üste görülürse bildirim gider; sonra her 30 dk'da bir hatırlatılır.
+    - Korumaya dönen pozisyon için tek seferlik "yeniden korumada" bildirimi gider.
+    """
+    before = before if isinstance(before, dict) else {}
+    notes: list[tuple[str, str, str]] = []
+    state: dict[str, Any] = {}
+    seen_products = set()
+    for item in items:
+        product = str(item.get("product_id") or "")
+        if not product:
+            continue
+        seen_products.add(product)
+        previous = before.get(product) if isinstance(before.get(product), dict) else None
+        if item.get("state") == "protected":
+            if previous and previous.get("notified"):
+                notes.append(("close", f"✅ {product} yeniden korumada", "Stop emri doğrulandı."))
+            continue
+        kind = str(item.get("state"))
+        sightings = (int(previous.get("n", 0)) if previous and previous.get("state") == kind else 0) + 1
+        entry: dict[str, Any] = {"state": kind, "n": sightings, "notified": bool(previous and previous.get("state") == kind and previous.get("notified")),
+                                 "at": previous.get("at") if previous and previous.get("state") == kind else None}
+        last = _parse_time(entry["at"])
+        due = sightings >= CONFIRM_SIGHTINGS and (not entry["notified"] or last is None or now - last >= timedelta(minutes=REALERT_MINUTES))
+        if due:
+            head = "STOP YOK" if kind == "UNPROTECTED" else "STOP UYUŞMUYOR"
+            notes.append(("close", f"🚨 {product} KORUMASIZ · {head}", str(item.get("message") or "Pozisyonun stopunu kontrol et.")))
+            entry["notified"] = True
+            entry["at"] = now.isoformat()
+        state[product] = entry
+    return notes, state
+
+
+async def check_protection(pool: Any, user_id: str, client: Any, *, send: Any, now: datetime | None = None) -> list[str]:
+    """Açık pozisyonların stopu yoksa/uyuşmuyorsa bildirir (SALT OKUNUR; emir göndermez, düzeltmez)."""
+    from . import flow  # tembel: yalnız emir modülü açıkken çağrılır
+
+    await ensure_schema(pool)
+    now = now or datetime.now(timezone.utc)
+    report = await flow.protection_report(client)
+    row = await pool.fetchrow(f"SELECT alerts FROM {WATCH_TABLE} WHERE user_id = $1", user_id)
+    before = row["alerts"] if row else None
+    if isinstance(before, str):
+        try:
+            before = json.loads(before)
+        except ValueError:
+            before = {}
+    notes, state = plan_protection_alerts(report["positions"], before, now)
+    sent: list[str] = []
+    for category, title, body in notes:
+        await journal.record(pool, user_id, "watch", "unprotected" if title.startswith("🚨") else "reprotected", detail={"title": title, "body": body})
+        try:
+            await send(pool, user_id, category, title, body)
+        except Exception as exc:
+            logger.warning("Coinbase koruma bildirimi gönderilemedi (%s)", type(exc).__name__)
+        sent.append(title)
+    await pool.execute(f"UPDATE {WATCH_TABLE} SET alerts = $2::jsonb WHERE user_id = $1", user_id, json.dumps(state))
+    return sent
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -248,6 +315,11 @@ async def run_once(app: Any) -> int:
             client = CoinbaseClient(key_name, load_private_key(pem))
             count += len(await check_user(pool, user_id, client, send=_push))
             await check_expiry(pool, user_id, await service.fetch_positions(client), send=_push)
+            if orders_enabled():
+                try:
+                    await check_protection(pool, user_id, TradingClient(key_name, load_private_key(pem)), send=_push)
+                except Exception as exc:  # koruma kontrolü hatası diğer kontrolleri durdurmaz
+                    logger.warning("Coinbase koruma kontrolü atlandı (%s)", type(exc).__name__)
             await check_weekly(pool, user_id, client, send=_push)
         except Exception as exc:
             logger.warning("Coinbase izleyici bu hesabı atladı (%s)", type(exc).__name__)

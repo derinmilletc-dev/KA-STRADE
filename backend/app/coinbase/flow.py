@@ -105,6 +105,62 @@ async def preflight(client: CoinbaseTradingClient, limits: Limits, request: dict
     return result
 
 
+SUGGEST_STOP_PCTS = (1, 2, 3, 5)
+SUGGEST_REWARD_R = 2
+
+
+async def suggest(client: CoinbaseTradingClient, limits: Limits, request: dict[str, Any]) -> dict[str, Any]:
+    """Hazır stop/hedef önerileri. HER öneri gerçek ön kontrolden (run_preflight) geçirilir: ok=true olan öneri
+    aynı fiyat/teminatla ön kontrolden de geçer; geçmeyenler nedeniyle birlikte döner. Emir göndermez, kilit almaz."""
+    product_id = str(request.get("product_id") or "")
+    side = str(request.get("side") or "").upper()
+    if not product_id or side not in ("BUY", "SELL"):
+        raise CoinbaseError("BAD_REQUEST", "Ürün ve yön gerekli.", http_status=422)
+    state = await gather_state(client, product_id)
+    daily_loss = daily_loss_from_account(state["account"])
+    reference = state["ask"] if side == "BUY" else state["bid"]
+    limit_text = request.get("entry_limit_price")
+    if limit_text not in (None, ""):
+        reference = to_decimal(limit_text, "limit giriş fiyatı")
+        if reference <= 0:
+            raise CoinbaseError("BAD_REQUEST", "Limit giriş fiyatı sıfırdan büyük olmalı.", http_status=422)
+    sign = 1 if side == "BUY" else -1
+    items: list[dict[str, Any]] = []
+    for pct in SUGGEST_STOP_PCTS:
+        distance = Decimal(pct) / 100
+        stop = reference * (1 - sign * distance)
+        target = reference * (1 + sign * distance * SUGGEST_REWARD_R)
+        candidate = {
+            "product_id": product_id, "side": side, "margin_usd": request.get("margin_usd"), "leverage": request.get("leverage"),
+            "contracts": request.get("contracts"), "entry_limit_price": limit_text if limit_text not in (None, "") else None, "stop_price": fmt(stop), "take_profit_price": fmt(target),
+        }
+        result = run_preflight(
+            request=candidate, product=state["product"], bid=state["bid"], ask=state["ask"], account=state["account"],
+            positions=state["positions"], open_orders=state["open_orders"], daily_loss_usd=daily_loss, limits=limits,
+        )
+        plan = result.get("plan") or {}
+        reward = None
+        try:
+            if plan:
+                reward = fmt((Decimal(plan["contracts"]) * Decimal(plan["contract_size"]) * abs(Decimal(plan["take_profit_price"]) - Decimal(plan["entry_reference"]))).quantize(Decimal("0.01")))
+        except Exception:  # noqa: BLE001 - kazanç tahmini yalnız gösterim; hesaplanamazsa boş kalır
+            reward = None
+        items.append({
+            "stop_pct": pct, "reward_r": SUGGEST_REWARD_R, "ok": bool(result["ok"]), "reasons": result["reasons"],
+            "stop_price": plan.get("stop_price") or candidate["stop_price"], "take_profit_price": plan.get("take_profit_price") or candidate["take_profit_price"],
+            "contracts": plan.get("contracts"), "worst_case_loss_usd": plan.get("worst_case_loss_usd"), "leverage": plan.get("leverage"),
+            "notional_usd": plan.get("notional_usd"), "reward_usd": reward,
+        })
+    shared = [reason for reason in (items[0]["reasons"] if items else []) if all(reason in item["reasons"] for item in items)]
+    passing = [item for item in items if item["ok"]]
+    recommended = next((item for item in passing if item["stop_pct"] == 2), passing[0] if passing else None)
+    return {
+        "items": items, "recommended_stop_pct": recommended["stop_pct"] if recommended else None, "shared_reasons": shared,
+        "state": {"bid": fmt(state["bid"]), "ask": fmt(state["ask"]), "open_orders": len(state["open_orders"]), "open_positions": len(state["positions"]),
+                  "max_open_orders": limits.max_open_orders},
+    }
+
+
 # ---------------------------------------------------------------- yardımcılar
 
 async def _wait_order(client: CoinbaseTradingClient, order_id: str, sleep: Sleep, finals: tuple[str, ...] = FILLED_FINAL) -> dict[str, Any]:
