@@ -883,7 +883,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       </details></div>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
-      {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
+      {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>

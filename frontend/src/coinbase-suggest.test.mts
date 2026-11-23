@@ -1,7 +1,7 @@
 // Çalıştırma: node --test frontend/src/coinbase-suggest.test.mts
 import assert from 'node:assert'
 import {test} from 'node:test'
-import {blockedAdvice, itemReward, itemSelected, itemSub, limitFormValue, limitLabel, limitsPayload, orderCapacity, reasonShort, suggestPayload, type SuggestItem, type SuggestResult} from './coinbase-suggest.ts'
+import {blockedAdvice, itemReward, itemSelected, itemSub, limitFormValue, limitProfiles, limitsUnbounded, limitLabel, limitsPayload, orderCapacity, reasonShort, suggestPayload, type SuggestItem, type SuggestResult} from './coinbase-suggest.ts'
 
 const ticket = {productId: 'ETP-20DEC30-CDE', side: 'BUY' as const, stopPrice: '', marginUsd: '60', contracts: '', limitPrice: '', takeProfit: '', rest: false, leverage: '5'}
 const item = (over: Partial<SuggestItem> = {}): SuggestItem => ({stop_pct: 2, reward_r: 2, ok: true, reasons: [], stop_price: '2940', take_profit_price: '3120', contracts: 4, worst_case_loss_usd: '2.35', leverage: '2', notional_usd: '120', reward_usd: '4.8', ...over})
@@ -73,4 +73,24 @@ test('limitFormValue: gap yüzde olarak, boş özel değer boş form', () => {
   assert.strictEqual(limitFormValue('stop_limit_gap_pct', {stop_limit_gap_pct: '0.005'}), '0.5')
   assert.strictEqual(limitFormValue('max_loss_usd', {}), '')
   assert.strictEqual(limitFormValue('max_loss_usd', {max_loss_usd: '25'}), '25')
+})
+
+test('limitProfiles: hesaba göre ölçeklenir, sınırlara kıstırılır, bakiye yoksa null', () => {
+  const bounds = {max_loss_usd: ['0.1', '1000000'], daily_loss_limit_usd: ['1', '1000000'], leverage_max: ['1', '100'], stop_limit_gap_pct: ['0.0005', '0.02']} as any
+  assert.strictEqual(limitProfiles(null, bounds), null)
+  assert.strictEqual(limitProfiles(0, bounds), null)
+  const list = limitProfiles(100, bounds)!
+  assert.deepStrictEqual(list.map(item => item.id), ['careful', 'balanced', 'bold'])
+  assert.deepStrictEqual(list[1].values, {max_loss_usd: '2', daily_loss_limit_usd: '5', leverage_max: '5', stop_limit_gap_pct: '0.3'})
+  for (const item of list) assert.strictEqual(limitsPayload(item.values, {bounds}).ok, true)
+  const tiny = limitProfiles(5, bounds)!
+  assert.strictEqual(limitsPayload(tiny[0].values, {bounds}).ok, true)
+  assert.ok(Number(tiny[0].values.daily_loss_limit_usd) >= Number(tiny[0].values.max_loss_usd))
+})
+
+test('limitsUnbounded: özel limit yok + sınırsız varsayılan', () => {
+  const effective = {max_loss_usd: '1000000'} as any
+  assert.strictEqual(limitsUnbounded({custom: {}, effective}), true)
+  assert.strictEqual(limitsUnbounded({custom: {max_loss_usd: '5'}, effective}), false)
+  assert.strictEqual(limitsUnbounded({custom: {}, effective: {max_loss_usd: '25'} as any}), false)
 })

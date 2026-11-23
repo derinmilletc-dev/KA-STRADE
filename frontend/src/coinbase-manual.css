@@ -511,3 +511,45 @@ html body #root .cbTerminal .cbLimField>small:not(#a){display:block!important;ma
 html body #root .cbTerminal .cbLimErr:not(#a){margin:0!important;padding:9px 12px!important;border-radius:12px!important;font-size:13px!important;background:rgba(255,107,107,.12)!important;color:#ff9c9c!important}
 html body #root .cbTerminal .cbLimActs:not(#a){display:flex!important;flex-wrap:wrap!important;gap:8px!important}
 @media (max-width:420px){html body #root .cbTerminal .cbLimGrid:not(#a){grid-template-columns:1fr 1fr!important}}
+
+/* ===== Okunabilirlik + Risk limitlerim cilası ===== */
+html body #root .cbTerminal .cbHero2 .cbHeroTiles2 dd[data-tone='mute']:not(#a){color:#c3cfc9!important}
+/* "Manuel işlem aç": yazı her iki durumda da okunur (açık yeşil zeminde koyu, koyu zeminde açık) */
+html body #root .cbTerminal .cbOpenManual:not([data-wait]):not(#a){background:linear-gradient(135deg,#34d399,#10b981 60%,#0ea5a4)!important;color:#04140d!important}
+html body #root .cbTerminal .cbOpenManual:not([data-wait]) .cbOpenText b:not(#a){color:#04140d!important}
+html body #root .cbTerminal .cbOpenManual:not([data-wait]) .cbOpenText small:not(#a){color:#073524!important;opacity:1!important;font-weight:600!important}
+html body #root .cbTerminal .cbOpenManual:not([data-wait]) .cbOpenIcon:not(#a){background:rgba(4,20,13,.16)!important;color:#04140d!important}
+html body #root .cbTerminal .cbOpenManual:not([data-wait]) .cbOpenGo:not(#a){color:#04140d!important}
+html body #root .cbTerminal .cbLimits>header small:not(#a){letter-spacing:0!important;text-transform:none!important;font-weight:400!important;color:#b9c7c0!important;opacity:1!important;line-height:1.35!important}
+html body #root .cbTerminal .cbLimits>header b:not(#a){color:#f2f7f4!important;letter-spacing:0!important}
+html body #root .cbTerminal .cbLimCapText small:not(#a){color:#b9c7c0!important;opacity:1!important;letter-spacing:0!important;text-transform:none!important;font-weight:400!important}
+html body #root .cbTerminal .cbLimCapText b:not(#a){color:#f2f7f4!important;letter-spacing:0!important}
+html body #root .cbTerminal .cbLimGrid dt:not(#a){color:#b9c7c0!important;opacity:1!important;font-size:12px!important;letter-spacing:0!important;text-transform:none!important;font-weight:500!important}
+html body #root .cbTerminal .cbLimGrid dd:not(#a){color:#f2f7f4!important}
+html body #root .cbTerminal .cbLimGrid small:not(#a){color:#9fb0a8!important;opacity:1!important;font-size:11.5px!important;letter-spacing:0!important;text-transform:none!important;font-weight:400!important}
+html body #root .cbTerminal .cbLimGrid>div[data-custom] small:not(#a){color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLimField label:not(#a){color:#f2f7f4!important;letter-spacing:0!important;text-transform:none!important}
+html body #root .cbTerminal .cbLimField>small:not(#a){color:#b9c7c0!important;opacity:1!important;letter-spacing:0!important;text-transform:none!important;font-weight:400!important}
+html body #root .cbTerminal .cbLimField[data-bad]>small:not(#a){color:#ffb3b3!important}
+html body #root .cbTerminal .cbLimInput span:not(#a){color:#b9c7c0!important}
+html body #root .cbTerminal .cbLimInput input:not(#a)::placeholder{color:#8a9b93!important;opacity:1!important}
+html body #root .cbTerminal .cbLimChips button:not(#a){color:#e4ede8!important}
+html body #root .cbTerminal .cbLimChips button[data-on]:not(#a){color:#eafff6!important}
+html body #root .cbTerminal .cbLimits button:not(.primary):not(#a){color:#e4ede8!important}
+html body #root .cbTerminal .cbLimits[data-state='loading']:not(#a),html body #root .cbTerminal .cbLimits[data-state='error']:not(#a){padding-bottom:14px!important}
+html body #root .cbTerminal .cbLimSkel:not(#a){display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin-top:12px!important}
+html body #root .cbTerminal .cbLimSkel i:not(#a){display:block!important;height:58px!important;border-radius:12px!important;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04))!important;background-size:200% 100%!important;animation:cbLimShine 1.3s linear infinite!important}
+@keyframes cbLimShine{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){html body #root .cbTerminal .cbLimSkel i:not(#a){animation:none!important}}
+html body #root .cbTerminal .cbLimWarn:not(#a){display:grid!important;gap:6px!important;margin:12px 0 0!important;padding:12px!important;border-radius:14px!important;background:rgba(232,183,92,.1)!important;border:1px solid rgba(232,183,92,.35)!important}
+html body #root .cbTerminal .cbLimWarn b:not(#a){color:#f6d88f!important;font-size:14px!important}
+html body #root .cbTerminal .cbLimWarn span:not(#a){color:#e8ddc3!important;font-size:13px!important;line-height:1.4!important}
+html body #root .cbTerminal .cbLimWarn button:not(#a){justify-self:start!important;background:rgba(232,183,92,.18)!important;border-color:rgba(232,183,92,.5)!important;color:#fbe8b4!important;font-weight:600!important}
+html body #root .cbTerminal .cbLimProfiles:not(#a){display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+html body #root .cbTerminal .cbLimProfiles>span:not(#a){grid-column:1/-1!important;font-size:13px!important;font-weight:600!important;color:#f2f7f4!important}
+html body #root .cbTerminal .cbLimProfiles>span small:not(#a){font-weight:400!important;color:#b9c7c0!important}
+html body #root .cbTerminal .cbLimProfiles button:not(#a){display:grid!important;gap:3px!important;align-content:start!important;text-align:left!important;padding:10px!important;min-height:76px!important;border-radius:14px!important}
+html body #root .cbTerminal .cbLimProfiles button b:not(#a){font-size:14px!important;color:#f2f7f4!important}
+html body #root .cbTerminal .cbLimProfiles button small:not(#a){font-size:11px!important;line-height:1.3!important;color:#b9c7c0!important}
+html body #root .cbTerminal .cbLimProfiles button[data-on]:not(#a){background:rgba(61,224,160,.16)!important;border-color:var(--kt-accent,#3de0a0)!important}
+@media (max-width:380px){html body #root .cbTerminal .cbLimProfiles:not(#a){grid-template-columns:1fr!important}}
