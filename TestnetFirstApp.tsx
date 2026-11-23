@@ -6,6 +6,7 @@ import { API_BASE, buildDemoSavePayload, userSessionToken } from './api'
 import {loadWorkspaceWithDeadline, withRequestDeadline} from './browser-request'
 import {applyPageMetadataForPath} from './public-page-metadata'
 import BackButton from './BackButton'
+import {spotStream, type StreamStatus} from './market-stream'
 import CoinAnalysisCenter from './CoinAnalysisCenter'
 import MobileHome from './MobileHome'
 import ScannerCenter from './ScannerCenter'
@@ -158,7 +159,6 @@ const MOBILE_PULSE_COINS:PulseCoin[] = [
 const TABLET_PULSE_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT']
 const QUIET_PULSE_SYMBOLS = ['TONUSDT','MATICUSDT']
 const PULSE_REST_RETRY_DELAYS_MS = [1000,2000,4000,8000]
-const PULSE_STREAM_URL = `wss://stream.binance.com:9443/stream?streams=${MOBILE_PULSE_COINS.map(coin => `${coin.stream}@ticker`).join('/')}`
 
 const paintPulseQuote = (node:PulseQuoteNode,quote:PulseQuote,flashDirection?:'up'|'down') => {
   node.price.textContent = format(quote.price)
@@ -278,15 +278,12 @@ const MobileMarketPulse = memo(function MobileMarketPulse({markets,onSelect}:{ma
 
   useEffect(() => {
     let active = true
-    let reconnectTimer = 0
     let snapshotTimer = 0
     let fallbackRetryTimer = 0
     let fallbackRetryAttempts = 0
     let fallbackSequence = 0
     let fallbackSequenceStarted = false
     let snapshotInFlight = false
-    let socket:WebSocket|null = null
-
     const updateQuote = (symbol:string,price:number,change:number) => {
       if (!active || !Number.isFinite(price) || !Number.isFinite(change)) return
       const pending = pendingQuotesRef.current[symbol]
@@ -345,50 +342,32 @@ const MobileMarketPulse = memo(function MobileMarketPulse({markets,onSelect}:{ma
       void attemptPulseFallback(++fallbackSequence)
     }
 
-    const connect = () => {
-      if (!active) return
-      try {
-        socket = new WebSocket(PULSE_STREAM_URL)
-      } catch {
-        void refreshPulseFallback()
-        reconnectTimer = window.setTimeout(connect,3000)
-        return
-      }
-      socket.onopen = () => {
+    // Ortak Spot soketi (market-stream.ts): kopma/yeniden bağlanma orada; burada yalnız veri ve REST yedeği.
+    let streamStatus:StreamStatus|null = null
+    const unsubscribePulse = spotStream.subscribe(MOBILE_PULSE_COINS.map(coin => `${coin.stream}@ticker`),(_name,payload) => {
+      const ticker = payload as TickerMessage['data'] | undefined
+      if (ticker?.s && ticker.c && ticker.P) updateQuote(ticker.s,Number(ticker.c),Number(ticker.P))
+    },next => {
+      if (!active || next === streamStatus) return
+      streamStatus = next
+      if (next === 'live') {
         fallbackSequence += 1
         fallbackSequenceStarted = false
         window.clearTimeout(fallbackRetryTimer)
         fallbackRetryTimer = 0
         fallbackRetryAttempts = 0
-      }
-      socket.onmessage = event => {
-        try {
-          const ticker = (JSON.parse(event.data) as TickerMessage).data
-          if (ticker?.s && ticker.c && ticker.P) updateQuote(ticker.s,Number(ticker.c),Number(ticker.P))
-        } catch {
-          // Ignore malformed stream messages and keep the current ticker state.
-        }
-      }
-      socket.onerror = () => socket?.close()
-      socket.onclose = () => {
-        if (!active) return
-        void refreshPulseFallback()
-        reconnectTimer = window.setTimeout(connect,3000)
-      }
-    }
-
-    connect()
+      } else if (next === 'offline') void refreshPulseFallback()
+    })
     void refreshQuietSymbols()
     snapshotTimer = window.setInterval(() => void refreshQuietSymbols(),30000)
     return () => {
       active = false
-      window.clearTimeout(reconnectTimer)
       window.clearTimeout(fallbackRetryTimer)
       window.clearInterval(snapshotTimer)
       if (quoteFlushTimerRef.current !== undefined) window.clearTimeout(quoteFlushTimerRef.current)
       quoteFlushTimerRef.current = undefined
       pendingQuotesRef.current = {}
-      socket?.close()
+      unsubscribePulse()
     }
   },[])
 
