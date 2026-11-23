@@ -94,7 +94,11 @@ export function overlayLive<T extends PositionLike>(position: T, quote: LiveQuot
   const entry = pos(position.avg_entry_price)
   const contracts = Math.floor(Number(position.number_of_contracts) || 0)
   if (sign !== 0 && entry !== null && contracts >= 1 && contractSize !== null && contractSize > 0) {
-    next.unrealized_pnl = String(Number(((mid - entry) * contracts * contractSize * sign).toFixed(4)))
+    // Coinbase'in kendi K/Z'si (işaret fiyatı, komisyon dahil) çıpa olur; canlı fark üstüne eklenir. Böylece borsadaki rakamla aynı başlar, saniyelik oynar.
+    const basePnl = Number(position.unrealized_pnl), baseMark = pos(position.current_price)
+    const anchored = position.unrealized_pnl !== null && position.unrealized_pnl !== '' && Number.isFinite(basePnl) && baseMark !== null
+    const value = anchored ? basePnl + (mid - baseMark) * contracts * contractSize * sign : (mid - entry) * contracts * contractSize * sign
+    next.unrealized_pnl = String(Number(value.toFixed(4)))
   }
   return next
 }

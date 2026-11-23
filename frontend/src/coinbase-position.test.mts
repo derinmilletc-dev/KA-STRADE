@@ -79,7 +79,10 @@ assert.deepEqual(closeParts(0), [])
   const base = {side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '3', avg_entry_price: '6.76', current_price: '6.76', unrealized_pnl: '-0.3', product_id: 'AVP'}
   const up = overlayLive(base, {bid: '6.80', ask: '6.82', mid: null}, 10)
   assert.strictEqual(up.current_price, '6.81')
-  assert.strictEqual(up.unrealized_pnl, String(Number(((6.81 - 6.76) * 3 * 10).toFixed(4))))
+  assert.strictEqual(up.unrealized_pnl, String(Number((-0.3 + (6.81 - 6.76) * 3 * 10).toFixed(4))))
+  // Borsa K/Z'si varsa çıpa olur: -2.03 @ 6.69 iken fiyat 6.71 olursa -2.03 + 0.02*30
+  const anchored = overlayLive({...base, current_price: '6.69', unrealized_pnl: '-2.03'}, {mid: '6.71'}, 10)
+  assert.strictEqual(anchored.unrealized_pnl, String(Number((-2.03 + 0.02 * 30).toFixed(4))))
   const short = overlayLive({...base, side: 'FUTURES_POSITION_SIDE_SHORT'}, {mid: '6.70'}, 10)
   assert.ok(Number(short.unrealized_pnl) > 0)
   assert.strictEqual(overlayLive(base, {mid: null, bid: null, ask: null}, 10), base)
