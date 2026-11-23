@@ -148,3 +148,25 @@ async def has_event(pool: Any, user_id: str, outcome: str, *, product_id: str | 
         user_id, outcome, product_id, key, days,
     )
     return row is not None
+
+
+async def entry_plans(pool: Any, user_id: str, days: int = 45) -> list[dict[str, Any]]:
+    """Gönderdiğimiz girişlerin kaydı (zaman, ürün, plan kaynağı: kais/manual/None). Kapanan işlemleri kaynağına bağlamak için."""
+    await ensure_schema(pool)
+    rows = await pool.fetch(
+        f"SELECT ts, product_id, detail FROM {EVENT_TABLE} WHERE user_id = $1 AND outcome IN ('entry_sending', 'rest_sent') "
+        "AND product_id IS NOT NULL AND ts > NOW() - make_interval(days => $2) ORDER BY ts",
+        user_id, days,
+    )
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        detail = row["detail"]
+        if isinstance(detail, str):
+            try:
+                detail = json.loads(detail)
+            except ValueError:
+                detail = {}
+        source = detail.get("plan_source") if isinstance(detail, dict) else None
+        result.append({"time": row["ts"].isoformat() if hasattr(row["ts"], "isoformat") else str(row["ts"]),
+                       "product_id": row["product_id"], "source": source if source in ("kais", "manual") else None})
+    return result

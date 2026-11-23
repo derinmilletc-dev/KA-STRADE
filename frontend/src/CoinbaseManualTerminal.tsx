@@ -13,6 +13,7 @@ import {buildGridAlerts} from './gridAlerts'
 import {expiryInfo, levelsFromAnalysis, levelsFromVolatility, minOrder, type AnalysisLevels} from './coinbase-levels'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
 import CoinbaseActivity from './CoinbaseActivity'
+import CoinbaseStats from './CoinbaseStats'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {askKais} from '../../kais-ask'
 import {fetchWithTimeout} from '../../master-trade-request'
@@ -32,7 +33,7 @@ import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseAccountHero from './CoinbaseAccountHero'
 import CoinbaseLimits from './CoinbaseLimits'
 import {SuggestionButtons, SuggestionNote, useCoinbaseSuggestions} from './CoinbaseSuggestions'
-import type {LimitsView, SuggestItem} from './coinbase-suggest'
+import {itemSelected, type LimitsView, type SuggestItem} from './coinbase-suggest'
 import {tradeAdvice} from './coinbase-advice'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
@@ -191,7 +192,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     setConfirmOpen(false)
     setBusy('send')
     try {
-      await postJson<{message: string}>('/orders/open', {...ticketPayload(ticket), confirm: CONFIRM.open, request_id: newRequestId()})
+      await postJson<{message: string}>('/orders/open', {...ticketPayload(ticket), plan_source: planSource(), confirm: CONFIRM.open, request_id: newRequestId()})
       setDone({
         product: String(plan.product_id), side: String(plan.side), contracts: String(plan.contracts), leverage: String(plan.leverage),
         margin: String(plan.margin_usd), entry: String(plan.entry_reference), stop: String(plan.stop_price),
@@ -208,6 +209,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const suggestions = useCoinbaseSuggestions(ticket, ordersOn && step === 3, limitsRev)
   // Limitler: işlem değerlendirmesi ("bu emir limiti aşar mı") için; 3. adımdan itibaren okunur, okunamazsa değerlendirme limitsiz çalışır.
   const [limitView, setLimitView] = useState<LimitsView | null>(null)
+  // Stop/hedef Kais önerisinden mi geldi? (istatistikte "Kais önerisi mi, elle mi" ayrımı için). Öneriler 3. adımda yüklenir; gönderimde burada hatırlanır.
+  const suggestedItems = useRef<{product: string; items: SuggestItem[]}>({product: '', items: []})
+  useEffect(() => { if (suggestions.result) suggestedItems.current = {product: ticket.productId.trim(), items: suggestions.result.items} }, [suggestions.result, ticket.productId])
+  const planSource = (): 'kais' | 'manual' => suggestedItems.current.product === ticket.productId.trim() && suggestedItems.current.items.some(item => itemSelected(item, ticket)) ? 'kais' : 'manual'
   useEffect(() => {
     if (!ordersOn || step < 3) return
     let alive = true
@@ -972,6 +977,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {ordersOn && <CoinbaseLimits dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null} openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={livePositions} fees={fees} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseStats refreshKey={activityKey}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>

@@ -45,6 +45,7 @@ class PreflightPayload(BaseModel):
     rest: bool = False
     contracts: int | None = Field(default=None, ge=1, le=100000)
     leverage: float | None = Field(default=None, ge=1, le=100)  # yalnız sözleşme sayısı boşken: otomatik miktar bu kaldıraca göre seçilir
+    plan_source: Literal["kais", "manual"] | None = None  # stop/hedef Kais önerisinden mi geldi? Yalnız istatistik için günlüğe yazılır
 
 
 class SuggestPayload(BaseModel):
