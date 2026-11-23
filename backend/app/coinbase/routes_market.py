@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Path, Query, Request
 
-from . import activity, journal, market
+from . import activity, journal, market, service
 from .errors import CoinbaseError
 from .routes import _error, _member, _pool, _stored_client
 
@@ -94,3 +94,16 @@ async def coinbase_activity(request: Request) -> Any:
         roles, alerts = {}, []
     feed = activity.build_feed(activity.group_fills(fills), roles, sizes)[:40]
     return {"items": feed, "alerts": alerts}
+
+
+@router.get("/positions/fees")
+async def coinbase_position_fees(request: Request) -> Any:
+    """Açık pozisyonlar için ödenen komisyon (Coinbase'in "komisyon dahil" getirisiyle aynı K/Z için). Salt okunur."""
+    user = _member(request)
+    try:
+        client = await _reader(request, user)
+        positions = await service.fetch_positions(client)
+        fills = await activity.fetch_fills(client, limit=250) if positions else []
+    except CoinbaseError as exc:
+        return _error(exc)
+    return {"fees": activity.position_fees(fills, positions)}

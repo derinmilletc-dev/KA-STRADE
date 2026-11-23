@@ -155,3 +155,31 @@ def build_feed(orders: list[dict[str, Any]], roles: dict[str, str], sizes: dict[
             state.pop(product, None)
     feed.reverse()
     return feed
+
+
+def position_fees(fills: list[dict[str, Any]], positions: list[dict[str, Any]]) -> dict[str, str | None]:
+    """Açık pozisyon için ŞİMDİYE KADAR ÖDENEN komisyon (Coinbase dolumlarından). En yeni dolumdan geriye yürür,
+    her dolumu geri alır; pozisyon sıfıra inince açılış bulunmuş olur. Yön değiştiren dolumun yalnız açan payı sayılır.
+    Dolum geçmişi yetmezse None (uydurma yok)."""
+    result: dict[str, str | None] = {}
+    for position in positions:
+        product = str(position.get("product_id") or "")
+        side = position_side(position.get("side"))
+        contracts = _dec(position.get("number_of_contracts"))
+        if not product or side is None or contracts is None or contracts <= 0:
+            continue
+        left = contracts if side == "LONG" else -contracts
+        fee: Decimal | None = Decimal(0)
+        rows = sorted((row for row in fills if row["product_id"] == product), key=lambda row: row["time"], reverse=True)
+        for row in rows:
+            signed = row["size"] if row["side"] == "BUY" else -row["size"]
+            after = left - signed
+            if after == 0 or (after > 0) != (left > 0):
+                share = abs(left) / row["size"] if after != 0 else Decimal(1)
+                fee += row["commission"] * share
+                left = Decimal(0)
+                break
+            fee += row["commission"]
+            left = after
+        result[product] = _fmt(fee, 4) if left == 0 else None
+    return result

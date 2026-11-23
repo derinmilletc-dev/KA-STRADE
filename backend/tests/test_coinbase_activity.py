@@ -75,6 +75,21 @@ class ActivityTests(unittest.TestCase):
         journal.reset_schema_cache()
         watcher.reset_schema_cache()
 
+    def test_position_fees_walks_back_to_open(self):
+        P = "AVP-20DEC30-CDE"
+        def f(side, size, fee, t):
+            return {"order_id": t, "product_id": P, "side": side, "price": Decimal("6.76"), "size": Decimal(size),
+                    "commission": Decimal(fee), "time": f"2026-11-23T10:0{t}:00+00:00"}
+        pos = [{"product_id": P, "side": "FUTURES_POSITION_SIDE_LONG", "number_of_contracts": "3"}]
+        # eski kapalı işlem (1-2) + açılış 2+2 (3,4) + 1 kısmi kapanış (5) => 3 long; ücret 3,4,5
+        fills = [f("BUY", 1, "0.9", "1"), f("SELL", 1, "0.9", "2"), f("BUY", 2, "0.35", "3"), f("BUY", 2, "0.35", "4"), f("SELL", 1, "0.18", "5")]
+        self.assertEqual(activity.position_fees(fills, pos), {P: "0.88"})
+        # yön değiştiren dolum: SELL 2 iken 1 short açtı (2 sözleşmelik 0.4 ücretin yarısı)
+        short = [{"product_id": P, "side": "FUTURES_POSITION_SIDE_SHORT", "number_of_contracts": "1"}]
+        self.assertEqual(activity.position_fees([f("BUY", 1, "0.2", "1"), f("SELL", 2, "0.4", "2")], short), {P: "0.2"})
+        # geçmiş yetmiyor: uydurma yok
+        self.assertEqual(activity.position_fees([f("BUY", 1, "0.2", "1")], pos), {P: None})
+
     def test_fills_path_is_read_only_allowlisted(self):
         self.assertTrue(any(p.fullmatch("/api/v3/brokerage/orders/historical/fills") for p in READ_ONLY_PATTERNS))
 

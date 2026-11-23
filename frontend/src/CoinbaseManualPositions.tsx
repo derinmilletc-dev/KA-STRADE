@@ -9,7 +9,7 @@ import {CoinbaseApiError, postJson} from './coinbase-manual-api'
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
 export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null; take_profit_price?: string | null}
 export type CbProtection = {positions: CbProtectionItem[]; orphan_stops: {order_id: string; product_id: string}[]; open_order_count: number; all_protected: boolean; has_problem: boolean}
-type Props = {positions: CbPosition[]; protection: CbProtection | null; ordersEnabled: boolean; liveAt?: number | null; liveSource?: 'exchange' | 'ws' | 'poll' | null; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void}
+type Props = {positions: CbPosition[]; fees?: Record<string, string | null>; protection: CbProtection | null; ordersEnabled: boolean; liveAt?: number | null; liveSource?: 'exchange' | 'ws' | 'poll' | null; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void}
 
 const sideOf = (raw: string | null) => raw?.toUpperCase().endsWith('LONG') ? 'BUY' : raw?.toUpperCase().endsWith('SHORT') ? 'SELL' : raw || '—'
 
@@ -19,7 +19,7 @@ const px = (value: number | null) => value === null ? '—' : value.toLocaleStri
 const plain = (value: number) => String(Number(value.toPrecision(8)))
 const hoursLeft = (ms: number) => ms <= 0 ? 'vadesi doldu' : ms < 86_400_000 ? `${Math.max(1, Math.round(ms / 3_600_000))} saat sonra kapanıyor` : `${Math.floor(ms / 86_400_000)} gün sonra kapanıyor`
 
-function PositionRow({position, item, ordersEnabled, onDone, onError}: {position: CbPosition; item?: CbProtectionItem; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']}) {
+function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError}: {position: CbPosition; item?: CbProtectionItem; fee?: number | null; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']}) {
   const [act, setAct] = useState<Act | null>(null)
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
@@ -27,7 +27,9 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
   const [part, setPart] = useState(0)
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
-  const pnl = num(position.unrealized_pnl)
+  const grossPnl = num(position.unrealized_pnl)
+  // Coinbase'in "unrealized return"ü gibi: fiyat K/Z'si − ödenen komisyon. Komisyon bilinmiyorsa brüt gösterilir ve yazılır.
+  const pnl = grossPnl === null ? null : fee !== null ? Number((grossPnl - fee).toFixed(4)) : grossPnl
   const root = position.product_id.split('-')[0]
   const closing = act === 'close' || act === 'half'
   const fullClose = act === 'close' && part >= view.contracts
@@ -72,7 +74,7 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
       <span className="cbPos2Logo" aria-hidden="true"><CoinIcon symbol={`${root}USDT`} size={36}/></span>
       <span className="cbPos2Name"><b>{root} <em data-dir={view.dir ?? undefined}>{view.dir ?? '—'}</em></b><small>{position.product_id} · {view.contracts} sözleşme</small></span>
       <span className="cbPos2Pnl"><b data-tone={pnl === null || pnl === 0 ? undefined : pnl > 0 ? 'up' : 'down'}>{pnl === null ? '—' : `${pnl > 0 ? '+' : ''}${pnl.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`}</b>
-        <small>{view.movePct === null ? '' : `${view.movePct >= 0 ? '+' : ''}${view.movePct.toFixed(2)}% girişten`}</small></span>
+        <small>{grossPnl === null ? '' : fee !== null ? `komisyon ${fee.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} dahil` : 'komisyon hariç'}{view.movePct === null ? '' : ` · ${view.movePct >= 0 ? '+' : ''}${view.movePct.toFixed(2)}%`}</small></span>
     </div>
 
     {view.bar && <div className="cbPos2Bar" role="img" aria-label={`Stop ${px(view.stop)}, giriş ${px(view.entry)}, güncel ${px(view.current)}, hedef ${px(view.target)}`}>
@@ -108,7 +110,7 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
     </div>}
 
     {act && closing && (() => {
-      const preview = closePreview(view, pnl, part)
+      const preview = closePreview(view, grossPnl, part)
       const parts = closeParts(view.contracts)
       const partial = part < view.contracts
       const money = (value: number | null) => value === null ? '—' : `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`
@@ -135,7 +137,7 @@ function PositionRow({position, item, ordersEnabled, onDone, onError}: {position
   </li>
 }
 
-export default function CoinbaseManualPositions({positions, protection, ordersEnabled, liveAt = null, liveSource = null, onDone, onError}: Props) {
+export default function CoinbaseManualPositions({positions, fees = {}, protection, ordersEnabled, liveAt = null, liveSource = null, onDone, onError}: Props) {
   const [, tick] = useState(0)
   useEffect(() => { if (liveAt === null) return; const timer = window.setInterval(() => tick(value => value + 1), 4000); return () => window.clearInterval(timer) }, [liveAt])
   const liveFresh = liveAt !== null && Date.now() - liveAt < 15000
@@ -161,7 +163,7 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
     {protection && positions.length > 0 && !protection.all_protected && <p className="cbNote warn" role="alert">Korumasız pozisyon var; aşağıdan düzelt.</p>}
     {positions.length === 0 && <p className="cbPosEmpty"><ShieldAlert aria-hidden="true"/><span>Açık pozisyon yok</span><small>Stop zorunlu · en fazla 5 emir</small></p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
-    <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} ordersEnabled={ordersEnabled}
+    <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} fee={num(fees[position.product_id])} ordersEnabled={ordersEnabled}
       item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError}/>)}</ul>
     {orphans.length > 0 && <div className="cbNote warn" role="alert">
       <b>Sahipsiz stop emri var ({orphans.length}).</b> Pozisyon yokken kalan stop, ters yönde pozisyon açabilir.
