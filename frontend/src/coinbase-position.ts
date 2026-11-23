@@ -102,3 +102,21 @@ export function overlayLive<T extends PositionLike>(position: T, quote: LiveQuot
   }
   return next
 }
+
+/** Açık pozisyonların TOPLAM K/Z'si, Coinbase'deki gibi ödenen komisyon dahil. Tüm ekranlar (hesap kartı, pozisyon kartı,
+ *  ana sayfa) bu tek hesabı kullanır; böylece her yerde aynı rakam görünür. Hiç pozisyon/K/Z yoksa null. */
+export function netOpenPnl(positions: ReadonlyArray<{product_id?: unknown; unrealized_pnl?: unknown}> | null | undefined,
+  fees: Record<string, string | null> | null | undefined): {value: number; withFees: boolean} | null {
+  let total = 0, seen = 0, withFees = true
+  for (const row of positions ?? []) {
+    const raw = row?.unrealized_pnl
+    const pnl = Number(raw)
+    if (raw === null || raw === undefined || raw === '' || !Number.isFinite(pnl)) continue
+    const feeRaw = typeof row.product_id === 'string' ? fees?.[row.product_id] : null
+    const fee = Number(feeRaw)
+    if (feeRaw !== null && feeRaw !== undefined && feeRaw !== '' && Number.isFinite(fee)) total += pnl - fee
+    else { total += pnl; withFees = false }
+    seen++
+  }
+  return seen === 0 ? null : {value: Number(total.toFixed(4)), withFees}
+}

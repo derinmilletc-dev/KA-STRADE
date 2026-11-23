@@ -36,7 +36,7 @@ import type {SuggestItem} from './coinbase-suggest'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
-import {overlayLive} from './coinbase-position'
+import {netOpenPnl, overlayLive} from './coinbase-position'
 import {useCoinbaseTicker} from './useCoinbaseTicker'
 import {CheckList, DirectionCards, ElapsedSeconds, SummaryList, type SummaryItem} from './ManualTerminalParts'
 import type {CheckRow} from './manual-order-state'
@@ -629,7 +629,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
 
   // Hesap/bakiye hazır değilse düğme sakin görünür; yine de açılır (inceleme serbest, gönderimde bakiye hatası verir).
   const waitFunds = futuresMissing || (account?.balance != null && !(Number(account.balance.futures_buying_power?.value) > 0))
-  const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} futuresMissing={futuresMissing} ordersOn={ordersOn}
+  const openPnl = netOpenPnl(livePositions, fees)
+  const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} openPnl={openPnl} futuresMissing={futuresMissing} ordersOn={ordersOn}
     clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}
     openSummary={positions.length === 1 ? `${(positions[0].product_id || '').split('-')[0]} · ${String(positions[0].side ?? '').toUpperCase().endsWith('SHORT') ? 'SHORT' : 'LONG'}` : positions.length > 1 ? `${positions.length} açık` : null}
     openOrders={protection?.open_order_count ?? null} lastCheck={lastCheck}/>

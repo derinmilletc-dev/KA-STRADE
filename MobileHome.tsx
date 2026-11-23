@@ -1,10 +1,11 @@
-import { type CSSProperties, useEffect, useMemo, useState } from 'react'
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { BarChart3, ChevronRight, Sparkles, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
 import { accountNetPnl } from './net-pnl'
 import {useCoinbaseVisible} from './frontend/src/useCoinbaseVisible'
+import {netOpenPnl} from './frontend/src/coinbase-position'
 import {readExchange, writeExchange} from './frontend/src/exchange-pref'
 import type {Exchange} from './frontend/src/CoinbaseExchangeSwitch'
 import './mobile-home.css'
@@ -14,7 +15,8 @@ import './mobile-home.css'
 
 type Market = {symbol: string; display: string; price: number; change: number}
 type Target = 'setup' | 'billing' | 'analyst' | 'trading'
-type Account = {wallet_balance?: number | null; unrealized_pnl?: number | null; positions?: unknown[]}
+type Account = {wallet_balance?: number | null; unrealized_pnl?: number | null; positions?: unknown[]; net?: boolean}
+type CbPnlRow = {product_id?: unknown; unrealized_pnl?: unknown}
 type LiveStatus = {connected?: boolean; credentials?: {configured?: boolean}; account?: Account}
 type DemoAccount = Account & {configured?: boolean}
 type Subscription = {status?: string; plan?: string; current_period_end?: string | null; trial_end?: string | null; cancel_at_period_end?: boolean; master_trade_access?: boolean}
@@ -81,6 +83,9 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
   const [tab, setTab] = useState<'live' | 'demo' | null>(null)
   const coinbaseVisible = useCoinbaseVisible()
   const [coinbase, setCoinbase] = useState<Account | null>(null)
+  const cbFees = useRef<Record<string, string | null>>({})
+  const cbOpen = useRef(false)
+  useEffect(() => { cbOpen.current = (coinbase?.positions?.length ?? 0) > 0 }, [coinbase])
   const [exchangePick, setExchangePick] = useState<Exchange | null>(() => readExchange())
   // İlk yanıtlar gelene kadar yanlış durum (ör. bağlı hesap için "Hesabını bağla", premium için "Ücretsiz plan") göstermeyiz.
   const [loaded, setLoaded] = useState({session: false, subscription: false, live: false, demo: false})
@@ -112,15 +117,29 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       const futuresOnly = Number(balance?.cfm_usd_balance?.value)
       const wallet = Number.isFinite(total) && total > 0 ? Math.max(total, Number.isFinite(futuresOnly) ? futuresOnly : 0) : futuresOnly
       const pnl = Number(balance?.unrealized_pnl?.value)
-      setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: Number.isFinite(pnl) ? pnl : null, positions: Array.isArray(positions?.positions) ? positions.positions : []} : null)
+      const rows = Array.isArray(positions?.positions) ? positions.positions as CbPnlRow[] : []
+      // K/Z pozisyon ekranıyla aynı hesap: Coinbase pozisyon K/Z'si − ödenen komisyon (netOpenPnl).
+      const net = netOpenPnl(rows, cbFees.current)
+      setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: net ? net.value : Number.isFinite(pnl) ? pnl : null, positions: rows, net: net?.withFees ?? false} : null)
     })
-    if (coinbaseVisible) coinbaseBalance()
+    const coinbaseFees = () => void getJson<{fees?: Record<string, string | null>}>('/coinbase/positions/fees', controller.signal)
+      .then(value => { if (value?.fees && typeof value.fees === 'object') cbFees.current = value.fees })
+    // Açık pozisyon K/Z'si saniyede bir (pozisyon ekranıyla aynı hız ve aynı kaynak).
+    const coinbasePnl = () => void getJson<{positions?: unknown[]}>('/coinbase/positions', controller.signal).then(value => {
+      if (!Array.isArray(value?.positions)) return
+      const rows = value.positions as CbPnlRow[]
+      const net = netOpenPnl(rows, cbFees.current)
+      setCoinbase(current => current ? {...current, positions: rows, unrealized_pnl: net ? net.value : rows.length === 0 ? 0 : current.unrealized_pnl, net: net?.withFees ?? false} : current)
+    })
+    if (coinbaseVisible) { coinbaseFees(); coinbaseBalance() }
+    const pnlTimer = window.setInterval(() => { if (coinbaseVisible && document.visibilityState === 'visible' && cbOpen.current) coinbasePnl() }, 1000)
+    const feeTimer = window.setInterval(() => { if (coinbaseVisible && cbOpen.current) coinbaseFees() }, 30_000)
     balances(); scan()
     const balanceTimer = window.setInterval(() => { balances(); if (coinbaseVisible) coinbaseBalance() }, 30_000)
     const scanTimer = window.setInterval(scan, 60_000)
     // Yavaş/asılı istekte sayfa sonsuza dek iskelette kalmasın.
     const settleTimer = window.setTimeout(() => setTimedOut(true), 4000)
-    return () => { controller.abort(); window.clearInterval(balanceTimer); window.clearInterval(scanTimer); window.clearTimeout(settleTimer) }
+    return () => { controller.abort(); window.clearInterval(pnlTimer); window.clearInterval(feeTimer); window.clearInterval(balanceTimer); window.clearInterval(scanTimer); window.clearTimeout(settleTimer) }
   }, [coinbaseVisible])
 
   const liveReady = Boolean(live && (live.connected || live.credentials?.configured) && finite(live.account?.wallet_balance))
@@ -192,7 +211,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       {shownReady && shown ? <>
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>{active === 'live' && onCoinbase ? 'USD' : 'USDT'}</span></div>
         <div className="mhChange">
-          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: false} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
+          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
       </> : <div className="mhEmpty">
