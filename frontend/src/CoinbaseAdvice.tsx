@@ -9,7 +9,7 @@ export function TradeAdviceCard({advice, compact = false}: {advice: TradeAdvice;
   const items = compact ? advice.items.filter(item => item.tone === 'bad' || item.tone === 'warn') : advice.items
   if (items.length === 0) return null
   return <section className="cbAdvice" data-verdict={advice.verdict} aria-label="İşlem değerlendirmesi">
-    <header><b>{advice.headline}</b>{!compact && advice.lossUsd !== null && <div className="cbAdviceSum">Stopta −{usd(advice.lossUsd)}{advice.gainUsd !== null ? ` · hedefte +${usd(advice.gainUsd)}` : ''} USD</span>}</header>
+    <header><b>{advice.headline}</b>{!compact && advice.lossUsd !== null && <div className="cbAdviceSum">Stopta −{usd(advice.lossUsd)}{advice.gainUsd !== null ? ` · hedefte +${usd(advice.gainUsd)}` : ''} USD</div>}</header>
     <ul>{items.map(item => { const Icon = ICON[item.tone]; return <li key={item.id} data-tone={item.tone}><Icon aria-hidden="true"/><div className="cbAdviceText"><b>{item.title}</b><small>{item.text}</small></div></li> })}</ul>
   </section>
 }
