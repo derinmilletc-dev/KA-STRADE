@@ -40,7 +40,7 @@ import {autoFix} from './coinbase-autofix'
 import {recommendSizes, type SizeOption} from './coinbase-autosize'
 import CoinbaseSmartSetup from './CoinbaseSmartSetup'
 import CoinbaseAlerts from './CoinbaseAlerts'
-import {type CbAlert} from './coinbase-alert'
+import {coinbaseAlertCall, usePriceAlerts} from './price-alert-api'
 import {makeRepeat, parseRepeat, repeatLevels, type RepeatRecord} from './coinbase-repeat'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
@@ -102,9 +102,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [ticket, setTicket] = useState<Ticket>(emptyTicket())
   const [lastTrade, setLastTrade] = useState<RepeatRecord | null>(() => { try { return parseRepeat(JSON.parse(window.localStorage.getItem('kt-cb-last') || 'null')) } catch { return null } })
   const [repeating, setRepeating] = useState<RepeatRecord | null>(null)
-  const [priceAlerts, setPriceAlerts] = useState<CbAlert[]>([])
-  const loadAlerts = useCallback(() => { coinbaseCall<{alerts: CbAlert[]}>('/alerts').then(data => setPriceAlerts(Array.isArray(data.alerts) ? data.alerts : [])).catch(() => undefined) }, [])
-  useEffect(() => { loadAlerts(); const timer = window.setInterval(loadAlerts, 30000); return () => window.clearInterval(timer) }, [loadAlerts])
+  const {alerts: priceAlerts, reload: loadAlerts} = usePriceAlerts(coinbaseAlertCall)
   const [check, setCheck] = useState<Preflight | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')

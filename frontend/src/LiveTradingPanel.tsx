@@ -5,6 +5,8 @@ import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, Chevr
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import CoinLiveChart from './CoinLiveChart'
+import CoinbaseAlerts from './CoinbaseAlerts'
+import {binanceAlertCall, usePriceAlerts} from './price-alert-api'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
 import DcaPanel from './DcaPanel'
@@ -298,6 +300,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [coinQuery, setCoinQuery] = useState('')
   // Telefon coin listesi: satırdaki analiz ikonundan açılan alttan sheet. Yalnız bu sembolü gösterir; seçimi ve listeyi bozmaz.
   const [anaSym, setAnaSym] = useState<string | null>(null)
+  const {alerts: priceAlerts, reload: reloadAlerts} = usePriceAlerts(binanceAlertCall, anaSym !== null)
   const [coinOpen, setCoinOpen] = useState(false)
   // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
   const [signals, setSignals] = useState<SignalMap | null>(() => signalsCache)
@@ -1894,6 +1897,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <div className="mxsaTile" data-side="SHORT" data-lead={anaSig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{anaSig.short === null ? '–' : `%${anaSig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.short ?? 0}%`}}/></span></div>
             <div className="mxsaTile" data-side="LONG" data-lead={anaSig.lean === 'LONG' || undefined}><span>LONG</span><strong>{anaSig.long === null ? '–' : `%${anaSig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.long ?? 0}%`}}/></span></div>
           </div>
+          <CoinbaseAlerts productId={anaRow.symbol} display={anaRow.display || anaRow.symbol} price={Number.isFinite(Number(anaRow.price)) ? Number(anaRow.price) : null} alerts={priceAlerts} onChanged={reloadAlerts} call={binanceAlertCall}/>
           <p className="mxsaNote">{AI_DISCLAIMER}</p>
         </div>
         <footer className="mxsaFoot">

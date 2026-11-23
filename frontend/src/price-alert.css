@@ -1,0 +1,33 @@
+/* Fiyat alarmı (analiz çekmecesi) */
+.mxaBox{display:grid!important;gap:10px!important;margin:12px 0!important;padding:14px!important;border-radius:18px!important;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important;border:1px solid rgba(255,255,255,.08)!important}
+.mxaHead{display:flex!important;align-items:center!important;gap:10px!important}
+.mxaHead>svg{width:34px!important;height:34px!important;padding:8px!important;border-radius:12px!important;background:rgba(250,204,21,.14)!important;color:#facc15!important;flex:none!important}
+.mxaHead span{display:grid!important;gap:1px!important}
+.mxaHead b{font-size:15px!important}
+.mxaHead small{opacity:.65!important;font-size:12px!important}
+.mxaLabel{display:flex!important;align-items:center!important;gap:6px!important;font-size:12px!important;opacity:.75!important;margin-top:2px!important}
+.mxaLabel svg{width:14px!important;height:14px!important}
+.mxaChips{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px!important}
+.mxaChips button{display:grid!important;gap:1px!important;justify-items:center!important;padding:9px 4px!important;border:1px solid transparent!important;border-radius:14px!important;color:inherit!important;font:inherit!important;cursor:pointer!important;transition:transform .12s,border-color .12s!important}
+.mxaChips[data-dir=up] button{background:rgba(52,211,153,.12)!important}
+.mxaChips[data-dir=down] button{background:rgba(248,113,113,.12)!important}
+.mxaChips button:active{transform:scale(.96)!important}
+.mxaChips button:hover:not(:disabled){border-color:rgba(255,255,255,.25)!important}
+.mxaChips button:disabled{opacity:.45!important}
+.mxaChips b{font-size:14px!important}
+.mxaChips small{font-size:11px!important;opacity:.7!important}
+.mxaCustom{display:grid!important;grid-template-columns:1fr auto!important;gap:8px!important}
+.mxaCustom input{min-width:0!important;padding:11px 14px!important;border-radius:14px!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(0,0,0,.2)!important;color:inherit!important;font:inherit!important}
+.mxaCustom button{padding:0 18px!important;border:0!important;border-radius:14px!important;background:#facc15!important;color:#1a1500!important;font-weight:700!important;font:inherit!important;font-weight:700!important}
+.mxaCustom button:disabled{opacity:.4!important}
+.mxaHint{margin:0!important;font-size:12.5px!important;opacity:.8!important}
+.mxaHint[data-bad]{color:#f87171!important;opacity:1!important}
+.mxaList{display:grid!important;gap:8px!important;margin:0!important;padding:0!important;list-style:none!important}
+.mxaList li{display:grid!important;grid-template-columns:auto 1fr auto!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:14px!important;background:rgba(255,255,255,.05)!important}
+.mxaList li>svg{width:18px!important;height:18px!important}
+.mxaList li[data-dir=above]>svg{color:#34d399!important}
+.mxaList li[data-dir=below]>svg{color:#f87171!important}
+.mxaList span{display:grid!important;gap:1px!important}
+.mxaList small{opacity:.65!important;font-size:12px!important}
+.mxaList button{border:0!important;background:rgba(255,255,255,.08)!important;color:inherit!important;border-radius:10px!important;width:30px!important;height:30px!important;display:grid!important;place-items:center!important}
+.mxaList button svg{width:16px!important;height:16px!important}
