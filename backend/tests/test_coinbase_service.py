@@ -193,3 +193,14 @@ class FetchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepriceTests(unittest.TestCase):
+    def test_pnl_from_current_price_not_stale_exchange_value(self):
+        from decimal import Decimal
+        rows = service.reprice_positions([
+            {"product_id": "AVP-20DEC30-CDE", "side": "FUTURES_POSITION_SIDE_LONG", "number_of_contracts": "3", "avg_entry_price": "6.76", "current_price": "6.71", "unrealized_pnl": "-0.9"},
+            {"product_id": "B-20DEC30-CDE", "side": "FUTURES_POSITION_SIDE_SHORT", "number_of_contracts": "2", "avg_entry_price": "10", "current_price": "9", "unrealized_pnl": "0"},
+            {"product_id": "C-20DEC30-CDE", "side": "FUTURES_POSITION_SIDE_LONG", "number_of_contracts": "1", "avg_entry_price": "1", "current_price": None, "unrealized_pnl": "5"},
+        ], {"AVP-20DEC30-CDE": Decimal("10"), "B-20DEC30-CDE": Decimal("0.5"), "C-20DEC30-CDE": Decimal("1")})
+        self.assertEqual([row["unrealized_pnl"] for row in rows], ["-1.5", "1", "5"])

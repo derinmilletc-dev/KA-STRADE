@@ -304,7 +304,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const ticker = useCoinbaseTicker(positionIds === '' ? [] : positionIds.split(','), keySaved && positionIds !== '')
   // Coinbase rakamı taze (≤3 sn) ise AYNEN gösterilir (borsadakiyle birebir); değilse defter/sorgu fiyatıyla tahmin yürütülür.
   const exchangeFresh = exchangeAt !== null && Date.now() - exchangeAt < 3000
-  const livePositions = exchangeFresh ? positions : positions.map(item => {
+  const sizeOf = (id: string) => { const size = Number(products?.find(row => row.product_id === id)?.contract_size); return Number.isFinite(size) && size > 0 ? size : null }
+  // Coinbase taze ise: fiyat Coinbase'in kendi fiyatı, K/Z bu fiyattan (Coinbase ekranı gibi). Değilse defter/sorgu fiyatı.
+  const livePositions = exchangeFresh ? positions.map(item => overlayLive(item, {mid: item.current_price}, sizeOf(item.product_id))) : positions.map(item => {
     const size = Number(products?.find(row => row.product_id === item.product_id)?.contract_size)
     const tick = ticker.quotes[item.product_id]
     // En yeni kaynak kazanır: WS defter/işlem fiyatı ya da 2 sn'lik REST alış/satış ortası. Biri durursa diğeri fiyatı yürütür.
