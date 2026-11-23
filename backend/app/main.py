@@ -1322,6 +1322,8 @@ async def lifespan(app: FastAPI):
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
+        from .coinbase.price_alerts import alert_loop as coinbase_alert_loop  # fiyat alarmı: ayrı, hafif ~10 sn döngü
+        app.state.runtime_tasks.append(asyncio.create_task(coinbase_alert_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),
