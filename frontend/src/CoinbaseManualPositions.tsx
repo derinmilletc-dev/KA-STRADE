@@ -9,7 +9,7 @@ import {CoinbaseApiError, postJson} from './coinbase-manual-api'
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
 export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null; take_profit_price?: string | null}
 export type CbProtection = {positions: CbProtectionItem[]; orphan_stops: {order_id: string; product_id: string}[]; open_order_count: number; all_protected: boolean; has_problem: boolean}
-type Props = {positions: CbPosition[]; protection: CbProtection | null; ordersEnabled: boolean; liveAt?: number | null; liveSource?: 'ws' | 'poll' | null; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void}
+type Props = {positions: CbPosition[]; protection: CbProtection | null; ordersEnabled: boolean; liveAt?: number | null; liveSource?: 'exchange' | 'ws' | 'poll' | null; onDone: (text: string) => void; onError: (error: CoinbaseApiError) => void}
 
 const sideOf = (raw: string | null) => raw?.toUpperCase().endsWith('LONG') ? 'BUY' : raw?.toUpperCase().endsWith('SHORT') ? 'SELL' : raw || '—'
 
@@ -152,7 +152,7 @@ export default function CoinbaseManualPositions({positions, protection, ordersEn
   }
 
   return <section className="cbCard" data-empty={positions.length === 0 && orphans.length === 0 && !protection?.has_problem || undefined} aria-label="Pozisyonlar ve koruma">
-    {(positions.length > 0 || orphans.length > 0 || protection?.has_problem) && <h3><ShieldAlert/>Pozisyonlar ve koruma{positions.length > 0 && <span className="cbLiveChip" data-live={liveFresh || undefined} role="status"><i aria-hidden="true"/>{liveFresh ? (liveSource === 'ws' ? 'Canlı · anlık' : 'Canlı · 2 sn') : 'Bağlanıyor…'}</span>}</h3>}
+    {(positions.length > 0 || orphans.length > 0 || protection?.has_problem) && <h3><ShieldAlert/>Pozisyonlar ve koruma{positions.length > 0 && <span className="cbLiveChip" data-live={liveFresh || undefined} role="status"><i aria-hidden="true"/>{liveFresh ? (liveSource === 'exchange' ? 'Canlı · Coinbase' : liveSource === 'ws' ? 'Canlı · anlık' : 'Canlı · 2 sn') : 'Bağlanıyor…'}</span>}</h3>}
     {positions.length > 0 && <div className="cbPosSum" aria-label="Pozisyon özeti">
       <div><small>Açık</small><b>{positions.length}</b></div>
       <div><small>Long</small><b data-tone="up">{positions.filter(item => sideOf(item.side) === 'BUY').length}</b></div>
