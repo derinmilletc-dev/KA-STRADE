@@ -267,17 +267,37 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     const timer = visibleInterval(load, 2000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, positionIds])
+  // Coinbase'in KENDİ pozisyon rakamları (işaret fiyatı + K/Z, Coinbase ekranındakiyle birebir): açık pozisyon varken saniyede bir.
+  const [exchangeAt, setExchangeAt] = useState<number | null>(null)
+  const hasPositions = positions.length > 0
+  useEffect(() => {
+    if (!keySaved || !hasPositions) { setExchangeAt(null); return }
+    let alive = true, busy = false
+    const load = () => {
+      if (busy) return
+      busy = true
+      void coinbaseCall<{positions: CbPosition[]}>('/positions')
+        .then(next => { if (alive && Array.isArray(next.positions)) { setPositions(next.positions); setExchangeAt(Date.now()) } })
+        .catch(() => { /* bir sonraki saniyede yeniden denenir; bu arada defter fiyatı yürür */ })
+        .finally(() => { busy = false })
+    }
+    load()
+    const timer = visibleInterval(load, 1000)
+    return () => { alive = false; clearVisibleInterval(timer) }
+  }, [keySaved, hasPositions])
   // WebSocket (saniyelik) varken onu, yoksa/bayatsa 3 sn'lik sorgulamayı kullan.
   const ticker = useCoinbaseTicker(positionIds === '' ? [] : positionIds.split(','), keySaved && positionIds !== '')
-  const livePositions = positions.map(item => {
+  // Coinbase rakamı taze (≤3 sn) ise AYNEN gösterilir (borsadakiyle birebir); değilse defter/sorgu fiyatıyla tahmin yürütülür.
+  const exchangeFresh = exchangeAt !== null && Date.now() - exchangeAt < 3000
+  const livePositions = exchangeFresh ? positions : positions.map(item => {
     const size = Number(products?.find(row => row.product_id === item.product_id)?.contract_size)
     const tick = ticker.quotes[item.product_id]
     // En yeni kaynak kazanır: WS defter/işlem fiyatı ya da 2 sn'lik REST alış/satış ortası. Biri durursa diğeri fiyatı yürütür.
     const fresh = tick !== undefined && Date.now() - tick.at < 10000 && (liveAt === null || tick.at >= liveAt)
     return overlayLive(item, fresh ? {mid: String(tick.price)} : liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
   })
-  const liveStamp = Math.max(liveAt ?? 0, ticker.at ?? 0) || null
-  const liveSource: 'ws' | 'poll' | null = ticker.at !== null && Date.now() - ticker.at < 10000 ? 'ws' : liveAt !== null ? 'poll' : null
+  const liveStamp = Math.max(exchangeAt ?? 0, liveAt ?? 0, ticker.at ?? 0) || null
+  const liveSource: 'exchange' | 'ws' | 'poll' | null = exchangeFresh ? 'exchange' : ticker.at !== null && Date.now() - ticker.at < 10000 ? 'ws' : liveAt !== null ? 'poll' : null
   // Kais analizi (aynı coinin Binance analizi): stop adımında "Kais analizi" önerisi için. Coin başına bir kez alınır.
   const anaKey = analysisSymbol(selectedRow?.root ?? null)
   useEffect(() => {
