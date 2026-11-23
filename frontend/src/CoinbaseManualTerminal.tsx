@@ -285,6 +285,21 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     const timer = visibleInterval(load, 1000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, hasPositions])
+  // Ödenen komisyon (Coinbase dolumlarından): K/Z Coinbase'deki gibi komisyon dahil gösterilir. Sözleşme sayısı değişince ve 30 sn'de bir.
+  const feeKey = positions.map(item => `${item.product_id}:${item.side}:${item.number_of_contracts}`).join('|')
+  const [fees, setFees] = useState<Record<string, string | null>>({})
+  useEffect(() => {
+    if (!keySaved || feeKey === '') { setFees({}); return }
+    let alive = true
+    const load = () => {
+      void coinbaseCall<{fees: Record<string, string | null>}>('/positions/fees')
+        .then(next => { if (alive && next && typeof next.fees === 'object' && next.fees !== null) setFees(next.fees) })
+        .catch(() => { /* komisyon okunamazsa K/Z komisyonsuz gösterilir ve bu açıkça yazılır */ })
+    }
+    load()
+    const timer = visibleInterval(load, 30000)
+    return () => { alive = false; clearVisibleInterval(timer) }
+  }, [keySaved, feeKey])
   // WebSocket (saniyelik) varken onu, yoksa/bayatsa 3 sn'lik sorgulamayı kullan.
   const ticker = useCoinbaseTicker(positionIds === '' ? [] : positionIds.split(','), keySaved && positionIds !== '')
   // Coinbase rakamı taze (≤3 sn) ise AYNEN gösterilir (borsadakiyle birebir); değilse defter/sorgu fiyatıyla tahmin yürütülür.
@@ -934,7 +949,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
-      <CoinbaseManualPositions positions={livePositions} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseManualPositions positions={livePositions} fees={fees} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>
