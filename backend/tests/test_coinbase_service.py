@@ -170,6 +170,26 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(set(result), {"balance", "margin_window"})
         self.assertEqual(client.paths, [service.BALANCE_PATH, service.MARGIN_WINDOW_PATH])
 
+    def test_margin_window_failure_does_not_block_balance(self):
+        denied = service.CoinbaseError("PERMISSION_DENIED", "unspecified margin profile type", http_status=403)
+        client = FakeClient(**{service.BALANCE_PATH: balance_payload(), service.MARGIN_WINDOW_PATH: denied})
+        result = run(service.fetch_account(client))
+        self.assertEqual(result["margin_window"], service.UNKNOWN_WINDOW)
+        self.assertIn("futures_buying_power", result["balance"])
+        # varsayılan + 2 profil denemesi, sonra pes eder
+        self.assertEqual(client.paths.count(service.MARGIN_WINDOW_PATH), 3)
+
+    def test_margin_window_retries_with_profile(self):
+        class Flaky(FakeClient):
+            async def get(self, path, params=None):
+                if path == service.MARGIN_WINDOW_PATH and not params:
+                    raise service.CoinbaseError("PERMISSION_DENIED", "unspecified margin profile type", http_status=403)
+                return await super().get(path, params)
+        client = Flaky(**{service.BALANCE_PATH: balance_payload(),
+                          service.MARGIN_WINDOW_PATH: {"margin_window": {"margin_window_type": "X", "end_time": "t"}}})
+        result = run(service.fetch_account(client))
+        self.assertEqual(result["margin_window"]["margin_window_type"], "X")
+
 
 if __name__ == "__main__":
     unittest.main()

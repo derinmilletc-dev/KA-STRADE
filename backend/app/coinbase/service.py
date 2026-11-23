@@ -118,10 +118,27 @@ def normalize_positions(payload: dict[str, Any]) -> list[dict[str, str | None]]:
     return result
 
 
+MARGIN_PROFILES = (None, "MARGIN_PROFILE_TYPE_RETAIL_REGULAR", "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1")
+UNKNOWN_WINDOW: dict[str, Any] = {
+    "margin_window_type": None, "end_time": None, "intraday_killswitch": False, "intraday_enrollment_killswitch": False,
+}
+
+
+async def fetch_margin_window(client: CoinbaseClient) -> dict[str, Any]:
+    """Marjin penceresi yalnızca bilgidir. Coinbase bazı hesaplarda profil türünü ister (403); farklı profillerle
+    denenir, hiçbiri olmazsa bakiye/emir akışı DURMAZ, pencere 'bilinmiyor' döner."""
+    for profile in MARGIN_PROFILES:
+        try:
+            params = {"margin_profile_type": profile} if profile else None
+            return normalize_margin_window(await client.get(MARGIN_WINDOW_PATH, params))
+        except CoinbaseError:
+            continue
+    return dict(UNKNOWN_WINDOW)
+
+
 async def fetch_account(client: CoinbaseClient) -> dict[str, Any]:
     balance = normalize_balance_summary(await client.get(BALANCE_PATH))
-    window = normalize_margin_window(await client.get(MARGIN_WINDOW_PATH))
-    return {"balance": balance, "margin_window": window}
+    return {"balance": balance, "margin_window": await fetch_margin_window(client)}
 
 
 async def fetch_positions(client: CoinbaseClient) -> list[dict[str, str | None]]:
