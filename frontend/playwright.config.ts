@@ -2,6 +2,9 @@ import {defineConfig, devices} from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
+  // farmer-harness/*.test.mjs ayrı bir düzenektir (önce esbuild ile out.js üretilir, kendi chromium'unu açar); playwright test onu toplayınca
+  // her test 30 sn bekleyip düşüyor ve iş 20 dk'da iptal oluyordu.
+  testIgnore: /farmer-harness\//,
   workers: 1,
   reporter: 'line',
   use: {
@@ -31,7 +34,7 @@ export default defineConfig({
     },
   ],
   projects: [
-    {name: 'chromium', testIgnore: /scanner\.spec\.ts/, use: {...devices['Desktop Chrome']}},
+    {name: 'chromium', testIgnore: [/scanner\.spec\.ts/, /farmer-harness\//], use: {...devices['Desktop Chrome']}},
     {name: 'scanner', testMatch: /scanner\.spec\.ts/, use: {...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4174'}},
   ],
 })

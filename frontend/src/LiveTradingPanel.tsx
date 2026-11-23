@@ -1763,7 +1763,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const permissionLabel = !authorizationValid ? (authorizationReason === 'EXPIRED' ? 'İzni yenile' : 'İzni ver') : 'İzni aç'
     const permissionCard = needPermission && !orderDone ? <div className="mxtPerm" role="alert">
       <span><b>Önce izni aç</b><small>Gerçek emir için 24 saatlik risk izni ve ARM şart. Şimdi aç; son adımda kilitli çıkıp geri dönmeyesin.</small></span>
-      <button type="button" className="mxtBtn primary" onClick={authorizationValid ? armLive : grantConsent} disabled={Boolean(busy)}>{permissionLabel}</button>
+      <button type="button" className="mxtBtn primary" onClick={() => void slidePermission()} disabled={Boolean(busy)}>{permissionLabel}</button>
     </div> : null
     const progressEl = busy === 'review' || busy === 'send' ? <div className="mxtProgress" role="status" aria-live="polite" key={busy}>
       <RefreshCw className="spin" aria-hidden="true"/>
@@ -2082,7 +2082,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <h4>Son kontrol</h4>
       <p className="mxtLead">Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
       {reviewVisual}
-      {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={armLive} disabled={Boolean(busy)}>İzni aç</button>}</div>}
+      {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={() => void slidePermission()} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
       <CheckList rows={checks}/>
       {risk && <p className="mxtHint">Stop'ta kaybın en çok {money(risk.loss)} olur. {risk.capped ? `İşlem başı risk ayarın yüzünden pozisyon küçültüldü: girdiğin ${text(order.margin_usdt)} USDT marjinin tamamı değil, ${money(risk.margin)} kullanılır.` : 'Girdiğin marjin tamamen kullanılır.'}</p>}
@@ -2526,13 +2526,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         : !step1Done
           ? {tone: 'go', title: 'Binance API anahtarını bağla', text: 'İlk adım: hesabını güvenli şekilde bağla. Emir açmaz, sadece okur.', label: 'Bağlantıyı başlat', run: focusApiKey, off: false}
           : !authorizationValid
-            ? {tone: 'go', title: '24 saatlik izni ver', text: 'Canlı işlem gerçek parayla çalışır. Devam etmek için riski 24 saatliğine kabul etmelisin.', label: '24 saatlik izni ver', run: grantConsent, off: Boolean(busy)}
+            ? {tone: 'go', title: '24 saatlik izni ver', text: 'Canlı işlem gerçek parayla çalışır. Devam etmek için riski 24 saatliğine kabul etmelisin.', label: '24 saatlik izni ver', run: () => void slidePermission(), off: Boolean(busy)}
             : status?.policy_acknowledged !== true
-              ? {tone: 'go', title: 'Risk limitlerini onayla', text: 'Günlük zarar, pozisyon ve maruziyet limitlerini görüp onaylaman gerekiyor.', label: 'Limitleri onayla', run: acknowledgePolicy, off: Boolean(busy)}
+              ? {tone: 'go', title: 'Risk limitlerini onayla', text: 'Günlük zarar, pozisyon ve maruziyet limitlerini görüp onaylaman gerekiyor.', label: 'Limitleri onayla', run: () => void slidePermission(), off: Boolean(busy)}
               : !readinessReady
                 ? {tone: 'wait', title: 'Güvenlik kontrolleri tamamlanıyor', text: blocker || 'Sistem hazır olunca bir sonraki adım açılır.', label: 'Durumu yenile', run: () => void refresh(false), off: Boolean(busy) || refreshPending}
                 : !liveArmed
-                  ? {tone: 'go', title: 'Canlı emir iznini aç (ARM)', text: 'Son güvenlik onayı. Bu, otomatik işlemin emir açabilmesi için gerekli.', label: 'Canlı emir iznini aç', run: armLive, off: Boolean(busy)}
+                  ? {tone: 'go', title: 'Canlı emir iznini aç (ARM)', text: 'Son güvenlik onayı. Bu, otomatik işlemin emir açabilmesi için gerekli.', label: 'Canlı emir iznini aç', run: () => void slidePermission(), off: Boolean(busy)}
                   : !running
                     ? {tone: 'go', title: 'Otomatik işlemi başlat', text: autoReady ? 'Her şey hazır. Başlattığında strateji seçili coinleri tarar ve kurallara uyan fırsatta emir açar.' : (blocker || 'Başlatma şartları henüz tamamlanmadı.'), label: 'Otomatik işlemi başlat', run: autoToggle, off: Boolean(busy) || (!autoReady && automationAllowed !== false)}
                     : {tone: 'ok', title: 'Otomatik işlem çalışıyor', text: 'Seçili coinler izleniyor. İstediğin an durdurabilirsin.', label: 'Durdur', run: stopAutoTrade, off: Boolean(busy)}
@@ -2623,7 +2623,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               <div className="liveWsChecks">
                 <article className={authorizationValid ? 'done' : 'todo'}>
                   <div className="liveWsCheckText"><b>① 24 saatlik risk izni</b><small>{authorizationValid ? `Geçerli: ${date(status?.authorization?.expires_at || status?.consent?.expires_at)} tarihine kadar` : 'Gerçek parayla işlem riskini 24 saatliğine kabul edersin.'}</small></div>
-                  <div className="liveWsRow"><button type="button" className="liveWsPrimary" onClick={grantConsent} disabled={Boolean(busy) || authorizationValid}>{authorizationValid ? 'İzin verildi' : '24 SAAT İZİN VER'}</button>{authorizationValid && <button type="button" className="liveWsGhost" onClick={revokeConsent} disabled={Boolean(busy)}>İzni geri al</button>}</div>
+                  <div className="liveWsRow"><button type="button" className="liveWsPrimary" onClick={() => void slidePermission()} disabled={Boolean(busy) || authorizationValid}>{authorizationValid ? 'İzin verildi' : '24 SAAT İZİN VER'}</button>{authorizationValid && <button type="button" className="liveWsGhost" onClick={revokeConsent} disabled={Boolean(busy)}>İzni geri al</button>}</div>
                 </article>
                 <article className={status?.policy_acknowledged ? 'done' : authorizationValid ? 'todo' : 'wait'}>
                   <div className="liveWsCheckText"><b>② Risk limitleri onayı</b><small>{status?.policy_acknowledged ? 'Mevcut limitler onaylandı.' : authorizationValid ? 'Limitleri gördüm ve kabul ediyorum.' : 'Önce 1. onayı ver.'}</small></div>

@@ -922,7 +922,12 @@ export default function LiveCockpit(props: Props) {
   // Günlük kayıp %90'a gelince (ya da dolunca) düz uyarı satırı yerine akıllı kart gösterilir; aynı bilgi iki kez yazılmaz.
   const dayCardShown = !demo && dailyLoss !== null && dailyLimit !== null && dailyLimit > 0 && (guideInput.dailyLocked || dailyLoss / dailyLimit >= 0.9)
   const daySuggested = dailyLimit !== null ? Math.min(1000, Math.max(5, Math.ceil(dailyLimit * 1.5 / 5) * 5)) : null
-  const alerts: GuideNotice[] = [...guide.notices, ...(live ? smartAlerts({
+  // Bilerek stopsuz açılmış ve henüz stop eklenmemiş açık pozisyonlar: unutulmasın, Pozisyonlar'dan "Stop ekle" ile korunur.
+  const noStopCoins = live ? (status?.plans ?? []).filter(plan => plan.no_stop === true && !plan.stop_loss && !['KAPANDI', 'İPTAL'].includes(String(plan.status ?? '')))
+    .map(plan => String(plan.symbol ?? '').replace('USDT', '')).filter(Boolean) : []
+  const noStopNotice: GuideNotice[] = noStopCoins.length > 0
+    ? [{tone: 'stop', text: `${noStopCoins.join(', ')} stopsuz açık: zarar sınırı yok. Pozisyonlar'dan "Stop ekle" ile koruyabilirsin.`}] : []
+  const alerts: GuideNotice[] = [...noStopNotice, ...guide.notices, ...(live ? smartAlerts({
     dailyLoss, dailyLimit, dailyLocked: guideInput.dailyLocked, availableBalance, minMargin: caps?.min_margin_usdt ?? null,
     marketBanSeconds, openPositions: positions.length, protectedPositions: protectedCount,
   }) : [])]
