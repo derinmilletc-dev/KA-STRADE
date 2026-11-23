@@ -64,6 +64,29 @@ function AuthMarketCards({data,status}:{data:LiveTickerData;status:LiveTickerSta
   return <div className="authMarketGrid">{AUTH_PANEL_MARKETS.map(config => { const ticker = data[config.symbol]; const history = ticker?.history.slice(-10) || []; const low = Math.min(...history); const high = Math.max(...history); const range = high - low || 1; const points = history.map(value => 8 + ((high - value) / range) * 24); return <article className={`authMarketCard ${ticker?.flash ? `isFlash-${ticker.flash}` : ''}`} key={config.symbol} aria-label={`${config.displaySymbol} ${config.name} piyasa kartı`}><div className="authMarketTop"><div><b>{config.displaySymbol}</b><small>{config.name}</small></div><div className="authMarketQuoteStatus">{ticker && <span className={ticker.changePercent >= 0 ? 'isPositive' : 'isNegative'}>{ticker.changePercent >= 0 ? '▲' : '▼'} {Math.abs(ticker.changePercent).toFixed(2)}%</span>}<i className={`authMarketStatus status-${status}`}><i/> {status === 'live' ? 'CANLI' : status === 'offline' ? 'ÇEVRİMDIŞI' : 'BAĞLANIYOR'}</i></div></div><div className="authMarketBottom">{ticker ? <strong aria-live="off">{formatPanelPrice(config.symbol,ticker.price)}</strong> : <i className="authMarketSkeleton"/>}{ticker ? <AuthSparkline points={points} positive={ticker.changePercent >= 0}/> : <i className="authSparklineSkeleton"/>}</div><small className="authMarketNote">Veriler Binance'ten alınır, bilgi amaçlıdır, yatırım tavsiyesi değildir.</small></article> })}</div>
 }
 
+const BOOT_STEPS = ['Güvenli bağlantı kuruluyor','Oturum doğrulanıyor','Hesabın hazırlanıyor'] as const
+
+// Açılış ekranı: 250 ms'den kısa sürerse görünmez (CSS gecikmesi), uzarsa adımları gösterir, takılırsa çıkış yolu sunar.
+function AuthBootScreen({onRetry,label = 'GÜVENLİ OTURUM'}:{onRetry?:() => void;label?:string}) {
+  const [elapsed,setElapsed] = useState(0)
+  useEffect(() => {
+    const started = performance.now()
+    const timer = window.setInterval(() => setElapsed(performance.now() - started),400)
+    return () => window.clearInterval(timer)
+  },[])
+  const step = elapsed < 1400 ? 0 : elapsed < 3200 ? 1 : 2
+  const slow = elapsed >= 8000
+  return <main className="authLoading authBoot" role="status" aria-live="polite" aria-busy="true">
+    <div className="authBootInner">
+      <img className="authBootLogo" src="/kaistrade-logo-trim.png" alt="KaisTrade"/>
+      <div className="authBootBar" aria-hidden="true"><i/></div>
+      <p className="authBootLabel"><ShieldCheck aria-hidden="true"/>{label}</p>
+      <ol className="authBootSteps">{BOOT_STEPS.map((text,index) => <li key={text} className={index < step ? 'isDone' : index === step ? 'isActive' : ''}><i aria-hidden="true"/>{text}</li>)}</ol>
+      {slow && <div className="authBootSlow"><span>Sunucu geç yanıt veriyor, bağlantı yeniden deneniyor…</span>{onRetry && <button type="button" onClick={onRetry}>Yeniden dene</button>}</div>}
+    </div>
+  </main>
+}
+
 function EthGlyph(props:{'aria-hidden'?:'true'}) {
   return <svg viewBox="0 0 24 24" {...props}><path fill="#d9e2ee" d="M12 1.5 5.2 12.2 12 16.1l6.8-3.9z"/><path fill="#f4f7fb" d="M12 1.5v14.6l6.8-3.9z"/><path fill="#aebccd" d="M12 17.5 5.2 13.6 12 22.5l6.8-8.9z"/><path fill="#d9e2ee" d="M12 17.5v5l6.8-8.9z"/></svg>
 }
@@ -680,7 +703,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   if (enrollmentRecoveryCodes.length) return <AccountRecoveryScreen codes={enrollmentRecoveryCodes} onSaved={() => setEnrollmentRecoveryCodes([])}/>
   if (PLAYWRIGHT_TEST_MODE_AUTO_ACCESS) return <>{children}</>
   if (!session && expiredMemberMaintenance) return <MaintenanceScreen mode={expiredMemberMaintenance}/>
-  if (sessionLoading && !session) return <main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b><span>Hesap durumu kontrol ediliyor…</span></div></main>
+  if (sessionLoading && !session) return <AuthBootScreen onRetry={() => void loadSession(token)}/>
   if (autoVerifying) return <main className="authLoading"><div className="authLoader"><MailCheck/><b>E-POSTA DOĞRULANIYOR</b><span>E-posta doğrulanıyor...</span></div></main>
   if (surface === 'admin' && !session) {
     // Yönetim girişi (admin.kaistrade.com): solda sabit günlük hatırlatmalar, sağda yalnızca e-posta + parola (+ 2FA).
@@ -817,7 +840,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
     </main></>}</LoginMarketShell>
   }
 
-  if (session.two_factor_setup_required) return <Suspense fallback={<main className="authLoading"><div className="authLoader"><ShieldCheck/><b>GÜVENLİ OTURUM</b></div></main>}><RequiredTwoFactor onDone={() => void loadSession(token)} onLogout={() => void logout()}/></Suspense>
+  if (session.two_factor_setup_required) return <Suspense fallback={<AuthBootScreen/>}><RequiredTwoFactor onDone={() => void loadSession(token)} onLogout={() => void logout()}/></Suspense>
   if (surface === 'admin' && session.user.role !== 'OWNER' && session.user.role !== 'MODERATOR') {
     return <main className="authLoading"><div className="authLoader"><ShieldCheck/><b>403 · ERİŞİM YOK</b><span>Bu adres yalnızca yönetici ve moderatör hesaplarına açıktır.</span><button onClick={() => void logout()}>Çıkış yap</button><button onClick={() => window.location.assign(CUSTOMER_ORIGIN)}>KaisTrade'e dön</button></div></main>
   }
