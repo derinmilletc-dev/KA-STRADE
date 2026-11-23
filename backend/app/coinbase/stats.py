@@ -110,3 +110,29 @@ def summarize(trades: list[dict[str, Any]], unknown: int = 0) -> dict[str, Any]:
         "by_exit": {kind: sum(1 for row in trades if row["kind"] == kind) for kind in ("target", "stop", "manual_close")},
         "by_source": {source: _bucket([row for row in trades if row.get("source", "unknown") == source]) for source in ("kais", "manual", "unknown")},
     }
+
+
+def net_balance(balance: Decimal, daily_gross: Decimal, trades: list[dict[str, Any]], today: str) -> dict[str, Any]:
+    """Tek "Net bakiye": hesaba işlenmiş bakiye + bugünkü gerçekleşen K/Z − bugünkü komisyon.
+
+    Bugünkü komisyon, en yeni kapanıştan geriye doğru brüt K/Z'leri toplayıp Coinbase'in günlük gerçekleşen K/Z'sine
+    ulaşan işlemlerin komisyonudur (gün sınırını Coinbase belirler). Tutmazsa bugünün (UTC) kapanışları kullanılır ve
+    `exact` false döner. Bugün gerçekleşen K/Z yoksa komisyon düşülmez. Salt okunur, saf hesap."""
+    fees = Decimal(0)
+    exact = True
+    if daily_gross != 0:
+        picked: list[dict[str, Any]] = []
+        total = Decimal(0)
+        for row in sorted(trades, key=lambda item: item["time"], reverse=True):
+            picked.append(row)
+            total += row["gross"]
+            if abs(total - daily_gross) < Decimal("0.01"):
+                break
+        else:
+            picked = [row for row in trades if str(row["time"]).startswith(today)]
+            exact = False
+        fees = sum((row["fees"] for row in picked), Decimal(0))
+    return {
+        "balance": _money(balance), "gross": _money(daily_gross), "fees": _money(fees),
+        "net_today": _money(daily_gross - fees), "net_balance": _money(balance + daily_gross - fees), "exact": exact,
+    }

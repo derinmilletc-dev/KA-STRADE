@@ -3,6 +3,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {ArrowUpRight, Check, RefreshCw, Wallet} from 'lucide-react'
 import {pushState, type PushState} from '../../push-client'
+import {fmtUsd, todayText, type NetBalance} from './coinbase-net-balance'
 
 type Amount = {value: string | null; currency: string} | null
 export type HeroBalance = {
@@ -28,6 +29,7 @@ const levelName = (level: string | null): string => {
 type Props = {
   balance: HeroBalance | null
   openPnl?: {value: number; withFees: boolean} | null
+  netBalance?: NetBalance | null
   futuresMissing: boolean
   ordersOn: boolean
   clockSkew: number | null
@@ -47,7 +49,7 @@ function useSecondsSince(at: number | null): number | null {
   return at === null ? null : Math.max(0, Math.round((now - at) / 1000))
 }
 
-export default function CoinbaseAccountHero({balance, openPnl = null, futuresMissing, ordersOn, clockSkew, openCount, openSummary, openOrders, lastCheck, loading, onRefresh}: Props) {
+export default function CoinbaseAccountHero({balance, netBalance = null, openPnl = null, futuresMissing, ordersOn, clockSkew, openCount, openSummary, openOrders, lastCheck, loading, onRefresh}: Props) {
   const [push, setPush] = useState<PushState | null>(null)
   useEffect(() => { let alive = true; void pushState().then(state => { if (alive) setPush(state) }).catch(() => undefined); return () => { alive = false } }, [])
   const since = useSecondsSince(lastCheck)
@@ -114,8 +116,15 @@ export default function CoinbaseAccountHero({balance, openPnl = null, futuresMis
 
   return <section className="cbHero cbHero2" aria-label="Coinbase vadeli hesap özeti" data-state="ready">
     <div className="cbHeroTop"><span className="cbHeroTitle"><Wallet aria-hidden="true"/><b>Coinbase Futures</b></span><span className="cbHeroState" data-tone={ordersOn ? 'ok' : 'warn'}>{ordersOn ? '● CANLI · HAZIR' : 'EMİR KAPALI'}</span>{refreshBtn}</div>
-    <div className="cbHeroMoney"><small>Alım gücü</small><b>{fmt(balance!.futures_buying_power)}</b></div>
-    <p className="cbHeroLine">Kullanılabilir {fmt(balance!.available_margin)}{Number.isFinite(pnl) ? <> · Bugün <em data-tone={tone(balance!.daily_realized_pnl)}>{pnl > 0 ? '+' : ''}{fmt(balance!.daily_realized_pnl)}</em></> : null}</p>
+    {netBalance
+      ? <>
+        <div className="cbHeroMoney"><small>Net bakiye</small><b>{fmtUsd(netBalance.netBalance)}</b></div>
+        <p className="cbHeroLine">Alım gücü {fmt(balance!.futures_buying_power)}{todayText(netBalance) ? <> · <em data-tone={netBalance.netToday > 0 ? 'up' : netBalance.netToday < 0 ? 'down' : undefined}>{todayText(netBalance)}</em></> : null}</p>
+      </>
+      : <>
+        <div className="cbHeroMoney"><small>Alım gücü</small><b>{fmt(balance!.futures_buying_power)}</b></div>
+        <p className="cbHeroLine">Kullanılabilir {fmt(balance!.available_margin)}{Number.isFinite(pnl) ? <> · Bugün <em data-tone={tone(balance!.daily_realized_pnl)}>{pnl > 0 ? '+' : ''}{fmt(balance!.daily_realized_pnl)}</em></> : null}</p>
+      </>}
     <dl className="cbHeroTiles2">
       <div><dt>Açık pozisyon</dt><dd>{openCount === 0 ? 'Yok' : openSummary ?? `${openCount} açık`}</dd></div>
       <div><dt>Marjin</dt><dd data-tone={danger ? 'down' : levelUpper === 'UNSPECIFIED' ? 'mute' : 'up'}>{levelName(balance!.worst_margin_level) === '—' ? 'Belirtilmedi' : levelName(balance!.worst_margin_level)}</dd></div>
