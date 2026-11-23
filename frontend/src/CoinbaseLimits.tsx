@@ -3,9 +3,11 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Gauge, ShieldCheck} from 'lucide-react'
 import {coinbaseCall, CoinbaseApiError} from './coinbase-manual-api'
+import {dailyLossMeter} from './coinbase-advice'
+import {DailyMeterBar} from './CoinbaseAdvice'
 import {limitFormValue, limitLabel, limitProfiles, limitsPayload, limitsUnbounded, orderCapacity, type LimitField, type LimitsView} from './coinbase-suggest'
 
-type Props = {openOrders: number | null; buyingPower?: number | null; onChanged?: () => void}
+type Props = {openOrders: number | null; buyingPower?: number | null; dailyPnl?: string | null; onChanged?: () => void}
 const FIELDS: Array<{key: LimitField; label: string; unit: string; hint: string; chips: string[]}> = [
   {key: 'max_loss_usd', label: 'İşlem başı en çok zarar', unit: 'USD', hint: 'Stopta kaybedebileceğin üst sınır; sözleşme sayısı buna göre kısılır.', chips: ['5', '10', '25', '50']},
   {key: 'daily_loss_limit_usd', label: 'Günlük zarar limiti', unit: 'USD', hint: 'Bugünkü zarar bu sınıra ulaşınca yeni emir verilmez.', chips: ['25', '50', '100', '250']},
@@ -14,7 +16,7 @@ const FIELDS: Array<{key: LimitField; label: string; unit: string; hint: string;
 ]
 const EMPTY = {max_loss_usd: '', daily_loss_limit_usd: '', leverage_max: '', stop_limit_gap_pct: ''} as Record<LimitField, string>
 
-export default function CoinbaseLimits({openOrders, buyingPower = null, onChanged}: Props) {
+export default function CoinbaseLimits({openOrders, buyingPower = null, dailyPnl = null, onChanged}: Props) {
   const [view, setView] = useState<LimitsView | null>(null)
   const [error, setError] = useState('')
   const [missing, setMissing] = useState(false)
@@ -54,6 +56,7 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, onChange
   const cap = orderCapacity(openOrders, view.max_open_orders)
   const profiles = limitProfiles(buyingPower, view.bounds)
   const unbounded = limitsUnbounded(view)
+  const daily = dailyLossMeter(dailyPnl, view.effective.daily_loss_limit_usd)
   const save = async () => {
     const built = limitsPayload(form, view)
     if (!built.ok) { setFieldError({field: built.field, message: built.message}); return }
@@ -76,6 +79,7 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, onChange
       <span className="cbLimSegs">{Array.from({length: cap.max}, (_, index) => <i key={index} data-on={index < cap.used || undefined}/>)}</span>
       <span className="cbLimCapText"><Gauge aria-hidden="true"/><b>{cap.used}/{cap.max} açık emir</b><small>{cap.text} Stop ve hedef tek emir sayılır.</small></span>
     </div>
+    {daily && <DailyMeterBar meter={daily}/>}
     {unbounded && <div className="cbLimWarn" role="note"><b>Henüz kendi limitin yok</b><span>Şu an yalnızca borsanın genel sınırları geçerli. Bir profil seçip kaydedersen her emir senin sınırlarına göre kontrol edilir.</span>
       {profiles && <button type="button" onClick={() => { setOpen(true); setForm(profiles[1].values) }}>Dengeli profili uygula</button>}</div>}
     <dl className="cbLimGrid">{FIELDS.map(field => <div key={field.key} data-custom={view.custom[field.key] !== undefined || undefined}>

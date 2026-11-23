@@ -32,7 +32,9 @@ import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseAccountHero from './CoinbaseAccountHero'
 import CoinbaseLimits from './CoinbaseLimits'
 import {SuggestionButtons, SuggestionNote, useCoinbaseSuggestions} from './CoinbaseSuggestions'
-import type {SuggestItem} from './coinbase-suggest'
+import type {LimitsView, SuggestItem} from './coinbase-suggest'
+import {tradeAdvice} from './coinbase-advice'
+import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
@@ -204,6 +206,14 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const ordersOn = status?.orders_enabled === true
   const [limitsRev, setLimitsRev] = useState(0)
   const suggestions = useCoinbaseSuggestions(ticket, ordersOn && step === 3, limitsRev)
+  // Limitler: işlem değerlendirmesi ("bu emir limiti aşar mı") için; 3. adımdan itibaren okunur, okunamazsa değerlendirme limitsiz çalışır.
+  const [limitView, setLimitView] = useState<LimitsView | null>(null)
+  useEffect(() => {
+    if (!ordersOn || step < 3) return
+    let alive = true
+    void coinbaseCall<LimitsView>('/orders/limits').then(next => { if (alive) setLimitView(next) }).catch(() => { /* limitsiz değerlendirme */ })
+    return () => { alive = false }
+  }, [ordersOn, step, limitsRev])
   const applySuggestion = (item: SuggestItem) => { setLevelPick(null); setTpRR(item.reward_r); patch({stopPrice: item.stop_price, takeProfit: item.take_profit_price}) }
   const keySaved = status?.key_saved === true
   const selectedId = ticket.productId.trim()
@@ -397,6 +407,13 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const walletShare = Number.isFinite(marginAvail) && marginAvail > 0 && marginNum > 0 ? marginNum / marginAvail * 100 : null
   const notionalNow = contractsNow !== null && Number.isFinite(contractSize) && Number.isFinite(entryRef) ? contractsNow * contractSize * entryRef : null
   const roundTripFee = notionalNow !== null ? notionalNow * FEE_RATE * 2 : null
+  const limitNumber = (value: string | undefined) => { const n = Number(value); return value !== undefined && Number.isFinite(n) ? n : null }
+  const dailyPnlNum = Number(account?.balance?.daily_realized_pnl?.value)
+  const advice = contractsNow !== null && Number.isFinite(stopNum) && entryRef > 0 && Number.isFinite(contractSize)
+    ? tradeAdvice({side: ticket.side, entry: entryRef, stop: stopNum, target: tpNum, contracts: contractsNow, contractSize, feeRate: FEE_RATE,
+      leverage: notionalNow !== null && marginNum > 0 ? notionalNow / marginNum : null, availableMargin: Number.isFinite(marginAvail) ? marginAvail : null,
+      maxLossUsd: limitNumber(limitView?.effective.max_loss_usd), dailyLimitUsd: limitNumber(limitView?.effective.daily_loss_limit_usd),
+      dailyLossUsd: Number.isFinite(dailyPnlNum) ? Math.max(0, -dailyPnlNum) : null, openOrders: protection?.open_order_count ?? null, maxOrders: limitView?.max_open_orders ?? null}) : null
   const levBandM = !(levNum >= 1) ? null : levNum <= 3 ? ['Düşük risk', 'low'] : levNum <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
   const minO = minOrder(contractSize, entryRef, manualContracts === null && levNum >= 1 ? levNum : 1)
   const amountMobile = <div className="mxtM mxtMAmt">
@@ -643,6 +660,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     <p className="mxtLead">Önce ön kontrolle sına (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
     {futuresMissing && <div className="mxtLockCard" role="alert"><span><b>Bakiye ekle</b><small>Vadeli cüzdanında bakiye yok. Coinbase'de vadeli cüzdana USD ekle, buradan yenile ve tekrar dene.</small></span></div>}
     {!ordersOn && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock}</small></span></div>}
+    {advice && <TradeAdviceCard advice={advice} compact/>}
     <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 5)}/><SummaryList rows={summaryRows.slice(5)}/></div>
     <CheckList rows={checkRows}/>
     {plan && <p className="mxtHint">Stop'ta kaybın en çok {String(plan.worst_case_loss_usd)} USD olur.</p>}
@@ -913,6 +931,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             {risk.rr !== null && risk.rr < 1 && <p className="cbRiskWarn">Hedef, stoptan yakın: kazanabileceğin, kaybedebileceğinden az.</p>}
             <p className="cbRiskNote">Komisyon dahil tahmindir; gerçek rakamı son adımdaki ön kontrol verir.</p>
           </div>}
+          {advice && <TradeAdviceCard advice={advice}/>}
           {!risk && <p className="mxtHint">Teminat, kaldıraç ve stop girilince risk özeti burada görünür.</p>}</div></>}
         {step === 4 && reviewStep}
         <div className="mxtNav">
@@ -950,7 +969,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       </details></div>}
     {confirmModal}
     {keySaved && <div className="cbPanel" ref={positionsRef}>
-      {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
+      {ordersOn && <CoinbaseLimits dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null} openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={livePositions} fees={fees} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
