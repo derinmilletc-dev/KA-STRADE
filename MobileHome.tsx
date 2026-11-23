@@ -23,7 +23,7 @@ type UniverseRow = {symbol: string; display: string; price: number; change: numb
 // Metinler bileşende iki dilli tutulur: tarihli cümleler sözlük çevirisiyle doğru kurulamaz.
 const COPY = {
   tr: {greet: (h: number) => h < 5 ? 'İyi geceler' : h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar', home: 'Ana sayfa',
-    liveTitle: 'Toplam bakiye · Binance Futures', coinbaseTitle: 'Futures bakiyesi · Coinbase', exchange: 'Borsa', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
+    liveTitle: 'Toplam bakiye · Binance Futures', coinbaseTitle: 'Bakiye · Coinbase (vadeli + spot)', exchange: 'Borsa', demoTitle: 'Demo hesap bakiyesi', account: 'Hesap', live: 'Canlı', demo: 'Demo',
     unrealized: 'Gerçekleşmemiş', open: (n: number) => `${n} açık işlem`, liveOff: 'Canlı hesap bağlı değil', demoOff: 'Demo hesap bağlı değil',
     connect: 'Bağla', portfolio: 'Portföyüm', setupSub: 'Bakiyeni ve işlemlerini takip et.', aiTag: 'AI FIRSATI', setupTitle: 'Hesabını bağla', setupText: 'Binance hesabını ya da demo hesabını bağla; bakiyen ve işlemlerin burada görünsün.', setupLive: 'Binance bağla', setupDemo: 'Demo hesap', notConnectedLink: 'Bağla', selectedOff: 'Bu hesap henüz bağlı değil.', demoAcc: 'Demo hesap', liveAcc: 'Canlı hesap', notConnected: 'Bağlı değil',
     trial: 'Deneme', trialEnds: (d: string) => `${d} tarihinde sona erer`, trialOn: 'Deneme süresi devam ediyor',
@@ -32,7 +32,7 @@ const COPY = {
     market: 'Piyasa', direction: 'Genel yön', up: 'Yükseliş', down: 'Düşüş', flat: 'Dengeli', waiting: 'Piyasa verisi bekleniyor…',
     featured: 'Öne çıkan fırsat', scanning: 'Tarama yapılıyor…', change24: '24s', locale: 'tr-TR'},
   en: {greet: (h: number) => h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', home: 'Home',
-    liveTitle: 'Total balance · Binance Futures', coinbaseTitle: 'Futures balance · Coinbase', exchange: 'Exchange', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
+    liveTitle: 'Total balance · Binance Futures', coinbaseTitle: 'Balance · Coinbase (futures + spot)', exchange: 'Exchange', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
     unrealized: 'Unrealized', open: (n: number) => `${n} open ${n === 1 ? 'trade' : 'trades'}`, liveOff: 'Live account not connected', demoOff: 'Demo account not connected',
     connect: 'Connect', portfolio: 'Portfolio', setupSub: 'Track your balance and trades.', aiTag: 'AI SETUP', setupTitle: 'Connect your account', setupText: 'Connect your Binance or demo account to see your balance and trades here.', setupLive: 'Connect Binance', setupDemo: 'Demo account', notConnectedLink: 'Connect', selectedOff: 'This account is not connected yet.', demoAcc: 'Demo account', liveAcc: 'Live account', notConnected: 'Not connected',
     trial: 'Trial', trialEnds: (d: string) => `Ends on ${d}`, trialOn: 'Trial in progress',
@@ -107,7 +107,10 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       getJson<{positions?: unknown[]}>('/coinbase/positions', controller.signal),
     ]).then(([account, positions]) => {
       const balance = account?.balance
-      const wallet = Number(balance?.cfm_usd_balance?.value ?? balance?.total_usd_balance?.value)
+      // Para çoğu zaman spot hesapta durur ve işlem açılınca vadeliye geçer: vadeli hesap (cfm) 0 görünse de toplam (cbi + cfm) doludur.
+      const total = Number(balance?.total_usd_balance?.value)
+      const futuresOnly = Number(balance?.cfm_usd_balance?.value)
+      const wallet = Number.isFinite(total) && total > 0 ? Math.max(total, Number.isFinite(futuresOnly) ? futuresOnly : 0) : futuresOnly
       const pnl = Number(balance?.unrealized_pnl?.value)
       setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: Number.isFinite(pnl) ? pnl : null, positions: Array.isArray(positions?.positions) ? positions.positions : []} : null)
     })
