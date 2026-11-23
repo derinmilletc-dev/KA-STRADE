@@ -105,6 +105,20 @@ async def push_status(request: Request):
     return {"ready": ready, "public_key": os.getenv("VAPID_PUBLIC_KEY") if ready else None}
 
 
+class CheckInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    endpoint: str = Field(min_length=20, max_length=2048)
+
+
+@router.post("/check")
+async def push_check(payload: CheckInput, request: Request):
+    """Bu cihazın aboneliği sunucuda kayıtlı mı? (Tarayıcıda abonelik var ama sunucu silmişse bildirim gelmez; istemci kendini onarır.)"""
+    user = await authenticated_user_async(request)
+    pool = _pool(request)
+    row = await _guard(pool.fetchrow("SELECT 1 AS ok FROM push_subscriptions WHERE endpoint=$1 AND user_id=$2", payload.endpoint, str(user["id"])))
+    return {"known": row is not None}
+
+
 @router.post("/subscribe")
 async def push_subscribe(payload: SubscribeInput, request: Request):
     user = await authenticated_user_async(request)

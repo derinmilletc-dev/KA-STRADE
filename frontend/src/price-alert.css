@@ -31,3 +31,7 @@
 .mxaList small{opacity:.65!important;font-size:12px!important}
 .mxaList button{border:0!important;background:rgba(255,255,255,.08)!important;color:inherit!important;border-radius:10px!important;width:30px!important;height:30px!important;display:grid!important;place-items:center!important}
 .mxaList button svg{width:16px!important;height:16px!important}
+.mxaPush{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;margin:0!important;padding:8px 10px!important;border-radius:12px!important;background:rgba(250,204,21,.1)!important;font-size:12.5px!important}
+.mxaPush[data-on]{background:rgba(52,211,153,.1)!important}
+.mxaPush button{margin-left:auto!important;border:0!important;border-radius:10px!important;padding:5px 10px!important;background:rgba(255,255,255,.12)!important;color:inherit!important;font:inherit!important}
+.mxaPush small{flex-basis:100%!important;opacity:.75!important}
