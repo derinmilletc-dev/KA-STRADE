@@ -63,6 +63,21 @@ class ApiTests(unittest.TestCase):
             run(order_api.create_order(c, {"client_order_id": "kais-e-1"}, "Giriş"))
         self.assertIn("NEW_THING", ctx.exception.message)
 
+    def test_generic_reason_uses_preview_reason_and_details(self):
+        c = self.client(_resp({"success": False, "error_response": {
+            "new_order_failure_reason": "UNKNOWN_FAILURE_REASON", "preview_failure_reason": "PREVIEW_INSUFFICIENT_FUND",
+            "message": "Order rejected", "error_details": "needs more margin"}}))
+        with self.assertRaises(order_api.OrderRejected) as ctx:
+            run(order_api.create_order(c, {"client_order_id": "kais-e-1"}, "Giriş"))
+        self.assertIn("PREVIEW_INSUFFICIENT_FUND", ctx.exception.message)
+        self.assertIn("needs more margin", ctx.exception.message)
+
+    def test_fully_generic_rejection_explains_likely_cause(self):
+        c = self.client(_resp({"success": False, "error_response": {"new_order_failure_reason": "UNKNOWN_FAILURE_REASON"}}))
+        with self.assertRaises(order_api.OrderRejected) as ctx:
+            run(order_api.create_order(c, {"client_order_id": "kais-e-1"}, "Giriş"))
+        self.assertIn("marjin", ctx.exception.message)
+
     def test_success_without_order_id_is_bad_response(self):
         c = self.client(_resp({"success": True, "success_response": {}}))
         with self.assertRaises(CoinbaseError) as ctx:

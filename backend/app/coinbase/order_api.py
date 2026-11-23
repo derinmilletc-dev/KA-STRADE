@@ -82,8 +82,14 @@ def _parse_success(payload: dict[str, Any], what: str) -> str:
     if payload.get("success") is not True:
         error = payload.get("error_response")
         error = error if isinstance(error, dict) else {}
-        reason = str(error.get("new_order_failure_reason") or error.get("error") or "UNKNOWN_FAILURE_REASON")
-        detail = clean_remote_message(error.get("message") or error.get("error_details"))
+        # Coinbase nedeni birkaç alana dağıtabilir; "UNKNOWN_FAILURE_REASON" genel kalıp olduğundan en bilgilisi öne alınır.
+        generic = ("", "UNKNOWN_FAILURE_REASON", "UNKNOWN_PREVIEW_FAILURE_REASON")
+        candidates = [str(error.get(key) or "") for key in ("new_order_failure_reason", "preview_failure_reason", "error")]
+        reason = next((item for item in candidates if item not in generic), "") or "UNKNOWN_FAILURE_REASON"
+        parts = [clean_remote_message(error.get(key)) for key in ("message", "error_details")]
+        detail = " — ".join(dict.fromkeys(part for part in parts if part))
+        if not detail and reason == "UNKNOWN_FAILURE_REASON":
+            detail = "Coinbase neden vermedi. Teminat, kaldıraç ve ürünün marjin oranı yetmiyor olabilir; teminatı artırmayı ya da başka ürünü dene."
         raise OrderRejected(reason, detail)
     success = payload.get("success_response")
     order_id = success.get("order_id") if isinstance(success, dict) else None
