@@ -25,7 +25,7 @@ import '../../live-cockpit.css'
 import '../../manual-analysis-sheet.css'
 import {API_BASE} from './api'
 import {AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, buildSignalMap, filterBySignal, leanText, sortCoins, strengthLabel, type CoinFilter, type CoinSignal, type CoinSort, type SignalMap} from './coin-ranking'
-import {minMarginNote, analysisSymbol, changeText, expiryText, groupRows, isPerp, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
+import {capacityOf, minMarginNote, analysisSymbol, changeText, expiryText, groupRows, isPerp, matchRows, variantLabel, priceText, signalsForRows, toRows, type CbProduct, type CbQuote, type CbRow} from './coinbase-market'
 import {CONFIRM, emptyTicket, isPositiveDecimal, isProductId, newRequestId, ticketPayload, ticketProblems, type Ticket} from './coinbase-manual'
 import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, stopFromPct, targetFromRR} from './coinbase-sizing'
 import {sameConfirm} from './confirm-text'
@@ -429,6 +429,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       maxLossUsd: limitNumber(limitView?.effective.max_loss_usd), dailyLimitUsd: limitNumber(limitView?.effective.daily_loss_limit_usd),
       dailyLossUsd: Number.isFinite(dailyPnlNum) ? Math.max(0, -dailyPnlNum) : null, openOrders: protection?.open_order_count ?? null, maxOrders: limitView?.max_open_orders ?? null}) : null
   const levBandM = !(levNum >= 1) ? null : levNum <= 3 ? ['Düşük risk', 'low'] : levNum <= 10 ? ['Orta risk', 'mid'] : ['Yüksek risk', 'high']
+  // Bu coinde bakiyenle yapılabilecek en fazla: sözleşme, teminat, pozisyon ve borsanın izin verdiği en yüksek kaldıraç (kendi limitinle sınırlı).
+  const cap = capacityOf({minMargin: selectedRow?.minMargin, marginRate: selectedRow?.marginRate, spendable: Number.isFinite(marginAvail) ? marginAvail : null, leverageLimit: limitNumber(limitView?.effective.leverage_max)})
+  const levMax = cap ? Math.max(1, Math.floor(cap.maxLeverage)) : 20
+  useEffect(() => { if (cap && Number(ticket.leverage) > levMax) patch({leverage: String(levMax)}) }, [levMax, cap !== null, ticket.leverage])  // eslint-disable-line react-hooks/exhaustive-deps
   const minO = minOrder(contractSize, entryRef, manualContracts === null && levNum >= 1 ? levNum : 1)
   const amountMobile = <div className="mxtM mxtMAmt">
     <div className="mxtMSeg" role="group" aria-label="Emir türü"><button type="button" aria-pressed={!isLimit} data-on={!isLimit || undefined} onClick={() => patch({limitPrice: '', rest: false})}>Piyasa fiyatından</button><button type="button" aria-pressed={isLimit} data-on={isLimit || undefined} onClick={() => patch({limitPrice: ticket.limitPrice.trim() || (Number.isFinite(shownPrice) ? priceString(shownPrice) : '')})}>Limit fiyattan</button></div>
@@ -444,11 +448,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       <div className="mxtMChips">{marginPicks.map(v => <button type="button" key={v} aria-pressed={ticket.marginUsd.trim() === String(v)} data-on={ticket.marginUsd.trim() === String(v) || undefined} onClick={() => patch({marginUsd: String(v)})}>{v === maxPick && marginPicks.length > 1 ? `Maks ${v}` : v}</button>)}</div>
       <input type="range" className="mxtMRange" min="1" max={marginMax} step="1" value={Number.isFinite(marginNum) && marginNum > 0 ? Math.min(marginNum, marginMax) : Math.min(10, marginMax)} onChange={event => patch({marginUsd: event.target.value})} aria-label="Teminat kaydırıcı"/>
     </div>
+    {cap && <div className="cbCapacity" data-none={cap.contracts < 1 || undefined} role="note">
+      {cap.contracts >= 1
+        ? <><span>Bu coinde bakiyenle en fazla <b>{cap.contracts} sözleşme</b> · pozisyon ≈ {usd(cap.notional)} USD · teminat ≈ {usd(cap.margin)} USD</span><span>En yüksek kaldıraç: <b>~{levMax}x</b> (borsa bu coin için bu kadarına izin veriyor)</span>
+          <button type="button" onClick={() => patch({marginUsd: String(cap.margin), contracts: String(cap.contracts)})}>Maksimumu yaz</button></>
+        : <><span>Bu coinde 1 sözleşme için <b>~{usd(cap.perContractMargin)} USD</b> teminat gerekir; bakiyen yetmiyor.</span><span>En yüksek kaldıraç ~{levMax}x. Başka coin seç ya da bakiye ekle.</span></>}
+    </div>}
     <div className="mxtMCard">
       <div className="mxtMLbl"><span>KALDIRAÇ</span><span>Pozisyon = teminat × kaldıraç</span></div>
-      <div className="mxtMLev"><input type="number" inputMode="numeric" min="1" max="20" style={{width: `${Math.max(1.6, String(ticket.leverage).length + 0.6)}ch`}} value={ticket.leverage} aria-label="Kaldıraç (x)" disabled={manualContracts !== null} onChange={event => patch({leverage: event.target.value})}/><i>x</i>{levBandM && <span className="mxtMBand" data-band={levBandM[1]}>{levBandM[0]}</span>}</div>
-      <div className="mxtMChips">{[1, 2, 3, 5, 10].map(v => <button type="button" key={v} disabled={manualContracts !== null} aria-pressed={ticket.leverage === String(v)} data-on={ticket.leverage === String(v) || undefined} onClick={() => patch({leverage: String(v)})}>{v}x</button>)}</div>
-      <input type="range" className="mxtMRange" min="1" max="20" step="1" disabled={manualContracts !== null} value={Number.isFinite(levNum) && levNum > 0 ? Math.min(20, levNum) : 1} onChange={event => patch({leverage: event.target.value})} aria-label="Kaldıraç kaydırıcı"/>
+      <div className="mxtMLev"><input type="number" inputMode="numeric" min="1" max={levMax} style={{width: `${Math.max(1.6, String(ticket.leverage).length + 0.6)}ch`}} value={ticket.leverage} aria-label="Kaldıraç (x)" disabled={manualContracts !== null} onChange={event => patch({leverage: event.target.value})}/><i>x</i>{levBandM && <span className="mxtMBand" data-band={levBandM[1]}>{levBandM[0]}</span>}</div>
+      <div className="mxtMChips">{[1, 2, 3, 5, 10].filter(v => v <= levMax).map(v => <button type="button" key={v} disabled={manualContracts !== null} aria-pressed={ticket.leverage === String(v)} data-on={ticket.leverage === String(v) || undefined} onClick={() => patch({leverage: String(v)})}>{v}x</button>)}</div>
+      <input type="range" className="mxtMRange" min="1" max={levMax} step="1" disabled={manualContracts !== null} value={Number.isFinite(levNum) && levNum > 0 ? Math.min(levMax, levNum) : 1} onChange={event => patch({leverage: event.target.value})} aria-label="Kaldıraç kaydırıcı"/>
     </div>
     <div className="mxtMTiles">
       <div className="mxtMTileW"><span><small>Pozisyon büyüklüğü</small><b>{notionalNow !== null ? `${usd(notionalNow)} USD · ${contractsNow} sözleşme` : '—'}</b></span></div>

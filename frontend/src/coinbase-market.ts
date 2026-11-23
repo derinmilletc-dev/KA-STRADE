@@ -5,7 +5,7 @@ export type CbProduct = {
   product_id: string; display: string; root: string | null; price: string | null; change_pct: string | null
   volume_usd: string | null; expiry: string | null; contract_size: string | null; price_increment?: string | null; margin_rate?: string | null; tradable: boolean
 }
-export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null; minMargin?: number | null}
+export type CbRow = {symbol: string; display: string; price: number; change: number; volume: number; root: string | null; expiry: string | null; minMargin?: number | null; marginRate?: number | null}
 export type CbQuote = {product_id: string; bid: string | null; ask: string | null; mid: string | null; spread_pct: string | null; source?: 'book' | 'last' | 'none'; reason?: string}
 
 const num = (value: string | null): number => value === null ? NaN : Number(value)
@@ -14,7 +14,7 @@ const num = (value: string | null): number => value === null ? NaN : Number(valu
 export function toRows(products: readonly CbProduct[]): CbRow[] {
   return products.filter(item => item.tradable).map(item => ({
     symbol: item.product_id, display: item.display || item.product_id, price: num(item.price), change: num(item.change_pct),
-    volume: num(item.volume_usd), root: item.root, expiry: item.expiry, minMargin: minMarginOf(num(item.price), num(item.contract_size), num(item.margin_rate ?? null)),
+    volume: num(item.volume_usd), root: item.root, expiry: item.expiry, minMargin: minMarginOf(num(item.price), num(item.contract_size), num(item.margin_rate ?? null)), marginRate: Number.isFinite(num(item.margin_rate ?? null)) && num(item.margin_rate ?? null) > 0 ? num(item.margin_rate ?? null) : null,
   }))
 }
 
@@ -106,4 +106,18 @@ export function groupRows(rows: readonly CbRow[]): {rows: CbRow[]; variants: Rec
     result.push(list[0])
   }
   return {rows: result, variants}
+}
+
+export type Capacity = {contracts: number; margin: number; notional: number; maxLeverage: number; perContractMargin: number}
+
+/** Bakiyenle bu üründe en fazla ne yapılır: sözleşme sayısı, gereken teminat, pozisyon değeri ve borsanın izin verdiği en yüksek kaldıraç (1 ÷ marjin oranı; kendi limitinle sınırlı).
+ *  Bilgi eksikse null. contracts 0 ise 1 sözleşme bile yetmiyor (perContractMargin gereken tutardır). */
+export function capacityOf(input: {minMargin: number | null | undefined; marginRate: number | null | undefined; spendable: number | null; leverageLimit?: number | null}): Capacity | null {
+  const {minMargin, marginRate, spendable} = input
+  if (!(typeof minMargin === 'number' && minMargin > 0) || !(typeof marginRate === 'number' && marginRate > 0) || spendable === null || !Number.isFinite(spendable) || spendable <= 0) return null
+  const perContractNotional = minMargin / marginRate
+  const limit = input.leverageLimit != null && Number.isFinite(input.leverageLimit) && input.leverageLimit >= 1 && input.leverageLimit < 1000 ? input.leverageLimit : Infinity
+  const maxLeverage = Math.max(1, Math.floor(Math.min(1 / marginRate, limit) * 10) / 10)
+  const contracts = Math.floor(spendable * 0.97 / minMargin + 1e-9)
+  return {contracts, margin: Math.ceil(contracts * minMargin * 100) / 100, notional: contracts * perContractNotional, maxLeverage, perContractMargin: Math.ceil(minMargin * 100) / 100}
 }

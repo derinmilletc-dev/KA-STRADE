@@ -649,3 +649,9 @@ html body #root .cbTerminal .mxtMList li:has(.cbMinMargin[data-short]) .mxtMRowN
 
 html body #root .cbTerminal .mxtAfford:not(#a){display:inline-flex!important;width:auto!important;margin:8px 0 4px!important;padding:8px 14px!important;border-radius:999px!important;border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.04)!important;color:inherit!important;font-size:.85rem!important;font-weight:600!important}
 html body #root .cbTerminal .mxtAfford[data-on]:not(#a){border-color:rgba(70,214,160,.6)!important;background:rgba(70,214,160,.14)!important}
+
+/* Bu coinde bakiyenle yapılabilecek en fazla */
+html body #root .cbTerminal .cbCapacity:not(#a){display:grid!important;gap:6px!important;margin:0 0 12px!important;padding:12px 14px!important;border-radius:16px!important;border:1px solid rgba(70,214,160,.35)!important;background:rgba(70,214,160,.08)!important;font-size:.9rem!important;line-height:1.35!important}
+html body #root .cbTerminal .cbCapacity[data-none]:not(#a){border-color:rgba(230,169,107,.5)!important;background:rgba(230,169,107,.1)!important}
+html body #root .cbTerminal .cbCapacity>span:not(#a){display:block!important;width:auto!important}
+html body #root .cbTerminal .cbCapacity>button:not(#a){justify-self:start!important;width:auto!important;padding:8px 14px!important;border-radius:999px!important;border:1px solid rgba(70,214,160,.6)!important;background:rgba(70,214,160,.16)!important;color:inherit!important;font-weight:700!important}
