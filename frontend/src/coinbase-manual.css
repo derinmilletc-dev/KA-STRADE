@@ -553,3 +553,11 @@ html body #root .cbTerminal .cbLimProfiles button b:not(#a){font-size:14px!impor
 html body #root .cbTerminal .cbLimProfiles button small:not(#a){font-size:11px!important;line-height:1.3!important;color:#b9c7c0!important}
 html body #root .cbTerminal .cbLimProfiles button[data-on]:not(#a){background:rgba(61,224,160,.16)!important;border-color:var(--kt-accent,#3de0a0)!important}
 @media (max-width:380px){html body #root .cbTerminal .cbLimProfiles:not(#a){grid-template-columns:1fr!important}}
+
+/* ===== Canlı pozisyon rozeti ===== */
+html body #root .cbTerminal .cbLiveChip:not(#a){display:inline-flex!important;align-items:center!important;gap:6px!important;margin-left:10px!important;padding:3px 10px!important;border-radius:999px!important;font-size:12px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;background:rgba(255,255,255,.07)!important;color:#c3cfc9!important;vertical-align:middle!important}
+html body #root .cbTerminal .cbLiveChip i:not(#a){width:7px!important;height:7px!important;border-radius:50%!important;background:#8a9b93!important}
+html body #root .cbTerminal .cbLiveChip[data-live]:not(#a){background:rgba(61,224,160,.14)!important;color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLiveChip[data-live] i:not(#a){background:var(--kt-accent,#3de0a0)!important;animation:cbLivePulse 1.6s ease-in-out infinite!important}
+@keyframes cbLivePulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){html body #root .cbTerminal .cbLiveChip[data-live] i:not(#a){animation:none!important}}

@@ -1,6 +1,6 @@
 // Çalıştırma: node frontend/src/coinbase-position.test.mts
 import assert from 'node:assert/strict'
-import {closeParts, closePreview, positionView} from './coinbase-position.ts'
+import {closeParts, closePreview, overlayLive, positionView} from './coinbase-position.ts'
 
 const close = (a: number | null, b: number, eps = 1e-6) => assert.ok(a !== null && Math.abs(a - b) < eps, `${a} ≈ ${b}`)
 
@@ -72,4 +72,18 @@ assert.deepEqual(closeParts(0), [])
   assert.equal(closePreview(nostop, 20, 2).atStop, null)
   const nopnl = positionView({side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '2', avg_entry_price: '100', current_price: '102'}, {stop_price: '98'})
   assert.equal(closePreview(nopnl, null, 2).now, null)
+}
+
+// overlayLive: canlı orta fiyat ve K/Z (long/short), eksik veride pozisyon aynen
+{
+  const base = {side: 'FUTURES_POSITION_SIDE_LONG', number_of_contracts: '3', avg_entry_price: '6.76', current_price: '6.76', unrealized_pnl: '-0.3', product_id: 'AVP'}
+  const up = overlayLive(base, {bid: '6.80', ask: '6.82', mid: null}, 10)
+  assert.strictEqual(up.current_price, '6.81')
+  assert.strictEqual(up.unrealized_pnl, String(Number(((6.81 - 6.76) * 3 * 10).toFixed(4))))
+  const short = overlayLive({...base, side: 'FUTURES_POSITION_SIDE_SHORT'}, {mid: '6.70'}, 10)
+  assert.ok(Number(short.unrealized_pnl) > 0)
+  assert.strictEqual(overlayLive(base, {mid: null, bid: null, ask: null}, 10), base)
+  const noSize = overlayLive(base, {mid: '7'}, null)
+  assert.strictEqual(noSize.current_price, '7')
+  assert.strictEqual(noSize.unrealized_pnl, '-0.3')
 }
