@@ -4878,7 +4878,7 @@ async def analysis_universe(interval: str = "15m", limit: int = Query(100, ge=1,
         return await _analysis_universe(interval, limit)
 
 
-ANALYSIS_UNIVERSE_FRESH_SECONDS = 60
+ANALYSIS_UNIVERSE_FRESH_SECONDS = 300     # 15 dk mum analizi: 5 dk eski sonuç yeterli; sık hesaplama sunucuyu yavaşlatıyordu (hesap durumu zaman aşımı)
 ANALYSIS_UNIVERSE_STALE_SECONDS = 1800   # bundan eski sonuç sunulmaz (yeniden hesaplanır)
 ANALYSIS_UNIVERSE_WARM_WINDOW = 1200      # son kullanımdan bu yana 20 dk boyunca önbellek sıcak tutulur
 ANALYSIS_UNIVERSE_LAST_USED: list[float] = [0.0]
@@ -4915,12 +4915,14 @@ async def analysis_universe_warm_loop(application: Any) -> None:
     while True:
         try:
             if time.monotonic() - ANALYSIS_UNIVERSE_LAST_USED[0] < ANALYSIS_UNIVERSE_WARM_WINDOW and ANALYSIS_UNIVERSE_LAST_USED[0] > 0:
-                _schedule_universe_refresh("15m", 100)
+                cached = ANALYSIS_UNIVERSE_CACHE.get("15m")
+                if cached is None or time.monotonic() - cached[0] >= ANALYSIS_UNIVERSE_FRESH_SECONDS - 30:
+                    _schedule_universe_refresh("15m", 100)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
             pass
-        await asyncio.sleep(45)
+        await asyncio.sleep(60)
 
 
 def _analyst_v2_snapshot(candles: list[dict]) -> dict | None:
@@ -4951,7 +4953,7 @@ async def _analysis_universe(interval: str, limit: int, max_age: float = ANALYSI
     market_list = await _markets(limit=limit, timing=timing)
     if not market_list:
         raise HTTPException(502, "Binance Futures market data unavailable: no tradable markets returned.")
-    semaphore = asyncio.Semaphore(8)
+    semaphore = asyncio.Semaphore(4)   # eşzamanlı analiz azaltıldı: CPU'yu uzun süre tutup diğer isteklerin (hesap durumu) zaman aşımına düşmesini önler
 
     async def inspect(market: dict) -> dict | None:
         try:
