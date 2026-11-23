@@ -387,7 +387,10 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const manualContracts = ticket.contracts.trim() !== '' && /^[1-9]\d{0,5}$/.test(ticket.contracts.trim()) ? Number(ticket.contracts.trim()) : null
   const sizing = manualContracts === null ? sizeFromLeverage({margin: marginNum, leverage: levNum, entry: entryRef, contractSize}) : null
   const contractsNow = manualContracts ?? sizing?.contracts ?? null
-  const marginAvail = Number(account?.balance.available_margin?.value)
+  // Harcanabilir tutar = alım gücü ile kullanılabilir marjinin küçüğü (sunucu ön kontrolü alım gücüne bakar; kullanılabilir marjin bugünkü kârı da sayar ve fazla görünebilir).
+  const buyingNum = Number(account?.balance.futures_buying_power?.value)
+  const availNum = Number(account?.balance.available_margin?.value)
+  const marginAvail = [buyingNum, availNum].filter(value => Number.isFinite(value) && value > 0).reduce((low, value) => Math.min(low, value), Infinity)
   const chips = marginChips(Number.isFinite(marginAvail) ? marginAvail : null)
   const band = leverageBand(levNum)
   const stopNum = isPositiveDecimal(ticket.stopPrice) ? Number(ticket.stopPrice) : NaN
@@ -644,6 +647,11 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       ? [{key: 'pre', label: 'Ön kontrol', state: 'ok', detail: 'Kayıp, kaldıraç, alım gücü, marjin ve sınırlar uygun.'}]
       : check.reasons.map((reason, index) => ({key: `r${index}`, label: 'Düzeltilmeli', state: 'bad' as const, detail: reason}))
   const reviewed = check?.ok === true
+  // Alım gücü yetmiyorsa tek dokunuşla sığacak teminata düş (aynı kaldıraç; sözleşme sayısı kendiliğinden küçülür) ve ön kontrolü yenile.
+  const lackFunds = check?.ok === false && check.reasons.some(reason => reason.includes('Alım gücü yetersiz')) && Number.isFinite(marginAvail) && marginNum > marginAvail
+  const fitMargin = lackFunds ? Math.floor(marginAvail * 0.98 * 100) / 100 : null
+  const fitContracts = fitMargin !== null ? sizeFromLeverage({margin: fitMargin, leverage: levNum, entry: entryRef, contractSize})?.contracts ?? 0 : 0
+  const fitToFunds = () => { if (fitMargin === null) return; autoCheckRef.current = false; patch({marginUsd: String(fitMargin), contracts: ''}) }
   const sendBlock = futuresMissing ? 'Vadeli cüzdanında bakiye yok. Coinbase\'de vadeli cüzdana USD ekle, sonra tekrar dene.' : !ordersOn ? 'Emir gönderme sunucuda kapalı (COINBASE_ORDERS_ENABLED).' : !reviewed ? 'Önce "Ön kontrol yap" ile sına; geçerse gönderebilirsin.' : ''
 
   const noticeEl = wizNotice.kind !== 'info' && wizNotice.text
@@ -672,6 +680,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {advice && <TradeAdviceCard advice={advice} compact/>}
     <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 5)}/><SummaryList rows={summaryRows.slice(5)}/></div>
     <CheckList rows={checkRows}/>
+    {lackFunds && fitMargin !== null && (fitContracts >= 1
+      ? <button type="button" className="mxtBtn ghost" onClick={fitToFunds} disabled={busy !== ''}>Teminatı {usd(fitMargin)} USD'ye düşür · {fitContracts} sözleşme</button>
+      : <p className="mxtHint" role="alert">Bu bakiye ve kaldıraçla 1 sözleşme bile açılamıyor. Kaldıracı artır ya da bakiye ekle.</p>)}
     {plan && <p className="mxtHint">Stop'ta kaybın en çok {String(plan.worst_case_loss_usd)} USD olur.</p>}
     {progressEl}
     <div className="mxtActions">
