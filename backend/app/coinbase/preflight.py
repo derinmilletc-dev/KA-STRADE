@@ -260,7 +260,11 @@ def run_preflight(
     if not isinstance(balance, dict):
         reasons.append("Hesap bilgisi alınamadı; güvenlik için emir verilmez.")
     else:
-        if level_rank(balance.get("worst_margin_level")) >= 1:
+        # Hiç açık pozisyon yokken Coinbase marjin seviyesini "UNSPECIFIED" ve pencere alım gücünü boş döndürebilir:
+        # değerlendirilecek bir risk yoktur. Pozisyon varsa bu belirsizlik hâlâ güvenli tarafta reddedilir.
+        flat = not positions
+        level_name = str(balance.get("worst_margin_level") or "").rsplit("_", 1)[-1].upper()
+        if not (flat and level_name == "UNSPECIFIED") and level_rank(balance.get("worst_margin_level")) >= 1:
             reasons.append(f"Marjin seviyesi sağlıksız ({balance.get('worst_margin_level')}, pencere: {balance.get('worst_margin_window')}).")
         powers = [
             _amount_value(balance.get("futures_buying_power")),
@@ -268,7 +272,10 @@ def run_preflight(
             _window_bp(balance.get("intraday_window")),
             _window_bp(balance.get("overnight_window")),
         ]
-        if any(p is None for p in powers):
+        required = powers[:2]  # futures_buying_power ve available_margin her zaman gerekir
+        if flat:
+            powers = [p for p in powers if p is not None]  # pencere değerleri boşsa (pozisyon yok) üst düzey değerlere güvenilir
+        if any(p is None for p in required) or any(p is None for p in powers):
             reasons.append("Alım gücü bilgisi eksik; güvenlik için emir verilmez.")
         else:
             usable = min(powers)  # type: ignore[type-var]
