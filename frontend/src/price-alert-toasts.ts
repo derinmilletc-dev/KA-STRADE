@@ -3,9 +3,13 @@ import {useEffect} from 'react'
 import {showToast} from '../../toast-center'
 import {binanceAlertCall, coinbaseAlertCall} from './price-alert-api'
 import type {Exchange} from './CoinbaseExchangeSwitch'
+import {repairPush} from '../../push-client'
+import {loadNotifyPrefs} from '../../notification-prefs'
 import {firedText, type FiredAlert} from './coinbase-alert'
 
 export function usePriceAlertToasts(exchange: Exchange): void {
+  // Açılışta bir kez: sunucu bu cihazı unutmuşsa aboneliği sessizce yeniden kaydet (bildirimin gelmemesinin en olası sebebi).
+  useEffect(() => { void repairPush(loadNotifyPrefs()) }, [])
   useEffect(() => {
     let stopped = false
     const call = exchange === 'coinbase' ? coinbaseAlertCall : binanceAlertCall

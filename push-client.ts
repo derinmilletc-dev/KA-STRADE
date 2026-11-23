@@ -78,3 +78,19 @@ export async function sendTestPush(): Promise<string | null> {
   if (response.ok) return null
   return response.status === 409 ? 'Bu cihaz kayıtlı görünmüyor. Telefon bildirimini kapatıp tekrar aç.' : 'Test bildirimi gönderilemedi.'
 }
+
+/** Tarayıcıda abonelik var ama sunucu bu cihazı unutmuşsa (404/410 sonrası silinmiş olabilir) sessizce yeniden kaydeder.
+ *  Bildirim "geliyor sanılıp gelmemesinin" en olası sebebi budur. Sonuç: 'ok' | 'repaired' | 'skipped'. */
+export async function repairPush(prefs: NotifyPrefs): Promise<'ok' | 'repaired' | 'skipped'> {
+  try {
+    if (!supported() || Notification.permission !== 'granted' || !(await serverStatus()).ready) return 'skipped'
+    const subscription = await (await registration()).pushManager.getSubscription()
+    if (!subscription) return 'skipped'
+    const json = subscription.toJSON()
+    const checked = await post('check', {endpoint: json.endpoint})
+    if (!checked.ok) return 'skipped'
+    if ((await checked.json()).known === true) return 'ok'
+    const saved = await post('subscribe', {endpoint: json.endpoint, keys: json.keys, kinds: enabledKinds(prefs)})
+    return saved.ok ? 'repaired' : 'skipped'
+  } catch { return 'skipped' }
+}
