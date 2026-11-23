@@ -1320,11 +1320,11 @@ async def lifespan(app: FastAPI):
     if retention_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))
     app.state.runtime_tasks.append(asyncio.create_task(analysis_universe_warm_loop(app)))
+    from .coinbase.price_alerts import alert_loop as price_alert_loop  # Coinbase + Binance fiyat alarmı: ayrı, hafif ~10 sn döngü
+    app.state.runtime_tasks.append(asyncio.create_task(price_alert_loop(app)))
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
-        from .coinbase.price_alerts import alert_loop as coinbase_alert_loop  # fiyat alarmı: ayrı, hafif ~10 sn döngü
-        app.state.runtime_tasks.append(asyncio.create_task(coinbase_alert_loop(app)))
     if PAPER_ENABLED:
         app.state.runtime_tasks.extend([
             asyncio.create_task(paper_bot_loop(app)),
@@ -1708,6 +1708,8 @@ app.include_router(analyst_credits_router)
 app.include_router(assistant_router)
 from .web_push import router as web_push_router
 app.include_router(web_push_router)
+from .price_alerts_routes import router as price_alerts_router
+app.include_router(price_alerts_router)
 app.include_router(chart_ai_router)
 app.include_router(instagram_showcase_router)
 from .coinbase import include_coinbase_if_enabled

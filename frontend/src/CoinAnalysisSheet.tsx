@@ -1,6 +1,8 @@
 import {createPortal} from 'react-dom'
 import {ChevronLeft, ChevronRight, X} from 'lucide-react'
 import CoinLiveChart from './CoinLiveChart'
+import CoinbaseAlerts from './CoinbaseAlerts'
+import {binanceAlertCall, usePriceAlerts} from './price-alert-api'
 import {AI_DISCLAIMER, strengthLabel, type SignalMap} from './coin-ranking'
 
 // Coin analiz penceresi (alttan açılır): Manuel işlemdeki pencerenin aynısı, DCA coin listesi için.
@@ -18,6 +20,7 @@ export default function CoinAnalysisSheet({rows, symbol, signals, onClose, onOpe
   onOpen: (symbol: string) => void
   onPick: (symbol: string) => void
 }) {
+  const {alerts, reload} = usePriceAlerts(binanceAlertCall, symbol !== null)
   const idx = symbol ? rows.findIndex(row => row.symbol === symbol) : -1
   const row = idx >= 0 ? rows[idx] : undefined
   const sig = row ? signals?.[row.symbol] : undefined
@@ -60,6 +63,7 @@ export default function CoinAnalysisSheet({rows, symbol, signals, onClose, onOpe
           <div className="mxsaTile" data-side="SHORT" data-lead={sig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{sig.short === null ? '–' : `%${sig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${sig.short ?? 0}%`}}/></span></div>
           <div className="mxsaTile" data-side="LONG" data-lead={sig.lean === 'LONG' || undefined}><span>LONG</span><strong>{sig.long === null ? '–' : `%${sig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${sig.long ?? 0}%`}}/></span></div>
         </div>
+        <CoinbaseAlerts productId={row.symbol} display={name} price={Number.isFinite(Number(row.price)) ? Number(row.price) : null} alerts={alerts} onChanged={reload} call={binanceAlertCall}/>
         <p className="mxsaNote">{AI_DISCLAIMER}</p>
       </div>
       <footer className="mxsaFoot">

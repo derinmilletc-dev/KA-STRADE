@@ -60,5 +60,24 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(fired, [1])
 
 
+class BinanceRunTests(unittest.TestCase):
+    def test_binance_alerts_use_public_prices_and_fire(self):
+        class Pool:
+            async def fetch(self, sql, *args):
+                return [{"id": 7, "user_id": "u", "product_id": "BTCUSDT", "level": "100", "direction": "above", "ref_price": "90", "exchange": "binance"}]
+            async def execute(self, *a, **k): return None
+            async def fetchrow(self, *a, **k): return {"id": 7}
+
+        class App:
+            class state:
+                db_pool = Pool()
+
+        pa.reset_schema_cache()
+        sent = AsyncMock()
+        with patch.object(pa, "binance_prices", AsyncMock(return_value={"BTCUSDT": {"mid": "101"}})), patch.object(pa, "_push", sent):
+            total = asyncio.run(pa.run_once(App))
+        self.assertEqual(total, 1); sent.assert_awaited_once()
+
+
 if __name__ == "__main__":
     unittest.main()

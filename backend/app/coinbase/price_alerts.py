@@ -42,6 +42,7 @@ async def ensure_schema(pool: Any) -> None:
         )
         """
     )
+    await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS exchange TEXT NOT NULL DEFAULT 'coinbase'")
     await pool.execute(f"CREATE INDEX IF NOT EXISTS {TABLE}_active ON {TABLE} (user_id) WHERE triggered_at IS NULL")
     _SCHEMA_DONE.add(id(pool))
 
@@ -81,23 +82,23 @@ def _row(row: Any) -> dict[str, Any]:
     return {"id": int(row["id"]), "product_id": str(row["product_id"]), "level": str(row["level"]), "direction": str(row["direction"]), "ref_price": str(row["ref_price"])}
 
 
-async def list_alerts(pool: Any, user_id: str) -> list[dict[str, Any]]:
+async def list_alerts(pool: Any, user_id: str, exchange: str = "coinbase") -> list[dict[str, Any]]:
     await ensure_schema(pool)
-    rows = await pool.fetch(f"SELECT id, product_id, level, direction, ref_price FROM {TABLE} WHERE user_id = $1 AND triggered_at IS NULL ORDER BY id DESC", user_id)
+    rows = await pool.fetch(f"SELECT id, product_id, level, direction, ref_price FROM {TABLE} WHERE user_id = $1 AND exchange = $2 AND triggered_at IS NULL ORDER BY id DESC", user_id, exchange)
     return [_row(r) for r in rows]
 
 
-async def count_active(pool: Any, user_id: str) -> int:
+async def count_active(pool: Any, user_id: str, exchange: str = "coinbase") -> int:
     await ensure_schema(pool)
-    row = await pool.fetchrow(f"SELECT COUNT(*) AS n FROM {TABLE} WHERE user_id = $1 AND triggered_at IS NULL", user_id)
+    row = await pool.fetchrow(f"SELECT COUNT(*) AS n FROM {TABLE} WHERE user_id = $1 AND exchange = $2 AND triggered_at IS NULL", user_id, exchange)
     return int(row["n"]) if row else 0
 
 
-async def add_alert(pool: Any, user_id: str, product_id: str, level: Decimal, direction: str, ref_price: Decimal) -> dict[str, Any]:
+async def add_alert(pool: Any, user_id: str, product_id: str, level: Decimal, direction: str, ref_price: Decimal, exchange: str = "coinbase") -> dict[str, Any]:
     await ensure_schema(pool)
     row = await pool.fetchrow(
-        f"INSERT INTO {TABLE} (user_id, product_id, level, direction, ref_price) VALUES ($1, $2, $3, $4, $5) RETURNING id, product_id, level, direction, ref_price",
-        user_id, product_id, f"{level:f}", direction, f"{ref_price:f}",
+        f"INSERT INTO {TABLE} (user_id, product_id, level, direction, ref_price, exchange) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, product_id, level, direction, ref_price",
+        user_id, product_id, f"{level:f}", direction, f"{ref_price:f}", exchange,
     )
     return _row(row)
 
@@ -138,16 +139,32 @@ async def _push(pool: Any, user_id: str, title: str, body: str) -> None:
         await send_to_user(pool, user_id, "price", title, body, force=True, url="/master-trade")
 
 
+async def binance_prices(app: Any) -> dict[str, Any]:
+    """Binance USDT-M vadeli tüm sembol fiyatları (herkese açık, anahtar gerekmez, tek istek). {SEMBOL: {"mid": fiyat}}."""
+    from ..main import market_data_request   # geç içe aktarma: main bu modülü başlangıçta yükler
+    response = await market_data_request(app, "/fapi/v1/ticker/price", {})
+    response.raise_for_status()
+    return {str(row["symbol"]): {"mid": str(row["price"])} for row in response.json() if isinstance(row, dict) and "symbol" in row and "price" in row}
+
+
 async def run_once(app: Any) -> int:
     pool = getattr(app.state, "db_pool", None)
     if pool is None:
         return 0
     await ensure_schema(pool)
-    rows = await pool.fetch(f"SELECT id, user_id, product_id, level, direction, ref_price FROM {TABLE} WHERE triggered_at IS NULL")
+    rows = await pool.fetch(f"SELECT id, user_id, product_id, level, direction, ref_price, exchange FROM {TABLE} WHERE triggered_at IS NULL")
     by_user: dict[str, list[dict[str, Any]]] = {}
+    binance: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
-        by_user.setdefault(str(row["user_id"]), []).append({**_row(row)})
+        (binance if str(row["exchange"]) == "binance" else by_user).setdefault(str(row["user_id"]), []).append({**_row(row)})
     total = 0
+    if binance:
+        try:
+            quotes = await binance_prices(app)
+            for user_id, alerts in binance.items():
+                total += len(await check_user(pool, user_id, alerts, quotes, send=_push))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Binance fiyat alarmı turu atlandı (%s)", type(exc).__name__)
     for user_id, alerts in by_user.items():
         try:
             stored = await vault.load_key(pool, user_id)

@@ -1,14 +1,15 @@
 import {useState} from 'react'
+import './price-alert.css'
 import {Bell, BellRing, TrendingDown, TrendingUp, X} from 'lucide-react'
-import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
+import {coinbaseAlertCall, type AlertCall} from './price-alert-api'
 import {alertPresets, alertsFor, distancePct, pctText, previewLevel, type CbAlert} from './coinbase-alert'
 
-type Props = {productId: string; display: string; price: number | null; alerts: CbAlert[]; max?: number; onChanged: () => void}
+type Props = {productId: string; display: string; price: number | null; alerts: CbAlert[]; max?: number; onChanged: () => void; call?: AlertCall}
 
 const fmt = (value: number) => value.toLocaleString('tr-TR', {maximumFractionDigits: value < 1 ? 6 : value < 100 ? 4 : 2})
 
 // Analiz çekmecesindeki "Fiyat alarmı" bölümü: tek dokunuşla hazır seviye ya da kendi fiyatın. Emir göndermez, yalnız bildirir.
-export default function CoinbaseAlerts({productId, display, price, alerts, max = 20, onChanged}: Props) {
+export default function CoinbaseAlerts({productId, display, price, alerts, max = 20, onChanged, call = coinbaseAlertCall}: Props) {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{tone: 'ok' | 'bad'; text: string} | null>(null)
@@ -21,17 +22,17 @@ export default function CoinbaseAlerts({productId, display, price, alerts, max =
     if (busy) return
     setBusy(true); setNote(null)
     try {
-      await postJson('/alerts', {product_id: productId, level: String(level)})
+      await call('/alerts', {method: 'POST', body: JSON.stringify({product_id: productId, level: String(level)})})
       setText(''); setNote({tone: 'ok', text: `${fmt(level)} için alarm kuruldu. Fiyat oraya gelince bildirim gelir.`}); onChanged()
     } catch (error) {
-      setNote({tone: 'bad', text: error instanceof CoinbaseApiError ? error.message : 'Alarm kurulamadı.'})
+      setNote({tone: 'bad', text: error instanceof Error && error.message ? error.message : 'Alarm kurulamadı.'})
     } finally { setBusy(false) }
   }
   const remove = async (id: number) => {
     if (busy) return
     setBusy(true); setNote(null)
-    try { await coinbaseCall(`/alerts/${id}`, {method: 'DELETE'}); onChanged() } catch (error) {
-      setNote({tone: 'bad', text: error instanceof CoinbaseApiError ? error.message : 'Alarm silinemedi.'})
+    try { await call(`/alerts/${id}`, {method: 'DELETE'}); onChanged() } catch (error) {
+      setNote({tone: 'bad', text: error instanceof Error && error.message ? error.message : 'Alarm silinemedi.'})
     } finally { setBusy(false) }
   }
 
