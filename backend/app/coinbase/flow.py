@@ -260,7 +260,7 @@ async def _close_all(client: CoinbaseTradingClient, product_id: str, contracts: 
 
 
 async def _place_stop(client: CoinbaseTradingClient, *, product_id: str, side: str, contracts: int, stop: Decimal, limit: Decimal) -> str:
-    """Pozisyon yönüne göre stop-limit koy (long için SELL/STOP_DOWN, short için BUY/STOP_UP)."""
+    """Pozisyon yönüne göre stop-limit koy (long için SELL/STOP_DIRECTION_STOP_DOWN, short için BUY/STOP_DIRECTION_STOP_UP)."""
     body = {
         "client_order_id": _cid("s"),
         "product_id": product_id,
@@ -270,7 +270,7 @@ async def _place_stop(client: CoinbaseTradingClient, *, product_id: str, side: s
                 "base_size": str(contracts),
                 "limit_price": fmt(limit),
                 "stop_price": fmt(stop),
-                "stop_direction": "STOP_DOWN" if side == "BUY" else "STOP_UP",
+                "stop_direction": "STOP_DIRECTION_STOP_DOWN" if side == "BUY" else "STOP_DIRECTION_STOP_UP",   # Coinbase'in kabul ettiği enum adı
             }
         },
     }
@@ -353,9 +353,15 @@ async def _protect_with_tp(
                     raise CoinbaseError("STOP_FAILED_POSITION_CLOSED", f"Hedef+stop emri kaldırılamadı, pozisyon kapatıldı. Sebep: {problem} Coinbase'de kalan emri elle iptal et.", http_status=409, extra={"closed": True})
                 raise _critical("CRITICAL_UNPROTECTED", f"ACİL: {product_id} için hedef+stop emri bozuk ve pozisyon kapatılamadı! Coinbase'den elle müdahale et. Sebep: {problem}", product_id=product_id)
         tp_note = f"Hedef (TP) kurulamadı, yalnızca stop kuruldu. Sebep: {problem}"
-    stop_id = await _protect_or_close(
-        client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit, sleep=sleep, action=action,
-    )
+    try:
+        stop_id = await _protect_or_close(
+            client, pool, user_id, product_id=product_id, side=side, contracts=contracts, stop=stop, limit=limit, sleep=sleep, action=action,
+        )
+    except CoinbaseError as exc:
+        # Hedef+stop de kurulamamışsa o sebep de görünsün (yoksa yalnız yedek stop'un hatası kalır ve asıl neden kaybolur).
+        if tp_note is not None and exc.code == "STOP_FAILED_POSITION_CLOSED":
+            raise CoinbaseError(exc.code, f"{exc.message} {tp_note}", http_status=exc.http_status, extra=exc.extra) from exc
+        raise
     return stop_id, tp_note
 
 

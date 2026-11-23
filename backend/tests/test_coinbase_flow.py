@@ -81,6 +81,12 @@ class OpenTests(FlowBase):
         stop = self.ex.active_stops()[0]
         self.assertEqual(stop["side"], "BUY")
 
+    def test_stop_direction_uses_full_coinbase_enum(self):
+        """Gerçekte "STOP_DOWN" HTTP 400 verir ve pozisyon kapanır; enum adı tam gönderilmeli (long: DOWN, short: UP)."""
+        self.open()
+        bodies = [body for method, path, body in self.ex.calls if method == "POST" and body and "stop_limit_stop_limit_gtc" in str(body.get("order_configuration"))]
+        self.assertEqual([b["order_configuration"]["stop_limit_stop_limit_gtc"]["stop_direction"] for b in bodies], ["STOP_DIRECTION_STOP_DOWN"])
+
     def test_preflight_failure_sends_nothing(self):
         err = self.fails(lambda: self.open(stop_price="3100"))  # long için stop fiyatın üstünde
         self.assertEqual(err.code, "PREFLIGHT_FAILED")
