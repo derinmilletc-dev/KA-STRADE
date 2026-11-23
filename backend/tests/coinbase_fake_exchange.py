@@ -261,6 +261,9 @@ class FakeExchange:
             stop_cfg = cfg["stop_limit_stop_limit_gtc"]
             if self.stop_mode == "reject":
                 return self._fail("INVALID_LIMIT_PRICE")
+            # Coinbase gibi katı: enum adı tam olmalı (gerçekte "STOP_DOWN" HTTP 400 verir).
+            if stop_cfg.get("stop_direction") not in ("STOP_DIRECTION_STOP_UP", "STOP_DIRECTION_STOP_DOWN"):
+                return self._fail("INVALID_STOP_DIRECTION")
             oid = self._new_id("stop")
             size = stop_cfg["base_size"] if self.stop_mode != "wrong_size" else str(int(stop_cfg["base_size"]) + 1)
             self.orders[oid] = {
