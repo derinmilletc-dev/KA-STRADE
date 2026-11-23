@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from . import activity, journal, market, service, vault
+from . import activity, journal, market, service, user_limits, vault
 from .client import CoinbaseClient
 from .config import orders_enabled
 from .trading_client import CoinbaseTradingClient as TradingClient
@@ -172,13 +172,13 @@ def plan_protection_alerts(items: list[dict[str, Any]], before: Any, now: dateti
     return notes, state
 
 
-async def check_protection(pool: Any, user_id: str, client: Any, *, send: Any, now: datetime | None = None) -> list[str]:
-    """Açık pozisyonların stopu yoksa/uyuşmuyorsa bildirir (SALT OKUNUR; emir göndermez, düzeltmez)."""
+async def check_protection(pool: Any, user_id: str, client: Any, *, send: Any, now: datetime | None = None, report: dict[str, Any] | None = None) -> list[str]:
+    """Açık pozisyonların stopu yoksa/uyuşmuyorsa bildirir (SALT OKUNUR; emir göndermez, düzeltmez). report verilirse yeniden çekilmez."""
     from . import flow  # tembel: yalnız emir modülü açıkken çağrılır
 
     await ensure_schema(pool)
     now = now or datetime.now(timezone.utc)
-    report = await flow.protection_report(client)
+    report = report if report is not None else await flow.protection_report(client)
     row = await pool.fetchrow(f"SELECT alerts FROM {WATCH_TABLE} WHERE user_id = $1", user_id)
     before = row["alerts"] if row else None
     if isinstance(before, str):
@@ -197,6 +197,94 @@ async def check_protection(pool: Any, user_id: str, client: Any, *, send: Any, n
         sent.append(title)
     await pool.execute(f"UPDATE {WATCH_TABLE} SET alerts = $2::jsonb WHERE user_id = $1", user_id, json.dumps(state))
     return sent
+
+
+PROFIT_ALERT_AT = Decimal("0.7")   # hedefe giden yolun %70'inde "kârı koru" bildirimi
+DAILY_WARN_AT = Decimal("0.8")     # günlük zarar limitinin %80'inde uyarı
+
+
+def profit_alert(position: dict[str, Any], item: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Saf karar: fiyat hedefe giden yolun %70'ini geçtiyse (kâr yönünde, hedefe ulaşmadan) (anahtar, başlık, metin); yoksa None.
+    Yalnız bildirir; emir vermez. Bildirim, kapatma ya da stop taşıma için ekrandaki onaylı düğmeleri gösterir."""
+    side = activity.position_side(position.get("side"))
+    entry, current = activity._dec(position.get("avg_entry_price")), activity._dec(position.get("current_price"))
+    target, stop = activity._dec(item.get("take_profit_price")), activity._dec(item.get("stop_price"))
+    contracts = activity._dec(position.get("number_of_contracts")) or Decimal(0)
+    if side is None or entry is None or current is None or target is None or entry <= 0 or current <= 0:
+        return None
+    sign = Decimal(1) if side == "LONG" else Decimal(-1)
+    full = (target - entry) * sign
+    if full <= 0:
+        return None
+    progress = (current - entry) * sign / full
+    if progress < PROFIT_ALERT_AT or progress >= 1:
+        return None
+    product = str(position["product_id"])
+    pct = int((progress * 100).to_integral_value())
+    if contracts >= 2:
+        advice = "Yarısını kapatıp kârı kilitlemeyi düşün; kalanı hedefe bırakırsın."
+    elif stop is None or (stop - entry) * sign < 0:
+        advice = "Stopu girişe çekersen bu işlem zarara dönmez."
+    else:
+        return None   # tek sözleşme ve stop zaten kârda: önerilecek bir şey yok
+    return f"{product}:{entry.normalize():f}:{target.normalize():f}", f"💰 {product.split('-')[0]} hedefin %{pct}'inde", advice
+
+
+async def check_profit_alerts(pool: Any, user_id: str, positions: list[dict[str, Any]], report: dict[str, Any], *, send: Any) -> list[str]:
+    """Hedefe yaklaşan pozisyonlar için BİR KEZ "kârı koru" bildirimi (ürün + giriş + hedef başına)."""
+    sent: list[str] = []
+    rows = {str(row["product_id"]): row for row in positions}
+    for item in report.get("positions", []):
+        position = rows.get(str(item.get("product_id")))
+        alert = profit_alert(position, item) if position is not None else None
+        if alert is None:
+            continue
+        key, title, body = alert
+        product = str(item["product_id"])
+        if await journal.has_event(pool, user_id, "profit_hint", product_id=product, key=key, days=7):
+            continue
+        await journal.record(pool, user_id, "watch", "profit_hint", product_id=product, detail={"key": key, "title": title})
+        try:
+            await send(pool, user_id, "close", title, body)
+        except Exception as exc:
+            logger.warning("Coinbase kâr bildirimi gönderilemedi (%s)", type(exc).__name__)
+        sent.append(title)
+    return sent
+
+
+def daily_alert(loss: Decimal, limit: Decimal) -> tuple[str, str, str] | None:
+    """Saf karar: bugünkü zarar günlük limitin %80'ine ya da tamamına ulaştıysa (seviye, başlık, metin). Limit yoksa (varsayılan tavan) None."""
+    if limit <= 0 or limit >= Decimal(1_000_000) or loss <= 0:
+        return None
+    ratio = loss / limit
+    fmt = lambda value: f"{value.quantize(Decimal('0.01')):f}"  # noqa: E731
+    if ratio >= 1:
+        return "daily_hit", "🛑 Günlük zarar limitin doldu", f"Bugün {fmt(loss)} USD zarar var (limit {fmt(limit)} USD). Yeni emirler limit sıfırlanana kadar verilmez."
+    if ratio >= DAILY_WARN_AT:
+        return "daily_warn", "⚠️ Günlük zarar limitine yaklaştın", f"Bugün {fmt(loss)} USD zarar var; limitin {fmt(limit)} USD (kalan {fmt(limit - loss)} USD)."
+    return None
+
+
+async def check_daily_loss(pool: Any, user_id: str, client: Any, *, send: Any, now: datetime | None = None) -> str | None:
+    """Günlük zarar limitine (kullanıcının kendi limiti) yaklaşınca/ulaşınca günde BİR KEZ bildirir (seviye başına)."""
+    from . import flow  # tembel: yalnız emir modülü açıkken çağrılır
+
+    now = now or datetime.now(timezone.utc)
+    limits = await user_limits.effective(pool, user_id)
+    loss = flow.daily_loss_from_account(await service.fetch_account(client))
+    alert = daily_alert(loss, limits.daily_loss_limit_usd)
+    if alert is None:
+        return None
+    level, title, body = alert
+    key = now.strftime("%Y-%m-%d")
+    if await journal.has_event(pool, user_id, level, key=key, days=2):
+        return None
+    await journal.record(pool, user_id, "watch", level, detail={"key": key, "title": title, "loss": str(loss)})
+    try:
+        await send(pool, user_id, "close", title, body)
+    except Exception as exc:
+        logger.warning("Coinbase günlük zarar bildirimi gönderilemedi (%s)", type(exc).__name__)
+    return level
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -314,12 +402,21 @@ async def run_once(app: Any) -> int:
             key_name, pem = stored
             client = CoinbaseClient(key_name, load_private_key(pem))
             count += len(await check_user(pool, user_id, client, send=_push))
-            await check_expiry(pool, user_id, await service.fetch_positions(client), send=_push)
+            positions = await service.fetch_positions(client)
+            await check_expiry(pool, user_id, positions, send=_push)
             if orders_enabled():
                 try:
-                    await check_protection(pool, user_id, TradingClient(key_name, load_private_key(pem)), send=_push)
+                    from . import flow
+                    trading = TradingClient(key_name, load_private_key(pem))
+                    report = await flow.protection_report(trading)
+                    await check_protection(pool, user_id, trading, send=_push, report=report)
+                    await check_profit_alerts(pool, user_id, positions, report, send=_push)
                 except Exception as exc:  # koruma kontrolü hatası diğer kontrolleri durdurmaz
                     logger.warning("Coinbase koruma kontrolü atlandı (%s)", type(exc).__name__)
+                try:
+                    await check_daily_loss(pool, user_id, client, send=_push)
+                except Exception as exc:  # günlük zarar kontrolü hatası diğer kontrolleri durdurmaz
+                    logger.warning("Coinbase günlük zarar kontrolü atlandı (%s)", type(exc).__name__)
             await check_weekly(pool, user_id, client, send=_push)
         except Exception as exc:
             logger.warning("Coinbase izleyici bu hesabı atladı (%s)", type(exc).__name__)
