@@ -37,6 +37,7 @@ import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManu
 import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
 import {overlayLive} from './coinbase-position'
+import {useCoinbaseTicker} from './useCoinbaseTicker'
 import {CheckList, DirectionCards, ElapsedSeconds, SummaryList, type SummaryItem} from './ManualTerminalParts'
 import type {CheckRow} from './manual-order-state'
 import './coinbase-manual.css'
@@ -266,10 +267,15 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     const timer = visibleInterval(load, 3000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, positionIds])
+  // WebSocket (saniyelik) varken onu, yoksa/bayatsa 3 sn'lik sorgulamayı kullan.
+  const ticker = useCoinbaseTicker(positionIds === '' ? [] : positionIds.split(','), keySaved && positionIds !== '')
   const livePositions = positions.map(item => {
     const size = Number(products?.find(row => row.product_id === item.product_id)?.contract_size)
-    return overlayLive(item, liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
+    const tick = ticker.quotes[item.product_id]
+    const fresh = tick !== undefined && Date.now() - tick.at < 10000
+    return overlayLive(item, fresh ? {mid: String(tick.price)} : liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
   })
+  const liveStamp = Math.max(liveAt ?? 0, ticker.at ?? 0) || null
   // Kais analizi (aynı coinin Binance analizi): stop adımında "Kais analizi" önerisi için. Coin başına bir kez alınır.
   const anaKey = analysisSymbol(selectedRow?.root ?? null)
   useEffect(() => {
@@ -906,7 +912,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
-      <CoinbaseManualPositions positions={livePositions} liveAt={liveAt} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseManualPositions positions={livePositions} liveAt={liveStamp} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>
