@@ -34,7 +34,7 @@ from urllib.parse import urlencode
 import httpx
 import websockets
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .analysis import analyze
 from .strategies.contracts import StrategyResult
@@ -482,7 +482,7 @@ def reconciliation_blockers(state: dict[str, Any]) -> list[str]:
         symbol = str(plan.get("symbol") or "?").upper()
         if plan.get("provenance_state") not in {None, "CONFIRMED"}:
             out.append(f"{symbol}: pozisyonun sahibi doğrulanamadı")
-        elif plan.get("protection_state") != "MATCHED" or plan.get("protection_match_reason") != "EXACT_IDENTITY":
+        elif plan.get("protection_state") != "MATCHED" or not protection_reason_ok(plan):
             out.append(f"{symbol}: stop/hedef emirleri Binance'te birebir eşleşmedi ({plan.get('protection_state') or 'bilinmiyor'})")
         elif plan.get("mutation_policy") == "READ_ONLY_EXTERNAL":
             out.append(f"{symbol}: dışarıdan açılmış pozisyon (sistem yönetmiyor)")
@@ -507,7 +507,7 @@ def positions_fully_accounted_by_confirmed_plans(state: dict[str, Any], snapshot
             or plan.get("provenance_state") != "CONFIRMED"
             or plan.get("mutation_policy") == "READ_ONLY_EXTERNAL"
             or plan.get("protection_state") != "MATCHED"
-            or plan.get("protection_match_reason") != "EXACT_IDENTITY"
+            or not protection_reason_ok(plan)
             or plan.get("protection_cleanup_state") in {"UNKNOWN", "RETRY_REQUIRED"}
         ):
             return False
@@ -844,7 +844,9 @@ class LiveOrderRequest(BaseModel):
     margin_usdt: float = Field(ge=5, le=MANUAL_MARGIN_REQUEST_MAX)
     leverage: int = Field(ge=1, le=50)
     limit_price: float | None = Field(default=None, gt=0)
-    stop_loss: float = Field(gt=0)
+    stop_loss: float | None = Field(default=None, gt=0)
+    # Yalnız MANUEL emir: kullanıcı bilerek stopsuz açar (stop sonradan "açık işlemler"den eklenebilir).
+    no_stop: bool = False
     tp1: float = Field(gt=0)
     tp2: float = Field(gt=0)
     tp3: float = Field(gt=0)
@@ -853,6 +855,14 @@ class LiveOrderRequest(BaseModel):
     # Yalnız MANUEL emir: hedef payları (TP1-TP2-TP3, %) ve LIMIT emrin otomatik iptal süresi (dakika; yoksa süresiz).
     tp_split: Literal["60-20-20", "50-30-20", "40-30-30", "34-33-33"] = "60-20-20"
     limit_expiry_minutes: Literal[60, 240, 1440] | None = None
+
+    @model_validator(mode="after")
+    def _stop_or_no_stop(self) -> "LiveOrderRequest":
+        if self.no_stop:
+            self.stop_loss = None  # stopsuz emirde gönderilen stop yok sayılır; belirsizlik bırakılmaz
+        elif self.stop_loss is None:
+            raise ValueError("stop_loss zorunludur (stopsuz açmak için no_stop=true gönderin).")
+        return self
 
 
 class RiskPreviewRequest(BaseModel):
@@ -2314,6 +2324,22 @@ def plan_tp1_fraction(plan: dict[str, Any]) -> Decimal:
 
 
 def validate_protection_readiness(spec: dict[str, Any], policy: dict[str, Any]) -> None:
+    if spec.get("no_stop"):
+        # Bilerek stopsuz: yalnız giriş ve hedef seviyeleri doğrulanır.
+        try:
+            entry = Decimal(str(spec["entry_price"]))
+            targets = [Decimal(str(value)) for value in spec["targets"]]
+            quantity = Decimal(str(spec["quantity"]))
+        except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+            raise LiveExchangeError("Canlı koruma planı doğrulanamadı; emir gönderilmedi.", http_status=422) from exc
+        if not all(value.is_finite() and value > 0 for value in [entry, quantity, *targets]) or len(targets) != 3:
+            raise LiveExchangeError("Canlı hedef seviyeleri geçersiz; emir gönderilmedi.", http_status=422)
+        direction = str(spec.get("direction") or "").upper()
+        if direction == "LONG" and not (entry < targets[0] <= targets[1] <= targets[2]):
+            raise LiveExchangeError("Canlı LONG hedef seviyeleri geçersiz; emir gönderilmedi.", http_status=422)
+        if direction == "SHORT" and not (targets[2] <= targets[1] <= targets[0] < entry):
+            raise LiveExchangeError("Canlı SHORT hedef seviyeleri geçersiz; emir gönderilmedi.", http_status=422)
+        return
     if not sanitize_execution_policy(policy).get("stop_required", True):
         raise LiveExchangeError("Canlı giriş için Stop koruması zorunludur.", http_status=423)
     try:
@@ -2689,23 +2715,39 @@ async def build_live_spec(
     current, rules = await asyncio.gather(ticker_price(client, symbol), live_symbol_rules(client, symbol, order.order_type))
     raw_entry = Decimal(str(order.limit_price)) if order.order_type == "LIMIT" else current
     entry = round_tick(raw_entry, rules["tick"])
-    stop = round_tick(Decimal(str(order.stop_loss)), rules["tick"])
     targets = [round_tick(Decimal(str(value)), rules["tick"]) for value in (order.tp1, order.tp2, order.tp3)]
-    validate_levels(order.direction, entry if order.order_type == "LIMIT" else current, stop, targets)
-    try:
-        risk = risk_sized_order(
-            float(entry),
-            float(stop),
-            {**settings, "max_margin_per_trade": order.margin_usdt, "max_leverage": order.leverage},
-            atr=order.atr,
-            manual=manual_targets,
-        )
-    except ValueError as exc:
-        raise LiveExchangeError(f"Canlı Stop riski geçersiz: {exc}", http_status=422) from exc
-    if risk["estimated_stop_loss_usdt"] > settings["max_loss_per_trade"] + 1e-6:
-        record_live_entry_check(check_results, "risk_budget", False, "Tahmini Stop kaybı işlem başına risk limitini aşıyor.", symbol=symbol)
-        raise LiveExchangeError("Tahmini Stop kaybı işlem başına risk limitini aşıyor.", http_status=422, check_key="risk_budget")
-    record_live_entry_check(check_results, "risk_budget", True, "Tahmini Stop kaybı işlem başına risk bütçesi içinde.", symbol=symbol)
+    no_stop = bool(order.no_stop)
+    if no_stop:
+        if not manual_targets:
+            raise LiveExchangeError("Stopsuz emir yalnız manuel emirde açılabilir.", http_status=422)
+        # Stop yok: hedefler giriş fiyatının kâr tarafında ve sıralı olmalı; boyut marjin x kaldıraçtır.
+        reference = entry if order.order_type == "LIMIT" else current
+        long_side = order.direction == "LONG"
+        ordered = targets[0] <= targets[1] <= targets[2] if long_side else targets[0] >= targets[1] >= targets[2]
+        profit_side = all((t > reference) if long_side else (t < reference) for t in targets)
+        if not (ordered and profit_side):
+            raise LiveExchangeError("Hedefler giriş fiyatının kâr tarafında ve sıralı olmalı.", http_status=422)
+        stop = None
+        notional_cap = Decimal(str(order.margin_usdt)) * Decimal(order.leverage)
+        risk = {"margin_usdt": order.margin_usdt, "notional_usdt": float(notional_cap), "estimated_stop_loss_usdt": 0.0}
+        record_live_entry_check(check_results, "risk_budget", True, "Stopsuz emir: Stop kaybı sınırı uygulanmaz (kullanıcı onayladı).", symbol=symbol)
+    else:
+        stop = round_tick(Decimal(str(order.stop_loss)), rules["tick"])
+        validate_levels(order.direction, entry if order.order_type == "LIMIT" else current, stop, targets)
+        try:
+            risk = risk_sized_order(
+                float(entry),
+                float(stop),
+                {**settings, "max_margin_per_trade": order.margin_usdt, "max_leverage": order.leverage},
+                atr=order.atr,
+                manual=manual_targets,
+            )
+        except ValueError as exc:
+            raise LiveExchangeError(f"Canlı Stop riski geçersiz: {exc}", http_status=422) from exc
+        if risk["estimated_stop_loss_usdt"] > settings["max_loss_per_trade"] + 1e-6:
+            record_live_entry_check(check_results, "risk_budget", False, "Tahmini Stop kaybı işlem başına risk limitini aşıyor.", symbol=symbol)
+            raise LiveExchangeError("Tahmini Stop kaybı işlem başına risk limitini aşıyor.", http_status=422, check_key="risk_budget")
+        record_live_entry_check(check_results, "risk_budget", True, "Tahmini Stop kaybı işlem başına risk bütçesi içinde.", symbol=symbol)
     notional = Decimal(str(risk["notional_usdt"]))
     quantity = floor_step(notional / entry, rules["step"])
     if quantity < rules["min_qty"] or quantity * entry < rules["min_notional"]:
@@ -2754,7 +2796,8 @@ async def build_live_spec(
         "notional_usdt": float(quantity * entry),
         "quantity": decimal_text(quantity),
         "entry_price": decimal_text(entry),
-        "stop_loss": decimal_text(stop),
+        "stop_loss": decimal_text(stop) if stop is not None else None,
+        **({"no_stop": True} if no_stop else {}),
         "targets": [decimal_text(value) for value in targets],
         "step": rules["step"],
         "min_qty": rules["min_qty"],
@@ -3575,7 +3618,7 @@ def _manual_plan_guard(state: dict[str, Any], plan: dict[str, Any] | None) -> di
         raise ManualPlanActionError("Bu işlem yalnız manuel açılan pozisyonlarda yapılabilir.", http_status=422)
     if not live_plan_can_mutate(plan):
         raise ManualPlanActionError("Plan sahipliği doğrulanmadı; pozisyona dokunulmadı.", http_status=423)
-    if plan.get("protection_state") != "MATCHED" or not plan.get("stop_algo_id"):
+    if plan.get("protection_state") != "MATCHED" or (not plan.get("stop_algo_id") and not plan_is_user_no_stop(plan)):
         raise ManualPlanActionError("Stop henüz doğrulanmadı; birkaç saniye sonra tekrar dene.", http_status=423)
     if live_execution_blocked(state):
         raise ManualPlanActionError("Canlı yürütme kilitli (acil durum veya uzlaştırma); önce kilidi çöz.", http_status=423)
@@ -3642,11 +3685,11 @@ async def manual_update_protection(
     if new_stop is not None:
         if (long_side and new_stop >= mark) or (not long_side and new_stop <= mark):
             raise ManualPlanActionError("Yeni stop, güncel fiyatın zarar tarafında olmalı (yoksa hemen tetiklenir).", http_status=422)
-        if tighten_only and ((long_side and new_stop <= Decimal(str(plan["stop_loss"]))) or (not long_side and new_stop >= Decimal(str(plan["stop_loss"])))):
+        if tighten_only and plan.get("stop_loss") and ((long_side and new_stop <= Decimal(str(plan["stop_loss"]))) or (not long_side and new_stop >= Decimal(str(plan["stop_loss"])))):
             raise ManualPlanActionError("Stop yalnız sıkılaştırılabilir.", http_status=422)
         loss_at_stop = quantity * ((entry - new_stop) if long_side else (new_stop - entry))
         limit = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["max_loss_per_trade"]))
-        if loss_at_stop > limit and not tighten_only:
+        if loss_at_stop > limit and not tighten_only and not plan_is_user_no_stop(plan):
             raise ManualPlanActionError(
                 f"Yeni stopta zarar yaklaşık {decimal_text(loss_at_stop.quantize(Decimal('0.01')))} USDT olur; "
                 f"işlem başı risk sınırın {decimal_text(limit)} USDT. Stopu uzaklaştırarak riski büyütemezsin.",
@@ -3678,7 +3721,9 @@ async def manual_update_protection(
     ):
         raise ManualPlanActionError("Stop, hedeflerin öbür tarafında olmalı.", http_status=422)
 
-    if new_stop is not None and new_stop != Decimal(str(plan["stop_loss"])):
+    if new_stop is not None and plan_is_user_no_stop(plan):
+        result["stop"] = await _add_manual_stop(client, state, plan, new_stop)
+    elif new_stop is not None and new_stop != Decimal(str(plan["stop_loss"])):
         result["stop"] = await _replace_manual_stop(client, state, plan, new_stop, quantity=quantity)
 
     for index, row in target_rows.items():
@@ -3900,6 +3945,28 @@ async def _drop_stop_bridge(client: BinanceLiveClient, state: dict[str, Any], pl
     if not removed:
         # Yalnız-azaltan olduğu için pozisyonu büyütemez; kimliği kayıtlı kaldığı için sonraki temizlikte silinir.
         add_event(state, "MANUAL_STOP_BRIDGE_LEFT", f"{plan['symbol']} geçici köprü stopu silinemedi; sonraki temizlikte kaldırılacak.", symbol=plan["symbol"], plan_id=plan.get("id"))
+
+
+async def _add_manual_stop(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], new_stop: Decimal) -> str:
+    """Stopsuz açılmış manuel pozisyona ilk stopu ekler. Başarısız olursa pozisyona dokunulmaz (zaten stopsuz açılmıştı)."""
+    symbol, direction = plan["symbol"], plan["direction"]
+    params = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
+              "workingType": "MARK_PRICE", "priceProtect": "TRUE", "type": "STOP_MARKET", "closePosition": "true",
+              "triggerPrice": decimal_text(new_stop), "clientAlgoId": client_id_for("SLADD", plan["intent_id"])}
+    try:
+        verified = await install_verified_stop(client, state, plan, params, None)
+        algo_id = int(verified["algoId"])
+    except (LiveExchangeError, KeyError, TypeError, ValueError) as exc:
+        add_event(state, "MANUAL_STOP_ADD_FAILED", f"{symbol} stop eklenemedi; pozisyon stopsuz devam ediyor.", symbol=symbol, plan_id=plan.get("id"))
+        persist_state(state)
+        raise ManualPlanActionError("Stop kurulamadı; pozisyon stopsuz devam ediyor. Tekrar dene.", http_status=409) from exc
+    plan.update(stop_loss=decimal_text(new_stop), stop_client_id=params["clientAlgoId"], stop_algo_id=algo_id,
+                no_stop=False, stop_added_at=now_iso(), protection_state="MATCHED", protection_match_reason="EXACT_IDENTITY")
+    ids = [item for item in (plan.get("protection_ids") or []) if item != algo_id]
+    plan["protection_ids"] = [algo_id, *ids]
+    add_event(state, "MANUAL_STOP_ADDED", f"{symbol} stopsuz pozisyona stop eklendi ({plan['stop_loss']}).", symbol=symbol, plan_id=plan.get("id"))
+    persist_state(state)
+    return "ADDED"
 
 
 async def _replace_manual_stop(
@@ -4191,6 +4258,10 @@ async def install_manual_tp2(
     return algo_id
 
 
+class _SkipStop(Exception):
+    """Kullanıcı bilerek stopsuz açtı: install_protection stop kurulumunu atlar."""
+
+
 async def install_protection(
     client: BinanceLiveClient,
     state: dict[str, Any],
@@ -4253,14 +4324,19 @@ async def install_protection(
         )
         return
     common = {"algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if amount > 0 else "BUY", "workingType": "MARK_PRICE", "priceProtect": "TRUE"}
-    stop_client = plan.setdefault("stop_client_id", client_id_for("SL", plan["intent_id"]))
+    user_no_stop = plan_is_user_no_stop(plan) and plan.get("source") == "MANUAL"
+    stop_client = plan.get("stop_client_id") if user_no_stop else plan.setdefault("stop_client_id", client_id_for("SL", plan["intent_id"]))
     try:
+        if user_no_stop:
+            raise _SkipStop()
         stop_result = await install_verified_stop(client, state, plan, {**common, "type": "STOP_MARKET", "triggerPrice": plan["stop_loss"], "closePosition": "true", "clientAlgoId": stop_client}, existing_algos)
         plan["stop_algo_id"] = int(stop_result.get("algoId") or 0) or None
         if not plan["stop_algo_id"]:
             raise LiveExchangeError("Stop yanıtında emir kimliği yok; koruma doğrulanamadı.", unknown_execution=True)
         if original_plan:
             original_v2_live.clear_stop_failures(plan)
+    except _SkipStop:
+        add_event(state, "NO_STOP_POSITION", f"{symbol} kullanıcı isteğiyle STOPSUZ açıldı; yalnız TP emirleri kuruluyor.", symbol=symbol, plan_id=plan.get("id"))
     except LiveExchangeError as exc:
         if original_plan and not original_v2_live.record_stop_failure(state, plan, symbol, sanitized_exception_message(exc)):
             raise  # yeni tur 90 sn sonra; pozisyon açık kalır, yeni girişler kilitli
@@ -4287,7 +4363,7 @@ async def install_protection(
         await original_v2_live.audit_fill(state, plan, position_view)
         await original_v2_live.install_targets(client, state, plan, position_view, existing_algos)
         return
-    if plan.get("source") == "MANUAL" and await manual_fill_risk_audit(client, state, plan, position_view):
+    if plan.get("source") == "MANUAL" and not user_no_stop and await manual_fill_risk_audit(client, state, plan, position_view):
         return
     try:
         if plan.get("min_notional") is None or plan.get("order_type") == "LIMIT":
@@ -4354,12 +4430,16 @@ async def install_protection(
         "monitoring_targets_exchange_backed": not monitoring,
         "tp_protection_state": "UNPROTECTED" if monitoring else "EXCHANGE_BACKED",
         "protected_at": now_iso(),
-        "protection_state": "MATCHED" if plan.get("stop_algo_id") and not monitoring else "MISSING",
-        "status": "KORUMA AKTİF" if not monitoring else "STOP AKTİF · TP KORUMASIZ (İZLEME)",
+        "protection_state": "MATCHED" if user_no_stop or (plan.get("stop_algo_id") and not monitoring) else "MISSING",
+        "status": (
+            ("STOPSUZ · TP AKTİF" if not monitoring else "STOPSUZ · TP KORUMASIZ (İZLEME)") if user_no_stop
+            else "KORUMA AKTİF" if not monitoring else "STOP AKTİF · TP KORUMASIZ (İZLEME)"
+        ),
         "entry_remainder_pending": False,
     })
     add_event(state, "PROTECTION_ACTIVE", (
-        f"{symbol} Stop doğrulandı; TP emirleri borsada kuruldu." if not monitoring
+        f"{symbol} STOPSUZ pozisyon; TP emirleri kuruldu (stop yok)." if user_no_stop and not monitoring
+        else f"{symbol} Stop doğrulandı; TP emirleri borsada kuruldu." if not monitoring
         else f"{symbol} Stop doğrulandı; TP KORUMASIZ (yalnız izleme)."
     ), symbol=symbol)
     if monitoring:
@@ -4984,6 +5064,7 @@ def recover_plan_from_intent(intent_id: str, intent: dict[str, Any], order: dict
         "applied_leverage": intent.get("applied_leverage"),
         "margin_type": intent.get("margin_type", "isolated"),
         "stop_loss": spec["stop_loss"],
+        **({"no_stop": True, "opened_without_stop": True} if spec.get("no_stop") else {}),
         "targets": list(spec["targets"]),
         "step": spec["step"],
         "min_qty": spec["min_qty"],
@@ -5389,11 +5470,23 @@ def owned_protection_rows(plan: dict[str, Any], rows: list[dict[str, Any]]) -> l
     ]
 
 
+def plan_is_user_no_stop(plan: dict[str, Any]) -> bool:
+    """Kullanıcının bilerek stopsuz açtığı ve henüz stop eklemediği plan."""
+    return bool(plan.get("no_stop")) and not plan.get("stop_loss") and not plan.get("stop_algo_id")
+
+
+def protection_reason_ok(plan: dict[str, Any]) -> bool:
+    reason = plan.get("protection_match_reason")
+    return reason == "EXACT_IDENTITY" or (reason == "USER_NO_STOP" and plan_is_user_no_stop(plan))
+
+
 def classify_plan_protection(
     plan: dict[str, Any],
     rows: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]], str]:
     """Classify the required Stop without claiming an unrelated order."""
+    if plan_is_user_no_stop(plan):
+        return "MATCHED", [], "USER_NO_STOP"  # kullanıcı bilerek stopsuz açtı: eksik stop onarılmaz, pozisyon kapatılmaz
     symbol = str(plan.get("symbol") or "").upper()
     direction = str(plan.get("direction") or "").upper()
     expected_side = "SELL" if direction == "LONG" else "BUY" if direction == "SHORT" else ""
@@ -5451,7 +5544,7 @@ def exchange_protection_view(plan: dict[str, Any], snapshot: dict[str, Any]) -> 
         logger.warning("LIVE_PROTECTION_DISPLAY_UNVERIFIED target=plan")
         return result
     rows = snapshot.get("open_algo_orders", [])
-    result["stop"] = classify_plan_protection(plan, rows)[0] == "MATCHED"
+    result["stop"] = classify_plan_protection(plan, rows)[0] == "MATCHED" and not plan_is_user_no_stop(plan)
     targets = plan.get("targets")
     if not isinstance(targets, list) or len(targets) < 3 or not plan.get("intent_id"):
         return result
@@ -5553,7 +5646,12 @@ def reconcile_monitoring_targets(state: dict[str, Any], plan: dict[str, Any], ro
     plan["monitoring_targets_exchange_backed"] = exchange_backed
     plan["tp_protection_state"] = "EXCHANGE_BACKED" if exchange_backed else "UNPROTECTED"
     if not exchange_backed:
-        plan["status"] = "STOP AKTİF · TP KORUMASIZ (İZLEME)" if plan.get("stop_algo_id") else "TP KORUMASIZ · STOP DOĞRULANIYOR"
+        plan["status"] = (
+            "STOPSUZ · TP KORUMASIZ (İZLEME)" if plan_is_user_no_stop(plan)
+            else "STOP AKTİF · TP KORUMASIZ (İZLEME)" if plan.get("stop_algo_id") else "TP KORUMASIZ · STOP DOĞRULANIYOR"
+        )
+    elif plan_is_user_no_stop(plan):
+        plan["status"] = "STOPSUZ · TP AKTİF"
     elif plan.get("stop_algo_id"):
         plan["status"] = "KORUMA AKTİF"
     plan["monitoring_targets_reconciled_at"] = now_iso()
@@ -6658,8 +6756,14 @@ async def execute_live_order(
             if not leverage_verified:
                 raise LiveExchangeError("Borsa isolated marjini veya kaldıraç değerini doğrulamadı; canlı giriş reddedildi.", http_status=409, check_key="leverage")
             observation_stage = _order_mark(order_timer, "LIQUIDATION_BUFFER")
-            spec["liquidation_guard"] = await live_liquidation_risk(client, spec, entry_policy)
-            record_live_entry_check(entry_checks, "liquidation_risk", True, "Likidasyon mesafesi ve risk tamponu doğrulandı.", symbol=symbol)
+            if spec.get("no_stop"):
+                if source != "MANUAL":
+                    raise LiveExchangeError("Stopsuz emir yalnız manuel emirde açılabilir.", http_status=422)
+                spec["liquidation_guard"] = {"verified": False, "skipped": "NO_STOP"}
+                record_live_entry_check(entry_checks, "liquidation_risk", True, "Stopsuz emir: likidasyon tamponu stop'a göre hesaplanamaz; kullanıcı riski kabul etti.", symbol=symbol)
+            else:
+                spec["liquidation_guard"] = await live_liquidation_risk(client, spec, entry_policy)
+                record_live_entry_check(entry_checks, "liquidation_risk", True, "Likidasyon mesafesi ve risk tamponu doğrulandı.", symbol=symbol)
             intent_id = body.intent_id or f"manual-{uuid.uuid4().hex}"
             client_id = client_id_for("ENTRY", intent_id)
             existing_exposure = sum(
@@ -6676,9 +6780,11 @@ async def execute_live_order(
                 "targets": list(spec["targets"]), "step": decimal_text(spec["step"]),
                 "min_qty": decimal_text(spec["min_qty"]),
                 "min_notional": decimal_text(spec["min_notional"]) if spec.get("min_notional") is not None else None,
-                "initial_risk_usdt": initial_entry_risk_usdt(spec),
+                "initial_risk_usdt": initial_entry_risk_usdt(spec) if spec.get("stop_loss") else None,
                 "liquidation_guard": spec["liquidation_guard"],
             }
+            if spec.get("no_stop"):
+                serializable_spec["no_stop"] = True
             if source == "MANUAL":
                 serializable_spec.update({key: spec[key] for key in ("tp1_fraction", "tp2_fraction", "good_till_ms", "limit_expiry_minutes") if spec.get(key) is not None})
             if original_entry:
@@ -6792,6 +6898,7 @@ async def execute_live_order(
                 "entry_client_order_id": client_id, "status": "DOLUM BEKLİYOR", "created_at": now_iso(),
                 "source": source, "live": True, "protection_ids": [],
                 "provenance_state": "PROVISIONAL", "protection_state": "UNKNOWN",
+                **({"no_stop": True, "opened_without_stop": True} if spec.get("no_stop") else {}),
                 "protection_cleanup_state": "IDLE", "protection_cleanup_pending_ids": [],
                 "protection_cleanup_last_error": None, "protection_cleanup_attempted_at": None,
                 "exchange_order_ids": [int(result.get("orderId"))] if result.get("orderId") else [],
