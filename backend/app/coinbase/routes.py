@@ -158,6 +158,13 @@ async def coinbase_positions(request: Request) -> Any:
     user = _member(request)
     try:
         client = await _stored_client(request, user)
-        return {"mode": "READ_ONLY", "positions": await service.fetch_positions(client), "clock": clock_status()}
+        positions = await service.fetch_positions(client)
+        if positions:
+            try:  # sözleşme boyutu (ürün listesi önbellekli): K/Z güncel fiyattan; okunamazsa Coinbase'in K/Z'si aynen
+                from . import activity, market
+                positions = service.reprice_positions(positions, activity.contract_sizes(await market.fetch_products(client)))
+            except Exception:  # noqa: BLE001 - ürün listesi yoksa Coinbase'in K/Z'si aynen gösterilir; pozisyon okuması bozulmaz
+                pass
+        return {"mode": "READ_ONLY", "positions": positions, "clock": clock_status()}
     except CoinbaseError as exc:
         return _error(exc)

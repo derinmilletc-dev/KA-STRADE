@@ -6,6 +6,8 @@ Para değerleri Coinbase'in verdiği metin olarak aktarılır; burada yuvarlama/
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
+
 from typing import Any
 
 from .client import CoinbaseClient
@@ -139,6 +141,25 @@ async def fetch_margin_window(client: CoinbaseClient) -> dict[str, Any]:
 async def fetch_account(client: CoinbaseClient) -> dict[str, Any]:
     balance = normalize_balance_summary(await client.get(BALANCE_PATH))
     return {"balance": balance, "margin_window": await fetch_margin_window(client)}
+
+
+def reprice_positions(positions: list[dict[str, str | None]], sizes: dict[str, Decimal]) -> list[dict[str, str | None]]:
+    """Coinbase'in pozisyon verisindeki unrealized_pnl fiyatın gerisinde kalabiliyor; Coinbase ekranı K/Z'yi güncel fiyattan
+    hesaplar. Sözleşme boyutu biliniyorsa K/Z = (güncel − giriş) × sözleşme × boyut × yön; bilinmiyorsa satır aynen kalır."""
+    result = []
+    for row in positions:
+        item = dict(row)
+        size = sizes.get(str(row.get("product_id")))
+        side = str(row.get("side") or "").upper()
+        sign = 1 if side.endswith("LONG") else -1 if side.endswith("SHORT") else 0
+        try:
+            current, entry, contracts = (Decimal(str(row.get(k))) for k in ("current_price", "avg_entry_price", "number_of_contracts"))
+        except (InvalidOperation, ValueError, TypeError):
+            current = entry = contracts = None
+        if size and sign and current is not None and entry is not None and contracts is not None and current.is_finite() and entry.is_finite() and contracts.is_finite():
+            item["unrealized_pnl"] = f"{((current - entry) * contracts * size * sign).quantize(Decimal('0.0001')).normalize():f}"
+        result.append(item)
+    return result
 
 
 async def fetch_positions(client: CoinbaseClient) -> list[dict[str, str | None]]:
