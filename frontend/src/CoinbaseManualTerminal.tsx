@@ -272,7 +272,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const livePositions = positions.map(item => {
     const size = Number(products?.find(row => row.product_id === item.product_id)?.contract_size)
     const tick = ticker.quotes[item.product_id]
-    const fresh = tick !== undefined && Date.now() - tick.at < 10000
+    // En yeni kaynak kazanır: WS defter/işlem fiyatı ya da 2 sn'lik REST alış/satış ortası. Biri durursa diğeri fiyatı yürütür.
+    const fresh = tick !== undefined && Date.now() - tick.at < 10000 && (liveAt === null || tick.at >= liveAt)
     return overlayLive(item, fresh ? {mid: String(tick.price)} : liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
   })
   const liveStamp = Math.max(liveAt ?? 0, ticker.at ?? 0) || null
