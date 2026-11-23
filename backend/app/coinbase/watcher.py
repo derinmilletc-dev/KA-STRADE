@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from . import activity, journal, market, service, user_limits, vault
+from . import activity, journal, market, profit_target, service, user_limits, vault
 from .client import CoinbaseClient
 from .config import orders_enabled
 from .trading_client import CoinbaseTradingClient as TradingClient
@@ -411,6 +411,7 @@ async def run_once(app: Any) -> int:
                     report = await flow.protection_report(trading)
                     await check_protection(pool, user_id, trading, send=_push, report=report)
                     await check_profit_alerts(pool, user_id, positions, report, send=_push)
+                    await profit_target.check_targets(pool, user_id, trading, positions, send=_push)
                 except Exception as exc:  # koruma kontrolü hatası diğer kontrolleri durdurmaz
                     logger.warning("Coinbase koruma kontrolü atlandı (%s)", type(exc).__name__)
                 try:

@@ -15,10 +15,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import flow, journal, order_api, vault
+from . import flow, journal, order_api, service, vault
 from .errors import CoinbaseError
 from .jwt_auth import load_private_key
-from . import user_limits
+from . import profit_target, user_limits
 from .limits import current_limits
 from .routes import _error, _member, _pool
 from .trading_client import CoinbaseTradingClient
@@ -78,6 +78,13 @@ class ClosePayload(BaseModel):
 
 class StopPayload(ClosePayload):
     stop_price: str = Field(min_length=1, max_length=30)
+
+
+class ProfitTargetPayload(BaseModel):
+    product_id: str = Field(pattern=PRODUCT_PATTERN)
+    target_usd: str | None = Field(default=None, max_length=20)   # boş/None = hedefi kaldır
+    confirm: str = Field(max_length=80)
+    request_id: str = Field(min_length=8, max_length=64)
 
 
 class ReducePayload(ClosePayload):
@@ -204,6 +211,36 @@ async def move_stop(payload: StopPayload, request: Request) -> Any:
         return await flow.set_stop(client, pool, user_id, await user_limits.effective(pool, user_id), payload.product_id, payload.stop_price)
 
     return await _guarded(request, "stop", work, claim=payload.request_id)
+
+
+@router.get("/profit-targets")
+async def get_profit_targets(request: Request) -> Any:
+    user = _member(request)
+    pool = _pool(request)
+    return {"targets": await profit_target.list_targets(pool, user["id"])}
+
+
+@router.post("/profit-target")
+async def set_profit_target(payload: ProfitTargetPayload, request: Request) -> Any:
+    _member(request)
+    _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
+
+    async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        if not payload.target_usd:
+            await profit_target.clear_target(pool, user_id, payload.product_id)
+            return {"status": "cleared", "product_id": payload.product_id, "message": "Kâr hedefi kaldırıldı."}
+        target = profit_target.parse_usd(payload.target_usd)
+        if target is None:
+            raise CoinbaseError("BAD_REQUEST", "Kâr hedefi 0'dan büyük bir USD tutarı olmalı.", http_status=422)
+        position = next((p for p in await service.fetch_positions(client) if p.get("product_id") == payload.product_id), None)
+        entry = position.get("avg_entry_price") if position else None
+        if not entry:
+            raise CoinbaseError("NO_POSITION", "Bu üründe açık pozisyon yok.", http_status=409)
+        await profit_target.set_target(pool, user_id, payload.product_id, target, str(entry))
+        return {"status": "set", "product_id": payload.product_id, "target_usd": f"{target:f}",
+                "message": f"+{target:f} USD net kâra ulaşınca otomatik kapanır ve bildirim gelir."}
+
+    return await _guarded(request, "profit_target", work, claim=payload.request_id, lock=False)
 
 
 @router.post("/cancel-entry")
