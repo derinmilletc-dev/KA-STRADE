@@ -60,7 +60,7 @@ class AccessAndData(MarketRouteCase):
 
     def test_exact_route_set_is_read_only(self):
         pairs = {(m, r.path) for r in routes_market.router.routes for m in r.methods}
-        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}"), ("GET", "/api/coinbase/quotes"), ("GET", "/api/coinbase/activity"), ("GET", "/api/coinbase/positions/fees"), ("GET", "/api/coinbase/stats"), ("GET", "/api/coinbase/net-balance"), ("GET", "/api/coinbase/alerts"), ("POST", "/api/coinbase/alerts"), ("DELETE", "/api/coinbase/alerts/{alert_id}")})
+        self.assertEqual(pairs, {("GET", "/api/coinbase/products"), ("GET", "/api/coinbase/quote/{product_id}"), ("GET", "/api/coinbase/quotes"), ("GET", "/api/coinbase/activity"), ("GET", "/api/coinbase/positions/fees"), ("GET", "/api/coinbase/stats"), ("GET", "/api/coinbase/net-balance"), ("GET", "/api/coinbase/alerts"), ("POST", "/api/coinbase/alerts"), ("DELETE", "/api/coinbase/alerts/{alert_id}"), ("POST", "/api/coinbase/alerts/ack")})
 
     def test_quotes_batch(self):
         r = self.http.get("/api/coinbase/quotes?ids=ETP-20DEC30-CDE,BIP-20DEC30-CDE", headers=ME)

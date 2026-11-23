@@ -378,7 +378,7 @@ async def check_weekly(pool: Any, user_id: str, client: Any, *, send: Any, now: 
 async def _push(pool: Any, user_id: str, category: str, title: str, body: str) -> None:
     from ..web_push import configured, send_to_user
     if configured():
-        await send_to_user(pool, user_id, category, title, body, url="/master-trade")
+        await send_to_user(pool, user_id, category, title, body, url="/master-trade?tab=pozisyonlar&ex=coinbase")
 
 
 def combine(items: list[tuple[str, str, str]]) -> tuple[str, str, str] | None:

@@ -45,3 +45,12 @@ export const pctText = (pct: number | null) => pct === null ? '' : `${pct >= 0 ?
 export function alertsFor(alerts: readonly CbAlert[], productId: string): CbAlert[] {
   return alerts.filter(item => item.product_id === productId)
 }
+
+export type FiredAlert = {id: number; product_id: string; level: string; direction: 'above' | 'below'; trigger_price?: string | null}
+
+/** Çalan alarmın uygulama içi bildirim metni. */
+export function firedText(item: FiredAlert): {title: string; body: string} {
+  const name = item.product_id.split('-')[0].replace(/USDT$/, '')
+  const side = item.direction === 'above' ? 'üstüne çıktı' : 'altına indi'
+  return {title: `🔔 ${name} alarmı`, body: `${name} ${Number(item.level)} seviyesinin ${side}${item.trigger_price ? ` (şimdi ${Number(item.trigger_price)})` : ''}.`}
+}

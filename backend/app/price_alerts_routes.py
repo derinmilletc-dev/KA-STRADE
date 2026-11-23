@@ -34,7 +34,8 @@ def _pool(request: Request) -> Any:
 @router.get("/alerts")
 async def list_alerts(request: Request) -> Any:
     user = await authenticated_user_async(request)
-    return {"alerts": await price_alerts.list_alerts(_pool(request), str(user["id"]), EXCHANGE), "max": price_alerts.MAX_PER_USER}
+    pool, user_id = _pool(request), str(user["id"])
+    return {"alerts": await price_alerts.list_alerts(pool, user_id, EXCHANGE), "fired": await price_alerts.list_fired(pool, user_id, EXCHANGE), "max": price_alerts.MAX_PER_USER}
 
 
 @router.post("/alerts")
@@ -66,4 +67,11 @@ async def add_alert(payload: AlertInput, request: Request) -> Any:
 async def delete_alert(request: Request, alert_id: int = Path(ge=1)) -> Any:
     user = await authenticated_user_async(request)
     await price_alerts.delete_alert(_pool(request), str(user["id"]), alert_id)
+    return {"ok": True}
+
+
+@router.post("/alerts/ack")
+async def ack_alerts(request: Request) -> Any:
+    user = await authenticated_user_async(request)
+    await price_alerts.ack_fired(_pool(request), str(user["id"]), EXCHANGE)
     return {"ok": True}

@@ -38,6 +38,12 @@ CATEGORIES: dict[str, tuple[str, re.Pattern[str]]] = {
     "emergency": ("Acil durum", re.compile(r"^LIVE_EMERGENCY$|UNKNOWN_ORDER")),
 }
 DEFAULT_KINDS = list(CATEGORIES)
+# Bildirime basınca ilgili sekme açılır (adres verilmediyse kategoriye göre).
+CATEGORY_URLS = {
+    "entry": "/master-trade?tab=pozisyonlar", "close": "/master-trade?tab=pozisyonlar", "protection": "/master-trade?tab=pozisyonlar",
+    "emergency": "/master-trade?tab=pozisyonlar", "grid": "/master-trade?tab=pozisyonlar",
+    "connection": "/master-trade?tab=baglanti", "arm": "/master-trade?tab=baglanti",
+}
 MAX_SUBSCRIPTIONS_PER_USER = 8
 PUSH_HOSTS = (".googleapis.com", ".push.apple.com", ".mozilla.com", ".mozaws.net", ".windows.com", ".notify.windows.com")
 _tasks: set[asyncio.Task[Any]] = set()
@@ -158,7 +164,8 @@ def _deliver(subscription: dict[str, Any], body: str) -> int:
         return 0
 
 
-async def send_to_user(pool: Any, user_id: str, category: str | None, title: str, body: str, *, force: bool = False, url: str = "/master-trade") -> int:
+async def send_to_user(pool: Any, user_id: str, category: str | None, title: str, body: str, *, force: bool = False, url: str | None = None) -> int:
+    url = url or CATEGORY_URLS.get(category or "", "/master-trade")
     rows = await pool.fetch("SELECT endpoint,p256dh,auth,kinds FROM push_subscriptions WHERE user_id=$1", user_id)
     if rows:
         # Bildirim, hesabın seçili diliyle gider (çeviri yoksa Türkçe kalır; bildirim asla düşmez).

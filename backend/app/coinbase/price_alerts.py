@@ -43,6 +43,8 @@ async def ensure_schema(pool: Any) -> None:
         """
     )
     await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS exchange TEXT NOT NULL DEFAULT 'coinbase'")
+    await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS trigger_price TEXT")
+    await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS acked_at TIMESTAMPTZ")
     await pool.execute(f"CREATE INDEX IF NOT EXISTS {TABLE}_active ON {TABLE} (user_id) WHERE triggered_at IS NULL")
     _SCHEMA_DONE.add(id(pool))
 
@@ -108,10 +110,34 @@ async def delete_alert(pool: Any, user_id: str, alert_id: int) -> None:
     await pool.execute(f"DELETE FROM {TABLE} WHERE id = $1 AND user_id = $2", alert_id, user_id)
 
 
-async def _claim(pool: Any, alert_id: int) -> bool:
-    """Alarmı tetiklenmiş say; yalnız ilk çağıran True alır (iki döngü/çift bildirim olmaz)."""
-    row = await pool.fetchrow(f"UPDATE {TABLE} SET triggered_at = NOW() WHERE id = $1 AND triggered_at IS NULL RETURNING id", alert_id)
+async def _claim(pool: Any, alert_id: int, price: Decimal | None = None) -> bool:
+    """Alarmı tetiklenmiş say; yalnız ilk çağıran True alır (iki döngü/çift bildirim olmaz). Tetik fiyatı uygulama içi bildirim için saklanır."""
+    row = await pool.fetchrow(
+        f"UPDATE {TABLE} SET triggered_at = NOW(), trigger_price = $2 WHERE id = $1 AND triggered_at IS NULL RETURNING id",
+        alert_id, f"{price:f}" if price is not None else None,
+    )
     return row is not None
+
+
+async def list_fired(pool: Any, user_id: str, exchange: str = "coinbase") -> list[dict[str, Any]]:
+    """Son 24 saatte çalan ama kullanıcının henüz görmediği alarmlar (telefon bildirimi gelmese de uygulamada gösterilir)."""
+    await ensure_schema(pool)
+    rows = await pool.fetch(
+        f"SELECT id, product_id, level, direction, ref_price, trigger_price FROM {TABLE} "
+        f"WHERE user_id = $1 AND exchange = $2 AND triggered_at IS NOT NULL AND acked_at IS NULL AND triggered_at > NOW() - INTERVAL '24 hours' ORDER BY id",
+        user_id, exchange,
+    )
+    return [{**_row(r), "trigger_price": str(r["trigger_price"]) if r["trigger_price"] is not None else None} for r in rows]
+
+
+async def ack_fired(pool: Any, user_id: str, exchange: str = "coinbase") -> None:
+    await ensure_schema(pool)
+    await pool.execute(f"UPDATE {TABLE} SET acked_at = NOW() WHERE user_id = $1 AND exchange = $2 AND triggered_at IS NOT NULL AND acked_at IS NULL", user_id, exchange)
+
+
+def link(exchange: str, product_id: str) -> str:
+    """Bildirime basınca açılacak adres: ilgili borsa + coinin analiz ekranı."""
+    return f"/master-trade?tab=canli&ex={exchange}&alert={product_id}"
 
 
 async def check_user(pool: Any, user_id: str, alerts: list[dict[str, Any]], quotes: dict[str, Any], *, send: Any) -> list[int]:
@@ -122,21 +148,25 @@ async def check_user(pool: Any, user_id: str, alerts: list[dict[str, Any]], quot
         level = parse_level(alert["level"])
         if price is None or level is None or not crossed(alert["direction"], level, price):
             continue
-        if not await _claim(pool, alert["id"]):
+        if not await _claim(pool, alert["id"], price):
             continue
         title, body = message(alert["product_id"], alert["direction"], level, price)
         try:
-            await send(pool, user_id, title, body)
+            await send(pool, user_id, title, body, link(str(alert.get("exchange") or "coinbase"), alert["product_id"]))
         except Exception as exc:  # noqa: BLE001 - bildirim hatası diğer alarmları durdurmaz
             logger.warning("Coinbase fiyat alarmı bildirimi gönderilemedi (%s)", type(exc).__name__)
         fired.append(alert["id"])
     return fired
 
 
-async def _push(pool: Any, user_id: str, title: str, body: str) -> None:
+async def _push(pool: Any, user_id: str, title: str, body: str, url: str = "/master-trade") -> None:
     from ..web_push import configured, send_to_user
-    if configured():
-        await send_to_user(pool, user_id, "price", title, body, force=True, url="/master-trade")
+    if not configured():
+        logger.warning("Fiyat alarmı çaldı ama telefon bildirimi kapalı (VAPID ayarı yok); uygulama içinde gösterilecek")
+        return
+    sent = await send_to_user(pool, user_id, "price", title, body, force=True, url=url)
+    if not sent:
+        logger.warning("Fiyat alarmı bildirimi hiçbir cihaza gitmedi (telefon aboneliği yok ya da gönderim başarısız); uygulama içinde gösterilecek")
 
 
 async def binance_prices(app: Any) -> dict[str, Any]:
@@ -156,7 +186,7 @@ async def run_once(app: Any) -> int:
     by_user: dict[str, list[dict[str, Any]]] = {}
     binance: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
-        (binance if str(row["exchange"]) == "binance" else by_user).setdefault(str(row["user_id"]), []).append({**_row(row)})
+        (binance if str(row["exchange"]) == "binance" else by_user).setdefault(str(row["user_id"]), []).append({**_row(row), "exchange": str(row["exchange"])})
     total = 0
     if binance:
         try:

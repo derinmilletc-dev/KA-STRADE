@@ -41,6 +41,7 @@ import {recommendSizes, type SizeOption} from './coinbase-autosize'
 import CoinbaseSmartSetup from './CoinbaseSmartSetup'
 import CoinbaseAlerts from './CoinbaseAlerts'
 import {coinbaseAlertCall, usePriceAlerts} from './price-alert-api'
+import {takeAlertSymbol} from './notification-link'
 import {makeRepeat, parseRepeat, repeatLevels, type RepeatRecord} from './coinbase-repeat'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
@@ -103,6 +104,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [lastTrade, setLastTrade] = useState<RepeatRecord | null>(() => { try { return parseRepeat(JSON.parse(window.localStorage.getItem('kt-cb-last') || 'null')) } catch { return null } })
   const [repeating, setRepeating] = useState<RepeatRecord | null>(null)
   const {alerts: priceAlerts, reload: loadAlerts} = usePriceAlerts(coinbaseAlertCall)
+  const [pendingAlertSym, setPendingAlertSym] = useState<string | null>(() => takeAlertSymbol('coinbase'))   // bildirimden gelindiyse o coinin analiz ekranı açılır
   const [check, setCheck] = useState<Preflight | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -266,6 +268,13 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const signals = signalsForRows(allRows, universe)
   const rankedRows = sortCoins(filterBySignal(rows, signals, coinFilter), signals, coinSort)
   const matches = matchRows(rankedRows, coinQuery)
+  useEffect(() => {
+    if (!pendingAlertSym || !products) return
+    const root = pendingAlertSym.split('-')[0]
+    const target = matches.find(row => row.symbol === pendingAlertSym) ?? matches.find(row => (row.root || row.symbol.split('-')[0]) === root)
+    setPendingAlertSym(null)
+    if (target) setAnaSym(target.symbol)
+  }, [pendingAlertSym, products, matches])
   const listed = matches.slice(0, 80)
   const selectedRow = allRows.find(row => row.symbol === selectedId)
   const selectedVariants = selectedRow ? grouped.variants[selectedRow.root || selectedRow.symbol] ?? [] : []
