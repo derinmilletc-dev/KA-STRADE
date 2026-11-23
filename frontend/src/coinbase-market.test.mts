@@ -1,7 +1,7 @@
 // Çalıştırma: node --test frontend/src/coinbase-market.test.mts   (Node 22.18+; ek paket gerekmez)
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {minMarginNote, minMarginOf, analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct} from './coinbase-market.ts'
+import {capacityOf, minMarginNote, minMarginOf, analysisSymbol, changeText, expiryText, matchRows, priceText, signalsForRows, toRows, type CbProduct} from './coinbase-market.ts'
 
 const product = (over: Partial<CbProduct>): CbProduct => ({
   product_id: 'BIP-20DEC30-CDE', display: 'BTC PERP', root: 'BTC', price: '100000', change_pct: '0.5', volume_usd: '90000000',
@@ -83,4 +83,13 @@ test('liste notu bakiyeye yetmeyeni işaretler', () => {
   assert.deepEqual(minMarginNote(23.5, 98.94), {text: 'en az ~23.5 USD', short: false})
   assert.equal(minMarginNote(null, 98.94), null)
   assert.equal(minMarginNote(50, null)?.short, false)
+})
+
+test('kapasite: bakiyenle en fazla sözleşme, teminat ve kaldıraç', () => {
+  // 1 sözleşme 300 USD değerinde, oran %34 → teminat 102; bakiye 98.94 → yetmez
+  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 98.94}), {contracts: 0, margin: 0, notional: 0, maxLeverage: 2.9, perContractMargin: 102})
+  // bakiye 250 → 2 sözleşme, teminat 204, pozisyon 600; kendi limitin 2x ise kaldıraç 2
+  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 250, leverageLimit: 2}), {contracts: 2, margin: 204, notional: 600, maxLeverage: 2, perContractMargin: 102})
+  assert.equal(capacityOf({minMargin: null, marginRate: 0.34, spendable: 250}), null)
+  assert.equal(capacityOf({minMargin: 102, marginRate: 0.34, spendable: null}), null)
 })
