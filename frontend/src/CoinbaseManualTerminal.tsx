@@ -982,7 +982,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
       <CoinbaseManualPositions positions={livePositions} fees={fees} liveAt={liveStamp} liveSource={liveSource} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseStats refreshKey={activityKey}/>
-      <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
+      <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null} netToday={netBalance ? netBalance.netToday : null}/>
     </div>}
   </div>
 }

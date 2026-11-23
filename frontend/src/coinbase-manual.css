@@ -632,3 +632,12 @@ html body #root .cbTerminal .cbStatsSrc small:not(#a){display:block!important;co
 html body #root .cbTerminal .cbStatsSrc em:not(#a){font-style:normal!important;font-weight:700!important}
 html body #root .cbTerminal .cbStatsSrc p:not(#a){margin:0!important;color:#c9d6cf!important;font-size:12.5px!important;line-height:1.45!important}
 html body #root .cbTerminal .cbStatsNote:not(#a){margin:0!important;color:#9fb0a8!important;font-size:11.5px!important;line-height:1.4!important}
+
+/* Sade Coinbase: büyük Net bakiye, tek satırlık risk özeti */
+html body #root .cbTerminal .cbHero2 .cbHeroMoney b:not(#a){display:block!important;font-size:clamp(2rem,9vw,2.6rem)!important;font-weight:800!important;line-height:1.1!important;letter-spacing:-.5px!important}
+html body #root .cbTerminal .cbHero2 .cbHeroLine:not(#a){margin:6px 0 0!important;font-size:.9rem!important}
+html body #root .cbTerminal .cbLimits>header small:not(#a){white-space:normal!important}
+html body #root .cbTerminal .cbLimits>header .cbLimMore:not(#a){flex:0 0 auto!important;width:34px!important;height:34px!important;padding:0!important;display:grid!important;place-items:center!important;border-radius:12px!important}
+html body #root .cbTerminal .cbLimits>header .cbLimMore svg:not(#a){width:18px!important;height:18px!important;transition:transform .2s!important}
+html body #root .cbTerminal .cbLimits[data-open]>header .cbLimMore svg:not(#a){transform:rotate(180deg)!important}
+html body #root .cbTerminal .cbLimits:not(#a){padding:12px 14px!important}
