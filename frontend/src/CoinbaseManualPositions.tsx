@@ -48,6 +48,18 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
     if (next === 'half') setAct('close')
   }
 
+  // Tek dokunuşla TAMAMINI kapat: ara ekran yok (acil durumda hız). Sunucu onay metnini ister; ekran sabit metni kendisi gönderir.
+  const quickClose = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const result = await postJson<{message: string}>('/orders/close', {product_id: position.product_id, confirm: CONFIRM.close, request_id: newRequestId()})
+      setAct(null); onDone(result.message)
+    } catch (error) {
+      if (error instanceof CoinbaseApiError) onError(error); else throw error
+    } finally { setBusy(false) }
+  }
+
   const send = async () => {
     if (!act) return
     setBusy(true)
@@ -107,7 +119,7 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
         ? <button type="button" data-kind="primary" onClick={() => open('stop')}>Stop koy</button>
         : <button type="button" data-kind="primary" disabled={!view.canBreakeven} title={view.canBreakeven ? undefined : view.breakevenWhy} onClick={() => open('breakeven')}>Stopu girişe çek</button>}
       {view.half !== null && <button type="button" onClick={() => open('half')}>Yarısını kapat</button>}
-      <button type="button" data-kind="danger" onClick={() => open('close')}>Kapat</button>
+      <button type="button" data-kind="danger" disabled={busy} onClick={() => void quickClose()}>{busy && act === null ? 'Kapatılıyor…' : 'Kapat'}</button>
       <button type="button" data-kind="more" aria-expanded={more} onClick={() => setMore(value => !value)}>{more ? 'Daha az' : 'Diğer'}</button>
     </div>}
     {ordersEnabled && !view.canBreakeven && item?.state !== 'UNPROTECTED' && !act && <p className="cbPos2Why">{view.breakevenWhy}</p>}
