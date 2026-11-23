@@ -78,3 +78,23 @@ export function closePreview(view: PositionView, pnl: number | null, part: numbe
   if (Math.abs(move) / entry <= 0.0005 || Math.sign(move) !== Math.sign(pnl)) return {fraction, now, atStop: null}
   return {fraction, now, atStop: pnl / move * (stop - entry) * sign * fraction}
 }
+
+type LiveQuote = {mid?: string | null; bid?: string | null; ask?: string | null} | null | undefined
+type PositionLike = {side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null}
+
+/** Canlı fiyatı pozisyonun üstüne bindirir: güncel fiyat = alış/satış ortası; K/Z = (fiyat − giriş) × sözleşme × sözleşme boyutu.
+ *  Fiyat ya da sözleşme boyutu güvenilir değilse pozisyon AYNEN döner (uydurma K/Z yok). */
+export function overlayLive<T extends PositionLike>(position: T, quote: LiveQuote, contractSize: number | null): T {
+  const bid = pos(quote?.bid), ask = pos(quote?.ask)
+  const mid = pos(quote?.mid) ?? (bid !== null && ask !== null ? (bid + ask) / 2 : null)
+  if (mid === null) return position
+  const next: T = {...position, current_price: String(Number(mid.toPrecision(10)))}
+  const raw = String(position.side ?? '').toUpperCase()
+  const sign = raw.endsWith('LONG') ? 1 : raw.endsWith('SHORT') ? -1 : 0
+  const entry = pos(position.avg_entry_price)
+  const contracts = Math.floor(Number(position.number_of_contracts) || 0)
+  if (sign !== 0 && entry !== null && contracts >= 1 && contractSize !== null && contractSize > 0) {
+    next.unrealized_pnl = String(Number(((mid - entry) * contracts * contractSize * sign).toFixed(4)))
+  }
+  return next
+}

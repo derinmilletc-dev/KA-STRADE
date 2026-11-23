@@ -36,6 +36,7 @@ import type {SuggestItem} from './coinbase-suggest'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
 import CoinbaseManualPending from './CoinbaseManualPending'
 import CoinbaseManualPositions, {type CbPosition, type CbProtection} from './CoinbaseManualPositions'
+import {overlayLive} from './coinbase-position'
 import {CheckList, DirectionCards, ElapsedSeconds, SummaryList, type SummaryItem} from './ManualTerminalParts'
 import type {CheckRow} from './manual-order-state'
 import './coinbase-manual.css'
@@ -249,6 +250,26 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     const timer = visibleInterval(load, 5000)
     return () => { alive = false; clearVisibleInterval(timer) }
   }, [keySaved, quoteIds])
+  // Açık pozisyonların fiyatı: 3 sn'de bir (sekme görünürken) alış/satış ortası; K/Z buna göre anında hesaplanır.
+  const positionIds = positions.map(item => item.product_id).filter(isProductId).slice(0, 12).join(',')
+  const [liveQuotes, setLiveQuotes] = useState<Record<string, CbQuote>>({})
+  const [liveAt, setLiveAt] = useState<number | null>(null)
+  useEffect(() => {
+    if (!keySaved || !positionIds) { setLiveAt(null); return }
+    let alive = true
+    const load = () => {
+      void coinbaseCall<{quotes: Record<string, CbQuote>}>(`/quotes?ids=${encodeURIComponent(positionIds)}`)
+        .then(next => { if (alive) { setLiveQuotes(current => ({...current, ...next.quotes})); setLiveAt(Date.now()) } })
+        .catch(() => { /* bir sonraki turda yeniden denenir; 15 sn sonuç gelmezse rozet "Bağlanıyor…" olur */ })
+    }
+    load()
+    const timer = visibleInterval(load, 3000)
+    return () => { alive = false; clearVisibleInterval(timer) }
+  }, [keySaved, positionIds])
+  const livePositions = positions.map(item => {
+    const size = Number(products?.find(row => row.product_id === item.product_id)?.contract_size)
+    return overlayLive(item, liveQuotes[item.product_id], Number.isFinite(size) && size > 0 ? size : null)
+  })
   // Kais analizi (aynı coinin Binance analizi): stop adımında "Kais analizi" önerisi için. Coin başına bir kez alınır.
   const anaKey = analysisSymbol(selectedRow?.root ?? null)
   useEffect(() => {
@@ -885,7 +906,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {keySaved && <div className="cbPanel" ref={positionsRef}>
       {ordersOn && <CoinbaseLimits openOrders={protection?.open_order_count ?? null} buyingPower={Number.isFinite(Number(account?.balance?.futures_buying_power?.value)) ? Number(account?.balance?.futures_buying_power?.value) : null} onChanged={() => { setLimitsRev(value => value + 1); void refresh(true) }}/>}
       {ordersOn && status?.resting_enabled === true && <CoinbaseManualPending onDone={afterAction} onError={afterError}/>}
-      <CoinbaseManualPositions positions={positions} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
+      <CoinbaseManualPositions positions={livePositions} liveAt={liveAt} protection={protection} ordersEnabled={ordersOn} onDone={afterAction} onError={afterError}/>
       <CoinbaseActivity refreshKey={activityKey} dailyPnl={account?.balance?.daily_realized_pnl?.value ?? null}/>
     </div>}
   </div>
