@@ -20,9 +20,11 @@ BATCH_CANCEL_PATH = "/api/v3/brokerage/orders/batch_cancel"
 ORDER_LIST_PATH = "/api/v3/brokerage/orders/historical/batch"
 ORDER_GET_PREFIX = "/api/v3/brokerage/orders/historical/"
 BEST_BID_ASK_PATH = "/api/v3/brokerage/best_bid_ask"
+PREVIEW_PATH = "/api/v3/brokerage/orders/preview"  # emir GÖNDERMEZ; Coinbase'in kendi ön izlemesi (marjin/bakiye kontrolü)
 
 WRITE_PATTERNS = (
     re.compile(re.escape(ORDERS_PATH)),
+    re.compile(re.escape(PREVIEW_PATH)),
     re.compile(re.escape(CLOSE_POSITION_PATH)),
     re.compile(re.escape(BATCH_CANCEL_PATH)),
 )

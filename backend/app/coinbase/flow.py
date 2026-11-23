@@ -11,6 +11,7 @@ Temel ilke: stop'suz pozisyon KALMAZ.
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from decimal import Decimal
 from typing import Any, Awaitable, Callable
@@ -20,7 +21,9 @@ from .errors import CoinbaseError
 from .limits import Limits
 from .money import ROUND_DOWN, ROUND_UP, fmt, round_to_increment, to_decimal
 from .preflight import run_preflight
-from .trading_client import CoinbaseTradingClient
+from .trading_client import PREVIEW_PATH, CoinbaseTradingClient
+
+logger = logging.getLogger(__name__)
 
 ORDER_POLLS = 8
 POLL_SECONDS = 0.5
@@ -88,6 +91,45 @@ async def gather_state(client: CoinbaseTradingClient, product_id: str) -> dict[s
     return {"product": product, "bid": bid, "ask": ask, "account": account, "positions": positions, "open_orders": open_orders}
 
 
+PREVIEW_TR = {
+    "PREVIEW_INSUFFICIENT_FUNDS_FOR_FUTURES": "Coinbase vadeli hesapta bu emrin marjini için yeterli bakiye görmüyor",
+}
+
+
+def _preview_body(plan: dict[str, Any]) -> dict[str, Any]:
+    leverage = Decimal(plan["leverage"])
+    return {
+        "product_id": plan["product_id"], "side": plan["side"],
+        "order_configuration": (
+            {"limit_limit_fok": {"base_size": str(plan["contracts"]), "limit_price": plan["entry_limit_price"]}}
+            if plan.get("entry_limit_price") else {"market_market_ioc": {"base_size": str(plan["contracts"])}}
+        ),
+        "leverage": fmt(leverage.quantize(Decimal("1"), rounding=ROUND_DOWN)) if leverage >= 1 else "1",
+    }
+
+
+async def exchange_check(client: CoinbaseTradingClient, plan: dict[str, Any]) -> list[str]:
+    """Coinbase'in KENDİ ön izlemesi (emir göndermez): bizim kurallarımız geçse bile borsa reddedecekse önceden söyler.
+    Ön izleme çağrısı başarısız olursa (ağ/izin) engellemez: yalnızca borsanın açık 'errs' cevabı emri durdurur."""
+    try:
+        payload = await client.post(PREVIEW_PATH, _preview_body(plan))
+    except Exception:  # noqa: BLE001 - ön izleme yardımcıdır; hata emri engellemez ama günlüğe düşer
+        logger.warning("Coinbase emir ön izlemesi alınamadı product=%s", plan.get("product_id"), exc_info=True)
+        return []
+    errs = payload.get("errs") if isinstance(payload, dict) else None
+    if not isinstance(errs, list) or not errs:
+        return []
+    margin = payload.get("order_margin_total")
+    reasons: list[str] = []
+    for code in errs[:3]:
+        code = str(code)
+        text = PREVIEW_TR.get(code, f"Coinbase ön izlemesi emri kabul etmiyor ({code})")
+        if code == "PREVIEW_INSUFFICIENT_FUNDS_FOR_FUTURES" and isinstance(margin, str) and margin:
+            text += f" (bu emir için gereken marjin ≈ {margin} USD, kaldıraç {plan.get('leverage')}x)"
+        reasons.append(text + ". Teminatı artır, bakiye ekle ya da daha küçük sözleşmeli ürün seç." if code in PREVIEW_TR else text + ".")
+    return reasons
+
+
 async def preflight(client: CoinbaseTradingClient, limits: Limits, request: dict[str, Any]) -> dict[str, Any]:
     product_id = str(request.get("product_id") or "")
     if not product_id:
@@ -98,6 +140,10 @@ async def preflight(client: CoinbaseTradingClient, limits: Limits, request: dict
         positions=state["positions"], open_orders=state["open_orders"],
         daily_loss_usd=daily_loss_from_account(state["account"]), limits=limits,
     )
+    if result["ok"] and result.get("plan"):
+        extra = await exchange_check(client, result["plan"])
+        if extra:
+            result = {"ok": False, "reasons": result["reasons"] + extra, "plan": result["plan"]}
     result["state"] = {
         "bid": fmt(state["bid"]), "ask": fmt(state["ask"]), "open_positions": len(state["positions"]),
         "open_orders": len(state["open_orders"]),
@@ -139,6 +185,10 @@ async def suggest(client: CoinbaseTradingClient, limits: Limits, request: dict[s
             positions=state["positions"], open_orders=state["open_orders"], daily_loss_usd=daily_loss, limits=limits,
         )
         plan = result.get("plan") or {}
+        if result["ok"] and plan:
+            extra = await exchange_check(client, plan)
+            if extra:
+                result = {"ok": False, "reasons": result["reasons"] + extra, "plan": plan}
         reward = None
         try:
             if plan:

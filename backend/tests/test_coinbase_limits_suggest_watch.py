@@ -87,6 +87,11 @@ class UserLimitsTests(unittest.TestCase):
 
 class SuggestTests(unittest.TestCase):
     def setUp(self):
+        import os
+        from unittest.mock import patch
+        patcher = patch.dict(os.environ, {"COINBASE_ENABLED": "true", "COINBASE_ORDERS_ENABLED": "true"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         cb_client.reset_limiters()
         self.ex = FakeExchange()
         self.client = self.ex.client()
@@ -106,6 +111,27 @@ class SuggestTests(unittest.TestCase):
                 "product_id": PRODUCT, "side": "BUY", "margin_usd": "60", "stop_price": item["stop_price"], "take_profit_price": item["take_profit_price"]}))
             self.assertTrue(check["ok"], (item, check["reasons"]))
             self.assertEqual(check["plan"]["contracts"], item["contracts"])
+
+    def test_exchange_preview_rejection_blocks_preflight_and_suggestions(self):
+        self.ex.preview_errs = ["PREVIEW_INSUFFICIENT_FUNDS_FOR_FUTURES"]
+        request = {"product_id": PRODUCT, "side": "BUY", "margin_usd": "60", "stop_price": "2900"}
+        check = run(flow.preflight(self.client, self.limits, request))
+        self.assertFalse(check["ok"])
+        self.assertIn("123.45", " ".join(check["reasons"]))
+        self.assertIn("marjin", " ".join(check["reasons"]))
+        result = self.suggest()
+        self.assertFalse(any(item["ok"] for item in result["items"]))
+
+    def test_exchange_preview_failure_does_not_block(self):
+        original = self.ex._post
+
+        def boom(path, body):
+            if path.endswith("/orders/preview"):
+                raise RuntimeError("preview down")
+            return original(path, body)
+        self.ex._post = boom
+        check = run(flow.preflight(self.client, self.limits, {"product_id": PRODUCT, "side": "BUY", "margin_usd": "60", "stop_price": "2900"}))
+        self.assertTrue(check["ok"], check["reasons"])
 
     def test_levels_are_on_the_correct_side_for_long_and_short(self):
         long_items = self.suggest()["items"]

@@ -58,6 +58,7 @@ FAILURE_TR = {
     "REDUCE_ONLY_INCREASED_POSITION_SIZE": "Emir pozisyonu büyütecekti, reddedildi.",
     "REDUCE_ONLY_NOT_ALLOWED_ON_VENUE": "Bu borsada yalnız-azalt emri desteklenmiyor.",
     "TOO_MANY_OPEN_ORDERS": "Çok fazla açık emir var.",
+    "PREVIEW_INSUFFICIENT_FUNDS_FOR_FUTURES": "Coinbase vadeli hesapta bu emrin marjini için yeterli bakiye görmüyor. Teminatı artır, bakiye ekle ya da daha küçük sözleşmeli ürün seç.",
 }
 
 

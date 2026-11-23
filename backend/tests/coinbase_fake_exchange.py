@@ -72,6 +72,7 @@ class FakeExchange:
         self.rest_mode = "ok"        # ok | reject
         self.attached_works = True   # False: borsa ekli bracket'ı sessizce yok sayar (doldurunca korumasız kalır)
         self.close_fails = False
+        self.preview_errs = []       # Coinbase ön izlemesinin döneceği 'errs' (boş = emir kabul edilir)
         self.close_noop = False      # istek başarılı görünür ama pozisyon kapanmaz
         self.cancel_fails = set()    # bu id'ler iptal edilemez
         self.margin_level = "MARGIN_LEVEL_TYPE_BASE"
@@ -200,6 +201,8 @@ class FakeExchange:
         return _resp({"success": False, "error_response": {"new_order_failure_reason": reason, "message": "test"}})
 
     def _post(self, path, body):
+        if path.endswith("/orders/preview"):
+            return _resp({"errs": list(self.preview_errs), "warning": [], "order_margin_total": "123.45"})
         if path.endswith("/orders/close_position"):
             if self.close_fails:
                 return self._fail("UNSUPPORTED_ORDER_CONFIGURATION")
