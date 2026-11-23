@@ -31,6 +31,7 @@ import {leverageBand, marginChips, priceString, riskPreview, sizeFromLeverage, s
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import CoinbaseAccountHero from './CoinbaseAccountHero'
+import {readNetBalance, type NetBalance} from './coinbase-net-balance'
 import CoinbaseLimits from './CoinbaseLimits'
 import {SuggestionButtons, SuggestionNote, useCoinbaseSuggestions} from './CoinbaseSuggestions'
 import {itemSelected, type LimitsView, type SuggestItem} from './coinbase-suggest'
@@ -84,6 +85,7 @@ const usd = (value: number) => value.toLocaleString('tr-TR', {minimumFractionDig
 export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => void}) {
   const [status, setStatus] = useState<Status | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
+  const [netBalance, setNetBalance] = useState<NetBalance | null>(null)
   const [futuresMissing, setFuturesMissing] = useState(false)
   const [positions, setPositions] = useState<CbPosition[]>([])
   const [protection, setProtection] = useState<CbProtection | null>(null)
@@ -146,6 +148,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
       if (accountResult.status === 'fulfilled') { setAccount(accountResult.value); setFuturesMissing(false) }
       else if (noFutures) { setAccount(null); setFuturesMissing(true) }
       if (positionResult.status === 'fulfilled') setPositions(positionResult.value.positions)
+      // Net bakiye ayrı okunur: sunucu henüz güncel değilse ya da hata verirse hero eski gösterimde kalır.
+      void coinbaseCall<unknown>('/net-balance').then(raw => setNetBalance(readNetBalance(raw))).catch(() => setNetBalance(null))
       if (protectionResult.status === 'fulfilled') setProtection(protectionResult.value)
       const failed = results.slice(0, 3).find((result, index): result is PromiseRejectedResult => result.status === 'rejected' && !(index === 0 && noFutures))
       if (failed) setNotice(noticeFromError(failed.reason))
@@ -654,7 +658,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   // Hesap/bakiye hazır değilse düğme sakin görünür; yine de açılır (inceleme serbest, gönderimde bakiye hatası verir).
   const waitFunds = futuresMissing || (account?.balance != null && !(Number(account.balance.futures_buying_power?.value) > 0))
   const openPnl = netOpenPnl(livePositions, fees)
-  const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} openPnl={openPnl} futuresMissing={futuresMissing} ordersOn={ordersOn}
+  const statusStrip = <CoinbaseAccountHero balance={account?.balance ?? null} netBalance={netBalance} openPnl={openPnl} futuresMissing={futuresMissing} ordersOn={ordersOn}
     clockSkew={status?.clock?.ok === false ? status.clock.skew_seconds : null} openCount={positions.length} loading={loading} onRefresh={() => void refresh()}
     openSummary={positions.length === 1 ? `${(positions[0].product_id || '').split('-')[0]} · ${String(positions[0].side ?? '').toUpperCase().endsWith('SHORT') ? 'SHORT' : 'LONG'}` : positions.length > 1 ? `${positions.length} açık` : null}
     openOrders={protection?.open_order_count ?? null} lastCheck={lastCheck}/>

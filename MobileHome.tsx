@@ -6,6 +6,7 @@ import { currentLang } from './i18n'
 import { accountNetPnl } from './net-pnl'
 import {useCoinbaseVisible} from './frontend/src/useCoinbaseVisible'
 import {netOpenPnl} from './frontend/src/coinbase-position'
+import {readNetBalance, todayText} from './frontend/src/coinbase-net-balance'
 import {readExchange, writeExchange} from './frontend/src/exchange-pref'
 import type {Exchange} from './frontend/src/CoinbaseExchangeSwitch'
 import './mobile-home.css'
@@ -15,7 +16,7 @@ import './mobile-home.css'
 
 type Market = {symbol: string; display: string; price: number; change: number}
 type Target = 'setup' | 'billing' | 'analyst' | 'trading'
-type Account = {wallet_balance?: number | null; unrealized_pnl?: number | null; positions?: unknown[]; net?: boolean}
+type Account = {wallet_balance?: number | null; unrealized_pnl?: number | null; positions?: unknown[]; net?: boolean; today?: string | null}
 type CbPnlRow = {product_id?: unknown; unrealized_pnl?: unknown}
 type LiveStatus = {connected?: boolean; credentials?: {configured?: boolean}; account?: Account}
 type DemoAccount = Account & {configured?: boolean}
@@ -110,17 +111,21 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
     const coinbaseBalance = () => void Promise.all([
       getJson<{balance?: {cfm_usd_balance?: {value?: string | null} | null; total_usd_balance?: {value?: string | null} | null; unrealized_pnl?: {value?: string | null} | null}}>('/coinbase/account', controller.signal),
       getJson<{positions?: unknown[]}>('/coinbase/positions', controller.signal),
-    ]).then(([account, positions]) => {
+      getJson<unknown>('/coinbase/net-balance', controller.signal),
+    ]).then(([account, positions, netRaw]) => {
       const balance = account?.balance
       // Para çoğu zaman spot hesapta durur ve işlem açılınca vadeliye geçer: vadeli hesap (cfm) 0 görünse de toplam (cbi + cfm) doludur.
       const total = Number(balance?.total_usd_balance?.value)
       const futuresOnly = Number(balance?.cfm_usd_balance?.value)
-      const wallet = Number.isFinite(total) && total > 0 ? Math.max(total, Number.isFinite(futuresOnly) ? futuresOnly : 0) : futuresOnly
+      const settled = Number.isFinite(total) && total > 0 ? Math.max(total, Number.isFinite(futuresOnly) ? futuresOnly : 0) : futuresOnly
+      // Tek Net bakiye (hesap kartıyla aynı sunucu rakamı); sunucu henüz güncel değilse eski bakiye.
+      const netBal = readNetBalance(netRaw)
+      const wallet = netBal ? netBal.netBalance : settled
       const pnl = Number(balance?.unrealized_pnl?.value)
       const rows = Array.isArray(positions?.positions) ? positions.positions as CbPnlRow[] : []
       // K/Z pozisyon ekranıyla aynı hesap: Coinbase pozisyon K/Z'si − ödenen komisyon (netOpenPnl).
       const net = netOpenPnl(rows, cbFees.current)
-      setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: net ? net.value : Number.isFinite(pnl) ? pnl : null, positions: rows, net: net?.withFees ?? false} : null)
+      setCoinbase(balance && Number.isFinite(wallet) ? {wallet_balance: wallet, unrealized_pnl: net ? net.value : Number.isFinite(pnl) ? pnl : null, positions: rows, net: net?.withFees ?? false, today: netBal ? todayText(netBal) : null} : null)
     })
     const coinbaseFees = () => void getJson<{fees?: Record<string, string | null>}>('/coinbase/positions/fees', controller.signal)
       .then(value => { if (value?.fees && typeof value.fees === 'object') cbFees.current = value.fees })
@@ -212,6 +217,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>{active === 'live' && onCoinbase ? 'USD' : 'USDT'}</span></div>
         <div className="mhChange">
           {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
+          {active === 'live' && onCoinbase && (shown as Account).today ? <span>{(shown as Account).today}</span> : null}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
       </> : <div className="mhEmpty">

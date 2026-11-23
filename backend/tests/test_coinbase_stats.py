@@ -56,5 +56,26 @@ class StatsTests(unittest.TestCase):
         self.assertEqual((empty["trades"], empty["win_rate"], empty["net"], empty["profit_factor"]), (0, None, "0.00", None))
 
 
+class NetBalanceTests(unittest.TestCase):
+    def _trades(self):
+        return [
+            {"time": "2026-11-22T08:00:00+00:00", "gross": Decimal("-1.00"), "fees": Decimal("0.30"), "net": Decimal("-1.30")},
+            {"time": "2026-11-23T08:00:00+00:00", "gross": Decimal("2.00"), "fees": Decimal("0.40"), "net": Decimal("1.60")},
+            {"time": "2026-11-23T09:00:00+00:00", "gross": Decimal("3.70"), "fees": Decimal("0.67"), "net": Decimal("3.03")},
+        ]
+
+    def test_fees_of_todays_trades_are_deducted(self):
+        out = stats.net_balance(Decimal("100.01"), Decimal("5.70"), self._trades(), "2026-11-23")
+        self.assertEqual((out["fees"], out["net_today"], out["net_balance"], out["exact"]), ("1.07", "4.63", "104.64", True))
+
+    def test_falls_back_to_utc_day_when_gross_does_not_match(self):
+        out = stats.net_balance(Decimal("100"), Decimal("9"), self._trades(), "2026-11-23")
+        self.assertEqual((out["fees"], out["exact"]), ("1.07", False))
+
+    def test_no_realized_pnl_means_no_fee_deduction(self):
+        out = stats.net_balance(Decimal("100.01"), Decimal("0"), self._trades(), "2026-11-23")
+        self.assertEqual((out["fees"], out["net_balance"]), ("0.00", "100.01"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ COINBASE_ENABLED açıkken yüklenir (emir bayrağından bağımsız); aynı eri
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Path, Query, Request
@@ -136,3 +137,32 @@ async def coinbase_stats(request: Request) -> Any:
     trades, unknown = stats.build_trades(feed)
     stats.attach_sources(trades, entries)
     return stats.summarize(trades, unknown)
+
+
+@router.get("/net-balance")
+async def coinbase_net_balance(request: Request) -> Any:
+    """Tek "Net bakiye": ana sayfa, hesap kartı ve istatistik aynı rakamı buradan gösterir. Salt okunur."""
+    from datetime import datetime, timezone
+    user = _member(request)
+    try:
+        client = await _reader(request, user)
+        account = (await service.fetch_account(client)).get("balance") or {}
+        fills = await activity.fetch_fills(client, limit=250)
+        try:
+            sizes = activity.contract_sizes(await market.fetch_products(client))
+        except CoinbaseError:
+            sizes = {}
+    except CoinbaseError as exc:
+        return _error(exc)
+
+    def number(key: str) -> Decimal | None:
+        return activity._dec((account.get(key) or {}).get("value"))
+
+    total, futures, gross = number("total_usd_balance"), number("cfm_usd_balance"), number("daily_realized_pnl")
+    wallet = max(total or Decimal(0), futures or Decimal(0))
+    if total is None and futures is None:
+        return {"available": False}
+    feed = activity.build_feed(activity.group_fills(fills), {}, sizes)
+    trades, _unknown = stats.build_trades(feed)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return {"available": True, **stats.net_balance(wallet, gross or Decimal(0), trades, today)}

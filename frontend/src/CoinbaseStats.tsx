@@ -22,7 +22,7 @@ export default function CoinbaseStats({refreshKey}: {refreshKey: number}) {
   return <section className="cbStats" aria-label="İşlem performansı" data-open={open || undefined}>
     <button type="button" className="cbStatsHead" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="cbStatsIcon"><BarChart3 aria-hidden="true"/></span>
-      <span className="cbStatsTitle"><b>İşlem performansı</b><small>{data.trades} kapanan işlem · komisyon dahil</small></span>
+      <span className="cbStatsTitle"><b>İşlem performansı</b><small>Toplam net · {data.trades} kapanan işlem · komisyon dahil</small></span>
       <b className="cbStatsNet" data-tone={moneyTone(net)}>{fmtMoney(net)}</b>
       <ChevronDown aria-hidden="true"/>
     </button>
