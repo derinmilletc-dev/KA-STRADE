@@ -1,11 +1,12 @@
 // Coinbase işlem geçmişi ve olay akışı: bugün özeti + son olaylar (giriş, stop, hedef, kapanış) + önemli uyarılar.
 // Yalnızca gösterim; veri GET /api/coinbase/activity'den gelir (salt okunur). Ekran görünürken 30 sn'de bir yenilenir.
 import {useCallback, useEffect, useState} from 'react'
-import {Bell, RefreshCw} from 'lucide-react'
+import {Bell, ChevronDown, RefreshCw} from 'lucide-react'
 import {clearVisibleInterval, visibleInterval} from '../../visible-interval'
 import {coinbaseCall} from './coinbase-manual-api'
 import {enablePush, pushState, type PushState} from '../../push-client'
 import {loadNotifyPrefs} from '../../notification-prefs'
+import {groupByDay} from './coinbase-activity-view'
 
 type Item = {time: string; product_id: string; side: string; size: string; price: string; commission: string; pnl: string | null; kind: string; tone: string; title: string}
 type Alert = {time: string; product_id: string | null; tone: string; title: string}
@@ -38,7 +39,7 @@ export default function CoinbaseActivity({refreshKey, dailyPnl, netToday = null}
   const [data, setData] = useState<Activity | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const [alertsOpen, setAlertsOpen] = useState(false)
   const [period, setPeriod] = useState<'today' | 'week'>('today')
   const [push, setPush] = useState<PushState | 'unknown' | 'busy'>('unknown')
   const [pushError, setPushError] = useState('')
@@ -85,7 +86,8 @@ export default function CoinbaseActivity({refreshKey, dailyPnl, netToday = null}
   // Bugün: komisyon düşülmüş net (hesap kartıyla aynı rakam); sunucu henüz vermediyse Coinbase'in brüt günlük K/Z'si.
   const todayNet = netToday !== null && Number.isFinite(netToday)
   const pnlShown = period === 'today' ? (todayNet ? netToday : pnlToday) : known.length ? weekTotal : null
-  const items = showAll ? (data?.items ?? []) : (data?.items ?? []).slice(0, 6)
+  const days = groupByDay(data?.items ?? [])
+  const groupedAlerts = groupAlerts(data?.alerts ?? [])
 
   return <section className="cbAct" aria-label="İşlem geçmişi">
     <div className="cbActHead">
@@ -108,20 +110,27 @@ export default function CoinbaseActivity({refreshKey, dailyPnl, netToday = null}
       {(push === 'off' || push === 'busy') && <button type="button" onClick={() => void enablePushNow()} disabled={push === 'busy'}>{push === 'busy' ? 'Açılıyor…' : 'Bildirimi aç'}</button>}
     </div>}
 
-    {(data?.alerts ?? []).length > 0 && <ul className="cbActAlerts" aria-label="Önemli uyarılar">{groupAlerts(data!.alerts).slice(0, 3).map((alert, index) => <li key={index} data-tone={alert.tone}>
-      <b>{alert.title}{alert.count > 1 ? ` ×${alert.count}` : ''}</b><small>{alert.product_id ?? ''} · {dayLabel(alert.time)} {hhmm(alert.time)}</small></li>)}</ul>}
+    {groupedAlerts.length > 0 && <div className="cbActAlertBox" data-open={alertsOpen || undefined}>
+      <button type="button" className="cbActAlertBtn" aria-expanded={alertsOpen} onClick={() => setAlertsOpen(value => !value)}>
+        <span>⚠ Uyarılar <em>{groupedAlerts.length}</em></span><small>{alertsOpen ? 'Gizle' : 'Göster'}</small><ChevronDown aria-hidden="true"/></button>
+      {alertsOpen && <ul className="cbActAlerts" aria-label="Önemli uyarılar">{groupedAlerts.slice(0, 8).map((alert, index) => <li key={index} data-tone={alert.tone}>
+        <b>{alert.title}{alert.count > 1 ? ` ×${alert.count}` : ''}</b><small>{alert.product_id ?? ''} · {dayLabel(alert.time)} {hhmm(alert.time)}</small></li>)}</ul>}
+    </div>}
 
     {error && !data && <p className="cbNote warn" role="alert">{error}</p>}
     {data && data.items.length === 0 && <p className="cbActEmpty"><b>Henüz işlem yok</b><small>İlk işlemin, stop ve hedef olayları burada görünür.</small></p>}
-    {items.length > 0 && <ol className="cbActList">{items.map((item, index) => {
-      const pnl = num(item.pnl)
-      return <li key={`${item.time}-${index}`} data-tone={item.tone} data-kind={item.kind}>
-        <i aria-hidden="true">{ICON[item.kind] ?? '•'}</i>
-        <span className="cbActMain"><b>{item.title}</b><small>{item.size} sözleşme @ {Number(item.price).toLocaleString('tr-TR', {maximumFractionDigits: 6})} · {item.product_id}</small></span>
-        <span className="cbActSide">{pnl !== null && <em data-tone={pnl > 0 ? 'up' : pnl < 0 ? 'down' : undefined}>{money(pnl)}</em>}<small>{dayLabel(item.time)} {hhmm(item.time)}</small></span>
-      </li>
-    })}</ol>}
-    {data && data.items.length > 6 && <button type="button" className="cbActMore" onClick={() => setShowAll(value => !value)}>{showAll ? 'Daha az göster' : `Tümünü göster (${data.items.length})`}</button>}
+    {days.length > 0 && <div className="cbActScroll" tabIndex={0} aria-label="Olay listesi, kaydırılır">{days.map(day => <section key={day.key} className="cbActDay">
+      <header className="cbActDayHead"><b>{day.label}</b><small>{day.items.length} olay</small>{day.pnl !== null && <em data-tone={day.pnl > 0 ? 'up' : day.pnl < 0 ? 'down' : undefined}>{money(day.pnl)}</em>}</header>
+      <ol className="cbActList">{day.items.map((item, index) => {
+        const pnl = num(item.pnl)
+        const root = item.product_id.split('-')[0]
+        return <li key={`${item.time}-${index}`} data-tone={item.tone} data-kind={item.kind} title={item.product_id}>
+          <i aria-hidden="true">{ICON[item.kind] ?? '•'}</i>
+          <span className="cbActMain"><b>{item.title}</b><small>{root} · {item.size} sözleşme · {Number(item.price).toLocaleString('tr-TR', {maximumFractionDigits: 6})}</small></span>
+          <span className="cbActSide">{pnl !== null ? <em data-tone={pnl > 0 ? 'up' : pnl < 0 ? 'down' : undefined}>{money(pnl)}</em> : <em/>}<small>{hhmm(item.time)}</small></span>
+        </li>
+      })}</ol>
+    </section>)}</div>}
     {data && data.items.some(item => item.pnl !== null) && <p className="cbActNote">{todayNet && period === 'today' ? 'Satırlardaki kâr/zarar komisyonsuzdur; üstteki özet komisyon düşülmüş nettir.' : 'Kâr/zarar komisyon hariç yaklaşık değerdir.'}</p>}
   </section>
 }

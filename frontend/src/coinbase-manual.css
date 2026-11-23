@@ -697,3 +697,23 @@ html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;paddi
 .mxtRepeat small{opacity:.75!important}
 
 .mxtBell{font-size:12px!important}
+
+/* Son olaylar: güne göre gruplu, kaydırılır liste; uyarılar katlanır */
+.cbTerminal .cbActScroll{max-height:min(58vh,460px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:thin!important;display:grid!important;gap:6px!important;padding-right:2px!important;border-radius:14px!important;-webkit-mask-image:linear-gradient(#000 calc(100% - 22px),transparent)!important;mask-image:linear-gradient(#000 calc(100% - 22px),transparent)!important;padding-bottom:18px!important}
+.cbTerminal .cbActDay{display:grid!important;gap:0!important}
+.cbTerminal .cbActDayHead{position:sticky!important;top:0!important;z-index:2!important;display:flex!important;align-items:baseline!important;gap:8px!important;padding:8px 6px!important;background:#0a101a!important;border-bottom:1px solid rgba(255,255,255,.07)!important}
+.cbTerminal .cbActDayHead b{font-size:.8rem!important;letter-spacing:.04em!important;text-transform:uppercase!important;opacity:.85!important}
+.cbTerminal .cbActDayHead small{opacity:.55!important;font-size:.74rem!important;flex:1!important}
+.cbTerminal .cbActDayHead em{font-style:normal!important;font-size:.82rem!important;font-weight:700!important}
+.cbTerminal .cbActDayHead em[data-tone=up]{color:#39d68c!important}
+.cbTerminal .cbActDayHead em[data-tone=down]{color:#ef6f6f!important}
+.cbTerminal .cbActScroll .cbActList{border:0!important;background:transparent!important;border-radius:0!important}
+.cbTerminal .cbActScroll .cbActList li{padding:11px 4px!important}
+.cbTerminal .cbActAlertBox{border-radius:14px!important;background:rgba(250,204,21,.07)!important;overflow:hidden!important}
+.cbTerminal .cbActAlertBtn{display:grid!important;grid-template-columns:1fr auto auto!important;align-items:center!important;gap:8px!important;width:100%!important;padding:10px 12px!important;border:0!important;background:transparent!important;color:inherit!important;font:inherit!important;text-align:left!important}
+.cbTerminal .cbActAlertBtn span{font-size:.86rem!important;font-weight:600!important}
+.cbTerminal .cbActAlertBtn em{font-style:normal!important;margin-left:6px!important;padding:1px 7px!important;border-radius:999px!important;background:rgba(250,204,21,.2)!important;font-size:.74rem!important}
+.cbTerminal .cbActAlertBtn small{opacity:.6!important;font-size:.76rem!important}
+.cbTerminal .cbActAlertBtn svg{width:16px!important;height:16px!important;transition:transform .15s!important}
+.cbTerminal .cbActAlertBox[data-open] .cbActAlertBtn svg{transform:rotate(180deg)!important}
+.cbTerminal .cbActAlertBox .cbActAlerts{padding:0 8px 8px!important}
