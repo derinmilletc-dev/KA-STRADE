@@ -5,6 +5,7 @@ import AppErrorBoundary from './AppErrorBoundary'
 import WebAccessGate from './WebAccessGate'
 import AuthGate from './AuthGate'
 import ConnectionBanner from './ConnectionBanner'
+import {applyNotificationExchange} from './frontend/src/notification-link-apply'
 import EmailVerificationRoute from './EmailVerificationRoute'
 import PublicPolicyPage from './PublicPolicyPage'
 import { publicPolicyForPath } from './compliance-content'
@@ -54,6 +55,7 @@ if (adminHost) {
     ? <><PublicPolicyPage policy={publicPolicy}/><LanguageToggle/></>
     : <><CopyProtection/><BackToTop/><WebAccessGate><AuthGate><MemberAccessProvider><TestnetFirstApp/></MemberAccessProvider></AuthGate></WebAccessGate><InstallPrompt/><UpdateBanner/></>
   void initI18n().then(() => {
+    applyNotificationExchange()   // bildirimden gelindiyse o borsa seçili açılsın
     ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><AppErrorBoundary><ConnectionBanner/><EmailVerificationRoute>{application}</EmailVerificationRoute></AppErrorBoundary></React.StrictMode>)
   })
 }

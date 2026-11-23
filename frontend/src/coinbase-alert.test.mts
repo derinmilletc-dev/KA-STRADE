@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {alertPresets, alertsFor, distancePct, parseAlertLevel, pctText, previewLevel} from './coinbase-alert.ts'
+import {alertPresets, alertsFor, firedText, distancePct, parseAlertLevel, pctText, previewLevel} from './coinbase-alert.ts'
 
 test('parse', () => {
   assert.equal(parseAlertLevel(' 1,25 '), 1.25)
@@ -27,4 +27,8 @@ test('distance and preview', () => {
 test('alertsFor', () => {
   const list = [{id: 1, product_id: 'A', level: '1', direction: 'above' as const, ref_price: '0.9'}, {id: 2, product_id: 'B', level: '2', direction: 'below' as const, ref_price: '2.1'}]
   assert.deepEqual(alertsFor(list, 'B').map(x => x.id), [2])
+})
+test('firedText', () => {
+  assert.deepEqual(firedText({id: 1, product_id: 'BTCUSDT', level: '100.00', direction: 'above', trigger_price: '101.5'}), {title: '🔔 BTC alarmı', body: 'BTC 100 seviyesinin üstüne çıktı (şimdi 101.5).'})
+  assert.equal(firedText({id: 2, product_id: 'AVP-20DEC30-CDE', level: '5', direction: 'below'}).body, 'AVP 5 seviyesinin altına indi.')
 })

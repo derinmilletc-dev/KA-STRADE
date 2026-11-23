@@ -178,7 +178,8 @@ class AlertPayload(BaseModel):
 async def coinbase_alerts(request: Request) -> Any:
     """Aktif fiyat alarmları. Salt okunur."""
     user = _member(request)
-    return {"alerts": await price_alerts.list_alerts(_pool(request), user["id"]), "max": price_alerts.MAX_PER_USER}
+    pool = _pool(request)
+    return {"alerts": await price_alerts.list_alerts(pool, user["id"]), "fired": await price_alerts.list_fired(pool, user["id"]), "max": price_alerts.MAX_PER_USER}
 
 
 @router.post("/alerts")
@@ -210,4 +211,12 @@ async def coinbase_alert_add(payload: AlertPayload, request: Request) -> Any:
 async def coinbase_alert_delete(request: Request, alert_id: int = Path(ge=1)) -> Any:
     user = _member(request)
     await price_alerts.delete_alert(_pool(request), user["id"], alert_id)
+    return {"ok": True}
+
+
+@router.post("/alerts/ack")
+async def coinbase_alerts_ack(request: Request) -> Any:
+    """Çalan alarmları "görüldü" say (uygulama içi bildirim tekrar gösterilmez)."""
+    user = _member(request)
+    await price_alerts.ack_fired(_pool(request), user["id"])
     return {"ok": True}

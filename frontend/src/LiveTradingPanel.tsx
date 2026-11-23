@@ -7,6 +7,7 @@ import { fetchWithTimeout } from '../../master-trade-request'
 import CoinLiveChart from './CoinLiveChart'
 import CoinbaseAlerts from './CoinbaseAlerts'
 import {binanceAlertCall, usePriceAlerts} from './price-alert-api'
+import {takeAlertSymbol} from './notification-link'
 import {visibleInterval, clearVisibleInterval} from '../../visible-interval'
 import { useLiveQuotes } from './useLiveQuotes'
 import DcaPanel from './DcaPanel'
@@ -301,6 +302,12 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Telefon coin listesi: satırdaki analiz ikonundan açılan alttan sheet. Yalnız bu sembolü gösterir; seçimi ve listeyi bozmaz.
   const [anaSym, setAnaSym] = useState<string | null>(null)
   const {alerts: priceAlerts, reload: reloadAlerts} = usePriceAlerts(binanceAlertCall, anaSym !== null)
+  const [pendingAlertSym, setPendingAlertSym] = useState<string | null>(() => takeAlertSymbol('binance'))   // bildirimden gelindiyse o coinin analiz ekranı açılır
+  useEffect(() => {
+    if (!pendingAlertSym || universe === null) return
+    setPendingAlertSym(null)
+    if (universe.some(row => row.symbol === pendingAlertSym)) setAnaSym(pendingAlertSym)
+  }, [pendingAlertSym, universe])
   const [coinOpen, setCoinOpen] = useState(false)
   // Kais AI analiz sıralaması (yalnız gösterim): coin -> {LONG %, SHORT %, ana yön}. Alınamazsa liste hacme göre kalır.
   const [signals, setSignals] = useState<SignalMap | null>(() => signalsCache)
