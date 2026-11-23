@@ -655,3 +655,26 @@ html body #root .cbTerminal .cbCapacity:not(#a){display:grid!important;gap:6px!i
 html body #root .cbTerminal .cbCapacity[data-none]:not(#a){border-color:rgba(230,169,107,.5)!important;background:rgba(230,169,107,.1)!important}
 html body #root .cbTerminal .cbCapacity>span:not(#a){display:block!important;width:auto!important}
 html body #root .cbTerminal .cbCapacity>button:not(#a){justify-self:start!important;width:auto!important;padding:8px 14px!important;border-radius:999px!important;border:1px solid rgba(70,214,160,.6)!important;background:rgba(70,214,160,.16)!important;color:inherit!important;font-weight:700!important}
+
+/* Akıllı kurulum kartı ve son kontrol cümlesi */
+html body #root .cbTerminal .cbSmart:not(#a){display:grid!important;gap:10px!important;margin:0 0 14px!important;padding:14px!important;border-radius:18px!important;border:1px solid rgba(70,214,160,.4)!important;background:linear-gradient(160deg,rgba(70,214,160,.12),rgba(70,214,160,.03))!important}
+html body #root .cbTerminal .cbSmartHead:not(#a){display:flex!important;align-items:center!important;gap:10px!important}
+html body #root .cbTerminal .cbSmartHead svg:not(#a){width:20px!important;height:20px!important;flex:0 0 auto!important}
+html body #root .cbTerminal .cbSmartTitle:not(#a){display:grid!important;gap:2px!important;width:auto!important}
+html body #root .cbTerminal .cbSmartTitle b:not(#a){font-size:1rem!important}
+html body #root .cbTerminal .cbSmartTitle small:not(#a){font-size:.78rem!important;opacity:.75!important}
+html body #root .cbTerminal .cbSmartList:not(#a){display:grid!important;gap:8px!important}
+html body #root .cbTerminal .cbSmartOpt:not(#a){display:grid!important;gap:4px!important;width:100%!important;text-align:left!important;padding:12px 14px!important;border-radius:14px!important;border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.04)!important;color:inherit!important}
+html body #root .cbTerminal .cbSmartOpt[data-warn]:not(#a){border-color:rgba(230,169,107,.5)!important}
+html body #root .cbTerminal .cbSmartName:not(#a){font-weight:800!important;font-size:.95rem!important;width:auto!important}
+html body #root .cbTerminal .cbSmartMain:not(#a){font-size:.88rem!important;opacity:.9!important;width:auto!important}
+html body #root .cbTerminal .cbSmartNums:not(#a){display:flex!important;flex-wrap:wrap!important;gap:6px 14px!important;font-weight:700!important;font-size:.88rem!important}
+html body #root .cbTerminal .cbSmartNums>div:not(#a){width:auto!important}
+html body #root .cbTerminal .cbSmartNums [data-tone="down"]:not(#a){color:#ff8a80!important}
+html body #root .cbTerminal .cbSmartNums [data-tone="up"]:not(#a){color:#46d6a0!important}
+html body #root .cbTerminal .cbSmartWarn:not(#a){font-size:.78rem!important;color:#e6a96b!important;width:auto!important}
+html body #root .cbTerminal .cbSmartHint:not(#a),html body #root .cbTerminal .cbSmartNone:not(#a){margin:0!important;font-size:.8rem!important;opacity:.8!important}
+html body #root .cbTerminal .mxtSentence:not(#a){margin:0 0 10px!important;font-size:1rem!important;line-height:1.45!important}
+html body #root .cbTerminal .mxtSentence b[data-tone="down"]:not(#a){color:#ff8a80!important}
+html body #root .cbTerminal .mxtSentence b[data-tone="up"]:not(#a){color:#46d6a0!important}
+html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;padding:8px 12px!important;border-radius:12px!important;background:rgba(70,214,160,.1)!important;font-size:.85rem!important}
