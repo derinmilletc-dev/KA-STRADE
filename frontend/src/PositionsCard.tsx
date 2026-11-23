@@ -216,6 +216,8 @@ export default function PositionsCard(props: Props) {
         const closable = !external && confirmed && planId.length >= 6 && live
         const closableExternal = external && live && Boolean(position.symbol)
         const manual = plan?.source === 'MANUAL'
+        // Kullanıcının bilerek stopsuz açtığı pozisyon: stop yok, ama "Stop ekle" ile sonradan eklenebilir.
+        const noStopPlan = plan?.no_stop === true && !plan?.stop_loss
         const source = dca ? 'DCA' : farmer ? 'Farmer' : external ? 'Dış' : manual ? 'Manuel' : plan?.source === 'ORIGINAL_V2_LIVE' ? 'Kais Original' : 'Bot'
         // İnce kart: varsayılan kapalı; yalnız stopa çok yakın pozisyon kendiliğinden açılır.
         const isOpen = open[key] ?? false
@@ -282,7 +284,7 @@ export default function PositionsCard(props: Props) {
             </div>
 
             {!external && <div className="pvProt" aria-label="Koruma emirleri">
-              <span className="pvChip" data-kind={manual ? 'manual' : 'bot'}>{source}</span>{flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
+              <span className="pvChip" data-kind={manual ? 'manual' : 'bot'}>{source}</span>{noStopPlan ? <span className="pvFlag" data-warn="1" data-testid="pos-no-stop">Stopsuz · stop yok</span> : flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
             {(insights.length > 0 || smart || score) && <details className="pvIns"><summary>Akıllı notlar<em>{insights.length + (smart ? 1 : 0) + (score ? 1 : 0)}</em><ChevronDown aria-hidden="true"/></summary>
@@ -303,9 +305,9 @@ export default function PositionsCard(props: Props) {
 
             {closable && manual && <div className="pvActs">
               <>
-                <button type="button" className="lcBtn" disabled={busy || protection?.stop !== true} onClick={() => props.onEdit(manualTarget)}>Stop / hedef değiştir</button>
+                <button type="button" className="lcBtn" disabled={busy || (protection?.stop !== true && !noStopPlan)} onClick={() => props.onEdit(manualTarget)}>{noStopPlan ? 'Stop ekle' : 'Stop / hedef değiştir'}</button>
                 <span className="pvPct" role="group" aria-label="Kısmi kapat">{([25, 50, 75] as const).map(percent =>
-                  <button type="button" key={percent} className="lcBtn" disabled={busy || protection?.stop !== true} aria-label={`Pozisyonun %${percent}’ini kapat`} onClick={() => props.onReduce(manualTarget, percent)}>{`%${percent}`}</button>)}</span>
+                  <button type="button" key={percent} className="lcBtn" disabled={busy || (protection?.stop !== true && !noStopPlan)} aria-label={`Pozisyonun %${percent}’ini kapat`} onClick={() => props.onReduce(manualTarget, percent)}>{`%${percent}`}</button>)}</span>
               </>
             </div>}
             <button type="button" className="pvToggle" aria-expanded={isOpen} onClick={toggle}>Gizle<ChevronDown aria-hidden="true"/></button>

@@ -362,7 +362,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const [levelsFromAnalysis, setLevelsFromAnalysis] = useState(false)
   // "Stop ve hedef" adımında hangi hazır öneri uygulandı: Kais analizi, Dalgaya göre ya da Stop %N. Seçili kutu belli olsun diye
   // tutulur; stop/hedefler elle değişince, coin ya da yön değişince temizlenir (öneri artık geçerli olmaz).
-  const [stopPick, setStopPick] = useState<'analysis' | 'vol' | number | null>(null)
+  const [stopPick, setStopPick] = useState<'analysis' | 'vol' | 'none' | number | null>(null)
   const stopPickEpoch = useRef(0)
   useEffect(() => { stopPickEpoch.current += 1; setStopPick(null) }, [order.symbol, order.direction])
   useEffect(() => {
@@ -1248,7 +1248,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
   const reviewOrder = (nextOrder = order) => {
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
-    const values = [nextOrder.margin_usdt, nextOrder.leverage, nextOrder.stop_loss, nextOrder.tp1, nextOrder.tp2, nextOrder.tp3]
+    const noStopOrder = stopPick === 'none' && !demo
+    const values = [nextOrder.margin_usdt, nextOrder.leverage, ...(noStopOrder ? [] : [nextOrder.stop_loss]), nextOrder.tp1, nextOrder.tp2, nextOrder.tp3]
     if (!nextOrder.symbol.endsWith('USDT') || values.some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
       setNotice({kind: 'error', text: 'Sembol, miktar, kaldıraç, Stop Loss ve tüm TP seviyeleri pozitif olmalıdır.'}); return
     }
@@ -1281,7 +1282,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
       setNotice({kind: 'error', text: `${nextOrder.symbol} için güncel fiyat okunamadı; Stop yönü doğrulanamadı. Coin listesini yenileyin veya Limit seçin.`}); return
     }
-    const validDirection = nextOrder.direction === 'LONG' ? stop < referencePrice && targets[0] > referencePrice : stop > referencePrice && targets[0] < referencePrice
+    const validDirection = nextOrder.direction === 'LONG' ? (noStopOrder || stop < referencePrice) && targets[0] > referencePrice : (noStopOrder || stop > referencePrice) && targets[0] < referencePrice
     const orderedTargets = nextOrder.direction === 'LONG' ? targets[0] < targets[1] && targets[1] < targets[2] : targets[0] > targets[1] && targets[1] > targets[2]
     if (!validDirection) {
       setNotice({kind: 'error', text: 'Stop Loss, seçilen yöne göre giriş fiyatının doğru tarafında olmalıdır.'}); return
@@ -1293,7 +1294,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (Number.isFinite(availableBalance) && availableBalance > 0 && Number(nextOrder.margin_usdt) > availableBalance) {
       setNotice({kind: 'error', text: `Seçilen marjin ${Number(nextOrder.margin_usdt).toFixed(2)} USDT; kullanılabilir bakiye yalnızca ${availableBalance.toFixed(2)} USDT.`}); return
     }
-    const payload = {...nextOrder, margin_usdt: Number(nextOrder.margin_usdt), leverage, limit_price: nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price) : null, stop_loss: Number(nextOrder.stop_loss), tp1: Number(nextOrder.tp1), tp2: Number(nextOrder.tp2), tp3: Number(nextOrder.tp3), ...orderExtras(nextOrder), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+    const payload = {...nextOrder, margin_usdt: Number(nextOrder.margin_usdt), leverage, limit_price: nextOrder.order_type === 'LIMIT' ? Number(nextOrder.limit_price) : null, stop_loss: noStopOrder ? null : Number(nextOrder.stop_loss), ...(noStopOrder ? {no_stop: true} : {}), tp1: Number(nextOrder.tp1), tp2: Number(nextOrder.tp2), tp3: Number(nextOrder.tp3), ...orderExtras(nextOrder), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
     void run('review', async () => {
       const result = await call<{message?: string; notional_usdt?: number; estimated_stop_loss_usdt?: number}>(V25, '/order/test', {method: 'POST', body: JSON.stringify(payload)})
       setReviewResult({message: result.message || 'Dry-run tamamlandı; gerçek emir gönderilmedi.', notional: result.notional_usdt, estimated_stop_loss_usdt: result.estimated_stop_loss_usdt})
@@ -1482,6 +1483,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const entryRef = order.order_type === 'LIMIT' ? Number(order.limit_price) : livePrice ?? (order.symbol === symbol && Number.isFinite(Number(analysis?.entry)) ? Number(analysis?.entry) : Number(selectedRow?.price))
     const notional = marginValue * leverageValue
     const stopValue = Number(order.stop_loss)
+    const noStop = stopPick === 'none' && !demo
     const tp1Value = Number(order.tp1)
     const lossAtStop = Number.isFinite(entryRef) && entryRef > 0 && stopValue > 0 && notional > 0 ? notional * Math.abs(entryRef - stopValue) / entryRef : null
     const gainAtTp1 = Number.isFinite(entryRef) && entryRef > 0 && tp1Value > 0 && notional > 0 ? notional * Math.abs(tp1Value - entryRef) / entryRef : null
@@ -1506,9 +1508,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       if (preBlocked.length > 0) { setNotice({kind: 'error', text: preBlocked[0].detail}); return }
       if (permNeeded) { setNotice({kind: 'error', text: 'Önce yukarıdaki “İzni ver” butonuna dokun.'}); return }
       if (!manualOrderReady || !reviewed) { setNotice({kind: 'error', text: sendBlock || 'Emir göndermeden önce dry-run kontrolü gerekir.'}); if (!authorizationValid && !freeTrial && !permissionBlocked) focusPermission(); return }
-      const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: stopValue, tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
-      const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: stopValue}
-      setConfirm({title: demo ? 'DEMO MANUEL EMİR' : 'CANLI MANUEL EMİR', message: `${demo ? 'DEMO HESAP, gerçek para kullanılmaz.' : 'GERÇEK PARA KULLANILACAK.'} ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · stop ${order.stop_loss}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
+      const payload = {...order, margin_usdt: marginValue, leverage: leverageValue, limit_price: order.order_type === 'LIMIT' ? Number(order.limit_price) : null, stop_loss: noStop ? null : stopValue, ...(noStop ? {no_stop: true} : {}), tp1: tp1Value, tp2: Number(order.tp2), tp3: Number(order.tp3), ...orderExtras(order), intent_id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+      const done = {symbol: order.symbol, direction: order.direction, type: order.order_type, margin: marginValue, leverage: leverageValue, entry: entryRef, stop: noStop ? 0 : stopValue}
+      setConfirm({title: demo ? 'DEMO MANUEL EMİR' : 'CANLI MANUEL EMİR', message: `${demo ? 'DEMO HESAP, gerçek para kullanılmaz.' : 'GERÇEK PARA KULLANILACAK.'} ${order.symbol} · ${order.direction} · ${order.order_type === 'LIMIT' ? 'LİMİT' : 'PİYASA'} · marjin ${marginValue} USDT · ${leverageValue}x · ${noStop ? 'STOPSUZ (zarar sınırı yok, tasfiye olabilir; stopu sonradan Pozisyonlar\'dan ekleyebilirsin)' : `stop ${order.stop_loss}`}. Emir tüm V25 güvenlik kontrollerinden geçerse gönderilir.`, expected: noStop ? 'STOPSUZ AÇ' : 'CANLI EMİR GÖNDER', busyKey: 'send', action: async () => {
         try {
           // Emir + koruma kurulumu 15 sn'den uzun sürebilir; erken kesilirse ekran hata gösterir ama emir borsada açılmış olur.
           await call(V25, '/order', {method: 'POST', timeoutMs: 90000, body: JSON.stringify({...payload, confirmation: demo ? 'DEMO EMİR GÖNDER' : 'CANLI EMİR GÖNDER'})})
@@ -1530,7 +1532,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       }})
       setConfirmText('')
     }
-    const set = (key: keyof OrderDraft, value: string) => { if (key === 'stop_loss' || key === 'tp1' || key === 'tp2' || key === 'tp3') { setLevelsFromAnalysis(false); setStopPick(null) } setOrder(current => ({...current, [key]: value})) }
+    const set = (key: keyof OrderDraft, value: string) => { if (key === 'stop_loss' || key === 'tp1' || key === 'tp2' || key === 'tp3') { setLevelsFromAnalysis(false); setStopPick(current => current === 'none' && key !== 'stop_loss' ? current : null) } setOrder(current => ({...current, [key]: value})) }
     const armable = authorizationValid && readinessReady && !liveArmed && !freeTrial
     // İzin (24 sa risk izni + ARM) işlemin en başında zorunludur: düzeltilebilir durumdaysa ilk adımdan ileri gidilemez.
     // Kaydırarak izin adımı kaldırıldı: izin arka planda otomatik verilir (panel açılınca ve emir gönderilirken sunucuda).
@@ -1544,6 +1546,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setOrder(current => ({...current, stop_loss: presetPrice(entryRef * (1 - sign * pct / 100)), tp1: presetPrice(entryRef * (1 + sign * pct / 100)), tp2: presetPrice(entryRef * (1 + sign * 2 * pct / 100)), tp3: presetPrice(entryRef * (1 + sign * 3 * pct / 100))}))
       setLevelsFromAnalysis(false) // "Kais analizinden geldi" notu ve seçimi, başka öneri seçilince kalmasın
       setStopPick(pct)
+    }
+    // "Stopsuz": stop yok; hedefler girişten %1-%2-%3 uzağa konur (sonra değiştirilebilir). Stop sonradan Pozisyonlar'dan eklenir.
+    const applyNoStop = () => {
+      if (!(entryRef > 0)) return
+      const sign = order.direction === 'LONG' ? 1 : -1
+      setOrder(current => ({...current, stop_loss: '', tp1: presetPrice(entryRef * (1 + sign * 0.01)), tp2: presetPrice(entryRef * (1 + sign * 0.02)), tp3: presetPrice(entryRef * (1 + sign * 0.03))}))
+      setLevelsFromAnalysis(false)
+      setStopPick('none')
     }
     const applyVolatilityStop = async () => {
       if (!(entryRef > 0) || volStopBusy) return
@@ -1683,7 +1693,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const limitCoins = Array.from(new Set(positions.map(item => String(item.symbol || '').replace(/USDT$/, '')).filter(Boolean))).join(', ')
     const stepOk = [Boolean(order.symbol) && !needPermission, true,
       marginValue >= 5 && leverageValue >= 1 && (order.order_type !== 'LIMIT' || Number(order.limit_price) > 0),
-      stopValue > 0 && tp1Value > 0, true]
+      (noStop || stopValue > 0) && tp1Value > 0, true]
     const wzStep = Math.min(manualStep, stepNames.length - 1)
     const wzHint = [needPermission ? 'Devam etmek için aşağıdaki kaydırıcıyı sağa kaydır. Kaydırarak gerçek para riskini ve 24 saatlik izni onaylamış olursun.' : !stepOk[0] ? 'Önce bir coin seç.' : '', '', !stepOk[2] ? 'Marjin en az 5 USDT, kaldıraç en az 1x olmalı' + (order.order_type === 'LIMIT' ? '; limit fiyatı da gerekli.' : '.') : '', !stepOk[3] ? 'Stop ve en az TP1 gerekli. Aşağıdaki hazır önerilerden birine dokunabilirsin.' : '', ''][wzStep]
     const sign = order.direction === 'LONG' ? 1 : -1
@@ -1986,8 +1996,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {hasAnalysis && <button type="button" className="mxtMPk" data-rec="1" data-on={analysisOn || undefined} aria-pressed={analysisOn} onClick={event => { if (fillAnalysis()) { setStopPick('analysis'); showPick(event) } }}><b>Kais analizi</b><small>Önerilen</small></button>}
         <button type="button" className="mxtMPk" data-rec={!hasAnalysis ? '1' : undefined} data-on={volOn || undefined} aria-pressed={volOn} disabled={!(entryRef > 0) || volStopBusy} onClick={event => { showPick(event); void applyVolatilityStop() }}><b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}</b><small>{hasAnalysis ? 'Coinin hareketine göre' : 'Önerilen'}</small></button>
         {suggest.map(item => <button type="button" key={item.pct} className="mxtMPk" data-on={stopPick === item.pct || undefined} data-far={(levMax !== null && item.pct > levMax) || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={event => { applyPreset(item.pct); showPick(event) }}><b>Stop %{item.pct}</b><small>{levMax !== null && item.pct > levMax ? `${order.leverage}x'te geçmez` : item.tp1 ? `TP1 ${item.tp1}` : 'Giriş bekleniyor'}</small></button>)}
+        {!demo && <button type="button" className="mxtMPk" data-on={noStop || undefined} aria-pressed={noStop} disabled={!(entryRef > 0)} data-testid="mwz-no-stop" onClick={event => { applyNoStop(); showPick(event) }}><b>Stopsuz</b><small>Stop yok · sonra eklersin</small></button>}
       </div>
       {volNote && <p className="mxtHint" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
+      {noStop && <p className="mxtWarn" role="alert" data-testid="mwz-nostop-warn">Stopsuz açılıyor: zarar sınırı yok, fiyat ters giderse tasfiye olabilirsin. Stopu açık işlemlerden istediğin an ekleyebilirsin.</p>}
       {levNoteText && <p className="mxtHint" role="note" data-testid="mwz-lev-note">{levNoteText}</p>}
       {stopVisual}
       <div className="mxtMCard" data-tone="stop">
@@ -2027,8 +2039,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <b>{volStopBusy ? 'Hesaplanıyor…' : 'Dalgaya göre'}{!hasAnalysis && <em>Önerilen</em>}</b><small>Son dip ve coinin normal hareketine göre stop</small></button>
         {suggest.map(item => <button type="button" key={item.pct} className="mxtPick" data-on={stopPick === item.pct || undefined} data-far={(levMax !== null && item.pct > levMax) || undefined} aria-pressed={stopPick === item.pct} disabled={!(entryRef > 0)} onClick={() => applyPreset(item.pct)}>
           <b>Stop %{item.pct}</b><small>{levMax !== null && item.pct > levMax ? `${order.leverage}x kaldıraçta tasfiyeden sonra kalır, geçmez` : item.stop ? `Stop ${item.stop} · TP1 ${item.tp1}` : 'Giriş fiyatı bekleniyor'}</small></button>)}
-      </div>
+        {!demo && <button type="button" className="mxtPick" data-on={noStop || undefined} aria-pressed={noStop} disabled={!(entryRef > 0)} onClick={applyNoStop}><b>Stopsuz</b><small>Stop yok; sonradan açık işlemlerden eklersin</small></button>}      </div>
       {volNote && <p className="mxtHint mxtDesk" role="status" data-tone={volNote.tone}>{volNote.text}</p>}
+      {noStop && <p className="mxtWarn mxtDesk" role="alert">Stopsuz açılıyor: zarar sınırı yok, fiyat ters giderse tasfiye olabilirsin. Stopu açık işlemlerden istediğin an ekleyebilirsin.</p>}
       {levNoteText && <p className="mxtHint mxtDesk" role="note">{levNoteText}</p>}
       <section className="mxtSec mxtDesk" aria-label="Stop Loss">
         <h5>Stop Loss</h5>
@@ -2367,7 +2380,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <div className="liveWsSumGrid">
           <span><small>Marjin</small><b>{text(order.margin_usdt)} USDT</b></span>
           <span><small>Pozisyon büyüklüğü</small><b>{Number.isFinite(realNotional) ? money(realNotional) : '—'}</b></span>
-          <span><small>Stop Loss</small><b>{text(order.stop_loss)}</b></span>
+          <span><small>Stop Loss</small><b>{noStop ? 'Stopsuz' : text(order.stop_loss)}</b></span>
           <span><small>TP1 / TP2 / TP3</small><b>{text(order.tp1)} / {text(order.tp2)} / {text(order.tp3)}</b></span>
           <span><small>Tahmini zarar (stopta, komisyon dahil)</small><b className="down">{realLoss === null || realLoss === undefined ? '—' : money(realLoss)}</b></span>
           <span><small>TP1'de kâr (%{order.tp_split.split('-')[0]} kapanır, komisyon dahil)</small><b className={realGain !== null && realGain < 0 ? 'down' : 'up'}>{realGain === null || realGain === undefined ? '—' : money(realGain)}{realRR ? ` · 1:${realRR.toFixed(1)}` : ''}</b></span>
