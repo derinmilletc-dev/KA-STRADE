@@ -1,6 +1,6 @@
 // Çalıştırma: node frontend/src/coinbase-position.test.mts
 import assert from 'node:assert/strict'
-import {closeParts, closePreview, overlayLive, positionView} from './coinbase-position.ts'
+import {closeParts, closePreview, netOpenPnl, overlayLive, positionView} from './coinbase-position.ts'
 
 const close = (a: number | null, b: number, eps = 1e-6) => assert.ok(a !== null && Math.abs(a - b) < eps, `${a} ≈ ${b}`)
 
@@ -89,4 +89,12 @@ assert.deepEqual(closeParts(0), [])
   const noSize = overlayLive(base, {mid: '7'}, null)
   assert.strictEqual(noSize.current_price, '7')
   assert.strictEqual(noSize.unrealized_pnl, '-0.3')
+}
+
+// netOpenPnl: komisyon dahil toplam; komisyonu bilinmeyen satır brüt eklenir ve withFees=false
+{
+  assert.deepStrictEqual(netOpenPnl([{product_id: 'A', unrealized_pnl: '-0.90'}], {A: '0.53'}), {value: -1.43, withFees: true})
+  assert.deepStrictEqual(netOpenPnl([{product_id: 'A', unrealized_pnl: '-0.90'}, {product_id: 'B', unrealized_pnl: '2'}], {A: '0.53', B: null}), {value: 0.57, withFees: false})
+  assert.strictEqual(netOpenPnl([], {}), null)
+  assert.strictEqual(netOpenPnl([{product_id: 'A', unrealized_pnl: null}], {}), null)
 }

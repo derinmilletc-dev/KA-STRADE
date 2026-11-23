@@ -27,6 +27,7 @@ const levelName = (level: string | null): string => {
 
 type Props = {
   balance: HeroBalance | null
+  openPnl?: {value: number; withFees: boolean} | null
   futuresMissing: boolean
   ordersOn: boolean
   clockSkew: number | null
@@ -46,7 +47,7 @@ function useSecondsSince(at: number | null): number | null {
   return at === null ? null : Math.max(0, Math.round((now - at) / 1000))
 }
 
-export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, clockSkew, openCount, openSummary, openOrders, lastCheck, loading, onRefresh}: Props) {
+export default function CoinbaseAccountHero({balance, openPnl = null, futuresMissing, ordersOn, clockSkew, openCount, openSummary, openOrders, lastCheck, loading, onRefresh}: Props) {
   const [push, setPush] = useState<PushState | null>(null)
   useEffect(() => { let alive = true; void pushState().then(state => { if (alive) setPush(state) }).catch(() => undefined); return () => { alive = false } }, [])
   const since = useSecondsSince(lastCheck)
@@ -119,7 +120,9 @@ export default function CoinbaseAccountHero({balance, futuresMissing, ordersOn, 
       <div><dt>Açık pozisyon</dt><dd>{openCount === 0 ? 'Yok' : openSummary ?? `${openCount} açık`}</dd></div>
       <div><dt>Marjin</dt><dd data-tone={danger ? 'down' : levelUpper === 'UNSPECIFIED' ? 'mute' : 'up'}>{levelName(balance!.worst_margin_level) === '—' ? 'Belirtilmedi' : levelName(balance!.worst_margin_level)}</dd></div>
     </dl>
-    {openCount > 0 && <p className="cbHeroLine">Açık K/Z <em data-tone={tone(balance!.unrealized_pnl)}>{fmt(balance!.unrealized_pnl)}</em></p>}
+    {openCount > 0 && (openPnl
+      ? <p className="cbHeroLine">Açık K/Z{openPnl.withFees ? ' (komisyon dahil)' : ''} <em data-tone={openPnl.value > 0 ? 'up' : openPnl.value < 0 ? 'down' : undefined}>{openPnl.value > 0 ? '+' : ''}{openPnl.value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</em></p>
+      : <p className="cbHeroLine">Açık K/Z <em data-tone={tone(balance!.unrealized_pnl)}>{fmt(balance!.unrealized_pnl)}</em></p>)}
     <div className="cbHeroChips2">
       <span>🛡 Stop zorunlu</span>
       <span>Emir {openOrders ?? 0}/5</span>
