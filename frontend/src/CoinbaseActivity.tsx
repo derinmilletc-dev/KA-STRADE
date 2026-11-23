@@ -20,10 +20,21 @@ const dayLabel = (iso: string) => {
   const y = new Date(now); y.setDate(now.getDate() - 1)
   return d.toDateString() === y.toDateString() ? 'Dün' : d.toLocaleDateString('tr-TR', {day: 'numeric', month: 'short'})
 }
+/** Aynı uyarı (aynı başlık, ürün ve gün) tekrar ediyorsa tek satır: en yeni saat ve adet. Liste en yeni önce gelir. */
+const groupAlerts = (alerts: Alert[]): Array<Alert & {count: number}> => {
+  const seen = new Map<string, Alert & {count: number}>()
+  for (const alert of alerts) {
+    const key = `${alert.title}|${alert.product_id ?? ''}|${new Date(alert.time).toDateString()}`
+    const found = seen.get(key)
+    if (found) found.count += 1
+    else seen.set(key, {...alert, count: 1})
+  }
+  return [...seen.values()]
+}
 const num = (text: string | null | undefined) => { if (text === null || text === undefined || text === '') return null; const n = Number(text); return Number.isFinite(n) ? n : null }
 const money = (value: number) => `${value > 0 ? '+' : ''}${value.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`
 
-export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: number; dailyPnl: string | null}) {
+export default function CoinbaseActivity({refreshKey, dailyPnl, netToday = null}: {refreshKey: number; dailyPnl: string | null; netToday?: number | null}) {
   const [data, setData] = useState<Activity | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -71,7 +82,9 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
   const best = known.length ? known.reduce((a, b) => (num(b.pnl) ?? 0) > (num(a.pnl) ?? 0) ? b : a) : null
   const worst = known.length ? known.reduce((a, b) => (num(b.pnl) ?? 0) < (num(a.pnl) ?? 0) ? b : a) : null
   const pnlToday = num(dailyPnl)
-  const pnlShown = period === 'today' ? pnlToday : known.length ? weekTotal : null
+  // Bugün: komisyon düşülmüş net (hesap kartıyla aynı rakam); sunucu henüz vermediyse Coinbase'in brüt günlük K/Z'si.
+  const todayNet = netToday !== null && Number.isFinite(netToday)
+  const pnlShown = period === 'today' ? (todayNet ? netToday : pnlToday) : known.length ? weekTotal : null
   const items = showAll ? (data?.items ?? []) : (data?.items ?? []).slice(0, 6)
 
   return <section className="cbAct" aria-label="İşlem geçmişi">
@@ -82,7 +95,7 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
 
     <div className="cbActSeg" role="group" aria-label="Dönem"><button type="button" aria-pressed={period === 'today'} data-on={period === 'today' || undefined} onClick={() => setPeriod('today')}>Bugün</button><button type="button" aria-pressed={period === 'week'} data-on={period === 'week' || undefined} onClick={() => setPeriod('week')}>Bu hafta</button></div>
     {(scope.length > 0 || closes.length > 0) && <dl className="cbActToday" aria-label={period === 'today' ? 'Bugün' : 'Son 7 gün'}>
-      <div><dt>{period === 'today' ? 'Bugün K/Z' : '7 gün K/Z'}</dt><dd data-tone={pnlShown === null || pnlShown === 0 ? undefined : pnlShown > 0 ? 'up' : 'down'}>{pnlShown === null ? '—' : money(pnlShown)}</dd></div>
+      <div><dt>{period === 'today' ? (todayNet ? 'Bugün net' : 'Bugün K/Z') : '7 gün K/Z'}</dt><dd data-tone={pnlShown === null || pnlShown === 0 ? undefined : pnlShown > 0 ? 'up' : 'down'}>{pnlShown === null ? '—' : money(pnlShown)}</dd></div>
       <div><dt>İşlem</dt><dd>{scope.length}</dd></div>
       <div><dt>Kapanan</dt><dd>{closes.length ? `${wins} / ${known.length || closes.length} kârlı` : '0'}</dd></div>
     </dl>}
@@ -94,10 +107,9 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
       <span><b>Stop ya da hedef çalışınca haber ver</b><small>{pushError || (push === 'ios-install' ? 'iPhone’da önce siteyi Ana Ekrana ekle, sonra oradan aç.' : push === 'denied' ? 'Bildirim izni kapalı. Telefon ayarlarından bu site için izin ver.' : push === 'unsupported' ? 'Bu tarayıcı telefon bildirimini desteklemiyor.' : 'Uygulama kapalıyken de telefona bildirim gelir.')}</small></span>
       {(push === 'off' || push === 'busy') && <button type="button" onClick={() => void enablePushNow()} disabled={push === 'busy'}>{push === 'busy' ? 'Açılıyor…' : 'Bildirimi aç'}</button>}
     </div>}
-    {push === 'on' && <p className="cbActPushOn"><Bell aria-hidden="true"/>Bildirimler açık: stop, hedef ve dolan bekleyen emirler telefona gelir.</p>}
 
-    {(data?.alerts ?? []).length > 0 && <ul className="cbActAlerts" aria-label="Önemli uyarılar">{data!.alerts.slice(0, 3).map((alert, index) => <li key={index} data-tone={alert.tone}>
-      <b>{alert.title}</b><small>{alert.product_id ?? ''} · {dayLabel(alert.time)} {hhmm(alert.time)}</small></li>)}</ul>}
+    {(data?.alerts ?? []).length > 0 && <ul className="cbActAlerts" aria-label="Önemli uyarılar">{groupAlerts(data!.alerts).slice(0, 3).map((alert, index) => <li key={index} data-tone={alert.tone}>
+      <b>{alert.title}{alert.count > 1 ? ` ×${alert.count}` : ''}</b><small>{alert.product_id ?? ''} · {dayLabel(alert.time)} {hhmm(alert.time)}</small></li>)}</ul>}
 
     {error && !data && <p className="cbNote warn" role="alert">{error}</p>}
     {data && data.items.length === 0 && <p className="cbActEmpty"><b>Henüz işlem yok</b><small>İlk işlemin, stop ve hedef olayları burada görünür.</small></p>}
@@ -110,6 +122,6 @@ export default function CoinbaseActivity({refreshKey, dailyPnl}: {refreshKey: nu
       </li>
     })}</ol>}
     {data && data.items.length > 6 && <button type="button" className="cbActMore" onClick={() => setShowAll(value => !value)}>{showAll ? 'Daha az göster' : `Tümünü göster (${data.items.length})`}</button>}
-    {data && data.items.some(item => item.pnl !== null) && <p className="cbActNote">Kâr/zarar komisyon hariç yaklaşık değerdir.</p>}
+    {data && data.items.some(item => item.pnl !== null) && <p className="cbActNote">{todayNet && period === 'today' ? 'Satırlardaki kâr/zarar komisyonsuzdur; üstteki özet komisyon düşülmüş nettir.' : 'Kâr/zarar komisyon hariç yaklaşık değerdir.'}</p>}
   </section>
 }

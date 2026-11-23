@@ -1,7 +1,7 @@
 // "Risk limitlerim": kullanıcı kendi zarar/kaldıraç/stop payı sınırlarını seçer; sunucu tavanı içinde kalır ve emir öncesi
 // sunucuda uygulanır. Ayrıca açık emir kapasitesini (5 emir sınırı) görsel olarak gösterir.
 import {useCallback, useEffect, useState} from 'react'
-import {Gauge, ShieldCheck} from 'lucide-react'
+import {ChevronDown, Gauge, ShieldCheck} from 'lucide-react'
 import {coinbaseCall, CoinbaseApiError} from './coinbase-manual-api'
 import {dailyLossMeter} from './coinbase-advice'
 import {DailyMeterBar} from './CoinbaseAdvice'
@@ -21,6 +21,7 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, dailyPnl
   const [error, setError] = useState('')
   const [missing, setMissing] = useState(false)
   const [open, setOpen] = useState(false)
+  const [details, setDetails] = useState(false)
   const [form, setForm] = useState<Record<LimitField, string>>(EMPTY)
   const [fieldError, setFieldError] = useState<{field: LimitField; message: string} | null>(null)
   const [saving, setSaving] = useState(false)
@@ -57,6 +58,10 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, dailyPnl
   const profiles = limitProfiles(buyingPower, view.bounds)
   const unbounded = limitsUnbounded(view)
   const daily = dailyLossMeter(dailyPnl, view.effective.daily_loss_limit_usd)
+  // Sade görünüm: tek satır özet. Dikkat gerektiren durum (emir dolu, günlük zarar limitine yaklaştı) ya da düzenleme varsa ayrıntı kendiliğinden açılır.
+  const attention = cap.tone === 'bad' || (daily !== null && daily.tone !== 'ok')
+  const showDetails = details || open || attention
+  const summary = [`${cap.used}/${cap.max} açık emir`, daily ? daily.text : null, unbounded ? 'kendi limitin yok' : null].filter(Boolean).join(' · ')
   const save = async () => {
     const built = limitsPayload(form, view)
     if (!built.ok) { setFieldError({field: built.field, message: built.message}); return }
@@ -72,9 +77,11 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, dailyPnl
   return <section className="cbLimits" aria-label="Risk limitlerim" data-open={open || undefined}>
     <header>
       <span className="cbLimIcon"><ShieldCheck aria-hidden="true"/></span>
-      <div><b>Risk limitlerim</b><small>Emir vermeden önce sunucuda uygulanır</small></div>
+      <div><b>Risk limitlerim</b><small>{summary}</small></div>
+      <button type="button" className="cbLimMore" aria-expanded={showDetails} aria-label={showDetails ? 'Ayrıntıyı gizle' : 'Ayrıntıyı göster'} disabled={attention && !details && !open} onClick={() => setDetails(value => !value)}><ChevronDown aria-hidden="true"/></button>
       <button type="button" aria-expanded={open} onClick={() => { setOpen(value => !value); setFieldError(null); setError('') }}>{open ? 'Kapat' : 'Düzenle'}</button>
     </header>
+    {showDetails && <>
     <div className="cbLimCap" data-tone={cap.tone} role="img" aria-label={`Açık emir ${cap.used}/${cap.max}. ${cap.text}`}>
       <span className="cbLimSegs">{Array.from({length: cap.max}, (_, index) => <i key={index} data-on={index < cap.used || undefined}/>)}</span>
       <span className="cbLimCapText"><Gauge aria-hidden="true"/><b>{cap.used}/{cap.max} açık emir</b><small>{cap.text} Stop ve hedef tek emir sayılır.</small></span>
@@ -85,6 +92,7 @@ export default function CoinbaseLimits({openOrders, buyingPower = null, dailyPnl
     <dl className="cbLimGrid">{FIELDS.map(field => <div key={field.key} data-custom={view.custom[field.key] !== undefined || undefined}>
       <dt>{field.label}</dt><dd>{limitLabel(field.key, view.effective[field.key])}</dd>
       <small>{view.custom[field.key] !== undefined ? 'Senin limitin' : 'Borsa varsayılanı'}</small></div>)}</dl>
+    </>}
     {saved && <p className="cbLimSaved" role="status">✓ Limitlerin kaydedildi; yeni emirler ve öneriler bunlara göre hesaplanır.</p>}
     {open && <form className="cbLimForm" onSubmit={event => { event.preventDefault(); void save() }} noValidate>
       {profiles && <div className="cbLimProfiles" role="group" aria-label="Hazır risk profilleri"><span>Hazır profil <small>(hesabına göre hesaplanır)</small></span>

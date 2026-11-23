@@ -119,7 +119,8 @@ export default function CoinbaseAccountHero({balance, netBalance = null, openPnl
     {netBalance
       ? <>
         <div className="cbHeroMoney"><small>Net bakiye</small><b>{fmtUsd(netBalance.netBalance)}</b></div>
-        <p className="cbHeroLine">Alım gücü {fmt(balance!.futures_buying_power)}{todayText(netBalance) ? <> · <em data-tone={netBalance.netToday > 0 ? 'up' : netBalance.netToday < 0 ? 'down' : undefined}>{todayText(netBalance)}</em></> : null}</p>
+        {todayText(netBalance) && <p className="cbHeroLine"><em data-tone={netBalance.netToday > 0 ? 'up' : netBalance.netToday < 0 ? 'down' : undefined}>{todayText(netBalance)}</em></p>}
+        <p className="cbHeroLine">Alım gücü {fmt(balance!.futures_buying_power)}</p>
       </>
       : <>
         <div className="cbHeroMoney"><small>Alım gücü</small><b>{fmt(balance!.futures_buying_power)}</b></div>

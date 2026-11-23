@@ -180,7 +180,6 @@ export default function CoinbaseManualPositions({positions, fees = {}, protectio
       <div><small>Short</small><b data-tone="down">{positions.filter(item => sideOf(item.side) === 'SELL').length}</b></div>
     </div>}
     {protection && positions.length > 0 && !protection.all_protected && <p className="cbNote warn" role="alert">Korumasız pozisyon var; aşağıdan düzelt.</p>}
-    {positions.length === 0 && <p className="cbPosEmpty"><ShieldAlert aria-hidden="true"/><span>Açık pozisyon yok</span><small>Stop zorunlu · en fazla 5 emir</small></p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
     <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} fee={num(fees[position.product_id])} ordersEnabled={ordersEnabled}
       item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError}/>)}</ul>
