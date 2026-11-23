@@ -73,7 +73,7 @@ test('Google button keeps its design and starts PKCE redirect with existing brow
   const button = page.getByRole('button',{name:'Google ile devam et',exact:true})
   await expect(button).toBeEnabled()
   await expect(button).toHaveClass('authGoogle')
-  await expect(button.locator('.authGoogleMark')).toHaveText('G')
+  await expect(button.locator('svg.authGoogleMark path')).toHaveCount(4)
   await page.getByRole('checkbox',{name:'Oturumu açık tut'}).uncheck()
   await button.click()
   await expect(page).toHaveURL(/https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/)

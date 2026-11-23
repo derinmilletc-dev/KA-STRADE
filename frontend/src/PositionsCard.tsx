@@ -17,6 +17,8 @@ export type SmartPositionItem = {plan_id?: string; symbol?: string; mode?: strin
 
 type Props = {
   live: boolean; stale: boolean; staleAge: number; running: boolean; busy: boolean; now: number
+  /** Kapat tuşunun kilidi: yalnız bu kartın kendi işlemi sürerken kilitlenir (veri eskiyken ve başka ekran işlemi varken kapatılabilir). Verilmezse busy kullanılır. */
+  closeBusy?: boolean
   positions: RawRecord[]
   findPlan: (position: RawRecord) => RawRecord | undefined
   maxPositions: number | null; exposureLimit: number | null; wallet: number | null; dailyLoss: number | null; dailyLimit: number | null
@@ -262,7 +264,7 @@ export default function PositionsCard(props: Props) {
           {/* Kapat tuşu kart kapalıyken de görünür; dokununca her zamanki onay penceresi açılır. */}
           {(closable || closableExternal) && <div className="pvQuick">
             <span>{metrics.mark !== null ? <>Kapanış ≈ <b>{formatPrice(metrics.mark)}</b>{livePrice ? null : <em> · gecikmeli</em>}</> : null}</span>
-            <button type="button" className="pvQuickClose" disabled={busy} aria-label={`${metrics.coin || 'Pozisyonu'} kapat`} onClick={askClose}><X aria-hidden="true"/>Kapat</button>
+            <button type="button" className="pvQuickClose" disabled={props.closeBusy ?? busy} aria-label={`${metrics.coin || 'Pozisyonu'} kapat`} onClick={askClose}><X aria-hidden="true"/>Kapat</button>
           </div>}
 
           <div className="pvDetail">

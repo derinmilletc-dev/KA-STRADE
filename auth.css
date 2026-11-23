@@ -1273,3 +1273,142 @@ html body #root .authPageLogin .authCoinTrack,
 html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinTrack { animation: none !important; transform: none !important; will-change: auto !important; }
 html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { overflow: hidden !important; contain: none !important; scrollbar-width: none; }
 html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::-webkit-scrollbar { display: none; }
+
+
+/* ===== Giris sayfasi (telefon): KIS TEMALI referans tasarim birebir =====
+   Olcu birimi --u: 426px genisligindeki referansin 1 CSS px'i (480px'e kadar orantili buyur). */
+@media (max-width: 1023px) {
+  html body #root .authRoot:has(.authPageLogin) {
+    --u: calc(min(100vw, 480px) / 426);
+    --wf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, system-ui, sans-serif;
+    position: relative; overflow-x: hidden; min-height: max(100dvh, calc(var(--u) * 923)); font-family: var(--wf);
+    background-color: #0a1a30 !important;
+    background-image: url("/login-winter-top.webp"), url("/login-winter-bottom.webp"), linear-gradient(180deg, #0b1d36 0, #0b1d36 calc(var(--u) * 465), #0b2235 calc(var(--u) * 930), #0b2235 100%) !important;
+    background-repeat: no-repeat !important;
+    background-position: center top, center calc(var(--u) * 465), 0 0 !important;
+    background-size: min(100%, 480px) auto, min(100%, 480px) auto, 100% 100% !important;
+  }
+  html body #root .authRoot > main.authPage.authPageLogin,
+  html body #root .authRoot > main.authPage.authPageLogin:has(.authCardLogin) { padding: 0 calc(var(--u) * 18.5) 0 !important; justify-content: flex-start !important; align-items: center !important; }
+
+  /* Logo + slogan: kart ustu 235 birim */
+  html body #root .authPageLogin > header.authMobileIdentity { position: relative; display: block !important; width: 100%; height: calc(var(--u) * 235); margin: 0 !important; }
+  html body #root .authPageLogin > header.authMobileIdentity img { position: absolute; left: 50%; top: calc(var(--u) * 74); width: calc(var(--u) * 224) !important; max-width: none !important; height: auto; margin: 0 !important; transform: translateX(calc(-50% + var(--u) * 4.5)); filter: drop-shadow(0 0 calc(var(--u) * 10) rgba(20,230,160,.22)); }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline { position: absolute; left: 50%; top: calc(var(--u) * 133); display: flex !important; align-items: center; justify-content: center; gap: calc(var(--u) * 13); width: calc(var(--u) * 290); max-width: none; margin: 0 !important; transform: translateX(calc(-50% + var(--u) * 4)); height: calc(var(--u) * 16); color: #e9eff5 !important; }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline::before,
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline::after { content: ""; flex: 0 0 calc(var(--u) * 34); min-width: 0; height: 1px; background: rgba(235,242,250,.5); }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline span { margin: 0 calc(var(--u) * -3.6) 0 0; font: 500 calc(var(--u) * 10.5)/1 var(--wf) !important; letter-spacing: calc(var(--u) * 3.63) !important; color: #e9eff5 !important; white-space: nowrap; }
+
+  /* Cam kart */
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin {
+    position: relative; width: calc(var(--u) * 389) !important; max-width: none !important; margin: 0 auto !important; padding: calc(var(--u) * 13.5) calc(var(--u) * 18.1) calc(var(--u) * 15.5) !important; box-sizing: border-box; overflow: visible;
+    border: calc(var(--u) * 1.5) solid rgba(232,242,252,.78) !important; border-radius: calc(var(--u) * 26) !important;
+    background: linear-gradient(180deg, rgba(200,212,226,.9) 0, rgba(200,212,226,.55) calc(var(--u) * 8), rgba(200,212,226,.3) calc(var(--u) * 14), rgba(200,212,226,.12) calc(var(--u) * 22), rgba(200,212,226,0) calc(var(--u) * 30)) top / 100% calc(var(--u) * 30) no-repeat, linear-gradient(0deg, rgba(195,210,225,.8) 0, rgba(195,210,225,.58) calc(var(--u) * 3), rgba(195,210,225,.35) calc(var(--u) * 6), rgba(195,210,225,.18) calc(var(--u) * 10), rgba(195,210,225,.1) calc(var(--u) * 18), rgba(195,210,225,0) calc(var(--u) * 30)) bottom / 100% calc(var(--u) * 30) no-repeat, linear-gradient(180deg, rgba(16,52,72,.94) 0%, rgba(16,50,68,.94) 100%) !important;
+    -webkit-backdrop-filter: blur(calc(var(--u) * 14)) saturate(1.1) !important; backdrop-filter: blur(calc(var(--u) * 14)) saturate(1.1) !important;
+    box-shadow: inset 0 0 0 calc(var(--u) * 1) rgba(255,255,255,.12), 0 0 calc(var(--u) * 16) rgba(205,225,255,.38), 0 0 calc(var(--u) * 36) rgba(170,205,255,.2), 0 calc(var(--u) * 18) calc(var(--u) * 40) rgba(0,0,0,.25) !important;
+    font-family: var(--wf);
+  }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin { isolation: isolate; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before,
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before { background: linear-gradient(180deg, rgb(200,200,205) 0.0%, rgb(189,181,179) 5.0%, rgb(130,141,155) 11.4%, rgb(91,114,136) 17.6%, rgb(77,103,127) 23.8%, rgb(77,102,125) 30.0%, rgb(73,98,120) 36.3%, rgb(65,90,113) 42.5%, rgb(51,78,102) 48.7%, rgb(39,67,90) 55.0%, rgb(59,84,108) 61.0%, rgb(77,100,121) 67.5%, rgb(74,97,118) 74.0%, rgb(56,81,104) 80.0%, rgb(52,76,100) 86.0%, rgb(86,102,119) 92.0%, rgb(186,178,172) 98.0%, rgb(186,178,172) 100%); -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(var(--u) * 4), rgba(0,0,0,.75) calc(var(--u) * 11), rgba(0,0,0,.55) calc(var(--u) * 17), rgba(0,0,0,.45) calc(var(--u) * 24), rgba(0,0,0,.27) calc(var(--u) * 32), rgba(0,0,0,.2) calc(var(--u) * 46), transparent calc(var(--u) * 100)); mask-image: linear-gradient(90deg, #000 0, #000 calc(var(--u) * 4), rgba(0,0,0,.75) calc(var(--u) * 11), rgba(0,0,0,.55) calc(var(--u) * 17), rgba(0,0,0,.45) calc(var(--u) * 24), rgba(0,0,0,.27) calc(var(--u) * 32), rgba(0,0,0,.2) calc(var(--u) * 46), transparent calc(var(--u) * 100)); }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::after { background: linear-gradient(180deg, rgb(185,195,215) 0.0%, rgb(165,183,209) 5.0%, rgb(143,166,197) 11.4%, rgb(136,159,190) 17.6%, rgb(135,157,186) 23.8%, rgb(130,151,179) 30.0%, rgb(97,121,151) 36.3%, rgb(74,98,126) 42.5%, rgb(53,78,104) 48.7%, rgb(37,69,88) 55.0%, rgb(49,74,97) 61.0%, rgb(59,82,105) 67.5%, rgb(54,77,100) 74.0%, rgb(72,92,113) 80.0%, rgb(100,115,132) 86.0%, rgb(140,146,157) 92.0%, rgb(198,197,198) 98.0%, rgb(198,197,198) 100%); -webkit-mask-image: linear-gradient(270deg, #000 0, #000 calc(var(--u) * 4), rgba(0,0,0,.75) calc(var(--u) * 11), rgba(0,0,0,.55) calc(var(--u) * 17), rgba(0,0,0,.45) calc(var(--u) * 24), rgba(0,0,0,.27) calc(var(--u) * 32), rgba(0,0,0,.2) calc(var(--u) * 46), transparent calc(var(--u) * 100)); mask-image: linear-gradient(270deg, #000 0, #000 calc(var(--u) * 4), rgba(0,0,0,.75) calc(var(--u) * 11), rgba(0,0,0,.55) calc(var(--u) * 17), rgba(0,0,0,.45) calc(var(--u) * 24), rgba(0,0,0,.27) calc(var(--u) * 32), rgba(0,0,0,.2) calc(var(--u) * 46), transparent calc(var(--u) * 100)); }
+  html body #root .authPageLogin .authCardLogin .authLoginBrand, html body #root .authPageLogin .authCardLogin .authCardHead .authMark, html body #root .authPageLogin .authCardLogin .authCardHead > div > span:first-child { display: none !important; }
+  html body #root .authPageLogin .authCardLogin .authCardHead { margin: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authCardHead h2 { height: calc(var(--u) * 27); margin: 0 !important; font-size: 0 !important; line-height: 1 !important; }
+  html body #root .authPageLogin .authCardLogin .authCardHead h2::after { content: attr(data-mobile-copy); display: block; font: 700 calc(var(--u) * 23.5)/calc(var(--u) * 27) var(--wf) !important; letter-spacing: -.012em; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.18); }
+  html body #root .authPageLogin .authCardLogin .authCardLead { height: calc(var(--u) * 17); margin: calc(var(--u) * 8) 0 calc(var(--u) * 10.5) !important; font-size: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authCardLead::after { content: attr(data-mobile-copy); display: block; font: 400 calc(var(--u) * 14.1)/calc(var(--u) * 17) var(--wf) !important; color: rgba(214,224,236,.82); }
+
+  /* Form */
+  html body #root .authPageLogin .authCardLogin form { gap: 0 !important; }
+  html body #root .authPageLogin .authCardLogin form > label { display: block !important; margin: 0 0 calc(var(--u) * 8.5) !important; font: 600 calc(var(--u) * 12)/calc(var(--u) * 14) var(--wf) !important; letter-spacing: 0 !important; color: #f1f5f9 !important; }
+  html body #root .authPageLogin .authCardLogin form > label + label { margin-bottom: calc(var(--u) * 16) !important; }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon { position: relative; display: block; margin-top: calc(var(--u) * 6); }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon input {
+    box-sizing: border-box; width: 100%; height: calc(var(--u) * 34.5) !important; min-height: 0 !important; padding: 0 calc(var(--u) * 40) 0 calc(var(--u) * 44) !important;
+    border: calc(var(--u) * 1.2) solid rgba(215,230,246,.55) !important; border-radius: 999px !important; background: rgba(14,44,62,.5) !important; color: #fff;
+    font: 400 calc(var(--u) * 13.4)/1 var(--wf) !important; box-shadow: inset 0 1px 6px rgba(0,0,0,.14) !important;
+  }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon input::placeholder { color: #9cadbb; opacity: 1; font-size: inherit !important; font-family: inherit; }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon > svg { position: absolute; left: calc(var(--u) * 13.8) !important; top: 50% !important; width: calc(var(--u) * 20.4) !important; height: calc(var(--u) * 20.4) !important; transform: translateY(-50%); color: #fff !important; stroke-width: 1.5; }
+  html body #root .authPageLogin .authCardLogin .authPassword > button { position: absolute; right: calc(var(--u) * 8.5) !important; top: 50% !important; width: calc(var(--u) * 26) !important; height: calc(var(--u) * 26) !important; min-height: 0 !important; padding: 0 !important; display: grid; place-items: center; transform: translateY(-50%); background: transparent !important; border: 0 !important; color: #fff !important; }
+  html body #root .authPageLogin .authCardLogin .authPassword > button svg { width: calc(var(--u) * 20.4) !important; height: calc(var(--u) * 20.4) !important; stroke-width: 1.5; }
+
+  /* Oturumu acik tut / unuttum */
+  html body #root .authPageLogin .authCardLogin .authLoginOptions { display: flex !important; align-items: center; justify-content: space-between; height: calc(var(--u) * 17); min-height: 0 !important; margin: 0 0 calc(var(--u) * 11.5) !important; }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck { display: flex !important; align-items: center !important; gap: calc(var(--u) * 9) !important; min-height: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck input { -webkit-appearance: none; appearance: none; position: relative; flex: 0 0 auto; width: calc(var(--u) * 16.5) !important; height: calc(var(--u) * 16.5) !important; min-height: 0 !important; margin: 0 !important; border: calc(var(--u) * 1) solid rgba(205,222,240,.5) !important; border-radius: calc(var(--u) * 4.5) !important; background: rgba(12,38,58,.4) !important; }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck input:checked { border-color: transparent !important; background: linear-gradient(180deg, #55e6b0, #25c98a) !important; box-shadow: 0 0 calc(var(--u) * 6) rgba(60,230,160,.35); }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck input:checked::after { content: ""; position: absolute; left: 31%; top: 14%; width: 27%; height: 52%; border: solid #fff; border-width: 0 calc(var(--u) * 1.8) calc(var(--u) * 1.8) 0; transform: rotate(45deg); }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck > span { font-size: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck > span::after { content: attr(data-mobile-copy); font: 500 calc(var(--u) * 11.8)/1 var(--wf) !important; color: #f1f5f9; }
+  html body #root .authPageLogin .authCardLogin .authLoginForgot { padding: 0 !important; min-height: 0 !important; background: transparent !important; border: 0 !important; color: #3de0a0 !important; font: 600 calc(var(--u) * 11.8)/1 var(--wf) !important; }
+
+  /* Giris yap */
+  html body #root .authPageLogin .authCardLogin .authSubmit {
+    height: calc(var(--u) * 40) !important; min-height: 0 !important; margin: 0 !important; display: flex !important; align-items: center; justify-content: center; gap: calc(var(--u) * 9); border: 0 !important; border-radius: calc(var(--u) * 18) !important;
+    background: linear-gradient(180deg, #5ad8a6 0%, #1fb77a 45%, #058755 100%) !important; color: #fff !important; font: 600 calc(var(--u) * 15.2)/1 var(--wf) !important; letter-spacing: 0 !important; text-transform: none;
+    box-shadow: inset 0 0 0 calc(var(--u) * 1) rgba(160,255,215,.38), inset 0 1px 0 rgba(255,255,255,.4), 0 0 calc(var(--u) * 16) rgba(40,230,160,.55), 0 calc(var(--u) * 4) calc(var(--u) * 10) rgba(0,70,45,.3) !important;
+  }
+  html body #root .authPageLogin .authCardLogin .authSubmit svg { width: calc(var(--u) * 20); height: calc(var(--u) * 20); stroke-width: 2; }
+
+  /* veya + Google */
+  html body #root .authPageLogin .authCardLogin .authSocial { display: block !important; position: relative; margin: calc(var(--u) * 7.5) 0 0 !important; text-align: center; }
+  html body #root .authPageLogin .authCardLogin .authSocial > span { position: relative; display: flex !important; align-items: center; justify-content: center; gap: calc(var(--u) * 12); height: calc(var(--u) * 12); margin: 0 0 calc(var(--u) * 7.5) !important; font: 400 calc(var(--u) * 11.2)/1 var(--wf) !important; color: #dfe7ef !important; }
+  html body #root .authPageLogin .authCardLogin .authSocial > span::before, html body #root .authPageLogin .authCardLogin .authSocial > span::after { content: ""; flex: 1 1 0; height: 1px; background: rgba(205,222,240,.38); }
+  html body #root .authPageLogin .authCardLogin .authGoogle {
+    width: 100%; height: calc(var(--u) * 32) !important; min-height: 0 !important; display: flex !important; align-items: center; justify-content: center; gap: calc(var(--u) * 13); padding: 0 !important;
+    border: calc(var(--u) * 1) solid rgba(215,230,246,.52) !important; border-radius: calc(var(--u) * 15) !important; background: rgba(14,44,62,.5) !important; color: #fff !important; font: 600 calc(var(--u) * 13)/1 var(--wf) !important; box-shadow: none !important;
+  }
+  html body #root .authPageLogin .authCardLogin .authGoogleMark { display: block !important; flex: 0 0 auto; width: calc(var(--u) * 17) !important; height: calc(var(--u) * 17) !important; border: 0 !important; background: none !important; -webkit-text-fill-color: initial !important; }
+
+  /* Davetin var mi / Uyelik basvurusu */
+  html body #root .authPageLogin .authCardLogin .authAltActions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: calc(var(--u) * 10) !important; margin: calc(var(--u) * 9) 0 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn { height: calc(var(--u) * 32.5) !important; min-height: 0 !important; display: flex !important; align-items: center; justify-content: center; gap: calc(var(--u) * 5) !important; padding: 0 calc(var(--u) * 6) !important; border: calc(var(--u) * 1) solid rgba(215,230,246,.52) !important; border-radius: calc(var(--u) * 15) !important; background: rgba(14,44,62,.5) !important; color: #fff !important; font: 600 calc(var(--u) * 11.8)/1 var(--wf) !important; white-space: nowrap; }
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg { width: calc(var(--u) * 19.5) !important; height: calc(var(--u) * 19.5) !important; min-width: 0; color: #3de0a0 !important; stroke-width: 1.6; }
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg.authAltChev { display: block !important; width: calc(var(--u) * 13) !important; height: calc(var(--u) * 13) !important; color: #fff !important; stroke-width: 2; }
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn span { overflow: visible; text-overflow: clip; }
+
+  /* Instagram */
+  html body #root .authPageLogin .authCardLogin a.authInstagramFollow { height: calc(var(--u) * 33.5) !important; min-height: 0 !important; margin: calc(var(--u) * 8) 0 0 !important; display: flex !important; align-items: center; gap: calc(var(--u) * 14); padding: 0 calc(var(--u) * 17) 0 calc(var(--u) * 18) !important; border: calc(var(--u) * 1) solid rgba(215,230,246,.52) !important; border-radius: calc(var(--u) * 15) !important; background: rgba(14,44,62,.5) !important; text-decoration: none; }
+  html body #root .authPageLogin .authCardLogin a.authInstagramFollow span { flex: 1; text-align: left; color: #fff !important; font: 600 calc(var(--u) * 13.2)/1 var(--wf) !important; }
+  html body #root .authPageLogin .authCardLogin .authInstagramGlyph { width: calc(var(--u) * 28) !important; height: calc(var(--u) * 28) !important; margin: calc(var(--u) * -3.5) calc(var(--u) * -3.5); }
+  html body #root .authPageLogin .authCardLogin .authInstagramArrow { width: calc(var(--u) * 24) !important; height: calc(var(--u) * 24) !important; margin: calc(var(--u) * -6); color: #fff !important; stroke-width: 1.7; }
+
+  /* Canli fiyat seridi */
+  html body #root .authPageLogin .authCardLogin > section.authMobileMarkets { display: block !important; width: auto !important; box-sizing: border-box; height: calc(var(--u) * 33.5); margin: calc(var(--u) * 12) 0 0 !important; padding: 0 calc(var(--u) * 2.5) 0 0 !important; border: calc(var(--u) * 1) solid rgba(215,230,246,.52) !important; border-radius: calc(var(--u) * 17) !important; background: rgba(14,44,62,.5) !important; overflow: hidden; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinScreen { display: flex !important; align-items: center; height: 100%; min-height: 0; padding: 0 !important; margin: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinScreen header { order: 2; flex: 0 0 calc(var(--u) * 26) !important; margin: 0 !important; padding: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinScreen header > div { display: none !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinScreen header button { width: calc(var(--u) * 26) !important; min-width: 0 !important; height: calc(var(--u) * 26) !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; color: #3de0a0 !important; display: grid; place-items: center; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinScreen header button svg { width: calc(var(--u) * 14.5) !important; height: calc(var(--u) * 14.5) !important; filter: drop-shadow(0 0 3px rgba(61,224,160,.45)); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport { order: 1; flex: 1 1 0; min-width: 0; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::before { content: none !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewport::after { content: none !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets { background: rgba(14,44,62,.5) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinGroup { gap: 0 !important; padding-right: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers { min-width: calc(var(--u) * 52); margin-left: calc(var(--u) * 1.5); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers > span.authCoinPending { min-width: 0; display: block; font-size: 0 !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinNumbers > span.authCoinPending::before { content: ""; display: block; width: calc(var(--u) * 7.5); height: calc(var(--u) * 1.2); border-radius: 1px; background: rgba(255,255,255,.9); }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinQuote { padding: 0 0 0 calc(var(--u) * 13.5) !important; gap: calc(var(--u) * 4.5) !important; border-left: 1px solid rgba(220,235,248,.28) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinGroup .authCoinQuote:first-child { border-left-color: transparent !important; padding-left: calc(var(--u) * 9.5) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar { width: calc(var(--u) * 18.5) !important; height: calc(var(--u) * 18.5) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar[data-symbol="BTCUSDT"] { background: #f7931a !important; color: #fff !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar[data-symbol="ETHUSDT"] { background: transparent !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar[data-symbol="ETHUSDT"] svg { width: calc(var(--u) * 14) !important; height: calc(var(--u) * 14) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar[data-symbol="BNBUSDT"] { background: #f3ba2f !important; color: #fff !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar svg { width: calc(var(--u) * 12) !important; height: calc(var(--u) * 12) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinAvatar[data-symbol="BNBUSDT"] svg { width: calc(var(--u) * 13) !important; height: calc(var(--u) * 13) !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinQuote b { font: 600 calc(var(--u) * 12.2)/1 var(--wf) !important; color: #fff !important; }
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinQuote small { display: none !important; }
+
+  /* Alt bilgi */
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0 !important; margin: 0 !important; padding: 0 0 calc(var(--u) * 30) !important; background: none !important; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter > span { display: none !important; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter a { position: relative; padding: 0 calc(var(--u) * 14) !important; color: rgba(236,242,248,.9) !important; font: 400 calc(var(--u) * 10.9)/calc(var(--u) * 14) var(--wf) !important; text-decoration: none; text-shadow: 0 1px 4px rgba(0,0,0,.45); white-space: nowrap; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter a + a::before { content: ""; position: absolute; left: 0; top: 50%; width: 1px; height: calc(var(--u) * 13); margin-top: calc(var(--u) * -6.5); background: rgba(225,235,245,.5); }
+}
+@media (max-width: 384px) {
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg.authAltChev { display: block !important; }
+}

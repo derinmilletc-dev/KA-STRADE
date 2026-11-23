@@ -31,8 +31,10 @@ RATE_LIMIT_FALLBACK_SECONDS = min(
     max(1, int(os.getenv("BINANCE_RATE_LIMIT_FALLBACK_SECONDS", "10"))),
     RATE_LIMIT_MAX_WAIT_SECONDS,
 )
+# Varsayılan 4 (eskiden 2): emir, kapatma ve stop istekleri arka plan okumalarının arkasında sıra beklemesin.
+# Hız sınırı (429/418) beklemesi ve ağırlık eşiği ayrıca korunur; gerekirse ortam değişkeniyle düşürülebilir.
 BINANCE_MAX_CONCURRENT_REQUESTS_PER_HOST = max(
-    1, int(os.getenv("BINANCE_MAX_CONCURRENT_REQUESTS_PER_HOST", "2"))
+    1, int(os.getenv("BINANCE_MAX_CONCURRENT_REQUESTS_PER_HOST", "4"))
 )
 logger = logging.getLogger(__name__)
 GLOBAL_BAN_PATH = Path(

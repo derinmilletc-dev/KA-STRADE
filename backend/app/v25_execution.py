@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from contextlib import nullcontext
+from .symbol_lock import SymbolAwareLock, entry_guard, position_guard
 import hashlib
 import hmac
 import inspect
@@ -2088,7 +2089,9 @@ class BinanceLiveClient:
         headers = {"X-MBX-APIKEY": self.api_key} if signed or api_key_header else {}
         started = time.perf_counter()
         try:
-            priority = self.background_session and any(live_plan_is_active(plan) for plan in (self.diagnostic_state or {}).get("plans", {}).values() if isinstance(plan, dict))
+            # Kullanıcının tarayıcıdan verdiği değiştirici işlemler (emir, kapatma, stop/hedef) arka plan okumalarının
+            # arkasında beklemesin; koruma döngüsünün öncelikli kalması aynen korunur.
+            priority = (method != "GET" and not self.background_session) or (self.background_session and any(live_plan_is_active(plan) for plan in (self.diagnostic_state or {}).get("plans", {}).values() if isinstance(plan, dict)))
             source = "live_protection" if priority else "live_background" if self.background_session else "live_browser"
             async with BINANCE_RATE_LIMITER.slot(
                 LIVE_REST_BASE,
@@ -3176,6 +3179,13 @@ async def close_manual_symbol(client: BinanceLiveClient, symbol: str, intent: st
     if limit_price is None:
         return await close_tracked_symbol(client, symbol, intent)
     return await close_symbol_limit_then_market(client, symbol, intent, limit_price)
+
+
+def _plan_symbol(state: dict[str, Any], plan_id: Any) -> str | None:
+    """Plan bilinmiyorsa None döner; kilit o zaman eskisi gibi tümünü dışlar."""
+    plan = state.get("plans", {}).get(plan_id) if isinstance(plan_id, str) else None
+    symbol = str((plan or {}).get("symbol") or "").upper() if isinstance(plan, dict) else ""
+    return symbol or None
 
 
 async def refresh_snapshot_after_close(request: Request, state: dict[str, Any]) -> None:
@@ -6354,7 +6364,8 @@ async def execute_live_order(
     reservation_filled = False
     order_timer = {"start": time.monotonic(), "last": time.monotonic(), "stage": "BASLANGIC", "marks": []}
     observation_stage = _order_mark(order_timer, "SIGNED_ACCOUNT_ACCESS")
-    async with state["lock"]:
+    # Giriş kendini bu sembolün girişi olarak bildirir: başka sembolün kapat/stop/hedef işlemleri onu beklemez.
+    async with entry_guard(state, str(body.symbol or "").upper().replace("/", "") or None):
         try:
             state["last_order_error"] = None
             original_v2_live.require_fill_unlocked(state)
@@ -8076,7 +8087,7 @@ async def execution_supervisor(application: Any) -> None:
 
 def new_member_state(application: Any, user_id: str) -> dict[str, Any]:
     state = initial_state()
-    state["lock"] = asyncio.Lock()
+    state["lock"] = SymbolAwareLock()
     state["_app"] = application
     state["_live_user_id"] = user_id
     # A member without a saved snapshot has nothing to recover; recovery_ready stays False
@@ -8147,7 +8158,7 @@ def init_v25_execution(application: Any) -> None:
         add_event(registry.system, "V25_START", "V25 Live Guard başladı (çok kullanıcılı mod); canlı giriş ve otomasyon güvenlik için kapalı.")
         return
     state = load_state()
-    state["lock"] = asyncio.Lock()
+    state["lock"] = SymbolAwareLock()
     state["_app"] = application
     state["recovery_loaded"] = not bool(os.getenv("DATABASE_URL", "").strip())
     state["recovery_ready"] = state["recovery_loaded"]
@@ -10217,7 +10228,7 @@ async def v25_close(request: Request, body: CloseRequest) -> dict[str, Any]:
     started = time.monotonic()
     # Kapatma, uzlaştırma/koruma döngüsüyle aynı kilit altında çalışır: aynı sembolde kapanış, stop ve
     # yeniden giriş olayları iç içe geçip çift emir ya da çelişen plan durumu üretemez.
-    async with state["lock"]:
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
         lock_wait_ms = int((time.monotonic() - started) * 1000)
         plan = state.get("plans", {}).get(body.plan_id)
         if not plan:
@@ -10283,7 +10294,7 @@ async def v25_close_external(request: Request, body: CloseExternalRequest) -> di
         raise HTTPException(422, "Kapatmak için CANLI POZİSYONU KAPAT yazın.")
     state = request.app.state.v25_execution
     started = time.monotonic()
-    async with state["lock"]:
+    async with position_guard(state, body.symbol.upper()):
         symbol = body.symbol.upper()
         try:
             intent = f"manual-close-ext-{symbol}-{int(time.time())}"
@@ -10326,7 +10337,7 @@ async def v25_manual_protection(request: Request, body: ManualProtectionRequest)
     if body.stop_loss is None and not targets:
         raise HTTPException(422, "Değiştirilecek stop veya hedef yok.")
     state = request.app.state.v25_execution
-    async with state["lock"]:
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
         plan = state.get("plans", {}).get(body.plan_id)
         try:
             result = await manual_update_protection(client_for(request.app, request), state, plan,
@@ -10362,7 +10373,7 @@ async def v25_manual_trail(request: Request, body: ManualTrailRequest) -> dict[s
         if pct is None:
             raise HTTPException(422, "İz süren mesafe %0,3 ile %10 arasında olmalı.")
     state = request.app.state.v25_execution
-    async with state["lock"]:
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
         plan = state.get("plans", {}).get(body.plan_id)
         try:
             _manual_plan_guard(state, plan)
@@ -10394,7 +10405,7 @@ async def v25_manual_close_target(request: Request, body: ManualCloseTargetReque
     if body.confirmation.strip().upper() != "KAPANIŞ HEDEFİ":
         raise HTTPException(422, "Kapanış hedefi için KAPANIŞ HEDEFİ yazın.")
     state = request.app.state.v25_execution
-    async with state["lock"]:
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
         plan = state.get("plans", {}).get(body.plan_id)
         try:
             _manual_plan_guard(state, plan)
@@ -10431,7 +10442,7 @@ async def v25_manual_reduce(request: Request, body: ManualReduceRequest) -> dict
     if body.confirmation.strip().upper() != "KISMİ KAPAT":
         raise HTTPException(422, "Kısmi kapatma için KISMİ KAPAT yazın.")
     state = request.app.state.v25_execution
-    async with state["lock"]:
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
         plan = state.get("plans", {}).get(body.plan_id)
         try:
             result = await manual_reduce_position(client_for(request.app, request), state, plan, percent=int(body.percent))
