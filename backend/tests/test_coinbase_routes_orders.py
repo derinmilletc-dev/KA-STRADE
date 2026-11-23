@@ -165,8 +165,9 @@ class BehaviourTests(OrderRouteCase):
     def test_preflight_does_not_need_the_order_lock(self):
         self.pool.lock = "baska-akis"
         r = self.post("/preflight", OPEN_BODY)
+        self.assertEqual(r.status_code, 200)
         self.assertNotEqual(r.json().get("code"), "FLOW_BUSY")
-        self.assertEqual(self.ex.posts(), [])
+        self.assertEqual([path for _method, path, _body in self.ex.posts() if not path.endswith("/orders/preview")], [])  # yalnız önizleme; emir gitmez
         self.assertEqual(self.pool.lock, "baska-akis")
 
     def test_unexpected_error_is_loud_and_releases_lock(self):

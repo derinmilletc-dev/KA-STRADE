@@ -128,6 +128,7 @@ async def _guarded(request: Request, action: str, work: Any, *, claim: str | Non
         if claim:
             _claim_request(user["id"], claim)
         client = await _trading_client(request, user)
+        await journal.ensure_schema(pool)   # kilitsiz işte de günlük/limit tabloları hazır olsun (kilit bunu kendiliğinden yapıyordu)
         if lock:
             if not await journal.acquire_lock(pool, user["id"], token):
                 raise CoinbaseError("FLOW_BUSY", "Başka bir emir işlemi sürüyor. Birkaç saniye bekleyip 'koruma durumu'nu kontrol et.", http_status=409)
