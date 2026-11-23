@@ -140,8 +140,21 @@ class PreflightTests(unittest.TestCase):
 
     def test_missing_buying_power_rejected(self):
         acct = {"balance": {**ACCOUNT["balance"], "overnight_window": {}}}
-        self.assertFalse(go(account=acct)["ok"])
+        self.assertFalse(go(account=acct, positions=[{"product_id": "OTHER"}])["ok"])  # pozisyon varken eksik pencere reddedilir
         self.assertFalse(go(account={})["ok"])
+        top_missing = {"balance": {**ACCOUNT["balance"], "futures_buying_power": None}}
+        self.assertFalse(go(account=top_missing)["ok"])
+
+    def test_flat_account_with_unspecified_level_and_empty_windows_is_ok(self):
+        acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED",
+                            "intraday_window": {}, "overnight_window": {}}}
+        r = go(account=acct)
+        self.assertTrue(r["ok"], r["reasons"])
+        # pozisyon varsa aynı belirsizlik reddedilir
+        self.assertFalse(go(account=acct, positions=[{"product_id": "OTHER"}])["ok"])
+        # alım gücü yine denetlenir
+        low = {"balance": {**acct["balance"], "futures_buying_power": {"value": "1"}, "available_margin": {"value": "1"}}}
+        self.assertFalse(go(account=low)["ok"])
 
     def test_unknown_margin_level_is_unhealthy(self):
         acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "SOMETHING_NEW"}}
