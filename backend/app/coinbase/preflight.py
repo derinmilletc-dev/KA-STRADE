@@ -83,7 +83,7 @@ def run_preflight(
     base_min = product.get("base_min_size")
     if not all(isinstance(v, Decimal) and v > 0 for v in (contract_size, base_increment, price_increment)):
         reasons.append("Ürün bilgisi eksik (sözleşme boyutu veya adımlar yok); güvenlik için emir verilmez.")
-    if product.get("trading_disabled") is True or product.get("status") not in (None, "online"):
+    if product.get("trading_disabled") is True or product.get("status") not in (None, "", "online"):
         status_text = product.get("status") or "bilinmiyor"
         flag = ", işlem kapalı bayrağı açık" if product.get("trading_disabled") is True else ""
         reasons.append(f"Bu ürün şu an işlem görmüyor (Coinbase durumu: {status_text}{flag}). Birkaç dakika sonra tekrar dene ya da başka ürün seç.")
@@ -198,6 +198,10 @@ def run_preflight(
         auto_leverage = min(max(auto_leverage, limits.leverage_min), limits.leverage_max)
         by_auto_leverage = int((margin_usd * auto_leverage / notional_per_contract).to_integral_value(rounding=ROUND_DOWN))
         contracts = min(max_by_loss, by_auto_leverage)
+        if contracts < 1 and max_by_loss >= 1 and max_by_leverage >= 1:
+            # Teminat 5x ile 1 sözleşmeye yetmiyor ama izinli kaldıraç içinde yetiyor: sistem EN DÜŞÜK gereken kaldıraçla 1 sözleşme kurar
+            # (daha fazla değil). Kaldıraç plana yazılır; kayıp yine stop ve kayıp sınırıyla çevrelenir.
+            contracts = 1
     else:
         try:
             contracts = int(str(requested))
