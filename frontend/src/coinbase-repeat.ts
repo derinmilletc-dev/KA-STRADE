@@ -6,8 +6,9 @@ export type RepeatRecord = {productId: string; side: 'BUY' | 'SELL'; marginUsd: 
 const pos = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : null }
 
 /** Açılan işlemin planından kayıt üretir; stop yönü yanlışsa/okunamıyorsa null. */
-export function makeRepeat(plan: {product_id: unknown; side: unknown; margin_usd: unknown; contracts: unknown; leverage: unknown; entry_reference: unknown; stop_price: unknown; take_profit_price?: unknown}): RepeatRecord | null {
-  const side = plan.side === 'BUY' || plan.side === 'SELL' ? plan.side : null
+export function makeRepeat(source: object): RepeatRecord | null {
+  const plan = source as Record<string, unknown>
+  const side: 'BUY' | 'SELL' | null = plan.side === 'BUY' ? 'BUY' : plan.side === 'SELL' ? 'SELL' : null
   const entry = pos(plan.entry_reference), stop = pos(plan.stop_price), tp = pos(plan.take_profit_price)
   const margin = pos(plan.margin_usd), productId = String(plan.product_id ?? '')
   if (!side || !entry || !stop || !margin || !productId) return null
@@ -32,7 +33,7 @@ export function repeatLevels(record: RepeatRecord, price: number): {stop: string
 export function parseRepeat(raw: unknown): RepeatRecord | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
-  const side = r.side === 'BUY' || r.side === 'SELL' ? r.side : null
+  const side: 'BUY' | 'SELL' | null = r.side === 'BUY' ? 'BUY' : r.side === 'SELL' ? 'SELL' : null
   if (!side || typeof r.productId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,39}$/.test(r.productId)) return null
   if (!pos(r.marginUsd) || !pos(r.stopPct) || typeof r.leverage !== 'string' || typeof r.contracts !== 'string') return null
   const tp = r.tpPct === null || r.tpPct === undefined ? null : pos(r.tpPct)
