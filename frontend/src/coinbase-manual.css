@@ -691,3 +691,7 @@ html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;paddi
 .cbGoalBar{height:6px!important;border-radius:6px!important;background:rgba(255,255,255,.1)!important;overflow:hidden!important}
 .cbGoalBar i{display:block!important;height:100%!important;background:#34d399!important}
 .cbGoal small{opacity:.7!important}
+
+/* Son işlemi tekrarla */
+.mxtRepeat{display:grid!important;gap:2px!important;width:100%!important;margin:0 0 10px!important;padding:10px 12px!important;border:0!important;border-radius:12px!important;background:rgba(52,211,153,.12)!important;color:inherit!important;text-align:left!important;font:inherit!important}
+.mxtRepeat small{opacity:.75!important}

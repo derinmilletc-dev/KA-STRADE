@@ -381,6 +381,39 @@ async def _push(pool: Any, user_id: str, category: str, title: str, body: str) -
         await send_to_user(pool, user_id, category, title, body, url="/master-trade")
 
 
+def combine(items: list[tuple[str, str, str]]) -> tuple[str, str, str] | None:
+    """Aynı turda biriken bildirimleri tek özete çevirir. Tek bildirim aynen gider; 2+ ise başlık sayıyı verir,
+    metin her bildirimin başlığını (ve kısa metnini) alt alta taşır. Kategori: herhangi biri 'close' ise 'close'."""
+    if not items:
+        return None
+    if len(items) == 1:
+        return items[0]
+    category = "close" if any(c == "close" for c, _, _ in items) else items[0][0]
+    body = "\n".join(f"{title}: {text}" if text else title for _, title, text in items[:5])
+    if len(items) > 5:
+        body += f"\n… ve {len(items) - 5} bildirim daha"
+    return category, f"Coinbase: {len(items)} yeni gelişme", body
+
+
+class _Batch:
+    """`send` yerine geçer: bildirimleri toplar, tur sonunda tek özet olarak gönderir (telefon dolmasın)."""
+
+    def __init__(self) -> None:
+        self.items: list[tuple[str, str, str]] = []
+
+    async def __call__(self, pool: Any, user_id: str, category: str, title: str, body: str) -> None:
+        self.items.append((category, title, body))
+
+    async def flush(self, pool: Any, user_id: str) -> None:
+        merged = combine(self.items)
+        self.items = []
+        if merged is not None:
+            try:
+                await _push(pool, user_id, *merged)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Coinbase özet bildirimi gönderilemedi (%s)", type(exc).__name__)
+
+
 async def _users(pool: Any) -> list[str]:
     try:
         rows = await pool.fetch(f"SELECT user_id FROM {vault.TABLE}")
@@ -400,25 +433,29 @@ async def run_once(app: Any) -> int:
             if stored is None:
                 continue
             key_name, pem = stored
-            client = CoinbaseClient(key_name, load_private_key(pem))
-            count += len(await check_user(pool, user_id, client, send=_push))
-            positions = await service.fetch_positions(client)
-            await check_expiry(pool, user_id, positions, send=_push)
-            if orders_enabled():
-                try:
-                    from . import flow
-                    trading = TradingClient(key_name, load_private_key(pem))
-                    report = await flow.protection_report(trading)
-                    await check_protection(pool, user_id, trading, send=_push, report=report)
-                    await check_profit_alerts(pool, user_id, positions, report, send=_push)
-                    await profit_target.check_targets(pool, user_id, trading, positions, send=_push)
-                except Exception as exc:  # koruma kontrolü hatası diğer kontrolleri durdurmaz
-                    logger.warning("Coinbase koruma kontrolü atlandı (%s)", type(exc).__name__)
-                try:
-                    await check_daily_loss(pool, user_id, client, send=_push)
-                except Exception as exc:  # günlük zarar kontrolü hatası diğer kontrolleri durdurmaz
-                    logger.warning("Coinbase günlük zarar kontrolü atlandı (%s)", type(exc).__name__)
-            await check_weekly(pool, user_id, client, send=_push)
+            batch = _Batch()
+            try:
+                client = CoinbaseClient(key_name, load_private_key(pem))
+                count += len(await check_user(pool, user_id, client, send=batch))
+                positions = await service.fetch_positions(client)
+                await check_expiry(pool, user_id, positions, send=batch)
+                if orders_enabled():
+                    try:
+                        from . import flow
+                        trading = TradingClient(key_name, load_private_key(pem))
+                        report = await flow.protection_report(trading)
+                        await check_protection(pool, user_id, trading, send=batch, report=report)
+                        await check_profit_alerts(pool, user_id, positions, report, send=batch)
+                        await profit_target.check_targets(pool, user_id, trading, positions, send=batch)
+                    except Exception as exc:  # koruma kontrolü hatası diğer kontrolleri durdurmaz
+                        logger.warning("Coinbase koruma kontrolü atlandı (%s)", type(exc).__name__)
+                    try:
+                        await check_daily_loss(pool, user_id, client, send=batch)
+                    except Exception as exc:  # günlük zarar kontrolü hatası diğer kontrolleri durdurmaz
+                        logger.warning("Coinbase günlük zarar kontrolü atlandı (%s)", type(exc).__name__)
+                await check_weekly(pool, user_id, client, send=batch)
+            finally:
+                await batch.flush(pool, user_id)
         except Exception as exc:
             logger.warning("Coinbase izleyici bu hesabı atladı (%s)", type(exc).__name__)
     return count

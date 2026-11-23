@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import flow, journal, order_api, service, vault
+from . import activity, flow, journal, order_api, service, vault
 from .errors import CoinbaseError
 from .jwt_auth import load_private_key
 from . import profit_target, user_limits
@@ -226,21 +226,36 @@ async def set_profit_target(payload: ProfitTargetPayload, request: Request) -> A
     _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        limits = await user_limits.effective(pool, user_id)
+        positions = await service.fetch_positions(client)
+        position = next((p for p in positions if p.get("product_id") == payload.product_id), None)
         if not payload.target_usd:
             await profit_target.clear_target(pool, user_id, payload.product_id)
+            # Borsada TP varsa onu da kaldır (yoksa hedef kaldırıldı denir ama emir durur). Stop aynı fiyatta kalır.
+            stops = await flow.our_stops(client, payload.product_id) if position else []
+            if len(stops) == 1 and stops[0].get("take_profit_price") is not None and stops[0].get("stop_price") is not None:
+                await flow.set_stop(client, pool, user_id, limits, payload.product_id, stops[0]["stop_price"], drop_tp=True)
             return {"status": "cleared", "product_id": payload.product_id, "message": "Kâr hedefi kaldırıldı."}
         target = profit_target.parse_usd(payload.target_usd)
         if target is None:
             raise CoinbaseError("BAD_REQUEST", "Kâr hedefi 0'dan büyük bir USD tutarı olmalı.", http_status=422)
-        position = next((p for p in await service.fetch_positions(client) if p.get("product_id") == payload.product_id), None)
         entry = position.get("avg_entry_price") if position else None
         if not entry:
             raise CoinbaseError("NO_POSITION", "Bu üründe açık pozisyon yok.", http_status=409)
+        # 1) Yedek: sunucu takibi (borsa emri kurulamazsa da hedef çalışır). 2) Asıl: borsa tarafı TP (anında).
         await profit_target.set_target(pool, user_id, payload.product_id, target, str(entry))
-        return {"status": "set", "product_id": payload.product_id, "target_usd": f"{target:f}",
-                "message": f"+{target:f} USD net kâra ulaşınca otomatik kapanır ve bildirim gelir."}
+        fees = activity.position_fees(await activity.fetch_fills(client, limit=250), [position])
+        fee = activity._dec(fees.get(payload.product_id))
+        try:
+            result = await flow.set_target(client, pool, user_id, limits, payload.product_id, target, fee)
+        except CoinbaseError as exc:
+            if exc.code in {"CRITICAL_UNPROTECTED", "STOP_FAILED_POSITION_CLOSED", "STOP_CANCEL_FAILED"}:
+                raise
+            result = {"exchange": False, "message": f"Hedef borsaya konamadı, sunucu takip edecek. {exc.message}"}
+        return {"status": "set", "product_id": payload.product_id, "target_usd": f"{target:f}", "exchange": bool(result.get("exchange")),
+                "message": f"+{target:f} USD net kâr hedefi kuruldu. " + str(result.get("message") or "")}
 
-    return await _guarded(request, "profit_target", work, claim=payload.request_id, lock=False)
+    return await _guarded(request, "profit_target", work, claim=payload.request_id)
 
 
 @router.post("/cancel-entry")

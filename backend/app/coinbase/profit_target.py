@@ -117,6 +117,9 @@ async def check_targets(pool: Any, user_id: str, client: Any, positions: list[di
         try:
             await flow.close_flow(client, pool, user_id, product)
         except Exception as exc:  # noqa: BLE001 - kapatma hatası diğer hedefleri durdurmaz
+            if getattr(exc, "code", None) == "NO_POSITION":   # borsadaki TP aynı anda doldu: iş zaten bitti
+                await clear_target(pool, user_id, product)
+                continue
             logger.warning("Kâr hedefi kapatması başarısız (%s)", type(exc).__name__)
             key = f"{product}:{item['entry_price']}:{item['target_usd']}"
             if not await journal.has_event(pool, user_id, "profit_target_failed", product_id=product, key=key, days=1):
