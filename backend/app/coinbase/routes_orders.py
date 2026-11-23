@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from . import flow, journal, order_api, vault
 from .errors import CoinbaseError
 from .jwt_auth import load_private_key
+from . import user_limits
 from .limits import current_limits
 from .routes import _error, _member, _pool
 from .trading_client import CoinbaseTradingClient
@@ -44,6 +45,23 @@ class PreflightPayload(BaseModel):
     rest: bool = False
     contracts: int | None = Field(default=None, ge=1, le=100000)
     leverage: float | None = Field(default=None, ge=1, le=100)  # yalnız sözleşme sayısı boşken: otomatik miktar bu kaldıraca göre seçilir
+
+
+class SuggestPayload(BaseModel):
+    product_id: str = Field(pattern=PRODUCT_PATTERN)
+    side: Literal["BUY", "SELL"]
+    margin_usd: str = Field(min_length=1, max_length=30)
+    leverage: float | None = Field(default=None, ge=1, le=100)
+    contracts: int | None = Field(default=None, ge=1, le=100000)  # kullanıcı sözleşme sayısını elle yazdıysa öneriler onunla sınanır
+    entry_limit_price: str | None = Field(default=None, max_length=30)  # limit girişte öneriler limit fiyata göre hesaplanır
+
+
+class LimitsPayload(BaseModel):
+    # Boş/None alan = özel limit yok (sunucu varsayılanı). Değerler sunucu tavanını aşamaz.
+    max_loss_usd: str | None = Field(default=None, max_length=30)
+    daily_loss_limit_usd: str | None = Field(default=None, max_length=30)
+    leverage_max: str | None = Field(default=None, max_length=30)
+    stop_limit_gap_pct: str | None = Field(default=None, max_length=30)
 
 
 class OpenPayload(PreflightPayload):
@@ -134,7 +152,7 @@ async def preflight(payload: PreflightPayload, request: Request) -> Any:
     request_dict = payload.model_dump()
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.preflight(client, current_limits(), request_dict)
+        return await flow.preflight(client, await user_limits.effective(pool, user_id), request_dict)
 
     return await _guarded(request, "preflight", work)
 
@@ -146,7 +164,7 @@ async def open_order(payload: OpenPayload, request: Request) -> Any:
     request_dict = payload.model_dump(exclude={"confirm", "request_id"})
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.open_position(client, pool, user_id, current_limits(), request_dict)
+        return await flow.open_position(client, pool, user_id, await user_limits.effective(pool, user_id), request_dict)
 
     return await _guarded(request, "open", work, claim=payload.request_id)
 
@@ -168,7 +186,7 @@ async def reduce_order(payload: ReducePayload, request: Request) -> Any:
     _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.reduce_flow(client, pool, user_id, current_limits(), payload.product_id, payload.reduce_by)
+        return await flow.reduce_flow(client, pool, user_id, await user_limits.effective(pool, user_id), payload.product_id, payload.reduce_by)
 
     return await _guarded(request, "reduce", work, claim=payload.request_id)
 
@@ -179,7 +197,7 @@ async def move_stop(payload: StopPayload, request: Request) -> Any:
     _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.set_stop(client, pool, user_id, current_limits(), payload.product_id, payload.stop_price)
+        return await flow.set_stop(client, pool, user_id, await user_limits.effective(pool, user_id), payload.product_id, payload.stop_price)
 
     return await _guarded(request, "stop", work, claim=payload.request_id)
 
@@ -190,7 +208,7 @@ async def cancel_entry(payload: CancelEntryPayload, request: Request) -> Any:
     _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.cancel_entry(client, pool, user_id, current_limits(), payload.order_id)
+        return await flow.cancel_entry(client, pool, user_id, await user_limits.effective(pool, user_id), payload.order_id)
 
     return await _guarded(request, "cancel_entry", work, claim=payload.request_id)
 
@@ -202,7 +220,7 @@ async def reconcile(request: Request) -> Any:
     _member(request)
 
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
-        return await flow.reconcile_flow(client, pool, user_id, current_limits())
+        return await flow.reconcile_flow(client, pool, user_id, await user_limits.effective(pool, user_id))
 
     return await _guarded(request, "reconcile", work)
 
@@ -244,3 +262,40 @@ async def open_orders(request: Request) -> Any:
         ]}
 
     return await _guarded(request, "open_orders", work)
+
+
+async def _read_only(request: Request, work: Any) -> Any:
+    """Kilitsiz, emir göndermeyen okuma/ayar işleri: üye + hata çevirisi."""
+    user = _member(request)
+    try:
+        return await work(_pool(request), user)
+    except CoinbaseError as exc:
+        return _error(exc)
+
+
+@router.get("/limits")
+async def get_limits(request: Request) -> Any:
+    async def work(pool: Any, user: dict[str, Any]) -> Any:
+        return user_limits.describe(current_limits(), await user_limits.load(pool, user["id"]))
+
+    return await _read_only(request, work)
+
+
+@router.put("/limits")
+async def put_limits(payload: LimitsPayload, request: Request) -> Any:
+    async def work(pool: Any, user: dict[str, Any]) -> Any:
+        saved = await user_limits.save(pool, user["id"], payload.model_dump())
+        await journal.record(pool, user["id"], "limits", "saved", detail={"limits": saved})
+        return user_limits.describe(current_limits(), saved)
+
+    return await _read_only(request, work)
+
+
+@router.post("/suggest")
+async def suggest_levels(payload: SuggestPayload, request: Request) -> Any:
+    async def work(pool: Any, user: dict[str, Any]) -> Any:
+        client = await _trading_client(request, user)
+        return await flow.suggest(client, await user_limits.effective(pool, user["id"]), payload.model_dump())
+
+    return await _read_only(request, work)
+

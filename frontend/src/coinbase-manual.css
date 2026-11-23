@@ -454,3 +454,60 @@ html body #root .cbTerminal .cbHold:not(#a){position:relative!important;overflow
 .cbTerminal .cbHold:disabled{opacity:.5}
 html body #root .cbTerminal .cbCl2Cancel:not(#a){min-height:44px!important;border:0!important;background:none!important;color:#93a3b5!important;font-size:.9rem!important;width:100%!important}
 .cbTerminal .cbCl2Hint{margin:0;text-align:center;font-size:.8rem;color:#93a3b5}
+
+/* ===== Sunucuda sınanmış stop/hedef önerileri ===== */
+html body #root .cbTerminal .cbSug:not(#a),html body #root .cbTerminal .cbSugSkel:not(#a){position:relative!important}
+html body #root .cbTerminal .mxtMPk.cbSug[data-rec='1']:not(#a){border-color:rgba(61,224,160,.55)!important}
+html body #root .cbTerminal .mxtMPk.cbSug b em:not(#a){margin-left:6px!important;padding:1px 7px!important;border-radius:999px!important;font-style:normal!important;font-size:10px!important;font-weight:700!important;letter-spacing:.04em!important;background:rgba(61,224,160,.16)!important;color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbSugGain:not(#a){color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbSug[data-bad]:not(#a),html body #root .cbTerminal .mxtMPk.cbSug[data-bad]:not(#a){opacity:.55!important;cursor:not-allowed!important}
+html body #root .cbTerminal .cbSugSkel:not(#a){animation:cbSugPulse 1.2s ease-in-out infinite!important}
+@keyframes cbSugPulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){html body #root .cbTerminal .cbSugSkel:not(#a){animation:none!important}}
+html body #root .cbTerminal .cbSugHint:not(#a){font-size:12px!important;opacity:.7!important}
+html body #root .cbTerminal .cbSugNote:not(#a){margin:6px 0 0!important;padding:9px 12px!important;border-radius:12px!important;font-size:13px!important;line-height:1.4!important;background:rgba(255,255,255,.05)!important;color:inherit!important}
+html body #root .cbTerminal .cbSugNote[data-tone='ok']:not(#a){background:rgba(57,214,154,.1)!important;color:#9af0cd!important}
+html body #root .cbTerminal .cbSugNote[data-tone='warn']:not(#a){background:rgba(232,183,92,.12)!important;color:#f3d08a!important}
+html body #root .cbTerminal .cbSugWhy:not(#a){opacity:.85!important}
+html body #root .cbTerminal .cbSugRetry:not(#a){margin-left:6px!important;padding:2px 10px!important;border-radius:999px!important;border:1px solid currentColor!important;background:none!important;color:inherit!important;font-size:12px!important}
+
+/* ===== Risk limitlerim + emir kapasitesi ===== */
+html body #root .cbTerminal .cbLimits:not(#a){margin:0 0 14px!important;padding:14px!important;border-radius:18px!important;border:1px solid rgba(255,255,255,.09)!important;background:linear-gradient(160deg,rgba(61,224,160,.07),rgba(255,255,255,.03))!important}
+html body #root .cbTerminal .cbLimits>header:not(#a){display:flex!important;align-items:center!important;gap:10px!important}
+html body #root .cbTerminal .cbLimits>header>div:not(#a){flex:1!important;min-width:0!important}
+html body #root .cbTerminal .cbLimits>header b:not(#a){display:block!important;font-size:15px!important}
+html body #root .cbTerminal .cbLimits>header small:not(#a){display:block!important;font-size:12px!important;opacity:.7!important}
+html body #root .cbTerminal .cbLimIcon:not(#a){display:grid!important;place-items:center!important;width:34px!important;height:34px!important;border-radius:12px!important;background:rgba(61,224,160,.14)!important;color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLimIcon svg:not(#a){width:18px!important;height:18px!important}
+html body #root .cbTerminal .cbLimits button:not(#a){min-height:36px!important;padding:6px 14px!important;border-radius:999px!important;border:1px solid rgba(255,255,255,.16)!important;background:rgba(255,255,255,.05)!important;color:inherit!important;font-size:13px!important;cursor:pointer!important}
+html body #root .cbTerminal .cbLimits button.primary:not(#a){background:var(--kt-accent,#3de0a0)!important;color:#04150e!important;border-color:transparent!important;font-weight:700!important}
+html body #root .cbTerminal .cbLimits button:disabled:not(#a){opacity:.5!important;cursor:not-allowed!important}
+html body #root .cbTerminal .cbLimCap:not(#a){display:flex!important;flex-direction:column!important;gap:8px!important;margin:12px 0 4px!important}
+html body #root .cbTerminal .cbLimSegs:not(#a){display:flex!important;gap:5px!important}
+html body #root .cbTerminal .cbLimSegs i:not(#a){flex:1!important;height:8px!important;border-radius:6px!important;background:rgba(255,255,255,.12)!important}
+html body #root .cbTerminal .cbLimSegs i[data-on]:not(#a){background:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLimCap[data-tone='warn'] .cbLimSegs i[data-on]:not(#a){background:var(--kt-warn,#e8b75c)!important}
+html body #root .cbTerminal .cbLimCap[data-tone='bad'] .cbLimSegs i[data-on]:not(#a){background:var(--kt-danger,#ff6b6b)!important}
+html body #root .cbTerminal .cbLimCapText:not(#a){display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:4px 8px!important;font-size:13px!important}
+html body #root .cbTerminal .cbLimCapText svg:not(#a){width:15px!important;height:15px!important;opacity:.7!important}
+html body #root .cbTerminal .cbLimCapText small:not(#a){flex-basis:100%!important;font-size:12px!important;opacity:.75!important}
+html body #root .cbTerminal .cbLimGrid:not(#a){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin:10px 0 0!important}
+html body #root .cbTerminal .cbLimGrid>div:not(#a){padding:9px 11px!important;border-radius:12px!important;background:rgba(255,255,255,.04)!important}
+html body #root .cbTerminal .cbLimGrid>div[data-custom]:not(#a){box-shadow:inset 0 0 0 1px rgba(61,224,160,.4)!important}
+html body #root .cbTerminal .cbLimGrid dt:not(#a){font-size:11px!important;opacity:.7!important}
+html body #root .cbTerminal .cbLimGrid dd:not(#a){margin:2px 0!important;font-size:15px!important;font-weight:700!important}
+html body #root .cbTerminal .cbLimGrid small:not(#a){font-size:11px!important;opacity:.6!important}
+html body #root .cbTerminal .cbLimSaved:not(#a){margin:10px 0 0!important;padding:9px 12px!important;border-radius:12px!important;font-size:13px!important;background:rgba(57,214,154,.1)!important;color:#9af0cd!important}
+html body #root .cbTerminal .cbLimForm:not(#a){display:grid!important;gap:14px!important;margin-top:14px!important}
+html body #root .cbTerminal .cbLimField label:not(#a){display:block!important;font-size:13px!important;font-weight:600!important;margin-bottom:6px!important}
+html body #root .cbTerminal .cbLimInput:not(#a){display:flex!important;align-items:center!important;gap:8px!important;padding:0 12px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.14)!important;background:rgba(0,0,0,.2)!important}
+html body #root .cbTerminal .cbLimInput input:not(#a){flex:1!important;min-width:0!important;min-height:42px!important;border:0!important;background:none!important;color:inherit!important;font-size:16px!important;outline:none!important}
+html body #root .cbTerminal .cbLimInput:focus-within:not(#a){border-color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLimField[data-bad] .cbLimInput:not(#a){border-color:var(--kt-danger,#ff6b6b)!important}
+html body #root .cbTerminal .cbLimField[data-bad]>small:not(#a){color:#ff9c9c!important}
+html body #root .cbTerminal .cbLimChips:not(#a){display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin-top:8px!important}
+html body #root .cbTerminal .cbLimChips button[data-on]:not(#a){background:rgba(61,224,160,.18)!important;border-color:var(--kt-accent,#3de0a0)!important}
+html body #root .cbTerminal .cbLimField>small:not(#a){display:block!important;margin-top:6px!important;font-size:12px!important;opacity:.75!important;line-height:1.35!important}
+html body #root .cbTerminal .cbLimErr:not(#a){margin:0!important;padding:9px 12px!important;border-radius:12px!important;font-size:13px!important;background:rgba(255,107,107,.12)!important;color:#ff9c9c!important}
+html body #root .cbTerminal .cbLimActs:not(#a){display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+@media (max-width:420px){html body #root .cbTerminal .cbLimGrid:not(#a){grid-template-columns:1fr 1fr!important}}
