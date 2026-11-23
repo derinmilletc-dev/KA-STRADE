@@ -108,7 +108,7 @@ export function groupRows(rows: readonly CbRow[]): {rows: CbRow[]; variants: Rec
   return {rows: result, variants}
 }
 
-export type Capacity = {contracts: number; margin: number; notional: number; maxLeverage: number; perContractMargin: number; byLoss: boolean}
+export type Capacity = {contracts: number; margin: number; notional: number; maxLeverage: number; perContractMargin: number; byLoss: boolean; writeMargin: number}
 
 /** Bakiyenle bu üründe en fazla ne yapılır: sözleşme sayısı, gereken teminat, pozisyon değeri ve borsanın izin verdiği en yüksek kaldıraç (1 ÷ marjin oranı; kendi limitinle sınırlı).
  *  Bilgi eksikse null. contracts 0 ise 1 sözleşme bile yetmiyor (perContractMargin gereken tutardır). */
@@ -122,5 +122,7 @@ export function capacityOf(input: {minMargin: number | null | undefined; marginR
   // Kayıp limitin (bu stopla) izin verdiği sözleşme sayısı varsa o da tavan: aksi halde teminat büyük, pozisyon küçük kalır ve kaldıraç 1x'in altına düşer.
   const byLoss = input.maxByLoss != null && Number.isFinite(input.maxByLoss) && input.maxByLoss >= 0 ? Math.floor(input.maxByLoss) : Infinity
   const contracts = Math.min(byBalance, byLoss)
-  return {contracts, margin: Math.ceil(contracts * minMargin * 100) / 100, notional: contracts * perContractNotional, maxLeverage, perContractMargin: Math.ceil(minMargin * 100) / 100, byLoss: byLoss < byBalance}
+  return {contracts, margin: Math.ceil(contracts * minMargin * 100) / 100, notional: contracts * perContractNotional, maxLeverage, perContractMargin: Math.ceil(minMargin * 100) / 100, byLoss: byLoss < byBalance,
+    // Yazılacak teminat: borsa marjini pozisyondan büyükse (oran > %100) kaldıraç 1x'in altına düşer ve ön kontrol reddeder; pozisyonun %98'ine kısılır.
+    writeMargin: Math.max(0.01, Math.floor(Math.min(contracts * minMargin, contracts * perContractNotional * 0.98) * 100) / 100)}
 }

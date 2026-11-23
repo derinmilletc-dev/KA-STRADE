@@ -118,8 +118,8 @@ async def _trading_client(request: Request, user: dict[str, Any]) -> CoinbaseTra
     return CoinbaseTradingClient(key_name, load_private_key(pem))
 
 
-async def _guarded(request: Request, action: str, work: Any, *, claim: str | None = None) -> Any:
-    """Üye + kilit + hata çevirisi. `work(client, pool, user_id)` çağrılır."""
+async def _guarded(request: Request, action: str, work: Any, *, claim: str | None = None, lock: bool = True) -> Any:
+    """Üye + kilit + hata çevirisi. `work(client, pool, user_id)` çağrılır. lock=False yalnız SALT OKUNUR işler için (emir göndermez)."""
     user = _member(request)
     pool = _pool(request)
     token = uuid.uuid4().hex
@@ -128,9 +128,10 @@ async def _guarded(request: Request, action: str, work: Any, *, claim: str | Non
         if claim:
             _claim_request(user["id"], claim)
         client = await _trading_client(request, user)
-        if not await journal.acquire_lock(pool, user["id"], token):
-            raise CoinbaseError("FLOW_BUSY", "Başka bir emir işlemi sürüyor. Birkaç saniye bekleyip 'koruma durumu'nu kontrol et.", http_status=409)
-        locked = True
+        if lock:
+            if not await journal.acquire_lock(pool, user["id"], token):
+                raise CoinbaseError("FLOW_BUSY", "Başka bir emir işlemi sürüyor. Birkaç saniye bekleyip 'koruma durumu'nu kontrol et.", http_status=409)
+            locked = True
         return await work(client, pool, user["id"])
     except CoinbaseError as exc:
         return _error(exc)
@@ -155,7 +156,8 @@ async def preflight(payload: PreflightPayload, request: Request) -> Any:
     async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
         return await flow.preflight(client, await user_limits.effective(pool, user_id), request_dict)
 
-    return await _guarded(request, "preflight", work)
+    # Ön kontrol emir göndermez: kilit almaz (yoksa ekranın otomatik kontrolü ile elle kontrol çakışıp 'başka işlem sürüyor' derdi).
+    return await _guarded(request, "preflight", work, lock=False)
 
 
 @router.post("/open")

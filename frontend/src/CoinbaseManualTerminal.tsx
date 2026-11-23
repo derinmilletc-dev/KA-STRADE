@@ -455,8 +455,8 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     </div>
     {cap && <div className="cbCapacity" data-none={cap.contracts < 1 || undefined} role="note">
       {cap.contracts >= 1
-        ? <><span>Bu coinde bakiyenle en fazla <b>{cap.contracts} sözleşme</b>{cap.byLoss ? ' (kayıp limitin bu stopla bu kadara izin veriyor)' : ''} · pozisyon ≈ {usd(cap.notional)} USD · teminat ≈ {usd(cap.margin)} USD</span><span>En yüksek kaldıraç: <b>~{levMax}x</b> (borsa bu coin için bu kadarına izin veriyor)</span>
-          <button type="button" onClick={() => patch({marginUsd: String(cap.margin), contracts: String(cap.contracts)})}>Maksimumu yaz</button></>
+        ? <><span>Bu coinde bakiyenle en fazla <b>{cap.contracts} sözleşme</b>{cap.byLoss ? ' (kayıp limitin bu stopla bu kadara izin veriyor)' : ''} · pozisyon ≈ {usd(cap.notional)} USD · borsa marjini ≈ {usd(cap.margin)} USD</span><span>En yüksek kaldıraç: <b>~{levMax}x</b> (borsa bu coin için bu kadarına izin veriyor)</span>
+          <button type="button" onClick={() => patch({marginUsd: String(cap.writeMargin), contracts: String(cap.contracts)})}>Maksimumu yaz</button></>
         : <><span>Bu coinde 1 sözleşme için <b>~{usd(cap.perContractMargin)} USD</b> teminat gerekir; bakiyen yetmiyor.</span><span>En yüksek kaldıraç ~{levMax}x. Başka coin seç ya da bakiye ekle.</span></>}
     </div>}
     <div className="mxtMCard">
