@@ -1,0 +1,12 @@
+.connBanner { position: fixed; z-index: 2147483000; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 20px); box-sizing: border-box; padding: 8px 8px 8px 14px; border: 1px solid rgba(242,192,122,.4); border-radius: 999px; background: rgba(28,22,12,.92); color: var(--kt-warn-ink); font: 600 12.5px/1.2 var(--kt-font); box-shadow: 0 8px 24px rgba(0,0,0,.4); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: connBannerIn .25s ease; }
+.connBanner i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--kt-warn); animation: connBannerPulse 1.4s ease-in-out infinite; }
+.connBanner span { min-width: 0; }
+.connBanner button { flex: 0 0 auto; padding: 6px 12px; border: 1px solid var(--kt-accent-line); border-radius: 999px; background: var(--kt-accent-soft); color: var(--kt-accent); font: 600 12px/1 inherit; cursor: pointer; }
+.connBanner button:disabled { opacity: .6; }
+.connBanner.isOffline { border-color: rgba(255,120,120,.45); background: rgba(34,14,14,.92); color: #ffd9d9; }
+.connBanner.isOffline i { background: var(--kt-danger); }
+.connBanner.isOk { padding-right: 14px; border-color: rgba(61,224,160,.5); background: rgba(8,30,22,.92); color: #d6fbea; }
+.connBanner.isOk i { background: var(--kt-accent); animation: none; }
+@keyframes connBannerIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes connBannerPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .connBanner, .connBanner i { animation: none; } }

@@ -4,6 +4,7 @@ import TestnetFirstApp from './TestnetFirstApp'
 import AppErrorBoundary from './AppErrorBoundary'
 import WebAccessGate from './WebAccessGate'
 import AuthGate from './AuthGate'
+import ConnectionBanner from './ConnectionBanner'
 import EmailVerificationRoute from './EmailVerificationRoute'
 import PublicPolicyPage from './PublicPolicyPage'
 import { publicPolicyForPath } from './compliance-content'
@@ -20,6 +21,7 @@ import { installAuthorizedFetch, installErrorMonitoring } from './api'
 import './frontend/src/binance-demo.css'
 import './frontend/src/confirm-modal.css'
 import './tokens.css'
+import './kt-tokens.css'
 import './master-trade-live.css'
 import './terminal-theme.css'
 import './subscription.css'
@@ -52,6 +54,6 @@ if (adminHost) {
     ? <><PublicPolicyPage policy={publicPolicy}/><LanguageToggle/></>
     : <><CopyProtection/><BackToTop/><WebAccessGate><AuthGate><MemberAccessProvider><TestnetFirstApp/></MemberAccessProvider></AuthGate></WebAccessGate><InstallPrompt/><UpdateBanner/></>
   void initI18n().then(() => {
-    ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><AppErrorBoundary><EmailVerificationRoute>{application}</EmailVerificationRoute></AppErrorBoundary></React.StrictMode>)
+    ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><AppErrorBoundary><ConnectionBanner/><EmailVerificationRoute>{application}</EmailVerificationRoute></AppErrorBoundary></React.StrictMode>)
   })
 }

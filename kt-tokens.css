@@ -1,0 +1,18 @@
+/* KaisTrade tasarim jetonlari (kis/cam dili). Yeni ekranlar bunlari kullanir; eski sayfalar kademeli gecer. */
+:root {
+  --kt-accent: #3de0a0;
+  --kt-accent-soft: rgba(61, 224, 160, .12);
+  --kt-accent-line: rgba(61, 224, 160, .55);
+  --kt-warn: #f2c07a;
+  --kt-warn-ink: #f6e7cb;
+  --kt-danger: #ff7878;
+  --kt-ink: #eef4f8;
+  --kt-ink-dim: rgba(205, 220, 232, .6);
+  --kt-navy-0: #0b1d36;
+  --kt-navy-1: #08141f;
+  --kt-glass: rgba(14, 44, 62, .5);
+  --kt-glass-line: rgba(215, 230, 246, .52);
+  --kt-radius-pill: 999px;
+  --kt-radius-card: 26px;
+  --kt-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+}

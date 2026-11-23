@@ -1,5 +1,6 @@
 import {clearKaisChatHistory, clearLegacyChatHistory} from './frontend/src/kais-chat-storage'
 import {withRequestDeadline} from './browser-request'
+import {connectionHealth, isConnectionFailure} from './connection-health'
 
 const TOKEN_KEY = 'protrebot.web.owner-access'
 export const USER_SESSION_KEY = 'protrebot-v25-session'
@@ -154,8 +155,18 @@ export function installAuthorizedFetch(): void {
     if (userToken && apiRequestPath(input) && !headers.has('X-ProTreBot-Session')) {
       headers.set('X-ProTreBot-Session', userToken)
     }
-    return originalFetch(input, {...init, headers, ...(apiRequest ? {credentials: 'include'} : {})})
+    const pending = originalFetch(input, {...init, headers, ...(apiRequest ? {credentials: 'include'} : {})})
+    if (!apiRequest) return pending
+    return pending.then(response => {
+      if (isConnectionFailure({status: response.status})) connectionHealth.reportFailure(); else connectionHealth.reportSuccess()
+      return response
+    }, error => {
+      if (isConnectionFailure({error})) connectionHealth.reportFailure()
+      throw error
+    })
   }
+  window.addEventListener('online', () => connectionHealth.setBrowserOnline(true))
+  window.addEventListener('offline', () => connectionHealth.setBrowserOnline(false))
 }
 
 export function reportClientError(error: unknown, context: Record<string, unknown> = {}): void {
