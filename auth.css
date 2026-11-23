@@ -1428,19 +1428,19 @@ html body #root main.authLoading.authBoot {
 .authBootInner { position: relative; display: grid; justify-items: center; width: min(320px, 100%); text-align: center; }
 .authBootLogo { display: block; width: min(240px, 66vw); height: auto; margin: 0 0 22px; filter: drop-shadow(0 0 14px rgba(20,230,160,.25)); animation: authBootBreath 2.8s ease-in-out infinite; }
 .authBootBar { position: relative; width: min(220px, 60vw); height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.12); }
-.authBootBar i { position: absolute; top: 0; bottom: 0; left: 0; width: 38%; border-radius: 3px; background: linear-gradient(90deg, transparent, #3de0a0, #7ef5c8, transparent); animation: authBootSlide 1.25s cubic-bezier(.45,.05,.35,.95) infinite; }
+.authBootBar i { position: absolute; top: 0; bottom: 0; left: 0; width: 38%; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--kt-accent), #7ef5c8, transparent); animation: authBootSlide 1.25s cubic-bezier(.45,.05,.35,.95) infinite; }
 .authBootLabel { display: flex; align-items: center; gap: 7px; margin: 22px 0 14px; color: #dbe7ef; font: 600 12px/1 inherit; letter-spacing: .16em; }
-.authBootLabel svg { width: 15px; height: 15px; color: #3de0a0; }
+.authBootLabel svg { width: 15px; height: 15px; color: var(--kt-accent); }
 .authBootSteps { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; text-align: left; }
 .authBootSteps li { display: flex; align-items: center; gap: 10px; color: rgba(205,220,232,.45); font: 500 13px/1.2 inherit; transition: color .3s ease; }
 .authBootSteps li i { position: relative; flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(205,220,232,.35); transition: all .3s ease; }
 .authBootSteps li.isActive { color: #fff; }
-.authBootSteps li.isActive i { border-color: #3de0a0; border-top-color: transparent; animation: authBootSpin .8s linear infinite; }
+.authBootSteps li.isActive i { border-color: var(--kt-accent); border-top-color: transparent; animation: authBootSpin .8s linear infinite; }
 .authBootSteps li.isDone { color: rgba(205,220,232,.8); }
-.authBootSteps li.isDone i { border-color: #3de0a0; background: #3de0a0; }
+.authBootSteps li.isDone i { border-color: var(--kt-accent); background: var(--kt-accent); }
 .authBootSteps li.isDone i::after { content: ""; position: absolute; left: 4px; top: 1.5px; width: 3px; height: 6px; border: solid #062016; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
 .authBootSlow { display: grid; gap: 10px; justify-items: center; margin-top: 22px; padding: 12px 14px; border: 1px solid rgba(242,192,122,.3); border-radius: 14px; background: rgba(242,192,122,.07); color: #f1e0c4; font: 500 12.5px/1.45 inherit; animation: authBootIn .3s ease; }
-.authBootSlow button { padding: 8px 18px; border: 1px solid rgba(61,224,160,.6); border-radius: 999px; background: rgba(61,224,160,.12); color: #3de0a0; font: 600 12.5px/1 inherit; cursor: pointer; }
+.authBootSlow button { padding: 8px 18px; border: 1px solid var(--kt-accent-line); border-radius: 999px; background: var(--kt-accent-soft); color: var(--kt-accent); font: 600 12.5px/1 inherit; cursor: pointer; }
 @keyframes authBootIn { to { opacity: 1; } }
 @keyframes authBootSlide { 0% { transform: translateX(-110%); } 100% { transform: translateX(300%); } }
 @keyframes authBootSpin { to { transform: rotate(360deg); } }
@@ -1448,5 +1448,5 @@ html body #root main.authLoading.authBoot {
 @media (prefers-reduced-motion: reduce) {
   .authBootLogo, .authBootBar i, .authBootSteps li.isActive i { animation: none; }
   .authBootBar i { width: 100%; opacity: .6; }
-  .authBootSteps li.isActive i { border-top-color: #3de0a0; }
+  .authBootSteps li.isActive i { border-top-color: var(--kt-accent); }
 }

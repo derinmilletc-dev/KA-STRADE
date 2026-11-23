@@ -18,6 +18,12 @@ function resumeAll(): void {
   })
 }
 
+// Bağlantı geri gelince (ya da kullanıcı "şimdi dene" deyince) kayıtlı tüm sorguları hemen yeniler.
+export function refreshAllNow(): void {
+  entries.forEach(entry => { entry.last = 0 })
+  resumeAll()
+}
+
 export function visibleInterval(run: () => unknown, ms: number): number {
   if (!bound && typeof document !== 'undefined') {
     bound = true
