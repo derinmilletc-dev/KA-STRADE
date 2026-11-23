@@ -39,6 +39,8 @@ import {tradeAdvice} from './coinbase-advice'
 import {autoFix} from './coinbase-autofix'
 import {recommendSizes, type SizeOption} from './coinbase-autosize'
 import CoinbaseSmartSetup from './CoinbaseSmartSetup'
+import CoinbaseAlerts from './CoinbaseAlerts'
+import {type CbAlert} from './coinbase-alert'
 import {makeRepeat, parseRepeat, repeatLevels, type RepeatRecord} from './coinbase-repeat'
 import {TradeAdviceCard} from './CoinbaseAdvice'
 import CoinbaseManualNotice, {noticeFromError, type Notice} from './CoinbaseManualNotice'
@@ -100,6 +102,9 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   const [ticket, setTicket] = useState<Ticket>(emptyTicket())
   const [lastTrade, setLastTrade] = useState<RepeatRecord | null>(() => { try { return parseRepeat(JSON.parse(window.localStorage.getItem('kt-cb-last') || 'null')) } catch { return null } })
   const [repeating, setRepeating] = useState<RepeatRecord | null>(null)
+  const [priceAlerts, setPriceAlerts] = useState<CbAlert[]>([])
+  const loadAlerts = useCallback(() => { coinbaseCall<{alerts: CbAlert[]}>('/alerts').then(data => setPriceAlerts(Array.isArray(data.alerts) ? data.alerts : [])).catch(() => undefined) }, [])
+  useEffect(() => { loadAlerts(); const timer = window.setInterval(loadAlerts, 30000); return () => window.clearInterval(timer) }, [loadAlerts])
   const [check, setCheck] = useState<Preflight | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -905,6 +910,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
           <div className="mxsaTile" data-side="SHORT" data-lead={anaSig.lean === 'SHORT' || undefined}><span>SHORT</span><strong>{anaSig.short === null ? '–' : `%${anaSig.short}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.short ?? 0}%`}}/></span></div>
           <div className="mxsaTile" data-side="LONG" data-lead={anaSig.lean === 'LONG' || undefined}><span>LONG</span><strong>{anaSig.long === null ? '–' : `%${anaSig.long}`}</strong><span className="mxsaMeter"><i style={{width: `${anaSig.long ?? 0}%`}}/></span></div>
         </div>
+        <CoinbaseAlerts productId={anaRow.symbol} display={anaRow.display} price={Number.isFinite(anaRow.price) ? anaRow.price : null} alerts={priceAlerts} onChanged={loadAlerts}/>
         <p className="mxsaNote">{AI_DISCLAIMER} Analiz, ürünün dayanak coininin (Binance verisi) durumunu gösterir.</p>
       </div>
       <footer className="mxsaFoot">
@@ -933,7 +939,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
     {productsError && <p className="mxtMEmpty">Liste alınamadı: {productsError} Ürün kodunu yazıp Enter'a bas.</p>}
     {products !== null && matches.length === 0 && <p className="mxtMEmpty">Bu aramada ya da filtrede ürün yok.</p>}
     {mobileList.length > 0 && <ul className="mxtMList" key={`${coinFilter}-${coinSort}-${coinQuery}`} role="listbox" aria-label="Ürün listesi">{mobileList.map(row => <li key={row.symbol} className="mxsaLi" role="none"><button type="button" role="option" aria-selected={isSelectedCoin(row)} data-on={isSelectedCoin(row) || undefined} onClick={() => chooseCoin(isSelectedCoin(row) ? selectedId : row.symbol)}>
-      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.root || row.display}{(grouped.variants[row.root || row.symbol]?.length ?? 0) > 1 ? <em className="cbVadeN"> · {grouped.variants[row.root || row.symbol].length} vade</em> : expiryText(row.expiry) ? ` · ${variantLabel(row)}` : ''}</b><small>{priceText(row.price)}{(() => { const note = minMarginNote(row.minMargin, Number.isFinite(marginAvail) ? marginAvail : null); return note ? <> · <i data-short={note.short || undefined} className="cbMinMargin">{note.short ? 'bakiyen yetmez · ' : ''}{note.text}</i></> : null })()}</small></span>
+      {coinMark(row, row.symbol)}<span className="mxtMRowN"><b>{row.root || row.display}{priceAlerts.some(item => item.product_id.split('-')[0] === (row.root || row.symbol.split('-')[0])) && <span className="mxtBell" title="Alarm kurulu" aria-label="Alarm kurulu">🔔 </span>}{(grouped.variants[row.root || row.symbol]?.length ?? 0) > 1 ? <em className="cbVadeN"> · {grouped.variants[row.root || row.symbol].length} vade</em> : expiryText(row.expiry) ? ` · ${variantLabel(row)}` : ''}</b><small>{priceText(row.price)}{(() => { const note = minMarginNote(row.minMargin, Number.isFinite(marginAvail) ? marginAvail : null); return note ? <> · <i data-short={note.short || undefined} className="cbMinMargin">{note.short ? 'bakiyen yetmez · ' : ''}{note.text}</i></> : null })()}</small></span>
       <span className="mxtMRowR">{Number.isFinite(row.change) && <em data-tone={row.change >= 0 ? 'up' : 'down'}>{changeText(row.change)}</em>}{leanBadge(signals?.[row.symbol])}</span>
       {isSelectedCoin(row) && <i className="mxtMTick" aria-hidden="true">✓</i>}
     </button>{signals?.[row.symbol] && <button type="button" className="mxsaBtn" aria-label={`${row.display} analizini aç`} onClick={() => setAnaSym(row.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>)}</ul>}

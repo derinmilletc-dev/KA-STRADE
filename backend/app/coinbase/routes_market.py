@@ -9,8 +9,9 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Path, Query, Request
+from pydantic import BaseModel, Field
 
-from . import activity, journal, market, service, stats
+from . import activity, journal, market, price_alerts, service, stats
 from .errors import CoinbaseError
 from .routes import _error, _member, _pool, _stored_client
 
@@ -166,3 +167,47 @@ async def coinbase_net_balance(request: Request) -> Any:
     trades, _unknown = stats.build_trades(feed)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return {"available": True, **stats.net_balance(wallet, gross or Decimal(0), trades, today)}
+
+
+class AlertPayload(BaseModel):
+    product_id: str = Field(pattern=PRODUCT_PATTERN)
+    level: str = Field(min_length=1, max_length=30)
+
+
+@router.get("/alerts")
+async def coinbase_alerts(request: Request) -> Any:
+    """Aktif fiyat alarmları. Salt okunur."""
+    user = _member(request)
+    return {"alerts": await price_alerts.list_alerts(_pool(request), user["id"]), "max": price_alerts.MAX_PER_USER}
+
+
+@router.post("/alerts")
+async def coinbase_alert_add(payload: AlertPayload, request: Request) -> Any:
+    """Fiyat alarmı kur. Yön, şimdiki fiyata göre sunucuda belirlenir. Emir göndermez."""
+    user = _member(request)
+    pool = _pool(request)
+    level = price_alerts.parse_level(payload.level)
+    if level is None:
+        return _error(CoinbaseError("BAD_REQUEST", "Alarm seviyesi sıfırdan büyük bir fiyat olmalı.", http_status=422))
+    try:
+        if await price_alerts.count_active(pool, user["id"]) >= price_alerts.MAX_PER_USER:
+            return _error(CoinbaseError("ALERT_LIMIT", f"En fazla {price_alerts.MAX_PER_USER} aktif alarm olabilir. Birini sil.", http_status=409))
+        client = await _reader(request, user)
+        quote = (await market.fetch_quotes(client, [payload.product_id])).get(payload.product_id) or {}
+        price = price_alerts.parse_level(quote.get("mid"))
+        if price is None:
+            return _error(CoinbaseError("NO_PRICE", "Bu ürünün şu an fiyatı yok; alarm kurulamadı.", http_status=409))
+        direction = price_alerts.direction_for(level, price)
+        if direction is None:
+            return _error(CoinbaseError("BAD_REQUEST", "Fiyat zaten bu seviyede. Farklı bir seviye seç.", http_status=422))
+        alert = await price_alerts.add_alert(pool, user["id"], payload.product_id, level, direction, price)
+    except CoinbaseError as exc:
+        return _error(exc)
+    return {"alert": alert}
+
+
+@router.delete("/alerts/{alert_id}")
+async def coinbase_alert_delete(request: Request, alert_id: int = Path(ge=1)) -> Any:
+    user = _member(request)
+    await price_alerts.delete_alert(_pool(request), user["id"], alert_id)
+    return {"ok": True}
