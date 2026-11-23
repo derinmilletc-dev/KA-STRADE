@@ -84,7 +84,9 @@ def run_preflight(
     if not all(isinstance(v, Decimal) and v > 0 for v in (contract_size, base_increment, price_increment)):
         reasons.append("Ürün bilgisi eksik (sözleşme boyutu veya adımlar yok); güvenlik için emir verilmez.")
     if product.get("trading_disabled") is True or product.get("status") not in (None, "online"):
-        reasons.append("Bu ürün şu an işlem görmüyor.")
+        status_text = product.get("status") or "bilinmiyor"
+        flag = ", işlem kapalı bayrağı açık" if product.get("trading_disabled") is True else ""
+        reasons.append(f"Bu ürün şu an işlem görmüyor (Coinbase durumu: {status_text}{flag}). Birkaç dakika sonra tekrar dene ya da başka ürün seç.")
     if reasons and (not isinstance(contract_size, Decimal) or not isinstance(price_increment, Decimal) or not isinstance(base_increment, Decimal)):
         return _result(False, reasons, None)
 
@@ -215,8 +217,12 @@ def run_preflight(
                 f"(1 sözleşme ≈ {fmt(loss_per_contract.quantize(Decimal('0.01')))} USD en kötü kayıp). Stop'u yaklaştır veya daha küçük sözleşmeli ürün seç."
             )
         else:
+            at_max = (notional_per_contract / limits.leverage_max).quantize(Decimal("0.01"), rounding=ROUND_UP)
+            at_auto = (notional_per_contract / AUTO_LEVERAGE).quantize(Decimal("0.01"), rounding=ROUND_UP)
             reasons.append(
-                f"Bu teminatla ({fmt(margin_usd)} USD) 1 sözleşme {fmt(limits.leverage_max)}x kaldıracı aşar. Teminatı artır."
+                f"Bu teminatla ({fmt(margin_usd)} USD) 1 sözleşme {fmt(limits.leverage_max)}x kaldıracı aşar. "
+                f"1 sözleşme ≈ {fmt(notional_per_contract.quantize(Decimal('0.01')))} USD büyüklüğünde: en az {fmt(at_max)} USD teminat "
+                f"({fmt(limits.leverage_max)}x) gerekir; {fmt(AUTO_LEVERAGE)}x kaldıraçla {fmt(at_auto)} USD. Teminatı artır ya da daha küçük sözleşmeli ürün seç."
             )
         return _result(False, reasons, None)
 

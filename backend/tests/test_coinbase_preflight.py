@@ -85,6 +85,22 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("sığmıyor", " ".join(r["reasons"]))
 
+    def test_untradable_product_message_names_status(self):
+        r = go(product={**PRODUCT, "status": "offline"})
+        self.assertFalse(r["ok"])
+        self.assertIn("offline", " ".join(r["reasons"]))
+
+    def test_margin_too_small_message_gives_minimum_margin(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"COINBASE_LEVERAGE_MAX": "100", "COINBASE_MAX_LOSS_USD": "1000000"}):
+            from app.coinbase.limits import current_limits as cur
+            r = go({"margin_usd": "1", "stop_price": "2940"}, limits=cur())
+        text = " ".join(r["reasons"])
+        self.assertFalse(r["ok"])
+        self.assertIn("en az", text)
+        self.assertIn("USD teminat", text)
+
     def test_leverage_below_min_and_above_max(self):
         self.assertFalse(go({"margin_usd": "500"})["ok"])   # kaldıraç çok düşük
         self.assertFalse(go({"margin_usd": "10", "contracts": 6})["ok"])  # çok yüksek
