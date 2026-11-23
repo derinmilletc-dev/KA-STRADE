@@ -233,6 +233,6 @@ async def get_product(client: CoinbaseTradingClient, product_id: str) -> dict[st
         "base_increment": to_decimal(payload.get("base_increment"), "miktar adımı"),
         "price_increment": to_decimal(payload.get("quote_increment") or payload.get("price_increment"), "fiyat adımı"),
         "base_min_size": to_decimal(payload.get("base_min_size"), "en küçük miktar"),
-        "status": status.lower() if isinstance(status, str) else None,
+        "status": (status.strip().lower() or None) if isinstance(status, str) else None,  # Coinbase CDE ürünlerinde boş string gelebilir
         "trading_disabled": payload.get("trading_disabled") is True,
     }

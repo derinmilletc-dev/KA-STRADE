@@ -90,12 +90,29 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("offline", " ".join(r["reasons"]))
 
+    def test_empty_status_string_counts_as_online(self):
+        r = go(product={**PRODUCT, "status": ""})
+        self.assertNotIn("işlem görmüyor", " ".join(r["reasons"]))
+
+    def test_auto_size_raises_leverage_just_enough_for_one_contract(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"COINBASE_LEVERAGE_MAX": "100", "COINBASE_MAX_LOSS_USD": "1000000", "COINBASE_LEVERAGE_MIN": "1"}):
+            from app.coinbase.limits import current_limits as cur
+            # 1 sözleşme ≈ 3000*contract_size; teminatı 5x'te yetmeyecek, 100x'te yetecek şekilde seç
+            size = PRODUCT["contract_size"] * D("3000")
+            margin = (size / D("20")).quantize(D("0.01"))   # ≈20x gerekir
+            r = go({"margin_usd": str(margin), "stop_price": "2940"}, limits=cur())
+        self.assertTrue(r["ok"], r["reasons"])
+        self.assertEqual(r["plan"]["contracts"], 1)
+        self.assertGreater(D(r["plan"]["leverage"]), D("5"))
+
     def test_margin_too_small_message_gives_minimum_margin(self):
         import os
         from unittest.mock import patch
         with patch.dict(os.environ, {"COINBASE_LEVERAGE_MAX": "100", "COINBASE_MAX_LOSS_USD": "1000000"}):
             from app.coinbase.limits import current_limits as cur
-            r = go({"margin_usd": "1", "stop_price": "2940"}, limits=cur())
+            r = go({"margin_usd": "0.01", "stop_price": "2940"}, limits=cur())
         text = " ".join(r["reasons"])
         self.assertFalse(r["ok"])
         self.assertIn("en az", text)
