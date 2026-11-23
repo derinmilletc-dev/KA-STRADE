@@ -18,6 +18,7 @@ function browser(mode = 'production') {
   const source = readFileSync(new URL('../api.ts', import.meta.url), 'utf8')
     .replace(/^import .*kais-chat-storage'.*$/m, '')
     .replace(/^import .*browser-request'.*$/m, '')
+    .replace(/^import .*connection-health'.*$/m, '')
     .replaceAll('import.meta.env', `(${JSON.stringify({PROD: mode === 'production', DEV: false, MODE: mode})})`)
   const calls = []
   const exports = {}
@@ -26,6 +27,7 @@ function browser(mode = 'production') {
   const window = {
     location: {href: 'https://app.example/'},
     dispatchEvent() {},
+    addEventListener() {},
     fetch: async (input, init) => {
       calls.push({input, init})
       return {ok: true, json: async () => ({authorized: true})}
@@ -36,6 +38,8 @@ function browser(mode = 'production') {
   runInNewContext(code, {
     exports, window, localStorage, sessionStorage, URL, Request, Headers, Event, atob, console,
     withRequestDeadline,
+    connectionHealth: {reportSuccess() {}, reportFailure() {}, setBrowserOnline() {}},
+    isConnectionFailure: () => false,
     clearKaisChatHistory() {}, clearLegacyChatHistory() {},
   })
   return {api: exports, calls, window, localStorage, sessionStorage}
