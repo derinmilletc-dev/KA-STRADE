@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
 import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone} from './coinbase-manual'
 import {closeParts, closePreview, positionView} from './coinbase-position'
@@ -6,7 +6,8 @@ import {profitHint} from './coinbase-advice'
 import {ProfitHintBanner} from './CoinbaseAdvice'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import {sameConfirm} from './confirm-text'
-import {CoinbaseApiError, postJson} from './coinbase-manual-api'
+import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
+import {TARGET_CHIPS, parseTarget, targetProgress} from './coinbase-profit-target'
 
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
 export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null; take_profit_price?: string | null}
@@ -21,12 +22,14 @@ const px = (value: number | null) => value === null ? '—' : value.toLocaleStri
 const plain = (value: number) => String(Number(value.toPrecision(8)))
 const hoursLeft = (ms: number) => ms <= 0 ? 'vadesi doldu' : ms < 86_400_000 ? `${Math.max(1, Math.round(ms / 3_600_000))} saat sonra kapanıyor` : `${Math.floor(ms / 86_400_000)} gün sonra kapanıyor`
 
-function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError}: {position: CbPosition; item?: CbProtectionItem; fee?: number | null; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']}) {
+function PositionRow({position, item, fee = null, target = null, ordersEnabled, onDone, onError, onTarget}: {position: CbPosition; item?: CbProtectionItem; fee?: number | null; target?: number | null; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']; onTarget: () => void}) {
   const [act, setAct] = useState<Act | null>(null)
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
   const [more, setMore] = useState(false)
   const [part, setPart] = useState(0)
+  const [goal, setGoal] = useState(false)
+  const [goalText, setGoalText] = useState('')
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
   // Hedefe yarıdan fazla ilerlediyse kârı korumayı öner (kapatma/taşıma yine ayrı onay ister).
@@ -59,6 +62,19 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
       if (error instanceof CoinbaseApiError) onError(error); else throw error
     } finally { setBusy(false) }
   }
+
+  // Kâr hedefi: tek dokunuşla kaydedilir (emir göndermez; sunucu izler, hedefe gelince kapatır + bildirir).
+  const saveGoal = async (usd: number | null) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const result = await postJson<{message: string}>('/orders/profit-target', {product_id: position.product_id, target_usd: usd === null ? null : String(usd), confirm: CONFIRM.change, request_id: newRequestId()})
+      setGoal(false); setGoalText(''); onTarget(); onDone(result.message)
+    } catch (error) {
+      if (error instanceof CoinbaseApiError) onError(error); else throw error
+    } finally { setBusy(false) }
+  }
+  const progress = targetProgress(pnl, target)
 
   const send = async () => {
     if (!act) return
@@ -122,6 +138,19 @@ function PositionRow({position, item, fee = null, ordersEnabled, onDone, onError
       <button type="button" data-kind="danger" disabled={busy} onClick={() => void quickClose()}>{busy && act === null ? 'Kapatılıyor…' : 'Kapat'}</button>
       <button type="button" data-kind="more" aria-expanded={more} onClick={() => setMore(value => !value)}>{more ? 'Daha az' : 'Diğer'}</button>
     </div>}
+    {ordersEnabled && <div className="cbGoal" data-set={target !== null || undefined}>
+      {target !== null
+        ? <><div className="cbGoalHead"><span>🎯 <b>+{target.toLocaleString('tr-TR')} USD</b> kâra gelince otomatik kapanır</span>
+            <button type="button" disabled={busy} onClick={() => void saveGoal(null)}>Kaldır</button></div>
+          {progress && <div className="cbGoalBar" role="progressbar" aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100}><i style={{width: `${progress.pct}%`}}/></div>}
+          {progress && <small>%{progress.pct} · {progress.left > 0 ? `${progress.left.toLocaleString('tr-TR')} USD kaldı` : 'hedefe ulaştı, kapanıyor…'}</small>}</>
+        : !goal ? <button type="button" className="cbGoalOpen" onClick={() => setGoal(true)}>🎯 Kâr hedefi koy</button>
+        : <><div className="cbGoalHead"><span>Kaç USD net kâr olunca kapansın?</span><button type="button" onClick={() => setGoal(false)}>Vazgeç</button></div>
+          <div className="cbGoalChips">{TARGET_CHIPS.map(v => <button type="button" key={v} disabled={busy} onClick={() => void saveGoal(v)}>+{v}</button>)}</div>
+          <div className="cbGoalCustom"><input value={goalText} onChange={e => setGoalText(e.target.value)} inputMode="decimal" autoComplete="off" placeholder="Başka tutar (USD)"/>
+            <button type="button" disabled={busy || parseTarget(goalText) === null} onClick={() => void saveGoal(parseTarget(goalText))}>Kur</button></div>
+          <small>Komisyon dahil net kâra bakılır. Hedefe gelince pozisyon kapanır ve bildirim gelir (~45 sn içinde).</small></>}
+    </div>}
     {ordersEnabled && !view.canBreakeven && item?.state !== 'UNPROTECTED' && !act && <p className="cbPos2Why">{view.breakevenWhy}</p>}
     {ordersEnabled && more && <div className="cbPos2More">
       <button type="button" onClick={() => open('stop')}>Stopu elle taşı</button>
@@ -163,6 +192,13 @@ export default function CoinbaseManualPositions({positions, fees = {}, protectio
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const orphans = protection?.orphan_stops ?? []
+  const [targets, setTargets] = useState<Record<string, {target_usd?: string}>>({})
+  const loadTargets = useCallback(() => {
+    if (!ordersEnabled) return
+    coinbaseCall<{targets: Record<string, {target_usd?: string}>}>('/orders/profit-targets').then(data => setTargets(data.targets ?? {})).catch(() => undefined)
+  }, [ordersEnabled])
+  const count = positions.length
+  useEffect(() => { loadTargets() }, [loadTargets, count])
 
   const cleanup = async () => {
     setBusy(true)
@@ -181,7 +217,7 @@ export default function CoinbaseManualPositions({positions, fees = {}, protectio
     </div>}
     {protection && positions.length > 0 && !protection.all_protected && <p className="cbNote warn" role="alert">Korumasız pozisyon var; aşağıdan düzelt.</p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
-    <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} fee={num(fees[position.product_id])} ordersEnabled={ordersEnabled}
+    <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} fee={num(fees[position.product_id])} target={Number(targets[position.product_id]?.target_usd) > 0 ? Number(targets[position.product_id]?.target_usd) : null} onTarget={loadTargets} ordersEnabled={ordersEnabled}
       item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError}/>)}</ul>
     {orphans.length > 0 && <div className="cbNote warn" role="alert">
       <b>Sahipsiz stop emri var ({orphans.length}).</b> Pozisyon yokken kalan stop, ters yönde pozisyon açabilir.

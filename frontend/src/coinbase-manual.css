@@ -678,3 +678,16 @@ html body #root .cbTerminal .mxtSentence:not(#a){margin:0 0 10px!important;font-
 html body #root .cbTerminal .mxtSentence b[data-tone="down"]:not(#a){color:#ff8a80!important}
 html body #root .cbTerminal .mxtSentence b[data-tone="up"]:not(#a){color:#46d6a0!important}
 html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;padding:8px 12px!important;border-radius:12px!important;background:rgba(70,214,160,.1)!important;font-size:.85rem!important}
+
+/* Kâr hedefi (pozisyon kartı) */
+.cbGoal{display:grid!important;gap:6px!important;margin-top:8px!important;padding:8px 10px!important;border-radius:12px!important;background:rgba(255,255,255,.04)!important;font-size:13px!important}
+.cbGoal[data-set]{background:rgba(52,211,153,.10)!important}
+.cbGoalHead{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:8px!important}
+.cbGoal button{border:0!important;border-radius:10px!important;padding:6px 10px!important;background:rgba(255,255,255,.08)!important;color:inherit!important;font:inherit!important}
+.cbGoalOpen{width:100%!important;text-align:left!important}
+.cbGoalChips{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:6px!important}
+.cbGoalCustom{display:grid!important;grid-template-columns:1fr auto!important;gap:6px!important}
+.cbGoalCustom input{min-width:0!important;border-radius:10px!important;padding:6px 10px!important}
+.cbGoalBar{height:6px!important;border-radius:6px!important;background:rgba(255,255,255,.1)!important;overflow:hidden!important}
+.cbGoalBar i{display:block!important;height:100%!important;background:#34d399!important}
+.cbGoal small{opacity:.7!important}

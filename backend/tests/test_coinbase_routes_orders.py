@@ -96,6 +96,7 @@ class AccessTests(OrderRouteCase):
             ("POST", f"{URL}/stop"), ("POST", f"{URL}/cleanup-orphans"), ("GET", f"{URL}/protection"), ("GET", f"{URL}/open"),
             ("POST", f"{URL}/cancel-entry"), ("POST", f"{URL}/reconcile"), ("GET", f"{URL}/pending"),
             ("GET", f"{URL}/limits"), ("PUT", f"{URL}/limits"), ("POST", f"{URL}/suggest"),
+            ("GET", f"{URL}/profit-targets"), ("POST", f"{URL}/profit-target"),
         })
 
     def test_wrong_confirmation_is_422_and_sends_nothing(self):
