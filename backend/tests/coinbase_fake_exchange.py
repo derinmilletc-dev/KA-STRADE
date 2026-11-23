@@ -42,6 +42,8 @@ class FakePool:
                 if event["product_id"] == args[1] and event["outcome"] == "rest_sent":
                     return {"detail": event["detail"]}
             return None
+        if "kaistrade_coinbase_flow_lock" not in sql:
+            return None   # limit/ayar okumaları kilit gibi davranmasın (kilitsiz ön kontrol bunları da okur)
         if self.lock is None:
             self.lock = args[1]
             return {"token": args[1]}

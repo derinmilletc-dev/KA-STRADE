@@ -87,9 +87,9 @@ test('liste notu bakiyeye yetmeyeni işaretler', () => {
 
 test('kapasite: bakiyenle en fazla sözleşme, teminat ve kaldıraç', () => {
   // 1 sözleşme 300 USD değerinde, oran %34 → teminat 102; bakiye 98.94 → yetmez
-  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 98.94}), {contracts: 0, margin: 0, notional: 0, maxLeverage: 2.9, perContractMargin: 102, byLoss: false})
+  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 98.94}), {contracts: 0, margin: 0, notional: 0, maxLeverage: 2.9, perContractMargin: 102, byLoss: false, writeMargin: 0.01})
   // bakiye 250 → 2 sözleşme, teminat 204, pozisyon 600; kendi limitin 2x ise kaldıraç 2
-  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 250, leverageLimit: 2}), {contracts: 2, margin: 204, notional: 600, maxLeverage: 2, perContractMargin: 102, byLoss: false})
+  assert.deepEqual(capacityOf({minMargin: 102, marginRate: 0.34, spendable: 250, leverageLimit: 2}), {contracts: 2, margin: 204, notional: 600, maxLeverage: 2, perContractMargin: 102, byLoss: false, writeMargin: 204})
   assert.equal(capacityOf({minMargin: null, marginRate: 0.34, spendable: 250}), null)
   assert.equal(capacityOf({minMargin: 102, marginRate: 0.34, spendable: null}), null)
 })
@@ -99,4 +99,12 @@ test('kapasite: kayıp limiti sözleşme sayısını sınırlar', () => {
   assert.equal(cap?.contracts, 1)
   assert.equal(cap?.margin, 20)
   assert.equal(cap?.byLoss, true)
+})
+
+test('kapasite: borsa marjini pozisyondan büyükse yazılacak teminat kaldıracı 1x altına düşürmez', () => {
+  const cap = capacityOf({minMargin: 84.99, marginRate: 1.2, spendable: 97.79})!
+  assert.equal(cap.contracts, 1)
+  assert.equal(cap.margin, 84.99)
+  assert.equal(cap.writeMargin, 69.4)
+  assert.ok(cap.notional / cap.writeMargin >= 1)
 })
