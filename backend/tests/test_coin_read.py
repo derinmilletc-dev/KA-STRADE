@@ -144,6 +144,19 @@ class FuturesTests(unittest.TestCase):
         self.assertIn("satımları baskın", joined)
 
 
+class CrowdTests(unittest.TestCase):
+    def test_crowd_ratio_warns_but_does_not_move_bias(self):
+        base = cr.read_futures(0.0001, None, None, None)
+        long_c = cr.read_futures(0.0001, None, None, None, 2.4)
+        short_c = cr.read_futures(0.0001, None, None, None, 0.5)
+        calm = cr.read_futures(0.0001, None, None, None, 1.1)
+        self.assertTrue(any("çoğu long" in n["text"] for n in long_c["notes"]))
+        self.assertTrue(any("çoğu short" in n["text"] for n in short_c["notes"]))
+        self.assertFalse(any("çoğu" in n["text"] for n in calm["notes"]))
+        self.assertEqual((base["bias"], long_c["bias"], short_c["bias"]), (base["bias"],) * 3)
+        self.assertIsNotNone(cr.read_futures(None, None, None, None, 2.4))   # yalnız oran varsa da okuma döner
+
+
 class HistoryTests(unittest.TestCase):
     def test_backtest_counts_and_text(self):
         # Tekrarlayan: 30 mum yatay, sonra kırılım ve devam. 600 mumda çok sayıda olay.
@@ -275,6 +288,44 @@ class RegimeVolatilityTests(unittest.TestCase):
         a = cr.summarize({"1h": trend}, {"resistance": [], "support": []}, None, trend["price"])
         b = cr.summarize({"1h": {**trend, "regime": "range", "vol_state": None}}, {"resistance": [], "support": []}, None, trend["price"])
         self.assertEqual((a["bias"], a["lean"], a["confidence"]), (b["bias"], b["lean"], b["confidence"]))
+
+
+class VolumeVwapTests(unittest.TestCase):
+    def test_vwap_and_relative_volume(self):
+        rows = series([100 + i * 0.3 for i in range(60)])
+        vwap, dist, rel = cr.volume_read(rows)
+        self.assertGreater(dist, 0)           # yükselen seride fiyat VWAP üstünde
+        self.assertLess(vwap, rows[-1]["close"])
+        self.assertEqual(rel, 1.0)
+        spiked = rows[:-3] + [candle(57 + i, rows[57 + i]["close"], 0.2, 300.0) for i in range(3)]
+        self.assertEqual(cr.volume_read(spiked)[2], 3.0)
+
+    def test_no_volume_data_is_none(self):
+        self.assertEqual(cr.volume_read(series(flat(60), volume=0.0)), (None, None, None))
+        self.assertEqual(cr.volume_read(series(flat(10))), (None, None, None))
+        read = cr.read_timeframe(series(flat(60), volume=0.0), "1h")
+        self.assertIsNone(read["vwap"])
+
+    def test_vwap_notes_and_bias_unchanged(self):
+        empty = {"resistance": [], "support": []}
+        base = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
+        under = {**base, "vwap_dist_pct": -1.0}
+        up_reads = {"1h": under, "4h": {**under, "tf": "4h", "label": "4 saatlik"}}
+        plain = {"1h": {**base, "vwap_dist_pct": None}, "4h": {**base, "tf": "4h", "label": "4 saatlik", "vwap_dist_pct": None}}
+        a = cr.summarize(up_reads, empty, None, base["price"])
+        b = cr.summarize(plain, empty, None, base["price"])
+        self.assertEqual(a["lean"], "LONG")
+        self.assertTrue(any("VWAP" in f["text"] for f in a["flags"]))
+        self.assertFalse(any("VWAP" in f["text"] for f in b["flags"]))
+        self.assertEqual((a["bias"], a["lean"], a["confidence"]), (b["bias"], b["lean"], b["confidence"]))
+
+    def test_weak_volume_breakout_note(self):
+        empty = {"resistance": [], "support": []}
+        base = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
+        weak = {**base, "event": "breakout_up", "volume_spike": False, "rel_volume": 0.5}
+        strong = {**base, "event": "breakout_up", "volume_spike": True, "rel_volume": 2.0}
+        self.assertTrue(any("hacimle desteklenmiyor" in f["text"] for f in cr.summarize({"1h": weak}, empty, None, 100.0)["flags"]))
+        self.assertFalse(any("hacimle desteklenmiyor" in f["text"] for f in cr.summarize({"1h": strong}, empty, None, 100.0)["flags"]))
 
 
 class FormatTests(unittest.TestCase):

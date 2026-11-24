@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {API_BASE} from './api'
 import {fetchWithTimeout} from '../../master-trade-request'
 import type {Insights} from './coinbase-stats'
-import type {AlarmMode, AlarmTf, CoinRead, PulseData, ReadAlarm, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
+import type {AlarmMode, AlarmTf, CoinRead, PulseData, ReadAlarm, ReadEvents, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
 
 // Akıllı yorum ve pozisyon yorum alarmı için istemci. Hatalar okunur Türkçe metinle fırlatılır; hiçbiri emir göndermez.
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
@@ -168,4 +168,22 @@ export function usePositionPulse(items: Array<{symbol: string; side: 'LONG' | 'S
     return () => window.clearInterval(timer)
   }, [key])
   return {data: key ? data : null, failed: Boolean(key) && failed && !data}
+}
+
+/** Makro takvim/fonlama uyarıları (coinden bağımsız, yalnız bilgi). Sekmeler arası 60 sn paylaşılır; alınamazsa null ve sessiz kalır. */
+let eventsShared: {at: number; value: Promise<ReadEvents | null>} | null = null
+function sharedEvents() {
+  const now = Date.now()
+  if (!eventsShared || now - eventsShared.at > 60_000) eventsShared = {at: now, value: request<ReadEvents>('/coin-read-events', {}, 10000).catch(() => null)}
+  return eventsShared.value
+}
+export function useMacroEvents(enabled = true) {
+  const [data, setData] = useState<ReadEvents | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    void sharedEvents().then(value => { if (alive) setData(value) })
+    return () => { alive = false }
+  }, [enabled])
+  return data
 }

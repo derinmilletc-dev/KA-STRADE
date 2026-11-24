@@ -177,6 +177,19 @@ def volatility(rows: list[dict[str, float]]) -> tuple[int | None, str | None]:
     return rank, "expanding" if rank >= 80 else "quiet" if rank <= 20 else "normal"
 
 
+def volume_read(rows: list[dict[str, float]]) -> tuple[float | None, float | None, float | None]:
+    """(VWAP, fiyatın VWAP'a uzaklığı %, göreli hacim). Hacim verisi yoksa hepsi None. Yalnız bağlam: skora girmez."""
+    window = rows[-60:]
+    total = sum(r["volume"] for r in window)
+    if len(window) < 20 or total <= 0:
+        return None, None, None
+    vwap = sum((r["high"] + r["low"] + r["close"]) / 3 * r["volume"] for r in window) / total
+    ref = [r["volume"] for r in rows[-23:-3]]
+    base = fmean(ref) if ref else 0.0
+    rel = fmean(r["volume"] for r in rows[-3:]) / base if base > 0 else None
+    return vwap, round(pct(window[-1]["close"], vwap), 3), None if rel is None else round(rel, 2)
+
+
 def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
     rows = clean(raw)
     if len(rows) < MIN_CANDLES:
@@ -218,6 +231,7 @@ def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
         squeeze = len(recent_w) >= 40 and recent_w[-1] <= sorted(recent_w)[max(0, int(len(recent_w) * 0.2) - 1)]
     patterns = candle_patterns(rows)
     vol_pct, vol_state = volatility(rows)
+    vwap, vwap_dist, rel_volume = volume_read(rows)
 
     score = 0.0
     score += {"up": 1.0, "down": -1.0, "flat": 0.0}[trend]
@@ -236,6 +250,7 @@ def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
         "pullback": pullback, "rsi": round(rsi_now, 1), "rsi_state": "overbought" if rsi_now >= 70 else "oversold" if rsi_now <= 30 else "normal",
         "divergence": div, "ema": ema_state, "squeeze": squeeze, "patterns": patterns, "place": round(place, 3),
         "regime": "trend" if trending else "range", "vol_pct": vol_pct, "vol_state": vol_state,
+        "vwap": vwap, "vwap_dist_pct": vwap_dist, "rel_volume": rel_volume,
         "score": round(score, 2), "tone": tone, "head": head, "text": text,
         "price": last["close"], "ref_high": event["ref_high"] if event else None, "ref_low": event["ref_low"] if event else None,
     }
@@ -303,9 +318,9 @@ def key_levels(by_tf: dict[str, list[dict[str, float]]], price: float) -> dict[s
 
 
 # ---------------------------------------------------------------- futures verisi
-def read_futures(funding: float | None, oi_change_pct: float | None, price_change_pct: float | None, taker_ratio: float | None) -> dict[str, Any] | None:
+def read_futures(funding: float | None, oi_change_pct: float | None, price_change_pct: float | None, taker_ratio: float | None, crowd_ratio: float | None = None) -> dict[str, Any] | None:
     """Fonlama oranı (kesir, 8 saatlik), açık pozisyon değişimi (%), aynı sürede fiyat değişimi (%), alıcı/satıcı hacim oranı."""
-    if funding is None and oi_change_pct is None and taker_ratio is None:
+    if funding is None and oi_change_pct is None and taker_ratio is None and crowd_ratio is None:
         return None
     notes: list[dict[str, str]] = []
     bias = 0.0
@@ -334,7 +349,14 @@ def read_futures(funding: float | None, oi_change_pct: float | None, price_chang
             notes.append({"tone": "up", "text": f"Piyasa alımları baskın (alıcı/satıcı {tr_num(taker_ratio)})."}); bias += 0.3
         elif taker_ratio <= 0.87:
             notes.append({"tone": "down", "text": f"Piyasa satımları baskın (alıcı/satıcı {tr_num(taker_ratio)})."}); bias -= 0.3
+    # Kalabalık (hesap bazlı long/short): yalnız uyarı notu, bias'a girmez (etkisi kalibrasyonla ölçülmeden puana eklenmez).
+    if crowd_ratio is not None:
+        if crowd_ratio >= 2.0:
+            notes.append({"tone": "warn", "text": f"Hesapların çoğu long ({tr_num(crowd_ratio)} kat): kalabalık tarafta ani tasfiye düşüşü riski var."})
+        elif crowd_ratio <= 0.6:
+            notes.append({"tone": "warn", "text": f"Hesapların çoğu short ({tr_num(crowd_ratio)} kat): kalabalık tarafta ani short sıkışması riski var."})
     return {
+        "crowd_ratio": None if crowd_ratio is None else round(crowd_ratio, 2),
         "funding_pct": None if funding is None else round(funding * 100, 4), "oi_change_pct": None if oi_change_pct is None else round(oi_change_pct, 2),
         "taker_ratio": None if taker_ratio is None else round(taker_ratio, 2), "notes": notes, "bias": round(max(-1.0, min(1.0, bias)), 2),
     }
@@ -425,6 +447,16 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
         context.append({"tone": "warn", "text": "Oynaklık genişliyor: stop mesafesi ve kaldıraç buna göre gözden geçirilmeli, ani hareket normalden büyük olabilir."})
     elif len(quiet) >= 2:
         context.append({"tone": "flat", "text": "Oynaklık çok düşük: sıkışma sonrası sert hareket gelebilir, yönü belli değil."})
+    vw = [reads[tf]["vwap_dist_pct"] for tf in ("1h", "4h") if tf in reads and reads[tf].get("vwap_dist_pct") is not None]
+    if len(vw) == 2 and lean == "LONG" and all(d <= -0.3 for d in vw):
+        context.append({"tone": "warn", "text": "Fiyat 1 saat ve 4 saatlik hacim ağırlıklı ortalamanın (VWAP) altında: son alıcıların ortalama maliyeti üstte kalıyor, yükseliş zayıf kalabilir."})
+    elif len(vw) == 2 and lean == "SHORT" and all(d >= 0.3 for d in vw):
+        context.append({"tone": "warn", "text": "Fiyat 1 saat ve 4 saatlik hacim ağırlıklı ortalamanın (VWAP) üstünde: son satıcıların ortalama maliyeti altta kalıyor, düşüş zayıf kalabilir."})
+    for tf in ("15m", "1h", "4h"):
+        r = reads.get(tf)
+        if r and r.get("event") in ("breakout_up", "breakout_down") and not r.get("volume_spike") and r.get("rel_volume") is not None and r["rel_volume"] < 0.8:
+            context.append({"tone": "warn", "text": f"{r['label']} grafikte kırılım hacimle desteklenmiyor (hacim normalin %{round(r['rel_volume'] * 100)}'i): tutmayabilir."})
+            break
     near = [(lv, "direnç") for lv in levels["resistance"][:1]] + [(lv, "destek") for lv in levels["support"][:1]]
     for lv, name in near:
         if abs(lv["dist_pct"]) <= 0.4:
@@ -434,7 +466,7 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
         r0 = levels["resistance"][0]; sentences.append(f"En yakın direnç {price_text(r0['price'])} ({signed_pct(r0['dist_pct'])}).")
     if levels["support"]:
         s0 = levels["support"][0]; sentences.append(f"En yakın destek {price_text(s0['price'])} ({signed_pct(s0['dist_pct'])}).")
-    return {"bias": round(bias, 2), "lean": lean, "confidence": confidence, "title": title, "text": " ".join(sentences[:3]), "flags": (flags + context)[:5],
+    return {"bias": round(bias, 2), "lean": lean, "confidence": confidence, "title": title, "text": " ".join(sentences[:3]), "flags": (flags + context)[:6],
             "alignment": {"up": up, "down": down, "flat": flat, "total": len(present)}, "conflict": conflict,
             "regime": regime, "volatility": "expanding" if len(expanding) >= 2 else "quiet" if len(quiet) >= 2 else "normal" if any(reads[tf].get("vol_state") for tf in present) else None}
 
