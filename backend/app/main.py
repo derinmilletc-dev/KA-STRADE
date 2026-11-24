@@ -39,6 +39,7 @@ from .email_service import validate_app_base_url
 from .binance_rate_limit import BINANCE_GLOBAL_BAN, BINANCE_RATE_LIMITER
 from .binance_kline_stream import BinanceKlineStream
 from .binance_ticker_stream import TICKER_STREAM
+from .liq_stream import LIQ_STREAM
 from .market_universe import MarketUniverseCache, active_usdt_perpetual
 from .public_market_data import PROTECTED_LANE, PublicMarketData, PUBLIC_PATHS as PUBLIC_MARKET_PATHS
 from .exchange_connections import (
@@ -1220,6 +1221,7 @@ async def lifespan(app: FastAPI):
     app.state.public_market_data = PublicMarketData()
     app.state.original_kline_stream = BinanceKlineStream()
     TICKER_STREAM.enable()
+    LIQ_STREAM.enable()
     app.state.db_pool = None
     app.state.redis_client = None
     app.state.paper_schema_ready = False
@@ -1324,6 +1326,10 @@ async def lifespan(app: FastAPI):
     app.state.runtime_tasks.append(asyncio.create_task(price_alert_loop(app)))
     from .read_alarms import alarm_loop as read_alarm_loop  # pozisyon yorum alarmı: ~60 sn, yalnız alarmı olan coinler
     app.state.runtime_tasks.append(asyncio.create_task(read_alarm_loop(app)))
+    from .entry_watch import watch_loop as entry_watch_loop  # giriş fırsatı alarmı: ~90 sn, yalnız izlenen coinler
+    from .read_log import eval_loop as read_log_eval_loop  # yorum doğruluk takibi: 1 saat sonrasını fiyatla karşılaştırır
+    app.state.runtime_tasks.append(asyncio.create_task(entry_watch_loop(app)))
+    app.state.runtime_tasks.append(asyncio.create_task(read_log_eval_loop(app)))
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
@@ -1364,6 +1370,7 @@ async def lifespan(app: FastAPI):
     await bounded_shutdown(shutdown_v25_execution(app))
     await app.state.original_kline_stream.close()
     await TICKER_STREAM.close()
+    await LIQ_STREAM.close()
     await bounded_shutdown(shutdown_v27_cloud(app))
     await bounded_shutdown(shutdown_v22_commercial(app))
     await shutdown_chart_ai(app)

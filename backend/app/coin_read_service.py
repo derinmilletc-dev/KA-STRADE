@@ -11,7 +11,10 @@ import re
 import time
 from typing import Any, Awaitable, Callable
 
-from . import coin_read
+from datetime import datetime, timezone
+
+from . import coin_extras, coin_read, market_events
+from .liq_stream import LIQ_STREAM
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,8 @@ HISTORY_LIMIT = 1000
 READ_TTL = 20.0
 FUTURES_TTL = 60.0
 HISTORY_TTL = 600.0
+DEPTH_TTL = 15.0
+BTC_TTL = 60.0
 ALARM_TFS = ("5m", "15m", "1h", "4h", "1d")
 Fetch = Callable[[str, str, int], Awaitable[list[dict[str, Any]]]]
 Get = Callable[[str, dict[str, Any]], Awaitable[Any]]
@@ -28,11 +33,13 @@ Get = Callable[[str, dict[str, Any]], Awaitable[Any]]
 _reads: dict[str, tuple[float, dict[str, Any]]] = {}
 _futures: dict[str, tuple[float, dict[str, Any] | None]] = {}
 _history: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+_depth: dict[str, tuple[float, Any]] = {}
+_btc: list[Any] = [0.0, None]
 _locks: dict[str, asyncio.Lock] = {}
 
 
 def reset() -> None:
-    _reads.clear(); _futures.clear(); _history.clear(); _locks.clear()
+    _reads.clear(); _futures.clear(); _history.clear(); _depth.clear(); _btc[:] = [0.0, None]; _locks.clear()
 
 
 def valid_symbol(value: Any) -> str | None:
@@ -103,6 +110,72 @@ def _price_change_4h(candles: dict[str, list[dict[str, Any]]]) -> float | None:
     return coin_read.pct(rows[-1]["close"], rows[-5]["close"]) if len(rows) >= 5 else None
 
 
+async def _btc_read(app: Any, fetch: Fetch, get: Get | None, now: Callable[[], float]) -> dict[str, Any] | None:
+    if _btc[1] is not None and now() - _btc[0] < BTC_TTL:
+        return _btc[1]
+    try:
+        data = await read(app, "BTCUSDT", with_futures=False, tfs=("15m", "1h", "4h"), fetch=fetch, get=get, now=now)
+        data = {**data, "closes_1h": await fetch("BTCUSDT", "1h", 100)}
+    except Exception as exc:  # noqa: BLE001 - bağlam olmadan da yorum çıkar
+        logger.info("BTC bağlamı alınamadı (%s)", type(exc).__name__)
+        return None
+    _btc[:] = [now(), data]
+    return data
+
+
+async def _depth_read(symbol: str, get: Get, now: Callable[[], float]) -> Any:
+    hit = _depth.get(symbol)
+    if hit and now() - hit[0] < DEPTH_TTL:
+        return hit[1]
+    try:
+        raw = await get("/fapi/v1/depth", {"symbol": symbol, "limit": 100})
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Emir defteri alınamadı %s (%s)", symbol, type(exc).__name__)
+        raw = None
+    _depth[symbol] = (now(), raw)
+    if len(_depth) > 200:
+        for stale in sorted(_depth, key=lambda k: _depth[k][0])[:50]:
+            _depth.pop(stale, None)
+    return raw
+
+
+async def extras(app: Any, symbol: str, result: dict[str, Any], candles: dict[str, list[dict[str, Any]]], *, fetch: Fetch, get: Get | None,
+                 now: Callable[[], float], clock: Callable[[], datetime] | None = None) -> dict[str, Any]:
+    """Piyasa bağlamı, stop-hedef planı, emir defteri, likidasyon ve önemli saatler. Her parça kendi başına düşebilir."""
+    out: dict[str, Any] = {"context": None, "plan": None, "book": None, "liquidations": None, "events": None}
+    price = result.get("price") or 0.0
+    summary = result["summary"]
+    try:
+        atr_value = coin_extras.atr_of(candles.get("1h")) or coin_extras.atr_of(candles.get("15m"))
+        out["plan"] = coin_extras.trade_plan(summary["lean"], price, result["levels"], atr_value, summary["confidence"])
+        from . import read_log
+        await read_log.maybe_log(app, symbol, summary, price)
+    except Exception:  # noqa: BLE001
+        logger.exception("Yorum planı hesaplanamadı %s", symbol)
+    try:
+        btc = None if symbol == "BTCUSDT" else await _btc_read(app, fetch, get, now)
+        out["context"] = coin_extras.market_context(symbol, result, btc, candles.get("1h"), btc.get("closes_1h") if btc else None)
+    except Exception:  # noqa: BLE001
+        logger.exception("Piyasa bağlamı hesaplanamadı %s", symbol)
+    try:
+        get_fn = get or _default_get(app)
+        out["book"] = coin_extras.book_read(await _depth_read(symbol, get_fn, now), price)
+    except Exception:  # noqa: BLE001
+        logger.exception("Emir defteri okunamadı %s", symbol)
+    try:
+        LIQ_STREAM.ensure_started()
+        if LIQ_STREAM.healthy:
+            out["liquidations"] = coin_extras.liquidation_zones(LIQ_STREAM.recent(symbol), price)
+    except Exception:  # noqa: BLE001
+        logger.exception("Likidasyon verisi okunamadı %s", symbol)
+    try:
+        funding = (result.get("futures") or {}).get("funding_pct")
+        out["events"] = market_events.upcoming((clock or (lambda: datetime.now(timezone.utc)))(), funding_pct=funding)
+    except Exception:  # noqa: BLE001
+        logger.exception("Önemli saatler hesaplanamadı")
+    return out
+
+
 async def read(app: Any, symbol: str, *, history_tf: str | None = None, with_futures: bool = True,
                tfs: tuple[str, ...] = coin_read.TFS, fetch: Fetch | None = None, get: Get | None = None,
                now: Callable[[], float] = time.monotonic) -> dict[str, Any]:
@@ -138,6 +211,9 @@ async def read(app: Any, symbol: str, *, history_tf: str | None = None, with_fut
                     logger.info("Yorum geçmiş doğruluğu hesaplanamadı (%s)", type(exc).__name__)
         result = coin_read.build(candles, futures_raw, history=history, history_tf=history_tf)
         result["symbol"] = symbol
+        result["atr"] = coin_extras.atr_of(candles.get("1h")) or coin_extras.atr_of(candles.get("15m")) or coin_extras.atr_of(candles.get("5m"))
+        if with_futures:
+            result.update(await extras(app, symbol, result, candles, fetch=fetch, get=get, now=now))
         _reads[key] = (now(), result)
         if len(_reads) > 400:
             for stale in sorted(_reads, key=lambda k: _reads[k][0])[:100]:

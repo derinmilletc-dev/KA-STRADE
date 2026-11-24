@@ -54,7 +54,7 @@ def build_trades(feed: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]
         entry_fee = opened["fee"] * share
         trades.append({
             "product_id": product, "kind": "manual_close" if item["kind"] == "manual_close" else "target" if item["kind"] == "target" else "stop",
-            "time": item["time"], "opened": opened["since"], "gross": pnl, "fees": entry_fee + fee, "net": pnl - entry_fee - fee,
+            "time": item["time"], "opened": opened["since"], "side": opened["side"], "gross": pnl, "fees": entry_fee + fee, "net": pnl - entry_fee - fee,
         })
         opened["size"] -= size
         opened["fee"] -= entry_fee
