@@ -44,6 +44,17 @@ def _window_bp(window: Any) -> Decimal | None:
     return None
 
 
+def _level_name(level: Any) -> str:
+    return str(level or "").rsplit("_", 1)[-1].upper()
+
+
+def _window_empty(window: Any) -> bool:
+    """Pencere hiç doldurulmamış: marjin seviyesi yok/UNSPECIFIED ve alım gücü yok (Coinbase gün içi pencereyi uygulanmadığında böyle döndürebilir)."""
+    if not isinstance(window, dict):
+        return True
+    return _level_name(window.get("margin_level")) in ("", "UNSPECIFIED") and _window_bp(window) is None
+
+
 def worst_case_loss(*, side: str, entry: Decimal, limit_price: Decimal, contracts: int, contract_size: Decimal, fee_rate: Decimal) -> Decimal:
     """Stop-limit limit fiyatından kapanırsa toplam kayıp (komisyon dahil)."""
     units = Decimal(contracts) * contract_size
@@ -263,16 +274,25 @@ def run_preflight(
         # Hiç açık pozisyon yokken Coinbase marjin seviyesini "UNSPECIFIED" ve pencere alım gücünü boş döndürebilir:
         # değerlendirilecek bir risk yoktur. Pozisyon varsa bu belirsizlik hâlâ güvenli tarafta reddedilir.
         flat = not positions
-        level_name = str(balance.get("worst_margin_level") or "").rsplit("_", 1)[-1].upper()
-        if not (flat and level_name == "UNSPECIFIED") and level_rank(balance.get("worst_margin_level")) >= 1:
-            reasons.append(f"Marjin seviyesi sağlıksız ({balance.get('worst_margin_level')}, pencere: {balance.get('worst_margin_window')}).")
+        # Gün içi pencere BOŞSA (uygulanmıyor) ve gece penceresi dolu + sağlıklıysa (BASE) gece penceresine bakılır: gece marjini daha sıkıdır,
+        # yani bu kural güvenli tarafta kalır. TERS yönde gevşetme YOK: gece penceresi boşsa ya da sağlıksızsa emir yine reddedilir.
+        intraday, overnight = balance.get("intraday_window"), balance.get("overnight_window")
+        waive_intraday = (not flat and _window_empty(intraday) and isinstance(overnight, dict) and not _window_empty(overnight)
+                          and _level_name(overnight.get("margin_level")) == "BASE" and _window_bp(overnight) is not None)
+        worst_level = overnight.get("margin_level") if waive_intraday else balance.get("worst_margin_level")  # type: ignore[union-attr]
+        worst_window = "overnight" if waive_intraday else balance.get("worst_margin_window")
+        level_name = _level_name(worst_level)
+        if not (flat and level_name == "UNSPECIFIED") and level_rank(worst_level) >= 1:
+            reasons.append(f"Marjin seviyesi sağlıksız ({worst_level}, pencere: {worst_window}).")
         powers = [
             _amount_value(balance.get("futures_buying_power")),
             _amount_value(balance.get("available_margin")),
-            _window_bp(balance.get("intraday_window")),
-            _window_bp(balance.get("overnight_window")),
+            None if waive_intraday else _window_bp(intraday),
+            _window_bp(overnight),
         ]
         required = powers[:2]  # futures_buying_power ve available_margin her zaman gerekir
+        if waive_intraday:
+            powers = [p for i, p in enumerate(powers) if i != 2]  # boş gün içi pencere değerlendirme dışı
         if flat:
             powers = [p for p in powers if p is not None]  # pencere değerleri boşsa (pozisyon yok) üst düzey değerlere güvenilir
         if any(p is None for p in required) or any(p is None for p in powers):
