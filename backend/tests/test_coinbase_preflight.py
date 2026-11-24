@@ -175,9 +175,14 @@ class PreflightTests(unittest.TestCase):
         # her iki pencere de boşsa reddedilir
         ikisi_bos = {"balance": {**acct["balance"], "overnight_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED"}}}
         self.assertFalse(go(account=ikisi_bos, positions=other)["ok"])
-        # gün içi pencere DOLU ama seviyesi belirsizse (boş değil) eski sıkı davranış
+        # gün içi seviye belirtilmemiş ama alım gücü dolu: gece BASE ise geçer, alım gücü yine min'e girer
         dolu = {"balance": {**acct["balance"], "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "futures_buying_power": "300"}}}
-        self.assertFalse(go(account=dolu, positions=other)["ok"])
+        self.assertTrue(go(account=dolu, positions=other)["ok"])
+        az = {"balance": {**acct["balance"], "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "futures_buying_power": "20"}}}
+        self.assertFalse(go(account=az, positions=other)["ok"])
+        # gün içi seviye tanınmayan bir değerse (UNSPECIFIED değil) reddedilir
+        garip = {"balance": {**acct["balance"], "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_FOO", "futures_buying_power": "300"}}}
+        self.assertFalse(go(account=garip, positions=other)["ok"])
 
     def test_unknown_margin_level_is_unhealthy(self):
         acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "SOMETHING_NEW"}}
