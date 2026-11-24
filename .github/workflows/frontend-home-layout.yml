@@ -1,0 +1,52 @@
+name: Frontend Home Layout
+
+on:
+  push:
+    paths:
+      - 'MobileHome.tsx'
+      - 'mobile-home.css'
+      - 'frontend/tests/home-layout.spec.ts'
+      - 'frontend/playwright.home-layout.config.ts'
+      - '.github/workflows/frontend-home-layout.yml'
+  pull_request:
+    paths:
+      - 'MobileHome.tsx'
+      - 'mobile-home.css'
+      - 'frontend/tests/home-layout.spec.ts'
+      - 'frontend/playwright.home-layout.config.ts'
+      - '.github/workflows/frontend-home-layout.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: home-layout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  home-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - run: npm --prefix .. ci
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm --prefix .. run build
+      - run: npx playwright test -c playwright.home-layout.config.ts
+      - name: Hata ayrıntısı
+        if: failure()
+        run: |
+          for f in $(ls /tmp/kais-home-*/*/error-context.md 2>/dev/null | head -3); do echo "=== $f"; head -c 6000 "$f"; done
